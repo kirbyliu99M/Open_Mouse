@@ -77,3 +77,20 @@ describe("scanSubmissionSchema", () => {
     expect(r.success && "image" in r.data).toBe(false);
   });
 });
+
+describe("SHEET geometry", () => {
+  it("is internally consistent: centre square + one marker = outer extent", () => {
+    expect(SHEET.markerCentreSquareMm + SHEET.markerSizeMm).toBe(
+      SHEET.markerLayoutOuterMm,
+    );
+  });
+
+  it.each([
+    ["A4", 210],
+    ["US Letter", 215.9],
+  ])("leaves printable side margins on %s", (_, paperWidthMm) => {
+    expect(
+      (paperWidthMm - SHEET.markerLayoutOuterMm) / 2,
+    ).toBeGreaterThanOrEqual(10);
+  });
+});

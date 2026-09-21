@@ -9,11 +9,18 @@ import { z } from "zod";
 
 // ── Calibration sheet geometry (docs/PLAN.md §M2) ───────────────────────────
 
-/** ArUco marker centres sit on this square; identical on A4 and US Letter. */
+/**
+ * Flat-flap marker layout. The four markers' OUTER edges span 180 mm, so the
+ * layout fits A4 (210 mm wide) and US Letter (215.9 mm) with ≥15 mm side
+ * margins — printers cannot print to the paper edge. Centres therefore sit on
+ * a 155 mm square. The hand may extend past the markers: the homography plane
+ * is the table surface, which the sheet lies flat on.
+ * Use all 16 marker corners for the homography, not just 4 centres.
+ */
 export const SHEET = {
-  markerSquareMm: 180,
-  /** Side length of each printed marker, black border included. */
-  markerSizeMm: 30,
+  markerLayoutOuterMm: 180,
+  markerSizeMm: 25,
+  markerCentreSquareMm: 155,
   /** js-aruco2 dictionary. Marker ids 0–3 = flat flap, clockwise from top-left. */
   dictionary: "ARUCO_MIP_36h12",
   flatMarkerIds: [0, 1, 2, 3] as const,
