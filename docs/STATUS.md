@@ -3,35 +3,30 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
+_Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fixed)_
 
 ---
 
 ## Right now
 
-**Current milestone:** M0 — Scaffold (now owned by Claude — backend handover)
-**Codex handoff:** [Deployment investigation and resource identifiers](HANDOFF-CLAUDE.md). Codex continues with frontend/3D tool readiness; the initial Blender MCP connection check did not return and made no scene changes.
-**Next action:** Kirby enables Neon preview branching (below); Claude then verifies the preview branch + migration and moves [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) out of draft for Codex review. Claude starts M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) in parallel on a stacked branch.
-**Blocked on — Kirby, Vercel dashboard only:**
-
-1. **Storage → `open-mouse-db` → enable Preview branching** (and "wait for resource before deploying"). Confirmed cause from the build log: `Preview migrations must use a separate database endpoint.` — the guard is working; Preview and Production currently share one endpoint.
-2. **Set `DATABASE_PRODUCTION_HOST`** in the Vercel project (Preview scope) to the production hostname, no credentials.
-3. **Remove the duplicate project `open-mouse-4awb`** — it is linked to the same repo and fails every PR independently.
+**Current milestone:** M1 (classification ready to run) · M2 part A in review.
+**Awaiting Kirby's merge, in order:** #3 → #4 → #5 → #6, then #8 and #9 (independent of each other). All reviewed; every review finding fixed.
+**Next:** M1 gate run with Kirby's `GEMINI_API_KEY` (`npm run classify:descriptors`, then `npm run rubric:validate -- --predictions src/db/seed/logitech-descriptors.json`). Then M2 part B: live capture (camera + ArUco detection + MediaPipe) and the scan API. Codex: M4a Blender, issue #7.
 
 ---
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                                   |
-| --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance                               |
-| M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | part 1 PR #4; part 2 seed (30 current models) PR #5; classification waits on Gemini key |
-| M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                                               |
-| M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                                         |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                     | –                                                        | largest build                                                                           |
-| M5  | Gemini analysis                    | –     | ⬜                     | –                                                        | cost levers matter, see PLAN                                                            |
-| M6  | Sessions, auth, privacy            | –     | ⬜                     | –                                                        |                                                                                         |
-| M7  | Polish + security review           | –     | ⬜                     | –                                                        | before any public exposure                                                              |
+| #   | Milestone                          | Gated | Status             | PR                                                     | Notes                                                                                             |
+| --- | ---------------------------------- | ----- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | 🏗 draft PR         | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | local + CI pass; Neon preview branching blocks acceptance                                         |
+| M1  | Data layer + shape rubric          | ✅    | 🔍 in review       | #4 #5 #8                                               | schema, 30-model seed, classifier built (fake-tested); gate run needs the Gemini key              |
+| M2  | Calibration + measurement          | ✅    | 🏗 part A in review | #9                                                     | sheet + geometry done; part B = live capture + API; ground-truth photos still needed for the gate |
+| M3  | Fit engine                         | –     | ⬜                 | –                                                      | coefficients need real pairings                                                                   |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                 | –                                                      | M4a Blender → Codex, issue #7                                                                     |
+| M5  | Gemini analysis                    | –     | ⬜                 | –                                                      | cost levers matter, see PLAN                                                                      |
+| M6  | Sessions, auth, privacy            | –     | ⬜                 | –                                                      |                                                                                                   |
+| M7  | Polish + security review           | –     | ⬜                 | –                                                      | before any public exposure                                                                        |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -108,6 +103,12 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-21 | Contract v1: marker layout is 180 mm _outer_ extent (25 mm markers, centres on 155 mm) | Centres on 180 mm with 30 mm markers spanned 210 mm = A4 width, leaving no printer margin |
 | 2026-09-21 | Browser sends raw landmark distances under a versioned measurement model | Landmarks are joint centres (palm width reads 10–20 mm low); correction is fitted to ruler ground truth in M2, not guessed client-side |
 | 2026-09-21 | `weight_g` gets a positivity CHECK | Reviewer finding: dimensions were guarded but weight was not |
+| 2026-09-21 | Each worktree runs its own `npm ci`; `node_modules` is never shared | npm reconciles a whole folder against its own branch's lockfile, so a shared one is silently rewritten by the last installer |
+| 2026-09-21 | Classifier uses product images only, never lifestyle shots | Review finding: fewer images beat misleading ones for the visual descriptors M1 hinges on |
+| 2026-09-21 | Descriptors file is authoritative for the models it contains | Review finding: COALESCE let a stale wrong value survive a later needsReview. Models absent from the file keep their stored values |
+| 2026-09-21 | Partial-view classifications are allowed but annotated | Classifying from one available view beats discarding evidence; the note lets misses be audited against it |
+| 2026-09-21 | Classification checkpoints after every model | The real run spends Kirby's key; a crash midway must not lose completed work |
+| 2026-09-21 | Printed sheet verified by real PDF render: exactly 1 page on A4 and Letter, SVG exactly 210 mm | Review finding: a global CSS margin rendered it as 3 pages at 79% scale; geometry-only tests could not see it |
 ---
 
 ## Risks
