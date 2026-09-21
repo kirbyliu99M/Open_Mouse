@@ -1,17 +1,21 @@
 # STATUS — live project board
 
-**Codex: update this file in every PR.** It is the single source of truth for
-where the project stands. Claude reads it before writing the next milestone spec.
+**Every PR updates this file — Claude's and Codex's.** It is the single source of
+truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-21 · by: Codex (M0 implementation in progress)_
+_Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
 
 ---
 
 ## Right now
 
-**Current milestone:** M0 — Scaffold
-**Next action:** Finish live preview acceptance on draft [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3), then request Claude's review for issue [#1](https://github.com/kirbyliu99M/Open_Mouse/issues/1).
-**Blocked on:** Enable Preview branching and the resource-ready deployment requirement on `open-mouse-db` in Vercel. The free Neon database is provisioned and connected to `kirby-at-ntu/open-mouse`. Preview migrations refuse the production endpoint. M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) waits for M0 review and merge.
+**Current milestone:** M0 — Scaffold (now owned by Claude — backend handover)
+**Next action:** Kirby enables Neon preview branching (below); Claude then verifies the preview branch + migration and moves [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) out of draft for Codex review. Claude starts M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) in parallel on a stacked branch.
+**Blocked on — Kirby, Vercel dashboard only:**
+
+1. **Storage → `open-mouse-db` → enable Preview branching** (and "wait for resource before deploying"). Confirmed cause from the build log: `Preview migrations must use a separate database endpoint.` — the guard is working; Preview and Production currently share one endpoint.
+2. **Set `DATABASE_PRODUCTION_HOST`** in the Vercel project (Preview scope) to the production hostname, no credentials.
+3. **Remove the duplicate project `open-mouse-4awb`** — it is linked to the same repo and fails every PR independently.
 
 ---
 
@@ -83,6 +87,10 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-21 | Repo is a **sibling** of `Dataset/`, not its parent                                                   | Makes committing licensed data structurally impossible, not merely forbidden                                                                     |
 | 2026-09-21 | `Size` is computed, not classified: `L + 0.4*(W-64)`                                                  | Measured 91.5% exact / 99.8% within-one on n=1260; removes a descriptor from the vision task                                                     |
 | 2026-09-21 | M1 gate rebased on direction + within-one-level                                                       | Hump and flare have no numeric proxy, and 88% of mice sit in 3 of 7 flare levels — exact 7-way agreement is a poor proxy for fitness for purpose |
+| 2026-09-21 | **Backend moves from Codex to Claude**; Codex owns frontend + 3D                                      | Kirby's call. Split, directory ownership and cross-review rules in `AGENTS.md`                                                                   |
+| 2026-09-21 | Cross-review: Claude reviews Codex, Codex reviews Claude, Kirby merges                                | With Claude now writing code, nobody may approve their own work                                                                                  |
+| 2026-09-21 | `src/lib/contracts/` is the only frontend/backend seam                                                | Lets both halves build in parallel against one runtime-validated shape                                                                           |
+| 2026-09-21 | Migration errors are redacted, not suppressed                                                         | M0 review: the generic message hid real SQL failures. `describeMigrationError` keeps Postgres detail, strips URLs and credentials                |
 | 2026-09-21 | M0 uses Node 24, the latest Next.js 15 patch, and versioned Drizzle migrations applied over Neon HTTP | Matches the milestone and existing Vercel runtime; no persistent connection pool                                                                 |
 | 2026-09-21 | Preview builds apply migrations; production migrations are explicit                                   | Preview database isolation must be configured through Marketplace before deployment can pass                                                     |
 | 2026-09-21 | Issue #1's secret criterion is interpreted as no credential values in code                            | Environment variable names must be referenced to read server configuration; Gemini has no implementation in M0                                   |

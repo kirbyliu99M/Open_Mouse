@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { migrate } from "drizzle-orm/neon-http/migrator";
 import {
-  DatabaseConfigurationError,
+  describeMigrationError,
   requireDatabaseUrl,
   requirePreviewDatabaseUrl,
 } from "../src/db/config";
@@ -36,11 +36,7 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  // Driver errors can contain SQL/connection details. Keep build logs secret-free.
-  console.error(
-    error instanceof DatabaseConfigurationError
-      ? error.message
-      : "Migration failed. Check the server database configuration and branch access.",
-  );
+  // Report the real failure with connection strings and credentials redacted.
+  console.error(describeMigrationError(error));
   process.exitCode = 1;
 });

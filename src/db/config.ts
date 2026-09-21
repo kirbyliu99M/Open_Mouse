@@ -52,3 +52,33 @@ export function requirePreviewDatabaseUrl(
   }
   return connection;
 }
+
+const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
+const CREDENTIAL_PAIR =
+  /\b(password|passwd|pwd|secret|token)\s*[=:]\s*[^\s'"`,;]+/gi;
+
+/**
+ * Makes a driver or SQL error safe for build logs while keeping it useful.
+ * Connection URLs and credential pairs are replaced; everything else — the
+ * failing statement, Postgres error text, constraint names — survives, because
+ * a migration failure you cannot read is a migration failure you cannot fix.
+ */
+export function redactSecrets(message: string): string {
+  return message
+    .replace(CONNECTION_URL, "[redacted-url]")
+    .replace(CREDENTIAL_PAIR, (_, key: string) => `${key}=[redacted]`);
+}
+
+export function describeMigrationError(error: unknown): string {
+  if (error instanceof DatabaseConfigurationError) return error.message;
+  const detail =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+  const safe = redactSecrets(detail).trim();
+  return safe
+    ? `Migration failed: ${safe}`
+    : "Migration failed with no error detail. Check the database configuration and branch access.";
+}
