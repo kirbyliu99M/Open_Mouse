@@ -50,3 +50,9 @@ Thumbs.db
 # Ground-truth hand photos (personal data) - kept outside the repo; belt and braces
 Fixtures/
 tests/fixtures/hands/
+# `Fixtures/` above is meant to catch personal hand-photo data, but Windows
+# git (core.ignorecase=true) matches it case-insensitively against any
+# "fixtures" directory anywhere in the tree. Un-ignore the results UI's mock
+# JSON fixtures (issue #15) explicitly - they are not photos or licensed data.
+!src/components/results/fixtures/
+!src/components/results/fixtures/**

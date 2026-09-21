@@ -1,0 +1,197 @@
+{
+  "scanId": "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d",
+  "engineVersion": "fit-v0-provisional",
+  "gripStyle": { "stated": "claw", "predicted": "claw", "used": "claw" },
+  "targets": { "lengthMm": 120, "gripWidthMm": 64, "heightMm": 38 },
+  "excluded": [],
+  "results": [
+    {
+      "rank": 1,
+      "mouse": {
+        "slug": "logitech-g-pro-x-superlight-2",
+        "brand": "Logitech",
+        "model": "G Pro X Superlight 2",
+        "lengthMm": 125,
+        "widthMm": 63.5,
+        "heightMm": 40,
+        "weightG": 60,
+        "size": "large"
+      },
+      "total": 91,
+      "confidence": 0.92,
+      "subscores": {
+        "length": {
+          "score": 88,
+          "weight": 0.2,
+          "reason": { "code": "length_long", "params": { "deltaMm": 5 } }
+        },
+        "gripWidth": {
+          "score": 92,
+          "weight": 0.2,
+          "reason": { "code": "width_ideal", "params": { "deltaMm": -0.5 } }
+        },
+        "heightHump": {
+          "score": 85,
+          "weight": 0.15,
+          "reason": { "code": "height_ideal", "params": { "deltaMm": 2 } }
+        },
+        "frontFlare": {
+          "score": 95,
+          "weight": 0.15,
+          "reason": { "code": "flare_supports_fingers", "params": {} }
+        },
+        "thumb": {
+          "score": 80,
+          "weight": 0.15,
+          "reason": { "code": "thumb_neutral", "params": {} }
+        },
+        "weight": {
+          "score": 96,
+          "weight": 0.15,
+          "reason": { "code": "weight_in_range", "params": { "deltaG": 2 } }
+        }
+      }
+    },
+    {
+      "rank": 2,
+      "mouse": {
+        "slug": "razer-deathadder-v3",
+        "brand": "Razer",
+        "model": "DeathAdder V3",
+        "lengthMm": 128,
+        "widthMm": 68,
+        "heightMm": 42,
+        "weightG": 59,
+        "size": "large"
+      },
+      "total": 78,
+      "confidence": 0.88,
+      "subscores": {
+        "length": {
+          "score": 70,
+          "weight": 0.2,
+          "reason": { "code": "length_long", "params": { "deltaMm": 8 } }
+        },
+        "gripWidth": {
+          "score": 65,
+          "weight": 0.2,
+          "reason": { "code": "width_wide", "params": { "deltaMm": 4 } }
+        },
+        "heightHump": {
+          "score": 80,
+          "weight": 0.15,
+          "reason": { "code": "hump_matches_grip", "params": {} }
+        },
+        "frontFlare": {
+          "score": 75,
+          "weight": 0.15,
+          "reason": { "code": "flare_neutral", "params": {} }
+        },
+        "thumb": {
+          "score": 90,
+          "weight": 0.15,
+          "reason": { "code": "thumb_rest_supports", "params": {} }
+        },
+        "weight": {
+          "score": 97,
+          "weight": 0.15,
+          "reason": { "code": "weight_in_range", "params": { "deltaG": 1 } }
+        }
+      }
+    },
+    {
+      "rank": 3,
+      "mouse": {
+        "slug": "zowie-ec2",
+        "brand": "Zowie",
+        "model": "EC2",
+        "lengthMm": 122,
+        "widthMm": 66,
+        "heightMm": 40,
+        "weightG": 73,
+        "size": "medium"
+      },
+      "total": 70,
+      "confidence": 0.8,
+      "subscores": {
+        "length": {
+          "score": 95,
+          "weight": 0.2,
+          "reason": { "code": "length_ideal", "params": { "deltaMm": 2 } }
+        },
+        "gripWidth": {
+          "score": 82,
+          "weight": 0.2,
+          "reason": { "code": "width_wide", "params": { "deltaMm": 2 } }
+        },
+        "heightHump": {
+          "score": 55,
+          "weight": 0.15,
+          "reason": { "code": "hump_mismatch_grip", "params": {} }
+        },
+        "frontFlare": {
+          "score": 50,
+          "weight": 0.15,
+          "reason": { "code": "flare_crowds_fingers", "params": {} }
+        },
+        "thumb": {
+          "score": 60,
+          "weight": 0.15,
+          "reason": { "code": "thumb_rest_unneeded", "params": {} }
+        },
+        "weight": {
+          "score": 68,
+          "weight": 0.15,
+          "reason": { "code": "weight_heavier", "params": { "deltaG": 13 } }
+        }
+      }
+    },
+    {
+      "rank": 4,
+      "mouse": {
+        "slug": "pulsar-x2",
+        "brand": "Pulsar",
+        "model": "X2",
+        "lengthMm": 120,
+        "widthMm": 63,
+        "heightMm": 38,
+        "weightG": 52,
+        "size": "small"
+      },
+      "total": 64,
+      "confidence": 0.75,
+      "subscores": {
+        "length": {
+          "score": 99,
+          "weight": 0.2,
+          "reason": { "code": "length_ideal", "params": { "deltaMm": 0 } }
+        },
+        "gripWidth": {
+          "score": 96,
+          "weight": 0.2,
+          "reason": { "code": "width_ideal", "params": { "deltaMm": -1 } }
+        },
+        "heightHump": {
+          "score": 40,
+          "weight": 0.15,
+          "reason": { "code": "hump_mismatch_grip", "params": {} }
+        },
+        "frontFlare": {
+          "score": 35,
+          "weight": 0.15,
+          "reason": { "code": "flare_crowds_fingers", "params": {} }
+        },
+        "thumb": {
+          "score": 45,
+          "weight": 0.15,
+          "reason": { "code": "thumb_rest_unneeded", "params": {} }
+        },
+        "weight": {
+          "score": 55,
+          "weight": 0.15,
+          "reason": { "code": "weight_lighter", "params": { "deltaG": 8 } }
+        }
+      }
+    }
+  ]
+}
