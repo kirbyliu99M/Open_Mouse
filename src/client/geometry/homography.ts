@@ -240,7 +240,14 @@ function solveLinearSystem(
   return m.map((row, i) => row[n] / row[i]);
 }
 
-function multiply3x3(a: Homography, b: Homography): Homography {
+/**
+ * Multiply two row-major 3×3 matrices. Exported (beyond this module's own
+ * DLT solve) so camera-pose.ts / focal-from-homography.ts can reuse the
+ * same tested 3×3 linear algebra instead of re-implementing it — this
+ * function has no dependency on the "homography" semantics of its
+ * arguments, it just multiplies matrices.
+ */
+export function multiply3x3(a: Homography, b: Homography): Homography {
   const result: number[][] = Array.from({ length: 3 }, () => [0, 0, 0]);
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
@@ -252,13 +259,16 @@ function multiply3x3(a: Homography, b: Homography): Homography {
   return result as unknown as Homography;
 }
 
-function invert3x3(m: Homography): Homography {
+/**
+ * Invert a row-major 3×3 matrix (via the adjugate). Exported for reuse by
+ * camera-pose.ts, which needs a general 3×3 inverse for K and for flipping
+ * this module's image-px→sheet-mm homography around to sheet-mm→image-px.
+ */
+export function invert3x3(m: Homography): Homography {
   const [[a, b, c], [d, e, f], [g, h, i]] = m;
   const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
   if (Math.abs(det) < 1e-15) {
-    throw new RangeError(
-      "estimateHomography: normalization transform is singular (degenerate input points).",
-    );
+    throw new RangeError("invert3x3: matrix is singular (determinant ≈ 0).");
   }
   const invDet = 1 / det;
   return [
