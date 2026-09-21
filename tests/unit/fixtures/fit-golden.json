@@ -8,11 +8,11 @@
     },
     "predictedGrip": "fingertip",
     "top5": [
-      { "slug": "logitech-m240", "total": 60 },
-      { "slug": "logitech-m196", "total": 56 },
-      { "slug": "logitech-mx-anywhere-3s", "total": 52 },
-      { "slug": "logitech-pebble-2-m350s", "total": 50 },
-      { "slug": "logitech-pop-mouse", "total": 41 }
+      { "slug": "logitech-m240", "total": 64 },
+      { "slug": "logitech-m196", "total": 61 },
+      { "slug": "logitech-mx-anywhere-3s", "total": 58 },
+      { "slug": "logitech-pebble-2-m350s", "total": 56 },
+      { "slug": "logitech-pop-mouse", "total": 49 }
     ]
   },
   "medium_claw": {
@@ -24,11 +24,11 @@
     },
     "predictedGrip": "claw",
     "top5": [
-      { "slug": "logitech-m100", "total": 89 },
-      { "slug": "logitech-g203-lightsync", "total": 88 },
-      { "slug": "logitech-g305-lightspeed", "total": 88 },
-      { "slug": "logitech-m190", "total": 85 },
-      { "slug": "logitech-g-pro-x-superlight-2c", "total": 79 }
+      { "slug": "logitech-m100", "total": 86 },
+      { "slug": "logitech-g203-lightsync", "total": 85 },
+      { "slug": "logitech-g305-lightspeed", "total": 85 },
+      { "slug": "logitech-m190", "total": 83 },
+      { "slug": "logitech-g-pro-x-superlight-2c", "total": 78 }
     ]
   },
   "large_palm": {
@@ -40,11 +40,11 @@
     },
     "predictedGrip": "palm",
     "top5": [
-      { "slug": "logitech-g502-x", "total": 84 },
-      { "slug": "logitech-g502-x-lightspeed", "total": 84 },
-      { "slug": "logitech-g502-x-plus", "total": 84 },
+      { "slug": "logitech-g502-x", "total": 82 },
+      { "slug": "logitech-g502-x-lightspeed", "total": 82 },
+      { "slug": "logitech-g502-x-plus", "total": 82 },
       { "slug": "logitech-g502-hero", "total": 75 },
-      { "slug": "logitech-ergo-m575", "total": 55 }
+      { "slug": "logitech-ergo-m575", "total": 60 }
     ]
   },
   "left_handed": {
@@ -56,11 +56,11 @@
     },
     "predictedGrip": "claw",
     "top5": [
-      { "slug": "logitech-m100", "total": 85 },
-      { "slug": "logitech-m550", "total": 80 },
-      { "slug": "logitech-m650", "total": 80 },
+      { "slug": "logitech-m100", "total": 83 },
+      { "slug": "logitech-m550", "total": 78 },
+      { "slug": "logitech-m650", "total": 78 },
       { "slug": "logitech-pop-mouse", "total": 75 },
-      { "slug": "logitech-g203-lightsync", "total": 68 }
+      { "slug": "logitech-g203-lightsync", "total": 70 }
     ]
   }
 }

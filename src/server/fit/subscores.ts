@@ -26,6 +26,21 @@ import type { CatalogueMouse, SubscoreResult } from "./types";
 
 const isPalm = (grip: GripStyle) => grip === "palm";
 
+/**
+ * Shared "which way is it off, and by how much a band" reason-code picker:
+ * |delta| at or under IDEAL_SIGMA_FRACTION·sigma is the ideal code, else the
+ * low/high code by the sign of delta. Used by length, gripWidth and the
+ * height component of heightHump.
+ */
+function magnitudeCode(
+  deltaMm: number,
+  sigmaMm: number,
+  codes: { ideal: ReasonCode; low: ReasonCode; high: ReasonCode },
+): ReasonCode {
+  if (Math.abs(deltaMm) <= sigmaMm * IDEAL_SIGMA_FRACTION) return codes.ideal;
+  return deltaMm < 0 ? codes.low : codes.high;
+}
+
 // ── length ────────────────────────────────────────────────────────────────
 
 export function scoreLength(
@@ -34,12 +49,11 @@ export function scoreLength(
 ): SubscoreResult {
   const deltaMm = mouse.lengthMm - targetMm;
   const score = gaussianScore(deltaMm, SIGMA_MM.length);
-  const code: ReasonCode =
-    Math.abs(deltaMm) <= SIGMA_MM.length * IDEAL_SIGMA_FRACTION
-      ? "length_ideal"
-      : deltaMm < 0
-        ? "length_short"
-        : "length_long";
+  const code = magnitudeCode(deltaMm, SIGMA_MM.length, {
+    ideal: "length_ideal",
+    low: "length_short",
+    high: "length_long",
+  });
   return {
     score,
     weight: BASE_WEIGHTS.length,
@@ -63,13 +77,18 @@ export function scoreGripWidth(
   const effectiveWidthMm = mouse.widthMm + curvatureAdjMm + ergonomicThumbAdjMm;
   const deltaMm = effectiveWidthMm - targetMm;
   const score = gaussianScore(deltaMm, SIGMA_MM.gripWidth);
-  const code: ReasonCode =
-    Math.abs(deltaMm) <= SIGMA_MM.gripWidth * IDEAL_SIGMA_FRACTION
-      ? "width_ideal"
-      : deltaMm < 0
-        ? "width_narrow"
-        : "width_wide";
-  // §3: "Null curvature → use 0 adj but lower this sub-score's weight by half."
+  const code = magnitudeCode(deltaMm, SIGMA_MM.gripWidth, {
+    ideal: "width_ideal",
+    low: "width_narrow",
+    high: "width_wide",
+  });
+  // §3: "Null curvature → use 0 adj but lower this sub-score's weight by
+  // half." Kept even after the null-score prior (coefficients.ts,
+  // UNKNOWN_PRIOR_SCORE) landed: the two are not redundant. gripWidth's
+  // score here is never null — curvature just defaults its adjustment to 0
+  // — so the prior never applies to it. Halving the weight is a distinct,
+  // still-meaningful signal: a real score computed on incomplete
+  // information should sway the total less than one backed by full data.
   const weight =
     curvature === null ? BASE_WEIGHTS.gripWidth / 2 : BASE_WEIGHTS.gripWidth;
   return {
@@ -97,14 +116,19 @@ export function scoreHeightHump(
 ): SubscoreResult {
   const deltaMm = mouse.heightMm - targetMm;
   const heightScore = gaussianScore(deltaMm, SIGMA_MM.height);
+  const heightCode = magnitudeCode(deltaMm, SIGMA_MM.height, {
+    ideal: "height_ideal",
+    low: "height_low",
+    high: "height_high",
+  });
 
   if (mouse.humpPlacement === null) {
-    // §3: "Null hump → height only, reason descriptor_unknown param-free
-    // for the hump part."
+    // §3 (revised): hump unclassified → height only, and the reason names
+    // the height band (there is no hump component to compare it against).
     return {
       score: heightScore,
       weight: BASE_WEIGHTS.heightHump,
-      reason: { code: "descriptor_unknown", params: {} },
+      reason: { code: heightCode, params: { deltaMm, targetMm } },
     };
   }
 
@@ -114,12 +138,18 @@ export function scoreHeightHump(
     ...bestIndices.map((i) => Math.abs(i - actualIndex)),
   );
   const humpScore = 100 * HUMP_LEVEL_OFF_MULTIPLIER[levelsOff];
+  const humpCode: ReasonCode =
+    levelsOff === 0 ? "hump_matches_grip" : "hump_mismatch_grip";
   const score = Math.round(
     HEIGHT_HUMP_HEIGHT_WEIGHT * heightScore +
       HEIGHT_HUMP_HUMP_WEIGHT * humpScore,
   );
-  const code: ReasonCode =
-    levelsOff === 0 ? "hump_matches_grip" : "hump_mismatch_grip";
+  // §3 (revised): the reason names whichever component scored lower — the
+  // weaker one is the more useful explanation of why the subscore isn't
+  // higher. A tie (both parts perfect) favors the hump code, since that is
+  // the only way "hump_matches_grip" is ever reachable: humpScore tops out
+  // at 100, so it can only tie heightScore, never exceed it.
+  const code = heightScore < humpScore ? heightCode : humpCode;
   return {
     score,
     weight: BASE_WEIGHTS.heightHump,

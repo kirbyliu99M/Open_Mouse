@@ -5,11 +5,13 @@ import type { CatalogueMouse } from "./types";
 export type ExclusionReason = "wrong_hand" | "vertical_form_factor";
 
 /**
- * §5: right-hand scan excludes left-handed mice; left-hand scan excludes
- * right-handed *ergonomic* mice (symmetric/hybrid right mice stay).
- * Height/Length > 0.55 excludes unless prefs.includeVertical. Unknown
- * handedness is never excluded. Handedness is checked before the vertical
- * form factor when both would apply.
+ * §5 (revised): right-hand scan excludes left-handed mice; left-hand scan
+ * excludes right-handed mice shaped *ergonomic* or *hybrid* — only
+ * symmetrical right mice stay. Height/Length > 0.55 excludes unless
+ * prefs.includeVertical. Unknown handedness is never excluded, and unknown
+ * shape is never excluded (a right-handed mouse with shape null stays for a
+ * left-hand scan). Handedness is checked before the vertical form factor
+ * when both would apply.
  */
 export function excludeReason(
   mouse: CatalogueMouse,
@@ -22,7 +24,7 @@ export function excludeReason(
     if (
       hand === "left" &&
       mouse.handCompatibility === "right" &&
-      mouse.shape === "ergonomic"
+      (mouse.shape === "ergonomic" || mouse.shape === "hybrid")
     ) {
       return "wrong_hand";
     }

@@ -86,19 +86,34 @@ describe("scoreGripWidth", () => {
 });
 
 describe("scoreHeightHump", () => {
-  it("scores height only, with descriptor_unknown, when hump is null", () => {
-    const r = scoreHeightHump(
-      mouse({ heightMm: 40, humpPlacement: null }),
-      40,
-      "palm",
-    );
-    expect(r.score).toBe(100);
-    expect(r.reason).toEqual({ code: "descriptor_unknown", params: {} });
-    expect(r.weight).toBe(0.2);
+  describe("null hump — height-only score, reason names the height band", () => {
+    it.each([
+      // [heightMm, targetMm, expectedCode] — sigma 3mm, ideal band |Δ|<=1.5
+      [34, 40, "height_low"], //   Δ=-6
+      [38.5, 40, "height_ideal"], // Δ=-1.5, ideal boundary
+      [40, 40, "height_ideal"], // Δ=0
+      [41.5, 40, "height_ideal"], // Δ=1.5, ideal boundary
+      [46, 40, "height_high"], //  Δ=6
+    ] as const)("height=%s target=%s → %s", (heightMm, targetMm, code) => {
+      const r = scoreHeightHump(
+        mouse({ heightMm, humpPlacement: null }),
+        targetMm,
+        "palm",
+      );
+      expect(r.reason.code).toBe(code);
+      expect(r.reason.params).toEqual({
+        deltaMm: heightMm - targetMm,
+        targetMm,
+      });
+      expect(r.weight).toBe(0.2);
+    });
   });
 
   it.each([
-    // [grip, humpPlacement, levelsOff, code]
+    // [grip, humpPlacement, levelsOff, code] — height fixed at target
+    // (Δ=0, heightScore=100): levelsOff=0 ties the hump score at 100 too,
+    // and ties favor the hump code (see subscores.ts); levelsOff>0 makes
+    // the hump score strictly the lower (weaker) one.
     ["palm", "back_moderate", 0, "hump_matches_grip"],
     ["palm", "back_aggressive", 0, "hump_matches_grip"],
     ["palm", "back_minimal", 1, "hump_mismatch_grip"],
@@ -127,6 +142,29 @@ describe("scoreHeightHump", () => {
       expect(r.score).toBe(Math.round(0.6 * 100 + 0.4 * 100 * humpMultiplier));
     },
   );
+
+  it("names the weaker component when hump matches but height misses badly", () => {
+    // claw, back_minimal → levelsOff 0, humpScore 100. Height way off (Δ=-6
+    // → heightScore 61) is the weaker part, so it wins the reason even
+    // though the hump placement matches.
+    const r = scoreHeightHump(
+      mouse({ heightMm: 34, humpPlacement: "back_minimal" }),
+      40,
+      "claw",
+    );
+    expect(r.reason.code).toBe("height_low");
+  });
+
+  it("names the weaker component when hump matches but height is only slightly off", () => {
+    // claw, back_minimal → levelsOff 0, humpScore 100. Height Δ=1 → 95,
+    // still within the ideal band but strictly below the hump score.
+    const r = scoreHeightHump(
+      mouse({ heightMm: 41, humpPlacement: "back_minimal" }),
+      40,
+      "claw",
+    );
+    expect(r.reason.code).toBe("height_ideal");
+  });
 });
 
 describe("scoreFrontFlare", () => {

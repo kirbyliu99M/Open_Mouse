@@ -32,8 +32,9 @@ describe("excludeReason handedness", () => {
     ["right", "right", "symmetrical", null],
     ["right", "ambidextrous", "symmetrical", null],
     ["left", "right", "ergonomic", "wrong_hand"],
-    ["left", "right", "symmetrical", null], // symmetric right mice stay
-    ["left", "right", "hybrid", null], // spec only names ergonomic; see PR notes
+    ["left", "right", "hybrid", "wrong_hand"], // revised: hybrid excluded too
+    ["left", "right", "symmetrical", null], // only symmetrical right mice stay
+    ["left", "right", null, null], // unknown shape is never excluded
     ["left", "left", "ergonomic", null],
     ["right", null, "ergonomic", null], // unknown handedness never excluded
     ["left", null, "ergonomic", null],

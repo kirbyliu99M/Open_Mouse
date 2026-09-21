@@ -44,6 +44,17 @@ export const BASE_WEIGHTS: Record<Subscore, number> = {
   weight: 0.05,
 };
 
+/**
+ * §4 (revised): a null sub-score no longer drops out of the total — it
+ * contributes this neutral prior at its full weight instead. Without this,
+ * the total is a mean over *fewer* terms as data goes missing, which lets a
+ * mostly-unclassified mouse outrank a fully-assessed one on a couple of
+ * lucky matches (see PR #21 notes). `weight` is exempt: "no preference
+ * given" is not missing data, so it is excluded from the total entirely,
+ * same as before.
+ */
+export const UNKNOWN_PRIOR_SCORE = 75;
+
 /** Gaussian sigmas, in mm (or g for weight), per §3. */
 export const SIGMA_MM = {
   length: 6,

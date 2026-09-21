@@ -61,7 +61,7 @@ describe("scoreFit aggregation", () => {
     expect(entry.confidence).toBe(1); // every applicable subscore had real input
   });
 
-  it("renormalises over fewer subscores and lowers confidence for an unclassified mouse", () => {
+  it("renormalises over all applicable subscores (null ones at the neutral prior) and still lowers confidence", () => {
     const r = scoreFit(
       measurements,
       [unclassified],
@@ -69,28 +69,53 @@ describe("scoreFit aggregation", () => {
       "right",
     );
     const entry = r.results[0];
-    // Real inputs: length 100·0.30, gripWidth 100·0.125 (curvature null → halved),
-    // heightHump 100·0.20 (height-only, but reason is descriptor_unknown).
-    // frontFlare/thumb/weight all null.
-    expect(entry.total).toBe(100);
-    // confidence numerator excludes heightHump (descriptor_unknown reason)
-    // even though its score is non-null: 0.3 + 0.125 = 0.425.
-    // denominator excludes only "weight" (no_preference, structurally n/a):
-    // 0.3 + 0.125 + 0.2 + 0.1 + 0.1 = 0.825.
-    expect(entry.confidence).toBeCloseTo(0.425 / 0.825, 10);
+    // Real inputs: length 100·0.30, gripWidth 100·0.125 (curvature null →
+    // halved), heightHump 100·0.20 (height-only; Δheight=0 so its reason is
+    // height_ideal, not descriptor_unknown — see scoreHeightHump).
+    // frontFlare/thumb are null and now contribute UNKNOWN_PRIOR_SCORE (75)
+    // at full weight instead of dropping out. weight is excluded entirely
+    // (no preference given).
+    // total = (100·.3 + 100·.125 + 100·.2 + 75·.1 + 75·.1) / (.3+.125+.2+.1+.1)
+    //       = 77.5 / 0.825 ≈ 93.94 → 94
+    expect(entry.total).toBe(94);
+    // confidence numerator: length .3 + gripWidth .125 + heightHump .2
+    // (real, non-descriptor_unknown) = 0.625; denominator (applicable
+    // weight) = 0.825; frontFlare/thumb (descriptor_unknown) excluded from
+    // the numerator despite now counting toward the total.
+    expect(entry.confidence).toBeCloseTo(0.625 / 0.825, 10);
     expect(entry.subscores.frontFlare.score).toBeNull();
     expect(entry.subscores.frontFlare.reason.code).toBe("descriptor_unknown");
     expect(entry.subscores.thumb.score).toBeNull();
     expect(entry.subscores.weight.score).toBeNull();
     expect(entry.subscores.weight.reason.code).toBe("no_preference");
-    // heightHump is the documented exception: null hump still yields a
-    // height-only score, not a null score.
+    // heightHump always has a real height component (mouse dimensions are
+    // never unknown), so a null hump still yields a non-null score and a
+    // height_* reason, never descriptor_unknown.
     expect(entry.subscores.heightHump.score).not.toBeNull();
-    expect(entry.subscores.heightHump.reason.code).toBe("descriptor_unknown");
+    expect(entry.subscores.heightHump.reason.code).toBe("height_ideal");
+  });
+
+  it("a fully classified mouse now outranks a mostly-unknown one (neutral prior)", () => {
+    const r = scoreFit(
+      measurements,
+      [unclassified, fullyClassified],
+      { includeVertical: false },
+      "right",
+    );
+    // Before the neutral prior, renormalising over fewer subscores let the
+    // unclassified mouse's total (100) beat the fully classified one's (98)
+    // outright. With UNKNOWN_PRIOR_SCORE, the unclassified mouse totals 94
+    // and the fully classified one (98) ranks first.
+    expect(
+      r.results.map((e) => ({ slug: e.mouse.slug, total: e.total })),
+    ).toEqual([
+      { slug: "acme-alpha", total: 98 },
+      { slug: "beta-unknown", total: 94 },
+    ]);
   });
 
   it("sorts by total desc, then confidence desc, then model name asc", () => {
-    const lowerConfidence: CatalogueMouse = {
+    const lowerTotal: CatalogueMouse = {
       ...unclassified,
       slug: "acme-gamma",
       model: "Gamma",
@@ -108,20 +133,19 @@ describe("scoreFit aggregation", () => {
 
     const r = scoreFit(
       measurements,
-      [lowerConfidence, tieBreakA, tieBreakB],
+      [lowerTotal, tieBreakA, tieBreakB],
       { includeVertical: false },
       "right",
     );
 
-    // lowerConfidence (Gamma) totals 100 — higher than the fully classified
-    // pair's 98 (see the aggregation test above), so it sorts first despite
-    // lower confidence: total is the primary sort key, not confidence.
+    // lowerTotal (Gamma) totals 94 (see the aggregation test above) —
+    // below the fully classified pair's 98, so it sorts last.
     // tieBreakA/B share total and confidence (identical inputs) — model
     // name breaks the tie: Yankee before Zeta.
     expect(r.results.map((e) => e.mouse.slug)).toEqual([
-      "acme-gamma",
       "acme-yankee",
       "acme-zeta",
+      "acme-gamma",
     ]);
     expect(r.results.map((e) => e.rank)).toEqual([1, 2, 3]);
   });
@@ -149,8 +173,18 @@ describe("scoreFit aggregation", () => {
     expect(r.results.map((e) => e.mouse.slug)).toEqual(["acme-alpha"]);
     expect(r.excluded).toEqual(
       expect.arrayContaining([
-        { slug: "acme-lefty", reason: "wrong_hand" },
-        { slug: "acme-vertical", reason: "vertical_form_factor" },
+        {
+          slug: "acme-lefty",
+          brand: "Acme",
+          model: "Lefty",
+          reason: "wrong_hand",
+        },
+        {
+          slug: "acme-vertical",
+          brand: "Acme",
+          model: "Vertical",
+          reason: "vertical_form_factor",
+        },
       ]),
     );
   });
