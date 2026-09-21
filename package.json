@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "tsx scripts/migrate.ts --preview && next build",
+    "vercel-build": "tsx scripts/migrate.ts --preview && tsx scripts/seed.ts --preview && next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
@@ -21,7 +21,9 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/migrate.ts",
-    "rubric:validate": "tsx scripts/validate-rubric.ts"
+    "rubric:validate": "tsx scripts/validate-rubric.ts",
+    "seed:fetch-logitech": "tsx scripts/fetch-logitech-specs.ts",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
