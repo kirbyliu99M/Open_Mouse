@@ -8,37 +8,37 @@ Full design: `docs/PLAN.md`.
 
 ## Roles
 
-_Revised 2026-09-21: backend implementation moved from Codex to Claude._
+_Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; builders are Sonnet subagents dispatched by Claude._
 
 | Agent | Owns | Never does |
 |---|---|---|
-| **Claude** — backend + architecture | Plan, specs, gate adjudication, shape rubric. **Builds:** schema + migrations, seed and classification scripts, rubric validation, API route handlers, fit engine (M3), Gemini (M5), sessions/auth/cron (M6), CI and infra, and `src/lib/contracts/` | Merges its own PR |
-| **Codex** — frontend + 3D | **Builds:** pages and UI, camera capture, in-browser ArUco/MediaPipe pipeline and landmark→mm math, the printable calibration sheet, three.js runtime (M4b), Blender asset pipeline (M4a) | Merges its own PR; writes to the DB or calls Gemini directly |
-| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, account/dashboard config, secrets, merges, final acceptance | — |
+| **Claude** — orchestrator | Plan, milestone specs, `src/lib/contracts/`, shape rubric, dispatching builders, reviewing their output, gate adjudication, `docs/STATUS.md` | Approves a PR it authored directly |
+| **Sonnet builder subagents** | Backend and frontend implementation, one scoped task each, **each in its own git worktree** | Changes a contract; touches files outside its task; merges |
+| **Sonnet reviewer subagent** | Independent review of every PR against its acceptance criteria and the hard rules | Reviews code it wrote |
+| **Codex** — Blender only | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | Anything outside `tools/blender/` and its generated assets |
+| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, dashboards, secrets, **merges**, final acceptance | — |
 
 ### Directory ownership
 
 | Path | Owner |
 |---|---|
-| `src/db/`, `drizzle/`, `scripts/`, `src/app/api/`, `src/server/`, `.github/` | Claude |
-| `src/app/**` pages and layouts, `src/components/`, `src/client/`, `tools/blender/`, `public/` | Codex |
-| `src/lib/contracts/` | **Claude writes, both consume.** The only shared seam. |
-| `docs/STATUS.md` | Both — every PR updates it |
+| `src/lib/contracts/` | Claude only. The seam every builder codes against |
+| `tools/blender/`, generated `public/models/**` | Codex |
+| Everything else | Whichever builder subagent Claude assigns, scoped per task |
+| `docs/STATUS.md` | Claude updates after each task lands |
 
-Touching the other agent's paths is allowed for a one-line fix that unblocks you;
-anything larger is a request to the owner, logged in `docs/STATUS.md`.
+### How a builder task runs
 
-### Cross-review
+1. Claude writes a self-contained brief: goal, files in scope, contract to code
+   against, acceptance criteria, non-goals.
+2. The builder works in an isolated worktree on its own branch, keeps CI-equivalent
+   checks green locally (typecheck, lint, prettier, vitest, drizzle check), pushes,
+   and opens a PR.
+3. A reviewer subagent that did not write the code reviews it; Claude adjudicates
+   the findings; Kirby merges.
 
-Neither agent merges its own work. **Claude reviews Codex's PRs; Codex reviews
-Claude's.** The reviewer checks the milestone's acceptance criteria and the five
-hard rules below, then approves. Kirby merges.
-
-### The contract seam
-
-Frontend and backend meet only at `src/lib/contracts/` — runtime-validated schemas
-for the measurement payload the browser sends and the fit result it gets back.
-Change a contract only in a PR of its own, so both sides see it land at once.
+**Separate working trees are mandatory.** Two agents in one checkout already
+caused one agent's uncommitted work to be committed by another.
 
 ## The five hard rules
 
