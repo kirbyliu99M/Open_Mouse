@@ -10,7 +10,8 @@ import highConfidenceRaw from "./high-confidence.json";
 import lowConfidenceRaw from "./low-confidence.json";
 import withExclusionsRaw from "./with-exclusions.json";
 
-export type FixtureKey = "high-confidence" | "low-confidence" | "with-exclusions";
+export type FixtureKey =
+  "high-confidence" | "low-confidence" | "with-exclusions";
 
 export const FIXTURES: Record<FixtureKey, FitResponse> = {
   "high-confidence": fitResponseSchema.parse(highConfidenceRaw),

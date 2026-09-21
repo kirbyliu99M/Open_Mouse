@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FIXTURES, FIXTURE_KEYS, FIXTURE_LABELS, type FixtureKey } from "./fixtures";
+import {
+  FIXTURES,
+  FIXTURE_KEYS,
+  FIXTURE_LABELS,
+  type FixtureKey,
+} from "./fixtures";
 import type { AnalysisState, GeminiAnalysis } from "./gemini";
 import { ResultsView } from "./ResultsView";
 
@@ -21,7 +26,11 @@ const MOCK_ANALYSIS: GeminiAnalysis = {
   ],
 };
 
-const ANALYSIS_DEMO_STATES: { key: string; label: string; state: AnalysisState }[] = [
+const ANALYSIS_DEMO_STATES: {
+  key: string;
+  label: string;
+  state: AnalysisState;
+}[] = [
   { key: "idle", label: "None", state: { status: "idle" } },
   { key: "loading", label: "Loading", state: { status: "loading" } },
   {
@@ -48,10 +57,10 @@ export function ResultsDemoClient() {
   const [fixtureKey, setFixtureKey] = useState<FixtureKey>(FIXTURE_KEYS[0]);
   const [analysisKey, setAnalysisKey] = useState("idle");
 
-  const analysisState =
-    ANALYSIS_DEMO_STATES.find((a) => a.key === analysisKey)?.state ?? {
-      status: "idle",
-    };
+  const analysisState = ANALYSIS_DEMO_STATES.find((a) => a.key === analysisKey)
+    ?.state ?? {
+    status: "idle",
+  };
 
   return (
     <main className="resultsMain">

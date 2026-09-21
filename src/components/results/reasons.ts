@@ -18,7 +18,11 @@ function mm(params: Params, key: string): string | null {
   return typeof value === "number" ? formatMm(Math.abs(value)) : null;
 }
 
-function withFallback(amount: string | null, template: (amount: string) => string, fallback: string): string {
+function withFallback(
+  amount: string | null,
+  template: (amount: string) => string,
+  fallback: string,
+): string {
   return amount ? template(amount) : fallback;
 }
 
@@ -77,8 +81,7 @@ const TEMPLATES: Record<ReasonCode, (params: Params) => string> = {
       (d) => `This mouse sits ${d} higher than your ideal palm height.`,
       "This mouse sits higher than your ideal palm height.",
     ),
-  hump_matches_grip: () =>
-    "The hump position suits how you hold a mouse.",
+  hump_matches_grip: () => "The hump position suits how you hold a mouse.",
   hump_mismatch_grip: () =>
     "The hump position doesn't line up with how you hold a mouse.",
   flare_supports_fingers: () =>

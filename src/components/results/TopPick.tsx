@@ -18,7 +18,10 @@ export function TopPick({ response }: { response: FitResponse }) {
   const reasons = topReasons(entry, 3);
 
   return (
-    <section className="results-topPick" aria-labelledby="results-topPick-heading">
+    <section
+      className="results-topPick"
+      aria-labelledby="results-topPick-heading"
+    >
       <p className="results-eyebrow" id="results-topPick-heading">
         Best match
       </p>

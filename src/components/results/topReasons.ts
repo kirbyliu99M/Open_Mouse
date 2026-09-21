@@ -28,7 +28,9 @@ export function topReasons(entry: FitEntry, count = 3): TopReason[] {
 
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    return entry.subscores[b.subscore].weight - entry.subscores[a.subscore].weight;
+    return (
+      entry.subscores[b.subscore].weight - entry.subscores[a.subscore].weight
+    );
   });
 
   return scored.slice(0, count);

@@ -33,7 +33,11 @@ export function GeminiSlot({
           results and sub-scores above are unaffected.
         </p>
         {onRetry && (
-          <button type="button" className="results-gemini-retry" onClick={onRetry}>
+          <button
+            type="button"
+            className="results-gemini-retry"
+            onClick={onRetry}
+          >
             Try again
           </button>
         )}
