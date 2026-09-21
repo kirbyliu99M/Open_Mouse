@@ -19,7 +19,7 @@ _Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fi
 
 | #   | Milestone                          | Gated | Status             | PR                                                     | Notes                                                                                             |
 | --- | ---------------------------------- | ----- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🏗 draft PR         | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | local + CI pass; Neon preview branching blocks acceptance                                         |
+| M0  | Scaffold                           | –     | 🔍 in review       | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | all 8 criteria met; preview branches verified; reviewer approved                                  |
 | M1  | Data layer + shape rubric          | ✅    | 🔍 in review       | #4 #5 #8                                               | schema, 30-model seed, classifier built (fake-tested); gate run needs the Gemini key              |
 | M2  | Calibration + measurement          | ✅    | 🏗 part A in review | #9                                                     | sheet + geometry done; part B = live capture + API; ground-truth photos still needed for the gate |
 | M3  | Fit engine                         | –     | ⬜                 | –                                                      | coefficients need real pairings                                                                   |
