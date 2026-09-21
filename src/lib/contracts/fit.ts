@@ -112,6 +112,8 @@ export const fitResponseSchema = z.strictObject({
   excluded: z.array(
     z.strictObject({
       slug: z.string(),
+      brand: z.string(),
+      model: z.string(),
       reason: z.enum(["wrong_hand", "vertical_form_factor"]),
     }),
   ),
