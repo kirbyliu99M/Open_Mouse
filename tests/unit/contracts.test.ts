@@ -70,12 +70,34 @@ describe("scanSubmissionSchema", () => {
     ).toBe(false);
   });
 
-  it("carries no image field — the privacy invariant is structural", () => {
+  it("rejects a payload carrying an image instead of silently stripping it", () => {
     const r = scanSubmissionSchema.safeParse({
       ...valid,
       image: "data:image/png;base64,AAAA",
     });
-    expect(r.success && "image" in r.data).toBe(false);
+    expect(r.success).toBe(false);
+  });
+
+  it.each([
+    ["a duplicated marker", [0, 0, 2, 3]],
+    ["an upright-flap marker", [0, 1, 2, 4]],
+    ["an unknown marker", [0, 1, 2, 9]],
+  ])("rejects markerIds with %s", (_, markerIds) => {
+    expect(
+      scanSubmissionSchema.safeParse({
+        ...valid,
+        calibration: { ...valid.calibration, markerIds },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts the four flat-flap markers in any order", () => {
+    expect(
+      scanSubmissionSchema.safeParse({
+        ...valid,
+        calibration: { ...valid.calibration, markerIds: [3, 1, 0, 2] },
+      }).success,
+    ).toBe(true);
   });
 });
 

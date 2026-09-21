@@ -83,7 +83,7 @@ export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v1";
 const mm = (min: number, max: number) => z.number().finite().min(min).max(max);
 
 export const handMeasurementsSchema = z
-  .object({
+  .strictObject({
     // Top-down shot — required.
     handLengthMm: mm(100, 280),
     palmLengthMm: mm(60, 160),
@@ -105,9 +105,19 @@ export const handMeasurementsSchema = z
     path: ["palmLengthMm"],
   });
 
-export const calibrationEvidenceSchema = z.object({
-  /** Which flat-flap markers were detected; all four are required. */
-  markerIds: z.array(z.number().int()).length(4),
+export const calibrationEvidenceSchema = z.strictObject({
+  /** The flat-flap markers detected: exactly ids 0–3, each once. */
+  markerIds: z
+    .array(z.number().int())
+    .length(4)
+    .refine(
+      (ids) =>
+        new Set(ids).size === 4 &&
+        ids.every((id) =>
+          (SHEET.flatMarkerIds as readonly number[]).includes(id),
+        ),
+      { message: "markerIds must be the four distinct flat-flap markers 0–3." },
+    ),
   /** Mean corner reprojection error of the homography, in mm on the sheet. */
   reprojectionErrorMm: z.number().finite().min(0).max(5),
   /** (scale from sheet) ÷ (scale from card). 1 = perfect agreement. */
@@ -121,7 +131,11 @@ export const calibrationEvidenceSchema = z.object({
   parallaxCorrected: z.boolean(),
 });
 
-export const scanSubmissionSchema = z.object({
+/**
+ * Strict: an unexpected field fails the parse instead of being silently
+ * stripped, so a client that tries to send an image is rejected loudly.
+ */
+export const scanSubmissionSchema = z.strictObject({
   hand: z.enum(["left", "right"]),
   gripStyleStated: z.enum(["palm", "claw", "fingertip"]).optional(),
   measurements: handMeasurementsSchema,
