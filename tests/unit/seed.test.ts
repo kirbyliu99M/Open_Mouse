@@ -5,6 +5,7 @@ import { dimensionWarnings } from "../../src/server/catalogue/logitech-specs";
 import {
   applyDescriptors,
   type DescriptorRecord,
+  partitionByDescriptors,
   type SpecRecord,
   slugify,
   toMouseRow,
@@ -126,5 +127,68 @@ describe("applyDescriptors", () => {
     const merged = applyDescriptors(row, { ...classified, needsReview: true });
     expect(merged.shape).toBeNull();
     expect(merged.descriptorMethod).toBeNull();
+  });
+});
+
+describe("partitionByDescriptors", () => {
+  const row = toMouseRow(record)!;
+  const otherRow = toMouseRow({ ...record, model: "Other Mouse" })!;
+  const classified: DescriptorRecord = {
+    model: record.model,
+    shape: "symmetrical",
+    handCompatibility: "ambidextrous",
+    humpPlacement: "back_minimal",
+    frontFlare: "flat",
+    sideCurvature: "inward",
+    thumbRest: false,
+    ringFingerRest: false,
+    sourceImageUrls: ["https://resource.logitechg.com/x.png"],
+    descriptorModel: "gemini-3.8-flash",
+    classifiedAt: "2026-09-21T00:00:00.000Z",
+    needsReview: false,
+  };
+
+  it("routes a row with no matching entry to withoutDescriptors, untouched", () => {
+    const { withDescriptors, withoutDescriptors } = partitionByDescriptors(
+      [row],
+      new Map(),
+    );
+    expect(withDescriptors).toEqual([]);
+    expect(withoutDescriptors).toEqual([row]);
+  });
+
+  it("routes a row with a classified entry to withDescriptors, merged in", () => {
+    const { withDescriptors, withoutDescriptors } = partitionByDescriptors(
+      [row],
+      new Map([[classified.model, classified]]),
+    );
+    expect(withoutDescriptors).toEqual([]);
+    expect(withDescriptors).toHaveLength(1);
+    expect(withDescriptors[0]!.shape).toBe("symmetrical");
+    expect(withDescriptors[0]!.descriptorMethod).toBe("rubric_vision");
+  });
+
+  it("a needsReview entry clears a previously stored value: routed to withDescriptors with null fields, not left alone", () => {
+    const { withDescriptors, withoutDescriptors } = partitionByDescriptors(
+      [row],
+      new Map([[classified.model, { ...classified, needsReview: true }]]),
+    );
+    // Critically NOT in withoutDescriptors — that bucket's upsert never
+    // touches descriptor columns, which would leave a stale value in place.
+    expect(withoutDescriptors).toEqual([]);
+    expect(withDescriptors).toHaveLength(1);
+    expect(withDescriptors[0]!.shape).toBeNull();
+    expect(withDescriptors[0]!.descriptorMethod).toBeNull();
+    expect(withDescriptors[0]!.descriptorSourceUrls).toBeNull();
+    expect(withDescriptors[0]!.classifiedAt).toBeNull();
+  });
+
+  it("splits a mixed batch correctly, by model", () => {
+    const { withDescriptors, withoutDescriptors } = partitionByDescriptors(
+      [row, otherRow],
+      new Map([[classified.model, classified]]),
+    );
+    expect(withDescriptors.map((r) => r.model)).toEqual([record.model]);
+    expect(withoutDescriptors.map((r) => r.model)).toEqual(["Other Mouse"]);
   });
 });

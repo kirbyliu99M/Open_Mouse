@@ -9,10 +9,13 @@
  *                  {path:"/content/dam/.../video-thumb.png",video:"H1G0T1..."}]
  *   lifestyleImages:[{path:"/content/dam/.../lifestyle-gallery-2.png"}]
  *
- * We take the first variant's arrays (the default colourway), drop entries
- * that carry a `video` key (a video thumbnail, not a product render), and
- * prefer `productImages` over `lifestyleImages` — gallery/product shots over
- * marketing scenes, per the rubric's "manufacturer's own product renders".
+ * We take the first variant's `productImages` only (the default colourway)
+ * and drop entries that carry a `video` key (a video thumbnail, not a product
+ * render). `lifestyleImages` is never read — marketing scenes are not the
+ * rubric's "manufacturer's own product renders", and mixing them in would
+ * feed a scene shot to the vision classifier as if it were a square-on render.
+ * If a page has fewer product images than `limit`, fewer are returned; we
+ * never pad with lifestyle images to make up the count.
  *
  * `path` is host-relative; the resolved image URL is served from
  * `resource.<host>` with a Cloudinary-style transform prefix, confirmed
@@ -67,10 +70,12 @@ function parseImageArray(html: string, key: string): RawImage[] {
 
 /**
  * Extracts up to `limit` product gallery image URLs from a Logitech product
- * page's embedded page data. Pure — no network. Product shots come first,
- * lifestyle images fill any remaining slots; video thumbnails are dropped
- * entirely, and only the first variant's arrays are read (mirrors
- * `parseLogitechDimensions` stopping at the first labelled group).
+ * page's embedded page data. Pure — no network. Only `productImages` is
+ * read (never `lifestyleImages` — see the module doc); video thumbnails are
+ * dropped, and only the first variant's array is read (mirrors
+ * `parseLogitechDimensions` stopping at the first labelled group). Returns
+ * fewer than `limit` URLs if the page has fewer product images — it never
+ * pads the count with anything else.
  */
 export function parseLogitechGalleryImages(
   html: string,
@@ -81,10 +86,7 @@ export function parseLogitechGalleryImages(
   const product = parseImageArray(html, "productImages").filter(
     (i) => !i.isVideo,
   );
-  const lifestyle = parseImageArray(html, "lifestyleImages").filter(
-    (i) => !i.isVideo,
-  );
-  const urls = [...product, ...lifestyle].map(
+  const urls = product.map(
     (i) => `https://${host}/${RESOURCE_TRANSFORM}${i.path}`,
   );
   return Array.from(new Set(urls)).slice(0, limit);

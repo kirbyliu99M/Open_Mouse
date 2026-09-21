@@ -1,12 +1,17 @@
 /**
  * Upserts the first-party catalogue into `mice`. Idempotent: re-running
- * refreshes dimensions and provenance and never wipes classified descriptors.
+ * refreshes dimensions and provenance.
  *
  * When src/db/seed/logitech-descriptors.json exists (scripts/classify-descriptors.ts
- * has run), non-needsReview descriptors are applied alongside the dimensions.
- * The upsert uses COALESCE(excluded.x, mice.x) for every descriptor column so
- * a re-seed with no descriptor data (or an older/needsReview record) never
- * overwrites a good classification already in the database.
+ * has run), it is authoritative for every model it lists: descriptor columns
+ * are overwritten unconditionally with that run's values, nulls included, so
+ * a model that regresses to needsReview clears a stale value from an earlier
+ * run rather than being stuck with it. A model with **no** entry in the file
+ * (the classifier hasn't run, or there is no descriptors file at all) has its
+ * descriptor columns left untouched — that upsert never references them, so
+ * whatever is already in the database survives a dimensions-only re-seed.
+ * Two separate upserts implement that split; see
+ * src/server/catalogue/seed-rows.ts `partitionByDescriptors`.
  *
  *   npm run db:seed            (explicit, e.g. production)
  *   tsx scripts/seed.ts --preview   (Vercel preview builds, after migrate)
@@ -18,14 +23,39 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { describeMigrationError } from "../src/db/config";
 import { mice } from "../src/db/schema";
 import {
-  applyDescriptors,
   type DescriptorRecord,
+  partitionByDescriptors,
   type SpecRecord,
   toMouseRow,
 } from "../src/server/catalogue/seed-rows";
 import { resolveConnection } from "./db-connection";
 
 const DESCRIPTORS_PATH = "src/db/seed/logitech-descriptors.json";
+
+const DIMENSION_SET = {
+  lengthMm: sql`excluded.length_mm`,
+  widthMm: sql`excluded.width_mm`,
+  heightMm: sql`excluded.height_mm`,
+  weightG: sql`excluded.weight_g`,
+  connectivity: sql`excluded.connectivity`,
+  size: sql`excluded.size`,
+  sourceUrl: sql`excluded.source_url`,
+  specRetrievedAt: sql`excluded.spec_retrieved_at`,
+};
+
+const DESCRIPTOR_SET = {
+  shape: sql`excluded.shape`,
+  handCompatibility: sql`excluded.hand_compatibility`,
+  humpPlacement: sql`excluded.hump_placement`,
+  frontFlare: sql`excluded.front_flare`,
+  sideCurvature: sql`excluded.side_curvature`,
+  thumbRest: sql`excluded.thumb_rest`,
+  ringFingerRest: sql`excluded.ring_finger_rest`,
+  descriptorMethod: sql`excluded.descriptor_method`,
+  descriptorModel: sql`excluded.descriptor_model`,
+  descriptorSourceUrls: sql`excluded.descriptor_source_urls`,
+  classifiedAt: sql`excluded.classified_at`,
+};
 
 async function main() {
   const connection = resolveConnection("seed");
@@ -39,46 +69,40 @@ async function main() {
   const descriptorsByModel = new Map(descriptors.map((d) => [d.model, d]));
   const applied = descriptors.filter((d) => !d.needsReview).length;
 
-  const rows = records
-    .map(toMouseRow)
-    .filter((r) => r !== null)
-    .map((row) => applyDescriptors(row, descriptorsByModel.get(row.model)));
-  const skipped = records.length - rows.length;
+  const baseRows = records.map(toMouseRow).filter((r) => r !== null);
+  const skipped = records.length - baseRows.length;
+  const { withDescriptors, withoutDescriptors } = partitionByDescriptors(
+    baseRows,
+    descriptorsByModel,
+  );
+
   const db = drizzle(neon(connection));
-  await db
-    .insert(mice)
-    .values(rows)
-    .onConflictDoUpdate({
-      target: [mice.brand, mice.model],
-      set: {
-        lengthMm: sql`excluded.length_mm`,
-        widthMm: sql`excluded.width_mm`,
-        heightMm: sql`excluded.height_mm`,
-        weightG: sql`excluded.weight_g`,
-        connectivity: sql`excluded.connectivity`,
-        size: sql`excluded.size`,
-        sourceUrl: sql`excluded.source_url`,
-        specRetrievedAt: sql`excluded.spec_retrieved_at`,
-        shape: sql`COALESCE(excluded.shape, ${mice.shape})`,
-        handCompatibility: sql`COALESCE(excluded.hand_compatibility, ${mice.handCompatibility})`,
-        humpPlacement: sql`COALESCE(excluded.hump_placement, ${mice.humpPlacement})`,
-        frontFlare: sql`COALESCE(excluded.front_flare, ${mice.frontFlare})`,
-        sideCurvature: sql`COALESCE(excluded.side_curvature, ${mice.sideCurvature})`,
-        thumbRest: sql`COALESCE(excluded.thumb_rest, ${mice.thumbRest})`,
-        ringFingerRest: sql`COALESCE(excluded.ring_finger_rest, ${mice.ringFingerRest})`,
-        descriptorMethod: sql`COALESCE(excluded.descriptor_method, ${mice.descriptorMethod})`,
-        descriptorModel: sql`COALESCE(excluded.descriptor_model, ${mice.descriptorModel})`,
-        descriptorSourceUrls: sql`COALESCE(excluded.descriptor_source_urls, ${mice.descriptorSourceUrls})`,
-        classifiedAt: sql`COALESCE(excluded.classified_at, ${mice.classifiedAt})`,
-      },
-    });
+  if (withoutDescriptors.length > 0) {
+    await db
+      .insert(mice)
+      .values(withoutDescriptors)
+      .onConflictDoUpdate({
+        target: [mice.brand, mice.model],
+        set: DIMENSION_SET,
+      });
+  }
+  if (withDescriptors.length > 0) {
+    await db
+      .insert(mice)
+      .values(withDescriptors)
+      .onConflictDoUpdate({
+        target: [mice.brand, mice.model],
+        set: { ...DIMENSION_SET, ...DESCRIPTOR_SET },
+      });
+  }
+
   const [{ count }] = (
     await db.execute(sql`SELECT count(*)::int AS count FROM mice`)
   ).rows as [{ count: number }];
   console.log(
-    `Seeded ${rows.length} mice (${skipped} skipped for missing dimensions); table now holds ${count}.` +
+    `Seeded ${baseRows.length} mice (${skipped} skipped for missing dimensions); table now holds ${count}.` +
       (descriptors.length
-        ? ` Applied descriptors for ${applied}/${descriptors.length} classified models (${descriptors.length - applied} needing review skipped).`
+        ? ` Applied descriptors for ${applied}/${descriptors.length} classified models (${descriptors.length - applied} needing review cleared, not applied).`
         : ""),
   );
 }

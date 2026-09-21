@@ -112,6 +112,46 @@ describe("classifyMouse — missing views", () => {
     // frontFlare (top) and sideCurvature (front/rear) had views available.
     expect(result.frontFlare).not.toBeNull();
     expect(result.sideCurvature).not.toBeNull();
+    // thumbRest/ringFingerRest need top+side; only top was available — recorded, not silent.
+    expect(
+      result.notes.some(
+        (n) => n === "thumbRest: classified from top only (side missing)",
+      ),
+    ).toBe(true);
+    expect(
+      result.notes.some(
+        (n) => n === "ringFingerRest: classified from top only (side missing)",
+      ),
+    ).toBe(true);
+  });
+
+  it("records a note when a descriptor is classified from only some of its required views", async () => {
+    const classifier = new FakeVisionClassifier({
+      views: (imgs) => imgs.map((i) => viewFromUrlPrefix(i.url)),
+    });
+    const result = await classifyMouse(classifier, {
+      model: "Top Only",
+      images: [img("top-1")],
+    });
+
+    // shape and handCompatibility need top+front; only top was discovered.
+    expect(result.shape).not.toBeNull();
+    expect(
+      result.notes.some(
+        (n) => n === "shape: classified from top only (front missing)",
+      ),
+    ).toBe(true);
+    expect(
+      result.notes.some(
+        (n) =>
+          n === "handCompatibility: classified from top only (front missing)",
+      ),
+    ).toBe(true);
+    // A single-view descriptor (frontFlare needs only top) never gets a partial note.
+    expect(result.frontFlare).not.toBeNull();
+    expect(
+      result.notes.some((n) => n.startsWith("frontFlare: classified from")),
+    ).toBe(false);
   });
 
   it("returns an empty result without calling the classifier when no images were discovered", async () => {

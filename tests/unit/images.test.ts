@@ -23,20 +23,24 @@ describe("parseLogitechGalleryImages", () => {
     expect(parseLogitechGalleryImages(html, G_URL)).toEqual([
       "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/x/top-angle-white-gallery-1.png",
       "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/x/profile-left-angle-white-gallery-4.png",
-      "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/x/lifestyle-gallery-2.png",
     ]);
   });
 
-  it("prefers product shots over lifestyle images when capped by limit", () => {
+  it("never falls back to lifestyleImages, even when under the limit", () => {
     const html = page(
       'productImages:[{path:"/p1.png"},{path:"/p2.png"}],' +
         'lifestyleImages:[{path:"/l1.png"},{path:"/l2.png"}]',
     );
-    expect(parseLogitechGalleryImages(html, G_URL, 3)).toEqual([
+    // Limit is 5, but there are only 2 product images — result stays at 2,
+    // never padded with lifestyle images to make up the count.
+    const urls = parseLogitechGalleryImages(html, G_URL, 5);
+    expect(urls).toEqual([
       "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/p1.png",
       "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/p2.png",
-      "https://resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/l1.png",
     ]);
+    expect(
+      urls.some((u) => u.includes("/l1.png") || u.includes("/l2.png")),
+    ).toBe(false);
   });
 
   it("drops video thumbnails", () => {

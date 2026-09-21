@@ -138,6 +138,15 @@ export async function classifyMouse(
       );
       return;
     }
+    if (required.length > 1) {
+      const present = required.filter((v) => (byView.get(v)?.length ?? 0) > 0);
+      const missing = required.filter((v) => !present.includes(v));
+      if (missing.length > 0) {
+        notes.push(
+          `${descriptor}: classified from ${present.join(" and ")} only (${missing.join(", ")} missing)`,
+        );
+      }
+    }
     switch (descriptor) {
       case "shape":
         values.shape = await classifier.classifyEnum({

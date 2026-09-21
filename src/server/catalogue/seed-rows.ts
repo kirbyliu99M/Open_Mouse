@@ -103,11 +103,13 @@ const NO_DESCRIPTORS: DescriptorFields = {
 
 /**
  * Merges a classified descriptor record onto a spec row. A record flagged
- * `needsReview` (failed consistency review twice) or with no match is kept
- * out of the seed — descriptor fields stay null rather than guessed. Never
- * wipes an already-seeded mouse's descriptors: when there is no record at
- * all (the classifier hasn't run), the caller's upsert must leave existing
- * columns alone rather than trust these nulls — see scripts/seed.ts.
+ * `needsReview` (failed consistency review twice) or with no match returns
+ * null descriptor fields — never guessed. This is the row `scripts/seed.ts`
+ * writes for a model that *has* an entry in logitech-descriptors.json: the
+ * caller must overwrite every descriptor column unconditionally with these
+ * values (nulls included), so a model that regresses to needsReview clears
+ * whatever a previous run classified rather than leaving it stuck. A model
+ * with **no** entry at all is a different case — see `partitionByDescriptors`.
  */
 export function applyDescriptors(
   row: MouseRow,
@@ -128,4 +130,37 @@ export function applyDescriptors(
     descriptorSourceUrls: record.sourceImageUrls,
     classifiedAt: new Date(record.classifiedAt),
   };
+}
+
+export interface DescriptorPartition {
+  /**
+   * Has an entry in logitech-descriptors.json. Every descriptor column
+   * must be overwritten unconditionally with these values (nulls included)
+   * — a plain `excluded.x` assignment on conflict, never COALESCE, so a
+   * needsReview record clears a stale value from an earlier run instead of
+   * being unable to touch it.
+   */
+  withDescriptors: (MouseRow & DescriptorFields)[];
+  /**
+   * No entry at all — the classifier hasn't run for this model, or this
+   * seed run has no descriptors file. The caller's upsert must not
+   * reference descriptor columns for these rows at all, so whatever is
+   * already in the database (if anything) is left untouched.
+   */
+  withoutDescriptors: MouseRow[];
+}
+
+/** Splits spec rows by whether logitech-descriptors.json has an entry for their model. */
+export function partitionByDescriptors(
+  rows: readonly MouseRow[],
+  descriptorsByModel: ReadonlyMap<string, DescriptorRecord>,
+): DescriptorPartition {
+  const withDescriptors: (MouseRow & DescriptorFields)[] = [];
+  const withoutDescriptors: MouseRow[] = [];
+  for (const row of rows) {
+    const record = descriptorsByModel.get(row.model);
+    if (record) withDescriptors.push(applyDescriptors(row, record));
+    else withoutDescriptors.push(row);
+  }
+  return { withDescriptors, withoutDescriptors };
 }

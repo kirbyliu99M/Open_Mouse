@@ -13,7 +13,10 @@ import { writeFileSync } from "node:fs";
 import nextEnv from "@next/env";
 import { ALL_DESCRIPTORS } from "../src/server/classification/prompts";
 import { LOGITECH_SOURCES } from "../src/db/seed/logitech-sources";
-import { classifyMouse } from "../src/server/classification/classify";
+import {
+  classifyMouse,
+  type ClassificationResult,
+} from "../src/server/classification/classify";
 import {
   createGeminiVisionClassifier,
   type ImageInput,
@@ -23,6 +26,12 @@ import {
   discoverGalleryImages,
   fetchImageBytes,
 } from "../src/server/classification/images";
+
+const OUTPUT_PATH = "src/db/seed/logitech-descriptors.json";
+
+function writeCheckpoint(results: ClassificationResult[]): void {
+  writeFileSync(OUTPUT_PATH, JSON.stringify(results, null, 2) + "\n");
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const dryRun = process.argv.includes("--dry-run");
@@ -57,7 +66,7 @@ async function main() {
   }
 
   const classifier = dryRun ? null : createGeminiVisionClassifier(process.env);
-  const results = [];
+  const results: ClassificationResult[] = [];
   let flagged = 0;
 
   for (const source of LOGITECH_SOURCES) {
@@ -103,10 +112,34 @@ async function main() {
       }
     }
 
-    const result = await classifyMouse(classifier!, {
-      model: source.model,
-      images,
-    });
+    // Wrapped per model: one mouse erroring (a bad response, a network blip,
+    // a timeout) must not lose every classification before it. It's recorded
+    // needsReview with the error in notes, and the run continues.
+    let result: ClassificationResult;
+    try {
+      result = await classifyMouse(classifier!, {
+        model: source.model,
+        images,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`    ! classification failed: ${message}`);
+      result = {
+        model: source.model,
+        shape: null,
+        handCompatibility: null,
+        humpPlacement: null,
+        frontFlare: null,
+        sideCurvature: null,
+        thumbRest: null,
+        ringFingerRest: null,
+        sourceImageUrls: imageUrls,
+        descriptorModel: classifier!.modelName,
+        classifiedAt: new Date().toISOString(),
+        needsReview: true,
+        notes: [`classification failed: ${message}`],
+      };
+    }
     results.push(result);
     console.log(
       `    → shape=${result.shape ?? "–"} hand=${result.handCompatibility ?? "–"} ` +
@@ -114,6 +147,9 @@ async function main() {
         `curve=${result.sideCurvature ?? "–"} thumb=${result.thumbRest ?? "–"} ` +
         `ring=${result.ringFingerRest ?? "–"}${result.needsReview ? "  NEEDS REVIEW" : ""}`,
     );
+    // Checkpoint after every model, not just at the end — a crash midway
+    // through the 30 models keeps everything classified so far on disk.
+    writeCheckpoint(results);
     await sleep(1000);
   }
 
@@ -124,13 +160,9 @@ async function main() {
     return;
   }
 
-  writeFileSync(
-    "src/db/seed/logitech-descriptors.json",
-    JSON.stringify(results, null, 2) + "\n",
-  );
   const needsReview = results.filter((r) => r.needsReview).length;
   console.log(
-    `\nWrote ${results.length} rows to src/db/seed/logitech-descriptors.json ` +
+    `\nWrote ${results.length} rows to ${OUTPUT_PATH} ` +
       `(${needsReview} needing review, kept out of the seed).`,
   );
 }
