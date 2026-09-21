@@ -1,17 +1,22 @@
 /** Shared fixtures for `src/server/analysis/**` tests. Not a test file itself. */
-import { SUBSCORES, type FitResponse, type Subscore } from "../../src/lib/contracts/fit";
+import {
+  SUBSCORES,
+  type FitEntry,
+  type FitResponse,
+  type Subscore,
+} from "../../src/lib/contracts/fit";
 import type { HandMeasurements } from "../../src/lib/contracts/measurement";
 
 function sub(
   score: number | null,
-  code: FitResponse["results"][number]["subscores"][Subscore]["reason"]["code"],
+  code: FitEntry["subscores"][Subscore]["reason"]["code"],
   params: Record<string, number> = {},
 ) {
   return { score, weight: 1 / SUBSCORES.length, reason: { code, params } };
 }
 
 /** A high-confidence entry — every sub-score has a real reason. */
-export function makeEntry(overrides: Partial<FitResponse["results"][number]> = {}) {
+export function makeEntry(overrides: Partial<FitEntry> = {}): FitEntry {
   return {
     rank: 1,
     mouse: {
@@ -33,7 +38,7 @@ export function makeEntry(overrides: Partial<FitResponse["results"][number]> = {
       frontFlare: sub(70, "flare_crowds_fingers", { deltaMm: 2 }),
       thumb: sub(75, "thumb_rest_supports"),
       weight: sub(95, "weight_in_range", { targetG: 60 }),
-    } as FitResponse["results"][number]["subscores"],
+    } as FitEntry["subscores"],
     ...overrides,
   };
 }

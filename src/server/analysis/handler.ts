@@ -34,8 +34,7 @@ export interface AnalysisRequest {
 }
 
 export type AnalysisResponseBody =
-  | { output: AnalysisOutput; cached: boolean }
-  | { error: string };
+  { output: AnalysisOutput; cached: boolean } | { error: string };
 
 export interface AnalysisResponseLike {
   status: number;

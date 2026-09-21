@@ -69,7 +69,8 @@ export function createGeminiTextModel(
       "GEMINI_API_KEY is not set. Analysis calls the real Gemini API and needs a key.",
     );
   }
-  const modelName = env.GEMINI_ANALYSIS_MODEL?.trim() || DEFAULT_GEMINI_ANALYSIS_MODEL;
+  const modelName =
+    env.GEMINI_ANALYSIS_MODEL?.trim() || DEFAULT_GEMINI_ANALYSIS_MODEL;
   return new GeminiTextModel(apiKey, modelName);
 }
 
@@ -78,10 +79,7 @@ export type FakeTextModelCall = TextModelArgs;
 export interface FakeTextModelConfig {
   modelName?: string;
   /** Called once per `generate()`; index 0 is the first attempt, 1 the retry. */
-  answer: (
-    args: TextModelArgs,
-    callIndex: number,
-  ) => string | Promise<string>;
+  answer: (args: TextModelArgs, callIndex: number) => string | Promise<string>;
 }
 
 /**

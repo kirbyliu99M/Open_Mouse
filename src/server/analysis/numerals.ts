@@ -14,7 +14,10 @@ const NUMERAL_PATTERN = /(?<![\w.])-?\d+(?:\.\d+)?(?!\d)/g;
 const EPSILON = 1e-9;
 
 /** Recursively collects every numeric leaf value in an arbitrary object tree. */
-export function collectNumbers(value: unknown, out: Set<number> = new Set()): Set<number> {
+export function collectNumbers(
+  value: unknown,
+  out: Set<number> = new Set(),
+): Set<number> {
   if (typeof value === "number" && Number.isFinite(value)) {
     out.add(value);
   } else if (Array.isArray(value)) {
