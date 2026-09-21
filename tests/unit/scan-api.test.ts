@@ -16,6 +16,7 @@ import {
 import type { ScanRepo, SessionRecord } from "../../src/server/scans/repo";
 import { handleSessionDelete } from "../../src/server/scans/session";
 import { handleScanSubmission } from "../../src/server/scans/submit";
+import { createSweepThrottle } from "../../src/server/scans/sweep";
 
 /**
  * In-memory `ScanRepo` fake. No real database — every handler test below
@@ -69,6 +70,15 @@ function createFakeRepo() {
       }
       return removed;
     }),
+    claimSession: vi.fn(
+      async (sessionId: string, userId: string, now: Date) => {
+        const row = sessions.get(sessionId);
+        if (!row) return;
+        if (row.userId !== null) return;
+        if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return;
+        sessions.set(sessionId, { ...row, userId, expiresAt: null });
+      },
+    ),
   };
   return { repo, sessions, insertedScans };
 }
@@ -369,5 +379,86 @@ describe("scan session cookie", () => {
   it("treats an absent cookie as no session", () => {
     expect(readSessionCookie(null)).toBeNull();
     expect(readSessionCookie("unrelated=1")).toBeNull();
+  });
+});
+
+describe("POST /api/scans — lazy sweep (issue #17 spec amendment)", () => {
+  it("runs the expiry delete on a request, throttled by the injected sweep", async () => {
+    const { repo } = createFakeRepo();
+    const sweep = createSweepThrottle();
+    const now = () => new Date("2026-09-22T12:00:00Z");
+
+    await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+      sweep,
+      now,
+    });
+    expect(repo.deleteExpiredAnonymousSessions).toHaveBeenCalledTimes(1);
+
+    // A second request one second later, inside the throttle window, does
+    // not sweep again.
+    await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+      sweep,
+      now: () => new Date("2026-09-22T12:00:01Z"),
+    });
+    expect(repo.deleteExpiredAnonymousSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("a sweep failure never fails the scan submission (best-effort)", async () => {
+    const { repo } = createFakeRepo();
+    const throwingSweep = {
+      maybeSweep: vi.fn(async () => {
+        throw new Error("sweep boom");
+      }),
+    };
+
+    const res = await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+      sweep: throwingSweep,
+    });
+
+    expect(res.status).toBe(201);
+    expect(repo.insertScanWithMeasurements).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the shared default throttle when none is injected", async () => {
+    const { repo } = createFakeRepo();
+    const res = await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+    });
+    expect(res.status).toBe(201);
+    // Whatever the default throttle's state, this must not throw and must
+    // not block the response — asserted above by the 201.
+  });
+});
+
+describe("expired means gone — findValidSession never serves a stale session", () => {
+  it("treats a cookie naming an expired session as if it had already been deleted", async () => {
+    const { repo, sessions } = createFakeRepo();
+    // The row still physically exists (not yet swept) but is past expiry.
+    sessions.set("stale", {
+      id: "stale",
+      userId: null,
+      expiresAt: new Date("2020-01-01T00:00:00Z"),
+    });
+
+    const result = await repo.findValidSession(
+      "stale",
+      new Date("2026-09-22T12:00:00Z"),
+    );
+    expect(result).toBeNull();
+
+    // POST /api/scans replaces the cookie with a fresh session rather than
+    // reusing (or erroring on) the expired one.
+    const res = await handleScanSubmission(
+      scanRequest(validSubmission, {
+        cookie: `${SCAN_SESSION_COOKIE}=stale`,
+      }),
+      { repo },
+    );
+    expect(res.status).toBe(201);
+    expect(res.headers.get("set-cookie")).toContain(SCAN_SESSION_COOKIE);
+    expect(repo.createAnonymousSession).toHaveBeenCalledTimes(1);
   });
 });

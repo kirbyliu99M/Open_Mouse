@@ -33,4 +33,14 @@ export interface ScanRepo {
   deleteSession(sessionId: string): Promise<void>;
   /** Returns the number of rows removed. */
   deleteExpiredAnonymousSessions(now: Date): Promise<number>;
+  /**
+   * Attaches an anonymous session to a signed-in user, in one statement:
+   * `user_id` is set and `expires_at` cleared only when `sessionId` names a
+   * row that is *unclaimed* (`user_id IS NULL`) and not already expired
+   * (expired means gone — issue #17 spec amendment). Never reassigns a
+   * session that already belongs to someone else; idempotent no-op
+   * otherwise. `sessionId` must come only from the caller's own httpOnly
+   * cookie — see `src/server/auth/claim.ts`.
+   */
+  claimSession(sessionId: string, userId: string, now: Date): Promise<void>;
 }
