@@ -10,6 +10,7 @@ _Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
 ## Right now
 
 **Current milestone:** M0 — Scaffold (now owned by Claude — backend handover)
+**Codex handoff:** [Deployment investigation and resource identifiers](HANDOFF-CLAUDE.md). Codex continues with frontend/3D tool readiness; the initial Blender MCP connection check did not return and made no scene changes.
 **Next action:** Kirby enables Neon preview branching (below); Claude then verifies the preview branch + migration and moves [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) out of draft for Codex review. Claude starts M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) in parallel on a stacked branch.
 **Blocked on — Kirby, Vercel dashboard only:**
 
@@ -21,16 +22,16 @@ _Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status           | PR                                                       | Notes                                                     |
-| --- | ---------------------------------- | ----- | ---------------- | -------------------------------------------------------- | --------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🏗 draft PR       | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance |
-| M1  | Data layer + shape rubric          | ✅    | ⬜ blocked by M0 | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | **riskiest gate — see Risks**; rubric written             |
-| M2  | Calibration + measurement          | ✅    | ⬜               | –                                                        | needs Kirby's fixture set                                 |
-| M3  | Fit engine                         | –     | ⬜               | –                                                        | coefficients need real pairings                           |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜               | –                                                        | largest build                                             |
-| M5  | Gemini analysis                    | –     | ⬜               | –                                                        | cost levers matter, see PLAN                              |
-| M6  | Sessions, auth, privacy            | –     | ⬜               | –                                                        |                                                           |
-| M7  | Polish + security review           | –     | ⬜               | –                                                        | before any public exposure                                |
+| #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                   |
+| --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance               |
+| M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | schema, computeSize, rules, harness done; seed + classification pending |
+| M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                               |
+| M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                         |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                     | –                                                        | largest build                                                           |
+| M5  | Gemini analysis                    | –     | ⬜                     | –                                                        | cost levers matter, see PLAN                                            |
+| M6  | Sessions, auth, privacy            | –     | ⬜                     | –                                                        |                                                                         |
+| M7  | Polish + security review           | –     | ⬜                     | –                                                        | before any public exposure                                              |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -113,6 +114,10 @@ Two consequences:
   within-one-level agreement — see PLAN §M1.
 - `Size` was the opposite case and is now **computed, not classified**
   (89.5% exact on Logitech). One fewer descriptor for vision to get wrong.
+
+**Vertical mice break length-based sizing.** Lift Vertical (108 mm long, 71 mm
+tall) is the only two-level Size miss on Logitech. Treat `Height/Length > 0.55`
+as its own form factor; M3 must not score it with the horizontal length model.
 
 **M2 depends on a human.** The accuracy gate cannot be attempted until Kirby
 shoots the ground-truth fixture set.

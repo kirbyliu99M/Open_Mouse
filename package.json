@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "rubric:validate": "tsx scripts/validate-rubric.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
