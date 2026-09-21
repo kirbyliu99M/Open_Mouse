@@ -2,13 +2,11 @@
 
 import { useId, useState } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
-import { EXCLUDED_REASON_LABELS, titleCaseSlug } from "./labels";
+import { EXCLUDED_REASON_LABELS } from "./labels";
 
 /**
  * Excluded mice in a collapsed "Not shown" group, each with its exclusion
- * reason spelled out in words (the contract only carries a `slug` and a
- * closed reason enum, no display name or free-text reason — see the PR
- * notes on this).
+ * reason spelled out in words.
  */
 export function ExcludedList({ response }: { response: FitResponse }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +42,7 @@ export function ExcludedList({ response }: { response: FitResponse }) {
             {response.excluded.map((item) => (
               <li key={item.slug}>
                 <span className="results-excludedList-name">
-                  {titleCaseSlug(item.slug)}
+                  {item.brand} {item.model}
                 </span>
                 <span className="results-excludedList-reason">
                   {EXCLUDED_REASON_LABELS[item.reason]}

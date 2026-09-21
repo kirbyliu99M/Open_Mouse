@@ -8,8 +8,18 @@
   },
   "targets": { "lengthMm": 110, "gripWidthMm": 58, "heightMm": 34 },
   "excluded": [
-    { "slug": "logitech-lift-vertical", "reason": "vertical_form_factor" },
-    { "slug": "razer-basilisk-v3-x-left", "reason": "wrong_hand" }
+    {
+      "slug": "logitech-lift-vertical",
+      "brand": "Logitech",
+      "model": "Lift Vertical",
+      "reason": "vertical_form_factor"
+    },
+    {
+      "slug": "razer-basilisk-v3-x-left",
+      "brand": "Razer",
+      "model": "Basilisk V3 X (left-handed)",
+      "reason": "wrong_hand"
+    }
   ],
   "results": [
     {

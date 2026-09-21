@@ -21,11 +21,3 @@ export const EXCLUDED_REASON_LABELS: Record<
   wrong_hand: "Doesn't fit your handedness",
   vertical_form_factor: "Vertical shape, excluded from this comparison",
 };
-
-/** "logitech-g-pro-x-superlight-2" -> "Logitech G Pro X Superlight 2" */
-export function titleCaseSlug(slug: string): string {
-  return slug
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
