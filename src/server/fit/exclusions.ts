@@ -17,12 +17,20 @@ export function excludeReason(
   prefs: FitPreferences,
 ): ExclusionReason | null {
   if (mouse.handCompatibility !== null) {
-    if (hand === "right" && mouse.handCompatibility === "left") return "wrong_hand";
-    if (hand === "left" && mouse.handCompatibility === "right" && mouse.shape === "ergonomic") {
+    if (hand === "right" && mouse.handCompatibility === "left")
+      return "wrong_hand";
+    if (
+      hand === "left" &&
+      mouse.handCompatibility === "right" &&
+      mouse.shape === "ergonomic"
+    ) {
       return "wrong_hand";
     }
   }
-  if (mouse.heightMm / mouse.lengthMm > VERTICAL_FORM_FACTOR_RATIO && !prefs.includeVertical) {
+  if (
+    mouse.heightMm / mouse.lengthMm > VERTICAL_FORM_FACTOR_RATIO &&
+    !prefs.includeVertical
+  ) {
     return "vertical_form_factor";
   }
   return null;

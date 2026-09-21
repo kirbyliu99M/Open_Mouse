@@ -26,7 +26,10 @@ const baseMouse: CatalogueMouse = {
   thumbRest: null,
 };
 
-const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({ ...baseMouse, ...patch });
+const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
+  ...baseMouse,
+  ...patch,
+});
 
 describe("scoreLength", () => {
   it.each([
@@ -38,12 +41,15 @@ describe("scoreLength", () => {
     [117, 120, 88, "length_ideal"], //   Δ=-3 exactly, mirrored ideal boundary
     [114, 120, 61, "length_short"], //   Δ=-6=σ, mirrored
     [90, 120, 0, "length_short"], //     far below target
-  ] as const)("length=%s target=%s → score=%s code=%s", (lengthMm, targetMm, score, code) => {
-    const r = scoreLength(mouse({ lengthMm }), targetMm);
-    expect(r.score).toBe(score);
-    expect(r.reason.code).toBe(code);
-    expect(r.weight).toBe(0.3);
-  });
+  ] as const)(
+    "length=%s target=%s → score=%s code=%s",
+    (lengthMm, targetMm, score, code) => {
+      const r = scoreLength(mouse({ lengthMm }), targetMm);
+      expect(r.score).toBe(score);
+      expect(r.reason.code).toBe(code);
+      expect(r.weight).toBe(0.3);
+    },
+  );
 });
 
 describe("scoreGripWidth", () => {
@@ -81,7 +87,11 @@ describe("scoreGripWidth", () => {
 
 describe("scoreHeightHump", () => {
   it("scores height only, with descriptor_unknown, when hump is null", () => {
-    const r = scoreHeightHump(mouse({ heightMm: 40, humpPlacement: null }), 40, "palm");
+    const r = scoreHeightHump(
+      mouse({ heightMm: 40, humpPlacement: null }),
+      40,
+      "palm",
+    );
     expect(r.score).toBe(100);
     expect(r.reason).toEqual({ code: "descriptor_unknown", params: {} });
     expect(r.weight).toBe(0.2);
@@ -101,15 +111,22 @@ describe("scoreHeightHump", () => {
     ["fingertip", "back_minimal", 1, "hump_mismatch_grip"],
     ["fingertip", "back_moderate", 2, "hump_mismatch_grip"],
     ["fingertip", "back_aggressive", 3, "hump_mismatch_grip"],
-  ] as const)("grip=%s hump=%s → %s levels off, %s", (grip, humpPlacement, levelsOff, code) => {
-    const r = scoreHeightHump(mouse({ heightMm: 40, humpPlacement }), 40, grip);
-    expect(r.reason.code).toBe(code);
-    expect(r.reason.params.humpLevelsOff).toBe(levelsOff);
-    // height component is perfect (Δ=0 → 100); hump component per the
-    // multiplier table — combine 0.6·height + 0.4·hump.
-    const humpMultiplier = [1, 0.85, 0.6, 0.4][levelsOff];
-    expect(r.score).toBe(Math.round(0.6 * 100 + 0.4 * 100 * humpMultiplier));
-  });
+  ] as const)(
+    "grip=%s hump=%s → %s levels off, %s",
+    (grip, humpPlacement, levelsOff, code) => {
+      const r = scoreHeightHump(
+        mouse({ heightMm: 40, humpPlacement }),
+        40,
+        grip,
+      );
+      expect(r.reason.code).toBe(code);
+      expect(r.reason.params.humpLevelsOff).toBe(levelsOff);
+      // height component is perfect (Δ=0 → 100); hump component per the
+      // multiplier table — combine 0.6·height + 0.4·hump.
+      const humpMultiplier = [1, 0.85, 0.6, 0.4][levelsOff];
+      expect(r.score).toBe(Math.round(0.6 * 100 + 0.4 * 100 * humpMultiplier));
+    },
+  );
 });
 
 describe("scoreFrontFlare", () => {
@@ -132,11 +149,14 @@ describe("scoreFrontFlare", () => {
     ["palm", "outward_aggressive", 80, "flare_neutral"],
     ["palm", "inward_slight", 80, "flare_neutral"],
     ["palm", "inward_aggressive", 60, "flare_crowds_fingers"],
-  ] as const)("grip=%s flare=%s → score=%s code=%s", (grip, frontFlare, score, code) => {
-    const r = scoreFrontFlare(mouse({ frontFlare }), grip);
-    expect(r.score).toBe(score);
-    expect(r.reason.code).toBe(code);
-  });
+  ] as const)(
+    "grip=%s flare=%s → score=%s code=%s",
+    (grip, frontFlare, score, code) => {
+      const r = scoreFrontFlare(mouse({ frontFlare }), grip);
+      expect(r.score).toBe(score);
+      expect(r.reason.code).toBe(code);
+    },
+  );
 });
 
 describe("scoreThumb", () => {
@@ -154,11 +174,14 @@ describe("scoreThumb", () => {
     ["claw", false, 85, "thumb_neutral"],
     ["fingertip", true, 65, "thumb_rest_unneeded"],
     ["fingertip", false, 85, "thumb_neutral"],
-  ] as const)("grip=%s thumbRest=%s → score=%s code=%s", (grip, thumbRest, score, code) => {
-    const r = scoreThumb(mouse({ thumbRest }), grip);
-    expect(r.score).toBe(score);
-    expect(r.reason.code).toBe(code);
-  });
+  ] as const)(
+    "grip=%s thumbRest=%s → score=%s code=%s",
+    (grip, thumbRest, score, code) => {
+      const r = scoreThumb(mouse({ thumbRest }), grip);
+      expect(r.score).toBe(score);
+      expect(r.reason.code).toBe(code);
+    },
+  );
 });
 
 describe("scoreWeight", () => {
@@ -186,12 +209,15 @@ describe("scoreWeight", () => {
     [90, 60, 90, 100, "weight_in_range"], // inclusive at max
     [50, 60, 90, 61, "weight_lighter"], // Δ=10=σ → exp(-0.5)≈0.6065
     [100, 60, 90, 61, "weight_heavier"],
-  ] as const)("weight=%s range=[%s,%s] → score=%s code=%s", (weightG, min, max, score, code) => {
-    const r = scoreWeight(mouse({ weightG }), {
-      includeVertical: false,
-      weightG: { min, max },
-    });
-    expect(r.score).toBe(score);
-    expect(r.reason.code).toBe(code);
-  });
+  ] as const)(
+    "weight=%s range=[%s,%s] → score=%s code=%s",
+    (weightG, min, max, score, code) => {
+      const r = scoreWeight(mouse({ weightG }), {
+        includeVertical: false,
+        weightG: { min, max },
+      });
+      expect(r.score).toBe(score);
+      expect(r.reason.code).toBe(code);
+    },
+  );
 });

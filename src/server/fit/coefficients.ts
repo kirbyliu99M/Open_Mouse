@@ -1,4 +1,7 @@
-import type { FrontFlare, SideCurvature } from "../../lib/contracts/descriptors";
+import type {
+  FrontFlare,
+  SideCurvature,
+} from "../../lib/contracts/descriptors";
 import type { GripStyle, Subscore } from "../../lib/contracts/fit";
 
 /**

@@ -48,7 +48,12 @@ const unclassified: CatalogueMouse = {
 
 describe("scoreFit aggregation", () => {
   it("computes a renormalised total and a weight-based confidence for a fully classified mouse", () => {
-    const r = scoreFit(measurements, [fullyClassified], { includeVertical: false }, "right");
+    const r = scoreFit(
+      measurements,
+      [fullyClassified],
+      { includeVertical: false },
+      "right",
+    );
     const entry = r.results[0];
     // length 100·0.30 + gripWidth 100·0.25 + heightHump 100·0.20
     // + frontFlare 100·0.10 + thumb 85·0.10, weight sum 0.95 (weight excluded: no preference)
@@ -57,7 +62,12 @@ describe("scoreFit aggregation", () => {
   });
 
   it("renormalises over fewer subscores and lowers confidence for an unclassified mouse", () => {
-    const r = scoreFit(measurements, [unclassified], { includeVertical: false }, "right");
+    const r = scoreFit(
+      measurements,
+      [unclassified],
+      { includeVertical: false },
+      "right",
+    );
     const entry = r.results[0];
     // Real inputs: length 100·0.30, gripWidth 100·0.125 (curvature null → halved),
     // heightHump 100·0.20 (height-only, but reason is descriptor_unknown).
@@ -80,9 +90,21 @@ describe("scoreFit aggregation", () => {
   });
 
   it("sorts by total desc, then confidence desc, then model name asc", () => {
-    const lowerConfidence: CatalogueMouse = { ...unclassified, slug: "acme-gamma", model: "Gamma" };
-    const tieBreakA: CatalogueMouse = { ...fullyClassified, slug: "acme-zeta", model: "Zeta" };
-    const tieBreakB: CatalogueMouse = { ...fullyClassified, slug: "acme-yankee", model: "Yankee" };
+    const lowerConfidence: CatalogueMouse = {
+      ...unclassified,
+      slug: "acme-gamma",
+      model: "Gamma",
+    };
+    const tieBreakA: CatalogueMouse = {
+      ...fullyClassified,
+      slug: "acme-zeta",
+      model: "Zeta",
+    };
+    const tieBreakB: CatalogueMouse = {
+      ...fullyClassified,
+      slug: "acme-yankee",
+      model: "Yankee",
+    };
 
     const r = scoreFit(
       measurements,
@@ -140,7 +162,11 @@ describe("scoreFit aggregation", () => {
       { includeVertical: false },
       "right",
     );
-    expect(predictedOnly.gripStyle).toEqual({ stated: null, predicted: "claw", used: "claw" });
+    expect(predictedOnly.gripStyle).toEqual({
+      stated: null,
+      predicted: "claw",
+      used: "claw",
+    });
 
     const stated = scoreFit(
       measurements,
@@ -148,15 +174,24 @@ describe("scoreFit aggregation", () => {
       { includeVertical: false, gripStyle: "palm" },
       "right",
     );
-    expect(stated.gripStyle).toEqual({ stated: "palm", predicted: "claw", used: "palm" });
+    expect(stated.gripStyle).toEqual({
+      stated: "palm",
+      predicted: "claw",
+      used: "palm",
+    });
     // Targets recompute off the used (stated) grip, not the predicted one.
     expect(stated.targets.lengthMm).toBeCloseTo(190 * 0.66, 10);
   });
 
   it("produces output that parses with fitResponseSchema", () => {
-    const r = scoreFit(measurements, [fullyClassified, unclassified], {
-      includeVertical: false,
-    } , "right");
+    const r = scoreFit(
+      measurements,
+      [fullyClassified, unclassified],
+      {
+        includeVertical: false,
+      },
+      "right",
+    );
     const withScanId = { ...r, scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f" };
     const parsed = fitResponseSchema.safeParse(withScanId);
     expect(parsed.success).toBe(true);

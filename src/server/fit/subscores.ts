@@ -1,5 +1,12 @@
-import { HUMP_PLACEMENTS, flareDirection } from "../../lib/contracts/descriptors";
-import type { FitPreferences, GripStyle, ReasonCode } from "../../lib/contracts/fit";
+import {
+  HUMP_PLACEMENTS,
+  flareDirection,
+} from "../../lib/contracts/descriptors";
+import type {
+  FitPreferences,
+  GripStyle,
+  ReasonCode,
+} from "../../lib/contracts/fit";
 import {
   BASE_WEIGHTS,
   CURVATURE_ADJUSTMENT_MM,
@@ -21,7 +28,10 @@ const isPalm = (grip: GripStyle) => grip === "palm";
 
 // ── length ────────────────────────────────────────────────────────────────
 
-export function scoreLength(mouse: CatalogueMouse, targetMm: number): SubscoreResult {
+export function scoreLength(
+  mouse: CatalogueMouse,
+  targetMm: number,
+): SubscoreResult {
   const deltaMm = mouse.lengthMm - targetMm;
   const score = gaussianScore(deltaMm, SIGMA_MM.length);
   const code: ReasonCode =
@@ -39,9 +49,13 @@ export function scoreLength(mouse: CatalogueMouse, targetMm: number): SubscoreRe
 
 // ── gripWidth ─────────────────────────────────────────────────────────────
 
-export function scoreGripWidth(mouse: CatalogueMouse, targetMm: number): SubscoreResult {
+export function scoreGripWidth(
+  mouse: CatalogueMouse,
+  targetMm: number,
+): SubscoreResult {
   const curvature = mouse.sideCurvature;
-  const curvatureAdjMm = curvature === null ? 0 : CURVATURE_ADJUSTMENT_MM[curvature];
+  const curvatureAdjMm =
+    curvature === null ? 0 : CURVATURE_ADJUSTMENT_MM[curvature];
   const ergonomicThumbAdjMm =
     mouse.shape === "ergonomic" && mouse.thumbRest === true
       ? THUMB_REST_ERGONOMIC_ADJUSTMENT_MM
@@ -56,13 +70,20 @@ export function scoreGripWidth(mouse: CatalogueMouse, targetMm: number): Subscor
         ? "width_narrow"
         : "width_wide";
   // §3: "Null curvature → use 0 adj but lower this sub-score's weight by half."
-  const weight = curvature === null ? BASE_WEIGHTS.gripWidth / 2 : BASE_WEIGHTS.gripWidth;
+  const weight =
+    curvature === null ? BASE_WEIGHTS.gripWidth / 2 : BASE_WEIGHTS.gripWidth;
   return {
     score,
     weight,
     reason: {
       code,
-      params: { deltaMm, targetMm, effectiveWidthMm, curvatureAdjMm, ergonomicThumbAdjMm },
+      params: {
+        deltaMm,
+        targetMm,
+        effectiveWidthMm,
+        curvatureAdjMm,
+        ergonomicThumbAdjMm,
+      },
     },
   };
 }
@@ -89,12 +110,16 @@ export function scoreHeightHump(
 
   const actualIndex = HUMP_PLACEMENTS.indexOf(mouse.humpPlacement);
   const bestIndices = HUMP_BEST_INDEX[usedGrip];
-  const levelsOff = Math.min(...bestIndices.map((i) => Math.abs(i - actualIndex)));
+  const levelsOff = Math.min(
+    ...bestIndices.map((i) => Math.abs(i - actualIndex)),
+  );
   const humpScore = 100 * HUMP_LEVEL_OFF_MULTIPLIER[levelsOff];
   const score = Math.round(
-    HEIGHT_HUMP_HEIGHT_WEIGHT * heightScore + HEIGHT_HUMP_HUMP_WEIGHT * humpScore,
+    HEIGHT_HUMP_HEIGHT_WEIGHT * heightScore +
+      HEIGHT_HUMP_HUMP_WEIGHT * humpScore,
   );
-  const code: ReasonCode = levelsOff === 0 ? "hump_matches_grip" : "hump_mismatch_grip";
+  const code: ReasonCode =
+    levelsOff === 0 ? "hump_matches_grip" : "hump_mismatch_grip";
   return {
     score,
     weight: BASE_WEIGHTS.heightHump,
@@ -104,7 +129,10 @@ export function scoreHeightHump(
 
 // ── frontFlare ────────────────────────────────────────────────────────────
 
-export function scoreFrontFlare(mouse: CatalogueMouse, usedGrip: GripStyle): SubscoreResult {
+export function scoreFrontFlare(
+  mouse: CatalogueMouse,
+  usedGrip: GripStyle,
+): SubscoreResult {
   if (mouse.frontFlare === null) {
     return {
       score: null,
@@ -112,12 +140,17 @@ export function scoreFrontFlare(mouse: CatalogueMouse, usedGrip: GripStyle): Sub
       reason: { code: "descriptor_unknown", params: {} },
     };
   }
-  const table = isPalm(usedGrip) ? FRONT_FLARE_SCORE.palm : FRONT_FLARE_SCORE.clawOrFingertip;
+  const table = isPalm(usedGrip)
+    ? FRONT_FLARE_SCORE.palm
+    : FRONT_FLARE_SCORE.clawOrFingertip;
   const score = table[mouse.frontFlare];
   const direction = flareDirection(mouse.frontFlare);
   let code: ReasonCode;
   if (isPalm(usedGrip)) {
-    code = mouse.frontFlare === "inward_aggressive" ? "flare_crowds_fingers" : "flare_neutral";
+    code =
+      mouse.frontFlare === "inward_aggressive"
+        ? "flare_crowds_fingers"
+        : "flare_neutral";
   } else if (direction === "outward") {
     code = "flare_supports_fingers";
   } else if (direction === "flat") {
@@ -125,12 +158,19 @@ export function scoreFrontFlare(mouse: CatalogueMouse, usedGrip: GripStyle): Sub
   } else {
     code = "flare_crowds_fingers";
   }
-  return { score, weight: BASE_WEIGHTS.frontFlare, reason: { code, params: {} } };
+  return {
+    score,
+    weight: BASE_WEIGHTS.frontFlare,
+    reason: { code, params: {} },
+  };
 }
 
 // ── thumb ─────────────────────────────────────────────────────────────────
 
-export function scoreThumb(mouse: CatalogueMouse, usedGrip: GripStyle): SubscoreResult {
+export function scoreThumb(
+  mouse: CatalogueMouse,
+  usedGrip: GripStyle,
+): SubscoreResult {
   if (mouse.thumbRest === null) {
     return {
       score: null,
@@ -138,10 +178,18 @@ export function scoreThumb(mouse: CatalogueMouse, usedGrip: GripStyle): Subscore
       reason: { code: "descriptor_unknown", params: {} },
     };
   }
-  const table = isPalm(usedGrip) ? THUMB_SCORE.palm : THUMB_SCORE.clawOrFingertip;
+  const table = isPalm(usedGrip)
+    ? THUMB_SCORE.palm
+    : THUMB_SCORE.clawOrFingertip;
   if (mouse.thumbRest) {
-    const code: ReasonCode = isPalm(usedGrip) ? "thumb_rest_supports" : "thumb_rest_unneeded";
-    return { score: table.withRest, weight: BASE_WEIGHTS.thumb, reason: { code, params: {} } };
+    const code: ReasonCode = isPalm(usedGrip)
+      ? "thumb_rest_supports"
+      : "thumb_rest_unneeded";
+    return {
+      score: table.withRest,
+      weight: BASE_WEIGHTS.thumb,
+      reason: { code, params: {} },
+    };
   }
   return {
     score: table.withoutRest,
@@ -152,7 +200,10 @@ export function scoreThumb(mouse: CatalogueMouse, usedGrip: GripStyle): Subscore
 
 // ── weight ────────────────────────────────────────────────────────────────
 
-export function scoreWeight(mouse: CatalogueMouse, prefs: FitPreferences): SubscoreResult {
+export function scoreWeight(
+  mouse: CatalogueMouse,
+  prefs: FitPreferences,
+): SubscoreResult {
   if (!prefs.weightG) {
     return {
       score: null,
@@ -178,9 +229,11 @@ export function scoreWeight(mouse: CatalogueMouse, prefs: FitPreferences): Subsc
       reason: { code: "weight_in_range", params: { minG: min, maxG: max } },
     };
   }
-  const deltaG = mouse.weightG < min ? min - mouse.weightG : mouse.weightG - max;
+  const deltaG =
+    mouse.weightG < min ? min - mouse.weightG : mouse.weightG - max;
   const score = gaussianScore(deltaG, SIGMA_WEIGHT_G);
-  const code: ReasonCode = mouse.weightG < min ? "weight_lighter" : "weight_heavier";
+  const code: ReasonCode =
+    mouse.weightG < min ? "weight_lighter" : "weight_heavier";
   return {
     score,
     weight: BASE_WEIGHTS.weight,

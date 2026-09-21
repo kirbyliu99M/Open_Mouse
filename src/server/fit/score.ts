@@ -34,13 +34,20 @@ export function scoreFit(
   prefs: FitPreferences,
   hand: "left" | "right",
 ): Omit<FitResponse, "scanId"> {
-  const predicted = predictGrip(measurements.handLengthMm, measurements.palmLengthMm);
+  const predicted = predictGrip(
+    measurements.handLengthMm,
+    measurements.palmLengthMm,
+  );
   // §1: "Stated grip always overrides predicted." Stated grip travels as a
   // user preference (fitPreferencesSchema.gripStyle) — there is no separate
   // gripStyleStated parameter on scoreFit itself.
   const stated = prefs.gripStyle ?? null;
   const used = stated ?? predicted;
-  const targets = computeTargets(measurements.handLengthMm, measurements.palmWidthMm, used);
+  const targets = computeTargets(
+    measurements.handLengthMm,
+    measurements.palmWidthMm,
+    used,
+  );
 
   const excluded: FitResponse["excluded"] = [];
   const entries: Omit<FitEntry, "rank">[] = [];
@@ -85,8 +92,12 @@ export function scoreFit(
       }
     }
 
-    const total = scoreWeightSum > 0 ? Math.round(weightedScoreSum / scoreWeightSum) : 0;
-    const confidence = confidenceDenominator > 0 ? confidenceNumerator / confidenceDenominator : 0;
+    const total =
+      scoreWeightSum > 0 ? Math.round(weightedScoreSum / scoreWeightSum) : 0;
+    const confidence =
+      confidenceDenominator > 0
+        ? confidenceNumerator / confidenceDenominator
+        : 0;
 
     entries.push({
       mouse: {
@@ -112,7 +123,10 @@ export function scoreFit(
     return a.mouse.model.localeCompare(b.mouse.model);
   });
 
-  const results: FitEntry[] = entries.map((entry, i) => ({ ...entry, rank: i + 1 }));
+  const results: FitEntry[] = entries.map((entry, i) => ({
+    ...entry,
+    rank: i + 1,
+  }));
 
   return {
     engineVersion: ENGINE_VERSION,

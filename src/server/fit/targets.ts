@@ -1,5 +1,9 @@
 import type { GripStyle } from "../../lib/contracts/fit";
-import { GRIP_WIDTH_FACTOR, HEIGHT_FACTOR, LENGTH_FACTOR } from "./coefficients";
+import {
+  GRIP_WIDTH_FACTOR,
+  HEIGHT_FACTOR,
+  LENGTH_FACTOR,
+} from "./coefficients";
 
 export interface FitTargets {
   lengthMm: number;

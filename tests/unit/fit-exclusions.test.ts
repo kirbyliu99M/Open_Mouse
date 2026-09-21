@@ -19,7 +19,10 @@ const baseMouse: CatalogueMouse = {
   thumbRest: null,
 };
 
-const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({ ...baseMouse, ...patch });
+const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
+  ...baseMouse,
+  ...patch,
+});
 const defaultPrefs = { includeVertical: false } as const;
 
 describe("excludeReason handedness", () => {
@@ -34,9 +37,14 @@ describe("excludeReason handedness", () => {
     ["left", "left", "ergonomic", null],
     ["right", null, "ergonomic", null], // unknown handedness never excluded
     ["left", null, "ergonomic", null],
-  ] as const)("hand=%s handCompat=%s shape=%s → %s", (hand, handCompatibility, shape, expected) => {
-    expect(excludeReason(mouse({ handCompatibility, shape }), hand, defaultPrefs)).toBe(expected);
-  });
+  ] as const)(
+    "hand=%s handCompat=%s shape=%s → %s",
+    (hand, handCompatibility, shape, expected) => {
+      expect(
+        excludeReason(mouse({ handCompatibility, shape }), hand, defaultPrefs),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe("excludeReason vertical form factor", () => {
@@ -49,18 +57,26 @@ describe("excludeReason vertical form factor", () => {
     "height=%s length=%s includeVertical=%s → %s",
     (heightMm, lengthMm, includeVertical, expected) => {
       expect(
-        excludeReason(mouse({ heightMm, lengthMm, handCompatibility: null }), "right", {
-          includeVertical,
-        }),
+        excludeReason(
+          mouse({ heightMm, lengthMm, handCompatibility: null }),
+          "right",
+          {
+            includeVertical,
+          },
+        ),
       ).toBe(expected);
     },
   );
 
   it("ratio exactly 0.55 is not excluded", () => {
     expect(
-      excludeReason(mouse({ heightMm: 66, lengthMm: 120, handCompatibility: null }), "right", {
-        includeVertical: false,
-      }),
+      excludeReason(
+        mouse({ heightMm: 66, lengthMm: 120, handCompatibility: null }),
+        "right",
+        {
+          includeVertical: false,
+        },
+      ),
     ).toBe(null);
   });
 });
