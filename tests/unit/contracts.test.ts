@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SHEET,
   MAX_SCALE_DISAGREEMENT,
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
