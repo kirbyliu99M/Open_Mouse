@@ -14,7 +14,10 @@
  * manual 4-corner drag fallback regardless of whether this finds anything.
  *
  * Like `markers.ts`, the untyped CJS `CV` surface is typed locally to this
- * adapter rather than widening a shared ambient declaration.
+ * adapter rather than widening a shared ambient declaration, and — for the
+ * same reason documented in markers.ts's header (webpack resolves this
+ * module's `this.CV = CV` to `globalThis`, not `module.exports`) —
+ * resolved from either location.
  */
 import cvModule from "js-aruco2/src/cv.js";
 import { ID1_CARD_MM } from "../../lib/contracts/measurement";
@@ -46,7 +49,17 @@ interface CvRuntime {
   minEdgeLength(poly: readonly Point2[]): number;
 }
 
-const CV = (cvModule as unknown as { CV: CvRuntime }).CV;
+function resolveCvNamespace(): CvRuntime {
+  const fromModuleExports = (cvModule as unknown as { CV?: CvRuntime })?.CV;
+  if (fromModuleExports?.Image) return fromModuleExports;
+  const fromGlobal = (globalThis as unknown as { CV?: CvRuntime }).CV;
+  if (fromGlobal?.Image) return fromGlobal;
+  throw new Error(
+    "js-aruco2's CV namespace initialized on neither the module export nor globalThis.",
+  );
+}
+
+const CV = resolveCvNamespace();
 
 const CANDIDATE_MIN_CONTOUR_FRACTION = 0.01; // of image width, same as AR.Detector
 const CANDIDATE_APPROX_EPSILON_FRACTION = 0.05;

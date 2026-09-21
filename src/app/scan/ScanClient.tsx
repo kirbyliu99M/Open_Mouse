@@ -312,6 +312,12 @@ export default function ScanClient() {
         {statusText}
       </div>
 
+      {overlay && (
+        <p className="visuallyHidden" data-testid="photo-dimensions">
+          {overlay.imageWidth}x{overlay.imageHeight}
+        </p>
+      )}
+
       {previewUrl && (
         <div
           className="photoStage"

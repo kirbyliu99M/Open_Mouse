@@ -6,21 +6,38 @@
  * file's header for why).
  *
  * `js-aruco2/src/aruco.js` is plain CommonJS that populates a shared `AR`
- * namespace via `this.AR = AR` — reasonable under a bundler's CJS
- * interop (both webpack, which `next build`/`next dev` use here since
- * neither script passes `--turbopack`, and esbuild/Vite, which Vitest
- * uses) but not something to type against the project's *shared* ambient
- * declarations. `src/types/js-aruco2.d.ts` deliberately types only the
- * `DICTIONARIES` shape it needs for its own test. Rather than widen that
- * shared file for a shape only this module needs, the `AR.Detector`
- * surface is typed locally, right where it's used, and the import is cast
- * to it — keeping every bit of "trust me, this untyped CJS export has a
- * Detector on it" contained to this one adapter.
+ * namespace via `this.AR = AR` — relying on top-level `this` being
+ * `module.exports`, which is NOT consistent across this app's build
+ * targets (confirmed by hand, not just suspected): under Vitest/esbuild,
+ * `this` resolves to `module.exports`, so `import arucoModule from
+ * "js-aruco2/src/aruco.js"` gets `{ AR, ... }` directly. Under webpack
+ * (`next dev`/`next build`, neither script passes `--turbopack`), the same
+ * module's top-level `this` resolves to `globalThis` instead —
+ * `module.exports` stays `{}` and `AR` ends up as a bare global
+ * (`window.AR`). `resolveArucoNamespace` below checks both locations so
+ * this adapter works under either. This is also why the `AR.Detector`
+ * surface is typed locally here rather than in the project's *shared*
+ * ambient declarations (`src/types/js-aruco2.d.ts`, which only types the
+ * `DICTIONARIES` shape its own test needs) — every bit of "trust me, this
+ * untyped, inconsistently-exported CJS module has a Detector on it" stays
+ * contained to this one adapter.
  *
- * Verified working under `next dev` and `next build` (both webpack here)
- * via `tests/e2e/scan.spec.ts`, which runs the built/served app in a real
- * browser and asserts markers are actually found in a synthetic photo.
+ * `aruco.js` itself has the exact same problem one dependency deeper: its
+ * own top level does `var CV = this.CV || require('./cv').CV;` to get
+ * `js-aruco2/src/cv.js`'s namespace, and under webpack `this` there is
+ * *also* `globalThis`, not `module.exports` — so `require('./cv').CV`
+ * alone would be `undefined` too. Importing `cv.js` here, before
+ * `aruco.js`, for its side effect (setting `globalThis.CV`) makes
+ * `this.CV` already truthy by the time `aruco.js` evaluates that line, so
+ * its short-circuit picks up the correctly-populated global instead of a
+ * broken `require()` result. `card.ts` needs the identical fix for its own
+ * direct `CV` usage.
+ *
+ * Verified under `next dev`, `next build` and Vitest via
+ * `tests/e2e/scan.spec.ts`, which runs the served app in a real browser
+ * and asserts markers are actually found in a synthetic photo.
  */
+import "js-aruco2/src/cv.js";
 import arucoModule from "js-aruco2/src/aruco.js";
 import { SHEET } from "../../lib/contracts/measurement";
 import type { PointCorrespondence, Point2 } from "../geometry/homography";
@@ -53,7 +70,18 @@ interface ArucoRuntime {
   readonly Detector: ArucoDetectorConstructor;
 }
 
-const AR = (arucoModule as unknown as { AR: ArucoRuntime }).AR;
+function resolveArucoNamespace(): ArucoRuntime {
+  const fromModuleExports = (arucoModule as unknown as { AR?: ArucoRuntime })
+    ?.AR;
+  if (fromModuleExports?.Detector) return fromModuleExports;
+  const fromGlobal = (globalThis as unknown as { AR?: ArucoRuntime }).AR;
+  if (fromGlobal?.Detector) return fromGlobal;
+  throw new Error(
+    "js-aruco2's AR namespace initialized on neither the module export nor globalThis.",
+  );
+}
+
+const AR = resolveArucoNamespace();
 
 /** A marker as found in the photo: id + its 4 corners, in image pixels. */
 export interface DetectedMarker {
