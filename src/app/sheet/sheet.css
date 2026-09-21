@@ -1,0 +1,36 @@
+.instructions {
+  max-width: 40rem;
+  margin: 0 auto 1.5rem;
+  padding: 0 1.5rem;
+}
+
+.printPage {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem 4rem;
+}
+
+.printPage svg {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #d0d0d5;
+}
+
+@media print {
+  .noPrint {
+    display: none;
+  }
+  .printPage {
+    padding: 0;
+    display: block;
+  }
+  .printPage svg {
+    box-shadow: none;
+    display: block;
+    margin: 0 auto;
+  }
+}
+
+@page {
+  size: auto;
+  margin: 0;
+}

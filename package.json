@@ -29,6 +29,7 @@
     "@neondatabase/serverless": "1.1.0",
     "@next/env": "15.5.25",
     "drizzle-orm": "0.45.2",
+    "js-aruco2": "2.0.0",
     "next": "15.5.25",
     "react": "19.3.0",
     "react-dom": "19.3.0",
