@@ -20,6 +20,10 @@ import {
   type Intrinsics,
   type Vec3,
 } from "./camera-pose";
+import {
+  estimateFocalFromHomography,
+  type PrincipalPoint,
+} from "./focal-from-homography";
 import type { Homography, Point2 } from "./homography";
 
 /**
@@ -126,4 +130,47 @@ export function correctLandmarks(
   return landmarksPx.map((pixel, i) =>
     backProjectToHeight(pixel, pose, intrinsics, heightsMm[i]),
   );
+}
+
+// ── Focal policy ─────────────────────────────────────────────────────────
+//
+// Issue #16: "EXIF when present; otherwise the homography estimate if it's
+// well-conditioned; otherwise no correction and parallaxCorrected: false."
+// One place decides this so measurements.ts's corrected path and any future
+// caller can't disagree on the policy.
+
+export type FocalSource = "exif" | "homography" | "none";
+
+export interface ResolvedFocal {
+  /** Null exactly when `source` is "none" — no usable focal length. */
+  readonly fPx: number | null;
+  readonly source: FocalSource;
+}
+
+export interface ResolveFocalOptions {
+  /** Result of exif-focal.ts, or null if EXIF had no usable focal length. */
+  readonly exifFocalPx: number | null;
+  readonly homography: Homography;
+  readonly principalPoint: PrincipalPoint;
+}
+
+/**
+ * Pick which focal length (if any) to use for parallax correction: EXIF
+ * first, then a well-conditioned homography-focal estimate
+ * (focal-from-homography.ts flags an unreliable — e.g. near-fronto-parallel
+ * — estimate itself, so this just refuses to use one), else null (no
+ * correction).
+ */
+export function resolveFocalPx(options: ResolveFocalOptions): ResolvedFocal {
+  if (options.exifFocalPx !== null) {
+    return { fPx: options.exifFocalPx, source: "exif" };
+  }
+  const estimate = estimateFocalFromHomography(
+    options.homography,
+    options.principalPoint,
+  );
+  if (estimate !== null && estimate.reliable) {
+    return { fPx: estimate.fPx, source: "homography" };
+  }
+  return { fPx: null, source: "none" };
 }
