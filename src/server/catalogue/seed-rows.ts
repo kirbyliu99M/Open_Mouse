@@ -1,4 +1,11 @@
-import type { Connectivity } from "../../lib/contracts/descriptors";
+import type {
+  Connectivity,
+  FrontFlare,
+  HandCompatibility,
+  HumpPlacement,
+  Shape,
+  SideCurvature,
+} from "../../lib/contracts/descriptors";
 import { computeSize } from "./size";
 
 export interface SpecRecord {
@@ -44,5 +51,81 @@ export function toMouseRow(r: SpecRecord) {
     }),
     sourceUrl: r.sourceUrl,
     specRetrievedAt: new Date(r.retrievedAt),
+  };
+}
+
+export type MouseRow = NonNullable<ReturnType<typeof toMouseRow>>;
+
+/** src/db/seed/logitech-descriptors.json's shape — scripts/classify-descriptors.ts writes it. */
+export interface DescriptorRecord {
+  model: string;
+  shape: Shape | null;
+  handCompatibility: HandCompatibility | null;
+  humpPlacement: HumpPlacement | null;
+  frontFlare: FrontFlare | null;
+  sideCurvature: SideCurvature | null;
+  thumbRest: boolean | null;
+  ringFingerRest: boolean | null;
+  sourceImageUrls: string[];
+  descriptorModel: string;
+  classifiedAt: string;
+  needsReview: boolean;
+  notes?: string[];
+}
+
+export interface DescriptorFields {
+  shape: Shape | null;
+  handCompatibility: HandCompatibility | null;
+  humpPlacement: HumpPlacement | null;
+  frontFlare: FrontFlare | null;
+  sideCurvature: SideCurvature | null;
+  thumbRest: boolean | null;
+  ringFingerRest: boolean | null;
+  descriptorMethod: "rubric_vision" | null;
+  descriptorModel: string | null;
+  descriptorSourceUrls: string[] | null;
+  classifiedAt: Date | null;
+}
+
+const NO_DESCRIPTORS: DescriptorFields = {
+  shape: null,
+  handCompatibility: null,
+  humpPlacement: null,
+  frontFlare: null,
+  sideCurvature: null,
+  thumbRest: null,
+  ringFingerRest: null,
+  descriptorMethod: null,
+  descriptorModel: null,
+  descriptorSourceUrls: null,
+  classifiedAt: null,
+};
+
+/**
+ * Merges a classified descriptor record onto a spec row. A record flagged
+ * `needsReview` (failed consistency review twice) or with no match is kept
+ * out of the seed — descriptor fields stay null rather than guessed. Never
+ * wipes an already-seeded mouse's descriptors: when there is no record at
+ * all (the classifier hasn't run), the caller's upsert must leave existing
+ * columns alone rather than trust these nulls — see scripts/seed.ts.
+ */
+export function applyDescriptors(
+  row: MouseRow,
+  record: DescriptorRecord | undefined,
+): MouseRow & DescriptorFields {
+  if (!record || record.needsReview) return { ...row, ...NO_DESCRIPTORS };
+  return {
+    ...row,
+    shape: record.shape,
+    handCompatibility: record.handCompatibility,
+    humpPlacement: record.humpPlacement,
+    frontFlare: record.frontFlare,
+    sideCurvature: record.sideCurvature,
+    thumbRest: record.thumbRest,
+    ringFingerRest: record.ringFingerRest,
+    descriptorMethod: "rubric_vision",
+    descriptorModel: record.descriptorModel,
+    descriptorSourceUrls: record.sourceImageUrls,
+    classifiedAt: new Date(record.classifiedAt),
   };
 }

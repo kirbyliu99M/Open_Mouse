@@ -3,6 +3,8 @@ import seed from "../../src/db/seed/logitech.json";
 import { LOGITECH_SOURCES } from "../../src/db/seed/logitech-sources";
 import { dimensionWarnings } from "../../src/server/catalogue/logitech-specs";
 import {
+  applyDescriptors,
+  type DescriptorRecord,
   type SpecRecord,
   slugify,
   toMouseRow,
@@ -73,5 +75,56 @@ describe("checked-in Logitech seed", () => {
   it("produces unique slugs", () => {
     const slugs = rows.map((r) => slugify(r.brand, r.model));
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+});
+
+describe("applyDescriptors", () => {
+  const row = toMouseRow(record)!;
+  const classified: DescriptorRecord = {
+    model: record.model,
+    shape: "symmetrical",
+    handCompatibility: "ambidextrous",
+    humpPlacement: "back_minimal",
+    frontFlare: "flat",
+    sideCurvature: "inward",
+    thumbRest: false,
+    ringFingerRest: false,
+    sourceImageUrls: ["https://resource.logitechg.com/x.png"],
+    descriptorModel: "gemini-3.8-flash",
+    classifiedAt: "2026-09-21T00:00:00.000Z",
+    needsReview: false,
+  };
+
+  it("applies a classified, non-needsReview record with descriptorMethod rubric_vision", () => {
+    const merged = applyDescriptors(row, classified);
+    expect(merged.shape).toBe("symmetrical");
+    expect(merged.handCompatibility).toBe("ambidextrous");
+    expect(merged.humpPlacement).toBe("back_minimal");
+    expect(merged.frontFlare).toBe("flat");
+    expect(merged.sideCurvature).toBe("inward");
+    expect(merged.thumbRest).toBe(false);
+    expect(merged.ringFingerRest).toBe(false);
+    expect(merged.descriptorMethod).toBe("rubric_vision");
+    expect(merged.descriptorModel).toBe("gemini-3.8-flash");
+    expect(merged.descriptorSourceUrls).toEqual([
+      "https://resource.logitechg.com/x.png",
+    ]);
+    expect(merged.classifiedAt).toEqual(new Date("2026-09-21T00:00:00.000Z"));
+    // Dimension fields from the base row are preserved.
+    expect(merged.slug).toBe(row.slug);
+  });
+
+  it("leaves descriptor fields null when there is no matching record", () => {
+    const merged = applyDescriptors(row, undefined);
+    expect(merged.shape).toBeNull();
+    expect(merged.descriptorMethod).toBeNull();
+    expect(merged.descriptorSourceUrls).toBeNull();
+    expect(merged.classifiedAt).toBeNull();
+  });
+
+  it("leaves descriptor fields null for a needsReview record — kept out of the seed", () => {
+    const merged = applyDescriptors(row, { ...classified, needsReview: true });
+    expect(merged.shape).toBeNull();
+    expect(merged.descriptorMethod).toBeNull();
   });
 });
