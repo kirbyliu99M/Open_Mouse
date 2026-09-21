@@ -37,6 +37,8 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 3. A reviewer subagent that did not write the code reviews it; Claude adjudicates
    the findings; Kirby merges.
 
+**Each worktree runs its own `npm ci`. Never link or share `node_modules`** — every `npm install` reconciles the whole folder against *its* branch's lockfile, so a shared folder is silently rewritten by whichever agent installs last.
+
 **Separate working trees are mandatory.** Two agents in one checkout already
 caused one agent's uncommitted work to be committed by another.
 
