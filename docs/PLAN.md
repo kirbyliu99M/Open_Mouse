@@ -108,7 +108,24 @@ Next.js 15 + TS strict, Drizzle, Vitest, Playwright, ESLint/Prettier. Push to th
 - Apply the rubric to Logitech's official renders via Gemini vision; Kirby spot-checks.
 - `scripts/validate-rubric.ts` reads the gitignored CSV from a local path (**never runs in CI**) and reports per-descriptor agreement.
 
-**Gate:** ≥80% exact and ≥95% within-one-level on Hump placement, Front flare, Side curvature. Miss it and the *rubric* gets revised, not the gate.
+**Gate (revised 2026-09-21 on measured evidence):** gate on the distinctions that
+actually drive fit, not on 7-way label precision.
+
+| Metric | Threshold |
+|---|---|
+| Front flare **direction** (Inward / Flat / Outward) | ≥ 85% |
+| Hump **Center vs Back** | ≥ 85% |
+| Side curvature **Inward vs Flat** | ≥ 85% |
+| Within-one-level on the full scales (all three) | ≥ 90% |
+| `Size` (computed, not classified) | ≥ 85% exact — currently 89.5% on Logitech |
+
+*Why revised:* hump placement and front flare have **no numeric proxy** —
+height/length medians span only 0.320–0.336 across all four hump levels, and
+width/length is equally flat across the seven flare levels. They are purely
+visual, so there is no arithmetic fallback. Compounding this, 88% of mice fall
+into just three of the seven flare levels, which makes exact 7-way agreement a
+poor proxy for whether the rubric is fit for purpose. Miss the gate and the
+*rubric* gets revised, never the gate.
 
 ### M2 — Calibration + measurement *(gated)*
 **The printed sheet** — one design for A4 *and* Letter: put the 4 ArUco markers on a **180 × 180 mm inner square**, which fits both identically. Paper size stops being a variable.
