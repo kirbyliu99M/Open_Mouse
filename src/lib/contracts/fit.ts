@@ -76,7 +76,12 @@ export const fitEntrySchema = z.strictObject({
     weightG: z.number().nullable(),
     size: z.enum(SIZES),
   }),
-  /** Weighted mean over non-null sub-scores, weights renormalised. */
+  /**
+   * Weighted mean over applicable sub-scores. A null (unknown) sub-score
+   * contributes a neutral prior score rather than being dropped, so knowing
+   * less about a mouse never raises its rank. `weight` is not applicable
+   * without a user preference.
+   */
   total: z.number().int().min(0).max(100),
   /** Share of total weight that had real inputs, 0–1. Low = provisional ranking. */
   confidence: z.number().min(0).max(1),
@@ -107,6 +112,8 @@ export const fitResponseSchema = z.strictObject({
   excluded: z.array(
     z.strictObject({
       slug: z.string(),
+      brand: z.string(),
+      model: z.string(),
       reason: z.enum(["wrong_hand", "vertical_form_factor"]),
     }),
   ),

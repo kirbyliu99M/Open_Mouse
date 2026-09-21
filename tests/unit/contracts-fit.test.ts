@@ -37,7 +37,12 @@ const valid = {
   gripStyle: { stated: null, predicted: "claw", used: "claw" },
   targets: { lengthMm: 118, gripWidthMm: 62, heightMm: 39 },
   excluded: [
-    { slug: "logitech-lift-vertical", reason: "vertical_form_factor" },
+    {
+      slug: "logitech-lift-vertical",
+      brand: "Logitech",
+      model: "Lift Vertical",
+      reason: "vertical_form_factor",
+    },
   ],
   results: [entry],
 };
