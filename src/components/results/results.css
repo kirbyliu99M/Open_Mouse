@@ -1,0 +1,510 @@
+/*
+ * Results UI styling. Plain CSS, no library — per docs/design-guidelines.md
+ * ("Library: motion... Plain CSS transitions are fine for non-interactive
+ * state changes") and the issue's own "no UI or animation library" rule.
+ *
+ * globals.css has an unscoped `main { max-width: 44rem; margin: 18vh auto; }`
+ * meant for the marketing home page (same issue the sheet page hit — see
+ * src/app/sheet/sheet.css). `.resultsMain` below overrides it with a class
+ * selector, which always beats the bare element selector regardless of
+ * import order.
+ */
+
+.resultsMain {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+}
+
+.results-view {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ---- Demo route controls (dev-only shell around ResultsView) ---- */
+
+.results-demoControls {
+  margin-bottom: 2rem;
+}
+
+.results-demoControls fieldset {
+  border: 1px solid #d0d0d5;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.results-demoControls legend {
+  font-size: 0.8125rem;
+  color: #57575c;
+  padding: 0 0.25rem;
+}
+
+.results-demoControls-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.results-demoControls-buttons button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  border: 1px solid #d0d0d5;
+  border-radius: 0.75rem;
+  background: #f5f5f7;
+  color: inherit;
+  cursor: pointer;
+}
+
+.results-demoControls-buttons button[aria-pressed="true"] {
+  background: #0071e3;
+  border-color: #0071e3;
+  color: #ffffff;
+}
+
+.results-demoControls-buttons button:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
+
+.results-eyebrow {
+  font-size: 0.875rem;
+  color: #57575c;
+  margin: 0 0 0.5rem;
+  letter-spacing: 0;
+}
+
+.results-tabularNum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Top pick ---- */
+
+.results-topPick {
+  border: 1px solid #d0d0d5;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  background: #ffffff;
+}
+
+.results-topPick-whyHeading {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.results-topPick-reasons {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.results-topPick-reasons li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+  background: #f5f5f7;
+  border-radius: 0.5rem;
+}
+
+.results-topPick-reasonLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #57575c;
+}
+
+/* ---- Mouse header (shared by top pick + ranked list items) ---- */
+
+.results-mouseHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.results-mouseHeader-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+}
+
+.results-mouseHeader-name h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.results-mouseHeader-rank {
+  font-variant-numeric: tabular-nums;
+  color: #86868b;
+  font-size: 0.875rem;
+}
+
+.results-mouseHeader-stats {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.results-mouseHeader-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.results-mouseHeader-stats dt {
+  font-size: 0.75rem;
+  color: #86868b;
+}
+
+.results-mouseHeader-stats dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.results-mouseHeader-total {
+  font-weight: 600;
+}
+
+/* ---- Confidence note ---- */
+
+.results-confidenceNote {
+  font-size: 0.875rem;
+  color: #8a5c00;
+  background: #fff6e5;
+  border: 1px solid #f0d488;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  margin: 0 0 1rem;
+}
+
+/* ---- Target vs. actual dimensions table ---- */
+
+.results-targetDeltas {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.results-targetDeltas caption {
+  text-align: left;
+  font-size: 0.75rem;
+  color: #86868b;
+  margin-bottom: 0.375rem;
+}
+
+.results-targetDeltas th,
+.results-targetDeltas td {
+  text-align: left;
+  padding: 0.375rem 0.75rem 0.375rem 0;
+  border-bottom: 1px solid #e5e5ea;
+}
+
+.results-targetDeltas th[scope="col"] {
+  font-weight: 500;
+  color: #86868b;
+  font-size: 0.75rem;
+}
+
+/* ---- Sub-score bars ---- */
+
+.results-subscoreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.results-subscoreBar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.results-subscoreBar-value {
+  font-variant-numeric: tabular-nums;
+  color: #57575c;
+}
+
+.results-subscoreBar-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #e5e5ea;
+  overflow: hidden;
+}
+
+.results-subscoreBar-fill {
+  height: 100%;
+  background: #0071e3;
+  border-radius: 999px;
+}
+
+.results-subscoreBar[data-assessed="false"] .results-subscoreBar-track,
+.results-subscoreBar-bar[data-assessed="false"] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #e5e5ea,
+    #e5e5ea 4px,
+    #eeeef1 4px,
+    #eeeef1 8px
+  );
+}
+
+.results-subscoreBar-reason {
+  font-size: 0.8125rem;
+  color: #57575c;
+  margin: 0.375rem 0 0;
+}
+
+/* ---- Disclosures (ranked list, excluded list) ---- */
+
+.results-rankedList,
+.results-excludedList {
+  border-top: 1px solid #d0d0d5;
+  padding-top: 1.5rem;
+}
+
+.results-rankedList-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: inherit;
+  background: #f5f5f7;
+  border: 1px solid #d0d0d5;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transform-origin: top left;
+}
+
+.results-rankedList-toggle:hover {
+  background: #ececef;
+}
+
+.results-rankedList-toggle:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
+
+.results-rankedList-chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.results-rankedList-chevron[data-open="true"] {
+  transform: rotate(45deg);
+}
+
+/*
+ * Grid-rows 0fr -> 1fr is the standard way to animate to "auto" height with
+ * plain CSS. ~320ms cubic-bezier(0.2, 0.8, 0.2, 1) approximates the
+ * critically-damped feel (bounce: 0, ~0.3-0.4s response) the motion
+ * guidelines ask for, since CSS transitions can't run an actual spring.
+ * The region stays mounted (not conditionally rendered) so this can animate
+ * at all, and is made inert + aria-hidden while collapsed.
+ */
+.results-rankedList-region {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.results-rankedList-region[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.results-rankedList-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.results-rankedList-region[data-open="false"] .results-rankedList-inner {
+  visibility: hidden;
+}
+
+.results-rankedList-items {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.results-rankedList-item {
+  border: 1px solid #e5e5ea;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.results-excludedList-items {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.results-excludedList-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9375rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e5ea;
+}
+
+.results-excludedList-reason {
+  color: #86868b;
+}
+
+/* ---- Gemini slot ---- */
+
+.results-gemini {
+  border-top: 1px solid #d0d0d5;
+  padding-top: 1.5rem;
+}
+
+.results-gemini-error {
+  color: #8a1f11;
+}
+
+.results-gemini-retry {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d0d0d5;
+  border-radius: 0.75rem;
+  background: #f5f5f7;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.results-gemini-caveats {
+  font-size: 0.8125rem;
+  color: #86868b;
+}
+
+/* ---- Accessibility variants ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .results-rankedList-chevron,
+  .results-rankedList-region {
+    transition-duration: 0.01ms;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .results-topPick,
+  .results-rankedList-item {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+  .results-subscoreBar-track {
+    border: 1px solid currentColor;
+  }
+  .results-confidenceNote {
+    border-width: 2px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .results-eyebrow,
+  .results-mouseHeader-rank,
+  .results-mouseHeader-stats dt,
+  .results-subscoreBar-value,
+  .results-subscoreBar-reason,
+  .results-targetDeltas caption,
+  .results-targetDeltas th[scope="col"],
+  .results-excludedList-reason,
+  .results-gemini-caveats {
+    color: #b5b5bd;
+  }
+
+  .results-topPick {
+    background: #1c1c1e;
+    border-color: #3a3a3d;
+  }
+
+  .results-topPick-reasons li {
+    background: #2c2c2e;
+  }
+
+  .results-rankedList,
+  .results-excludedList,
+  .results-gemini {
+    border-color: #3a3a3d;
+  }
+
+  .results-rankedList-item {
+    border-color: #3a3a3d;
+  }
+
+  .results-rankedList-toggle,
+  .results-gemini-retry {
+    background: #2c2c2e;
+    border-color: #3a3a3d;
+    color: #f5f5f7;
+  }
+
+  .results-rankedList-toggle:hover {
+    background: #3a3a3d;
+  }
+
+  .results-subscoreBar-track {
+    background: #3a3a3d;
+  }
+
+  .results-targetDeltas th,
+  .results-targetDeltas td {
+    border-color: #3a3a3d;
+  }
+
+  .results-excludedList-items li {
+    border-color: #3a3a3d;
+  }
+
+  .results-confidenceNote {
+    background: #3a2c00;
+    border-color: #6b5000;
+    color: #f0d488;
+  }
+
+  .results-gemini-error {
+    color: #ff8a75;
+  }
+
+  .results-demoControls fieldset {
+    border-color: #3a3a3d;
+  }
+
+  .results-demoControls-buttons button {
+    background: #2c2c2e;
+    border-color: #3a3a3d;
+    color: #f5f5f7;
+  }
+
+  .results-demoControls-buttons button[aria-pressed="true"] {
+    background: #0071e3;
+    border-color: #0071e3;
+  }
+}
