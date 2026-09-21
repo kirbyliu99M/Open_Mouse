@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------
+# LICENSED DATA — NEVER COMMIT
+# The EloShapes CSV is used only as a local, private validation
+# fixture (see docs/shape-rubric.md). Their ToS forbids
+# redistribution. It lives OUTSIDE this repo, as a sibling
+# directory, so it cannot be added by accident. These rules are
+# a second line of defence.
+# ---------------------------------------------------------------
+Dataset/
+**/eloshapes*
+*.csv
+!tests/fixtures/**/*.csv
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+**/__screenshots__/**/*-actual.png
+**/__screenshots__/**/*-diff.png
+
+# Blender / generation
+__pycache__/
+*.blend1
+tools/blender/.venv/
+tools/blender/out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
