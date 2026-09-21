@@ -10,7 +10,7 @@ _Last updated: 2026-09-21 · by: Codex (M0 implementation in progress)_
 ## Right now
 
 **Current milestone:** M0 — Scaffold
-**Next action:** Push `m0-scaffold`, verify GitHub CI, and finish the Neon-backed preview for issue [#1](https://github.com/kirbyliu99M/Open_Mouse/issues/1).
+**Next action:** Finish live preview acceptance on draft [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3), then request Claude's review for issue [#1](https://github.com/kirbyliu99M/Open_Mouse/issues/1).
 **Blocked on:** Enable Preview branching and the resource-ready deployment requirement on `open-mouse-db` in Vercel. The free Neon database is provisioned and connected to `kirby-at-ntu/open-mouse`. Preview migrations refuse the production endpoint. M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) waits for M0 review and merge.
 
 ---
@@ -35,12 +35,15 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 ## M0 verification
 
 - Local: typecheck, ESLint, Prettier, migration history check, and production build pass.
+- GitHub push CI at `4d833e3`: **87 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35580912792)). Latest-commit PR checks will be recorded after completion.
 - Vitest: **16/16 passed** (configuration validation, credential-safe errors, preview endpoint guard).
 - Playwright: **2/2 passed** (desktop and mobile Chromium; HTTP 200, visible heading, no browser errors or horizontal overflow).
 - Production dependencies: **0 npm audit findings**. Drizzle Kit's development-only legacy esbuild chain has 4 moderate findings; no forced major downgrade or migration-tool replacement was made.
 - Neon: `open-mouse-db`, Free plan, `iad1`, project `rapid-salad-00847873`. Separate preview branch and applied migration still need live evidence.
 - Vercel: the existing `main` deployment is Ready but predates the Next.js scaffold. The scaffold's production deployment requires Claude's review and merge.
 - Runtime dependency override: PostCSS 8.5.28 fixes the audit findings in Next.js 15's pinned dependency without changing the requested Next.js major.
+- First Vercel preview exposed a CommonJS/ESM import mismatch in the migration entry point; corrected to the package's default import. CI now runs `vercel-build` to cover that entry point too. Local `vercel-build` passes; a synthetic production-endpoint preview exits before any database request.
+- Repository history plus staged diff: **0 licensed-data paths, 0 CSV row patterns, 0 known credential values** found. The dataset was not read or moved for M0.
 
 ## Gate results
 

@@ -1,4 +1,4 @@
-import { loadEnvConfig } from "@next/env";
+import nextEnv from "@next/env";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { migrate } from "drizzle-orm/neon-http/migrator";
@@ -8,7 +8,7 @@ import {
 } from "../src/db/config";
 
 async function main() {
-  loadEnvConfig(process.cwd());
+  nextEnv.loadEnvConfig(process.cwd());
 
   // Marketplace injects the isolated branch URL before the preview build.
   // Production migrations are explicit, never triggered by a PR build.
