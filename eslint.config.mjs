@@ -12,6 +12,9 @@ const config = [
       "test-results/**",
       "next-env.d.ts",
       ".vercel/**",
+      // Vendored, unmodified third-party build output (WASM loader glue) —
+      // see public/mediapipe/README for provenance. Not app code.
+      "public/mediapipe/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

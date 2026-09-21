@@ -266,9 +266,7 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
       );
       if (handednessFailure) errors.push(handednessFailure);
     }
-    const confidenceFailure = checkLandmarkConfidence(
-      input.landmarkConfidence,
-    );
+    const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
     if (confidenceFailure) errors.push(confidenceFailure);
   }
 

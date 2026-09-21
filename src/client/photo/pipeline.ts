@@ -15,15 +15,25 @@ import {
   type Point2,
 } from "../geometry/homography";
 import { computeHandMeasurements } from "../geometry/measurements";
-import { computeCardScaleRatio, type CardCorners } from "../geometry/card-scale";
+import {
+  computeCardScaleRatio,
+  type CardCorners,
+} from "../geometry/card-scale";
 import { decodePhoto, PhotoDecodeError, HEIC_RETAKE_MESSAGE } from "./decode";
-import { detectMarkers, buildMarkerCorrespondences, type DetectedMarker } from "./markers";
+import {
+  detectMarkers,
+  buildMarkerCorrespondences,
+  type DetectedMarker,
+} from "./markers";
 import { detectCardCorners } from "./card";
 import { detectHandLandmarks } from "./landmarks";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
 import { runPhotoGates, checkMarkers, type GateFailure } from "./gates";
 import { assembleScanSubmission } from "./submission";
-import type { HandMeasurements, ScanSubmission } from "../../lib/contracts/measurement";
+import type {
+  HandMeasurements,
+  ScanSubmission,
+} from "../../lib/contracts/measurement";
 
 export interface PipelineIssue {
   readonly code: string;
@@ -65,7 +75,13 @@ export interface RunPhotoPipelineInput {
 }
 
 function emptyOverlay(width: number, height: number): PhotoOverlay {
-  return { imageWidth: width, imageHeight: height, markers: [], card: null, landmarksPx: null };
+  return {
+    imageWidth: width,
+    imageHeight: height,
+    markers: [],
+    card: null,
+    landmarksPx: null,
+  };
 }
 
 function getImageData(
@@ -91,7 +107,8 @@ export async function runPhotoPipeline(
   try {
     decoded = await decodePhoto(input.file);
   } catch (err) {
-    const message = err instanceof PhotoDecodeError ? err.message : HEIC_RETAKE_MESSAGE;
+    const message =
+      err instanceof PhotoDecodeError ? err.message : HEIC_RETAKE_MESSAGE;
     return {
       status: "error",
       errors: [{ code: "DECODE_FAILED", message }],
@@ -112,19 +129,39 @@ export async function runPhotoPipeline(
   if (markerFailure || missingIds.length > 0) {
     return {
       status: "error",
-      errors: [markerFailure ?? { code: "MARKERS_MISSING", message: "Marker detection failed." }],
-      overlay: { imageWidth: width, imageHeight: height, markers: detected, card: null, landmarksPx: null },
+      errors: [
+        markerFailure ?? {
+          code: "MARKERS_MISSING",
+          message: "Marker detection failed.",
+        },
+      ],
+      overlay: {
+        imageWidth: width,
+        imageHeight: height,
+        markers: detected,
+        card: null,
+        landmarksPx: null,
+      },
     };
   }
 
   const homography = estimateHomography(correspondences);
-  const reprojectionErrorMm = computeReprojectionErrorMm(homography, correspondences);
+  const reprojectionErrorMm = computeReprojectionErrorMm(
+    homography,
+    correspondences,
+  );
 
   const cardCorners = input.manualCardCorners ?? detectCardCorners(imageData);
   if (!cardCorners) {
     return {
       status: "needsManualCard",
-      overlay: { imageWidth: width, imageHeight: height, markers: detected, card: null, landmarksPx: null },
+      overlay: {
+        imageWidth: width,
+        imageHeight: height,
+        markers: detected,
+        card: null,
+        landmarksPx: null,
+      },
     };
   }
   const cardScaleRatio = computeCardScaleRatio(cardCorners, homography);
@@ -151,7 +188,9 @@ export async function runPhotoPipeline(
     };
   }
 
-  const landmarksMm = hand.landmarksPx.map((p) => applyHomography(homography, p));
+  const landmarksMm = hand.landmarksPx.map((p) =>
+    applyHomography(homography, p),
+  );
   const flatMarkerCornersMm = layout.markers
     .filter((m) => (SHEET.flatMarkerIds as readonly number[]).includes(m.id))
     .flatMap((m) => m.corners);

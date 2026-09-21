@@ -132,7 +132,10 @@ export function buildMarkerCorrespondences(
     const layoutMarker = layoutById.get(id);
     if (!marker || !layoutMarker) continue;
     for (let i = 0; i < 4; i++) {
-      correspondences.push({ src: marker.corners[i], dst: layoutMarker.corners[i] });
+      correspondences.push({
+        src: marker.corners[i],
+        dst: layoutMarker.corners[i],
+      });
     }
   }
 
