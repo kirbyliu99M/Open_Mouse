@@ -17,16 +17,16 @@ _Last updated: 2026-09-21 · by: Codex (M0 implementation in progress)_
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status           | PR                                                       | Notes                                                          |
-| --- | ---------------------------------- | ----- | ---------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🏗 in progress    | [#1](https://github.com/kirbyliu99M/Open_Mouse/issues/1) | app, migration, tests and CI implemented; verification pending |
-| M1  | Data layer + shape rubric          | ✅    | ⬜ blocked by M0 | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | **riskiest gate — see Risks**; rubric written                  |
-| M2  | Calibration + measurement          | ✅    | ⬜               | –                                                        | needs Kirby's fixture set                                      |
-| M3  | Fit engine                         | –     | ⬜               | –                                                        | coefficients need real pairings                                |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜               | –                                                        | largest build                                                  |
-| M5  | Gemini analysis                    | –     | ⬜               | –                                                        | cost levers matter, see PLAN                                   |
-| M6  | Sessions, auth, privacy            | –     | ⬜               | –                                                        |                                                                |
-| M7  | Polish + security review           | –     | ⬜               | –                                                        | before any public exposure                                     |
+| #   | Milestone                          | Gated | Status           | PR                                                       | Notes                                                     |
+| --- | ---------------------------------- | ----- | ---------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| M0  | Scaffold                           | –     | 🏗 draft PR       | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance |
+| M1  | Data layer + shape rubric          | ✅    | ⬜ blocked by M0 | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | **riskiest gate — see Risks**; rubric written             |
+| M2  | Calibration + measurement          | ✅    | ⬜               | –                                                        | needs Kirby's fixture set                                 |
+| M3  | Fit engine                         | –     | ⬜               | –                                                        | coefficients need real pairings                           |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜               | –                                                        | largest build                                             |
+| M5  | Gemini analysis                    | –     | ⬜               | –                                                        | cost levers matter, see PLAN                              |
+| M6  | Sessions, auth, privacy            | –     | ⬜               | –                                                        |                                                           |
+| M7  | Polish + security review           | –     | ⬜               | –                                                        | before any public exposure                                |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -35,11 +35,12 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 ## M0 verification
 
 - Local: typecheck, ESLint, Prettier, migration history check, and production build pass.
-- GitHub push CI at `4d833e3`: **87 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35580912792)). Latest-commit PR checks will be recorded after completion.
+- GitHub push CI at `4d833e3`: **87 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35580912792)). PR CI at `7881529`, including `vercel-build`: **81 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35581171147)).
 - Vitest: **16/16 passed** (configuration validation, credential-safe errors, preview endpoint guard).
 - Playwright: **2/2 passed** (desktop and mobile Chromium; HTTP 200, visible heading, no browser errors or horizontal overflow).
 - Production dependencies: **0 npm audit findings**. Drizzle Kit's development-only legacy esbuild chain has 4 moderate findings; no forced major downgrade or migration-tool replacement was made.
 - Neon: `open-mouse-db`, Free plan, `iad1`, project `rapid-salad-00847873`. Separate preview branch and applied migration still need live evidence.
+- Current Preview and Production variables resolve to the **same endpoint**. A read-only production query confirmed `public.scaffold_checks` is absent. The preview build stops before SQL; enabling Marketplace preview branching is the remaining account configuration step. The extra `open-mouse-4awb` project remains linked to the repo and reports its own failed preview check without database configuration; Kirby selected `open-mouse` as the primary project.
 - Vercel: the existing `main` deployment is Ready but predates the Next.js scaffold. The scaffold's production deployment requires Claude's review and merge.
 - Runtime dependency override: PostCSS 8.5.28 fixes the audit findings in Next.js 15's pinned dependency without changing the requested Next.js major.
 - First Vercel preview exposed a CommonJS/ESM import mismatch in the migration entry point; corrected to the package's default import. CI now runs `vercel-build` to cover that entry point too. Local `vercel-build` passes; a synthetic production-endpoint preview exits before any database request.
