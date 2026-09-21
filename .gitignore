@@ -48,7 +48,7 @@ Thumbs.db
 .idea/
 
 # Ground-truth hand photos (personal data) - kept outside the repo; belt and braces
-Fixtures/
+/Fixtures/
 tests/fixtures/hands/
 # `Fixtures/` above is meant to catch personal hand-photo data, but Windows
 # git (core.ignorecase=true) matches it case-insensitively against any
