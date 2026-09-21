@@ -109,6 +109,8 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-21 | Partial-view classifications are allowed but annotated | Classifying from one available view beats discarding evidence; the note lets misses be audited against it |
 | 2026-09-21 | Classification checkpoints after every model | The real run spends Kirby's key; a crash midway must not lose completed work |
 | 2026-09-21 | Printed sheet verified by real PDF render: exactly 1 page on A4 and Letter, SVG exactly 210 mm | Review finding: a global CSS margin rendered it as 3 pages at 79% scale; geometry-only tests could not see it |
+| 2026-09-22 | **Input is still photos (upload), not a live camera**; still processed in the browser | Kirby's call. Simpler flow; fixtures become replayable files. Adds EXIF orientation, HEIC and lens-distortion handling |
+| 2026-09-22 | Ground-truth hand photos live outside the repo (`../Fixtures/hands/`); the gate replay script never runs in CI | Same privacy promise as the product; same pattern as the licensed dataset |
 ---
 
 ## Risks

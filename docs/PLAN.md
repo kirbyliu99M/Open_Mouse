@@ -144,9 +144,20 @@ poor proxy for whether the rubric is fit for purpose. Miss the gate and the
 
 Apply a first-order **parallax correction**: the hand sits ~20–30 mm above the sheet plane, so landmarks project slightly large. Correct from measured hand depth (side shot) and camera distance estimated from marker size. Document the residual.
 
-**Local quality gates per shot:** all 4 markers found · MediaPipe confidence above threshold · hand fully in frame · card/sheet scale agreement · no motion blur. Gemini vision is only a *fallback* to explain **why** a local gate failed.
+**Input is still photos, not a live camera** _(design change, 2026-09-22)_. Three photo slots, one per shot. Each accepts a file from the camera app or the gallery (`<input type="file" accept="image/*">`). **Processing stays in the browser**: the file is decoded locally and never uploaded, so "photos never leave your device" still holds.
 
-**Gate:** repeatability ≤ ±1.5 mm across 5 captures; accuracy ≤ ±2 mm on hand length vs. ruler. **Depends on Kirby's fixture set.**
+Photo-specific handling (a live camera never faced these):
+- **EXIF orientation.** Phone photos are often stored sideways, so decode with `createImageBitmap(file, { imageOrientation: "from-image" })` so markers and landmarks share one upright frame.
+- **Format.** iOS Safari hands the page a JPEG, but desktop browsers can't decode HEIC. A decode failure must say "export as JPEG", not fail generically.
+- **Resolution.** 12–48 MP originals are downscaled to about 3000 px on the long edge before detection. ArUco and MediaPipe must run on the **same** bitmap so their coordinates share a frame.
+- **Lens.** Ask for the main 1× camera from about 40–50 cm, sheet filling the frame. Ultra-wide distortion breaks the planar homography; the 16-corner reprojection error is the gate that catches it.
+- **Per-photo validation after the fact.** No live guidance, so each photo is checked on upload and rejected with a specific retake reason, and the user replaces just that photo.
+
+**Quality gates per photo:** all 4 markers found · reprojection error under threshold (also the lens-distortion check) · MediaPipe confidence above threshold · hand fully in frame · card/sheet scale agreement · sharpness (Laplacian variance). All local. Gemini vision is only a *fallback* to explain **why** a local gate failed.
+
+**Gate:** repeatability ≤ ±1.5 mm across 5 photos; accuracy ≤ ±2 mm on hand length vs. ruler. **Depends on Kirby's fixture set.**
+
+Still photos make the gate reproducible: Kirby's ground-truth set **is** the input, so a local script replays the full pipeline over those files and prints the repeatability and accuracy numbers directly. Like the licensed dataset, the photos live **outside the repo** (`../Fixtures/hands/`) and the script never runs in CI, which keeps the privacy promise even for our own test data.
 
 ### M3 — Fit engine
 Pure TypeScript, zero LLM. Six explainable sub-scores (0–100), each emitting a machine-readable reason:
@@ -202,10 +213,10 @@ M1's one-time rubric classification (76 renders) costs pennies at any of these t
 - **Anonymous:** `scan_sessions` keyed by an httpOnly **session cookie with no Max-Age** (dies on browser close). Row carries `expires_at = now + 24h`; a **Vercel Cron** job sweeps hourly. `navigator.sendBeacon` on `pagehide` attempts an immediate delete.
   *UI copy must be honest:* the server cannot observe a browser closing, so "deleted when you close your browser" means cookie death plus a ≤24 h sweep. Say that plainly rather than overclaiming.
 - **Logged in:** Auth.js v5 + Google. Rows gain `user_id`, lose `expires_at`. `/account` offers export and delete-everything.
-- Consent copy at capture time; state the "photos never leave your device" claim where it's true.
+- Consent copy at upload time; state the "photos never leave your device" claim where it's true.
 
 ### M7 — Polish
-Mobile-first (this is a phone-camera flow), a11y pass, 3D perf budget on mid-range phones, empty/error states, launch checklist, `/security-review` before any public exposure.
+Mobile-first (users photograph on their phone and upload from it), a11y pass, 3D perf budget on mid-range phones, empty/error states, launch checklist, `/security-review` before any public exposure.
 
 ---
 
@@ -222,7 +233,7 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 **Test layers Codex owns:**
 - **Vitest** — homography math, landmark→mm extraction, all six scorers, shell parameter generation. Everything on the critical path is a pure function; there's no excuse for an untested one.
 - **Golden fixtures** — Kirby's ground-truth photos (M2), hand-profile→ranking pairs (M3), committed and diffed.
-- **Playwright E2E** — full capture → score → render → analysis with a stubbed camera feeding fixture images and Gemini stubbed.
+- **Playwright E2E** — full upload → score → render → analysis, uploading fixture photos with `setInputFiles` (no camera stubbing needed) and Gemini stubbed.
 - **Visual regression** — fixed camera and seed, pixel-diff the 3D renders.
 - **Blender** — `gen_shell` output asserted against spec dims; runs on `workflow_dispatch`, not every push.
 - **DB** — migrations verified on the per-PR Neon branch.
