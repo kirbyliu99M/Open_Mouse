@@ -111,6 +111,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-21 | Printed sheet verified by real PDF render: exactly 1 page on A4 and Letter, SVG exactly 210 mm | Review finding: a global CSS margin rendered it as 3 pages at 79% scale; geometry-only tests could not see it |
 | 2026-09-22 | **Input is still photos (upload), not a live camera**; still processed in the browser | Kirby's call. Simpler flow; fixtures become replayable files. Adds EXIF orientation, HEIC and lens-distortion handling |
 | 2026-09-22 | Ground-truth hand photos live outside the repo (`../Fixtures/hands/`); the gate replay script never runs in CI | Same privacy promise as the product; same pattern as the licensed dataset |
+| 2026-09-22 | UI/UX standard: Apple design principles, applied per screen in `docs/design-guidelines.md` | Kirby's call. Frontend PRs are reviewed against its checklist |
 ---
 
 ## Risks

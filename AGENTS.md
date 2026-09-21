@@ -71,6 +71,8 @@ caused one agent's uncommitted work to be committed by another.
 
 ## Conventions
 
+- **UI/UX:** every frontend change follows `docs/design-guidelines.md` (Apple-derived; includes a review checklist).
+
 - **Branches:** `m<N>-<slug>` (e.g. `m0-scaffold`, `m2-calibration`).
 - **PRs:** reference the milestone issue, state gate evidence, keep to one
   milestone *and one side of the seam*. CI green *and* Vercel preview live before
