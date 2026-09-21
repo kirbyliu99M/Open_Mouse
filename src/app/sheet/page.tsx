@@ -75,7 +75,7 @@ export default function SheetPage() {
   );
 
   return (
-    <main>
+    <main className="sheetMain">
       <div className="instructions noPrint">
         <p className="eyebrow">Open_Mouse</p>
         <h1>Calibration sheet</h1>
