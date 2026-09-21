@@ -18,6 +18,10 @@ out/
 build/
 dist/
 *.tsbuildinfo
+.vercel/
+.agents/
+.claude/
+skills-lock.json
 
 # Env & secrets
 .env

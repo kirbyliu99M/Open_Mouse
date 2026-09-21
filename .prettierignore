@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.vercel/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+next-env.d.ts
+drizzle/meta/
+.agents/
+.claude/
+skills-lock.json
+# Planning documents are maintained separately by Claude.
+AGENTS.md
+docs/PLAN.md
+docs/shape-rubric.md
