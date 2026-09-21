@@ -9,9 +9,10 @@ _Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fi
 
 ## Right now
 
-**Current milestone:** M1 (classification ready to run) · M2 part A in review.
-**Awaiting Kirby's merge, in order:** #3 → #4 → #5 → #6, then #8 and #9 (independent of each other). All reviewed; every review finding fixed.
-**Next:** M1 gate run with Kirby's `GEMINI_API_KEY` (`npm run classify:descriptors`, then `npm run rubric:validate -- --predictions src/db/seed/logitech-descriptors.json`). Then M2 part B: live capture (camera + ArUco detection + MediaPipe) and the scan API. Codex: M4a Blender, issue #7.
+**Current milestone:** building toward full function, stopping where Blender assets are required (M4b).
+**In flight (Sonnet builders):** #10 photo pipeline · #11 scan API · #13 fit engine · #14 Gemini analysis · #15 results UI · #16 parallax correction.
+**Awaiting Kirby's merge, in order:** #3 → #4 → #5 → #6 → #12, then #8 and #9.
+**Next wave (after #10/#11 land):** wire scan → fit → results end to end; scan/fit/analysis routes; M6 login persistence; security review.
 
 ---
 
@@ -112,6 +113,9 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | **Input is still photos (upload), not a live camera**; still processed in the browser | Kirby's call. Simpler flow; fixtures become replayable files. Adds EXIF orientation, HEIC and lens-distortion handling |
 | 2026-09-22 | Ground-truth hand photos live outside the repo (`../Fixtures/hands/`); the gate replay script never runs in CI | Same privacy promise as the product; same pattern as the licensed dataset |
 | 2026-09-22 | UI/UX standard: Apple design principles, applied per screen in `docs/design-guidelines.md` | Kirby's call. Frontend PRs are reviewed against its checklist |
+| 2026-09-22 | **Parallax correction applies to the top-down photo**, via camera pose from the marker homography + EXIF focal length (homography-estimated focal as fallback) | Landmarks sit 10–20 mm above the sheet: ~3% inflation, ~5.5 mm on a 190 mm hand, which alone fails the ±2 mm gate. Issue #16 |
+| 2026-09-22 | Side and grip photos deferred | Fit engine v0 consumes only top-down measurements; revisit once M2 gate data shows whether thickness improves rankings |
+| 2026-09-22 | Builders run wide in parallel (up to six), all Sonnet, each on an issue-as-spec | Kirby's call: maximise Sonnet use; Claude writes contracts/specs and adjudicates |
 ---
 
 ## Risks
