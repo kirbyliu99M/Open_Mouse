@@ -17,8 +17,9 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 **Blocked — Kirby:**
 
-1. **Production migrate + seed has not been run.** `vercel env pull` writes `[SENSITIVE]` placeholders for all 16 production secrets including `DATABASE_URL`, so no agent session can reach the production database. Kirby runs `npm run db:migrate` then `npm run db:seed` locally, with `DATABASE_URL_UNPOOLED` set to the production direct-connection string.
-2. **Neon two-branch setup.** Delete the old per-PR preview branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`. Confirmed live on 2026-09-22 — a fresh redeploy failed with `Resource provisioning failed`. Now that no PRs are open the branch pressure is gone, so this is a good moment.
+1. ~~Production migrate + seed~~ — **done 2026-09-23**: 4 migrations applied, 30 mice seeded on `main` (`ep-young-recipe-aupgqv0d`).
+2. ~~Neon two-branch setup~~ — **done 2026-09-23**. The Neon integration is now connected to **Production only**, so the per-preview-deployment branch action is gone (verified via the Vercel API: `deployments` is empty). Preview-scope `DATABASE_URL` / `DATABASE_URL_UNPOOLED` are set by hand, as Sensitive, to the shared `Preview` branch (`ep-polished-mouse-auy01qq8`). Verified end to end: a preview redeploy migrated and seeded the `Preview` branch, the production-host guard passed, and no new branch appeared. Neon now holds exactly `main` + `Preview`.
+   - **Open follow-up:** reconnecting through the CLI dropped `makeEnvVarsSensitive`, so the 16 integration-managed **Production** DB variables are now type `Config` (readable) instead of `Secret`. The CLI has no flag for it; the documented API call that sets it was blocked by the agent permission classifier. Needs Kirby: either allow `vercel api ... /connections -X POST`, or reconnect in the dashboard with sensitive variables on.
 3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`). M4b cannot start until it is pushed.
 4. **Convention question:** `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` are the only caret-ranged dependencies; everything else is pinned exactly. A caret on a beta floats across beta releases.
 5. **Gates still unmeasured:** M1 needs the Gemini key; M2 needs ground-truth photos in `../Fixtures/hands/`. Both gate tables below are still empty, and no milestone that depends on them should be called done.
@@ -146,6 +147,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | Ordinal carve-out requires a determiner before **and** a non-`of` word after | The earlier "either/or" form leaked both ways: determiner-only ignored a following `of`, and the noun rule reached across sentence boundaries |
 | 2026-09-22 | On hard rules, prefer the stricter rule: false positives cost a retry, false negatives reach the user | Four rounds of clever narrow fixes each opened a new hole. A monotonically stricter change cannot introduce a false negative |
 | 2026-09-22 | A branch is merged with `main` locally and fully verified before the PR is merged | #20 was green on `push` and red on `pull_request` at one SHA; two branches conflicted in `package.json` where both added a dependency |
+| 2026-09-23 | Neon integration connected to Production only; Preview DB vars set by hand to one shared `Preview` branch | The Neon Free plan caps branches at 10, and per-deployment branches outlive their PRs until Vercel deletes the deployment. The deployment-action toggle has no API, but connecting without `preview` removes the action entirely |
 ---
 
 ## Risks
