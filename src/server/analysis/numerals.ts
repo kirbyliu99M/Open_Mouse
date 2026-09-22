@@ -492,6 +492,27 @@ function isOrdinalUsage(tokens: readonly string[], index: number): boolean {
   );
 }
 
+/**
+ * KNOWN GAP (accepted, documented rather than papered over — see the round-4
+ * brief this file was last revised under): `tokens` above comes from
+ * `WORD_TOKEN_PATTERN`, which drops ALL punctuation, so "before" can be the
+ * last word of a wholly unrelated PRIOR sentence if that word happens to be
+ * a determiner immediately followed by sentence-ending punctuation — e.g.
+ * "Bring the. Third mm of clearance is available." tokenizes to
+ * [..."bring","the","third","mm",...], so "third" reads as if "the"
+ * immediately precedes it and is wrongly exempted (the following word "mm"
+ * is not "of", so the rule's second half doesn't save it either).
+ * Exploiting this requires the model to end a sentence on a bare
+ * determiner ("...the."), which is not fluent English and not a shape this
+ * project's prompts or fallback text produce — but it is a real, findable
+ * hole in the tokenized approach, not a hypothetical. Closing it properly
+ * would mean tracking sentence boundaries (or at least "no terminal
+ * punctuation between the two words") through `extractWordNumerals`, which
+ * today discards all positional/punctuation information up front. Left
+ * open rather than adding that machinery for a bypass that requires
+ * ungrammatical model output to trigger — flagged here for whoever revisits
+ * this file next.
+ */
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
 
 /**
