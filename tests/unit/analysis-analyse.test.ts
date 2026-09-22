@@ -6,11 +6,30 @@ import {
 } from "../../src/server/analysis/analyse";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { FakeTextModel } from "../../src/server/analysis/client";
-import { makeFit, makeMeasurements } from "./analysis-fixtures";
+import { makeEntry, makeFit, makeMeasurements } from "./analysis-fixtures";
 
 function inputFor(confidence = 0.9) {
   const fit = makeFit({
     results: [{ ...makeFit().results[0]!, confidence }],
+  });
+  return buildAnalysisInput(fit, makeMeasurements());
+}
+
+/** An input whose top pick's model is a digit-glued product name ("G502"),
+ * the exact shape `collectStringTokens`/`exemptTokens` exists to protect. */
+function inputWithG502() {
+  const fit = makeFit({
+    results: [
+      {
+        ...makeEntry(),
+        mouse: {
+          ...makeEntry().mouse,
+          slug: "logitech-g502",
+          brand: "Logitech",
+          model: "G502",
+        },
+      },
+    ],
   });
   return buildAnalysisInput(fit, makeMeasurements());
 }
@@ -139,5 +158,83 @@ describe("analyse — low confidence", () => {
     });
     const output = await analyse(input, client);
     expect(output.caveats.some((c) => /provisional/i.test(c))).toBe(true);
+  });
+});
+
+// These exercise the real `analyse()` call path end to end — no hand-built
+// `exemptTokens`/`allowedNumbers` sets — because that's exactly the seam a
+// previous change (6ffbd0f) left unwired: `numerals.ts` grew the exemption
+// mechanism, but `analyse.ts` never threaded it through, so a correct
+// analysis naming a real product like "G502" would have been rejected as a
+// fabricated number.
+describe("analyse — product-name exemption wired through the real call path", () => {
+  it("passes an answer naming a product (G502) that is present in the input", async () => {
+    const input = inputWithG502();
+    const answer = JSON.stringify({
+      headline: "The Logitech G502 is a strong match for your hand.",
+      whyTopPick: "Its 125 mm length sits right in your ideal range.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => answer });
+    const output = await analyse(input, client);
+    expect(output.headline).toContain("G502");
+    expect(client.calls).toHaveLength(1);
+  });
+
+  it('rejects "about68mm" when 68 is not in the input', async () => {
+    const input = inputWithG502();
+    const badAnswer = JSON.stringify({
+      headline: "A great fit.",
+      whyTopPick: "It's about68mm narrower than your other options.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("68");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    // Never accepted — falls back to the deterministic, number-free answer.
+    expect(JSON.stringify(output)).not.toContain("68");
+  });
+
+  it("rejects a vulgar fraction (½) that is not in the input", async () => {
+    const input = inputWithG502();
+    const badAnswer = JSON.stringify({
+      headline: "A great fit.",
+      whyTopPick: "It's roughly ½ inch narrower than average.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("0.5");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(JSON.stringify(output)).not.toContain("½");
+  });
+
+  it("does not give a fabricated product name (G999) a free pass on its digits", async () => {
+    const input = inputWithG502(); // input has G502, never G999
+    const badAnswer = JSON.stringify({
+      headline: "The Logitech G999 is a strong match for your hand.",
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    const output = await analyse(input, client);
+    // "G999" was never sent in the input, so its digits must still be
+    // checked — the exemption only covers tokens that appear verbatim in
+    // the input, not any letter-digit combination the model invents.
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("999");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(output.headline).not.toContain("G999");
   });
 });

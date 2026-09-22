@@ -9,7 +9,11 @@ import { Type } from "@google/genai";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
-import { collectNumbers, findUnknownNumeral } from "./numerals";
+import {
+  collectNumbers,
+  collectStringTokens,
+  findUnknownNumeral,
+} from "./numerals";
 import {
   NEGATIVE_REASON_CODES,
   POSITIVE_REASON_CODES,
@@ -80,6 +84,7 @@ function findViolation(
   candidate: AnalysisOutput,
   input: AnalysisInput,
   allowedNumbers: ReadonlySet<number>,
+  exemptTokens: ReadonlySet<string>,
 ): string | null {
   const fields = [
     candidate.headline,
@@ -89,7 +94,7 @@ function findViolation(
     ...candidate.caveats,
   ];
   for (const text of fields) {
-    const unknown = findUnknownNumeral(text, allowedNumbers);
+    const unknown = findUnknownNumeral(text, allowedNumbers, exemptTokens);
     if (unknown !== null) return String(unknown);
   }
   if (isLowConfidence(input)) {
@@ -168,6 +173,7 @@ export async function analyse(
   client: TextModel,
 ): Promise<AnalysisOutput> {
   const allowedNumbers = collectNumbers(input);
+  const exemptTokens = collectStringTokens(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
 
@@ -193,7 +199,12 @@ export async function analyse(
       );
       continue;
     }
-    const violation = findViolation(result.data, input, allowedNumbers);
+    const violation = findViolation(
+      result.data,
+      input,
+      allowedNumbers,
+      exemptTokens,
+    );
     if (violation === null) return result.data;
     prompt = retryPrompt(basePrompt, violation);
   }
