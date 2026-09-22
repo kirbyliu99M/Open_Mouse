@@ -3,17 +3,21 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fixed)_
+_Last updated: 2026-09-22 · by: Claude (orchestrator; resumed session, wave 3 dispatched)_
 
 ---
 
 ## Right now
 
-**Current milestone:** building toward full function, stopping where Blender assets are required (M4b).
-**Open PRs:** #3 #4 #5 #6 (reviewed, ready) · #8 #9 (reviewed, fixed) · #12 fit contract · #18 scan API · #20 analysis · #21 fit engine · #22 results UI (clean) · #23 parallax. #10 and #17 finishing.
-**Review fixes in flight:** #20 (numeral-check bypass via number words and Unicode digits: blocker; percentage false positives; server-only guard), #18 (timing-safe cron comparison).
-**Next wave:** a review of #21/#23/#10/#17, then integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
-**Kirby, when convenient:** merge in stack order; the Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; the preview-protection decision.
+**Current milestone:** building toward full function, stopping where Blender assets are required (M4b). Nothing merged yet.
+**Open PRs:** #3 #4 #5 #6 (reviewed, ready) · #8 #9 (reviewed, fixed) · #12 fit contract · #18 scan API (timing-safe cron fix pushed `19263aa`) · #20 analysis · #21 fit engine · #22 results UI (clean) · #23 parallax · #19 photo pipeline (draft; gate replay script pushed `f91b433`).
+**In flight (Sonnet):** #20 review fixes (numeral-check bypass via number words / Unicode digits, percentage false positives, `server-only` guard) · M6 auth (#17) finishing on `m6-auth`, PR to follow · independent review of #19 #21 #23.
+**Next wave:** integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
+**Blocked — Kirby:**
+1. **Vercel previews fail on #19 #21 #22 #23** with no build log (CI incl. `vercel-build` is green). Likely an account-level limit. Open one, e.g. [#21's deployment](https://vercel.com/kirby-at-ntu/open-mouse/wBm5wBJcLvvXN5iNAW82EDSDxBNP), and report the error shown.
+2. **Duplicate Vercel project `open-mouse-4awb`** still posts a failing check on PRs; delete it (Settings → Advanced → Delete).
+3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
+4. When convenient: merge in stack order; Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
 
 ---
 
