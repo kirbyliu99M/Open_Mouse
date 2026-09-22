@@ -55,26 +55,59 @@ export function requirePreviewDatabaseUrl(
 
 const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
 
-// Any key whose name matches a credential alias (case-insensitive), however
-// its value is quoted. Rather than special-casing each quoting style we saw
-// leak (bare, double-quoted, single-quoted, backslash-escaped, JSON `"k":"v"`),
-// this matches the *key* generically and then consumes the value up to its
-// real terminator — the matching quote, if any, otherwise whitespace/`,`/`;`
-// — so a value containing `=`, `:`, `@`, `&` or spaces inside quotes is still
-// fully consumed instead of leaking its tail past the first such character.
-const CREDENTIAL_KEY =
-  "postgres_password|pgpassword|password|passwd|pwd|database_url|api[_-]?key|secret|token";
-const CREDENTIAL_PAIR = new RegExp(
-  String.raw`(["']?)\b(${CREDENTIAL_KEY})\b\1?` + // optional quote around the key, e.g. "password"
+// A key is treated as a credential when its name CONTAINS one of these words,
+// case-insensitively, with any prefix or suffix — `DB_PASS`, `Pg_Password`,
+// `my_api_token`, `MY_SECRET_2` all match via `pass`/`token`/`secret`. This
+// replaces a fixed alias list: a list only ever covers the exact names it was
+// written for, and the next `DB_PASS` (or whatever a driver/env var happens
+// to call it) simply isn't in it. The `[\w-]*` on both sides of each fragment
+// *is* "contains, with any prefix or suffix" — not a growing list of full
+// names.
+//
+// Deliberately excludes a bare "key": Postgres unique-constraint names look
+// like `users_email_key`, and those must stay readable in migration errors.
+// The compounds that really mean a credential — `api_key`, `access_key`,
+// `private_key` — are still covered as explicit alternatives.
+const CREDENTIAL_WORD =
+  "pass|pwd|secret|token|credential|auth|api[_-]?key|access[_-]?key|private[_-]?key";
+const CREDENTIAL_KEY = String.raw`[\w-]*(?:${CREDENTIAL_WORD})[\w-]*`;
+
+// Matches a credential-shaped `key = value` / `key: value` assignment —
+// quoted key or not, any separator spacing. The key itself is restricted to
+// CREDENTIAL_KEY (rather than "any identifier", filtered afterwards) so a
+// non-credential word before `:` or `=` — `relation:`, `config:` — never
+// starts a match at all; letting it match and then discarding it in the
+// replacer would still let its unquoted value (see below) swallow a real
+// secret sitting right after it, hiding it from ever being tested.
+//
+// The value is one of, tried in order: a double-, single- or backtick-quoted
+// string using the standard escape-aware form `(?:\\.|[^"\\])*` (an escaped
+// quote inside the value does not end it — the earlier bug's exact failure),
+// or, unquoted, a run up to the next real separator (whitespace, `,`, `;`,
+// `&`) that *includes* any stray quote/backtick found inside it. The four
+// branches each commit to a distinct leading character (`"`, `'`, `` ` ``, or
+// "none of those"), so they never overlap and this stays linear-time with no
+// backtracking blowup.
+// `\b` immediately before the key match matters for more than style: without
+// it, the greedy `[\w-]*` prefix inside CREDENTIAL_KEY would be re-attempted
+// at *every* position inside a long run of word characters that never
+// contains a credential fragment (e.g. a long hex/base64 blob), and each of
+// those attempts individually backtracks across the rest of the run — O(n)
+// attempts x O(n) backtrack each = O(n^2). Requiring a real word boundary to
+// even start collapses that back to O(n) total.
+const KEY_VALUE_PAIR = new RegExp(
+  String.raw`(["'\`]?)\b(${CREDENTIAL_KEY})\b\1?` + // key, optionally quoted (", ' or `)
     String.raw`(\s*[:=]\s*)` + // `=` or `:`, with optional surrounding whitespace
-    // the value: quoted (optionally backslash-escaped) and matched lazily up
-    // to its own closing quote, or — with no quote — a run of non-separator
-    // characters
-    String.raw`(?:(\\?["'])(?:(?!\4)[\s\S])*\4|[^\s,;'"\`]+)`,
+    String.raw`(?:` +
+    String.raw`"(?:\\.|[^"\\])*"` + // double-quoted, escape-aware
+    String.raw`|'(?:\\.|[^'\\])*'` + // single-quoted, escape-aware
+    String.raw`|\`(?:\\.|[^\`\\])*\`` + // backtick-quoted, escape-aware
+    String.raw`|[^\s,;&]+` + // unquoted, up to the next real separator
+    String.raw`)`,
   "gi",
 );
 
-function redactCredentialPair(
+function redactCredentialValue(
   _match: string,
   _keyQuote: string,
   key: string,
@@ -95,7 +128,7 @@ function redactCredentialPair(
 export function redactSecrets(message: string): string {
   return message
     .replace(CONNECTION_URL, "[redacted-url]")
-    .replace(CREDENTIAL_PAIR, redactCredentialPair);
+    .replace(KEY_VALUE_PAIR, redactCredentialValue);
 }
 
 export function describeMigrationError(error: unknown): string {

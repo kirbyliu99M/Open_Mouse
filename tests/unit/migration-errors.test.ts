@@ -68,7 +68,6 @@ describe("redactSecrets", () => {
       "api_key",
       "apikey",
       "API-KEY",
-      "DATABASE_URL",
     ])("redacts the %s alias, case-insensitively", (alias) => {
       const message = `config: ${alias}=${SECRET} (retry 1)`;
       const out = redactSecrets(message);
@@ -97,11 +96,210 @@ describe("redactSecrets", () => {
       expect(out).toContain("while running 0002_index.sql");
     });
 
+    it("redacts a real connection string held by DATABASE_URL, even though a bare DATABASE_URL=value isn't itself a credential-shaped key", () => {
+      // DATABASE_URL contains none of the content words (pass/pwd/secret/
+      // token/credential/auth/*_key), so it isn't matched as a key on its own
+      // -- but when its value actually is a connection string, CONNECTION_URL
+      // still catches it regardless of the key name, which is the case that
+      // matters in practice (DATABASE_URL always holds a URL, not a bare
+      // token).
+      const message = `DATABASE_URL=postgresql://u:${SECRET}@h/db (config)`;
+      const out = redactSecrets(message);
+      expect(out).not.toContain(SECRET);
+      expect(out).not.toContain("secret-XYZ");
+      expect(out).toContain("(config)");
+    });
+
     it("keeps the Postgres detail alongside a redacted quoted secret", () => {
       const message = `syntax error at or near "CREATE" (42601); config was password="${SECRET}"`;
       const out = redactSecrets(message);
       expect(out).not.toContain(SECRET);
       expect(out).toContain('syntax error at or near "CREATE" (42601)');
+    });
+
+    it("leaves a unique-constraint name that merely ends in _key untouched (no bare 'key' trigger)", () => {
+      const message =
+        'duplicate key value violates unique constraint "users_email_key"';
+      expect(redactSecrets(message)).toBe(message);
+    });
+
+    it("keeps a unique-constraint name and SQL state next to a redacted secret in the same message", () => {
+      const message = `duplicate key value violates unique constraint "users_email_key" (23505); retry with api_key="${SECRET}"`;
+      const out = redactSecrets(message);
+      expect(out).not.toContain(SECRET);
+      expect(out).not.toContain("secret-XYZ");
+      expect(out).toContain(
+        'duplicate key value violates unique constraint "users_email_key" (23505)',
+      );
+    });
+  });
+
+  // The 2026-09-23 re-review of PR #31 reproduced these four against HEAD
+  // a430a7c: a fixed-alias list can never anticipate every key spelling
+  // (Pg_Password, DB_PASS), and the escape-aware quoted-value handling had a
+  // gap where an escaped quote *inside* a quoted value ended the match early,
+  // leaking everything after it.
+  describe("2026-09-23 re-review findings", () => {
+    const RE_SECRET = "Zq9-SYNTH-7Kx";
+
+    it.each<[string, string]>([
+      ["backtick-quoted value, every alias", `password=\`${RE_SECRET}\``],
+      [
+        "escaped quote INSIDE a quoted value must not end the match early",
+        `password="ab\\"${RE_SECRET}"`,
+      ],
+      [
+        "alias variant not in any fixed list: Pg_Password",
+        `Pg_Password=${RE_SECRET}`,
+      ],
+      ["key not in any fixed list at all: DB_PASS", `DB_PASS=${RE_SECRET}`],
+    ])("redacts %s", (_label, message) => {
+      const out = redactSecrets(message);
+      expect(out).not.toContain(RE_SECRET);
+      expect(out).not.toContain("SYNTH-7Kx");
+    });
+  });
+
+  // Combinatorial coverage: the earlier suite was a hand-picked list of
+  // examples, which is exactly why four real leaking forms slipped past it.
+  // This generates every combination of key shape (a content word with an
+  // arbitrary prefix and/or suffix) x quote style (none, ", ', `, each with
+  // and without an escaped inner quote) x separator (`=`/`:`, each with and
+  // without surrounding spaces), and asserts the secret is absent from every
+  // single one of them.
+  describe("combinatorial: key shape x quote style x separator", () => {
+    const CREDENTIAL_WORDS = [
+      "pass",
+      "pwd",
+      "secret",
+      "token",
+      "credential",
+      "auth",
+      "api_key",
+      "access_key",
+      "private_key",
+    ];
+    const PREFIXES = ["", "DB_", "my_", "Pg-"];
+    const SUFFIXES = ["", "_2", "-value"];
+
+    function buildKeyShapes(): string[] {
+      const shapes = new Set<string>();
+      for (const word of CREDENTIAL_WORDS) {
+        for (const prefix of PREFIXES) {
+          for (const suffix of SUFFIXES) {
+            shapes.add(`${prefix}${word}${suffix}`);
+          }
+        }
+      }
+      return [...shapes];
+    }
+
+    function escapeInsert(secret: string, quoteChar: string): string {
+      const mid = Math.floor(secret.length / 2);
+      return secret.slice(0, mid) + "\\" + quoteChar + secret.slice(mid);
+    }
+
+    const QUOTE_STYLES: Array<{ label: string; wrap: (s: string) => string }> =
+      [
+        { label: "unquoted", wrap: (s) => s },
+        { label: "double-quoted", wrap: (s) => `"${s}"` },
+        {
+          label: "double-quoted, escaped inner quote",
+          wrap: (s) => `"${escapeInsert(s, '"')}"`,
+        },
+        { label: "single-quoted", wrap: (s) => `'${s}'` },
+        {
+          label: "single-quoted, escaped inner quote",
+          wrap: (s) => `'${escapeInsert(s, "'")}'`,
+        },
+        { label: "backtick-quoted", wrap: (s) => `\`${s}\`` },
+        {
+          label: "backtick-quoted, escaped inner quote",
+          wrap: (s) => `\`${escapeInsert(s, "`")}\``,
+        },
+      ];
+
+    const SEPARATORS = [
+      { label: "= tight", text: "=" },
+      { label: "= spaced", text: " = " },
+      { label: ": tight", text: ":" },
+      { label: ": spaced", text: " : " },
+    ];
+
+    const KEY_SHAPES = buildKeyShapes();
+    const COMBO_SECRET = "Xk7-Combo-Marker-99";
+
+    it(`redacts the secret in every combination (${
+      KEY_SHAPES.length
+    } key shapes x ${QUOTE_STYLES.length} quote styles x ${
+      SEPARATORS.length
+    } separators = ${
+      KEY_SHAPES.length * QUOTE_STYLES.length * SEPARATORS.length
+    } cases)`, () => {
+      const failures: string[] = [];
+      let total = 0;
+      for (const key of KEY_SHAPES) {
+        for (const quote of QUOTE_STYLES) {
+          for (const separator of SEPARATORS) {
+            total += 1;
+            const message = `context before ${key}${separator.text}${quote.wrap(
+              COMBO_SECRET,
+            )} context after`;
+            const out = redactSecrets(message);
+            if (out.includes(COMBO_SECRET)) {
+              failures.push(
+                `key="${key}" quote="${quote.label}" separator="${separator.label}" -> ${out}`,
+              );
+            }
+          }
+        }
+      }
+      expect(total).toBe(
+        KEY_SHAPES.length * QUOTE_STYLES.length * SEPARATORS.length,
+      );
+      expect(failures).toEqual([]);
+    });
+  });
+
+  // ReDoS guard. Two distinct risks, both adversarial:
+  //  - the quote alternatives: each commits to a distinct leading character
+  //    and its inner loop is a negated-class/escape alternation with no
+  //    ambiguous overlap, so an unterminated quoted value should fail (or an
+  //    unquoted fallback should succeed) in linear time, not exponential.
+  //  - the key's `[\w-]*` prefix: without a `\b` anchor immediately before
+  //    it, a long run of word characters containing no credential fragment
+  //    (e.g. a hex/base64 blob) would be re-scanned from every position
+  //    inside the run, each scan backtracking across the rest of the run --
+  //    O(n) positions x O(n) backtrack = O(n^2). The leading `\b` confines
+  //    the expensive attempt to genuine word-boundary starts.
+  describe("performance", () => {
+    const alternatingQuoteChars = "'\"`".repeat(20_000);
+    const manyBackslashes = "\\".repeat(50_000);
+    const longFragmentFreeWordRun = "x".repeat(100_000); // no pass/pwd/secret/etc
+
+    it.each<[string, string]>([
+      ["unterminated double-quoted value", `password="${"a".repeat(100_000)}`],
+      [
+        "alternating stray quote characters as the value",
+        `password=${alternatingQuoteChars}`,
+      ],
+      [
+        "long run of backslashes before a stray quote",
+        `token=${manyBackslashes}"`,
+      ],
+      [
+        "long word-character run with no credential fragment, no separator",
+        longFragmentFreeWordRun,
+      ],
+      [
+        "long word-character run with no fragment, followed by a real secret",
+        `${longFragmentFreeWordRun} password=${SECRET}`,
+      ],
+    ])("stays fast on: %s", (_label, input) => {
+      const start = performance.now();
+      redactSecrets(input);
+      const elapsed = performance.now() - start;
+      expect(elapsed).toBeLessThan(500);
     });
   });
 });
