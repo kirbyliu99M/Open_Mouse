@@ -612,3 +612,90 @@ describe("findUnknownNumeral — closing the sentence-boundary gap (formerly KNO
     ).toBeCloseTo(1 / 3);
   });
 });
+
+describe("findUnknownNumeral — sentence-boundary gap, Unicode extension (SENTENCE_BOUNDARY_PATTERN was ASCII-only)", () => {
+  // The ASCII-only boundary class (`[.!?;:,\n]`) closed the gap for plain
+  // English punctuation but still missed a Unicode sentence-ender a model
+  // can realistically produce — an ellipsis, or CJK/fullwidth/Arabic
+  // terminal punctuation. Same shape of repro as above, just with a
+  // non-ASCII separator between the determiner and the fraction word.
+  const allowed: ReadonlySet<number> = new Set();
+
+  it("exact repro from the brief: ellipsis (U+2026) — 'Bring the… Third mm of clearance is available.' is flagged", () => {
+    expect(
+      findUnknownNumeral(
+        "Bring the… Third mm of clearance is available.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("exact repro from the brief: ideographic full stop (U+3002) — 'Bring the。 Third mm of clearance is available.' is flagged", () => {
+    expect(
+      findUnknownNumeral(
+        "Bring the。 Third mm of clearance is available.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it.each([
+    [
+      "horizontal ellipsis U+2026",
+      "Bring the… third mm of clearance is available.",
+    ],
+    [
+      "ideographic full stop U+3002",
+      "Bring the。 third mm of clearance is available.",
+    ],
+    [
+      "fullwidth exclamation mark U+FF01",
+      "Bring the！ third mm of clearance is available.",
+    ],
+    [
+      "fullwidth question mark U+FF1F",
+      "Bring the？ third mm of clearance is available.",
+    ],
+    [
+      "fullwidth semicolon U+FF1B",
+      "Bring the； third mm of clearance is available.",
+    ],
+    [
+      "fullwidth colon U+FF1A",
+      "Bring the： third mm of clearance is available.",
+    ],
+    [
+      "fullwidth comma U+FF0C",
+      "Bring the， third mm of clearance is available.",
+    ],
+    [
+      "ideographic comma U+3001",
+      "Bring the、 third mm of clearance is available.",
+    ],
+    [
+      "Arabic question mark U+061F",
+      "Bring the؟ third mm of clearance is available.",
+    ],
+    [
+      "Arabic semicolon U+061B",
+      "Bring the؛ third mm of clearance is available.",
+    ],
+  ])(
+    "%s between the determiner and the fraction word breaks adjacency — still flagged",
+    (_label, text) => {
+      expect(findUnknownNumeral(text, allowed)).toBeCloseTo(1 / 3);
+    },
+  );
+
+  it("does not regress: 'Consider the third pick instead.' still passes (no boundary between 'the' and 'third')", () => {
+    expect(
+      findUnknownNumeral("Consider the third pick instead.", allowed),
+    ).toBeNull();
+  });
+
+  it("does not regress: 'the third, of course, of the width' is still flagged ('of' follows, so the exemption never applied regardless of the comma boundary)", () => {
+    expect(
+      findUnknownNumeral("the third, of course, of the width", allowed),
+    ).toBeCloseTo(1 / 3);
+  });
+});

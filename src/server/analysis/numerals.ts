@@ -537,9 +537,33 @@ function isOrdinalUsage(
  * legitimate-ordinal case while closing off another way punctuation could
  * be used to fake adjacency. Same one-directional argument as above: it can
  * only remove a false "ordinal" verdict, never add one.
+ *
+ * FIXED GAP (was ASCII-only): the boundary set above was originally the
+ * literal class `[.!?;:,\n]`, which model-generated English prose can still
+ * slip past with a Unicode sentence-ender it never produces in ASCII — an
+ * ellipsis ("Bring the… Third mm of clearance is available.") or a
+ * fullwidth/CJK/Arabic terminator, each of which reads as its own sentence
+ * boundary to a person but tokenized as invisible to `[a-z]+`-only matching,
+ * exactly like the ASCII case this file already closed. `\p{Terminal_
+ * Punctuation}` (Unicode property, `u` flag) already covers every ASCII
+ * character the old class listed plus the fullwidth/CJK/Arabic marks this
+ * fix targets (verified directly in node, not assumed) — `。！？；：，、` and
+ * `؟؛` all match it. It does NOT cover `…` U+2026 HORIZONTAL ELLIPSIS or the
+ * `\n` newline case, so both are listed explicitly alongside it. The
+ * combined pattern is a strict superset of the old ASCII-only class: every
+ * character the old pattern matched, the new one still matches (confirmed:
+ * `.!?;:,` ⊂ `\p{Terminal_Punctuation}`, and `\n` is kept literally), so this
+ * can only add boundaries, never remove one — by the one-directional
+ * argument above, that can only cause MORE flagging, never less.
+ *
+ * Remaining gap: this covers terminal/separator punctuation, not every
+ * conceivable Unicode sentence-ending mark (e.g. Ethiopic full stop
+ * U+1362, which is neither `Terminal_Punctuation` nor `Sentence_Terminal`).
+ * Left open for the same reason listed above `matchDigitNumerals` about not
+ * chasing every conceivable bypass at once — revisit if a real case surfaces.
  */
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
-const SENTENCE_BOUNDARY_PATTERN = /[.!?;:,\n]/;
+const SENTENCE_BOUNDARY_PATTERN = /[\n…]|\p{Terminal_Punctuation}/u;
 
 /**
  * Parses spelled-out cardinal numbers ("twenty-five", "one hundred and

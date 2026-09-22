@@ -424,3 +424,50 @@ describe("analyse — Change 3: sentence-boundary punctuation as a token boundar
     expect(output.headline).toBe("The G502 X suits your grip well.");
   });
 });
+
+// Change 4, end to end: SENTENCE_BOUNDARY_PATTERN was ASCII-only, so a
+// Unicode sentence-ender a model can realistically produce — an ellipsis,
+// or CJK/fullwidth punctuation — still let a determiner ending one sentence
+// count as immediately preceding a fraction word starting the next. Same
+// exact repro shape as Change 3, with a non-ASCII separator.
+describe("analyse — Change 4: Unicode sentence-boundary punctuation as a token boundary, real call path", () => {
+  it('exact repro from the brief, ellipsis (U+2026): "Bring the… Third mm of clearance is available." does not pass on the first attempt', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick: "Bring the… Third mm of clearance is available.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("0.333");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(output.headline).toBe("A strong match for your hand.");
+  });
+
+  it('exact repro from the brief, ideographic full stop (U+3002): "Bring the。 Third mm of clearance is available." does not pass on the first attempt', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick: "Bring the。 Third mm of clearance is available.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("0.333");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(output.headline).toBe("A strong match for your hand.");
+  });
+});
