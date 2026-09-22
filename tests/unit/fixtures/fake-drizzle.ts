@@ -25,7 +25,8 @@ export interface FakeDrizzleChain {
   onConflictDoUpdate: (...args: unknown[]) => Promise<void>;
   /** Same shape as `PromiseLike<unknown[]>.then`, so `await chain` works. */
   then: <TResult1 = unknown[], TResult2 = never>(
-    onfulfilled?: ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
+    onfulfilled?:
+      ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ) => Promise<TResult1 | TResult2>;
 }

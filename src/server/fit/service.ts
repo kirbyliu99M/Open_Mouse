@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { fitPreferencesSchema, fitResponseSchema } from "../../lib/contracts/fit";
+import {
+  fitPreferencesSchema,
+  fitResponseSchema,
+} from "../../lib/contracts/fit";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
 import { readSessionCookie } from "../scans/cookies";
 import type { ScanRepo } from "../scans/repo";

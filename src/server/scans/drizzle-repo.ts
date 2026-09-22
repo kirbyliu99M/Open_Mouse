@@ -137,7 +137,10 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         ownership.push(
           and(
             eq(scans.sessionId, ctx.cookieSessionId),
-            or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, ctx.now)),
+            or(
+              isNull(scanSessions.expiresAt),
+              gt(scanSessions.expiresAt, ctx.now),
+            ),
           ),
         );
       }
