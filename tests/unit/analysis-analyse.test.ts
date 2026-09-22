@@ -290,8 +290,7 @@ describe("analyse — Finding 1: ordinal vs. fraction, real call path", () => {
     const input = inputFor();
     const badAnswer = JSON.stringify({
       headline: "A strong match for your hand.",
-      whyTopPick:
-        "It covers roughly third of the palm width for good support.",
+      whyTopPick: "It covers roughly third of the palm width for good support.",
       tradeoffs: [],
       whatToAvoid: [],
       caveats: [],
