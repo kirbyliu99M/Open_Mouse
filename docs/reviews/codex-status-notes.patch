@@ -1,0 +1,83 @@
+diff --git a/docs/HANDOFF-CLAUDE.md b/docs/HANDOFF-CLAUDE.md
+index b01dc8b..38999b3 100644
+--- a/docs/HANDOFF-CLAUDE.md
++++ b/docs/HANDOFF-CLAUDE.md
+@@ -61,7 +61,18 @@ Preserve existing ignored `.env.local` and `.vercel/`; never print credentials.
+ 
+ ## Codex tool readiness
+ 
+-The Blender MCP tools are exposed, but the first status/scene requests did not
+-return before Codex stopped waiting. No scene was changed. Connection and
+-Blender-version verification remain separate from M4 implementation; existing
+-milestone gates still apply.
++The Blender MCP tools are exposed. The first status/scene requests did not
++return before Codex stopped waiting. A separate status retry returned
++`Addon handshake failed: Communication error with Blender: Incomplete JSON response received`.
++Read-only inspection found Blender 5.2 running with the Blender Lab MCP 1.0.3
++extension, whose request protocol differs from the loaded `mcp-for-blender`
++tools. Codex installed the matching MCP for Blender 1.7 add-on at
++`C:/Users/kirby/AppData/Roaming/Blender Foundation/Blender/5.2/scripts/addons/blender_mcp.py`
++and verified that its protocol is 9, matching the server's expectation.
++
++After Kirby installed/enabled the add-on, the retry succeeded: Blender **5.2.2
++LTS**, add-on **1.7**, protocol **9** matching the server, no handshake warning.
++Scene inspection returned **3 objects** (Cube, Light, Camera) and 2 materials.
++The connection blocker is resolved. The old extension was not removed by Codex
++and no scene was changed. Tool readiness is separate from M4 implementation;
++existing milestone gates still apply.
+diff --git a/docs/STATUS.md b/docs/STATUS.md
+index a531b6c..d2016a1 100644
+--- a/docs/STATUS.md
++++ b/docs/STATUS.md
+@@ -3,20 +3,17 @@
+ **Every PR updates this file — Claude's and Codex's.** It is the single source of
+ truth for where the project stands. Read it before starting any task.
+ 
+-_Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
++_Last updated: 2026-09-21 · by: Codex (M0 cross-review and Blender tool readiness)_
+ 
+ ---
+ 
+ ## Right now
+ 
+-**Current milestone:** M0 — Scaffold (now owned by Claude — backend handover)
+-**Codex handoff:** [Deployment investigation and resource identifiers](HANDOFF-CLAUDE.md). Codex continues with frontend/3D tool readiness; the initial Blender MCP connection check did not return and made no scene changes.
+-**Next action:** Kirby enables Neon preview branching (below); Claude then verifies the preview branch + migration and moves [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) out of draft for Codex review. Claude starts M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) in parallel on a stacked branch.
+-**Blocked on — Kirby, Vercel dashboard only:**
+-
+-1. **Storage → `open-mouse-db` → enable Preview branching** (and "wait for resource before deploying"). Confirmed cause from the build log: `Preview migrations must use a separate database endpoint.` — the guard is working; Preview and Production currently share one endpoint.
+-2. **Set `DATABASE_PRODUCTION_HOST`** in the Vercel project (Preview scope) to the production hostname, no credentials.
+-3. **Remove the duplicate project `open-mouse-4awb`** — it is linked to the same repo and fails every PR independently.
++**Current milestone:** M0 — Scaffold (Claude owns backend; Codex cross-review has a fix request).
++**Codex handoff:** [Deployment investigation and resource identifiers](HANDOFF-CLAUDE.md). Blender MCP connection verified: Blender 5.2.2 LTS, add-on 1.7, protocol 9 matches. Scene inspection succeeds and shows Cube, Light and Camera. No scene changes were made; the connection blocker is resolved.
++**Next action:** Claude addresses the quoted-secret logging issue in [Codex's review of PR #3](reviews/m0-866451a.md), refreshes its acceptance evidence, then obtains cross-review before Kirby merges. PR #3 is out of draft and its current CI/Vercel checks pass. M1 proceeds in Claude's stacked PRs #4 and #5; its gate remains pending.
++**Codex preparation complete:** [Blender export/render smoke check](../tools/blender/README.md) passes on a synthetic cuboid: uncompressed and Draco GLB round trips, maximum errors **0.000001491 mm / 0.001223 mm**, zero non-manifold edges after seam welding, and a visually inspected PNG. This is tool readiness, not an M4 implementation or gate pass.
++**Remaining constraints:** M0 review needs the backend redaction fix and branch identity evidence. M1 classification/validation and M2 measurement gates still precede production Blender shell/hand implementation. No gate has been waived.
+ 
+ ---
+ 
+@@ -24,7 +21,7 @@ _Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
+ 
+ | #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                   |
+ | --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- |
+-| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance               |
++| M0  | Scaffold                           | –     | 🔍 fix requested       | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | CI + preview pass; quoted-secret logging fix requested by Codex         |
+ | M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | schema, computeSize, rules, harness done; seed + classification pending |
+ | M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                               |
+ | M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                         |
+@@ -42,11 +39,12 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · 
+ - Local: typecheck, ESLint, Prettier, migration history check, and production build pass.
+ - GitHub push CI at `4d833e3`: **87 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35580912792)). PR CI at `7881529`, including `vercel-build`: **81 seconds**, all checks passed ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35581171147)).
+ - Vitest: **16/16 passed** (configuration validation, credential-safe errors, preview endpoint guard).
++- Codex recheck after Claude's logging change: **32/32** configuration/error tests pass; two additional synthetic quoted-secret cases reproduce leakage. See [review](reviews/m0-866451a.md). PR CI at `866451a`: **88 seconds**, success ([run](https://github.com/kirbyliu99M/Open_Mouse/actions/runs/35603624732)).
+ - Playwright: **2/2 passed** (desktop and mobile Chromium; HTTP 200, visible heading, no browser errors or horizontal overflow).
+ - Production dependencies: **0 npm audit findings**. Drizzle Kit's development-only legacy esbuild chain has 4 moderate findings; no forced major downgrade or migration-tool replacement was made.
+-- Neon: `open-mouse-db`, Free plan, `iad1`, project `rapid-salad-00847873`. Separate preview branch and applied migration still need live evidence.
+-- Current Preview and Production variables resolve to the **same endpoint**. A read-only production query confirmed `public.scaffold_checks` is absent. The preview build stops before SQL; enabling Marketplace preview branching is the remaining account configuration step. The extra `open-mouse-4awb` project remains linked to the repo and reports its own failed preview check without database configuration; Kirby selected `open-mouse` as the primary project.
+-- Vercel: the existing `main` deployment is Ready but predates the Next.js scaffold. The scaffold's production deployment requires Claude's review and merge.
++- Neon: `open-mouse-db`, Free plan, `iad1`, project `rapid-salad-00847873`. Codex verified the current [Ready preview](https://vercel.com/kirby-at-ntu/open-mouse/6zznF1iUFVLbzBZxUgavhUKkQyWE) logs show `Migrations applied; scaffold_checks query passed over Neon HTTP.` The endpoint is redacted in those logs; record the preview branch identity separately.
++- Historical failure (resolved for the current preview): Preview and Production originally shared an endpoint, so the guard blocked SQL. The earlier read-only production query found `public.scaffold_checks` absent. Current PR checks no longer include the duplicate Vercel project failure; Claude records that project as removed.
++- Vercel: the existing `main` deployment predates the Next.js scaffold. The scaffold's production acceptance requires cross-review, Kirby's merge, and verification after deployment.
+ - Runtime dependency override: PostCSS 8.5.28 fixes the audit findings in Next.js 15's pinned dependency without changing the requested Next.js major.
+ - First Vercel preview exposed a CommonJS/ESM import mismatch in the migration entry point; corrected to the package's default import. CI now runs `vercel-build` to cover that entry point too. Local `vercel-build` passes; a synthetic production-endpoint preview exits before any database request.
+ - Repository history plus staged diff: **0 licensed-data paths, 0 CSV row patterns, 0 known credential values** found. The dataset was not read or moved for M0.

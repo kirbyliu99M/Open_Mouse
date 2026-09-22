@@ -37,6 +37,12 @@ test-results/
 
 # Blender / generation
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 *.blend1
 tools/blender/.venv/
 tools/blender/out/

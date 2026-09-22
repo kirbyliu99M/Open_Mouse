@@ -1,0 +1,32 @@
+# Handoff template: Claude owns .github/. Install there through its owner.
+name: Blender assets
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: npm ci
+      - run: pip install -r tools/blender/requirements.txt
+      - run: node --import tsx tools/blender/export-parameters.ts
+      - run: node node_modules/vitest/vitest.mjs run --config tools/blender/vitest.config.ts
+      - run: python -m unittest discover -s tools/blender/tests -p test_geometry.py
+      - run: python tools/blender/build_assets.py
+      - run: python tools/blender/tests/check_assets.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blender-assets
+          path: |
+            public/models/
+            tools/blender/out/*.blend
+            tools/blender/out/validation.json
