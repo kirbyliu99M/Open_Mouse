@@ -43,8 +43,8 @@ function jsonResponse(status: number, body: unknown): Response {
 
 describe("submitScan — request shape", () => {
   it("POSTs exactly one request to SCAN_SUBMIT_PATH with a JSON body matching the submission and no image data", async () => {
-    const fetchImpl = vi.fn(
-      async () => jsonResponse(201, { scanId: "123e4567-e89b-12d3-a456-426614174000" }),
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse(201, { scanId: "123e4567-e89b-12d3-a456-426614174000" }),
     );
 
     const outcome = await submitScan(validSubmission, fetchImpl);
@@ -77,8 +77,8 @@ describe("submitScan — request shape", () => {
   });
 
   it("never puts credentials on any other setting", async () => {
-    const fetchImpl = vi.fn(
-      async () => jsonResponse(201, { scanId: "223e4567-e89b-12d3-a456-426614174001" }),
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse(201, { scanId: "223e4567-e89b-12d3-a456-426614174001" }),
     );
     await submitScan(validSubmission, fetchImpl);
     const init = fetchImpl.mock.calls[0]![1]!;
@@ -88,8 +88,8 @@ describe("submitScan — request shape", () => {
 
 describe("submitScan — success (201)", () => {
   it("parses the body with scanSubmitResponseSchema and returns the scanId", async () => {
-    const fetchImpl = vi.fn(
-      async () => jsonResponse(201, { scanId: "323e4567-e89b-12d3-a456-426614174002" }),
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(201, { scanId: "323e4567-e89b-12d3-a456-426614174002" }),
     );
     const outcome = await submitScan(validSubmission, fetchImpl);
     expect(outcome).toEqual({
@@ -133,12 +133,11 @@ describe("submitScan — success (201)", () => {
 
 describe("submitScan — error paths, distinct copy per kind", () => {
   it("400 — parses a well-formed errorResponseSchema body and surfaces its detail alongside the invalid-scan copy", async () => {
-    const fetchImpl = vi.fn(
-      async () =>
-        jsonResponse(400, {
-          error: "Invalid scan submission.",
-          issues: [{ path: "measurements.handLengthMm", message: "too small" }],
-        }),
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(400, {
+        error: "Invalid scan submission.",
+        issues: [{ path: "measurements.handLengthMm", message: "too small" }],
+      }),
     );
     const outcome = await submitScan(validSubmission, fetchImpl);
     expect(outcome).toEqual({
@@ -150,8 +149,8 @@ describe("submitScan — error paths, distinct copy per kind", () => {
   });
 
   it("400 — does not trust a malformed body; falls back to its own copy with no detail", async () => {
-    const fetchImpl = vi.fn(
-      async () => jsonResponse(400, { unexpected: "shape" }),
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(400, { unexpected: "shape" }),
     );
     const outcome = await submitScan(validSubmission, fetchImpl);
     expect(outcome).toEqual({
@@ -172,12 +171,15 @@ describe("submitScan — error paths, distinct copy per kind", () => {
     );
     const outcome = await submitScan(validSubmission, fetchImpl);
     expect(outcome.status).toBe("error");
-    expect(outcome).toMatchObject({ kind: "invalid", message: SUBMIT_ERROR_MESSAGES.invalid });
+    expect(outcome).toMatchObject({
+      kind: "invalid",
+      message: SUBMIT_ERROR_MESSAGES.invalid,
+    });
   });
 
   it("413 — distinct copy from 400, regardless of body content", async () => {
-    const fetchImpl = vi.fn(
-      async () => jsonResponse(413, { error: "Request body too large." }),
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(413, { error: "Request body too large." }),
     );
     const outcome = await submitScan(validSubmission, fetchImpl);
     expect(outcome).toEqual({
@@ -186,7 +188,9 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       message: SUBMIT_ERROR_MESSAGES.tooLarge,
       detail: "Request body too large.",
     });
-    expect(SUBMIT_ERROR_MESSAGES.tooLarge).not.toBe(SUBMIT_ERROR_MESSAGES.invalid);
+    expect(SUBMIT_ERROR_MESSAGES.tooLarge).not.toBe(
+      SUBMIT_ERROR_MESSAGES.invalid,
+    );
   });
 
   it("network failure — fetch itself throwing (offline, DNS failure, etc.) gets its own copy", async () => {

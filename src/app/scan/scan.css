@@ -262,6 +262,31 @@ h1 {
 .primaryButton:active {
   transform: scale(0.97);
 }
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submitPanel {
+  margin: 1.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* Feedback kind 1 of 4 (status), for the submit phase specifically. */
+.submitStatus {
+  min-height: 1.25rem;
+  color: var(--scan-muted);
+  font-size: 0.9375rem;
+}
+
+.feedbackDetail {
+  margin: 0;
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
 
 .feedback {
   margin: 1rem 0;

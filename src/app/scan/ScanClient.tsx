@@ -15,6 +15,7 @@ import {
   type PipelineIssue,
 } from "@/client/photo/pipeline";
 import { getHandLandmarker } from "@/client/photo/landmarks";
+import ScanSubmitPanel from "./ScanSubmitPanel";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -431,6 +432,7 @@ export default function ScanClient() {
               </div>
             ))}
           </dl>
+          <ScanSubmitPanel submission={state.submission} />
         </div>
       )}
     </main>

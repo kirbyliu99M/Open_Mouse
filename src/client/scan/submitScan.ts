@@ -51,7 +51,9 @@ export const SUBMIT_ERROR_MESSAGES: Record<SubmitScanErrorKind, string> = {
   server: "Something went wrong on our end — wait a moment and try again.",
 };
 
-async function readErrorDetail(response: Response): Promise<string | undefined> {
+async function readErrorDetail(
+  response: Response,
+): Promise<string | undefined> {
   let body: unknown;
   try {
     body = await response.json();
