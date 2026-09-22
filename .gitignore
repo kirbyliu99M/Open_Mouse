@@ -46,3 +46,7 @@ tools/blender/out/
 Thumbs.db
 .vscode/
 .idea/
+
+# Ground-truth hand photos (personal data) - kept outside the repo; belt and braces
+/Fixtures/
+tests/fixtures/hands/

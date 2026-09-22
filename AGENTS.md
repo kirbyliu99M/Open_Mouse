@@ -12,11 +12,11 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 
 | Agent | Owns | Never does |
 |---|---|---|
-| **Claude** — orchestrator | Plan, milestone specs, `src/lib/contracts/`, shape rubric, dispatching builders, reviewing their output, gate adjudication, `docs/STATUS.md` | Approves a PR it authored directly |
+| **Claude** — orchestrator | Plan, milestone specs, `src/lib/contracts/`, shape rubric, dispatching builders, reviewing their output, gate adjudication, `docs/STATUS.md`, **merging reviewed PRs into `main`** and running production migrate + seed after schema changes | Approves a PR it authored directly; merges a PR without an independent reviewer's approval |
 | **Sonnet builder subagents** | Backend and frontend implementation, one scoped task each, **each in its own git worktree** | Changes a contract; touches files outside its task; merges |
 | **Sonnet reviewer subagent** | Independent review of every PR against its acceptance criteria and the hard rules | Reviews code it wrote |
 | **Codex** — Blender only | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | Anything outside `tools/blender/` and its generated assets |
-| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, dashboards, secrets, **merges**, final acceptance | — |
+| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, dashboards, secrets, final acceptance | — |
 
 ### Directory ownership
 
@@ -35,7 +35,19 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
    checks green locally (typecheck, lint, prettier, vitest, drizzle check), pushes,
    and opens a PR.
 3. A reviewer subagent that did not write the code reviews it; Claude adjudicates
-   the findings; Kirby merges.
+   the findings; once the reviewer approves and CI is green, Claude merges the PR
+   into `main` (merge commit, stack order, retargeting the next PR to `main`).
+   _Kirby's call, 2026-09-22: merge per PR once reviewed, don't let the stack pile up._
+
+**Neon has exactly two branches: `main` (production) and `preview` (shared by every
+PR preview).** Previews migrate and seed the shared `preview` branch. Seeds must stay
+idempotent and migrations additive. If the preview schema drifts (two open PRs add
+conflicting migrations), reset `preview` from `main` in the Neon console and
+redeploy. Never create per-PR Neon branches: the Free plan caps branches at 10.
+
+**Commit and push work in progress after each meaningful step** (a draft PR is fine early). Builders can be stopped mid-task by usage limits; anything uncommitted is at risk and pushed work resumes cleanly.
+
+**Each worktree runs its own `npm ci`. Never link or share `node_modules`** — every `npm install` reconciles the whole folder against *its* branch's lockfile, so a shared folder is silently rewritten by whichever agent installs last.
 
 **Separate working trees are mandatory.** Two agents in one checkout already
 caused one agent's uncommitted work to be committed by another.
@@ -68,6 +80,8 @@ caused one agent's uncommitted work to be committed by another.
    image to a server breaks a promise made in the UI — stop and raise it.
 
 ## Conventions
+
+- **UI/UX:** every frontend change follows `docs/design-guidelines.md` (Apple-derived; includes a review checklist).
 
 - **Branches:** `m<N>-<slug>` (e.g. `m0-scaffold`, `m2-calibration`).
 - **PRs:** reference the milestone issue, state gate evidence, keep to one
