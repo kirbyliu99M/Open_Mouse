@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   collectNumbers,
+  collectStringTokens,
   extractNumerals,
   extractWordNumerals,
   findUnknownNumeral,
   normalizeUnicodeDigits,
+  normalizeVulgarFractions,
+  surroundingToken,
 } from "../../src/server/analysis/numerals";
 
 describe("collectNumbers", () => {
@@ -239,5 +242,227 @@ describe("findUnknownNumeral — percentage-form equivalence", () => {
 
   it("still accepts an exact literal match with no percent involved", () => {
     expect(findUnknownNumeral("It's 125mm long.", allowed)).toBeNull();
+  });
+});
+
+describe("surroundingToken", () => {
+  it("extends left and right over contiguous letters and digits", () => {
+    const text = "It's G502mm long.";
+    const start = text.indexOf("502");
+    const end = start + "502".length;
+    expect(surroundingToken(text, start, end)).toBe("G502mm");
+  });
+
+  it("returns just the digits when nothing is glued to them", () => {
+    const text = "It's 125 mm long.";
+    const start = text.indexOf("125");
+    const end = start + "125".length;
+    expect(surroundingToken(text, start, end)).toBe("125");
+  });
+
+  it("stops at a hyphen — slug parts are separate tokens", () => {
+    const text = "the fit-v0-provisional engine";
+    const start = text.indexOf("0");
+    const end = start + 1;
+    expect(surroundingToken(text, start, end)).toBe("v0");
+  });
+});
+
+describe("collectStringTokens", () => {
+  it("collects lowercased alphanumeric tokens from nested string leaves", () => {
+    const tokens = collectStringTokens({
+      brand: "Logitech",
+      model: "G502 X",
+      slug: "logitech-g502-x",
+      nested: { engineVersion: "fit-v0-provisional" },
+      list: ["MX Master 3S"],
+      notAString: 42,
+    });
+    expect([...tokens].sort()).toEqual(
+      [
+        "logitech",
+        "g502",
+        "x",
+        "fit",
+        "v0",
+        "provisional",
+        "mx",
+        "master",
+        "3s",
+      ].sort(),
+    );
+  });
+
+  it("returns an empty set for input with no strings", () => {
+    expect(collectStringTokens({ a: 1, b: [2, 3] })).toEqual(new Set());
+  });
+});
+
+describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter", () => {
+  const allowed = new Set([125, 62]);
+
+  it("rejects 'about68mm' — a digit run glued to prose must not be invisible", () => {
+    expect(
+      findUnknownNumeral("Your palm reads about68mm narrower.", allowed),
+    ).toBe(68);
+  });
+
+  it("rejects 'roughly7fingers' — same bypass class, different glue", () => {
+    expect(
+      findUnknownNumeral("It clears roughly7fingers of space.", allowed),
+    ).toBe(7);
+  });
+
+  it("still accepts a product name/model token that appears verbatim in the input, even though a digit is glued to a letter", () => {
+    const input = {
+      slug: "logitech-g502-x",
+      brand: "Logitech",
+      model: "G502 X",
+    };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral(
+        "The Logitech G502 X is a strong match.",
+        allowed,
+        exemptTokens,
+      ),
+    ).toBeNull();
+  });
+
+  it("still accepts 'MX Master 3S' verbatim from the input", () => {
+    const input = { model: "MX Master 3S" };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral(
+        "Consider the MX Master 3S instead.",
+        allowed,
+        exemptTokens,
+      ),
+    ).toBeNull();
+  });
+
+  it("still accepts the engine version token 'fit-v0-provisional' from the input", () => {
+    const input = { engineVersion: "fit-v0-provisional" };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral(
+        "This uses the fit-v0-provisional engine.",
+        allowed,
+        exemptTokens,
+      ),
+    ).toBeNull();
+  });
+
+  it("does not exempt a digit run just because the same digits appear elsewhere in a different token", () => {
+    // "g502x" is not itself a verbatim input token (input has "g502"), so
+    // the exemption must not fire, and the glued digit must still be
+    // checked normally.
+    const input = { model: "G502" };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral("It's the G502x variant.", allowed, exemptTokens),
+    ).toBe(502);
+  });
+
+  it("without exemptTokens, a glued product name still surfaces its digits as a plain numeral (caller must supply exemptTokens to protect it)", () => {
+    expect(findUnknownNumeral("The G502 is a strong match.", allowed)).toBe(
+      502,
+    );
+  });
+});
+
+describe("normalizeVulgarFractions", () => {
+  it("converts each vulgar fraction character to its decimal value", () => {
+    expect(normalizeVulgarFractions("¼")).toBe("0.25");
+    expect(normalizeVulgarFractions("½")).toBe("0.5");
+    expect(normalizeVulgarFractions("¾")).toBe("0.75");
+    expect(normalizeVulgarFractions("⅓")).toBe("0.3333333333");
+    expect(normalizeVulgarFractions("⅔")).toBe("0.6666666667");
+    expect(normalizeVulgarFractions("⅕")).toBe("0.2");
+    expect(normalizeVulgarFractions("⅖")).toBe("0.4");
+    expect(normalizeVulgarFractions("⅗")).toBe("0.6");
+    expect(normalizeVulgarFractions("⅘")).toBe("0.8");
+    expect(normalizeVulgarFractions("⅙")).toBe("0.1666666667");
+    expect(normalizeVulgarFractions("⅚")).toBe("0.8333333333");
+    expect(normalizeVulgarFractions("⅐")).toBe("0.1428571429");
+    expect(normalizeVulgarFractions("⅛")).toBe("0.125");
+    expect(normalizeVulgarFractions("⅜")).toBe("0.375");
+    expect(normalizeVulgarFractions("⅝")).toBe("0.625");
+    expect(normalizeVulgarFractions("⅞")).toBe("0.875");
+    expect(normalizeVulgarFractions("⅑")).toBe("0.1111111111");
+    expect(normalizeVulgarFractions("⅒")).toBe("0.1");
+  });
+
+  it("collapses a literal fraction-slash form 'a⁄b'", () => {
+    expect(normalizeVulgarFractions("1⁄2")).toBe("0.5");
+  });
+
+  it("leaves ordinary text untouched", () => {
+    expect(normalizeVulgarFractions("It's about 5 mm.")).toBe(
+      "It's about 5 mm.",
+    );
+  });
+});
+
+describe("findUnknownNumeral — Finding 2: vulgar fractions", () => {
+  it("rejects '½' as 0.5, not as the two digits 1 and 2", () => {
+    const allowed = new Set([1, 2, 3]); // e.g. rank values 1, 2, 3
+    expect(
+      findUnknownNumeral(
+        "The width gap is only about ½ mm from your palm.",
+        allowed,
+      ),
+    ).toBe(0.5);
+  });
+
+  it("accepts '½' when 0.5 is genuinely in the input", () => {
+    const allowed = new Set([0.5]);
+    expect(findUnknownNumeral("The gap is about ½ mm.", allowed)).toBeNull();
+  });
+
+  it("rejects '¾' when 0.75 is not in the input", () => {
+    const allowed = new Set([1, 2, 3]);
+    expect(findUnknownNumeral("It's ¾ of the way there.", allowed)).toBe(0.75);
+  });
+});
+
+describe("findUnknownNumeral — Finding 3: ordinal vs. fraction 'third'/'quarter'", () => {
+  const allowed = new Set([125, 62, 1, 2, 3]);
+
+  it("does not treat 'the third pick' as the fraction 1/3", () => {
+    expect(
+      findUnknownNumeral("The third pick is also worth a look.", allowed),
+    ).toBeNull();
+  });
+
+  it("does not treat 'your third option' as a fraction", () => {
+    expect(
+      findUnknownNumeral("Your third option runs a bit narrow.", allowed),
+    ).toBeNull();
+  });
+
+  it("still rejects genuine fraction usage — 'a third of the width' — when 1/3 isn't in the input", () => {
+    expect(
+      findUnknownNumeral("It's a third of the width narrower.", allowed),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("still accepts genuine fraction usage when 1/3 is in the input", () => {
+    const allowsThird = new Set([1 / 3]);
+    expect(
+      findUnknownNumeral("It's a third of the width narrower.", allowsThird),
+    ).toBeNull();
+  });
+
+  it("does not treat an unadorned 'quarter' as a fraction when used as an ordinary word", () => {
+    expect(
+      findUnknownNumeral("The first quarter of testing went well.", allowed),
+    ).toBeNull();
+  });
+
+  it("still parses 'a quarter' as 0.25 (existing behaviour preserved)", () => {
+    expect(extractWordNumerals("a quarter").map((t) => t.value)).toEqual([
+      0.25,
+    ]);
   });
 });
