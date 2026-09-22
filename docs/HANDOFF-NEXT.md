@@ -24,13 +24,11 @@ Codex owns only `tools/blender/`.
 | #19 photo pipeline                         | reviewer approved; **update the stale PR body + mark ready**                                                            |
 | #21 fit engine                             | reviewer approved. Hybrid left-hand exclusion accepted as intended                                                      |
 | #22 results UI                             | clean                                                                                                                   |
-| #23 parallax                               | approved; EXIF LONG pixel-dimension fix landed (`fd0fa64`, 163/163 tests). Merge after its parent #9                  |
-| #20 analysis                               | numeral-check fixes in flight (Sonnet): number words, Unicode digits, %, `server-only`. **Needs re-review**             |
+| #23 parallax                               | approved; EXIF LONG pixel-dimension fix landed (`fd0fa64`, 163/163 tests). Merge after its parent #9                    |
+| #20 analysis                               | all three fixes landed (`b0839b9`, `5ffa76d`; 165 tests). **Needs re-review, then merge**                               |
 | #24 M6 auth                                | new, base `m2-scan-api`. **Needs independent review**                                                                   |
 
-In-flight agents from the old session push to their own branches. Check
-`git log origin/m5-analysis` and `git log origin/m2-parallax` for their commits. If
-nothing has landed, re-dispatch from the PR review comments.
+No agents are in flight: all of the old session's dispatched work has landed.
 
 Production migrate + seed has **not** been run yet. Do it once #4/#5 are merged
 (`npm run db:migrate`, `npm run db:seed`, with production env via `vercel.cmd env pull`
