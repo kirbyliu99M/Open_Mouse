@@ -415,6 +415,11 @@ export default function ScanClient() {
               ))}
             </div>
           )}
+          {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
+              from — the visible dl below is for people, formatted/rounded. */}
+          <p className="visuallyHidden" data-testid="scan-measurements-json">
+            {JSON.stringify(state.measurements)}
+          </p>
           <dl className="measurements" data-testid="scan-measurements">
             {Object.entries(state.measurements).map(([key, value]) => (
               <div className="measurementRow" key={key}>
