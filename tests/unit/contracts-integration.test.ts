@@ -105,6 +105,28 @@ describe("routes", () => {
     ).toBe(false);
   });
 
+  it("encodes a fragment marker too", () => {
+    expect(fitPath("a#b")).toBe("/api/scans/a%23b/fit");
+  });
+
+  it("errorResponseSchema accepts field-level issues on a 400", () => {
+    expect(
+      errorResponseSchema.safeParse({
+        error: "Invalid scan submission.",
+        issues: [{ path: "measurements.palmWidthMm", message: "Too small" }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("errorResponseSchema rejects a malformed issue", () => {
+    expect(
+      errorResponseSchema.safeParse({
+        error: "Invalid scan submission.",
+        issues: [{ path: "x" }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("errorResponseSchema requires a non-empty message and nothing else", () => {
     expect(
       errorResponseSchema.safeParse({ error: "Scan not found." }).success,

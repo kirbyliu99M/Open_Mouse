@@ -3,17 +3,34 @@
  * Paths and bodies live here so a path or a body shape changes in one place,
  * and the frontend and backend builders cannot drift apart.
  *
- * Ownership rule for every scan-scoped route below: a scan is served only to
- * the session that created it (anonymous cookie) or the signed-in user who
- * owns it. Anyone else gets 404, never 403, so a scan ID is not an oracle for
- * whether a scan exists. An expired anonymous scan is also 404 — expired
- * means gone. Change this file only in a PR of its own.
+ * Ownership rule for every scan-scoped route below. A scan is served when
+ * EITHER of these holds, checked independently:
+ *   - its session has a `user_id` equal to the signed-in caller's user id —
+ *     from any browser; once a session is claimed (`claimSession`),
+ *     ownership follows the user, not the cookie that created it; or
+ *   - the caller's anonymous session cookie names its session, and that
+ *     session has not expired.
+ * Anyone else gets 404, never 403, so a scan ID is not an oracle for whether
+ * a scan exists. An expired anonymous scan is also 404 — expired means gone.
+ * Change this file only in a PR of its own.
  */
 import { z } from "zod";
 
-/** Body of every non-2xx response. A user-facing sentence, never internals. */
+/** One field-level validation problem, as returned on a 400. */
+export const validationIssueSchema = z.strictObject({
+  /** Dotted path into the request body, e.g. `measurements.palmWidthMm`. */
+  path: z.string(),
+  message: z.string().min(1),
+});
+
+/**
+ * Body of every non-2xx response. `error` is a user-facing sentence, never
+ * internals. `issues` appears only on a 400 caused by body validation, and
+ * matches what `POST /api/scans` already returns.
+ */
 export const errorResponseSchema = z.strictObject({
   error: z.string().min(1),
+  issues: z.array(validationIssueSchema).optional(),
 });
 
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
