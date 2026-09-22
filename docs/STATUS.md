@@ -10,9 +10,10 @@ _Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fi
 ## Right now
 
 **Current milestone:** building toward full function, stopping where Blender assets are required (M4b).
-**In flight (Sonnet builders):** #10 photo pipeline · #11 scan API · #13 fit engine · #14 Gemini analysis · #15 results UI · #16 parallax correction.
-**Awaiting Kirby's merge, in order:** #3 → #4 → #5 → #6 → #12, then #8 and #9.
-**Next wave (after #10/#11 land):** wire scan → fit → results end to end; scan/fit/analysis routes; M6 login persistence; security review.
+**Open PRs:** #3 #4 #5 #6 (reviewed, ready) · #8 #9 (reviewed, fixed) · #12 fit contract · #18 scan API · #20 analysis · #21 fit engine · #22 results UI (clean) · #23 parallax. #10 and #17 finishing.
+**Review fixes in flight:** #20 (numeral-check bypass via number words and Unicode digits: blocker; percentage false positives; server-only guard), #18 (timing-safe cron comparison).
+**Next wave:** a review of #21/#23/#10/#17, then integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
+**Kirby, when convenient:** merge in stack order; the Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; the preview-protection decision.
 
 ---
 
@@ -113,7 +114,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | **Input is still photos (upload), not a live camera**; still processed in the browser | Kirby's call. Simpler flow; fixtures become replayable files. Adds EXIF orientation, HEIC and lens-distortion handling |
 | 2026-09-22 | Ground-truth hand photos live outside the repo (`../Fixtures/hands/`); the gate replay script never runs in CI | Same privacy promise as the product; same pattern as the licensed dataset |
 | 2026-09-22 | UI/UX standard: Apple design principles, applied per screen in `docs/design-guidelines.md` | Kirby's call. Frontend PRs are reviewed against its checklist |
-| 2026-09-22 | **Parallax correction applies to the top-down photo**, via camera pose from the marker homography + EXIF focal length (homography-estimated focal as fallback) | Landmarks sit 10–20 mm above the sheet: ~3% inflation, ~5.5 mm on a 190 mm hand, which alone fails the ±2 mm gate. Issue #16 |
+| 2026-09-22 | **Parallax correction applies to the top-down photo**, via camera pose from the marker homography + EXIF focal length (homography-estimated focal as fallback) | Landmarks sit above the sheet; measured +2.6 mm on a 190 mm hand (450 mm, 20° tilt), which alone fails the ±2 mm gate. Corrected to 0.03 mm under realistic noise (#23). An earlier estimate of ~5.5 mm was too high |
 | 2026-09-22 | Side and grip photos deferred | Fit engine v0 consumes only top-down measurements; revisit once M2 gate data shows whether thickness improves rankings |
 | 2026-09-22 | Builders run wide in parallel (up to six), all Sonnet, each on an issue-as-spec | Kirby's call: maximise Sonnet use; Claude writes contracts/specs and adjudicates |
 | 2026-09-22 | Expiry = lazy sweep on each scan write + expired-means-gone on reads + daily cron backstop | Vercel Hobby allows only daily cron; a daily-only sweep would let anonymous data live ~48 h and break the 24 h promise (#18, amended #17) |
