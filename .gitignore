@@ -48,5 +48,5 @@ Thumbs.db
 .idea/
 
 # Ground-truth hand photos (personal data) - kept outside the repo; belt and braces
-Fixtures/
+/Fixtures/
 tests/fixtures/hands/
