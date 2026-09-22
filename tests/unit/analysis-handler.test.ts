@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { analysisResponseSchema } from "../../src/lib/contracts/analysis";
 import {
   handleAnalysisRequest,
   type RateLimiter,
@@ -123,6 +124,33 @@ describe("handleAnalysisRequest", () => {
     );
     const key = computeCacheKey(fit, measurements);
     expect(await cache.get(key)).not.toBeNull();
+  });
+
+  it("a 200 body — fresh, cached, and no-model-configured — always validates against analysisResponseSchema", async () => {
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const cache = new InMemoryAnalysisCache();
+    const request = {
+      fit: makeFit(),
+      measurements: makeMeasurements(),
+      rateLimitKey: "user-1",
+    };
+    const deps = { client, cache, limiter: alwaysAllow() };
+
+    const fresh = await handleAnalysisRequest(request, deps);
+    expect(analysisResponseSchema.safeParse(fresh.body).success).toBe(true);
+
+    const cached = await handleAnalysisRequest(request, deps);
+    expect(analysisResponseSchema.safeParse(cached.body).success).toBe(true);
+
+    const noModel = await handleAnalysisRequest(
+      { ...request, rateLimitKey: "user-2" },
+      {
+        client: null,
+        cache: new InMemoryAnalysisCache(),
+        limiter: alwaysAllow(),
+      },
+    );
+    expect(analysisResponseSchema.safeParse(noModel.body).success).toBe(true);
   });
 
   it("scopes the rate limit check to the given key", async () => {
