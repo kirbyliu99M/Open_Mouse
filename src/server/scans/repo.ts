@@ -7,6 +7,27 @@ export interface SessionRecord {
   id: string;
 }
 
+/** A scan's hand + measurements, returned only once ownership is proven. */
+export interface OwnedScan {
+  hand: ScanSubmission["hand"];
+  gripStyleStated: ScanSubmission["gripStyleStated"] | null;
+  measurements: HandMeasurements;
+}
+
+/**
+ * What `findOwnedScan` checks a scan against — the ownership rule in
+ * `src/lib/contracts/routes.ts`'s header, resolved independently of any one
+ * caller identity so a signed-in user's own cookie need not be involved.
+ */
+export interface ScanOwnershipContext {
+  /** The signed-in caller's user id, or null when not signed in. */
+  userId: string | null;
+  /** The session id named by the caller's own anonymous session cookie, or
+   * null when the cookie is absent. */
+  cookieSessionId: string | null;
+  now: Date;
+}
+
 export interface ScanInsertInput {
   sessionId: string;
   hand: ScanSubmission["hand"];
@@ -50,4 +71,20 @@ export interface ScanRepo {
    * cookie — see `src/server/auth/claim.ts`.
    */
   claimSession(sessionId: string, userId: string, now: Date): Promise<void>;
+
+  /**
+   * Loads a scan's hand + measurements, but ONLY when `ctx` proves
+   * ownership per the rule in `src/lib/contracts/routes.ts`'s header:
+   * either the scan's session carries `ctx.userId` (from any browser, once
+   * claimed — see `claimSession`), or `ctx.cookieSessionId` names that same
+   * session and it has not expired. Null in every other case — unknown
+   * scan, a different owner, an expired anonymous session — so every
+   * non-owner sees exactly the same 404 (issue #27, criterion 2). Never
+   * validates `scanId`'s format itself; callers reject a malformed id
+   * before it ever reaches the database.
+   */
+  findOwnedScan(
+    scanId: string,
+    ctx: ScanOwnershipContext,
+  ): Promise<OwnedScan | null>;
 }
