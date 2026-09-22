@@ -4,8 +4,9 @@ import {
   ANONYMOUS_PRIVACY_PROMISE_MS,
   GITHUB_SCHEDULER_SLACK_MS,
   GITHUB_SWEEP_INTERVAL_MS,
+  GITHUB_SWEEP_MINUTE,
   MAX_ANONYMOUS_RETENTION_MS,
-  parseEveryNMinutesCron,
+  parseHourlyCronMinute,
   SESSION_TTL_MS,
 } from "../../src/server/scans/retention";
 
@@ -18,6 +19,10 @@ describe("the 24h anonymous-deletion bound (issue #32)", () => {
 
   it("ANONYMOUS_PRIVACY_PROMISE_MS really is 24 hours", () => {
     expect(ANONYMOUS_PRIVACY_PROMISE_MS).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("GITHUB_SWEEP_INTERVAL_MS really is hourly", () => {
+    expect(GITHUB_SWEEP_INTERVAL_MS).toBe(60 * 60 * 1000);
   });
 
   it("stays within the 24h promise, whatever the traffic — the whole point of #32", () => {
@@ -43,48 +48,57 @@ describe("the 24h anonymous-deletion bound (issue #32)", () => {
   });
 });
 
-describe("parseEveryNMinutesCron", () => {
+describe("parseHourlyCronMinute", () => {
   it.each([
-    ["*/1 * * * *", 1],
-    ["*/15 * * * *", 15],
-    ["*/30 * * * *", 30],
-    ["*/59 * * * *", 59],
-    ["  */30 * * * *  ", 30], // tolerates surrounding whitespace
-  ] as const)("parses %s as every %d minutes", (schedule, expected) => {
-    expect(parseEveryNMinutesCron(schedule)).toBe(expected);
+    ["0 * * * *", 0],
+    ["17 * * * *", 17],
+    ["59 * * * *", 59],
+    ["  17 * * * *  ", 17], // tolerates surrounding whitespace
+  ] as const)("parses %s as minute %d", (schedule, expected) => {
+    expect(parseHourlyCronMinute(schedule)).toBe(expected);
   });
 
   it.each([
-    "0 3 * * *", // the daily Vercel cron form — not a step schedule
-    "*/60 * * * *", // 60 is not a valid step
-    "*/0 * * * *", // 0 is not a valid step
+    "0 3 * * *", // the daily Vercel cron form — fixed hour, not hourly
+    "60 * * * *", // 60 is not a valid minute
+    "*/30 * * * *", // step syntax, not a fixed minute
     "not a cron string",
-    "*/15 */2 * * *", // step on a second field too — not the form this parses
-    "*/15 * * * * *", // six fields
+    "17 */2 * * *", // fixed minute but a step on the hour field too
+    "17 * * * * *", // six fields
   ])("returns null for %s", (schedule) => {
-    expect(parseEveryNMinutesCron(schedule)).toBeNull();
+    expect(parseHourlyCronMinute(schedule)).toBeNull();
   });
 });
 
-describe("the deployed schedule matches GITHUB_SWEEP_INTERVAL_MS", () => {
+describe("the deployed schedule matches retention.ts", () => {
+  function readWorkflow(): string {
+    return readFileSync(".github/workflows/expire-sessions.yml", "utf8");
+  }
+
   it("parses the real cron string out of .github/workflows/expire-sessions.yml", () => {
-    const contents = readFileSync(
-      ".github/workflows/expire-sessions.yml",
-      "utf8",
-    );
+    const contents = readWorkflow();
     const match = /cron:\s*["'](.+?)["']/.exec(contents);
     expect(match).not.toBeNull();
 
-    const scheduleMinutes = parseEveryNMinutesCron(match![1]!);
-    expect(scheduleMinutes).not.toBeNull();
-    expect(scheduleMinutes! * 60 * 1000).toBe(GITHUB_SWEEP_INTERVAL_MS);
+    const minute = parseHourlyCronMinute(match![1]!);
+    expect(minute).not.toBeNull();
+    // Confirms the schedule is genuinely hourly (parseHourlyCronMinute only
+    // matches "M * * * *"), so GITHUB_SWEEP_INTERVAL_MS's fixed 60 minutes
+    // is actually true of the deployed workflow, not just asserted here.
+    expect(minute).toBe(GITHUB_SWEEP_MINUTE);
+  });
+
+  it("runs off-peak — not at :00 or :30, the most congested minutes", () => {
+    const contents = readWorkflow();
+    const match = /cron:\s*["'](.+?)["']/.exec(contents);
+    const minute = parseHourlyCronMinute(match![1]!);
+    expect(minute).not.toBeNull();
+    expect(minute).not.toBe(0);
+    expect(minute).not.toBe(30);
   });
 
   it("the workflow calls the same endpoint the cron auth test exercises", () => {
-    const contents = readFileSync(
-      ".github/workflows/expire-sessions.yml",
-      "utf8",
-    );
+    const contents = readWorkflow();
     expect(contents).toContain("/api/cron/expire-sessions");
     expect(contents).toContain("secrets.CRON_SECRET");
     // The secret must never be inlined directly into a run: script (which

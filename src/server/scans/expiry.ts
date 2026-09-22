@@ -1,6 +1,6 @@
 /**
  * Which `scan_sessions` rows `GET /api/cron/expire-sessions` removes — called
- * every 30 minutes by `.github/workflows/expire-sessions.yml` and once a day
+ * hourly by `.github/workflows/expire-sessions.yml` and once a day
  * by the Vercel cron in `vercel.json` (Hobby plan's backstop; see
  * `retention.ts` for the arithmetic that keeps physical deletion within the
  * 24h promise regardless). Pure predicate so the rule is unit-tested without

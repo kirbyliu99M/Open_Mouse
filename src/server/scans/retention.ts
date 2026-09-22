@@ -39,25 +39,41 @@ export const ANONYMOUS_PRIVACY_PROMISE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How long an anonymous session lives before it counts as expired, measured
- * from creation. 22h30m, not 24h — the remaining 90 minutes of headroom is
- * spent below on the GitHub sweep's interval and its scheduling slack.
+ * from creation. 21h30m, not 24h — the remaining 2h30m of headroom is spent
+ * below on the GitHub sweep's interval and its scheduling slack.
  */
-export const SESSION_TTL_MS = 22 * 60 * 60 * 1000 + 30 * 60 * 1000;
+export const SESSION_TTL_MS = 21 * 60 * 60 * 1000 + 30 * 60 * 1000;
 
 /**
- * The GitHub Actions schedule in `.github/workflows/expire-sessions.yml`
- * (every-30-minutes step syntax, i.e. an asterisk, a slash, then 30, then
- * four more asterisks). Kept in lockstep with that file by
- * `tests/unit/retention.test.ts`, which parses the workflow's actual cron
+ * How often the GitHub Actions workflow
+ * (`.github/workflows/expire-sessions.yml`) is *scheduled* to call
+ * `GET /api/cron/expire-sessions`: hourly. Kept in lockstep with that file
+ * by `tests/unit/retention.test.ts`, which parses the workflow's actual cron
  * string rather than trusting this number to stay in sync by hand.
  *
- * 30 minutes, not something tighter, is a cost tradeoff: this is a private
+ * Hourly, not every 30 minutes, is a cost tradeoff: this is a private
  * repository, so every scheduled run bills at least one Actions minute
- * against the free 2,000/month. 30 minutes costs roughly 1,440-1,488
- * minutes/month (48 runs/day * 30 or 31 days) — under the free tier, with
- * room left for the existing CI workflow. See the PR for the full budget.
+ * against the free 2,000/month, and the existing CI workflow already draws
+ * on the same budget (223 runs over the 30 days before this change,
+ * averaging 1.7 billed minutes each — roughly 380/month, though that varies
+ * with how often the repo is pushed to). Hourly costs roughly 720-744
+ * minutes/month (24 runs/day * 30 or 31 days); every 30 minutes would cost
+ * about double that, close enough to CI's own draw on the same 2,000-minute
+ * allowance to risk exhausting it — and if the allowance runs out, CI *and*
+ * this sweep both stop, silently reopening the gap this file exists to
+ * close. See the PR for the full budget.
  */
-export const GITHUB_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+export const GITHUB_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * The minute past the hour the workflow runs at (17, not 0 or 30): GitHub's
+ * scheduled runs are documented to be most delayed right at the top of the
+ * hour, when the platform-wide volume of "on the hour" cron schedules is
+ * highest. Landing away from that peak (and away from the equally common
+ * :30 mark) doesn't change the slack *budget* below, but it's a free way to
+ * reduce how often a run actually needs that budget.
+ */
+export const GITHUB_SWEEP_MINUTE = 17;
 
 /**
  * Budgeted worst-case lateness of a GitHub Actions scheduled run. GitHub's
@@ -77,17 +93,19 @@ export const MAX_ANONYMOUS_RETENTION_MS =
   SESSION_TTL_MS + GITHUB_SWEEP_INTERVAL_MS + GITHUB_SCHEDULER_SLACK_MS;
 
 /**
- * Extracts the interval, in minutes, from an every-N-minutes step-syntax
- * cron schedule string (asterisk, slash, N, then four more asterisks) — the
- * only form `expire-sessions.yml` uses. Returns `null` for anything else (an
- * hourly schedule, a fixed-minute list, a step on a different field,
- * garbage) so the caller can fail loudly on a schedule it can't reason
- * about instead of silently accepting one that no longer matches
- * `GITHUB_SWEEP_INTERVAL_MS`.
+ * Extracts the minute-past-the-hour from an hourly, single-fixed-minute cron
+ * schedule string of the form `"M * * * *"` (minute fixed, every other
+ * field a bare `*`) — the only form `expire-sessions.yml` uses. Returns
+ * `null` for anything else (a step schedule, a non-hourly schedule, a fixed
+ * hour or day-of-month, garbage) so the caller can fail loudly on a
+ * schedule it can't reason about instead of silently accepting one that no
+ * longer runs once per hour, every hour — which is what makes
+ * `GITHUB_SWEEP_INTERVAL_MS` a fixed 60 minutes rather than something this
+ * function would need to compute.
  */
-export function parseEveryNMinutesCron(schedule: string): number | null {
-  const match = /^\*\/(\d{1,2}) \* \* \* \*$/.exec(schedule.trim());
+export function parseHourlyCronMinute(schedule: string): number | null {
+  const match = /^(\d{1,2}) \* \* \* \*$/.exec(schedule.trim());
   if (!match) return null;
-  const n = Number(match[1]);
-  return n >= 1 && n <= 59 ? n : null;
+  const minute = Number(match[1]);
+  return minute >= 0 && minute <= 59 ? minute : null;
 }
