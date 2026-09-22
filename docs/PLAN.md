@@ -142,7 +142,7 @@ poor proxy for whether the rubric is fit for purpose. Miss the gate and the
 
 **Pipeline:** `js-aruco2` finds markers → homography rectifies the image to the sheet plane in mm (**this also removes perspective distortion** — the real advantage over a bare reference object) → MediaPipe gives 21 landmarks → projected through the homography → millimetres. Manual 4-corner drag fallback when detection fails.
 
-Apply a first-order **parallax correction**: the hand sits ~20–30 mm above the sheet plane, so landmarks project slightly large. Correct from measured hand depth (side shot) and camera distance estimated from marker size. Document the residual.
+**Parallax correction on the top-down photo** (issue #16): landmarks sit 6–20 mm above the sheet, so mapping them through the sheet homography inflates distances (measured +2.6 mm on a 190 mm hand at 450 mm / 20° tilt, above the ±2 mm gate). The camera pose is recovered from the homography plus the focal length (EXIF `FocalLengthIn35mmFilm`, falling back to a single-view estimate from the homography when tilt ≥ 15°), then each landmark ray is intersected with its own height plane. The per-landmark heights are provisional and get fitted in the M2 gate.
 
 **Input is still photos, not a live camera** _(design change, 2026-09-22)_. Three photo slots, one per shot. Each accepts a file from the camera app or the gallery (`<input type="file" accept="image/*">`). **Processing stays in the browser**: the file is decoded locally and never uploaded, so "photos never leave your device" still holds.
 

@@ -3,30 +3,45 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-21 · by: Claude (orchestrator; #8 and #9 reviewed and fixed)_
+_Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 ---
 
 ## Right now
 
-**Current milestone:** M1 (classification ready to run) · M2 part A in review.
-**Awaiting Kirby's merge, in order:** #3 → #4 → #5 → #6, then #8 and #9 (independent of each other). All reviewed; every review finding fixed.
-**Next:** M1 gate run with Kirby's `GEMINI_API_KEY` (`npm run classify:descriptors`, then `npm run rubric:validate -- --predictions src/db/seed/logitech-descriptors.json`). Then M2 part B: live capture (camera + ArUco detection + MediaPipe) and the scan API. Codex: M4a Blender, issue #7.
+**Current milestone:** building toward full function, stopping where Blender assets are required (M4b). **#3 merged to main.** The rest of the stack is reviewed and green but **the merge cascade has not started** — see blocker 1.
+
+**Open PRs:** #4 #5 #6 (green, ready) · #8 #9 #12 (reviewed) · #18 scan API (timing-safe cron fix `19263aa`) · #19 photo pipeline (out of draft, evidence posted) · #20 analysis (**changes requested**, fix in flight) · #21 fit engine · #22 results UI · #23 parallax · #24 M6 auth (reviewed, approve-with-nits).
+
+**In flight (Sonnet):** builder closing two confirmed hard-rule-2 bypasses in `src/server/analysis/numerals.ts` (#20).
+
+**Next wave, after the merges:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table.
+
+**Blocked — Kirby:**
+
+1. **The merge cascade needs a permission grant.** `gh pr merge` is denied by the Claude Code permission classifier (`Merge Without Review`): the reviewer approvals recorded in the handoff live in session context, not as review objects on the PRs, so every PR reads `reviewDecision: ""` from outside. #4 is `MERGEABLE`/`CLEAN` with CI and Vercel green and is ready to go the moment a Bash rule for `gh pr merge` exists in `.claude/settings.json`.
+2. **Vercel previews still fail — confirmed, and it is not a stale error.** A fresh redeploy of #19 returned **`Resource provisioning failed`**: the Neon per-deployment branch cannot be created under the Free cap. #6 and #20 deploy fine only because their Neon branches already exist. The fix is the two-branch setup in HANDOFF-NEXT: delete the old per-PR branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`.
+3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
+4. When convenient: Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
+
+### Merge-cascade readiness (checked 2026-09-22)
+
+Every stale branch was test-merged against its base: **#5 #8 #9 #12 #18 all merge cleanly**, and the only non-doc changes they are missing are `.gitignore` and `README.md`. No contract changes are pending for them, so the cascade should not produce another semantic break like #20's.
 
 ---
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status             | PR                                                     | Notes                                                                                             |
-| --- | ---------------------------------- | ----- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🔍 in review       | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | all 8 criteria met; preview branches verified; reviewer approved                                  |
-| M1  | Data layer + shape rubric          | ✅    | 🔍 in review       | #4 #5 #8                                               | schema, 30-model seed, classifier built (fake-tested); gate run needs the Gemini key              |
-| M2  | Calibration + measurement          | ✅    | 🏗 part A in review | #9                                                     | sheet + geometry done; part B = live capture + API; ground-truth photos still needed for the gate |
-| M3  | Fit engine                         | –     | ⬜                 | –                                                      | coefficients need real pairings                                                                   |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                 | –                                                      | M4a Blender → Codex, issue #7                                                                     |
-| M5  | Gemini analysis                    | –     | ⬜                 | –                                                      | cost levers matter, see PLAN                                                                      |
-| M6  | Sessions, auth, privacy            | –     | ⬜                 | –                                                      |                                                                                                   |
-| M7  | Polish + security review           | –     | ⬜                 | –                                                      | before any public exposure                                                                        |
+| #   | Milestone                          | Gated | Status              | PR                                                     | Notes                                                                                             |
+| --- | ---------------------------------- | ----- | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | ✅ merged           | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | merged to `main` as `f5d9814`                                                                     |
+| M1  | Data layer + shape rubric          | ✅    | 🔍 in review        | #4 #5 #8                                               | schema, 30-model seed, classifier built (fake-tested); gate run needs the Gemini key              |
+| M2  | Calibration + measurement          | ✅    | 🔍 in review        | #9 #18 #19 #23                                         | A sheet+geometry, B API+photo pipeline, C parallax; ground-truth photos still needed for the gate |
+| M3  | Fit engine                         | –     | 🔍 in review        | #12 #21 #22                                            | contract, engine and results UI built; coefficients still need real pairings                      |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                  | –                                                      | M4a Blender → Codex, issue #7                                                                     |
+| M5  | Gemini analysis                    | –     | 🏗 changes requested | #20                                                    | re-review found two hard-rule-2 bypasses in the numeral check; fix in flight                      |
+| M6  | Sessions, auth, privacy            | –     | 🔍 in review        | #24                                                    | reviewed: approve with nits (no-store header, `isAuthConfigured`, app-wide `auth()` call)         |
+| M7  | Polish + security review           | –     | ⬜                  | –                                                      | before any public exposure                                                                        |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -112,6 +127,15 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | **Input is still photos (upload), not a live camera**; still processed in the browser | Kirby's call. Simpler flow; fixtures become replayable files. Adds EXIF orientation, HEIC and lens-distortion handling |
 | 2026-09-22 | Ground-truth hand photos live outside the repo (`../Fixtures/hands/`); the gate replay script never runs in CI | Same privacy promise as the product; same pattern as the licensed dataset |
 | 2026-09-22 | UI/UX standard: Apple design principles, applied per screen in `docs/design-guidelines.md` | Kirby's call. Frontend PRs are reviewed against its checklist |
+| 2026-09-22 | **Parallax correction applies to the top-down photo**, via camera pose from the marker homography + EXIF focal length (homography-estimated focal as fallback) | Landmarks sit above the sheet; measured +2.6 mm on a 190 mm hand (450 mm, 20° tilt), which alone fails the ±2 mm gate. Corrected to 0.03 mm under realistic noise (#23). An earlier estimate of ~5.5 mm was too high |
+| 2026-09-22 | Side and grip photos deferred | Fit engine v0 consumes only top-down measurements; revisit once M2 gate data shows whether thickness improves rankings |
+| 2026-09-22 | Builders run wide in parallel (up to six), all Sonnet, each on an issue-as-spec | Kirby's call: maximise Sonnet use; Claude writes contracts/specs and adjudicates |
+| 2026-09-22 | Expiry = lazy sweep on each scan write + expired-means-gone on reads + daily cron backstop | Vercel Hobby allows only daily cron; a daily-only sweep would let anonymous data live ~48 h and break the 24 h promise (#18, amended #17) |
+| 2026-09-22 | Neon Free branch cap limits concurrent PR previews; reviewed PRs give up their preview branch | Preview builds for #19 #21 #22 #23 failed with "Branch limit reached" |
+| 2026-09-22 | Preview deployments stay SSO-protected; builders never change project security settings | A builder correctly refused to enable Protection Bypass for Automation; that is Kirby's decision |
+| 2026-09-22 | A PR's `push` CI passing does **not** mean the PR is green; the `pull_request` run builds the merge with the base | #20 was green on push and red on `pull_request` at the same SHA: `contracts-fit` had widened the `excluded[]` contract with `brand`/`model`, which only breaks once the base is merged in. Read the `pull_request` run |
+| 2026-09-22 | The numeral check exempts digit runs inside tokens that appear verbatim in the input, and checks every other digit run | Re-review of #20 found `"about68mm"` produces **zero** regex matches — an invented number passing unchecked. The lookbehind that caused it exists to protect product names like `G502`, which was recorded nowhere. Both cases now have tests |
+| 2026-09-22 | Nits are adjudicated, not auto-applied, once a PR has been reviewed | Code the orchestrator writes after review is unreviewed code in a PR the orchestrator then merges — the thing "nobody approves their own work" exists to prevent. Nits go back to a builder |
 ---
 
 ## Risks
