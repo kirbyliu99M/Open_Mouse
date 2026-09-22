@@ -207,11 +207,20 @@ const STRING_TOKEN_PATTERN = /[A-Za-z0-9]+/g;
 /**
  * Recursively collects every alphanumeric token found in the input's
  * *string* leaves (brand, model, slug, engineVersion, and any other string
- * value), lowercased. Companion to `collectNumbers`, which only walks
- * numeric leaves and so has no way to know that "G502" or "fit-v0" are
- * legitimate product/version identifiers rather than freshly invented
- * numbers. See the comment above `matchDigitNumerals` for how this set is
- * used.
+ * value), preserving their original casing. Companion to `collectNumbers`,
+ * which only walks numeric leaves and so has no way to know that "G502" or
+ * "fit-v0" are legitimate product/version identifiers rather than freshly
+ * invented numbers. See the comment above `matchDigitNumerals` for how this
+ * set is used.
+ *
+ * FINDING 2: this used to lowercase every token, which meant a model output
+ * of "g502" (lowercase) was exempted just because "G502" (the real, cased
+ * product name) appeared somewhere in the input — a quantity smuggled
+ * through by re-casing a digit run that was never actually in the model's
+ * own casing. Casing is preserved here, and matching is exact-case in
+ * `isExemptToken`, so only a token that reproduces the input's own casing —
+ * the way a model naming a real product actually does ("G502", "MX Master
+ * 3S") — is exempt.
  */
 export function collectStringTokens(
   value: unknown,
@@ -219,7 +228,7 @@ export function collectStringTokens(
 ): Set<string> {
   if (typeof value === "string") {
     for (const match of value.matchAll(STRING_TOKEN_PATTERN)) {
-      out.add(match[0].toLowerCase());
+      out.add(match[0]);
     }
   } else if (Array.isArray(value)) {
     for (const v of value) collectStringTokens(v, out);
@@ -258,17 +267,22 @@ export function surroundingToken(
 
 /**
  * True when `token` should be exempt from numeral extraction because it —
- * as a *whole* — appears verbatim (case-insensitively) among the input's
- * string tokens. Requiring a letter rules out exempting a bare number
- * ("125") just because that digit sequence happens to also appear inside
- * some unrelated input string; only a token that mixes letters and digits
- * (a product name, slug fragment, or version string) can be exempt.
+ * as a *whole* — appears verbatim, exact-case, among the input's string
+ * tokens. Requiring a letter rules out exempting a bare number ("125") just
+ * because that digit sequence happens to also appear inside some unrelated
+ * input string; only a token that mixes letters and digits (a product name,
+ * slug fragment, or version string) can be exempt.
+ *
+ * FINDING 2: case-sensitive on purpose. A model naming a real product
+ * reproduces the input's own casing ("G502", "MX Master 3S"); a lowercased
+ * "g502" used as a plain quantity ("roughly g502 mm of clearance") is not
+ * the same token and must not ride the product-name exemption.
  */
 function isExemptToken(
   token: string,
   exemptTokens: ReadonlySet<string>,
 ): boolean {
-  return /[A-Za-z]/.test(token) && exemptTokens.has(token.toLowerCase());
+  return /[A-Za-z]/.test(token) && exemptTokens.has(token);
 }
 
 /**
@@ -289,10 +303,10 @@ function isExemptToken(
  * *input*, in `findUnknownNumeral`/callers) holds every alphanumeric token
  * that appeared verbatim in the input's strings. A digit run is skipped
  * only when its full surrounding token matches one of those verbatim input
- * tokens case-insensitively (`isExemptToken`) — i.e. it's part of a product
- * name/slug/version string we sent the model, not a new claim. Everything
- * else, including a digit glued to unrelated prose, is extracted and
- * checked like any other numeral. Do not reintroduce a bare lookbehind
+ * tokens exact-case (`isExemptToken`, Finding 2) — i.e. it's part of a
+ * product name/slug/version string we sent the model, not a new claim.
+ * Everything else, including a digit glued to unrelated prose, is extracted
+ * and checked like any other numeral. Do not reintroduce a bare lookbehind
  * here — it silently reopens this hole.
  */
 function matchDigitNumerals(
@@ -305,7 +319,14 @@ function matchDigitNumerals(
     const start = match.index;
     const end = start + match[0].length;
     if (exemptTokens.size > 0) {
-      const token = surroundingToken(normalized, start, end);
+      // `NUMERAL_PATTERN`'s leading `-?` can make `start` point at a "-"
+      // that is a separator (e.g. in a slug), not a minus sign. Surrounding
+      // this text is a job for `surroundingToken`, which contract-wise
+      // expects [start:end) to already sit within the alphanumeric token —
+      // step past a leading "-" first so it never gets absorbed into the
+      // returned token.
+      const tokenStart = normalized[start] === "-" ? start + 1 : start;
+      const token = surroundingToken(normalized, tokenStart, end);
       if (isExemptToken(token, exemptTokens)) continue;
     }
     const value = Number.parseFloat(match[0]);
@@ -366,11 +387,11 @@ const SCALE_WORDS: Record<string, number> = {
   billion: 1_000_000_000,
 };
 
-/** Multiplier/fraction words that are themselves a number, not a scale. */
+/** Multiplier words that are themselves a number, not a scale. `third` and
+ * `quarter` are handled separately below (`FRACTION_WORDS`) — they carry an
+ * ordinal/fraction ambiguity none of these do. */
 const MULTIPLIER_WORDS: Record<string, number> = {
   half: 0.5,
-  quarter: 0.25,
-  third: 1 / 3,
   couple: 2,
   double: 2,
   twice: 2,
@@ -381,39 +402,96 @@ const MULTIPLIER_WORDS: Record<string, number> = {
 };
 
 /**
- * FINDING 3: `third` and `quarter` are each both a fraction word ("a third
- * of the width") and an ordinary ordinal/count word ("the third pick",
- * "first quarter of testing"). This module's whole domain is "top 3
- * picks", where ordinal usage vastly outnumbers genuine fraction usage, so
- * unconditionally mapping `third` -> 1/3 turned routine phrasing like "the
- * third pick" into a phantom 0.333... that (almost) never matches the
- * input — forcing every analysis through a needless retry and then the
- * fallback.
+ * FINDING 1 (redesigned — the previous fix inverted the safe direction).
+ * `third` and `quarter` are each both a fraction word ("a third of the
+ * width", "two-thirds of users") and an ordinary ordinal/count word ("the
+ * third pick", "third place"). The previous fix treated ordinal as the
+ * default and only recognised a fraction when directly preceded by "a"/
+ * "an"/"one" — so any other fraction phrasing ("roughly third of the palm
+ * width") silently stopped being checked at all, and a model could invent
+ * a fraction just by avoiding that one preceding word.
  *
- * Fraction usage is reliably preceded by an indefinite article or "one"
- * ("a third", "one quarter"); ordinal usage is not ("the third pick",
- * "your third option", "first quarter"). That's the signal used to tell
- * them apart (`precededByFractionArticle`) — no wording is dropped
- * outright, so "a third of the width" still triggers the rule as it must.
+ * Hard rule 2 is asymmetric: a false positive here costs one retry, or at
+ * worst a fall back to the deterministic answer — the user still gets a
+ * correct output. A false negative lets an invented number reach the user.
+ * So this defaults `third`/`quarter` (and their plurals) to their fraction
+ * value, and carves out *only* clearly ordinal phrasing recognisable in
+ * this module's narrow domain ("top 3 picks"): an ordinal determiner (`the`/
+ * `your`/`its`/a possessive) directly before the word, and/or a known
+ * result noun directly after it ("pick", "option", "choice", "place",
+ * "finish", "spot", "candidate") — see `isOrdinalUsage`. Anything else,
+ * including "roughly third of the palm width" and "two-thirds of users", is
+ * treated as a fraction and left to flag if it doesn't trace back to the
+ * input, per the fail-toward-flagging rule above.
+ *
+ * Plural forms ("thirds", "quarters") are *always* fractions — English has
+ * no ordinal use of the bare plural ("the thirds pick" isn't a phrase a
+ * person writes — see `FRACTION_PLURAL_WORDS`). A plural directly preceded
+ * by a spelled-out cardinal combines with it ("two thirds" -> 2 * 1/3),
+ * matching the ordinary English reading of the compound; the hyphen in
+ * "two-thirds" is not a token character (`WORD_TOKEN_PATTERN` is
+ * letters-only), so it already tokenizes as "two", "thirds".
  *
  * `fifth` and `eighth` have the same ordinal/fraction ambiguity in
- * principle, but neither is in `MULTIPLIER_WORDS` today — they're plain
- * words with no numeric meaning here. Deliberately not adding them: doing
- * so would only add new bypass surface (another way to smuggle in 0.2 or
+ * principle, but neither is in `FRACTION_WORDS` today — they're plain words
+ * with no numeric meaning here. Deliberately not adding them: doing so
+ * would only add new bypass surface (another way to smuggle in 0.2 or
  * 0.125) for no current requirement to check "a fifth"/"an eighth" style
  * phrasing.
  */
-const AMBIGUOUS_ORDINAL_FRACTION_WORDS: ReadonlySet<string> = new Set([
-  "third",
-  "quarter",
+const FRACTION_WORDS: Record<string, number> = {
+  third: 1 / 3,
+  quarter: 1 / 4,
+};
+
+const FRACTION_PLURAL_WORDS: Record<string, number> = {
+  thirds: 1 / 3,
+  quarters: 1 / 4,
+};
+
+/** Ordinal determiners that, directly before `third`/`quarter`, mark
+ * ordinal usage ("the third pick", "your third option"). Deliberately not
+ * including "a"/"an"/"one" — those precede genuine fraction usage too ("a
+ * third of the width"), so they carry no disambiguating signal here. */
+const ORDINAL_DETERMINERS: ReadonlySet<string> = new Set([
+  "the",
+  "your",
+  "its",
+  "my",
+  "his",
+  "her",
+  "their",
+  "our",
 ]);
 
-function precededByFractionArticle(
-  tokens: readonly string[],
-  index: number,
-): boolean {
-  const previous = tokens[index - 1];
-  return previous === "a" || previous === "an" || previous === "one";
+/** Result nouns this module's own domain actually produces ("the third
+ * pick", "a third-place finish"). Kept narrow on purpose: every noun added
+ * here widens the exemption from hard rule 2, so only add one this module
+ * is actually known to write. */
+const ORDINAL_FOLLOWING_NOUNS: ReadonlySet<string> = new Set([
+  "pick",
+  "picks",
+  "option",
+  "options",
+  "choice",
+  "choices",
+  "place",
+  "finish",
+  "spot",
+  "candidate",
+]);
+
+/**
+ * True when `tokens[index]` (a `third`/`quarter` occurrence) reads as an
+ * ordinal ("the third pick", "third place") rather than a fraction. See the
+ * comment above `FRACTION_WORDS` for why this stays narrow.
+ */
+function isOrdinalUsage(tokens: readonly string[], index: number): boolean {
+  const before = tokens[index - 1];
+  const after = tokens[index + 1];
+  if (before !== undefined && ORDINAL_DETERMINERS.has(before)) return true;
+  if (after !== undefined && ORDINAL_FOLLOWING_NOUNS.has(after)) return true;
+  return false;
 }
 
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
@@ -466,15 +544,41 @@ export function extractWordNumerals(text: string): NumeralToken[] {
       inRun = true;
       continue;
     }
-    if (Object.prototype.hasOwnProperty.call(MULTIPLIER_WORDS, token)) {
-      if (
-        AMBIGUOUS_ORDINAL_FRACTION_WORDS.has(token) &&
-        !precededByFractionArticle(tokens, i)
-      ) {
-        // Ordinal usage ("the third pick") — not a numeral.
+    if (Object.prototype.hasOwnProperty.call(FRACTION_WORDS, token)) {
+      if (isOrdinalUsage(tokens, i)) {
+        // Ordinal usage ("the third pick", "a third-place finish") — not a
+        // numeral. Any pending cardinal run is unrelated to it and still
+        // flushed as its own token.
         flush(token);
         continue;
       }
+      // A cardinal run directly before combines with the fraction ("two
+      // thirds" -> 2 * 1/3); bare usage ("a third", "roughly third") is 1 *
+      // the unit fraction. Either way the run is consumed here, not
+      // flushed separately.
+      const multiplier = inRun ? total + current : 1;
+      current = 0;
+      total = 0;
+      inRun = false;
+      results.push({
+        value: multiplier * FRACTION_WORDS[token]!,
+        percent: false,
+      });
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(FRACTION_PLURAL_WORDS, token)) {
+      // Plurals are always fractions — see the comment above FRACTION_WORDS.
+      const multiplier = inRun ? total + current : 1;
+      current = 0;
+      total = 0;
+      inRun = false;
+      results.push({
+        value: multiplier * FRACTION_PLURAL_WORDS[token]!,
+        percent: false,
+      });
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(MULTIPLIER_WORDS, token)) {
       flush(token);
       results.push({ value: MULTIPLIER_WORDS[token]!, percent: false });
       continue;
