@@ -1,0 +1,56 @@
+/*
+ * globals.css has an unscoped `main { max-width: 44rem; margin: 18vh auto;
+ * padding: 0 1.5rem; }` meant for the marketing-style home page. At print
+ * time that 18vh top+bottom margin alone is ~53 mm on A4 — enough to push
+ * the 265 mm sheet SVG onto a second page. A class selector always beats a
+ * bare element selector on specificity regardless of import order, so this
+ * reliably zeroes it out for the sheet page only, on screen and in print,
+ * without touching globals.css or any other page.
+ */
+.sheetMain {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.instructions {
+  max-width: 40rem;
+  margin: 0 auto 1.5rem;
+  padding: 0 1.5rem;
+}
+
+.printPage {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem 4rem;
+  /* A narrow flex container would otherwise flex-shrink the SVG below its
+   * true 210mm width (flex items shrink by default) — that's rescaling
+   * exactly as unwanted on screen (e.g. a phone preview) as in print. */
+  overflow-x: auto;
+}
+
+.printPage svg {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #d0d0d5;
+  flex-shrink: 0;
+}
+
+@media print {
+  .noPrint {
+    display: none;
+  }
+  .printPage {
+    padding: 0;
+    display: block;
+  }
+  .printPage svg {
+    box-shadow: none;
+    display: block;
+    margin: 0 auto;
+  }
+}
+
+@page {
+  size: auto;
+  margin: 0;
+}
