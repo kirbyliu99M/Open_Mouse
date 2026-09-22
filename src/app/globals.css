@@ -1,0 +1,44 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 44rem;
+  margin: 18vh auto;
+  padding: 0 1.5rem;
+}
+h1 {
+  font-size: clamp(2.5rem, 10vw, 4rem);
+  letter-spacing: -0.04em;
+  margin: 0.5rem 0 1rem;
+}
+p {
+  line-height: 1.6;
+}
+.eyebrow,
+.note {
+  color: #57575c;
+}
+.eyebrow {
+  font-size: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    background: #161617;
+    color: #f5f5f7;
+  }
+  .eyebrow,
+  .note {
+    color: #b5b5bd;
+  }
+}

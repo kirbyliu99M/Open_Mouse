@@ -8,11 +8,37 @@ Full design: `docs/PLAN.md`.
 
 ## Roles
 
+_Revised 2026-09-21: backend implementation moved from Codex to Claude._
+
 | Agent | Owns | Never does |
 |---|---|---|
-| **Claude** | Plan, milestone specs, acceptance criteria, shape rubric, scoring design, Gemini prompts, PR review, gate adjudication | Writes feature code |
-| **Codex** | All feature code, tests, Blender scripts, docs updates | Merges its own PR; starts a milestone before the previous gate passes |
-| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, secrets, final acceptance | — |
+| **Claude** — backend + architecture | Plan, specs, gate adjudication, shape rubric. **Builds:** schema + migrations, seed and classification scripts, rubric validation, API route handlers, fit engine (M3), Gemini (M5), sessions/auth/cron (M6), CI and infra, and `src/lib/contracts/` | Merges its own PR |
+| **Codex** — frontend + 3D | **Builds:** pages and UI, camera capture, in-browser ArUco/MediaPipe pipeline and landmark→mm math, the printable calibration sheet, three.js runtime (M4b), Blender asset pipeline (M4a) | Merges its own PR; writes to the DB or calls Gemini directly |
+| **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, account/dashboard config, secrets, merges, final acceptance | — |
+
+### Directory ownership
+
+| Path | Owner |
+|---|---|
+| `src/db/`, `drizzle/`, `scripts/`, `src/app/api/`, `src/server/`, `.github/` | Claude |
+| `src/app/**` pages and layouts, `src/components/`, `src/client/`, `tools/blender/`, `public/` | Codex |
+| `src/lib/contracts/` | **Claude writes, both consume.** The only shared seam. |
+| `docs/STATUS.md` | Both — every PR updates it |
+
+Touching the other agent's paths is allowed for a one-line fix that unblocks you;
+anything larger is a request to the owner, logged in `docs/STATUS.md`.
+
+### Cross-review
+
+Neither agent merges its own work. **Claude reviews Codex's PRs; Codex reviews
+Claude's.** The reviewer checks the milestone's acceptance criteria and the five
+hard rules below, then approves. Kirby merges.
+
+### The contract seam
+
+Frontend and backend meet only at `src/lib/contracts/` — runtime-validated schemas
+for the measurement payload the browser sends and the fit result it gets back.
+Change a contract only in a PR of its own, so both sides see it land at once.
 
 ## The five hard rules
 
@@ -45,7 +71,8 @@ Full design: `docs/PLAN.md`.
 
 - **Branches:** `m<N>-<slug>` (e.g. `m0-scaffold`, `m2-calibration`).
 - **PRs:** reference the milestone issue, state gate evidence, keep to one
-  milestone. CI green *and* Vercel preview live before requesting review.
+  milestone *and one side of the seam*. CI green *and* Vercel preview live before
+  requesting review. A milestone that spans both sides (M2, M6) is two PRs.
 - **TypeScript:** strict. No `any` on the critical path.
 - **DB:** Drizzle with `@neondatabase/serverless` HTTP driver.
   **Never `pg.Pool`** — connections are not reused between serverless invocations.
