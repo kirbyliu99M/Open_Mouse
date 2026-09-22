@@ -192,6 +192,57 @@ describe("estimateFocalFromExif", () => {
     expect(result?.fPx).toBeCloseTo(1530, 3);
   });
 
+  it.each([
+    ["big-endian (MM)", false],
+    ["little-endian (II)", true],
+  ] as const)(
+    "falls back correctly when PixelXDimension/PixelYDimension are TYPE_LONG — %s",
+    (_label, littleEndian) => {
+      // Same native sensor as the SHORT-dimension fallback test above
+      // (4032x3024 px at 18288 px/inch => 5.6mm x 4.2mm sensor, diagonal
+      // 7.0mm; FocalLength = 4.25mm), but PixelXDimension/PixelYDimension
+      // are encoded as TYPE_LONG (4 bytes) rather than TYPE_SHORT — a
+      // common real-world EXIF encoding. For a big-endian LONG under
+      // 65536, the value's low-order bytes come LAST in the 4-byte field,
+      // so a naive 2-byte read (as the old buggy readShort did) reads the
+      // leading zero bytes and returns 0 instead of the real value.
+      const tiff = buildTiff(littleEndian, [
+        {
+          tag: 0x920a,
+          type: TYPE_RATIONAL,
+          numerator: 425,
+          denominator: 100,
+        }, // FocalLength = 4.25mm
+        {
+          tag: 0xa20e,
+          type: TYPE_RATIONAL,
+          numerator: 18288,
+          denominator: 1,
+        }, // FocalPlaneXResolution
+        {
+          tag: 0xa20f,
+          type: TYPE_RATIONAL,
+          numerator: 18288,
+          denominator: 1,
+        }, // FocalPlaneYResolution
+        { tag: 0xa210, type: TYPE_SHORT, value: 2 }, // FocalPlaneResolutionUnit = inches
+        { tag: 0xa002, type: TYPE_LONG, value: 4032 }, // PixelXDimension (LONG)
+        { tag: 0xa003, type: TYPE_LONG, value: 3024 }, // PixelYDimension (LONG)
+      ]);
+      const jpeg = buildJpegWithExif(tiff);
+
+      const result = estimateFocalFromExif(jpeg, {
+        widthPx: 1512,
+        heightPx: 2016,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.source).toBe("exif-focal-plane");
+      // fPx = focalLengthMm / nativeDiagonalMm * diagonalPx(decoded) = 4.25/7 * 2520 = 1530.
+      expect(result?.fPx).toBeCloseTo(1530, 3);
+    },
+  );
+
   it("returns null when neither the 35mm tag nor a complete fallback tag set is present", () => {
     const tiff = buildTiff(true, [
       // Only FocalLength present — fallback needs the focal-plane tags too.

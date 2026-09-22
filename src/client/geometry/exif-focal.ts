@@ -142,16 +142,32 @@ function readIfd(ctx: TiffContext, ifdOffset: number): IfdEntry[] {
 }
 
 function readShort(ctx: TiffContext, entry: IfdEntry): number | null {
-  if (entry.type !== TYPE_SHORT && entry.type !== TYPE_LONG) return null;
-  // A SHORT/LONG with count 1 is stored inline at the start of the 4-byte field.
-  return ctx.littleEndian
-    ? ctx.view.getUint16(entry.valueOffsetBytes, true)
-    : ctx.view.getUint16(entry.valueOffsetBytes, false);
+  if (entry.type !== TYPE_SHORT) return null;
+  // A SHORT with count 1 is stored inline at the start of the 4-byte field.
+  // Big-endian ("MM") files place the 2-byte value at the START of the
+  // 4-byte field, same as little-endian — only the multi-byte value's own
+  // byte order differs, not its position. getUint16 with the right
+  // littleEndian flag handles both correctly.
+  return ctx.view.getUint16(entry.valueOffsetBytes, ctx.littleEndian);
 }
 
 function readLongInline(ctx: TiffContext, entry: IfdEntry): number | null {
   if (entry.type !== TYPE_LONG) return null;
   return ctx.view.getUint32(entry.valueOffsetBytes, ctx.littleEndian);
+}
+
+/**
+ * Read a SHORT- or LONG-typed integer entry, dispatching on `entry.type` so
+ * a LONG-typed tag (4 bytes) is never mistakenly read as if it were a
+ * 2-byte SHORT. For a big-endian ("MM") LONG whose value fits in 16 bits,
+ * the low-order bytes come LAST in the 4-byte field, so reading only the
+ * first 2 bytes (as a naive SHORT read would) yields 0 instead of the
+ * actual value. Returns null for any other type.
+ */
+function readShortOrLong(ctx: TiffContext, entry: IfdEntry): number | null {
+  if (entry.type === TYPE_SHORT) return readShort(ctx, entry);
+  if (entry.type === TYPE_LONG) return readLongInline(ctx, entry);
+  return null;
 }
 
 function readRational(ctx: TiffContext, entry: IfdEntry): Rational | null {
@@ -258,8 +274,8 @@ export function estimateFocalFromExif(
     readRational(ctx, fpYResEntry) ?? { numerator: 0, denominator: 0 },
   );
   const unit = readShort(ctx, unitEntry);
-  const pixelXDim = readShort(ctx, pxXEntry) ?? readLongInline(ctx, pxXEntry);
-  const pixelYDim = readShort(ctx, pxYEntry) ?? readLongInline(ctx, pxYEntry);
+  const pixelXDim = readShortOrLong(ctx, pxXEntry);
+  const pixelYDim = readShortOrLong(ctx, pxYEntry);
 
   if (
     unit === null ||
