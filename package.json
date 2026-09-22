@@ -24,10 +24,12 @@
     "rubric:validate": "tsx scripts/validate-rubric.ts",
     "seed:fetch-logitech": "tsx scripts/fetch-logitech-specs.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "m2:gate-replay": "tsx scripts/m2-gate-replay.ts",
     "classify:descriptors": "tsx scripts/classify-descriptors.ts"
   },
   "dependencies": {
     "@google/genai": "2.23.0",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@neondatabase/serverless": "1.1.0",
     "@next/env": "15.5.25",
     "drizzle-orm": "0.45.2",
