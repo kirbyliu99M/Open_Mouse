@@ -83,6 +83,11 @@ function createFakeRepo() {
         sessions.set(sessionId, { ...row, userId, expiresAt: null });
       },
     ),
+    // Not exercised by the scan-submission/session/expiry tests below —
+    // covered on its own in tests/unit/fit-service.test.ts and
+    // tests/unit/scan-ownership.test.ts. Kept here only so this fake keeps
+    // satisfying ScanRepo's shape.
+    findOwnedScan: vi.fn(async () => null),
   };
   return { repo, sessions, insertedScans };
 }

@@ -2,7 +2,13 @@ import "server-only";
 import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import { scanMeasurements, scanSessions, scans } from "../../db/schema";
-import type { ScanInsertInput, ScanRepo, SessionRecord } from "./repo";
+import type {
+  OwnedScan,
+  ScanInsertInput,
+  ScanOwnershipContext,
+  ScanRepo,
+  SessionRecord,
+} from "./repo";
 
 /**
  * The real `ScanRepo`, over the Neon HTTP driver.
@@ -112,6 +118,78 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
             or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, now)),
           ),
         );
+    },
+
+    async findOwnedScan(
+      scanId: string,
+      ctx: ScanOwnershipContext,
+    ): Promise<OwnedScan | null> {
+      // Each half of the ownership rule (routes.ts header) is optional
+      // depending on what the caller presents; only include the ones that
+      // apply. Neither present (signed out, no cookie) can never match
+      // anything, so skip the query entirely rather than run an OR with no
+      // real conditions in it.
+      const ownership = [];
+      if (ctx.userId !== null) {
+        ownership.push(eq(scanSessions.userId, ctx.userId));
+      }
+      if (ctx.cookieSessionId !== null) {
+        ownership.push(
+          and(
+            eq(scans.sessionId, ctx.cookieSessionId),
+            or(
+              isNull(scanSessions.expiresAt),
+              gt(scanSessions.expiresAt, ctx.now),
+            ),
+          ),
+        );
+      }
+      if (ownership.length === 0) return null;
+
+      const rows = await db
+        .select({
+          hand: scans.hand,
+          gripStyleStated: scans.gripStyleStated,
+          handLengthMm: scanMeasurements.handLengthMm,
+          palmLengthMm: scanMeasurements.palmLengthMm,
+          palmWidthMm: scanMeasurements.palmWidthMm,
+          thumbLengthMm: scanMeasurements.thumbLengthMm,
+          indexLengthMm: scanMeasurements.indexLengthMm,
+          middleLengthMm: scanMeasurements.middleLengthMm,
+          ringLengthMm: scanMeasurements.ringLengthMm,
+          pinkyLengthMm: scanMeasurements.pinkyLengthMm,
+          palmThicknessMm: scanMeasurements.palmThicknessMm,
+          knuckleHeightMm: scanMeasurements.knuckleHeightMm,
+          gripApertureMm: scanMeasurements.gripApertureMm,
+          thumbAngleDeg: scanMeasurements.thumbAngleDeg,
+        })
+        .from(scans)
+        .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
+        .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
+        .where(and(eq(scans.id, scanId), or(...ownership)))
+        .limit(1);
+
+      const row = rows[0];
+      if (!row) return null;
+
+      return {
+        hand: row.hand,
+        gripStyleStated: row.gripStyleStated,
+        measurements: {
+          handLengthMm: row.handLengthMm,
+          palmLengthMm: row.palmLengthMm,
+          palmWidthMm: row.palmWidthMm,
+          thumbLengthMm: row.thumbLengthMm ?? undefined,
+          indexLengthMm: row.indexLengthMm ?? undefined,
+          middleLengthMm: row.middleLengthMm ?? undefined,
+          ringLengthMm: row.ringLengthMm ?? undefined,
+          pinkyLengthMm: row.pinkyLengthMm ?? undefined,
+          palmThicknessMm: row.palmThicknessMm ?? undefined,
+          knuckleHeightMm: row.knuckleHeightMm ?? undefined,
+          gripApertureMm: row.gripApertureMm ?? undefined,
+          thumbAngleDeg: row.thumbAngleDeg ?? undefined,
+        },
+      };
     },
   };
 }
