@@ -15,10 +15,10 @@ result in plain language.
 1. **Calibrate** — print one L-fold sheet carrying four ArUco markers on a
    180 × 180 mm square (identical on A4 and Letter). A bank card in frame
    cross-checks that your printer didn't silently scale the page.
-2. **Capture** — three shots: hand flat, hand on edge, hand cupped. ArUco gives a
-   homography that fixes both scale _and_ perspective; MediaPipe gives 21
-   landmarks. **All of this runs in your browser — the photos never leave your
-   device.** Only millimetres are sent.
+2. **Photograph** — three pictures on your phone: hand flat, hand on edge, hand
+   cupped, uploaded one per slot. ArUco gives a homography that fixes both scale
+   _and_ perspective; MediaPipe gives 21 landmarks. **All of this runs in your
+   browser — the photos never leave your device.** Only millimetres are sent.
 3. **Score** — a deterministic engine rates length, grip width, height/hump,
    front flare, thumb comfort and weight, each with a reason.
 4. **Simulate** — your measured hand, posed to your grip style, rendered on
