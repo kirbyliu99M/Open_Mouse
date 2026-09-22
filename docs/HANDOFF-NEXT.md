@@ -24,7 +24,7 @@ Codex owns only `tools/blender/`.
 | #19 photo pipeline                         | reviewer approved; **update the stale PR body + mark ready**                                                            |
 | #21 fit engine                             | reviewer approved. Hybrid left-hand exclusion accepted as intended                                                      |
 | #22 results UI                             | clean                                                                                                                   |
-| #23 parallax                               | approved; EXIF LONG pixel-dimension fix in flight (Sonnet), then merge                                                  |
+| #23 parallax                               | approved; EXIF LONG pixel-dimension fix landed (`fd0fa64`, 163/163 tests). Merge after its parent #9                  |
 | #20 analysis                               | numeral-check fixes in flight (Sonnet): number words, Unicode digits, %, `server-only`. **Needs re-review**             |
 | #24 M6 auth                                | new, base `m2-scan-api`. **Needs independent review**                                                                   |
 
