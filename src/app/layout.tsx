@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { auth } from "../auth";
+import { BeaconOnUnload } from "./BeaconOnUnload";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,10 +10,18 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const session = await auth();
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <BeaconOnUnload anonymous={!session?.user} />
+        {children}
+      </body>
     </html>
   );
 }

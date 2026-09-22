@@ -2,6 +2,7 @@ import { scanSubmissionSchema } from "../../lib/contracts/measurement";
 import { BodyTooLargeError, readLimitedBody } from "./body-limit";
 import { buildSessionCookie, readSessionCookie } from "./cookies";
 import type { ScanRepo } from "./repo";
+import { defaultSweepThrottle, type SweepThrottle } from "./sweep";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -16,6 +17,8 @@ export interface SubmitScanDeps {
   repo: ScanRepo;
   /** Injectable clock; defaults to `new Date()`. */
   now?: () => Date;
+  /** Injectable lazy-sweep throttle; defaults to the shared per-instance one. */
+  sweep?: SweepThrottle;
 }
 
 /**
@@ -61,6 +64,16 @@ export async function handleScanSubmission(
   }
   const submission = parsed.data;
   const currentNow = now();
+
+  // Lazy sweep (issue #17 amendment): cheap, indexed on expires_at, throttled
+  // to at most once a minute per instance. Best-effort — a sweep failure
+  // never fails the scan submission; the daily cron is the backstop.
+  const sweep = deps.sweep ?? defaultSweepThrottle;
+  try {
+    await sweep.maybeSweep(deps.repo, currentNow);
+  } catch {
+    // swallow — see comment above
+  }
 
   const cookieSessionId = readSessionCookie(request.headers.get("cookie"));
   const existing = cookieSessionId
