@@ -14,6 +14,7 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator; handing over, see [HANDOF
 **In flight (Sonnet):** #20 review fixes (numeral-check bypass via number words / Unicode digits, percentage false positives, `server-only` guard) · M6 auth (#17) finishing on `m6-auth`, PR to follow · independent review of #19 #21 #23.
 **Next wave:** integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
 **Blocked — Kirby:**
+
 1. **Vercel previews fail on #19 #21 #22 #23: Neon "Branch limit reached"** (Free plan). Every preview builds its own Neon branch, and there are now more open PRs than the plan allows. Fix: delete the preview branches of already-reviewed PRs (#3 #4 #5 #6 #8 #9 #12) in the Neon console, then redeploy the failed PRs.
 2. ~~Duplicate Vercel project `open-mouse-4awb`~~: deleted by Kirby 2026-09-22.
 3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
