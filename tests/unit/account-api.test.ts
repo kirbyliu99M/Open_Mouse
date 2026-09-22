@@ -76,6 +76,16 @@ describe("GET /api/account/scans — an anonymous user never sees /account data"
       ["createdAt", "gripStyleStated", "hand", "measurements", "scanId"].sort(),
     );
   });
+
+  it("is never cacheable — the body is personal hand-measurement data", async () => {
+    const repo = fakeRepo([sampleScan]);
+    const res = await handleAccountScansList({
+      repo,
+      getUserId: async () => "user-1",
+    });
+
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
 });
 
 describe("DELETE /api/account/scans — delete-everything", () => {
@@ -100,5 +110,15 @@ describe("DELETE /api/account/scans — delete-everything", () => {
     expect(res.status).toBe(200);
     expect(repo.deleteAllScans).toHaveBeenCalledWith("user-1");
     expect(await res.json()).toEqual({ deletedScans: 2 });
+  });
+
+  it("is never cacheable — the count is derived from personal data", async () => {
+    const repo = fakeRepo([sampleScan]);
+    const res = await handleAccountDeleteAll({
+      repo,
+      getUserId: async () => "user-1",
+    });
+
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });

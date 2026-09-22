@@ -1,9 +1,17 @@
 import type { AccountRepo } from "./repo";
 
+// `no-store` is defense in depth: `force-dynamic` on the route plus the
+// auth check above already prevent serving another user's data, but every
+// response from this helper carries personal hand-measurement data (or a
+// count derived from it), so it should never be cached — by a shared proxy
+// or by the browser's back/forward cache.
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
   });
 }
 
