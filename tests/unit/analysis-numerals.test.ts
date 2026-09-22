@@ -549,3 +549,66 @@ describe("findUnknownNumeral — Finding 3 (redesigned): ordinal vs. fraction 't
     ]);
   });
 });
+
+describe("findUnknownNumeral — closing the sentence-boundary gap (formerly KNOWN GAP)", () => {
+  // Exact repro from the brief: "the" ends one sentence, "Third" starts the
+  // next. Letters-only tokenization used to see them as directly adjacent
+  // ("the","third"), so the ordinal-determiner rule wrongly exempted the
+  // fraction. `boundaryBeforeToken` in numerals.ts now tracks a real
+  // sentence-ending period between them and blocks the exemption.
+  const allowed: ReadonlySet<number> = new Set();
+
+  it("exact repro: 'Bring the. Third mm of clearance is available.' is now flagged", () => {
+    expect(
+      findUnknownNumeral(
+        "Bring the. Third mm of clearance is available.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it.each([
+    ["period", "Bring the. Third mm of clearance is available."],
+    ["exclamation mark", "Bring the! Third mm of clearance is available."],
+    ["question mark", "Bring the? Third mm of clearance is available."],
+    ["semicolon", "Bring the; third mm of clearance is available."],
+    ["colon", "Bring the: third mm of clearance is available."],
+    ["comma", "Bring the, third mm of clearance is available."],
+    ["newline", "Bring the\nthird mm of clearance is available."],
+  ])(
+    "%s between the determiner and the fraction word breaks adjacency — still flagged",
+    (_label, text) => {
+      expect(findUnknownNumeral(text, allowed)).toBeCloseTo(1 / 3);
+    },
+  );
+
+  it("does not regress: 'Consider the third pick instead.' still passes (no boundary between 'the' and 'third')", () => {
+    expect(
+      findUnknownNumeral("Consider the third pick instead.", allowed),
+    ).toBeNull();
+  });
+
+  it("does not regress: 'roughly the third of the palm width' is still flagged (unrelated to the boundary fix — 'of' follows)", () => {
+    expect(
+      findUnknownNumeral("It's roughly the third of the palm width.", allowed),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("does not regress: 'It covers roughly third. Pick something else.' is still flagged (no determiner precedes 'third' at all)", () => {
+    expect(
+      findUnknownNumeral(
+        "It covers roughly third. Pick something else.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("a boundary before a token that is not an ordinal determiner has no effect either way", () => {
+    // Sanity check: the boundary flag only ever matters when the preceding
+    // word IS an ordinal determiner; otherwise the result is unchanged from
+    // today's already-correct behaviour.
+    expect(
+      findUnknownNumeral("Roughly. Third of the width.", allowed),
+    ).toBeCloseTo(1 / 3);
+  });
+});

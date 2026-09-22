@@ -480,40 +480,66 @@ const ORDINAL_DETERMINERS: ReadonlySet<string> = new Set([
 /**
  * True when `tokens[index]` (a `third`/`quarter` occurrence) reads as an
  * ordinal ("the third pick") rather than a fraction ("the third of the
- * width"). Requires BOTH halves: an ordinal determiner immediately before,
- * and the immediately following word not being "of". See the comment above
+ * width"). Requires ALL of: an ordinal determiner immediately before, no
+ * sentence-boundary punctuation between that determiner and this word (see
+ * `boundaryBeforeToken` / the comment above `WORD_TOKEN_PATTERN`), and the
+ * immediately following word not being "of". See the comment above
  * `FRACTION_WORDS` for the full rationale.
  */
-function isOrdinalUsage(tokens: readonly string[], index: number): boolean {
+function isOrdinalUsage(
+  tokens: readonly string[],
+  index: number,
+  boundaryBeforeToken: readonly boolean[],
+): boolean {
   const before = tokens[index - 1];
   const after = tokens[index + 1];
   return (
-    before !== undefined && ORDINAL_DETERMINERS.has(before) && after !== "of"
+    before !== undefined &&
+    !boundaryBeforeToken[index] &&
+    ORDINAL_DETERMINERS.has(before) &&
+    after !== "of"
   );
 }
 
 /**
- * KNOWN GAP (accepted, documented rather than papered over — see the round-4
- * brief this file was last revised under): `tokens` above comes from
- * `WORD_TOKEN_PATTERN`, which drops ALL punctuation, so "before" can be the
- * last word of a wholly unrelated PRIOR sentence if that word happens to be
- * a determiner immediately followed by sentence-ending punctuation — e.g.
- * "Bring the. Third mm of clearance is available." tokenizes to
- * [..."bring","the","third","mm",...], so "third" reads as if "the"
- * immediately precedes it and is wrongly exempted (the following word "mm"
- * is not "of", so the rule's second half doesn't save it either).
- * Exploiting this requires the model to end a sentence on a bare
- * determiner ("...the."), which is not fluent English and not a shape this
- * project's prompts or fallback text produce — but it is a real, findable
- * hole in the tokenized approach, not a hypothetical. Closing it properly
- * would mean tracking sentence boundaries (or at least "no terminal
- * punctuation between the two words") through `extractWordNumerals`, which
- * today discards all positional/punctuation information up front. Left
- * open rather than adding that machinery for a bypass that requires
- * ungrammatical model output to trigger — flagged here for whoever revisits
- * this file next.
+ * FIXED GAP (was `KNOWN GAP` in earlier revisions of this file): matching
+ * only `[a-z]+` discards ALL punctuation, so a naive adjacency check on the
+ * resulting word list can't tell "the third" (one clause) from "...the.
+ * Third..." (a determiner ending one sentence, immediately followed by an
+ * unrelated word starting the next) — both tokenize to the identical
+ * ["the","third"] pair. `isOrdinalUsage`'s determiner-before half used to
+ * trust that adjacency blindly, so a sentence-ending determiner wrongly
+ * exempted a fraction word that only *looked* adjacent to it, e.g. "Bring
+ * the. Third mm of clearance is available." read as if "the" immediately
+ * preceded "third" and waved the fraction through unchecked.
+ *
+ * Fix: `extractWordNumerals` keeps this same letters-only token list (still
+ * used everywhere else — cardinal-run accumulation, the "after" check, etc.
+ * — completely unchanged) but separately walks the ORIGINAL text with
+ * `matchAll` to record each match's position, and computes
+ * `boundaryBeforeToken[i]`: true when the raw text between the end of token
+ * `i-1` and the start of token `i` contains a sentence-boundary character —
+ * `.`, `!`, `?`, `;`, `:`, a comma, or a newline (see
+ * `SENTENCE_BOUNDARY_PATTERN`). `isOrdinalUsage` now also requires
+ * `!boundaryBeforeToken[index]`, so a determiner separated from `third`/
+ * `quarter` by any of those can no longer count as "immediately before" it.
+ *
+ * This only ever turns a previously-true "ordinal, exempt" verdict into
+ * false (never the reverse — a fresh boundary can't manufacture a
+ * determiner that wasn't already there) so it can only cause MORE text to
+ * be flagged, never less, preserving hard rule 2's fail-toward-flagging
+ * direction.
+ *
+ * Comma included deliberately, even though it's a weaker signal than a full
+ * sentence-ender: an ordinal determiner is not fluent English with a comma
+ * immediately after it ("the, third, ...") the way "the third, ..." reads
+ * fine, so treating a comma as a boundary here costs nothing in the
+ * legitimate-ordinal case while closing off another way punctuation could
+ * be used to fake adjacency. Same one-directional argument as above: it can
+ * only remove a false "ordinal" verdict, never add one.
  */
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
+const SENTENCE_BOUNDARY_PATTERN = /[.!?;:,\n]/;
 
 /**
  * Parses spelled-out cardinal numbers ("twenty-five", "one hundred and
@@ -523,7 +549,19 @@ const WORD_TOKEN_PATTERN = /[a-z]+/g;
  * "5" would be.
  */
 export function extractWordNumerals(text: string): NumeralToken[] {
-  const tokens = text.toLowerCase().match(WORD_TOKEN_PATTERN) ?? [];
+  const lowered = text.toLowerCase();
+  const wordMatches = [...lowered.matchAll(WORD_TOKEN_PATTERN)];
+  const tokens = wordMatches.map((m) => m[0]);
+  // See the "FIXED GAP" comment above WORD_TOKEN_PATTERN: true at index `i`
+  // means sentence-boundary punctuation separates token `i-1` from token
+  // `i` in the original text, so they must not be treated as adjacent words
+  // by `isOrdinalUsage`.
+  const boundaryBeforeToken = wordMatches.map((match, i) => {
+    if (i === 0) return true;
+    const previous = wordMatches[i - 1]!;
+    const gap = lowered.slice(previous.index + previous[0].length, match.index);
+    return SENTENCE_BOUNDARY_PATTERN.test(gap);
+  });
   const results: NumeralToken[] = [];
   let current = 0;
   let total = 0;
@@ -564,7 +602,7 @@ export function extractWordNumerals(text: string): NumeralToken[] {
       continue;
     }
     if (Object.prototype.hasOwnProperty.call(FRACTION_WORDS, token)) {
-      if (isOrdinalUsage(tokens, i)) {
+      if (isOrdinalUsage(tokens, i, boundaryBeforeToken)) {
         // Ordinal usage ("the third pick", "a third-place finish") — not a
         // numeral. Any pending cardinal run is unrelated to it and still
         // flushed as its own token.

@@ -368,3 +368,59 @@ describe("analyse — Change 2: ordinal vs. fraction, real call path", () => {
     expect(output.whatToAvoid[0]).toContain("third pick");
   });
 });
+
+// Change 3, end to end: closes the sentence-boundary gap that was left as a
+// documented KNOWN GAP in numerals.ts — a determiner ending one sentence
+// ("...the.") no longer counts as immediately preceding a fraction word
+// that starts the next one.
+describe("analyse — Change 3: sentence-boundary punctuation as a token boundary, real call path", () => {
+  it('exact repro from the brief: "Bring the. Third mm of clearance is available." does not pass on the first attempt', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick: "Bring the. Third mm of clearance is available.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("0.333");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(output.headline).toBe("A strong match for your hand.");
+  });
+
+  it('still accepts "Consider the third pick instead." on the first attempt — no boundary between "the" and "third"', async () => {
+    const input = inputFor();
+    const answer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick: "It's 125 mm long, right in your ideal range.",
+      tradeoffs: [],
+      whatToAvoid: ["Consider the third pick instead."],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => answer });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(1);
+    expect(output.whatToAvoid[0]).toBe("Consider the third pick instead.");
+  });
+
+  it('still passes a genuine product-name/digit mention: "The G502 X suits your grip well." on the first attempt', async () => {
+    const input = inputWithG502X();
+    const answer = JSON.stringify({
+      headline: "The G502 X suits your grip well.",
+      whyTopPick: "It's 125 mm long, right in your ideal range.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => answer });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(1);
+    expect(output.headline).toBe("The G502 X suits your grip well.");
+  });
+});
