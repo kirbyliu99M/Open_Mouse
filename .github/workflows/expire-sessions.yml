@@ -1,0 +1,43 @@
+name: Expire anonymous scan sessions
+
+# Half of the 24h anonymous-deletion promise (issue #32). Vercel Hobby's cron
+# only runs daily, which alone would let a scan outlive the promise by up to
+# ~24h more (see vercel.json and docs/STATUS.md's 2026-09-22 decision). This
+# workflow calls the same endpoint every 30 minutes so the sweep is frequent
+# enough that, combined with the session TTL, the worst case stays under 24h
+# — see src/server/scans/retention.ts for the exact arithmetic and
+# tests/unit/retention.test.ts for the CI-enforced proof, which also parses
+# the schedule below so it can't silently drift out of sync with that file.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expire-sessions
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call GET /api/cron/expire-sessions
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        # CRON_SECRET only ever appears here as a shell variable reference,
+        # never inlined into this script or into any printed output — it is
+        # sent as a request header and nothing about the request is echoed.
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET repository secret is not set. See the PR for #32 for one-time setup steps." >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --max-time 30 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://open-mouse.vercel.app/api/cron/expire-sessions"

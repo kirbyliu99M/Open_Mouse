@@ -15,8 +15,10 @@ export default async function AccountPage() {
         <p className="eyebrow">Account</p>
         <h1>Sign in to keep your scans</h1>
         <p>
-          Without an account, a scan is deleted within 24 hours of closing your
-          browser. Sign in and it&apos;s kept until you delete it.
+          Without an account, a scan is deleted within 24 hours of when
+          it&apos;s made &mdash; not when you close your browser, since some
+          browsers restore your session afterward. Sign in and it&apos;s kept
+          until you delete it.
         </p>
         {configured ? (
           <form
