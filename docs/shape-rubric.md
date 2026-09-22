@@ -38,6 +38,12 @@ Large       otherwise
 **Measured against the validation fixture: 91.5% exact (n=1260), 99.8%
 within-one-level; 89.5% exact on the Logitech subset (n=76).**
 
+**Known gap — vertical mice.** The one two-level miss on Logitech is the Lift
+Vertical (108 mm long, 71 mm tall). Length-based sizing is meaningless for a
+vertical grip. Treat `Height/Length > 0.55` as a separate form factor: compute
+`size` for storage, but the M3 fit engine must not score a vertical mouse with the
+horizontal length model. Tracked in `docs/STATUS.md`.
+
 Fingertip is a *profile* category, not merely a short mouse — it needs both a
 short body and a low deck, which is why the height ratio gates it.
 

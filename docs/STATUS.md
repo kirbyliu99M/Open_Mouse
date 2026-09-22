@@ -9,24 +9,29 @@ _Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
 
 ## Right now
 
-**Current milestone:** M0 — Scaffold: **all acceptance criteria met, in review** ([PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3), reviewer: Codex).
-**In parallel:** M1 part 1 in draft [PR #4](https://github.com/kirbyliu99M/Open_Mouse/pull/4) (stacked on #3). Part 2 = seed of the current Logitech lineup, then classification.
-**Blocked on:** nothing for M0. The M1 gate run waits on `GEMINI_API_KEY`, which Kirby is holding back for the real test.
+**Current milestone:** M0 — Scaffold (now owned by Claude — backend handover)
+**Codex handoff:** [Deployment investigation and resource identifiers](HANDOFF-CLAUDE.md). Codex continues with frontend/3D tool readiness; the initial Blender MCP connection check did not return and made no scene changes.
+**Next action:** Kirby enables Neon preview branching (below); Claude then verifies the preview branch + migration and moves [PR #3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) out of draft for Codex review. Claude starts M1 ([#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2)) in parallel on a stacked branch.
+**Blocked on — Kirby, Vercel dashboard only:**
+
+1. **Storage → `open-mouse-db` → enable Preview branching** (and "wait for resource before deploying"). Confirmed cause from the build log: `Preview migrations must use a separate database endpoint.` — the guard is working; Preview and Production currently share one endpoint.
+2. **Set `DATABASE_PRODUCTION_HOST`** in the Vercel project (Preview scope) to the production hostname, no credentials.
+3. **Remove the duplicate project `open-mouse-4awb`** — it is linked to the same repo and fails every PR independently.
 
 ---
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status           | PR                                                       | Notes                                         |
-| --- | ---------------------------------- | ----- | ---------------- | -------------------------------------------------------- | --------------------------------------------- |
-| M0  | Scaffold                           | –     | 🔍 in review     | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | all 8 criteria met; preview branches verified |
-| M1  | Data layer + shape rubric          | ✅    | ⬜ blocked by M0 | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | **riskiest gate — see Risks**; rubric written |
-| M2  | Calibration + measurement          | ✅    | ⬜               | –                                                        | needs Kirby's fixture set                     |
-| M3  | Fit engine                         | –     | ⬜               | –                                                        | coefficients need real pairings               |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜               | –                                                        | largest build                                 |
-| M5  | Gemini analysis                    | –     | ⬜               | –                                                        | cost levers matter, see PLAN                  |
-| M6  | Sessions, auth, privacy            | –     | ⬜               | –                                                        |                                               |
-| M7  | Polish + security review           | –     | ⬜               | –                                                        | before any public exposure                    |
+| #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                   |
+| --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance               |
+| M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | schema, computeSize, rules, harness done; seed + classification pending |
+| M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                               |
+| M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                         |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                     | –                                                        | largest build                                                           |
+| M5  | Gemini analysis                    | –     | ⬜                     | –                                                        | cost levers matter, see PLAN                                            |
+| M6  | Sessions, auth, privacy            | –     | ⬜                     | –                                                        |                                                                         |
+| M7  | Polish + security review           | –     | ⬜                     | –                                                        | before any public exposure                                              |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -39,7 +44,6 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 - Vitest: **16/16 passed** (configuration validation, credential-safe errors, preview endpoint guard).
 - Playwright: **2/2 passed** (desktop and mobile Chromium; HTTP 200, visible heading, no browser errors or horizontal overflow).
 - Production dependencies: **0 npm audit findings**. Drizzle Kit's development-only legacy esbuild chain has 4 moderate findings; no forced major downgrade or migration-tool replacement was made.
-- **Preview isolation verified 2026-09-21:** preview builds for PR #3 and PR #4 both logged `Migrations applied`. The preview guard throws when the endpoint equals production, so that line is only reachable on a separate branch. PR #4's build also applied M1's migration `0001` cleanly. Duplicate project `open-mouse-4awb` removed.
 - Neon: `open-mouse-db`, Free plan, `iad1`, project `rapid-salad-00847873`. Separate preview branch and applied migration still need live evidence.
 - Current Preview and Production variables resolve to the **same endpoint**. A read-only production query confirmed `public.scaffold_checks` is absent. The preview build stops before SQL; enabling Marketplace preview branching is the remaining account configuration step. The extra `open-mouse-4awb` project remains linked to the repo and reports its own failed preview check without database configuration; Kirby selected `open-mouse` as the primary project.
 - Vercel: the existing `main` deployment is Ready but predates the Next.js scaffold. The scaffold's production deployment requires Claude's review and merge.
@@ -110,6 +114,10 @@ Two consequences:
   within-one-level agreement — see PLAN §M1.
 - `Size` was the opposite case and is now **computed, not classified**
   (89.5% exact on Logitech). One fewer descriptor for vision to get wrong.
+
+**Vertical mice break length-based sizing.** Lift Vertical (108 mm long, 71 mm
+tall) is the only two-level Size miss on Logitech. Treat `Height/Length > 0.55`
+as its own form factor; M3 must not score it with the horizontal length model.
 
 **M2 depends on a human.** The accuracy gate cannot be attempted until Kirby
 shoots the ground-truth fixture set.
