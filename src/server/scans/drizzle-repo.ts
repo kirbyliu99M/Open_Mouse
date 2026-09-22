@@ -76,7 +76,13 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
     },
 
     async deleteSession(sessionId) {
-      await db.delete(scanSessions).where(eq(scanSessions.id, sessionId));
+      // isNull(userId): never deletes a session a signed-in user has
+      // claimed — only `/account`'s explicit delete-everything does that.
+      await db
+        .delete(scanSessions)
+        .where(
+          and(eq(scanSessions.id, sessionId), isNull(scanSessions.userId)),
+        );
     },
 
     async deleteExpiredAnonymousSessions(now) {
@@ -88,6 +94,24 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         )
         .returning({ id: scanSessions.id });
       return deleted.length;
+    },
+
+    async claimSession(sessionId, userId, now) {
+      // One UPDATE, gated on all three conditions at once: this is the
+      // caller's own session id (equality on the primary key), it is not
+      // already claimed by someone else (`user_id IS NULL`), and it has not
+      // expired (expired means gone — issue #17 amendment). Any condition
+      // failing makes this a no-op; it never throws and never reassigns.
+      await db
+        .update(scanSessions)
+        .set({ userId, expiresAt: null })
+        .where(
+          and(
+            eq(scanSessions.id, sessionId),
+            isNull(scanSessions.userId),
+            or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, now)),
+          ),
+        );
     },
   };
 }
