@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import {
   fetchAnalysisResult,
   fetchFitResult,
+  type FitPreferencesInput,
 } from "../../src/components/results/fetchResults";
 import { analysisPath, fitPath } from "../../src/lib/contracts/routes";
-import type { FitPreferences } from "../../src/lib/contracts/fit";
 import highConfidenceFixture from "../../src/components/results/fixtures/high-confidence.json";
 
 const SCAN_ID = "11111111-1111-1111-1111-111111111111";
-const PREFERENCES: FitPreferences = { includeVertical: false };
+// The literal `{}` the real page sends — "no preferences", per routes.ts's
+// comment on `fitPath`.
+const PREFERENCES: FitPreferencesInput = {};
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { FitPreferences, FitResponse } from "@/lib/contracts/fit";
+import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
   fetchAnalysisResult,
   fetchFitResult,
+  type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
 import "@/components/results/results.css";
@@ -20,10 +21,11 @@ type PageState =
 
 /**
  * No preference UI exists yet (non-goal of issue #30) — both requests send
- * this same fixed value, satisfying the contract's "the SAME preferences the
- * fit request used" rule for the analysis request trivially.
+ * this same literal `{}` ("no preferences", per routes.ts's comment on
+ * `fitPath`), satisfying the contract's "the SAME preferences the fit
+ * request used" rule for the analysis request trivially.
  */
-const PREFERENCES: FitPreferences = { includeVertical: false };
+const PREFERENCES: FitPreferencesInput = {};
 
 /**
  * The real `/results/[scanId]` page. On mount it POSTs the fit route,

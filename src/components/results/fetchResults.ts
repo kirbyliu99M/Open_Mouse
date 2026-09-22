@@ -15,9 +15,10 @@
  * own copy is chosen to satisfy docs/design-guidelines.md, not whatever the
  * server happened to say.
  */
+import type { z } from "zod";
 import {
+  fitPreferencesSchema,
   fitResponseSchema,
-  type FitPreferences,
   type FitResponse,
 } from "@/lib/contracts/fit";
 import { analysisPath, fitPath } from "@/lib/contracts/routes";
@@ -25,6 +26,15 @@ import {
   analysisResponseSchema,
   type AnalysisResponse,
 } from "@/lib/contracts/analysis";
+
+/**
+ * The *input* type of `fitPreferencesSchema` — every field optional or
+ * defaulted, so `{}` (the literal body issue #30 asks the page to send) is a
+ * valid value. `FitPreferences` (`z.infer`, the *output* type) fills in
+ * `includeVertical` and would reject a bare `{}` at the type level even
+ * though the schema itself accepts it.
+ */
+export type FitPreferencesInput = z.input<typeof fitPreferencesSchema>;
 
 export type FitOutcome =
   | { status: "ready"; response: FitResponse }
@@ -58,7 +68,7 @@ async function postJson(
 
 export async function fetchFitResult(
   scanId: string,
-  preferences: FitPreferences,
+  preferences: FitPreferencesInput,
   fetchImpl: FetchImpl = fetch,
 ): Promise<FitOutcome> {
   const res = await postJson(fitPath(scanId), preferences, fetchImpl);
@@ -79,7 +89,7 @@ export async function fetchFitResult(
 
 export async function fetchAnalysisResult(
   scanId: string,
-  preferences: FitPreferences,
+  preferences: FitPreferencesInput,
   fetchImpl: FetchImpl = fetch,
 ): Promise<AnalysisOutcome> {
   const res = await postJson(analysisPath(scanId), preferences, fetchImpl);
