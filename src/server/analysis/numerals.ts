@@ -433,8 +433,9 @@ const MULTIPLIER_WORDS: Record<string, number> = {
  * Anything else, including "roughly third of the palm width" and
  * "two-thirds of users", is treated as a fraction and left to flag if it
  * doesn't trace back to the input, per the fail-toward-flagging rule above.
- * Accepted cost: plain phrasings like "the third mouse" or a bare "the
- * third" with no determiner now flag too — a retry, not a wrong answer.
+ * Accepted cost: a determiner-less phrasing like "third mouse" now flags
+ * too — a retry, not a wrong answer. ("the third mouse" and a bare "the
+ * third" still pass: the determiner is what the rule looks for.)
  *
  * Plural forms ("thirds", "quarters") are *always* fractions — English has
  * no ordinal use of the bare plural ("the thirds pick" isn't a phrase a
@@ -556,11 +557,11 @@ function isOrdinalUsage(
  * can only add boundaries, never remove one — by the one-directional
  * argument above, that can only cause MORE flagging, never less.
  *
- * Remaining gap: this covers terminal/separator punctuation, not every
- * conceivable Unicode sentence-ending mark (e.g. Ethiopic full stop
- * U+1362, which is neither `Terminal_Punctuation` nor `Sentence_Terminal`).
- * Left open for the same reason listed above `matchDigitNumerals` about not
- * chasing every conceivable bypass at once — revisit if a real case surfaces.
+ * Coverage is wider than the ASCII list suggests: `Terminal_Punctuation`
+ * spans CJK, Arabic and Ethiopic marks (U+3002, U+FF01, U+061F, U+1362 and
+ * the rest), all verified as boundaries at runtime. A sentence-ending mark
+ * outside that Unicode property would still read as adjacent; none is known
+ * to be missing, so this is left as-is — revisit if a real case surfaces.
  */
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
 const SENTENCE_BOUNDARY_PATTERN = /[\n…]|\p{Terminal_Punctuation}/u;
