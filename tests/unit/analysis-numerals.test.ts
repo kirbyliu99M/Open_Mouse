@@ -269,7 +269,11 @@ describe("surroundingToken", () => {
 });
 
 describe("collectStringTokens", () => {
-  it("collects lowercased alphanumeric tokens from nested string leaves", () => {
+  it("collects alphanumeric tokens from nested string leaves, preserving casing", () => {
+    // Finding 2: casing is preserved (not lowercased) because the exemption
+    // this feeds (`isExemptToken`) is exact-case on purpose — see the
+    // comment there. "G502" (from "G502 X") and "g502" (from the lowercase
+    // slug) are genuinely different tokens and both survive independently.
     const tokens = collectStringTokens({
       brand: "Logitech",
       model: "G502 X",
@@ -280,15 +284,18 @@ describe("collectStringTokens", () => {
     });
     expect([...tokens].sort()).toEqual(
       [
+        "Logitech",
+        "G502",
+        "X",
         "logitech",
         "g502",
         "x",
         "fit",
         "v0",
         "provisional",
-        "mx",
-        "master",
-        "3s",
+        "MX",
+        "Master",
+        "3S",
       ].sort(),
     );
   });
@@ -369,6 +376,26 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
       502,
     );
   });
+
+  it("Finding 2: exempts 'G502' (exact case, present in the input)", () => {
+    const input = { model: "G502" };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral("The G502 is a strong match.", allowed, exemptTokens),
+    ).toBeNull();
+  });
+
+  it("Finding 2: does NOT exempt 'g502' (different case) even though 'G502' is verbatim in the input — a quantity must not ride the product-name exemption by re-casing it", () => {
+    const input = { model: "G502" };
+    const exemptTokens = collectStringTokens(input);
+    expect(
+      findUnknownNumeral(
+        "Expect roughly g502 mm of clearance for your grip.",
+        allowed,
+        exemptTokens,
+      ),
+    ).toBe(502);
+  });
 });
 
 describe("normalizeVulgarFractions", () => {
@@ -426,18 +453,31 @@ describe("findUnknownNumeral — Finding 2: vulgar fractions", () => {
   });
 });
 
-describe("findUnknownNumeral — Finding 3: ordinal vs. fraction 'third'/'quarter'", () => {
+describe("findUnknownNumeral — Finding 1 (redesigned): ordinal vs. fraction 'third'/'quarter'", () => {
+  // Commit 6ffbd0f made ordinal the default and only recognised a fraction
+  // directly after "a"/"an"/"one" — inverting hard rule 2's safe direction:
+  // a model could invent a fraction just by phrasing around that one word
+  // ("roughly third of the palm width" sailed through unchecked). The
+  // redesign below defaults third/quarter to their fraction value and
+  // carves out only clearly-ordinal phrasing. See the comment above
+  // `FRACTION_WORDS` in numerals.ts for the full rationale.
   const allowed = new Set([125, 62, 1, 2, 3]);
 
-  it("does not treat 'the third pick' as the fraction 1/3", () => {
+  it("does not treat 'the third pick' as the fraction 1/3 (ordinal determiner before)", () => {
     expect(
       findUnknownNumeral("The third pick is also worth a look.", allowed),
     ).toBeNull();
   });
 
-  it("does not treat 'your third option' as a fraction", () => {
+  it("does not treat 'your third option' as a fraction (ordinal determiner before)", () => {
     expect(
       findUnknownNumeral("Your third option runs a bit narrow.", allowed),
+    ).toBeNull();
+  });
+
+  it("does not treat 'a third-place finish' as a fraction (ordinal noun after)", () => {
+    expect(
+      findUnknownNumeral("It was a third-place finish overall.", allowed),
     ).toBeNull();
   });
 
@@ -454,10 +494,25 @@ describe("findUnknownNumeral — Finding 3: ordinal vs. fraction 'third'/'quarte
     ).toBeNull();
   });
 
-  it("does not treat an unadorned 'quarter' as a fraction when used as an ordinary word", () => {
+  it("rejects unadorned fraction phrasing 'roughly third of the palm width' — the exact regression a false 'ordinal by default' rule let through", () => {
+    expect(
+      findUnknownNumeral(
+        "It covers roughly third of the palm width for good support.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("rejects hyphenated 'two-thirds of users' as a fraction (2 * 1/3)", () => {
+    expect(
+      findUnknownNumeral("It fits two-thirds of users comfortably.", allowed),
+    ).toBeCloseTo(2 / 3);
+  });
+
+  it("now flags an unadorned 'quarter' used ambiguously — this reverses the previous (unsafe) direction: 'the first quarter of testing' is neither clearly ordinal nor traceable to the input, so it must flag, not pass silently", () => {
     expect(
       findUnknownNumeral("The first quarter of testing went well.", allowed),
-    ).toBeNull();
+    ).toBeCloseTo(0.25);
   });
 
   it("still parses 'a quarter' as 0.25 (existing behaviour preserved)", () => {

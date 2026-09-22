@@ -237,4 +237,90 @@ describe("analyse — product-name exemption wired through the real call path", 
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
     expect(output.headline).not.toContain("G999");
   });
+
+  it("Finding 2, end to end: does not let a lowercased 'g502' ride the product-name exemption when the input's model is 'G502' (exact case)", async () => {
+    // Reproduces the bug through the real analyse() call path: previously
+    // collectStringTokens/isExemptToken matched case-insensitively, so a
+    // lowercased digit run could be re-asserted as a quantity just because
+    // the differently-cased product name appeared somewhere in the input.
+    //
+    // Deliberately NOT reusing inputWithG502(): its slug is
+    // "logitech-g502", which means "g502" (lowercase) is *already*
+    // genuinely verbatim in the input via the slug field — exempting it
+    // there is correct, not a bug. This fixture's slug avoids "g502"
+    // entirely, so "G502" (from `model`) is the only cased form of the
+    // token present anywhere in the input.
+    const fit = makeFit({
+      results: [
+        {
+          ...makeEntry(),
+          mouse: {
+            ...makeEntry().mouse,
+            slug: "logitech-superlight-variant",
+            brand: "Logitech",
+            model: "G502",
+          },
+        },
+      ],
+    });
+    const input = buildAnalysisInput(fit, makeMeasurements());
+    const badAnswer = JSON.stringify({
+      headline: "A great fit.",
+      whyTopPick: "Expect roughly g502 mm of clearance for your grip.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    const output = await analyse(input, client);
+    // Must NOT pass on the first attempt.
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("502");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(JSON.stringify(output)).not.toContain("g502");
+  });
+});
+
+// Finding 1, end to end: reproduces the ordinal/fraction regression through
+// the real analyse() call path, not just the numerals.ts helpers — helper-
+// level tests are exactly what let this bug (and its predecessor, 6ffbd0f)
+// through twice.
+describe("analyse — Finding 1: ordinal vs. fraction, real call path", () => {
+  it('does not let "roughly third of the palm width" pass on the first attempt', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick:
+        "It covers roughly third of the palm width for good support.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    const output = await analyse(input, client);
+    // Must NOT pass on the first attempt — it must retry, naming the
+    // fraction value as the violation, then accept the corrected answer.
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("0.333");
+    expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
+    expect(output.headline).toBe("A strong match for your hand.");
+  });
+
+  it('still accepts "the third pick" — clearly-ordinal phrasing this module\'s own domain writes — on the first attempt', async () => {
+    const input = inputFor();
+    const answer = JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick: "It's 125 mm long, right in your ideal range.",
+      tradeoffs: [],
+      whatToAvoid: ["The third pick runs a little narrow for your grip."],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => answer });
+    const output = await analyse(input, client);
+    expect(client.calls).toHaveLength(1);
+    expect(output.whatToAvoid[0]).toContain("third pick");
+  });
 });
