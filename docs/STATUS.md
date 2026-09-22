@@ -188,6 +188,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-23 | Analysis `source` is reported by the code path taken, never inferred from whether a key is set | A keyed call can fail and fall back; inferring from the key would label template text as model prose (#25 review) |
 | 2026-09-23 | Only model-written analyses are cached | The fallback is deterministic and free to recompute; caching it would keep serving template text after a transient model failure clears |
 | 2026-09-23 | Contract error bodies are tested against the shipped route | The first draft of `errorResponseSchema` rejected what `POST /api/scans` already returns; a reviewer caught it by reading both files. Now CI does |
+| 2026-09-23 | **At most five agents run at once**, and the orchestrator commits and pushes any uncommitted work the moment an agent stops | Eight parallel agents exhausted the account's session limit at once and all stopped together. One builder had 17 files uncommitted. Nothing was lost because each worktree was WIP-committed and pushed before resuming |
 ---
 
 ## Risks
