@@ -15,6 +15,7 @@
 import "server-only";
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import type { TextModel, TextModelArgs } from "./client";
+import { resolveAnalysisModelConfig } from "./model-config";
 
 export class GeminiResponseError extends Error {}
 
@@ -51,19 +52,25 @@ export class GeminiTextModel implements TextModel {
   }
 }
 
-export const DEFAULT_GEMINI_ANALYSIS_MODEL = "gemini-3.8-flash";
+export { DEFAULT_GEMINI_ANALYSIS_MODEL } from "./model-config";
 
-/** Reads GEMINI_ANALYSIS_MODEL / GEMINI_API_KEY. Throws if the key is absent. */
-export function createGeminiTextModel(
+/**
+ * Returns a real Gemini-backed `TextModel` when `GEMINI_API_KEY` is set
+ * (reading `GEMINI_ANALYSIS_MODEL` for the model name, default
+ * `gemini-3.8-flash`), otherwise `null` — never throws. `analyse()` treats
+ * `null` as "no model configured": it goes straight to the deterministic
+ * fallback with `source: "fallback"` and makes no network call, so the app
+ * runs with or without a key (issue #28 acceptance criterion 4).
+ *
+ * Env parsing itself is `resolveAnalysisModelConfig` in `./model-config`,
+ * which has no `server-only` import and is unit-tested directly; this
+ * function only adds the actual client construction, which needs the real
+ * `@google/genai` import this file keeps behind `server-only`.
+ */
+export function createAnalysisModel(
   env: Readonly<Record<string, string | undefined>>,
-): GeminiTextModel {
-  const apiKey = env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "GEMINI_API_KEY is not set. Analysis calls the real Gemini API and needs a key.",
-    );
-  }
-  const modelName =
-    env.GEMINI_ANALYSIS_MODEL?.trim() || DEFAULT_GEMINI_ANALYSIS_MODEL;
-  return new GeminiTextModel(apiKey, modelName);
+): GeminiTextModel | null {
+  const config = resolveAnalysisModelConfig(env);
+  if (!config) return null;
+  return new GeminiTextModel(config.apiKey, config.modelName);
 }

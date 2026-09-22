@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   computeCacheKey,
   InMemoryAnalysisCache,
+  type CachedAnalysis,
 } from "../../src/server/analysis/cache";
 import { makeFit, makeMeasurements } from "./analysis-fixtures";
-import type { AnalysisOutput } from "../../src/server/analysis/schema";
 
-const OUTPUT: AnalysisOutput = {
-  headline: "h",
-  whyTopPick: "w",
-  tradeoffs: [],
-  whatToAvoid: [],
-  caveats: [],
+const CACHED: CachedAnalysis = {
+  output: {
+    headline: "h",
+    whyTopPick: "w",
+    tradeoffs: [],
+    whatToAvoid: [],
+    caveats: [],
+  },
+  source: "model",
 };
 
 describe("computeCacheKey", () => {
@@ -76,17 +79,26 @@ describe("InMemoryAnalysisCache", () => {
     const cache = new InMemoryAnalysisCache();
     const key = computeCacheKey(makeFit(), makeMeasurements());
     expect(await cache.get(key)).toBeNull();
-    await cache.set(key, OUTPUT);
-    expect(await cache.get(key)).toEqual(OUTPUT);
+    await cache.set(key, CACHED);
+    expect(await cache.get(key)).toEqual(CACHED);
   });
 
   it("misses for a different key", async () => {
     const cache = new InMemoryAnalysisCache();
-    await cache.set(computeCacheKey(makeFit(), makeMeasurements()), OUTPUT);
+    await cache.set(computeCacheKey(makeFit(), makeMeasurements()), CACHED);
     const otherKey = computeCacheKey(
       makeFit({ engineVersion: "fit-v1" }),
       makeMeasurements(),
     );
     expect(await cache.get(otherKey)).toBeNull();
+  });
+
+  it("stores and returns the provenance alongside the output", async () => {
+    const cache = new InMemoryAnalysisCache();
+    const key = computeCacheKey(makeFit(), makeMeasurements());
+    await cache.set(key, CACHED);
+    const result = await cache.get(key);
+    expect(result?.source).toBe("model");
+    expect(result?.output).toEqual(CACHED.output);
   });
 });
