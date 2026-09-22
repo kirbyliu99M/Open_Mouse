@@ -3,13 +3,13 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-22 · by: Claude (orchestrator; resumed session, wave 3 dispatched)_
+_Last updated: 2026-09-22 · by: Claude (orchestrator; handing over, see [HANDOFF-NEXT.md](HANDOFF-NEXT.md))_
 
 ---
 
 ## Right now
 
-**Current milestone:** building toward full function, stopping where Blender assets are required (M4b). Nothing merged yet.
+**Current milestone:** building toward full function, stopping where Blender assets are required (M4b). **#3 merged to main**; merging the reviewed stack per PR (see HANDOFF-NEXT.md).
 **Open PRs:** #3 #4 #5 #6 (reviewed, ready) · #8 #9 (reviewed, fixed) · #12 fit contract · #18 scan API (timing-safe cron fix pushed `19263aa`) · #20 analysis · #21 fit engine · #22 results UI (clean) · #23 parallax · #19 photo pipeline (draft; gate replay script pushed `f91b433`).
 **In flight (Sonnet):** #20 review fixes (numeral-check bypass via number words / Unicode digits, percentage false positives, `server-only` guard) · M6 auth (#17) finishing on `m6-auth`, PR to follow · independent review of #19 #21 #23.
 **Next wave:** integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
