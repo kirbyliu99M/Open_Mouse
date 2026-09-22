@@ -9,27 +9,30 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 ## Right now
 
-**Current milestone:** building toward full function, stopping where Blender assets are required (M4b).
+**Every open PR is merged.** Fourteen on `main`: #3 #4 #5 #6 #8 #9 #12 #18 #19 #21 #22 #23 #24 #20. M0–M3, the full M2 photo path, M5 analysis and M6 auth are all in. 617 tests on `main`; production deploys and serves.
 
-**The merge cascade is done.** Thirteen PRs are on `main`: #3 #4 #5 #6 #8 #9 #12 #18 #19 #21 #22 #23 #24. Everything except M5 analysis is merged.
+**Nothing is in flight.** No builders, no reviewers, no open PRs.
 
-**Open PRs:** #20 analysis only (**changes requested**, third review pass; fix in flight).
-
-**In flight (Sonnet):** builder reworking the ordinal/fraction distinction and narrowing the product-name exemption in `src/server/analysis/numerals.ts` (#20).
-
-**Next wave:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table.
+**Next wave:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table. Then M4b, which needs Codex's Blender assets.
 
 **Blocked — Kirby:**
 
-1. **Production migrate + seed has not been run.** `vercel env pull` writes `[SENSITIVE]` placeholders for all 16 production secrets including `DATABASE_URL`, so it cannot be run from an agent session. Kirby runs `npm run db:migrate` then `npm run db:seed` locally against the production database.
-2. **Neon two-branch setup**, still outstanding: delete the old per-PR preview branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`. Re-confirmed 2026-09-22 — a fresh redeploy fails with `Resource provisioning failed`, so this is live, not a stale error. _Kirby's call 2026-09-22: merge on green GitHub CI anyway, since the preview failure is infrastructure and not the code._
-3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
-4. **Convention question:** `m6-auth` adds `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` with carets, while every other dependency is pinned exactly. A caret on a beta floats across beta releases.
-5. When convenient: Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
+1. **Production migrate + seed has not been run.** `vercel env pull` writes `[SENSITIVE]` placeholders for all 16 production secrets including `DATABASE_URL`, so no agent session can reach the production database. Kirby runs `npm run db:migrate` then `npm run db:seed` locally, with `DATABASE_URL_UNPOOLED` set to the production direct-connection string.
+2. **Neon two-branch setup.** Delete the old per-PR preview branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`. Confirmed live on 2026-09-22 — a fresh redeploy failed with `Resource provisioning failed`. Now that no PRs are open the branch pressure is gone, so this is a good moment.
+3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`). M4b cannot start until it is pushed.
+4. **Convention question:** `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` are the only caret-ranged dependencies; everything else is pinned exactly. A caret on a beta floats across beta releases.
+5. **Gates still unmeasured:** M1 needs the Gemini key; M2 needs ground-truth photos in `../Fixtures/hands/`. Both gate tables below are still empty, and no milestone that depends on them should be called done.
 
-### Merge-cascade method that worked
+### What the #20 review cycle cost, and what fixed it
 
-Each branch was merged with current `main` **locally first**, then `npm ci`, typecheck, lint, Prettier and the full test suite were run on the merged tree before pushing and merging. This caught what CI could not: #20's `pull_request` build was red while its `push` build was green at the same SHA, and two branches conflicted in `package.json` where both sides had added a dependency. Test counts on the merged trees: #21 301, #22 259, #19 271, #23 444, #24 453.
+#20 took **five review passes**. Passes 2, 3 and 4 each found a real hard-rule-2 bypass, and each fix opened the next one: a lookbehind that made `"about68mm"` invisible; an exemption that was never wired into `analyse.ts`; an `a`/`an`/`one` gate that let `"roughly third of the palm width"` through; and a case-sensitivity fix that `slugify`'s lowercasing silently neutralised in production.
+
+What broke the cycle was **changing the design rather than patching again**: the exemption's source was narrowed from blind recursion over every string leaf to `brand`/`model` only, and the ordinal carve-out was collapsed from "determiner before **or** noun after" to "determiner before **and** not `of` after". Both changes make the rule stricter and easier to reason about.
+
+Two lessons worth keeping:
+
+- **A test that needs impossible data is evidence the code is wrong.** Pass 4's "proof" used a slug `slugify()` can never generate, and that hid the bug for a whole round.
+- **A comment that misdescribes the code is the same failure in slower motion.** Two of them survived to the fifth pass, one overstating a gap and one understating coverage.
 
 ---
 
@@ -139,6 +142,10 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | A PR's `push` CI passing does **not** mean the PR is green; the `pull_request` run builds the merge with the base | #20 was green on push and red on `pull_request` at the same SHA: `contracts-fit` had widened the `excluded[]` contract with `brand`/`model`, which only breaks once the base is merged in. Read the `pull_request` run |
 | 2026-09-22 | The numeral check exempts digit runs inside tokens that appear verbatim in the input, and checks every other digit run | Re-review of #20 found `"about68mm"` produces **zero** regex matches — an invented number passing unchecked. The lookbehind that caused it exists to protect product names like `G502`, which was recorded nowhere. Both cases now have tests |
 | 2026-09-22 | Nits are adjudicated, not auto-applied, once a PR has been reviewed | Code the orchestrator writes after review is unreviewed code in a PR the orchestrator then merges — the thing "nobody approves their own work" exists to prevent. Nits go back to a builder |
+| 2026-09-22 | The numeral check's exemption draws from `brand`/`model` only, never slugs or IDs | `slugify` lowercases, so a slug always put the lowercase digit run in the exempt set and silently neutralised the case-sensitive match. Fix the source, not the matcher |
+| 2026-09-22 | Ordinal carve-out requires a determiner before **and** a non-`of` word after | The earlier "either/or" form leaked both ways: determiner-only ignored a following `of`, and the noun rule reached across sentence boundaries |
+| 2026-09-22 | On hard rules, prefer the stricter rule: false positives cost a retry, false negatives reach the user | Four rounds of clever narrow fixes each opened a new hole. A monotonically stricter change cannot introduce a false negative |
+| 2026-09-22 | A branch is merged with `main` locally and fully verified before the PR is merged | #20 was green on `push` and red on `pull_request` at one SHA; two branches conflicted in `package.json` where both added a dependency |
 ---
 
 ## Risks
