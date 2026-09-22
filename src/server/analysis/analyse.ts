@@ -9,11 +9,7 @@ import { Type } from "@google/genai";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
-import {
-  collectNumbers,
-  collectStringTokens,
-  findUnknownNumeral,
-} from "./numerals";
+import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import {
   NEGATIVE_REASON_CODES,
   POSITIVE_REASON_CODES,
@@ -42,6 +38,32 @@ export const ANALYSIS_RESPONSE_SCHEMA = {
   },
   required: ["headline", "whyTopPick", "tradeoffs", "whatToAvoid", "caveats"],
 };
+
+/**
+ * The verbatim display-name tokens the model may legitimately reproduce:
+ * brand/model of the top picks AND of the excluded mice — both come from the
+ * same `mice` table shape, and both are sent to the model as literal JSON
+ * strings it may reasonably name in prose (e.g. "avoid the Lift Vertical, a
+ * vertical mouse" for an excluded entry). Gathered explicitly, field by
+ * field, from `AnalysisInput`'s known shape — NOT by walking every string in
+ * the input. `slug` (kebab-case, e.g. "logitech-g502-x") is deliberately
+ * excluded: it is an internal identifier that never appears in prose a user
+ * reads, so a model has no legitimate reason to emit it, and exempting it
+ * would silently exempt its lowercase digit run too (see `stringTokens` in
+ * numerals.ts for the bug this caused). `engineVersion`, `gripStyle`, and
+ * reason codes are likewise excluded: they're fixed enum/version strings
+ * with no legitimate reason to be echoed as a product name.
+ */
+function collectExemptTokens(input: AnalysisInput): Set<string> {
+  const out = new Set<string>();
+  const addNameTokens = (entry: { brand: string; model: string }) => {
+    for (const token of stringTokens(entry.brand)) out.add(token);
+    for (const token of stringTokens(entry.model)) out.add(token);
+  };
+  for (const entry of input.topPicks) addNameTokens(entry);
+  for (const entry of input.excluded) addNameTokens(entry);
+  return out;
+}
 
 function isLowConfidence(input: AnalysisInput): boolean {
   const top = input.topPicks[0];
@@ -173,7 +195,7 @@ export async function analyse(
   client: TextModel,
 ): Promise<AnalysisOutput> {
   const allowedNumbers = collectNumbers(input);
-  const exemptTokens = collectStringTokens(input);
+  const exemptTokens = collectExemptTokens(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
 

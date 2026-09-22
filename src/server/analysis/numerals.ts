@@ -31,9 +31,16 @@
  *    value first, and also collapses a literal "a⁄b" fraction-slash form
  *    the model might write directly.
  *
- * Digit runs glued to letters ("G502", "about68mm", "fit-v0-provisional")
- * are a fifth, separate concern handled by `matchDigitNumerals` and
- * `collectStringTokens` — see the comment above `matchDigitNumerals`.
+ * Digit runs glued to letters ("G502", "about68mm") are a fifth, separate
+ * concern handled by `matchDigitNumerals` and the caller-supplied
+ * `exemptTokens` set — see the comment above `matchDigitNumerals`. Callers
+ * build that set with `stringTokens` over the *specific* display-name fields
+ * their input actually has (see `src/server/analysis/analyse.ts`'s
+ * `collectExemptTokens`) — never by walking every string in the input, since
+ * an internal identifier like a kebab-case `slug` would then wrongly exempt
+ * its lowercase digit run too (e.g. slug "logitech-g502-x" exempting a
+ * fabricated "g502" quantity the model never should have been allowed to
+ * write).
  *
  * Out of scope, deliberately: Roman numerals ("Ⅲ" NFKC-decomposes to plain
  * "III"). Closing this reliably would require telling a genuine Roman
@@ -205,39 +212,28 @@ export function collectNumbers(
 const STRING_TOKEN_PATTERN = /[A-Za-z0-9]+/g;
 
 /**
- * Recursively collects every alphanumeric token found in the input's
- * *string* leaves (brand, model, slug, engineVersion, and any other string
- * value), preserving their original casing. Companion to `collectNumbers`,
- * which only walks numeric leaves and so has no way to know that "G502" or
- * "fit-v0" are legitimate product/version identifiers rather than freshly
- * invented numbers. See the comment above `matchDigitNumerals` for how this
- * set is used.
+ * The alphanumeric tokens in a single string, preserving original casing —
+ * e.g. `"G502 X"` -> `{"G502", "X"}`. A building block for callers to
+ * explicitly declare which *display* fields of their input feed the
+ * no-new-numerals exemption (see `isExemptToken` below); it is deliberately
+ * NOT recursive over an arbitrary object, because a field like a kebab-case
+ * `slug` (e.g. `"logitech-g502-x"`, from `slugify` in
+ * `src/server/catalogue/seed-rows.ts`) is an internal identifier that never
+ * appears in prose a model writes — walking every string leaf used to pull
+ * its lowercase `"g502"` into the exempt set for free, silently defeating
+ * the exact-case check in `isExemptToken` for every model with digits in its
+ * name. Callers gather tokens field-by-field instead — see
+ * `src/server/analysis/analyse.ts`'s `collectExemptTokens`.
  *
- * FINDING 4: this used to lowercase every token, which meant a model output
- * of "g502" (lowercase) was exempted just because "G502" (the real, cased
- * product name) appeared somewhere in the input — a quantity smuggled
- * through by re-casing a digit run that was never actually in the model's
- * own casing. Casing is preserved here, and matching is exact-case in
- * `isExemptToken`, so only a token that reproduces the input's own casing —
- * the way a model naming a real product actually does ("G502", "MX Master
- * 3S") — is exempt. (Numbered 4, not reusing 1-3: those already name the
- * digit-glued-numbers, vulgar-fraction, and ordinal/fraction bypass classes
- * below and in the test file's `describe` blocks.)
+ * FINDING 4: casing is preserved (not lowercased), and matching is
+ * exact-case in `isExemptToken`, so only a token that reproduces the input's
+ * own casing — the way a model naming a real product actually does ("G502",
+ * "MX Master 3S") — is exempt. A lowercased "g502" used as a plain quantity
+ * must not ride the product-name exemption just because "G502" appears
+ * somewhere in the input.
  */
-export function collectStringTokens(
-  value: unknown,
-  out: Set<string> = new Set(),
-): Set<string> {
-  if (typeof value === "string") {
-    for (const match of value.matchAll(STRING_TOKEN_PATTERN)) {
-      out.add(match[0]);
-    }
-  } else if (Array.isArray(value)) {
-    for (const v of value) collectStringTokens(v, out);
-  } else if (value !== null && typeof value === "object") {
-    for (const v of Object.values(value)) collectStringTokens(v, out);
-  }
-  return out;
+export function stringTokens(text: string): Set<string> {
+  return new Set(text.match(STRING_TOKEN_PATTERN) ?? []);
 }
 
 export interface NumeralToken {
@@ -301,12 +297,13 @@ function isExemptToken(
  * could invent a number by gluing it to any letter.
  *
  * The fix separates the two cases instead of conflating them via a blanket
- * lookbehind: `exemptTokens` (built by `collectStringTokens` over the
- * *input*, in `findUnknownNumeral`/callers) holds every alphanumeric token
- * that appeared verbatim in the input's strings. A digit run is skipped
- * only when its full surrounding token matches one of those verbatim input
- * tokens exact-case (`isExemptToken`, Finding 2) — i.e. it's part of a
- * product name/slug/version string we sent the model, not a new claim.
+ * lookbehind: `exemptTokens` (built with `stringTokens` over specific
+ * display-name fields of the *input* — see `analyse.ts`'s
+ * `collectExemptTokens` — and passed in by `findUnknownNumeral`/callers)
+ * holds every alphanumeric token that appeared verbatim in one of those
+ * fields. A digit run is skipped only when its full surrounding token
+ * matches one of those verbatim tokens exact-case (`isExemptToken`, Finding
+ * 2) — i.e. it's part of a product name we sent the model, not a new claim.
  * Everything else, including a digit glued to unrelated prose, is extracted
  * and checked like any other numeral. Do not reintroduce a bare lookbehind
  * here — it silently reopens this hole.
@@ -340,7 +337,7 @@ function matchDigitNumerals(
 
 /**
  * Pulls numeric tokens out of free text — "125", "125.0" and "125mm" alike.
- * `exemptTokens` (see `collectStringTokens`) protects verbatim input tokens
+ * `exemptTokens` (see `stringTokens`) protects verbatim display-name tokens
  * like product names ("G502") from being misread as new numbers; omit it to
  * check every digit run unconditionally.
  */
@@ -404,27 +401,40 @@ const MULTIPLIER_WORDS: Record<string, number> = {
 };
 
 /**
- * FINDING 3 (redesigned — the previous fix inverted the safe direction).
- * `third` and `quarter` are each both a fraction word ("a third of the
- * width", "two-thirds of users") and an ordinary ordinal/count word ("the
- * third pick", "third place"). The previous fix treated ordinal as the
- * default and only recognised a fraction when directly preceded by "a"/
- * "an"/"one" — so any other fraction phrasing ("roughly third of the palm
- * width") silently stopped being checked at all, and a model could invent
- * a fraction just by avoiding that one preceding word.
+ * FINDING 3 (collapsed to one strict rule — two prior redesigns each leaked
+ * a different way). `third` and `quarter` are each both a fraction word ("a
+ * third of the width", "two-thirds of users") and an ordinary ordinal/count
+ * word ("the third pick", "third place"). Earlier attempts:
+ *
+ * - treated ordinal as the default, recognising a fraction only directly
+ *   after "a"/"an"/"one" — so "roughly third of the palm width" silently
+ *   stopped being checked at all;
+ * - then defaulted to fraction but exempted on *either* an ordinal
+ *   determiner before *or* a result noun after — the determiner-before half
+ *   ignored what followed ("the third **of** the palm width" was still
+ *   exempted), and the noun-after half tokenizes away punctuation, so a
+ *   result noun starting the *next sentence* exempted a bare fraction
+ *   ("It covers roughly third. Pick something else.").
  *
  * Hard rule 2 is asymmetric: a false positive here costs one retry, or at
  * worst a fall back to the deterministic answer — the user still gets a
  * correct output. A false negative lets an invented number reach the user.
  * So this defaults `third`/`quarter` (and their plurals) to their fraction
- * value, and carves out *only* clearly ordinal phrasing recognisable in
- * this module's narrow domain ("top 3 picks"): an ordinal determiner (`the`/
- * `your`/`its`/a possessive) directly before the word, and/or a known
- * result noun directly after it ("pick", "option", "choice", "place",
- * "finish", "spot", "candidate") — see `isOrdinalUsage`. Anything else,
- * including "roughly third of the palm width" and "two-thirds of users", is
- * treated as a fraction and left to flag if it doesn't trace back to the
- * input, per the fail-toward-flagging rule above.
+ * value, and exempts ordinal usage under exactly ONE rule, both halves of
+ * which must hold: an ordinal determiner (`the`/`your`/`its`/a possessive)
+ * is the immediately PRECEDING word, AND the immediately FOLLOWING word is
+ * not "of" — see `isOrdinalUsage`. Requiring the determiner rules out bare
+ * fractions ("a third", "roughly third"); excluding a following "of" rules
+ * out the genitive-fraction phrasing ("the third of the palm width") that a
+ * determiner alone would otherwise wrongly wave through. There is no longer
+ * a result-noun carve-out, so nothing after the word can exempt it (except
+ * ruling out "of") — that closes the cross-sentence leak above outright,
+ * since what follows can now only narrow the exemption, never grant it.
+ * Anything else, including "roughly third of the palm width" and
+ * "two-thirds of users", is treated as a fraction and left to flag if it
+ * doesn't trace back to the input, per the fail-toward-flagging rule above.
+ * Accepted cost: plain phrasings like "the third mouse" or a bare "the
+ * third" with no determiner now flag too — a retry, not a wrong answer.
  *
  * Plural forms ("thirds", "quarters") are *always* fractions — English has
  * no ordinal use of the bare plural ("the thirds pick" isn't a phrase a
@@ -451,10 +461,11 @@ const FRACTION_PLURAL_WORDS: Record<string, number> = {
   quarters: 1 / 4,
 };
 
-/** Ordinal determiners that, directly before `third`/`quarter`, mark
- * ordinal usage ("the third pick", "your third option"). Deliberately not
- * including "a"/"an"/"one" — those precede genuine fraction usage too ("a
- * third of the width"), so they carry no disambiguating signal here. */
+/** Ordinal determiners that, directly before `third`/`quarter` and not
+ * directly followed by "of", mark ordinal usage ("the third pick", "your
+ * third option"). Deliberately not including "a"/"an"/"one" — those precede
+ * genuine fraction usage too ("a third of the width"), so they carry no
+ * disambiguating signal here. */
 const ORDINAL_DETERMINERS: ReadonlySet<string> = new Set([
   "the",
   "your",
@@ -466,34 +477,19 @@ const ORDINAL_DETERMINERS: ReadonlySet<string> = new Set([
   "our",
 ]);
 
-/** Result nouns this module's own domain actually produces ("the third
- * pick", "a third-place finish"). Kept narrow on purpose: every noun added
- * here widens the exemption from hard rule 2, so only add one this module
- * is actually known to write. */
-const ORDINAL_FOLLOWING_NOUNS: ReadonlySet<string> = new Set([
-  "pick",
-  "picks",
-  "option",
-  "options",
-  "choice",
-  "choices",
-  "place",
-  "finish",
-  "spot",
-  "candidate",
-]);
-
 /**
  * True when `tokens[index]` (a `third`/`quarter` occurrence) reads as an
- * ordinal ("the third pick", "third place") rather than a fraction. See the
- * comment above `FRACTION_WORDS` for why this stays narrow.
+ * ordinal ("the third pick") rather than a fraction ("the third of the
+ * width"). Requires BOTH halves: an ordinal determiner immediately before,
+ * and the immediately following word not being "of". See the comment above
+ * `FRACTION_WORDS` for the full rationale.
  */
 function isOrdinalUsage(tokens: readonly string[], index: number): boolean {
   const before = tokens[index - 1];
   const after = tokens[index + 1];
-  if (before !== undefined && ORDINAL_DETERMINERS.has(before)) return true;
-  if (after !== undefined && ORDINAL_FOLLOWING_NOUNS.has(after)) return true;
-  return false;
+  return (
+    before !== undefined && ORDINAL_DETERMINERS.has(before) && after !== "of"
+  );
 }
 
 const WORD_TOKEN_PATTERN = /[a-z]+/g;
@@ -619,12 +615,12 @@ function isAllowedToken(
  * fraction word — traces back to the input. Percent forms of an allowed
  * fraction are treated as the same number, not a new one.
  *
- * `exemptTokens` — the verbatim alphanumeric tokens from the input's own
- * strings, via `collectStringTokens` — protects product names/slugs/version
- * strings ("G502", "fit-v0-provisional") from being misread as new numbers
- * once a digit run glued to a letter is otherwise extracted (see the
- * comment above `matchDigitNumerals`, Finding 1). Omit it to check every
- * digit run unconditionally.
+ * `exemptTokens` — the verbatim alphanumeric tokens from the input's
+ * *display-name* fields (see `stringTokens` and `analyse.ts`'s
+ * `collectExemptTokens`) — protects product names ("G502") from being
+ * misread as new numbers once a digit run glued to a letter is otherwise
+ * extracted (see the comment above `matchDigitNumerals`, Finding 1). Omit it
+ * to check every digit run unconditionally.
  */
 export function findUnknownNumeral(
   text: string,

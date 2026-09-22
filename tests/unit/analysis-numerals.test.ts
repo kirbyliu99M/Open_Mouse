@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   collectNumbers,
-  collectStringTokens,
   extractNumerals,
   extractWordNumerals,
   findUnknownNumeral,
   normalizeUnicodeDigits,
   normalizeVulgarFractions,
+  stringTokens,
   surroundingToken,
 } from "../../src/server/analysis/numerals";
 
@@ -268,41 +268,29 @@ describe("surroundingToken", () => {
   });
 });
 
-describe("collectStringTokens", () => {
-  it("collects alphanumeric tokens from nested string leaves, preserving casing", () => {
+describe("stringTokens", () => {
+  it("collects alphanumeric tokens from a single string, preserving casing", () => {
     // Finding 4: casing is preserved (not lowercased) because the exemption
     // this feeds (`isExemptToken`) is exact-case on purpose — see the
-    // comment there. "G502" (from "G502 X") and "g502" (from the lowercase
-    // slug) are genuinely different tokens and both survive independently.
-    const tokens = collectStringTokens({
-      brand: "Logitech",
-      model: "G502 X",
-      slug: "logitech-g502-x",
-      nested: { engineVersion: "fit-v0-provisional" },
-      list: ["MX Master 3S"],
-      notAString: 42,
-    });
-    expect([...tokens].sort()).toEqual(
-      [
-        "Logitech",
-        "G502",
-        "X",
-        "logitech",
-        "g502",
-        "x",
-        "fit",
-        "v0",
-        "provisional",
-        "MX",
-        "Master",
-        "3S",
-      ].sort(),
+    // comment there.
+    expect([...stringTokens("G502 X")].sort()).toEqual(["G502", "X"]);
+    expect([...stringTokens("MX Master 3S")].sort()).toEqual(
+      ["MX", "Master", "3S"].sort(),
     );
   });
 
-  it("returns an empty set for input with no strings", () => {
-    expect(collectStringTokens({ a: 1, b: [2, 3] })).toEqual(new Set());
+  it("returns an empty set for a string with no alphanumeric tokens", () => {
+    expect(stringTokens("---")).toEqual(new Set());
   });
+
+  // Change 1: `stringTokens` operates on ONE string a caller names
+  // explicitly (e.g. a `brand` or `model` field) — there is no longer a
+  // recursive collector that walks an entire input object, because that
+  // used to pull a kebab-case `slug` (e.g. "logitech-g502-x") into the
+  // exempt set for free, silently exempting its lowercase digit run too.
+  // See analyse.ts's `collectExemptTokens` for how a caller builds the real
+  // exempt set field by field, and the "findUnknownNumeral — Change 1"
+  // describe block below for the end-to-end regression this fixes.
 });
 
 describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter", () => {
@@ -320,13 +308,13 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     ).toBe(7);
   });
 
-  it("still accepts a product name/model token that appears verbatim in the input, even though a digit is glued to a letter", () => {
-    const input = {
-      slug: "logitech-g502-x",
-      brand: "Logitech",
-      model: "G502 X",
-    };
-    const exemptTokens = collectStringTokens(input);
+  it("still accepts a product name/model token that appears verbatim in a display field, even though a digit is glued to a letter", () => {
+    // A caller builds exemptTokens from display fields only (brand/model),
+    // never a slug — see analyse.ts's `collectExemptTokens`.
+    const exemptTokens = new Set([
+      ...stringTokens("Logitech"),
+      ...stringTokens("G502 X"),
+    ]);
     expect(
       findUnknownNumeral(
         "The Logitech G502 X is a strong match.",
@@ -336,24 +324,11 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     ).toBeNull();
   });
 
-  it("still accepts 'MX Master 3S' verbatim from the input", () => {
-    const input = { model: "MX Master 3S" };
-    const exemptTokens = collectStringTokens(input);
+  it("still accepts 'MX Master 3S' verbatim from a display field", () => {
+    const exemptTokens = stringTokens("MX Master 3S");
     expect(
       findUnknownNumeral(
         "Consider the MX Master 3S instead.",
-        allowed,
-        exemptTokens,
-      ),
-    ).toBeNull();
-  });
-
-  it("still accepts the engine version token 'fit-v0-provisional' from the input", () => {
-    const input = { engineVersion: "fit-v0-provisional" };
-    const exemptTokens = collectStringTokens(input);
-    expect(
-      findUnknownNumeral(
-        "This uses the fit-v0-provisional engine.",
         allowed,
         exemptTokens,
       ),
@@ -364,8 +339,7 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     // "g502x" is not itself a verbatim input token (input has "g502"), so
     // the exemption must not fire, and the glued digit must still be
     // checked normally.
-    const input = { model: "G502" };
-    const exemptTokens = collectStringTokens(input);
+    const exemptTokens = stringTokens("G502");
     expect(
       findUnknownNumeral("It's the G502x variant.", allowed, exemptTokens),
     ).toBe(502);
@@ -377,17 +351,15 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     );
   });
 
-  it("Finding 4: exempts 'G502' (exact case, present in the input)", () => {
-    const input = { model: "G502" };
-    const exemptTokens = collectStringTokens(input);
+  it("Finding 4: exempts 'G502' (exact case, present in a display field)", () => {
+    const exemptTokens = stringTokens("G502");
     expect(
       findUnknownNumeral("The G502 is a strong match.", allowed, exemptTokens),
     ).toBeNull();
   });
 
-  it("Finding 4: does NOT exempt 'g502' (different case) even though 'G502' is verbatim in the input — a quantity must not ride the product-name exemption by re-casing it", () => {
-    const input = { model: "G502" };
-    const exemptTokens = collectStringTokens(input);
+  it("Finding 4: does NOT exempt 'g502' (different case) even though 'G502' is verbatim in a display field — a quantity must not ride the product-name exemption by re-casing it", () => {
+    const exemptTokens = stringTokens("G502");
     expect(
       findUnknownNumeral(
         "Expect roughly g502 mm of clearance for your grip.",
@@ -395,6 +367,41 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
         exemptTokens,
       ),
     ).toBe(502);
+  });
+});
+
+describe("findUnknownNumeral — Change 1: the exemption source is display fields only, never a slug", () => {
+  const allowed = new Set([125, 62]);
+
+  // Real pipeline shape: `slugify("Logitech", "G502 X")` (see
+  // src/server/catalogue/seed-rows.ts) produces the lowercase, hyphenated
+  // slug "logitech-g502-x". A correct exempt set is built ONLY from
+  // stringTokens over brand/model — never the slug — so "g502" (lowercase)
+  // must still flag even though it is exactly the digit run baked into the
+  // real slug for this exact model.
+  const displayFieldTokens = new Set([
+    ...stringTokens("Logitech"),
+    ...stringTokens("G502 X"),
+  ]);
+
+  it("rejects a lowercase 'g502' used as a plain quantity, even though it equals the real slug's digit run", () => {
+    expect(
+      findUnknownNumeral(
+        "Expect roughly g502 mm of clearance for your grip.",
+        allowed,
+        displayFieldTokens,
+      ),
+    ).toBe(502);
+  });
+
+  it("still exempts the correctly-cased 'G502 X' reproduced from the model field", () => {
+    expect(
+      findUnknownNumeral(
+        "The G502 X fits your grip well.",
+        allowed,
+        displayFieldTokens,
+      ),
+    ).toBeNull();
   });
 });
 
@@ -475,10 +482,31 @@ describe("findUnknownNumeral — Finding 3 (redesigned): ordinal vs. fraction 't
     ).toBeNull();
   });
 
-  it("does not treat 'a third-place finish' as a fraction (ordinal noun after)", () => {
+  it("Change 2: does not treat 'the third-place finish' as a fraction (ordinal determiner before, next word isn't 'of')", () => {
+    expect(
+      findUnknownNumeral("It was the third-place finish overall.", allowed),
+    ).toBeNull();
+  });
+
+  it("Change 2: DOES now flag 'a third-place finish' — 'a' is not a recognised ordinal determiner, and there is no longer a result-noun carve-out; this is the accepted false-positive cost of collapsing to one strict rule", () => {
     expect(
       findUnknownNumeral("It was a third-place finish overall.", allowed),
-    ).toBeNull();
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("Change 2 repro: rejects 'the third of the palm width' — a determiner before is not enough on its own when 'of' follows (this used to slip through when either half alone was sufficient)", () => {
+    expect(
+      findUnknownNumeral("It's roughly the third of the palm width.", allowed),
+    ).toBeCloseTo(1 / 3);
+  });
+
+  it("Change 2 repro: rejects a bare fraction whose next sentence happens to start with a former carve-out noun ('It covers roughly third. Pick something else.')", () => {
+    expect(
+      findUnknownNumeral(
+        "It covers roughly third. Pick something else.",
+        allowed,
+      ),
+    ).toBeCloseTo(1 / 3);
   });
 
   it("still rejects genuine fraction usage — 'a third of the width' — when 1/3 isn't in the input", () => {
