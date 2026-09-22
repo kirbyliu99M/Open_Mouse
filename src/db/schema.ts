@@ -98,6 +98,10 @@ export const mice = pgTable(
       "mice_dimensions_positive",
       sql`${t.lengthMm} > 0 AND ${t.widthMm} > 0 AND ${t.heightMm} > 0`,
     ),
+    check(
+      "mice_weight_positive",
+      sql`${t.weightG} IS NULL OR ${t.weightG} > 0`,
+    ),
     check("mice_source_url_https", sql`${t.sourceUrl} LIKE 'https://%'`),
     // Rubric §2 consistency rules — also enforced in code, this is the backstop.
     check(

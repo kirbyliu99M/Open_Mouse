@@ -1,0 +1,1 @@
+ALTER TABLE "mice" ADD CONSTRAINT "mice_weight_positive" CHECK ("mice"."weight_g" IS NULL OR "mice"."weight_g" > 0);

@@ -22,16 +22,16 @@ _Last updated: 2026-09-21 · by: Claude (took over backend; M0 finishing)_
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                   |
-| --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance               |
-| M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | schema, computeSize, rules, harness done; seed + classification pending |
-| M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                               |
-| M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                         |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                     | –                                                        | largest build                                                           |
-| M5  | Gemini analysis                    | –     | ⬜                     | –                                                        | cost levers matter, see PLAN                                            |
-| M6  | Sessions, auth, privacy            | –     | ⬜                     | –                                                        |                                                                         |
-| M7  | Polish + security review           | –     | ⬜                     | –                                                        | before any public exposure                                              |
+| #   | Milestone                          | Gated | Status                 | PR                                                       | Notes                                                                                   |
+| --- | ---------------------------------- | ----- | ---------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | 🏗 draft PR             | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3)   | local + CI pass; Neon preview branching blocks acceptance                               |
+| M1  | Data layer + shape rubric          | ✅    | 🏗 in progress (Claude) | [#2](https://github.com/kirbyliu99M/Open_Mouse/issues/2) | part 1 PR #4; part 2 seed (30 current models) PR #5; classification waits on Gemini key |
+| M2  | Calibration + measurement          | ✅    | ⬜                     | –                                                        | needs Kirby's fixture set                                                               |
+| M3  | Fit engine                         | –     | ⬜                     | –                                                        | coefficients need real pairings                                                         |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                     | –                                                        | largest build                                                                           |
+| M5  | Gemini analysis                    | –     | ⬜                     | –                                                        | cost levers matter, see PLAN                                                            |
+| M6  | Sessions, auth, privacy            | –     | ⬜                     | –                                                        |                                                                                         |
+| M7  | Polish + security review           | –     | ⬜                     | –                                                        | before any public exposure                                                              |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -56,18 +56,19 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 Fill in with **measured numbers** as each gate is attempted. Record failures too —
 a failed attempt is information, not something to overwrite.
 
-| Gate                             | Target                              | Measured                   | Date       | Verdict |
-| -------------------------------- | ----------------------------------- | -------------------------- | ---------- | ------- |
-| M1 flare direction               | ≥ 85% (Inward/Flat/Outward)         | –                          | –          | –       |
-| M1 hump Center-vs-Back           | ≥ 85%                               | –                          | –          | –       |
-| M1 side curvature Inward-vs-Flat | ≥ 85%                               | –                          | –          | –       |
-| M1 within-one-level (all three)  | ≥ 90%                               | –                          | –          | –       |
-| M1 computed Size                 | ≥ 85% exact                         | **89.5%** (Logitech, n=76) | 2026-09-21 | ✅ pass |
-| M2 repeatability                 | ≤ ±1.5 mm over 5 captures           | –                          | –          | –       |
-| M2 accuracy                      | ≤ ±2 mm hand length vs ruler        | –                          | –          | –       |
-| M4 bbox fidelity                 | ≤ 0.5 mm vs spec L/W/H              | –                          | –          | –       |
-| M4 watertight                    | no holes, no self-intersection      | –                          | –          | –       |
-| M4 silhouette review             | Kirby judges 76 shells recognisable | –                          | –          | –       |
+| Gate                              | Target                              | Measured                          | Date       | Verdict |
+| --------------------------------- | ----------------------------------- | --------------------------------- | ---------- | ------- |
+| M1 flare direction                | ≥ 85% (Inward/Flat/Outward)         | –                                 | –          | –       |
+| M1 hump Center-vs-Back            | ≥ 85%                               | –                                 | –          | –       |
+| M1 side curvature Inward-vs-Flat  | ≥ 85%                               | –                                 | –          | –       |
+| M1 within-one-level (all three)   | ≥ 90%                               | –                                 | –          | –       |
+| M1 computed Size                  | ≥ 85% exact                         | **89.5%** (Logitech, n=76)        | 2026-09-21 | ✅ pass |
+| M1 Size from **first-party** dims | ≥ 85% exact                         | **90.0%** (27/30, current lineup) | 2026-09-21 | ✅ pass |
+| M2 repeatability                  | ≤ ±1.5 mm over 5 captures           | –                                 | –          | –       |
+| M2 accuracy                       | ≤ ±2 mm hand length vs ruler        | –                                 | –          | –       |
+| M4 bbox fidelity                  | ≤ 0.5 mm vs spec L/W/H              | –                                 | –          | –       |
+| M4 watertight                     | no holes, no self-intersection      | –                                 | –          | –       |
+| M4 silhouette review              | Kirby judges 76 shells recognisable | –                                 | –          | –       |
 
 ---
 
@@ -96,6 +97,17 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-21 | Preview builds apply migrations; production migrations are explicit                                   | Preview database isolation must be configured through Marketplace before deployment can pass                                                     |
 | 2026-09-21 | Issue #1's secret criterion is interpreted as no credential values in code                            | Environment variable names must be referenced to read server configuration; Gemini has no implementation in M0                                   |
 
+| 2026-09-21 | Descriptor levels stored as slugs (`back_minimal`), labels in `src/lib/contracts/descriptors.ts` | One vocabulary drives DB enums, classifier schema, validator and UI |
+| 2026-09-21 | Rubric §2 rules enforced twice: `checkConsistency()` and DB `CHECK` constraints | Code explains a violation; the DB guarantees none is stored. Null never violates |
+| 2026-09-21 | Scan data cascades from `scan_sessions` | The M6 expiry sweep is a single DELETE |
+| 2026-09-21 | **M1 seed scope cut from 76 to the 30-model current lineup (option C)**; issue #2 amended | Kirby's call: cheapest path, and the gate stays meaningful. Older models later. Computed Size re-measured on the 30: 90.0% |
+| 2026-09-21 | Per-storefront axis conventions for Logitech specs | logitech.com labels length "Height" and height "Depth"; label mapping silently swapped them. Guarded by `dimensionWarnings` + a CI test over the seed file |
+| 2026-09-21 | Preview builds migrate **and seed** their own Neon branch | Every PR preview has a real catalogue; production seeding stays explicit (`npm run db:seed`) |
+| 2026-09-21 | Each agent works in its own git worktree | Two agents shared one checkout; one agent's uncommitted notes were committed by another |
+| 2026-09-21 | **Codex narrowed to Blender (M4a); Sonnet subagents build backend + frontend; a separate Sonnet subagent reviews** | Kirby's call — Codex token cost. Claude orchestrates and adjudicates |
+| 2026-09-21 | Contract v1: marker layout is 180 mm _outer_ extent (25 mm markers, centres on 155 mm) | Centres on 180 mm with 30 mm markers spanned 210 mm = A4 width, leaving no printer margin |
+| 2026-09-21 | Browser sends raw landmark distances under a versioned measurement model | Landmarks are joint centres (palm width reads 10–20 mm low); correction is fitted to ruler ground truth in M2, not guessed client-side |
+| 2026-09-21 | `weight_g` gets a positivity CHECK | Reviewer finding: dimensions were guarded but weight was not |
 ---
 
 ## Risks
