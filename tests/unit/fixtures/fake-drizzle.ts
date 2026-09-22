@@ -23,10 +23,11 @@ export interface FakeDrizzleChain {
   insert: (...args: unknown[]) => FakeDrizzleChain;
   values: (...args: unknown[]) => FakeDrizzleChain;
   onConflictDoUpdate: (...args: unknown[]) => Promise<void>;
-  then: <T>(
-    resolve: (value: unknown[]) => T,
-    reject?: (reason: unknown) => unknown,
-  ) => Promise<T>;
+  /** Same shape as `PromiseLike<unknown[]>.then`, so `await chain` works. */
+  then: <TResult1 = unknown[], TResult2 = never>(
+    onfulfilled?: ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ) => Promise<TResult1 | TResult2>;
 }
 
 export function fakeDrizzleChain(rows: unknown[] = []): FakeDrizzleChain {
@@ -39,7 +40,8 @@ export function fakeDrizzleChain(rows: unknown[] = []): FakeDrizzleChain {
     insert: vi.fn(() => chain),
     values: vi.fn(() => chain),
     onConflictDoUpdate: vi.fn(() => Promise.resolve(undefined)),
-    then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+    then: (onfulfilled, onrejected) =>
+      Promise.resolve(rows).then(onfulfilled, onrejected),
   };
   return chain;
 }
