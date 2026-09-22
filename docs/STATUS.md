@@ -14,8 +14,8 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator; resumed session, wave 3 d
 **In flight (Sonnet):** #20 review fixes (numeral-check bypass via number words / Unicode digits, percentage false positives, `server-only` guard) · M6 auth (#17) finishing on `m6-auth`, PR to follow · independent review of #19 #21 #23.
 **Next wave:** integration: scan → fit → results → analysis end to end, with the routes and the analysis cache table.
 **Blocked — Kirby:**
-1. **Vercel previews fail on #19 #21 #22 #23** with no build log (CI incl. `vercel-build` is green). Likely an account-level limit. Open one, e.g. [#21's deployment](https://vercel.com/kirby-at-ntu/open-mouse/wBm5wBJcLvvXN5iNAW82EDSDxBNP), and report the error shown.
-2. **Duplicate Vercel project `open-mouse-4awb`** still posts a failing check on PRs; delete it (Settings → Advanced → Delete).
+1. **Vercel previews fail on #19 #21 #22 #23: Neon "Branch limit reached"** (Free plan). Every preview builds its own Neon branch, and there are now more open PRs than the plan allows. Fix: delete the preview branches of already-reviewed PRs (#3 #4 #5 #6 #8 #9 #12) in the Neon console, then redeploy the failed PRs.
+2. ~~Duplicate Vercel project `open-mouse-4awb`~~: deleted by Kirby 2026-09-22.
 3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
 4. When convenient: merge in stack order; Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
 
@@ -122,6 +122,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | Side and grip photos deferred | Fit engine v0 consumes only top-down measurements; revisit once M2 gate data shows whether thickness improves rankings |
 | 2026-09-22 | Builders run wide in parallel (up to six), all Sonnet, each on an issue-as-spec | Kirby's call: maximise Sonnet use; Claude writes contracts/specs and adjudicates |
 | 2026-09-22 | Expiry = lazy sweep on each scan write + expired-means-gone on reads + daily cron backstop | Vercel Hobby allows only daily cron; a daily-only sweep would let anonymous data live ~48 h and break the 24 h promise (#18, amended #17) |
+| 2026-09-22 | Neon Free branch cap limits concurrent PR previews; reviewed PRs give up their preview branch | Preview builds for #19 #21 #22 #23 failed with "Branch limit reached" |
 | 2026-09-22 | Preview deployments stay SSO-protected; builders never change project security settings | A builder correctly refused to enable Protection Bypass for Automation; that is Kirby's decision |
 ---
 
