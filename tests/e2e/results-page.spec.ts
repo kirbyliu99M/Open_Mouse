@@ -1,5 +1,22 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
-import highConfidenceFixture from "../../src/components/results/fixtures/high-confidence.json";
+
+// Read as plain JSON rather than `import ... from "*.json"` — Playwright's
+// test runner loads spec files as native Node ESM, which requires an
+// `type: "json"` import attribute Node's resolver doesn't universally
+// support yet; reading the file directly sidesteps that.
+const highConfidenceFixture: unknown = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../src/components/results/fixtures/high-confidence.json",
+        import.meta.url,
+      ),
+    ),
+    "utf-8",
+  ),
+);
 
 /**
  * The fit and analysis routes (#27, #28) don't exist yet — every test here

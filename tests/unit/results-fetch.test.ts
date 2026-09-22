@@ -31,7 +31,9 @@ const VALID_ANALYSIS = {
 
 describe("fetchFitResult", () => {
   it("POSTs the fit route with the given preferences and returns the validated response", async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse(200, highConfidenceFixture));
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(200, highConfidenceFixture),
+    );
 
     const outcome = await fetchFitResult(SCAN_ID, PREFERENCES, fetchImpl);
 
@@ -39,7 +41,9 @@ describe("fetchFitResult", () => {
       fitPath(SCAN_ID),
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(PREFERENCES),
       }),
     );
@@ -58,15 +62,15 @@ describe("fetchFitResult", () => {
   });
 
   it("maps any other non-2xx status to serverError", async () => {
-    const fetchImpl = vi.fn(async () =>
-      jsonResponse(500, { error: "boom" }),
-    );
+    const fetchImpl = vi.fn(async () => jsonResponse(500, { error: "boom" }));
     const outcome = await fetchFitResult(SCAN_ID, PREFERENCES, fetchImpl);
     expect(outcome).toEqual({ status: "serverError" });
   });
 
   it("treats a 200 body that fails fitResponseSchema as serverError, never trusting an unvalidated shape", async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse(200, { not: "a fit response" }));
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(200, { not: "a fit response" }),
+    );
     const outcome = await fetchFitResult(SCAN_ID, PREFERENCES, fetchImpl);
     expect(outcome).toEqual({ status: "serverError" });
   });
