@@ -154,3 +154,175 @@ test.describe("/scan — top-down photo pipeline", () => {
     );
   });
 });
+
+// Issue #29: submit the scan once it's measured. `/scan/submit-demo` mounts
+// the same `ScanSubmitPanel` `/scan` renders in its "ok" state, but against
+// a fixed, schema-valid `ScanSubmission` fixture instead of one derived from
+// a real photo — no synthetic image an e2e test can draw gets MediaPipe to
+// detect a hand (the test above proves that's still true; see also
+// tests/e2e/fixtures/synthetic-photo.ts's own comment), so this is the only
+// deterministic way to reach the submit UI in CI. The backend route is
+// mocked with `page.route` here — a live database isn't required to prove
+// what the *browser* sends and how the UI reacts to what comes back.
+const SUBMIT_BUTTON = () => "[data-testid='submit-scan-button']";
+const SUBMIT_STATUS = () => "[data-testid='submit-status']";
+
+test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
+  test("the only request is a single POST to /api/scans, and its body carries no image data", async ({
+    page,
+  }) => {
+    await page.goto("/scan/submit-demo");
+    // Same pattern as the zero-network test above: let the page settle
+    // before recording, so this only captures what the submit click itself
+    // triggers.
+    await page.waitForLoadState("networkidle");
+
+    const requestedUrls: string[] = [];
+    const requestBodies: string[] = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (url.startsWith("blob:")) return;
+      if (/\/__nextjs_|__next_hmr|webpack-hmr/.test(url)) return;
+      requestedUrls.push(url);
+      requestBodies.push(req.postData() ?? "");
+    });
+
+    // Hold the mocked response open until this test has asserted the
+    // single-request invariant — otherwise a successful submit triggers a
+    // real client-side navigation to `resultsPagePath`, whose own asset
+    // requests (RSC payload, JS chunks) would land in the same listener and
+    // are no part of what "submitting a scan" itself puts on the wire.
+    // #30 owns that destination page; this test only cares about the POST.
+    let releaseResponse!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    await page.route("**/api/scans", async (route) => {
+      await held;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "423e4567-e89b-12d3-a456-426614174003",
+        }),
+      });
+    });
+
+    await page.locator(SUBMIT_BUTTON()).click();
+    await expect.poll(() => requestedUrls.length).toBeGreaterThan(0);
+
+    expect(requestedUrls).toHaveLength(1);
+    expect(requestedUrls[0]).toContain("/api/scans");
+
+    const body = requestBodies[0]!;
+    expect(body).not.toMatch(/data:/i);
+    expect(body).not.toMatch(/base64/i);
+    expect(body).not.toMatch(/\bblob\b/i);
+    expect(body).not.toMatch(/\bfile\b/i);
+    // It's exactly the ScanSubmission shape — measurements and calibration
+    // evidence, never anything image-shaped.
+    const parsed = JSON.parse(body);
+    expect(parsed).toHaveProperty("measurements");
+    expect(parsed).toHaveProperty("calibration");
+    expect(parsed).not.toHaveProperty("photo");
+    expect(parsed).not.toHaveProperty("image");
+
+    // Now let the held response complete and confirm the success path
+    // still navigates as expected (a second, separate concern from the
+    // single-request assertion above).
+    releaseResponse();
+    await expect(page).toHaveURL(
+      /\/results\/423e4567-e89b-12d3-a456-426614174003$/,
+    );
+  });
+
+  test("shows press feedback and a visible status, and disables the button so a double tap can't submit twice", async ({
+    page,
+  }) => {
+    await page.route("**/api/scans", async (route) => {
+      // Hold the response open briefly so the in-flight state is
+      // observable rather than racing past it.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "523e4567-e89b-12d3-a456-426614174004",
+        }),
+      });
+    });
+
+    await page.goto("/scan/submit-demo");
+    const button = page.locator(SUBMIT_BUTTON());
+    await expect(button).toBeEnabled();
+
+    await button.click();
+    await expect(button).toBeDisabled();
+    await expect(page.locator(SUBMIT_STATUS())).toHaveText(
+      /Sending your measurements/,
+    );
+
+    await expect(page).toHaveURL(
+      /\/results\/523e4567-e89b-12d3-a456-426614174004$/,
+    );
+  });
+
+  for (const c of [
+    {
+      status: 400,
+      body: { error: "Invalid scan submission." },
+      expectedSubstring: "couldn't be saved",
+      label: "400 invalid",
+    },
+    {
+      status: 413,
+      body: { error: "Request body too large." },
+      expectedSubstring: "didn't send correctly",
+      label: "413 too large",
+    },
+    {
+      status: 503,
+      body: {},
+      expectedSubstring: "went wrong on our end",
+      label: "5xx server error",
+    },
+  ] as const) {
+    test(`${c.label} — names the problem, the one action that fixes it, and re-enables the button to retry`, async ({
+      page,
+    }) => {
+      await page.route("**/api/scans", async (route) => {
+        await route.fulfill({
+          status: c.status,
+          contentType: "application/json",
+          body: JSON.stringify(c.body),
+        });
+      });
+
+      await page.goto("/scan/submit-demo");
+      const button = page.locator(SUBMIT_BUTTON());
+      await button.click();
+
+      await expect(page.locator(".feedback-error")).toContainText(
+        c.expectedSubstring,
+      );
+      await expect(button).toBeEnabled();
+    });
+  }
+
+  test("a network failure gets its own copy, distinct from the server-error copy, and re-enables the button", async ({
+    page,
+  }) => {
+    await page.route("**/api/scans", async (route) => {
+      await route.abort("failed");
+    });
+
+    await page.goto("/scan/submit-demo");
+    const button = page.locator(SUBMIT_BUTTON());
+    await button.click();
+
+    await expect(page.locator(".feedback-error")).toContainText(
+      "No connection",
+    );
+    await expect(button).toBeEnabled();
+  });
+});
