@@ -14,3 +14,6 @@ skills-lock.json
 AGENTS.md
 docs/PLAN.md
 docs/shape-rubric.md
+
+# Vendored, unmodified third-party build output.
+public/mediapipe/
