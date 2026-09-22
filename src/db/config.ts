@@ -54,19 +54,48 @@ export function requirePreviewDatabaseUrl(
 }
 
 const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
-const CREDENTIAL_PAIR =
-  /\b(password|passwd|pwd|secret|token)\s*[=:]\s*[^\s'"`,;]+/gi;
+
+// Any key whose name matches a credential alias (case-insensitive), however
+// its value is quoted. Rather than special-casing each quoting style we saw
+// leak (bare, double-quoted, single-quoted, backslash-escaped, JSON `"k":"v"`),
+// this matches the *key* generically and then consumes the value up to its
+// real terminator — the matching quote, if any, otherwise whitespace/`,`/`;`
+// — so a value containing `=`, `:`, `@`, `&` or spaces inside quotes is still
+// fully consumed instead of leaking its tail past the first such character.
+const CREDENTIAL_KEY =
+  "postgres_password|pgpassword|password|passwd|pwd|database_url|api[_-]?key|secret|token";
+const CREDENTIAL_PAIR = new RegExp(
+  String.raw`(["']?)\b(${CREDENTIAL_KEY})\b\1?` + // optional quote around the key, e.g. "password"
+    String.raw`(\s*[:=]\s*)` + // `=` or `:`, with optional surrounding whitespace
+    // the value: quoted (optionally backslash-escaped) and matched lazily up
+    // to its own closing quote, or — with no quote — a run of non-separator
+    // characters
+    String.raw`(?:(\\?["'])(?:(?!\4)[\s\S])*\4|[^\s,;'"\`]+)`,
+  "gi",
+);
+
+function redactCredentialPair(
+  _match: string,
+  _keyQuote: string,
+  key: string,
+  separator: string,
+): string {
+  return `${key}${separator}[redacted]`;
+}
 
 /**
  * Makes a driver or SQL error safe for build logs while keeping it useful.
  * Connection URLs and credential pairs are replaced; everything else — the
  * failing statement, Postgres error text, constraint names — survives, because
  * a migration failure you cannot read is a migration failure you cannot fix.
+ *
+ * Redaction is fail-toward-safe: an ambiguous or over-eager match costs a
+ * slightly less useful log line, never a leaked credential.
  */
 export function redactSecrets(message: string): string {
   return message
     .replace(CONNECTION_URL, "[redacted-url]")
-    .replace(CREDENTIAL_PAIR, (_, key: string) => `${key}=[redacted]`);
+    .replace(CREDENTIAL_PAIR, redactCredentialPair);
 }
 
 export function describeMigrationError(error: unknown): string {
