@@ -76,7 +76,13 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
     },
 
     async deleteSession(sessionId) {
-      await db.delete(scanSessions).where(eq(scanSessions.id, sessionId));
+      // isNull(userId): never deletes a session a signed-in user has
+      // claimed — only `/account`'s explicit delete-everything does that.
+      await db
+        .delete(scanSessions)
+        .where(
+          and(eq(scanSessions.id, sessionId), isNull(scanSessions.userId)),
+        );
     },
 
     async deleteExpiredAnonymousSessions(now) {

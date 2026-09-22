@@ -54,6 +54,10 @@ function createFakeRepo() {
       return { scanId };
     }),
     deleteSession: vi.fn(async (sessionId: string) => {
+      // Mirrors drizzle-repo.ts's own guard: never deletes a session a
+      // signed-in user has claimed.
+      const row = sessions.get(sessionId);
+      if (!row || row.userId !== null) return;
       sessions.delete(sessionId);
     }),
     deleteExpiredAnonymousSessions: vi.fn(async (now: Date) => {
@@ -291,6 +295,25 @@ describe("DELETE /api/scans/session", () => {
 
     expect(res.status).toBe(204);
     expect(repo.deleteSession).not.toHaveBeenCalled();
+    expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
+
+  it("never deletes a session a signed-in user has claimed (beacon is anonymous-only, enforced server-side too)", async () => {
+    const { repo, sessions } = createFakeRepo();
+    sessions.set("claimed", {
+      id: "claimed",
+      userId: "user-1",
+      expiresAt: null,
+    });
+    const request = new Request("http://localhost/api/scans/session", {
+      method: "DELETE",
+      headers: { cookie: `${SCAN_SESSION_COOKIE}=claimed` },
+    });
+
+    const res = await handleSessionDelete(request, { repo });
+
+    expect(res.status).toBe(204);
+    expect(sessions.get("claimed")).toBeDefined();
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 });

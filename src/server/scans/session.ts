@@ -8,8 +8,10 @@ export interface DeleteSessionDeps {
 /**
  * `DELETE /api/scans/session` — the `navigator.sendBeacon` target on
  * `pagehide` (docs/PLAN.md §M6). Deletes the caller's session; the DB
- * cascade removes its scans and measurements. Idempotent: no cookie or an
- * unknown session id is not an error. Always clears the cookie.
+ * cascade removes its scans and measurements. Idempotent: no cookie, an
+ * unknown session id, or a session already claimed by a signed-in user
+ * (`ScanRepo.deleteSession`'s own guard — issue #17: "Kept until you delete
+ * it") is not an error and deletes nothing. Always clears the cookie.
  */
 export async function handleSessionDelete(
   request: Request,
