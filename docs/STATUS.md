@@ -9,24 +9,27 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 ## Right now
 
-**Current milestone:** building toward full function, stopping where Blender assets are required (M4b). **#3 merged to main.** The rest of the stack is reviewed and green but **the merge cascade has not started** — see blocker 1.
+**Current milestone:** building toward full function, stopping where Blender assets are required (M4b).
 
-**Open PRs:** #4 #5 #6 (green, ready) · #8 #9 #12 (reviewed) · #18 scan API (timing-safe cron fix `19263aa`) · #19 photo pipeline (out of draft, evidence posted) · #20 analysis (**changes requested**, fix in flight) · #21 fit engine · #22 results UI · #23 parallax · #24 M6 auth (reviewed, approve-with-nits).
+**The merge cascade is done.** Thirteen PRs are on `main`: #3 #4 #5 #6 #8 #9 #12 #18 #19 #21 #22 #23 #24. Everything except M5 analysis is merged.
 
-**In flight (Sonnet):** builder closing two confirmed hard-rule-2 bypasses in `src/server/analysis/numerals.ts` (#20).
+**Open PRs:** #20 analysis only (**changes requested**, third review pass; fix in flight).
 
-**Next wave, after the merges:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table.
+**In flight (Sonnet):** builder reworking the ordinal/fraction distinction and narrowing the product-name exemption in `src/server/analysis/numerals.ts` (#20).
+
+**Next wave:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table.
 
 **Blocked — Kirby:**
 
-1. **The merge cascade needs a permission grant.** `gh pr merge` is denied by the Claude Code permission classifier (`Merge Without Review`): the reviewer approvals recorded in the handoff live in session context, not as review objects on the PRs, so every PR reads `reviewDecision: ""` from outside. #4 is `MERGEABLE`/`CLEAN` with CI and Vercel green and is ready to go the moment a Bash rule for `gh pr merge` exists in `.claude/settings.json`.
-2. **Vercel previews still fail — confirmed, and it is not a stale error.** A fresh redeploy of #19 returned **`Resource provisioning failed`**: the Neon per-deployment branch cannot be created under the Free cap. #6 and #20 deploy fine only because their Neon branches already exist. The fix is the two-branch setup in HANDOFF-NEXT: delete the old per-PR branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`.
+1. **Production migrate + seed has not been run.** `vercel env pull` writes `[SENSITIVE]` placeholders for all 16 production secrets including `DATABASE_URL`, so it cannot be run from an agent session. Kirby runs `npm run db:migrate` then `npm run db:seed` locally against the production database.
+2. **Neon two-branch setup**, still outstanding: delete the old per-PR preview branches, create `preview` from `main`, turn off per-deployment branching in the Vercel↔Neon integration, and point Preview-scope DB env vars at `preview`. Re-confirmed 2026-09-22 — a fresh redeploy fails with `Resource provisioning failed`, so this is live, not a stale error. _Kirby's call 2026-09-22: merge on green GitHub CI anyway, since the preview failure is infrastructure and not the code._
 3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`); ask Codex to commit and push it.
-4. When convenient: Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
+4. **Convention question:** `m6-auth` adds `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` with carets, while every other dependency is pinned exactly. A caret on a beta floats across beta releases.
+5. When convenient: Gemini key for the M1 gate; ground-truth hand photos in `../Fixtures/hands/`; which mice you own; Google OAuth credentials; preview-protection decision.
 
-### Merge-cascade readiness (checked 2026-09-22)
+### Merge-cascade method that worked
 
-Every stale branch was test-merged against its base: **#5 #8 #9 #12 #18 all merge cleanly**, and the only non-doc changes they are missing are `.gitignore` and `README.md`. No contract changes are pending for them, so the cascade should not produce another semantic break like #20's.
+Each branch was merged with current `main` **locally first**, then `npm ci`, typecheck, lint, Prettier and the full test suite were run on the merged tree before pushing and merging. This caught what CI could not: #20's `pull_request` build was red while its `push` build was green at the same SHA, and two branches conflicted in `package.json` where both sides had added a dependency. Test counts on the merged trees: #21 301, #22 259, #19 271, #23 444, #24 453.
 
 ---
 
