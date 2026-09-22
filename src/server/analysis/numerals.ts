@@ -213,14 +213,16 @@ const STRING_TOKEN_PATTERN = /[A-Za-z0-9]+/g;
  * invented numbers. See the comment above `matchDigitNumerals` for how this
  * set is used.
  *
- * FINDING 2: this used to lowercase every token, which meant a model output
+ * FINDING 4: this used to lowercase every token, which meant a model output
  * of "g502" (lowercase) was exempted just because "G502" (the real, cased
  * product name) appeared somewhere in the input — a quantity smuggled
  * through by re-casing a digit run that was never actually in the model's
  * own casing. Casing is preserved here, and matching is exact-case in
  * `isExemptToken`, so only a token that reproduces the input's own casing —
  * the way a model naming a real product actually does ("G502", "MX Master
- * 3S") — is exempt.
+ * 3S") — is exempt. (Numbered 4, not reusing 1-3: those already name the
+ * digit-glued-numbers, vulgar-fraction, and ordinal/fraction bypass classes
+ * below and in the test file's `describe` blocks.)
  */
 export function collectStringTokens(
   value: unknown,
@@ -273,7 +275,7 @@ export function surroundingToken(
  * input string; only a token that mixes letters and digits (a product name,
  * slug fragment, or version string) can be exempt.
  *
- * FINDING 2: case-sensitive on purpose. A model naming a real product
+ * FINDING 4: case-sensitive on purpose. A model naming a real product
  * reproduces the input's own casing ("G502", "MX Master 3S"); a lowercased
  * "g502" used as a plain quantity ("roughly g502 mm of clearance") is not
  * the same token and must not ride the product-name exemption.
@@ -402,7 +404,7 @@ const MULTIPLIER_WORDS: Record<string, number> = {
 };
 
 /**
- * FINDING 1 (redesigned — the previous fix inverted the safe direction).
+ * FINDING 3 (redesigned — the previous fix inverted the safe direction).
  * `third` and `quarter` are each both a fraction word ("a third of the
  * width", "two-thirds of users") and an ordinary ordinal/count word ("the
  * third pick", "third place"). The previous fix treated ordinal as the

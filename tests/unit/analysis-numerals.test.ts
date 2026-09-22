@@ -270,7 +270,7 @@ describe("surroundingToken", () => {
 
 describe("collectStringTokens", () => {
   it("collects alphanumeric tokens from nested string leaves, preserving casing", () => {
-    // Finding 2: casing is preserved (not lowercased) because the exemption
+    // Finding 4: casing is preserved (not lowercased) because the exemption
     // this feeds (`isExemptToken`) is exact-case on purpose — see the
     // comment there. "G502" (from "G502 X") and "g502" (from the lowercase
     // slug) are genuinely different tokens and both survive independently.
@@ -377,7 +377,7 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     );
   });
 
-  it("Finding 2: exempts 'G502' (exact case, present in the input)", () => {
+  it("Finding 4: exempts 'G502' (exact case, present in the input)", () => {
     const input = { model: "G502" };
     const exemptTokens = collectStringTokens(input);
     expect(
@@ -385,7 +385,7 @@ describe("findUnknownNumeral — Finding 1: digits glued to a preceding letter",
     ).toBeNull();
   });
 
-  it("Finding 2: does NOT exempt 'g502' (different case) even though 'G502' is verbatim in the input — a quantity must not ride the product-name exemption by re-casing it", () => {
+  it("Finding 4: does NOT exempt 'g502' (different case) even though 'G502' is verbatim in the input — a quantity must not ride the product-name exemption by re-casing it", () => {
     const input = { model: "G502" };
     const exemptTokens = collectStringTokens(input);
     expect(
@@ -453,7 +453,7 @@ describe("findUnknownNumeral — Finding 2: vulgar fractions", () => {
   });
 });
 
-describe("findUnknownNumeral — Finding 1 (redesigned): ordinal vs. fraction 'third'/'quarter'", () => {
+describe("findUnknownNumeral — Finding 3 (redesigned): ordinal vs. fraction 'third'/'quarter'", () => {
   // Commit 6ffbd0f made ordinal the default and only recognised a fraction
   // directly after "a"/"an"/"one" — inverting hard rule 2's safe direction:
   // a model could invent a fraction just by phrasing around that one word

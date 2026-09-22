@@ -238,7 +238,7 @@ describe("analyse — product-name exemption wired through the real call path", 
     expect(output.headline).not.toContain("G999");
   });
 
-  it("Finding 2, end to end: does not let a lowercased 'g502' ride the product-name exemption when the input's model is 'G502' (exact case)", async () => {
+  it("Finding 4, end to end: does not let a lowercased 'g502' ride the product-name exemption when the input's model is 'G502' (exact case)", async () => {
     // Reproduces the bug through the real analyse() call path: previously
     // collectStringTokens/isExemptToken matched case-insensitively, so a
     // lowercased digit run could be re-asserted as a quantity just because
@@ -281,11 +281,11 @@ describe("analyse — product-name exemption wired through the real call path", 
   });
 });
 
-// Finding 1, end to end: reproduces the ordinal/fraction regression through
+// Finding 3, end to end: reproduces the ordinal/fraction regression through
 // the real analyse() call path, not just the numerals.ts helpers — helper-
 // level tests are exactly what let this bug (and its predecessor, 6ffbd0f)
 // through twice.
-describe("analyse — Finding 1: ordinal vs. fraction, real call path", () => {
+describe("analyse — Finding 3: ordinal vs. fraction, real call path", () => {
   it('does not let "roughly third of the palm width" pass on the first attempt', async () => {
     const input = inputFor();
     const badAnswer = JSON.stringify({
