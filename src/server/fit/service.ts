@@ -1,9 +1,16 @@
 import { fitPreferencesSchema } from "../../lib/contracts/fit";
+import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
 import { readSessionCookie } from "../scans/cookies";
+import type { RateLimiter } from "../scans/rate-limit-config";
 import type { ScanRepo } from "../scans/repo";
 import { loadOwnedFit, type LoadOwnedFitResult } from "./core";
 import type { FitRepo } from "./repo";
+
+/** Same role as `submit.ts`'s constant of the same name: a no-DB, always-
+ * allow default so tests that don't care about rate limiting don't have to
+ * inject one. The real route always injects the DB-backed limiter. */
+const ALWAYS_ALLOW_LIMITER: RateLimiter = { allow: () => true };
 
 // `no-store`: every response here carries personal hand-measurement data or
 // a ranking derived from it (same finding as #24/M6).
@@ -25,6 +32,9 @@ export interface FitServiceDeps {
   getUserId: () => Promise<string | null>;
   /** Injectable clock; defaults to `new Date()`. */
   now?: () => Date;
+  /** Per-IP fit limit (M2 hardening); defaults to an always-allow no-op —
+   * see `ALWAYS_ALLOW_LIMITER` above. */
+  limiter?: RateLimiter;
 }
 
 /**
@@ -32,11 +42,12 @@ export interface FitServiceDeps {
  * (`./core.ts`), which owns scan-id validation, the ownership check,
  * scoring and persistence. This layer only reads the body-size cap, parses
  * and validates `fitPreferencesSchema`, resolves the caller's identity, and
- * maps the core's result to 200 / 400 / 404 / 413 / 500 — every response
- * carrying `cache-control: no-store`.
+ * maps the core's result to 200 / 400 / 404 / 413 / 429 / 500 — every
+ * response carrying `cache-control: no-store`.
  *
- * Order: oversized body (413) → invalid preferences (400) → the core
- * (ownership 404, or an internal failure → 500) → 200. Route handlers
+ * Order: oversized body (413) → invalid preferences (400) → per-IP rate
+ * limit (429, M2 hardening) → the core (ownership 404, or an internal
+ * failure → 500) → 200. Route handlers
  * (`src/app/api/scans/[scanId]/fit/route.ts`) call this with real repos;
  * tests call it with fakes — no real database or clock required.
  */
@@ -73,6 +84,17 @@ export async function computeFitForScan(
         message: issue.message,
       })),
     });
+  }
+
+  // Per-IP rate limit (M2 hardening). No usable IP (local dev) is never
+  // limited — same carve-out as the scan-submission route.
+  const clientIp = resolveClientIp(request.headers);
+  if (clientIp !== UNKNOWN_IP_KEY) {
+    const limiter = deps.limiter ?? ALWAYS_ALLOW_LIMITER;
+    const allowed = await limiter.allow(clientIp);
+    if (!allowed) {
+      return json(429, { error: "Too many fit requests. Try again shortly." });
+    }
   }
 
   const userId = await deps.getUserId();

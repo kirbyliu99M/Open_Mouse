@@ -255,6 +255,70 @@ describe("POST /api/scans/{scanId}/fit — oversized body", () => {
   });
 });
 
+describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", () => {
+  it("429s with a no-store, user-facing error body when the limiter rejects the request, without ever calling the repos", async () => {
+    const findOwnedScan = vi.fn(async () => sampleOwnedScan);
+    const scanRepo = createFakeScanRepo(findOwnedScan);
+    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+
+    const res = await computeFitForScan(
+      fitRequest({}, { "x-vercel-forwarded-for": "203.0.113.9" }),
+      SCAN_ID,
+      {
+        scanRepo,
+        fitRepo,
+        getUserId: async () => null,
+        limiter: { allow: () => false },
+      },
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = await res.json();
+    expect(typeof body.error).toBe("string");
+    expect(findOwnedScan).not.toHaveBeenCalled();
+    expect(saveFitResultsCalls).toHaveLength(0);
+  });
+
+  it("does not limit when the request carries no usable client IP (local dev)", async () => {
+    const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
+    const { repo: fitRepo } = createFakeFitRepo();
+
+    const res = await computeFitForScan(fitRequest({}), SCAN_ID, {
+      scanRepo,
+      fitRepo,
+      getUserId: async () => null,
+      limiter: { allow: () => false },
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("keys the limiter on the caller's IP (x-vercel-forwarded-for)", async () => {
+    const seen: string[] = [];
+    const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
+    const { repo: fitRepo } = createFakeFitRepo();
+
+    await computeFitForScan(
+      fitRequest({}, { "x-vercel-forwarded-for": "203.0.113.9" }),
+      SCAN_ID,
+      {
+        scanRepo,
+        fitRepo,
+        getUserId: async () => null,
+        limiter: {
+          allow: (key) => {
+            seen.push(key);
+            return true;
+          },
+        },
+      },
+    );
+
+    expect(seen).toEqual(["203.0.113.9"]);
+  });
+});
+
 describe("POST /api/scans/{scanId}/fit — an internal failure", () => {
   it("500s without leaking internals when persistence fails", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));

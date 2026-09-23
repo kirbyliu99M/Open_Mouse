@@ -8,11 +8,12 @@
 import type { AnalysisResponse } from "../../lib/contracts/analysis";
 import type { FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { analyse } from "./analyse";
+import { analyse, buildFallbackOutput } from "./analyse";
 import type { AnalysisCache } from "./cache";
 import { computeCacheKey } from "./cache";
 import type { TextModel } from "./client";
 import { buildAnalysisInput } from "./input";
+import { globalModelCallRateLimitKey } from "./rate-limit-config";
 
 /** Per-key rate limit, injected so the handler stays pure. */
 export interface RateLimiter {
@@ -25,6 +26,19 @@ export interface AnalysisRequestDeps {
   client: TextModel | null;
   cache: AnalysisCache;
   limiter: RateLimiter;
+  /**
+   * Site-wide daily cap on real model calls (M1 hardening finding, PLAN
+   * §M5). Consulted on exactly the same path as `limiter` — after it
+   * allows, immediately before the model would actually be called — never
+   * on a cache hit and never when no model is configured. Unlike `limiter`,
+   * saying no here is never a 429: `handleAnalysisRequest` serves the
+   * deterministic fallback with 200 instead, since the cap exists to bound
+   * *cost*, not to punish any one caller.
+   */
+  globalLimiter: RateLimiter;
+  /** Injectable clock; defaults to `new Date()`. Only used to scope the
+   * global cap's key to the current UTC calendar day. */
+  now?: () => Date;
 }
 
 export interface AnalysisRequest {
@@ -78,10 +92,10 @@ export async function handleAnalysisRequest(
   request: AnalysisRequest,
   deps: AnalysisRequestDeps,
 ): Promise<AnalysisResponseLike> {
-  // The limit exists to bound *model* spend (PLAN §M5), so it is only ever
-  // consulted on the one path that would actually call the model — never
-  // on a cache hit and never when no model is configured. Both those paths
-  // return below, before `deps.limiter.allow` is read.
+  // Both limits exist to bound *model* spend (PLAN §M5), so `limiter` and
+  // `globalLimiter` are only ever consulted on the one path that would
+  // actually call the model — never on a cache hit and never when no model
+  // is configured. Both those paths return below, before either is read.
   const cacheKey = computeCacheKey(request.fit, request.measurements);
   let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
   try {
@@ -108,6 +122,26 @@ export async function handleAnalysisRequest(
     return {
       status: 429,
       body: { error: "Too many analysis requests. Try again shortly." },
+    };
+  }
+
+  const now = deps.now ?? (() => new Date());
+  const globalKey = globalModelCallRateLimitKey(now());
+  const globalAllowed = await deps.globalLimiter.allow(globalKey);
+  if (!globalAllowed) {
+    // The site-wide daily cap is spent. Never a 429 (M1): someone else's
+    // traffic hitting the cap is not this caller's fault, so the product
+    // keeps working — honestly, with the same deterministic, free-to-
+    // recompute fallback `analyse()` returns when no model is configured —
+    // rather than erroring for everyone once the budget runs out. Not
+    // cached, same as every other fallback (`source` is never "model" here).
+    return {
+      status: 200,
+      body: {
+        output: buildFallbackOutput(input),
+        source: "fallback",
+        cached: false,
+      },
     };
   }
 

@@ -32,6 +32,9 @@ export async function handleSessionDelete(
   }
   return new Response(null, {
     status: 204,
-    headers: { "set-cookie": buildExpiredSessionCookie() },
+    headers: {
+      "set-cookie": buildExpiredSessionCookie(),
+      "cache-control": "no-store",
+    },
   });
 }

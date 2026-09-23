@@ -28,6 +28,8 @@ export interface AnalysisServiceDeps {
   client: AnalysisRequestDeps["client"];
   cache: AnalysisRequestDeps["cache"];
   limiter: AnalysisRequestDeps["limiter"];
+  /** Site-wide daily cap on real model calls — see `./handler.ts`. */
+  globalLimiter: AnalysisRequestDeps["globalLimiter"];
   /** Resolves the signed-in caller's user id, or null. Wraps `auth()` in the
    * real route; tests inject a fake so no NextAuth machinery runs here. */
   getUserId: () => Promise<string | null>;
@@ -123,7 +125,13 @@ export async function computeAnalysisForScan(
       measurements: fitResult.measurements,
       rateLimitKey,
     },
-    { client: deps.client, cache: deps.cache, limiter: deps.limiter },
+    {
+      client: deps.client,
+      cache: deps.cache,
+      limiter: deps.limiter,
+      globalLimiter: deps.globalLimiter,
+      now: deps.now,
+    },
   );
 
   if (result.status === 200) {
