@@ -8,6 +8,7 @@ import {
   errorResponseSchema,
   fitPath,
   resultsPagePath,
+  scanPath,
   SCAN_SUBMIT_PATH,
   scanSubmitResponseSchema,
 } from "../../src/lib/contracts/routes";
@@ -89,6 +90,16 @@ describe("routes", () => {
     expect(fitPath(SCAN_ID)).toBe(`/api/scans/${SCAN_ID}/fit`);
     expect(analysisPath(SCAN_ID)).toBe(`/api/scans/${SCAN_ID}/analysis`);
     expect(resultsPagePath(SCAN_ID)).toBe(`/results/${SCAN_ID}`);
+    expect(scanPath(SCAN_ID)).toBe(`/api/scans/${SCAN_ID}`);
+  });
+
+  it("scanPath refuses anything that could reach the session-wide delete", () => {
+    // `/api/scans/session` is a real static sibling route that deletes EVERY
+    // scan in a session. A per-scan delete must never be able to reach it.
+    expect(() => scanPath("session")).toThrow();
+    expect(() => scanPath("../session")).toThrow();
+    expect(() => scanPath("a/b")).toThrow();
+    expect(() => scanPath("")).toThrow();
   });
 
   it("encodes a hostile scan id instead of letting it change the path", () => {
