@@ -4,7 +4,7 @@
  *
  * `/account` promises physical deletion of an anonymous scan within 24 hours
  * of when the scan was made — not from closing the browser, which the
- * server cannot observe. The mechanism that keeps this true has three parts,
+ * server cannot observe. The mechanism that keeps this true has four parts,
  * and their worst case must sum to at most the promise:
  *
  *   SESSION_TTL_MS               how long a session lives before
@@ -15,9 +15,13 @@
  *                                 (.github/workflows/expire-sessions.yml) is
  *                                 *scheduled* to call
  *                                 GET /api/cron/expire-sessions
- * + GITHUB_SCHEDULER_SLACK_MS     budgeted worst-case lateness of that
- *                                 schedule — GitHub gives no SLA for when a
- *                                 scheduled workflow actually starts
+ * + GITHUB_MISSED_TICK_BUDGET_MS  budgets one tick that starts on time but
+ *                                 still fails outright (all in-step retries
+ *                                 exhausted) — the next successful sweep is
+ *                                 then a full interval later
+ * + GITHUB_SCHEDULER_SLACK_MS     budgeted worst-case lateness of a
+ *                                 scheduled run that does start — GitHub
+ *                                 gives no SLA for when one actually begins
  * ---------------------------------
  * = MAX_ANONYMOUS_RETENTION_MS    must be <= ANONYMOUS_PRIVACY_PROMISE_MS
  *
@@ -39,10 +43,11 @@ export const ANONYMOUS_PRIVACY_PROMISE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How long an anonymous session lives before it counts as expired, measured
- * from creation. 21h30m, not 24h — the remaining 2h30m of headroom is spent
- * below on the GitHub sweep's interval and its scheduling slack.
+ * from creation. 20h30m, not 24h — the remaining 3h30m of headroom is spent
+ * below on the GitHub sweep's interval, one wholly-missed tick, and its
+ * scheduling slack.
  */
-export const SESSION_TTL_MS = 21 * 60 * 60 * 1000 + 30 * 60 * 1000;
+export const SESSION_TTL_MS = 20 * 60 * 60 * 1000 + 30 * 60 * 1000;
 
 /**
  * How often the GitHub Actions workflow
@@ -76,21 +81,39 @@ export const GITHUB_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 export const GITHUB_SWEEP_MINUTE = 17;
 
 /**
- * Budgeted worst-case lateness of a GitHub Actions scheduled run. GitHub's
- * own docs say scheduled workflows "can be delayed during periods of high
- * loads of GitHub Actions workflow runs" and publish no upper bound or SLA.
- * 45 minutes is an engineering judgment call, not a guarantee: if GitHub's
- * scheduler is ever late by more than this — documented as rare, e.g.
- * during platform incidents — this bound stops holding for whichever
- * session(s) were caught in that window. The daily Vercel cron
- * (`vercel.json`) and the lazy sweep (`sweep.ts`) are the remaining
- * backstops in that case; they bound it again, just not within 24h.
+ * Budgets one scheduled tick that starts on time but still fails outright:
+ * a cold Vercel invocation past the step's `curl --max-time`, a transient
+ * 5xx, a network blip. The workflow retries up to 3 times with a short
+ * backoff before giving up (see `expire-sessions.yml`), but there's no
+ * cross-run retry — if every attempt in a tick fails, the next *successful*
+ * sweep is a full `GITHUB_SWEEP_INTERVAL_MS` later, not immediately after.
+ * Set equal to the interval itself: budgeting for exactly one such tick,
+ * not a run of them (the residual gap below covers what happens beyond
+ * that).
+ */
+export const GITHUB_MISSED_TICK_BUDGET_MS = GITHUB_SWEEP_INTERVAL_MS;
+
+/**
+ * Budgeted worst-case lateness of a GitHub Actions scheduled run *starting*
+ * (as opposed to failing once started, which `GITHUB_MISSED_TICK_BUDGET_MS`
+ * covers). GitHub's own docs say scheduled workflows "can be delayed during
+ * periods of high loads of GitHub Actions workflow runs" and publish no
+ * upper bound or SLA. 45 minutes is an engineering judgment call, not a
+ * guarantee: the residual gap this leaves is two consecutive failed ticks
+ * (this budget only covers one), or GitHub's scheduler itself being down
+ * (a platform-wide outage, not just an ordinary delayed run) — either is
+ * documented as rare. The daily Vercel cron (`vercel.json`) and the lazy
+ * sweep (`sweep.ts`) are the remaining backstops in that case; they bound
+ * it again, just not within 24h.
  */
 export const GITHUB_SCHEDULER_SLACK_MS = 45 * 60 * 1000;
 
 /** The worst-case time from a scan's creation to its physical deletion. */
 export const MAX_ANONYMOUS_RETENTION_MS =
-  SESSION_TTL_MS + GITHUB_SWEEP_INTERVAL_MS + GITHUB_SCHEDULER_SLACK_MS;
+  SESSION_TTL_MS +
+  GITHUB_SWEEP_INTERVAL_MS +
+  GITHUB_MISSED_TICK_BUDGET_MS +
+  GITHUB_SCHEDULER_SLACK_MS;
 
 /**
  * Extracts the minute-past-the-hour from an hourly, single-fixed-minute cron

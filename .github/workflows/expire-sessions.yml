@@ -27,21 +27,42 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    # 3 attempts * 30s --max-time, plus 10s + 30s of backoff between them,
+    # is well under this even in the worst case.
+    timeout-minutes: 4
     steps:
-      - name: Call GET /api/cron/expire-sessions
+      - name: Call GET /api/cron/expire-sessions (retries on failure)
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         # CRON_SECRET only ever appears here as a shell variable reference,
         # never inlined into this script or into any printed output — it is
         # sent as a request header and nothing about the request is echoed.
+        #
+        # Up to 3 attempts with a short backoff (10s, then 30s): a single
+        # scheduled tick can still fail outright (cold invocation, transient
+        # 5xx, network blip), and retrying inside the step is much cheaper
+        # than waiting a full GITHUB_SWEEP_INTERVAL_MS for the next one —
+        # src/server/scans/retention.ts's GITHUB_MISSED_TICK_BUDGET_MS only
+        # budgets for *one* tick failing outright even after these retries.
+        # `curl --fail` treats any non-2xx response as a failure too.
         run: |
           set -euo pipefail
           if [ -z "${CRON_SECRET:-}" ]; then
             echo "::error::CRON_SECRET repository secret is not set. See the PR for #32 for one-time setup steps." >&2
             exit 1
           fi
-          curl --fail --silent --show-error \
-            --max-time 30 \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "https://open-mouse.vercel.app/api/cron/expire-sessions"
+          call_endpoint() {
+            curl --fail --silent --show-error \
+              --max-time 30 \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              "https://open-mouse.vercel.app/api/cron/expire-sessions"
+          }
+          if call_endpoint; then exit 0; fi
+          echo "Attempt 1 failed; retrying in 10s..." >&2
+          sleep 10
+          if call_endpoint; then exit 0; fi
+          echo "Attempt 2 failed; retrying in 30s..." >&2
+          sleep 30
+          if call_endpoint; then exit 0; fi
+          echo "::error::All 3 attempts to call /api/cron/expire-sessions failed." >&2
+          exit 1

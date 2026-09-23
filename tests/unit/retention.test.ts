@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ANONYMOUS_PRIVACY_PROMISE_MS,
+  GITHUB_MISSED_TICK_BUDGET_MS,
   GITHUB_SCHEDULER_SLACK_MS,
   GITHUB_SWEEP_INTERVAL_MS,
   GITHUB_SWEEP_MINUTE,
@@ -11,10 +12,17 @@ import {
 } from "../../src/server/scans/retention";
 
 describe("the 24h anonymous-deletion bound (issue #32)", () => {
-  it("MAX_ANONYMOUS_RETENTION_MS is the sum of its three named parts", () => {
+  it("MAX_ANONYMOUS_RETENTION_MS is the sum of its four named parts", () => {
     expect(MAX_ANONYMOUS_RETENTION_MS).toBe(
-      SESSION_TTL_MS + GITHUB_SWEEP_INTERVAL_MS + GITHUB_SCHEDULER_SLACK_MS,
+      SESSION_TTL_MS +
+        GITHUB_SWEEP_INTERVAL_MS +
+        GITHUB_MISSED_TICK_BUDGET_MS +
+        GITHUB_SCHEDULER_SLACK_MS,
     );
+  });
+
+  it("GITHUB_MISSED_TICK_BUDGET_MS budgets exactly one missed tick", () => {
+    expect(GITHUB_MISSED_TICK_BUDGET_MS).toBe(GITHUB_SWEEP_INTERVAL_MS);
   });
 
   it("ANONYMOUS_PRIVACY_PROMISE_MS really is 24 hours", () => {
@@ -43,8 +51,27 @@ describe("the 24h anonymous-deletion bound (issue #32)", () => {
     const regressed =
       24 * 60 * 60 * 1000 +
       GITHUB_SWEEP_INTERVAL_MS +
+      GITHUB_MISSED_TICK_BUDGET_MS +
       GITHUB_SCHEDULER_SLACK_MS;
     expect(regressed).toBeGreaterThan(ANONYMOUS_PRIVACY_PROMISE_MS);
+  });
+
+  it("a regression that drops the missed-tick budget from the formula is caught", () => {
+    // If a future edit to retention.ts stops adding
+    // GITHUB_MISSED_TICK_BUDGET_MS into MAX_ANONYMOUS_RETENTION_MS (but
+    // leaves the constant itself defined, e.g. an accidental revert to the
+    // earlier three-term formula), the four-term sum recomputed here from
+    // the real constants stops matching the exported total — this is a
+    // second, independent check of that beyond the first test above,
+    // phrased as "the omitted term is not zero" so it can't pass by
+    // accident if GITHUB_MISSED_TICK_BUDGET_MS were ever misdefined as 0.
+    expect(GITHUB_MISSED_TICK_BUDGET_MS).toBeGreaterThan(0);
+    expect(MAX_ANONYMOUS_RETENTION_MS).toBe(
+      SESSION_TTL_MS +
+        GITHUB_SWEEP_INTERVAL_MS +
+        GITHUB_SCHEDULER_SLACK_MS +
+        GITHUB_MISSED_TICK_BUDGET_MS,
+    );
   });
 });
 
@@ -105,5 +132,19 @@ describe("the deployed schedule matches retention.ts", () => {
     // GitHub prints verbatim as the step's command) — only referenced via
     // an env: var and read back as a shell variable.
     expect(contents).not.toMatch(/Bearer \$\{\{\s*secrets\.CRON_SECRET/);
+  });
+
+  it("retries a failed attempt before giving up, per the missed-tick reasoning above", () => {
+    const contents = readWorkflow();
+    // Loose sanity checks that the retry-with-backoff shape survives future
+    // edits to this file — not a substitute for the shell-logic smoke test
+    // this PR ran manually (3 attempts, succeed-first / succeed-after-retry
+    // / fail-all-three all exercised against a stubbed `curl`).
+    expect(contents).toMatch(/sleep 10/);
+    expect(contents).toMatch(/sleep 30/);
+    expect((contents.match(/curl --fail/g) ?? []).length).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(contents).toMatch(/All 3 attempts/);
   });
 });
