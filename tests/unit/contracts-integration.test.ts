@@ -93,14 +93,28 @@ describe("routes", () => {
     expect(scanPath(SCAN_ID)).toBe(`/api/scans/${SCAN_ID}`);
   });
 
-  it("scanPath refuses anything that could reach the session-wide delete", () => {
-    // `/api/scans/session` is a real static sibling route that deletes EVERY
-    // scan in a session. A per-scan delete must never be able to reach it.
-    expect(() => scanPath("session")).toThrow();
-    expect(() => scanPath("../session")).toThrow();
-    expect(() => scanPath("a/b")).toThrow();
-    expect(() => scanPath("")).toThrow();
+  it("scanPath accepts a UUID in either case, as a single path segment", () => {
+    expect(scanPath(SCAN_ID)).toBe(`/api/scans/${SCAN_ID}`);
+    expect(scanPath(SCAN_ID.toUpperCase())).toBe(
+      `/api/scans/${SCAN_ID.toUpperCase()}`,
+    );
   });
+
+  it.each([
+    ["the session route itself", "session"],
+    ["a relative climb to it", "../session"],
+    ["a nested segment", "a/b"],
+    ["an empty string", ""],
+    ["a UUID with surrounding whitespace", ` ${SCAN_ID} `],
+    ["a percent-encoded UUID", encodeURIComponent(`/${SCAN_ID}`)],
+    ["a UUID with a trailing slash", `${SCAN_ID}/`],
+    ["a UUID followed by the session segment", `${SCAN_ID}/../session`],
+  ])(
+    "scanPath refuses %s, so a per-scan delete can never reach the session-wide delete",
+    (_label, input) => {
+      expect(() => scanPath(input)).toThrow();
+    },
+  );
 
   it("encodes a hostile scan id instead of letting it change the path", () => {
     expect(fitPath("../../account")).toBe("/api/scans/..%2F..%2Faccount/fit");
