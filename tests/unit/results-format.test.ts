@@ -3,8 +3,10 @@ import {
   dimensionDelta,
   formatConfidence,
   formatMm,
+  formatMmValue,
   formatScore,
   formatSignedMm,
+  formatSignedMmValue,
   formatWeight,
   isLowConfidence,
 } from "../../src/components/results/format";
@@ -30,6 +32,26 @@ describe("formatSignedMm", () => {
 
   it("shows a bare zero for no difference", () => {
     expect(formatSignedMm(0)).toBe("0.0 mm");
+  });
+});
+
+describe("formatMmValue", () => {
+  it("rounds to one decimal without a unit suffix", () => {
+    expect(formatMmValue(63.46)).toBe("63.5");
+  });
+
+  it("never shows -0.0", () => {
+    expect(formatMmValue(-0.02)).toBe("0.0");
+  });
+});
+
+describe("formatSignedMmValue", () => {
+  it("prefixes positive deltas with a plus sign, no unit suffix", () => {
+    expect(formatSignedMmValue(2)).toBe("+2.0");
+  });
+
+  it("keeps the minus sign for negative deltas", () => {
+    expect(formatSignedMmValue(-1.5)).toBe("-1.5");
   });
 });
 

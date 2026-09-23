@@ -187,6 +187,63 @@ test.describe("/scan — top-down photo pipeline", () => {
   });
 });
 
+// Item 6: the measured state matches
+// docs/design/journey-2026-09-23/03-scan-measured.png. `/scan/measured-demo`
+// seeds `ScanClient` straight into its "ok" state with fixed measurements —
+// see that route's own comment for why (mirrors `/scan/submit-demo`'s reason
+// for existing).
+test.describe("/scan/measured-demo — measured state (item 6)", () => {
+  test("shows the settled hand/grip as chips, not the full pickers", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".scanChip")).toHaveText([
+      "Right hand",
+      "Claw grip",
+    ]);
+    await expect(page.getByRole("button", { name: "Left hand" })).toHaveCount(
+      0,
+    );
+  });
+
+  test("shows a 'Hand measured' card with the three headline numbers", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+    );
+    const rows = page.locator(".measurementRow");
+    await expect(rows.nth(0)).toContainText("Hand length");
+    await expect(rows.nth(0)).toContainText("190.0 mm");
+    await expect(rows.nth(1)).toContainText("Palm length");
+    await expect(rows.nth(1)).toContainText("108.0 mm");
+    await expect(rows.nth(2)).toContainText("Palm width");
+    await expect(rows.nth(2)).toContainText("84.0 mm");
+  });
+
+  test("shows 'See my matches' as the primary action and 'Use a different photo' as the secondary one", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "See my matches" }),
+    ).toBeVisible();
+    await expect(page.locator(".uploadButton")).toHaveText(
+      "Use a different photo",
+    );
+  });
+
+  test("states the on-device privacy line, including that only the measurements are sent", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".deviceNotice")).toHaveText(
+      "Processed on this device — the photo is never uploaded. Only these measurements are sent.",
+    );
+  });
+});
+
 // Issue #29: submit the scan once it's measured. `/scan/submit-demo` mounts
 // the same `ScanSubmitPanel` `/scan` renders in its "ok" state, but against
 // a fixed, schema-valid `ScanSubmission` fixture instead of one derived from

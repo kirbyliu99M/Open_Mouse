@@ -88,10 +88,80 @@ function cornersToPoints(corners: readonly Point2[]): string {
   return corners.map((p) => `${p.x},${p.y}`).join(" ");
 }
 
-export default function ScanClient() {
-  const [hand, setHand] = useState<Hand>("right");
-  const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(undefined);
-  const [state, setState] = useState<ScanState>({ kind: "idle" });
+/** A plain circled checkmark for the "Hand measured" completion state —
+ * decorative only, the text next to it already says what it means. */
+function CheckIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      className="checkIcon"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle
+        cx="10"
+        cy="10"
+        r="8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M6 10.2l2.6 2.6L14 7.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Seeds the "ok" (measured) state directly, bypassing the photo pipeline —
+ * for `/scan/measured-demo` only. No synthetic e2e photo gets MediaPipe to
+ * detect a hand (see tests/e2e/scan.spec.ts's own comment on this), so this
+ * is the only deterministic way to reach and screenshot the measured layout
+ * in CI. Mirrors how `/scan/submit-demo` exercises `ScanSubmitPanel`.
+ */
+export interface ScanDemoMeasuredState {
+  readonly hand: Hand;
+  readonly gripStyle?: GripStyle;
+  readonly measurements: HandMeasurements;
+  readonly submission: ScanSubmission;
+}
+
+const EMPTY_OVERLAY: PhotoOverlay = {
+  imageWidth: 1,
+  imageHeight: 1,
+  markers: [],
+  card: null,
+  landmarksPx: null,
+};
+
+export default function ScanClient({
+  demoMeasured,
+}: {
+  demoMeasured?: ScanDemoMeasuredState;
+} = {}) {
+  const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
+  const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
+    demoMeasured?.gripStyle,
+  );
+  const [state, setState] = useState<ScanState>(
+    demoMeasured
+      ? {
+          kind: "ok",
+          measurements: demoMeasured.measurements,
+          submission: demoMeasured.submission,
+          warnings: [],
+          overlay: EMPTY_OVERLAY,
+        }
+      : { kind: "idle" },
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [manualCorners, setManualCorners] = useState<CardCorners | null>(null);
   const fileRef = useRef<File | null>(null);
@@ -308,43 +378,63 @@ export default function ScanClient() {
         and photograph both from directly above.
       </p>
 
-      <fieldset className="picker">
-        <legend>Which hand?</legend>
-        <div className="pickerButtons" role="group" aria-label="Which hand">
-          {(["left", "right"] as const).map((h) => (
-            <button
-              key={h}
-              type="button"
-              className={`pickerButton${hand === h ? " selected" : ""}`}
-              aria-pressed={hand === h}
-              onClick={() => changeHand(h)}
-            >
-              {h === "left" ? "Left hand" : "Right hand"}
-            </button>
-          ))}
+      {state.kind === "ok" ? (
+        // Once measured, the hand/grip choice is a settled fact, not a
+        // decision still being made — shown as a pair of quiet chips
+        // (docs/design/journey-2026-09-23/03-scan-measured.png) instead of
+        // the full picker. To change either, choose a different photo,
+        // which re-opens the pickers below.
+        <div className="scanChips" aria-label="Hand and grip used">
+          <span className="scanChip">
+            {hand === "left" ? "Left hand" : "Right hand"}
+          </span>
+          {gripStyle && (
+            <span className="scanChip">
+              {gripStyle[0].toUpperCase() + gripStyle.slice(1)} grip
+            </span>
+          )}
         </div>
-      </fieldset>
+      ) : (
+        <>
+          <fieldset className="picker">
+            <legend>Which hand?</legend>
+            <div className="pickerButtons" role="group" aria-label="Which hand">
+              {(["left", "right"] as const).map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  className={`pickerButton${hand === h ? " selected" : ""}`}
+                  aria-pressed={hand === h}
+                  onClick={() => changeHand(h)}
+                >
+                  {h === "left" ? "Left hand" : "Right hand"}
+                </button>
+              ))}
+            </div>
+          </fieldset>
 
-      <fieldset className="picker">
-        <legend>Grip style (optional)</legend>
-        <div
-          className="pickerButtons"
-          role="group"
-          aria-label="Grip style, optional"
-        >
-          {(["palm", "claw", "fingertip"] as const).map((g) => (
-            <button
-              key={g}
-              type="button"
-              className={`pickerButton${gripStyle === g ? " selected" : ""}`}
-              aria-pressed={gripStyle === g}
-              onClick={() => changeGrip(gripStyle === g ? undefined : g)}
+          <fieldset className="picker">
+            <legend>Grip style (optional)</legend>
+            <div
+              className="pickerButtons"
+              role="group"
+              aria-label="Grip style, optional"
             >
-              {g[0].toUpperCase() + g.slice(1)}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+              {(["palm", "claw", "fingertip"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`pickerButton${gripStyle === g ? " selected" : ""}`}
+                  aria-pressed={gripStyle === g}
+                  onClick={() => changeGrip(gripStyle === g ? undefined : g)}
+                >
+                  {g[0].toUpperCase() + g.slice(1)}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </>
+      )}
 
       <div
         className={`uploadSlot${state.kind === "ok" ? " uploadSlot-measured" : ""}`}
@@ -365,6 +455,7 @@ export default function ScanClient() {
         />
         <p className="deviceNotice">
           Processed on this device — the photo is never uploaded.
+          {state.kind === "ok" && " Only these measurements are sent."}
         </p>
       </div>
 
@@ -480,7 +571,9 @@ export default function ScanClient() {
 
       {state.kind === "ok" && (
         <div className="feedback feedback-ok">
-          <p className="feedbackTitle">✓ Measured</p>
+          <p className="feedbackTitle">
+            <CheckIcon /> Hand measured
+          </p>
           {state.warnings.length > 0 && (
             <div className="feedback feedback-warning">
               {state.warnings.map((w, i) => (
@@ -504,6 +597,10 @@ export default function ScanClient() {
               </div>
             ))}
           </dl>
+          <p className="feedbackCaption">
+            All four sheet markers and the card were found, so the scale is
+            checked.
+          </p>
         </div>
       )}
       {state.kind === "ok" && <ScanSubmitPanel submission={state.submission} />}

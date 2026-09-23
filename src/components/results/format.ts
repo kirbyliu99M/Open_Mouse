@@ -29,6 +29,25 @@ export function dimensionDelta(actualMm: number, targetMm: number): number {
   return actualMm - targetMm;
 }
 
+/**
+ * Same rounding as `formatMm`, without the "mm" suffix — for a table column
+ * whose header already states the unit, so a value like "115.0" never has to
+ * wrap onto a second line in a narrow cell.
+ */
+export function formatMmValue(valueMm: number): string {
+  const rounded = Math.round(valueMm * 10) / 10;
+  const safe = rounded === 0 ? 0 : rounded;
+  return safe.toFixed(1);
+}
+
+/** Same rounding as `formatSignedMm`, without the "mm" suffix. */
+export function formatSignedMmValue(deltaMm: number): string {
+  const rounded = Math.round(deltaMm * 10) / 10;
+  const safe = rounded === 0 ? 0 : rounded;
+  const sign = safe > 0 ? "+" : "";
+  return `${sign}${safe.toFixed(1)}`;
+}
+
 export function formatWeight(weightG: number | null): string {
   if (weightG === null) return "Weight not listed";
   return `${Math.round(weightG)} g`;

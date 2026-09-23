@@ -73,7 +73,7 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     state.kind === "submitting"
       ? "Sending your measurements…"
       : state.kind === "success"
-        ? "Measured — opening your results…"
+        ? "Measured — opening your matches…"
         : "";
 
   return (
@@ -88,8 +88,8 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
         {state.kind === "submitting"
           ? "Submitting…"
           : state.kind === "success"
-            ? "Opening your results…"
-            : "Get my results"}
+            ? "Opening your matches…"
+            : "See my matches"}
       </button>
       <div
         aria-live="polite"

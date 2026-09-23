@@ -29,6 +29,44 @@ test.describe("/results/demo", () => {
       /descriptor_unknown|shape-classified|logitech-mx-master-3s|fallback|gemini|llm/i,
     );
   });
+  test("top-pick header shows the total as a big number, drops the old meta row, and shows one honest statement about unrated shape", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo?presentation=1");
+
+    // The big score is the fit entry's real total (55 in low-confidence.json,
+    // the fixture this presentation view uses), not any other number on the
+    // card.
+    await expect(page.locator(".results-topPick-scoreValue")).toHaveText("55");
+    await expect(page.locator(".results-topPick-scoreLabel")).toHaveText(
+      "fit score / 100",
+    );
+
+    // "Best match" and the old Size/Weight/Fit score/Confidence row are gone
+    // from the top-pick card (item 1).
+    await expect(
+      page.locator(".results-topPick").getByText("Best match", {
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator(".results-topPick .results-mouseHeader-stats"),
+    ).toHaveCount(0);
+
+    // Only the "leans on its size" line appears — not also the generic
+    // low-confidence note (item 2).
+    await expect(page.locator(".results-sizeNotice")).toBeVisible();
+    await expect(
+      page.locator(".results-topPick .results-confidenceNote"),
+    ).toHaveCount(0);
+
+    // The old per-reason "Why it fits" cards are gone (item 3) — the plain
+    // per-subscore sentences (SubscoreBar's own reason text) are the only
+    // place those reasons appear now.
+    await expect(page.locator(".results-topPick-reasons")).toHaveCount(0);
+    await expect(page.getByText("Why it fits")).toHaveCount(0);
+  });
+
   test("renders each fixture with no console errors", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -43,22 +81,26 @@ test.describe("/results/demo", () => {
       page.getByRole("heading", { level: 1, name: "Results (mock data)" }),
     ).toBeVisible();
 
-    // High confidence (default): top pick visible, its "why it fits" reasons
-    // shown, and no "not yet assessed" placeholder for the top pick.
+    // High confidence (default): top pick visible with its scores heading,
+    // and no "not yet assessed" placeholder for the top pick.
     await expect(
       page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByText("Why it fits")).toBeVisible();
+    await expect(page.getByText("How it scores")).toBeVisible();
 
-    // Low confidence: top pick shows the confidence note and at least one
-    // "Not yet assessed" sub-score once the ranked list is expanded.
+    // Low confidence: with unrated shape scores, the top pick shows the
+    // "leans on its size" line rather than the generic confidence note —
+    // one honest statement, not two (item 2).
     await page.getByRole("button", { name: "Low confidence (nulls)" }).click();
     await expect(
       page.getByRole("heading", { level: 3, name: /MX Master 3S/ }),
     ).toBeVisible();
-    await expect(page.getByRole("status").first()).toContainText(
-      /haven't assessed this mouse's shape yet/,
+    await expect(page.locator(".results-sizeNotice")).toContainText(
+      "leans on its size",
     );
+    await expect(
+      page.locator(".results-topPick").getByRole("status"),
+    ).toHaveCount(0);
 
     // With exclusions: the "Not shown" group lists the excluded mice.
     await page.getByRole("button", { name: "With exclusions" }).click();
@@ -125,10 +167,10 @@ test.describe("/results/demo", () => {
 
     await page.getByRole("button", { name: "Ready", exact: true }).click();
     await expect(
-      page.getByRole("heading", {
-        level: 3,
-        name: "A close match for your palm grip",
-      }),
+      page.getByRole("heading", { level: 3, name: "Why this one" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("A close match for your palm grip"),
     ).toBeVisible();
   });
 });

@@ -19,6 +19,13 @@ for (const capture of [
     colorScheme: "dark" as const,
   },
   {
+    name: "scan-measured-light",
+    path: "/scan/measured-demo",
+    width: 390,
+    height: 844,
+    colorScheme: "light" as const,
+  },
+  {
     name: "results-light",
     path: "/results/demo?presentation=1",
     width: 390,

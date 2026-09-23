@@ -76,13 +76,12 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByText("Why it fits")).toBeVisible();
 
     await expect(
-      page.getByRole("heading", {
-        level: 3,
-        name: "A close match for your palm grip",
-      }),
+      page.getByRole("heading", { level: 3, name: "Why this one" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("A close match for your palm grip"),
     ).toBeVisible();
 
     expect(errors).toEqual([]);
@@ -118,7 +117,12 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { name: "We couldn't find this scan" }),
     ).toBeVisible();
-    const scanAgain = page.getByRole("link", { name: "Scan again" });
+    // Scoped to the error panel's own action — the TopBar above it also has
+    // a "Scan again" link (its accessible name is "Back to Scan again"),
+    // and an unscoped query matches both.
+    const scanAgain = page
+      .locator(".results-page-error")
+      .getByRole("link", { name: "Scan again", exact: true });
     await expect(scanAgain).toBeVisible();
     await expect(scanAgain).toHaveAttribute("href", "/scan");
     // Never shows the numeric ranking for a 404.
@@ -184,7 +188,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByText("Why it fits")).toBeVisible();
+    await expect(page.getByText("How it scores")).toBeVisible();
 
     const alert = page
       .getByRole("alert")
@@ -204,9 +208,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByText(
-        "This was generated automatically from your scores above.",
-      ),
+      page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
