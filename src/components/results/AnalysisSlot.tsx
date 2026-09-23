@@ -1,4 +1,5 @@
 import type { AnalysisState } from "./analysisState";
+import { joinHeadlineAndBody } from "./format";
 
 /**
  * Optional slot for the written analysis (M5 `analysisResponseSchema`). Its
@@ -81,9 +82,7 @@ export function AnalysisSlot({
   return (
     <section className="results-analysis results-analysis-ready">
       <h3 className="results-analysis-heading">Why this one</h3>
-      <p>
-        {output.headline} {output.whyTopPick}
-      </p>
+      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
           <h4>Tradeoffs</h4>

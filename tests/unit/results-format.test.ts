@@ -9,6 +9,7 @@ import {
   formatSignedMmValue,
   formatWeight,
   isLowConfidence,
+  joinHeadlineAndBody,
 } from "../../src/components/results/format";
 
 describe("formatMm", () => {
@@ -95,5 +96,35 @@ describe("isLowConfidence", () => {
     expect(isLowConfidence(0.59)).toBe(true);
     expect(isLowConfidence(0.6)).toBe(false);
     expect(isLowConfidence(0.9)).toBe(false);
+  });
+});
+
+describe("joinHeadlineAndBody", () => {
+  it("adds a period between the headline and the body when the headline has none", () => {
+    expect(
+      joinHeadlineAndBody(
+        "A close match for your palm grip",
+        "Its length lands close to your ideal.",
+      ),
+    ).toBe(
+      "A close match for your palm grip. Its length lands close to your ideal.",
+    );
+  });
+
+  it("doesn't double a trailing period the headline already has", () => {
+    expect(
+      joinHeadlineAndBody(
+        "G Pro X Superlight 2c is the top match for your hand.",
+        "Its length lands close to your ideal.",
+      ),
+    ).toBe(
+      "G Pro X Superlight 2c is the top match for your hand. Its length lands close to your ideal.",
+    );
+  });
+
+  it("keeps an existing exclamation or question mark as-is", () => {
+    expect(joinHeadlineAndBody("A great fit!", "Read on.")).toBe(
+      "A great fit! Read on.",
+    );
   });
 });

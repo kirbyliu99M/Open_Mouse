@@ -63,6 +63,20 @@ export function formatScore(score: number | null): string {
   return score === null ? "Not yet assessed" : `${score}`;
 }
 
+/**
+ * Joins the analysis headline and the why-it-fits sentence into one body
+ * paragraph (docs/design/journey-2026-09-23/04-results.png shows them as one
+ * flowing paragraph under "Why this one"). The contract only requires a
+ * non-empty headline, not trailing punctuation, so this adds a period when
+ * the headline doesn't already end in one — otherwise the two sentences run
+ * together with no break between them.
+ */
+export function joinHeadlineAndBody(headline: string, body: string): string {
+  const trimmedHeadline = headline.trim();
+  const endsWithPunctuation = /[.!?]$/.test(trimmedHeadline);
+  return `${trimmedHeadline}${endsWithPunctuation ? "" : "."} ${body.trim()}`;
+}
+
 export const LOW_CONFIDENCE_THRESHOLD = 0.6;
 
 export function isLowConfidence(confidence: number): boolean {
