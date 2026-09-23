@@ -76,7 +76,10 @@ export async function loadOwnedFit(
   const engineOutput = scoreFit(
     owned.measurements,
     catalogue,
-    prefs,
+    {
+      ...prefs,
+      gripStyle: prefs.gripStyle ?? owned.gripStyleStated ?? undefined,
+    },
     owned.hand,
   );
   const response = { scanId, ...engineOutput };
