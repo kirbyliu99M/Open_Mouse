@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  analyse,
-  buildPrompt,
-  LOW_CONFIDENCE_THRESHOLD,
-} from "../../src/server/analysis/analyse";
+import { analyse, buildPrompt } from "../../src/server/analysis/analyse";
+import { REASON_CODES } from "../../src/lib/contracts/fit";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { FakeTextModel } from "../../src/server/analysis/client";
 import { slugify } from "../../src/server/catalogue/seed-rows";
@@ -91,16 +88,48 @@ describe("analyse — no-new-numerals rule", () => {
     expect(source).toBe("model");
   });
 
-  it("keeps internal identifiers out of the model prompt", () => {
-    const prompt = buildPrompt(inputFor());
+  it("keeps every slug, every reason code and the engine version out of the prompt data", () => {
+    const fit = makeFit();
+    const prompt = buildPrompt(buildAnalysisInput(fit, makeMeasurements()));
     const data = prompt.split("Data:\n")[1]!;
-    expect(data).not.toContain("fit-v0-provisional");
-    expect(data).not.toContain("logitech-g-pro-x-superlight-2");
-    expect(data).not.toContain("length_ideal");
-    expect(data).not.toContain("vertical_form_factor");
-    expect(data).toContain("The ranking is provisional");
-    expect(prompt).toContain("Never mention internal identifiers");
+    expect(data).not.toContain(fit.engineVersion);
+    for (const slug of [
+      ...fit.results.map((r) => r.mouse.slug),
+      ...fit.excluded.map((e) => e.slug),
+    ]) {
+      expect(data).not.toContain(slug);
+    }
+    for (const code of REASON_CODES) {
+      expect(data).not.toContain(`"${code}"`);
+    }
+    expect(data).toContain("Fit settings have not yet been validated");
     expect(data).toContain("its length matches your hand well");
+    expect(prompt).toContain("Never mention internal identifiers");
+  });
+
+  it("describes each exclusion in the same terms as the results page", () => {
+    const fit = makeFit({
+      excluded: [
+        {
+          slug: "logitech-lift-vertical",
+          brand: "Logitech",
+          model: "Lift Vertical",
+          reason: "vertical_form_factor",
+        },
+        {
+          slug: "logitech-lift-left",
+          brand: "Logitech",
+          model: "Lift Left",
+          reason: "wrong_hand",
+        },
+      ],
+    });
+    const data = buildPrompt(buildAnalysisInput(fit, makeMeasurements())).split(
+      "Data:\n",
+    )[1]!;
+    expect(data).toContain("vertical shape, excluded from this comparison");
+    expect(data).toContain("does not fit the selected hand");
+    expect(data).not.toContain("scored separately");
   });
 
   it("path 2: retries once, naming the violation, then accepts the corrected answer", async () => {
@@ -154,13 +183,30 @@ describe("analyse — no-new-numerals rule", () => {
 });
 
 describe("analyse — low confidence", () => {
-  it("the prompt says descriptors are provisional when confidence is below the threshold", () => {
+  it("the instructions (not just the data) say descriptors are provisional at low confidence", () => {
     const input = inputFor(0.4);
-    expect(input.topPicks[0]!.confidencePercent).toBeLessThan(
-      LOW_CONFIDENCE_THRESHOLD,
-    );
-    const prompt = buildPrompt(input);
-    expect(prompt).toMatch(/provisional/i);
+    expect(input.topPicks[0]!.lowConfidence).toBe(true);
+    const instructions = buildPrompt(input).split("\n\nData:")[0]!;
+    expect(instructions).toMatch(/provisional/i);
+  });
+
+  it("does not accept the copied ranking-status sentence as the low-confidence caveat", async () => {
+    const input = inputFor(0.4);
+    // Whatever sentence the prompt actually shows the model, verbatim.
+    const shown = JSON.parse(buildPrompt(input).split("Data:\n")[1]!) as {
+      rankingStatus: string;
+    };
+    const copiedStatus = JSON.stringify({
+      headline: "A strong match.",
+      whyTopPick: "It fits.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [shown.rankingStatus],
+    });
+    const client = new FakeTextModel({ answer: () => copiedStatus });
+    const { source } = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(source).toBe("fallback");
   });
 
   it("does not add the provisional instruction at high confidence", () => {

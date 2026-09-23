@@ -7,6 +7,7 @@
  */
 import { Type } from "@google/genai";
 import type { AnalysisSource } from "../../lib/contracts/analysis";
+import type { ExclusionReason } from "../fit/exclusions";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
@@ -23,8 +24,13 @@ export interface AnalyseResult {
   source: AnalysisSource;
 }
 
-/** Confidence below this means real descriptors are missing for the ranking. */
-export const LOW_CONFIDENCE_THRESHOLD = 60;
+/** Plain words for each exclusion, matching what the results page says
+ * (`EXCLUDED_REASON_LABELS`). A `Record` so a new reason cannot silently
+ * reuse another's text. */
+const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
+  wrong_hand: "does not fit the selected hand",
+  vertical_form_factor: "vertical shape, excluded from this comparison",
+};
 
 const PROVISIONAL_NOTE =
   "This ranking is provisional: some shape descriptors it depends on are not classified yet.";
@@ -74,14 +80,17 @@ function collectExemptTokens(input: AnalysisInput): Set<string> {
 
 function isLowConfidence(input: AnalysisInput): boolean {
   const top = input.topPicks[0];
-  return top !== undefined && top.confidencePercent < LOW_CONFIDENCE_THRESHOLD;
+  return top !== undefined && top.lowConfidence;
 }
 
 /** Only display facts go into the prompt; identifiers stay in the engine data. */
 function promptData(input: AnalysisInput) {
   return {
     rankingStatus: input.rankingProvisional
-      ? "The ranking is provisional because its fit settings have not been validated against owner ratings yet."
+      ? // Deliberately avoids the word "provisional": that word is what the
+        // low-confidence caveat check looks for, and copying this sentence
+        // must not satisfy it without saying descriptors are unclassified.
+        "Fit settings have not yet been validated against owner ratings."
       : undefined,
     gripStyle: input.gripStyle,
     targets: input.targets,
@@ -89,10 +98,7 @@ function promptData(input: AnalysisInput) {
     excluded: input.excluded.map(({ brand, model, reason }) => ({
       brand,
       model,
-      reason:
-        reason === "wrong_hand"
-          ? "not suitable for the selected hand"
-          : "vertical shape scored separately",
+      reason: EXCLUSION_TEXT[reason],
     })),
     topPicks: input.topPicks.map((entry) => ({
       rank: entry.rank,
@@ -228,7 +234,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
     .slice(0, 2)
     .map((t) => t[0]!.toUpperCase() + t.slice(1));
   const caveats: string[] = [];
-  if (top.confidencePercent < LOW_CONFIDENCE_THRESHOLD) {
+  if (top.lowConfidence) {
     caveats.push(PROVISIONAL_NOTE);
   }
   return { headline, whyTopPick, tradeoffs, whatToAvoid, caveats };

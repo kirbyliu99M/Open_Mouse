@@ -58,7 +58,49 @@ describe("buildAnalysisInput", () => {
     });
   });
 
-  it("rounds confidence to a whole percent and millimetres to one decimal", () => {
+  it("decides low confidence on the raw value, as the results page does", () => {
+    // 0.597 rounds to 60%, which is not below 60 — but the page's own
+    // isLowConfidence(0.597) is true, and the prose must agree with the page.
+    const fit = makeFit({
+      results: [{ ...makeFit().results[0]!, confidence: 0.597 }],
+    });
+    const entry = buildAnalysisInput(fit, makeMeasurements()).topPicks[0]!;
+    expect(entry.confidencePercent).toBe(60);
+    expect(entry.lowConfidence).toBe(true);
+  });
+
+  it("rounds mouse dimensions and every reason param, grams included, to one decimal", () => {
+    const base = makeFit().results[0]!;
+    const fit = makeFit({
+      results: [
+        {
+          ...base,
+          mouse: { ...base.mouse, lengthMm: 125.04, widthMm: 63.46 },
+          subscores: {
+            ...base.subscores,
+            length: {
+              ...base.subscores.length,
+              reason: { code: "length_ideal", params: { deltaMm: 1.4999999 } },
+            },
+            weight: {
+              ...base.subscores.weight,
+              reason: {
+                code: "weight_in_range",
+                params: { deltaG: 1.4000000000000057 },
+              },
+            },
+          },
+        },
+      ],
+    });
+    const entry = buildAnalysisInput(fit, makeMeasurements()).topPicks[0]!;
+    expect(entry.lengthMm).toBe(125);
+    expect(entry.widthMm).toBe(63.5);
+    expect(entry.subscores.length.params).toEqual({ deltaMm: 1.5 });
+    expect(entry.subscores.weight.params).toEqual({ deltaG: 1.4 });
+  });
+
+  it("rounds confidence to a whole percent, and targets and hand to one decimal", () => {
     const fit = makeFit({
       targets: { lengthMm: 118.456, gripWidthMm: 62.456, heightMm: 39.456 },
       results: [{ ...makeFit().results[0]!, confidence: 0.7575757575757576 }],

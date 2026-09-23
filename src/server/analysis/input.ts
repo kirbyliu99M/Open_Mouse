@@ -6,7 +6,9 @@
  * the model's answer that doesn't trace back to a value in this object is a
  * no-new-numerals violation.
  */
+import { isLowConfidence } from "../../components/results/format";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
+import { ENGINE_IS_PROVISIONAL } from "../fit/coefficients";
 import type {
   FitEntry,
   FitResponse,
@@ -31,6 +33,12 @@ export interface AnalysisInputEntry {
   weightG: number | null;
   total: number;
   confidencePercent: number;
+  /**
+   * Decided on the raw 0..1 confidence with the results UI's own threshold,
+   * so the prose and the page can never disagree about "provisional" near
+   * the boundary (a rounded percent could land either side of it).
+   */
+  lowConfidence: boolean;
   subscores: Record<Subscore, AnalysisInputSubscore>;
 }
 
@@ -53,12 +61,11 @@ function oneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+/** Every reason param (mm, g, ratios) to one decimal: the engine's
+ * subtractions leave float noise such as 1.4000000000000057 g otherwise. */
 function roundedParams(params: Record<string, number>): Record<string, number> {
   return Object.fromEntries(
-    Object.entries(params).map(([key, value]) => [
-      key,
-      key.endsWith("Mm") ? oneDecimal(value) : value,
-    ]),
+    Object.entries(params).map(([key, value]) => [key, oneDecimal(value)]),
   );
 }
 
@@ -84,6 +91,7 @@ function toInputEntry(entry: FitEntry): AnalysisInputEntry {
     weightG: entry.mouse.weightG,
     total: entry.total,
     confidencePercent: Math.round(entry.confidence * 100),
+    lowConfidence: isLowConfidence(entry.confidence),
     subscores,
   };
 }
@@ -93,7 +101,7 @@ export function buildAnalysisInput(
   measurements: HandMeasurements,
 ): AnalysisInput {
   return {
-    rankingProvisional: fit.engineVersion.includes("provisional"),
+    rankingProvisional: ENGINE_IS_PROVISIONAL,
     gripStyle: fit.gripStyle,
     targets: {
       lengthMm: oneDecimal(fit.targets.lengthMm),
