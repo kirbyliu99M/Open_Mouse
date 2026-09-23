@@ -10,6 +10,7 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import { TopBar } from "@/components/nav/TopBar";
 import "@/components/results/results.css";
 
 type PageState =
@@ -88,6 +89,11 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
   if (pageState.kind === "loading") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <p className="results-page-status" role="status">
           Loading your results&hellip;
         </p>
@@ -98,6 +104,11 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
   if (pageState.kind === "notFound") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>We couldn&apos;t find this scan</h1>
@@ -116,6 +127,11 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
   if (pageState.kind === "networkError") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>We couldn&apos;t reach the server</h1>
@@ -131,6 +147,11 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
   if (pageState.kind === "serverError") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>Something went wrong</h1>
@@ -145,14 +166,26 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
 
   return (
     <main className="resultsMain">
-      <Link href="/" className="results-page-back">
-        ‹ Home
-      </Link>
       <ResultsView
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}
       />
+      <p className="results-previewNotice">
+        Early preview · measurements still being validated.
+      </p>
+      <button
+        type="button"
+        className="results-delete"
+        onClick={async () => {
+          const response = await fetch("/api/scans/session", {
+            method: "DELETE",
+          });
+          if (response.ok) window.location.assign("/");
+        }}
+      >
+        Delete this scan now
+      </button>
     </main>
   );
 }

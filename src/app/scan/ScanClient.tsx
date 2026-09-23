@@ -16,6 +16,7 @@ import {
 } from "@/client/photo/pipeline";
 import { getHandLandmarker } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
+import { TopBar } from "@/components/nav/TopBar";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -32,7 +33,12 @@ type ScanState =
       warnings: readonly PipelineIssue[];
       overlay: PhotoOverlay;
     }
-  | { kind: "error"; errors: readonly PipelineIssue[]; overlay: PhotoOverlay };
+  | {
+      kind: "error";
+      errors: readonly PipelineIssue[];
+      overlay: PhotoOverlay | null;
+      retryable?: boolean;
+    };
 
 const MEASUREMENT_LABELS: Record<keyof HandMeasurements, string> = {
   handLengthMm: "Hand length",
@@ -91,13 +97,16 @@ export default function ScanClient() {
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
+  const runIdRef = useRef(0);
 
   // Warm the MediaPipe HandLandmarker (fetches its model + WASM) as soon as
   // the page mounts, so those same-origin asset loads happen well before
   // any photo is processed — see tests/e2e/scan.spec.ts's zero-network
   // assertion, which only starts recording after the page has settled.
   useEffect(() => {
-    void getHandLandmarker();
+    void getHandLandmarker().catch(() => {
+      // A chosen photo owns the visible recovery state.
+    });
   }, []);
 
   useEffect(() => {
@@ -107,30 +116,53 @@ export default function ScanClient() {
   }, [previewUrl]);
 
   const runPipeline = useCallback(
-    async (file: File, corners: CardCorners | undefined) => {
+    async (
+      file: File,
+      corners: CardCorners | undefined,
+      selectedHand = hand,
+      selectedGrip = gripStyle,
+    ) => {
+      const runId = ++runIdRef.current;
       setState({ kind: "processing" });
-      const result = await runPhotoPipeline({
-        file,
-        hand,
-        gripStyleStated: gripStyle,
-        manualCardCorners: corners,
-      });
-      if (result.status === "ok") {
-        setState({
-          kind: "ok",
-          measurements: result.measurements,
-          submission: result.submission,
-          warnings: result.warnings,
-          overlay: result.overlay,
+      try {
+        const result = await runPhotoPipeline({
+          file,
+          hand: selectedHand,
+          gripStyleStated: selectedGrip,
+          manualCardCorners: corners,
         });
-      } else if (result.status === "needsManualCard") {
-        setManualCorners(defaultManualCorners(result.overlay));
-        setState({ kind: "needsManualCard", overlay: result.overlay });
-      } else {
+        if (runId !== runIdRef.current) return;
+        if (result.status === "ok") {
+          setState({
+            kind: "ok",
+            measurements: result.measurements,
+            submission: result.submission,
+            warnings: result.warnings,
+            overlay: result.overlay,
+          });
+        } else if (result.status === "needsManualCard") {
+          setManualCorners(defaultManualCorners(result.overlay));
+          setState({ kind: "needsManualCard", overlay: result.overlay });
+        } else {
+          setState({
+            kind: "error",
+            errors: result.errors,
+            overlay: result.overlay,
+          });
+        }
+      } catch {
+        if (runId !== runIdRef.current) return;
         setState({
           kind: "error",
-          errors: result.errors,
-          overlay: result.overlay,
+          errors: [
+            {
+              code: "processing_failed",
+              message:
+                "We couldn't load the hand detector. Check your connection and try again.",
+            } as PipelineIssue,
+          ],
+          overlay: null,
+          retryable: true,
         });
       }
     },
@@ -140,6 +172,7 @@ export default function ScanClient() {
   const onFileChosen = useCallback(
     (file: File) => {
       fileRef.current = file;
+      ++runIdRef.current;
       setManualCorners(null);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(file));
@@ -167,6 +200,34 @@ export default function ScanClient() {
     if (!file || !manualCorners) return;
     void runPipeline(file, manualCorners);
   }, [manualCorners, runPipeline]);
+
+  const retryPhoto = useCallback(() => {
+    if (fileRef.current)
+      void runPipeline(fileRef.current, manualCorners ?? undefined);
+  }, [manualCorners, runPipeline]);
+
+  const changeHand = useCallback(
+    (next: Hand) => {
+      setHand(next);
+      if (fileRef.current)
+        void runPipeline(fileRef.current, manualCorners ?? undefined, next);
+    },
+    [manualCorners, runPipeline],
+  );
+
+  const changeGrip = useCallback(
+    (next: GripStyle | undefined) => {
+      setGripStyle(next);
+      if (fileRef.current)
+        void runPipeline(
+          fileRef.current,
+          manualCorners ?? undefined,
+          hand,
+          next,
+        );
+    },
+    [hand, manualCorners, runPipeline],
+  );
 
   const beginDrag = useCallback(
     (index: number) => (e: ReactPointerEvent<SVGCircleElement>) => {
@@ -235,18 +296,16 @@ export default function ScanClient() {
 
   return (
     <main className="scanMain">
-      <nav className="wayfinding" aria-label="Scan progress">
-        <Link href="/" className="wayOut">
-          ‹ Home
-        </Link>
-        <p className="stepLabel">Step 1 of 3 · Top-down photo</p>
-      </nav>
+      <TopBar
+        backHref="/sheet"
+        backLabel="Sheet"
+        stepLabel="Step 2 of 2 · Photo"
+      />
 
       <h1>Photograph your hand on the sheet</h1>
       <p className="hint">
         Lay your hand flat on the sheet next to a bank card, fingers together,
-        and photograph both from directly above. Side and grip photos come
-        later.
+        and photograph both from directly above.
       </p>
 
       <fieldset className="picker">
@@ -258,7 +317,7 @@ export default function ScanClient() {
               type="button"
               className={`pickerButton${hand === h ? " selected" : ""}`}
               aria-pressed={hand === h}
-              onClick={() => setHand(h)}
+              onClick={() => changeHand(h)}
             >
               {h === "left" ? "Left hand" : "Right hand"}
             </button>
@@ -279,9 +338,7 @@ export default function ScanClient() {
               type="button"
               className={`pickerButton${gripStyle === g ? " selected" : ""}`}
               aria-pressed={gripStyle === g}
-              onClick={() =>
-                setGripStyle((prev) => (prev === g ? undefined : g))
-              }
+              onClick={() => changeGrip(gripStyle === g ? undefined : g)}
             >
               {g[0].toUpperCase() + g.slice(1)}
             </button>
@@ -289,9 +346,15 @@ export default function ScanClient() {
         </div>
       </fieldset>
 
-      <div className="uploadSlot">
+      <div
+        className={`uploadSlot${state.kind === "ok" ? " uploadSlot-measured" : ""}`}
+      >
         <label className="uploadButton" htmlFor="top-down-photo">
-          {previewUrl ? "Replace photo" : "Choose photo"}
+          {state.kind === "ok"
+            ? "Use a different photo"
+            : previewUrl
+              ? "Replace photo"
+              : "Choose photo"}
         </label>
         <input
           id="top-down-photo"
@@ -319,7 +382,7 @@ export default function ScanClient() {
         </p>
       )}
 
-      {previewUrl && (
+      {previewUrl && state.kind !== "ok" && (
         <div
           className="photoStage"
           style={
@@ -403,6 +466,15 @@ export default function ScanClient() {
               <li key={i}>{err.message}</li>
             ))}
           </ul>
+          {state.retryable && (
+            <button
+              type="button"
+              className="primaryButton"
+              onClick={retryPhoto}
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
@@ -418,7 +490,7 @@ export default function ScanClient() {
           )}
           {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
               from — the visible dl below is for people, formatted/rounded. */}
-          <p className="visuallyHidden" data-testid="scan-measurements-json">
+          <p hidden data-testid="scan-measurements-json">
             {JSON.stringify(state.measurements)}
           </p>
           <dl className="measurements" data-testid="scan-measurements">
@@ -432,9 +504,12 @@ export default function ScanClient() {
               </div>
             ))}
           </dl>
-          <ScanSubmitPanel submission={state.submission} />
         </div>
       )}
+      {state.kind === "ok" && <ScanSubmitPanel submission={state.submission} />}
+      <Link href="/sheet" className="scanSheetLink">
+        Don&apos;t have the sheet? Print it
+      </Link>
     </main>
   );
 }

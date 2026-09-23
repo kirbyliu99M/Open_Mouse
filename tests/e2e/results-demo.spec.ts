@@ -1,6 +1,34 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("/results/demo", () => {
+  test("presentation fixture shows six top scores, unrated tracks, and plain reasons", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo?presentation=1");
+    await expect(
+      page.getByRole("link", { name: /scan again/i }),
+    ).toHaveAttribute("href", "/scan");
+    await expect(page.getByText("Your matches")).toBeVisible();
+    const scores = page.locator(".results-topPick .results-subscoreBar");
+    await expect(scores).toHaveCount(6);
+    const unrated = scores.filter({
+      has: page.locator('.results-subscoreBar-value:text-is("—")'),
+    });
+    expect(await unrated.count()).toBeGreaterThan(0);
+    await expect(
+      unrated.first().locator(".results-subscoreBar-fill"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("No weight preference given").first(),
+    ).toBeVisible();
+    await expect(page.locator(".results-sizeNotice")).toContainText(
+      "leans on its size",
+    );
+    const visible = await page.locator("main").innerText();
+    expect(visible).not.toMatch(
+      /descriptor_unknown|shape-classified|logitech-mx-master-3s|fallback|gemini|llm/i,
+    );
+  });
   test("renders each fixture with no console errors", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -29,7 +57,7 @@ test.describe("/results/demo", () => {
       page.getByRole("heading", { level: 3, name: /MX Master 3S/ }),
     ).toBeVisible();
     await expect(page.getByRole("status").first()).toContainText(
-      /still being assessed/,
+      /haven't assessed this mouse's shape yet/,
     );
 
     // With exclusions: the "Not shown" group lists the excluded mice.

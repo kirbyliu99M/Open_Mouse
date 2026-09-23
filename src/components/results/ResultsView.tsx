@@ -5,6 +5,7 @@ import { ExcludedList } from "./ExcludedList";
 import { RankedList } from "./RankedList";
 import "./results.css";
 import { TopPick } from "./TopPick";
+import { TopBar } from "@/components/nav/TopBar";
 
 /**
  * Renders a `FitResponse` — the only input this component tree takes. No
@@ -21,6 +22,12 @@ export function ResultsView({
 }) {
   return (
     <div className="results-view">
+      <TopBar
+        backHref="/scan"
+        backLabel="Scan again"
+        stepLabel="Your matches"
+      />
+      <h1>Your best match</h1>
       <TopPick response={response} />
       <RankedList response={response} />
       <ExcludedList response={response} />

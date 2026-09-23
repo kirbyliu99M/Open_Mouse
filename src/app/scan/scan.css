@@ -371,3 +371,160 @@ h1 {
     border: 1px solid CanvasText;
   }
 }
+
+/* The two-step journey uses the shared palette and card rhythm. */
+/* Error red #a5251b: 7.29:1 on white, 6.64:1 on the page, 6.38:1 on its error panel. */
+:root {
+  --scan-bg: #f4f4f6;
+  --scan-fg: #1c1c1e;
+  --scan-muted: #55555d;
+  --scan-border: #d5d5dc;
+  --scan-accent: #0a64e0;
+  --scan-ok-fg: #1e7b45;
+  --scan-error-fg: #a5251b;
+}
+.scanMain {
+  max-width: 44rem;
+  padding: 1.5rem 1.5rem 5rem;
+  display: flex;
+  flex-direction: column;
+}
+.scanMain > h1 {
+  font-size: clamp(2rem, 8vw, 3rem);
+  margin: 1rem 0;
+}
+.scanMain .hint {
+  margin-bottom: 1.5rem;
+}
+.scanMain .picker {
+  margin-bottom: 1rem;
+}
+.scanMain .pickerButton {
+  border-radius: 999px;
+  min-height: 3.25rem;
+}
+.scanMain .pickerButton.selected {
+  background: #e7f0fd;
+  border-color: #e7f0fd;
+  color: #0a64e0;
+}
+.scanMain .uploadButton,
+.scanMain .primaryButton {
+  min-height: 3.25rem;
+}
+.scanMain .uploadButton {
+  width: 100%;
+}
+.scanMain .visuallyHidden:focus-visible + .uploadButton,
+.scanMain .uploadSlot:focus-within .uploadButton {
+  outline: 3px solid #0a64e0;
+  outline-offset: 3px;
+}
+.scanMain .uploadSlot {
+  margin: 1rem 0;
+}
+.scanMain .status-ok {
+  display: none;
+}
+.scanMain .feedback-ok {
+  order: 1;
+  background: #fff;
+  color: #1c1c1e;
+  border: 0;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin: 1rem 0 0;
+}
+.scanMain .feedback-ok .feedbackTitle {
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+.scanMain .measurements {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.scanMain .measurementRow {
+  display: block;
+}
+.scanMain .measurementRow:nth-child(n + 4) {
+  display: none;
+}
+.scanMain .measurements dt {
+  color: #55555d;
+}
+.scanMain .measurements dd {
+  font-size: 1.125rem;
+}
+.scanMain .submitPanel {
+  order: 2;
+  align-items: stretch;
+  margin-top: 1.25rem;
+}
+.scanMain .submitPanel .primaryButton {
+  width: 100%;
+  background: #0a64e0;
+}
+.scanMain .uploadSlot-measured {
+  order: 3;
+}
+.scanMain .uploadSlot-measured .uploadButton {
+  background: #fff;
+  color: #0a64e0;
+}
+.scanMain .scanSheetLink {
+  order: 4;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: #0a64e0;
+  text-decoration: none;
+  margin-top: 1.5rem;
+}
+.scanMain .scanSheetLink:active {
+  opacity: 0.65;
+}
+.scanMain .scanSheetLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.scanMain .deviceNotice {
+  text-align: center;
+  margin-top: 1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --scan-accent: #79adff;
+    --scan-ok-fg: #6fe39c;
+  }
+  .scanMain .feedback-ok {
+    background: #1c1c1e;
+    color: #f5f5f7;
+  }
+  .scanMain .measurements dt {
+    color: #b5b5bd;
+  }
+  .scanMain .pickerButton.selected {
+    background: #183353;
+    color: #a8caff;
+    border-color: #4778b7;
+  }
+  .scanMain .uploadSlot-measured .uploadButton {
+    background: #1c1c1e;
+    color: #79adff;
+  }
+  .scanMain .submitPanel .primaryButton {
+    background: #79adff;
+    color: #101114;
+  }
+  .scanMain .scanSheetLink {
+    color: #79adff;
+  }
+}
+@media (prefers-contrast: more) {
+  .scanMain .feedback-ok,
+  .scanMain .pickerButton,
+  .scanMain .uploadButton {
+    border: 2px solid currentColor;
+  }
+}

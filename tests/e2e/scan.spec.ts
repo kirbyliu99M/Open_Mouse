@@ -7,12 +7,44 @@ const FILE_INPUT = "#top-down-photo";
 const STATUS = () => "[data-testid='scan-status']";
 
 test.describe("/scan — top-down photo pipeline", () => {
+  test("failed detector download shows retry and leaves processing", async ({
+    page,
+  }) => {
+    await page.route("**/mediapipe/models/hand_landmarker.task", (route) =>
+      route.abort("failed"),
+    );
+    await page.goto("/scan");
+    const png = await buildSyntheticTopDownPhotoPng(page, {
+      includeMarkers: true,
+    });
+    await page.setInputFiles(FILE_INPUT, {
+      name: "sheet.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
+    await expect(page.locator(".feedback-error")).toContainText(
+      "load the hand detector",
+      { timeout: 20_000 },
+    );
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await page.unroute("**/mediapipe/models/hand_landmarker.task");
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator(STATUS())).not.toContainText("Looking for", {
+      timeout: 20_000,
+    });
+  });
   test("shows wayfinding, a way out, hand and grip pickers, and the on-device notice", async ({
     page,
   }) => {
     await page.goto("/scan");
-    await expect(page.getByText("Step 1 of 3 · Top-down photo")).toBeVisible();
-    await expect(page.getByRole("link", { name: /home/i })).toBeVisible();
+    await expect(page.getByText("Step 2 of 2 · Photo")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /sheet/i }).first(),
+    ).toHaveAttribute("href", "/sheet");
+    await expect(page.getByRole("link", { name: /print it/i })).toHaveAttribute(
+      "href",
+      "/sheet",
+    );
     await expect(page.getByRole("button", { name: "Left hand" })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Right hand" }),

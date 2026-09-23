@@ -37,7 +37,11 @@ export function getHandLandmarker(): Promise<HandLandmarker> {
       runningMode: "IMAGE",
       numHands: 1,
     });
-  })();
+  })().catch((error: unknown) => {
+    // A transient asset failure must not poison every later retry.
+    landmarkerPromise = null;
+    throw error;
+  });
   return landmarkerPromise;
 }
 

@@ -10,7 +10,7 @@ export const SUBSCORE_LABELS: Record<Subscore, string> = {
   gripWidth: "Grip width",
   heightHump: "Height & hump",
   frontFlare: "Front flare",
-  thumb: "Thumb rest",
+  thumb: "Thumb support",
   weight: "Weight",
 };
 
