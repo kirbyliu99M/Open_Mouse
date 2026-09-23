@@ -148,8 +148,15 @@ function imageParts(images: ImageInput[]): Part[] {
 /**
  * Real Gemini implementation, using `@google/genai`. Model from
  * `GEMINI_MODEL` (default `gemini-3.8-flash`), key from `GEMINI_API_KEY`.
- * Thinking is set to the SDK's minimal level (`ThinkingLevel.MINIMAL`) —
- * this is a closed-vocabulary classification task, not a reasoning one.
+ * This is a closed-vocabulary classification task, not a reasoning one.
+ *
+ * Thinking is `ThinkingLevel.LOW`, the lowest level `gemini-3.8-flash`
+ * accepts. The SDK's types also offer `MINIMAL`, but the live API rejects it
+ * for this model — "Thinking level MINIMAL is not supported for this model"
+ * (400, verified against the API on 2026-09-23) — and that error took the
+ * analysis route down in production. Types are not evidence of what the API
+ * accepts. Output billing includes thinking tokens, and thinking counts
+ * against `maxOutputTokens`, so keep it at the lowest accepted level.
  */
 export class GeminiVisionClassifier implements VisionClassifier {
   private readonly client: GoogleGenAI;
@@ -167,7 +174,7 @@ export class GeminiVisionClassifier implements VisionClassifier {
       config: {
         responseMimeType: "application/json",
         responseSchema: schema,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     });
     const text = response.text;
