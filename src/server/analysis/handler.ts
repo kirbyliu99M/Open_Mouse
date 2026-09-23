@@ -43,6 +43,24 @@ export interface AnalysisResponseLike {
   body: AnalysisResponseBody;
 }
 
+/**
+ * The cache is an optimisation, never a reason to fail: a read error is a
+ * miss, a write error is skipped. Both happen for real — during a deploy
+ * the code and the `analysis_cache` schema can briefly disagree, and a scan
+ * deleted mid-analysis makes the insert hit its foreign key. Only the
+ * Postgres error code is logged: a constraint error's detail can quote the
+ * failing row, which here is prose about the user's hand.
+ */
+function logCacheFailure(op: "get" | "set", error: unknown): void {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "none";
+  console.error(
+    `analysis cache ${op} failed (code ${code}); continuing without it`,
+  );
+}
+
 export async function handleAnalysisRequest(
   request: AnalysisRequest,
   deps: AnalysisRequestDeps,
@@ -52,7 +70,12 @@ export async function handleAnalysisRequest(
   // on a cache hit and never when no model is configured. Both those paths
   // return below, before `deps.limiter.allow` is read.
   const cacheKey = computeCacheKey(request.fit, request.measurements);
-  const cached = await deps.cache.get(request.scanId, cacheKey);
+  let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
+  try {
+    cached = await deps.cache.get(request.scanId, cacheKey);
+  } catch (error) {
+    logCacheFailure("get", error);
+  }
   if (cached) {
     return {
       status: 200,
@@ -80,7 +103,11 @@ export async function handleAnalysisRequest(
   // in `./cache`. The fallback is free to recompute and must never be
   // served back as if a model wrote it once a key starts working again.
   if (source === "model") {
-    await deps.cache.set(request.scanId, cacheKey, { output, source });
+    try {
+      await deps.cache.set(request.scanId, cacheKey, { output, source });
+    } catch (error) {
+      logCacheFailure("set", error);
+    }
   }
   return { status: 200, body: { output, source, cached: false } };
 }

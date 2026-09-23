@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { analysisResponseSchema } from "../../src/lib/contracts/analysis";
 import {
   handleAnalysisRequest,
@@ -309,5 +309,63 @@ describe("handleAnalysisRequest", () => {
       { client, cache: new InMemoryAnalysisCache(), limiter },
     );
     expect(seen).toEqual(["scan-42"]);
+  });
+});
+
+describe("handleAnalysisRequest — the cache never fails a request", () => {
+  const request = {
+    scanId: "scan-a",
+    fit: makeFit(),
+    measurements: makeMeasurements(),
+    rateLimitKey: "user-1",
+  };
+  // What a Postgres constraint error looks like: its detail quotes the row.
+  const dbError = Object.assign(new Error("null value in column"), {
+    code: "23502",
+    detail:
+      "Failing row contains (It's 125 mm long, right in your ideal range.)",
+  });
+
+  it("treats a failing read as a miss and still answers 200 from the model", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const cache = {
+      get: vi.fn(async () => {
+        throw dbError;
+      }),
+      set: vi.fn(async () => {}),
+    };
+    const res = await handleAnalysisRequest(request, {
+      client,
+      cache,
+      limiter: alwaysAllow(),
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ source: "model", cached: false });
+    expect(client.calls).toHaveLength(1);
+    errors.mockRestore();
+  });
+
+  it("skips a failing write and still answers 200, logging only the error code", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const cache = {
+      get: vi.fn(async () => null),
+      set: vi.fn(async () => {
+        throw dbError;
+      }),
+    };
+    const res = await handleAnalysisRequest(request, {
+      client,
+      cache,
+      limiter: alwaysAllow(),
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ source: "model", cached: false });
+    const logged = errors.mock.calls.flat().map(String).join("\n");
+    expect(logged).toContain("23502");
+    expect(logged).not.toContain("125 mm");
+    expect(logged).not.toContain("null value");
+    errors.mockRestore();
   });
 });
