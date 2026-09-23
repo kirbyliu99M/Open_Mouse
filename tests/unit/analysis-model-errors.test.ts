@@ -57,7 +57,7 @@ describe("a model call that throws", () => {
     ["a network error", new TypeError("fetch failed")],
     ["a non-Error rejection", "timeout"],
   ])(
-    "the route answers 200 with honest provenance for %s",
+    "the handler answers 200 with honest provenance for %s",
     async (_label, error) => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const cache = new InMemoryAnalysisCache();
@@ -77,6 +77,24 @@ describe("a model call that throws", () => {
       expect(body.cached).toBe(false);
     },
   );
+
+  it("logs the status only, never the error message, which can echo request data", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const leaky = Object.assign(
+      new Error('{"error":{"message":"handLengthMm 187.4 rejected"}}'),
+      { status: 400 },
+    );
+
+    await analyse(
+      buildAnalysisInput(makeFit(), makeMeasurements()),
+      throwingModel(leaky),
+    );
+
+    const logged = spy.mock.calls.flat().map(String).join(" ");
+    expect(logged).toContain("status 400");
+    expect(logged).not.toContain("187.4");
+    expect(logged).not.toContain("handLengthMm");
+  });
 
   it("does not cache the fallback served after a failed call", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});

@@ -238,9 +238,15 @@ export async function analyse(
       // failed call is not fixed by rephrasing the prompt, so stop and give
       // the reader the deterministic answer instead of an error. Before this
       // guard, one rejected request config turned every analysis into a 500.
+      // Log the status only. The SDK puts the whole API response body in
+      // `error.message`, and a response that echoes the request could carry
+      // hand measurements into logs that outlive the 24-hour promise.
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? String((error as { status: unknown }).status)
+          : "none";
       console.error(
-        "analysis model call failed; serving the fallback:",
-        error instanceof Error ? error.message : String(error),
+        `analysis model call failed (status ${status}); serving the fallback`,
       );
       return { output: buildFallbackOutput(input), source: "fallback" };
     }
