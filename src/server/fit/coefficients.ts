@@ -11,6 +11,14 @@ import type { GripStyle, Subscore } from "../../lib/contracts/fit";
  */
 export const ENGINE_VERSION = "fit-v0-provisional";
 
+/**
+ * Whether the coefficients below are still unvalidated. Stated explicitly so
+ * nothing has to infer it from the version string's spelling; flip it when
+ * the owner-rating validation lands, in the same change that bumps
+ * `ENGINE_VERSION`.
+ */
+export const ENGINE_IS_PROVISIONAL = true;
+
 /** §2 targets: length = handLength × k, keyed by the grip actually used. */
 export const LENGTH_FACTOR: Record<GripStyle, number> = {
   palm: 0.66,
