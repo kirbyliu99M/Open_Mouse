@@ -14,18 +14,20 @@
  * guarantees it at the database level too.
  */
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import { analysisCache } from "../../db/schema";
 import type { AnalysisCache, CachedAnalysis } from "./cache";
 
 export function createDrizzleAnalysisCache(db = getDb()): AnalysisCache {
   return {
-    async get(key: string): Promise<CachedAnalysis | null> {
+    async get(scanId: string, key: string): Promise<CachedAnalysis | null> {
       const rows = await db
         .select({ output: analysisCache.output })
         .from(analysisCache)
-        .where(eq(analysisCache.key, key))
+        .where(
+          and(eq(analysisCache.scanId, scanId), eq(analysisCache.key, key)),
+        )
         .limit(1);
       const row = rows[0];
       // Every row in this table has source "model" — see the module
@@ -33,14 +35,20 @@ export function createDrizzleAnalysisCache(db = getDb()): AnalysisCache {
       return row ? { output: row.output, source: "model" } : null;
     },
 
-    async set(key: string, value: CachedAnalysis): Promise<void> {
+    async set(
+      scanId: string,
+      key: string,
+      value: CachedAnalysis,
+    ): Promise<void> {
       // A race between two requests computing the same key concurrently is
       // harmless — either model answer is a valid cache entry for it — so
       // the second writer is a no-op rather than an overwrite or an error.
       await db
         .insert(analysisCache)
-        .values({ key, output: value.output, source: value.source })
-        .onConflictDoNothing();
+        .values({ scanId, key, output: value.output, source: value.source })
+        .onConflictDoNothing({
+          target: [analysisCache.scanId, analysisCache.key],
+        });
     },
   };
 }

@@ -66,6 +66,7 @@ describe("a model call that throws", () => {
         {
           fit: makeFit(),
           measurements: makeMeasurements(),
+          scanId: "scan-a",
           rateLimitKey: "ip-1",
         },
         { client: throwingModel(error), cache, limiter: { allow: () => true } },
@@ -102,6 +103,7 @@ describe("a model call that throws", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "ip-1",
     };
     const deps = { cache, limiter: { allow: () => true } };

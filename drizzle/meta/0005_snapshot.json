@@ -1,0 +1,1122 @@
+{
+  "id": "778f36f7-f76d-426a-9a6b-87acfd8b0eb4",
+  "prevId": "4fd85a6d-0a27-4a12-b7b5-de3f582b3e57",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.accounts": {
+      "name": "accounts",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_account_id": {
+          "name": "provider_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_type": {
+          "name": "token_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_state": {
+          "name": "session_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "accounts_user_id_idx": {
+          "name": "accounts_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "accounts_user_id_users_id_fk": {
+          "name": "accounts_user_id_users_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "accounts_provider_provider_account_id_pk": {
+          "name": "accounts_provider_provider_account_id_pk",
+          "columns": [
+            "provider",
+            "provider_account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.analysis_cache": {
+      "name": "analysis_cache",
+      "schema": "",
+      "columns": {
+        "scan_id": {
+          "name": "scan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output": {
+          "name": "output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "analysis_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "analysis_cache_scan_id_scans_id_fk": {
+          "name": "analysis_cache_scan_id_scans_id_fk",
+          "tableFrom": "analysis_cache",
+          "tableTo": "scans",
+          "columnsFrom": [
+            "scan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "analysis_cache_scan_id_key_pk": {
+          "name": "analysis_cache_scan_id_key_pk",
+          "columns": [
+            "scan_id",
+            "key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "analysis_cache_source_is_model": {
+          "name": "analysis_cache_source_is_model",
+          "value": "\"analysis_cache\".\"source\" = 'model'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.auth_sessions": {
+      "name": "auth_sessions",
+      "schema": "",
+      "columns": {
+        "session_token": {
+          "name": "session_token",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_sessions_user_id_users_id_fk": {
+          "name": "auth_sessions_user_id_users_id_fk",
+          "tableFrom": "auth_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fit_results": {
+      "name": "fit_results",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "scan_id": {
+          "name": "scan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mouse_id": {
+          "name": "mouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "engine_version": {
+          "name": "engine_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank": {
+          "name": "rank",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_score": {
+          "name": "total_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "length_score": {
+          "name": "length_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grip_width_score": {
+          "name": "grip_width_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height_hump_score": {
+          "name": "height_hump_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "front_flare_score": {
+          "name": "front_flare_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thumb_score": {
+          "name": "thumb_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weight_score": {
+          "name": "weight_score",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reasons": {
+          "name": "reasons",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fit_results_scan_id_scans_id_fk": {
+          "name": "fit_results_scan_id_scans_id_fk",
+          "tableFrom": "fit_results",
+          "tableTo": "scans",
+          "columnsFrom": [
+            "scan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fit_results_mouse_id_mice_id_fk": {
+          "name": "fit_results_mouse_id_mice_id_fk",
+          "tableFrom": "fit_results",
+          "tableTo": "mice",
+          "columnsFrom": [
+            "mouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fit_results_scan_mouse_version": {
+          "name": "fit_results_scan_mouse_version",
+          "nullsNotDistinct": false,
+          "columns": [
+            "scan_id",
+            "mouse_id",
+            "engine_version"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fit_results_scores_bounded": {
+          "name": "fit_results_scores_bounded",
+          "value": "\"fit_results\".\"total_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"length_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"grip_width_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"height_hump_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"front_flare_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"thumb_score\" BETWEEN 0 AND 100 AND \"fit_results\".\"weight_score\" BETWEEN 0 AND 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mice": {
+      "name": "mice",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "brand": {
+          "name": "brand",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "length_mm": {
+          "name": "length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width_mm": {
+          "name": "width_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height_mm": {
+          "name": "height_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weight_g": {
+          "name": "weight_g",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "connectivity": {
+          "name": "connectivity",
+          "type": "connectivity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size": {
+          "name": "size",
+          "type": "mouse_size",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shape": {
+          "name": "shape",
+          "type": "mouse_shape",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hand_compatibility": {
+          "name": "hand_compatibility",
+          "type": "hand_compatibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hump_placement": {
+          "name": "hump_placement",
+          "type": "hump_placement",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "front_flare": {
+          "name": "front_flare",
+          "type": "front_flare",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "side_curvature": {
+          "name": "side_curvature",
+          "type": "side_curvature",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thumb_rest": {
+          "name": "thumb_rest",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ring_finger_rest": {
+          "name": "ring_finger_rest",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spec_retrieved_at": {
+          "name": "spec_retrieved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descriptor_method": {
+          "name": "descriptor_method",
+          "type": "descriptor_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "descriptor_model": {
+          "name": "descriptor_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "descriptor_source_urls": {
+          "name": "descriptor_source_urls",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "classified_at": {
+          "name": "classified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mice_slug_unique": {
+          "name": "mice_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        },
+        "mice_brand_model_unique": {
+          "name": "mice_brand_model_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "brand",
+            "model"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "mice_dimensions_positive": {
+          "name": "mice_dimensions_positive",
+          "value": "\"mice\".\"length_mm\" > 0 AND \"mice\".\"width_mm\" > 0 AND \"mice\".\"height_mm\" > 0"
+        },
+        "mice_weight_positive": {
+          "name": "mice_weight_positive",
+          "value": "\"mice\".\"weight_g\" IS NULL OR \"mice\".\"weight_g\" > 0"
+        },
+        "mice_source_url_https": {
+          "name": "mice_source_url_https",
+          "value": "\"mice\".\"source_url\" LIKE 'https://%'"
+        },
+        "mice_ambidextrous_is_symmetrical": {
+          "name": "mice_ambidextrous_is_symmetrical",
+          "value": "\"mice\".\"hand_compatibility\" <> 'ambidextrous' OR \"mice\".\"shape\" = 'symmetrical'"
+        },
+        "mice_thumb_rest_is_ergonomic": {
+          "name": "mice_thumb_rest_is_ergonomic",
+          "value": "\"mice\".\"thumb_rest\" IS NOT TRUE OR \"mice\".\"shape\" = 'ergonomic'"
+        },
+        "mice_ring_rest_is_ergonomic": {
+          "name": "mice_ring_rest_is_ergonomic",
+          "value": "\"mice\".\"ring_finger_rest\" IS NOT TRUE OR \"mice\".\"shape\" = 'ergonomic'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.rate_limits": {
+      "name": "rate_limits",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scaffold_checks": {
+      "name": "scaffold_checks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "scaffold_checks_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scan_measurements": {
+      "name": "scan_measurements",
+      "schema": "",
+      "columns": {
+        "scan_id": {
+          "name": "scan_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "hand_length_mm": {
+          "name": "hand_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "palm_length_mm": {
+          "name": "palm_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "palm_width_mm": {
+          "name": "palm_width_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thumb_length_mm": {
+          "name": "thumb_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "index_length_mm": {
+          "name": "index_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "middle_length_mm": {
+          "name": "middle_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ring_length_mm": {
+          "name": "ring_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pinky_length_mm": {
+          "name": "pinky_length_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "palm_thickness_mm": {
+          "name": "palm_thickness_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "knuckle_height_mm": {
+          "name": "knuckle_height_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grip_aperture_mm": {
+          "name": "grip_aperture_mm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thumb_angle_deg": {
+          "name": "thumb_angle_deg",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scale_check_ratio": {
+          "name": "scale_check_ratio",
+          "type": "numeric(6, 4)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "scan_measurements_scan_id_scans_id_fk": {
+          "name": "scan_measurements_scan_id_scans_id_fk",
+          "tableFrom": "scan_measurements",
+          "tableTo": "scans",
+          "columnsFrom": [
+            "scan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "scan_measurements_plausible": {
+          "name": "scan_measurements_plausible",
+          "value": "\"scan_measurements\".\"hand_length_mm\" BETWEEN 100 AND 280 AND \"scan_measurements\".\"palm_width_mm\" BETWEEN 50 AND 150 AND \"scan_measurements\".\"palm_length_mm\" < \"scan_measurements\".\"hand_length_mm\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scan_sessions": {
+      "name": "scan_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "scan_sessions_expires_at_idx": {
+          "name": "scan_sessions_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scan_sessions_user_id_users_id_fk": {
+          "name": "scan_sessions_user_id_users_id_fk",
+          "tableFrom": "scan_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "scan_sessions_anonymous_expire": {
+          "name": "scan_sessions_anonymous_expire",
+          "value": "\"scan_sessions\".\"user_id\" IS NOT NULL OR \"scan_sessions\".\"expires_at\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scans": {
+      "name": "scans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hand": {
+          "name": "hand",
+          "type": "hand_side",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grip_style_stated": {
+          "name": "grip_style_stated",
+          "type": "grip_style",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grip_style_predicted": {
+          "name": "grip_style_predicted",
+          "type": "grip_style",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "scans_session_id_scan_sessions_id_fk": {
+          "name": "scans_session_id_scan_sessions_id_fk",
+          "tableFrom": "scans",
+          "tableTo": "scan_sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emailVerified": {
+          "name": "emailVerified",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.verification_tokens": {
+      "name": "verification_tokens",
+      "schema": "",
+      "columns": {
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "verification_tokens_identifier_token_pk": {
+          "name": "verification_tokens_identifier_token_pk",
+          "columns": [
+            "identifier",
+            "token"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.analysis_source": {
+      "name": "analysis_source",
+      "schema": "public",
+      "values": [
+        "model",
+        "fallback"
+      ]
+    },
+    "public.connectivity": {
+      "name": "connectivity",
+      "schema": "public",
+      "values": [
+        "wired",
+        "wireless"
+      ]
+    },
+    "public.descriptor_method": {
+      "name": "descriptor_method",
+      "schema": "public",
+      "values": [
+        "rubric_vision",
+        "manual"
+      ]
+    },
+    "public.front_flare": {
+      "name": "front_flare",
+      "schema": "public",
+      "values": [
+        "inward_aggressive",
+        "inward_moderate",
+        "inward_slight",
+        "flat",
+        "outward_slight",
+        "outward_moderate",
+        "outward_aggressive"
+      ]
+    },
+    "public.grip_style": {
+      "name": "grip_style",
+      "schema": "public",
+      "values": [
+        "palm",
+        "claw",
+        "fingertip"
+      ]
+    },
+    "public.hand_compatibility": {
+      "name": "hand_compatibility",
+      "schema": "public",
+      "values": [
+        "right",
+        "left",
+        "ambidextrous"
+      ]
+    },
+    "public.hand_side": {
+      "name": "hand_side",
+      "schema": "public",
+      "values": [
+        "left",
+        "right"
+      ]
+    },
+    "public.hump_placement": {
+      "name": "hump_placement",
+      "schema": "public",
+      "values": [
+        "center",
+        "back_minimal",
+        "back_moderate",
+        "back_aggressive"
+      ]
+    },
+    "public.mouse_shape": {
+      "name": "mouse_shape",
+      "schema": "public",
+      "values": [
+        "symmetrical",
+        "ergonomic",
+        "hybrid"
+      ]
+    },
+    "public.side_curvature": {
+      "name": "side_curvature",
+      "schema": "public",
+      "values": [
+        "inward_aggressive",
+        "inward",
+        "flat",
+        "outward",
+        "outward_aggressive"
+      ]
+    },
+    "public.mouse_size": {
+      "name": "mouse_size",
+      "schema": "public",
+      "values": [
+        "fingertip",
+        "small",
+        "medium",
+        "large"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

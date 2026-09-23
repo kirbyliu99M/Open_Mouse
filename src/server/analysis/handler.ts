@@ -28,6 +28,7 @@ export interface AnalysisRequestDeps {
 }
 
 export interface AnalysisRequest {
+  scanId: string;
   fit: FitResponse;
   measurements: HandMeasurements;
   /** Identity the rate limit is scoped to — e.g. scanId or caller IP. */
@@ -51,7 +52,7 @@ export async function handleAnalysisRequest(
   // on a cache hit and never when no model is configured. Both those paths
   // return below, before `deps.limiter.allow` is read.
   const cacheKey = computeCacheKey(request.fit, request.measurements);
-  const cached = await deps.cache.get(cacheKey);
+  const cached = await deps.cache.get(request.scanId, cacheKey);
   if (cached) {
     return {
       status: 200,
@@ -79,7 +80,7 @@ export async function handleAnalysisRequest(
   // in `./cache`. The fallback is free to recompute and must never be
   // served back as if a model wrote it once a key starts working again.
   if (source === "model") {
-    await deps.cache.set(cacheKey, { output, source });
+    await deps.cache.set(request.scanId, cacheKey, { output, source });
   }
   return { status: 200, body: { output, source, cached: false } };
 }

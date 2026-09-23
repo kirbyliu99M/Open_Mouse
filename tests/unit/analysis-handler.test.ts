@@ -24,12 +24,37 @@ function alwaysAllow(): RateLimiter {
 }
 
 describe("handleAnalysisRequest", () => {
+  it("calls the model for scan B after caching identical fit data for scan A", async () => {
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const cache = new InMemoryAnalysisCache();
+    const request = {
+      scanId: "scan-a",
+      fit: makeFit(),
+      measurements: makeMeasurements(),
+      rateLimitKey: "user-1",
+    };
+    const deps = { client, cache, limiter: alwaysAllow() };
+
+    expect((await handleAnalysisRequest(request, deps)).body).toMatchObject({
+      cached: false,
+    });
+    expect(
+      (await handleAnalysisRequest({ ...request, scanId: "scan-b" }, deps))
+        .body,
+    ).toMatchObject({ cached: false });
+    expect(client.calls).toHaveLength(2);
+    expect((await handleAnalysisRequest(request, deps)).body).toMatchObject({
+      cached: true,
+    });
+    expect(client.calls).toHaveLength(2);
+  });
   it("returns 429 when the rate limiter rejects the request", async () => {
     const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
     const response = await handleAnalysisRequest(
       {
         fit: makeFit(),
         measurements: makeMeasurements(),
+        scanId: "scan-a",
         rateLimitKey: "user-1",
       },
       {
@@ -48,6 +73,7 @@ describe("handleAnalysisRequest", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "user-1",
     };
     const deps = { client, cache, limiter: alwaysAllow() };
@@ -78,6 +104,7 @@ describe("handleAnalysisRequest", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "user-1",
     };
     const deps = { client, cache, limiter: alwaysAllow() };
@@ -87,7 +114,7 @@ describe("handleAnalysisRequest", () => {
     expect(client.calls).toHaveLength(2); // one attempt + one retry
 
     const key = computeCacheKey(request.fit, request.measurements);
-    expect(await cache.get(key)).toBeNull();
+    expect(await cache.get(request.scanId, key)).toBeNull();
 
     // Nothing was cached, so the second request calls the model again.
     const second = await handleAnalysisRequest(request, deps);
@@ -100,6 +127,7 @@ describe("handleAnalysisRequest", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "user-1",
     };
     const response = await handleAnalysisRequest(request, {
@@ -110,7 +138,7 @@ describe("handleAnalysisRequest", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ cached: false, source: "fallback" });
     const key = computeCacheKey(request.fit, request.measurements);
-    expect(await cache.get(key)).toBeNull();
+    expect(await cache.get(request.scanId, key)).toBeNull();
   });
 
   it("stores the result under the same key computeCacheKey would produce", async () => {
@@ -119,11 +147,11 @@ describe("handleAnalysisRequest", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
     await handleAnalysisRequest(
-      { fit, measurements, rateLimitKey: "user-1" },
+      { scanId: "scan-a", fit, measurements, rateLimitKey: "user-1" },
       { client, cache, limiter: alwaysAllow() },
     );
     const key = computeCacheKey(fit, measurements);
-    expect(await cache.get(key)).not.toBeNull();
+    expect(await cache.get("scan-a", key)).not.toBeNull();
   });
 
   it("a 200 body — fresh, cached, and no-model-configured — always validates against analysisResponseSchema", async () => {
@@ -132,6 +160,7 @@ describe("handleAnalysisRequest", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "user-1",
     };
     const deps = { client, cache, limiter: alwaysAllow() };
@@ -175,6 +204,7 @@ describe("handleAnalysisRequest", () => {
       {
         fit: makeFit(),
         measurements: makeMeasurements(),
+        scanId: "scan-a",
         rateLimitKey: "user-1",
       },
       { client, cache: new InMemoryAnalysisCache(), limiter },
@@ -192,6 +222,7 @@ describe("handleAnalysisRequest", () => {
       {
         fit: makeFit(),
         measurements: makeMeasurements(),
+        scanId: "scan-a",
         rateLimitKey: "user-1",
       },
       { client, cache: new InMemoryAnalysisCache(), limiter },
@@ -210,6 +241,7 @@ describe("handleAnalysisRequest", () => {
     const request = {
       fit: makeFit(),
       measurements: makeMeasurements(),
+      scanId: "scan-a",
       rateLimitKey: "user-1",
     };
     // Prime the cache with a real model answer via a permissive limiter.
@@ -248,6 +280,7 @@ describe("handleAnalysisRequest", () => {
       {
         fit: makeFit(),
         measurements: makeMeasurements(),
+        scanId: "scan-a",
         rateLimitKey: "user-1",
       },
       { client: null, cache: new InMemoryAnalysisCache(), limiter: spyLimiter },
@@ -270,6 +303,7 @@ describe("handleAnalysisRequest", () => {
       {
         fit: makeFit(),
         measurements: makeMeasurements(),
+        scanId: "scan-a",
         rateLimitKey: "scan-42",
       },
       { client, cache: new InMemoryAnalysisCache(), limiter },
