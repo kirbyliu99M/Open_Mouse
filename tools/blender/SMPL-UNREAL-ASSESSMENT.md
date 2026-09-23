@@ -2,8 +2,8 @@
 
 Reviewed 2026-09-23 after Kirby clarified that the project is noncommercial and
 that visual quality takes priority. Sources are linked below. This is a
-technical and license-feasibility assessment; no MANO model file was available
-in the workspace, so it is not a visual comparison or a license grant.
+technical and license-feasibility assessment. The subsequent private comparison
+uses Kirby's official SMPL+H Blender DLC; no model or render is committed.
 
 ## What could help
 
@@ -33,17 +33,38 @@ permission from the licensor even if the site charges nothing. We should not
 put downloaded model parameters, exported meshes, or derivative assets in the
 repository or `public/` on the strength of the plugin's MIT license.
 
-An offline visual experiment may be feasible after an authorized user obtains
-the official model under terms that cover the experiment. The download page
-requires registration. No MANO model file was found in this workspace.
+Kirby placed the official SMPL+H Blender DLC outside the repository. It is a
+full-body model with MANO-based hands, not a standalone MANO hand download. Its
+bundled data-license file points to the same MANO/SMPL+H license. Access to the
+files makes a local technical comparison possible; it does not itself grant
+public distribution rights.
+
+## Local neutral-hand comparison
+
+`compare_smplh_hands.py` crops the right hand from the neutral SMPL+H body,
+matches its wrist-to-fingertip length to our authored hand, applies one clay
+material and shared lighting, and renders top and oblique views under ignored
+`out/mano-comparison/`. The script only reads the licensed source and writes
+private PNGs. The SMPL+H hand shows a more natural palm/finger silhouette in
+these two views; our authored hand has visibly tubular fingers and a broader,
+less defined palm. The crop has an open wrist, and the test uses the base pose
+without shape fitting or pose correctives. It does not establish grip-pose
+quality or user-specific fit.
+
+Run locally with Blender 5.2.2 and an authorized SMPL+H file:
+
+```powershell
+$blenderExe = 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe'
+$smplhBlend = '<local authorized smplh_model_20260511.blend path>'
+& $blenderExe --background --factory-startup $smplhBlend --python-exit-code 1 --python tools/blender/compare_smplh_hands.py
+```
 
 ## Integration work if the visual test succeeds
 
-1. Load official left and right MANO models in an isolated, gitignored local
-   workspace. Produce flat, claw and palm-grip renders alongside our hand at
-   the same scale and view. Check silhouettes, finger joint folds, palm volume,
-   and contact with three representative mouse shells. Preserve all comparison
-   assets locally until distribution rights are clear.
+1. Extend the private comparison from this flat pose to claw and palm grips,
+   with the SMPL+H pose correctives actually applied. Check finger joint folds,
+   palm volume, and contact with three representative mouse shells. Preserve
+   all comparison assets locally until distribution rights are clear.
 2. Fit hand shape to the scan. Today the browser detects 21 MediaPipe points
    but sends only hand length, palm length/width, optional finger lengths and
    other derived measurements. Those few values do not uniquely determine
