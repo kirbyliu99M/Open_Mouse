@@ -1,0 +1,33 @@
+.journey-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+  color: #55555d;
+}
+.journey-top-bar a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: #0a64e0;
+  text-decoration: none;
+}
+.journey-top-bar a:active {
+  opacity: 0.65;
+}
+.journey-top-bar a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.journey-top-bar-step {
+  text-align: right;
+}
+@media (prefers-color-scheme: dark) {
+  .journey-top-bar {
+    color: #b5b5bd;
+  }
+  .journey-top-bar a {
+    color: #79adff;
+  }
+}

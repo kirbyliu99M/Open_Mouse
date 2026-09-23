@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { AccountScan } from "../../server/account/repo";
 
 type Status = "idle" | "working" | "done" | "error";
@@ -40,6 +41,21 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
   const [exportStatus, setExportStatus] = useState<Status>("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<Status>("idle");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const dialog = dialogRef.current;
+    const trigger = triggerRef.current;
+    dialog?.showModal();
+    cancelRef.current?.focus();
+    return () => {
+      dialog?.close();
+      trigger?.focus();
+    };
+  }, [confirmOpen]);
 
   async function handleExport() {
     setExportStatus("working");
@@ -81,6 +97,7 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
         <button
           type="button"
           className="button-danger"
+          ref={triggerRef}
           onClick={() => setConfirmOpen(true)}
           disabled={visibleScans.length === 0}
         >
@@ -94,7 +111,12 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       )}
 
       {visibleScans.length === 0 ? (
-        <p className="note">No scans yet.</p>
+        <div>
+          <p className="note">No scans yet.</p>
+          <Link className="account-empty-link" href="/sheet">
+            Start measuring
+          </Link>
+        </div>
       ) : (
         <ul className="scan-list" aria-label="Your scans">
           {visibleScans.map((scan) => (
@@ -123,43 +145,43 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       )}
 
       {confirmOpen && (
-        <div className="dialog-backdrop" role="presentation">
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-all-title"
-            aria-describedby="delete-all-body"
-            className="dialog"
-          >
-            <h2 id="delete-all-title">Delete everything?</h2>
-            <p id="delete-all-body">
-              This permanently deletes all {visibleScans.length} of your scans.
-              This can&apos;t be undone.
+        <dialog
+          ref={dialogRef}
+          onClose={() => setConfirmOpen(false)}
+          role="alertdialog"
+          aria-labelledby="delete-all-title"
+          aria-describedby="delete-all-body"
+          className="dialog"
+        >
+          <h2 id="delete-all-title">Delete everything?</h2>
+          <p id="delete-all-body">
+            This permanently deletes all {visibleScans.length} of your scans.
+            This can&apos;t be undone.
+          </p>
+          {deleteStatus === "error" && (
+            <p className="status-error" role="status">
+              Couldn&apos;t delete — check your connection and try again.
             </p>
-            {deleteStatus === "error" && (
-              <p className="status-error" role="status">
-                Couldn&apos;t delete — check your connection and try again.
-              </p>
-            )}
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setConfirmOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button-danger"
-                onClick={handleDeleteAll}
-                disabled={deleteStatus === "working"}
-              >
-                {deleteStatus === "working" ? "Deleting…" : "Delete everything"}
-              </button>
-            </div>
+          )}
+          <div className="dialog-actions">
+            <button
+              type="button"
+              className="button-secondary"
+              ref={cancelRef}
+              onClick={() => setConfirmOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              onClick={handleDeleteAll}
+              disabled={deleteStatus === "working"}
+            >
+              {deleteStatus === "working" ? "Deleting…" : "Delete everything"}
+            </button>
           </div>
-        </div>
+        </dialog>
       )}
     </section>
   );
