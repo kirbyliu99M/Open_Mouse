@@ -46,14 +46,10 @@ export async function handleAnalysisRequest(
   request: AnalysisRequest,
   deps: AnalysisRequestDeps,
 ): Promise<AnalysisResponseLike> {
-  const allowed = await deps.limiter.allow(request.rateLimitKey);
-  if (!allowed) {
-    return {
-      status: 429,
-      body: { error: "Too many analysis requests. Try again shortly." },
-    };
-  }
-
+  // The limit exists to bound *model* spend (PLAN §M5), so it is only ever
+  // consulted on the one path that would actually call the model — never
+  // on a cache hit and never when no model is configured. Both those paths
+  // return below, before `deps.limiter.allow` is read.
   const cacheKey = computeCacheKey(request.fit, request.measurements);
   const cached = await deps.cache.get(cacheKey);
   if (cached) {
@@ -64,6 +60,20 @@ export async function handleAnalysisRequest(
   }
 
   const input = buildAnalysisInput(request.fit, request.measurements);
+
+  if (deps.client === null) {
+    const { output, source } = await analyse(input, deps.client);
+    return { status: 200, body: { output, source, cached: false } };
+  }
+
+  const allowed = await deps.limiter.allow(request.rateLimitKey);
+  if (!allowed) {
+    return {
+      status: 429,
+      body: { error: "Too many analysis requests. Try again shortly." },
+    };
+  }
+
   const { output, source } = await analyse(input, deps.client);
   // Only a real model answer is cached — see the comment on `AnalysisCache`
   // in `./cache`. The fallback is free to recompute and must never be
