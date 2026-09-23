@@ -64,16 +64,12 @@ export const analysisPath = (scanId: string): string =>
 
 /**
  * `DELETE` — deletes **this one scan**: its `scans` row, which cascades to
- * its `scan_measurements` and `fit_results` rows. Nothing else. Other scans
+ * its `scan_measurements`, `fit_results` and `analysis_cache` rows (the
+ * cached model prose, bound to this scan since migration 0005). Nothing else. Other scans
  * in the same session, and the session itself (even if now empty), are
  * untouched: a person who made scans A and B and deletes B still has A.
  * Ownership rule above; anyone else gets 404.
  * 204 → no body; 404 unknown, foreign or already-deleted scan.
- *
- * `analysis_cache` is NOT touched. Its rows are keyed by a hash of rounded
- * measurements and the top three mice, with no scan or session id, so they
- * cannot be traced back to this scan and are shared by anyone with the same
- * inputs. Only model-written prose is cached.
  *
  * Throws on anything but a UUID, unlike the other path builders, so a caller
  * holding an unvalidated id (e.g. a `/results/[scanId]` route parameter) must
