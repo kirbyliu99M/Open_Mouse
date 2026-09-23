@@ -155,13 +155,22 @@ describe("handleAnalysisRequest", () => {
 
   it("consults the limiter on a cache miss with a model configured, immediately before the model call", async () => {
     const calls: string[] = [];
+    // One shared log, so the test proves the ORDER — limit before spend —
+    // and not merely that both happened.
+    const events: string[] = [];
     const limiter: RateLimiter = {
       allow: (key) => {
         calls.push(key);
+        events.push("limiter");
         return true;
       },
     };
-    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const client = new FakeTextModel({
+      answer: () => {
+        events.push("model");
+        return CLEAN_ANSWER;
+      },
+    });
     const response = await handleAnalysisRequest(
       {
         fit: makeFit(),
@@ -171,6 +180,7 @@ describe("handleAnalysisRequest", () => {
       { client, cache: new InMemoryAnalysisCache(), limiter },
     );
     expect(calls).toEqual(["user-1"]);
+    expect(events).toEqual(["limiter", "model"]);
     expect(response.status).toBe(200);
     expect(client.calls).toHaveLength(1);
   });
