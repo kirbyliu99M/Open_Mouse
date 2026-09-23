@@ -36,4 +36,6 @@ reduction from the current files. The five largest files would each fall from
 5.50–7.50 MiB to approximately 1.65–2.19 MiB. This is a sizing experiment:
 normal-map quality, small labels and seams, browser decoding, and appearance
 under the intended lighting still need visual and phone testing before an asset
-change. The public-serving rights question is unchanged.
+change. Kirby has prioritized the highest achievable visual quality, so the
+estimate is not a decision to ship lower-resolution textures. The
+public-serving rights question is unchanged.
