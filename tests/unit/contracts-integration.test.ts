@@ -109,12 +109,9 @@ describe("routes", () => {
     ["a percent-encoded UUID", encodeURIComponent(`/${SCAN_ID}`)],
     ["a UUID with a trailing slash", `${SCAN_ID}/`],
     ["a UUID followed by the session segment", `${SCAN_ID}/../session`],
-  ])(
-    "scanPath refuses %s, so a per-scan delete can never reach the session-wide delete",
-    (_label, input) => {
-      expect(() => scanPath(input)).toThrow();
-    },
-  );
+  ])("scanPath refuses %s", (_label, input) => {
+    expect(() => scanPath(input)).toThrow();
+  });
 
   it("encodes a hostile scan id instead of letting it change the path", () => {
     expect(fitPath("../../account")).toBe("/api/scans/..%2F..%2Faccount/fit");
