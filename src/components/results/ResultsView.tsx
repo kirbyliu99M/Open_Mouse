@@ -1,14 +1,14 @@
 import type { FitResponse } from "@/lib/contracts/fit";
+import { AnalysisSlot } from "./AnalysisSlot";
+import type { AnalysisState } from "./analysisState";
 import { ExcludedList } from "./ExcludedList";
-import type { AnalysisState } from "./gemini";
-import { GeminiSlot } from "./GeminiSlot";
 import { RankedList } from "./RankedList";
 import "./results.css";
 import { TopPick } from "./TopPick";
 
 /**
  * Renders a `FitResponse` — the only input this component tree takes. No
- * fetching, no Gemini calls: `analysisState` is handed in by the caller.
+ * fetching, no analysis calls: `analysisState` is handed in by the caller.
  */
 export function ResultsView({
   response,
@@ -24,7 +24,7 @@ export function ResultsView({
       <TopPick response={response} />
       <RankedList response={response} />
       <ExcludedList response={response} />
-      <GeminiSlot state={analysisState} onRetry={onRetryAnalysis} />
+      <AnalysisSlot state={analysisState} onRetry={onRetryAnalysis} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { ResultsDemoClient } from "@/components/results/ResultsDemoClient";
 export const metadata: Metadata = {
   title: "Results (mock data) — Open_Mouse",
   description:
-    "Dev/demo route rendering the results UI against fixture data. No fetching, no Gemini.",
+    "Dev/demo route rendering the results UI against fixture data. No fetching, no network calls.",
   robots: { index: false, follow: false },
 };
 

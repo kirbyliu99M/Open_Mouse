@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import type { AnalysisOutput } from "@/lib/contracts/analysis";
+import type { AnalysisState } from "./analysisState";
 import {
   FIXTURES,
   FIXTURE_KEYS,
   FIXTURE_LABELS,
   type FixtureKey,
 } from "./fixtures";
-import type { AnalysisState, GeminiAnalysis } from "./gemini";
 import { ResultsView } from "./ResultsView";
 
-const MOCK_ANALYSIS: GeminiAnalysis = {
+const MOCK_ANALYSIS: AnalysisOutput = {
   headline: "A close match for your palm grip",
   whyTopPick:
     "The top pick's length and grip width both land close to your ideal, and its front shape gives your fingertips somewhere to rest.",
@@ -22,7 +23,7 @@ const MOCK_ANALYSIS: GeminiAnalysis = {
     "Mice with an aggressive back hump if you rest your palm flat.",
   ],
   caveats: [
-    "This is a preview of the written analysis using placeholder text, not a Gemini call.",
+    "This is a preview of the written analysis using placeholder text, not a live request.",
   ],
 };
 
@@ -34,24 +35,33 @@ const ANALYSIS_DEMO_STATES: {
   { key: "idle", label: "None", state: { status: "idle" } },
   { key: "loading", label: "Loading", state: { status: "loading" } },
   {
-    key: "error",
-    label: "Error",
-    state: {
-      status: "error",
-      message: "The analysis request failed.",
-    },
+    key: "rateLimited",
+    label: "Rate limited",
+    state: { status: "rateLimited" },
   },
+  { key: "error", label: "Error", state: { status: "error" } },
   {
     key: "ready",
     label: "Ready",
-    state: { status: "ready", analysis: MOCK_ANALYSIS },
+    state: {
+      status: "ready",
+      response: { output: MOCK_ANALYSIS, source: "model", cached: false },
+    },
+  },
+  {
+    key: "ready-fallback",
+    label: "Ready (written from scores)",
+    state: {
+      status: "ready",
+      response: { output: MOCK_ANALYSIS, source: "fallback", cached: false },
+    },
   },
 ];
 
 /**
  * Interactive shell for /results/demo: lets a reviewer switch between the
- * three fixtures and preview the optional Gemini slot's states, all with
- * local state only (no network calls, no Gemini).
+ * three fixtures and preview the optional written-analysis slot's states,
+ * all with local state only (no network calls, no live analysis request).
  */
 export function ResultsDemoClient() {
   const [fixtureKey, setFixtureKey] = useState<FixtureKey>(FIXTURE_KEYS[0]);
@@ -69,7 +79,7 @@ export function ResultsDemoClient() {
         <h1>Results (mock data)</h1>
         <p className="note">
           Renders <code>ResultsView</code> against fixture{" "}
-          <code>FitResponse</code> data. No network calls, no Gemini.
+          <code>FitResponse</code> data. No network calls.
         </p>
 
         <fieldset>
@@ -89,7 +99,7 @@ export function ResultsDemoClient() {
         </fieldset>
 
         <fieldset>
-          <legend>Written analysis (Gemini slot preview)</legend>
+          <legend>Written analysis (preview)</legend>
           <div className="results-demoControls-buttons">
             {ANALYSIS_DEMO_STATES.map((a) => (
               <button

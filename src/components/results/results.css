@@ -22,6 +22,95 @@
   gap: 2rem;
 }
 
+/* ---- /results/[scanId] page-level states (loading, 404, network, 5xx) ---- */
+
+.results-page-status {
+  font-size: 1.0625rem;
+  color: #57575c;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+.results-page-error {
+  border: 1px solid #d0d0d5;
+  border-radius: 1rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.results-page-error h1 {
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.results-page-error p {
+  color: #57575c;
+  max-width: 32rem;
+  margin: 0;
+}
+
+.results-page-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.625rem 1.25rem;
+  margin-top: 0.5rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #ffffff;
+  background: #0071e3;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.results-page-action:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
+
+.results-page-back {
+  align-self: flex-start;
+  color: #0071e3;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+@media (prefers-contrast: more) {
+  .results-page-error {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .results-page-status {
+    color: #b5b5bd;
+  }
+  .results-page-error {
+    border-color: #3a3a3d;
+  }
+  .results-page-error p {
+    color: #b5b5bd;
+  }
+  .results-page-back {
+    color: #4dabff;
+  }
+}
+
 /* ---- Demo route controls (dev-only shell around ResultsView) ---- */
 
 .results-demoControls {
@@ -378,18 +467,18 @@
   color: #86868b;
 }
 
-/* ---- Gemini slot ---- */
+/* ---- Written analysis slot ---- */
 
-.results-gemini {
+.results-analysis {
   border-top: 1px solid #d0d0d5;
   padding-top: 1.5rem;
 }
 
-.results-gemini-error {
+.results-analysis-error {
   color: #8a1f11;
 }
 
-.results-gemini-retry {
+.results-analysis-retry {
   min-height: 44px;
   padding: 0.5rem 1rem;
   border: 1px solid #d0d0d5;
@@ -399,9 +488,21 @@
   cursor: pointer;
 }
 
-.results-gemini-caveats {
+.results-analysis-caveats {
   font-size: 0.8125rem;
   color: #86868b;
+}
+
+/* Honest-provenance note: shown only when the text was written from the
+   scores by a template rather than a model (issue #30). Neutral, not
+   alarming — it's a fact about the text, not a problem. */
+.results-analysis-provenance {
+  font-size: 0.8125rem;
+  color: #57575c;
+  background: #f5f5f7;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 0.75rem;
 }
 
 /* ---- Accessibility variants ---- */
@@ -425,6 +526,9 @@
   .results-confidenceNote {
     border-width: 2px;
   }
+  .results-analysis-provenance {
+    border: 1px solid currentColor;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -436,7 +540,7 @@
   .results-targetDeltas caption,
   .results-targetDeltas th[scope="col"],
   .results-excludedList-reason,
-  .results-gemini-caveats {
+  .results-analysis-caveats {
     color: #b5b5bd;
   }
 
@@ -451,7 +555,7 @@
 
   .results-rankedList,
   .results-excludedList,
-  .results-gemini {
+  .results-analysis {
     border-color: #3a3a3d;
   }
 
@@ -460,7 +564,7 @@
   }
 
   .results-rankedList-toggle,
-  .results-gemini-retry {
+  .results-analysis-retry {
     background: #2c2c2e;
     border-color: #3a3a3d;
     color: #f5f5f7;
@@ -489,8 +593,13 @@
     color: #f0d488;
   }
 
-  .results-gemini-error {
+  .results-analysis-error {
     color: #ff8a75;
+  }
+
+  .results-analysis-provenance {
+    background: #2c2c2e;
+    color: #b5b5bd;
   }
 
   .results-demoControls fieldset {
