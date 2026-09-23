@@ -6,6 +6,7 @@
  * answer.
  */
 import { Type } from "@google/genai";
+import type { AnalysisSource } from "../../lib/contracts/analysis";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
@@ -15,6 +16,12 @@ import {
   POSITIVE_REASON_CODES,
   REASON_TEXT,
 } from "./reasonText";
+
+/** `analyse()`'s result: the prose plus who actually wrote it. */
+export interface AnalyseResult {
+  output: AnalysisOutput;
+  source: AnalysisSource;
+}
 
 /** Confidence below this means real descriptors are missing for the ranking. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.6;
@@ -189,11 +196,29 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
  * no-new-numerals rule. Retries once, naming the violation; a second
  * violation returns the deterministic fallback instead of ever surfacing
  * unverified model output.
+ *
+ * `client` is `null` when no model is configured (`createAnalysisModel`
+ * returned `null` — no `GEMINI_API_KEY`): this goes straight to the
+ * fallback and makes no network call.
+ *
+ * `source` in the returned `AnalyseResult` is `"model"` in exactly one
+ * place below — the branch where a model response was received, passed
+ * `analysisOutputSchema`, AND passed `findViolation`'s no-new-numerals
+ * check. Every other path (no model, JSON parse failure, schema failure,
+ * a numeral/provisional-caveat violation on both attempts) returns
+ * `buildFallbackOutput` with `source: "fallback"`. Never inferred from
+ * whether a key was configured — a keyed call can still fail or violate
+ * the rule and fall back, which is exactly what this function's retry
+ * loop exists to handle.
  */
 export async function analyse(
   input: AnalysisInput,
-  client: TextModel,
-): Promise<AnalysisOutput> {
+  client: TextModel | null,
+): Promise<AnalyseResult> {
+  if (client === null) {
+    return { output: buildFallbackOutput(input), source: "fallback" };
+  }
+
   const allowedNumbers = collectNumbers(input);
   const exemptTokens = collectExemptTokens(input);
   const basePrompt = buildPrompt(input);
@@ -227,9 +252,9 @@ export async function analyse(
       allowedNumbers,
       exemptTokens,
     );
-    if (violation === null) return result.data;
+    if (violation === null) return { output: result.data, source: "model" };
     prompt = retryPrompt(basePrompt, violation);
   }
 
-  return buildFallbackOutput(input);
+  return { output: buildFallbackOutput(input), source: "fallback" };
 }
