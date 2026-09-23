@@ -7,6 +7,7 @@ import type {
   HandMeasurements,
   ScanSubmission,
 } from "@/lib/contracts/measurement";
+import { scanSubmissionSchema } from "@/lib/contracts/measurement";
 import type { Point2 } from "@/client/geometry/homography";
 import type { CardCorners } from "@/client/geometry/card-scale";
 import {
@@ -14,7 +15,10 @@ import {
   type PhotoOverlay,
   type PipelineIssue,
 } from "@/client/photo/pipeline";
-import { getHandLandmarker } from "@/client/photo/landmarks";
+import {
+  getHandLandmarker,
+  HandLandmarkerLoadError,
+} from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 
@@ -32,6 +36,11 @@ type ScanState =
       submission: ScanSubmission;
       warnings: readonly PipelineIssue[];
       overlay: PhotoOverlay;
+      /** Whether the card corners came from automatic detection or a
+       * manual drag-to-correct (issue: the completion card's "all four
+       * markers... found" line was claiming auto-detection happened even
+       * when the user had just placed the corners by hand). */
+      cardSource: "auto" | "manual";
     }
   | {
       kind: "error";
@@ -159,6 +168,7 @@ export default function ScanClient({
           submission: demoMeasured.submission,
           warnings: [],
           overlay: EMPTY_OVERLAY,
+          cardSource: "auto",
         }
       : { kind: "idle" },
   );
@@ -193,6 +203,7 @@ export default function ScanClient({
       selectedGrip = gripStyle,
     ) => {
       const runId = ++runIdRef.current;
+      const cardSource: "auto" | "manual" = corners ? "manual" : "auto";
       setState({ kind: "processing" });
       try {
         const result = await runPhotoPipeline({
@@ -209,6 +220,7 @@ export default function ScanClient({
             submission: result.submission,
             warnings: result.warnings,
             overlay: result.overlay,
+            cardSource,
           });
         } else if (result.status === "needsManualCard") {
           setManualCorners(defaultManualCorners(result.overlay));
@@ -220,15 +232,23 @@ export default function ScanClient({
             overlay: result.overlay,
           });
         }
-      } catch {
+      } catch (err) {
         if (runId !== runIdRef.current) return;
+        // Only a genuine HandLandmarker load failure gets to say so —
+        // anything else escaping the pipeline (a bug, an unexpected
+        // Canvas/DOM error) gets a message that doesn't claim a specific
+        // cause it doesn't know is true.
+        const isLoadFailure = err instanceof HandLandmarkerLoadError;
         setState({
           kind: "error",
           errors: [
             {
-              code: "processing_failed",
-              message:
-                "We couldn't load the hand detector. Check your connection and try again.",
+              code: isLoadFailure
+                ? "detector_load_failed"
+                : "processing_failed",
+              message: isLoadFailure
+                ? "We couldn't load the hand detector. Check your connection and try again."
+                : "Something went wrong while processing that photo. Try again.",
             } as PipelineIssue,
           ],
           overlay: null,
@@ -279,25 +299,35 @@ export default function ScanClient({
   const changeHand = useCallback(
     (next: Hand) => {
       setHand(next);
+      // Unlike grip, the stated hand feeds a real gate (checkHandedness
+      // against MediaPipe's own detected handedness) — a change here can
+      // flip the result from "ok" to an error, so it re-runs detection on
+      // the photo still in memory rather than only patching the
+      // submission.
       if (fileRef.current)
         void runPipeline(fileRef.current, manualCorners ?? undefined, next);
     },
     [manualCorners, runPipeline],
   );
 
-  const changeGrip = useCallback(
-    (next: GripStyle | undefined) => {
-      setGripStyle(next);
-      if (fileRef.current)
-        void runPipeline(
-          fileRef.current,
-          manualCorners ?? undefined,
-          hand,
-          next,
-        );
-    },
-    [hand, manualCorners, runPipeline],
-  );
+  const changeGrip = useCallback((next: GripStyle | undefined) => {
+    setGripStyle(next);
+    setState((prev) => {
+      if (prev.kind !== "ok") return prev;
+      // Grip style never reaches a gate or the measurement math (see
+      // src/client/photo/submission.ts) — it only ends up in the
+      // submission object, so changing it after "ok" just rebuilds that
+      // one object instead of re-running detection on the photo.
+      const submission = scanSubmissionSchema.parse({
+        hand: prev.submission.hand,
+        measurements: prev.submission.measurements,
+        calibration: prev.submission.calibration,
+        measurementModelVersion: prev.submission.measurementModelVersion,
+        ...(next !== undefined ? { gripStyleStated: next } : {}),
+      });
+      return { ...prev, submission };
+    });
+  }, []);
 
   const beginDrag = useCallback(
     (index: number) => (e: ReactPointerEvent<SVGCircleElement>) => {
@@ -378,86 +408,67 @@ export default function ScanClient({
         and photograph both from directly above.
       </p>
 
-      {state.kind === "ok" ? (
-        // Once measured, the hand/grip choice is a settled fact, not a
-        // decision still being made — shown as a pair of quiet chips
-        // (docs/design/journey-2026-09-23/03-scan-measured.png) instead of
-        // the full picker. To change either, choose a different photo,
-        // which re-opens the pickers below.
-        <div className="scanChips" aria-label="Hand and grip used">
-          <span className="scanChip">
-            {hand === "left" ? "Left hand" : "Right hand"}
-          </span>
-          {gripStyle && (
-            <span className="scanChip">
-              {gripStyle[0].toUpperCase() + gripStyle.slice(1)} grip
-            </span>
-          )}
-        </div>
-      ) : (
-        <>
-          <fieldset className="picker">
-            <legend>Which hand?</legend>
-            <div className="pickerButtons" role="group" aria-label="Which hand">
-              {(["left", "right"] as const).map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  className={`pickerButton${hand === h ? " selected" : ""}`}
-                  aria-pressed={hand === h}
-                  onClick={() => changeHand(h)}
-                >
-                  {h === "left" ? "Left hand" : "Right hand"}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="picker">
-            <legend>Grip style (optional)</legend>
-            <div
-              className="pickerButtons"
-              role="group"
-              aria-label="Grip style, optional"
+      {/* Always interactive, including once measured (item 2 fix): grip
+          never needs a re-measure, and changing hand re-runs detection on
+          the photo still in memory rather than losing it. */}
+      <fieldset className="picker">
+        <legend>Which hand?</legend>
+        <div className="pickerButtons" role="group" aria-label="Which hand">
+          {(["left", "right"] as const).map((h) => (
+            <button
+              key={h}
+              type="button"
+              className={`pickerButton${hand === h ? " selected" : ""}`}
+              aria-pressed={hand === h}
+              onClick={() => changeHand(h)}
             >
-              {(["palm", "claw", "fingertip"] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={`pickerButton${gripStyle === g ? " selected" : ""}`}
-                  aria-pressed={gripStyle === g}
-                  onClick={() => changeGrip(gripStyle === g ? undefined : g)}
-                >
-                  {g[0].toUpperCase() + g.slice(1)}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-        </>
-      )}
+              {h === "left" ? "Left hand" : "Right hand"}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
-      <div
-        className={`uploadSlot${state.kind === "ok" ? " uploadSlot-measured" : ""}`}
-      >
-        <label className="uploadButton" htmlFor="top-down-photo">
-          {state.kind === "ok"
-            ? "Use a different photo"
-            : previewUrl
-              ? "Replace photo"
-              : "Choose photo"}
-        </label>
-        <input
-          id="top-down-photo"
-          type="file"
-          accept="image/*"
-          onChange={onInputChange}
-          className="visuallyHidden"
-        />
-        <p className="deviceNotice">
-          Processed on this device — the photo is never uploaded.
-          {state.kind === "ok" && " Only these measurements are sent."}
-        </p>
-      </div>
+      <fieldset className="picker">
+        <legend>Grip style (optional)</legend>
+        <div
+          className="pickerButtons"
+          role="group"
+          aria-label="Grip style, optional"
+        >
+          {(["palm", "claw", "fingertip"] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              className={`pickerButton${gripStyle === g ? " selected" : ""}`}
+              aria-pressed={gripStyle === g}
+              onClick={() => changeGrip(gripStyle === g ? undefined : g)}
+            >
+              {g[0].toUpperCase() + g.slice(1)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* The choose/replace-photo control only exists before "ok" — once
+          measured it reappears further down, after the primary action, in
+          its own DOM position (no CSS `order` — item 4). */}
+      {state.kind !== "ok" && (
+        <div className="uploadSlot">
+          <label className="uploadButton" htmlFor="top-down-photo">
+            {previewUrl ? "Replace photo" : "Choose photo"}
+          </label>
+          <input
+            id="top-down-photo"
+            type="file"
+            accept="image/*"
+            onChange={onInputChange}
+            className="visuallyHidden"
+          />
+          <p className="deviceNotice">
+            Processed on this device — the photo is never uploaded.
+          </p>
+        </div>
+      )}
 
       <div
         aria-live="polite"
@@ -570,40 +581,64 @@ export default function ScanClient({
       )}
 
       {state.kind === "ok" && (
-        <div className="feedback feedback-ok">
-          <p className="feedbackTitle">
-            <CheckIcon /> Hand measured
-          </p>
-          {state.warnings.length > 0 && (
-            <div className="feedback feedback-warning">
-              {state.warnings.map((w, i) => (
-                <p key={i}>{w.message}</p>
-              ))}
-            </div>
-          )}
-          {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
-              from — the visible dl below is for people, formatted/rounded. */}
-          <p hidden data-testid="scan-measurements-json">
-            {JSON.stringify(state.measurements)}
-          </p>
-          <dl className="measurements" data-testid="scan-measurements">
-            {Object.entries(state.measurements).map(([key, value]) => (
-              <div className="measurementRow" key={key}>
-                <dt>{MEASUREMENT_LABELS[key as keyof HandMeasurements]}</dt>
-                <dd className="tabularNum">
-                  {typeof value === "number" ? value.toFixed(1) : String(value)}
-                  {key.endsWith("Deg") ? "°" : " mm"}
-                </dd>
+        <>
+          <div className="feedback feedback-ok">
+            <p className="feedbackTitle">
+              <CheckIcon /> Hand measured
+            </p>
+            {state.warnings.length > 0 && (
+              <div className="feedback feedback-warning">
+                {state.warnings.map((w, i) => (
+                  <p key={i}>{w.message}</p>
+                ))}
               </div>
-            ))}
-          </dl>
-          <p className="feedbackCaption">
-            All four sheet markers and the card were found, so the scale is
-            checked.
-          </p>
-        </div>
+            )}
+            {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
+                from — the visible dl below is for people, formatted/rounded. */}
+            <p hidden data-testid="scan-measurements-json">
+              {JSON.stringify(state.measurements)}
+            </p>
+            <dl className="measurements" data-testid="scan-measurements">
+              {Object.entries(state.measurements).map(([key, value]) => (
+                <div className="measurementRow" key={key}>
+                  <dt>{MEASUREMENT_LABELS[key as keyof HandMeasurements]}</dt>
+                  <dd className="tabularNum">
+                    {typeof value === "number"
+                      ? value.toFixed(1)
+                      : String(value)}
+                    {key.endsWith("Deg") ? "°" : " mm"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="feedbackCaption">
+              {state.cardSource === "auto"
+                ? "All four sheet markers and the card were found, so the scale is checked."
+                : "All four sheet markers were found; the card corners you placed set the scale."}
+            </p>
+          </div>
+
+          <ScanSubmitPanel submission={state.submission} />
+
+          <div className="uploadSlot uploadSlot-measured">
+            <label className="uploadButton" htmlFor="top-down-photo">
+              Use a different photo
+            </label>
+            <input
+              id="top-down-photo"
+              type="file"
+              accept="image/*"
+              onChange={onInputChange}
+              className="visuallyHidden"
+            />
+            <p className="deviceNotice">
+              Processed on this device — only measurements are sent, never the
+              photo.
+            </p>
+          </div>
+        </>
       )}
-      {state.kind === "ok" && <ScanSubmitPanel submission={state.submission} />}
+
       <Link href="/sheet" className="scanSheetLink">
         Don&apos;t have the sheet? Print it
       </Link>

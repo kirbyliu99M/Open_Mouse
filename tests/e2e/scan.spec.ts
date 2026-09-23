@@ -7,7 +7,7 @@ const FILE_INPUT = "#top-down-photo";
 const STATUS = () => "[data-testid='scan-status']";
 
 test.describe("/scan — top-down photo pipeline", () => {
-  test("failed detector download shows retry and leaves processing", async ({
+  test("a failed detector download shows retry, and clicking it actually re-loads the detector and reaches the next gate", async ({
     page,
   }) => {
     await page.route("**/mediapipe/models/hand_landmarker.task", (route) =>
@@ -29,7 +29,15 @@ test.describe("/scan — top-down photo pipeline", () => {
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
     await page.unroute("**/mediapipe/models/hand_landmarker.task");
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.locator(STATUS())).not.toContainText("Looking for", {
+    // Proves the retry didn't just clear the old message — it re-ran the
+    // whole pipeline on the same photo and reached the next real gate (this
+    // fixture has markers but no hand). That's only reachable if the
+    // HandLandmarker genuinely loaded on this second attempt: if
+    // `getHandLandmarker()` didn't reset its cached promise on failure, the
+    // same rejected promise would be reused and this would time out instead
+    // of reaching the hand-detection message.
+    const expectedMessage = checkHandDetected(0)!.message;
+    await expect(page.locator(STATUS())).toHaveText(expectedMessage, {
       timeout: 20_000,
     });
   });
@@ -193,17 +201,82 @@ test.describe("/scan — top-down photo pipeline", () => {
 // see that route's own comment for why (mirrors `/scan/submit-demo`'s reason
 // for existing).
 test.describe("/scan/measured-demo — measured state (item 6)", () => {
-  test("shows the settled hand/grip as chips, not the full pickers", async ({
+  test("keeps the hand/grip pickers visible and correctly pre-selected once measured (item 2)", async ({
     page,
   }) => {
     await page.goto("/scan/measured-demo");
-    await expect(page.locator(".scanChip")).toHaveText([
-      "Right hand",
-      "Claw grip",
-    ]);
-    await expect(page.getByRole("button", { name: "Left hand" })).toHaveCount(
-      0,
+    const rightHand = page.getByRole("button", { name: "Right hand" });
+    await expect(rightHand).toBeVisible();
+    await expect(rightHand).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Left hand" })).toBeVisible();
+
+    const claw = page.getByRole("button", { name: "Claw", exact: true });
+    await expect(claw).toBeVisible();
+    await expect(claw).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("changing grip after measured updates the submission without re-measuring, and the new grip reaches the server", async ({
+    page,
+  }) => {
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "823e4567-e89b-12d3-a456-426614174007",
+        }),
+      });
+    });
+
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "Palm", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Palm", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    // No re-measure happened: the card's numbers are untouched and the
+    // status banner never shows the "Looking for…" processing text a real
+    // pipeline re-run would produce.
+    await expect(page.locator(".measurementRow").first()).toContainText(
+      "190.0 mm",
     );
+    await expect(page.locator(STATUS())).not.toContainText("Looking for");
+
+    await page.locator(SUBMIT_BUTTON()).click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.gripStyleStated).toBe("palm");
+  });
+
+  test("focus order in the measured state follows the visual order — card, primary action, secondary action, print link", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+
+    const submit = page.getByRole("button", { name: "See my matches" });
+    await submit.focus();
+    await expect(submit).toBeFocused();
+
+    // The very next tab stop is the secondary action, not something earlier
+    // on the page — this only holds if the DOM order itself matches the
+    // visual order (a CSS `order` reshuffle changes what's drawn where but
+    // never changes tab order, which always follows the DOM).
+    await page.keyboard.press("Tab");
+    await expect(page.locator(":focus")).toHaveAccessibleName(
+      "Use a different photo",
+    );
+
+    await page.keyboard.press("Tab");
+    await expect(page.locator(":focus")).toHaveAccessibleName(/print it/i);
   });
 
   test("shows a 'Hand measured' card with the three headline numbers", async ({
@@ -234,12 +307,16 @@ test.describe("/scan/measured-demo — measured state (item 6)", () => {
     );
   });
 
-  test("states the on-device privacy line, including that only the measurements are sent", async ({
+  test("states honestly that only measurements are sent — never claims the visible three numbers are all of them", async ({
     page,
   }) => {
+    // The POST actually carries 8 measurements plus hand/grip/calibration,
+    // not just the 3 shown on the card, so the copy must not say "these
+    // measurements" (item 1 — that phrasing implied the visible three were
+    // the whole payload).
     await page.goto("/scan/measured-demo");
     await expect(page.locator(".deviceNotice")).toHaveText(
-      "Processed on this device — the photo is never uploaded. Only these measurements are sent.",
+      "Processed on this device — only measurements are sent, never the photo.",
     );
   });
 });
