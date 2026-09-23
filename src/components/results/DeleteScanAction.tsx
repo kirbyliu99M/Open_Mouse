@@ -61,7 +61,9 @@ export function DeleteScanAction({
   async function confirmDelete() {
     setStatus("deleting");
     const outcome = await deleteScan(scanId);
-    if (outcome === "deleted") {
+    // A 404 means the scan is already gone; the honest end state is the
+    // same "deleted" screen, not a "check your connection" retry loop.
+    if (outcome === "deleted" || outcome === "notFound") {
       onDeleted();
       return;
     }

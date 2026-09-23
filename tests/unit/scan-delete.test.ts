@@ -12,7 +12,8 @@ function fixture(expiresAt = new Date("2026-09-24T12:00:00Z")) {
     deleteOwnedScan: vi.fn(async (id, ctx) => {
       const owned =
         ctx.userId === "owner" ||
-        (ctx.cookieSessionId === "session-1" && expiresAt > ctx.now);
+        (ctx.cookieSessionId === "33333333-3333-4333-8333-333333333333" &&
+          expiresAt > ctx.now);
       if (!owned || !scans.has(id)) return false;
       scans.delete(id);
       return true;
@@ -20,7 +21,8 @@ function fixture(expiresAt = new Date("2026-09-24T12:00:00Z")) {
     findOwnedScan: vi.fn(async (id, ctx) =>
       scans.has(id) &&
       (ctx.userId === "owner" ||
-        (ctx.cookieSessionId === "session-1" && expiresAt > ctx.now))
+        (ctx.cookieSessionId === "33333333-3333-4333-8333-333333333333" &&
+          expiresAt > ctx.now))
         ? {
             hand: "right" as const,
             gripStyleStated: null,
@@ -45,17 +47,25 @@ describe("handleScanDelete", () => {
   it("deletes B while A remains resolvable in the same anonymous session; second delete is 404", async () => {
     const { repo, request } = fixture();
     const deps = { repo, getUserId: async () => null, now: () => NOW };
-    const first = await handleScanDelete(request("session-1"), B, deps);
+    const first = await handleScanDelete(
+      request("33333333-3333-4333-8333-333333333333"),
+      B,
+      deps,
+    );
     expect(first.status).toBe(204);
     expect(first.headers.get("cache-control")).toBe("no-store");
     expect(
       await repo.findOwnedScan(A, {
         userId: null,
-        cookieSessionId: "session-1",
+        cookieSessionId: "33333333-3333-4333-8333-333333333333",
         now: NOW,
       }),
     ).not.toBeNull();
-    const second = await handleScanDelete(request("session-1"), B, deps);
+    const second = await handleScanDelete(
+      request("33333333-3333-4333-8333-333333333333"),
+      B,
+      deps,
+    );
     expect(second.status).toBe(404);
     expect(await second.json()).toEqual({ error: "Scan not found." });
   });
@@ -73,11 +83,15 @@ describe("handleScanDelete", () => {
 
   it("returns 404 for an expired anonymous session", async () => {
     const { repo, scans, request } = fixture(new Date("2026-09-23T11:59:59Z"));
-    const response = await handleScanDelete(request("session-1"), B, {
-      repo,
-      getUserId: async () => null,
-      now: () => NOW,
-    });
+    const response = await handleScanDelete(
+      request("33333333-3333-4333-8333-333333333333"),
+      B,
+      {
+        repo,
+        getUserId: async () => null,
+        now: () => NOW,
+      },
+    );
     expect(response.status).toBe(404);
     expect(scans.has(B)).toBe(true);
   });

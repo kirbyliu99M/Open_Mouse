@@ -20,34 +20,44 @@ import {
 describe("deriveClaimSessionId — session id comes only from the cookie", () => {
   it("reads the session id from the Cookie header", () => {
     const request = new Request("http://localhost/api/auth/callback/google", {
-      headers: { cookie: `${SCAN_SESSION_COOKIE}=my-session` },
+      headers: {
+        cookie: `${SCAN_SESSION_COOKIE}=11111111-1111-4111-8111-111111111111`,
+      },
     });
-    expect(deriveClaimSessionId(request)).toBe("my-session");
+    expect(deriveClaimSessionId(request)).toBe(
+      "11111111-1111-4111-8111-111111111111",
+    );
   });
 
   it("ignores a spoofed session id carried anywhere but the cookie", () => {
-    // An attacker who doesn't hold victim-session's cookie tries to name it
+    // An attacker who doesn't hold bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb's cookie tries to name it
     // via a body field, a query string, and a custom header instead.
     const request = new Request(
-      "http://localhost/api/auth/callback/google?sessionId=victim-session",
+      "http://localhost/api/auth/callback/google?sessionId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-session-id": "victim-session",
-          cookie: `${SCAN_SESSION_COOKIE}=attacker-own-session`,
+          "x-session-id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          cookie: `${SCAN_SESSION_COOKIE}=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,
         },
-        body: JSON.stringify({ sessionId: "victim-session" }),
+        body: JSON.stringify({
+          sessionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        }),
       },
     );
-    expect(deriveClaimSessionId(request)).toBe("attacker-own-session");
-    expect(deriveClaimSessionId(request)).not.toBe("victim-session");
+    expect(deriveClaimSessionId(request)).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    expect(deriveClaimSessionId(request)).not.toBe(
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    );
   });
 
   it("is null with no cookie at all, never falling back to another field", () => {
     const request = new Request(
-      "http://localhost/api/auth/callback/google?sessionId=victim-session",
-      { headers: { "x-session-id": "victim-session" } },
+      "http://localhost/api/auth/callback/google?sessionId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      { headers: { "x-session-id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" } },
     );
     expect(deriveClaimSessionId(request)).toBeNull();
   });

@@ -26,6 +26,13 @@ describe("deleteScan", () => {
     });
   });
 
+  it("reports a 404 as notFound (already gone), not as a retryable error", async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ error: "Scan not found." }, { status: 404 }),
+    );
+    expect(await deleteScan(SCAN_ID, fetchImpl)).toBe("notFound");
+  });
+
   it("never sends a malformed id to the session-wide delete endpoint", async () => {
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
     expect(await deleteScan("session", fetchImpl)).toBe("serverError");

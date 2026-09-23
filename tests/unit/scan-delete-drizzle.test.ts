@@ -51,6 +51,37 @@ describe("createDrizzleScanRepo().deleteOwnedScan", () => {
     expect(statement).not.toContain("delete from " + '"scan_sessions"');
   });
 
+  // SQL-shape checks: there is no database in CI, so these assert the
+  // generated WHERE clause, not database behaviour. The behaviour (a stale
+  // cookie on a claimed session could delete the account's scan) was
+  // reproduced on real Postgres in the #45 review.
+  const COOKIE_BRANCH =
+    /"scan_sessions"\."id" = \$\d+ and "scan_sessions"\."user_id" is null and "scan_sessions"\."expires_at" > \$\d+/;
+
+  it("generates a cookie branch that requires an unclaimed, unexpired session for delete", async () => {
+    const { repo, query } = fixture([]);
+    await repo.deleteOwnedScan(SCAN, {
+      userId: null,
+      cookieSessionId: "session-1",
+      now: NOW,
+    });
+    const statement = String(query.mock.calls[0][0]).toLowerCase();
+    expect(statement).toMatch(COOKIE_BRANCH);
+    expect(statement).not.toContain('"expires_at" is null');
+  });
+
+  it("generates the same cookie branch for find, so read and delete agree", async () => {
+    const { repo, query } = fixture([]);
+    await repo.findOwnedScan(SCAN, {
+      userId: null,
+      cookieSessionId: "session-1",
+      now: NOW,
+    });
+    const statement = String(query.mock.calls[0][0]).toLowerCase();
+    expect(statement).toMatch(COOKIE_BRANCH);
+    expect(statement).not.toContain('"expires_at" is null');
+  });
+
   it("reports false when no row was deleted", async () => {
     const { repo } = fixture([]);
     expect(

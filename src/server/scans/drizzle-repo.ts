@@ -16,10 +16,16 @@ function ownershipPredicate(ctx: ScanOwnershipContext) {
     ownership.push(eq(scanSessions.userId, ctx.userId));
   }
   if (ctx.cookieSessionId !== null) {
+    // The cookie proves ownership of an *anonymous* session only (contract:
+    // src/lib/contracts/routes.ts). Once claimed, ownership follows the user:
+    // a cookie left behind after sign-out must not read or delete the
+    // account's scans. Anonymous sessions always have an expiry (DB CHECK),
+    // so there is no "no expiry" case to allow here.
     ownership.push(
       and(
         eq(scanSessions.id, ctx.cookieSessionId),
-        or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, ctx.now)),
+        isNull(scanSessions.userId),
+        gt(scanSessions.expiresAt, ctx.now),
       ),
     );
   }
