@@ -225,11 +225,25 @@ export async function analyse(
   let prompt = basePrompt;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const raw = await client.generate({
-      prompt,
-      schema: ANALYSIS_RESPONSE_SCHEMA,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-    });
+    let raw: string;
+    try {
+      raw = await client.generate({
+        prompt,
+        schema: ANALYSIS_RESPONSE_SCHEMA,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      });
+    } catch (error) {
+      // The call itself failed — an API error, a timeout, the network. The
+      // retry loop below exists for a response that came back unusable; a
+      // failed call is not fixed by rephrasing the prompt, so stop and give
+      // the reader the deterministic answer instead of an error. Before this
+      // guard, one rejected request config turned every analysis into a 500.
+      console.error(
+        "analysis model call failed; serving the fallback:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return { output: buildFallbackOutput(input), source: "fallback" };
+    }
 
     let parsed: unknown;
     try {
