@@ -51,6 +51,28 @@ less defined palm. The crop has an open wrist, and the test uses the base pose
 without shape fitting or pose correctives. It does not establish grip-pose
 quality or user-specific fit.
 
+## Add-on-free curled-pose experiment
+
+The official [Unreal plugin implementation](https://github.com/PerceivingSystems/smpl-unreal/blob/main/Plugins/SMPL/Source/SMPL/Private/AnimNode_SMPLPoseCorrectives.cpp)
+maps 51 non-root SMPL+H joints to 459 `Pose###` keys: nine row-major
+components of the local rotation matrix minus identity for each joint.
+Its [joint-order table](https://github.com/PerceivingSystems/smpl-unreal/blob/main/Plugins/SMPL/Source/SMPL/Private/SMPLPoseCorrectives.cpp)
+places the right finger joints at indices 37–51. `compare_smplh_pose.py` uses
+that mapping directly in Blender, without loading the add-on. It poses the
+neutral right fingers into a common curl and renders skinning-only versus
+skinning-plus-correctives. The largest vertex difference in the local test was
+5.91 mm, and the finger-joint surface visibly changes. This confirms that the
+bundled keys can be evaluated without the add-on.
+
+The bend angles and rotation-axis conversion are experimental. The result is
+not yet a validated grip pose: it needs comparison to the official add-on's
+output or a trusted SMPL+H reference pose, and then a mouse-contact review.
+The two renders remain local in `out/mano-comparison/`.
+
+```powershell
+& $blenderExe --background --factory-startup $smplhBlend --python-exit-code 1 --python tools/blender/compare_smplh_pose.py
+```
+
 Run locally with Blender 5.2.2 and an authorized SMPL+H file:
 
 ```powershell
@@ -61,10 +83,10 @@ $smplhBlend = '<local authorized smplh_model_20260511.blend path>'
 
 ## Integration work if the visual test succeeds
 
-1. Extend the private comparison from this flat pose to claw and palm grips,
-   with the SMPL+H pose correctives actually applied. Check finger joint folds,
-   palm volume, and contact with three representative mouse shells. Preserve
-   all comparison assets locally until distribution rights are clear.
+1. Validate the direct pose-corrective weights and rotation axes against the
+   official add-on or a trusted SMPL+H reference pose, then extend the private
+   comparison to claw and palm grips around three representative mouse shells.
+   Preserve all comparison assets locally until distribution rights are clear.
 2. Fit hand shape to the scan. Today the browser detects 21 MediaPipe points
    but sends only hand length, palm length/width, optional finger lengths and
    other derived measurements. Those few values do not uniquely determine
