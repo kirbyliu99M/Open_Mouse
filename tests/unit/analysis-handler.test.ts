@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { describe, expect, it, vi } from "vitest";
 import { analysisResponseSchema } from "../../src/lib/contracts/analysis";
 import {
@@ -320,11 +321,17 @@ describe("handleAnalysisRequest — the cache never fails a request", () => {
     rateLimitKey: "user-1",
   };
   // What a Postgres constraint error looks like: its detail quotes the row.
-  const dbError = Object.assign(new Error("null value in column"), {
-    code: "23502",
-    detail:
-      "Failing row contains (It's 125 mm long, right in your ideal range.)",
-  });
+  // Shaped like production: Drizzle wraps the driver's error, and its own
+  // message quotes the query params — here, the prose.
+  const dbError = new DrizzleQueryError(
+    "insert into analysis_cache ...",
+    ["It's 125 mm long, right in your ideal range."],
+    Object.assign(new Error("null value in column"), {
+      code: "23502",
+      detail:
+        "Failing row contains (It's 125 mm long, right in your ideal range.)",
+    }),
+  );
 
   it("treats a failing read as a miss and still answers 200 from the model", async () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});

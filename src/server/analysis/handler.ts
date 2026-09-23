@@ -51,11 +51,24 @@ export interface AnalysisResponseLike {
  * Postgres error code is logged: a constraint error's detail can quote the
  * failing row, which here is prose about the user's hand.
  */
+function pgErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  if ("code" in error) return String((error as { code: unknown }).code);
+  return null;
+}
+
 function logCacheFailure(op: "get" | "set", error: unknown): void {
+  // Drizzle wraps driver errors in DrizzleQueryError, whose own message
+  // quotes the query params (the prose) — so read the code from the
+  // wrapped cause, and never log a message.
   const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? String((error as { code: unknown }).code)
-      : "none";
+    pgErrorCode(error) ??
+    pgErrorCode(
+      typeof error === "object" && error !== null && "cause" in error
+        ? (error as { cause: unknown }).cause
+        : null,
+    ) ??
+    "none";
   console.error(
     `analysis cache ${op} failed (code ${code}); continuing without it`,
   );

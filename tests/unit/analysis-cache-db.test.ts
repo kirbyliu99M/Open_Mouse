@@ -97,7 +97,7 @@ describe("migration 0005 on a real Postgres", () => {
     ]);
   });
 
-  it("is a single statement, and running it a second time is a no-op", async () => {
+  it("is a single statement, and running it a second time does not error", async () => {
     expect(migrationStatements(MIGRATION_FILES[MIGRATION_0005]!)).toHaveLength(
       1,
     );
