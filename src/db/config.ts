@@ -57,19 +57,27 @@ const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
 
 // A key is treated as a credential when its name CONTAINS one of these words,
 // case-insensitively, with any prefix or suffix — `DB_PASS`, `Pg_Password`,
-// `my_api_token`, `MY_SECRET_2` all match via `pass`/`token`/`secret`. This
+// `my_api_token`, `MY_SECRET_2`, `POSTGRES_URL_NON_POOLING`, `db_dsn`,
+// `SENTRY_DSN` all match via `pass`/`token`/`secret`/`url`/`dsn`. This
 // replaces a fixed alias list: a list only ever covers the exact names it was
 // written for, and the next `DB_PASS` (or whatever a driver/env var happens
 // to call it) simply isn't in it. The `[\w-]*` on both sides of each fragment
 // *is* "contains, with any prefix or suffix" — not a growing list of full
 // names.
 //
+// `url` and `dsn` are included on the same fail-toward-redacting principle:
+// a `DATABASE_URL`-style key is exactly the field most likely to carry a
+// credential, and its value may be malformed, truncated, or otherwise not
+// URL-shaped in a way that defeats CONNECTION_URL below — the key name is
+// the more reliable signal. Over-redacting `baseUrl=…` in a log line is an
+// acceptable cost; under-redacting a connection string is not.
+//
 // Deliberately excludes a bare "key": Postgres unique-constraint names look
 // like `users_email_key`, and those must stay readable in migration errors.
 // The compounds that really mean a credential — `api_key`, `access_key`,
 // `private_key` — are still covered as explicit alternatives.
 const CREDENTIAL_WORD =
-  "pass|pwd|secret|token|credential|auth|api[_-]?key|access[_-]?key|private[_-]?key";
+  "pass|pwd|secret|token|credential|auth|url|dsn|api[_-]?key|access[_-]?key|private[_-]?key";
 const CREDENTIAL_KEY = String.raw`[\w-]*(?:${CREDENTIAL_WORD})[\w-]*`;
 
 // Matches a credential-shaped `key = value` / `key: value` assignment —

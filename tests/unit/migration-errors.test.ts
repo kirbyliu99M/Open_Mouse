@@ -96,19 +96,41 @@ describe("redactSecrets", () => {
       expect(out).toContain("while running 0002_index.sql");
     });
 
-    it("redacts a real connection string held by DATABASE_URL, even though a bare DATABASE_URL=value isn't itself a credential-shaped key", () => {
-      // DATABASE_URL contains none of the content words (pass/pwd/secret/
-      // token/credential/auth/*_key), so it isn't matched as a key on its own
-      // -- but when its value actually is a connection string, CONNECTION_URL
-      // still catches it regardless of the key name, which is the case that
-      // matters in practice (DATABASE_URL always holds a URL, not a bare
-      // token).
+    it("redacts a real connection string held by DATABASE_URL", () => {
+      // Belt and suspenders: CONNECTION_URL catches the value because it's
+      // URL-shaped, and (since Kirby's 2026-09-23 adjudication) DATABASE_URL
+      // is now also a credential-shaped key in its own right (contains
+      // "url"). Either path alone would redact this; both firing is fine.
       const message = `DATABASE_URL=postgresql://u:${SECRET}@h/db (config)`;
       const out = redactSecrets(message);
       expect(out).not.toContain(SECRET);
       expect(out).not.toContain("secret-XYZ");
       expect(out).toContain("(config)");
     });
+
+    // Kirby's 2026-09-23 adjudication: include `url` and `dsn` as content
+    // fragments, fail toward redacting, because a *_URL/*_DSN key is exactly
+    // the field most likely to carry a credential and its value may be
+    // malformed or truncated in a way that defeats CONNECTION_URL's
+    // URL-shape pattern -- the key name is the more reliable signal here.
+    it.each([
+      "DATABASE_URL",
+      "POSTGRES_URL_NON_POOLING",
+      "db_dsn",
+      "SENTRY_DSN",
+    ])(
+      "redacts a bare, non-URL-shaped value under %s (key content alone, not the value's shape)",
+      (key) => {
+        // Deliberately NOT URL-shaped -- proves the key-content rule covers
+        // it even when CONNECTION_URL's value-shape pattern would not.
+        const message = `config: ${key}=${SECRET} (retry 1)`;
+        const out = redactSecrets(message);
+        expect(out).not.toContain(SECRET);
+        expect(out).not.toContain("secret-XYZ");
+        expect(out).toContain("config:");
+        expect(out).toContain("(retry 1)");
+      },
+    );
 
     it("keeps the Postgres detail alongside a redacted quoted secret", () => {
       const message = `syntax error at or near "CREATE" (42601); config was password="${SECRET}"`;
@@ -120,6 +142,12 @@ describe("redactSecrets", () => {
     it("leaves a unique-constraint name that merely ends in _key untouched (no bare 'key' trigger)", () => {
       const message =
         'duplicate key value violates unique constraint "users_email_key"';
+      expect(redactSecrets(message)).toBe(message);
+    });
+
+    it("leaves a real Postgres detail with no credential in it completely untouched", () => {
+      const message =
+        'relation "phantom_table" does not exist while running 0003_index.sql';
       expect(redactSecrets(message)).toBe(message);
     });
 
@@ -175,6 +203,8 @@ describe("redactSecrets", () => {
       "token",
       "credential",
       "auth",
+      "url",
+      "dsn",
       "api_key",
       "access_key",
       "private_key",
