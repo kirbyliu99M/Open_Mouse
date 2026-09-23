@@ -142,9 +142,9 @@ describe("the deployed schedule matches retention.ts", () => {
     // / fail-all-three all exercised against a stubbed `curl`).
     expect(contents).toMatch(/sleep 10/);
     expect(contents).toMatch(/sleep 30/);
-    expect((contents.match(/curl --fail/g) ?? []).length).toBeGreaterThanOrEqual(
-      1,
-    );
+    expect(
+      (contents.match(/curl --fail/g) ?? []).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(contents).toMatch(/All 3 attempts/);
   });
 });
