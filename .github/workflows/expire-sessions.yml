@@ -1,0 +1,68 @@
+name: Expire anonymous scan sessions
+
+# Half of the 24h anonymous-deletion promise (issue #32). Vercel Hobby's cron
+# only runs daily, which alone would let a scan outlive the promise by up to
+# ~24h more (see vercel.json and docs/STATUS.md's 2026-09-22 decision). This
+# workflow calls the same endpoint hourly, at :17 rather than :00 or :30
+# (GitHub's scheduled runs are documented to be most delayed at the top of
+# the hour, and :30 is a similarly common mark), so the sweep is frequent
+# enough that, combined with the session TTL, the worst case stays under 24h
+# — see src/server/scans/retention.ts for the exact arithmetic, its cost
+# reasoning (this repo's existing CI already draws on the same free
+# 2,000-Actions-minutes/month budget), and tests/unit/retention.test.ts for
+# the CI-enforced proof, which also parses the schedule below so it can't
+# silently drift out of sync with that file.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expire-sessions
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # 3 attempts * 30s --max-time, plus 10s + 30s of backoff between them,
+    # is well under this even in the worst case.
+    timeout-minutes: 4
+    steps:
+      - name: Call GET /api/cron/expire-sessions (retries on failure)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        # CRON_SECRET only ever appears here as a shell variable reference,
+        # never inlined into this script or into any printed output — it is
+        # sent as a request header and nothing about the request is echoed.
+        #
+        # Up to 3 attempts with a short backoff (10s, then 30s): a single
+        # scheduled tick can still fail outright (cold invocation, transient
+        # 5xx, network blip), and retrying inside the step is much cheaper
+        # than waiting a full GITHUB_SWEEP_INTERVAL_MS for the next one —
+        # src/server/scans/retention.ts's GITHUB_MISSED_TICK_BUDGET_MS only
+        # budgets for *one* tick failing outright even after these retries.
+        # `curl --fail` treats any non-2xx response as a failure too.
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET repository secret is not set. See the PR for #32 for one-time setup steps." >&2
+            exit 1
+          fi
+          call_endpoint() {
+            curl --fail --silent --show-error \
+              --max-time 30 \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              "https://open-mouse.vercel.app/api/cron/expire-sessions"
+          }
+          if call_endpoint; then exit 0; fi
+          echo "Attempt 1 failed; retrying in 10s..." >&2
+          sleep 10
+          if call_endpoint; then exit 0; fi
+          echo "Attempt 2 failed; retrying in 30s..." >&2
+          sleep 30
+          if call_endpoint; then exit 0; fi
+          echo "::error::All 3 attempts to call /api/cron/expire-sessions failed." >&2
+          exit 1

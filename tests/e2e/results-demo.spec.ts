@@ -78,7 +78,7 @@ test.describe("/results/demo", () => {
     expect(errors).toEqual([]);
   });
 
-  test("Gemini slot preview shows loading, error and ready states without affecting numeric results", async ({
+  test("Written analysis slot preview shows loading, error and ready states without affecting numeric results", async ({
     page,
   }) => {
     await page.goto("/results/demo");
