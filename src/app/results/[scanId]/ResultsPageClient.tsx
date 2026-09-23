@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
@@ -10,6 +10,7 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
 
 type PageState =
@@ -17,7 +18,8 @@ type PageState =
   | { kind: "notFound" }
   | { kind: "networkError" }
   | { kind: "serverError" }
-  | { kind: "ready"; response: FitResponse };
+  | { kind: "ready"; response: FitResponse }
+  | { kind: "deleted" };
 
 /**
  * No preference UI exists yet (non-goal of issue #30) — both requests send
@@ -41,8 +43,19 @@ const PREFERENCES: FitPreferencesInput = {};
  *  - network error / 5xx -> "try again", which re-runs the fit request
  *  - 429 on the analysis alone -> handled inside `ResultsView`'s slot; the
  *    ranking above stays visible and unaffected
+ *
+ * `anonymous` (issue #42) is decided server-side by `page.tsx` (it calls
+ * `auth()`), never guessed client-side: it gates the "Delete this scan now"
+ * action, which a signed-in caller never sees at all — they manage scans on
+ * `/account` instead.
  */
-export function ResultsPageClient({ scanId }: { scanId: string }) {
+export function ResultsPageClient({
+  scanId,
+  anonymous,
+}: {
+  scanId: string;
+  anonymous: boolean;
+}) {
   const [pageState, setPageState] = useState<PageState>({ kind: "loading" });
   const [analysisState, setAnalysisState] = useState<AnalysisState>({
     status: "idle",
@@ -84,6 +97,11 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
   }, [scanId, attempt]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+
+  const deletedHeadingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (pageState.kind === "deleted") deletedHeadingRef.current?.focus();
+  }, [pageState.kind]);
 
   if (pageState.kind === "loading") {
     return (
@@ -143,6 +161,27 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
     );
   }
 
+  if (pageState.kind === "deleted") {
+    return (
+      <main className="resultsMain">
+        <div className="results-page-error" role="status">
+          <p className="results-eyebrow">Results</p>
+          {/* Focus lands here on mount (see the ref below) — the trigger
+              button that opened the confirmation no longer exists once this
+              renders, so this heading is the one place left to send focus
+              (docs/design-guidelines.md — focus management). */}
+          <h1 ref={deletedHeadingRef} tabIndex={-1}>
+            This scan has been deleted
+          </h1>
+          <p>Its measurements have been permanently removed.</p>
+          <Link href="/scan" className="results-page-action">
+            Scan again
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="resultsMain">
       <Link href="/" className="results-page-back">
@@ -153,6 +192,12 @@ export function ResultsPageClient({ scanId }: { scanId: string }) {
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}
       />
+      {anonymous && (
+        <DeleteScanAction
+          scanId={scanId}
+          onDeleted={() => setPageState({ kind: "deleted" })}
+        />
+      )}
     </main>
   );
 }

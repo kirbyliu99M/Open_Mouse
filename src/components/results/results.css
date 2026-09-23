@@ -22,6 +22,33 @@
   gap: 2rem;
 }
 
+/* ---- Delete-this-scan action (anonymous-only, issue #42) ----
+ * Sits below the ranking and analysis — "the other ranked mice and the six
+ * sub-scores sit one level deeper" (design-guidelines' Results hierarchy
+ * rule applies here too: this is a maintenance action, not the reason the
+ * user came to the page).
+ */
+.delete-scan-action {
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d0d0d5;
+  display: flex;
+  justify-content: center;
+}
+
+@media (prefers-contrast: more) {
+  .delete-scan-action {
+    border-top-width: 2px;
+    border-top-color: currentColor;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .delete-scan-action {
+    border-top-color: #3a3a3d;
+  }
+}
+
 /* ---- /results/[scanId] page-level states (loading, 404, network, 5xx) ---- */
 
 .results-page-status {

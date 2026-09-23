@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { auth } from "../../../auth";
 import { ResultsPageClient } from "./ResultsPageClient";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Your results — Open_Mouse",
@@ -13,5 +16,10 @@ export default async function ResultsPage({
   params: Promise<{ scanId: string }>;
 }) {
   const { scanId } = await params;
-  return <ResultsPageClient scanId={scanId} />;
+  // Decided server-side, same as the (now-removed) beacon used to be
+  // (issue #42) — never guessed from anything a client script could spoof.
+  // Gates the anonymous-only "Delete this scan now" action below: a
+  // signed-in user manages their scans on `/account` instead.
+  const session = await auth();
+  return <ResultsPageClient scanId={scanId} anonymous={!session?.user} />;
 }

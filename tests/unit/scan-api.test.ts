@@ -43,7 +43,7 @@ function createFakeRepo() {
     ),
     createAnonymousSession: vi.fn(
       async (expiresAt: Date): Promise<SessionRecord> => {
-        const id = `session-${++counter}`;
+        const id = `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
         sessions.set(id, { id, userId: null, expiresAt });
         return { id };
       },
@@ -88,6 +88,7 @@ function createFakeRepo() {
     // tests/unit/scan-ownership.test.ts. Kept here only so this fake keeps
     // satisfying ScanRepo's shape.
     findOwnedScan: vi.fn(async () => null),
+    deleteOwnedScan: vi.fn(async () => false),
   };
   return { repo, sessions, insertedScans };
 }
@@ -273,20 +274,24 @@ describe("POST /api/scans — oversized body", () => {
 describe("DELETE /api/scans/session", () => {
   it("deletes the caller's session and clears the cookie", async () => {
     const { repo, sessions } = createFakeRepo();
-    sessions.set("abc", {
-      id: "abc",
+    sessions.set("44444444-4444-4444-8444-444444444444", {
+      id: "44444444-4444-4444-8444-444444444444",
       userId: null,
       expiresAt: new Date(Date.now() + 1000),
     });
     const request = new Request("http://localhost/api/scans/session", {
       method: "DELETE",
-      headers: { cookie: `${SCAN_SESSION_COOKIE}=abc` },
+      headers: {
+        cookie: `${SCAN_SESSION_COOKIE}=44444444-4444-4444-8444-444444444444`,
+      },
     });
 
     const res = await handleSessionDelete(request, { repo });
 
     expect(res.status).toBe(204);
-    expect(repo.deleteSession).toHaveBeenCalledWith("abc");
+    expect(repo.deleteSession).toHaveBeenCalledWith(
+      "44444444-4444-4444-8444-444444444444",
+    );
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
@@ -387,9 +392,15 @@ describe("expiry query — anonymous sessions past expires_at", () => {
 
 describe("scan session cookie", () => {
   it("round-trips a session id through Set-Cookie and Cookie headers", () => {
-    const setCookie = buildSessionCookie("session-123");
-    const cookieHeader = setCookie.split(";")[0]!;
-    expect(readSessionCookie(cookieHeader)).toBe("session-123");
+    const id = "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
+    const cookieHeader = buildSessionCookie(id).split(";")[0]!;
+    expect(readSessionCookie(cookieHeader)).toBe(id);
+  });
+
+  it("treats a non-UUID cookie value as no session, so it never reaches Postgres", () => {
+    for (const value of ["session-123", "abc", "' OR 1=1 --", "%E0%A4%A"]) {
+      expect(readSessionCookie(`${SCAN_SESSION_COOKIE}=${value}`)).toBeNull();
+    }
   });
 
   it.each([

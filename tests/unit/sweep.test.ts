@@ -14,6 +14,7 @@ function fakeRepo(): ScanRepo {
     deleteExpiredAnonymousSessions: vi.fn(async () => 0),
     claimSession: vi.fn(async () => {}),
     findOwnedScan: vi.fn(async () => null),
+    deleteOwnedScan: vi.fn(async () => false),
   };
 }
 
