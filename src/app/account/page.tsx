@@ -2,6 +2,10 @@ import { auth, signIn, signOut } from "../../auth";
 import { createDrizzleAccountRepo } from "../../server/account/drizzle-repo";
 import { isAuthConfigured } from "../../server/auth/config";
 import { AccountView } from "./AccountView";
+import { AuthButton } from "./AuthButton";
+import { TopBar } from "@/components/nav/TopBar";
+import Link from "next/link";
+import "./account.css";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +16,7 @@ export default async function AccountPage() {
     const configured = isAuthConfigured();
     return (
       <main className="account">
+        <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
         <p className="eyebrow">Account</p>
         <h1>Sign in to keep your scans</h1>
         <p>
@@ -25,14 +30,13 @@ export default async function AccountPage() {
               await signIn("google", { redirectTo: "/account" });
             }}
           >
-            <button type="submit" className="button-primary">
-              Sign in with Google
-            </button>
+            <AuthButton action="in" />
           </form>
         ) : (
-          <p className="note" role="status">
-            Sign-in unavailable
-          </p>
+          <div className="account-unavailable" role="status">
+            <p>Sign-in is unavailable right now.</p>
+            <Link href="/sheet">Start measuring without signing in</Link>
+          </div>
         )}
       </main>
     );
@@ -43,6 +47,7 @@ export default async function AccountPage() {
 
   return (
     <main className="account">
+      <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
       <div className="account-header">
         <div>
           <p className="eyebrow">Account</p>
@@ -55,9 +60,7 @@ export default async function AccountPage() {
             await signOut({ redirectTo: "/" });
           }}
         >
-          <button type="submit" className="button-secondary">
-            Sign out
-          </button>
+          <AuthButton action="out" />
         </form>
       </div>
       <AccountView scans={scans} />

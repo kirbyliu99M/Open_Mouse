@@ -35,12 +35,37 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
     page.getByRole("heading", { level: 1, name: "Sign in to keep your scans" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Sign-in unavailable", { exact: true }),
+    page.getByText("Sign-in is unavailable right now.", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Sign in with Google" }),
   ).toHaveCount(0);
+  await page
+    .getByRole("link", { name: "Start measuring without signing in" })
+    .click();
+  await expect(page).toHaveURL(/\/sheet$/);
   expect(errors).toEqual([]);
+});
+
+test("deletion confirmation contains focus and returns it to the trigger", async ({
+  page,
+}) => {
+  await gotoWarm(page, "/account");
+  const trigger = page.getByRole("button", { name: "Delete everything" });
+  if ((await trigger.count()) === 0 || (await trigger.isDisabled())) {
+    test.skip(true, "Requires a signed-in account with a saved scan");
+  }
+  await trigger.click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    dialog.getByRole("button", { name: "Delete everything" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test("the home page links to /account", async ({ page }) => {

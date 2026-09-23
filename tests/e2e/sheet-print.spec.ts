@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test } from "@playwright/test";
 
 const MM_PER_INCH = 25.4;
 const CSS_PX_PER_INCH = 96;
@@ -39,14 +39,26 @@ test.describe("printable calibration sheet (/sheet)", () => {
     expect(countPdfPageObjects(pdf)).toBe(1);
   });
 
-  test("the sheet SVG renders at exactly 210 mm wide — nothing rescales it", async ({
-    page,
-  }) => {
+  test("the sheet SVG prints at exactly 210 mm wide", async ({ page }) => {
     await page.goto("/sheet");
+    await page.emulateMedia({ media: "print" });
     const box = await page.locator(".printPage svg").boundingBox();
     expect(box).not.toBeNull();
     expect(Math.abs((box?.width ?? 0) - EXPECTED_SHEET_WIDTH_PX)).toBeLessThan(
       1,
     );
+  });
+
+  test("the complete screen preview fits a phone width", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/sheet");
+    const box = await page.locator(".printPage svg").boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    await page
+      .getByRole("link", { name: "I've printed it — continue" })
+      .click();
+    await expect(page).toHaveURL(/\/scan$/);
   });
 });

@@ -1,4 +1,7 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
+import { TopBar } from "@/components/nav/TopBar";
+import { PrintButton } from "./PrintButton";
 import { ID1_CARD_MM, SHEET } from "@/lib/contracts/measurement";
 import {
   ARUCO_MARKER_MODULES,
@@ -77,21 +80,15 @@ export default function SheetPage() {
   return (
     <main className="sheetMain">
       <div className="instructions noPrint">
-        <p className="eyebrow">Open_Mouse</p>
-        <h1>Calibration sheet</h1>
-        <p>
-          Print this page, then lay your hand flat on it next to a bank card and
-          photograph both together. The sheet, your hand and the card never
-          leave your device — only the millimetre measurements computed from the
-          photo are sent anywhere.
-        </p>
-        <p>
-          <strong>
-            Print at 100% / Actual size — do not &quot;fit to page&quot;.
-          </strong>{" "}
-          Any browser print dialog&apos;s scale-to-fit option will make every
-          measurement wrong.
-        </p>
+        <TopBar backHref="/" backLabel="Home" stepLabel="Step 1 of 2 · Print" />
+        <h1>Print the sheet</h1>
+        <div className="sheet-callout">
+          <h2>Print at actual size — 100%</h2>
+          <p>
+            Turn off &quot;Fit to page&quot; in the print dialog. A scaled print
+            gives wrong measurements.
+          </p>
+        </div>
       </div>
 
       <div className="printPage">
@@ -227,6 +224,17 @@ export default function SheetPage() {
             Print at 100% / Actual size — do not &quot;fit to page&quot;
           </text>
         </svg>
+      </div>
+      <div className="sheet-after noPrint">
+        <p>Fits both A4 and Letter. The whole sheet is shown here.</p>
+        <PrintButton />
+        <Link className="sheet-secondary" href="/scan">
+          I&apos;ve printed it — continue
+        </Link>
+        <p className="sheet-privacy">
+          Your photo is processed on this device. Only the measurements are
+          sent.
+        </p>
       </div>
     </main>
   );
