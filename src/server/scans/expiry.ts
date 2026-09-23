@@ -1,7 +1,11 @@
 /**
- * Which `scan_sessions` rows the hourly cron (`GET /api/cron/expire-sessions`)
- * removes. Pure predicate so the rule is unit-tested without a database;
- * `drizzle-repo.ts` builds a SQL WHERE clause that mirrors it exactly.
+ * Which `scan_sessions` rows `GET /api/cron/expire-sessions` removes — called
+ * hourly by `.github/workflows/expire-sessions.yml` and once a day
+ * by the Vercel cron in `vercel.json` (Hobby plan's backstop; see
+ * `retention.ts` for the arithmetic that keeps physical deletion within the
+ * 24h promise regardless). Pure predicate so the rule is unit-tested without
+ * a database; `drizzle-repo.ts` builds a SQL WHERE clause that mirrors it
+ * exactly.
  */
 
 export interface SessionRow {
