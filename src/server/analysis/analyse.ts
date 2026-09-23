@@ -24,7 +24,7 @@ export interface AnalyseResult {
 }
 
 /** Confidence below this means real descriptors are missing for the ranking. */
-export const LOW_CONFIDENCE_THRESHOLD = 0.6;
+export const LOW_CONFIDENCE_THRESHOLD = 60;
 
 const PROVISIONAL_NOTE =
   "This ranking is provisional: some shape descriptors it depends on are not classified yet.";
@@ -74,7 +74,48 @@ function collectExemptTokens(input: AnalysisInput): Set<string> {
 
 function isLowConfidence(input: AnalysisInput): boolean {
   const top = input.topPicks[0];
-  return top !== undefined && top.confidence < LOW_CONFIDENCE_THRESHOLD;
+  return top !== undefined && top.confidencePercent < LOW_CONFIDENCE_THRESHOLD;
+}
+
+/** Only display facts go into the prompt; identifiers stay in the engine data. */
+function promptData(input: AnalysisInput) {
+  return {
+    rankingStatus: input.rankingProvisional
+      ? "The ranking is provisional because its fit settings have not been validated against owner ratings yet."
+      : undefined,
+    gripStyle: input.gripStyle,
+    targets: input.targets,
+    hand: input.hand,
+    excluded: input.excluded.map(({ brand, model, reason }) => ({
+      brand,
+      model,
+      reason:
+        reason === "wrong_hand"
+          ? "not suitable for the selected hand"
+          : "vertical shape scored separately",
+    })),
+    topPicks: input.topPicks.map((entry) => ({
+      rank: entry.rank,
+      brand: entry.brand,
+      model: entry.model,
+      lengthMm: entry.lengthMm,
+      widthMm: entry.widthMm,
+      heightMm: entry.heightMm,
+      weightG: entry.weightG,
+      total: entry.total,
+      confidencePercent: entry.confidencePercent,
+      subscores: Object.fromEntries(
+        Object.entries(entry.subscores).map(([key, sub]) => [
+          key,
+          {
+            score: sub.score,
+            reason: REASON_TEXT[sub.reasonCode],
+            params: sub.params,
+          },
+        ]),
+      ),
+    })),
+  };
 }
 
 /**
@@ -89,13 +130,15 @@ export function buildPrompt(input: AnalysisInput): string {
     "- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number.",
     "- Be concise: a one-sentence headline, one sentence on why the top pick fits, up to 3 tradeoffs, up to 2 things to avoid, and any caveats.",
     "- Write plainly for someone who has not seen the JSON.",
+    "- Never mention internal identifiers, reason codes, or version strings. Describe the facts in plain language.",
+    "- If a grip style was stated, describe it as the user's choice, not a prediction.",
   ];
   if (isLowConfidence(input)) {
     lines.push(
-      `- The top pick's confidence is below ${LOW_CONFIDENCE_THRESHOLD}: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.`,
+      '- The top pick has low confidence: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.',
     );
   }
-  lines.push("", "Data:", JSON.stringify(input));
+  lines.push("", "Data:", JSON.stringify(promptData(input)));
   return lines.join("\n");
 }
 
@@ -185,7 +228,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
     .slice(0, 2)
     .map((t) => t[0]!.toUpperCase() + t.slice(1));
   const caveats: string[] = [];
-  if (top.confidence < LOW_CONFIDENCE_THRESHOLD) {
+  if (top.confidencePercent < LOW_CONFIDENCE_THRESHOLD) {
     caveats.push(PROVISIONAL_NOTE);
   }
   return { headline, whyTopPick, tradeoffs, whatToAvoid, caveats };

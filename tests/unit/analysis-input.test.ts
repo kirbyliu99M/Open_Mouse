@@ -3,10 +3,11 @@ import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { makeFit, makeMeasurements } from "./analysis-fixtures";
 
 describe("buildAnalysisInput", () => {
-  it("carries the engine targets, grip style and exclusions through unchanged", () => {
+  it("replaces the engine version with a provisional flag and keeps grip style, exclusions and already-rounded targets", () => {
     const fit = makeFit();
     const input = buildAnalysisInput(fit, makeMeasurements());
-    expect(input.engineVersion).toBe(fit.engineVersion);
+    expect(input).not.toHaveProperty("engineVersion");
+    expect(input.rankingProvisional).toBe(true);
     expect(input.targets).toEqual(fit.targets);
     expect(input.gripStyle).toEqual(fit.gripStyle);
     expect(input.excluded).toEqual(fit.excluded);
@@ -53,7 +54,22 @@ describe("buildAnalysisInput", () => {
       heightMm: 40,
       weightG: 60,
       total: 88,
-      confidence: 0.9,
+      confidencePercent: 90,
     });
+  });
+
+  it("rounds confidence to a whole percent and millimetres to one decimal", () => {
+    const fit = makeFit({
+      targets: { lengthMm: 118.456, gripWidthMm: 62.456, heightMm: 39.456 },
+      results: [{ ...makeFit().results[0]!, confidence: 0.7575757575757576 }],
+    });
+    const input = buildAnalysisInput(
+      fit,
+      makeMeasurements({ handLengthMm: 180.456 }),
+    );
+    expect(input.topPicks[0]!.confidencePercent).toBe(76);
+    expect(input.targets.lengthMm).toBe(118.5);
+    expect(input.hand.handLengthMm).toBe(180.5);
+    expect(JSON.stringify(input)).not.toContain("0.7575757575757576");
   });
 });

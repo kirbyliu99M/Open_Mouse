@@ -63,6 +63,46 @@ describe("analyse — no-new-numerals rule", () => {
     expect(client.calls).toHaveLength(1);
   });
 
+  it("accepts presented values and rejects an invented percent", async () => {
+    const fit = makeFit({
+      results: [{ ...makeEntry(), confidence: 0.7575757575757576 }],
+    });
+    const input = buildAnalysisInput(
+      fit,
+      makeMeasurements({ handLengthMm: 180.456 }),
+    );
+    const answer = (whyTopPick: string) =>
+      JSON.stringify({
+        headline: "A strong match for your hand.",
+        whyTopPick,
+        tradeoffs: [],
+        whatToAvoid: [],
+        caveats: [],
+      });
+    const client = new FakeTextModel({
+      answer: (_args, index) =>
+        index === 0
+          ? answer("Confidence is 77% and your hand is 180.5 mm long.")
+          : answer("Confidence is 76% and your hand is 180.5 mm long."),
+    });
+    const { output, source } = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(output.whyTopPick).toContain("76%");
+    expect(source).toBe("model");
+  });
+
+  it("keeps internal identifiers out of the model prompt", () => {
+    const prompt = buildPrompt(inputFor());
+    const data = prompt.split("Data:\n")[1]!;
+    expect(data).not.toContain("fit-v0-provisional");
+    expect(data).not.toContain("logitech-g-pro-x-superlight-2");
+    expect(data).not.toContain("length_ideal");
+    expect(data).not.toContain("vertical_form_factor");
+    expect(data).toContain("The ranking is provisional");
+    expect(prompt).toContain("Never mention internal identifiers");
+    expect(data).toContain("its length matches your hand well");
+  });
+
   it("path 2: retries once, naming the violation, then accepts the corrected answer", async () => {
     const input = inputFor();
     const badAnswer = JSON.stringify({
@@ -116,7 +156,7 @@ describe("analyse — no-new-numerals rule", () => {
 describe("analyse — low confidence", () => {
   it("the prompt says descriptors are provisional when confidence is below the threshold", () => {
     const input = inputFor(0.4);
-    expect(input.topPicks[0]!.confidence).toBeLessThan(
+    expect(input.topPicks[0]!.confidencePercent).toBeLessThan(
       LOW_CONFIDENCE_THRESHOLD,
     );
     const prompt = buildPrompt(input);
