@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-22 · by: Claude (orchestrator)_
+_Last updated: 2026-09-23 · by: Claude (orchestrator)_
 
 ---
 
@@ -11,13 +11,17 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 **Goal (Kirby, 2026-09-23): carry the product through to a genuine, real-world deployment.** The release plan below defines what that means and who does what.
 
-**Merged 2026-09-23:** #25 contracts · #31 credential redaction · #33 results page · #34 fit route · #36 scan submit · #37 analysis infra · #38 24-hour deletion bound · #40 e2e isolation · #41 analysis route. **The whole user flow is on `main`**, and the backend chain is verified end to end in production (submit → fit → analysis; a foreign or cookieless request gets 404).
+**Merged 2026-09-23:** #25 contracts · #31 credential redaction · #33 results page · #34 fit route · #36 scan submit · #37 analysis infra · #38 24-hour deletion bound · #40 e2e isolation · #41 analysis route · #46 rate-limit only model calls · #47 single-scan delete contract · #48 hotfix for model errors. **The whole user flow is on `main`.**
 
-**Open PRs:** #26 M4a Blender pipeline + GLBs (Codex; draft, awaiting the texture decision).
+**Gemini is live in production (key added 2026-09-23).** Analysis now returns `source: model` (≈ 2–3 s), with a working DB cache on repeat requests. Adding the key first broke every analysis with a 500 — the API rejected `ThinkingLevel.MINIMAL`, and a failed call escaped `analyse()`; #48 fixed both.
 
-**In flight:** #45 results vanish on reload — Codex found its delete removes the whole session, so it now waits on #47 (single-scan delete contract) · #35 the journey on home, sheet and account. #46 (rate-limit only real model calls) merged.
+**Open PRs:** #45 results vanish on reload + single-scan delete (RED/GREEN verified on a real database; in review) · #49 the journey on home, sheet and account (in review) · #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**Queued:** `/scan` and `/results` audit fixes, which adopt the shared top bar once #35 and #42 land · a known-limitations follow-up for #31 (below) · `fit_results` sub-score columns nullable (#34 review).
+**In flight:** #50 — the stated grip is ignored by the ranking, and raw floats and an internal version string reach users (Codex).
+
+**Queued:** a retention limit on `analysis_cache` (now live — see Risks), after #45 · `/scan` and `/results` audit fixes adopting the shared top bar · #26 review, including the M4 bbox gate.
+
+**Blocked — Kirby:** **M2 needs new photos.** The first fixture photo shows a hand on a printed document, not the calibration sheet, so the pipeline correctly rejected it ("Markers 0, 1, 2 and 3 are hidden"). Needed: five top-down photos on the printed `/sheet` (100% scale) with a bank card beside the hand, re-placing the hand between shots, plus ruler measurements of hand length (wrist crease to middle fingertip) and palm width, in `../Fixtures/hands/truth.json` and `../Fixtures/hands/<session>/top-N.jpg`.
 
 ---
 
@@ -196,7 +200,7 @@ Append; don't rewrite. Each entry: what, why, when.
 
 ## Risks
 
-**Cached analysis prose outlives the scan it came from (open; no exposure yet).** `analysis_cache` stores model-written prose keyed by a hash of rounded measurements and the top three mice. It has no scan or session id, so deleting a scan — or the 24-hour sweep — does not remove it, and the prose may quote the measurements. It cannot be traced to a person without already knowing their measurements, and it is shared by everyone with the same inputs. **Today it is empty:** only model output is cached, and no model key is configured. It starts filling the moment `GEMINI_API_KEY` is added, so give `analysis_cache` a retention limit before or with the key (raised by Codex's review of #47).
+**Cached analysis prose outlives the scan it came from — live since the key was added.** `analysis_cache` stores model-written prose keyed by a hash of rounded measurements and the top three mice. It has no scan or session id, so deleting a scan — or the 24-hour sweep — does not remove it, and the prose may quote the measurements. It cannot be traced to a person without already knowing their measurements. **It began filling on 2026-09-23** when `GEMINI_API_KEY` went live; a retention limit is queued behind #45 (raised by Codex's review of #47).
 
 **Credential redaction: two known limitations after #31 (accepted, follow-up queued).** Both found by the fourth review pass; neither is reachable with any variable this project uses. (1) A key with an unbroken run of more than 64 characters on either side of the credential word is not matched at all — the cost of bounding the pattern to make it linear. (2) A quoted `Bearer` token containing an internal space leaks the part after the space. Every form that leaked in any review round — 11 in all — is redacted on `main`, and a 1 MB adversarial input takes under 10 ms.
 
