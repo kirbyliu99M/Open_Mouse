@@ -9,6 +9,14 @@
  * runs, one disabled action so a double tap can't submit twice, and
  * distinct, actionable copy per error kind).
  *
+ * The double-submit guard is a `useRef`, not `state.kind`: two clicks
+ * dispatched in the same task (a double tap, or Enter held/repeated) both
+ * run their `onClick` handler before React commits the first `setState`,
+ * so a closure reading `state.kind` sees "idle" for both and a second
+ * `fetch` goes out. A ref is read and written synchronously, so the second
+ * call sees the first call's write immediately — no render in between
+ * required.
+ *
  * Kept as its own component (rather than inline in ScanClient.tsx) so it
  * can be exercised directly — with a fixed, schema-valid `ScanSubmission` —
  * from `/scan/submit-demo` (mirrors `/results/demo`). That route exists
@@ -17,7 +25,7 @@
  * the only way to reach "ok" deterministically in CI and exercise the real
  * submit fetch, its error handling, and the navigation it performs.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
@@ -36,9 +44,13 @@ export interface ScanSubmitPanelProps {
 export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const router = useRouter();
+  // Synchronous lock — see the file-level comment above for why `state.kind`
+  // alone can't guard against two clicks in the same task.
+  const submittingRef = useRef(false);
 
   const onSubmit = useCallback(() => {
-    if (state.kind === "submitting" || state.kind === "success") return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setState({ kind: "submitting" });
     void submitScan(submission).then((outcome) => {
       if (outcome.status === "success") {
@@ -46,13 +58,15 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
         router.push(resultsPagePath(outcome.scanId));
         return;
       }
+      // Release the lock on failure so the user can retry.
+      submittingRef.current = false;
       setState({
         kind: "error",
         message: outcome.message,
         detail: outcome.detail,
       });
     });
-  }, [state.kind, submission, router]);
+  }, [submission, router]);
 
   const busy = state.kind === "submitting" || state.kind === "success";
   const statusText =

@@ -236,7 +236,7 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
     );
   });
 
-  test("shows press feedback and a visible status, and disables the button so a double tap can't submit twice", async ({
+  test("shows press feedback, a visible status, and disables the button once React has re-rendered", async ({
     page,
   }) => {
     await page.route("**/api/scans", async (route) => {
@@ -265,6 +265,74 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
     await expect(page).toHaveURL(
       /\/results\/523e4567-e89b-12d3-a456-426614174004$/,
     );
+  });
+
+  // The test above only fires one click and checks the `disabled` attribute
+  // — it never actually tries a second submit, so it would pass even
+  // against code whose only guard is `state.kind` read inside the `onClick`
+  // closure. Two clicks dispatched in the same task both run their handler
+  // before React commits the first `setState`, so a `state.kind`-only guard
+  // sees "idle" twice and a second request goes out. These two tests fire a
+  // real second attempt and assert exactly one request reached the server.
+  test("dispatching two clicks in the same task still sends exactly one POST (no double-submit)", async ({
+    page,
+  }) => {
+    let requestCount = 0;
+    await page.route("**/api/scans", async (route) => {
+      requestCount++;
+      // Hold the response open briefly — the race is most visible on a
+      // slow network, where both clicks land well before either resolves.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "623e4567-e89b-12d3-a456-426614174005",
+        }),
+      });
+    });
+
+    await page.goto("/scan/submit-demo");
+    // Both `.click()` calls run synchronously inside this one
+    // `page.evaluate`, in the same browser task — the scenario a
+    // `state.kind`-only guard cannot catch.
+    await page.evaluate((selector) => {
+      const button = document.querySelector<HTMLButtonElement>(selector);
+      button?.click();
+      button?.click();
+    }, SUBMIT_BUTTON());
+
+    await expect(page).toHaveURL(
+      /\/results\/623e4567-e89b-12d3-a456-426614174005$/,
+    );
+    expect(requestCount).toBe(1);
+  });
+
+  test("pressing Enter twice on the focused button still sends exactly one POST", async ({
+    page,
+  }) => {
+    let requestCount = 0;
+    await page.route("**/api/scans", async (route) => {
+      requestCount++;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "723e4567-e89b-12d3-a456-426614174006",
+        }),
+      });
+    });
+
+    await page.goto("/scan/submit-demo");
+    const button = page.locator(SUBMIT_BUTTON());
+    await button.focus();
+    await button.press("Enter");
+    await button.press("Enter");
+
+    await expect(page).toHaveURL(
+      /\/results\/723e4567-e89b-12d3-a456-426614174006$/,
+    );
+    expect(requestCount).toBe(1);
   });
 
   for (const c of [
