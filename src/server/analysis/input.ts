@@ -6,7 +6,9 @@
  * the model's answer that doesn't trace back to a value in this object is a
  * no-new-numerals violation.
  */
+import { isLowConfidence } from "../../components/results/format";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
+import { ENGINE_IS_PROVISIONAL } from "../fit/coefficients";
 import type {
   FitEntry,
   FitResponse,
@@ -30,12 +32,18 @@ export interface AnalysisInputEntry {
   heightMm: number;
   weightG: number | null;
   total: number;
-  confidence: number;
+  confidencePercent: number;
+  /**
+   * Decided on the raw 0..1 confidence with the results UI's own threshold,
+   * so the prose and the page can never disagree about "provisional" near
+   * the boundary (a rounded percent could land either side of it).
+   */
+  lowConfidence: boolean;
   subscores: Record<Subscore, AnalysisInputSubscore>;
 }
 
 export interface AnalysisInput {
-  engineVersion: string;
+  rankingProvisional: boolean;
   gripStyle: FitResponse["gripStyle"];
   targets: FitResponse["targets"];
   /** Only the hand numbers guaranteed present on every submission. */
@@ -49,6 +57,18 @@ export interface AnalysisInput {
   topPicks: AnalysisInputEntry[];
 }
 
+function oneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Every reason param (mm, g, ratios) to one decimal: the engine's
+ * subtractions leave float noise such as 1.4000000000000057 g otherwise. */
+function roundedParams(params: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [key, oneDecimal(value)]),
+  );
+}
+
 function toInputEntry(entry: FitEntry): AnalysisInputEntry {
   const subscores = Object.fromEntries(
     Object.entries(entry.subscores).map(([key, sub]) => [
@@ -56,7 +76,7 @@ function toInputEntry(entry: FitEntry): AnalysisInputEntry {
       {
         score: sub.score,
         reasonCode: sub.reason.code,
-        params: sub.reason.params,
+        params: roundedParams(sub.reason.params),
       } satisfies AnalysisInputSubscore,
     ]),
   ) as Record<Subscore, AnalysisInputSubscore>;
@@ -65,12 +85,13 @@ function toInputEntry(entry: FitEntry): AnalysisInputEntry {
     slug: entry.mouse.slug,
     brand: entry.mouse.brand,
     model: entry.mouse.model,
-    lengthMm: entry.mouse.lengthMm,
-    widthMm: entry.mouse.widthMm,
-    heightMm: entry.mouse.heightMm,
+    lengthMm: oneDecimal(entry.mouse.lengthMm),
+    widthMm: oneDecimal(entry.mouse.widthMm),
+    heightMm: oneDecimal(entry.mouse.heightMm),
     weightG: entry.mouse.weightG,
     total: entry.total,
-    confidence: entry.confidence,
+    confidencePercent: Math.round(entry.confidence * 100),
+    lowConfidence: isLowConfidence(entry.confidence),
     subscores,
   };
 }
@@ -80,13 +101,17 @@ export function buildAnalysisInput(
   measurements: HandMeasurements,
 ): AnalysisInput {
   return {
-    engineVersion: fit.engineVersion,
+    rankingProvisional: ENGINE_IS_PROVISIONAL,
     gripStyle: fit.gripStyle,
-    targets: fit.targets,
+    targets: {
+      lengthMm: oneDecimal(fit.targets.lengthMm),
+      gripWidthMm: oneDecimal(fit.targets.gripWidthMm),
+      heightMm: oneDecimal(fit.targets.heightMm),
+    },
     hand: {
-      handLengthMm: measurements.handLengthMm,
-      palmLengthMm: measurements.palmLengthMm,
-      palmWidthMm: measurements.palmWidthMm,
+      handLengthMm: oneDecimal(measurements.handLengthMm),
+      palmLengthMm: oneDecimal(measurements.palmLengthMm),
+      palmWidthMm: oneDecimal(measurements.palmWidthMm),
     },
     excluded: fit.excluded,
     topPicks: fit.results.slice(0, 3).map(toInputEntry),

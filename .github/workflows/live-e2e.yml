@@ -1,0 +1,37 @@
+name: Live e2e (real backend)
+
+# Runs tests/e2e-live against a real deployment: nothing mocked between the
+# browser and the database. Run it after a production deploy. It needs no
+# secrets — production is public — and cleans up the scans it creates.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployment to test
+        required: true
+        default: https://open-mouse.vercel.app
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps --only-shell chromium
+      - name: Run the live suite
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: npx playwright test -c playwright.live.config.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: live-e2e-traces
+          path: test-results/

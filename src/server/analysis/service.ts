@@ -118,6 +118,7 @@ export async function computeAnalysisForScan(
 
   const result = await handleAnalysisRequest(
     {
+      scanId,
       fit: fitResult.fit,
       measurements: fitResult.measurements,
       rateLimitKey,

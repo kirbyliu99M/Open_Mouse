@@ -28,6 +28,7 @@ export interface AnalysisRequestDeps {
 }
 
 export interface AnalysisRequest {
+  scanId: string;
   fit: FitResponse;
   measurements: HandMeasurements;
   /** Identity the rate limit is scoped to — e.g. scanId or caller IP. */
@@ -42,6 +43,37 @@ export interface AnalysisResponseLike {
   body: AnalysisResponseBody;
 }
 
+/**
+ * The cache is an optimisation, never a reason to fail: a read error is a
+ * miss, a write error is skipped. Both happen for real — during a deploy
+ * the code and the `analysis_cache` schema can briefly disagree, and a scan
+ * deleted mid-analysis makes the insert hit its foreign key. Only the
+ * Postgres error code is logged: a constraint error's detail can quote the
+ * failing row, which here is prose about the user's hand.
+ */
+function pgErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  if ("code" in error) return String((error as { code: unknown }).code);
+  return null;
+}
+
+function logCacheFailure(op: "get" | "set", error: unknown): void {
+  // Drizzle wraps driver errors in DrizzleQueryError, whose own message
+  // quotes the query params (the prose) — so read the code from the
+  // wrapped cause, and never log a message.
+  const code =
+    pgErrorCode(error) ??
+    pgErrorCode(
+      typeof error === "object" && error !== null && "cause" in error
+        ? (error as { cause: unknown }).cause
+        : null,
+    ) ??
+    "none";
+  console.error(
+    `analysis cache ${op} failed (code ${code}); continuing without it`,
+  );
+}
+
 export async function handleAnalysisRequest(
   request: AnalysisRequest,
   deps: AnalysisRequestDeps,
@@ -51,7 +83,12 @@ export async function handleAnalysisRequest(
   // on a cache hit and never when no model is configured. Both those paths
   // return below, before `deps.limiter.allow` is read.
   const cacheKey = computeCacheKey(request.fit, request.measurements);
-  const cached = await deps.cache.get(cacheKey);
+  let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
+  try {
+    cached = await deps.cache.get(request.scanId, cacheKey);
+  } catch (error) {
+    logCacheFailure("get", error);
+  }
   if (cached) {
     return {
       status: 200,
@@ -79,7 +116,11 @@ export async function handleAnalysisRequest(
   // in `./cache`. The fallback is free to recompute and must never be
   // served back as if a model wrote it once a key starts working again.
   if (source === "model") {
-    await deps.cache.set(cacheKey, { output, source });
+    try {
+      await deps.cache.set(request.scanId, cacheKey, { output, source });
+    } catch (error) {
+      logCacheFailure("set", error);
+    }
   }
   return { status: 200, body: { output, source, cached: false } };
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
+  ANALYSIS_PROMPT_VERSION,
   computeCacheKey,
   InMemoryAnalysisCache,
   type CachedAnalysis,
@@ -68,6 +70,23 @@ describe("computeCacheKey", () => {
     ).not.toBe(base);
   });
 
+  it("includes ANALYSIS_PROMPT_VERSION, so a prompt change invalidates old answers", () => {
+    const fit = makeFit();
+    const measurements = makeMeasurements();
+    const payloadWith = (promptVersion: number) =>
+      JSON.stringify({
+        promptVersion,
+        engineVersion: fit.engineVersion,
+        gripUsed: fit.gripStyle.used,
+        measurements: { handLengthMm: 180, palmLengthMm: 105, palmWidthMm: 85 },
+        top3Slugs: fit.results.slice(0, 3).map((r) => r.mouse.slug),
+      });
+    const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+    const key = computeCacheKey(fit, measurements);
+    expect(key).toBe(sha(payloadWith(ANALYSIS_PROMPT_VERSION)));
+    expect(key).not.toBe(sha(payloadWith(ANALYSIS_PROMPT_VERSION + 1)));
+  });
+
   it("is a 64-character hex sha256 digest", () => {
     const key = computeCacheKey(makeFit(), makeMeasurements());
     expect(key).toMatch(/^[0-9a-f]{64}$/);
@@ -75,29 +94,51 @@ describe("computeCacheKey", () => {
 });
 
 describe("InMemoryAnalysisCache", () => {
+  it("keeps the same key under two scan IDs independent", async () => {
+    const cache = new InMemoryAnalysisCache();
+    await cache.set("scan-a", "shared-key", CACHED);
+    expect(await cache.get("scan-b", "shared-key")).toBeNull();
+    expect(await cache.get("scan-a", "shared-key")).toEqual(CACHED);
+  });
+
+  it("distinguishes scan ID and key pairs that concatenate identically", async () => {
+    const cache = new InMemoryAnalysisCache();
+    await cache.set("ab", "c", CACHED);
+    const other = {
+      ...CACHED,
+      output: { ...CACHED.output, headline: "other" },
+    };
+    await cache.set("a", "bc", other);
+    expect(await cache.get("ab", "c")).toEqual(CACHED);
+    expect(await cache.get("a", "bc")).toEqual(other);
+  });
   it("misses before a set, hits after", async () => {
     const cache = new InMemoryAnalysisCache();
     const key = computeCacheKey(makeFit(), makeMeasurements());
-    expect(await cache.get(key)).toBeNull();
-    await cache.set(key, CACHED);
-    expect(await cache.get(key)).toEqual(CACHED);
+    expect(await cache.get("scan-a", key)).toBeNull();
+    await cache.set("scan-a", key, CACHED);
+    expect(await cache.get("scan-a", key)).toEqual(CACHED);
   });
 
   it("misses for a different key", async () => {
     const cache = new InMemoryAnalysisCache();
-    await cache.set(computeCacheKey(makeFit(), makeMeasurements()), CACHED);
+    await cache.set(
+      "scan-a",
+      computeCacheKey(makeFit(), makeMeasurements()),
+      CACHED,
+    );
     const otherKey = computeCacheKey(
       makeFit({ engineVersion: "fit-v1" }),
       makeMeasurements(),
     );
-    expect(await cache.get(otherKey)).toBeNull();
+    expect(await cache.get("scan-a", otherKey)).toBeNull();
   });
 
   it("stores and returns the provenance alongside the output", async () => {
     const cache = new InMemoryAnalysisCache();
     const key = computeCacheKey(makeFit(), makeMeasurements());
-    await cache.set(key, CACHED);
-    const result = await cache.get(key);
+    await cache.set("scan-a", key, CACHED);
+    const result = await cache.get("scan-a", key);
     expect(result?.source).toBe("model");
     expect(result?.output).toEqual(CACHED.output);
   });

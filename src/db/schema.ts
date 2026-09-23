@@ -301,7 +301,11 @@ export const analysisSourceEnum = pgEnum("analysis_source", ANALYSIS_SOURCES);
 
 /**
  * Persists Gemini analysis answers across serverless instances/deploys,
- * keyed by `computeCacheKey`'s sha256 hash (`src/server/analysis/cache.ts`).
+ * keyed by scan and `computeCacheKey`'s sha256 hash
+ * (`src/server/analysis/cache.ts`). Rows live exactly as long as their scan:
+ * the 24-hour sweep, user deletion, and account deletion cascade to the prose
+ * in the same deletion bound. Cross-scan reuse is deliberately given up;
+ * identical 1 mm-rounded measurements were required for a hit anyway.
  * `DrizzleAnalysisCache` (`src/server/analysis/drizzle-cache.ts`) is the only
  * writer, and only ever inserts `source: 'model'` (issue #28 acceptance
  * criterion 2: the fallback is deterministic and free to recompute, so
@@ -315,12 +319,18 @@ export const analysisSourceEnum = pgEnum("analysis_source", ANALYSIS_SOURCES);
 export const analysisCache = pgTable(
   "analysis_cache",
   {
-    key: text("key").primaryKey(),
+    scanId: uuid("scan_id")
+      .notNull()
+      .references(() => scans.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
     output: jsonb("output").notNull().$type<AnalysisOutput>(),
     source: analysisSourceEnum("source").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [check("analysis_cache_source_is_model", sql`${t.source} = 'model'`)],
+  (t) => [
+    primaryKey({ columns: [t.scanId, t.key] }),
+    check("analysis_cache_source_is_model", sql`${t.source} = 'model'`),
+  ],
 );
 
 /**

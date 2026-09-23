@@ -21,7 +21,7 @@ import {
   fitResponseSchema,
   type FitResponse,
 } from "@/lib/contracts/fit";
-import { analysisPath, fitPath } from "@/lib/contracts/routes";
+import { analysisPath, fitPath, scanPath } from "@/lib/contracts/routes";
 import {
   analysisResponseSchema,
   type AnalysisResponse,
@@ -85,6 +85,36 @@ export async function fetchFitResult(
   const parsed = fitResponseSchema.safeParse(json);
   if (!parsed.success) return { status: "serverError" };
   return { status: "ready", response: parsed.data };
+}
+
+/**
+ * `notFound` is a 404: the scan is already gone (deleted in another tab, or
+ * its anonymous session expired — expired means gone) or was never this
+ * caller's. Retrying can never succeed, so it is not an error to retry.
+ */
+export type DeleteScanOutcome =
+  "deleted" | "notFound" | "networkError" | "serverError";
+
+/** Delete this one scan. Invalid route parameters never reach fetch. */
+export async function deleteScan(
+  scanId: string,
+  fetchImpl: FetchImpl = fetch,
+): Promise<DeleteScanOutcome> {
+  let path: string;
+  try {
+    path = scanPath(scanId);
+  } catch {
+    return "serverError";
+  }
+  let res: Response;
+  try {
+    res = await fetchImpl(path, { method: "DELETE" });
+  } catch {
+    return "networkError";
+  }
+  if (res.status === 404) return "notFound";
+  if (res.status !== 204) return "serverError";
+  return "deleted";
 }
 
 export async function fetchAnalysisResult(

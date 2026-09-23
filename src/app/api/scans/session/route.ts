@@ -8,10 +8,13 @@ export async function DELETE(request: Request): Promise<Response> {
 }
 
 /**
- * `navigator.sendBeacon` (issue #17's `pagehide` cleanup) can only ever
- * issue a POST — the browser gives it no way to choose a method — so this
- * is the beacon's real target. It runs the identical idempotent delete as
- * DELETE above; the method is the only difference.
+ * Kept alongside `DELETE` above only because a plain HTML `<form method="…">`
+ * and some older clients can't issue `DELETE` directly; the "Delete this
+ * scan now" action (issue #42) uses `fetch` and could call either — this
+ * runs the identical idempotent delete either way. (Formerly also the
+ * `navigator.sendBeacon` target for the automatic `pagehide` beacon, which
+ * `sendBeacon` could only ever POST to; that automatic beacon is removed —
+ * see `src/server/scans/session.ts`.)
  */
 export async function POST(request: Request): Promise<Response> {
   return handleSessionDelete(request, { repo: createDrizzleScanRepo() });

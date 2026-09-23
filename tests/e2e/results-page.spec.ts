@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { scanPath } from "../../src/lib/contracts/routes";
 
 // Read as plain JSON rather than `import ... from "*.json"` — Playwright's
 // test runner loads spec files as native Node ESM, which requires an
@@ -215,5 +216,113 @@ test.describe("/results/[scanId] — real results page", () => {
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
       expect(bodyText).not.toContain(forbidden);
     }
+  });
+});
+
+// Issue #42, acceptance criterion 2: "deleting is the user's choice". No real
+// OAuth credentials exist in this environment (issue #17, matching
+// account.spec.ts's own note), so `page.tsx`'s `auth()` call always resolves
+// to no session here — every case below is exercising the anonymous branch,
+// which is also the only branch that ever renders this action at all.
+test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
+  const SCAN_URL = `**${scanPath(SCAN_ID)}`;
+
+  test("presses feedback with a confirmation, and focus lands on Cancel", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const trigger = page.getByRole("button", { name: "Delete this scan now" });
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+
+    await expect(
+      page.getByRole("alertdialog", { name: "Delete this scan now?" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+  });
+
+  test("Cancel and Escape both close the dialog and return focus to the trigger, without deleting anything", async ({
+    page,
+  }) => {
+    let deleteCalls = 0;
+    await page.route(SCAN_URL, (route) => {
+      deleteCalls += 1;
+      return route.fulfill({ status: 204 });
+    });
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const trigger = page.getByRole("button", { name: "Delete this scan now" });
+
+    await trigger.click();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    expect(deleteCalls).toBe(0);
+  });
+
+  test("confirming deletes this scan and shows the deleted state, with focus on its heading", async ({
+    page,
+  }) => {
+    let method = "";
+    await page.route(SCAN_URL, (route) => {
+      method = route.request().method();
+      return route.fulfill({ status: 204 });
+    });
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await page.getByRole("button", { name: "Delete this scan now" }).click();
+    await page.getByRole("button", { name: "Delete scan" }).click();
+
+    const heading = page.getByRole("heading", {
+      name: "This scan has been deleted",
+    });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeFocused();
+    await expect(page.getByText("permanently removed")).toBeVisible();
+    const scanAgain = page.getByRole("link", { name: "Scan again" });
+    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    // The ranking is gone — deleted really replaces the page, not just a toast.
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+
+    expect(method).toBe("DELETE");
+  });
+
+  test("a failed delete names the problem, gives one fix, and leaves the dialog open to retry", async ({
+    page,
+  }) => {
+    await page.route(SCAN_URL, (route) => route.fulfill({ status: 500 }));
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await page.getByRole("button", { name: "Delete this scan now" }).click();
+    await page.getByRole("button", { name: "Delete scan" }).click();
+
+    const error = page.getByRole("alertdialog").getByRole("alert");
+    await expect(error).toContainText("Couldn't delete");
+    await expect(error).toContainText(/check your connection and try again/i);
+    // Still open, and the ranking underneath is untouched.
+    await expect(page.getByRole("alertdialog")).toBeVisible();
   });
 });

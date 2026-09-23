@@ -134,6 +134,38 @@ describe("loadOwnedFit — a successful fit", () => {
     expect(result.measurements).toEqual(sampleOwnedScan.measurements);
   });
 
+  it("uses the scan's stated grip for empty preferences and honors an override", async () => {
+    const scanRepo = createFakeScanRepo(
+      vi.fn(async () => ({
+        ...sampleOwnedScan,
+        gripStyleStated: "claw" as const,
+      })),
+    );
+    const { repo: fitRepo } = createFakeFitRepo();
+    const owner = { userId: null, cookieSessionId: "session-1" };
+    const deps = { scanRepo, fitRepo, now: NOW };
+    const stored = await loadOwnedFit(SCAN_ID, owner, NO_PREFS, deps);
+    expect(stored.status).toBe("ok");
+    if (stored.status !== "ok") throw new Error("unreachable");
+    expect(stored.fit.gripStyle).toMatchObject({
+      stated: "claw",
+      used: "claw",
+    });
+
+    const overridden = await loadOwnedFit(
+      SCAN_ID,
+      owner,
+      fitPreferencesSchema.parse({ gripStyle: "palm" }),
+      deps,
+    );
+    expect(overridden.status).toBe("ok");
+    if (overridden.status !== "ok") throw new Error("unreachable");
+    expect(overridden.fit.gripStyle).toMatchObject({
+      stated: "palm",
+      used: "palm",
+    });
+  });
+
   it("adds no computation of its own — every number matches scoreFit's own output", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
     const { repo: fitRepo } = createFakeFitRepo();
