@@ -11,13 +11,13 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 **Goal (Kirby, 2026-09-23): carry the product through to a genuine, real-world deployment.** The release plan below defines what that means and who does what.
 
-**Open PRs:** #26 M4a Blender pipeline + GLBs (Codex; draft, in review) · #27–#30 integration wave (in flight, below).
+**Merged 2026-09-23:** #25 contracts · #31 credential redaction · #33 results page · #34 fit route · #36 scan submit · #37 analysis infra · #38 24-hour deletion bound · #40 e2e isolation · #41 analysis route. **The whole user flow is on `main`**, and the backend chain is verified end to end in production (submit → fit → analysis; a foreign or cookieless request gets 404).
 
-**In flight:**
+**Open PRs:** #26 M4a Blender pipeline + GLBs (Codex; draft, awaiting the texture decision).
 
-- Sonnet builders, in parallel: #27 fit route · #28 analysis provenance, DB cache, rate limiting · #29 scan submission · #30 real results page · a security fix for credential redaction in migration errors (see Risks).
-- Sonnet reviewer: #26, including a first measurement of the M4 bbox gate.
-- Codex: independent UI design audit of every shipped screen against `docs/design-guidelines.md`.
+**In flight:** #45 results vanish on reload — Codex found its delete removes the whole session, so it now waits on #47 (single-scan delete contract) · #35 the journey on home, sheet and account. #46 (rate-limit only real model calls) merged.
+
+**Queued:** `/scan` and `/results` audit fixes, which adopt the shared top bar once #35 and #42 land · a known-limitations follow-up for #31 (below) · `fit_results` sub-score columns nullable (#34 review).
 
 ---
 
@@ -27,16 +27,16 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 A real user, on their own phone, can print the sheet, photograph their hand and get a ranking they can trust — and nothing the product promises is false. All of:
 
-| #   | Criterion                                                             | Evidence                                                                                                       | Owner                                  |
-| --- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| R1  | End to end works: sheet → photo → submit → ranking → written analysis | Playwright E2E over the whole flow, model stubbed                                                              | Sonnet builders                        |
-| R2  | Hand measurement is accurate                                          | **M2 gate:** ±2 mm hand length vs ruler, ±1.5 mm over 5 captures                                               | **Kirby** (photos) → replay script     |
-| R3  | Every shipped screen meets `docs/design-guidelines.md`, mobile first  | Codex UI audit; findings fixed                                                                                 | Codex (audit) → Sonnet (fixes)         |
-| R4  | Every privacy promise is true                                         | photos-never-leave E2E; 24 h expiry tested; export and delete work                                             | enforced today; re-verified at R6      |
-| R5  | The analysis is honest                                                | model vs. template prose labelled in the UI; no-new-numerals check                                             | #28, #30                               |
-| R6  | Security review passed before public exposure (PLAN §M7)              | `/security-review`; credential redaction fixed; Production DB vars back to Sensitive; rate limits live         | Claude + reviewer; Kirby (Sensitive)   |
-| R7  | Cost controls live (PLAN §M5)                                         | output-token cap, minimal thinking budget, cache, per-IP limit, budget alarm, reminder for the 2027-01-01 rise | #28; **Kirby** (alarm, Google console) |
-| R8  | Every served asset is cleared for public serving                      | decision on the photo-derived shell textures                                                                   | **Kirby**                              |
+| #   | Criterion                                                                                                       | Evidence                                                                                                       | Owner                                  |
+| --- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| R1  | End to end works: sheet → photo → submit → ranking → written analysis — **on `main`; reload bug #42 open**      | Playwright E2E over the whole flow, model stubbed                                                              | Sonnet builders                        |
+| R2  | Hand measurement is accurate                                                                                    | **M2 gate:** ±2 mm hand length vs ruler, ±1.5 mm over 5 captures                                               | **Kirby** (photos) → replay script     |
+| R3  | Every shipped screen meets `docs/design-guidelines.md`, mobile first                                            | Codex UI audit; findings fixed                                                                                 | Codex (audit) → Sonnet (fixes)         |
+| R4  | Every privacy promise is true                                                                                   | photos-never-leave E2E; 24 h expiry tested; export and delete work                                             | enforced today; re-verified at R6      |
+| R5  | The analysis is honest                                                                                          | model vs. template prose labelled in the UI; no-new-numerals check                                             | #28, #30                               |
+| R6  | Security review passed before public exposure (PLAN §M7) — redaction ✅ #31, rate limits ✅ #41                 | `/security-review`; credential redaction fixed; Production DB vars back to Sensitive; rate limits live         | Claude + reviewer; Kirby (Sensitive)   |
+| R7  | Cost controls live (PLAN §M5) — cap, thinking, cache, per-IP limit ✅; dated reminder ✅ #44; budget alarm open | output-token cap, minimal thinking budget, cache, per-IP limit, budget alarm, reminder for the 2027-01-01 rise | #28; **Kirby** (alarm, Google console) |
+| R8  | Every served asset is cleared for public serving                                                                | decision on the photo-derived shell textures                                                                   | **Kirby**                              |
 
 ### Not required for the first deployment — _candidate_
 
@@ -189,9 +189,18 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-23 | Only model-written analyses are cached | The fallback is deterministic and free to recompute; caching it would keep serving template text after a transient model failure clears |
 | 2026-09-23 | Contract error bodies are tested against the shipped route | The first draft of `errorResponseSchema` rejected what `POST /api/scans` already returns; a reviewer caught it by reading both files. Now CI does |
 | 2026-09-23 | **At most three agents run at once** (revised from five the same day), and the orchestrator commits and pushes any uncommitted work the moment an agent stops | Eight parallel agents exhausted the account's session limit together; so did five, a few hours later. One builder had 17 files uncommitted, another had temporarily reverted its own fix to prove a test red. Nothing was lost: each worktree was inspected, WIP-committed and pushed before resuming |
+| 2026-09-23 | **Remove the automatic pagehide deletion; deleting now is an explicit user action** | `pagehide` cannot tell closing a browser from reloading a page, so the beacon deleted anonymous results on refresh. It backed no remaining promise: since #38 the copy says deletion within 24 hours of creation, enforced by TTL + sweep. Guarantees are unchanged; immediate deletion becomes the user's choice |
+| 2026-09-23 | **Every critical flow needs one test with nothing mocked between the browser and the database** | The reload bug shipped past 774 green tests because each test stubbed the exact seam where it lived. Mocked seams test each side against the contract, not that the sides work together |
+| 2026-09-23 | UI design decisions are drawn on the pen.dev canvas before builders implement them | Kirby's suggestion. The journey (`docs/design/journey-2026-09-23/`) settles audit findings that span screens, so separate builders do not each invent their own navigation |
 ---
 
 ## Risks
+
+**Cached analysis prose outlives the scan it came from (open; no exposure yet).** `analysis_cache` stores model-written prose keyed by a hash of rounded measurements and the top three mice. It has no scan or session id, so deleting a scan — or the 24-hour sweep — does not remove it, and the prose may quote the measurements. It cannot be traced to a person without already knowing their measurements, and it is shared by everyone with the same inputs. **Today it is empty:** only model output is cached, and no model key is configured. It starts filling the moment `GEMINI_API_KEY` is added, so give `analysis_cache` a retention limit before or with the key (raised by Codex's review of #47).
+
+**Credential redaction: two known limitations after #31 (accepted, follow-up queued).** Both found by the fourth review pass; neither is reachable with any variable this project uses. (1) A key with an unbroken run of more than 64 characters on either side of the credential word is not matched at all — the cost of bounding the pattern to make it linear. (2) A quoted `Bearer` token containing an internal space leaks the part after the space. Every form that leaked in any review round — 11 in all — is redacted on `main`, and a 1 MB adversarial input takes under 10 ms.
+
+**Anonymous results vanish on reload (found 2026-09-23 in production; fix in flight, #42).** `BeaconOnUnload` in the root layout sends a session-delete beacon on every `pagehide`, and `pagehide` fires on reload, back/forward and full navigation as well as on tab close. Reproduced in a real browser against production: fit 200, one reload, fit 404; production logs show `POST /api/scans/session` between every submit and fit. **No test caught it because every test mocked the seam it lives on** — the results-page e2e stubs the backend, the scan-submit e2e stubs `/api/scans`. The fix removes the beacon, adds an explicit delete action, and adds a regression test with nothing mocked between browser and database.
 
 **Credential redaction leaks quoted secrets (P1, open since 2026-09-21).** Codex's M0 review reported that `describeMigrationError` lets quoted credentials through. It was never fixed. Re-tested 2026-09-23 against `main`: of seven forms, **five leak the full secret** — `password="…"`, `password='…'`, `{"password":"…"}`, escaped quotes, and `PGPASSWORD=…`. This code runs in every preview build, so a failing migration could write the database password into Vercel build logs. Fix in flight; blocks R6.
 

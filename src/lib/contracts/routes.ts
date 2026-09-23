@@ -62,6 +62,34 @@ export const fitPath = (scanId: string): string =>
 export const analysisPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/analysis`;
 
+/**
+ * `DELETE` — deletes **this one scan**: its `scans` row, which cascades to
+ * its `scan_measurements` and `fit_results` rows. Nothing else. Other scans
+ * in the same session, and the session itself (even if now empty), are
+ * untouched: a person who made scans A and B and deletes B still has A.
+ * Ownership rule above; anyone else gets 404.
+ * 204 → no body; 404 unknown, foreign or already-deleted scan.
+ *
+ * `analysis_cache` is NOT touched. Its rows are keyed by a hash of rounded
+ * measurements and the top three mice, with no scan or session id, so they
+ * cannot be traced back to this scan and are shared by anyone with the same
+ * inputs. Only model-written prose is cached.
+ *
+ * Throws on anything but a UUID, unlike the other path builders, so a caller
+ * holding an unvalidated id (e.g. a `/results/[scanId]` route parameter) must
+ * validate it or catch the error first. The static
+ * sibling route `/api/scans/session` deletes EVERY scan in a session and
+ * takes precedence over a dynamic `[scanId]` segment, so a non-UUID here could
+ * turn "delete this scan" into "delete all of them". Refusing to build the
+ * path fails safe: nothing is deleted.
+ */
+export const scanPath = (scanId: string): string => {
+  if (!scanSubmitResponseSchema.shape.scanId.safeParse(scanId).success) {
+    throw new Error("scanPath requires a scan UUID");
+  }
+  return `/api/scans/${scanId}`;
+};
+
 /** The results page for a submitted scan. */
 export const resultsPagePath = (scanId: string): string =>
   `/results/${encodeURIComponent(scanId)}`;
