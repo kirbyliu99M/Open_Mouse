@@ -15,7 +15,7 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 **Open PRs:** #26 M4a Blender pipeline + GLBs (Codex; draft, awaiting the texture decision).
 
-**In flight (three agents at most):** #42 results vanish on reload · #35 the journey on home, sheet and account, plus a shared top bar · #43 rate-limit only real model calls.
+**In flight:** #45 results vanish on reload — Codex found its delete removes the whole session, so it now waits on #47 (single-scan delete contract) · #35 the journey on home, sheet and account. #46 (rate-limit only real model calls) merged.
 
 **Queued:** `/scan` and `/results` audit fixes, which adopt the shared top bar once #35 and #42 land · a known-limitations follow-up for #31 (below) · `fit_results` sub-score columns nullable (#34 review).
 
@@ -195,6 +195,8 @@ Append; don't rewrite. Each entry: what, why, when.
 ---
 
 ## Risks
+
+**Cached analysis prose outlives the scan it came from (open; no exposure yet).** `analysis_cache` stores model-written prose keyed by a hash of rounded measurements and the top three mice. It has no scan or session id, so deleting a scan — or the 24-hour sweep — does not remove it, and the prose may quote the measurements. It cannot be traced to a person without already knowing their measurements, and it is shared by everyone with the same inputs. **Today it is empty:** only model output is cached, and no model key is configured. It starts filling the moment `GEMINI_API_KEY` is added, so give `analysis_cache` a retention limit before or with the key (raised by Codex's review of #47).
 
 **Credential redaction: two known limitations after #31 (accepted, follow-up queued).** Both found by the fourth review pass; neither is reachable with any variable this project uses. (1) A key with an unbroken run of more than 64 characters on either side of the credential word is not matched at all — the cost of bounding the pattern to make it linear. (2) A quoted `Bearer` token containing an internal space leaks the part after the space. Every form that leaked in any review round — 11 in all — is redacted on `main`, and a 1 MB adversarial input takes under 10 ms.
 
