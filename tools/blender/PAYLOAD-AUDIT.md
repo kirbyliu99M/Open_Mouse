@@ -25,3 +25,15 @@ geometry compression can affect at most the remaining 2.64% of these files.
 This is a byte audit, not a visual quality test or a phone loading benchmark.
 The baked images derive from manufacturer appearances, so the existing public
 serving decision remains open before these assets are used in the viewer.
+
+## Read-only 1024 px experiment
+
+`python tools/blender/audit_payloads.py --estimate-1024` decoded each embedded
+PNG in memory, scaled images whose longest side exceeded 1024 px to that limit,
+and re-encoded them as optimized PNGs. It did not modify or publish any GLB.
+The estimated combined payload was **39,933,962 bytes (38.08 MiB)**, a **67.05%**
+reduction from the current files. The five largest files would each fall from
+5.50–7.50 MiB to approximately 1.65–2.19 MiB. This is a sizing experiment:
+normal-map quality, small labels and seams, browser decoding, and appearance
+under the intended lighting still need visual and phone testing before an asset
+change. The public-serving rights question is unchanged.
