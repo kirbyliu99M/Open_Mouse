@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-23 · by: Claude (orchestrator)_
+_Last updated: 2026-09-24 · by: Claude (orchestrator)_
 
 ---
 
@@ -13,13 +13,17 @@ _Last updated: 2026-09-23 · by: Claude (orchestrator)_
 
 **Merged 2026-09-23:** #25 contracts · #31 credential redaction · #33 results page · #34 fit route · #36 scan submit · #37 analysis infra · #38 24-hour deletion bound · #40 e2e isolation · #41 analysis route · #46 rate-limit only model calls · #47 single-scan delete contract · #48 hotfix for model errors. **The whole user flow is on `main`.**
 
+**Merged 2026-09-24:** #51 analysis quality (stated grip honoured, rounded model input, no internal identifiers) · #45 reload no longer deletes results + single-scan delete + a stale cookie can no longer read or delete a claimed session's scans · #49 journey UI on home, sheet and account + shared top bar · #53 `analysis_cache` rows bound to their scan (cascade delete) + prompt version in the cache key; cache is best-effort.
+
 **Gemini is live in production (key added 2026-09-23).** Analysis now returns `source: model` (≈ 2–3 s), with a working DB cache on repeat requests. Adding the key first broke every analysis with a 500 — the API rejected `ThinkingLevel.MINIMAL`, and a failed call escaped `analyse()`; #48 fixed both.
 
-**Open PRs:** #45 results vanish on reload + single-scan delete (RED/GREEN verified on a real database; in review) · #49 the journey on home, sheet and account (in review) · #26 M4a Blender assets (Kirby: keep the textures; review pending).
+**Open PRs:** #54 contract doc for #53 (reviewed; merge after the production 0005 migration) · #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight:** #50 — the stated grip is ignored by the ranking, and raw floats and an internal version string reach users (Codex).
+**Production 0005 migration: pending — Kirby runs it** (the agent's attempt was blocked by the permission classifier as a production action). Until then production serves analysis without a cache: reads fail and count as misses, writes are skipped (#53 made the cache best-effort for exactly this deploy order).
 
-**Queued:** a retention limit on `analysis_cache` (now live — see Risks), after #45 · `/scan` and `/results` audit fixes adopting the shared top bar · #26 review, including the M4 bbox gate.
+**In flight:** `/scan` and `/results` adopt the journey design and close the audit findings F02 F04 F06 F09 F10 F11 F12 (branch `m7-ui-scan-results`; started by Codex, which hit its usage limit until 2026-09-28; a Sonnet builder is finishing it).
+
+**Queued:** #52 submit after sign-out joins the previous user's claimed session (blocks enabling sign-in, not the anonymous launch) · M1 rubric revision (gate failed, see Gate results) · `/security-review` · #26 review incl. the M4 bbox gate.
 
 **Blocked — Kirby:** **M2 needs new photos.** The first fixture photo shows a hand on a printed document, not the calibration sheet, so the pipeline correctly rejected it ("Markers 0, 1, 2 and 3 are hidden"). Needed: five top-down photos on the printed `/sheet` (100% scale) with a bank card beside the hand, re-placing the hand between shots, plus ruler measurements of hand length (wrist crease to middle fingertip) and palm width, in `../Fixtures/hands/truth.json` and `../Fixtures/hands/<session>/top-N.jpg`.
 
@@ -45,7 +49,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 ### Not required for the first deployment — _candidate_
 
 - **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged and its textures are optimised.
-- **M1 descriptor gate.** Without the Gemini key, hump, flare and curvature stay unclassified and those sub-scores use a neutral prior (`UNKNOWN_PRIOR_SCORE = 75`), so rankings lean on dimensions. Deployable but weaker: either ship saying so, or wait for the key.
+- **M1 descriptor gate.** First live run (2026-09-23, 30 models, gemini-3.8-flash) **failed** on flare and curvature, so its output was kept out of the seed (saved outside the repo in `../Fixtures/m1-run-2026-09-23/`). Hump, flare and curvature stay unclassified and those sub-scores use a neutral prior (`UNKNOWN_PRIOR_SCORE = 75`), so rankings lean on dimensions. Deployable but weaker: either ship saying so, or wait for the key.
 - **M3 coefficients** stay provisional (`fit-v0-provisional`) until tuned against mice Kirby owns. The analysis already states this.
 
 ### Phases and agent distribution
@@ -112,19 +116,19 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 Fill in with **measured numbers** as each gate is attempted. Record failures too —
 a failed attempt is information, not something to overwrite.
 
-| Gate                              | Target                              | Measured                          | Date       | Verdict |
-| --------------------------------- | ----------------------------------- | --------------------------------- | ---------- | ------- |
-| M1 flare direction                | ≥ 85% (Inward/Flat/Outward)         | –                                 | –          | –       |
-| M1 hump Center-vs-Back            | ≥ 85%                               | –                                 | –          | –       |
-| M1 side curvature Inward-vs-Flat  | ≥ 85%                               | –                                 | –          | –       |
-| M1 within-one-level (all three)   | ≥ 90%                               | –                                 | –          | –       |
-| M1 computed Size                  | ≥ 85% exact                         | **89.5%** (Logitech, n=76)        | 2026-09-21 | ✅ pass |
-| M1 Size from **first-party** dims | ≥ 85% exact                         | **90.0%** (27/30, current lineup) | 2026-09-21 | ✅ pass |
-| M2 repeatability                  | ≤ ±1.5 mm over 5 captures           | –                                 | –          | –       |
-| M2 accuracy                       | ≤ ±2 mm hand length vs ruler        | –                                 | –          | –       |
-| M4 bbox fidelity                  | ≤ 0.5 mm vs spec L/W/H              | –                                 | –          | –       |
-| M4 watertight                     | no holes, no self-intersection      | –                                 | –          | –       |
-| M4 silhouette review              | Kirby judges 76 shells recognisable | –                                 | –          | –       |
+| Gate                              | Target                              | Measured                              | Date       | Verdict |
+| --------------------------------- | ----------------------------------- | ------------------------------------- | ---------- | ------- |
+| M1 flare direction                | ≥ 85% (Inward/Flat/Outward)         | **72.4%** (n=29)                      | 2026-09-23 | ⛔ fail |
+| M1 hump Center-vs-Back            | ≥ 85%                               | **85.2%** (n=27)                      | 2026-09-23 | ✅ pass |
+| M1 side curvature Inward-vs-Flat  | ≥ 85%                               | **25.0%** (n=8)                       | 2026-09-23 | ⛔ fail |
+| M1 within-one-level (all three)   | ≥ 90%                               | hump 100% · flare 86.2% · curve 62.5% | 2026-09-23 | ⛔ fail |
+| M1 computed Size                  | ≥ 85% exact                         | **89.5%** (Logitech, n=76)            | 2026-09-21 | ✅ pass |
+| M1 Size from **first-party** dims | ≥ 85% exact                         | **90.0%** (27/30, current lineup)     | 2026-09-21 | ✅ pass |
+| M2 repeatability                  | ≤ ±1.5 mm over 5 captures           | –                                     | –          | –       |
+| M2 accuracy                       | ≤ ±2 mm hand length vs ruler        | –                                     | –          | –       |
+| M4 bbox fidelity                  | ≤ 0.5 mm vs spec L/W/H              | –                                     | –          | –       |
+| M4 watertight                     | no holes, no self-intersection      | –                                     | –          | –       |
+| M4 silhouette review              | Kirby judges 76 shells recognisable | –                                     | –          | –       |
 
 ---
 
@@ -196,6 +200,10 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-23 | **Remove the automatic pagehide deletion; deleting now is an explicit user action** | `pagehide` cannot tell closing a browser from reloading a page, so the beacon deleted anonymous results on refresh. It backed no remaining promise: since #38 the copy says deletion within 24 hours of creation, enforced by TTL + sweep. Guarantees are unchanged; immediate deletion becomes the user's choice |
 | 2026-09-23 | **Every critical flow needs one test with nothing mocked between the browser and the database** | The reload bug shipped past 774 green tests because each test stubbed the exact seam where it lived. Mocked seams test each side against the contract, not that the sides work together |
 | 2026-09-23 | UI design decisions are drawn on the pen.dev canvas before builders implement them | Kirby's suggestion. The journey (`docs/design/journey-2026-09-23/`) settles audit findings that span screens, so separate builders do not each invent their own navigation |
+| 2026-09-24 | `analysis_cache` rows are bound to their scan (`scan_id` FK, `ON DELETE CASCADE`), not given their own TTL | Every existing scan-deletion path (24 h sweep, "Delete this scan now", account deletion) then removes the prose inside the same proven bound. Cross-scan hits are given up: they needed identical 1 mm measurements and let one scan's prose reach another. |
+| 2026-09-24 | The cache is best-effort: a read error is a miss, a write error is skipped; deploy code before migrating | The neon-http migrator has no transactions, and code and schema briefly disagree during every deploy. A cache must never turn that into a 500. 0005 is one atomic `DO` block so it can re-run. |
+| 2026-09-24 | The scan-session cookie proves ownership of an **anonymous** session only (`user_id IS NULL`), in the shared find/delete predicate | The #45 review showed a cookie left after sign-out could delete the account's scans. The contract already said ownership follows the user once claimed. |
+| 2026-09-24 | M1 descriptors from the first live run stay out of the seed | Gate failed (flare 72.4%, curvature 25.0%). Rule 4: revise the rubric, not the gate. Shape sub-scores stay "Shape not rated yet" and the UI says the total leans on size. |
 ---
 
 ## Risks
