@@ -5,6 +5,7 @@
  * all injected so this is testable without a network, a database or a
  * clock.
  */
+import type { AnalysisResponse } from "../../lib/contracts/analysis";
 import type { FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { analyse } from "./analyse";
@@ -12,7 +13,6 @@ import type { AnalysisCache } from "./cache";
 import { computeCacheKey } from "./cache";
 import type { TextModel } from "./client";
 import { buildAnalysisInput } from "./input";
-import type { AnalysisOutput } from "./schema";
 
 /** Per-key rate limit, injected so the handler stays pure. */
 export interface RateLimiter {
@@ -21,7 +21,8 @@ export interface RateLimiter {
 }
 
 export interface AnalysisRequestDeps {
-  client: TextModel;
+  /** `null` when no model is configured — see `createAnalysisModel`. */
+  client: TextModel | null;
   cache: AnalysisCache;
   limiter: RateLimiter;
 }
@@ -33,8 +34,8 @@ export interface AnalysisRequest {
   rateLimitKey: string;
 }
 
-export type AnalysisResponseBody =
-  { output: AnalysisOutput; cached: boolean } | { error: string };
+/** The 200 body is exactly the contract's `AnalysisResponse` shape. */
+export type AnalysisResponseBody = AnalysisResponse | { error: string };
 
 export interface AnalysisResponseLike {
   status: number;
@@ -56,11 +57,19 @@ export async function handleAnalysisRequest(
   const cacheKey = computeCacheKey(request.fit, request.measurements);
   const cached = await deps.cache.get(cacheKey);
   if (cached) {
-    return { status: 200, body: { output: cached, cached: true } };
+    return {
+      status: 200,
+      body: { output: cached.output, source: cached.source, cached: true },
+    };
   }
 
   const input = buildAnalysisInput(request.fit, request.measurements);
-  const output = await analyse(input, deps.client);
-  await deps.cache.set(cacheKey, output);
-  return { status: 200, body: { output, cached: false } };
+  const { output, source } = await analyse(input, deps.client);
+  // Only a real model answer is cached — see the comment on `AnalysisCache`
+  // in `./cache`. The fallback is free to recompute and must never be
+  // served back as if a model wrote it once a key starts working again.
+  if (source === "model") {
+    await deps.cache.set(cacheKey, { output, source });
+  }
+  return { status: 200, body: { output, source, cached: false } };
 }

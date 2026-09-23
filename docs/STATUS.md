@@ -9,31 +9,66 @@ _Last updated: 2026-09-22 · by: Claude (orchestrator)_
 
 ## Right now
 
-**Every open PR is merged.** Fourteen on `main`: #3 #4 #5 #6 #8 #9 #12 #18 #19 #21 #22 #23 #24 #20. M0–M3, the full M2 photo path, M5 analysis and M6 auth are all in. 617 tests on `main`; production deploys and serves.
+**Goal (Kirby, 2026-09-23): carry the product through to a genuine, real-world deployment.** The release plan below defines what that means and who does what.
 
-**Nothing is in flight.** No builders, no reviewers, no open PRs.
+**Open PRs:** #26 M4a Blender pipeline + GLBs (Codex; draft, in review) · #27–#30 integration wave (in flight, below).
 
-**Next wave:** integration — scan → fit → results → analysis end to end, with the routes and the analysis cache table. Then M4b, which needs Codex's Blender assets.
+**In flight:**
 
-**Blocked — Kirby:**
+- Sonnet builders, in parallel: #27 fit route · #28 analysis provenance, DB cache, rate limiting · #29 scan submission · #30 real results page · a security fix for credential redaction in migration errors (see Risks).
+- Sonnet reviewer: #26, including a first measurement of the M4 bbox gate.
+- Codex: independent UI design audit of every shipped screen against `docs/design-guidelines.md`.
 
-1. ~~Production migrate + seed~~ — **done 2026-09-23**: 4 migrations applied, 30 mice seeded on `main` (`ep-young-recipe-aupgqv0d`).
-2. ~~Neon two-branch setup~~ — **done 2026-09-23**. The Neon integration is now connected to **Production only**, so the per-preview-deployment branch action is gone (verified via the Vercel API: `deployments` is empty). Preview-scope `DATABASE_URL` / `DATABASE_URL_UNPOOLED` are set by hand, as Sensitive, to the shared `Preview` branch (`ep-polished-mouse-auy01qq8`). Verified end to end: a preview redeploy migrated and seeded the `Preview` branch, the production-host guard passed, and no new branch appeared. Neon now holds exactly `main` + `Preview`.
-   - **Open follow-up:** reconnecting through the CLI dropped `makeEnvVarsSensitive`, so the 16 integration-managed **Production** DB variables are now type `Config` (readable) instead of `Secret`. The CLI has no flag for it; the documented API call that sets it was blocked by the agent permission classifier. Needs Kirby: either allow `vercel api ... /connections -X POST`, or reconnect in the dashboard with sensitive variables on.
-3. **Codex's Blender tooling is uncommitted** in the main checkout (`tools/`, `public/` on `m4-asset-foundation`). M4b cannot start until it is pushed.
-4. **Convention question:** `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` are the only caret-ranged dependencies; everything else is pinned exactly. A caret on a beta floats across beta releases.
-5. **Gates still unmeasured:** M1 needs the Gemini key; M2 needs ground-truth photos in `../Fixtures/hands/`. Both gate tables below are still empty, and no milestone that depends on them should be called done.
+---
 
-### What the #20 review cycle cost, and what fixed it
+## Release plan — "genuinely deployable"
 
-#20 took **five review passes**. Passes 2, 3 and 4 each found a real hard-rule-2 bypass, and each fix opened the next one: a lookbehind that made `"about68mm"` invisible; an exemption that was never wired into `analyse.ts`; an `a`/`an`/`one` gate that let `"roughly third of the palm width"` through; and a case-sensitivity fix that `slugify`'s lowercasing silently neutralised in production.
+### Definition of deployable — _candidate, pending Kirby's confirmation_
 
-What broke the cycle was **changing the design rather than patching again**: the exemption's source was narrowed from blind recursion over every string leaf to `brand`/`model` only, and the ordinal carve-out was collapsed from "determiner before **or** noun after" to "determiner before **and** not `of` after". Both changes make the rule stricter and easier to reason about.
+A real user, on their own phone, can print the sheet, photograph their hand and get a ranking they can trust — and nothing the product promises is false. All of:
 
-Two lessons worth keeping:
+| #   | Criterion                                                             | Evidence                                                                                                       | Owner                                  |
+| --- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| R1  | End to end works: sheet → photo → submit → ranking → written analysis | Playwright E2E over the whole flow, model stubbed                                                              | Sonnet builders                        |
+| R2  | Hand measurement is accurate                                          | **M2 gate:** ±2 mm hand length vs ruler, ±1.5 mm over 5 captures                                               | **Kirby** (photos) → replay script     |
+| R3  | Every shipped screen meets `docs/design-guidelines.md`, mobile first  | Codex UI audit; findings fixed                                                                                 | Codex (audit) → Sonnet (fixes)         |
+| R4  | Every privacy promise is true                                         | photos-never-leave E2E; 24 h expiry tested; export and delete work                                             | enforced today; re-verified at R6      |
+| R5  | The analysis is honest                                                | model vs. template prose labelled in the UI; no-new-numerals check                                             | #28, #30                               |
+| R6  | Security review passed before public exposure (PLAN §M7)              | `/security-review`; credential redaction fixed; Production DB vars back to Sensitive; rate limits live         | Claude + reviewer; Kirby (Sensitive)   |
+| R7  | Cost controls live (PLAN §M5)                                         | output-token cap, minimal thinking budget, cache, per-IP limit, budget alarm, reminder for the 2027-01-01 rise | #28; **Kirby** (alarm, Google console) |
+| R8  | Every served asset is cleared for public serving                      | decision on the photo-derived shell textures                                                                   | **Kirby**                              |
 
-- **A test that needs impossible data is evidence the code is wrong.** Pass 4's "proof" used a slug `slugify()` can never generate, and that hid the bug for a whole round.
-- **A comment that misdescribes the code is the same failure in slower motion.** Two of them survived to the fifth pass, one overstating a gap and one understating coverage.
+### Not required for the first deployment — _candidate_
+
+- **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged and its textures are optimised.
+- **M1 descriptor gate.** Without the Gemini key, hump, flare and curvature stay unclassified and those sub-scores use a neutral prior (`UNKNOWN_PRIOR_SCORE = 75`), so rankings lean on dimensions. Deployable but weaker: either ship saying so, or wait for the key.
+- **M3 coefficients** stay provisional (`fit-v0-provisional`) until tuned against mice Kirby owns. The analysis already states this.
+
+### Phases and agent distribution
+
+| Phase         | Work                                                                                                                                                | Agents                                               | Status       |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
+| 1 Integration | #27 fit route · #28 analysis infra · #29 scan submit · #30 results page                                                                             | 4 Sonnet builders, parallel                          | 🏗 in flight  |
+| 1 Assets      | #26 Blender pipeline + 31 GLBs                                                                                                                      | Codex (built) · Sonnet reviewer (incl. M4 bbox gate) | 🔍 in review |
+| 1 UI audit    | design-guidelines audit of every screen                                                                                                             | Codex (independent reviewer)                         | 🏗 in flight  |
+| 1 Security    | credential redaction in migration errors                                                                                                            | Sonnet builder                                       | 🏗 in flight  |
+| 2 Wire-up     | analysis route (needs #27 + #28) · full-flow E2E · UI-audit fixes                                                                                   | Sonnet builders                                      | ⬜           |
+| 3 Hardening   | `/security-review` · Production vars Sensitive · budget alarm · mobile/a11y pass · error and empty states · launch checklist · texture optimisation | Claude + reviewers · Codex (textures) · Kirby        | ⬜           |
+| 4 Acceptance  | M2 gate on ground-truth photos · real-phone run on production · final acceptance                                                                    | **Kirby**                                            | ⬜           |
+
+### Only Kirby can supply
+
+1. Ground-truth hand photos in `../Fixtures/hands/`, with ruler measurements → R2
+2. Gemini API key → model-written analysis (R5) and the M1 gate
+3. A decision on the photo-derived shell textures → R8
+4. Production DB variables back to Sensitive, or permission for the API call that does it → R6
+5. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
+6. Final acceptance on a real phone
+
+### Other open items
+
+- ~~Production migrate + seed~~ and ~~Neon two-branch setup~~ — done 2026-09-23 (see Decisions log).
+- **Convention question:** `@auth/drizzle-adapter: ^1.11.3` and `next-auth: ^5.0.0-beta.32` are the only caret-ranged dependencies; everything else is pinned. A caret on a beta floats across beta releases.
 
 ---
 
@@ -148,9 +183,19 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-22 | On hard rules, prefer the stricter rule: false positives cost a retry, false negatives reach the user | Four rounds of clever narrow fixes each opened a new hole. A monotonically stricter change cannot introduce a false negative |
 | 2026-09-22 | A branch is merged with `main` locally and fully verified before the PR is merged | #20 was green on `push` and red on `pull_request` at one SHA; two branches conflicted in `package.json` where both added a dependency |
 | 2026-09-23 | Neon integration connected to Production only; Preview DB vars set by hand to one shared `Preview` branch | The Neon Free plan caps branches at 10, and per-deployment branches outlive their PRs until Vercel deletes the deployment. The deployment-action toggle has no API, but connecting without `preview` removes the action entirely |
+| 2026-09-23 | **Codex may take assigned tasks beyond Blender** | Kirby's call. First two: publishing its own Blender work (#26) and an independent UI design audit — independent because Sonnet builders wrote the frontend |
+| 2026-09-23 | A Codex task that needs `git push` is launched by Kirby, not by Claude | The agent permission classifier blocks Claude from starting an external agent with push access. Otherwise Codex judges and Claude runs git |
+| 2026-09-23 | Analysis `source` is reported by the code path taken, never inferred from whether a key is set | A keyed call can fail and fall back; inferring from the key would label template text as model prose (#25 review) |
+| 2026-09-23 | Only model-written analyses are cached | The fallback is deterministic and free to recompute; caching it would keep serving template text after a transient model failure clears |
+| 2026-09-23 | Contract error bodies are tested against the shipped route | The first draft of `errorResponseSchema` rejected what `POST /api/scans` already returns; a reviewer caught it by reading both files. Now CI does |
+| 2026-09-23 | **At most three agents run at once** (revised from five the same day), and the orchestrator commits and pushes any uncommitted work the moment an agent stops | Eight parallel agents exhausted the account's session limit together; so did five, a few hours later. One builder had 17 files uncommitted, another had temporarily reverted its own fix to prove a test red. Nothing was lost: each worktree was inspected, WIP-committed and pushed before resuming |
 ---
 
 ## Risks
+
+**Credential redaction leaks quoted secrets (P1, open since 2026-09-21).** Codex's M0 review reported that `describeMigrationError` lets quoted credentials through. It was never fixed. Re-tested 2026-09-23 against `main`: of seven forms, **five leak the full secret** — `password="…"`, `password='…'`, `{"password":"…"}`, escaped quotes, and `PGPASSWORD=…`. This code runs in every preview build, so a failing migration could write the database password into Vercel build logs. Fix in flight; blocks R6.
+
+**Shell textures are derived from product photos.** 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decides (R8) before #26 merges. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
 
 **M1 is the riskiest gate in the project.** Analysis of the validation fixture
 shows `Hump placement` and `Front flare` have **no numeric proxy**: height/length
