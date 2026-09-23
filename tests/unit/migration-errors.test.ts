@@ -188,6 +188,37 @@ describe("redactSecrets", () => {
     });
   });
 
+  // 2026-09-23 second re-review: `Authorization: Bearer <token>` leaked the
+  // token, because the generic unquoted branch stops at the whitespace right
+  // after the scheme word and only redacts "Bearer" itself. Real shape in
+  // this project: src/server/scans/expire-cron.ts compares against exactly
+  // `Bearer ${cronSecret}`.
+  describe("2026-09-23: auth-scheme values (Bearer/Basic/Token/Digest)", () => {
+    const AUTH_SECRET = "Zq9-SYNTH-7Kx";
+
+    it.each<[string, string]>([
+      ["Authorization, Bearer", `Authorization: Bearer ${AUTH_SECRET}`],
+      [
+        "authorization (lowercase), Bearer",
+        `authorization: Bearer ${AUTH_SECRET}`,
+      ],
+      [
+        "Proxy-Authorization, Bearer",
+        `Proxy-Authorization: Bearer ${AUTH_SECRET}`,
+      ],
+      ["Authorization, Basic", `Authorization: Basic ${AUTH_SECRET}`],
+      ["Authorization, Token", `Authorization: Token ${AUTH_SECRET}`],
+      ["Authorization, Digest", `Authorization: Digest ${AUTH_SECRET}`],
+    ])("redacts the token after the scheme word: %s", (_label, message) => {
+      const out = redactSecrets(message);
+      expect(out).not.toContain(AUTH_SECRET);
+      expect(out).not.toContain("SYNTH-7Kx");
+      // the scheme word itself is not the thing we need back, but the key
+      // and structure should still read as an authorization line
+      expect(out.toLowerCase()).toContain("authorization");
+    });
+  });
+
   // Combinatorial coverage: the earlier suite was a hand-picked list of
   // examples, which is exactly why four real leaking forms slipped past it.
   // This generates every combination of key shape (a content word with an
@@ -291,21 +322,28 @@ describe("redactSecrets", () => {
     });
   });
 
-  // ReDoS guard. Two distinct risks, both adversarial:
-  //  - the quote alternatives: each commits to a distinct leading character
-  //    and its inner loop is a negated-class/escape alternation with no
-  //    ambiguous overlap, so an unterminated quoted value should fail (or an
-  //    unquoted fallback should succeed) in linear time, not exponential.
-  //  - the key's `[\w-]*` prefix: without a `\b` anchor immediately before
-  //    it, a long run of word characters containing no credential fragment
-  //    (e.g. a hex/base64 blob) would be re-scanned from every position
-  //    inside the run, each scan backtracking across the rest of the run --
-  //    O(n) positions x O(n) backtrack = O(n^2). The leading `\b` confines
-  //    the expensive attempt to genuine word-boundary starts.
-  describe("performance", () => {
+  // ReDoS guard, testing the PROPERTY (linear in input length) rather than a
+  // sample of adversarial shapes -- a sample is exactly what let the
+  // 2026-09-23 re-review's quadratic regression through: none of the first
+  // round's adversarial inputs happened to contain a fragment word with no
+  // separator following it.
+  //
+  // The earlier (unbounded `[\w-]*`) version was quadratic on exactly that
+  // shape: a long run of word characters built from one or more credential
+  // fragments with no `:`/`=` anywhere. Every fragment match found while the
+  // leading `[\w-]*` backtracked triggered its own full backtracking search,
+  // by the trailing `[\w-]*`, for a separator that never appeared --
+  // O(matches) x O(remaining length) = O(n^2). CREDENTIAL_KEY now bounds
+  // both sides to `{0,64}`, which caps that cost at a constant per match
+  // regardless of how long the surrounding run is -- a single hard time
+  // budget across a size ladder (fixed budget, growing input) is what turns
+  // "looks fast" into "provably not quadratic": a quadratic algorithm cannot
+  // hit the same low budget at 1 MB that it hits at 80 KB.
+  describe("performance (linear-time property, not a sample)", () => {
     const alternatingQuoteChars = "'\"`".repeat(20_000);
     const manyBackslashes = "\\".repeat(50_000);
-    const longFragmentFreeWordRun = "x".repeat(100_000); // no pass/pwd/secret/etc
+    const longFragmentFreeWordRun = "x".repeat(100_000); // no pass/pwd/secret/etc/url/dsn
+    const BUDGET_MS = 200;
 
     it.each<[string, string]>([
       ["unterminated double-quoted value", `password="${"a".repeat(100_000)}`],
@@ -325,11 +363,35 @@ describe("redactSecrets", () => {
         "long word-character run with no fragment, followed by a real secret",
         `${longFragmentFreeWordRun} password=${SECRET}`,
       ],
-    ])("stays fast on: %s", (_label, input) => {
+      // The re-review's exact reproduction: a repeated fragment word with no
+      // separator anywhere -- ordinary prose ("Invalid password, please
+      // retry") has this shape, not just adversarial input.
+      [
+        "2026-09-23 re-review: 'password' repeated with no separator, 100 KB",
+        "password".repeat(12_500),
+      ],
+      [
+        "2026-09-23 re-review: several fragment words repeated with no separator, 100 KB",
+        "passurlauthtoken".repeat(6_250),
+      ],
+      // Size ladder at fixed content shape: if the cost were quadratic,
+      // doubling the input would roughly quadruple the time and blow well
+      // past BUDGET_MS long before 1 MB.
+      ["80 KB of repeated 'password', no separator", "password".repeat(10_000)],
+      [
+        "160 KB of repeated 'password', no separator",
+        "password".repeat(20_000),
+      ],
+      [
+        "320 KB of repeated 'password', no separator",
+        "password".repeat(40_000),
+      ],
+      ["1 MB of repeated 'password', no separator", "password".repeat(125_000)],
+    ])(`stays within a ${BUDGET_MS}ms budget on: %s`, (_label, input) => {
       const start = performance.now();
       redactSecrets(input);
       const elapsed = performance.now() - start;
-      expect(elapsed).toBeLessThan(500);
+      expect(elapsed).toBeLessThan(BUDGET_MS);
     });
   });
 });

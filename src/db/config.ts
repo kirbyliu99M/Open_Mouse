@@ -61,9 +61,9 @@ const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
 // `SENTRY_DSN` all match via `pass`/`token`/`secret`/`url`/`dsn`. This
 // replaces a fixed alias list: a list only ever covers the exact names it was
 // written for, and the next `DB_PASS` (or whatever a driver/env var happens
-// to call it) simply isn't in it. The `[\w-]*` on both sides of each fragment
-// *is* "contains, with any prefix or suffix" — not a growing list of full
-// names.
+// to call it) simply isn't in it. The prefix/suffix wildcards on each
+// fragment *are* "contains, with any prefix or suffix" — not a growing list
+// of full names.
 //
 // `url` and `dsn` are included on the same fail-toward-redacting principle:
 // a `DATABASE_URL`-style key is exactly the field most likely to carry a
@@ -78,7 +78,37 @@ const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"`]+/gi;
 // `private_key` — are still covered as explicit alternatives.
 const CREDENTIAL_WORD =
   "pass|pwd|secret|token|credential|auth|url|dsn|api[_-]?key|access[_-]?key|private[_-]?key";
-const CREDENTIAL_KEY = String.raw`[\w-]*(?:${CREDENTIAL_WORD})[\w-]*`;
+
+// BOUNDED, not unbounded. Real credential key names are short — nothing in
+// this codebase or a typical driver/env var is anywhere near 64 characters —
+// so a bounded repetition caps the backtracking cost of the prefix/suffix at
+// a constant per candidate position. That is what makes matching linear in
+// the input length BY CONSTRUCTION: a property to state, not a claim to hope
+// holds.
+//
+// This replaces an earlier version using unbounded `[\w-]*`, which the
+// 2026-09-23 re-review found quadratic on ordinary prose, not just
+// adversarial input ("Invalid password, please retry" was enough to show
+// it). The `\b` anchor before the key (below) stops the *leading* `[\w-]*`
+// from restarting at every position in a long word run, but with an
+// unbounded *trailing* `[\w-]*`, every position within that single attempt
+// where a fragment happens to match (there can be many, in a run built from
+// repeated fragment words) triggered its own full backtracking search for a
+// `:`/`=` that was never going to appear — O(matches found) x O(remaining
+// length) = O(n^2) overall. Bounding both sides to a constant caves that
+// enumeration down to a constant number of candidate splits, each doing a
+// constant amount of work, independent of the input length.
+const CREDENTIAL_KEY = String.raw`[\w-]{0,64}(?:${CREDENTIAL_WORD})[\w-]{0,64}`;
+
+// A bare scheme word before whitespace ("Bearer", "Basic", "Token",
+// "Digest") is not itself the secret — the real credential is the token
+// after it. Without this, the generic unquoted branch below stops at the
+// first whitespace and only redacts the scheme word, leaking the token:
+// `Authorization: Bearer <token>` became `Authorization: [redacted] <token>`.
+// This is a real shape here (`src/server/scans/expire-cron.ts` compares
+// against `` `Bearer ${cronSecret}` ``), and matching it also covers
+// `Proxy-Authorization` / any other key that merely *contains* "auth".
+const AUTH_SCHEME_VALUE = String.raw`(?:bearer|basic|token|digest)\s+[^\s,;&]+`;
 
 // Matches a credential-shaped `key = value` / `key: value` assignment —
 // quoted key or not, any separator spacing. The key itself is restricted to
@@ -90,19 +120,19 @@ const CREDENTIAL_KEY = String.raw`[\w-]*(?:${CREDENTIAL_WORD})[\w-]*`;
 //
 // The value is one of, tried in order: a double-, single- or backtick-quoted
 // string using the standard escape-aware form `(?:\\.|[^"\\])*` (an escaped
-// quote inside the value does not end it — the earlier bug's exact failure),
+// quote inside the value does not end it — an earlier bug's exact failure),
+// an auth-scheme word followed by its token (see AUTH_SCHEME_VALUE above),
 // or, unquoted, a run up to the next real separator (whitespace, `,`, `;`,
-// `&`) that *includes* any stray quote/backtick found inside it. The four
-// branches each commit to a distinct leading character (`"`, `'`, `` ` ``, or
-// "none of those"), so they never overlap and this stays linear-time with no
-// backtracking blowup.
-// `\b` immediately before the key match matters for more than style: without
-// it, the greedy `[\w-]*` prefix inside CREDENTIAL_KEY would be re-attempted
-// at *every* position inside a long run of word characters that never
-// contains a credential fragment (e.g. a long hex/base64 blob), and each of
-// those attempts individually backtracks across the rest of the run — O(n)
-// attempts x O(n) backtrack each = O(n^2). Requiring a real word boundary to
-// even start collapses that back to O(n) total.
+// `&`) that *includes* any stray quote/backtick found inside it. Each
+// branch commits to a distinct leading shape (`"`, `'`, `` ` ``, a literal
+// scheme word, or "none of those"), so they never overlap.
+//
+// `\b` immediately before the key match, combined with CREDENTIAL_KEY's
+// bounded quantifiers above, is what keeps this linear: it stops the
+// leading `[\w-]{0,64}` from being (re-)attempted at internal positions
+// inside a long run of word characters that never contains a credential
+// fragment (e.g. a long hex/base64 blob), so only genuine word-boundary
+// starts pay the (now constant) cost of the key match.
 const KEY_VALUE_PAIR = new RegExp(
   String.raw`(["'\`]?)\b(${CREDENTIAL_KEY})\b\1?` + // key, optionally quoted (", ' or `)
     String.raw`(\s*[:=]\s*)` + // `=` or `:`, with optional surrounding whitespace
@@ -110,6 +140,7 @@ const KEY_VALUE_PAIR = new RegExp(
     String.raw`"(?:\\.|[^"\\])*"` + // double-quoted, escape-aware
     String.raw`|'(?:\\.|[^'\\])*'` + // single-quoted, escape-aware
     String.raw`|\`(?:\\.|[^\`\\])*\`` + // backtick-quoted, escape-aware
+    String.raw`|${AUTH_SCHEME_VALUE}` + // "Bearer <token>" and friends
     String.raw`|[^\s,;&]+` + // unquoted, up to the next real separator
     String.raw`)`,
   "gi",
