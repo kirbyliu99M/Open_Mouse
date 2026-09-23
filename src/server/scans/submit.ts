@@ -1,10 +1,9 @@
 import { scanSubmissionSchema } from "../../lib/contracts/measurement";
 import { BodyTooLargeError, readLimitedBody } from "./body-limit";
 import { buildSessionCookie, readSessionCookie } from "./cookies";
+import { SESSION_TTL_MS } from "./retention";
 import type { ScanRepo } from "./repo";
 import { defaultSweepThrottle, type SweepThrottle } from "./sweep";
-
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 function json(status: number, body: unknown, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
