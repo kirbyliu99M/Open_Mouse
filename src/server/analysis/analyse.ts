@@ -28,7 +28,7 @@ export interface AnalyseResult {
  * (`EXCLUDED_REASON_LABELS`). A `Record` so a new reason cannot silently
  * reuse another's text. */
 const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
-  wrong_hand: "does not fit the selected hand",
+  wrong_hand: "doesn't fit your handedness",
   vertical_form_factor: "vertical shape, excluded from this comparison",
 };
 

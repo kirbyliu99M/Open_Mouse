@@ -128,7 +128,7 @@ describe("analyse — no-new-numerals rule", () => {
       "Data:\n",
     )[1]!;
     expect(data).toContain("vertical shape, excluded from this comparison");
-    expect(data).toContain("does not fit the selected hand");
+    expect(data).toContain("doesn't fit your handedness");
     expect(data).not.toContain("scored separately");
   });
 
@@ -196,6 +196,7 @@ describe("analyse — low confidence", () => {
     const shown = JSON.parse(buildPrompt(input).split("Data:\n")[1]!) as {
       rankingStatus: string;
     };
+    expect(shown.rankingStatus).toBeTypeOf("string");
     const copiedStatus = JSON.stringify({
       headline: "A strong match.",
       whyTopPick: "It fits.",
