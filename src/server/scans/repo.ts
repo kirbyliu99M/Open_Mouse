@@ -53,10 +53,13 @@ export interface ScanRepo {
   /**
    * Cascades to `scans` and `scan_measurements`. No-op if unknown, and no-op
    * if the session has already been claimed by a signed-in user (`user_id`
-   * set) — this is the `pagehide` beacon's target, which the client only
-   * fires for anonymous callers (issue #17), but the guard is enforced here
-   * too so a claimed session can never be deleted this way, only through
-   * `/account`'s explicit delete-everything.
+   * set) — this is `POST`/`DELETE /api/scans/session`'s target, reached only
+   * by the anonymous-only "Delete this scan now" action on
+   * `/results/[scanId]` (issue #42; formerly also an automatic
+   * `pagehide` beacon, removed because it fired on reload too — issue #17's
+   * "anonymous-only" guard still applies here regardless of caller), but the
+   * guard is enforced here too so a claimed session can never be deleted
+   * this way, only through `/account`'s explicit delete-everything.
    */
   deleteSession(sessionId: string): Promise<void>;
   /** Returns the number of rows removed. */

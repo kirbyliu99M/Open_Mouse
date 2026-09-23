@@ -210,8 +210,9 @@ Per-IP rate limit, capped output tokens, budget alarm, and a **dated reminder fo
 M1's one-time rubric classification (76 renders) costs pennies at any of these tiers — pick for accuracy there, not price.
 
 ### M6 — Sessions, auth, privacy
-- **Anonymous:** `scan_sessions` keyed by an httpOnly **session cookie with no Max-Age** (dies on browser close). Row carries `expires_at = now + 24h`; a **Vercel Cron** job sweeps hourly. `navigator.sendBeacon` on `pagehide` attempts an immediate delete.
-  *UI copy must be honest:* the server cannot observe a browser closing, so "deleted when you close your browser" means cookie death plus a ≤24 h sweep. Say that plainly rather than overclaiming.
+- **Anonymous:** `scan_sessions` keyed by an httpOnly **session cookie with no Max-Age** (dies on browser close). Row carries `expires_at = now + 24h`; the hourly GitHub Actions sweep plus the daily Vercel Cron backstop enforce physical deletion independently of the browser (`src/server/scans/retention.ts`). `/results/[scanId]` also offers an explicit, anonymous-only "Delete this scan now" action that calls the same session-delete route on request.
+  *UI copy must be honest:* the server cannot observe a browser closing, so the promise is stated as it actually works — deleted within 24 hours of when the scan was made, or sooner if the user deletes it themselves. Never claim deletion is triggered by closing the browser or the tab.
+  *(Removed 2026-09-23, issue #42): an automatic `navigator.sendBeacon` call to the session-delete route on `pagehide`. `pagehide` fires on reload and back/forward navigation as well as tab close, so it silently deleted a still-in-use anonymous session the first time the results page was reloaded. It backed no promise this section didn't already keep another way, so removing it changes no guarantee.*
 - **Logged in:** Auth.js v5 + Google. Rows gain `user_id`, lose `expires_at`. `/account` offers export and delete-everything.
 - Consent copy at upload time; state the "photos never leave your device" claim where it's true.
 
