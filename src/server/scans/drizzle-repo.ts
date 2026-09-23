@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import { scanMeasurements, scanSessions, scans } from "../../db/schema";
 import type {
@@ -9,6 +9,22 @@ import type {
   ScanRepo,
   SessionRecord,
 } from "./repo";
+
+function ownershipPredicate(ctx: ScanOwnershipContext) {
+  const ownership = [];
+  if (ctx.userId !== null) {
+    ownership.push(eq(scanSessions.userId, ctx.userId));
+  }
+  if (ctx.cookieSessionId !== null) {
+    ownership.push(
+      and(
+        eq(scanSessions.id, ctx.cookieSessionId),
+        or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, ctx.now)),
+      ),
+    );
+  }
+  return ownership.length > 0 ? or(...ownership) : undefined;
+}
 
 /**
  * The real `ScanRepo`, over the Neon HTTP driver.
@@ -129,22 +145,8 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       // apply. Neither present (signed out, no cookie) can never match
       // anything, so skip the query entirely rather than run an OR with no
       // real conditions in it.
-      const ownership = [];
-      if (ctx.userId !== null) {
-        ownership.push(eq(scanSessions.userId, ctx.userId));
-      }
-      if (ctx.cookieSessionId !== null) {
-        ownership.push(
-          and(
-            eq(scans.sessionId, ctx.cookieSessionId),
-            or(
-              isNull(scanSessions.expiresAt),
-              gt(scanSessions.expiresAt, ctx.now),
-            ),
-          ),
-        );
-      }
-      if (ownership.length === 0) return null;
+      const ownership = ownershipPredicate(ctx);
+      if (!ownership) return null;
 
       const rows = await db
         .select({
@@ -166,7 +168,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         .from(scans)
         .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
         .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
-        .where(and(eq(scans.id, scanId), or(...ownership)))
+        .where(and(eq(scans.id, scanId), ownership))
         .limit(1);
 
       const row = rows[0];
@@ -190,6 +192,30 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           thumbAngleDeg: row.thumbAngleDeg ?? undefined,
         },
       };
+    },
+
+    async deleteOwnedScan(scanId, ctx) {
+      const ownership = ownershipPredicate(ctx);
+      if (!ownership) return false;
+
+      // One DELETE with an ownership subquery. No read/delete gap, and only
+      // the scan row is targeted; its dependent rows cascade from that row.
+      const deleted = await db
+        .delete(scans)
+        .where(
+          and(
+            eq(scans.id, scanId),
+            inArray(
+              scans.sessionId,
+              db
+                .select({ id: scanSessions.id })
+                .from(scanSessions)
+                .where(ownership),
+            ),
+          ),
+        )
+        .returning({ id: scans.id });
+      return deleted.length > 0;
     },
   };
 }

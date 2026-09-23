@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { deleteScanSession } from "./fetchResults";
+import { deleteScan } from "./fetchResults";
 
 type Status = "idle" | "confirming" | "deleting" | "error";
 
@@ -27,7 +27,13 @@ type Status = "idle" | "confirming" | "deleting" | "error";
  *    dialog uses, so reduced-motion/-transparency/-contrast variants are
  *    already covered by `globals.css`.
  */
-export function DeleteScanAction({ onDeleted }: { onDeleted: () => void }) {
+export function DeleteScanAction({
+  scanId,
+  onDeleted,
+}: {
+  scanId: string;
+  onDeleted: () => void;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -54,7 +60,7 @@ export function DeleteScanAction({ onDeleted }: { onDeleted: () => void }) {
 
   async function confirmDelete() {
     setStatus("deleting");
-    const outcome = await deleteScanSession();
+    const outcome = await deleteScan(scanId);
     if (outcome === "deleted") {
       onDeleted();
       return;

@@ -193,7 +193,10 @@ export function ResultsPageClient({
         onRetryAnalysis={() => void runAnalysis()}
       />
       {anonymous && (
-        <DeleteScanAction onDeleted={() => setPageState({ kind: "deleted" })} />
+        <DeleteScanAction
+          scanId={scanId}
+          onDeleted={() => setPageState({ kind: "deleted" })}
+        />
       )}
     </main>
   );

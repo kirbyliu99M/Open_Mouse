@@ -44,7 +44,22 @@ test("an anonymous scan's results survive navigation and reload, and delete remo
     },
     { path: SCAN_SUBMIT_PATH, payload: submission },
   );
-  const { scanId } = scanSubmitResponseSchema.parse(body);
+  const { scanId: scanA } = scanSubmitResponseSchema.parse(body);
+  const secondBody = await page.evaluate(
+    async ({ path, payload }) => {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status !== 201)
+        throw new Error(`second submit returned ${res.status}`);
+      return res.json();
+    },
+    { path: SCAN_SUBMIT_PATH, payload: submission },
+  );
+  const { scanId } = scanSubmitResponseSchema.parse(secondBody);
+  expect(scanId).not.toBe(scanA);
 
   // A full navigation, as following a link or a bookmark does. This is the
   // step the beacon broke: leaving /scan fired `pagehide`.
@@ -72,4 +87,11 @@ test("an anonymous scan's results survive navigation and reload, and delete remo
     fitPath(scanId),
   );
   expect(status).toBe(404);
+
+  // The same browser cookie still owns A. Deleting B must leave A and the
+  // session intact, through the deployment's real route and database.
+  await page.goto(resultsPagePath(scanA));
+  await expect(page.getByText("Best match")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Best match")).toBeVisible();
 });

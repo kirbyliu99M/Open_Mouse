@@ -21,7 +21,7 @@ import {
   fitResponseSchema,
   type FitResponse,
 } from "@/lib/contracts/fit";
-import { analysisPath, fitPath } from "@/lib/contracts/routes";
+import { analysisPath, fitPath, scanPath } from "@/lib/contracts/routes";
 import {
   analysisResponseSchema,
   type AnalysisResponse,
@@ -87,26 +87,26 @@ export async function fetchFitResult(
   return { status: "ready", response: parsed.data };
 }
 
-export type DeleteSessionOutcome = "deleted" | "networkError" | "serverError";
+export type DeleteScanOutcome = "deleted" | "networkError" | "serverError";
 
-/**
- * The "Delete this scan now" action's request (issue #42, AC2) — the same
- * idempotent `DELETE /api/scans/session` the (now-removed) automatic beacon
- * used to call, but now only ever in response to an explicit user press.
- * Anonymous-only: `DeleteScanAction` is not rendered at all for a signed-in
- * caller, and the route's own guard (`ScanRepo.deleteSession`) additionally
- * refuses to delete a session already claimed by a signed-in user.
- */
-export async function deleteScanSession(
+/** Delete this one scan. Invalid route parameters never reach fetch. */
+export async function deleteScan(
+  scanId: string,
   fetchImpl: FetchImpl = fetch,
-): Promise<DeleteSessionOutcome> {
+): Promise<DeleteScanOutcome> {
+  let path: string;
+  try {
+    path = scanPath(scanId);
+  } catch {
+    return "serverError";
+  }
   let res: Response;
   try {
-    res = await fetchImpl("/api/scans/session", { method: "DELETE" });
+    res = await fetchImpl(path, { method: "DELETE" });
   } catch {
     return "networkError";
   }
-  if (!res.ok) return "serverError";
+  if (res.status !== 204) return "serverError";
   return "deleted";
 }
 

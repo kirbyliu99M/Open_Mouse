@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { scanPath } from "../../src/lib/contracts/routes";
 
 // Read as plain JSON rather than `import ... from "*.json"` — Playwright's
 // test runner loads spec files as native Node ESM, which requires an
@@ -222,7 +223,7 @@ test.describe("/results/[scanId] — real results page", () => {
 // to no session here — every case below is exercising the anonymous branch,
 // which is also the only branch that ever renders this action at all.
 test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
-  const SESSION_URL = "**/api/scans/session";
+  const SCAN_URL = `**${scanPath(SCAN_ID)}`;
 
   test("presses feedback with a confirmation, and focus lands on Cancel", async ({
     page,
@@ -247,7 +248,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     page,
   }) => {
     let deleteCalls = 0;
-    await page.route(SESSION_URL, (route) => {
+    await page.route(SCAN_URL, (route) => {
       deleteCalls += 1;
       return route.fulfill({ status: 204 });
     });
@@ -272,11 +273,11 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     expect(deleteCalls).toBe(0);
   });
 
-  test("confirming calls DELETE /api/scans/session and shows the deleted state, with focus on its heading", async ({
+  test("confirming deletes this scan and shows the deleted state, with focus on its heading", async ({
     page,
   }) => {
     let method = "";
-    await page.route(SESSION_URL, (route) => {
+    await page.route(SCAN_URL, (route) => {
       method = route.request().method();
       return route.fulfill({ status: 204 });
     });
@@ -306,7 +307,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
   test("a failed delete names the problem, gives one fix, and leaves the dialog open to retry", async ({
     page,
   }) => {
-    await page.route(SESSION_URL, (route) => route.fulfill({ status: 500 }));
+    await page.route(SCAN_URL, (route) => route.fulfill({ status: 500 }));
     await stubHappyFit(page);
     await page.route(ANALYSIS_URL, (route) =>
       fulfillJson(route, 200, READY_ANALYSIS_MODEL),

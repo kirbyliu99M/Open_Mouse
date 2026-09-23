@@ -88,6 +88,7 @@ function createFakeRepo() {
     // tests/unit/scan-ownership.test.ts. Kept here only so this fake keeps
     // satisfying ScanRepo's shape.
     findOwnedScan: vi.fn(async () => null),
+    deleteOwnedScan: vi.fn(async () => false),
   };
   return { repo, sessions, insertedScans };
 }
