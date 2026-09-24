@@ -23,6 +23,16 @@ import type { NextConfig } from "next";
  * cross-origin script loading (still blocked by `'self'`), only inline
  * script *content*.
  *
+ * `'unsafe-eval'` is added to `script-src` ONLY when `NODE_ENV !==
+ * "production"` (i.e. `next dev`, which is what the e2e suite's webServer
+ * runs): webpack's dev-mode Fast Refresh/HMR runtime evaluates code as a
+ * string (confirmed directly — without this, Chrome logs "Evaluating a
+ * string as JavaScript violates the following Content Security Policy
+ * directive… 'unsafe-eval'" and the page never finishes hydrating). A
+ * production build has no such runtime and was verified clean without it
+ * (`next build && next start` — see the PR description), so production
+ * traffic never gets the wider allowance.
+ *
  * `worker-src 'self' blob:'`: the vendored MediaPipe runtime
  * (`public/mediapipe/wasm/vision_wasm_internal.js`, checked directly) does
  * not spawn a Web Worker under the CPU delegate this app uses — only
@@ -49,9 +59,11 @@ import type { NextConfig } from "next";
  * its `<base>` retargeted, submit a form to another origin, or load a
  * plugin/object embed.
  */
+const IS_DEV = process.env.NODE_ENV !== "production";
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'",
+  `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${IS_DEV ? " 'unsafe-eval'" : ""}`,
   "worker-src 'self' blob:",
   "connect-src 'self'",
   "img-src 'self' data: blob:",
