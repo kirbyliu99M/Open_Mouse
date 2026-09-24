@@ -267,6 +267,31 @@ h1 {
   outline-offset: 2px;
 }
 
+/* Measured-state overlay (item: "draw the measured result over the
+   photo") — the four MCP knuckle joints emphasised, and the two labelled
+   measurement lines (hand length, palm width). */
+.overlayKnuckle {
+  fill: var(--scan-landmark);
+  stroke: white;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.overlayMeasureLine {
+  stroke: var(--scan-accent);
+  stroke-width: 3;
+  stroke-dasharray: 10 6;
+  vector-effect: non-scaling-stroke;
+}
+.overlayMeasureLabelBg {
+  fill: #1c1c1e;
+  opacity: 0.85;
+}
+.overlayMeasureLabelText {
+  fill: #ffffff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .primaryButton {
   min-height: 44px;
   min-width: 44px;

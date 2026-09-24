@@ -7,7 +7,7 @@ import type {
   HandMeasurements,
   ScanSubmission,
 } from "@/lib/contracts/measurement";
-import { scanSubmissionSchema } from "@/lib/contracts/measurement";
+import { scanSubmissionSchema, LANDMARK } from "@/lib/contracts/measurement";
 import type { Point2 } from "@/client/geometry/homography";
 import type { CardCorners } from "@/client/geometry/card-scale";
 import {
@@ -23,6 +23,7 @@ import {
 } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
+import CameraCapture from "@/client/camera/CameraCapture";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -97,6 +98,71 @@ function toSvgPoint(
 
 function cornersToPoints(corners: readonly Point2[]): string {
   return corners.map((p) => `${p.x},${p.y}`).join(" ");
+}
+
+/** The four MCP (knuckle) joints — the first landmark of each non-thumb
+ * finger's chain — emphasised in the measured-state overlay per Kirby's
+ * request to draw the measured result over the photo. */
+const KNUCKLE_LANDMARK_IDS: readonly number[] = [
+  LANDMARK.index[0],
+  LANDMARK.middle[0],
+  LANDMARK.ring[0],
+  LANDMARK.pinky[0],
+];
+
+/**
+ * A labelled measurement line for the "ok" state's photo overlay — plain
+ * geometry only (the two endpoints and the value are already computed by
+ * runPhotoPipeline/computeHandMeasurements; this just draws a line between
+ * them and a legible label near its midpoint, never its own math).
+ */
+function MeasurementLine({
+  a,
+  b,
+  label,
+  imageWidth,
+}: {
+  a: Point2;
+  b: Point2;
+  label: string;
+  imageWidth: number;
+}) {
+  const midX = (a.x + b.x) / 2;
+  const midY = (a.y + b.y) / 2;
+  const fontSize = Math.max(14, imageWidth * 0.018);
+  const paddingX = fontSize * 0.6;
+  const labelWidth = label.length * fontSize * 0.56 + paddingX * 2;
+  const labelHeight = fontSize * 1.8;
+  return (
+    <>
+      <line
+        x1={a.x}
+        y1={a.y}
+        x2={b.x}
+        y2={b.y}
+        className="overlayMeasureLine"
+      />
+      <g transform={`translate(${midX} ${midY})`}>
+        <rect
+          x={-labelWidth / 2}
+          y={-labelHeight / 2}
+          width={labelWidth}
+          height={labelHeight}
+          rx={labelHeight / 2}
+          className="overlayMeasureLabelBg"
+        />
+        <text
+          x={0}
+          y={fontSize * 0.32}
+          textAnchor="middle"
+          fontSize={fontSize}
+          className="overlayMeasureLabelText"
+        >
+          {label}
+        </text>
+      </g>
+    </>
+  );
 }
 
 /** A plain circled checkmark for the "Hand measured" completion state —
@@ -191,6 +257,21 @@ export default function ScanClient({
   );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [manualCorners, setManualCorners] = useState<CardCorners | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  // Defaults false on both the server render and the client's first render
+  // (no hydration mismatch), then flips true after mount if this device can
+  // actually open the camera — per docs/design/camera-capture-2026-09-25/
+  // README.md: "No rear camera / getUserMedia missing / insecure context →
+  // go straight to the upload path, no error styling", i.e. the camera
+  // button simply never appears rather than appearing and failing.
+  const [cameraAvailable, setCameraAvailable] = useState(false);
+  useEffect(() => {
+    setCameraAvailable(
+      typeof window !== "undefined" &&
+        window.isSecureContext &&
+        typeof navigator.mediaDevices?.getUserMedia === "function",
+    );
+  }, []);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
@@ -514,16 +595,35 @@ export default function ScanClient({
 
       {/* The choose/replace-photo control only exists before "ok" — once
           measured it reappears further down, after the primary action, in
-          its own DOM position (no CSS `order` — item 4). */}
+          its own DOM position (no CSS `order` — item 4). Camera-capable
+          devices get "Open camera" as the primary action here; devices
+          without a usable camera (no getUserMedia, or an insecure context)
+          fall straight back to today's plain upload button, unchanged, per
+          docs/design/camera-capture-2026-09-25/README.md. */}
       {state.kind !== "ok" && (
         <div className="uploadSlot">
+          {cameraAvailable && (
+            <button
+              type="button"
+              className="primaryButton"
+              style={{ width: "100%", marginBottom: "0.75rem" }}
+              onClick={() => setCameraOpen(true)}
+            >
+              Open camera
+            </button>
+          )}
           <label className="uploadButton" htmlFor="top-down-photo">
-            {previewUrl ? "Replace photo" : "Choose photo"}
+            {cameraAvailable
+              ? "Upload a photo instead"
+              : previewUrl
+                ? "Replace photo"
+                : "Choose photo"}
           </label>
           <input
             id="top-down-photo"
             type="file"
             accept="image/*"
+            {...(!cameraAvailable ? { capture: "environment" } : {})}
             onChange={onInputChange}
             className="visuallyHidden"
           />
@@ -531,6 +631,17 @@ export default function ScanClient({
             Processed on this device — the photo is never uploaded.
           </p>
         </div>
+      )}
+
+      {cameraOpen && (
+        <CameraCapture
+          hand={hand}
+          onExit={() => setCameraOpen(false)}
+          onUsePhoto={(file) => {
+            setCameraOpen(false);
+            onFileChosen(file);
+          }}
+        />
       )}
 
       <div
@@ -645,6 +756,67 @@ export default function ScanClient({
 
       {state.kind === "ok" && (
         <>
+          {previewUrl && state.overlay.landmarksPx && (
+            <div
+              className="photoStage"
+              style={{
+                aspectRatio: `${state.overlay.imageWidth} / ${state.overlay.imageHeight}`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- local object URL, not an optimizable remote asset */}
+              <img src={previewUrl} alt="" className="photoImg" />
+              <svg
+                viewBox={`0 0 ${state.overlay.imageWidth} ${state.overlay.imageHeight}`}
+                className="photoOverlaySvg"
+                role="img"
+                aria-label="Your measured hand: the sheet markers, card and hand landmarks, with hand length and palm width labelled"
+              >
+                {state.overlay.markers.map((m) => (
+                  <polygon
+                    key={m.id}
+                    points={cornersToPoints(m.corners)}
+                    className="overlayMarker"
+                  />
+                ))}
+                {state.overlay.card && (
+                  <polygon
+                    points={cornersToPoints(state.overlay.card)}
+                    className="overlayCard"
+                  />
+                )}
+                {state.overlay.landmarksPx.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={p.x}
+                    cy={p.y}
+                    r={
+                      KNUCKLE_LANDMARK_IDS.includes(i)
+                        ? Math.max(7, state.overlay.imageWidth * 0.007)
+                        : Math.max(4, state.overlay.imageWidth * 0.004)
+                    }
+                    className={
+                      KNUCKLE_LANDMARK_IDS.includes(i)
+                        ? "overlayKnuckle"
+                        : "overlayLandmark"
+                    }
+                  />
+                ))}
+                <MeasurementLine
+                  a={state.overlay.landmarksPx[0]}
+                  b={state.overlay.landmarksPx[LANDMARK.middle[3]]}
+                  label={`Hand length ${state.measurements.handLengthMm.toFixed(1)} mm`}
+                  imageWidth={state.overlay.imageWidth}
+                />
+                <MeasurementLine
+                  a={state.overlay.landmarksPx[LANDMARK.index[0]]}
+                  b={state.overlay.landmarksPx[LANDMARK.pinky[0]]}
+                  label={`Palm width ${state.measurements.palmWidthMm.toFixed(1)} mm`}
+                  imageWidth={state.overlay.imageWidth}
+                />
+              </svg>
+            </div>
+          )}
+
           <div className="feedback feedback-ok">
             <p className="feedbackTitle">
               <CheckIcon /> Hand measured
