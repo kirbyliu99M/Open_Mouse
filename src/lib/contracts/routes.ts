@@ -37,7 +37,9 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
 /**
  * `POST` — body: `scanSubmissionSchema` (measurement.ts).
- * 201 → `scanSubmitResponseSchema`; 400 invalid body; 413 body too large.
+ * 201 → `scanSubmitResponseSchema`; 400 invalid body; 413 body too large;
+ * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
+ * fit result is written — only the limiter's own counter).
  */
 export const SCAN_SUBMIT_PATH = "/api/scans";
 
@@ -49,7 +51,9 @@ export type ScanSubmitResponse = z.infer<typeof scanSubmitResponseSchema>;
 
 /**
  * `POST` — body: `fitPreferencesSchema` (fit.ts); `{}` means no preferences.
- * 200 → `fitResponseSchema` (fit.ts); 400 invalid body; 404 unknown scan.
+ * 200 → `fitResponseSchema` (fit.ts); 400 invalid body; 404 unknown scan;
+ * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
+ * fit result is written — only the limiter's own counter).
  */
 export const fitPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/fit`;
@@ -57,7 +61,9 @@ export const fitPath = (scanId: string): string =>
 /**
  * `POST` — body: `fitPreferencesSchema`, the SAME preferences the fit request
  * used, so the server analyses exactly the ranking the user is looking at.
- * 200 → `analysisResponseSchema` (analysis.ts); 400; 404; 429 rate limited.
+ * 200 → `analysisResponseSchema` (analysis.ts); 400; 404; 429 rate limited
+ * per client IP. At the site-wide daily model cap the response is still 200,
+ * with `source: "fallback"` — never a 429.
  */
 export const analysisPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/analysis`;
