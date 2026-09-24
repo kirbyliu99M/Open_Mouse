@@ -44,6 +44,39 @@ export interface SubmitScanDeps {
  * analysis route's per-IP limit would give it, rather than sharing one
  * bucket with every other IP-less caller.
  */
+type ZodIssueLike = {
+  code?: string;
+  path: readonly PropertyKey[];
+  message: string;
+  errors?: readonly (readonly ZodIssueLike[])[];
+};
+
+/**
+ * Field-level issues for the 400 body. A union (the calibration evidence)
+ * that fails every branch reports one generic "Invalid input" at its own
+ * path, with each branch's real issues nested under `errors`. Report the
+ * branch that came closest (fewest issues) instead, with full paths, so a
+ * nearly-right paper-edge body says `calibration.paperSize`, not just
+ * `calibration`.
+ */
+export function flattenIssues(
+  issues: readonly ZodIssueLike[],
+  prefix: readonly PropertyKey[] = [],
+): { path: string; message: string }[] {
+  return issues.flatMap((issue) => {
+    const path = [...prefix, ...issue.path];
+    if (
+      issue.code === "invalid_union" &&
+      issue.errors &&
+      issue.errors.length > 0
+    ) {
+      const closest = [...issue.errors].sort((x, y) => x.length - y.length)[0]!;
+      if (closest.length > 0) return flattenIssues(closest, path);
+    }
+    return [{ path: path.map(String).join("."), message: issue.message }];
+  });
+}
+
 export async function handleScanSubmission(
   request: Request,
   deps: SubmitScanDeps,
@@ -71,10 +104,7 @@ export async function handleScanSubmission(
   if (!parsed.success) {
     return json(400, {
       error: "Invalid scan submission.",
-      issues: parsed.error.issues.map((issue) => ({
-        path: issue.path.join("."),
-        message: issue.message,
-      })),
+      issues: flattenIssues(parsed.error.issues),
     });
   }
   const submission = parsed.data;
