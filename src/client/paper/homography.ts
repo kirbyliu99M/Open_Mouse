@@ -17,7 +17,10 @@ import {
 import type { PaperSize } from "./detect";
 
 /** Mirrors `PAPER_SIZES_MM` in `src/lib/contracts/measurement.ts`. */
-export const PAPER_SIZES_MM: Record<PaperSize, { width: number; height: number }> = {
+export const PAPER_SIZES_MM: Record<
+  PaperSize,
+  { width: number; height: number }
+> = {
   a4: { width: 210, height: 297 },
   letter: { width: 215.9, height: 279.4 },
 };

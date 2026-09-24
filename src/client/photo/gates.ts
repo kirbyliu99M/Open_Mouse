@@ -12,7 +12,11 @@
  * retake-blocking error, so `checkSharpness` and `runPhotoGates` surface it
  * separately from the blocking `errors` list.
  */
-import { SHEET, MAX_SCALE_DISAGREEMENT } from "../../lib/contracts/measurement";
+import {
+  SHEET,
+  MAX_SCALE_DISAGREEMENT,
+  PAPER_EDGE_LIMITS,
+} from "../../lib/contracts/measurement";
 import type { Point2 } from "../geometry/homography";
 import type { SheetLayout } from "../sheet/layout";
 
@@ -24,7 +28,11 @@ export type GateFailureCode =
   | "HAND_OUT_OF_BOUNDS"
   | "REPROJECTION_ERROR"
   | "CARD_SCALE_MISMATCH"
-  | "LOW_SHARPNESS";
+  | "LOW_SHARPNESS"
+  | "PAPER_NOT_FOUND"
+  | "PAPER_CORNER_HIDDEN"
+  | "PAPER_EDGE_HIDDEN"
+  | "PAPER_CURLED";
 
 export interface GateFailure {
   readonly code: GateFailureCode;
@@ -206,6 +214,60 @@ export function checkCardScale(
   };
 }
 
+// ── Paper-edge gates (plain-paper calibration, no printed markers) ──────
+
+/** `detectPaperQuad` found no usable paper region at all in the frame. */
+export function checkPaperFound(
+  cornersSeen: 0 | 1 | 2 | 3 | 4,
+): GateFailure | null {
+  if (cornersSeen > 0) return null;
+  return {
+    code: "PAPER_NOT_FOUND",
+    message:
+      "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
+  };
+}
+
+/**
+ * Fewer than all 4 corners were found (but at least one side was —
+ * `checkPaperFound` already covers "no paper at all"). Usually means part
+ * of the sheet is outside the frame.
+ */
+export function checkPaperCornersSeen(
+  cornersSeen: 0 | 1 | 2 | 3 | 4,
+): GateFailure | null {
+  if (cornersSeen === 4 || cornersSeen === 0) return null;
+  return {
+    code: "PAPER_CORNER_HIDDEN",
+    message:
+      "A corner of the paper is out of frame — move back or reposition so the whole sheet, corner to corner, is visible.",
+  };
+}
+
+export function checkPaperEdgeCoverage(
+  minSideCoverage: number,
+  threshold: number = PAPER_EDGE_LIMITS.minSideCoverage,
+): GateFailure | null {
+  if (minSideCoverage >= threshold) return null;
+  return {
+    code: "PAPER_EDGE_HIDDEN",
+    message:
+      "Too much of one edge of the paper is covered — move your hand so more of the sheet's edges are visible, then retake.",
+  };
+}
+
+export function checkPaperCurled(
+  edgeFitResidualMm: number,
+  threshold: number = PAPER_EDGE_LIMITS.maxEdgeFitResidualMm,
+): GateFailure | null {
+  if (edgeFitResidualMm <= threshold) return null;
+  return {
+    code: "PAPER_CURLED",
+    message:
+      "The paper doesn't look flat — smooth it out on a hard surface (no curls, folds or lifted corners) and retake.",
+  };
+}
+
 /** Warning, not a blocking error — see the module doc comment. */
 export function checkSharpness(
   laplacianVariance: number,
@@ -284,6 +346,77 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
     if (reprojectionFailure) errors.push(reprojectionFailure);
     const cardFailure = checkCardScale(input.cardScaleRatio);
     if (cardFailure) errors.push(cardFailure);
+  }
+
+  const warnings: GateFailure[] = [];
+  const sharpnessFailure = checkSharpness(input.laplacianVariance);
+  if (sharpnessFailure) warnings.push(sharpnessFailure);
+
+  return { errors, warnings, ok: errors.length === 0 };
+}
+
+// ── Aggregate — paper-edge (plain-paper) calibration ─────────────────────
+
+export interface PaperEdgeGateInput {
+  readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  /** `detectPaperQuad`'s coverage metric, 0–1. */
+  readonly minSideCoverage: number;
+  /** `detectPaperQuad`'s residual, already converted to sheet mm. */
+  readonly edgeFitResidualMm: number;
+  readonly landmarkCount: number;
+  readonly handedness: "left" | "right" | null;
+  readonly handStated: "left" | "right" | undefined;
+  readonly landmarkConfidence: number;
+  readonly landmarksMm: readonly Point2[];
+  /** The paper's own 4 corners in sheet mm (0,0)–(w,h) — the bounds `checkHandInBounds` checks against. */
+  readonly paperCornersMm: readonly Point2[];
+  readonly laplacianVariance: number;
+}
+
+/**
+ * Same shape and intent as `runPhotoGates`, for the paper-edge
+ * calibration path: paper-specific checks (found / all corners seen /
+ * edge coverage / curled) replace the marker/reprojection/card checks,
+ * while the hand checks (`checkHandDetected`, `checkHandedness`,
+ * `checkLandmarkConfidence`, `checkHandInBounds`) and the sharpness
+ * warning are the exact same functions `runPhotoGates` uses — a hand is a
+ * hand regardless of how the sheet was calibrated.
+ */
+export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
+  const errors: GateFailure[] = [];
+
+  const paperFoundFailure = checkPaperFound(input.cornersSeen);
+  if (paperFoundFailure) {
+    errors.push(paperFoundFailure);
+  } else {
+    const cornerFailure = checkPaperCornersSeen(input.cornersSeen);
+    if (cornerFailure) errors.push(cornerFailure);
+    const coverageFailure = checkPaperEdgeCoverage(input.minSideCoverage);
+    if (coverageFailure) errors.push(coverageFailure);
+    const curledFailure = checkPaperCurled(input.edgeFitResidualMm);
+    if (curledFailure) errors.push(curledFailure);
+  }
+
+  const handDetectedFailure = checkHandDetected(input.landmarkCount);
+  if (handDetectedFailure) {
+    errors.push(handDetectedFailure);
+  } else {
+    if (input.handedness) {
+      const handednessFailure = checkHandedness(
+        input.handedness,
+        input.handStated,
+      );
+      if (handednessFailure) errors.push(handednessFailure);
+    }
+    const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
+    if (confidenceFailure) errors.push(confidenceFailure);
+    if (!paperFoundFailure && input.paperCornersMm.length > 0) {
+      const boundsFailure = checkHandInBounds(
+        input.landmarksMm,
+        input.paperCornersMm,
+      );
+      if (boundsFailure) errors.push(boundsFailure);
+    }
   }
 
   const warnings: GateFailure[] = [];

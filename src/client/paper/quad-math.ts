@@ -77,7 +77,7 @@ export function simplifyToQuad(
   hull: readonly Point2[],
 ): [Point2, Point2, Point2, Point2] | null {
   if (hull.length < 4) return null;
-  let ring = [...hull];
+  const ring = [...hull];
   while (ring.length > 4) {
     let minArea = Infinity;
     let minIdx = 0;
@@ -389,7 +389,9 @@ export function polygonArea(points: readonly Point2[]): number {
 }
 
 /** `true` if the 4 points (in order) form a convex polygon. */
-export function isConvexQuad(quad: readonly [Point2, Point2, Point2, Point2]): boolean {
+export function isConvexQuad(
+  quad: readonly [Point2, Point2, Point2, Point2],
+): boolean {
   let sign = 0;
   for (let i = 0; i < 4; i++) {
     const a = quad[i];

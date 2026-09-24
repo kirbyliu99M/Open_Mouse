@@ -105,7 +105,12 @@ export interface SheetQuadDetection {
    * can draw the lock-on brackets it does have while the paper is still
    * only partly in frame.
    */
-  readonly partialCorners: readonly [Point2 | null, Point2 | null, Point2 | null, Point2 | null];
+  readonly partialCorners: readonly [
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+  ];
   /** Smallest fraction of any side's length actually observed, 0–1. */
   readonly minSideCoverage: number;
   /** Mean inlier distance to its fitted side, in frame px, averaged over fitted sides. */
@@ -501,9 +506,7 @@ function assignToSides(
     for (const i of allowedIndices) {
       const side = sides[i];
       if (!side) continue;
-      const d = Math.abs(
-        side.line.nx * p.x + side.line.ny * p.y - side.line.c,
-      );
+      const d = Math.abs(side.line.nx * p.x + side.line.ny * p.y - side.line.c);
       if (d < bestDist) {
         bestDist = d;
         bestIdx = i;
@@ -588,8 +591,18 @@ export function detectPaperQuad(
   const orientations = coarseSides.map(classifySideOrientation);
   const hIndices = [0, 1, 2, 3].filter((i) => orientations[i] === "h");
   const vIndices = [0, 1, 2, 3].filter((i) => orientations[i] === "v");
-  const hBuckets = assignToSides(colPoints, coarseSides, hIndices, maxAssignDistance);
-  const vBuckets = assignToSides(rowPoints, coarseSides, vIndices, maxAssignDistance);
+  const hBuckets = assignToSides(
+    colPoints,
+    coarseSides,
+    hIndices,
+    maxAssignDistance,
+  );
+  const vBuckets = assignToSides(
+    rowPoints,
+    coarseSides,
+    vIndices,
+    maxAssignDistance,
+  );
   const buckets = [0, 1, 2, 3].map((i) =>
     orientations[i] === "h" ? hBuckets[i] : vBuckets[i],
   );
@@ -643,7 +656,8 @@ export function detectPaperQuad(
   const heightSideAvg = (sideLengths[1] + sideLengths[3]) / 2;
   if (Math.min(widthSideAvg, heightSideAvg) < 1e-6) return NONE;
   const observedRatio =
-    Math.max(widthSideAvg, heightSideAvg) / Math.min(widthSideAvg, heightSideAvg);
+    Math.max(widthSideAvg, heightSideAvg) /
+    Math.min(widthSideAvg, heightSideAvg);
   const expectedRatio = PAPER_ASPECT[paperSize];
   if (
     observedRatio < expectedRatio * MIN_ASPECT_RATIO_SLACK ||
@@ -655,12 +669,12 @@ export function detectPaperQuad(
   // partialCorners[i] uses ONLY genuinely fitted lines (never the coarse
   // fallback `finalLines` above) — a corner counts as "found" exactly
   // when both its adjacent sides were actually fit from image evidence.
-  const partialCorners: [Point2 | null, Point2 | null, Point2 | null, Point2 | null] = [
-    null,
-    null,
-    null,
-    null,
-  ];
+  const partialCorners: [
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+  ] = [null, null, null, null];
   const cornersFound: [boolean, boolean, boolean, boolean] = [
     false,
     false,
@@ -710,7 +724,10 @@ export function detectPaperQuad(
   }
 
   return {
-    corners: cornersSeen === 4 ? (partialCorners as [Point2, Point2, Point2, Point2]) : null,
+    corners:
+      cornersSeen === 4
+        ? (partialCorners as [Point2, Point2, Point2, Point2])
+        : null,
     cornersSeen: cornersSeen as 0 | 1 | 2 | 3 | 4,
     cornersFound,
     partialCorners,

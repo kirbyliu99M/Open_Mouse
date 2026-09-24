@@ -62,7 +62,12 @@ function clampByte(v: number): number {
 }
 
 /** Perpendicular signed distance from `p` to the line through `a`→`b`, positive on `insideSign`'s side. */
-function edgeDistance(p: Point2, a: Point2, b: Point2, insideSign: number): number {
+function edgeDistance(
+  p: Point2,
+  a: Point2,
+  b: Point2,
+  insideSign: number,
+): number {
   const ex = b.x - a.x;
   const ey = b.y - a.y;
   const len = Math.hypot(ex, ey);
@@ -171,7 +176,10 @@ export function generateSyntheticPaper(
       const light =
         1 +
         0.12 *
-          Math.sin(2 * Math.PI * (lightFx * (x / width) + lightFy * (y / height)) + lightPhase);
+          Math.sin(
+            2 * Math.PI * (lightFx * (x / width) + lightFy * (y / height)) +
+              lightPhase,
+          );
       const noise = (rng() - 0.5) * 2 * noiseAmplitude;
       const backgroundV = 110 * light + noise;
       const paperV = 235 * light + noise;
@@ -237,7 +245,8 @@ function boxBlur(
   for (let y = 0; y < height; y++) {
     const rowOff = y * width;
     let sum = 0;
-    for (let x = -radius; x <= radius; x++) sum += src[rowOff + clamp(x, 0, width - 1)];
+    for (let x = -radius; x <= radius; x++)
+      sum += src[rowOff + clamp(x, 0, width - 1)];
     for (let x = 0; x < width; x++) {
       tmp[rowOff + x] = sum * norm;
       sum +=
@@ -247,7 +256,8 @@ function boxBlur(
   }
   for (let x = 0; x < width; x++) {
     let sum = 0;
-    for (let y = -radius; y <= radius; y++) sum += tmp[clamp(y, 0, height - 1) * width + x];
+    for (let y = -radius; y <= radius; y++)
+      sum += tmp[clamp(y, 0, height - 1) * width + x];
     for (let y = 0; y < height; y++) {
       out[y * width + x] = sum * norm;
       sum +=
