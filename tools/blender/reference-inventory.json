@@ -6,9 +6,7 @@
     "galleryImages": 10,
     "uniqueFiles": 10,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -19,10 +17,7 @@
     "galleryImages": 13,
     "uniqueFiles": 13,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-2-wireless-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
-    "viewHints": [
-      "left",
-      "unclassified"
-    ],
+    "viewHints": ["left", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -33,13 +28,7 @@
     "galleryImages": 13,
     "uniqueFiles": 13,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "lifestyle",
-      "right",
-      "top"
-    ],
+    "viewHints": ["bottom", "left", "lifestyle", "right", "top"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -50,14 +39,7 @@
     "galleryImages": 16,
     "uniqueFiles": 16,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "lifestyle",
-      "rear",
-      "right",
-      "top"
-    ],
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "right", "top"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -107,13 +89,7 @@
     "galleryImages": 24,
     "uniqueFiles": 24,
     "arSource": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g203/g203-blue-hexa.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "lifestyle",
-      "rear",
-      "top"
-    ],
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "top"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -124,13 +100,7 @@
     "galleryImages": 30,
     "uniqueFiles": 30,
     "arSource": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g305/g305-black-gaming-mice-hexa.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "lifestyle",
-      "rear",
-      "top"
-    ],
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "top"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -141,9 +111,7 @@
     "galleryImages": 13,
     "uniqueFiles": 13,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g309/g309-white-gaming-mice-ar-360.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -154,10 +122,7 @@
     "galleryImages": 7,
     "uniqueFiles": 7,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g403/g403-hero-black-hexa.glb",
-    "viewHints": [
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -168,14 +133,7 @@
     "galleryImages": 6,
     "uniqueFiles": 6,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-hero/g502-hero-black.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "rear",
-      "right",
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["bottom", "left", "rear", "right", "top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -186,9 +144,7 @@
     "galleryImages": 11,
     "uniqueFiles": 11,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-corded-white.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -199,10 +155,7 @@
     "galleryImages": 10,
     "uniqueFiles": 10,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-lightspeecd-white.glb",
-    "viewHints": [
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -213,9 +166,7 @@
     "galleryImages": 13,
     "uniqueFiles": 13,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-plus-black.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -226,13 +177,7 @@
     "galleryImages": 5,
     "uniqueFiles": 5,
     "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g703-hero/g703-hero-black-hexa.glb",
-    "viewHints": [
-      "bottom",
-      "left",
-      "rear",
-      "right",
-      "top"
-    ],
+    "viewHints": ["bottom", "left", "rear", "right", "top"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -262,9 +207,7 @@
     "galleryImages": 4,
     "uniqueFiles": 4,
     "arSource": null,
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 0,
     "status": "gallery only; angular gaps remain"
   },
@@ -275,9 +218,7 @@
     "galleryImages": 4,
     "uniqueFiles": 4,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m190/m190-charcoal-cordless-mice-ar-360.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -288,11 +229,7 @@
     "galleryImages": 15,
     "uniqueFiles": 15,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m196/m196-offwhite-cordless-mice-ar-360.glb",
-    "viewHints": [
-      "bottom",
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["bottom", "top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -303,10 +240,7 @@
     "galleryImages": 9,
     "uniqueFiles": 9,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m240-silent/m240-silent-offwhite-cordless-mice-ar-360.glb",
-    "viewHints": [
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -317,14 +251,7 @@
     "galleryImages": 34,
     "uniqueFiles": 34,
     "arSource": null,
-    "viewHints": [
-      "bottom",
-      "front",
-      "oblique",
-      "rear",
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["bottom", "front", "oblique", "rear", "top", "unclassified"],
     "rotationViews": 0,
     "status": "gallery only; angular gaps remain"
   },
@@ -335,14 +262,7 @@
     "galleryImages": 71,
     "uniqueFiles": 69,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
-    "viewHints": [
-      "bottom",
-      "front",
-      "oblique",
-      "rear",
-      "top",
-      "unclassified"
-    ],
+    "viewHints": ["bottom", "front", "oblique", "rear", "top", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -353,9 +273,7 @@
     "galleryImages": 4,
     "uniqueFiles": 4,
     "arSource": null,
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 0,
     "status": "gallery only; angular gaps remain"
   },
@@ -366,9 +284,7 @@
     "galleryImages": 6,
     "uniqueFiles": 6,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m720/m720-black-ar-360.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -398,10 +314,7 @@
     "galleryImages": 7,
     "uniqueFiles": 7,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
-    "viewHints": [
-      "lifestyle",
-      "unclassified"
-    ],
+    "viewHints": ["lifestyle", "unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },
@@ -430,9 +343,7 @@
     "galleryImages": 6,
     "uniqueFiles": 6,
     "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-vertical/mxvertical-graphite-ar-360.glb",
-    "viewHints": [
-      "unclassified"
-    ],
+    "viewHints": ["unclassified"],
     "rotationViews": 26,
     "status": "AR rotation available"
   },

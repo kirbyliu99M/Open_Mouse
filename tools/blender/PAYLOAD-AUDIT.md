@@ -7,14 +7,14 @@ manifest, then reports embedded image bytes and total file sizes.
 
 ## Results (2026-09-23)
 
-| Measure | Result |
-| --- | ---: |
-| Published GLBs | 31 (26 shells, 4 limited-view studies, 1 hand) |
-| Total payload | 121,195,968 bytes (115.58 MiB) |
-| Embedded PNG images | 82, totalling 117,993,130 bytes (112.53 MiB) |
-| Image share of payload | 97.36% |
-| Everything else, including Draco geometry and container overhead | 3,202,838 bytes (3.05 MiB) |
-| Largest single model | M196, 7,864,596 bytes (7.50 MiB) |
+| Measure                                                          |                                         Result |
+| ---------------------------------------------------------------- | ---------------------------------------------: |
+| Published GLBs                                                   | 31 (26 shells, 4 limited-view studies, 1 hand) |
+| Total payload                                                    |                 121,195,968 bytes (115.58 MiB) |
+| Embedded PNG images                                              |   82, totalling 117,993,130 bytes (112.53 MiB) |
+| Image share of payload                                           |                                         97.36% |
+| Everything else, including Draco geometry and container overhead |                     3,202,838 bytes (3.05 MiB) |
+| Largest single model                                             |               M196, 7,864,596 bytes (7.50 MiB) |
 
 All 31 GLBs declare `KHR_draco_mesh_compression`. The 26 reconstructed shells
 embed three PNGs each; the four studies embed one each; the hand embeds none.
