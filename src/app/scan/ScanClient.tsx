@@ -600,7 +600,7 @@ export default function ScanClient({
           without a usable camera (no getUserMedia, or an insecure context)
           fall straight back to today's plain upload button, unchanged, per
           docs/design/camera-capture-2026-09-25/README.md. */}
-      {state.kind !== "ok" && (
+      {state.kind !== "ok" && !cameraOpen && (
         <div className="uploadSlot">
           {cameraAvailable && (
             <button

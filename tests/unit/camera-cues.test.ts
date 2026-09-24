@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { pickCue, computeStatusChips, type CueInput } from "../../src/client/camera/cues";
+import {
+  pickCue,
+  computeStatusChips,
+  type CueInput,
+} from "../../src/client/camera/cues";
 import type { Quad } from "../../src/client/camera/quad";
 
 const GOOD_QUAD: Quad = {
@@ -26,8 +30,9 @@ function baseInput(overrides: Partial<CueInput> = {}): CueInput {
 describe("pickCue — priority order", () => {
   it("1a: no corners, within the place-paper timeout", () => {
     expect(
-      pickCue(baseInput({ cornersSeen: 0, quad: null, msSinceLastDetection: 500 }))
-        .code,
+      pickCue(
+        baseInput({ cornersSeen: 0, quad: null, msSinceLastDetection: 500 }),
+      ).code,
     ).toBe("no-corners");
   });
 
@@ -111,9 +116,7 @@ describe("pickCue — priority order", () => {
   });
 
   it("6b: not sharp enough", () => {
-    expect(pickCue(baseInput({ sharpEnough: false })).code).toBe(
-      "hold-still",
-    );
+    expect(pickCue(baseInput({ sharpEnough: false })).code).toBe("hold-still");
   });
 
   it("7: everything passes -> perfect, and only perfect sets allPass", () => {

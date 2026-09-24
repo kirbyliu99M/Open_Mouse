@@ -17,10 +17,7 @@ describe("computeMeanLuma", () => {
 
 describe("computeClippedFraction", () => {
   it("counts samples at/above the threshold", () => {
-    expect(computeClippedFraction([0, 250, 255, 100], 250)).toBeCloseTo(
-      0.5,
-      5,
-    );
+    expect(computeClippedFraction([0, 250, 255, 100], 250)).toBeCloseTo(0.5, 5);
   });
 
   it("is zero when nothing clips", () => {

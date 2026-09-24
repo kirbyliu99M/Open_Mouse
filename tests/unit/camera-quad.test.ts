@@ -160,12 +160,7 @@ describe("buildTrackedQuad", () => {
 describe("mapMediaPointToContainer", () => {
   it("maps a media-space point into the contain rect's coordinate space", () => {
     const rect = { x: 10, y: 0, width: 100, height: 100 };
-    const mapped = mapMediaPointToContainer(
-      { x: 320, y: 240 },
-      rect,
-      640,
-      480,
-    );
+    const mapped = mapMediaPointToContainer({ x: 320, y: 240 }, rect, 640, 480);
     expect(mapped.x).toBeCloseTo(10 + 0.5 * 100, 5);
     expect(mapped.y).toBeCloseTo(0 + 0.5 * 100, 5);
   });
