@@ -38,7 +38,8 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 /**
  * `POST` — body: `scanSubmissionSchema` (measurement.ts).
  * 201 → `scanSubmitResponseSchema`; 400 invalid body; 413 body too large;
- * 429 rate limited per client IP (`errorResponseSchema`, nothing written).
+ * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
+ * fit result is written — only the limiter's own counter).
  */
 export const SCAN_SUBMIT_PATH = "/api/scans";
 
@@ -51,7 +52,8 @@ export type ScanSubmitResponse = z.infer<typeof scanSubmitResponseSchema>;
 /**
  * `POST` — body: `fitPreferencesSchema` (fit.ts); `{}` means no preferences.
  * 200 → `fitResponseSchema` (fit.ts); 400 invalid body; 404 unknown scan;
- * 429 rate limited per client IP (`errorResponseSchema`, nothing written).
+ * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
+ * fit result is written — only the limiter's own counter).
  */
 export const fitPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/fit`;
