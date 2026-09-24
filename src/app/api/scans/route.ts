@@ -14,6 +14,7 @@ export async function POST(request: Request): Promise<Response> {
     limiter: createDrizzleRateLimiter({
       windowMs: SCAN_SUBMIT_RATE_LIMIT_WINDOW_MS,
       limit: SCAN_SUBMIT_RATE_LIMIT_MAX,
+      keyPrefix: "submit:",
     }),
   });
 }

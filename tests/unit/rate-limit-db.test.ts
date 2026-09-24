@@ -91,6 +91,7 @@ describe("createDrizzleRateLimiter — never stores the raw key (L2 hardening)",
     const limiter = createDrizzleRateLimiter({
       windowMs: 10 * 60 * 1000,
       limit: 5,
+      keyPrefix: "submit:",
       db: db as unknown as LimiterDb,
     });
 
@@ -111,6 +112,7 @@ describe("createDrizzleRateLimiter — never stores the raw key (L2 hardening)",
       windowMs: 10 * 60 * 1000,
       limit: 2,
       now: () => new Date("2026-09-24T12:00:00Z").getTime(),
+      keyPrefix: "submit:",
       db: db as unknown as LimiterDb,
     });
 
@@ -120,5 +122,82 @@ describe("createDrizzleRateLimiter — never stores the raw key (L2 hardening)",
     expect(await rateLimitKeys(pg)).toHaveLength(1);
 
     await pg.close();
+  });
+});
+
+describe("createDrizzleRateLimiter — keyPrefix namespaces limiters sharing a caller key (PR #56 HIGH 1)", () => {
+  /**
+   * Reproduces the reviewer's finding exactly: submit, fit and analysis all
+   * key their limiter on the same caller IP. Without a distinct prefix per
+   * limiter, one `submit:`-less call plus four `fit:`-less calls (all the
+   * SAME underlying key) already spend 5 of the analysis limiter's budget
+   * before the caller has made a single analysis request — the analysis
+   * limiter refuses a request it has never itself counted.
+   */
+  it("one submit call and four fit calls do not spend the analysis limiter's own budget", async () => {
+    const { db } = await migratedDatabase();
+    const now = () => new Date("2026-09-24T12:00:00Z").getTime();
+    const sharedOptions = {
+      windowMs: 10 * 60 * 1000,
+      now,
+      db: db as unknown as LimiterDb,
+    };
+    const submitLimiter = createDrizzleRateLimiter({
+      ...sharedOptions,
+      limit: 20,
+      keyPrefix: "submit:",
+    });
+    const fitLimiter = createDrizzleRateLimiter({
+      ...sharedOptions,
+      limit: 60,
+      keyPrefix: "fit:",
+    });
+    const analysisLimiter = createDrizzleRateLimiter({
+      ...sharedOptions,
+      limit: 5,
+      keyPrefix: "analysis:",
+    });
+    const ip = "203.0.113.5";
+
+    expect(await submitLimiter.allow(ip)).toBe(true);
+    for (let i = 0; i < 4; i++) {
+      expect(await fitLimiter.allow(ip)).toBe(true);
+    }
+
+    // The analysis limiter has never been consulted for this IP before —
+    // its own first call must be allowed regardless of submit/fit traffic.
+    expect(await analysisLimiter.allow(ip)).toBe(true);
+  });
+
+  it("two limiters with different prefixes each get their own 5-call budget for the same key", async () => {
+    const { db } = await migratedDatabase();
+    const now = () => new Date("2026-09-24T12:00:00Z").getTime();
+    const sharedOptions = {
+      windowMs: 10 * 60 * 1000,
+      limit: 5,
+      now,
+      db: db as unknown as LimiterDb,
+    };
+    const limiterA = createDrizzleRateLimiter({
+      ...sharedOptions,
+      keyPrefix: "a:",
+    });
+    const limiterB = createDrizzleRateLimiter({
+      ...sharedOptions,
+      keyPrefix: "b:",
+    });
+    const ip = "203.0.113.5";
+
+    for (let i = 0; i < 5; i++) {
+      expect(await limiterA.allow(ip)).toBe(true);
+    }
+    expect(await limiterA.allow(ip)).toBe(false);
+
+    // limiterB has its own budget for the same key — unaffected by limiterA
+    // having just spent all 5 of its own.
+    for (let i = 0; i < 5; i++) {
+      expect(await limiterB.allow(ip)).toBe(true);
+    }
+    expect(await limiterB.allow(ip)).toBe(false);
   });
 });

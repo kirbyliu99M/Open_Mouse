@@ -44,13 +44,18 @@ export async function POST(
     limiter: createDrizzleRateLimiter({
       windowMs: ANALYSIS_RATE_LIMIT_WINDOW_MS,
       limit: ANALYSIS_RATE_LIMIT_MAX,
+      keyPrefix: "analysis:",
     }),
     // Site-wide daily cap on real model calls (M1 hardening). A separate
     // limiter instance — different window, different (date-scoped) key —
     // over the same `rate_limits` table and DB-backed implementation.
+    // keyPrefix is "" deliberately: globalModelCallRateLimitKey's own key
+    // already embeds "global:analysis:<date>", so it needs no further
+    // namespacing (see DrizzleRateLimiterOptions.keyPrefix's doc comment).
     globalLimiter: createDrizzleRateLimiter({
       windowMs: ANALYSIS_DAILY_MODEL_CAP_WINDOW_MS,
       limit: parseAnalysisDailyModelCap(process.env.ANALYSIS_DAILY_MODEL_CAP),
+      keyPrefix: "",
     }),
     getUserId,
   });

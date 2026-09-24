@@ -26,6 +26,7 @@ export async function POST(
     limiter: createDrizzleRateLimiter({
       windowMs: FIT_RATE_LIMIT_WINDOW_MS,
       limit: FIT_RATE_LIMIT_MAX,
+      keyPrefix: "fit:",
     }),
     getUserId,
   });

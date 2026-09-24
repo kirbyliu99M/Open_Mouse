@@ -16,6 +16,7 @@ import "@/components/results/results.css";
 type PageState =
   | { kind: "loading" }
   | { kind: "notFound" }
+  | { kind: "rateLimited" }
   | { kind: "networkError" }
   | { kind: "serverError" }
   | { kind: "ready"; response: FitResponse }
@@ -126,6 +127,26 @@ export function ResultsPageClient({
           <Link href="/scan" className="results-page-action">
             Scan again
           </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (pageState.kind === "rateLimited") {
+    // 429 from the fit route (M2 hardening's per-IP limit) — distinct from
+    // `serverError`'s generic copy (PR #56 review, MEDIUM 2): this is
+    // expected, honest behaviour, not a failure, and `retry` here is a
+    // manual button the caller must press, never an automatic retry loop
+    // that would just re-trip the same limit.
+    return (
+      <main className="resultsMain">
+        <div className="results-page-error" role="alert">
+          <p className="results-eyebrow">Results</p>
+          <h1>Too many tries in a short time</h1>
+          <p>Wait a few minutes, then try again.</p>
+          <button type="button" className="results-page-action" onClick={retry}>
+            Try again
+          </button>
         </div>
       </main>
     );

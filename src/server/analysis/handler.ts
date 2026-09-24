@@ -125,6 +125,18 @@ export async function handleAnalysisRequest(
     };
   }
 
+  // Both limiters are consulted, and both spend their budget, before the
+  // model is actually called — including `globalLimiter`, whose count is
+  // incremented here even if the `analyse()` call below then fails (a
+  // network error, an API error) and answers with the fallback anyway
+  // (PR #56 review). That's deliberately conservative: this call was
+  // still going to be attempted against the model, so it still counts
+  // against the day's budget even though no usable answer came back.
+  // Likewise, `limiter` (the per-IP check above) has already counted this
+  // request even on the branch below where the global cap then serves the
+  // fallback instead of calling the model — a caller who keeps requesting
+  // once the site-wide cap is hit still spends its own per-IP budget, on
+  // the same reasoning: this is a known, accepted trade-off, not a bug.
   const now = deps.now ?? (() => new Date());
   const globalKey = globalModelCallRateLimitKey(now());
   const globalAllowed = await deps.globalLimiter.allow(globalKey);

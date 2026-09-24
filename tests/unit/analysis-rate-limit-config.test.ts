@@ -24,10 +24,20 @@ describe("parseAnalysisDailyModelCap", () => {
     ["not a number at all", "banana"],
     ["an empty string", ""],
     ["whitespace only", "   "],
+    // PR #56 review nit: `Number.isInteger(1e308)` is true (a huge float
+    // with no fractional part still passes it), so without an explicit
+    // upper bound this parsed as a real, effectively-infinite cap instead
+    // of falling back — verified against the pre-fix implementation.
+    ["a value far beyond any sane cap (isInteger-true but not safe)", "1e308"],
+    ["a value just above the allowed maximum", "100001"],
   ])("falls back to the default for %s", (_label, value) => {
     expect(parseAnalysisDailyModelCap(value)).toBe(
       ANALYSIS_DAILY_MODEL_CAP_DEFAULT,
     );
+  });
+
+  it("accepts the allowed maximum itself", () => {
+    expect(parseAnalysisDailyModelCap("100000")).toBe(100000);
   });
 });
 
