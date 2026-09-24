@@ -26,6 +26,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { test } from "@playwright/test";
 import type { Homography } from "../../../src/client/geometry/homography";
@@ -33,19 +34,22 @@ import { buildCameraScenePng } from "./camera-scene";
 
 const run = promisify(execFile);
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "camera");
 const CANVAS_WIDTH = 1000;
-const CANVAS_HEIGHT = 1260;
+const CANVAS_HEIGHT = 1300;
+// Mirrors (not yet merged) contract PR #58's PAPER_SIZES_MM.a4.
+const A4_MM = { width: 210, height: 297 };
 
-// Pure scale + translate (no perspective): the sheet's 210x265mm content
-// area maps to roughly the middle 80% of the canvas width, which is well
-// inside the live loop's 55-95% "ok" size band and produces an exactly
-// square (unskewed) tracked quad — the fixture is meant to sail through
-// every check, not exercise their failure edges (those are unit-tested in
-// tests/unit/camera-*.test.ts instead).
-const SCALE = 3.8;
-const TX = (CANVAS_WIDTH - 210 * SCALE) / 2;
-const TY = (CANVAS_HEIGHT - 265 * SCALE) / 2;
+// Pure scale + translate (no perspective): the A4 paper maps to roughly the
+// middle 80% of the canvas width, which is well inside the live loop's
+// 55-95% "ok" size band and produces an exactly square (unskewed) tracked
+// quad — the fixture is meant to sail through every check, not exercise
+// their failure edges (those are unit-tested in tests/unit/camera-*.test.ts
+// instead).
+const SCALE = 3.81;
+const TX = (CANVAS_WIDTH - A4_MM.width * SCALE) / 2;
+const TY = (CANVAS_HEIGHT - A4_MM.height * SCALE) / 2;
 const HOMOGRAPHY: Homography = [
   [SCALE, 0, TX],
   [0, SCALE, TY],
@@ -70,15 +74,15 @@ test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.mjpeg", async ({
     canvasWidth: CANVAS_WIDTH,
     canvasHeight: CANVAS_HEIGHT,
     homography: HOMOGRAPHY,
+    paperSizeMm: A4_MM,
     markerIds: [0, 1, 2, 3],
-    includeCard: true,
   });
   const partialPng = await buildCameraScenePng(page, {
     canvasWidth: CANVAS_WIDTH,
     canvasHeight: CANVAS_HEIGHT,
     homography: HOMOGRAPHY,
+    paperSizeMm: A4_MM,
     markerIds: [0, 1], // top two only — "move back" / 2-of-4 lock-on
-    includeCard: false,
   });
 
   const fullPngPath = path.join(OUT_DIR, "_full.png");

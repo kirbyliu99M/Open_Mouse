@@ -1,13 +1,18 @@
 /**
- * Renders a synthetic "camera view of the sheet" PNG, for building the
- * committed fake-camera video fixtures under tests/e2e/fixtures/camera/
- * (see tests/e2e/fixtures/gen-camera-fixtures.ts, the one-off generator
- * that shells out to ffmpeg). Deliberately separate from
- * synthetic-photo.ts's `buildSyntheticTopDownPhotoPng` (which always draws
- * all four flat-flap markers under one fixed homography) — this file needs
- * to render a *partial* view (only some marker ids present, as if the
- * camera hasn't been moved back far enough yet) for the "2/4 markers"
- * screenshot and cue-text e2e assertions.
+ * Renders a synthetic "camera view of a blank sheet of paper on a dark
+ * table" PNG, for building the committed fake-camera video fixtures under
+ * tests/e2e/fixtures/camera/ (see gen-camera-fixtures.spec.ts, the one-off
+ * generator that shells out to ffmpeg).
+ *
+ * Kirby's 2026-09-25 direction change: the real product has no printed
+ * calibration sheet, no ArUco markers and no bank card any more — just a
+ * blank A4/Letter sheet, whose corners a (separately-owned) paper-edge
+ * detector will find from its edges. This app's *current* live loop still
+ * runs on a temporary `createMarkerBasedQuadSource` adapter
+ * (src/client/camera/quad-source.ts) until that lands, so this fixture
+ * draws the white paper rectangle Kirby asked for (on a dark background,
+ * no card) but still embeds the existing ArUco markers near its corners so
+ * that temporary adapter keeps working today.
  *
  * Same technique as synthetic-photo.ts: geometry computed Node-side from
  * this app's own real modules, then rasterized by a real browser's Canvas
@@ -30,10 +35,10 @@ export interface CameraSceneOptions {
   readonly canvasWidth: number;
   readonly canvasHeight: number;
   readonly homography: Homography;
-  /** Which flat-flap marker ids (0-3) to draw. Default: all four. */
+  /** The blank paper's size, mm — its 4 corners are drawn white on a dark background. */
+  readonly paperSizeMm: { readonly width: number; readonly height: number };
+  /** Which flat-flap marker ids (0-3) to draw (the temporary adapter's lock-on target). Default: all four. */
   readonly markerIds?: readonly number[];
-  /** Draw the card outline placeholder. Default true. */
-  readonly includeCard?: boolean;
 }
 
 interface MarkerQuadData {
@@ -43,12 +48,20 @@ interface MarkerQuadData {
 }
 
 function buildScene(options: CameraSceneOptions): {
+  paper: readonly [Point2, Point2, Point2, Point2];
   markers: MarkerQuadData[];
-  card: readonly [Point2, Point2, Point2, Point2] | null;
 } {
   const layout = computeSheetLayout();
   const toCanvasPx = (p: Point2) => applyHomography(options.homography, p);
   const ids = options.markerIds ?? (SHEET.flatMarkerIds as readonly number[]);
+
+  const { width: pw, height: ph } = options.paperSizeMm;
+  const paper = [
+    { x: 0, y: 0 },
+    { x: pw, y: 0 },
+    { x: pw, y: ph },
+    { x: 0, y: ph },
+  ].map(toCanvasPx) as unknown as readonly [Point2, Point2, Point2, Point2];
 
   const markers: MarkerQuadData[] = layout.markers
     .filter((m) => ids.includes(m.id))
@@ -63,17 +76,7 @@ function buildScene(options: CameraSceneOptions): {
       grid: markerBitGrid(m.id),
     }));
 
-  const card =
-    options.includeCard === false
-      ? null
-      : (layout.cardOutline.corners.map(toCanvasPx) as unknown as readonly [
-          Point2,
-          Point2,
-          Point2,
-          Point2,
-        ]);
-
-  return { markers, card };
+  return { paper, markers };
 }
 
 /** Renders the scene to a lossless PNG buffer. */
@@ -88,12 +91,22 @@ export async function buildCameraScenePng(
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d")!;
-      // A light grey, not pure white: keeps the live loop's mean-luma
-      // comfortably above the "too dark" floor while leaving headroom
-      // below the "clipped/too bright" ceiling once the markers' white
-      // modules (255) are mixed in.
-      ctx.fillStyle = "#e6e6e6";
+
+      // Dark table, then the blank white paper on top of it — a real
+      // document-scanner-style setup, and good contrast for the paper-edge
+      // detector this fixture will eventually exercise.
+      ctx.fillStyle = "#2b2b2e";
       ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#f4f4f0";
+      ctx.beginPath();
+      const [pTl, pTr, pBr, pBl] = scene.paper;
+      ctx.moveTo(pTl.x, pTl.y);
+      ctx.lineTo(pTr.x, pTr.y);
+      ctx.lineTo(pBr.x, pBr.y);
+      ctx.lineTo(pBl.x, pBl.y);
+      ctx.closePath();
+      ctx.fill();
 
       function bilinearPoint(
         tl: { x: number; y: number },
@@ -139,18 +152,6 @@ export async function buildCameraScenePng(
             ctx.fill();
           }
         }
-      }
-
-      if (scene.card) {
-        ctx.fillStyle = "#b0b0b0";
-        ctx.beginPath();
-        const [cardTl, cardTr, cardBr, cardBl] = scene.card;
-        ctx.moveTo(cardTl.x, cardTl.y);
-        ctx.lineTo(cardTr.x, cardTr.y);
-        ctx.lineTo(cardBr.x, cardBr.y);
-        ctx.lineTo(cardBl.x, cardBl.y);
-        ctx.closePath();
-        ctx.fill();
       }
 
       return canvas.toDataURL("image/png").split(",")[1];
