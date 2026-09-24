@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeWindowStart,
   decideRateLimit,
+  hashRateLimitKey,
 } from "../../src/server/analysis/rate-limit";
 
 const MINUTE = 60_000;
@@ -62,5 +63,46 @@ describe("decideRateLimit", () => {
     expect(decision.windowStart).toBe(60_000);
     expect(decision.count).toBe(1);
     expect(decision.allow).toBe(true);
+  });
+});
+
+describe("hashRateLimitKey", () => {
+  it("never returns the raw key itself, with or without a secret", () => {
+    expect(hashRateLimitKey("203.0.113.5", "s3cret")).not.toBe("203.0.113.5");
+    expect(hashRateLimitKey("203.0.113.5", undefined)).not.toBe("203.0.113.5");
+  });
+
+  it("is deterministic for the same key and secret", () => {
+    expect(hashRateLimitKey("203.0.113.5", "s3cret")).toBe(
+      hashRateLimitKey("203.0.113.5", "s3cret"),
+    );
+    expect(hashRateLimitKey("203.0.113.5", undefined)).toBe(
+      hashRateLimitKey("203.0.113.5", undefined),
+    );
+  });
+
+  it("produces a different hash for a different secret, same key", () => {
+    expect(hashRateLimitKey("203.0.113.5", "secret-a")).not.toBe(
+      hashRateLimitKey("203.0.113.5", "secret-b"),
+    );
+  });
+
+  it("produces a different hash for a different key, same secret", () => {
+    expect(hashRateLimitKey("203.0.113.5", "s3cret")).not.toBe(
+      hashRateLimitKey("198.51.100.9", "s3cret"),
+    );
+  });
+
+  it("the no-secret fallback differs from every secret-keyed hash of the same key", () => {
+    expect(hashRateLimitKey("203.0.113.5", undefined)).not.toBe(
+      hashRateLimitKey("203.0.113.5", "s3cret"),
+    );
+  });
+
+  it("returns a 64-character lowercase hex digest (sha256)", () => {
+    expect(hashRateLimitKey("203.0.113.5", "s3cret")).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashRateLimitKey("203.0.113.5", undefined)).toMatch(
+      /^[0-9a-f]{64}$/,
+    );
   });
 });

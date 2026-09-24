@@ -1,9 +1,17 @@
 import { scanSubmissionSchema } from "../../lib/contracts/measurement";
+import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { BodyTooLargeError, readLimitedBody } from "./body-limit";
 import { buildSessionCookie, readSessionCookie } from "./cookies";
+import type { RateLimiter } from "./rate-limit-config";
 import { SESSION_TTL_MS } from "./retention";
 import type { ScanRepo } from "./repo";
 import { defaultSweepThrottle, type SweepThrottle } from "./sweep";
+
+/** No DB access, always allows — the default when a test doesn't care about
+ * rate limiting, same role as `defaultSweepThrottle` plays for `sweep`. The
+ * real route (`src/app/api/scans/route.ts`) always injects the DB-backed
+ * limiter explicitly; this default is never reached in production. */
+const ALWAYS_ALLOW_LIMITER: RateLimiter = { allow: () => true };
 
 function json(status: number, body: unknown, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
@@ -18,6 +26,9 @@ export interface SubmitScanDeps {
   now?: () => Date;
   /** Injectable lazy-sweep throttle; defaults to the shared per-instance one. */
   sweep?: SweepThrottle;
+  /** Per-IP submit limit (M2 hardening); defaults to an always-allow no-op —
+   * see `ALWAYS_ALLOW_LIMITER` above. */
+  limiter?: RateLimiter;
 }
 
 /**
@@ -26,7 +37,12 @@ export interface SubmitScanDeps {
  *
  * Order matters: the body-size cap runs before anything touches the body's
  * bytes as JSON, and neither an oversized body nor a schema-rejected one is
- * ever echoed back or logged.
+ * ever echoed back or logged. The per-IP rate limit (M2 hardening) is
+ * checked right after the submission validates and before any session or
+ * scan is created — a limited caller writes nothing. No usable IP (local
+ * dev, per `resolveClientIp`) is never limited, same carve-out as the
+ * analysis route's per-IP limit would give it, rather than sharing one
+ * bucket with every other IP-less caller.
  */
 export async function handleScanSubmission(
   request: Request,
@@ -64,6 +80,21 @@ export async function handleScanSubmission(
   const submission = parsed.data;
   const currentNow = now();
 
+  // Per-IP rate limit (M2 hardening), checked before any write. No usable
+  // IP (local dev) is never limited — see the function doc comment.
+  const clientIp = resolveClientIp(request.headers);
+  if (clientIp !== UNKNOWN_IP_KEY) {
+    const limiter = deps.limiter ?? ALWAYS_ALLOW_LIMITER;
+    const allowed = await limiter.allow(clientIp);
+    if (!allowed) {
+      return json(
+        429,
+        { error: "Too many scan submissions. Try again shortly." },
+        { "cache-control": "no-store" },
+      );
+    }
+  }
+
   // Lazy sweep (issue #17 amendment): cheap, indexed on expires_at, throttled
   // to at most once a minute per instance. Best-effort — a sweep failure
   // never fails the scan submission; the daily cron is the backstop.
@@ -99,9 +130,14 @@ export async function handleScanSubmission(
     scaleCheckRatio: submission.calibration.cardScaleRatio,
   });
 
+  // no-store (L4): the body carries a fresh scanId a client could otherwise
+  // replay from a cached response.
   return json(
     201,
     { scanId },
-    setCookie ? { "set-cookie": setCookie } : undefined,
+    {
+      "cache-control": "no-store",
+      ...(setCookie ? { "set-cookie": setCookie } : {}),
+    },
   );
 }

@@ -39,6 +39,7 @@ export type FitPreferencesInput = z.input<typeof fitPreferencesSchema>;
 export type FitOutcome =
   | { status: "ready"; response: FitResponse }
   | { status: "notFound" }
+  | { status: "rateLimited" }
   | { status: "networkError" }
   | { status: "serverError" };
 
@@ -74,6 +75,12 @@ export async function fetchFitResult(
   const res = await postJson(fitPath(scanId), preferences, fetchImpl);
   if (res === "networkError") return { status: "networkError" };
   if (res.status === 404) return { status: "notFound" };
+  // M2 hardening (PR #56 review, MEDIUM 2): a 429 here is the per-IP fit
+  // rate limit (src/server/fit/service.ts), not a server failure — the
+  // generic "Something went wrong" + instant "Try again" was dishonest and
+  // would just re-trip the same limit. See `ResultsPageClient.tsx`'s
+  // `rateLimited` page state for the honest copy this maps to.
+  if (res.status === 429) return { status: "rateLimited" };
   if (!res.ok) return { status: "serverError" };
 
   let json: unknown;

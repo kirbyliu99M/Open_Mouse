@@ -91,6 +91,14 @@ describe("fetchFitResult", () => {
     expect(outcome).toEqual({ status: "notFound" });
   });
 
+  it("maps 429 to rateLimited, distinct from a generic serverError (PR #56 review, MEDIUM 2)", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(429, { error: "Too many fit requests" }),
+    );
+    const outcome = await fetchFitResult(SCAN_ID, PREFERENCES, fetchImpl);
+    expect(outcome).toEqual({ status: "rateLimited" });
+  });
+
   it("maps any other non-2xx status to serverError", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(500, { error: "boom" }));
     const outcome = await fetchFitResult(SCAN_ID, PREFERENCES, fetchImpl);

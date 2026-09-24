@@ -55,6 +55,15 @@ export interface ScanRepo {
   /** Returns the number of rows removed. */
   deleteExpiredAnonymousSessions(now: Date): Promise<number>;
   /**
+   * Deletes `rate_limits` rows whose fixed window has definitely ended (L2
+   * hardening finding — run from the same cron path as
+   * `deleteExpiredAnonymousSessions`, `./expire-cron.ts`). Also how any
+   * pre-hardening row that stored a raw IP as its key eventually ages out:
+   * once its window is old enough, this sweep removes it like any other
+   * stale row. Returns the number of rows removed.
+   */
+  deleteEndedRateLimitWindows(now: Date): Promise<number>;
+  /**
    * Attaches an anonymous session to a signed-in user, in one statement:
    * `user_id` is set and `expires_at` cleared only when `sessionId` names a
    * row that is *unclaimed* (`user_id IS NULL`) and not already expired

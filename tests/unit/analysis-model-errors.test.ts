@@ -69,7 +69,12 @@ describe("a model call that throws", () => {
           scanId: "scan-a",
           rateLimitKey: "ip-1",
         },
-        { client: throwingModel(error), cache, limiter: { allow: () => true } },
+        {
+          client: throwingModel(error),
+          cache,
+          limiter: { allow: () => true },
+          globalLimiter: { allow: () => true },
+        },
       );
 
       expect(response.status).toBe(200);
@@ -106,7 +111,11 @@ describe("a model call that throws", () => {
       scanId: "scan-a",
       rateLimitKey: "ip-1",
     };
-    const deps = { cache, limiter: { allow: () => true } };
+    const deps = {
+      cache,
+      limiter: { allow: () => true },
+      globalLimiter: { allow: () => true },
+    };
 
     await handleAnalysisRequest(request, {
       ...deps,

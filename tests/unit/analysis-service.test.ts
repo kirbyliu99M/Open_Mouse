@@ -48,6 +48,7 @@ function baseDeps(
     client: new FakeTextModel({ answer: () => CLEAN_ANSWER }),
     cache: new InMemoryAnalysisCache(),
     limiter: alwaysAllow(),
+    globalLimiter: alwaysAllow(),
     getUserId: async () => null,
     ...overrides,
   };
@@ -361,6 +362,24 @@ describe("POST /api/scans/{scanId}/analysis — rate limiting", () => {
     });
 
     expect(seen).toEqual(["unknown"]);
+  });
+});
+
+describe("POST /api/scans/{scanId}/analysis — site-wide daily model cap (M1)", () => {
+  it("200s with source: fallback (never 429) once the global cap is hit, and makes no model call", async () => {
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
+      ...baseDeps(),
+      client,
+      globalLimiter: { allow: () => false },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.source).toBe("fallback");
+    expect(analysisResponseSchema.safeParse(body).success).toBe(true);
+    expect(client.calls).toHaveLength(0);
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });
 

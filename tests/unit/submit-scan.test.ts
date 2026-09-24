@@ -193,6 +193,22 @@ describe("submitScan — error paths, distinct copy per kind", () => {
     );
   });
 
+  it("429 — distinct, honest copy from server/network/400/413 (PR #56 review, MEDIUM 2)", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(429, { error: "Too many scan submissions." }),
+    );
+    const outcome = await submitScan(validSubmission, fetchImpl);
+    expect(outcome).toEqual({
+      status: "error",
+      kind: "rateLimited",
+      message: SUBMIT_ERROR_MESSAGES.rateLimited,
+      detail: "Too many scan submissions.",
+    });
+    expect(SUBMIT_ERROR_MESSAGES.rateLimited).not.toBe(
+      SUBMIT_ERROR_MESSAGES.server,
+    );
+  });
+
   it("network failure — fetch itself throwing (offline, DNS failure, etc.) gets its own copy", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError("Failed to fetch");

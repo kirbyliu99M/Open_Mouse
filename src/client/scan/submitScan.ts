@@ -24,7 +24,8 @@ import {
 } from "../../lib/contracts/routes";
 import type { ScanSubmission } from "../../lib/contracts/measurement";
 
-export type SubmitScanErrorKind = "invalid" | "tooLarge" | "network" | "server";
+export type SubmitScanErrorKind =
+  "invalid" | "tooLarge" | "rateLimited" | "network" | "server";
 
 export type SubmitScanOutcome =
   | { readonly status: "success"; readonly scanId: string }
@@ -47,6 +48,11 @@ export const SUBMIT_ERROR_MESSAGES: Record<SubmitScanErrorKind, string> = {
     "This scan couldn't be saved — retake the top-down photo and try again.",
   tooLarge:
     "This scan didn't send correctly — reload the page and retake the photo.",
+  // M2 hardening (PR #56 review, MEDIUM 2): distinct, honest copy for a 429
+  // from the per-IP submit limit (src/server/scans/submit.ts) — not a
+  // server failure, and not something an instant retry would fix.
+  rateLimited:
+    "Too many tries in a short time — wait a few minutes and try again.",
   network: "No connection — check your network, then try submitting again.",
   server: "Something went wrong on our end — wait a moment and try again.",
 };
@@ -126,6 +132,14 @@ export async function submitScan(
       status: "error",
       kind: "tooLarge",
       message: SUBMIT_ERROR_MESSAGES.tooLarge,
+      detail,
+    };
+  }
+  if (response.status === 429) {
+    return {
+      status: "error",
+      kind: "rateLimited",
+      message: SUBMIT_ERROR_MESSAGES.rateLimited,
       detail,
     };
   }
