@@ -17,11 +17,16 @@
  *
  * Renders two PNG frames with `camera-scene.ts` (a real Chromium canvas —
  * Node has no canvas here), then shells out to `ffmpeg` to mux each single
- * frame into a tiny looping MJPEG. Chromium's
- * `--use-file-for-fake-video-capture` loops whatever frames the file
- * contains, so a handful of identical frames is enough to serve as a
- * "camera feed" for as long as a test needs it — this is a static prop,
- * not a real recording, and its whole point is to be deterministic.
+ * frame into a Y4M (uncompressed YUV4MPEG2). **Y4M, not MJPEG**: verified
+ * by hand (dumped what Chromium's fake capture device actually served back
+ * to a `<video>` element into a PNG) that this Chromium build's
+ * `--use-file-for-fake-video-capture` silently falls back to its default
+ * solid-green synthetic pattern for our MJPEG output — content that
+ * `ffprobe` reads back fine is not proof Chromium's own fake-capture
+ * demuxer accepts it — while the identical scene as Y4M is served
+ * correctly, markers intact even after the live loop's own 640px
+ * downscale. One frame is enough (the fixture is a static prop, not a
+ * recording), so despite being uncompressed this is still ~1-2MB.
  */
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -60,7 +65,7 @@ async function ffmpeg(args: string[]): Promise<void> {
   await run("ffmpeg", ["-y", ...args]);
 }
 
-test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.mjpeg", async ({
+test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.y4m", async ({
   page,
 }) => {
   test.skip(
@@ -90,20 +95,18 @@ test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.mjpeg", async ({
   await writeFile(fullPngPath, fullPng);
   await writeFile(partialPngPath, partialPng);
 
-  // 3 identical frames at 3fps (1s) is plenty — the fake capture device
-  // loops the file for as long as the test keeps the stream open.
+  // A single frame — the fake capture device loops it for as long as a
+  // test keeps the stream open.
   await ffmpeg([
     "-loop",
     "1",
     "-i",
     fullPngPath,
     "-frames:v",
-    "3",
-    "-r",
-    "3",
-    "-q:v",
-    "3",
-    path.join(OUT_DIR, "sheet-full.mjpeg"),
+    "1",
+    "-pix_fmt",
+    "yuv420p",
+    path.join(OUT_DIR, "sheet-full.y4m"),
   ]);
   await ffmpeg([
     "-loop",
@@ -111,12 +114,10 @@ test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.mjpeg", async ({
     "-i",
     partialPngPath,
     "-frames:v",
-    "3",
-    "-r",
-    "3",
-    "-q:v",
-    "3",
-    path.join(OUT_DIR, "sheet-partial.mjpeg"),
+    "1",
+    "-pix_fmt",
+    "yuv420p",
+    path.join(OUT_DIR, "sheet-partial.y4m"),
   ]);
 
   await rm(fullPngPath);
