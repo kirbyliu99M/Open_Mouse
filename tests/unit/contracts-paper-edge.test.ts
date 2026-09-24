@@ -77,3 +77,28 @@ describe("scanSubmissionSchema — plain-paper calibration", () => {
     expect(PAPER_SIZES_MM.letter).toEqual({ width: 215.9, height: 279.4 });
   });
 });
+
+describe("POST /api/scans 400 issues for a calibration union", () => {
+  it("names the bad field inside a nearly-right paper-edge calibration", async () => {
+    const { handleScanSubmission } =
+      await import("../../src/server/scans/submit");
+    const res = await handleScanSubmission(
+      new Request("http://localhost/api/scans", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body({ ...paperEdge, paperSize: "a5" })),
+      }),
+      {
+        repo: {
+          findValidSession: async () => null,
+          createAnonymousSession: async () => ({ id: "x" }),
+          insertScanWithMeasurements: async () => ({ scanId: "y" }),
+          deleteExpiredAnonymousSessions: async () => 0,
+        } as never,
+      },
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { issues: { path: string }[] };
+    expect(json.issues.map((i) => i.path)).toContain("calibration.paperSize");
+  });
+});
