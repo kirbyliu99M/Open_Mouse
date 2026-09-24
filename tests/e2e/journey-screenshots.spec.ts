@@ -47,7 +47,22 @@ for (const capture of [
     colorScheme: "light" as const,
   },
 ]) {
-  test(`captures ${capture.name} journey view`, async ({ page }) => {
+  test(`captures ${capture.name} journey view`, async ({ page }, testInfo) => {
+    // Opt-in only (item 6): a normal `playwright test` run must never
+    // silently rewrite the docs PNGs committed under
+    // docs/design/journey-2026-09-23/built/. Run with
+    // `SCREENSHOTS=1 npx playwright test tests/e2e/journey-screenshots.spec.ts`.
+    test.skip(
+      process.env.SCREENSHOTS !== "1",
+      "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
+    );
+    // Every capture sets its own viewport/color-scheme explicitly below, so
+    // running it once (not once per configured browser project) is enough.
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "Captures once, under a single project — the viewport is explicit per capture.",
+    );
+
     await page.setViewportSize({
       width: capture.width,
       height: capture.height,
