@@ -68,6 +68,15 @@
   background: var(--scan-bg);
 }
 
+/* /scan/measured-demo's "this is fixture data" banner — mirrors
+   /scan/submit-demo's own "(mock data)" heading (item 3). */
+.demoLabel {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--scan-muted);
+}
+
 .wayfinding {
   display: flex;
   align-items: center;

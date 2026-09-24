@@ -153,8 +153,14 @@ const EMPTY_OVERLAY: PhotoOverlay = {
 
 export default function ScanClient({
   demoMeasured,
+  demoLabel,
 }: {
   demoMeasured?: ScanDemoMeasuredState;
+  /** Visible "this is fixture data" banner for `/scan/measured-demo` —
+   * mirrors `/scan/submit-demo`'s own "(mock data)" heading, which that
+   * route can say for itself since it doesn't render this component's own
+   * `<h1>`. */
+  demoLabel?: string;
 } = {}) {
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
@@ -396,6 +402,7 @@ export default function ScanClient({
 
   return (
     <main className="scanMain">
+      {demoLabel && <p className="demoLabel">{demoLabel}</p>}
       <TopBar
         backHref="/sheet"
         backLabel="Sheet"
