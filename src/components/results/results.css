@@ -791,13 +791,14 @@
   .results-topPick,
   .results-analysis,
   .results-rankedList-item,
-  .results-rankedList-toggle,
-  .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {
+  .results-rankedList-toggle {
     border: 2px solid currentColor;
   }
-  /* Explicit, not just inherited: an unrated track must still read as
-     empty under increased contrast, never as a filled bar (nit). */
+  /* Dashed and 1px, not the cards' solid 2px (nit): sitting right next to
+     a card's own thick solid border, a solid 2px track border read as
+     part of the same thick bar instead of a distinct "empty" indicator. */
   .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {
+    border: 1px dashed currentColor;
     background: transparent;
     background-image: none;
   }

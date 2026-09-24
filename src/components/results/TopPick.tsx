@@ -43,7 +43,7 @@ export function TopPick({ response }: { response: FitResponse }) {
 
       {!shapeUnrated && <ConfidenceNote confidence={entry.confidence} />}
 
-      <h2 className="results-topPick-scoresHeading">How it scores</h2>
+      <h3 className="results-topPick-scoresHeading">How it scores</h3>
       <div className="results-subscoreGrid">
         {SUBSCORES.map((key) => (
           <SubscoreBar key={key} subscore={key} data={entry.subscores[key]} />

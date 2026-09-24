@@ -14,6 +14,8 @@ import {
   runPhotoPipeline,
   type PhotoOverlay,
   type PipelineIssue,
+  type RunPhotoPipelineInput,
+  type PipelineResult,
 } from "@/client/photo/pipeline";
 import {
   getHandLandmarker,
@@ -154,6 +156,7 @@ const EMPTY_OVERLAY: PhotoOverlay = {
 export default function ScanClient({
   demoMeasured,
   demoLabel,
+  runPhotoPipelineImpl = runPhotoPipeline,
 }: {
   demoMeasured?: ScanDemoMeasuredState;
   /** Visible "this is fixture data" banner for `/scan/measured-demo` —
@@ -161,6 +164,14 @@ export default function ScanClient({
    * route can say for itself since it doesn't render this component's own
    * `<h1>`. */
   demoLabel?: string;
+  /** Test-only injection point (defaults to the real pipeline). No
+   * synthetic e2e photo makes MediaPipe detect a hand, so this is the only
+   * way to reach "ok" with a *controllable* delay — needed to reliably
+   * exercise the grip-change-during-processing race from
+   * `/scan/grip-race-demo`. Real pages never pass this. */
+  runPhotoPipelineImpl?: (
+    input: RunPhotoPipelineInput,
+  ) => Promise<PipelineResult>;
 } = {}) {
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
@@ -184,6 +195,15 @@ export default function ScanClient({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
   const runIdRef = useRef(0);
+  // The single source of truth for "what grip is currently shown" — a
+  // pipeline run started before the user switched grip captures the OLD
+  // value as `runPipeline`'s `selectedGrip` default parameter (evaluated
+  // once, at call time) and can still be in flight when it resolves to
+  // "ok". Reading this ref at resolution time (rather than trusting
+  // whatever the in-flight call captured) means the "ok" submission
+  // always matches the grip button the user is actually looking at,
+  // regardless of when they tapped it relative to the pipeline finishing.
+  const latestGripRef = useRef<GripStyle | undefined>(demoMeasured?.gripStyle);
 
   // Warm the MediaPipe HandLandmarker (fetches its model + WASM) as soon as
   // the page mounts, so those same-origin asset loads happen well before
@@ -201,6 +221,26 @@ export default function ScanClient({
     };
   }, [previewUrl]);
 
+  // Grip never reaches a gate or the measurement math (see
+  // src/client/photo/submission.ts) — it only ends up in the submission
+  // object — so no matter which `gripStyleStated` a given pipeline run was
+  // started with, the submission it produces is rebuilt here using
+  // whatever grip is *currently* shown, not whatever was current when that
+  // run began.
+  const applyLatestGrip = useCallback(
+    (submission: ScanSubmission): ScanSubmission => {
+      const grip = latestGripRef.current;
+      return scanSubmissionSchema.parse({
+        hand: submission.hand,
+        measurements: submission.measurements,
+        calibration: submission.calibration,
+        measurementModelVersion: submission.measurementModelVersion,
+        ...(grip !== undefined ? { gripStyleStated: grip } : {}),
+      });
+    },
+    [],
+  );
+
   const runPipeline = useCallback(
     async (
       file: File,
@@ -212,7 +252,7 @@ export default function ScanClient({
       const cardSource: "auto" | "manual" = corners ? "manual" : "auto";
       setState({ kind: "processing" });
       try {
-        const result = await runPhotoPipeline({
+        const result = await runPhotoPipelineImpl({
           file,
           hand: selectedHand,
           gripStyleStated: selectedGrip,
@@ -223,7 +263,7 @@ export default function ScanClient({
           setState({
             kind: "ok",
             measurements: result.measurements,
-            submission: result.submission,
+            submission: applyLatestGrip(result.submission),
             warnings: result.warnings,
             overlay: result.overlay,
             cardSource,
@@ -262,7 +302,7 @@ export default function ScanClient({
         });
       }
     },
-    [hand, gripStyle],
+    [hand, gripStyle, applyLatestGrip, runPhotoPipelineImpl],
   );
 
   const onFileChosen = useCallback(
@@ -310,30 +350,46 @@ export default function ScanClient({
       // flip the result from "ok" to an error, so it re-runs detection on
       // the photo still in memory rather than only patching the
       // submission.
-      if (fileRef.current)
+      if (fileRef.current) {
         void runPipeline(fileRef.current, manualCorners ?? undefined, next);
+        return;
+      }
+      // No photo in memory: only possible on /scan/measured-demo (a real
+      // flow always has fileRef.current set once "ok" is reached). Without
+      // this, the hand picker there would show the new hand while the
+      // submission silently kept the old one.
+      setState((prev) => {
+        if (prev.kind !== "ok") return prev;
+        const submission = scanSubmissionSchema.parse({
+          hand: next,
+          measurements: prev.submission.measurements,
+          calibration: prev.submission.calibration,
+          measurementModelVersion: prev.submission.measurementModelVersion,
+        });
+        return { ...prev, submission: applyLatestGrip(submission) };
+      });
     },
-    [manualCorners, runPipeline],
+    [manualCorners, runPipeline, applyLatestGrip],
   );
 
-  const changeGrip = useCallback((next: GripStyle | undefined) => {
-    setGripStyle(next);
-    setState((prev) => {
-      if (prev.kind !== "ok") return prev;
-      // Grip style never reaches a gate or the measurement math (see
-      // src/client/photo/submission.ts) — it only ends up in the
-      // submission object, so changing it after "ok" just rebuilds that
-      // one object instead of re-running detection on the photo.
-      const submission = scanSubmissionSchema.parse({
-        hand: prev.submission.hand,
-        measurements: prev.submission.measurements,
-        calibration: prev.submission.calibration,
-        measurementModelVersion: prev.submission.measurementModelVersion,
-        ...(next !== undefined ? { gripStyleStated: next } : {}),
+  const changeGrip = useCallback(
+    (next: GripStyle | undefined) => {
+      latestGripRef.current = next;
+      setGripStyle(next);
+      setState((prev) => {
+        if (prev.kind !== "ok") return prev;
+        // Grip style never reaches a gate or the measurement math (see
+        // src/client/photo/submission.ts) — it only ends up in the
+        // submission object, so changing it after "ok" just rebuilds that
+        // one object instead of re-running detection on the photo. (If a
+        // pipeline run is still in flight from *before* this click, its
+        // eventual "ok" result goes through `applyLatestGrip` too, so it
+        // can't clobber this with a stale grip.)
+        return { ...prev, submission: applyLatestGrip(prev.submission) };
       });
-      return { ...prev, submission };
-    });
-  }, []);
+    },
+    [applyLatestGrip],
+  );
 
   const beginDrag = useCallback(
     (index: number) => (e: ReactPointerEvent<SVGCircleElement>) => {

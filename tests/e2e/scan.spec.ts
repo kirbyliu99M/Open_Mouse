@@ -215,6 +215,47 @@ test.describe("/scan/measured-demo — measured state (item 6)", () => {
     await expect(claw).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("changing hand on the demo updates the submission too, even with no photo in memory to re-measure", async ({
+    page,
+  }) => {
+    // /scan/measured-demo seeds "ok" directly — fileRef is null there,
+    // unlike a real scan — so changeHand's normal "re-run the pipeline on
+    // the photo in memory" path never fires. Without its demo-only
+    // fallback, clicking a different hand would move the button's
+    // aria-pressed state without ever touching the submission that gets
+    // POSTed.
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "a23e4567-e89b-12d3-a456-426614174009",
+        }),
+      });
+    });
+
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "Right hand" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "Left hand" }).click();
+    await expect(
+      page.getByRole("button", { name: "Left hand" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // No re-measure: the numbers on the card are untouched.
+    await expect(page.locator(".measurementRow").first()).toContainText(
+      "190.0 mm",
+    );
+
+    await page.locator("[data-testid='submit-scan-button']").click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.hand).toBe("left");
+  });
+
   test("changing grip after measured updates the submission without re-measuring, and the new grip reaches the server", async ({
     page,
   }) => {
@@ -318,6 +359,62 @@ test.describe("/scan/measured-demo — measured state (item 6)", () => {
     await expect(page.locator(".deviceNotice")).toHaveText(
       "Processed on this device — only measurements are sent, never the photo.",
     );
+  });
+});
+
+// Regression: `runPipeline`'s `selectedGrip` default parameter snapshots
+// `gripStyle` at the moment a pipeline call *starts*, not when it resolves.
+// A grip change while a call is still in flight (reading/processing) used
+// to be silently lost — the "ok" submission kept whichever grip was current
+// when the call began. `/scan/grip-race-demo` swaps in a fake pipeline with
+// a controllable delay (no synthetic photo makes MediaPipe detect a hand
+// with a real one — see the describe block above) so this is testable
+// deterministically.
+test.describe("/scan/grip-race-demo — grip changed during processing", () => {
+  test("choosing a photo, then switching grip while it's still processing, submits the NEW grip", async ({
+    page,
+  }) => {
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "923e4567-e89b-12d3-a456-426614174008",
+        }),
+      });
+    });
+
+    await page.goto("/scan/grip-race-demo");
+    await page.setInputFiles(FILE_INPUT, {
+      name: "irrelevant.png",
+      mimeType: "image/png",
+      // Content doesn't matter — the fake pipeline never reads the file.
+      buffer: Buffer.from("not a real photo"),
+    });
+
+    // Still mid-flight (the fake pipeline waits 600ms): switch grip now.
+    await expect(page.locator(STATUS())).toContainText("Looking for", {
+      timeout: 2_000,
+    });
+    await page.getByRole("button", { name: "Claw", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // Now it resolves to "ok" — the submission must carry the grip the
+    // button shows (Claw), not whatever was current when the call began
+    // (none — grip was unset at that point).
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+      { timeout: 5_000 },
+    );
+
+    await page.locator("[data-testid='submit-scan-button']").click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.gripStyleStated).toBe("claw");
   });
 });
 
