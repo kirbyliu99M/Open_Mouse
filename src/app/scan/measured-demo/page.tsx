@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ScanClient from "../ScanClient";
+import { guardDemoRouteFromProduction } from "../demo-guard";
 import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
@@ -43,8 +44,10 @@ const DEMO_SUBMISSION = scanSubmissionSchema.parse({
 });
 
 export default function ScanMeasuredDemoPage() {
+  guardDemoRouteFromProduction();
   return (
     <ScanClient
+      demoLabel="Demo — sample measurements"
       demoMeasured={{
         hand: DEMO_SUBMISSION.hand,
         gripStyle: "claw",
