@@ -13,7 +13,7 @@ test.describe("/scan — live camera capture (docs/design/camera-capture-2026-09
       "Needs the fake-media-device project (sheet-full.mjpeg).",
     );
 
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     // Same convention as the existing zero-network test in scan.spec.ts:
     // let the page settle (including the HandLandmarker's one-time model
     // fetch) before recording, so this only captures what the camera flow
@@ -81,7 +81,7 @@ test.describe("/scan — live camera capture (docs/design/camera-capture-2026-09
       "Needs a context with no fake-media flags, so getUserMedia genuinely fails.",
     );
 
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     const openCamera = page.getByRole("button", { name: "Open camera" });
     await expect(openCamera).toBeVisible();
     await openCamera.click();

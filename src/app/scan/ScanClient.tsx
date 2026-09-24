@@ -223,6 +223,7 @@ export default function ScanClient({
   demoMeasured,
   demoLabel,
   runPhotoPipelineImpl = runPhotoPipeline,
+  calibrationMode = "printed-sheet",
 }: {
   demoMeasured?: ScanDemoMeasuredState;
   /** Visible "this is fixture data" banner for `/scan/measured-demo` —
@@ -238,6 +239,21 @@ export default function ScanClient({
   runPhotoPipelineImpl?: (
     input: RunPhotoPipelineInput,
   ) => Promise<PipelineResult>;
+  /**
+   * Which calibration method the surrounding page chrome (heading,
+   * subtitle, TopBar, "Print it" link) describes. `runPhotoPipeline`
+   * itself is unchanged and still only understands the printed sheet +
+   * ArUco markers + card, so this defaults to "printed-sheet" — the
+   * currently-shipped, still-correct copy for that unchanged path.
+   * "paper-edge" previews the copy for the future blank-paper pipeline
+   * (docs/design/camera-capture-2026-09-25/README.md's 2026-09-25 revision)
+   * once a separate builder's paper-edge detector lands; until then only
+   * `/scan/paper-edge-preview` (screenshots/e2e) passes it. The live
+   * CameraCapture component's own primer/viewfinder copy already describes
+   * blank paper unconditionally — that's the forward-looking part by
+   * design, independent of this flag.
+   */
+  calibrationMode?: "printed-sheet" | "paper-edge";
 } = {}) {
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
@@ -537,20 +553,38 @@ export default function ScanClient({
               ? state.errors[0]?.message
               : "";
 
+  const isPaperEdge = calibrationMode === "paper-edge";
+
   return (
     <main className="scanMain">
       {demoLabel && <p className="demoLabel">{demoLabel}</p>}
-      <TopBar
-        backHref="/sheet"
-        backLabel="Sheet"
-        stepLabel="Step 2 of 2 · Photo"
-      />
+      {isPaperEdge ? (
+        <TopBar backHref="/" backLabel="Home" stepLabel="Photo" />
+      ) : (
+        <TopBar
+          backHref="/sheet"
+          backLabel="Sheet"
+          stepLabel="Step 2 of 2 · Photo"
+        />
+      )}
 
-      <h1>Photograph your hand on the sheet</h1>
-      <p className="hint">
-        Lay your hand flat on the sheet next to a bank card, fingers together,
-        and photograph both from directly above.
-      </p>
+      {isPaperEdge ? (
+        <>
+          <h1>Photograph your hand on a sheet of paper</h1>
+          <p className="hint">
+            Lay your hand flat on a blank A4 sheet, fingers together, and
+            photograph it from directly above.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1>Photograph your hand on the sheet</h1>
+          <p className="hint">
+            Lay your hand flat on the sheet next to a bank card, fingers
+            together, and photograph both from directly above.
+          </p>
+        </>
+      )}
 
       {/* Always interactive, including once measured (item 2 fix): grip
           never needs a re-measure, and changing hand re-runs detection on
@@ -874,9 +908,11 @@ export default function ScanClient({
         </>
       )}
 
-      <Link href="/sheet" className="scanSheetLink">
-        Don&apos;t have the sheet? Print it
-      </Link>
+      {!isPaperEdge && (
+        <Link href="/sheet" className="scanSheetLink">
+          Don&apos;t have the sheet? Print it
+        </Link>
+      )}
     </main>
   );
 }

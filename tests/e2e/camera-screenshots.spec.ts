@@ -26,7 +26,7 @@ test.describe("camera capture screenshots", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await expect(
       page.getByRole("button", { name: "Turn on camera" }),
@@ -45,7 +45,7 @@ test.describe("camera capture screenshots", () => {
     );
 
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
     await expect(page.locator("[data-testid='camera-cue']")).toHaveText(
@@ -66,7 +66,7 @@ test.describe("camera capture screenshots", () => {
     );
 
     await page.emulateMedia({ colorScheme: "light" });
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
     await expect(page.locator("[data-testid='camera-cue']")).toHaveText(
@@ -74,10 +74,18 @@ test.describe("camera capture screenshots", () => {
       { timeout: 15_000 },
     );
     // Auto-capture fires ~800ms after the cue turns perfect — grab the
-    // frame partway through that window so the ring reads as filling
-    // rather than empty or already fired.
-    await page.waitForTimeout(350);
-    await page.screenshot({ path: `${OUTPUT}/viewfinder-4-of-4-ring.png` });
+    // frame shortly after so the ring reads as filling rather than empty,
+    // with margin against Playwright's own assertion-polling latency
+    // (this static single-frame fixture has zero motion, so "perfect" can
+    // be reached and start accumulating well before the assertion above
+    // actually observes the text).
+    await page.waitForTimeout(120);
+    // If auto-capture still won the race, the shutter button (and its
+    // ring) is gone — better to skip than screenshot the wrong state.
+    const shutter = page.locator(".cameraShutter");
+    if (await shutter.isVisible()) {
+      await page.screenshot({ path: `${OUTPUT}/viewfinder-4-of-4-ring.png` });
+    }
   });
 
   test("review", async ({ page }, testInfo) => {
@@ -91,7 +99,7 @@ test.describe("camera capture screenshots", () => {
     );
 
     await page.emulateMedia({ colorScheme: "light" });
-    await page.goto("/scan");
+    await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
     await expect(

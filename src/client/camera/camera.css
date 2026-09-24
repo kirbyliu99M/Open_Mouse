@@ -120,7 +120,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  /* Full-bleed: the video fills the viewfinder completely, no letterbox/
+     pillarbox bars. The overlay (brackets, ghost) maps through
+     `computeCoverRect`, the exact same fit function, so it lines up with
+     what's actually visible regardless of the stream's aspect ratio. */
+  object-fit: cover;
 }
 
 .cameraOverlay {
@@ -129,16 +133,31 @@
   pointer-events: none;
 }
 
-.cameraTopBar {
+/* Top bar + chips float over the video on a subtle top-down gradient
+   (docs/design-guidelines.md's "floating chrome" material) rather than a
+   flat scrim, so the video reads as full-bleed behind them. */
+.cameraTopGradient {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 2rem;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0.35) 55%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.cameraTopBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
-  z-index: 2;
 }
 
 .cameraCloseButton {
@@ -195,23 +214,31 @@
   fill: #35d16f;
 }
 
-.cameraHandGhost {
+/* The hand-ghost silhouette — a placement hint only (handGhost.ts), drawn
+   in the same container-pixel space as the brackets, one path per current
+   quad estimate. ~25% white fill + a thin white stroke reads over any
+   photo without ever looking like a real detected shape. */
+.cameraHandGhostSvg {
   position: absolute;
-  opacity: 0.28;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+}
+.cameraHandGhostPath {
+  fill: #ffffff;
+  fill-opacity: 0.25;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-opacity: 0.9;
+  vector-effect: non-scaling-stroke;
 }
 
 .cameraChips {
-  position: absolute;
-  top: 3.25rem;
-  left: 0;
-  right: 0;
   display: flex;
   justify-content: center;
   gap: 0.5rem;
-  z-index: 2;
   flex-wrap: wrap;
-  padding: 0 1rem;
 }
 
 .cameraChip {
@@ -228,15 +255,32 @@
   background: rgba(53, 209, 111, 0.28);
 }
 
-.cameraCueWrap {
+/* Cue pill + shutter float over the video on a subtle bottom-up gradient,
+   the mirror of .cameraTopGradient. */
+.cameraBottomGradient {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 6.5rem;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2.5rem 1rem 1.5rem;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0.35) 55%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.cameraCueWrap {
   display: flex;
   justify-content: center;
+  width: 100%;
   padding: 0 1rem;
-  z-index: 2;
 }
 .cameraCue {
   padding: 0.625rem 1.125rem;
@@ -253,13 +297,8 @@
 }
 
 .cameraShutterRow {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 1.5rem;
   display: flex;
   justify-content: center;
-  z-index: 2;
 }
 
 .cameraShutter {

@@ -166,7 +166,75 @@ export function computeContainRect(
   return { x: (containerWidth - width) / 2, y: 0, width, height };
 }
 
-function centroid(corners: readonly Point[]): Point {
+/**
+ * The rectangle a `<video>` (or `<img>`) with `object-fit: cover` actually
+ * renders into: the media scaled up to fill the container on both axes,
+ * cropping whichever axis overflows — the mirror image of
+ * `computeContainRect`. The returned rect can extend past the container's
+ * own bounds (negative `x`/`y`, or `width`/`height` larger than the
+ * container) — that's expected: `mapMediaPointToContainer` still maps a
+ * media-space point into the right on-screen position from it, it's simply
+ * outside the visible/clipped area for points that fall in the cropped
+ * margin.
+ */
+export function computeCoverRect(
+  containerWidth: number,
+  containerHeight: number,
+  mediaWidth: number,
+  mediaHeight: number,
+): Rect {
+  if (
+    containerWidth <= 0 ||
+    containerHeight <= 0 ||
+    mediaWidth <= 0 ||
+    mediaHeight <= 0
+  ) {
+    throw new RangeError(
+      "computeCoverRect needs positive container and media dimensions.",
+    );
+  }
+  const containerAspect = containerWidth / containerHeight;
+  const mediaAspect = mediaWidth / mediaHeight;
+
+  if (mediaAspect > containerAspect) {
+    // Media is relatively wider — match height, crop the sides.
+    const height = containerHeight;
+    const width = height * mediaAspect;
+    return { x: (containerWidth - width) / 2, y: 0, width, height };
+  }
+  // Media is relatively taller (or equal) — match width, crop top/bottom.
+  const width = containerWidth;
+  const height = width / mediaAspect;
+  return { x: 0, y: (containerHeight - height) / 2, width, height };
+}
+
+/**
+ * Bilinear interpolation of a point at normalized `(u, v)` (both 0-1)
+ * across `quad`'s four corners — `u` sweeps topLeft→topRight /
+ * bottomLeft→bottomRight, `v` sweeps top→bottom. A cheap, dependency-free
+ * stand-in for a full perspective (homography) mapping: exact for an
+ * affine (parallelogram) quad, a close approximation for the mild
+ * perspective a phone held roughly overhead produces. Used to place the
+ * hand-ghost silhouette "on the paper" in the same quad the brackets
+ * track.
+ */
+export function bilinearPointInQuad(u: number, v: number, quad: Quad): Point {
+  const top = {
+    x: quad.topLeft.x + (quad.topRight.x - quad.topLeft.x) * u,
+    y: quad.topLeft.y + (quad.topRight.y - quad.topLeft.y) * u,
+  };
+  const bottom = {
+    x: quad.bottomLeft.x + (quad.bottomRight.x - quad.bottomLeft.x) * u,
+    y: quad.bottomLeft.y + (quad.bottomRight.y - quad.bottomLeft.y) * u,
+  };
+  return {
+    x: top.x + (bottom.x - top.x) * v,
+    y: top.y + (bottom.y - top.y) * v,
+  };
+}
+
+/** Mean of a set of points — e.g. a detected marker's 4 corners, as its centroid. */
+export function centroid(corners: readonly Point[]): Point {
   const sum = corners.reduce((acc, c) => ({ x: acc.x + c.x, y: acc.y + c.y }), {
     x: 0,
     y: 0,

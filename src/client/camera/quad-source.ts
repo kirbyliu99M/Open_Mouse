@@ -24,7 +24,7 @@
 import type { Point2 } from "../geometry/homography";
 import { detectMarkers, type DetectedMarker } from "../photo/markers";
 import { SHEET } from "../../lib/contracts/measurement";
-import { buildTrackedQuad } from "./quad";
+import { buildTrackedQuad, centroid } from "./quad";
 
 /** Mirrors (not yet merged) src/lib/contracts/measurement.ts's PaperSize. */
 export type PaperSize = "a4" | "letter";
@@ -33,6 +33,15 @@ export interface SheetQuadDetection {
   /** The paper's 4 corners (TL, TR, BR, BL), or `null` unless all 4 were found. */
   readonly corners: readonly [Point2, Point2, Point2, Point2] | null;
   readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  /** Per-corner (TL, TR, BR, BL) lock-on: whether *that specific* corner was found this sample, so the UI can lock brackets on individually rather than all-or-nothing. */
+  readonly cornersFound: readonly [boolean, boolean, boolean, boolean];
+  /** Per-corner (TL, TR, BR, BL) position when found, `null` when not — same order as `cornersFound`. */
+  readonly partialCorners: readonly [
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+    Point2 | null,
+  ];
   /** Smallest fraction of any side's length actually seen, 0-1 (1 when not applicable, as for this temporary adapter). */
   readonly minSideCoverage: number;
   /** Mean distance of detected edge points from their fitted side, in frame px (0 when not applicable). */
@@ -44,9 +53,19 @@ export type SheetQuadSource = (
   paperSize: PaperSize,
 ) => SheetQuadDetection;
 
+const NO_CORNERS: readonly [boolean, boolean, boolean, boolean] = [
+  false,
+  false,
+  false,
+  false,
+];
+const NO_PARTIAL: readonly [null, null, null, null] = [null, null, null, null];
+
 const NONE: SheetQuadDetection = {
   corners: null,
   cornersSeen: 0,
+  cornersFound: NO_CORNERS,
+  partialCorners: NO_PARTIAL,
   minSideCoverage: 0,
   edgeFitResidualPx: 0,
 };
@@ -54,11 +73,14 @@ const NONE: SheetQuadDetection = {
 /**
  * Temporary `SheetQuadSource`: finds the printed sheet's 4 flat-flap ArUco
  * markers (ids 0-3, `markers.ts`'s existing, already-shipped detector) and
- * reports their centroids as the "paper corners". `paperSize` is accepted
- * for interface compatibility but ignored — this adapter has no notion of
- * a blank sheet's edges. `detectMarkersImpl` is injectable for unit
- * testing without needing real marker pixel data (matches this app's
- * existing DI convention, e.g. `ScanClient`'s `runPhotoPipelineImpl`).
+ * reports each one's centroid as its corresponding paper corner — marker id
+ * 0→TL, 1→TR, 2→BR, 3→BL, `layout.ts`'s own convention, so each bracket
+ * locks on individually as its marker is found rather than waiting for all
+ * four. `paperSize` is accepted for interface compatibility but ignored —
+ * this adapter has no notion of a blank sheet's edges. `detectMarkersImpl`
+ * is injectable for unit testing without needing real marker pixel data
+ * (matches this app's existing DI convention, e.g. `ScanClient`'s
+ * `runPhotoPipelineImpl`).
  */
 export function createMarkerBasedQuadSource(
   detectMarkersImpl: (frame: {
@@ -69,22 +91,42 @@ export function createMarkerBasedQuadSource(
 ): SheetQuadSource {
   return (frame) => {
     const detected = detectMarkersImpl(frame);
-    const flatIds = new Set<number>(SHEET.flatMarkerIds as readonly number[]);
-    const seen = new Map<number, DetectedMarker>();
+    const cornerIds = SHEET.flatMarkerIds as readonly [
+      number,
+      number,
+      number,
+      number,
+    ]; // [TL, TR, BR, BL]
+    const byId = new Map<number, DetectedMarker>();
     for (const marker of detected) {
-      if (flatIds.has(marker.id) && !seen.has(marker.id)) {
-        seen.set(marker.id, marker);
+      if (cornerIds.includes(marker.id) && !byId.has(marker.id)) {
+        byId.set(marker.id, marker);
       }
     }
-    const cornersSeen = Math.min(seen.size, 4) as 0 | 1 | 2 | 3 | 4;
+
+    const cornersFound = cornerIds.map((id) => byId.has(id)) as [
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+    ];
+    const partialCorners = cornerIds.map((id) => {
+      const marker = byId.get(id);
+      return marker ? centroid(marker.corners) : null;
+    }) as [Point2 | null, Point2 | null, Point2 | null, Point2 | null];
+    const cornersSeen = cornersFound.filter(Boolean).length as
+      0 | 1 | 2 | 3 | 4;
+
     if (cornersSeen < 4) {
-      return { ...NONE, cornersSeen };
+      return { ...NONE, cornersSeen, cornersFound, partialCorners };
     }
-    const quad = buildTrackedQuad([...seen.values()]);
-    if (!quad) return { ...NONE, cornersSeen };
+    const quad = buildTrackedQuad([...byId.values()]);
+    if (!quad) return { ...NONE, cornersSeen, cornersFound, partialCorners };
     return {
       corners: [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft],
       cornersSeen,
+      cornersFound,
+      partialCorners,
       minSideCoverage: 1,
       edgeFitResidualPx: 0,
     };

@@ -37,11 +37,12 @@ import {
   type StatusChips,
 } from "./cues";
 import {
-  computeContainRect,
+  computeCoverRect,
   mapMediaPointToContainer,
+  type Point,
   type Quad,
-  type Rect,
 } from "./quad";
+import { computeHandGhostPoints, handGhostPathD } from "./handGhost";
 import { isSteady } from "./steadiness";
 import { computeMeanLuma, computeClippedFraction } from "./light";
 import {
@@ -56,6 +57,9 @@ import {
   type SheetQuadSource,
 } from "./quad-source";
 import "./camera.css";
+
+/** TL, TR, BR, BL — the order every per-corner array in this file uses. */
+type CornerTuple<T> = readonly [T, T, T, T];
 
 type Hand = "left" | "right";
 
@@ -98,18 +102,30 @@ export interface CameraCaptureProps {
 const RING_RADIUS = 30;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-function idealCorners(rect: Rect): Quad {
-  const insetX = rect.width * 0.12;
-  const insetY = rect.height * 0.12;
+/**
+ * Placeholder bracket positions for a corner not yet found — inset from
+ * the *container's own* visible bounds, deliberately not from the cover
+ * rect (which, unlike the old contain rect, commonly extends past the
+ * container on one axis — insetting from its edges could place an
+ * unfound-corner placeholder off-screen entirely).
+ */
+function idealCorners(containerWidth: number, containerHeight: number): Quad {
+  const insetX = containerWidth * 0.12;
+  const insetY = containerHeight * 0.12;
   return {
-    topLeft: { x: rect.x + insetX, y: rect.y + insetY },
-    topRight: { x: rect.x + rect.width - insetX, y: rect.y + insetY },
-    bottomRight: {
-      x: rect.x + rect.width - insetX,
-      y: rect.y + rect.height - insetY,
-    },
-    bottomLeft: { x: rect.x + insetX, y: rect.y + rect.height - insetY },
+    topLeft: { x: insetX, y: insetY },
+    topRight: { x: containerWidth - insetX, y: insetY },
+    bottomRight: { x: containerWidth - insetX, y: containerHeight - insetY },
+    bottomLeft: { x: insetX, y: containerHeight - insetY },
   };
+}
+
+function quadToTuple(quad: Quad): CornerTuple<Point> {
+  return [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
+}
+
+function tupleToQuad(t: CornerTuple<Point>): Quad {
+  return { topLeft: t[0], topRight: t[1], bottomRight: t[2], bottomLeft: t[3] };
 }
 
 function quadBoundingBox(quad: Quad) {
@@ -198,8 +214,18 @@ export default function CameraCapture({
   const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   const [cue, setCue] = useState<Cue | null>(null);
   const [chips, setChips] = useState<StatusChips | null>(null);
-  const [displayQuad, setDisplayQuad] = useState<Quad | null>(null);
-  const [foundQuad, setFoundQuad] = useState<boolean>(false);
+  // One entry per corner (TL, TR, BR, BL) — each is the ideal placeholder
+  // position until *that specific* corner locks on, independent of the
+  // other three (item: "per-corner lock-on").
+  const [displayCorners, setDisplayCorners] =
+    useState<CornerTuple<Point> | null>(null);
+  const [foundPerCorner, setFoundPerCorner] = useState<CornerTuple<boolean>>([
+    false,
+    false,
+    false,
+    false,
+  ]);
+  const [handGhostD, setHandGhostD] = useState<string | null>(null);
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
@@ -214,6 +240,14 @@ export default function CameraCapture({
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef<number>(0);
   const lastCueChangeAtRef = useRef(0);
+  // A ref, not the `cue` state itself: `tick` is one long-lived closure for
+  // the whole "live" session (recreated only when state.kind/paperSize/
+  // hand change — see the effect's own comment on why), so reading the
+  // `cue` *state* here would always see whatever it was when the closure
+  // was created, never this session's own later updates — silently
+  // defeating the "one change per 1.5s" throttle below (every sample would
+  // satisfy `cue === null`).
+  const lastCueCodeRef = useRef<Cue["code"] | null>(null);
   const capturingRef = useRef(false);
   const quadSourceRef = useRef<SheetQuadSource>(
     quadSource ?? createMarkerBasedQuadSource(),
@@ -257,6 +291,8 @@ export default function CameraCapture({
       autoCaptureRef.current = resetAutoCapture();
       lastDetectionAtRef.current = performance.now();
       prevSampleQuadRef.current = null;
+      lastCueCodeRef.current = null;
+      lastCueChangeAtRef.current = 0;
       setState({ kind: "live" });
     } catch (err) {
       const name = err instanceof DOMException ? err.name : undefined;
@@ -378,16 +414,27 @@ export default function CameraCapture({
     let cancelled = false;
     const minIntervalMs = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond;
 
-    function updateContainRectFromStage() {
+    function updateCoverRectFromStage() {
       const stage = stageRef.current;
       if (!stage || !video || video.videoWidth === 0) return null;
       const box = stage.getBoundingClientRect();
-      return computeContainRect(
+      // "cover", not "contain": the video fills the stage completely (full-
+      // bleed, no letterbox/pillarbox bars) — see camera.css's `.cameraVideo
+      // { object-fit: cover }`. The overlay must map through the exact same
+      // fit function the video itself uses, or brackets drift off the real
+      // corners whenever the stream's aspect ratio doesn't match the
+      // viewport's.
+      const coverRect = computeCoverRect(
         box.width,
         box.height,
         video.videoWidth,
         video.videoHeight,
       );
+      return {
+        coverRect,
+        containerWidth: box.width,
+        containerHeight: box.height,
+      };
     }
 
     function tick(now: number) {
@@ -400,7 +447,7 @@ export default function CameraCapture({
         previousSampleAt === 0 ? minIntervalMs : now - previousSampleAt;
       lastSampleTimeRef.current = now;
 
-      const rect = updateContainRectFromStage();
+      const stageInfo = updateCoverRectFromStage();
       const { width, height } = computeDownscaleSize(
         video.videoWidth,
         video.videoHeight,
@@ -482,26 +529,61 @@ export default function CameraCapture({
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
 
       prevSampleQuadRef.current = sampleQuad;
-      setFoundQuad(sampleQuad !== null);
 
-      if (rect) {
-        const source = sampleQuad ?? idealCorners(rect);
-        const mapCorner = (p: { x: number; y: number }) =>
-          sampleQuad ? mapMediaPointToContainer(p, rect, width, height) : p;
-        setDisplayQuad({
-          topLeft: mapCorner(source.topLeft),
-          topRight: mapCorner(source.topRight),
-          bottomRight: mapCorner(source.bottomRight),
-          bottomLeft: mapCorner(source.bottomLeft),
-        });
+      if (stageInfo) {
+        const { coverRect, containerWidth, containerHeight } = stageInfo;
+        const ideal = quadToTuple(
+          idealCorners(containerWidth, containerHeight),
+        );
+        // Per-corner lock-on: each of the 4 corners independently uses its
+        // own detected position (mapped into container/CSS-pixel space)
+        // once found, and only falls back to the ideal placeholder while
+        // that specific corner is still missing — not an all-or-nothing
+        // quad.
+        const mapPartial = (p: Point | null): Point | null =>
+          p ? mapMediaPointToContainer(p, coverRect, width, height) : null;
+        const mappedPartial: CornerTuple<Point | null> = [
+          mapPartial(detection.partialCorners[0]),
+          mapPartial(detection.partialCorners[1]),
+          mapPartial(detection.partialCorners[2]),
+          mapPartial(detection.partialCorners[3]),
+        ];
+        const nextDisplayCorners: CornerTuple<Point> = [
+          mappedPartial[0] ?? ideal[0],
+          mappedPartial[1] ?? ideal[1],
+          mappedPartial[2] ?? ideal[2],
+          mappedPartial[3] ?? ideal[3],
+        ];
+        setDisplayCorners(nextDisplayCorners);
+        setFoundPerCorner(detection.cornersFound);
+
+        if (
+          sampleQuad &&
+          mappedPartial[0] &&
+          mappedPartial[1] &&
+          mappedPartial[2] &&
+          mappedPartial[3]
+        ) {
+          const containerQuad = tupleToQuad([
+            mappedPartial[0],
+            mappedPartial[1],
+            mappedPartial[2],
+            mappedPartial[3],
+          ]);
+          const ghostPoints = computeHandGhostPoints(containerQuad, hand);
+          setHandGhostD(handGhostPathD(ghostPoints));
+        } else {
+          setHandGhostD(null);
+        }
       }
 
       if (
         now - lastCueChangeAtRef.current >= CAMERA_CONSTANTS.cueThrottleMs ||
-        cue === null ||
-        nextCue.code !== cue.code
+        lastCueCodeRef.current === null ||
+        nextCue.code !== lastCueCodeRef.current
       ) {
         lastCueChangeAtRef.current = now;
+        lastCueCodeRef.current = nextCue.code;
         setCue(nextCue);
         setAnnounced(nextCue.message);
       }
@@ -517,8 +599,7 @@ export default function CameraCapture({
       cancelled = true;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cue is read for change-detection only; re-subscribing per cue change would restart the whole loop.
-  }, [state.kind, paperSize, captureNow]);
+  }, [state.kind, paperSize, captureNow, hand]);
 
   if (state.kind === "primer") {
     return (
@@ -617,19 +698,35 @@ export default function CameraCapture({
 
   return (
     <div className="cameraViewfinder">
-      <div className="cameraTopBar">
-        <button
-          type="button"
-          className="cameraCloseButton"
-          aria-label="Close camera, back to Scan"
-          onClick={() => {
-            stopStream();
-            onExit();
-          }}
-        >
-          ×
-        </button>
-        <span className="cameraStepPill">Step 2 of 2 · Photo</span>
+      <div className="cameraTopGradient">
+        <div className="cameraTopBar">
+          <button
+            type="button"
+            className="cameraCloseButton"
+            aria-label="Close camera, back to Scan"
+            onClick={() => {
+              stopStream();
+              onExit();
+            }}
+          >
+            ×
+          </button>
+          <span className="cameraStepPill">Step 2 of 2 · Photo</span>
+        </div>
+
+        {showViewfinder && chips && (
+          <div className="cameraChips" aria-hidden="true">
+            <span className={`cameraChip${chips.paper.pass ? " pass" : ""}`}>
+              {chips.paper.label}
+            </span>
+            <span className={`cameraChip${chips.steady.pass ? " pass" : ""}`}>
+              {chips.steady.label}
+            </span>
+            <span className={`cameraChip${chips.light.pass ? " pass" : ""}`}>
+              {chips.light.label}
+            </span>
+          </div>
+        )}
       </div>
 
       {state.kind === "streamEnded" && (
@@ -655,80 +752,54 @@ export default function CameraCapture({
             autoPlay
           />
           <div className="cameraOverlay">
-            {displayQuad && (
+            {displayCorners && (
               <>
-                <Bracket point={displayQuad.topLeft} found={foundQuad} />
-                <Bracket point={displayQuad.topRight} found={foundQuad} />
-                <Bracket point={displayQuad.bottomRight} found={foundQuad} />
-                <Bracket point={displayQuad.bottomLeft} found={foundQuad} />
-                {foundQuad && (
-                  <div
-                    className="cameraHandGhost"
-                    style={{
-                      left: displayQuad.topLeft.x,
-                      top:
-                        (displayQuad.topLeft.y + displayQuad.bottomLeft.y) / 2,
-                      width: displayQuad.topRight.x - displayQuad.topLeft.x,
-                      height:
-                        (displayQuad.bottomLeft.y - displayQuad.topLeft.y) / 2,
-                      transform: hand === "left" ? "scaleX(-1)" : undefined,
-                    }}
-                  >
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <ellipse cx="55" cy="60" rx="22" ry="34" fill="#fff" />
-                      <ellipse cx="28" cy="70" rx="12" ry="18" fill="#fff" />
-                    </svg>
-                  </div>
-                )}
+                <Bracket point={displayCorners[0]} found={foundPerCorner[0]} />
+                <Bracket point={displayCorners[1]} found={foundPerCorner[1]} />
+                <Bracket point={displayCorners[2]} found={foundPerCorner[2]} />
+                <Bracket point={displayCorners[3]} found={foundPerCorner[3]} />
               </>
+            )}
+            {handGhostD && (
+              <svg className="cameraHandGhostSvg" aria-hidden="true">
+                <path className="cameraHandGhostPath" d={handGhostD} />
+              </svg>
             )}
           </div>
 
-          {chips && (
-            <div className="cameraChips" aria-hidden="true">
-              <span className={`cameraChip${chips.paper.pass ? " pass" : ""}`}>
-                {chips.paper.label}
-              </span>
-              <span className={`cameraChip${chips.steady.pass ? " pass" : ""}`}>
-                {chips.steady.label}
-              </span>
-              <span className={`cameraChip${chips.light.pass ? " pass" : ""}`}>
-                {chips.light.label}
-              </span>
+          <div className="cameraBottomGradient">
+            <div className="cameraCueWrap">
+              <div
+                className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
+                aria-live="polite"
+                data-testid="camera-cue"
+              >
+                {cue?.message ?? "Point the camera at the paper"}
+              </div>
             </div>
-          )}
+            <p className="visuallyHiddenLive" aria-live="polite">
+              {announced}
+            </p>
 
-          <div className="cameraCueWrap">
-            <div
-              className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
-              aria-live="polite"
-              data-testid="camera-cue"
-            >
-              {cue?.message ?? "Point the camera at the paper"}
+            <div className="cameraShutterRow">
+              <button
+                type="button"
+                className="cameraShutter"
+                aria-label="Take photo"
+                onClick={() => void captureNow()}
+              >
+                <div className="cameraShutterInner" />
+                <svg className="cameraShutterRing" viewBox="0 0 72 72">
+                  <circle
+                    cx="36"
+                    cy="36"
+                    r={RING_RADIUS}
+                    strokeDasharray={RING_CIRCUMFERENCE}
+                    strokeDashoffset={RING_CIRCUMFERENCE * (1 - ringFraction)}
+                  />
+                </svg>
+              </button>
             </div>
-          </div>
-          <p className="visuallyHiddenLive" aria-live="polite">
-            {announced}
-          </p>
-
-          <div className="cameraShutterRow">
-            <button
-              type="button"
-              className="cameraShutter"
-              aria-label="Take photo"
-              onClick={() => void captureNow()}
-            >
-              <div className="cameraShutterInner" />
-              <svg className="cameraShutterRing" viewBox="0 0 72 72">
-                <circle
-                  cx="36"
-                  cy="36"
-                  r={RING_RADIUS}
-                  strokeDasharray={RING_CIRCUMFERENCE}
-                  strokeDashoffset={RING_CIRCUMFERENCE * (1 - ringFraction)}
-                />
-              </svg>
-            </button>
           </div>
 
           {flashKey > 0 && <div key={flashKey} className="cameraFlash" />}

@@ -5,6 +5,8 @@ import {
   computeQuadWidthFraction,
   computeQuadSizeStatus,
   computeContainRect,
+  computeCoverRect,
+  bilinearPointInQuad,
   mapMediaPointToContainer,
   buildTrackedQuad,
   type Quad,
@@ -154,6 +156,76 @@ describe("buildTrackedQuad", () => {
 
   it("returns null with no markers at all", () => {
     expect(buildTrackedQuad([])).toBeNull();
+  });
+});
+
+describe("computeCoverRect", () => {
+  it("crops the sides of a wider-than-container media (matches container height)", () => {
+    // Container is a 100x200 portrait box; media is 16:9 landscape.
+    const rect = computeCoverRect(100, 200, 1600, 900);
+    expect(rect.height).toBeCloseTo(200, 5);
+    expect(rect.width).toBeCloseTo(355.56, 1);
+    expect(rect.y).toBeCloseTo(0, 5);
+    expect(rect.x).toBeCloseTo((100 - 355.56) / 2, 1); // negative: cropped
+  });
+
+  it("crops the top/bottom of a taller-than-container media (matches container width)", () => {
+    // Container is a 400x200 landscape box; media is 9:16 portrait.
+    const rect = computeCoverRect(400, 200, 900, 1600);
+    expect(rect.width).toBeCloseTo(400, 5);
+    expect(rect.height).toBeCloseTo(711.11, 1);
+    expect(rect.x).toBeCloseTo(0, 5);
+    expect(rect.y).toBeCloseTo((200 - 711.11) / 2, 1); // negative: cropped
+  });
+
+  it("fills exactly when aspect ratios match", () => {
+    const rect = computeCoverRect(200, 100, 800, 400);
+    expect(rect).toEqual({ x: 0, y: 0, width: 200, height: 100 });
+  });
+
+  it("throws for non-positive dimensions", () => {
+    expect(() => computeCoverRect(0, 100, 800, 400)).toThrow(RangeError);
+  });
+
+  it("is the mirror image of computeContainRect (whichever axis contain shrinks, cover grows, and vice versa)", () => {
+    const contain = computeContainRect(100, 200, 1600, 900);
+    const cover = computeCoverRect(100, 200, 1600, 900);
+    expect(cover.height).toBeCloseTo(contain.width > 0 ? 200 : 0, 5);
+    expect(contain.width).toBeCloseTo(100, 5); // contain: fits width
+    expect(cover.width).toBeGreaterThan(contain.width); // cover: overflows width
+  });
+});
+
+describe("bilinearPointInQuad", () => {
+  it("maps the four corners exactly", () => {
+    expect(bilinearPointInQuad(0, 0, SQUARE)).toEqual(SQUARE.topLeft);
+    expect(bilinearPointInQuad(1, 0, SQUARE)).toEqual(SQUARE.topRight);
+    expect(bilinearPointInQuad(1, 1, SQUARE)).toEqual(SQUARE.bottomRight);
+    expect(bilinearPointInQuad(0, 1, SQUARE)).toEqual(SQUARE.bottomLeft);
+  });
+
+  it("maps the centre to the quad's centroid for a square", () => {
+    const centre = bilinearPointInQuad(0.5, 0.5, SQUARE);
+    expect(centre.x).toBeCloseTo(50, 5);
+    expect(centre.y).toBeCloseTo(50, 5);
+  });
+
+  it("interpolates along the top edge linearly", () => {
+    const p = bilinearPointInQuad(0.25, 0, SQUARE);
+    expect(p).toEqual({ x: 25, y: 0 });
+  });
+
+  it("follows a non-square (trapezoidal) quad's own geometry", () => {
+    const trapezoid: Quad = {
+      topLeft: { x: 20, y: 0 },
+      topRight: { x: 80, y: 0 },
+      bottomRight: { x: 100, y: 100 },
+      bottomLeft: { x: 0, y: 100 },
+    };
+    // Bottom edge midpoint.
+    expect(bilinearPointInQuad(0.5, 1, trapezoid)).toEqual({ x: 50, y: 100 });
+    // Top edge midpoint.
+    expect(bilinearPointInQuad(0.5, 0, trapezoid)).toEqual({ x: 50, y: 0 });
   });
 });
 

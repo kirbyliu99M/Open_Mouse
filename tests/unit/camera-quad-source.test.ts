@@ -22,18 +22,20 @@ function marker(id: number, cx: number, cy: number): DetectedMarker {
 }
 
 describe("createMarkerBasedQuadSource", () => {
-  it("reports cornersSeen 0 and null corners when nothing is detected", () => {
+  it("reports cornersSeen 0, all-false cornersFound and null corners when nothing is detected", () => {
     const source = createMarkerBasedQuadSource(() => []);
     const result = source(FAKE_FRAME, "a4");
     expect(result).toEqual({
       corners: null,
       cornersSeen: 0,
+      cornersFound: [false, false, false, false],
+      partialCorners: [null, null, null, null],
       minSideCoverage: 0,
       edgeFitResidualPx: 0,
     });
   });
 
-  it("reports a partial corner count without a quad", () => {
+  it("reports a partial corner count without a quad, and locks on the specific corners found (TL, TR)", () => {
     const source = createMarkerBasedQuadSource(() => [
       marker(0, 0, 0),
       marker(1, 100, 0),
@@ -41,6 +43,28 @@ describe("createMarkerBasedQuadSource", () => {
     const result = source(FAKE_FRAME, "a4");
     expect(result.cornersSeen).toBe(2);
     expect(result.corners).toBeNull();
+    expect(result.cornersFound).toEqual([true, true, false, false]);
+    expect(result.partialCorners).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      null,
+      null,
+    ]);
+  });
+
+  it("locks on non-adjacent corners too (TL, BR)", () => {
+    const source = createMarkerBasedQuadSource(() => [
+      marker(0, 0, 0),
+      marker(2, 100, 100),
+    ]);
+    const result = source(FAKE_FRAME, "a4");
+    expect(result.cornersFound).toEqual([true, false, true, false]);
+    expect(result.partialCorners).toEqual([
+      { x: 0, y: 0 },
+      null,
+      { x: 100, y: 100 },
+      null,
+    ]);
   });
 
   it("ignores upright-flap marker ids (4, 5) when counting", () => {
@@ -52,6 +76,7 @@ describe("createMarkerBasedQuadSource", () => {
     ]);
     const result = source(FAKE_FRAME, "a4");
     expect(result.cornersSeen).toBe(2);
+    expect(result.cornersFound).toEqual([true, true, false, false]);
   });
 
   it("deduplicates a repeated id rather than counting it twice", () => {
@@ -73,7 +98,14 @@ describe("createMarkerBasedQuadSource", () => {
     ]);
     const result = source(FAKE_FRAME, "a4");
     expect(result.cornersSeen).toBe(4);
+    expect(result.cornersFound).toEqual([true, true, true, true]);
     expect(result.corners).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 100 },
+    ]);
+    expect(result.partialCorners).toEqual([
       { x: 0, y: 0 },
       { x: 100, y: 0 },
       { x: 100, y: 100 },
