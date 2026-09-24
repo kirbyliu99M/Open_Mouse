@@ -17,7 +17,10 @@
 export type PaperSize = "a4" | "letter";
 
 /** Mirrors PAPER_SIZES_MM from the same not-yet-merged contract. */
-export const PAPER_SIZES_MM: Record<PaperSize, { width: number; height: number }> = {
+export const PAPER_SIZES_MM: Record<
+  PaperSize,
+  { width: number; height: number }
+> = {
   a4: { width: 210, height: 297 },
   letter: { width: 215.9, height: 279.4 },
 };

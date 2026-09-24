@@ -15,7 +15,10 @@ function dist(a: Point, b: Point): number {
  * Largest single-corner movement between two consecutive quads, in the
  * same units as the quads' own coordinates.
  */
-export function computeMaxCornerMovement(previous: Quad, current: Quad): number {
+export function computeMaxCornerMovement(
+  previous: Quad,
+  current: Quad,
+): number {
   return Math.max(
     dist(previous.topLeft, current.topLeft),
     dist(previous.topRight, current.topRight),

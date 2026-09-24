@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createMarkerBasedQuadSource } from "../../src/client/camera/quad-source";
 import type { DetectedMarker } from "../../src/client/photo/markers";
 
-const FAKE_FRAME = { width: 640, height: 480, data: new Uint8ClampedArray(0) };
+const FAKE_FRAME: ImageData = {
+  width: 640,
+  height: 480,
+  data: new Uint8ClampedArray(0),
+  colorSpace: "srgb",
+};
 
 function marker(id: number, cx: number, cy: number): DetectedMarker {
   return {

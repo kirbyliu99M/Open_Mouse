@@ -1,0 +1,426 @@
+/*
+ * Live camera capture (docs/design/camera-capture-2026-09-25/README.md).
+ * Tokens matched to the shared journey palette (docs/design/
+ * journey-2026-09-23/README.md) so this reads as the same product, but the
+ * live viewfinder itself is dark full-bleed (a real camera viewfinder,
+ * legible white UI) rather than the light `--scan-bg` the rest of /scan
+ * uses.
+ */
+
+.cameraPrimer {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: var(--scan-status-bg, #eef2f7);
+  border: 1px solid var(--scan-border, #d5d5dc);
+}
+
+.cameraPrimerRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 44px;
+  margin-bottom: 1rem;
+}
+.cameraPrimerRow:last-of-type {
+  margin-bottom: 1.25rem;
+}
+.cameraPrimerBadge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+.cameraPrimerText {
+  margin: 0;
+  line-height: 1.5;
+  padding-top: 0.25rem;
+}
+
+.cameraPaperToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--scan-muted, #55555d);
+}
+.cameraPaperToggleButtons {
+  display: inline-flex;
+  gap: 0.375rem;
+}
+.cameraPaperToggleButton {
+  min-height: 36px;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--scan-border, #d5d5dc);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--scan-fg, #1c1c1e);
+  font: inherit;
+  cursor: pointer;
+}
+.cameraPaperToggleButton.selected {
+  background: var(--scan-accent, #0a64e0);
+  border-color: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+}
+
+.cameraNotice {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--scan-muted, #55555d);
+  text-align: center;
+}
+
+.cameraErrorCard {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: var(--scan-warning-bg, #fff6e0);
+  border: 1px solid var(--scan-warning-fg, #7a5300);
+  color: var(--scan-fg, #1c1c1e);
+  line-height: 1.5;
+}
+.cameraErrorCard p {
+  margin: 0 0 0.75rem;
+}
+.cameraErrorCard ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+/* Full-screen viewfinder overlay — dark, always on top. */
+.cameraViewfinder {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cameraStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #050505;
+}
+
+.cameraVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cameraOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cameraTopBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  z-index: 2;
+}
+
+.cameraCloseButton {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.cameraStepPill {
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.cameraBracket {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  margin-top: -17px;
+  transition:
+    left 160ms ease,
+    top 160ms ease;
+}
+.cameraBracket svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
+}
+.cameraBracket .bracketMark {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.cameraBracket.found .bracketMark {
+  stroke: #35d16f;
+}
+.cameraBracket.found .bracketCheck {
+  opacity: 1;
+}
+.cameraBracket .bracketCheck {
+  opacity: 0;
+  fill: #35d16f;
+}
+
+.cameraHandGhost {
+  position: absolute;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.cameraChips {
+  position: absolute;
+  top: 3.25rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 2;
+  flex-wrap: wrap;
+  padding: 0 1rem;
+}
+
+.cameraChip {
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  color: #fff;
+}
+.cameraChip.pass {
+  border-color: #35d16f;
+  background: rgba(53, 209, 111, 0.28);
+}
+
+.cameraCueWrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6.5rem;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  z-index: 2;
+}
+.cameraCue {
+  padding: 0.625rem 1.125rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-align: center;
+}
+.cameraCue.perfect {
+  background: rgba(53, 209, 111, 0.9);
+  color: #06210f;
+}
+
+.cameraShutterRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+}
+
+.cameraShutter {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.cameraShutterInner {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+.cameraShutterRing {
+  position: absolute;
+  inset: 0;
+}
+.cameraShutterRing circle {
+  fill: none;
+  stroke: #35d16f;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 120ms linear;
+}
+
+.cameraFlash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  animation: cameraFlashPulse 260ms ease-out;
+}
+@keyframes cameraFlashPulse {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.cameraReview {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+.cameraReviewStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.cameraReviewImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cameraReviewSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.overlayPaper {
+  fill: none;
+  stroke: #35d16f;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.cameraReviewActions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.85);
+}
+.cameraReviewActions button {
+  flex: 1;
+  min-height: 3rem;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cameraUsePhoto {
+  border: none;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+}
+.cameraRetake {
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  background: transparent;
+  color: #fff;
+}
+
+.cameraResumeCard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+  padding: 1.5rem;
+}
+.cameraResumeButton {
+  min-height: 3rem;
+  padding: 0 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.visuallyHiddenLive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cameraBracket {
+    transition: none;
+  }
+  .cameraFlash {
+    animation: none;
+    display: none;
+  }
+  .cameraShutterRing circle {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .cameraChip,
+  .cameraCue,
+  .cameraStepPill,
+  .cameraCloseButton {
+    border: 2px solid #fff;
+  }
+}

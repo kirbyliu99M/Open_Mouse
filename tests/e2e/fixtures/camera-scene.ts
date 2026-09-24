@@ -116,12 +116,18 @@ export async function buildCameraScenePng(
         u: number,
         v: number,
       ) {
-        const top = { x: tl.x + (tr.x - tl.x) * u, y: tl.y + (tr.y - tl.y) * u };
+        const top = {
+          x: tl.x + (tr.x - tl.x) * u,
+          y: tl.y + (tr.y - tl.y) * u,
+        };
         const bottom = {
           x: bl.x + (br.x - bl.x) * u,
           y: bl.y + (br.y - bl.y) * u,
         };
-        return { x: top.x + (bottom.x - top.x) * v, y: top.y + (bottom.y - top.y) * v };
+        return {
+          x: top.x + (bottom.x - top.x) * v,
+          y: top.y + (bottom.y - top.y) * v,
+        };
       }
 
       for (const marker of scene.markers) {

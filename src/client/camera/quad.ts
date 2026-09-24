@@ -110,7 +110,10 @@ export type QuadSizeStatus = "too-far" | "too-close" | "ok";
 /** "Move closer" / "Move back a little" / neither, from the quad's width fraction. */
 export function computeQuadSizeStatus(
   widthFraction: number,
-  thresholds: { minWidthFraction: number; maxWidthFraction: number } = CAMERA_CONSTANTS.size,
+  thresholds: {
+    minWidthFraction: number;
+    maxWidthFraction: number;
+  } = CAMERA_CONSTANTS.size,
 ): QuadSizeStatus {
   if (widthFraction < thresholds.minWidthFraction) return "too-far";
   if (widthFraction > thresholds.maxWidthFraction) return "too-close";
@@ -164,10 +167,10 @@ export function computeContainRect(
 }
 
 function centroid(corners: readonly Point[]): Point {
-  const sum = corners.reduce(
-    (acc, c) => ({ x: acc.x + c.x, y: acc.y + c.y }),
-    { x: 0, y: 0 },
-  );
+  const sum = corners.reduce((acc, c) => ({ x: acc.x + c.x, y: acc.y + c.y }), {
+    x: 0,
+    y: 0,
+  });
   return { x: sum.x / corners.length, y: sum.y / corners.length };
 }
 
@@ -183,7 +186,9 @@ export interface TrackedMarker {
  * which corner. Returns `null` unless all four ids 0-3 are present exactly
  * once, matching `buildMarkerCorrespondences` in src/client/photo/markers.ts.
  */
-export function buildTrackedQuad(markers: readonly TrackedMarker[]): Quad | null {
+export function buildTrackedQuad(
+  markers: readonly TrackedMarker[],
+): Quad | null {
   const [tlId, trId, brId, blId] = SHEET.flatMarkerIds;
   const byId = new Map(markers.map((m) => [m.id, m]));
   const tl = byId.get(tlId);
@@ -200,7 +205,12 @@ export function buildTrackedQuad(markers: readonly TrackedMarker[]): Quad | null
 }
 
 /** Maps a point in media-native pixel space into the container's coordinate space, given the contain rect. */
-export function mapMediaPointToContainer(point: Point, containRect: Rect, mediaWidth: number, mediaHeight: number): Point {
+export function mapMediaPointToContainer(
+  point: Point,
+  containRect: Rect,
+  mediaWidth: number,
+  mediaHeight: number,
+): Point {
   return {
     x: containRect.x + (point.x / mediaWidth) * containRect.width,
     y: containRect.y + (point.y / mediaHeight) * containRect.height,

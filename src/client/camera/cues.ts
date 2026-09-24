@@ -9,7 +9,13 @@
  * rather than only exercised incidentally through the component.
  */
 import { CAMERA_CONSTANTS } from "./constants";
-import { computeQuadSkew, isQuadSkewed, computeQuadWidthFraction, computeQuadSizeStatus, type Quad } from "./quad";
+import {
+  computeQuadSkew,
+  isQuadSkewed,
+  computeQuadWidthFraction,
+  computeQuadSizeStatus,
+  type Quad,
+} from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
 
 export type CueCode =
