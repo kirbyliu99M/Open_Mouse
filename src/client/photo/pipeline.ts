@@ -7,19 +7,28 @@
  * rather than Vitest.
  */
 import { computeSheetLayout } from "../sheet/layout";
-import { SHEET } from "../../lib/contracts/measurement";
+import {
+  SHEET,
+  PAPER_SIZES_MM,
+  type PaperSize,
+} from "../../lib/contracts/measurement";
 import {
   estimateHomography,
   reprojectionErrorMm as computeReprojectionErrorMm,
   applyHomography,
   type Point2,
 } from "../geometry/homography";
-import { computeHandMeasurements } from "../geometry/measurements";
+import {
+  computeHandMeasurements,
+  computeCorrectedHandMeasurements,
+} from "../geometry/measurements";
 import {
   computeCardScaleRatio,
   type CardCorners,
 } from "../geometry/card-scale";
+import { estimateFocalFromExif } from "../geometry/exif-focal";
 import { decodePhoto, PhotoDecodeError, HEIC_RETAKE_MESSAGE } from "./decode";
+import type { DecodedPhoto } from "./decode";
 import {
   detectMarkers,
   buildMarkerCorrespondences,
@@ -28,8 +37,24 @@ import {
 import { detectCardCorners } from "./card";
 import { detectHandLandmarks } from "./landmarks";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
-import { runPhotoGates, checkMarkers, type GateFailure } from "./gates";
-import { assembleScanSubmission } from "./submission";
+import {
+  runPhotoGates,
+  runPaperEdgeGates,
+  checkMarkers,
+  checkPaperFound,
+  checkPaperCornersSeen,
+  type GateFailure,
+} from "./gates";
+import {
+  assembleScanSubmission,
+  assemblePaperEdgeSubmission,
+} from "./submission";
+import { detectPaperQuad } from "../paper/detect";
+import {
+  buildPaperHomography,
+  localScaleMmPerPx,
+  quadCentroid,
+} from "../paper/homography";
 import type {
   HandMeasurements,
   ScanSubmission,
@@ -66,12 +91,26 @@ export type PipelineResult =
       readonly overlay: PhotoOverlay;
     };
 
+/**
+ * Which calibration reference this photo uses. Omitted (or explicitly
+ * `"printed-sheet"`) keeps today's behaviour byte-for-byte — the ArUco
+ * flat-flap sheet + bank-card cross-check. `"paper-edge"` (2026-09-25
+ * decision, see `src/lib/contracts/measurement.ts`) measures against ANY
+ * blank sheet of the given size, found from its own edges
+ * (`src/client/paper/detect.ts`) — no printing, no card.
+ */
+export type CalibrationInput =
+  | { readonly method: "printed-sheet" }
+  | { readonly method: "paper-edge"; readonly paperSize: PaperSize };
+
 export interface RunPhotoPipelineInput {
   readonly file: File;
   readonly hand: "left" | "right";
   readonly gripStyleStated?: "palm" | "claw" | "fingertip";
-  /** A user-dragged correction/override for the card's 4 corners. */
+  /** A user-dragged correction/override for the card's 4 corners. Printed-sheet only. */
   readonly manualCardCorners?: CardCorners;
+  /** Defaults to `{ method: "printed-sheet" }` — every existing caller keeps working unchanged. */
+  readonly calibration?: CalibrationInput;
 }
 
 function emptyOverlay(width: number, height: number): PhotoOverlay {
@@ -114,6 +153,11 @@ export async function runPhotoPipeline(
       errors: [{ code: "DECODE_FAILED", message }],
       overlay: emptyOverlay(0, 0),
     };
+  }
+
+  const calibration = input.calibration ?? { method: "printed-sheet" };
+  if (calibration.method === "paper-edge") {
+    return runPaperEdgePipeline(decoded, input, calibration.paperSize);
   }
 
   const { bitmap, width, height } = decoded;
@@ -248,6 +292,158 @@ export async function runPhotoPipeline(
   return {
     status: "ok",
     measurements,
+    submission,
+    warnings: report.warnings,
+    overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+  };
+}
+
+/**
+ * The plain-paper counterpart to the printed-sheet flow above: no ArUco
+ * markers, no bank-card cross-check. `detectPaperQuad` finds the sheet's
+ * own 4 corners; those become the homography directly. Reuses the
+ * corrected (parallax-aware) measurement path — `computeCorrectedHandMeasurements`
+ * — rather than the uncorrected one the printed-sheet flow still uses, so
+ * `parallaxCorrected` in the submitted calibration reflects whether it
+ * actually ran, instead of the printed-sheet builder's hardcoded `false`.
+ * Never returns `"needsManualCard"` — there is no card in this flow.
+ */
+async function runPaperEdgePipeline(
+  decoded: DecodedPhoto,
+  input: RunPhotoPipelineInput,
+  paperSize: PaperSize,
+): Promise<PipelineResult> {
+  const { bitmap, width, height } = decoded;
+  const imageData = getImageData(bitmap, width, height);
+
+  const quad = detectPaperQuad(imageData, paperSize);
+  const overlayBase = {
+    imageWidth: width,
+    imageHeight: height,
+    markers: [] as DetectedMarker[],
+    card: null,
+  };
+
+  if (!quad.corners) {
+    const failure = checkPaperFound(quad.cornersSeen) ??
+      checkPaperCornersSeen(quad.cornersSeen) ?? {
+        code: "PAPER_NOT_FOUND" as const,
+        message:
+          "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
+      };
+    return {
+      status: "error",
+      errors: [failure],
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+
+  const homography = buildPaperHomography(quad.corners, paperSize);
+  const scaleMmPerPx = localScaleMmPerPx(
+    homography,
+    quadCentroid(quad.corners),
+  );
+  const edgeFitResidualMm = quad.edgeFitResidualPx * scaleMmPerPx;
+
+  const hand = await detectHandLandmarks(bitmap);
+  if (!hand) {
+    return {
+      status: "error",
+      errors: [
+        {
+          code: "HAND_NOT_DETECTED",
+          message:
+            "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+        },
+      ],
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+
+  const landmarksMm = hand.landmarksPx.map((p) =>
+    applyHomography(homography, p),
+  );
+  const { width: paperWidthMm, height: paperHeightMm } =
+    PAPER_SIZES_MM[paperSize];
+  const paperCornersMm: Point2[] = [
+    { x: 0, y: 0 },
+    { x: paperWidthMm, y: 0 },
+    { x: paperWidthMm, y: paperHeightMm },
+    { x: 0, y: paperHeightMm },
+  ];
+
+  const gray = rgbaToGrayscale(imageData.data, width * height);
+  const laplacianVariance = computeLaplacianVariance(gray, width, height);
+
+  const report = runPaperEdgeGates({
+    cornersSeen: quad.cornersSeen,
+    minSideCoverage: quad.minSideCoverage,
+    edgeFitResidualMm,
+    landmarkCount: hand.landmarksPx.length,
+    handedness: hand.handedness,
+    handStated: input.hand,
+    landmarkConfidence: hand.confidence,
+    landmarksMm,
+    paperCornersMm,
+    laplacianVariance,
+  });
+
+  if (!report.ok) {
+    return {
+      status: "error",
+      errors: report.errors,
+      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    };
+  }
+
+  let exifFocalPx: number | null = null;
+  try {
+    const jpegBytes = new Uint8Array(await input.file.arrayBuffer());
+    exifFocalPx =
+      estimateFocalFromExif(jpegBytes, {
+        widthPx: width,
+        heightPx: height,
+      })?.fPx ?? null;
+  } catch {
+    // A malformed/unreadable EXIF block must not fail the scan — it just
+    // means no parallax correction (same as no EXIF at all).
+    exifFocalPx = null;
+  }
+
+  let corrected;
+  try {
+    corrected = computeCorrectedHandMeasurements(hand.landmarksPx, homography, {
+      exifFocalPx,
+      widthPx: width,
+      heightPx: height,
+    });
+  } catch {
+    return {
+      status: "error",
+      errors: [
+        {
+          code: "MEASUREMENT_OUT_OF_RANGE",
+          message:
+            "These measurements look implausible — retake with your whole hand flat on the sheet and the camera directly overhead.",
+        },
+      ],
+      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    };
+  }
+
+  const submission = assemblePaperEdgeSubmission({
+    hand: input.hand,
+    gripStyleStated: input.gripStyleStated,
+    measurements: corrected.measurements,
+    paperSize,
+    edgeFitResidualMm,
+    minSideCoverage: quad.minSideCoverage,
+    parallaxCorrected: corrected.parallaxCorrected,
+  });
+
+  return {
+    status: "ok",
+    measurements: corrected.measurements,
     submission,
     warnings: report.warnings,
     overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },

@@ -33,8 +33,9 @@ export interface ScanInsertInput {
   hand: ScanSubmission["hand"];
   gripStyleStated: ScanSubmission["gripStyleStated"] | null;
   measurements: HandMeasurements;
-  /** `calibration.cardScaleRatio` — sheet-vs-card scale agreement. */
-  scaleCheckRatio: number;
+  /** `calibration.cardScaleRatio` — sheet-vs-card scale agreement; null
+   * for a plain-paper scan, which has no card. */
+  scaleCheckRatio: number | null;
 }
 
 /**

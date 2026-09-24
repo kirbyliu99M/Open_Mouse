@@ -165,6 +165,27 @@ describe("POST /api/scans — valid submission", () => {
     );
   });
 
+  it("stores a null scale check for a plain-paper scan, which has no card", async () => {
+    const { repo } = createFakeRepo();
+    const res = await handleScanSubmission(
+      scanRequest({
+        ...validSubmission,
+        calibration: {
+          method: "paper-edge",
+          paperSize: "a4",
+          edgeFitResidualMm: 0.6,
+          minSideCoverage: 0.72,
+          parallaxCorrected: true,
+        },
+      }),
+      { repo },
+    );
+    expect(res.status).toBe(201);
+    expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
+      expect.objectContaining({ scaleCheckRatio: null }),
+    );
+  });
+
   it("creates a session cookie on first call and reuses it afterwards", async () => {
     const { repo } = createFakeRepo();
 
