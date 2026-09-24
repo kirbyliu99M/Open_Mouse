@@ -81,11 +81,11 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
-      <h3 className="results-analysis-heading">Why this one</h3>
+      <h2 className="results-analysis-heading">Why this one</h2>
       <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
-          <h4>Tradeoffs</h4>
+          <h3>Tradeoffs</h3>
           <ul>
             {output.tradeoffs.map((t) => (
               <li key={t}>{t}</li>
@@ -95,7 +95,7 @@ export function AnalysisSlot({
       )}
       {output.whatToAvoid.length > 0 && (
         <div>
-          <h4>What to avoid</h4>
+          <h3>What to avoid</h3>
           <ul>
             {output.whatToAvoid.map((t) => (
               <li key={t}>{t}</li>

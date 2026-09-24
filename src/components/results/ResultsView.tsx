@@ -29,9 +29,12 @@ export function ResultsView({
       />
       <h1>Your best match</h1>
       <TopPick response={response} />
+      {/* "Why this one" sits directly after the top pick and before "Show
+          the other N ranked mice" (item 5) — docs/design/journey-2026-09-23/
+          04-results.png. */}
+      <AnalysisSlot state={analysisState} onRetry={onRetryAnalysis} />
       <RankedList response={response} />
       <ExcludedList response={response} />
-      <AnalysisSlot state={analysisState} onRetry={onRetryAnalysis} />
     </div>
   );
 }

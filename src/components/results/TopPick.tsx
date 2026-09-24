@@ -31,9 +31,9 @@ export function TopPick({ response }: { response: FitResponse }) {
           <p className="results-topPick-eyebrow">
             #{entry.rank} &middot; {mouse.brand}
           </p>
-          <h3 id="results-topPick-name" className="results-topPick-name">
+          <h2 id="results-topPick-name" className="results-topPick-name">
             {mouse.model}
-          </h3>
+          </h2>
         </div>
         <div className="results-topPick-score results-tabularNum">
           <span className="results-topPick-scoreValue">{entry.total}</span>
@@ -43,7 +43,7 @@ export function TopPick({ response }: { response: FitResponse }) {
 
       {!shapeUnrated && <ConfidenceNote confidence={entry.confidence} />}
 
-      <h4 className="results-topPick-scoresHeading">How it scores</h4>
+      <h2 className="results-topPick-scoresHeading">How it scores</h2>
       <div className="results-subscoreGrid">
         {SUBSCORES.map((key) => (
           <SubscoreBar key={key} subscore={key} data={entry.subscores[key]} />

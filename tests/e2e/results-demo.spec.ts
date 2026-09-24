@@ -77,14 +77,15 @@ test.describe("/results/demo", () => {
     const response = await page.goto("/results/demo");
     expect(response?.status()).toBe(200);
     await expect(page).toHaveTitle(/Results \(mock data\)/);
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Results (mock data)" }),
-    ).toBeVisible();
+    // The dev-controls label is styled like a heading but isn't one —
+    // ResultsView below supplies the page's one real h1 (item 5).
+    await expect(page.getByText("Results (mock data)")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 
     // High confidence (default): top pick visible with its scores heading,
     // and no "not yet assessed" placeholder for the top pick.
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
     await expect(page.getByText("How it scores")).toBeVisible();
 
@@ -93,7 +94,7 @@ test.describe("/results/demo", () => {
     // one honest statement, not two (item 2).
     await page.getByRole("button", { name: "Low confidence (nulls)" }).click();
     await expect(
-      page.getByRole("heading", { level: 3, name: /MX Master 3S/ }),
+      page.getByRole("heading", { level: 2, name: /MX Master 3S/ }),
     ).toBeVisible();
     await expect(page.locator(".results-sizeNotice")).toContainText(
       "leans on its size",
@@ -105,7 +106,7 @@ test.describe("/results/demo", () => {
     // With exclusions: the "Not shown" group lists the excluded mice.
     await page.getByRole("button", { name: "With exclusions" }).click();
     await expect(
-      page.getByRole("heading", { level: 3, name: /Xlite V3 Mini/ }),
+      page.getByRole("heading", { level: 2, name: /Xlite V3 Mini/ }),
     ).toBeVisible();
     const excludedToggle = page.getByRole("button", { name: /Not shown/ });
     await expect(excludedToggle).toBeVisible();
@@ -162,15 +163,77 @@ test.describe("/results/demo", () => {
     ).toContainText(/unaffected/);
     // The numeric top pick is still fully there while the analysis errored.
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Ready", exact: true }).click();
     await expect(
-      page.getByRole("heading", { level: 3, name: "Why this one" }),
+      page.getByRole("heading", { level: 2, name: "Why this one" }),
     ).toBeVisible();
     await expect(
       page.getByText("A close match for your palm grip"),
     ).toBeVisible();
+  });
+
+  test("'Why this one' sits between the top pick and 'Show the other ranked mice' (item 5), with a card surface", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Ready", exact: true }).click();
+
+    const analysisCard = page.locator(".results-analysis");
+    await expect(analysisCard).toBeVisible();
+    // A real card surface, not a bare divider — matches the top-pick card
+    // (item 5).
+    await expect(analysisCard).toHaveCSS(
+      "background-color",
+      "rgb(255, 255, 255)",
+    );
+    await expect(analysisCard).toHaveCSS("border-radius", "16px");
+
+    // DOM order: top pick, then "Why this one", then the ranked-list
+    // disclosure toggle.
+    const order = await page.evaluate(() => {
+      const topPick = document.querySelector(".results-topPick")!;
+      const analysis = document.querySelector(".results-analysis")!;
+      const rankedToggle = document.querySelector(
+        ".results-rankedList-toggle",
+      )!;
+      const DOCUMENT_POSITION_FOLLOWING = 4;
+      const topPickBeforeAnalysis = Boolean(
+        topPick.compareDocumentPosition(analysis) & DOCUMENT_POSITION_FOLLOWING,
+      );
+      const analysisBeforeToggle = Boolean(
+        analysis.compareDocumentPosition(rankedToggle) &
+        DOCUMENT_POSITION_FOLLOWING,
+      );
+      return { topPickBeforeAnalysis, analysisBeforeToggle };
+    });
+    expect(order.topPickBeforeAnalysis).toBe(true);
+    expect(order.analysisBeforeToggle).toBe(true);
+  });
+
+  test("heading levels never skip: h1, then h2s for the top pick and 'Why this one', no h3 before an h2", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Ready", exact: true }).click();
+
+    const levels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).map(
+        (el) => Number(el.tagName[1]),
+      ),
+    );
+    expect(levels[0]).toBe(1);
+    expect(levels.filter((l) => l === 1)).toHaveLength(1);
+
+    // No skipped level anywhere in reading order: the first time a level
+    // appears, the level just above it must already have appeared earlier
+    // in the document (an h3 before any h2 would fail this).
+    const seen = new Set<number>();
+    for (const level of levels) {
+      if (level > 1) expect(seen.has(level - 1)).toBe(true);
+      seen.add(level);
+    }
   });
 });

@@ -144,6 +144,15 @@
   margin-bottom: 2rem;
 }
 
+/* Styled like a heading without being one — ResultsView supplies the
+   page's one real h1 (item 5). */
+.results-demoControls-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .results-demoControls fieldset {
   border: 1px solid #d0d0d5;
   border-radius: 0.75rem;
@@ -532,6 +541,7 @@
 
 @media (prefers-contrast: more) {
   .results-topPick,
+  .results-analysis,
   .results-rankedList-item {
     border-width: 2px;
     border-color: currentColor;
@@ -557,14 +567,14 @@
     color: #b5b5bd;
   }
 
-  .results-topPick {
+  .results-topPick,
+  .results-analysis {
     background: #1c1c1e;
     border-color: #3a3a3d;
   }
 
   .results-rankedList,
-  .results-excludedList,
-  .results-analysis {
+  .results-excludedList {
     border-color: #3a3a3d;
   }
 
@@ -724,10 +734,17 @@
 .results-topPick-scoreLabel {
   color: #55555d;
 }
-.results-analysis,
 .results-rankedList,
 .results-excludedList {
   border: 0;
+}
+/* "Why this one" is its own card (item 5), matching the top-pick card's
+   surface — not a bare divider like the disclosures below it. */
+.results-analysis {
+  border: 0;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  background: #ffffff;
 }
 .results-rankedList-toggle {
   width: 100%;
@@ -796,6 +813,7 @@
 }
 @media (prefers-contrast: more) {
   .results-topPick,
+  .results-analysis,
   .results-rankedList-item,
   .results-rankedList-toggle,
   .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {

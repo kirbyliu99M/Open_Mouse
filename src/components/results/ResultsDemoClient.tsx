@@ -85,7 +85,10 @@ export function ResultsDemoClient({
       {!presentation && (
         <div className="results-demoControls">
           <p className="eyebrow">Open_Mouse — dev/demo route</p>
-          <h1>Results (mock data)</h1>
+          {/* Not a heading: ResultsView below renders the page's one real
+              h1 ("Your best match") — a second h1 here would break the
+              page's heading outline (item 5). */}
+          <p className="results-demoControls-title">Results (mock data)</p>
           <p className="note">
             Renders <code>ResultsView</code> against fixture{" "}
             <code>FitResponse</code> data. No network calls.
