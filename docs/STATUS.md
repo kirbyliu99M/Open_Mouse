@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-24 · by: Claude (orchestrator)_
+_Last updated: 2026-09-25 · by: Claude (orchestrator)_
 
 ---
 
@@ -17,11 +17,15 @@ _Last updated: 2026-09-24 · by: Claude (orchestrator)_
 
 **Gemini is live in production (key added 2026-09-23).** Analysis now returns `source: model` (≈ 2–3 s), with a working DB cache on repeat requests. Adding the key first broke every analysis with a 500 — the API rejected `ThinkingLevel.MINIMAL`, and a failed call escaped `analyse()`; #48 fixed both.
 
-**Open PRs:** #54 contract doc for #53 (reviewed; merge after the production 0005 migration) · #26 M4a Blender assets (Kirby: keep the textures; review pending).
+**Merged 2026-09-24:** #54 contract doc · #55 `/scan` and `/results` match the journey design; audit findings closed · #56 pre-launch hardening (site-wide daily model cap 500 — candidate; per-IP limits on submit/fit; CSP and security headers; hashed rate-limit keys) · #57 contract doc for 429s.
 
-**Production 0005 migration: pending — Kirby runs it** (the agent's attempt was blocked by the permission classifier as a production action). Until then production serves analysis without a cache: reads fail and count as misses, writes are skipped (#53 made the cache best-effort for exactly this deploy order).
+**Production verified 2026-09-25 (`7748c90`):** submit → fit (stated grip honoured) → analysis by Gemini, cached on repeat (0.7 s) → delete → 404; the unmocked live e2e (reload included) passes on Pixel 7; `/`, `/sheet`, `/scan`, `/account`, `/results/demo` load with **zero CSP violations** and no horizontal scroll; CSP, nosniff, Referrer-Policy, Permissions-Policy and HSTS present. **The anonymous flow is operational.**
 
-**In flight:** `/scan` and `/results` adopt the journey design and close the audit findings F02 F04 F06 F09 F10 F11 F12 (branch `m7-ui-scan-results`; started by Codex, which hit its usage limit until 2026-09-28; a Sonnet builder is finishing it).
+**Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
+
+**Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
+
+**In flight:** live camera capture with on-screen cues (Kirby, 2026-09-25; spec `docs/design/camera-capture-2026-09-25/`, branch `m7-camera-capture`, Sonnet builder).
 
 **Queued:** #52 submit after sign-out joins the previous user's claimed session (blocks enabling sign-in, not the anonymous launch) · M1 rubric revision (gate failed, see Gate results) · `/security-review` · #26 review incl. the M4 bbox gate.
 
@@ -204,6 +208,8 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-24 | The cache is best-effort: a read error is a miss, a write error is skipped; deploy code before migrating | The neon-http migrator has no transactions, and code and schema briefly disagree during every deploy. A cache must never turn that into a 500. 0005 is one atomic `DO` block so it can re-run. |
 | 2026-09-24 | The scan-session cookie proves ownership of an **anonymous** session only (`user_id IS NULL`), in the shared find/delete predicate | The #45 review showed a cookie left after sign-out could delete the account's scans. The contract already said ownership follows the user once claimed. |
 | 2026-09-24 | M1 descriptors from the first live run stay out of the seed | Gate failed (flare 72.4%, curvature 25.0%). Rule 4: revise the rubric, not the gate. Shape sub-scores stay "Shape not rated yet" and the UI says the total leans on size. |
+| 2026-09-25 | Production DB env vars stay non-Sensitive in Vercel (known risk, accepted by Kirby) | The Neon integration offers no Sensitive toggle; Hobby project with Kirby as the only member. Password rotated 2026-09-24 after it had been pasted into a conversation. |
+| 2026-09-25 | The camera flow borrows TONALITE's documented principles, not its screens | Public reviews describe its step-by-step flow and QR-sticker fiducials but not the capture UI; our ArUco markers play the stickers' role. |
 ---
 
 ## Risks
