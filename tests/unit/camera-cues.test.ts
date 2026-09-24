@@ -11,36 +11,54 @@ const GOOD_QUAD: Quad = {
 
 function baseInput(overrides: Partial<CueInput> = {}): CueInput {
   return {
-    markerCount: 4,
+    cornersSeen: 4,
     quad: GOOD_QUAD,
     frameWidth: 640,
     meanLuma: 120,
     clippedFraction: 0,
     steady: true,
     sharpEnough: true,
+    msSinceLastDetection: 0,
     ...overrides,
   };
 }
 
 describe("pickCue — priority order", () => {
-  it("1: no markers", () => {
-    expect(pickCue(baseInput({ markerCount: 0, quad: null })).code).toBe(
-      "no-markers",
+  it("1a: no corners, within the place-paper timeout", () => {
+    expect(
+      pickCue(baseInput({ cornersSeen: 0, quad: null, msSinceLastDetection: 500 }))
+        .code,
+    ).toBe("no-corners");
+  });
+
+  it("1b: no corners for longer than the timeout escalates to place-paper", () => {
+    expect(
+      pickCue(
+        baseInput({ cornersSeen: 0, quad: null, msSinceLastDetection: 2001 }),
+      ).code,
+    ).toBe("place-paper");
+  });
+
+  it("1c: exactly at the timeout boundary still reads as no-corners", () => {
+    expect(
+      pickCue(
+        baseInput({ cornersSeen: 0, quad: null, msSinceLastDetection: 2000 }),
+      ).code,
+    ).toBe("no-corners");
+  });
+
+  it("2: 1-3 corners", () => {
+    expect(pickCue(baseInput({ cornersSeen: 1, quad: null })).code).toBe(
+      "some-corners",
+    );
+    expect(pickCue(baseInput({ cornersSeen: 3, quad: null })).code).toBe(
+      "some-corners",
     );
   });
 
-  it("2: 1-3 markers", () => {
-    expect(pickCue(baseInput({ markerCount: 1, quad: null })).code).toBe(
-      "some-markers",
-    );
-    expect(pickCue(baseInput({ markerCount: 3, quad: null })).code).toBe(
-      "some-markers",
-    );
-  });
-
-  it("2b: 4 markers reported but no quad yet also reads as some-markers", () => {
-    expect(pickCue(baseInput({ markerCount: 4, quad: null })).code).toBe(
-      "some-markers",
+  it("2b: 4 corners reported but no quad yet also reads as some-corners", () => {
+    expect(pickCue(baseInput({ cornersSeen: 4, quad: null })).code).toBe(
+      "some-corners",
     );
   });
 
@@ -115,14 +133,14 @@ describe("pickCue — priority order", () => {
 describe("computeStatusChips", () => {
   it("all three chips pass when everything is good", () => {
     const chips = computeStatusChips(baseInput());
-    expect(chips.sheet).toEqual({ label: "Sheet 4/4", pass: true });
+    expect(chips.paper).toEqual({ label: "Paper 4/4", pass: true });
     expect(chips.steady).toEqual({ label: "Steady", pass: true });
     expect(chips.light).toEqual({ label: "Light", pass: true });
   });
 
-  it("sheet chip reflects a partial marker count and fails", () => {
-    const chips = computeStatusChips(baseInput({ markerCount: 2, quad: null }));
-    expect(chips.sheet).toEqual({ label: "Sheet 2/4", pass: false });
+  it("paper chip reflects a partial corner count and fails", () => {
+    const chips = computeStatusChips(baseInput({ cornersSeen: 2, quad: null }));
+    expect(chips.paper).toEqual({ label: "Paper 2/4", pass: false });
   });
 
   it("steady chip fails on either unsteady or not-sharp-enough", () => {

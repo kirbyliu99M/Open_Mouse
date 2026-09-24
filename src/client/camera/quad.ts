@@ -7,6 +7,7 @@
  * dependency — everything here takes plain numbers/points.
  */
 import { CAMERA_CONSTANTS } from "./constants";
+import { SHEET } from "../../lib/contracts/measurement";
 
 export interface Point {
   readonly x: number;
@@ -160,6 +161,42 @@ export function computeContainRect(
   const height = containerHeight;
   const width = height * mediaAspect;
   return { x: (containerWidth - width) / 2, y: 0, width, height };
+}
+
+function centroid(corners: readonly Point[]): Point {
+  const sum = corners.reduce(
+    (acc, c) => ({ x: acc.x + c.x, y: acc.y + c.y }),
+    { x: 0, y: 0 },
+  );
+  return { x: sum.x / corners.length, y: sum.y / corners.length };
+}
+
+export interface TrackedMarker {
+  readonly id: number;
+  readonly corners: readonly Point[];
+}
+
+/**
+ * Builds the tracked sheet quad from the live loop's detected flat-flap
+ * markers, one bracket per marker centroid — `layout.ts`'s own convention
+ * (`SHEET.flatMarkerIds`, clockwise from top-left) fixes which marker id is
+ * which corner. Returns `null` unless all four ids 0-3 are present exactly
+ * once, matching `buildMarkerCorrespondences` in src/client/photo/markers.ts.
+ */
+export function buildTrackedQuad(markers: readonly TrackedMarker[]): Quad | null {
+  const [tlId, trId, brId, blId] = SHEET.flatMarkerIds;
+  const byId = new Map(markers.map((m) => [m.id, m]));
+  const tl = byId.get(tlId);
+  const tr = byId.get(trId);
+  const br = byId.get(brId);
+  const bl = byId.get(blId);
+  if (!tl || !tr || !br || !bl) return null;
+  return {
+    topLeft: centroid(tl.corners),
+    topRight: centroid(tr.corners),
+    bottomRight: centroid(br.corners),
+    bottomLeft: centroid(bl.corners),
+  };
 }
 
 /** Maps a point in media-native pixel space into the container's coordinate space, given the contain rect. */

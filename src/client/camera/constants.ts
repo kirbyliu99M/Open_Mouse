@@ -1,13 +1,31 @@
 /**
  * Live camera capture thresholds (docs/design/camera-capture-2026-09-25/
- * README.md). Every number here is a **candidate** picked from the spec's
- * own wording, not measured on a real phone yet — the M2 gate-replay
- * approach (scripts/m2-gate-replay.ts) is the right way to tune these once
- * Kirby has real-phone footage, the same way GATE_THRESHOLDS in
- * src/client/photo/gates.ts already says of its own values. Keep every
- * live-loop/cue threshold in this one file so a future tuning pass has a
- * single place to look.
+ * README.md, revised 2026-09-25 for Kirby's plain-paper direction change —
+ * see src/client/camera/quad-source.ts's header). Every number here is a
+ * **candidate** picked from the spec's own wording, not measured on a real
+ * phone yet — the M2 gate-replay approach (scripts/m2-gate-replay.ts) is
+ * the right way to tune these once Kirby has real-phone footage, the same
+ * way GATE_THRESHOLDS in src/client/photo/gates.ts already says of its own
+ * values. Keep every live-loop/cue threshold in this one file so a future
+ * tuning pass has a single place to look.
  */
+
+/** Mirrors (not yet merged) src/lib/contracts/measurement.ts's PaperSize from
+ * PR #58 (branch contracts-paper-edge) — swap this alias for that import
+ * once the contract lands. Only used here for display copy and the
+ * primer's aspect-ratio preview, never for measurement math. */
+export type PaperSize = "a4" | "letter";
+
+/** Mirrors PAPER_SIZES_MM from the same not-yet-merged contract. */
+export const PAPER_SIZES_MM: Record<PaperSize, { width: number; height: number }> = {
+  a4: { width: 210, height: 297 },
+  letter: { width: 215.9, height: 279.4 },
+};
+
+export const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
+  a4: "A4",
+  letter: "Letter",
+};
 
 export const CAMERA_CONSTANTS = {
   liveLoop: {
@@ -24,7 +42,7 @@ export const CAMERA_CONSTANTS = {
     maxAngleDeviationDeg: 12,
   },
   size: {
-    /** Sheet quad width as a fraction of frame width (candidates). */
+    /** Paper quad width as a fraction of frame width (candidates). */
     minWidthFraction: 0.55,
     maxWidthFraction: 0.95,
   },
@@ -33,12 +51,20 @@ export const CAMERA_CONSTANTS = {
     minMeanLuma: 70,
     /** Per-pixel luma at/above this counts as clipped/blown-out (candidate). */
     clipLumaThreshold: 250,
-    /** Fraction of sheet-quad pixels clipped before "Too bright" fires (candidate). */
+    /** Fraction of paper-quad pixels clipped before "Too bright" fires (candidate). */
     maxClippedFraction: 0.05,
+  },
+  noDetection: {
+    /**
+     * Milliseconds with zero paper corners found before the cue escalates
+     * from "Point the camera at the paper" to the more specific
+     * "Place a blank sheet on a darker surface" (candidate).
+     */
+    placePaperTimeoutMs: 2000,
   },
   steadiness: {
     /**
-     * Max fraction of the frame diagonal a tracked marker corner may move
+     * Max fraction of the frame diagonal a tracked paper corner may move
      * between consecutive live-loop samples and still count as steady
      * (candidate, spec's own number: "moved > 1.5% of frame diagonal").
      */

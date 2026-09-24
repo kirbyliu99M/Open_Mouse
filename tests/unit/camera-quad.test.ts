@@ -6,6 +6,7 @@ import {
   computeQuadSizeStatus,
   computeContainRect,
   mapMediaPointToContainer,
+  buildTrackedQuad,
   type Quad,
 } from "../../src/client/camera/quad";
 
@@ -115,6 +116,44 @@ describe("computeContainRect", () => {
 
   it("throws for non-positive dimensions", () => {
     expect(() => computeContainRect(0, 100, 800, 400)).toThrow(RangeError);
+  });
+});
+
+describe("buildTrackedQuad", () => {
+  const square = (cx: number, cy: number) => [
+    { x: cx - 5, y: cy - 5 },
+    { x: cx + 5, y: cy - 5 },
+    { x: cx + 5, y: cy + 5 },
+    { x: cx - 5, y: cy + 5 },
+  ];
+
+  it("builds a quad from the four flat-flap marker centroids, ordered by id", () => {
+    const markers = [
+      { id: 2, corners: square(100, 100) }, // bottom-right
+      { id: 0, corners: square(0, 0) }, // top-left
+      { id: 3, corners: square(0, 100) }, // bottom-left
+      { id: 1, corners: square(100, 0) }, // top-right
+    ];
+    const quad = buildTrackedQuad(markers);
+    expect(quad).toEqual({
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 100, y: 0 },
+      bottomRight: { x: 100, y: 100 },
+      bottomLeft: { x: 0, y: 100 },
+    });
+  });
+
+  it("returns null when any of the four ids is missing", () => {
+    const markers = [
+      { id: 0, corners: square(0, 0) },
+      { id: 1, corners: square(100, 0) },
+      { id: 2, corners: square(100, 100) },
+    ];
+    expect(buildTrackedQuad(markers)).toBeNull();
+  });
+
+  it("returns null with no markers at all", () => {
+    expect(buildTrackedQuad([])).toBeNull();
   });
 });
 
