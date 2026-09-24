@@ -7,15 +7,22 @@ import type {
   HandMeasurements,
   ScanSubmission,
 } from "@/lib/contracts/measurement";
+import { scanSubmissionSchema } from "@/lib/contracts/measurement";
 import type { Point2 } from "@/client/geometry/homography";
 import type { CardCorners } from "@/client/geometry/card-scale";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
   type PipelineIssue,
+  type RunPhotoPipelineInput,
+  type PipelineResult,
 } from "@/client/photo/pipeline";
-import { getHandLandmarker } from "@/client/photo/landmarks";
+import {
+  getHandLandmarker,
+  HandLandmarkerLoadError,
+} from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
+import { TopBar } from "@/components/nav/TopBar";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -31,8 +38,18 @@ type ScanState =
       submission: ScanSubmission;
       warnings: readonly PipelineIssue[];
       overlay: PhotoOverlay;
+      /** Whether the card corners came from automatic detection or a
+       * manual drag-to-correct (issue: the completion card's "all four
+       * markers... found" line was claiming auto-detection happened even
+       * when the user had just placed the corners by hand). */
+      cardSource: "auto" | "manual";
     }
-  | { kind: "error"; errors: readonly PipelineIssue[]; overlay: PhotoOverlay };
+  | {
+      kind: "error";
+      errors: readonly PipelineIssue[];
+      overlay: PhotoOverlay | null;
+      retryable?: boolean;
+    };
 
 const MEASUREMENT_LABELS: Record<keyof HandMeasurements, string> = {
   handLengthMm: "Hand length",
@@ -82,22 +99,120 @@ function cornersToPoints(corners: readonly Point2[]): string {
   return corners.map((p) => `${p.x},${p.y}`).join(" ");
 }
 
-export default function ScanClient() {
-  const [hand, setHand] = useState<Hand>("right");
-  const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(undefined);
-  const [state, setState] = useState<ScanState>({ kind: "idle" });
+/** A plain circled checkmark for the "Hand measured" completion state —
+ * decorative only, the text next to it already says what it means. */
+function CheckIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      className="checkIcon"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle
+        cx="10"
+        cy="10"
+        r="8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M6 10.2l2.6 2.6L14 7.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Seeds the "ok" (measured) state directly, bypassing the photo pipeline —
+ * for `/scan/measured-demo` only. No synthetic e2e photo gets MediaPipe to
+ * detect a hand (see tests/e2e/scan.spec.ts's own comment on this), so this
+ * is the only deterministic way to reach and screenshot the measured layout
+ * in CI. Mirrors how `/scan/submit-demo` exercises `ScanSubmitPanel`.
+ */
+export interface ScanDemoMeasuredState {
+  readonly hand: Hand;
+  readonly gripStyle?: GripStyle;
+  readonly measurements: HandMeasurements;
+  readonly submission: ScanSubmission;
+}
+
+const EMPTY_OVERLAY: PhotoOverlay = {
+  imageWidth: 1,
+  imageHeight: 1,
+  markers: [],
+  card: null,
+  landmarksPx: null,
+};
+
+export default function ScanClient({
+  demoMeasured,
+  demoLabel,
+  runPhotoPipelineImpl = runPhotoPipeline,
+}: {
+  demoMeasured?: ScanDemoMeasuredState;
+  /** Visible "this is fixture data" banner for `/scan/measured-demo` —
+   * mirrors `/scan/submit-demo`'s own "(mock data)" heading, which that
+   * route can say for itself since it doesn't render this component's own
+   * `<h1>`. */
+  demoLabel?: string;
+  /** Test-only injection point (defaults to the real pipeline). No
+   * synthetic e2e photo makes MediaPipe detect a hand, so this is the only
+   * way to reach "ok" with a *controllable* delay — needed to reliably
+   * exercise the grip-change-during-processing race from
+   * `/scan/grip-race-demo`. Real pages never pass this. */
+  runPhotoPipelineImpl?: (
+    input: RunPhotoPipelineInput,
+  ) => Promise<PipelineResult>;
+} = {}) {
+  const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
+  const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
+    demoMeasured?.gripStyle,
+  );
+  const [state, setState] = useState<ScanState>(
+    demoMeasured
+      ? {
+          kind: "ok",
+          measurements: demoMeasured.measurements,
+          submission: demoMeasured.submission,
+          warnings: [],
+          overlay: EMPTY_OVERLAY,
+          cardSource: "auto",
+        }
+      : { kind: "idle" },
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [manualCorners, setManualCorners] = useState<CardCorners | null>(null);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
+  const runIdRef = useRef(0);
+  // The single source of truth for "what grip is currently shown" — a
+  // pipeline run started before the user switched grip captures the OLD
+  // value as `runPipeline`'s `selectedGrip` default parameter (evaluated
+  // once, at call time) and can still be in flight when it resolves to
+  // "ok". Reading this ref at resolution time (rather than trusting
+  // whatever the in-flight call captured) means the "ok" submission
+  // always matches the grip button the user is actually looking at,
+  // regardless of when they tapped it relative to the pipeline finishing.
+  const latestGripRef = useRef<GripStyle | undefined>(demoMeasured?.gripStyle);
 
   // Warm the MediaPipe HandLandmarker (fetches its model + WASM) as soon as
   // the page mounts, so those same-origin asset loads happen well before
   // any photo is processed — see tests/e2e/scan.spec.ts's zero-network
   // assertion, which only starts recording after the page has settled.
   useEffect(() => {
-    void getHandLandmarker();
+    void getHandLandmarker().catch(() => {
+      // A chosen photo owns the visible recovery state.
+    });
   }, []);
 
   useEffect(() => {
@@ -106,40 +221,94 @@ export default function ScanClient() {
     };
   }, [previewUrl]);
 
-  const runPipeline = useCallback(
-    async (file: File, corners: CardCorners | undefined) => {
-      setState({ kind: "processing" });
-      const result = await runPhotoPipeline({
-        file,
-        hand,
-        gripStyleStated: gripStyle,
-        manualCardCorners: corners,
+  // Grip never reaches a gate or the measurement math (see
+  // src/client/photo/submission.ts) — it only ends up in the submission
+  // object — so no matter which `gripStyleStated` a given pipeline run was
+  // started with, the submission it produces is rebuilt here using
+  // whatever grip is *currently* shown, not whatever was current when that
+  // run began.
+  const applyLatestGrip = useCallback(
+    (submission: ScanSubmission): ScanSubmission => {
+      const grip = latestGripRef.current;
+      return scanSubmissionSchema.parse({
+        hand: submission.hand,
+        measurements: submission.measurements,
+        calibration: submission.calibration,
+        measurementModelVersion: submission.measurementModelVersion,
+        ...(grip !== undefined ? { gripStyleStated: grip } : {}),
       });
-      if (result.status === "ok") {
-        setState({
-          kind: "ok",
-          measurements: result.measurements,
-          submission: result.submission,
-          warnings: result.warnings,
-          overlay: result.overlay,
+    },
+    [],
+  );
+
+  const runPipeline = useCallback(
+    async (
+      file: File,
+      corners: CardCorners | undefined,
+      selectedHand = hand,
+      selectedGrip = gripStyle,
+    ) => {
+      const runId = ++runIdRef.current;
+      const cardSource: "auto" | "manual" = corners ? "manual" : "auto";
+      setState({ kind: "processing" });
+      try {
+        const result = await runPhotoPipelineImpl({
+          file,
+          hand: selectedHand,
+          gripStyleStated: selectedGrip,
+          manualCardCorners: corners,
         });
-      } else if (result.status === "needsManualCard") {
-        setManualCorners(defaultManualCorners(result.overlay));
-        setState({ kind: "needsManualCard", overlay: result.overlay });
-      } else {
+        if (runId !== runIdRef.current) return;
+        if (result.status === "ok") {
+          setState({
+            kind: "ok",
+            measurements: result.measurements,
+            submission: applyLatestGrip(result.submission),
+            warnings: result.warnings,
+            overlay: result.overlay,
+            cardSource,
+          });
+        } else if (result.status === "needsManualCard") {
+          setManualCorners(defaultManualCorners(result.overlay));
+          setState({ kind: "needsManualCard", overlay: result.overlay });
+        } else {
+          setState({
+            kind: "error",
+            errors: result.errors,
+            overlay: result.overlay,
+          });
+        }
+      } catch (err) {
+        if (runId !== runIdRef.current) return;
+        // Only a genuine HandLandmarker load failure gets to say so —
+        // anything else escaping the pipeline (a bug, an unexpected
+        // Canvas/DOM error) gets a message that doesn't claim a specific
+        // cause it doesn't know is true.
+        const isLoadFailure = err instanceof HandLandmarkerLoadError;
         setState({
           kind: "error",
-          errors: result.errors,
-          overlay: result.overlay,
+          errors: [
+            {
+              code: isLoadFailure
+                ? "detector_load_failed"
+                : "processing_failed",
+              message: isLoadFailure
+                ? "We couldn't load the hand detector. Check your connection and try again."
+                : "Something went wrong while processing that photo. Try again.",
+            } as PipelineIssue,
+          ],
+          overlay: null,
+          retryable: true,
         });
       }
     },
-    [hand, gripStyle],
+    [hand, gripStyle, applyLatestGrip, runPhotoPipelineImpl],
   );
 
   const onFileChosen = useCallback(
     (file: File) => {
       fileRef.current = file;
+      ++runIdRef.current;
       setManualCorners(null);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(file));
@@ -167,6 +336,60 @@ export default function ScanClient() {
     if (!file || !manualCorners) return;
     void runPipeline(file, manualCorners);
   }, [manualCorners, runPipeline]);
+
+  const retryPhoto = useCallback(() => {
+    if (fileRef.current)
+      void runPipeline(fileRef.current, manualCorners ?? undefined);
+  }, [manualCorners, runPipeline]);
+
+  const changeHand = useCallback(
+    (next: Hand) => {
+      setHand(next);
+      // Unlike grip, the stated hand feeds a real gate (checkHandedness
+      // against MediaPipe's own detected handedness) — a change here can
+      // flip the result from "ok" to an error, so it re-runs detection on
+      // the photo still in memory rather than only patching the
+      // submission.
+      if (fileRef.current) {
+        void runPipeline(fileRef.current, manualCorners ?? undefined, next);
+        return;
+      }
+      // No photo in memory: only possible on /scan/measured-demo (a real
+      // flow always has fileRef.current set once "ok" is reached). Without
+      // this, the hand picker there would show the new hand while the
+      // submission silently kept the old one.
+      setState((prev) => {
+        if (prev.kind !== "ok") return prev;
+        const submission = scanSubmissionSchema.parse({
+          hand: next,
+          measurements: prev.submission.measurements,
+          calibration: prev.submission.calibration,
+          measurementModelVersion: prev.submission.measurementModelVersion,
+        });
+        return { ...prev, submission: applyLatestGrip(submission) };
+      });
+    },
+    [manualCorners, runPipeline, applyLatestGrip],
+  );
+
+  const changeGrip = useCallback(
+    (next: GripStyle | undefined) => {
+      latestGripRef.current = next;
+      setGripStyle(next);
+      setState((prev) => {
+        if (prev.kind !== "ok") return prev;
+        // Grip style never reaches a gate or the measurement math (see
+        // src/client/photo/submission.ts) — it only ends up in the
+        // submission object, so changing it after "ok" just rebuilds that
+        // one object instead of re-running detection on the photo. (If a
+        // pipeline run is still in flight from *before* this click, its
+        // eventual "ok" result goes through `applyLatestGrip` too, so it
+        // can't clobber this with a stale grip.)
+        return { ...prev, submission: applyLatestGrip(prev.submission) };
+      });
+    },
+    [applyLatestGrip],
+  );
 
   const beginDrag = useCallback(
     (index: number) => (e: ReactPointerEvent<SVGCircleElement>) => {
@@ -235,20 +458,22 @@ export default function ScanClient() {
 
   return (
     <main className="scanMain">
-      <nav className="wayfinding" aria-label="Scan progress">
-        <Link href="/" className="wayOut">
-          ‹ Home
-        </Link>
-        <p className="stepLabel">Step 1 of 3 · Top-down photo</p>
-      </nav>
+      {demoLabel && <p className="demoLabel">{demoLabel}</p>}
+      <TopBar
+        backHref="/sheet"
+        backLabel="Sheet"
+        stepLabel="Step 2 of 2 · Photo"
+      />
 
       <h1>Photograph your hand on the sheet</h1>
       <p className="hint">
         Lay your hand flat on the sheet next to a bank card, fingers together,
-        and photograph both from directly above. Side and grip photos come
-        later.
+        and photograph both from directly above.
       </p>
 
+      {/* Always interactive, including once measured (item 2 fix): grip
+          never needs a re-measure, and changing hand re-runs detection on
+          the photo still in memory rather than losing it. */}
       <fieldset className="picker">
         <legend>Which hand?</legend>
         <div className="pickerButtons" role="group" aria-label="Which hand">
@@ -258,7 +483,7 @@ export default function ScanClient() {
               type="button"
               className={`pickerButton${hand === h ? " selected" : ""}`}
               aria-pressed={hand === h}
-              onClick={() => setHand(h)}
+              onClick={() => changeHand(h)}
             >
               {h === "left" ? "Left hand" : "Right hand"}
             </button>
@@ -279,9 +504,7 @@ export default function ScanClient() {
               type="button"
               className={`pickerButton${gripStyle === g ? " selected" : ""}`}
               aria-pressed={gripStyle === g}
-              onClick={() =>
-                setGripStyle((prev) => (prev === g ? undefined : g))
-              }
+              onClick={() => changeGrip(gripStyle === g ? undefined : g)}
             >
               {g[0].toUpperCase() + g.slice(1)}
             </button>
@@ -289,21 +512,26 @@ export default function ScanClient() {
         </div>
       </fieldset>
 
-      <div className="uploadSlot">
-        <label className="uploadButton" htmlFor="top-down-photo">
-          {previewUrl ? "Replace photo" : "Choose photo"}
-        </label>
-        <input
-          id="top-down-photo"
-          type="file"
-          accept="image/*"
-          onChange={onInputChange}
-          className="visuallyHidden"
-        />
-        <p className="deviceNotice">
-          Processed on this device — the photo is never uploaded.
-        </p>
-      </div>
+      {/* The choose/replace-photo control only exists before "ok" — once
+          measured it reappears further down, after the primary action, in
+          its own DOM position (no CSS `order` — item 4). */}
+      {state.kind !== "ok" && (
+        <div className="uploadSlot">
+          <label className="uploadButton" htmlFor="top-down-photo">
+            {previewUrl ? "Replace photo" : "Choose photo"}
+          </label>
+          <input
+            id="top-down-photo"
+            type="file"
+            accept="image/*"
+            onChange={onInputChange}
+            className="visuallyHidden"
+          />
+          <p className="deviceNotice">
+            Processed on this device — the photo is never uploaded.
+          </p>
+        </div>
+      )}
 
       <div
         aria-live="polite"
@@ -319,7 +547,7 @@ export default function ScanClient() {
         </p>
       )}
 
-      {previewUrl && (
+      {previewUrl && state.kind !== "ok" && (
         <div
           className="photoStage"
           style={
@@ -403,38 +631,80 @@ export default function ScanClient() {
               <li key={i}>{err.message}</li>
             ))}
           </ul>
+          {state.retryable && (
+            <button
+              type="button"
+              className="primaryButton"
+              onClick={retryPhoto}
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
       {state.kind === "ok" && (
-        <div className="feedback feedback-ok">
-          <p className="feedbackTitle">✓ Measured</p>
-          {state.warnings.length > 0 && (
-            <div className="feedback feedback-warning">
-              {state.warnings.map((w, i) => (
-                <p key={i}>{w.message}</p>
-              ))}
-            </div>
-          )}
-          {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
-              from — the visible dl below is for people, formatted/rounded. */}
-          <p className="visuallyHidden" data-testid="scan-measurements-json">
-            {JSON.stringify(state.measurements)}
-          </p>
-          <dl className="measurements" data-testid="scan-measurements">
-            {Object.entries(state.measurements).map(([key, value]) => (
-              <div className="measurementRow" key={key}>
-                <dt>{MEASUREMENT_LABELS[key as keyof HandMeasurements]}</dt>
-                <dd className="tabularNum">
-                  {typeof value === "number" ? value.toFixed(1) : String(value)}
-                  {key.endsWith("Deg") ? "°" : " mm"}
-                </dd>
+        <>
+          <div className="feedback feedback-ok">
+            <p className="feedbackTitle">
+              <CheckIcon /> Hand measured
+            </p>
+            {state.warnings.length > 0 && (
+              <div className="feedback feedback-warning">
+                {state.warnings.map((w, i) => (
+                  <p key={i}>{w.message}</p>
+                ))}
               </div>
-            ))}
-          </dl>
+            )}
+            {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
+                from — the visible dl below is for people, formatted/rounded. */}
+            <p hidden data-testid="scan-measurements-json">
+              {JSON.stringify(state.measurements)}
+            </p>
+            <dl className="measurements" data-testid="scan-measurements">
+              {Object.entries(state.measurements).map(([key, value]) => (
+                <div className="measurementRow" key={key}>
+                  <dt>{MEASUREMENT_LABELS[key as keyof HandMeasurements]}</dt>
+                  <dd className="tabularNum">
+                    {typeof value === "number"
+                      ? value.toFixed(1)
+                      : String(value)}
+                    {key.endsWith("Deg") ? "°" : " mm"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="feedbackCaption">
+              {state.cardSource === "auto"
+                ? "All four sheet markers and the card were found, so the scale is checked."
+                : "All four sheet markers were found; the card corners you placed set the scale."}
+            </p>
+          </div>
+
           <ScanSubmitPanel submission={state.submission} />
-        </div>
+
+          <div className="uploadSlot uploadSlot-measured">
+            <label className="uploadButton" htmlFor="top-down-photo">
+              Use a different photo
+            </label>
+            <input
+              id="top-down-photo"
+              type="file"
+              accept="image/*"
+              onChange={onInputChange}
+              className="visuallyHidden"
+            />
+            <p className="deviceNotice">
+              Processed on this device — only measurements are sent, never the
+              photo.
+            </p>
+          </div>
+        </>
       )}
+
+      <Link href="/sheet" className="scanSheetLink">
+        Don&apos;t have the sheet? Print it
+      </Link>
     </main>
   );
 }

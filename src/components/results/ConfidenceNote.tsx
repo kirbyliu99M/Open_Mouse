@@ -10,8 +10,8 @@ export function ConfidenceNote({ confidence }: { confidence: number }) {
 
   return (
     <p className="results-confidenceNote" role="status">
-      This mouse&apos;s shape data is still being assessed, so this ranking may
-      change as more of it is classified.
+      We haven&apos;t assessed this mouse&apos;s shape yet. This ranking may
+      change as we learn more about its shape.
     </p>
   );
 }

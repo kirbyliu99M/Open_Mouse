@@ -1,7 +1,13 @@
 import "server-only";
 import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
-import { scanMeasurements, scanSessions, scans } from "../../db/schema";
+import {
+  rateLimits,
+  scanMeasurements,
+  scanSessions,
+  scans,
+} from "../../db/schema";
+import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
 import type {
   OwnedScan,
   ScanInsertInput,
@@ -121,6 +127,16 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           and(isNull(scanSessions.userId), lte(scanSessions.expiresAt, now)),
         )
         .returning({ id: scanSessions.id });
+      return deleted.length;
+    },
+
+    async deleteEndedRateLimitWindows(now) {
+      // Mirrors `isEndedRateLimitWindow` (rate-limit-config.ts) exactly.
+      const cutoff = now.getTime() - RATE_LIMIT_ROW_RETENTION_MS;
+      const deleted = await db
+        .delete(rateLimits)
+        .where(lte(rateLimits.windowStart, cutoff))
+        .returning({ key: rateLimits.key });
       return deleted.length;
     },
 

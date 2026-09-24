@@ -74,6 +74,9 @@ function createFakeRepo() {
       }
       return removed;
     }),
+    // Not exercised here — covered against a real Postgres in
+    // tests/unit/rate-limit-db.test.ts (L2 hardening).
+    deleteEndedRateLimitWindows: vi.fn(async () => 0),
     claimSession: vi.fn(
       async (sessionId: string, userId: string, now: Date) => {
         const row = sessions.get(sessionId);
@@ -138,6 +141,7 @@ describe("POST /api/scans — valid submission", () => {
     });
 
     expect(res.status).toBe(201);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body.scanId).toEqual(expect.any(String));
 
@@ -271,6 +275,59 @@ describe("POST /api/scans — oversized body", () => {
   });
 });
 
+describe("POST /api/scans — per-IP rate limit (M2 hardening)", () => {
+  it("429s with a no-store, user-facing error body when the limiter rejects the request, without creating a session or scan", async () => {
+    const { repo } = createFakeRepo();
+
+    const res = await handleScanSubmission(
+      scanRequest(validSubmission, {
+        "x-vercel-forwarded-for": "203.0.113.9",
+      }),
+      { repo, limiter: { allow: () => false } },
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = await res.json();
+    expect(typeof body.error).toBe("string");
+    expect(repo.createAnonymousSession).not.toHaveBeenCalled();
+    expect(repo.insertScanWithMeasurements).not.toHaveBeenCalled();
+  });
+
+  it("does not limit when the request carries no usable client IP (local dev)", async () => {
+    const { repo } = createFakeRepo();
+
+    const res = await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+      limiter: { allow: () => false },
+    });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("keys the limiter on the caller's IP (x-vercel-forwarded-for)", async () => {
+    const { repo } = createFakeRepo();
+    const seen: string[] = [];
+
+    await handleScanSubmission(
+      scanRequest(validSubmission, {
+        "x-vercel-forwarded-for": "203.0.113.9",
+      }),
+      {
+        repo,
+        limiter: {
+          allow: (key) => {
+            seen.push(key);
+            return true;
+          },
+        },
+      },
+    );
+
+    expect(seen).toEqual(["203.0.113.9"]);
+  });
+});
+
 describe("DELETE /api/scans/session", () => {
   it("deletes the caller's session and clears the cookie", async () => {
     const { repo, sessions } = createFakeRepo();
@@ -293,6 +350,7 @@ describe("DELETE /api/scans/session", () => {
       "44444444-4444-4444-8444-444444444444",
     );
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("is a no-op but still clears the cookie when there is no session cookie", async () => {
@@ -361,6 +419,24 @@ describe("GET /api/cron/expire-sessions — auth", () => {
 
     expect(res.status).toBe(200);
     expect(repo.deleteExpiredAnonymousSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("also sweeps ended rate-limit windows and reports both counts (L2 hardening)", async () => {
+    const { repo } = createFakeRepo();
+    repo.deleteExpiredAnonymousSessions = vi.fn(async () => 3);
+    repo.deleteEndedRateLimitWindows = vi.fn(async () => 7);
+    const request = new Request("http://localhost/api/cron/expire-sessions", {
+      headers: { authorization: "Bearer secret" },
+    });
+
+    const res = await handleExpireSessions(request, {
+      repo,
+      cronSecret: "secret",
+    });
+
+    expect(res.status).toBe(200);
+    expect(repo.deleteEndedRateLimitWindows).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toEqual({ deleted: 3, rateLimitsDeleted: 7 });
   });
 });
 

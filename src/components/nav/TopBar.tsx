@@ -13,7 +13,8 @@ export function TopBar({ backHref, backLabel, stepLabel }: TopBarProps) {
   return (
     <nav className="journey-top-bar" aria-label="Journey navigation">
       <Link href={backHref} aria-label={backLinkName(backLabel)}>
-        <span aria-hidden="true">‹</span> {backLabel}
+        <span aria-hidden="true">‹</span>
+        <span>{backLabel}</span>
       </Link>
       <span className="journey-top-bar-step">{stepLabel}</span>
     </nav>

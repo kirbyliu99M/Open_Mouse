@@ -9,6 +9,7 @@
  * each invocation can land on a different instance — the whole point of a
  * DB-backed limiter is that every instance shares one row per key.
  */
+import { createHash, createHmac } from "node:crypto";
 
 /** A key's rate-limit row, as currently stored (or `null` if none exists yet). */
 export interface RateLimitState {
@@ -60,4 +61,36 @@ export function decideRateLimit(
   const sameWindow = existing !== null && existing.windowStart === windowStart;
   const count = sameWindow ? existing.count + 1 : 1;
   return { windowStart, count, allow: count <= limit };
+}
+
+/**
+ * Fixed, app-specific salt for `hashRateLimitKey`'s fallback path only (no
+ * `RATE_LIMIT_KEY_SECRET` configured). It is not a secret — it exists only
+ * so the fallback hash isn't a bare, rainbow-table-able `sha256(ip)`, not to
+ * withstand a targeted attack. Configure `RATE_LIMIT_KEY_SECRET` for that.
+ */
+export const RATE_LIMIT_FALLBACK_SALT = "open-mouse:rate-limit:v1";
+
+/**
+ * `rate_limits.key` stores a hash of the caller's IP (or other identity),
+ * never the raw value, so the table isn't a plaintext log of who made which
+ * request (L2 hardening finding). With `secret` set (`RATE_LIMIT_KEY_SECRET`
+ * in production), this is HMAC-SHA256 keyed on it — unforgeable and
+ * un-reversible without the secret. Without one, it falls back to a plain
+ * SHA-256 of the fixed salt plus the key: still not a plaintext IP, but
+ * reversible by brute force since the "secret" is public (this source
+ * file). The caller (`./drizzle-rate-limiter.ts`) is responsible for
+ * sourcing `secret` from the environment and logging (once) when it falls
+ * back — this function itself is pure and never logs.
+ */
+export function hashRateLimitKey(
+  key: string,
+  secret: string | undefined,
+): string {
+  if (secret) {
+    return createHmac("sha256", secret).update(key).digest("hex");
+  }
+  return createHash("sha256")
+    .update(`${RATE_LIMIT_FALLBACK_SALT}:${key}`)
+    .digest("hex");
 }

@@ -43,7 +43,7 @@ describe("reasonText", () => {
     expect(sentence).not.toContain("-3.2");
   });
 
-  it("descriptor_unknown reads as 'not yet assessed', not a score of zero", () => {
-    expect(reasonText("descriptor_unknown", {})).toMatch(/not yet assessed/i);
+  it("descriptor_unknown renders the plain shape status", () => {
+    expect(reasonText("descriptor_unknown", {})).toBe("Shape not rated yet");
   });
 });

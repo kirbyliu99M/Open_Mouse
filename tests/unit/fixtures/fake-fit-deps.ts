@@ -69,6 +69,7 @@ export function createFakeScanRepo(
     insertScanWithMeasurements: vi.fn(async () => ({ scanId: "scan" })),
     deleteSession: vi.fn(async () => {}),
     deleteExpiredAnonymousSessions: vi.fn(async () => 0),
+    deleteEndedRateLimitWindows: vi.fn(async () => 0),
     claimSession: vi.fn(async () => {}),
     findOwnedScan,
     deleteOwnedScan: vi.fn(async () => false),

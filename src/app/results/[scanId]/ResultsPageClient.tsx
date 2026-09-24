@@ -10,12 +10,14 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
 
 type PageState =
   | { kind: "loading" }
   | { kind: "notFound" }
+  | { kind: "rateLimited" }
   | { kind: "networkError" }
   | { kind: "serverError" }
   | { kind: "ready"; response: FitResponse }
@@ -106,6 +108,11 @@ export function ResultsPageClient({
   if (pageState.kind === "loading") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <p className="results-page-status" role="status">
           Loading your results&hellip;
         </p>
@@ -116,6 +123,11 @@ export function ResultsPageClient({
   if (pageState.kind === "notFound") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>We couldn&apos;t find this scan</h1>
@@ -131,9 +143,39 @@ export function ResultsPageClient({
     );
   }
 
+  if (pageState.kind === "rateLimited") {
+    // 429 from the fit route (M2 hardening's per-IP limit) — distinct from
+    // `serverError`'s generic copy (PR #56 review, MEDIUM 2): this is
+    // expected, honest behaviour, not a failure, and `retry` here is a
+    // manual button the caller must press, never an automatic retry loop
+    // that would just re-trip the same limit.
+    return (
+      <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
+        <div className="results-page-error" role="alert">
+          <p className="results-eyebrow">Results</p>
+          <h1>Too many tries in a short time</h1>
+          <p>Wait a few minutes, then try again.</p>
+          <button type="button" className="results-page-action" onClick={retry}>
+            Try again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   if (pageState.kind === "networkError") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>We couldn&apos;t reach the server</h1>
@@ -149,6 +191,11 @@ export function ResultsPageClient({
   if (pageState.kind === "serverError") {
     return (
       <main className="resultsMain">
+        <TopBar
+          backHref="/scan"
+          backLabel="Scan again"
+          stepLabel="Your matches"
+        />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
           <h1>Something went wrong</h1>
@@ -184,14 +231,14 @@ export function ResultsPageClient({
 
   return (
     <main className="resultsMain">
-      <Link href="/" className="results-page-back">
-        ‹ Home
-      </Link>
       <ResultsView
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}
       />
+      <p className="results-previewNotice">
+        Early preview · measurements still being validated.
+      </p>
       {anonymous && (
         <DeleteScanAction
           scanId={scanId}

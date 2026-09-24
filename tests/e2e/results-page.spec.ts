@@ -75,15 +75,14 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByText("Why it fits")).toBeVisible();
 
     await expect(
-      page.getByRole("heading", {
-        level: 3,
-        name: "A close match for your palm grip",
-      }),
+      page.getByRole("heading", { level: 2, name: "Why this one" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("A close match for your palm grip"),
     ).toBeVisible();
 
     expect(errors).toEqual([]);
@@ -102,7 +101,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
     await expect(page.getByRole("status")).toContainText(/Preparing/);
   });
@@ -119,11 +118,16 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { name: "We couldn't find this scan" }),
     ).toBeVisible();
-    const scanAgain = page.getByRole("link", { name: "Scan again" });
+    // Scoped to the error panel's own action — the TopBar above it also has
+    // a "Scan again" link (its accessible name is "Back to Scan again"),
+    // and an unscoped query matches both.
+    const scanAgain = page
+      .locator(".results-page-error")
+      .getByRole("link", { name: "Scan again", exact: true });
     await expect(scanAgain).toBeVisible();
     await expect(scanAgain).toHaveAttribute("href", "/scan");
     // Never shows the numeric ranking for a 404.
-    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
   });
 
   test("a network failure on the fit route shows 'try again', which retries the request", async ({
@@ -153,7 +157,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await tryAgain.click();
 
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
   });
 
@@ -183,9 +187,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 3, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByText("Why it fits")).toBeVisible();
+    await expect(page.getByText("How it scores")).toBeVisible();
 
     const alert = page
       .getByRole("alert")
@@ -205,9 +209,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByText(
-        "This was generated automatically from your scores above.",
-      ),
+      page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
@@ -299,7 +301,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     const scanAgain = page.getByRole("link", { name: "Scan again" });
     await expect(scanAgain).toHaveAttribute("href", "/scan");
     // The ranking is gone — deleted really replaces the page, not just a toast.
-    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
 
     expect(method).toBe("DELETE");
   });

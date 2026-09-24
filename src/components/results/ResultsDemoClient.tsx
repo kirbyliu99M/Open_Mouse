@@ -63,9 +63,17 @@ const ANALYSIS_DEMO_STATES: {
  * three fixtures and preview the optional written-analysis slot's states,
  * all with local state only (no network calls, no live analysis request).
  */
-export function ResultsDemoClient() {
-  const [fixtureKey, setFixtureKey] = useState<FixtureKey>(FIXTURE_KEYS[0]);
-  const [analysisKey, setAnalysisKey] = useState("idle");
+export function ResultsDemoClient({
+  presentation = false,
+}: {
+  presentation?: boolean;
+}) {
+  const [fixtureKey, setFixtureKey] = useState<FixtureKey>(
+    presentation ? "low-confidence" : FIXTURE_KEYS[0],
+  );
+  const [analysisKey, setAnalysisKey] = useState(
+    presentation ? "ready-fallback" : "idle",
+  );
 
   const analysisState = ANALYSIS_DEMO_STATES.find((a) => a.key === analysisKey)
     ?.state ?? {
@@ -74,46 +82,51 @@ export function ResultsDemoClient() {
 
   return (
     <main className="resultsMain">
-      <div className="results-demoControls">
-        <p className="eyebrow">Open_Mouse — dev/demo route</p>
-        <h1>Results (mock data)</h1>
-        <p className="note">
-          Renders <code>ResultsView</code> against fixture{" "}
-          <code>FitResponse</code> data. No network calls.
-        </p>
+      {!presentation && (
+        <div className="results-demoControls">
+          <p className="eyebrow">Open_Mouse — dev/demo route</p>
+          {/* Not a heading: ResultsView below renders the page's one real
+              h1 ("Your best match") — a second h1 here would break the
+              page's heading outline (item 5). */}
+          <p className="results-demoControls-title">Results (mock data)</p>
+          <p className="note">
+            Renders <code>ResultsView</code> against fixture{" "}
+            <code>FitResponse</code> data. No network calls.
+          </p>
 
-        <fieldset>
-          <legend>Fixture</legend>
-          <div className="results-demoControls-buttons">
-            {FIXTURE_KEYS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={fixtureKey === key}
-                onClick={() => setFixtureKey(key)}
-              >
-                {FIXTURE_LABELS[key]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
+          <fieldset>
+            <legend>Fixture</legend>
+            <div className="results-demoControls-buttons">
+              {FIXTURE_KEYS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={fixtureKey === key}
+                  onClick={() => setFixtureKey(key)}
+                >
+                  {FIXTURE_LABELS[key]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
 
-        <fieldset>
-          <legend>Written analysis (preview)</legend>
-          <div className="results-demoControls-buttons">
-            {ANALYSIS_DEMO_STATES.map((a) => (
-              <button
-                key={a.key}
-                type="button"
-                aria-pressed={analysisKey === a.key}
-                onClick={() => setAnalysisKey(a.key)}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      </div>
+          <fieldset>
+            <legend>Written analysis (preview)</legend>
+            <div className="results-demoControls-buttons">
+              {ANALYSIS_DEMO_STATES.map((a) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  aria-pressed={analysisKey === a.key}
+                  onClick={() => setAnalysisKey(a.key)}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+      )}
 
       <ResultsView
         key={fixtureKey}

@@ -17,24 +17,25 @@ export function SubscoreBar({
 }) {
   const { score, reason } = data;
   const label = SUBSCORE_LABELS[subscore];
-  const percent = score ?? 0;
   const sentence = reasonText(reason.code, reason.params);
 
   return (
     <div className="results-subscoreBar" data-assessed={score !== null}>
       <div className="results-subscoreBar-head">
         <span className="results-subscoreBar-label">{label}</span>
-        <span className="results-subscoreBar-value">{formatScore(score)}</span>
+        <span className="results-subscoreBar-value">
+          {score === null ? "—" : formatScore(score)}
+        </span>
       </div>
       <div
         className="results-subscoreBar-track"
         role="img"
-        aria-label={`${label}: ${formatScore(score)}`}
+        aria-label={`${label}: ${score === null ? sentence : formatScore(score)}`}
       >
         {score !== null && (
           <div
             className="results-subscoreBar-fill"
-            style={{ width: `${percent}%` }}
+            style={{ width: `${score}%` }}
           />
         )}
       </div>

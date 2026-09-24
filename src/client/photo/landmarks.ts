@@ -21,6 +21,24 @@ const MODEL_ASSET_PATH = "/mediapipe/models/hand_landmarker.task";
 let landmarkerPromise: Promise<HandLandmarker> | null = null;
 
 /**
+ * Thrown by `getHandLandmarker()` when the model/WASM fetch or
+ * initialization itself fails — as opposed to any other error that might
+ * escape `runPhotoPipeline` (a bug, an implausible-measurement throw, an
+ * unexpected DOM/Canvas failure). The caller (ScanClient's catch-all) uses
+ * `instanceof` on this to show "couldn't load the hand detector" only when
+ * that's actually what happened, per the review checklist's "errors are
+ * specific" rule — a generic failure must not claim a specific cause it
+ * doesn't know is true.
+ */
+export class HandLandmarkerLoadError extends Error {
+  constructor(cause: unknown) {
+    super("Failed to load the MediaPipe HandLandmarker.");
+    this.name = "HandLandmarkerLoadError";
+    this.cause = cause;
+  }
+}
+
+/**
  * Lazily creates (and caches) the single `HandLandmarker` instance this app
  * uses. Call this as early as convenient (e.g. on `/scan` mount) so the
  * model/WASM fetch happens before the user starts a scan, not while an
@@ -37,7 +55,11 @@ export function getHandLandmarker(): Promise<HandLandmarker> {
       runningMode: "IMAGE",
       numHands: 1,
     });
-  })();
+  })().catch((error: unknown) => {
+    // A transient asset failure must not poison every later retry.
+    landmarkerPromise = null;
+    throw new HandLandmarkerLoadError(error);
+  });
   return landmarkerPromise;
 }
 

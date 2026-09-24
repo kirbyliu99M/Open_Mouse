@@ -7,12 +7,52 @@ const FILE_INPUT = "#top-down-photo";
 const STATUS = () => "[data-testid='scan-status']";
 
 test.describe("/scan — top-down photo pipeline", () => {
+  test("a failed detector download shows retry, and clicking it actually re-loads the detector and reaches the next gate", async ({
+    page,
+  }) => {
+    await page.route("**/mediapipe/models/hand_landmarker.task", (route) =>
+      route.abort("failed"),
+    );
+    await page.goto("/scan");
+    const png = await buildSyntheticTopDownPhotoPng(page, {
+      includeMarkers: true,
+    });
+    await page.setInputFiles(FILE_INPUT, {
+      name: "sheet.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
+    await expect(page.locator(".feedback-error")).toContainText(
+      "load the hand detector",
+      { timeout: 20_000 },
+    );
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await page.unroute("**/mediapipe/models/hand_landmarker.task");
+    await page.getByRole("button", { name: "Try again" }).click();
+    // Proves the retry didn't just clear the old message — it re-ran the
+    // whole pipeline on the same photo and reached the next real gate (this
+    // fixture has markers but no hand). That's only reachable if the
+    // HandLandmarker genuinely loaded on this second attempt: if
+    // `getHandLandmarker()` didn't reset its cached promise on failure, the
+    // same rejected promise would be reused and this would time out instead
+    // of reaching the hand-detection message.
+    const expectedMessage = checkHandDetected(0)!.message;
+    await expect(page.locator(STATUS())).toHaveText(expectedMessage, {
+      timeout: 20_000,
+    });
+  });
   test("shows wayfinding, a way out, hand and grip pickers, and the on-device notice", async ({
     page,
   }) => {
     await page.goto("/scan");
-    await expect(page.getByText("Step 1 of 3 · Top-down photo")).toBeVisible();
-    await expect(page.getByRole("link", { name: /home/i })).toBeVisible();
+    await expect(page.getByText("Step 2 of 2 · Photo")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /sheet/i }).first(),
+    ).toHaveAttribute("href", "/sheet");
+    await expect(page.getByRole("link", { name: /print it/i })).toHaveAttribute(
+      "href",
+      "/sheet",
+    );
     await expect(page.getByRole("button", { name: "Left hand" })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Right hand" }),
@@ -152,6 +192,229 @@ test.describe("/scan — top-down photo pipeline", () => {
     await expect(page.getByTestId("photo-dimensions")).toHaveText(
       `${exif.displayWidth}x${exif.displayHeight}`,
     );
+  });
+});
+
+// Item 6: the measured state matches
+// docs/design/journey-2026-09-23/03-scan-measured.png. `/scan/measured-demo`
+// seeds `ScanClient` straight into its "ok" state with fixed measurements —
+// see that route's own comment for why (mirrors `/scan/submit-demo`'s reason
+// for existing).
+test.describe("/scan/measured-demo — measured state (item 6)", () => {
+  test("keeps the hand/grip pickers visible and correctly pre-selected once measured (item 2)", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    const rightHand = page.getByRole("button", { name: "Right hand" });
+    await expect(rightHand).toBeVisible();
+    await expect(rightHand).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Left hand" })).toBeVisible();
+
+    const claw = page.getByRole("button", { name: "Claw", exact: true });
+    await expect(claw).toBeVisible();
+    await expect(claw).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("changing hand on the demo updates the submission too, even with no photo in memory to re-measure", async ({
+    page,
+  }) => {
+    // /scan/measured-demo seeds "ok" directly — fileRef is null there,
+    // unlike a real scan — so changeHand's normal "re-run the pipeline on
+    // the photo in memory" path never fires. Without its demo-only
+    // fallback, clicking a different hand would move the button's
+    // aria-pressed state without ever touching the submission that gets
+    // POSTed.
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "a23e4567-e89b-12d3-a456-426614174009",
+        }),
+      });
+    });
+
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "Right hand" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "Left hand" }).click();
+    await expect(
+      page.getByRole("button", { name: "Left hand" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // No re-measure: the numbers on the card are untouched.
+    await expect(page.locator(".measurementRow").first()).toContainText(
+      "190.0 mm",
+    );
+
+    await page.locator("[data-testid='submit-scan-button']").click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.hand).toBe("left");
+  });
+
+  test("changing grip after measured updates the submission without re-measuring, and the new grip reaches the server", async ({
+    page,
+  }) => {
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "823e4567-e89b-12d3-a456-426614174007",
+        }),
+      });
+    });
+
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "Palm", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Palm", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    // No re-measure happened: the card's numbers are untouched and the
+    // status banner never shows the "Looking for…" processing text a real
+    // pipeline re-run would produce.
+    await expect(page.locator(".measurementRow").first()).toContainText(
+      "190.0 mm",
+    );
+    await expect(page.locator(STATUS())).not.toContainText("Looking for");
+
+    await page.locator(SUBMIT_BUTTON()).click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.gripStyleStated).toBe("palm");
+  });
+
+  test("focus order in the measured state follows the visual order — card, primary action, secondary action, print link", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+
+    const submit = page.getByRole("button", { name: "See my matches" });
+    await submit.focus();
+    await expect(submit).toBeFocused();
+
+    // The very next tab stop is the secondary action, not something earlier
+    // on the page — this only holds if the DOM order itself matches the
+    // visual order (a CSS `order` reshuffle changes what's drawn where but
+    // never changes tab order, which always follows the DOM).
+    await page.keyboard.press("Tab");
+    await expect(page.locator(":focus")).toHaveAccessibleName(
+      "Use a different photo",
+    );
+
+    await page.keyboard.press("Tab");
+    await expect(page.locator(":focus")).toHaveAccessibleName(/print it/i);
+  });
+
+  test("shows a 'Hand measured' card with the three headline numbers", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+    );
+    const rows = page.locator(".measurementRow");
+    await expect(rows.nth(0)).toContainText("Hand length");
+    await expect(rows.nth(0)).toContainText("190.0 mm");
+    await expect(rows.nth(1)).toContainText("Palm length");
+    await expect(rows.nth(1)).toContainText("108.0 mm");
+    await expect(rows.nth(2)).toContainText("Palm width");
+    await expect(rows.nth(2)).toContainText("84.0 mm");
+  });
+
+  test("shows 'See my matches' as the primary action and 'Use a different photo' as the secondary one", async ({
+    page,
+  }) => {
+    await page.goto("/scan/measured-demo");
+    await expect(
+      page.getByRole("button", { name: "See my matches" }),
+    ).toBeVisible();
+    await expect(page.locator(".uploadButton")).toHaveText(
+      "Use a different photo",
+    );
+  });
+
+  test("states honestly that only measurements are sent — never claims the visible three numbers are all of them", async ({
+    page,
+  }) => {
+    // The POST actually carries 8 measurements plus hand/grip/calibration,
+    // not just the 3 shown on the card, so the copy must not say "these
+    // measurements" (item 1 — that phrasing implied the visible three were
+    // the whole payload).
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".deviceNotice")).toHaveText(
+      "Processed on this device — only measurements are sent, never the photo.",
+    );
+  });
+});
+
+// Regression: `runPipeline`'s `selectedGrip` default parameter snapshots
+// `gripStyle` at the moment a pipeline call *starts*, not when it resolves.
+// A grip change while a call is still in flight (reading/processing) used
+// to be silently lost — the "ok" submission kept whichever grip was current
+// when the call began. `/scan/grip-race-demo` swaps in a fake pipeline with
+// a controllable delay (no synthetic photo makes MediaPipe detect a hand
+// with a real one — see the describe block above) so this is testable
+// deterministically.
+test.describe("/scan/grip-race-demo — grip changed during processing", () => {
+  test("choosing a photo, then switching grip while it's still processing, submits the NEW grip", async ({
+    page,
+  }) => {
+    let capturedBody: string | undefined;
+    await page.route("**/api/scans", async (route) => {
+      capturedBody = route.request().postData() ?? undefined;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scanId: "923e4567-e89b-12d3-a456-426614174008",
+        }),
+      });
+    });
+
+    await page.goto("/scan/grip-race-demo");
+    await page.setInputFiles(FILE_INPUT, {
+      name: "irrelevant.png",
+      mimeType: "image/png",
+      // Content doesn't matter — the fake pipeline never reads the file.
+      buffer: Buffer.from("not a real photo"),
+    });
+
+    // Still mid-flight (the fake pipeline waits 600ms): switch grip now.
+    await expect(page.locator(STATUS())).toContainText("Looking for", {
+      timeout: 2_000,
+    });
+    await page.getByRole("button", { name: "Claw", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Claw", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // Now it resolves to "ok" — the submission must carry the grip the
+    // button shows (Claw), not whatever was current when the call began
+    // (none — grip was unset at that point).
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+      { timeout: 5_000 },
+    );
+
+    await page.locator("[data-testid='submit-scan-button']").click();
+    await expect.poll(() => capturedBody).toBeTruthy();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.gripStyleStated).toBe("claw");
   });
 });
 

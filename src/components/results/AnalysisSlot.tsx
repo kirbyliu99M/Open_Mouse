@@ -1,4 +1,5 @@
 import type { AnalysisState } from "./analysisState";
+import { joinHeadlineAndBody } from "./format";
 
 /**
  * Optional slot for the written analysis (M5 `analysisResponseSchema`). Its
@@ -80,17 +81,11 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
-      <p className="results-eyebrow">Written analysis</p>
-      {source === "fallback" && (
-        <p className="results-analysis-provenance" role="status">
-          This was generated automatically from your scores above.
-        </p>
-      )}
-      <h3>{output.headline}</h3>
-      <p>{output.whyTopPick}</p>
+      <h2 className="results-analysis-heading">Why this one</h2>
+      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
-          <h4>Tradeoffs</h4>
+          <h3>Tradeoffs</h3>
           <ul>
             {output.tradeoffs.map((t) => (
               <li key={t}>{t}</li>
@@ -100,7 +95,7 @@ export function AnalysisSlot({
       )}
       {output.whatToAvoid.length > 0 && (
         <div>
-          <h4>What to avoid</h4>
+          <h3>What to avoid</h3>
           <ul>
             {output.whatToAvoid.map((t) => (
               <li key={t}>{t}</li>
@@ -108,9 +103,54 @@ export function AnalysisSlot({
           </ul>
         </div>
       )}
+      {source === "fallback" && (
+        <p className="results-analysis-provenance" role="status">
+          <InfoIcon />
+          Generated automatically from your scores above.
+        </p>
+      )}
       {output.caveats.length > 0 && (
         <p className="results-analysis-caveats">{output.caveats.join(" ")}</p>
       )}
     </section>
+  );
+}
+
+/** A plain circled-"i" mark for the provenance note — decorative only, the
+ * sentence next to it already says what it means. */
+function InfoIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <rect
+        x="7.3"
+        y="7"
+        width="1.4"
+        height="4.5"
+        rx="0.7"
+        fill="currentColor"
+      />
+      <rect
+        x="7.3"
+        y="4"
+        width="1.4"
+        height="1.4"
+        rx="0.7"
+        fill="currentColor"
+      />
+    </svg>
   );
 }

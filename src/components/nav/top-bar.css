@@ -9,6 +9,10 @@
 .journey-top-bar a {
   display: inline-flex;
   align-items: center;
+  /* A visible gap between the chevron and the label — flex layout can
+     collapse a plain whitespace text node between inline children, which
+     otherwise renders as "‹Scan again" with no space at all. */
+  gap: 0.25rem;
   min-height: 2.75rem;
   color: #0a64e0;
   text-decoration: none;

@@ -1,5 +1,5 @@
 import type { FitResponse } from "@/lib/contracts/fit";
-import { dimensionDelta, formatMm, formatSignedMm } from "./format";
+import { dimensionDelta, formatMmValue, formatSignedMmValue } from "./format";
 
 type Targets = FitResponse["targets"];
 type Mouse = FitResponse["results"][number]["mouse"];
@@ -24,13 +24,13 @@ export function TargetDeltas({
 }) {
   return (
     <table className="results-targetDeltas">
-      <caption>Your ideal mouse vs. this mouse</caption>
+      <caption>Your ideal mouse vs. this mouse (mm)</caption>
       <thead>
         <tr>
           <th scope="col">Dimension</th>
           <th scope="col">Your ideal</th>
           <th scope="col">This mouse</th>
-          <th scope="col">Difference</th>
+          <th scope="col">Diff.</th>
         </tr>
       </thead>
       <tbody>
@@ -41,9 +41,11 @@ export function TargetDeltas({
           return (
             <tr key={key}>
               <th scope="row">{label}</th>
-              <td className="results-tabularNum">{formatMm(targetMm)}</td>
-              <td className="results-tabularNum">{formatMm(actualMm)}</td>
-              <td className="results-tabularNum">{formatSignedMm(delta)}</td>
+              <td className="results-tabularNum">{formatMmValue(targetMm)}</td>
+              <td className="results-tabularNum">{formatMmValue(actualMm)}</td>
+              <td className="results-tabularNum">
+                {formatSignedMmValue(delta)}
+              </td>
             </tr>
           );
         })}

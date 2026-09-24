@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function ResultsDemoPage() {
-  return <ResultsDemoClient />;
+export default async function ResultsDemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ presentation?: string }>;
+}) {
+  const { presentation } = await searchParams;
+  return <ResultsDemoClient presentation={presentation === "1"} />;
 }
