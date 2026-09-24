@@ -127,7 +127,10 @@ export async function handleScanSubmission(
     hand: submission.hand,
     gripStyleStated: submission.gripStyleStated ?? null,
     measurements: submission.measurements,
-    scaleCheckRatio: submission.calibration.cardScaleRatio,
+    scaleCheckRatio:
+      "cardScaleRatio" in submission.calibration
+        ? submission.calibration.cardScaleRatio
+        : null,
   });
 
   // no-store (L4): the body carries a fresh scanId a client could otherwise

@@ -6,11 +6,12 @@
  * (the side photo isn't built yet; see the contract's own comment).
  */
 import {
+  printedSheetEvidenceSchema,
   scanSubmissionSchema,
   MEASUREMENT_MODEL_VERSION,
   type ScanSubmission,
   type HandMeasurements,
-  type CalibrationEvidence,
+  type PrintedSheetEvidence,
 } from "../../lib/contracts/measurement";
 
 export interface AssembleScanSubmissionInput {
@@ -30,8 +31,8 @@ export interface AssembleScanSubmissionInput {
  */
 export function assembleScanSubmission(
   input: AssembleScanSubmissionInput,
-): ScanSubmission {
-  const calibration: CalibrationEvidence = {
+): ScanSubmission & { calibration: PrintedSheetEvidence } {
+  const calibration: PrintedSheetEvidence = {
     markerIds: [...input.markerIds].sort((a, b) => a - b),
     reprojectionErrorMm: input.reprojectionErrorMm,
     cardScaleRatio: input.cardScaleRatio,
@@ -48,5 +49,11 @@ export function assembleScanSubmission(
       : {}),
   };
 
-  return scanSubmissionSchema.parse(submission);
+  // Validate the whole body, then keep the narrower printed-sheet type this
+  // builder always produces.
+  const parsed = scanSubmissionSchema.parse(submission);
+  return {
+    ...parsed,
+    calibration: printedSheetEvidenceSchema.parse(parsed.calibration),
+  };
 }
