@@ -51,6 +51,20 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     await expect(tip).toBeVisible();
   });
 
+  test("Escape dismisses the first-run tip", async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "Camera-independent — runs once, under plain chromium.",
+    );
+    await page.goto("/scan/easy");
+    const tip = page.getByRole("dialog", {
+      name: "One blank sheet is all you need",
+    });
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+  });
+
   test("the hand chip flips on tap", async ({ page }, testInfo) => {
     test.skip(
       testInfo.project.name !== "chromium",
