@@ -12,12 +12,18 @@ export function AuthButton({ action }: { action: "in" | "out" }) {
   const { pending } = useFormStatus();
   const label = action === "in" ? "Continue with Google" : "Sign out";
   const pendingLabel = action === "in" ? "Signing in…" : "Signing out…";
+  const currentLabel = pending ? pendingLabel : label;
   return (
     <button
       type="submit"
       className={action === "in" ? "account-google-button" : "button-secondary"}
       disabled={pending}
       aria-disabled={pending}
+      // Explicit, so the button's own accessible name is always this text —
+      // some browsers exclude a nested role="status" region's content from
+      // the "name from content" computation, which otherwise left this
+      // button with no accessible name at all despite visible text.
+      aria-label={currentLabel}
     >
       {action === "in" && (
         <svg
@@ -38,7 +44,7 @@ export function AuthButton({ action }: { action: "in" | "out" }) {
         </svg>
       )}
       <span role="status" aria-live="polite">
-        {pending ? pendingLabel : label}
+        {currentLabel}
       </span>
     </button>
   );

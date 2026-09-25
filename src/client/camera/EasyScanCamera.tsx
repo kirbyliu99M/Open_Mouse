@@ -389,6 +389,7 @@ export default function EasyScanCamera({
   gripStyleRef.current = gripStyle;
 
   const sheetDialogRef = useRef<HTMLDialogElement>(null);
+  const sheetTitleRef = useRef<HTMLParagraphElement>(null);
   const tipDialogRef = useRef<HTMLDialogElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
@@ -424,10 +425,15 @@ export default function EasyScanCamera({
 
   // The measured / gate-failure bottom sheet: a native <dialog> for the
   // focus trap + Escape handling, opened the moment the pipeline settles
-  // and closed again on retake.
+  // and closed again on retake. Focus goes to the sheet's own heading, not
+  // whichever button happens to be first in DOM order (the browser's
+  // showModal() default) — for the measured sheet that would otherwise be
+  // the "Palm" grip chip, misleadingly outlined even though "Not sure" is
+  // the one actually selected.
   useEffect(() => {
     if (result.kind === "measured" || result.kind === "gateFailure") {
       sheetDialogRef.current?.showModal();
+      sheetTitleRef.current?.focus();
     } else {
       sheetDialogRef.current?.close();
     }
@@ -1082,7 +1088,15 @@ export default function EasyScanCamera({
         result.kind === "measured" ||
         result.kind === "gateFailure") && (
         <div className="cameraFrameWrap">
-          <div className="cameraFrame easyFrozenFrame">
+          <div
+            className="cameraFrame easyFrozenFrame"
+            style={{
+              aspectRatio:
+                result.kind === "processing"
+                  ? frameAspect
+                  : (result.imageWidth || 1) / (result.imageHeight || 1),
+            }}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
             <img src={result.previewUrl} alt="" className="easyFrozenImg" />
             {result.kind !== "processing" && (
@@ -1150,7 +1164,7 @@ export default function EasyScanCamera({
         >
           {result.kind === "measured" ? (
             <>
-              <p className="easySheetTitle">
+              <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <span aria-hidden="true">✓</span> Hand measured
               </p>
               <p className="easySheetGripLabel">
@@ -1210,7 +1224,11 @@ export default function EasyScanCamera({
             </>
           ) : (
             <>
-              <p className="easySheetTitle easySheetTitleError">
+              <p
+                className="easySheetTitle easySheetTitleError"
+                ref={sheetTitleRef}
+                tabIndex={-1}
+              >
                 Retake needed
               </p>
               <p className="easySheetErrorMessage" role="alert">

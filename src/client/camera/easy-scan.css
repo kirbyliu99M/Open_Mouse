@@ -201,6 +201,13 @@
   font-size: 1.15rem;
   font-weight: 700;
 }
+/* Programmatically focused on open (see EasyScanCamera's showModal effect)
+   so the sheet announces its own heading rather than defaulting to
+   whichever button happens to be first in DOM order — no visible ring
+   needed, the sheet sliding into view is indicator enough. */
+.easySheetTitle:focus {
+  outline: none;
+}
 .easySheetTitle span {
   color: var(--scan-ok-fg, #1e7b45);
 }
