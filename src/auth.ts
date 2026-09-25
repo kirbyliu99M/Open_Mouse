@@ -55,7 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }),
       ]
     : [],
-  // L3 (security hardening finding): a missing AUTH_SECRET used to fall
+  // L3 (security hardening finding): see resolveAuthSecret. A missing AUTH_SECRET used to fall
   // back silently to a public, checked-in placeholder even in production —
   // `resolveAuthSecret` (`./server/auth/config.ts`) keeps that fallback for
   // dev/test/build (issue #17: no real secret exists in this environment,

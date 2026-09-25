@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 /**
  * Whether real Google OAuth credentials are configured. Pure, env-injectable
  * so it is testable without touching `process.env` globally.
@@ -32,31 +34,34 @@ function isProductionRuntime(
 
 /**
  * L3 (security hardening finding): `src/auth.ts` used to fall back to a
- * public, checked-in placeholder secret whenever `AUTH_SECRET` was unset,
- * with no distinction between "no real deployment exists yet" (fine — issue
- * #17) and "this IS a production deployment and someone forgot to configure
- * the secret" (never fine — Auth.js uses this value to sign/verify session
- * and CSRF/state cookies, so a known public value lets anyone forge them).
+ * public, checked-in placeholder secret whenever `AUTH_SECRET` was unset.
+ * Auth.js signs and verifies session/CSRF cookies with this value, so a
+ * known public value would let anyone forge a JWT session if the database
+ * adapter ever failed and the strategy fell back to "jwt".
  *
- * `resolveAuthSecret` keeps the placeholder ONLY outside a real production
- * runtime (`isProductionRuntime` above) — dev, test, and any build/CI
- * environment that never actually serves traffic keep working exactly as
- * before, unset `AUTH_SECRET` and all. In a real production runtime, a
- * missing `AUTH_SECRET` throws immediately with a clear message instead of
- * silently arming every session with a secret anyone can read in this
- * repo's source history.
+ * In a production runtime without `AUTH_SECRET` this returns a random
+ * secret generated once per process — nobody knows it, so nothing can be
+ * forged. It deliberately does NOT throw: production runs without sign-in
+ * today (`isAuthConfigured` needs `AUTH_SECRET`, so no provider is
+ * enabled), `src/auth.ts` is imported by the layout and API routes, and a
+ * throw there fails `next build` and takes the whole site down (verified
+ * 2026-09-26). Outside production the fixed placeholder keeps dev/test
+ * deterministic.
  */
 export function resolveAuthSecret(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  randomSecret: () => string = defaultRandomSecret,
 ): string {
   const configured = env.AUTH_SECRET?.trim();
   if (configured) return configured;
-  if (isProductionRuntime(env)) {
-    throw new Error(
-      "AUTH_SECRET is not set. Refusing to start in production with the " +
-        "public placeholder secret — configure a real AUTH_SECRET before " +
-        "deploying.",
-    );
-  }
+  if (isProductionRuntime(env)) return randomSecret();
   return PLACEHOLDER_AUTH_SECRET;
 }
+
+let processSecret: string | undefined;
+function defaultRandomSecret(): string {
+  processSecret ??= randomBytes(32).toString("base64url");
+  return processSecret;
+}
+
+export { PLACEHOLDER_AUTH_SECRET };
