@@ -31,7 +31,8 @@
 import { createHash } from "node:crypto";
 import type { FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { buildAnalysisInput } from "./input";
+import { buildPrompt } from "./analyse";
+import { buildAnalysisInput, type AnalysisInput } from "./input";
 import type { AnalysisOutput } from "./schema";
 
 /**
@@ -67,42 +68,36 @@ export function canonicalize(value: unknown): unknown {
 }
 
 /**
- * `cacheKey = sha256(promptVersion + canonical JSON of the exact
- * AnalysisInput the model would be shown)`.
+ * `cacheKey = sha256(promptVersion + the exact first prompt the model is
+ * sent)`.
  *
- * Deliberately re-derives the same `AnalysisInput` `handleAnalysisRequest`
- * builds via `buildAnalysisInput` (a pure function of `fit` and
- * `measurements`, so recomputing it here is cheap and always consistent
- * with what actually gets sent to the model) rather than hashing a
- * hand-picked subset of `fit`/`measurements` fields — a hand-picked subset
- * is exactly how H1 happened: a field that isn't in the model's input can
- * still change what the model is TOLD (weight-preference range, `excluded`)
- * without anyone noticing the cache key needed to change too. Hashing the
- * real `AnalysisInput` makes that class of bug structurally impossible: the
- * key can only go stale in the same way the no-new-numerals check
- * (`collectNumbers` in `./numerals.ts`, called on this exact object in
- * `./analyse.ts`) could, and that check already has its own coverage.
- *
- * `fit.engineVersion` is deliberately NOT part of the key: it never reaches
- * `AnalysisInput` (see `buildAnalysisInput`) or the prompt (`analyse.ts`
- * asserts this), so it is never part of what the model is shown or told. An
- * engine version bump that actually changes what a hand scores as will
- * necessarily change `targets`/`topPicks`/subscore params too, which DOES
- * change the key; a version bump with no observable effect on the input is,
- * correctly, not treated as a different prompt.
- *
- * Order-independent w.r.t. any object's own key order (see `canonicalize`),
- * scoped to one scan by the cache itself.
+ * The prompt text *is* what the model sees, so keying on it is exact in
+ * both directions: anything that changes what the model is shown or told
+ * (weight-preference range, exclusions, totals, sub-score reasons — H1)
+ * changes the key, and nothing the model never sees (slugs, the engine
+ * version) fragments the cache. A hand-picked subset of fields is how H1
+ * happened. `buildPrompt` is deterministic for a given input (fixed object
+ * literal order in `promptData`), and the retry prompt only adds the
+ * violation note to this same text, so the first prompt identifies the
+ * request. Scoped to one scan by the cache itself.
  */
 export function computeCacheKey(
   fit: FitResponse,
   measurements: HandMeasurements,
 ): string {
-  const input = buildAnalysisInput(fit, measurements);
-  const payload = JSON.stringify(
-    canonicalize({ promptVersion: ANALYSIS_PROMPT_VERSION, input }),
-  );
-  return createHash("sha256").update(payload).digest("hex");
+  // Canonical key order first, so two inputs with equal values but different
+  // object literal order (never produced by the engine, but cheap to rule
+  // out) share a key.
+  const input = canonicalize(
+    buildAnalysisInput(fit, measurements),
+  ) as AnalysisInput;
+  const prompt = buildPrompt(input);
+  return createHash("sha256")
+    .update(
+      `${ANALYSIS_PROMPT_VERSION}
+${prompt}`,
+    )
+    .digest("hex");
 }
 
 /** A cached analysis is always a real model answer — see the module comment. */

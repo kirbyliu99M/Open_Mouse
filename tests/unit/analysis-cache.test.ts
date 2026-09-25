@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import type { FitResponse } from "../../src/lib/contracts/fit";
-import { buildAnalysisInput } from "../../src/server/analysis/input";
+import {
+  buildAnalysisInput,
+  type AnalysisInput,
+} from "../../src/server/analysis/input";
+import { buildPrompt } from "../../src/server/analysis/analyse";
 import {
   ANALYSIS_PROMPT_VERSION,
   canonicalize,
@@ -33,27 +37,20 @@ describe("computeCacheKey", () => {
     );
   });
 
-  it("matches sha256(promptVersion + canonical AnalysisInput) exactly, so ANALYSIS_PROMPT_VERSION participates", () => {
+  it("matches sha256(promptVersion + the canonical first prompt) exactly, so ANALYSIS_PROMPT_VERSION participates", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
-    const input = buildAnalysisInput(fit, measurements);
+    const prompt = buildPrompt(
+      canonicalize(buildAnalysisInput(fit, measurements)) as AnalysisInput,
+    );
     const key = computeCacheKey(fit, measurements);
     expect(key).toBe(
-      sha256(
-        JSON.stringify(
-          canonicalize({ promptVersion: ANALYSIS_PROMPT_VERSION, input }),
-        ),
-      ),
+      sha256(`${ANALYSIS_PROMPT_VERSION}
+${prompt}`),
     );
     expect(key).not.toBe(
-      sha256(
-        JSON.stringify(
-          canonicalize({
-            promptVersion: ANALYSIS_PROMPT_VERSION + 1,
-            input,
-          }),
-        ),
-      ),
+      sha256(`${ANALYSIS_PROMPT_VERSION + 1}
+${prompt}`),
     );
   });
 
@@ -109,7 +106,7 @@ describe("computeCacheKey", () => {
     ).not.toBe(base);
   });
 
-  it("changes when the top-3 slugs change", () => {
+  it("does not change when only a slug changes (slugs never reach the prompt)", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
     const base = computeCacheKey(fit, measurements);
@@ -120,6 +117,25 @@ describe("computeCacheKey", () => {
             {
               ...fit.results[0]!,
               mouse: { ...fit.results[0]!.mouse, slug: "different-slug" },
+            },
+          ],
+        }),
+        measurements,
+      ),
+    ).toBe(base);
+  });
+
+  it("changes when a top-3 model name changes", () => {
+    const fit = makeFit();
+    const measurements = makeMeasurements();
+    const base = computeCacheKey(fit, measurements);
+    expect(
+      computeCacheKey(
+        makeFit({
+          results: [
+            {
+              ...fit.results[0]!,
+              mouse: { ...fit.results[0]!.mouse, model: "A Different Mouse" },
             },
           ],
         }),
@@ -259,7 +275,7 @@ describe("InMemoryAnalysisCache", () => {
         results: [
           {
             ...makeFit().results[0]!,
-            mouse: { ...makeFit().results[0]!.mouse, slug: "other-slug" },
+            mouse: { ...makeFit().results[0]!.mouse, model: "Other Mouse" },
           },
         ],
       }),
