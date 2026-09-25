@@ -89,3 +89,41 @@ Same as `docs/design/journey-2026-09-23/README.md` (bg #F4F4F6, surface
 accent-soft #E7F0FD, border #D5D5DC, ok #1E7B45); Inter. The camera screens
 use white text on dark scrims or on solid pills (≥ 4.5 : 1). The PNGs are
 not a colour source.
+
+## Revision 2026-09-26: landing with a G Pro sketch; "How it works" as its own page
+
+Kirby: the landing should carry a sketch of a G Pro as its main theme with
+headlines; putting the introduction straight on it is too raw, it deserves a
+separate page.
+
+| Screen                             | File                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| Landing (replaces 11 as `/`)       | [17-landing-g-pro-sketch.png](screens/17-landing-g-pro-sketch.png) |
+| How it works (new `/how-it-works`) | [18-how-it-works.png](screens/18-how-it-works.png)                 |
+
+**Landing (17)**
+
+- Eyebrow "EARLY PREVIEW · HAND-FIT RANKING" (the preview label stays until
+  the M2 ruler gate passes).
+- Headline "Shape matters more than specs."; subhead "The right mouse starts
+  with the size of your hand."
+- The sketch `public/images/g-pro-sketch.svg` (generated on pen.dev as a
+  line drawing in the style of the G Pro X Superlight 2 — no Logitech logo,
+  wordmark or trade dress beyond the shape; keep it logo-free). Caption
+  "G Pro X Superlight 2 · sketch".
+- Spec strip — Length 125 mm · Width 63.5 mm · Height 40 mm · Weight 60 g —
+  read from the catalogue row for "G Pro X Superlight 2" (seed/DB), never
+  typed into the page.
+- Primary "Scan my hand" → `/scan/easy`; text link "How it works →" →
+  `/how-it-works`.
+- Three numbered headlines, separated by hairlines (not boxes):
+  01 "One photo. No printing." / "A blank sheet of A4 is the ruler."
+  02 "Ranked for your hand, not the hype." / "{count} Logitech mice scored on
+  length, grip width and weight." (count from the catalogue)
+  03 "Your photo never leaves your phone." / "Only the measurements are sent."
+- Footer: preview line, "Not affiliated with Logitech. Sizes from Logitech's
+  published specs."
+
+**How it works (18)** — the previous main page content moves here: "‹ Home"
+back link, title "How it works", the hand-on-A4 illustration with corner
+checks, "Three steps", "Scan my hand", the privacy card, a privacy link.
