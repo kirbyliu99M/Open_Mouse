@@ -352,7 +352,7 @@ async function runPaperEdgePipeline(
       overlay: { ...overlayBase, landmarksPx: null },
     };
   }
-  const { homography, edgeFitResidualMm } = paperEval.geometry;
+  const { homography } = paperEval.geometry;
 
   const hand = await detectHandLandmarks(bitmap);
   if (!hand) {
