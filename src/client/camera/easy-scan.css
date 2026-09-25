@@ -1,0 +1,339 @@
+/* Easy-scan camera (docs/design/easy-scan-shell-2026-09-25/README.md,
+   screens 14-16). Builds on camera.css's viewfinder shell/cue/shutter/
+   corner-dot classes and scan.css's --scan-* tokens, .primaryButton and
+   .feedback* classes (both imported by EasyScanCamera.tsx). */
+
+.easyScanTopRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.easyHelpButton {
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.easyHandChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.easyBottomRow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem 1.75rem;
+}
+
+.easyPaperToggle {
+  min-width: 3rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.easyUploadIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+
+.easyUploadFallbackButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.easyScanNoCamera {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+/* The frozen captured photo — same frame treatment as the live video. */
+.easyFrozenFrame {
+  background: #050607;
+}
+.easyFrozenImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.easyFrozenSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.easyCornerCheck circle {
+  fill: #2f9e5c;
+  stroke: #fff;
+  stroke-width: 2;
+}
+.easyCornerCheck path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.easyProcessingPill {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+/* Dimension lines on the measured photo — a white line with a dark halo,
+   short end ticks, and a dark pill label (screen 16). */
+.easyDimExtension {
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.easyDimLine {
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
+  stroke-linecap: round;
+}
+.easyDimLabelBg {
+  fill: rgba(0, 0, 0, 0.72);
+}
+.easyDimLabelText {
+  fill: #ffffff;
+  font-weight: 700;
+}
+
+/* Bottom sheets — measured / gate failure / first-run tip. Native <dialog>
+   for the focus trap + Escape handling `docs/design-guidelines.md` and this
+   task's constraints require; anchored to the bottom of the viewport and
+   slides up (docs/design-guidelines.md: "popovers and sheets grow from the
+   control that opened them" — here, from the bottom edge, over the photo
+   that triggered them). */
+.easySheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 80vh;
+  border: none;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
+  background: var(--scan-bg, #f4f4f6);
+  color: var(--scan-fg, #1c1c1e);
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 20%);
+  animation: easySheetSlideIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.easySheet::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+@keyframes easySheetSlideIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.easySheetTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.easySheetTitle span {
+  color: var(--scan-ok-fg, #1e7b45);
+}
+.easySheetTitleError span {
+  color: var(--scan-error-fg, #a5251b);
+}
+
+.easySheetGripLabel {
+  margin: 0 0 0.6rem;
+  color: var(--scan-muted, #55555d);
+  font-size: 0.9375rem;
+}
+
+.easyGripChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.easyGripChip {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--scan-border, #d5d5dc);
+  background: transparent;
+  color: var(--scan-fg, #1c1c1e);
+  font: inherit;
+  font-weight: 600;
+}
+.easyGripChip.selected {
+  background: var(--scan-accent-soft, #e7f0fd);
+  border-color: var(--scan-accent, #0a64e0);
+  color: var(--scan-accent, #0a64e0);
+}
+
+.easySheetActions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+.easyRetakeButton {
+  flex: 0 0 auto;
+  width: 3.25rem;
+  min-height: 3.25rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--scan-border, #d5d5dc);
+  background: transparent;
+  color: var(--scan-fg, #1c1c1e);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.easySeeMatches {
+  flex: 1;
+  min-width: 0;
+}
+.easySeeMatches .submitPanel {
+  margin: 0;
+}
+.easySeeMatches .primaryButton {
+  width: 100%;
+}
+
+.easySheetErrorMessage {
+  margin: 0 0 1.25rem;
+  color: var(--scan-fg, #1c1c1e);
+  line-height: 1.5;
+}
+.easyTryAgainButton {
+  width: 100%;
+}
+
+.easyTipList {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+.easyTipList li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+.easyTipGotIt {
+  width: 100%;
+}
+.easyTipFinePrint {
+  text-align: center;
+  color: var(--scan-muted, #55555d);
+  font-size: 0.8125rem;
+  margin: 1rem 0 0;
+}
+
+.easyScanShell button:focus-visible,
+.easyScanShell label:focus-visible,
+.easySheet button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.easySheet button:focus-visible {
+  outline-color: var(--scan-accent, #0a64e0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .easySheet {
+    animation: none;
+  }
+  .cameraCornerDot {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .easySheet::backdrop {
+    background: #000;
+  }
+  .easyHelpButton,
+  .easyHandChip,
+  .easyPaperToggle,
+  .easyUploadIconButton,
+  .easyProcessingPill {
+    background: #000;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .easyGripChip,
+  .easyRetakeButton {
+    border-width: 2px;
+  }
+  .easySheet {
+    border-top: 2px solid currentColor;
+  }
+}

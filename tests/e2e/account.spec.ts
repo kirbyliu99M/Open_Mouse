@@ -32,18 +32,18 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
   const response = await gotoWarm(page, "/account");
   expect(response?.status()).toBe(200);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Sign in to keep your scans" }),
+    page.getByRole("heading", { level: 1, name: "Keep your scans" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Sign-in is unavailable right now.", { exact: true }),
+    page.getByText(/sign-in is unavailable right now/i),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Sign in with Google" }),
+    page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);
   await page
     .getByRole("link", { name: "Start measuring without signing in" })
     .click();
-  await expect(page).toHaveURL(/\/sheet$/);
+  await expect(page).toHaveURL(/\/scan\/easy$/);
   expect(errors).toEqual([]);
 });
 

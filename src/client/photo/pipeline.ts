@@ -80,6 +80,13 @@ export interface PhotoOverlay {
    * compute this value internally, this just also returns it.
    */
   readonly handedness?: "left" | "right" | null;
+  /**
+   * The detected blank sheet's own 4 corners (TL, TR, BR, BL), in this
+   * photo's full-resolution pixel space — paper-edge calibration only.
+   * `undefined` for the printed-sheet flow (which draws `markers`/`card`
+   * instead) and wherever paper-edge didn't find a quad at all.
+   */
+  readonly paperCorners?: readonly [Point2, Point2, Point2, Point2] | null;
 }
 
 export type PipelineResult =
@@ -417,6 +424,7 @@ async function runPaperEdgePipeline(
         ...overlayBase,
         landmarksPx: hand.landmarksPx,
         handedness: hand.handedness,
+        paperCorners: quad.corners,
       },
     };
   }
@@ -456,6 +464,7 @@ async function runPaperEdgePipeline(
         ...overlayBase,
         landmarksPx: hand.landmarksPx,
         handedness: hand.handedness,
+        paperCorners: quad.corners,
       },
     };
   }
@@ -479,6 +488,7 @@ async function runPaperEdgePipeline(
       ...overlayBase,
       landmarksPx: hand.landmarksPx,
       handedness: hand.handedness,
+      paperCorners: quad.corners,
     },
   };
 }
