@@ -86,6 +86,11 @@ export function NavMenu() {
                 </Link>
               </li>
               <li>
+                <Link href="/how-it-works" onClick={() => setOpen(false)}>
+                  How it works
+                </Link>
+              </li>
+              <li>
                 <Link href="/account" onClick={() => setOpen(false)}>
                   Account
                 </Link>

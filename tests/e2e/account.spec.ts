@@ -70,6 +70,6 @@ test("deletion confirmation contains focus and returns it to the trigger", async
 
 test("the home page links to /account", async ({ page }) => {
   await gotoWarm(page, "/");
-  await page.getByRole("link", { name: "Sign in to keep your scans" }).click();
+  await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/account$/);
 });

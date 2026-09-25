@@ -21,7 +21,7 @@ test.describe("easy-scan shell screenshots", () => {
     await mkdir(OUTPUT, { recursive: true });
   });
 
-  test("main", async ({ page }, testInfo) => {
+  test("landing", async ({ page }, testInfo) => {
     test.skip(
       process.env.SCREENSHOTS !== "1",
       "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
@@ -33,10 +33,25 @@ test.describe("easy-scan shell screenshots", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: "Find the mouse that fits your hand.",
+        name: "Shape matters more than specs.",
       }),
     ).toBeVisible();
-    await page.screenshot({ path: `${OUTPUT}/main.png`, fullPage: true });
+    await page.screenshot({ path: `${OUTPUT}/landing.png`, fullPage: true });
+  });
+
+  test("how-it-works", async ({ page }, testInfo) => {
+    test.skip(process.env.SCREENSHOTS !== "1", "Screenshot capture is opt-in.");
+    test.skip(testInfo.project.name !== "chromium", "Captures once.");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.goto("/how-it-works");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "How it works" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${OUTPUT}/how-it-works.png`,
+      fullPage: true,
+    });
   });
 
   test("login-unavailable", async ({ page }, testInfo) => {

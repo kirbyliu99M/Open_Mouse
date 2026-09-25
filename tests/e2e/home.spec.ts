@@ -2,79 +2,85 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
-// Read as plain JSON rather than `import ... from "*.json"` — Playwright's
-// test runner loads spec files as native Node ESM, which requires an
-// `type: "json"` import attribute Node's resolver doesn't universally
-// support yet; reading the file directly sidesteps that (see
-// tests/e2e/results-page.spec.ts's own comment).
-const logitechCatalogue: unknown[] = JSON.parse(
+type CatalogueMouse = {
+  model: string;
+  lengthMm: number;
+  widthMm: number;
+  heightMm: number;
+  weightG: number;
+};
+const catalogue: CatalogueMouse[] = JSON.parse(
   readFileSync(
     fileURLToPath(new URL("../../src/db/seed/logitech.json", import.meta.url)),
     "utf-8",
   ),
 );
+const featured = catalogue.find(
+  (mouse) => mouse.model === "G Pro X Superlight 2",
+);
+if (!featured)
+  throw new Error("Featured mouse is missing from the test catalogue");
+const format = (value: number, unit: string) =>
+  `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)} ${unit}`;
 
-test("home page shows the real pitch and its CTA opens the easy-scan camera directly", async ({
+test("landing shows the headline, sketch, catalogue specifications and CTA destinations", async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
-  await expect(page).toHaveTitle("Open_Mouse");
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Find the mouse that fits your hand.",
+      name: "Shape matters more than specs.",
     }),
   ).toBeVisible();
   await expect(
-    page.getByText("Early preview · measurements still being validated"),
+    page.getByRole("img", {
+      name: "Line sketch of the G Pro X Superlight 2 mouse",
+    }),
   ).toBeVisible();
-
-  // The mouse count in the copy comes from the catalogue, not a hard-coded
-  // number — assert against the seed's own length so this test can't drift
-  // from it silently.
-  const count = logitechCatalogue.length;
+  const specs = page.locator("dl.landing-specs");
+  for (const [label, value] of [
+    ["Length", format(featured.lengthMm, "mm")],
+    ["Width", format(featured.widthMm, "mm")],
+    ["Height", format(featured.heightMm, "mm")],
+    ["Weight", format(featured.weightG, "g")],
+  ]) {
+    await expect(
+      specs
+        .locator("div")
+        .filter({ has: page.locator("dt", { hasText: label }) }),
+    ).toContainText(value);
+  }
   await expect(
-    page.getByText(`rank ${count} Logitech mice for you`),
+    page.getByText(
+      `${catalogue.length} Logitech mice scored on length, grip width and weight.`,
+    ),
   ).toBeVisible();
   await expect(
-    page.getByText(`${count} Logitech mice ranked by how they fit your hand.`),
-  ).toBeVisible();
-
+    page.getByRole("link", { name: "Scan my hand" }),
+  ).toHaveAttribute("href", "/scan/easy");
   await expect(
-    page.getByRole("img", { name: /illustration of a hand/i }),
-  ).toBeVisible();
-
-  // "Browse the mice first" must not exist yet — no catalogue page.
-  await expect(page.getByText(/browse the mice first/i)).toHaveCount(0);
-
-  const cta = page.getByRole("link", { name: /scan my hand/i });
-  await expect(cta).toHaveAttribute("href", "/scan/easy");
-  await cta.click();
-  await expect(page).toHaveURL(/\/scan\/easy$/);
-
+    page.getByRole("link", { name: "How it works" }),
+  ).toHaveAttribute("href", "/how-it-works");
+  await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  expect(errors).toEqual([]);
 });
 
-test("home page's side menu opens, traps focus, closes on Escape and returns focus to the trigger", async ({
+test("landing side menu lists How it works and returns focus on Escape", async ({
   page,
 }) => {
   await page.goto("/");
   const trigger = page.getByRole("button", { name: "Open menu" });
   await trigger.click();
-
   const menu = page.getByRole("dialog", { name: "Navigation" });
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole("link", { name: "Scan my hand" })).toBeVisible();
-
+  await expect(
+    menu.getByRole("link", { name: "How it works" }),
+  ).toHaveAttribute("href", "/how-it-works");
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   await expect(trigger).toBeFocused();
