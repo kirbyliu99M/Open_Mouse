@@ -10,10 +10,10 @@
 }
 
 .easyHelpButton {
-  min-width: 32px;
-  min-height: 32px;
-  width: 32px;
-  height: 32px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.4);
@@ -27,7 +27,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 2.5rem;
+  min-height: 44px;
   padding: 0 0.9rem;
   border-radius: 999px;
   border: none;
