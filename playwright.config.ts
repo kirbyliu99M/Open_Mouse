@@ -9,7 +9,11 @@ const FAKE_VIDEO_FIXTURE = path.join(
 );
 const FAKE_VIDEO_FIXTURE_PARTIAL = path.join(
   __dirname,
-  "tests/e2e/fixtures/camera/sheet-partial.y4m",
+  "tests/e2e/fixtures/camera/paper-edge-partial.y4m",
+);
+const FAKE_VIDEO_FIXTURE_PAPER_EDGE = path.join(
+  __dirname,
+  "tests/e2e/fixtures/camera/paper-edge-full.y4m",
 );
 
 function fakeMediaLaunchOptions(fixturePath: string) {
@@ -63,7 +67,7 @@ export default defineConfig({
     // project instead, where there's no fake camera to grant.
     {
       name: "chromium-camera",
-      testMatch: /camera-capture\.spec\.ts|camera-screenshots\.spec\.ts/,
+      testMatch: /camera-capture\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },
@@ -82,6 +86,20 @@ export default defineConfig({
         viewport: { width: 390, height: 844 },
         permissions: ["camera"],
         launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PARTIAL),
+      },
+    },
+    // tests/e2e/camera-paper-edge.spec.ts and the paper-edge screenshots in
+    // camera-screenshots.spec.ts: the real detectPaperQuad's lock-on target
+    // — a blank paper fixture (no markers), fed to the paper-edge preview
+    // route.
+    {
+      name: "chromium-camera-paper-edge",
+      testMatch: /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        permissions: ["camera"],
+        launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PAPER_EDGE),
       },
     },
   ],

@@ -10,20 +10,15 @@
  * tuning pass has a single place to look.
  */
 
-/** Mirrors (not yet merged) src/lib/contracts/measurement.ts's PaperSize from
- * PR #58 (branch contracts-paper-edge) — swap this alias for that import
- * once the contract lands. Only used here for display copy and the
- * primer's aspect-ratio preview, never for measurement math. */
-export type PaperSize = "a4" | "letter";
+import {
+  PAPER_SIZES_MM,
+  type PaperSize,
+} from "../../lib/contracts/measurement";
 
-/** Mirrors PAPER_SIZES_MM from the same not-yet-merged contract. */
-export const PAPER_SIZES_MM: Record<
-  PaperSize,
-  { width: number; height: number }
-> = {
-  a4: { width: 210, height: 297 },
-  letter: { width: 215.9, height: 279.4 },
-};
+// Re-exported for existing call sites in this directory; the contract
+// (PR #58, merged) is now the single source of truth for both.
+export { PAPER_SIZES_MM };
+export type { PaperSize };
 
 export const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
   a4: "A4",

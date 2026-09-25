@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createMarkerBasedQuadSource } from "../../src/client/camera/quad-source";
+import {
+  createMarkerBasedQuadSource,
+  createPaperEdgeQuadSource,
+} from "../../src/client/camera/quad-source";
 import type { DetectedMarker } from "../../src/client/photo/markers";
 
 const FAKE_FRAME: ImageData = {
@@ -122,5 +125,55 @@ describe("createMarkerBasedQuadSource", () => {
       marker(3, 0, 100),
     ]);
     expect(source(FAKE_FRAME, "a4")).toEqual(source(FAKE_FRAME, "letter"));
+  });
+});
+
+describe("createPaperEdgeQuadSource", () => {
+  const FULL_DETECTION = {
+    corners: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 100 },
+    ],
+    cornersSeen: 4,
+    cornersFound: [true, true, true, true],
+    partialCorners: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 100 },
+    ],
+    minSideCoverage: 0.9,
+    edgeFitResidualPx: 1.2,
+  } as const;
+
+  it("passes the detector's result straight through on success", () => {
+    const source = createPaperEdgeQuadSource(() => FULL_DETECTION);
+    expect(source(FAKE_FRAME, "a4")).toEqual(FULL_DETECTION);
+  });
+
+  it("reports no corners found instead of crashing when the detector throws (live loop safety net)", () => {
+    const source = createPaperEdgeQuadSource(() => {
+      throw new RangeError("detectPaperQuad: unrecoverable side geometry.");
+    });
+    expect(source(FAKE_FRAME, "a4")).toEqual({
+      corners: null,
+      cornersSeen: 0,
+      cornersFound: [false, false, false, false],
+      partialCorners: [null, null, null, null],
+      minSideCoverage: 0,
+      edgeFitResidualPx: 0,
+    });
+  });
+
+  it("passes paperSize through to the detector", () => {
+    let seenPaperSize: string | undefined;
+    const source = createPaperEdgeQuadSource((_, paperSize) => {
+      seenPaperSize = paperSize;
+      return FULL_DETECTION;
+    });
+    source(FAKE_FRAME, "letter");
+    expect(seenPaperSize).toBe("letter");
   });
 });

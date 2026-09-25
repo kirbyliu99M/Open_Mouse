@@ -1,13 +1,23 @@
 "use client";
 
 /**
- * Live camera capture (docs/design/camera-capture-2026-09-25/README.md),
- * revised 2026-09-25 for Kirby's plain-paper direction change: primer →
- * live viewfinder (lock-on brackets track the paper's 4 corners, found via
- * the injected `SheetQuadSource` — see quad-source.ts's header for why
- * this component never calls a paper-edge detector directly) → review →
- * `onUsePhoto`, which the caller (ScanClient) runs through the existing,
- * unchanged `runPhotoPipeline`.
+ * Live camera capture (docs/design/camera-capture-2026-09-25/README.md;
+ * visual details matched 2026-09-25 to Codex's product-shell design, PR
+ * #60 — docs/design/product-shell-2026-09-25/README.md and its
+ * 03-camera.png/04-review.png): primer → live viewfinder (an inset,
+ * bordered frame — not full-bleed edge-to-edge — with corner check-dots
+ * that lock on individually, chips below the frame, one cue line, a big
+ * ring shutter) → review (full photo, corner dots, "Use this photo" /
+ * "Retake photo") → `onUsePhoto`, which the caller (ScanClient) runs
+ * through the existing, unchanged `runPhotoPipeline`.
+ *
+ * `calibrationMode` picks which quad source (and primer copy) applies:
+ * "printed-sheet" locks onto the existing ArUco markers
+ * (`createMarkerBasedQuadSource`, still what real users hit today);
+ * "paper-edge" locks onto a blank sheet's own edges via the real detector
+ * (`createPaperEdgeQuadSource`, wrapping `detectPaperQuad` — every call
+ * wrapped in try/catch so a detector throw can never crash the live loop,
+ * which calls it up to 8×/s).
  *
  * Everything under 640px-long-edge/≤8 samples-per-second in the live loop
  * is the *only* per-frame analysis (reusing `computeLaplacianVariance`);
@@ -28,8 +38,8 @@ import {
   CAMERA_CONSTANTS,
   PAPER_SIZE_LABELS,
   PAPER_SIZES_MM,
-  type PaperSize,
 } from "./constants";
+import type { PaperSize } from "../../lib/contracts/measurement";
 import {
   pickCue,
   computeStatusChips,
@@ -42,7 +52,7 @@ import {
   type Point,
   type Quad,
 } from "./quad";
-import { computeHandGhostPoints, handGhostPathD } from "./handGhost";
+import { computeHandGhostGeometry } from "./handGhost";
 import { isSteady } from "./steadiness";
 import { computeMeanLuma, computeClippedFraction } from "./light";
 import {
@@ -54,6 +64,7 @@ import {
 } from "./autoCapture";
 import {
   createMarkerBasedQuadSource,
+  createPaperEdgeQuadSource,
   type SheetQuadSource,
 } from "./quad-source";
 import "./camera.css";
@@ -62,6 +73,10 @@ import "./camera.css";
 type CornerTuple<T> = readonly [T, T, T, T];
 
 type Hand = "left" | "right";
+export type CalibrationMode = "printed-sheet" | "paper-edge";
+
+/** Printed sheet's own aspect (docs/PLAN.md §M2: 210 × 265mm content column) — the live frame's aspect-ratio hint before/without a paper-size toggle. */
+const PRINTED_SHEET_ASPECT = 210 / 265;
 
 interface ImageCaptureLike {
   takePhoto(): Promise<Blob>;
@@ -93,21 +108,23 @@ type CamState =
 
 export interface CameraCaptureProps {
   readonly hand: Hand;
+  readonly calibrationMode: CalibrationMode;
+  /** Only meaningful (and only shown as a toggle) in "paper-edge" mode. */
+  readonly paperSize: PaperSize;
+  readonly onPaperSizeChange: (size: PaperSize) => void;
   readonly onUsePhoto: (file: File) => void;
   readonly onExit: () => void;
-  /** Injectable for testing and for swapping in the real paper-edge detector later. */
+  /** Injectable for testing and to override the mode-selected default source. */
   readonly quadSource?: SheetQuadSource;
 }
 
-const RING_RADIUS = 30;
+const RING_RADIUS = 40;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /**
- * Placeholder bracket positions for a corner not yet found — inset from
- * the *container's own* visible bounds, deliberately not from the cover
- * rect (which, unlike the old contain rect, commonly extends past the
- * container on one axis — insetting from its edges could place an
- * unfound-corner placeholder off-screen entirely).
+ * Placeholder corner-dot positions for a corner not yet found — inset
+ * from the *container's own* visible bounds (the bordered frame element),
+ * not from the cover rect, which can extend past it on one axis.
  */
 function idealCorners(containerWidth: number, containerHeight: number): Quad {
   const insetX = containerWidth * 0.12;
@@ -173,11 +190,12 @@ function sampleLuma(
   return out;
 }
 
-function cornerStyle(p: { x: number; y: number }): CSSProperties {
+function dotStyle(p: { x: number; y: number }): CSSProperties {
   return { left: p.x, top: p.y };
 }
 
-function Bracket({
+/** A corner check-dot (Codex's product-shell design, PR #60): a plain circle, white outline until found, filled green with a check once locked on — no bracket frame. */
+function CornerDot({
   point,
   found,
 }: {
@@ -186,37 +204,34 @@ function Bracket({
 }) {
   return (
     <div
-      className={`cameraBracket${found ? " found" : ""}`}
-      style={cornerStyle(point)}
+      className={`cameraCornerDot${found ? " found" : ""}`}
+      style={dotStyle(point)}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 34 34">
-        <path className="bracketMark" d="M2 14 L2 2 L14 2" />
-        <path className="bracketMark" d="M20 2 L32 2 L32 14" />
-        <path className="bracketMark" d="M32 20 L32 32 L20 32" />
-        <path className="bracketMark" d="M14 32 L2 32 L2 20" />
-        <path
-          className="bracketCheck"
-          d="M11 17.5 L15 21.5 L23 12.5 L21 10.5 L15 17 L13 15 Z"
-        />
-      </svg>
+      {found && (
+        <svg viewBox="0 0 20 20">
+          <path d="M5 10.3 L8.4 13.7 L15 6.3" />
+        </svg>
+      )}
     </div>
   );
 }
 
 export default function CameraCapture({
   hand,
+  calibrationMode,
+  paperSize,
+  onPaperSizeChange,
   onUsePhoto,
   onExit,
   quadSource,
 }: CameraCaptureProps) {
   const [state, setState] = useState<CamState>({ kind: "primer" });
-  const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   const [cue, setCue] = useState<Cue | null>(null);
   const [chips, setChips] = useState<StatusChips | null>(null);
   // One entry per corner (TL, TR, BR, BL) — each is the ideal placeholder
   // position until *that specific* corner locks on, independent of the
-  // other three (item: "per-corner lock-on").
+  // other three.
   const [displayCorners, setDisplayCorners] =
     useState<CornerTuple<Point> | null>(null);
   const [foundPerCorner, setFoundPerCorner] = useState<CornerTuple<boolean>>([
@@ -225,10 +240,18 @@ export default function CameraCapture({
     false,
     false,
   ]);
-  const [handGhostD, setHandGhostD] = useState<string | null>(null);
+  const [handGhost, setHandGhost] = useState<{
+    outlineD: string;
+    fingerGapLines: readonly (readonly [Point, Point])[];
+  } | null>(null);
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
+  const [frameAspect, setFrameAspect] = useState(
+    calibrationMode === "paper-edge"
+      ? PAPER_SIZES_MM[paperSize].width / PAPER_SIZES_MM[paperSize].height
+      : PRINTED_SHEET_ASPECT,
+  );
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -242,17 +265,27 @@ export default function CameraCapture({
   const lastCueChangeAtRef = useRef(0);
   // A ref, not the `cue` state itself: `tick` is one long-lived closure for
   // the whole "live" session (recreated only when state.kind/paperSize/
-  // hand change — see the effect's own comment on why), so reading the
-  // `cue` *state* here would always see whatever it was when the closure
-  // was created, never this session's own later updates — silently
-  // defeating the "one change per 1.5s" throttle below (every sample would
-  // satisfy `cue === null`).
+  // hand/calibrationMode change), so reading the `cue` *state* here would
+  // always see whatever it was when the closure was created, never this
+  // session's own later updates — silently defeating the "one change per
+  // 1.5s" throttle below.
   const lastCueCodeRef = useRef<Cue["code"] | null>(null);
   const capturingRef = useRef(false);
-  const quadSourceRef = useRef<SheetQuadSource>(
-    quadSource ?? createMarkerBasedQuadSource(),
-  );
   const reducedMotionRef = useRef(false);
+
+  const defaultQuadSource = useCallback(
+    () =>
+      calibrationMode === "paper-edge"
+        ? createPaperEdgeQuadSource()
+        : createMarkerBasedQuadSource(),
+    [calibrationMode],
+  );
+  const quadSourceRef = useRef<SheetQuadSource>(
+    quadSource ?? defaultQuadSource(),
+  );
+  useEffect(() => {
+    quadSourceRef.current = quadSource ?? defaultQuadSource();
+  }, [quadSource, defaultQuadSource]);
 
   useEffect(() => {
     reducedMotionRef.current =
@@ -287,6 +320,10 @@ export default function CameraCapture({
           stopStream();
           setState({ kind: "streamEnded" });
         });
+        const settings = track.getSettings?.();
+        if (settings?.width && settings.height) {
+          setFrameAspect(settings.width / settings.height);
+        }
       });
       autoCaptureRef.current = resetAutoCapture();
       lastDetectionAtRef.current = performance.now();
@@ -401,7 +438,7 @@ export default function CameraCapture({
     capturingRef.current = false;
   }, [stopStream]);
 
-  // The live loop: downscaled frame, throttled sampling, brackets/cue/chip
+  // The live loop: downscaled frame, throttled sampling, corner-dot/cue/chip
   // state, and the auto-capture ring — see the module doc comment.
   useEffect(() => {
     if (state.kind !== "live") return;
@@ -418,12 +455,11 @@ export default function CameraCapture({
       const stage = stageRef.current;
       if (!stage || !video || video.videoWidth === 0) return null;
       const box = stage.getBoundingClientRect();
-      // "cover", not "contain": the video fills the stage completely (full-
-      // bleed, no letterbox/pillarbox bars) — see camera.css's `.cameraVideo
-      // { object-fit: cover }`. The overlay must map through the exact same
-      // fit function the video itself uses, or brackets drift off the real
-      // corners whenever the stream's aspect ratio doesn't match the
-      // viewport's.
+      // The bordered frame's own aspect already closely tracks the video's
+      // real aspect (see `frameAspect`, set from the track's own
+      // settings), so "cover" here is a safety net against a residual
+      // mismatch, not a crop — mapping through the exact same fit function
+      // the video itself uses keeps the overlay aligned either way.
       const coverRect = computeCoverRect(
         box.width,
         box.height,
@@ -467,7 +503,22 @@ export default function CameraCapture({
       ctx.drawImage(video, 0, 0, width, height);
       const imageData = ctx.getImageData(0, 0, width, height);
 
-      const detection = quadSourceRef.current(imageData, paperSize);
+      let detection;
+      try {
+        detection = quadSourceRef.current(imageData, paperSize);
+      } catch {
+        // Defence in depth: quad-source.ts's own wrappers already catch a
+        // detector throw, but this loop runs up to 8×/s for as long as the
+        // camera is open and must never be the thing that crashes it.
+        detection = {
+          corners: null,
+          cornersSeen: 0 as const,
+          cornersFound: [false, false, false, false] as const,
+          partialCorners: [null, null, null, null] as const,
+          minSideCoverage: 0,
+          edgeFitResidualPx: 0,
+        };
+      }
       const sampleQuad: Quad | null = detection.corners
         ? {
             topLeft: detection.corners[0],
@@ -570,10 +621,9 @@ export default function CameraCapture({
             mappedPartial[2],
             mappedPartial[3],
           ]);
-          const ghostPoints = computeHandGhostPoints(containerQuad, hand);
-          setHandGhostD(handGhostPathD(ghostPoints));
+          setHandGhost(computeHandGhostGeometry(containerQuad, hand));
         } else {
-          setHandGhostD(null);
+          setHandGhost(null);
         }
       }
 
@@ -604,54 +654,90 @@ export default function CameraCapture({
   if (state.kind === "primer") {
     return (
       <div className="cameraPrimer">
-        <div className="cameraPrimerRow">
-          <span className="cameraPrimerBadge" aria-hidden="true">
-            1
-          </span>
-          <p className="cameraPrimerText">
-            Blank {PAPER_SIZE_LABELS[paperSize]} paper on a darker, plain table,
-            in even light with no glare.
-          </p>
-        </div>
-        <div className="cameraPrimerRow">
-          <span className="cameraPrimerBadge" aria-hidden="true">
-            2
-          </span>
-          <p className="cameraPrimerText">
-            Hand flat on the paper, fingers together, wrist at the bottom edge.
-          </p>
-        </div>
-        <div className="cameraPrimerRow">
-          <span className="cameraPrimerBadge" aria-hidden="true">
-            3
-          </span>
-          <p className="cameraPrimerText">
-            Hold the phone flat above, about 40 cm up — the whole paper in view.
-          </p>
-        </div>
+        {calibrationMode === "paper-edge" ? (
+          <>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                1
+              </span>
+              <p className="cameraPrimerText">
+                Blank {PAPER_SIZE_LABELS[paperSize]} paper on a darker, plain
+                table, in even light with no glare.
+              </p>
+            </div>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                2
+              </span>
+              <p className="cameraPrimerText">
+                Hand flat on the paper, fingers together, wrist at the bottom
+                edge.
+              </p>
+            </div>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                3
+              </span>
+              <p className="cameraPrimerText">
+                Hold the phone flat above, about 40 cm up — the whole paper in
+                view.
+              </p>
+            </div>
 
-        <div className="cameraPaperToggle">
-          <span id="camera-paper-size-label">Paper size</span>
-          <div
-            className="cameraPaperToggleButtons"
-            role="group"
-            aria-labelledby="camera-paper-size-label"
-          >
-            {(Object.keys(PAPER_SIZES_MM) as PaperSize[]).map((size) => (
-              <button
-                key={size}
-                type="button"
-                className={`cameraPaperToggleButton${
-                  paperSize === size ? " selected" : ""
-                }`}
-                aria-pressed={paperSize === size}
-                onClick={() => setPaperSize(size)}
+            <div className="cameraPaperToggle">
+              <span id="camera-paper-size-label">Paper size</span>
+              <div
+                className="cameraPaperToggleButtons"
+                role="group"
+                aria-labelledby="camera-paper-size-label"
               >
-                {PAPER_SIZE_LABELS[size]}
-              </button>
-            ))}
-          </div>
-        </div>
+                {(Object.keys(PAPER_SIZES_MM) as PaperSize[]).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    className={`cameraPaperToggleButton${
+                      paperSize === size ? " selected" : ""
+                    }`}
+                    aria-pressed={paperSize === size}
+                    onClick={() => onPaperSizeChange(size)}
+                  >
+                    {PAPER_SIZE_LABELS[size]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                1
+              </span>
+              <p className="cameraPrimerText">
+                Sheet flat on a table, printed at 100%, good even light, no
+                glare.
+              </p>
+            </div>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                2
+              </span>
+              <p className="cameraPrimerText">
+                Bank card in the card outline; hand flat, fingers together,
+                wrist at the line.
+              </p>
+            </div>
+            <div className="cameraPrimerRow">
+              <span className="cameraPrimerBadge" aria-hidden="true">
+                3
+              </span>
+              <p className="cameraPrimerText">
+                Hold the phone flat above, about 40 cm up — the whole sheet in
+                view.
+              </p>
+            </div>
+          </>
+        )}
 
         <button
           type="button"
@@ -694,39 +780,111 @@ export default function CameraCapture({
     );
   }
 
+  const cornerNoun = calibrationMode === "paper-edge" ? "paper" : "sheet";
+
+  if (state.kind === "review") {
+    const allCornersFound = state.quad !== null;
+    return (
+      <div className="cameraReviewPage">
+        <div className="cameraReviewTopBar">
+          <button
+            type="button"
+            className="cameraReviewBack"
+            onClick={() => {
+              URL.revokeObjectURL(state.previewUrl);
+              void startCamera();
+            }}
+          >
+            <span aria-hidden="true">‹</span> Camera
+          </button>
+          <span className="cameraReviewStepLabel">Step 2 of 2 · Review</span>
+        </div>
+
+        <h1 className="cameraReviewHeading">Check your photo</h1>
+        <p className="cameraReviewSubtitle">
+          Make sure your whole hand and all four {cornerNoun} corners are
+          visible.
+        </p>
+
+        <div className="cameraReviewCard">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
+          <img src={state.previewUrl} alt="" className="cameraReviewImg" />
+          {state.quad && (
+            <svg
+              className="cameraReviewSvg"
+              viewBox={`0 0 ${state.fullWidth} ${state.fullHeight}`}
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label={`Detected ${cornerNoun} corners overlaid on your photo`}
+            >
+              {[
+                state.quad.topLeft,
+                state.quad.topRight,
+                state.quad.bottomRight,
+                state.quad.bottomLeft,
+              ].map((p, i) => (
+                <circle
+                  key={i}
+                  cx={p.x}
+                  cy={p.y}
+                  r={Math.max(10, state.fullWidth * 0.012)}
+                  className="reviewCornerDot"
+                />
+              ))}
+            </svg>
+          )}
+        </div>
+
+        {allCornersFound && (
+          <p className="cameraReviewStatus">
+            <span aria-hidden="true">✓</span> All four {cornerNoun} corners
+            found
+          </p>
+        )}
+
+        <div className="cameraReviewActions">
+          <button
+            type="button"
+            className="cameraUsePhoto"
+            onClick={() => onUsePhoto(state.file)}
+          >
+            Use this photo
+          </button>
+          <button
+            type="button"
+            className="cameraRetake"
+            onClick={() => {
+              URL.revokeObjectURL(state.previewUrl);
+              void startCamera();
+            }}
+          >
+            Retake photo
+          </button>
+        </div>
+        <p className="cameraNotice">
+          The photo is checked on this device and never uploaded.
+        </p>
+      </div>
+    );
+  }
+
   const showViewfinder = state.kind === "live";
 
   return (
     <div className="cameraViewfinder">
-      <div className="cameraTopGradient">
-        <div className="cameraTopBar">
-          <button
-            type="button"
-            className="cameraCloseButton"
-            aria-label="Close camera, back to Scan"
-            onClick={() => {
-              stopStream();
-              onExit();
-            }}
-          >
-            ×
-          </button>
-          <span className="cameraStepPill">Step 2 of 2 · Photo</span>
-        </div>
-
-        {showViewfinder && chips && (
-          <div className="cameraChips" aria-hidden="true">
-            <span className={`cameraChip${chips.paper.pass ? " pass" : ""}`}>
-              {chips.paper.label}
-            </span>
-            <span className={`cameraChip${chips.steady.pass ? " pass" : ""}`}>
-              {chips.steady.label}
-            </span>
-            <span className={`cameraChip${chips.light.pass ? " pass" : ""}`}>
-              {chips.light.label}
-            </span>
-          </div>
-        )}
+      <div className="cameraTopBar">
+        <button
+          type="button"
+          className="cameraCloseButton"
+          aria-label="Close camera, back to Scan"
+          onClick={() => {
+            stopStream();
+            onExit();
+          }}
+        >
+          ×
+        </button>
+        <span className="cameraStepLabel">Step 2 of 2 · Photo</span>
       </div>
 
       {state.kind === "streamEnded" && (
@@ -743,116 +901,111 @@ export default function CameraCapture({
       )}
 
       {showViewfinder && (
-        <div className="cameraStage" ref={stageRef}>
-          <video
-            ref={videoRef}
-            className="cameraVideo"
-            muted
-            playsInline
-            autoPlay
-          />
-          <div className="cameraOverlay">
-            {displayCorners && (
-              <>
-                <Bracket point={displayCorners[0]} found={foundPerCorner[0]} />
-                <Bracket point={displayCorners[1]} found={foundPerCorner[1]} />
-                <Bracket point={displayCorners[2]} found={foundPerCorner[2]} />
-                <Bracket point={displayCorners[3]} found={foundPerCorner[3]} />
-              </>
-            )}
-            {handGhostD && (
-              <svg className="cameraHandGhostSvg" aria-hidden="true">
-                <path className="cameraHandGhostPath" d={handGhostD} />
-              </svg>
-            )}
-          </div>
-
-          <div className="cameraBottomGradient">
-            <div className="cameraCueWrap">
-              <div
-                className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
-                aria-live="polite"
-                data-testid="camera-cue"
-              >
-                {cue?.message ?? "Point the camera at the paper"}
+        <>
+          <div className="cameraFrameWrap">
+            <div
+              className="cameraFrame"
+              ref={stageRef}
+              style={{ aspectRatio: frameAspect }}
+            >
+              <video
+                ref={videoRef}
+                className="cameraVideo"
+                muted
+                playsInline
+                autoPlay
+              />
+              <div className="cameraOverlay">
+                {displayCorners && (
+                  <>
+                    <CornerDot
+                      point={displayCorners[0]}
+                      found={foundPerCorner[0]}
+                    />
+                    <CornerDot
+                      point={displayCorners[1]}
+                      found={foundPerCorner[1]}
+                    />
+                    <CornerDot
+                      point={displayCorners[2]}
+                      found={foundPerCorner[2]}
+                    />
+                    <CornerDot
+                      point={displayCorners[3]}
+                      found={foundPerCorner[3]}
+                    />
+                  </>
+                )}
+                {handGhost && (
+                  <svg className="cameraHandGhostSvg" aria-hidden="true">
+                    <path
+                      className="cameraHandGhostPath"
+                      d={handGhost.outlineD}
+                    />
+                    {handGhost.fingerGapLines.map(([a, b], i) => (
+                      <line
+                        key={i}
+                        x1={a.x}
+                        y1={a.y}
+                        x2={b.x}
+                        y2={b.y}
+                        className="cameraHandGhostGap"
+                      />
+                    ))}
+                  </svg>
+                )}
               </div>
-            </div>
-            <p className="visuallyHiddenLive" aria-live="polite">
-              {announced}
-            </p>
-
-            <div className="cameraShutterRow">
-              <button
-                type="button"
-                className="cameraShutter"
-                aria-label="Take photo"
-                onClick={() => void captureNow()}
-              >
-                <div className="cameraShutterInner" />
-                <svg className="cameraShutterRing" viewBox="0 0 72 72">
-                  <circle
-                    cx="36"
-                    cy="36"
-                    r={RING_RADIUS}
-                    strokeDasharray={RING_CIRCUMFERENCE}
-                    strokeDashoffset={RING_CIRCUMFERENCE * (1 - ringFraction)}
-                  />
-                </svg>
-              </button>
+              {flashKey > 0 && <div key={flashKey} className="cameraFlash" />}
             </div>
           </div>
 
-          {flashKey > 0 && <div key={flashKey} className="cameraFlash" />}
-        </div>
-      )}
+          {chips && (
+            <div className="cameraChips" aria-hidden="true">
+              <span className={`cameraChip${chips.paper.pass ? " pass" : ""}`}>
+                {chips.paper.label}
+              </span>
+              <span className={`cameraChip${chips.steady.pass ? " pass" : ""}`}>
+                {chips.steady.label}
+              </span>
+              <span className={`cameraChip${chips.light.pass ? " pass" : ""}`}>
+                {chips.light.label}
+              </span>
+            </div>
+          )}
 
-      {state.kind === "review" && (
-        <div className="cameraReview">
-          <div className="cameraReviewStage">
-            {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
-            <img src={state.previewUrl} alt="" className="cameraReviewImg" />
-            {state.quad && (
-              <svg
-                className="cameraReviewSvg"
-                viewBox={`0 0 ${state.fullWidth} ${state.fullHeight}`}
-                preserveAspectRatio="xMidYMid meet"
-                role="img"
-                aria-label="Detected paper corners overlaid on your photo"
-              >
-                <polygon
-                  className="overlayPaper"
-                  points={[
-                    state.quad.topLeft,
-                    state.quad.topRight,
-                    state.quad.bottomRight,
-                    state.quad.bottomLeft,
-                  ]
-                    .map((p) => `${p.x},${p.y}`)
-                    .join(" ")}
+          <div className="cameraCueWrap">
+            <div
+              className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
+              aria-live="polite"
+              data-testid="camera-cue"
+            >
+              {cue?.message ?? `Point the camera at the ${cornerNoun}`}
+            </div>
+          </div>
+          <p className="visuallyHiddenLive" aria-live="polite">
+            {announced}
+          </p>
+
+          <div className="cameraShutterRow">
+            <button
+              type="button"
+              className="cameraShutter"
+              aria-label="Take photo"
+              onClick={() => void captureNow()}
+            >
+              <div className="cameraShutterInner" />
+              <svg className="cameraShutterRing" viewBox="0 0 96 96">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r={RING_RADIUS}
+                  strokeDasharray={RING_CIRCUMFERENCE}
+                  strokeDashoffset={RING_CIRCUMFERENCE * (1 - ringFraction)}
                 />
               </svg>
-            )}
-          </div>
-          <div className="cameraReviewActions">
-            <button
-              type="button"
-              className="cameraRetake"
-              onClick={() => {
-                URL.revokeObjectURL(state.previewUrl);
-                void startCamera();
-              }}
-            >
-              Retake
-            </button>
-            <button
-              type="button"
-              className="cameraUsePhoto"
-              onClick={() => onUsePhoto(state.file)}
-            >
-              Use this photo
             </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

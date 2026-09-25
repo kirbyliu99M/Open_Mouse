@@ -1,9 +1,12 @@
 /**
- * One-off generator for the two committed fake-camera video fixtures under
+ * One-off generator for the committed fake-camera video fixtures under
  * tests/e2e/fixtures/camera/ (docs/design/camera-capture-2026-09-25/
- * README.md: "a generated .y4m/.mjpeg of the real sheet layout"). Opt-in
- * only, same convention as tests/e2e/journey-screenshots.spec.ts — a
- * normal `playwright test` run must never silently rewrite the committed
+ * README.md: "a generated .y4m/.mjpeg of the real sheet layout") — one
+ * printed-sheet fixture (markers, still the shipped default flow) and two
+ * paper-edge fixtures (blank paper, no markers — the real
+ * `detectPaperQuad`'s lock-on target: see paper-scene.ts). Opt-in only,
+ * same convention as tests/e2e/journey-screenshots.spec.ts — a normal
+ * `playwright test` run must never silently rewrite the committed
  * fixtures. Run by hand whenever they need regenerating (needs `ffmpeg` on
  * PATH):
  *
@@ -36,6 +39,7 @@ import { promisify } from "node:util";
 import { test } from "@playwright/test";
 import type { Homography } from "../../../src/client/geometry/homography";
 import { buildCameraScenePng } from "./camera-scene";
+import { buildPaperScenePng } from "./paper-scene";
 
 const run = promisify(execFile);
 
@@ -61,11 +65,58 @@ const HOMOGRAPHY: Homography = [
   [0, 0, 1],
 ];
 
+// Paper-edge fixture: a genuine (non-affine) perspective, and a slightly
+// different scale/position — verified by hand against the real
+// `detectPaperQuad` (both at full resolution and downscaled to the live
+// loop's 640px long edge) to land all 4 corners with the hand occluder in
+// place; see this file's own generation run for the numbers reported in
+// the PR.
+const PAPER_SCALE = 3.6;
+const PAPER_TX = (CANVAS_WIDTH - A4_MM.width * PAPER_SCALE) / 2;
+const PAPER_TY = (CANVAS_HEIGHT - A4_MM.height * PAPER_SCALE) / 2 - 20;
+const PAPER_HOMOGRAPHY: Homography = [
+  [PAPER_SCALE, 0.06, PAPER_TX],
+  [-0.02, PAPER_SCALE, PAPER_TY],
+  [0.00003, -0.00002, 1],
+];
+
+// Paper-edge "partial" fixture: framed so ONLY the bottom edge falls
+// outside the frame (top/left/right all comfortably inside with margin) —
+// the real detector fits 3 sides, so only the two TOP corners (each needs
+// its two adjacent sides fit) are computable: cornersSeen === 2. Zooming
+// so every side clips (verified by hand first) instead leaves 0 sides
+// fittable and reports 0, not 2 — worth noting for next time this needs
+// regenerating. No hand occluder (not the thing being demonstrated here).
+const PARTIAL_SCALE = 4.3;
+const PARTIAL_TX = (CANVAS_WIDTH - A4_MM.width * PARTIAL_SCALE) / 2;
+const PARTIAL_TY = 150;
+const PARTIAL_HOMOGRAPHY: Homography = [
+  [PARTIAL_SCALE, 0, PARTIAL_TX],
+  [0, PARTIAL_SCALE, PARTIAL_TY],
+  [0, 0, 1],
+];
+
 async function ffmpeg(args: string[]): Promise<void> {
   await run("ffmpeg", ["-y", ...args]);
 }
 
-test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.y4m", async ({
+async function pngToY4m(pngPath: string, outPath: string): Promise<void> {
+  // A single frame — the fake capture device loops it for as long as a
+  // test keeps the stream open.
+  await ffmpeg([
+    "-loop",
+    "1",
+    "-i",
+    pngPath,
+    "-frames:v",
+    "1",
+    "-pix_fmt",
+    "yuv420p",
+    outPath,
+  ]);
+}
+
+test("generates the committed fake-camera .y4m fixtures under tests/e2e/fixtures/camera/", async ({
   page,
 }) => {
   test.skip(
@@ -75,6 +126,8 @@ test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.y4m", async ({
 
   await mkdir(OUT_DIR, { recursive: true });
 
+  // Printed-sheet fixture (createMarkerBasedQuadSource's lock-on target;
+  // still the shipped default flow).
   const fullPng = await buildCameraScenePng(page, {
     canvasWidth: CANVAS_WIDTH,
     canvasHeight: CANVAS_HEIGHT,
@@ -82,44 +135,42 @@ test("generates tests/e2e/fixtures/camera/sheet-{full,partial}.y4m", async ({
     paperSizeMm: A4_MM,
     markerIds: [0, 1, 2, 3],
   });
-  const partialPng = await buildCameraScenePng(page, {
+
+  // Paper-edge fixtures: blank paper, no markers — the real
+  // detectPaperQuad's lock-on target. "full" has a genuine perspective and
+  // a skin-tone hand occluder crossing the bottom edge; "partial" is
+  // zoomed so the bottom two corners fall outside the frame (2-of-4
+  // lock-on / "move back" cue).
+  const paperEdgePng = await buildPaperScenePng(page, {
     canvasWidth: CANVAS_WIDTH,
     canvasHeight: CANVAS_HEIGHT,
-    homography: HOMOGRAPHY,
+    homography: PAPER_HOMOGRAPHY,
     paperSizeMm: A4_MM,
-    markerIds: [0, 1], // top two only — "move back" / 2-of-4 lock-on
+    includeHand: true,
+  });
+  const paperEdgePartialPng = await buildPaperScenePng(page, {
+    canvasWidth: CANVAS_WIDTH,
+    canvasHeight: CANVAS_HEIGHT,
+    homography: PARTIAL_HOMOGRAPHY,
+    paperSizeMm: A4_MM,
+    includeHand: false,
   });
 
   const fullPngPath = path.join(OUT_DIR, "_full.png");
-  const partialPngPath = path.join(OUT_DIR, "_partial.png");
+  const paperEdgePngPath = path.join(OUT_DIR, "_paper-edge.png");
+  const paperEdgePartialPngPath = path.join(OUT_DIR, "_paper-edge-partial.png");
   await writeFile(fullPngPath, fullPng);
-  await writeFile(partialPngPath, partialPng);
+  await writeFile(paperEdgePngPath, paperEdgePng);
+  await writeFile(paperEdgePartialPngPath, paperEdgePartialPng);
 
-  // A single frame — the fake capture device loops it for as long as a
-  // test keeps the stream open.
-  await ffmpeg([
-    "-loop",
-    "1",
-    "-i",
-    fullPngPath,
-    "-frames:v",
-    "1",
-    "-pix_fmt",
-    "yuv420p",
-    path.join(OUT_DIR, "sheet-full.y4m"),
-  ]);
-  await ffmpeg([
-    "-loop",
-    "1",
-    "-i",
-    partialPngPath,
-    "-frames:v",
-    "1",
-    "-pix_fmt",
-    "yuv420p",
-    path.join(OUT_DIR, "sheet-partial.y4m"),
-  ]);
+  await pngToY4m(fullPngPath, path.join(OUT_DIR, "sheet-full.y4m"));
+  await pngToY4m(paperEdgePngPath, path.join(OUT_DIR, "paper-edge-full.y4m"));
+  await pngToY4m(
+    paperEdgePartialPngPath,
+    path.join(OUT_DIR, "paper-edge-partial.y4m"),
+  );
 
   await rm(fullPngPath);
-  await rm(partialPngPath);
+  await rm(paperEdgePngPath);
+  await rm(paperEdgePartialPngPath);
 });

@@ -6,6 +6,7 @@ import Link from "next/link";
 import type {
   HandMeasurements,
   ScanSubmission,
+  PaperSize,
 } from "@/lib/contracts/measurement";
 import { scanSubmissionSchema, LANDMARK } from "@/lib/contracts/measurement";
 import type { Point2 } from "@/client/geometry/homography";
@@ -209,6 +210,15 @@ export interface ScanDemoMeasuredState {
   readonly gripStyle?: GripStyle;
   readonly measurements: HandMeasurements;
   readonly submission: ScanSubmission;
+  /**
+   * Optional synthetic photo + overlay, so `/scan/measured-demo` can also
+   * screenshot the measured-state overlay (landmarks, knuckle emphasis,
+   * hand-length/palm-width lines) — otherwise there is no photo to show at
+   * all in that demo route. Omitted, the route behaves exactly as before
+   * (no photo section rendered).
+   */
+  readonly overlay?: PhotoOverlay;
+  readonly previewUrl?: string;
 }
 
 const EMPTY_OVERLAY: PhotoOverlay = {
@@ -266,14 +276,17 @@ export default function ScanClient({
           measurements: demoMeasured.measurements,
           submission: demoMeasured.submission,
           warnings: [],
-          overlay: EMPTY_OVERLAY,
+          overlay: demoMeasured.overlay ?? EMPTY_OVERLAY,
           cardSource: "auto",
         }
       : { kind: "idle" },
   );
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    demoMeasured?.previewUrl ?? null,
+  );
   const [manualCorners, setManualCorners] = useState<CardCorners | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   // Defaults false on both the server render and the client's first render
   // (no hydration mismatch), then flips true after mount if this device can
   // actually open the camera — per docs/design/camera-capture-2026-09-25/
@@ -354,6 +367,10 @@ export default function ScanClient({
           hand: selectedHand,
           gripStyleStated: selectedGrip,
           manualCardCorners: corners,
+          calibration:
+            calibrationMode === "paper-edge"
+              ? { method: "paper-edge", paperSize }
+              : { method: "printed-sheet" },
         });
         if (runId !== runIdRef.current) return;
         if (result.status === "ok") {
@@ -399,7 +416,14 @@ export default function ScanClient({
         });
       }
     },
-    [hand, gripStyle, applyLatestGrip, runPhotoPipelineImpl],
+    [
+      hand,
+      gripStyle,
+      applyLatestGrip,
+      runPhotoPipelineImpl,
+      calibrationMode,
+      paperSize,
+    ],
   );
 
   const onFileChosen = useCallback(
@@ -670,6 +694,9 @@ export default function ScanClient({
       {cameraOpen && (
         <CameraCapture
           hand={hand}
+          calibrationMode={calibrationMode}
+          paperSize={paperSize}
+          onPaperSizeChange={setPaperSize}
           onExit={() => setCameraOpen(false)}
           onUsePhoto={(file) => {
             setCameraOpen(false);

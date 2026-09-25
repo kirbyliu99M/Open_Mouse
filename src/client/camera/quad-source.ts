@@ -3,31 +3,30 @@
  *
  * Direction change (Kirby, 2026-09-25): the user measures on ANY blank A4
  * (or Letter) sheet — no printed calibration sheet, no ArUco markers, no
- * bank card. The live lock-on brackets track the paper's own four corners,
- * found from its edges (like a document-scanner app), not printed
- * fiducials. Contract PR #58 (branch `contracts-paper-edge`, not yet
- * merged into this worktree) adds `PAPER_SIZES_MM`, `PAPER_EDGE_LIMITS` and
- * a `method: "paper-edge"` calibration to `src/lib/contracts/
- * measurement.ts` for that pipeline path.
+ * bank card. The live lock-on corner-dots track the paper's own four
+ * corners, found from its edges (like a document-scanner app), not
+ * printed fiducials. Contract PR #58 (`contracts-paper-edge`, merged) adds
+ * `PAPER_SIZES_MM`, `PAPER_EDGE_LIMITS` and a `method: "paper-edge"`
+ * calibration to `src/lib/contracts/measurement.ts` for that pipeline
+ * path; `src/client/paper/detect.ts` (PR #59, merged) is the real
+ * detector.
  *
- * A separate builder owns writing the real paper-edge detector and wiring
- * it into `runPhotoPipeline`. To avoid colliding with that work, this
- * module only defines the interface the live viewfinder codes against
- * (`SheetQuadSource`) plus a temporary default implementation
- * (`createMarkerBasedQuadSource`) built on the *existing*, already-shipped
- * `detectMarkers` — a printed sheet still has markers near its corners, so
- * this keeps the live loop (and this task's e2e tests) working today. Swap
- * the default passed to `CameraCapture` for the real paper-edge detector
- * once it lands; nothing else in this file (or the component) needs to
- * change — that's the point of the seam.
+ * This module defines the interface the live viewfinder codes against
+ * (`SheetQuadSource`) plus two implementations: `createMarkerBasedQuadSource`
+ * (today's shipped printed-sheet flow, built on the existing
+ * `detectMarkers` — a printed sheet still has markers near its corners)
+ * and `createPaperEdgeQuadSource` (wraps the real `detectPaperQuad` in a
+ * try/catch, since the live loop calls it up to 8×/s and a detector throw
+ * must never crash it). `CameraCapture` picks between them by
+ * `calibrationMode`.
  */
 import type { Point2 } from "../geometry/homography";
 import { detectMarkers, type DetectedMarker } from "../photo/markers";
-import { SHEET } from "../../lib/contracts/measurement";
+import { detectPaperQuad } from "../paper/detect";
+import { SHEET, type PaperSize } from "../../lib/contracts/measurement";
 import { buildTrackedQuad, centroid } from "./quad";
 
-/** Mirrors (not yet merged) src/lib/contracts/measurement.ts's PaperSize. */
-export type PaperSize = "a4" | "letter";
+export type { PaperSize };
 
 export interface SheetQuadDetection {
   /** The paper's 4 corners (TL, TR, BR, BL), or `null` unless all 4 were found. */
@@ -130,5 +129,33 @@ export function createMarkerBasedQuadSource(
       minSideCoverage: 1,
       edgeFitResidualPx: 0,
     };
+  };
+}
+
+/**
+ * The real `SheetQuadSource` for paper-edge mode: `detectPaperQuad`
+ * (src/client/paper/detect.ts) finds a blank A4/Letter sheet's own 4
+ * corners from its edges — no markers, no card. Its own
+ * `SheetQuadDetection` shape already matches this module's field-for-field
+ * (corners/cornersSeen/cornersFound/partialCorners/minSideCoverage/
+ * edgeFitResidualPx), so no conversion is needed, only a safety net: the
+ * detector is still being hardened by its own author (orientation,
+ * aspect-ratio strictness) and can throw on degenerate input (documented in
+ * its own source as a deliberate bail-out, not a bug) — the live loop calls
+ * this up to 8 times a second and must never crash from it, so every call
+ * is wrapped and any throw reports "no corners found" instead.
+ */
+export function createPaperEdgeQuadSource(
+  detectPaperQuadImpl: (
+    frame: ImageData,
+    paperSize: PaperSize,
+  ) => SheetQuadDetection = detectPaperQuad,
+): SheetQuadSource {
+  return (frame, paperSize) => {
+    try {
+      return detectPaperQuadImpl(frame, paperSize);
+    } catch {
+      return NONE;
+    }
   };
 }

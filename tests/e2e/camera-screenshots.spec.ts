@@ -41,7 +41,7 @@ test.describe("camera capture screenshots", () => {
     );
     test.skip(
       testInfo.project.name !== "chromium-camera-partial",
-      "Needs the fake-media project fed sheet-partial.y4m (only 2 of 4 corners).",
+      "Needs the fake-media project fed paper-edge-partial.y4m (only 2 of 4 corners, real detector).",
     );
 
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -61,8 +61,8 @@ test.describe("camera capture screenshots", () => {
       "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
     );
     test.skip(
-      testInfo.project.name !== "chromium-camera",
-      "Needs the fake-media project fed sheet-full.y4m (all 4 corners).",
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-media project fed paper-edge-full.y4m (all 4 corners, real detector).",
     );
 
     await page.emulateMedia({ colorScheme: "light" });
@@ -94,8 +94,8 @@ test.describe("camera capture screenshots", () => {
       "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
     );
     test.skip(
-      testInfo.project.name !== "chromium-camera",
-      "Needs the fake-media project fed sheet-full.y4m (all 4 corners).",
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-media project fed paper-edge-full.y4m (all 4 corners, real detector).",
     );
 
     await page.emulateMedia({ colorScheme: "light" });
@@ -106,5 +106,27 @@ test.describe("camera capture screenshots", () => {
       page.getByRole("button", { name: "Use this photo" }),
     ).toBeVisible({ timeout: 10_000 });
     await page.screenshot({ path: `${OUTPUT}/review.png` });
+  });
+
+  test("measured-overlay", async ({ page }, testInfo) => {
+    test.skip(
+      process.env.SCREENSHOTS !== "1",
+      "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
+    );
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "A static demo route — no fake camera needed.",
+    );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.goto("/scan/measured-demo");
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+    );
+    await page.screenshot({
+      path: `${OUTPUT}/measured-overlay.png`,
+      fullPage: true,
+    });
   });
 });
