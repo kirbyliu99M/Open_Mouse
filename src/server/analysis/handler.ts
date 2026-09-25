@@ -8,7 +8,7 @@
 import type { AnalysisResponse } from "../../lib/contracts/analysis";
 import type { FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { analyse, buildFallbackOutput } from "./analyse";
+import { analyse } from "./analyse";
 import type { AnalysisCache } from "./cache";
 import { computeCacheKey } from "./cache";
 import type { TextModel } from "./client";
@@ -29,11 +29,15 @@ export interface AnalysisRequestDeps {
   /**
    * Site-wide daily cap on real model calls (M1 hardening finding, PLAN
    * §M5). Consulted on exactly the same path as `limiter` — after it
-   * allows, immediately before the model would actually be called — never
-   * on a cache hit and never when no model is configured. Unlike `limiter`,
-   * saying no here is never a 429: `handleAnalysisRequest` serves the
-   * deterministic fallback with 200 instead, since the cap exists to bound
-   * *cost*, not to punish any one caller.
+   * allows, immediately before EACH actual model call `analyse()` makes
+   * (M2 hardening finding: `analyse()` can call the model up to twice per
+   * request — one attempt plus one retry — so charging the cap once per
+   * *request* let the real ceiling run to ~2x the configured cap; now every
+   * real call, including the retry, spends one unit — see `beforeModelCall`
+   * below) — never on a cache hit and never when no model is configured.
+   * Unlike `limiter`, saying no here is never a 429: `handleAnalysisRequest`
+   * serves the deterministic fallback with 200 instead, since the cap
+   * exists to bound *cost*, not to punish any one caller.
    */
   globalLimiter: RateLimiter;
   /** Injectable clock; defaults to `new Date()`. Only used to scope the
@@ -125,39 +129,24 @@ export async function handleAnalysisRequest(
     };
   }
 
-  // Both limiters are consulted, and both spend their budget, before the
-  // model is actually called — including `globalLimiter`, whose count is
-  // incremented here even if the `analyse()` call below then fails (a
-  // network error, an API error) and answers with the fallback anyway
-  // (PR #56 review). That's deliberately conservative: this call was
-  // still going to be attempted against the model, so it still counts
-  // against the day's budget even though no usable answer came back.
-  // Likewise, `limiter` (the per-IP check above) has already counted this
-  // request even on the branch below where the global cap then serves the
-  // fallback instead of calling the model — a caller who keeps requesting
-  // once the site-wide cap is hit still spends its own per-IP budget, on
-  // the same reasoning: this is a known, accepted trade-off, not a bug.
+  // `limiter` (the per-IP check above) has already counted this request
+  // even on the branch below where the global cap then serves the fallback
+  // instead of calling the model — a caller who keeps requesting once the
+  // site-wide cap is hit still spends its own per-IP budget, on the same
+  // reasoning as before: a known, accepted trade-off, not a bug.
+  //
+  // `globalLimiter` (M2 fix) is no longer spent once up front here. Instead
+  // `beforeModelCall` is threaded into `analyse()` and charges the budget
+  // immediately before EACH real model call it makes — the first attempt
+  // and, if it retries, the second — so a request that ends up making two
+  // real calls spends two units, not one. The key is computed once and
+  // reused for every attempt in this request; they all fall on the same
+  // UTC calendar day regardless of how long the retry takes.
   const now = deps.now ?? (() => new Date());
   const globalKey = globalModelCallRateLimitKey(now());
-  const globalAllowed = await deps.globalLimiter.allow(globalKey);
-  if (!globalAllowed) {
-    // The site-wide daily cap is spent. Never a 429 (M1): someone else's
-    // traffic hitting the cap is not this caller's fault, so the product
-    // keeps working — honestly, with the same deterministic, free-to-
-    // recompute fallback `analyse()` returns when no model is configured —
-    // rather than erroring for everyone once the budget runs out. Not
-    // cached, same as every other fallback (`source` is never "model" here).
-    return {
-      status: 200,
-      body: {
-        output: buildFallbackOutput(input),
-        source: "fallback",
-        cached: false,
-      },
-    };
-  }
-
-  const { output, source } = await analyse(input, deps.client);
+  const { output, source } = await analyse(input, deps.client, {
+    beforeModelCall: () => deps.globalLimiter.allow(globalKey),
+  });
   // Only a real model answer is cached — see the comment on `AnalysisCache`
   // in `./cache`. The fallback is free to recompute and must never be
   // served back as if a model wrote it once a key starts working again.
