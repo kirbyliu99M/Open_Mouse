@@ -5,6 +5,7 @@ import {
   checkPaperEdgeCoverage,
   checkPaperCurled,
   runPaperEdgeGates,
+  runPaperEdgeHandGates,
   type PaperEdgeGateInput,
 } from "../../src/client/photo/gates";
 import { PAPER_EDGE_LIMITS } from "../../src/lib/contracts/measurement";
@@ -186,5 +187,45 @@ describe("runPaperEdgeGates", () => {
     expect(codes).toContain("PAPER_EDGE_HIDDEN");
     expect(codes).toContain("PAPER_CURLED");
     expect(codes).toContain("LOW_LANDMARK_CONFIDENCE");
+  });
+});
+
+describe("runPaperEdgeHandGates", () => {
+  const square: Point2[] = [
+    { x: 0, y: 0 },
+    { x: 210, y: 0 },
+    { x: 210, y: 297 },
+    { x: 0, y: 297 },
+  ];
+  const base = {
+    paperFound: true,
+    landmarkCount: 21,
+    handedness: "right" as const,
+    handStated: "right" as const,
+    landmarkConfidence: 0.95,
+    landmarksMm: [{ x: 100, y: 150 }],
+    paperCornersMm: square,
+    laplacianVariance: 1000,
+  };
+
+  it("passes a detected, in-bounds hand and reports no paper failures", () => {
+    const r = runPaperEdgeHandGates(base);
+    expect(r.ok).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it("reports only hand failures (never a paper code) when the hand is missing", () => {
+    const r = runPaperEdgeHandGates({ ...base, landmarkCount: 0 });
+    expect(r.ok).toBe(false);
+    expect(r.errors.map((e) => e.code)).toEqual(["HAND_NOT_DETECTED"]);
+  });
+
+  it("skips the in-bounds check when no paper was found", () => {
+    const r = runPaperEdgeHandGates({
+      ...base,
+      paperFound: false,
+      landmarksMm: [{ x: 9999, y: 9999 }],
+    });
+    expect(r.errors.map((e) => e.code)).not.toContain("HAND_OUT_OF_BOUNDS");
   });
 });

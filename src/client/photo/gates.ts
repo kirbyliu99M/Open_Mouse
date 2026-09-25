@@ -435,9 +435,35 @@ export function checkPaperEdgeGatesOnly(
  */
 export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
   const { errors: paperErrors } = checkPaperEdgeGatesOnly(input);
-  const errors: GateFailure[] = [...paperErrors];
-  const paperFoundFailure = checkPaperFound(input.paperRegionFound);
+  const hand = runPaperEdgeHandGates({
+    ...input,
+    paperFound: !checkPaperFound(input.paperRegionFound),
+  });
+  const errors = [...paperErrors, ...hand.errors];
+  return { errors, warnings: hand.warnings, ok: errors.length === 0 };
+}
 
+export interface PaperEdgeHandGateInput {
+  /** Whether a paper region was found at all (bounds only apply then). */
+  readonly paperFound: boolean;
+  readonly landmarkCount: number;
+  readonly handedness: "left" | "right" | null;
+  readonly handStated: "left" | "right" | undefined;
+  readonly landmarkConfidence: number;
+  readonly landmarksMm: readonly Point2[];
+  readonly paperCornersMm: readonly Point2[];
+  readonly laplacianVariance: number;
+}
+
+/**
+ * The hand half of `runPaperEdgeGates` on its own, so the pipeline can run
+ * the paper half exactly once (through `evaluatePaperEdgeCalibration`) and
+ * add these — no paper check is evaluated twice.
+ */
+export function runPaperEdgeHandGates(
+  input: PaperEdgeHandGateInput,
+): PhotoGateReport {
+  const errors: GateFailure[] = [];
   const handDetectedFailure = checkHandDetected(input.landmarkCount);
   if (handDetectedFailure) {
     errors.push(handDetectedFailure);
@@ -451,7 +477,7 @@ export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
     }
     const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
     if (confidenceFailure) errors.push(confidenceFailure);
-    if (!paperFoundFailure && input.paperCornersMm.length > 0) {
+    if (input.paperFound && input.paperCornersMm.length > 0) {
       const boundsFailure = checkHandInBounds(
         input.landmarksMm,
         input.paperCornersMm,

@@ -39,7 +39,7 @@ import { detectHandLandmarks } from "./landmarks";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
 import {
   runPhotoGates,
-  runPaperEdgeGates,
+  runPaperEdgeHandGates,
   checkMarkers,
   checkPaperFound,
   checkPaperCornersSeen,
@@ -384,11 +384,10 @@ async function runPaperEdgePipeline(
   const gray = rgbaToGrayscale(imageData.data, width * height);
   const laplacianVariance = computeLaplacianVariance(gray, width, height);
 
-  const report = runPaperEdgeGates({
-    cornersSeen: quad.cornersSeen,
-    paperRegionFound: quad.paperRegionFound,
-    minSideCoverage: quad.minSideCoverage,
-    edgeFitResidualMm,
+  // Paper gates ran once, inside evaluatePaperEdgeCalibration; only the hand
+  // gates run here, and both sets of failures are reported together.
+  const handReport = runPaperEdgeHandGates({
+    paperFound: quad.paperRegionFound,
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
     handStated: input.hand,
@@ -397,6 +396,11 @@ async function runPaperEdgePipeline(
     paperCornersMm,
     laplacianVariance,
   });
+  const report = {
+    errors: [...paperEval.errors, ...handReport.errors],
+    warnings: handReport.warnings,
+    ok: paperEval.ok && handReport.ok,
+  };
 
   if (!report.ok) {
     return {
@@ -441,8 +445,9 @@ async function runPaperEdgePipeline(
     };
   }
 
-  // report.ok above includes the same paper gates, so the chain's
-  // calibration exists here; its fields are what gets submitted.
+  // Type narrowing only: report.ok required paperEval.ok, and a passing
+  // evaluation always carries its calibration. Its fields are what gets
+  // submitted.
   const calibration = paperEval.calibration;
   if (!calibration) {
     return {
