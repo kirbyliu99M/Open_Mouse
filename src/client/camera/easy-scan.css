@@ -261,9 +261,11 @@
   color: var(--scan-accent, #0a64e0);
 }
 
+/* flex-start, not center: the submit panel is taller than its button (it
+   holds status text below), so centring pushed the retake button down. */
 .easySheetActions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
 }
 /* Both this and .easySeeMatches .primaryButton are pinned to the same 54px

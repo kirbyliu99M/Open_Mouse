@@ -104,9 +104,11 @@
   top: 84.9%;
   left: 77.6%;
 }
+/* Bottom-centre, between the two lower corner checks — at the top it sat
+   on the top-left check once the hero kept the photo's own aspect. */
 .home-hero-badge {
   position: absolute;
-  top: 0.75rem;
+  bottom: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;

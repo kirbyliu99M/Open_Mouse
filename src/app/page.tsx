@@ -57,7 +57,7 @@ export default function HomePage() {
           <CheckIcon />
         </span>
         <span className="home-hero-badge" aria-hidden="true">
-          <ScanBadgeIcon /> All four corners found
+          <ScanBadgeIcon /> 4 corners found
         </span>
       </div>
 
