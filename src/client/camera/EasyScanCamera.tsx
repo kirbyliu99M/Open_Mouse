@@ -84,6 +84,7 @@ import {
   type Box,
 } from "../geometry/handSilhouette";
 import ScanSubmitPanel from "../../app/scan/ScanSubmitPanel";
+import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -132,6 +133,10 @@ type ResultState =
       imageWidth: number;
       imageHeight: number;
     };
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 function idealCorners(containerWidth: number, containerHeight: number): Quad {
   const insetX = containerWidth * 0.12;
@@ -219,23 +224,39 @@ interface DimensionSpec {
  * geometry (computeDimensionLine, separateLabelBoxes). */
 function DimensionLinesOverlay({
   specs,
-  imageWidth,
+  scale,
 }: {
   specs: readonly DimensionSpec[];
-  imageWidth: number;
+  /** User-space units per on-screen pixel (imageWidth / the frame's actual
+   * rendered CSS width) — an SVG `viewBox` spanning a multi-thousand-pixel
+   * photo makes any FIXED user-unit font-size/offset render at wildly
+   * different on-screen sizes depending on the photo's own resolution and
+   * how big the frame is drawn; `vector-effect: non-scaling-stroke` solves
+   * this for line widths but has no text equivalent, so every screen-space
+   * size below is converted through this measured scale instead. */
+  scale: number;
 }) {
-  const offsetPx = Math.max(16, Math.min(100, imageWidth * 0.06));
-  const fontSize = Math.max(14, imageWidth * 0.018);
-  const paddingX = fontSize * 0.6;
-  const labelHeight = fontSize * 1.8;
+  const offsetPx = 22 * scale;
+  const tickLengthPx = 8 * scale;
+  const labelOffsetPx = 14 * scale;
+  const fontSize = 13 * scale;
+  const paddingX = 8 * scale;
+  const labelHeight = 22 * scale;
 
   const geometries = specs.map((s) =>
-    computeDimensionLine(s.a, s.b, offsetPx, s.side),
+    computeDimensionLine(
+      s.a,
+      s.b,
+      offsetPx,
+      s.side,
+      tickLengthPx,
+      labelOffsetPx,
+    ),
   );
   const rawBoxes: Box[] = geometries.map((g, i) => ({
     x: g.labelAnchor.x,
     y: g.labelAnchor.y,
-    width: specs[i].label.length * fontSize * 0.56 + paddingX * 2,
+    width: specs[i].label.length * fontSize * 0.62 + paddingX * 2,
     height: labelHeight,
   }));
   const boxes =
@@ -364,8 +385,14 @@ export default function EasyScanCamera({
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
   const [frameAspect, setFrameAspect] = useState(210 / 297);
+  // The frozen photo's actual on-screen width — measured so the overlay
+  // drawn on top of it (corner checks, dimension lines/labels) can convert
+  // fixed screen-pixel sizes into the SVG's image-pixel viewBox units. See
+  // DimensionLinesOverlay's own comment on why this can't be a constant.
+  const [frozenFrameWidthPx, setFrozenFrameWidthPx] = useState(0);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const frozenFrameRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
@@ -416,6 +443,22 @@ export default function EasyScanCamera({
     });
   }, []);
 
+  // Measures the frozen photo's rendered width whenever it's showing, so
+  // the overlay drawn on it can convert fixed screen-pixel sizes into the
+  // photo's own (often much larger) pixel space.
+  useEffect(() => {
+    if (result.kind !== "measured" && result.kind !== "gateFailure") return;
+    const el = frozenFrameRef.current;
+    if (!el) return;
+    setFrozenFrameWidthPx(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setFrozenFrameWidthPx(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [result.kind]);
+
   useEffect(() => {
     if (tipOpen) {
       tipDialogRef.current?.showModal();
@@ -443,7 +486,12 @@ export default function EasyScanCamera({
     setTipOpen(false);
     tipDialogRef.current?.close();
     markFirstRunTipSeen(getBrowserStorage());
-    helpTriggerRef.current?.focus();
+    // No explicit focus() to the "?" trigger here: the tip auto-opens on
+    // mount (nothing "opened" it the way a click opens the nav menu), and
+    // Chromium's :focus-visible heuristic treats a script-triggered focus
+    // like this as keyboard-like, drawing a ring on a button nothing
+    // pointed at — native <dialog> close() already restores focus to
+    // whatever had it before showModal(), which is enough here.
   }, []);
 
   const openTip = useCallback(() => setTipOpen(true), []);
@@ -905,7 +953,7 @@ export default function EasyScanCamera({
             aria-label="Show the first-run tip"
             onClick={openTip}
           >
-            ?
+            <HelpCircleIcon width={20} height={20} />
           </button>
           <button
             type="button"
@@ -913,7 +961,7 @@ export default function EasyScanCamera({
             aria-pressed={false}
             onClick={toggleHand}
           >
-            <span aria-hidden="true">✋</span> {handChipLabel}
+            <HandIcon width={16} height={16} /> {handChipLabel}
           </button>
         </div>
       </div>
@@ -1012,7 +1060,7 @@ export default function EasyScanCamera({
               >
                 {cue?.allPass ? (
                   <>
-                    <span aria-hidden="true">✓</span> {cueLabel}
+                    <CheckIcon width={16} height={16} /> {cueLabel}
                   </>
                 ) : (
                   cueLabel
@@ -1089,6 +1137,7 @@ export default function EasyScanCamera({
         result.kind === "gateFailure") && (
         <div className="cameraFrameWrap">
           <div
+            ref={frozenFrameRef}
             className="cameraFrame easyFrozenFrame"
             style={{
               aspectRatio:
@@ -1107,38 +1156,71 @@ export default function EasyScanCamera({
                 role="img"
                 aria-label="Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
               >
-                {result.overlay?.paperCorners?.map((p, i) => (
-                  <g
-                    key={i}
-                    className="easyCornerCheck"
-                    transform={`translate(${p.x} ${p.y})`}
-                  >
-                    <circle r={Math.max(14, result.imageWidth * 0.018)} />
-                    <path
-                      d="M-6 0 L-1.5 5 L7 -6"
-                      transform={`scale(${Math.max(14, result.imageWidth * 0.018) / 20})`}
-                    />
-                  </g>
-                ))}
-                {result.kind === "measured" && result.overlay.landmarksPx && (
-                  <DimensionLinesOverlay
-                    imageWidth={result.imageWidth}
-                    specs={[
-                      {
-                        a: result.overlay.landmarksPx[0],
-                        b: result.overlay.landmarksPx[LANDMARK.middle[3]],
-                        label: `Hand ${result.measurements.handLengthMm.toFixed(0)} mm`,
-                        side: 1,
-                      },
-                      {
-                        a: result.overlay.landmarksPx[LANDMARK.index[0]],
-                        b: result.overlay.landmarksPx[LANDMARK.pinky[0]],
-                        label: `Palm ${result.measurements.palmWidthMm.toFixed(0)} mm`,
-                        side: 1,
-                      },
-                    ]}
-                  />
-                )}
+                {(() => {
+                  // User-units per on-screen pixel — see
+                  // DimensionLinesOverlay's own comment. Falls back to a
+                  // typical mobile content width before the first
+                  // ResizeObserver measurement lands.
+                  const scale =
+                    result.imageWidth /
+                    (frozenFrameWidthPx || Math.min(result.imageWidth, 350));
+                  const cornerRadius = 11 * scale;
+                  return (
+                    <>
+                      {result.overlay?.paperCorners?.map((p, i) => {
+                        const cx = clamp(
+                          p.x,
+                          cornerRadius,
+                          result.imageWidth - cornerRadius,
+                        );
+                        const cy = clamp(
+                          p.y,
+                          cornerRadius,
+                          result.imageHeight - cornerRadius,
+                        );
+                        return (
+                          <g
+                            key={i}
+                            className="easyCornerCheck"
+                            transform={`translate(${cx} ${cy})`}
+                          >
+                            <circle r={cornerRadius} />
+                            <path
+                              d="M-6 0 L-1.5 5 L7 -6"
+                              transform={`scale(${cornerRadius / 14})`}
+                            />
+                          </g>
+                        );
+                      })}
+                      {result.kind === "measured" &&
+                        result.overlay.landmarksPx && (
+                          <DimensionLinesOverlay
+                            scale={scale}
+                            specs={[
+                              {
+                                a: result.overlay.landmarksPx[0],
+                                b: result.overlay.landmarksPx[
+                                  LANDMARK.middle[3]
+                                ],
+                                label: `Hand ${result.measurements.handLengthMm.toFixed(0)} mm`,
+                                side: 1,
+                              },
+                              {
+                                a: result.overlay.landmarksPx[
+                                  LANDMARK.index[0]
+                                ],
+                                b: result.overlay.landmarksPx[
+                                  LANDMARK.pinky[0]
+                                ],
+                                label: `Palm ${result.measurements.palmWidthMm.toFixed(0)} mm`,
+                                side: 1,
+                              },
+                            ]}
+                          />
+                        )}
+                    </>
+                  );
+                })()}
               </svg>
             )}
             {result.kind === "processing" && (
@@ -1165,7 +1247,7 @@ export default function EasyScanCamera({
           {result.kind === "measured" ? (
             <>
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
-                <span aria-hidden="true">✓</span> Hand measured
+                <CheckIcon width={20} height={20} /> Hand measured
               </p>
               <p className="easySheetGripLabel">
                 How do you hold a mouse? (optional)
@@ -1263,7 +1345,7 @@ export default function EasyScanCamera({
             paper on a darker table
           </li>
           <li>
-            <span aria-hidden="true">✋</span> Hand flat, fingers together
+            <HandIcon width={18} height={18} /> Hand flat, fingers together
           </li>
           <li>
             <span aria-hidden="true">📱</span> Phone flat above — the whole

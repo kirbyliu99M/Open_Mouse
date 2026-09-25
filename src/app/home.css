@@ -61,7 +61,11 @@
   border-radius: 1.25rem;
   overflow: hidden;
   margin-bottom: 1.25rem;
-  aspect-ratio: 4 / 5;
+  /* public/images/hand-on-a4-hero.png's own natural size (1408x768) — the
+     box must match it exactly so object-fit: cover never crops the photo,
+     otherwise the four corner checks below (placed at the paper's actual
+     pixel position in the source image) drift onto the wrong spot. */
+  aspect-ratio: 1408 / 768;
   background: #3a2a1a;
 }
 .home-hero-img {
@@ -70,6 +74,9 @@
   object-fit: cover;
   display: block;
 }
+/* The paper's own four corners in the source photo, measured directly from
+   its pixels (324,122)-(1092,652) of 1408x768 — not the image's own
+   corners, which the wood tabletop border sits well inside of. */
 .home-hero-corner {
   position: absolute;
   width: 1.75rem;
@@ -79,22 +86,23 @@
   border-radius: 50%;
   background: #1e7b45;
   color: #fff;
+  transform: translate(-50%, -50%);
 }
 .home-hero-corner.tl {
-  top: 0.75rem;
-  left: 0.75rem;
+  top: 15.9%;
+  left: 23%;
 }
 .home-hero-corner.tr {
-  top: 0.75rem;
-  right: 0.75rem;
+  top: 15.9%;
+  left: 77.6%;
 }
 .home-hero-corner.bl {
-  bottom: 0.75rem;
-  left: 0.75rem;
+  top: 84.9%;
+  left: 23%;
 }
 .home-hero-corner.br {
-  bottom: 0.75rem;
-  right: 0.75rem;
+  top: 84.9%;
+  left: 77.6%;
 }
 .home-hero-badge {
   position: absolute;
