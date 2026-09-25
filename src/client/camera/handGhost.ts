@@ -40,19 +40,20 @@ interface UnitPoint {
  * hand length), palm region v ∈ [0.45, 1] (≈55%) — Kirby's 2026-09-25
  * proportions.
  */
-const RIGHT_HAND_UNIT_POINTS: Record<keyof HandSilhouetteLandmarks, UnitPoint> = {
-  wrist: { u: 0.5, v: 1.0 },
-  indexMcp: { u: 0.19, v: 0.44 },
-  indexTip: { u: 0.19, v: 0.09 },
-  middleMcp: { u: 0.42, v: 0.44 },
-  middleTip: { u: 0.42, v: 0.0 },
-  ringMcp: { u: 0.65, v: 0.44 },
-  ringTip: { u: 0.65, v: 0.1 },
-  pinkyMcp: { u: 0.87, v: 0.44 },
-  pinkyTip: { u: 0.87, v: 0.24 },
-  thumbBase: { u: 0.05, v: 0.7 },
-  thumbTip: { u: -0.18, v: 0.5 },
-};
+const RIGHT_HAND_UNIT_POINTS: Record<keyof HandSilhouetteLandmarks, UnitPoint> =
+  {
+    wrist: { u: 0.5, v: 1.0 },
+    indexMcp: { u: 0.19, v: 0.44 },
+    indexTip: { u: 0.19, v: 0.09 },
+    middleMcp: { u: 0.42, v: 0.44 },
+    middleTip: { u: 0.42, v: 0.0 },
+    ringMcp: { u: 0.65, v: 0.44 },
+    ringTip: { u: 0.65, v: 0.1 },
+    pinkyMcp: { u: 0.87, v: 0.44 },
+    pinkyTip: { u: 0.87, v: 0.24 },
+    thumbBase: { u: 0.05, v: 0.7 },
+    thumbTip: { u: -0.18, v: 0.5 },
+  };
 
 /** Palm width ÷ hand length, per Kirby's 2026-09-25 proportions. */
 const PALM_WIDTH_TO_LENGTH_RATIO = 0.45;

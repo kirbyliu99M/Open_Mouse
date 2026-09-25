@@ -108,7 +108,7 @@ test.describe("camera capture screenshots", () => {
     await page.screenshot({ path: `${OUTPUT}/review.png` });
   });
 
-  test("measured-overlay", async ({ page }, testInfo) => {
+  test("measured-overlay (paper-edge mode)", async ({ page }, testInfo) => {
     test.skip(
       process.env.SCREENSHOTS !== "1",
       "Screenshot capture is opt-in — set SCREENSHOTS=1 to run it.",
@@ -120,10 +120,38 @@ test.describe("camera capture screenshots", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-    await page.goto("/scan/measured-demo");
+    // Paper-edge mode, per Kirby: the measured card must say "paper
+    // corners", never "sheet markers and the card".
+    await page.goto("/scan/paper-edge-measured-demo");
     await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
       "Hand measured",
     );
+    await expect(page.locator(".feedbackCaption")).toHaveText(
+      "All four paper corners were found, so the scale is checked.",
+    );
+
+    // The two dimension-line labels must not overlap each other.
+    const labelBoxes = await page
+      .locator(".photoOverlaySvg text")
+      .evaluateAll((nodes) =>
+        nodes
+          .map((n) => n.getBoundingClientRect())
+          .map((r) => ({
+            left: r.left,
+            top: r.top,
+            right: r.right,
+            bottom: r.bottom,
+          })),
+      );
+    expect(labelBoxes).toHaveLength(2);
+    const [a, b] = labelBoxes;
+    const overlaps =
+      a.left < b.right &&
+      a.right > b.left &&
+      a.top < b.bottom &&
+      a.bottom > b.top;
+    expect(overlaps).toBe(false);
+
     await page.screenshot({
       path: `${OUTPUT}/measured-overlay.png`,
       fullPage: true,

@@ -209,7 +209,12 @@ export interface HandCapsule {
 
 export interface HandSilhouetteGeometry {
   /** Index, middle, ring, pinky — MCP → tip, near-constant width, round-capped. */
-  readonly fingers: readonly [HandCapsule, HandCapsule, HandCapsule, HandCapsule];
+  readonly fingers: readonly [
+    HandCapsule,
+    HandCapsule,
+    HandCapsule,
+    HandCapsule,
+  ];
   /** Base → tip, thicker, angled. */
   readonly thumb: HandCapsule;
   /** Filled, rounded top/sides, straight wrist edge — draw BEHIND the finger/thumb capsules. */
@@ -302,10 +307,26 @@ export function buildHandSilhouette(
   });
 
   const fingers: [HandCapsule, HandCapsule, HandCapsule, HandCapsule] = [
-    { from: indexMcp, to: indexTip, widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.index },
-    { from: middleMcp, to: middleTip, widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.middle },
-    { from: ringMcp, to: ringTip, widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.ring },
-    { from: pinkyMcp, to: pinkyTip, widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.pinky },
+    {
+      from: indexMcp,
+      to: indexTip,
+      widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.index,
+    },
+    {
+      from: middleMcp,
+      to: middleTip,
+      widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.middle,
+    },
+    {
+      from: ringMcp,
+      to: ringTip,
+      widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.ring,
+    },
+    {
+      from: pinkyMcp,
+      to: pinkyTip,
+      widthPx: palmWidthPx * FINGER_WIDTH_FRACTIONS.pinky,
+    },
   ];
   const thumb: HandCapsule = {
     from: thumbBase,

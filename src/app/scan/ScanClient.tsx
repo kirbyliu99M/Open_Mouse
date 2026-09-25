@@ -25,6 +25,13 @@ import {
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
+import {
+  HAND_CONNECTIONS,
+  KNUCKLE_LANDMARK_IDS,
+  computeDimensionLine,
+  separateLabelBoxes,
+  type Box,
+} from "@/client/geometry/handSilhouette";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -101,67 +108,227 @@ function cornersToPoints(corners: readonly Point2[]): string {
   return corners.map((p) => `${p.x},${p.y}`).join(" ");
 }
 
-/** The four MCP (knuckle) joints — the first landmark of each non-thumb
- * finger's chain — emphasised in the measured-state overlay per Kirby's
- * request to draw the measured result over the photo. */
-const KNUCKLE_LANDMARK_IDS: readonly number[] = [
-  LANDMARK.index[0],
-  LANDMARK.middle[0],
-  LANDMARK.ring[0],
-  LANDMARK.pinky[0],
-];
+/**
+ * A fixed-screen-size dot at `p`: a zero-length, round-capped line with
+ * `vector-effect: non-scaling-stroke` — the standard SVG trick for a dot
+ * whose SIZE is a literal screen pixel count regardless of the viewBox's
+ * own scale (a real photo can be thousands of px wide; a plain `r={4}`
+ * circle would render as a near-invisible speck on one, which is exactly
+ * what "landmarks are scattered tiny dots" was — this file's dots and the
+ * skeleton's lines below all use this trick instead).
+ */
+function Dot({
+  p,
+  diameterPx,
+  className,
+}: {
+  p: Point2;
+  diameterPx: number;
+  className: string;
+}) {
+  return (
+    <line
+      x1={p.x}
+      y1={p.y}
+      x2={p.x}
+      y2={p.y}
+      strokeWidth={diameterPx}
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+      className={className}
+    />
+  );
+}
+
+const JOINT_DOT_PX = 4;
+const JOINT_HALO_PX = 6;
+const KNUCKLE_DOT_PX = 7;
+const KNUCKLE_RING_PX = 9;
 
 /**
- * A labelled measurement line for the "ok" state's photo overlay — plain
- * geometry only (the two endpoints and the value are already computed by
- * runPhotoPipeline/computeHandMeasurements; this just draws a line between
- * them and a legible label near its midpoint, never its own math).
+ * The full 21-point MediaPipe hand skeleton: HAND_CONNECTIONS as 2px white
+ * lines with a 1px dark halo (a wider dark line underneath), every joint
+ * as a 4px dot, and the MCP/PIP/DIP "knuckle" joints emphasised as 7px
+ * accent dots with a white ring. Pure presentation — the points themselves
+ * come straight from `runPhotoPipeline`'s own `landmarksPx`.
  */
-function MeasurementLine({
-  a,
-  b,
-  label,
-  imageWidth,
-}: {
-  a: Point2;
-  b: Point2;
-  label: string;
-  imageWidth: number;
-}) {
-  const midX = (a.x + b.x) / 2;
-  const midY = (a.y + b.y) / 2;
-  const fontSize = Math.max(14, imageWidth * 0.018);
-  const paddingX = fontSize * 0.6;
-  const labelWidth = label.length * fontSize * 0.56 + paddingX * 2;
-  const labelHeight = fontSize * 1.8;
+function SkeletonOverlay({ landmarksPx }: { landmarksPx: readonly Point2[] }) {
   return (
     <>
-      <line
-        x1={a.x}
-        y1={a.y}
-        x2={b.x}
-        y2={b.y}
-        className="overlayMeasureLine"
-      />
-      <g transform={`translate(${midX} ${midY})`}>
-        <rect
-          x={-labelWidth / 2}
-          y={-labelHeight / 2}
-          width={labelWidth}
-          height={labelHeight}
-          rx={labelHeight / 2}
-          className="overlayMeasureLabelBg"
+      {HAND_CONNECTIONS.map(([a, b], i) => {
+        const pa = landmarksPx[a];
+        const pb = landmarksPx[b];
+        if (!pa || !pb) return null;
+        return (
+          <g key={i}>
+            <line
+              x1={pa.x}
+              y1={pa.y}
+              x2={pb.x}
+              y2={pb.y}
+              vectorEffect="non-scaling-stroke"
+              className="overlaySkeletonHalo"
+            />
+            <line
+              x1={pa.x}
+              y1={pa.y}
+              x2={pb.x}
+              y2={pb.y}
+              vectorEffect="non-scaling-stroke"
+              className="overlaySkeletonLine"
+            />
+          </g>
+        );
+      })}
+      {landmarksPx.map((p, i) => (
+        <Dot
+          key={`halo-${i}`}
+          p={p}
+          diameterPx={JOINT_HALO_PX}
+          className="overlayJointHalo"
         />
-        <text
-          x={0}
-          y={fontSize * 0.32}
-          textAnchor="middle"
-          fontSize={fontSize}
-          className="overlayMeasureLabelText"
-        >
-          {label}
-        </text>
-      </g>
+      ))}
+      {landmarksPx.map((p, i) => (
+        <Dot
+          key={`joint-${i}`}
+          p={p}
+          diameterPx={JOINT_DOT_PX}
+          className="overlayJoint"
+        />
+      ))}
+      {KNUCKLE_LANDMARK_IDS.map((id) => {
+        const p = landmarksPx[id];
+        if (!p) return null;
+        return (
+          <g key={`knuckle-${id}`}>
+            <Dot
+              p={p}
+              diameterPx={KNUCKLE_RING_PX}
+              className="overlayKnuckleRing"
+            />
+            <Dot
+              p={p}
+              diameterPx={KNUCKLE_DOT_PX}
+              className="overlayKnuckleDot"
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+interface DimensionSpec {
+  readonly a: Point2;
+  readonly b: Point2;
+  readonly label: string;
+  readonly side: 1 | -1;
+}
+
+/**
+ * Hand-length / palm-width as proper technical-drawing dimension lines —
+ * offset to the side of the hand (never crossing the skeleton), with
+ * perpendicular end ticks and extension lines back to the real joints.
+ * Each line gets one label pill; `separateLabelBoxes` nudges the two
+ * labels apart if their (independently, per-line-side) placed positions
+ * would otherwise overlap — pure geometry, unit-tested in
+ * tests/unit/hand-silhouette.test.ts.
+ */
+function DimensionLinesOverlay({
+  specs,
+  imageWidth,
+}: {
+  specs: readonly DimensionSpec[];
+  imageWidth: number;
+}) {
+  // Base range candidate: 16-24px at a typical decoded-photo width
+  // (src/client/photo/decode.ts caps the long edge at 3000px). Scaled up
+  // for a smaller image (e.g. a demo fixture) so the offset still clears
+  // the hand's own visible width rather than landing on top of it —
+  // 16-24px measured from the joint centreline only clears a real,
+  // thin photographed finger; it needs more room against anything drawn
+  // wider than that (a demo illustration's own thick strokes).
+  const offsetPx = Math.max(16, Math.min(100, imageWidth * 0.06));
+  const fontSize = Math.max(14, imageWidth * 0.018);
+  const paddingX = fontSize * 0.6;
+  const labelHeight = fontSize * 1.8;
+
+  const geometries = specs.map((s) =>
+    computeDimensionLine(s.a, s.b, offsetPx, s.side),
+  );
+  const rawBoxes: Box[] = geometries.map((g, i) => ({
+    x: g.labelAnchor.x,
+    y: g.labelAnchor.y,
+    width: specs[i].label.length * fontSize * 0.56 + paddingX * 2,
+    height: labelHeight,
+  }));
+  const boxes =
+    rawBoxes.length === 2
+      ? separateLabelBoxes(rawBoxes[0], rawBoxes[1])
+      : rawBoxes;
+
+  return (
+    <>
+      {geometries.map((g, i) => (
+        <g key={i} className="overlayDimension">
+          <line
+            x1={g.startConnector[0].x}
+            y1={g.startConnector[0].y}
+            x2={g.startConnector[1].x}
+            y2={g.startConnector[1].y}
+            className="overlayDimensionExtension"
+          />
+          <line
+            x1={g.endConnector[0].x}
+            y1={g.endConnector[0].y}
+            x2={g.endConnector[1].x}
+            y2={g.endConnector[1].y}
+            className="overlayDimensionExtension"
+          />
+          <line
+            x1={g.offsetStart.x}
+            y1={g.offsetStart.y}
+            x2={g.offsetEnd.x}
+            y2={g.offsetEnd.y}
+            className="overlayDimensionLine"
+          />
+          <line
+            x1={g.startTick[0].x}
+            y1={g.startTick[0].y}
+            x2={g.startTick[1].x}
+            y2={g.startTick[1].y}
+            className="overlayDimensionTick"
+          />
+          <line
+            x1={g.endTick[0].x}
+            y1={g.endTick[0].y}
+            x2={g.endTick[1].x}
+            y2={g.endTick[1].y}
+            className="overlayDimensionTick"
+          />
+        </g>
+      ))}
+      {boxes.map((box, i) => (
+        <g key={i} transform={`translate(${box.x} ${box.y})`}>
+          <rect
+            x={-box.width / 2}
+            y={-box.height / 2}
+            width={box.width}
+            height={box.height}
+            rx={box.height / 2}
+            className="overlayMeasureLabelBg"
+          />
+          <text
+            x={0}
+            y={fontSize * 0.32}
+            textAnchor="middle"
+            fontSize={fontSize}
+            className="overlayMeasureLabelText"
+          >
+            {specs[i].label}
+          </text>
+        </g>
+      ))}
     </>
   );
 }
@@ -830,7 +997,11 @@ export default function ScanClient({
                 viewBox={`0 0 ${state.overlay.imageWidth} ${state.overlay.imageHeight}`}
                 className="photoOverlaySvg"
                 role="img"
-                aria-label="Your measured hand: the sheet markers, card and hand landmarks, with hand length and palm width labelled"
+                aria-label={
+                  isPaperEdge
+                    ? "Your measured hand: the paper corners and hand skeleton, with hand length and palm width labelled"
+                    : "Your measured hand: the sheet markers, card and hand skeleton, with hand length and palm width labelled"
+                }
               >
                 {state.overlay.markers.map((m) => (
                   <polygon
@@ -845,34 +1016,23 @@ export default function ScanClient({
                     className="overlayCard"
                   />
                 )}
-                {state.overlay.landmarksPx.map((p, i) => (
-                  <circle
-                    key={i}
-                    cx={p.x}
-                    cy={p.y}
-                    r={
-                      KNUCKLE_LANDMARK_IDS.includes(i)
-                        ? Math.max(7, state.overlay.imageWidth * 0.007)
-                        : Math.max(4, state.overlay.imageWidth * 0.004)
-                    }
-                    className={
-                      KNUCKLE_LANDMARK_IDS.includes(i)
-                        ? "overlayKnuckle"
-                        : "overlayLandmark"
-                    }
-                  />
-                ))}
-                <MeasurementLine
-                  a={state.overlay.landmarksPx[0]}
-                  b={state.overlay.landmarksPx[LANDMARK.middle[3]]}
-                  label={`Hand length ${state.measurements.handLengthMm.toFixed(1)} mm`}
+                <SkeletonOverlay landmarksPx={state.overlay.landmarksPx} />
+                <DimensionLinesOverlay
                   imageWidth={state.overlay.imageWidth}
-                />
-                <MeasurementLine
-                  a={state.overlay.landmarksPx[LANDMARK.index[0]]}
-                  b={state.overlay.landmarksPx[LANDMARK.pinky[0]]}
-                  label={`Palm width ${state.measurements.palmWidthMm.toFixed(1)} mm`}
-                  imageWidth={state.overlay.imageWidth}
+                  specs={[
+                    {
+                      a: state.overlay.landmarksPx[0],
+                      b: state.overlay.landmarksPx[LANDMARK.middle[3]],
+                      label: `Hand length ${state.measurements.handLengthMm.toFixed(1)} mm`,
+                      side: 1,
+                    },
+                    {
+                      a: state.overlay.landmarksPx[LANDMARK.index[0]],
+                      b: state.overlay.landmarksPx[LANDMARK.pinky[0]],
+                      label: `Palm width ${state.measurements.palmWidthMm.toFixed(1)} mm`,
+                      side: 1,
+                    },
+                  ]}
                 />
               </svg>
             </div>
@@ -908,9 +1068,14 @@ export default function ScanClient({
               ))}
             </dl>
             <p className="feedbackCaption">
-              {state.cardSource === "auto"
-                ? "All four sheet markers and the card were found, so the scale is checked."
-                : "All four sheet markers were found; the card corners you placed set the scale."}
+              {isPaperEdge
+                ? // No card, no manual-correction path in paper-edge mode
+                  // (runPaperEdgePipeline never returns "needsManualCard") —
+                  // one sentence covers it, never "sheet markers and the card".
+                  "All four paper corners were found, so the scale is checked."
+                : state.cardSource === "auto"
+                  ? "All four sheet markers and the card were found, so the scale is checked."
+                  : "All four sheet markers were found; the card corners you placed set the scale."}
             </p>
           </div>
 

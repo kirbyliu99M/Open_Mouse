@@ -28,7 +28,9 @@ describe("HAND_CONNECTIONS", () => {
 
   it("connects the wrist to the thumb and index chains, and pinky MCP", () => {
     const has = (a: number, b: number) =>
-      HAND_CONNECTIONS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+      HAND_CONNECTIONS.some(
+        ([x, y]) => (x === a && y === b) || (x === b && y === a),
+      );
     expect(has(0, 1)).toBe(true);
     expect(has(0, 5)).toBe(true);
     expect(has(0, 17)).toBe(true);
@@ -199,7 +201,10 @@ describe("silhouetteLandmarksFromHandLandmarks + buildHandSilhouette", () => {
       palmWidthPx * FINGER_WIDTH_FRACTIONS.middle,
       5,
     );
-    expect(ring.widthPx).toBeCloseTo(palmWidthPx * FINGER_WIDTH_FRACTIONS.ring, 5);
+    expect(ring.widthPx).toBeCloseTo(
+      palmWidthPx * FINGER_WIDTH_FRACTIONS.ring,
+      5,
+    );
     expect(pinky.widthPx).toBeCloseTo(
       palmWidthPx * FINGER_WIDTH_FRACTIONS.pinky,
       5,
