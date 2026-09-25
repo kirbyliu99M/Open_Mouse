@@ -385,18 +385,30 @@ export interface PaperEdgeGateInput {
   readonly laplacianVariance: number;
 }
 
-/**
- * Same shape and intent as `runPhotoGates`, for the paper-edge
- * calibration path: paper-specific checks (found / all corners seen /
- * edge coverage / curled) replace the marker/reprojection/card checks,
- * while the hand checks (`checkHandDetected`, `checkHandedness`,
- * `checkLandmarkConfidence`, `checkHandInBounds`) and the sharpness
- * warning are the exact same functions `runPhotoGates` uses — a hand is a
- * hand regardless of how the sheet was calibrated.
- */
-export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
-  const errors: GateFailure[] = [];
+export interface PaperEdgeOnlyGateInput {
+  readonly paperRegionFound: boolean;
+  readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  readonly minSideCoverage: number;
+  readonly edgeFitResidualMm: number;
+}
 
+export interface PaperEdgeOnlyGateResult {
+  readonly errors: readonly GateFailure[];
+}
+
+/**
+ * Just the 4 paper-specific checks (found / all corners seen / edge
+ * coverage / curled) — no hand data needed at all. Factored out so
+ * `src/client/paper/calibration.ts`'s pure, directly-tested
+ * `evaluatePaperEdgeCalibration` and `runPaperEdgeGates` below share a
+ * single implementation instead of the same 4 lines living in two places
+ * (2026-09-25 PR #59 review: `runPaperEdgePipeline`'s geometry → gates →
+ * calibration chain had no direct test at all — hard rule 3).
+ */
+export function checkPaperEdgeGatesOnly(
+  input: PaperEdgeOnlyGateInput,
+): PaperEdgeOnlyGateResult {
+  const errors: GateFailure[] = [];
   const paperFoundFailure = checkPaperFound(input.paperRegionFound);
   if (paperFoundFailure) {
     errors.push(paperFoundFailure);
@@ -408,6 +420,23 @@ export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
     const curledFailure = checkPaperCurled(input.edgeFitResidualMm);
     if (curledFailure) errors.push(curledFailure);
   }
+  return { errors };
+}
+
+/**
+ * Same shape and intent as `runPhotoGates`, for the paper-edge
+ * calibration path: paper-specific checks (found / all corners seen /
+ * edge coverage / curled — `checkPaperEdgeGatesOnly` above) replace the
+ * marker/reprojection/card checks, while the hand checks
+ * (`checkHandDetected`, `checkHandedness`, `checkLandmarkConfidence`,
+ * `checkHandInBounds`) and the sharpness warning are the exact same
+ * functions `runPhotoGates` uses — a hand is a hand regardless of how the
+ * sheet was calibrated.
+ */
+export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
+  const { errors: paperErrors } = checkPaperEdgeGatesOnly(input);
+  const errors: GateFailure[] = [...paperErrors];
+  const paperFoundFailure = checkPaperFound(input.paperRegionFound);
 
   const handDetectedFailure = checkHandDetected(input.landmarkCount);
   if (handDetectedFailure) {

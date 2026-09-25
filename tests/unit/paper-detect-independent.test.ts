@@ -140,21 +140,16 @@ describe("detectPaperQuad — independent generator: background variety", () => 
 });
 
 describe("detectPaperQuad — independent generator: distractors never pass confidently wrong", () => {
-  it("a second white object TOUCHING the paper is rejected, not measured wrong", () => {
-    const { result } = measureHeldOutSegmentErrorMm({
+  it("a second white object TOUCHING the paper rejects or measures accurately — never confidently wrong", () => {
+    // The historic B3 failure mode was a CONFIDENT wrong quad (all 4
+    // corners "found", grossly wrong). Either outcome below is fine; a
+    // fitted quad here must still be accurate.
+    const { errorMm, result } = measureHeldOutSegmentErrorMm({
       ...BASE,
       secondWhiteObject: "touching",
       fillFraction: 0.55,
     });
-    // The historic B3 failure mode was a CONFIDENT wrong quad (all 4
-    // corners "found", grossly wrong). Either outcome below is fine; a
-    // fitted quad here must still be accurate.
     if (result.corners) {
-      const { errorMm } = measureHeldOutSegmentErrorMm({
-        ...BASE,
-        secondWhiteObject: "touching",
-        fillFraction: 0.55,
-      });
       expect(errorMm).toBeLessThan(2);
     } else {
       expect(result.corners).toBeNull();
@@ -171,7 +166,7 @@ describe("detectPaperQuad — independent generator: distractors never pass conf
     expect(errorMm).toBeLessThan(1);
   });
 
-  it("a hard shadow band across the paper is rejected, not measured wrong", () => {
+  it("a hard shadow band across the paper rejects or measures accurately — never confidently wrong", () => {
     const { errorMm, result } = measureHeldOutSegmentErrorMm({
       ...BASE,
       shadowBand: true,

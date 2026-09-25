@@ -50,12 +50,7 @@ import {
   assemblePaperEdgeSubmission,
 } from "./submission";
 import { detectPaperQuad } from "../paper/detect";
-import {
-  buildPaperHomography,
-  localScaleMmPerPx,
-  localScaleMmPerPxAlongNormal,
-  quadCentroid,
-} from "../paper/homography";
+import { computePaperEdgeGeometry } from "../paper/calibration";
 import type {
   HandMeasurements,
   ScanSubmission,
@@ -339,21 +334,15 @@ async function runPaperEdgePipeline(
     };
   }
 
-  const homography = buildPaperHomography(quad.corners, paperSize);
-  // Convert the worst side's own residual to mm along THAT side's own
-  // normal direction (2026-09-25 PR #59 review nit) — falls back to the
-  // generic centroid-based scale only if, oddly, no side actually
-  // contributed the residual (shouldn't happen once `corners` is non-null,
-  // since that already requires all 4 sides fit).
-  const scaleMmPerPx =
-    quad.worstSideIndex !== null
-      ? localScaleMmPerPxAlongNormal(
-          homography,
-          quad.corners[quad.worstSideIndex],
-          quad.corners[(quad.worstSideIndex + 1) % 4],
-        )
-      : localScaleMmPerPx(homography, quadCentroid(quad.corners));
-  const edgeFitResidualMm = quad.edgeFitResidualPx * scaleMmPerPx;
+  // homography + the worst side's residual in mm (via its own normal
+  // direction, not a generic centroid average) — this is
+  // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
+  // pure, directly-tested slice of this function (2026-09-25 PR #59
+  // review: hard rule 3).
+  const { homography, edgeFitResidualMm } = computePaperEdgeGeometry(
+    quad,
+    paperSize,
+  );
 
   const hand = await detectHandLandmarks(bitmap);
   if (!hand) {
