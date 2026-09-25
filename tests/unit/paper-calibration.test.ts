@@ -74,7 +74,7 @@ describe("computePaperEdgeGeometry", () => {
     expect(geometry.edgeFitResidualMm).toBeLessThan(0.2);
   });
 
-  it("RED/GREEN regression guard: the side-normal conversion must differ from — and here, exceed — the generic centroid-average scale for a perspective-distorted quad", () => {
+  it("RED/GREEN regression guard: the side-normal conversion differs from the generic centroid-average scale for a perspective-distorted quad", () => {
     // A genuinely perspective-distorted quad (not just scaled/rotated) —
     // this is the case a centroid-based x/y-average scale and a
     // side-normal scale can meaningfully disagree on, unlike a flat

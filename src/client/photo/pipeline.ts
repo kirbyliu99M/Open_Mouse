@@ -50,7 +50,7 @@ import {
   assemblePaperEdgeSubmission,
 } from "./submission";
 import { detectPaperQuad } from "../paper/detect";
-import { computePaperEdgeGeometry } from "../paper/calibration";
+import { evaluatePaperEdgeCalibration } from "../paper/calibration";
 import type {
   HandMeasurements,
   ScanSubmission,
@@ -339,10 +339,20 @@ async function runPaperEdgePipeline(
   // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
   // pure, directly-tested slice of this function (2026-09-25 PR #59
   // review: hard rule 3).
-  const { homography, edgeFitResidualMm } = computePaperEdgeGeometry(
-    quad,
-    paperSize,
-  );
+  // The shipped path goes through the same pure chain the tests exercise
+  // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
+  // calibration fields all come from this one call. parallaxCorrected is
+  // only known after EXIF is read below, so it is set on the submission
+  // from the real flag there; the placeholder here never reaches it.
+  const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
+  if (!paperEval.geometry) {
+    return {
+      status: "error",
+      errors: paperEval.errors,
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+  const { homography, edgeFitResidualMm } = paperEval.geometry;
 
   const hand = await detectHandLandmarks(bitmap);
   if (!hand) {
@@ -431,13 +441,23 @@ async function runPaperEdgePipeline(
     };
   }
 
+  // report.ok above includes the same paper gates, so the chain's
+  // calibration exists here; its fields are what gets submitted.
+  const calibration = paperEval.calibration;
+  if (!calibration) {
+    return {
+      status: "error",
+      errors: paperEval.errors,
+      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    };
+  }
   const submission = assemblePaperEdgeSubmission({
     hand: input.hand,
     gripStyleStated: input.gripStyleStated,
     measurements: corrected.measurements,
-    paperSize,
-    edgeFitResidualMm,
-    minSideCoverage: quad.minSideCoverage,
+    paperSize: calibration.paperSize,
+    edgeFitResidualMm: calibration.edgeFitResidualMm,
+    minSideCoverage: calibration.minSideCoverage,
     parallaxCorrected: corrected.parallaxCorrected,
   });
 
