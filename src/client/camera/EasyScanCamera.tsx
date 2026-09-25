@@ -38,6 +38,7 @@ import {
 } from "../../lib/contracts/measurement";
 import { computeDownscaleSize } from "../photo/decode";
 import { rgbaToGrayscale, computeLaplacianVariance } from "../photo/sharpness";
+import { getHandLandmarker } from "../photo/landmarks";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
@@ -401,6 +402,17 @@ export default function EasyScanCamera({
     setPaperSize(readStoredPaperSize(storage));
     if (!forceTipOpen && !readFirstRunTipSeen(storage)) setTipOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Warm the MediaPipe HandLandmarker (its model + WASM fetch) as soon as
+  // this page mounts, same as ScanClient does — so that same-origin asset
+  // load happens well before a capture, not while the camera is "open"
+  // (hard rule 5: no network request may fire while the camera is open,
+  // except the single submit).
+  useEffect(() => {
+    void getHandLandmarker().catch(() => {
+      // The measured/gate-failure sheet's own error state owns recovery.
+    });
   }, []);
 
   useEffect(() => {

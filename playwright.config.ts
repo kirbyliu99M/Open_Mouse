@@ -94,7 +94,8 @@ export default defineConfig({
     // route.
     {
       name: "chromium-camera-paper-edge",
-      testMatch: /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts/,
+      testMatch:
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },

@@ -1,5 +1,18 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import logitechCatalogue from "../../src/db/seed/logitech.json";
+
+// Read as plain JSON rather than `import ... from "*.json"` — Playwright's
+// test runner loads spec files as native Node ESM, which requires an
+// `type: "json"` import attribute Node's resolver doesn't universally
+// support yet; reading the file directly sidesteps that (see
+// tests/e2e/results-page.spec.ts's own comment).
+const logitechCatalogue: unknown[] = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../../src/db/seed/logitech.json", import.meta.url)),
+    "utf-8",
+  ),
+);
 
 test("home page shows the real pitch and its CTA opens the easy-scan camera directly", async ({
   page,
