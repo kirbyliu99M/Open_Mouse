@@ -797,7 +797,11 @@ export default function CameraCapture({
           >
             <span aria-hidden="true">‹</span> Camera
           </button>
-          <span className="cameraReviewStepLabel">Step 2 of 2 · Review</span>
+          <span className="cameraReviewStepLabel">
+            {calibrationMode === "paper-edge"
+              ? "Review"
+              : "Step 2 of 2 · Review"}
+          </span>
         </div>
 
         <h1 className="cameraReviewHeading">Check your photo</h1>
@@ -884,7 +888,9 @@ export default function CameraCapture({
         >
           ×
         </button>
-        <span className="cameraStepLabel">Step 2 of 2 · Photo</span>
+        <span className="cameraStepLabel">
+          {calibrationMode === "paper-edge" ? "Photo" : "Step 2 of 2 · Photo"}
+        </span>
       </div>
 
       {state.kind === "streamEnded" && (
@@ -938,29 +944,45 @@ export default function CameraCapture({
                 )}
                 {handGhost && (
                   <svg className="cameraHandGhostSvg" aria-hidden="true">
-                    <path
-                      className="cameraHandGhostPalm"
-                      d={handGhost.palmPathD}
-                    />
-                    {handGhost.fingers.map((f, i) => (
-                      <line
-                        key={i}
-                        x1={f.from.x}
-                        y1={f.from.y}
-                        x2={f.to.x}
-                        y2={f.to.y}
-                        strokeWidth={f.widthPx}
-                        className="cameraHandGhostCapsule"
+                    {/* One silhouette: every part is drawn twice — first a
+                        slightly wider outline layer, then the fill layer on
+                        top — so palm, fingers and thumb merge into a single
+                        hand shape with no inner seams. The group's opacity
+                        keeps it a hint, not a detection. */}
+                    <g className="cameraHandGhost">
+                      <path
+                        className="cameraHandGhostOutline"
+                        d={handGhost.palmPathD}
+                        strokeWidth={3}
                       />
-                    ))}
-                    <line
-                      x1={handGhost.thumb.from.x}
-                      y1={handGhost.thumb.from.y}
-                      x2={handGhost.thumb.to.x}
-                      y2={handGhost.thumb.to.y}
-                      strokeWidth={handGhost.thumb.widthPx}
-                      className="cameraHandGhostCapsule"
-                    />
+                      {[...handGhost.fingers, handGhost.thumb].map((f, i) => (
+                        <line
+                          key={i}
+                          x1={f.from.x}
+                          y1={f.from.y}
+                          x2={f.to.x}
+                          y2={f.to.y}
+                          strokeWidth={f.widthPx + 3}
+                          className="cameraHandGhostOutline"
+                        />
+                      ))}
+                      <path
+                        className="cameraHandGhostFill"
+                        d={handGhost.palmPathD}
+                        strokeWidth={0}
+                      />
+                      {[...handGhost.fingers, handGhost.thumb].map((f, i) => (
+                        <line
+                          key={i}
+                          x1={f.from.x}
+                          y1={f.from.y}
+                          x2={f.to.x}
+                          y2={f.to.y}
+                          strokeWidth={f.widthPx}
+                          className="cameraHandGhostFill"
+                        />
+                      ))}
+                    </g>
                   </svg>
                 )}
               </div>

@@ -223,23 +223,25 @@
   height: 100%;
   pointer-events: none;
 }
-.cameraHandGhostPalm {
-  fill: #ffffff;
-  fill-opacity: 0.25;
-  stroke: #ffffff;
-  stroke-opacity: 0.9;
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
+/* Widths come from SVG attributes (per-finger capsule widths), never CSS,
+   which would override them. Light accent fill + accent outline: the paper is white, so a white ghost
+   disappears into it. Outline #0a64e0 against the paper is 4.9:1 before the
+   group opacity; at 0.7 it still reads clearly as a line (non-text UI,
+   >= 3:1 is the bar). */
+.cameraHandGhost {
+  opacity: 0.7;
 }
-/* Each finger/thumb is one thick, round-capped `<line>` (stroke-width set
-   inline per capsule, CameraCapture.tsx) — the stroke itself IS the
-   capsule's translucent white body; a round linecap gives the
-   semicircular fingertip/base ends that read as a capsule rather than a
-   thin outline. */
-.cameraHandGhostCapsule {
-  stroke: #ffffff;
-  stroke-opacity: 0.28;
+.cameraHandGhostOutline {
+  fill: #0a64e0;
+  stroke: #0a64e0;
   stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cameraHandGhostFill {
+  fill: #e7f0fd;
+  stroke: #e7f0fd;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .cameraFlash {

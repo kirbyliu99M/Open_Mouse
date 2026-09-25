@@ -51,7 +51,9 @@ const RIGHT_HAND_UNIT_POINTS: Record<keyof HandSilhouetteLandmarks, UnitPoint> =
     ringTip: { u: 0.65, v: 0.1 },
     pinkyMcp: { u: 0.87, v: 0.44 },
     pinkyTip: { u: 0.87, v: 0.24 },
-    thumbBase: { u: 0.05, v: 0.7 },
+    // Inside the palm outline (which narrows toward the wrist), so the thumb
+    // capsule grows out of the palm instead of floating beside it.
+    thumbBase: { u: 0.22, v: 0.72 },
     thumbTip: { u: -0.18, v: 0.5 },
   };
 
