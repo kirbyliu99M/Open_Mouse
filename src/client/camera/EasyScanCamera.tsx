@@ -49,6 +49,8 @@ import {
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { CAMERA_CONSTANTS, PAPER_SIZE_LABELS } from "./constants";
 import { pickCue, type Cue } from "./cues";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import { requestCameraStream } from "./requestStream";
 import {
   computeCoverRect,
   mapMediaPointToContainer,
@@ -406,6 +408,12 @@ export default function EasyScanCamera({
   const capturingRef = useRef(false);
   const reducedMotionRef = useRef(false);
   const runIdRef = useRef(0);
+  const mountedRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const camKindRef = useRef<CamState["kind"]>(camState.kind);
+  camKindRef.current = camState.kind;
+  const resultRef = useRef(result);
+  resultRef.current = result;
   const fileRef = useRef<File | null>(null);
   const quadSourceRef = useRef<SheetQuadSource>(createPaperEdgeQuadSource());
   const handChipRef = useRef(handChip);
@@ -507,19 +515,38 @@ export default function EasyScanCamera({
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
-  useEffect(() => stopStream, [stopStream]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+      stopStream();
+      if (resultRef.current.kind !== "none")
+        URL.revokeObjectURL(resultRef.current.previewUrl);
+    };
+  }, [stopStream]);
 
   const startCamera = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    camKindRef.current = "requesting";
     setCamState({ kind: "requesting" });
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 3840 },
-          height: { ideal: 2160 },
+      const stream = await requestCameraStream(
+        navigator.mediaDevices,
+        {
+          video: {
+            facingMode: "environment",
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
+          audio: false,
         },
-        audio: false,
-      });
+        () =>
+          mountedRef.current &&
+          requestId === requestIdRef.current &&
+          camKindRef.current === "requesting",
+      );
+      if (!stream) return;
       streamRef.current = stream;
       stream.getVideoTracks().forEach((track) => {
         track.addEventListener("ended", () => {
@@ -543,7 +570,12 @@ export default function EasyScanCamera({
         name === "NotAllowedError" || name === "PermissionDeniedError"
           ? "Camera access was blocked."
           : "The camera couldn't be opened.";
-      setCamState({ kind: "cameraError", message });
+      if (
+        mountedRef.current &&
+        requestId === requestIdRef.current &&
+        camKindRef.current === "requesting"
+      )
+        setCamState({ kind: "cameraError", message });
     }
   }, [stopStream]);
 
@@ -565,7 +597,11 @@ export default function EasyScanCamera({
 
   useEffect(() => {
     function onVisibilityChange() {
-      if (document.hidden && camState.kind === "live") {
+      if (
+        document.hidden &&
+        (camState.kind === "live" || camState.kind === "requesting")
+      ) {
+        requestIdRef.current += 1;
         stopStream();
         setCamState({ kind: "streamEnded" });
       }
@@ -1361,7 +1397,7 @@ export default function EasyScanCamera({
           Got it
         </button>
         <p className="easyTipFinePrint">
-          Shown once. The camera view stays on your phone.
+          Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </dialog>
     </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import logitechCatalogue from "@/db/seed/logitech.json";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import { formatCatalogueSpec } from "./format-catalogue-spec";
 import "./home.css";
 
@@ -12,12 +13,13 @@ export default function HomePage() {
     throw new Error(
       "Featured mouse specifications are missing from the catalogue",
     );
-  const specs = [
-    ["Length", formatCatalogueSpec(featuredMouse.lengthMm, "mm")],
-    ["Width", formatCatalogueSpec(featuredMouse.widthMm, "mm")],
-    ["Height", formatCatalogueSpec(featuredMouse.heightMm, "mm")],
-    ["Weight", formatCatalogueSpec(featuredMouse.weightG, "g")],
-  ] as const;
+  const dimension = [
+    featuredMouse.lengthMm,
+    featuredMouse.widthMm,
+    featuredMouse.heightMm,
+  ]
+    .map((value) => formatCatalogueSpec(value, "mm").replace(/ mm$/, ""))
+    .join(" × ");
 
   return (
     <main className="home-main landing-page">
@@ -31,10 +33,9 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <p className="landing-eyebrow">EARLY PREVIEW · HAND-FIT RANKING</p>
-      <h1>Shape matters more than specs.</h1>
+      <h1>Measure your hand. Find the mouse that fits.</h1>
       <p className="home-subhead">
-        The right mouse starts with the size of your hand.
+        A blank sheet of A4 and your phone are all it takes.
       </p>
 
       <figure className="landing-sketch">
@@ -45,18 +46,19 @@ export default function HomePage() {
         />
         <figcaption>G Pro X Superlight 2 · sketch</figcaption>
       </figure>
-
-      <dl
-        className="landing-specs"
-        aria-label="G Pro X Superlight 2 specifications"
+      <div
+        className="landing-dimension"
+        aria-label={`Length ${formatCatalogueSpec(featuredMouse.lengthMm, "mm")}`}
       >
-        {specs.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
+        <span>{formatCatalogueSpec(featuredMouse.lengthMm, "mm")}</span>
+      </div>
+      <p
+        className="landing-annotation"
+        aria-label="G Pro X Superlight 2 dimensions and weight"
+      >
+        {dimension} mm{" "}
+        <span>{formatCatalogueSpec(featuredMouse.weightG, "g")}</span>
+      </p>
 
       <Link className="home-cta" href="/scan/easy">
         <svg
@@ -84,20 +86,21 @@ export default function HomePage() {
         </svg>
         Scan my hand
       </Link>
+      <p className="landing-preview-note">
+        Early preview — measurements are still being validated.
+      </p>
       <Link className="landing-how-link" href="/how-it-works">
-        How it works <span aria-hidden="true">→</span>
+        How it works
       </Link>
 
       <section className="landing-points" aria-label="Why scan your hand">
         <div>
-          <span>01</span>
           <div>
             <h2>One photo. No printing.</h2>
             <p>A blank sheet of A4 is the ruler.</p>
           </div>
         </div>
         <div>
-          <span>02</span>
           <div>
             <h2>Ranked for your hand, not the hype.</h2>
             <p>
@@ -107,16 +110,14 @@ export default function HomePage() {
           </div>
         </div>
         <div>
-          <span>03</span>
           <div>
-            <h2>Your photo never leaves your phone.</h2>
-            <p>Only the measurements are sent.</p>
+            <h2>Private by design.</h2>
+            <p>{PHOTO_PRIVACY_COPY}</p>
           </div>
         </div>
       </section>
 
       <footer className="landing-footer">
-        <p>Early preview — measurements are still being validated.</p>
         <p>
           Not affiliated with Logitech. Sizes from Logitech&apos;s published
           specs.

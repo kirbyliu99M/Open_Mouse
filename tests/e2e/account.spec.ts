@@ -40,9 +40,7 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
   await expect(
     page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);
-  await page
-    .getByRole("link", { name: "Start measuring without signing in" })
-    .click();
+  await page.getByRole("link", { name: "Scan my hand" }).click();
   await expect(page).toHaveURL(/\/scan\/easy$/);
   expect(errors).toEqual([]);
 });

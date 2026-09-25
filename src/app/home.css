@@ -248,9 +248,10 @@
 }
 .landing-page h1 {
   margin: 0 0 1rem;
-  font-size: clamp(2.65rem, 10.5vw, 5rem);
-  line-height: 1.02;
-  letter-spacing: -0.045em;
+  font-size: clamp(2.25rem, 8vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 .landing-page .home-subhead {
   max-width: 27rem;
@@ -259,43 +260,62 @@
   line-height: 1.4;
 }
 .landing-sketch {
-  margin: 3.4rem 0 0.35rem;
+  margin: 2.5rem 0 0.35rem;
 }
 .landing-sketch img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 18.75rem;
+  object-fit: contain;
 }
 .landing-sketch figcaption {
   color: #55555d;
   font-size: 0.8rem;
   margin-top: 0.4rem;
 }
-.landing-specs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.45rem;
-  margin: 0 0 1.25rem;
+.landing-dimension {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0.35rem;
   font-variant-numeric: tabular-nums;
 }
-.landing-specs > div {
-  min-width: 0;
-  border-radius: 0.8rem;
-  padding: 0.7rem 0.55rem;
-  background: #fff;
+.landing-dimension::before,
+.landing-dimension::after {
+  content: "";
+  height: 0.7rem;
+  flex: 1;
+  border-bottom: 1px solid #55555d;
 }
-.landing-specs dt {
+.landing-dimension::before {
+  border-left: 1px solid #55555d;
+}
+.landing-dimension::after {
+  border-right: 1px solid #55555d;
+}
+.landing-dimension span {
+  font-size: 0.875rem;
+}
+.landing-annotation {
+  margin: 0 0 1.5rem;
+  text-align: center;
   color: #55555d;
-  font-size: 0.75rem;
-}
-.landing-specs dd {
-  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  font-size: 0.91rem;
-  font-weight: 700;
+}
+.landing-annotation span {
+  margin-left: 1rem;
 }
 .landing-page .home-cta {
   min-height: 3.5rem;
+}
+.landing-preview-note {
+  margin: 0.65rem 0 0;
+  text-align: center;
+  color: #55555d;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 .landing-how-link {
   display: flex;
@@ -309,21 +329,11 @@
   text-decoration: none;
 }
 .landing-points > div {
-  display: grid;
-  grid-template-columns: 1.7rem minmax(0, 1fr);
-  gap: 0.1rem;
   padding: 1.15rem 0;
   border-bottom: 1px solid #d5d5dc;
 }
 .landing-points > div:last-child {
   border-bottom: 0;
-}
-.landing-points span {
-  color: #0a64e0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  padding-top: 0.25rem;
 }
 .landing-points h2 {
   margin: 0;
@@ -370,11 +380,12 @@
   margin-bottom: 1.5rem;
 }
 .home-how-page .home-hero {
-  aspect-ratio: 1.14;
+  width: min(100%, 21.375rem);
+  aspect-ratio: 342 / 480;
   margin-bottom: 1.75rem;
 }
 .home-how-page .home-hero-img {
-  object-position: center;
+  object-position: center center;
 }
 .home-how-page .home-hero-corner {
   width: 1.75rem;
@@ -382,24 +393,24 @@
   border: 2px solid #fff;
 }
 .home-how-page .home-hero-corner.tl {
-  top: 16%;
-  left: 7%;
+  top: 11.5%;
+  left: 15%;
 }
 .home-how-page .home-hero-corner.tr {
-  top: 16%;
-  left: 94%;
+  top: 11.5%;
+  left: 86%;
 }
 .home-how-page .home-hero-corner.bl {
-  top: 84%;
-  left: 7%;
+  top: 83%;
+  left: 15%;
 }
 .home-how-page .home-hero-corner.br {
-  top: 84%;
-  left: 94%;
+  top: 83%;
+  left: 86%;
 }
 .home-how-page .home-hero-badge {
-  top: 0.3rem;
-  bottom: auto;
+  top: auto;
+  bottom: 0.75rem;
 }
 .home-how-page .home-how h2 {
   font-size: 1.4rem;
@@ -408,6 +419,10 @@
 .home-how-page .home-how-list {
   gap: 1.2rem;
   margin-bottom: 1.7rem;
+}
+.home-how-page .home-how-icon {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 .home-how-page .home-cta-caption {
   margin-bottom: 1.5rem;
@@ -429,19 +444,16 @@
 
 @media (prefers-color-scheme: dark) {
   .landing-sketch figcaption,
-  .landing-specs dt,
+  .landing-annotation,
+  .landing-preview-note,
   .landing-points p,
   .landing-footer {
     color: #b5b5bd;
-  }
-  .landing-specs > div {
-    background: #242426;
   }
   .landing-points > div {
     border-color: #3a3a3d;
   }
   .landing-eyebrow,
-  .landing-points span,
   .landing-how-link,
   .home-back-link,
   .home-privacy-link a {
@@ -453,13 +465,7 @@
   .landing-page {
     padding-inline: 1rem;
   }
-  .landing-specs {
-    gap: 0.25rem;
-  }
-  .landing-specs > div {
-    padding-inline: 0.4rem;
-  }
-  .landing-specs dd {
+  .landing-annotation {
     font-size: 0.8rem;
   }
 }

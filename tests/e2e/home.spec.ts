@@ -31,7 +31,7 @@ test("landing shows the headline, sketch, catalogue specifications and CTA desti
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Shape matters more than specs.",
+      name: "Measure your hand. Find the mouse that fits.",
     }),
   ).toBeVisible();
   await expect(
@@ -39,18 +39,20 @@ test("landing shows the headline, sketch, catalogue specifications and CTA desti
       name: "Line sketch of the G Pro X Superlight 2 mouse",
     }),
   ).toBeVisible();
-  const specs = page.locator("dl.landing-specs");
-  for (const [label, value] of [
-    ["Length", format(featured.lengthMm, "mm")],
-    ["Width", format(featured.widthMm, "mm")],
-    ["Height", format(featured.heightMm, "mm")],
-    ["Weight", format(featured.weightG, "g")],
+  await expect(page.locator(".landing-dimension")).toContainText(
+    format(featured.lengthMm, "mm"),
+  );
+  await expect(page.locator(".landing-annotation")).toContainText(
+    format(featured.weightG, "g"),
+  );
+  for (const value of [
+    featured.lengthMm,
+    featured.widthMm,
+    featured.heightMm,
   ]) {
-    await expect(
-      specs
-        .locator("div")
-        .filter({ has: page.locator("dt", { hasText: label }) }),
-    ).toContainText(value);
+    await expect(page.locator(".landing-annotation")).toContainText(
+      String(value),
+    );
   }
   await expect(
     page.getByText(
@@ -60,9 +62,18 @@ test("landing shows the headline, sketch, catalogue specifications and CTA desti
   await expect(
     page.getByRole("link", { name: "Scan my hand" }),
   ).toHaveAttribute("href", "/scan/easy");
+  await expect(page.locator(".landing-preview-note")).toHaveText(
+    "Early preview — measurements are still being validated.",
+  );
   await expect(
     page.getByRole("link", { name: "How it works" }),
   ).toHaveAttribute("href", "/how-it-works");
+  await expect(
+    page.getByText(
+      "Your photo never leaves your phone. Only measurements are sent.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".landing-points > div > span")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(

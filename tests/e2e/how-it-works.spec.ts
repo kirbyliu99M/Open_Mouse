@@ -10,7 +10,9 @@ test("How it works shows the illustration, steps, privacy details and navigation
   ).toBeVisible();
   await expect(
     page.getByRole("img", { name: /illustration of a hand laid flat/i }),
-  ).toBeVisible();
+  ).toHaveAttribute("src", "/images/hand-on-a4-camera.png");
+  await expect(page.locator(".home-how-icon")).toHaveText(["1", "2", "3"]);
+  await expect(page.getByText("Step by step", { exact: true })).toHaveCount(0);
   await expect(page.getByText("All four corners found")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Three steps" }),

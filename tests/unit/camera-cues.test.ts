@@ -164,3 +164,22 @@ describe("computeStatusChips", () => {
     ).toBe(false);
   });
 });
+
+it("uses sheet nouns for printed-sheet cues and paper nouns for paper-edge cues", () => {
+  const noCorners = baseInput({ cornersSeen: 0, quad: null });
+  expect(pickCue(noCorners, "printed-sheet").message).toBe(
+    "Point the camera at the sheet",
+  );
+  expect(pickCue(noCorners, "paper-edge").message).toBe(
+    "Point the camera at the paper",
+  );
+  expect(
+    pickCue(baseInput({ cornersSeen: 2, quad: null }), "printed-sheet").message,
+  ).toContain("sheet corners");
+  expect(computeStatusChips(baseInput(), "printed-sheet").paper.label).toBe(
+    "Sheet 4/4",
+  );
+  expect(computeStatusChips(baseInput(), "paper-edge").paper.label).toBe(
+    "Paper 4/4",
+  );
+});

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import logitechCatalogue from "@/db/seed/logitech.json";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import "../home.css";
 
 /** The original introduction, moved to its own route (screen 18). */
@@ -11,7 +12,6 @@ export default function HowItWorksPage() {
       <Link className="home-back-link" href="/">
         ‹ Home
       </Link>
-      <p className="home-eyebrow-pill">Step by step</p>
       <h1>How it works</h1>
       <p className="home-subhead">
         All you need is your phone and one blank sheet of A4. About a minute,
@@ -21,7 +21,7 @@ export default function HowItWorksPage() {
       <div className="home-hero">
         {/* eslint-disable-next-line @next/next/no-img-element -- static marketing asset, no next/image config needed for one fixed hero */}
         <img
-          src="/images/hand-on-a4-hero.png"
+          src="/images/hand-on-a4-camera.png"
           alt="Illustration of a hand laid flat on a sheet of A4 paper, seen from directly above a phone's camera"
           className="home-hero-img"
         />
@@ -47,7 +47,7 @@ export default function HowItWorksPage() {
         <ul className="home-how-list">
           <li>
             <span className="home-how-icon" aria-hidden="true">
-              <SheetIcon />
+              1
             </span>
             <div>
               <strong>Any blank A4 sheet</strong>
@@ -56,7 +56,7 @@ export default function HowItWorksPage() {
           </li>
           <li>
             <span className="home-how-icon" aria-hidden="true">
-              <HandIcon />
+              2
             </span>
             <div>
               <strong>Hand flat, phone above</strong>
@@ -65,7 +65,7 @@ export default function HowItWorksPage() {
           </li>
           <li>
             <span className="home-how-icon" aria-hidden="true">
-              <ListIcon />
+              3
             </span>
             <div>
               <strong>Your best matches</strong>
@@ -89,7 +89,7 @@ export default function HowItWorksPage() {
           <span aria-hidden="true">
             <ShieldIcon />
           </span>
-          Your photo never leaves your phone. Only measurements are sent.
+          {PHOTO_PRIVACY_COPY}
         </p>
         <p>
           <span aria-hidden="true">
@@ -157,56 +157,6 @@ function CameraIcon() {
         fill="none"
         stroke="currentColor"
         strokeWidth="1.7"
-      />
-    </svg>
-  );
-}
-
-function SheetIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
-      <path
-        d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M14 3v5h5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function HandIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
-      <path
-        d="M8 12V6a1.5 1.5 0 0 1 3 0v5m0-4a1.5 1.5 0 0 1 3 0v4m0-2.5a1.5 1.5 0 0 1 3 0V13m0-1a1.5 1.5 0 0 1 3 0v5c0 3-2 6-6 6h-1c-3 0-4.5-1.3-6-3.5L5 14c-.6-.9-.2-2.2 1-2.4.7-.1 1.4.2 1.8.9L8 14"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ListIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
-      <path
-        d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
       />
     </svg>
   );

@@ -17,6 +17,8 @@ main {
   padding: 0 1.5rem;
 }
 h1 {
+  /* Balance multi-line headings so no line is left with a single word. */
+  text-wrap: balance;
   font-size: clamp(2.5rem, 10vw, 4rem);
   letter-spacing: -0.02em;
   line-height: 1.05;

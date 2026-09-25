@@ -10,6 +10,7 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import { resultHandKey } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
@@ -63,6 +64,16 @@ export function ResultsPageClient({
     status: "idle",
   });
   const [attempt, setAttempt] = useState(0);
+  const [scanHand, setScanHand] = useState<"left" | "right" | null>(null);
+
+  useEffect(() => {
+    try {
+      const hand = sessionStorage.getItem(resultHandKey(scanId));
+      setScanHand(hand === "left" || hand === "right" ? hand : null);
+    } catch {
+      setScanHand(null);
+    }
+  }, [scanId]);
 
   const runAnalysis = useCallback(async () => {
     setAnalysisState({ status: "loading" });
@@ -232,6 +243,7 @@ export function ResultsPageClient({
   return (
     <main className="resultsMain">
       <ResultsView
+        scanHand={scanHand}
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}

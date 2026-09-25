@@ -75,7 +75,7 @@ export default async function AccountPage() {
               </p>
             </div>
             <Link className="account-start-button" href="/scan/easy">
-              <CameraIcon /> Start measuring without signing in
+              <CameraIcon /> Scan my hand
             </Link>
             <p className="account-fine-print">
               When sign-in opens, your scans can be saved to your account.

@@ -23,7 +23,11 @@ export function RankedList({ response }: { response: FitResponse }) {
   if (rest.length === 0) return null;
 
   return (
-    <section className="results-rankedList">
+    <section
+      className="results-rankedList"
+      aria-labelledby="results-rankedList-heading"
+    >
+      <h2 id="results-rankedList-heading">Other matches</h2>
       <button
         type="button"
         className="results-rankedList-toggle"

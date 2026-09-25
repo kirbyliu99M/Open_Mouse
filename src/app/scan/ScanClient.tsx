@@ -25,6 +25,7 @@ import {
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import {
   HAND_CONNECTIONS,
   KNUCKLE_LANDMARK_IDS,
@@ -852,9 +853,7 @@ export default function ScanClient({
             onChange={onInputChange}
             className="visuallyHidden"
           />
-          <p className="deviceNotice">
-            Processed on this device — the photo is never uploaded.
-          </p>
+          <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
         </div>
       )}
 
@@ -1092,10 +1091,7 @@ export default function ScanClient({
               onChange={onInputChange}
               className="visuallyHidden"
             />
-            <p className="deviceNotice">
-              Processed on this device — only measurements are sent, never the
-              photo.
-            </p>
+            <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
           </div>
         </>
       )}

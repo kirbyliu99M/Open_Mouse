@@ -33,7 +33,7 @@ test.describe("easy-scan shell screenshots", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: "Shape matters more than specs.",
+        name: "Measure your hand. Find the mouse that fits.",
       }),
     ).toBeVisible();
     await page.screenshot({ path: `${OUTPUT}/landing.png`, fullPage: true });

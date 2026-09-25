@@ -1,5 +1,7 @@
 # Design: live camera capture with on-screen cues (2026-09-25)
 
+**Superseded for the blank-paper easy scan:** references below to a live bank-card outline, card placement, and printed ArUco markers describe the earlier printed-sheet mode. The current `/scan/easy` flow tracks the four corners of plain A4 or Letter paper and uses no bank card.
+
 Kirby's request: the web UI must open the phone camera itself and guide the
 user to the right photograph with cues on screen, in the spirit of Final's
 TONALITE onboarding (headphones that personalise sound from a phone scan of
@@ -65,7 +67,7 @@ tokens, legible over any photo: 2 px stroke + 1 px dark halo):
   - When markers are found, the brackets **track the real detected corners**
     (animate from the ideal frame to the detected quad), so the user sees the
     sheet being recognised, not a static decal.
-- **Card outline** and a faint **hand ghost** (mirrored for the chosen hand)
+- **Card outline (superseded in blank-paper mode)** and a faint **hand ghost** (mirrored for the chosen hand)
   at their sheet positions, drawn relative to the tracked sheet quad. The
   ghost is a placement hint only; it never feeds measurement.
 - **Top bar**: close (×, back to /scan), "Step 2 of 2 · Photo".

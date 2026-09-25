@@ -58,7 +58,9 @@ test.describe("/scan — top-down photo pipeline", () => {
       page.getByRole("button", { name: "Right hand" }),
     ).toBeVisible();
     await expect(
-      page.getByText("Processed on this device — the photo is never uploaded."),
+      page.getByText(
+        "Your photo never leaves your phone. Only measurements are sent.",
+      ),
     ).toBeVisible();
   });
 
@@ -357,7 +359,7 @@ test.describe("/scan/measured-demo — measured state (item 6)", () => {
     // the whole payload).
     await page.goto("/scan/measured-demo");
     await expect(page.locator(".deviceNotice")).toHaveText(
-      "Processed on this device — only measurements are sent, never the photo.",
+      "Your photo never leaves your phone. Only measurements are sent.",
     );
   });
 });
