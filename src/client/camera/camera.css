@@ -211,9 +211,11 @@
 }
 
 /* The hand-ghost silhouette — a placement hint only (handGhost.ts), drawn
-   in the same container-pixel space as the corner dots. ~25% white fill +
-   a thin white stroke reads over any photo without ever looking like a
-   real detected shape. */
+   in the same container-pixel space as the corner dots: a filled rounded
+   palm path plus one round-capped stroke per finger/thumb (near-constant
+   width — reads as a hand at thumbnail size, unlike a thin outline).
+   ~25% white fill + a thin white stroke keeps it legible over any photo
+   without ever looking like a real detected shape. */
 .cameraHandGhostSvg {
   position: absolute;
   inset: 0;
@@ -221,19 +223,23 @@
   height: 100%;
   pointer-events: none;
 }
-.cameraHandGhostPath {
+.cameraHandGhostPalm {
   fill: #ffffff;
   fill-opacity: 0.25;
   stroke: #ffffff;
-  stroke-width: 1.5;
   stroke-opacity: 0.9;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
-.cameraHandGhostGap {
+/* Each finger/thumb is one thick, round-capped `<line>` (stroke-width set
+   inline per capsule, CameraCapture.tsx) — the stroke itself IS the
+   capsule's translucent white body; a round linecap gives the
+   semicircular fingertip/base ends that read as a capsule rather than a
+   thin outline. */
+.cameraHandGhostCapsule {
   stroke: #ffffff;
-  stroke-opacity: 0.35;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+  stroke-opacity: 0.28;
+  stroke-linecap: round;
 }
 
 .cameraFlash {

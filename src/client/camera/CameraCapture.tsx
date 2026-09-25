@@ -53,6 +53,7 @@ import {
   type Quad,
 } from "./quad";
 import { computeHandGhostGeometry } from "./handGhost";
+import type { HandSilhouetteGeometry } from "../geometry/handSilhouette";
 import { isSteady } from "./steadiness";
 import { computeMeanLuma, computeClippedFraction } from "./light";
 import {
@@ -240,10 +241,9 @@ export default function CameraCapture({
     false,
     false,
   ]);
-  const [handGhost, setHandGhost] = useState<{
-    outlineD: string;
-    fingerGapLines: readonly (readonly [Point, Point])[];
-  } | null>(null);
+  const [handGhost, setHandGhost] = useState<HandSilhouetteGeometry | null>(
+    null,
+  );
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
@@ -939,19 +939,28 @@ export default function CameraCapture({
                 {handGhost && (
                   <svg className="cameraHandGhostSvg" aria-hidden="true">
                     <path
-                      className="cameraHandGhostPath"
-                      d={handGhost.outlineD}
+                      className="cameraHandGhostPalm"
+                      d={handGhost.palmPathD}
                     />
-                    {handGhost.fingerGapLines.map(([a, b], i) => (
+                    {handGhost.fingers.map((f, i) => (
                       <line
                         key={i}
-                        x1={a.x}
-                        y1={a.y}
-                        x2={b.x}
-                        y2={b.y}
-                        className="cameraHandGhostGap"
+                        x1={f.from.x}
+                        y1={f.from.y}
+                        x2={f.to.x}
+                        y2={f.to.y}
+                        strokeWidth={f.widthPx}
+                        className="cameraHandGhostCapsule"
                       />
                     ))}
+                    <line
+                      x1={handGhost.thumb.from.x}
+                      y1={handGhost.thumb.from.y}
+                      x2={handGhost.thumb.to.x}
+                      y2={handGhost.thumb.to.y}
+                      strokeWidth={handGhost.thumb.widthPx}
+                      className="cameraHandGhostCapsule"
+                    />
                   </svg>
                 )}
               </div>
