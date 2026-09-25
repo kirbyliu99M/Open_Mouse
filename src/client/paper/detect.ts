@@ -135,8 +135,10 @@ export interface SheetQuadDetection {
   ];
   /** Smallest fraction of any side's length actually observed, 0–1. */
   readonly minSideCoverage: number;
-  /** Mean inlier distance to its fitted side, in frame px, averaged over fitted sides. */
+  /** The WORST fitted side's mean inlier distance to its own fitted line, in frame px (the max over sides, not the average — see the module doc comment). */
   readonly edgeFitResidualPx: number;
+  /** Which side (0=TL-TR, 1=TR-BR, 2=BR-BL, 3=BL-TL) contributed `edgeFitResidualPx` — `null` when no side was fit at all. Lets a caller convert the residual to mm along that SPECIFIC side's normal direction (`src/client/paper/homography.ts#localScaleMmPerPxAlongNormal`) rather than a generic, less accurate average. */
+  readonly worstSideIndex: 0 | 1 | 2 | 3 | null;
   /**
    * `true` once a plausible paper-sized rectangle was actually located
    * (passed the connected-component, convexity, area and rectified-aspect
@@ -157,6 +159,7 @@ const NONE: SheetQuadDetection = {
   partialCorners: [null, null, null, null],
   minSideCoverage: 0,
   edgeFitResidualPx: 0,
+  worstSideIndex: null,
   paperRegionFound: false,
 };
 
@@ -828,6 +831,7 @@ function detectPaperQuadImpl(
 
   let coverageMin = 1;
   let residualMax = 0;
+  let worstSideIndex: 0 | 1 | 2 | 3 | null = null;
   for (let i = 0; i < 4; i++) {
     const fit = fits[i];
     const segStart = workingCorners[i];
@@ -851,7 +855,10 @@ function detectPaperQuadImpl(
     // The WORST side, not the average: a single curled side must not be
     // diluted by the other three (typically near-flat) sides — see this
     // function's header comment.
-    residualMax = Math.max(residualMax, reporting.meanResidualPx);
+    if (reporting.meanResidualPx > residualMax) {
+      residualMax = reporting.meanResidualPx;
+      worstSideIndex = i as 0 | 1 | 2 | 3;
+    }
   }
 
   return {
@@ -864,6 +871,7 @@ function detectPaperQuadImpl(
     partialCorners,
     minSideCoverage: coverageMin,
     edgeFitResidualPx: residualMax,
+    worstSideIndex,
     paperRegionFound: true,
   };
 }

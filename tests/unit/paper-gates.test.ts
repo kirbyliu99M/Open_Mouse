@@ -11,13 +11,12 @@ import { PAPER_EDGE_LIMITS } from "../../src/lib/contracts/measurement";
 import type { Point2 } from "../../src/client/geometry/homography";
 
 describe("checkPaperFound", () => {
-  it("passes when at least one corner was seen", () => {
-    expect(checkPaperFound(1)).toBeNull();
-    expect(checkPaperFound(4)).toBeNull();
+  it("passes whenever a paper region was located, regardless of cornersSeen", () => {
+    expect(checkPaperFound(true)).toBeNull();
   });
 
-  it("fails with an honest retake message when cornersSeen is 0", () => {
-    const failure = checkPaperFound(0);
+  it("fails with an honest retake message when no paper region was found at all", () => {
+    const failure = checkPaperFound(false);
     expect(failure).not.toBeNull();
     expect(failure!.code).toBe("PAPER_NOT_FOUND");
     expect(failure!.message).toMatch(/couldn't find a sheet of paper/i);
@@ -29,16 +28,12 @@ describe("checkPaperCornersSeen", () => {
     expect(checkPaperCornersSeen(4)).toBeNull();
   });
 
-  it("passes at 0 (checkPaperFound's job, not this gate's)", () => {
-    expect(checkPaperCornersSeen(0)).toBeNull();
-  });
-
-  it("fails for 1, 2 or 3 with a message about a hidden corner", () => {
-    for (const n of [1, 2, 3] as const) {
+  it("fails for 0, 1, 2 or 3 with a message about a hidden corner/edge — even 0 (a found paper region can still fail every side's fit under heavy occlusion; 2026-09-25 PR #59 review M2)", () => {
+    for (const n of [0, 1, 2, 3] as const) {
       const failure = checkPaperCornersSeen(n);
       expect(failure).not.toBeNull();
       expect(failure!.code).toBe("PAPER_CORNER_HIDDEN");
-      expect(failure!.message).toMatch(/corner/i);
+      expect(failure!.message).toMatch(/corner|edge/i);
     }
   });
 });
@@ -93,6 +88,7 @@ function baseInput(
 ): PaperEdgeGateInput {
   return {
     cornersSeen: 4,
+    paperRegionFound: true,
     minSideCoverage: 1,
     edgeFitResidualMm: 0.1,
     landmarkCount: 21,
@@ -114,8 +110,10 @@ describe("runPaperEdgeGates", () => {
     expect(report.warnings).toEqual([]);
   });
 
-  it("reports PAPER_NOT_FOUND and skips the other paper checks when cornersSeen is 0", () => {
-    const report = runPaperEdgeGates(baseInput({ cornersSeen: 0 }));
+  it("reports PAPER_NOT_FOUND and skips the other paper checks when no paper region was found", () => {
+    const report = runPaperEdgeGates(
+      baseInput({ cornersSeen: 0, paperRegionFound: false }),
+    );
     expect(report.ok).toBe(false);
     expect(report.errors.map((e) => e.code)).toEqual(["PAPER_NOT_FOUND"]);
   });
@@ -123,6 +121,14 @@ describe("runPaperEdgeGates", () => {
   it("reports PAPER_CORNER_HIDDEN when only some corners were seen", () => {
     const report = runPaperEdgeGates(baseInput({ cornersSeen: 2 }));
     expect(report.errors.map((e) => e.code)).toContain("PAPER_CORNER_HIDDEN");
+  });
+
+  it("reports PAPER_CORNER_HIDDEN (not PAPER_NOT_FOUND) when the paper region WAS found but every side's fit failed (2026-09-25 PR #59 review M2 — e.g. fingers covering a whole edge)", () => {
+    const report = runPaperEdgeGates(
+      baseInput({ cornersSeen: 0, paperRegionFound: true }),
+    );
+    expect(report.errors.map((e) => e.code)).toEqual(["PAPER_CORNER_HIDDEN"]);
+    expect(report.errors.map((e) => e.code)).not.toContain("PAPER_NOT_FOUND");
   });
 
   it("reports PAPER_EDGE_HIDDEN for low coverage", () => {

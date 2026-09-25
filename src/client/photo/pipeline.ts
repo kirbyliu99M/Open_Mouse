@@ -53,6 +53,7 @@ import { detectPaperQuad } from "../paper/detect";
 import {
   buildPaperHomography,
   localScaleMmPerPx,
+  localScaleMmPerPxAlongNormal,
   quadCentroid,
 } from "../paper/homography";
 import type {
@@ -325,7 +326,7 @@ async function runPaperEdgePipeline(
   };
 
   if (!quad.corners) {
-    const failure = checkPaperFound(quad.cornersSeen) ??
+    const failure = checkPaperFound(quad.paperRegionFound) ??
       checkPaperCornersSeen(quad.cornersSeen) ?? {
         code: "PAPER_NOT_FOUND" as const,
         message:
@@ -339,10 +340,19 @@ async function runPaperEdgePipeline(
   }
 
   const homography = buildPaperHomography(quad.corners, paperSize);
-  const scaleMmPerPx = localScaleMmPerPx(
-    homography,
-    quadCentroid(quad.corners),
-  );
+  // Convert the worst side's own residual to mm along THAT side's own
+  // normal direction (2026-09-25 PR #59 review nit) — falls back to the
+  // generic centroid-based scale only if, oddly, no side actually
+  // contributed the residual (shouldn't happen once `corners` is non-null,
+  // since that already requires all 4 sides fit).
+  const scaleMmPerPx =
+    quad.worstSideIndex !== null
+      ? localScaleMmPerPxAlongNormal(
+          homography,
+          quad.corners[quad.worstSideIndex],
+          quad.corners[(quad.worstSideIndex + 1) % 4],
+        )
+      : localScaleMmPerPx(homography, quadCentroid(quad.corners));
   const edgeFitResidualMm = quad.edgeFitResidualPx * scaleMmPerPx;
 
   const hand = await detectHandLandmarks(bitmap);
@@ -377,6 +387,7 @@ async function runPaperEdgePipeline(
 
   const report = runPaperEdgeGates({
     cornersSeen: quad.cornersSeen,
+    paperRegionFound: quad.paperRegionFound,
     minSideCoverage: quad.minSideCoverage,
     edgeFitResidualMm,
     landmarkCount: hand.landmarksPx.length,

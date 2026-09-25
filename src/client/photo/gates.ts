@@ -216,11 +216,19 @@ export function checkCardScale(
 
 // ── Paper-edge gates (plain-paper calibration, no printed markers) ──────
 
-/** `detectPaperQuad` found no usable paper region at all in the frame. */
-export function checkPaperFound(
-  cornersSeen: 0 | 1 | 2 | 3 | 4,
-): GateFailure | null {
-  if (cornersSeen > 0) return null;
+/**
+ * `detectPaperQuad` never even located a plausible paper-sized rectangle
+ * (`paperRegionFound: false` — see that field's own doc comment). Keyed
+ * off `paperRegionFound`, NOT `cornersSeen === 0`: heavy occlusion (e.g.
+ * fingers covering the whole top edge) can genuinely find the paper
+ * (`paperRegionFound: true`) while still failing to fit any individual
+ * side, and that case is `checkPaperCornersSeen`'s "a corner/edge is
+ * hidden" — a materially different, more specific and more actionable
+ * message than "we couldn't find a sheet of paper at all" (2026-09-25 PR
+ * #59 review, M2).
+ */
+export function checkPaperFound(paperRegionFound: boolean): GateFailure | null {
+  if (paperRegionFound) return null;
   return {
     code: "PAPER_NOT_FOUND",
     message:
@@ -229,18 +237,20 @@ export function checkPaperFound(
 }
 
 /**
- * Fewer than all 4 corners were found (but at least one side was —
- * `checkPaperFound` already covers "no paper at all"). Usually means part
- * of the sheet is outside the frame.
+ * The paper itself was found, but fewer than all 4 corners were — some
+ * side(s) couldn't be fit, whether from 0 up to 3 corners actually seen
+ * (`checkPaperFound` already covers "no paper region located at all").
+ * Usually means part of the sheet is out of frame or a hand/fingers cover
+ * a whole edge.
  */
 export function checkPaperCornersSeen(
   cornersSeen: 0 | 1 | 2 | 3 | 4,
 ): GateFailure | null {
-  if (cornersSeen === 4 || cornersSeen === 0) return null;
+  if (cornersSeen === 4) return null;
   return {
     code: "PAPER_CORNER_HIDDEN",
     message:
-      "A corner of the paper is out of frame — move back or reposition so the whole sheet, corner to corner, is visible.",
+      "A corner or edge of the paper is hidden — move back, reposition so the whole sheet is visible corner to corner, and keep your hand clear of the edges.",
   };
 }
 
@@ -359,6 +369,8 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
 
 export interface PaperEdgeGateInput {
   readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  /** `detectPaperQuad`'s own `paperRegionFound` — see that field's doc comment and `checkPaperFound`. */
+  readonly paperRegionFound: boolean;
   /** `detectPaperQuad`'s coverage metric, 0–1. */
   readonly minSideCoverage: number;
   /** `detectPaperQuad`'s residual, already converted to sheet mm. */
@@ -385,7 +397,7 @@ export interface PaperEdgeGateInput {
 export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
   const errors: GateFailure[] = [];
 
-  const paperFoundFailure = checkPaperFound(input.cornersSeen);
+  const paperFoundFailure = checkPaperFound(input.paperRegionFound);
   if (paperFoundFailure) {
     errors.push(paperFoundFailure);
   } else {
