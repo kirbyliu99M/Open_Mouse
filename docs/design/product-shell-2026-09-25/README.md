@@ -90,3 +90,24 @@ and M2 ruler gate are verified.
 Photos stay in the browser. Only derived millimetre values are sent. Numbers
 shown to users come from tested TypeScript, and shape classifications remain
 unrated until their gate passes.
+
+## Open items before implementation (design review, 2026-09-25)
+
+- **Mouse-shapes descriptors need a data source.** The three example lines on
+  `07-mouse-shapes.png` ("Symmetric profile", "Right-hand profile",
+  "Trackball form") are not in `src/db/seed/logitech.json`, which holds only
+  dimensions, weight, warnings, connectivity and source URL. The shape and
+  hand-compatibility descriptors from M1 stay out of the seed until the M1
+  gate passes. Until a sourced, tested field exists (for example a
+  first-party form-factor field with its Logitech `sourceUrl`), the page shows
+  only what the catalogue already holds: name, length × width × height,
+  weight. Never hard-code descriptor copy in a component.
+- **Two states have rules but no screen**: sign-in when Google auth is not
+  configured (align the copy with today's `src/app/account/page.tsx`:
+  "Sign-in is unavailable right now." / "Start measuring without signing
+  in"), and the empty **My results** state for an anonymous visitor.
+- **Colours**: implement from the token table in
+  `docs/design/journey-2026-09-23/README.md` (every text pair ≥ 4.5 : 1); the
+  PNGs are not a colour source.
+- **Menu accessibility** (focus trap, Escape, focus return to the trigger) is
+  specified in text only; verify it in the implementation's e2e tests.
