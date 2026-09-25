@@ -23,10 +23,9 @@
  * top-3 mice landed on the SAME cache key, so the second request served
  * prose written for the first preference — a number ("25") not present in
  * the second request's own input, violating AGENTS.md hard rule 2. Fixed by
- * hashing the *exact* `AnalysisInput` object `buildAnalysisInput` produces —
- * the same object `collectNumbers` walks in `./analyse.ts` to build the
- * no-new-numerals allow-list — so any change to what the model sees is a
- * cache miss, full stop.
+ * hashing the exact first prompt text the model is sent (see
+ * `computeCacheKey`), so any change to what the model sees is a cache miss
+ * and nothing it never sees splits the cache.
  */
 import { createHash } from "node:crypto";
 import type { FitResponse } from "../../lib/contracts/fit";
