@@ -79,6 +79,7 @@ import {
   type NormalLine,
   RANSAC_SEED,
 } from "./quad-math";
+import { assumedFocalPxFromFov, resolveOrientation } from "./orientation";
 
 export type PaperSize = "a4" | "letter";
 
@@ -90,6 +91,27 @@ export const PAPER_ASPECT: Record<PaperSize, number> = {
   a4: 297 / 210,
   letter: 279.4 / 215.9,
 };
+
+/** Same numbers as the contract's `PAPER_SIZES_MM`, kept in this shape for `orientation.ts`'s two-hypothesis test. */
+export const PAPER_DIMENSIONS_MM: Record<
+  PaperSize,
+  { readonly shortMm: number; readonly longMm: number }
+> = {
+  a4: { shortMm: 210, longMm: 297 },
+  letter: { shortMm: 215.9, longMm: 279.4 },
+};
+
+export interface DetectPaperQuadOptions {
+  /**
+   * Real focal length in px for this frame (from EXIF, via
+   * `src/client/geometry/exif-focal.ts`), for the orientation/aspect
+   * check below. Defaults to an assumed ~70° horizontal FOV when omitted
+   * — `detectPaperQuad`'s own signature is a seam another builder's live
+   * camera viewfinder already codes against, so this is an ADDITIONAL
+   * optional parameter, never a required one.
+   */
+  readonly focalPxHint?: number;
+}
 
 export interface SheetQuadDetection {
   /** The paper's 4 corners (TL, TR, BR, BL), or `null` unless all 4 sides yielded a quad. */
@@ -115,6 +137,17 @@ export interface SheetQuadDetection {
   readonly minSideCoverage: number;
   /** Mean inlier distance to its fitted side, in frame px, averaged over fitted sides. */
   readonly edgeFitResidualPx: number;
+  /**
+   * `true` once a plausible paper-sized rectangle was actually located
+   * (passed the connected-component, convexity, area and rectified-aspect
+   * checks) — independent of `cornersSeen`, which can still be 0–3 if
+   * heavy occlusion kept any individual side from being fit. Lets a
+   * caller distinguish "no paper at all" (`false`) from "found the paper,
+   * but couldn't pin down every corner" (`true`, `cornersSeen < 4`) —
+   * see `checkPaperFound` vs `checkPaperCornersSeen` in
+   * `src/client/photo/gates.ts`.
+   */
+  readonly paperRegionFound: boolean;
 }
 
 const NONE: SheetQuadDetection = {
@@ -124,6 +157,7 @@ const NONE: SheetQuadDetection = {
   partialCorners: [null, null, null, null],
   minSideCoverage: 0,
   edgeFitResidualPx: 0,
+  paperRegionFound: false,
 };
 
 // ── Tunable constants ────────────────────────────────────────────────────
@@ -136,14 +170,52 @@ const MIN_QUAD_AREA_FRACTION = 0.08;
 /** How far (px) a boundary point may be from the coarse side line and still be assigned to it. */
 const SIDE_ASSIGNMENT_MAX_DISTANCE_FRACTION = 0.05;
 const RANSAC_ITERATIONS = 50;
-const RANSAC_INLIER_THRESHOLD_PX = 2;
 const RANSAC_MIN_POINTS = 6;
 const COVERAGE_BINS = 40;
+/**
+ * `RANSAC_INLIER_THRESHOLD_PX` / `REPORTING_THRESHOLD_PX` below are
+ * defined at this reference long-edge size and then SCALED by the actual
+ * frame's long edge (2026-09-25 PR #59 review, B4): a fixed pixel
+ * tolerance means the same physical curl reads a smaller residual at
+ * higher resolution (more px per mm narrows how much of the bow a fixed
+ * px window admits) — measured at ~3× the mm-per-px error between a
+ * 1000px-wide and a 3000px-wide frame of the same scene before this fix.
+ * `decodePhoto` caps photos at 3000px, so that's the resolution
+ * `runPhotoPipeline` actually calls this at.
+ */
+const REFERENCE_LONG_EDGE_PX = 1000;
+const RANSAC_INLIER_THRESHOLD_PX_AT_REFERENCE = 2;
 /** Wider than the RANSAC fit threshold on purpose — see `computeReportingStats`'s doc comment. */
-const REPORTING_THRESHOLD_PX = 18;
-/** Generous bound: this is a sanity check against garbage quads, not a metric accuracy check (the homography step owns that). */
-const MIN_ASPECT_RATIO_SLACK = 0.35;
-const MAX_ASPECT_RATIO_SLACK = 2.8;
+const REPORTING_THRESHOLD_PX_AT_REFERENCE = 18;
+
+function resolutionScale(width: number, height: number): number {
+  return Math.max(width, height) / REFERENCE_LONG_EDGE_PX;
+}
+/**
+ * Orientation/aspect sanity (2026-09-25 PR #59 review, B1 + B3): a
+ * rectified aspect must fall within this fraction of the paper's own
+ * width/height ratio, AND the winning orientation hypothesis's
+ * `orientation.ts#resolveOrientation` residual (0 = perfect rectangle at
+ * the assumed/EXIF focal length) must stay under this bound. Both
+ * empirically checked against a hand/wood/lightgrey/perspective sweep
+ * (residual ≤ ~0.12) and against a shadow-band / touching-second-object
+ * merged-region sweep (residual ≥ ~0.32, rectified aspect off by ≥30%) —
+ * see this PR's review response for the exact numbers.
+ */
+const ASPECT_TOLERANCE_FRACTION = 0.08;
+const MAX_ORIENTATION_RESIDUAL = 0.2;
+/**
+ * The connected component's raw pixel count must stay within this
+ * fraction of the fitted quad's own polygon area. A hand/wrist sitting ON
+ * the paper legitimately makes the component SMALLER than the quad (its
+ * pixels are excluded from "paper" by the saturation gate — normal, down
+ * to ~0.72 in testing, so `MIN` stays generous); a background that Otsu
+ * can't cleanly separate from the paper merges them into one giant
+ * component and makes it much LARGER than any sensible quad fit inside it
+ * (~3× in testing) — `MAX` is what actually catches that.
+ */
+const MIN_COMPONENT_TO_QUAD_AREA_RATIO = 0.5;
+const MAX_COMPONENT_TO_QUAD_AREA_RATIO = 1.3;
 
 // ── Pixel-array helpers ──────────────────────────────────────────────────
 
@@ -540,10 +612,34 @@ function classifySideOrientation(side: CoarseSide | null): "h" | "v" {
 export function detectPaperQuad(
   frame: ImageData,
   paperSize: PaperSize,
+  options: DetectPaperQuadOptions = {},
+): SheetQuadDetection {
+  // Never throw (2026-09-25 PR #59 review, B2): any geometric failure —
+  // expected (e.g. a genuinely ambiguous/degenerate quad) or not — reports
+  // "no detection" rather than propagating. `pipeline.ts` also wraps its
+  // own call defensively, but the contract this module promises its
+  // caller (the live camera viewfinder in another worktree, called up to
+  // 8×/s) is that it never throws in the first place.
+  try {
+    return detectPaperQuadImpl(frame, paperSize, options);
+  } catch {
+    return NONE;
+  }
+}
+
+function detectPaperQuadImpl(
+  frame: ImageData,
+  paperSize: PaperSize,
+  options: DetectPaperQuadOptions,
 ): SheetQuadDetection {
   const { width, height, data } = frame;
   const pixelCount = width * height;
   if (width < 20 || height < 20) return NONE;
+
+  const scale = resolutionScale(width, height);
+  const ransacInlierThresholdPx =
+    RANSAC_INLIER_THRESHOLD_PX_AT_REFERENCE * scale;
+  const reportingThresholdPx = REPORTING_THRESHOLD_PX_AT_REFERENCE * scale;
 
   const { gray, sat } = computeGrayscaleAndSaturation(data, pixelCount);
   const blurredGray = boxBlur(gray, width, height, BLUR_RADIUS_PX);
@@ -611,20 +707,20 @@ export function detectPaperQuad(
   const fits = buckets.map((pts) =>
     fitLineRansac(pts, {
       iterations: RANSAC_ITERATIONS,
-      inlierThresholdPx: RANSAC_INLIER_THRESHOLD_PX,
+      inlierThresholdPx: ransacInlierThresholdPx,
       minPoints: RANSAC_MIN_POINTS,
       rng,
     }),
   );
 
-  const finalLines: NormalLine[] = fits.map((fit, i) => {
+  const finalLinesOrNull: (NormalLine | null)[] = fits.map((fit, i) => {
     const coarse = coarseSides[i];
     if (fit) return fit.line;
     if (coarse) return coarse.line;
-    // Both the fit and even a coarse line are unavailable — degenerate
-    // input (e.g. 3 near-collinear coarse corners); bail out entirely.
-    throw new RangeError("detectPaperQuad: unrecoverable side geometry.");
+    return null; // degenerate input (e.g. 3 near-collinear coarse corners) — no detection, not a throw.
   });
+  if (finalLinesOrNull.some((line) => line === null)) return NONE;
+  const finalLines = finalLinesOrNull as NormalLine[];
 
   // Working quad: EVERY side present, falling back to the coarse line
   // where a side couldn't be fit. Used only internally, for the sanity
@@ -647,23 +743,58 @@ export function detectPaperQuad(
     return NONE;
   }
 
-  const sideLengths = [0, 1, 2, 3].map((i) => {
-    const a = workingCorners[i];
-    const b = workingCorners[(i + 1) % 4];
-    return Math.hypot(a.x - b.x, a.y - b.y);
-  });
-  const widthSideAvg = (sideLengths[0] + sideLengths[2]) / 2;
-  const heightSideAvg = (sideLengths[1] + sideLengths[3]) / 2;
-  if (Math.min(widthSideAvg, heightSideAvg) < 1e-6) return NONE;
-  const observedRatio =
-    Math.max(widthSideAvg, heightSideAvg) /
-    Math.min(widthSideAvg, heightSideAvg);
-  const expectedRatio = PAPER_ASPECT[paperSize];
+  // Component-vs-quad area consistency (B3): a merged/attached second
+  // bright object (a touching receipt, a shadow band splitting the sheet)
+  // can still fit a perfectly convex quad, but that quad won't actually
+  // match the connected component it was fit from.
+  const quadArea = polygonArea(workingCorners);
+  const componentToQuadAreaRatio = bestArea / quadArea;
   if (
-    observedRatio < expectedRatio * MIN_ASPECT_RATIO_SLACK ||
-    observedRatio > expectedRatio * MAX_ASPECT_RATIO_SLACK
+    componentToQuadAreaRatio < MIN_COMPONENT_TO_QUAD_AREA_RATIO ||
+    componentToQuadAreaRatio > MAX_COMPONENT_TO_QUAD_AREA_RATIO
   ) {
     return NONE;
+  }
+
+  // Orientation + rectified aspect (B1 + B3): which of the quad's two axes
+  // is the paper's WIDTH, and does the quad even look like the right
+  // rectangle at all (real EXIF focal length if the caller has one, else
+  // an assumed phone FOV) — see orientation.ts's header for the math.
+  const { shortMm, longMm } = PAPER_DIMENSIONS_MM[paperSize];
+  const principalPoint: Point2 = { x: width / 2, y: height / 2 };
+  const focalPx = options.focalPxHint ?? assumedFocalPxFromFov(width);
+  const orientation = resolveOrientation(
+    workingCorners,
+    shortMm,
+    longMm,
+    principalPoint,
+    focalPx,
+  );
+  if (!orientation || orientation.residual > MAX_ORIENTATION_RESIDUAL) {
+    return NONE;
+  }
+  const expectedRectifiedAspect = orientation.rotateBy1
+    ? longMm / shortMm
+    : shortMm / longMm;
+  const aspectError =
+    Math.abs(orientation.rectifiedAspect - expectedRectifiedAspect) /
+    expectedRectifiedAspect;
+  if (aspectError > ASPECT_TOLERANCE_FRACTION) return NONE;
+
+  // Relabel so TL→TR is always the paper's WIDTH (short) side, exactly
+  // like a photo shot upright would have given `buildPaperHomography`
+  // for free — a plain cyclic rotation of every per-side/per-corner array
+  // in lockstep.
+  if (orientation.rotateBy1) {
+    workingCorners = [
+      workingCorners[1],
+      workingCorners[2],
+      workingCorners[3],
+      workingCorners[0],
+    ];
+    fits.push(fits.shift()!);
+    buckets.push(buckets.shift()!);
+    coarseSides.push(coarseSides.shift()!);
   }
 
   // partialCorners[i] uses ONLY genuinely fitted lines (never the coarse
@@ -708,7 +839,7 @@ export function detectPaperQuad(
     const reporting = computeReportingStats(
       buckets[i],
       fit.line,
-      REPORTING_THRESHOLD_PX,
+      reportingThresholdPx,
     );
     const coverage = computeSideCoverage(
       reporting.points,
@@ -733,5 +864,6 @@ export function detectPaperQuad(
     partialCorners,
     minSideCoverage: coverageMin,
     edgeFitResidualPx: residualMax,
+    paperRegionFound: true,
   };
 }

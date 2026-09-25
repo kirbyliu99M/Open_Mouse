@@ -105,17 +105,50 @@ export function simplifyToQuad(
  * covers a handheld top-down photo (the reprojection-style tilt gate
  * downstream constrains the shot further, but this function itself does
  * not depend on that).
+ * (Superseded 2026-09-25 PR #59 review B2: the old min/max-of-sum/diff
+ * heuristic below duplicated corners near a 45° rotation, since at 45° the
+ * quad's diagonals align with the sum/diff axes — degenerate. This version
+ * sorts by angle around the centroid, which is always a valid cyclic
+ * traversal of a convex polygon's boundary regardless of rotation, then
+ * picks whichever of the 4 (already correctly ordered) points is nearest
+ * the image's top-left as the start — robust at every rotation, including
+ * exactly 45°.)
  */
 export function orderQuadCorners(
   quad: readonly [Point2, Point2, Point2, Point2],
 ): [Point2, Point2, Point2, Point2] {
-  const bySum = [...quad].sort((a, b) => a.x + a.y - (b.x + b.y));
-  const tl = bySum[0];
-  const br = bySum[3];
-  const byDiff = [...quad].sort((a, b) => a.y - a.x - (b.y - b.x));
-  const tr = byDiff[0];
-  const bl = byDiff[3];
-  return [tl, tr, br, bl];
+  let cx = 0;
+  let cy = 0;
+  for (const p of quad) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= 4;
+  cy /= 4;
+
+  const withAngle = quad.map((p) => ({
+    p,
+    // Normalized to [0, 2π) so no pair straddles the atan2 wrap point.
+    angle: (Math.atan2(p.y - cy, p.x - cx) + 2 * Math.PI) % (2 * Math.PI),
+  }));
+  withAngle.sort((a, b) => a.angle - b.angle);
+
+  let startIdx = 0;
+  let startScore = Infinity;
+  for (let i = 0; i < 4; i++) {
+    const score = withAngle[i].p.x + withAngle[i].p.y; // nearest image top-left
+    if (score < startScore) {
+      startScore = score;
+      startIdx = i;
+    }
+  }
+
+  return [0, 1, 2, 3].map((i) => withAngle[(startIdx + i) % 4].p) as [
+    Point2,
+    Point2,
+    Point2,
+    Point2,
+  ];
 }
 
 /** A line in normal form: `nx·x + ny·y = c`, with (nx, ny) a unit vector. */
