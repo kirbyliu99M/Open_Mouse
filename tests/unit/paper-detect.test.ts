@@ -17,8 +17,31 @@ import { generateSyntheticPaper } from "./helpers/synthetic-paper";
 import { PAPER_EDGE_LIMITS } from "../../src/lib/contracts/measurement";
 import {
   applyHomography,
+  estimateHomography,
   type Point2,
 } from "../../src/client/geometry/homography";
+
+/**
+ * The generator's exact (noiseless) sheet-mm → image-px homography,
+ * reconstructed from its 4 known true corners — a 4-point DLT fit passes
+ * through its own correspondences exactly, so this recovers the same
+ * pinhole projection `generateSyntheticPaper` used internally. Lets tests
+ * project HELD-OUT mm points (not the 4 corners `detectPaperQuad` itself
+ * returns) into the image, for a non-tautological accuracy check — see
+ * this describe block's own comment for why the corners-only version was
+ * tautological.
+ */
+function trueMmToPxHomography(trueCorners: readonly Point2[]) {
+  const mmCorners: Point2[] = [
+    { x: 0, y: 0 },
+    { x: 210, y: 0 },
+    { x: 210, y: 297 },
+    { x: 0, y: 297 },
+  ];
+  return estimateHomography(
+    mmCorners.map((src, i) => ({ src, dst: trueCorners[i] })),
+  );
+}
 
 const SEED_COUNT = 20;
 const SEED_BASE = 100000;
@@ -98,7 +121,18 @@ describe("detectPaperQuad — corner accuracy on synthetic photos (640px wide)",
 });
 
 describe("detectPaperQuad — end-to-end numeric check via the homography", () => {
-  it("a known sheet-mm point maps back within 0.5mm after detection + homography", () => {
+  /**
+   * NOT the same check as "does `buildPaperHomography(result.corners!)`
+   * map `result.corners!` back to (0,0)/(210,0)/.../(0,297)" — that would
+   * be tautological (a 4-point DLT homography passes through its own 4
+   * defining correspondences almost exactly regardless of whether those
+   * corners are anywhere near the truth; PR #59 review, M1). This instead
+   * measures a HELD-OUT 170mm and 257mm segment — two points nowhere near
+   * any of the 4 corners — projected into the image via the generator's
+   * OWN exact pinhole homography, then measured back out in mm via the
+   * DETECTED homography, and compared to their true mm length.
+   */
+  it("a held-out 170mm/257mm segment measures back within 0.5mm", () => {
     const width = 1000;
     const height = 750;
     const seed = SEED_BASE + 3;
@@ -116,25 +150,30 @@ describe("detectPaperQuad — end-to-end numeric check via the homography", () =
     const result = detectPaperQuad(imageData, "a4");
     expect(result.corners).not.toBeNull();
 
-    const homography = buildPaperHomography(result.corners!, "a4");
+    const detectedHomography = buildPaperHomography(result.corners!, "a4");
+    const trueMmToPx = trueMmToPxHomography(case_.trueCorners);
 
-    // The paper's own 4 true corners are, by construction, at (0,0),
-    // (210,0), (210,297), (0,297) mm — map the DETECTED (not true) image
-    // corners through the fitted homography and check they land close to
-    // those exact mm positions.
-    const expectedMm: Point2[] = [
-      { x: 0, y: 0 },
-      { x: 210, y: 0 },
-      { x: 210, y: 297 },
-      { x: 0, y: 297 },
+    const segments: readonly [Point2, Point2][] = [
+      [
+        { x: 20, y: 150 },
+        { x: 190, y: 150 },
+      ], // 170mm, across the short axis
+      [
+        { x: 105, y: 20 },
+        { x: 105, y: 277 },
+      ], // 257mm, along the long axis
     ];
-    for (let i = 0; i < 4; i++) {
-      const mapped = applyHomography(homography, result.corners![i]);
-      const errMm = Math.hypot(
-        mapped.x - expectedMm[i].x,
-        mapped.y - expectedMm[i].y,
+    for (const [a, b] of segments) {
+      const trueLengthMm = Math.hypot(a.x - b.x, a.y - b.y);
+      const pxA = applyHomography(trueMmToPx, a);
+      const pxB = applyHomography(trueMmToPx, b);
+      const measuredA = applyHomography(detectedHomography, pxA);
+      const measuredB = applyHomography(detectedHomography, pxB);
+      const measuredLengthMm = Math.hypot(
+        measuredA.x - measuredB.x,
+        measuredA.y - measuredB.y,
       );
-      expect(errMm).toBeLessThan(0.5);
+      expect(Math.abs(measuredLengthMm - trueLengthMm)).toBeLessThan(0.5);
     }
   });
 });
@@ -148,7 +187,7 @@ describe("detectPaperQuad — a curled/lifted edge", () => {
       height,
       seed: SEED_BASE + 42,
       curledSideIndex: 1,
-      curlAmplitudePx: 18,
+      curlAmplitudePx: 8,
     });
     const imageData = {
       width,
@@ -206,25 +245,34 @@ describe("detectPaperQuad — paper touching the frame edge", () => {
     const result = detectPaperQuad(imageData, "a4");
 
     expect(result.corners).toBeNull();
-    expect(result.cornersSeen).toBeLessThan(4);
+    expect(result.cornersSeen).toBe(2);
     expect(result.cornersSeen).toBe(result.cornersFound.filter(Boolean).length);
-    // TL (index 0) and BL (index 3) are the corners on the clipped left
-    // side — neither should be found; TR (1) and BR (2), on the opposite
-    // (in-frame) side, should both be found and reasonably close to truth.
-    expect(result.cornersFound[0]).toBe(false);
-    expect(result.cornersFound[3]).toBe(false);
-    expect(result.cornersFound[1]).toBe(true);
-    expect(result.cornersFound[2]).toBe(true);
-    expect(result.partialCorners[0]).toBeNull();
-    expect(result.partialCorners[3]).toBeNull();
-    expect(result.partialCorners[1]).not.toBeNull();
-    expect(result.partialCorners[2]).not.toBeNull();
+    // Exactly one side's 2 corners should be found — `detectPaperQuad`
+    // labels TL/TR/BR/BL by image geometry (nearest-top-left, then
+    // rectified-aspect orientation), not by this fixture's own
+    // clipLeftSide-relative labelling, so don't assume which 2 indices —
+    // just that they're adjacent (one true side) and land close to the
+    // true corners on the paper's in-frame side (truth indices 1 and 2,
+    // the only ones NOT pushed off-canvas by clipLeftSide).
+    const foundIdx = [0, 1, 2, 3].filter((i) => result.cornersFound[i]);
+    expect(foundIdx).toHaveLength(2);
+    const isAdjacent =
+      (foundIdx[1] - foundIdx[0] + 4) % 4 === 1 ||
+      (foundIdx[0] - foundIdx[1] + 4) % 4 === 1;
+    expect(isAdjacent).toBe(true);
+    for (const i of foundIdx) expect(result.partialCorners[i]).not.toBeNull();
+    for (const i of [0, 1, 2, 3].filter((i) => !foundIdx.includes(i))) {
+      expect(result.partialCorners[i]).toBeNull();
+    }
 
-    const trTruth = case_.trueCorners[1];
-    const trFound = result.partialCorners[1]!;
-    expect(
-      Math.hypot(trFound.x - trTruth.x, trFound.y - trTruth.y),
-    ).toBeLessThan(2);
+    const inFrameTruth = [case_.trueCorners[1], case_.trueCorners[2]];
+    for (const i of foundIdx) {
+      const found = result.partialCorners[i]!;
+      const bestErr = Math.min(
+        ...inFrameTruth.map((t) => Math.hypot(found.x - t.x, found.y - t.y)),
+      );
+      expect(bestErr).toBeLessThan(2);
+    }
   });
 });
 

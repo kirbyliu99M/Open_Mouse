@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-25 · by: Claude (orchestrator)_
+_Last updated: 2026-09-25 · by: Codex (product-shell design)_
 
 ---
 
@@ -19,6 +19,8 @@ _Last updated: 2026-09-25 · by: Claude (orchestrator)_
 
 **Merged 2026-09-24:** #54 contract doc · #55 `/scan` and `/results` match the journey design; audit findings closed · #56 pre-launch hardening (site-wide daily model cap 500 — candidate; per-IP limits on submit/fit; CSP and security headers; hashed rate-limit keys) · #57 contract doc for 429s.
 
+**Merged 2026-09-25:** #58 plain-paper calibration contract (`80ce9cf`). A4/Letter paper-edge evidence is accepted alongside the existing printed-sheet payload; the full paper-edge detector and UI remain separate work. Independent code review found no blocker; CI and Vercel preview passed.
+
 **Production verified 2026-09-25 (`7748c90`):** submit → fit (stated grip honoured) → analysis by Gemini, cached on repeat (0.7 s) → delete → 404; the unmocked live e2e (reload included) passes on Pixel 7; `/`, `/sheet`, `/scan`, `/account`, `/results/demo` load with **zero CSP violations** and no horizontal scroll; CSP, nosniff, Referrer-Policy, Permissions-Policy and HSTS present. **The anonymous flow is operational.**
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
@@ -27,9 +29,11 @@ _Last updated: 2026-09-25 · by: Claude (orchestrator)_
 
 **In flight:** live camera capture with on-screen cues (Kirby, 2026-09-25; spec `docs/design/camera-capture-2026-09-25/`, branch `m7-camera-capture`, Sonnet builder).
 
+**Design direction (Kirby, 2026-09-25):** main page with mouse-shape concepts and simple sketch motion, then functional pages, login, and a side menu. The new blank-paper flow and navigation are recorded in `docs/design/product-shell-2026-09-25/`. The older printed-sheet journey and camera spec need copy and flow updates before implementation is considered current.
+
 **Queued:** #52 submit after sign-out joins the previous user's claimed session (blocks enabling sign-in, not the anonymous launch) · M1 rubric revision (gate failed, see Gate results) · `/security-review` · #26 review incl. the M4 bbox gate.
 
-**Blocked — Kirby:** **M2 needs new photos.** The first fixture photo shows a hand on a printed document, not the calibration sheet, so the pipeline correctly rejected it ("Markers 0, 1, 2 and 3 are hidden"). Needed: five top-down photos on the printed `/sheet` (100% scale) with a bank card beside the hand, re-placing the hand between shots, plus ruler measurements of hand length (wrist crease to middle fingertip) and palm width, in `../Fixtures/hands/truth.json` and `../Fixtures/hands/<session>/top-N.jpg`.
+**Blocked — Kirby:** **M2 needs new photos for the blank-paper path.** Needed: five top-down photos on a flat blank A4 or Letter sheet with all four paper edges visible, re-placing the hand between shots; record the chosen paper size and ruler measurements of hand length (wrist crease to middle fingertip) and palm width in `../Fixtures/hands/truth.json` and `../Fixtures/hands/<session>/top-N.jpg`. The paper-edge thresholds in #58 remain candidates until this gate is measured.
 
 ---
 
