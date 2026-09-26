@@ -188,6 +188,15 @@ export const paperEdgeEvidenceSchema = z.strictObject({
  * measurement inherits the user's ruler error. The submitted
  * `measurements.handLengthMm` must equal `referenceMm` (see
  * `scanSubmissionSchema`) — it is the user's number, not a measurement.
+ *
+ * Known bias (PR #69 review, 2026-09-26): the ruler measures skin, wrist
+ * crease to fingertip, while the photo scale comes from the landmark
+ * distance 0→12 (joint centres; the tip landmark sits inside the fingertip).
+ * The landmark distance is shorter, so a typed length makes every derived
+ * measurement slightly too large, and this method stores an anthropometric
+ * hand length where the other methods store the raw landmark distance.
+ * The size of the offset is unknown until the M2 ruler ground truth exists;
+ * any correction is a **candidate** decision for Kirby, not applied here.
  */
 export const userLengthEvidenceSchema = z.strictObject({
   method: z.literal("user-length"),
