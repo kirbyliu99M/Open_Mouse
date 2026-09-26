@@ -10,6 +10,7 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import { resultLengthKey } from "@/components/results/userLengthDisclosure";
 import { resultHandKey } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
@@ -64,14 +65,22 @@ export function ResultsPageClient({
     status: "idle",
   });
   const [attempt, setAttempt] = useState(0);
+  const [enteredLength, setEnteredLength] = useState<number | null>(null);
   const [scanHand, setScanHand] = useState<"left" | "right" | null>(null);
 
   useEffect(() => {
     try {
+      const length = Number(sessionStorage.getItem(resultLengthKey(scanId)));
+      setEnteredLength(
+        Number.isFinite(length) && length >= 100 && length <= 280
+          ? length
+          : null,
+      );
       const hand = sessionStorage.getItem(resultHandKey(scanId));
       setScanHand(hand === "left" || hand === "right" ? hand : null);
     } catch {
       setScanHand(null);
+      setEnteredLength(null);
     }
   }, [scanId]);
 
@@ -248,6 +257,12 @@ export function ResultsPageClient({
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}
       />
+      {enteredLength !== null && (
+        <div className="results-previewNotice">
+          <p>Based on the hand length you entered ({enteredLength} mm)</p>
+          <p>Measured without paper — less precise than a scan on A4.</p>
+        </div>
+      )}
       <p className="results-previewNotice">
         Early preview · measurements still being validated.
       </p>

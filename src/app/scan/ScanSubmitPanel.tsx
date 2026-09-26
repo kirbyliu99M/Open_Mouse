@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { submitScan } from "@/client/scan/submitScan";
+import { resultLengthKey } from "@/components/results/userLengthDisclosure";
 import { resultHandKey } from "@/components/results/handDisclosure";
 
 type SubmitState =
@@ -60,6 +61,15 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
             resultHandKey(outcome.scanId),
             submission.hand,
           );
+          if (
+            "method" in submission.calibration &&
+            submission.calibration.method === "user-length"
+          ) {
+            sessionStorage.setItem(
+              resultLengthKey(outcome.scanId),
+              String(submission.calibration.referenceMm),
+            );
+          }
         } catch {
           // Storage may be disabled; results remain available without a hand disclosure.
         }

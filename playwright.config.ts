@@ -95,9 +95,9 @@ export default defineConfig({
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts|no-paper-device\.spec\.ts/,
       use: {
-        ...devices["Desktop Chrome"],
+        ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
         permissions: ["camera"],
         launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PAPER_EDGE),
