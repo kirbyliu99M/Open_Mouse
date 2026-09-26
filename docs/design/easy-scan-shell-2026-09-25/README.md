@@ -135,4 +135,4 @@ sketch is regenerated on pen.dev ("Asset · G Pro style sketch v2") from a
 low three-quarter view on the left side, so the length (≈ 2 : 1 at
 125 × 63.5 mm) reads and the two side (thumb) buttons are visible. The
 landing sizes it by its own aspect ratio and lets it bleed slightly past the
-text column. Screen 17's PNG still shows v1; `built/landing.png` is current.
+text column. Screen 17 (canvas and PNG) updated to v2 and to the audited layout.
