@@ -181,28 +181,61 @@ export const paperEdgeEvidenceSchema = z.strictObject({
 });
 
 /**
- * Either calibration method. The printed sheet keeps its original shape (no
+ * No paper at all (Kirby, 2026-09-26): the user measures their own hand
+ * length — wrist crease to middle fingertip — with a ruler and types it in;
+ * that one length sets the photo's scale. Weaker than a reference object:
+ * no perspective correction (so never parallax-corrected), and every other
+ * measurement inherits the user's ruler error. The submitted
+ * `measurements.handLengthMm` must equal `referenceMm` (see
+ * `scanSubmissionSchema`) — it is the user's number, not a measurement.
+ */
+export const userLengthEvidenceSchema = z.strictObject({
+  method: z.literal("user-length"),
+  referenceMeasurement: z.literal("handLengthMm"),
+  referenceMm: z.number().finite().min(100).max(280),
+  parallaxCorrected: z.literal(false),
+});
+
+/**
+ * Any calibration method. The printed sheet keeps its original shape (no
  * `method` field) so clients built before plain paper still parse.
  */
 export const calibrationEvidenceSchema = z.union([
   printedSheetEvidenceSchema,
   paperEdgeEvidenceSchema,
+  userLengthEvidenceSchema,
 ]);
 
 /**
  * Strict: an unexpected field fails the parse instead of being silently
  * stripped, so a client that tries to send an image is rejected loudly.
  */
-export const scanSubmissionSchema = z.strictObject({
-  hand: z.enum(["left", "right"]),
-  gripStyleStated: z.enum(["palm", "claw", "fingertip"]).optional(),
-  measurements: handMeasurementsSchema,
-  calibration: calibrationEvidenceSchema,
-  measurementModelVersion: z.literal(MEASUREMENT_MODEL_VERSION),
-});
+export const scanSubmissionSchema = z
+  .strictObject({
+    hand: z.enum(["left", "right"]),
+    gripStyleStated: z.enum(["palm", "claw", "fingertip"]).optional(),
+    measurements: handMeasurementsSchema,
+    calibration: calibrationEvidenceSchema,
+    measurementModelVersion: z.literal(MEASUREMENT_MODEL_VERSION),
+  })
+  .superRefine((s, ctx) => {
+    if (
+      "method" in s.calibration &&
+      s.calibration.method === "user-length" &&
+      Math.abs(s.measurements.handLengthMm - s.calibration.referenceMm) > 0.05
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["measurements", "handLengthMm"],
+        message:
+          "With a typed-in hand length, handLengthMm must be that length.",
+      });
+    }
+  });
 
 export type HandMeasurements = z.infer<typeof handMeasurementsSchema>;
 export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
 export type PrintedSheetEvidence = z.infer<typeof printedSheetEvidenceSchema>;
 export type PaperEdgeEvidence = z.infer<typeof paperEdgeEvidenceSchema>;
+export type UserLengthEvidence = z.infer<typeof userLengthEvidenceSchema>;
 export type ScanSubmission = z.infer<typeof scanSubmissionSchema>;
