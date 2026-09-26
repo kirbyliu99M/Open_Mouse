@@ -70,13 +70,13 @@ export function ResultsPageClient({
 
   useEffect(() => {
     try {
-      const length = Number(sessionStorage.getItem(resultLengthKey(scanId)));
+      const length = Number(localStorage.getItem(resultLengthKey(scanId)));
       setEnteredLength(
         Number.isFinite(length) && length >= 100 && length <= 280
           ? length
           : null,
       );
-      const hand = sessionStorage.getItem(resultHandKey(scanId));
+      const hand = localStorage.getItem(resultHandKey(scanId));
       setScanHand(hand === "left" || hand === "right" ? hand : null);
     } catch {
       setScanHand(null);

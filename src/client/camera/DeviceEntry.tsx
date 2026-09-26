@@ -11,6 +11,14 @@ export function DeviceEntry({
   onUpload: () => void;
 }) {
   const [qr, setQr] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [showSelectableUrl, setShowSelectableUrl] = useState(false);
+  const [lineBrowser, setLineBrowser] = useState(false);
+  useEffect(() => {
+    setLineBrowser(kind === "in-app" && /LINE\//i.test(navigator.userAgent));
+  }, [kind]);
+  const externalBrowserUrl = lineBrowser && url ? new URL(url) : null;
+  externalBrowserUrl?.searchParams.set("openExternalBrowser", "1");
   useEffect(() => {
     if (kind !== "desktop") return;
     void QRCode.toString(url, {
@@ -43,14 +51,38 @@ export function DeviceEntry({
           />
         </>
       )}
+      {externalBrowserUrl && (
+        <a className="easyCopyLink" href={externalBrowserUrl.toString()}>
+          Open in browser
+        </a>
+      )}
       <p className="easyDeviceUrl">{url}</p>
       <button
         type="button"
         className="easyCopyLink"
-        onClick={() => void navigator.clipboard.writeText(url)}
+        onClick={() => {
+          if (!navigator.clipboard?.writeText) {
+            setShowSelectableUrl(true);
+            return;
+          }
+          void navigator.clipboard.writeText(url).then(
+            () => setCopied(true),
+            () => setShowSelectableUrl(true),
+          );
+        }}
       >
         Copy link
       </button>
+      <span aria-live="polite">{copied ? "Link copied" : ""}</span>
+      {showSelectableUrl && (
+        <input
+          className="easySelectableUrl"
+          aria-label="Select link to copy"
+          readOnly
+          value={url}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      )}
       <button type="button" className="easyDeviceUpload" onClick={onUpload}>
         Or upload a photo
       </button>

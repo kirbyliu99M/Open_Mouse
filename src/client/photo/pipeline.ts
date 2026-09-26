@@ -43,6 +43,7 @@ import {
   checkMarkers,
   checkPaperFound,
   checkPaperCornersSeen,
+  checkSharpness,
   type GateFailure,
 } from "./gates";
 import {
@@ -50,7 +51,12 @@ import {
   assemblePaperEdgeSubmission,
   assembleUserLengthSubmission,
 } from "./submission";
-import { measureWithUserLength, USER_LENGTH_RETAKE } from "./user-length";
+import {
+  measureWithUserLength,
+  USER_LENGTH_RETAKE,
+  checkUserLengthStraightness,
+  checkUserLengthProportion,
+} from "./user-length";
 import {
   checkHandDetected,
   checkHandedness,
@@ -566,6 +572,9 @@ async function runUserLengthPipeline(
     (failure): failure is NonNullable<typeof failure> => failure !== null,
   );
   if (errors.length) return { status: "error", errors, overlay };
+  const straightnessFailure = checkUserLengthStraightness(hand.landmarksPx);
+  if (straightnessFailure)
+    return { status: "error", errors: [straightnessFailure], overlay };
   let measurements: HandMeasurements;
   try {
     measurements = measureWithUserLength(hand.landmarksPx, handLengthMm);
@@ -578,11 +587,25 @@ async function runUserLengthPipeline(
       overlay,
     };
   }
+  const proportionFailure = checkUserLengthProportion(measurements);
+  if (proportionFailure)
+    return { status: "error", errors: [proportionFailure], overlay };
+  const imageData = getImageData(bitmap, width, height);
+  const gray = rgbaToGrayscale(imageData.data, width * height);
+  const sharpnessFailure = checkSharpness(
+    computeLaplacianVariance(gray, width, height),
+  );
   const submission = assembleUserLengthSubmission({
     hand: input.hand,
     gripStyleStated: input.gripStyleStated,
     measurements,
     handLengthMm,
   });
-  return { status: "ok", measurements, submission, warnings: [], overlay };
+  return {
+    status: "ok",
+    measurements,
+    submission,
+    warnings: sharpnessFailure ? [sharpnessFailure] : [],
+    overlay,
+  };
 }

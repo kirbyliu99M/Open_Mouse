@@ -601,7 +601,7 @@ export default function EasyScanCamera({
       touchPoints: navigator.maxTouchPoints ?? 0,
     });
     setDeviceFit(fit);
-    setPageUrl(window.location.href);
+    setPageUrl(window.location.origin + window.location.pathname);
     if (fit !== "phone") {
       setCamState({ kind: "noCamera" });
       return;

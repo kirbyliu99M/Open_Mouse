@@ -57,15 +57,12 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     void submitScan(submission).then((outcome) => {
       if (outcome.status === "success") {
         try {
-          sessionStorage.setItem(
-            resultHandKey(outcome.scanId),
-            submission.hand,
-          );
+          localStorage.setItem(resultHandKey(outcome.scanId), submission.hand);
           if (
             "method" in submission.calibration &&
             submission.calibration.method === "user-length"
           ) {
-            sessionStorage.setItem(
+            localStorage.setItem(
               resultLengthKey(outcome.scanId),
               String(submission.calibration.referenceMm),
             );

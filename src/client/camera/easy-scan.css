@@ -505,6 +505,14 @@
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
+.easySelectableUrl {
+  width: min(100%, 28rem);
+  padding: 0.7rem;
+  border: 1px solid #777780;
+  border-radius: 0.5rem;
+  color: inherit;
+  font: inherit;
+}
 .easyCopyLink,
 .easyDeviceUpload {
   min-height: 44px;

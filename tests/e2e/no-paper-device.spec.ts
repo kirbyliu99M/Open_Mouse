@@ -23,6 +23,21 @@ test("desktop shows a local QR code, the URL and upload path", async ({
     await page.screenshot({ path: `${output}/desktop-qr.png`, fullPage: true });
 });
 
+test("desktop QR and displayed link omit query parameters and hash", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.goto("/scan/easy?source=private#camera");
+  const canonicalUrl = new URL("/scan/easy", page.url()).toString();
+  await expect(page.getByText(canonicalUrl, { exact: true })).toBeVisible();
+  await expect(page.getByText(/source=private/)).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("img", { name: "QR code for this scan page" })
+      .locator("svg"),
+  ).toBeVisible();
+});
+
 test("LINE browser shows open-in-browser notice, copy link and upload", async ({
   browser,
 }, info) => {
@@ -42,6 +57,9 @@ test("LINE browser shows open-in-browser notice, copy link and upload", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
   await expect(
+    page.getByRole("link", { name: "Open in browser" }),
+  ).toHaveAttribute("href", /openExternalBrowser=1/);
+  await expect(
     page.getByRole("button", { name: "Or upload a photo" }),
   ).toBeVisible();
   if (process.env.SCREENSHOTS === "1")
@@ -50,6 +68,34 @@ test("LINE browser shows open-in-browser notice, copy link and upload", async ({
       fullPage: true,
     });
   await context.close();
+});
+
+test("copy link offers a selectable URL when Clipboard API is unavailable", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined });
+  });
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Select link to copy" }),
+  ).toHaveValue(page.url());
+});
+
+test("copy link announces success after the Clipboard API resolves", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: async () => undefined },
+    });
+  });
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.getByText("Link copied")).toBeVisible();
 });
 
 test("typed-length flow reaches hand detection gate with no requests after camera warm-up", async ({

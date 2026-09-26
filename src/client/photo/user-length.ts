@@ -6,8 +6,70 @@ import {
 import { computeHandMeasurements } from "../geometry/measurements";
 import type { Homography, Point2 } from "../geometry/homography";
 
+interface UserLengthFailure {
+  readonly code: "FINGER_NOT_STRAIGHT" | "HAND_TILTED";
+  readonly message: string;
+}
+
 export const USER_LENGTH_RETAKE =
   "The palm proportions look implausible — keep your whole hand flat, fingers together, and retake from directly above.";
+
+// Candidate — tune on M2 photos. A flat middle finger's joint chain is
+// almost collinear with the wrist-to-tip line; curling lengthens that chain.
+export const MIN_MIDDLE_FINGER_STRAIGHTNESS = 0.95;
+// Candidate — tune on M2 photos. Assumes an adult palm width of roughly
+// 38–56% of wrist-to-middle-tip hand length; this is a screening heuristic,
+// not a measured population percentile or a calibrated camera-pose estimate.
+export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
+
+function distance(a: Point2, b: Point2): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** Pure pose check on the unscaled image landmarks. */
+export function checkUserLengthStraightness(
+  landmarks: readonly Point2[],
+): UserLengthFailure | null {
+  const middle = [0, 9, 10, 11, 12];
+  if (landmarks.length !== 21) {
+    return {
+      code: "FINGER_NOT_STRAIGHT",
+      message: "Straighten your fingers and lay your hand flat, then retake.",
+    };
+  }
+  const chain = middle
+    .slice(1)
+    .reduce(
+      (sum, index, step) =>
+        sum + distance(landmarks[middle[step]], landmarks[index]),
+      0,
+    );
+  const ratio = distance(landmarks[0], landmarks[12]) / chain;
+  if (Number.isFinite(ratio) && ratio >= MIN_MIDDLE_FINGER_STRAIGHTNESS)
+    return null;
+  return {
+    code: "FINGER_NOT_STRAIGHT",
+    message: "Straighten your fingers and lay your hand flat, then retake.",
+  };
+}
+
+/** Pure proportion check after typed-length measurement. */
+export function checkUserLengthProportion(
+  measurements: HandMeasurements,
+): UserLengthFailure | null {
+  const ratio = measurements.palmWidthMm / measurements.handLengthMm;
+  if (
+    Number.isFinite(ratio) &&
+    ratio >= USER_LENGTH_PALM_RATIO.min &&
+    ratio <= USER_LENGTH_PALM_RATIO.max
+  )
+    return null;
+  return {
+    code: "HAND_TILTED",
+    message:
+      "The photo looks tilted — hold the phone flat, straight above your hand, and retake.",
+  };
+}
 
 /** A similarity transform: photo pixels to millimetres, anchored at the wrist. */
 export function userLengthHomography(
