@@ -127,3 +127,12 @@ separate page.
 **How it works (18)** — the previous main page content moves here: "‹ Home"
 back link, title "How it works", the hand-on-A4 illustration with corner
 checks, "Three steps", "Scan my hand", the privacy card, a privacy link.
+
+### Sketch v2 (2026-09-26)
+
+Kirby: the first sketch missed the side buttons and read too short. The
+sketch is regenerated on pen.dev ("Asset · G Pro style sketch v2") from a
+low three-quarter view on the left side, so the length (≈ 2 : 1 at
+125 × 63.5 mm) reads and the two side (thumb) buttons are visible. The
+landing sizes it by its own aspect ratio and lets it bleed slightly past the
+text column. Screen 17's PNG still shows v1; `built/landing.png` is current.

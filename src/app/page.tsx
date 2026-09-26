@@ -42,7 +42,7 @@ export default function HomePage() {
         {/* eslint-disable-next-line @next/next/no-img-element -- static SVG sketch */}
         <img
           src="/images/g-pro-sketch.svg"
-          alt="Line sketch of the G Pro X Superlight 2 mouse"
+          alt="Line sketch of the G Pro X Superlight 2 mouse, seen from the left, showing its two side buttons"
         />
         <figcaption>G Pro X Superlight 2 · sketch</figcaption>
       </figure>

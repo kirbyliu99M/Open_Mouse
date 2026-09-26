@@ -260,18 +260,20 @@
   line-height: 1.4;
 }
 .landing-sketch {
-  margin: 2.5rem 0 0.35rem;
+  /* Bleeds slightly past the text column so the long side view reads as
+     the page's one bold element. */
+  margin: 2rem -0.75rem 0.35rem;
 }
 .landing-sketch img {
   display: block;
   width: 100%;
-  height: 18.75rem;
-  object-fit: contain;
+  height: auto;
+  aspect-ratio: 487.54 / 231.57;
 }
 .landing-sketch figcaption {
   color: #55555d;
   font-size: 0.8rem;
-  margin-top: 0.4rem;
+  margin: 0.6rem 0.75rem 0;
 }
 .landing-dimension {
   display: flex;
