@@ -39,7 +39,7 @@ import { detectHandLandmarks } from "./landmarks";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
 import {
   runPhotoGates,
-  runPaperEdgeGates,
+  runPaperEdgeHandGates,
   checkMarkers,
   checkPaperFound,
   checkPaperCornersSeen,
@@ -50,11 +50,7 @@ import {
   assemblePaperEdgeSubmission,
 } from "./submission";
 import { detectPaperQuad } from "../paper/detect";
-import {
-  buildPaperHomography,
-  localScaleMmPerPx,
-  quadCentroid,
-} from "../paper/homography";
+import { evaluatePaperEdgeCalibration } from "../paper/calibration";
 import type {
   HandMeasurements,
   ScanSubmission,
@@ -325,7 +321,7 @@ async function runPaperEdgePipeline(
   };
 
   if (!quad.corners) {
-    const failure = checkPaperFound(quad.cornersSeen) ??
+    const failure = checkPaperFound(quad.paperRegionFound) ??
       checkPaperCornersSeen(quad.cornersSeen) ?? {
         code: "PAPER_NOT_FOUND" as const,
         message:
@@ -338,12 +334,25 @@ async function runPaperEdgePipeline(
     };
   }
 
-  const homography = buildPaperHomography(quad.corners, paperSize);
-  const scaleMmPerPx = localScaleMmPerPx(
-    homography,
-    quadCentroid(quad.corners),
-  );
-  const edgeFitResidualMm = quad.edgeFitResidualPx * scaleMmPerPx;
+  // homography + the worst side's residual in mm (via its own normal
+  // direction, not a generic centroid average) — this is
+  // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
+  // pure, directly-tested slice of this function (2026-09-25 PR #59
+  // review: hard rule 3).
+  // The shipped path goes through the same pure chain the tests exercise
+  // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
+  // calibration fields all come from this one call. parallaxCorrected is
+  // only known after EXIF is read below, so it is set on the submission
+  // from the real flag there; the placeholder here never reaches it.
+  const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
+  if (!paperEval.geometry) {
+    return {
+      status: "error",
+      errors: paperEval.errors,
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+  const { homography } = paperEval.geometry;
 
   const hand = await detectHandLandmarks(bitmap);
   if (!hand) {
@@ -375,10 +384,10 @@ async function runPaperEdgePipeline(
   const gray = rgbaToGrayscale(imageData.data, width * height);
   const laplacianVariance = computeLaplacianVariance(gray, width, height);
 
-  const report = runPaperEdgeGates({
-    cornersSeen: quad.cornersSeen,
-    minSideCoverage: quad.minSideCoverage,
-    edgeFitResidualMm,
+  // Paper gates ran once, inside evaluatePaperEdgeCalibration; only the hand
+  // gates run here, and both sets of failures are reported together.
+  const handReport = runPaperEdgeHandGates({
+    paperFound: quad.paperRegionFound,
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
     handStated: input.hand,
@@ -387,6 +396,11 @@ async function runPaperEdgePipeline(
     paperCornersMm,
     laplacianVariance,
   });
+  const report = {
+    errors: [...paperEval.errors, ...handReport.errors],
+    warnings: handReport.warnings,
+    ok: paperEval.ok && handReport.ok,
+  };
 
   if (!report.ok) {
     return {
@@ -431,13 +445,24 @@ async function runPaperEdgePipeline(
     };
   }
 
+  // Type narrowing only: report.ok required paperEval.ok, and a passing
+  // evaluation always carries its calibration. Its fields are what gets
+  // submitted.
+  const calibration = paperEval.calibration;
+  if (!calibration) {
+    return {
+      status: "error",
+      errors: paperEval.errors,
+      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    };
+  }
   const submission = assemblePaperEdgeSubmission({
     hand: input.hand,
     gripStyleStated: input.gripStyleStated,
     measurements: corrected.measurements,
-    paperSize,
-    edgeFitResidualMm,
-    minSideCoverage: quad.minSideCoverage,
+    paperSize: calibration.paperSize,
+    edgeFitResidualMm: calibration.edgeFitResidualMm,
+    minSideCoverage: calibration.minSideCoverage,
     parallaxCorrected: corrected.parallaxCorrected,
   });
 

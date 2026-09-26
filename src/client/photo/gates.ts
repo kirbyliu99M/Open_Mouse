@@ -216,11 +216,19 @@ export function checkCardScale(
 
 // ── Paper-edge gates (plain-paper calibration, no printed markers) ──────
 
-/** `detectPaperQuad` found no usable paper region at all in the frame. */
-export function checkPaperFound(
-  cornersSeen: 0 | 1 | 2 | 3 | 4,
-): GateFailure | null {
-  if (cornersSeen > 0) return null;
+/**
+ * `detectPaperQuad` never even located a plausible paper-sized rectangle
+ * (`paperRegionFound: false` — see that field's own doc comment). Keyed
+ * off `paperRegionFound`, NOT `cornersSeen === 0`: heavy occlusion (e.g.
+ * fingers covering the whole top edge) can genuinely find the paper
+ * (`paperRegionFound: true`) while still failing to fit any individual
+ * side, and that case is `checkPaperCornersSeen`'s "a corner/edge is
+ * hidden" — a materially different, more specific and more actionable
+ * message than "we couldn't find a sheet of paper at all" (2026-09-25 PR
+ * #59 review, M2).
+ */
+export function checkPaperFound(paperRegionFound: boolean): GateFailure | null {
+  if (paperRegionFound) return null;
   return {
     code: "PAPER_NOT_FOUND",
     message:
@@ -229,18 +237,20 @@ export function checkPaperFound(
 }
 
 /**
- * Fewer than all 4 corners were found (but at least one side was —
- * `checkPaperFound` already covers "no paper at all"). Usually means part
- * of the sheet is outside the frame.
+ * The paper itself was found, but fewer than all 4 corners were — some
+ * side(s) couldn't be fit, whether from 0 up to 3 corners actually seen
+ * (`checkPaperFound` already covers "no paper region located at all").
+ * Usually means part of the sheet is out of frame or a hand/fingers cover
+ * a whole edge.
  */
 export function checkPaperCornersSeen(
   cornersSeen: 0 | 1 | 2 | 3 | 4,
 ): GateFailure | null {
-  if (cornersSeen === 4 || cornersSeen === 0) return null;
+  if (cornersSeen === 4) return null;
   return {
     code: "PAPER_CORNER_HIDDEN",
     message:
-      "A corner of the paper is out of frame — move back or reposition so the whole sheet, corner to corner, is visible.",
+      "A corner or edge of the paper is hidden — move back, reposition so the whole sheet is visible corner to corner, and keep your hand clear of the edges.",
   };
 }
 
@@ -359,6 +369,8 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
 
 export interface PaperEdgeGateInput {
   readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  /** `detectPaperQuad`'s own `paperRegionFound` — see that field's doc comment and `checkPaperFound`. */
+  readonly paperRegionFound: boolean;
   /** `detectPaperQuad`'s coverage metric, 0–1. */
   readonly minSideCoverage: number;
   /** `detectPaperQuad`'s residual, already converted to sheet mm. */
@@ -373,19 +385,31 @@ export interface PaperEdgeGateInput {
   readonly laplacianVariance: number;
 }
 
-/**
- * Same shape and intent as `runPhotoGates`, for the paper-edge
- * calibration path: paper-specific checks (found / all corners seen /
- * edge coverage / curled) replace the marker/reprojection/card checks,
- * while the hand checks (`checkHandDetected`, `checkHandedness`,
- * `checkLandmarkConfidence`, `checkHandInBounds`) and the sharpness
- * warning are the exact same functions `runPhotoGates` uses — a hand is a
- * hand regardless of how the sheet was calibrated.
- */
-export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
-  const errors: GateFailure[] = [];
+export interface PaperEdgeOnlyGateInput {
+  readonly paperRegionFound: boolean;
+  readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  readonly minSideCoverage: number;
+  readonly edgeFitResidualMm: number;
+}
 
-  const paperFoundFailure = checkPaperFound(input.cornersSeen);
+export interface PaperEdgeOnlyGateResult {
+  readonly errors: readonly GateFailure[];
+}
+
+/**
+ * Just the 4 paper-specific checks (found / all corners seen / edge
+ * coverage / curled) — no hand data needed at all. Factored out so
+ * `src/client/paper/calibration.ts`'s pure, directly-tested
+ * `evaluatePaperEdgeCalibration` and `runPaperEdgeGates` below share a
+ * single implementation instead of the same 4 lines living in two places
+ * (2026-09-25 PR #59 review: `runPaperEdgePipeline`'s geometry → gates →
+ * calibration chain had no direct test at all — hard rule 3).
+ */
+export function checkPaperEdgeGatesOnly(
+  input: PaperEdgeOnlyGateInput,
+): PaperEdgeOnlyGateResult {
+  const errors: GateFailure[] = [];
+  const paperFoundFailure = checkPaperFound(input.paperRegionFound);
   if (paperFoundFailure) {
     errors.push(paperFoundFailure);
   } else {
@@ -396,7 +420,50 @@ export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
     const curledFailure = checkPaperCurled(input.edgeFitResidualMm);
     if (curledFailure) errors.push(curledFailure);
   }
+  return { errors };
+}
 
+/**
+ * Same shape and intent as `runPhotoGates`, for the paper-edge
+ * calibration path: paper-specific checks (found / all corners seen /
+ * edge coverage / curled — `checkPaperEdgeGatesOnly` above) replace the
+ * marker/reprojection/card checks, while the hand checks
+ * (`checkHandDetected`, `checkHandedness`, `checkLandmarkConfidence`,
+ * `checkHandInBounds`) and the sharpness warning are the exact same
+ * functions `runPhotoGates` uses — a hand is a hand regardless of how the
+ * sheet was calibrated.
+ */
+export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
+  const { errors: paperErrors } = checkPaperEdgeGatesOnly(input);
+  const hand = runPaperEdgeHandGates({
+    ...input,
+    paperFound: !checkPaperFound(input.paperRegionFound),
+  });
+  const errors = [...paperErrors, ...hand.errors];
+  return { errors, warnings: hand.warnings, ok: errors.length === 0 };
+}
+
+export interface PaperEdgeHandGateInput {
+  /** Whether a paper region was found at all (bounds only apply then). */
+  readonly paperFound: boolean;
+  readonly landmarkCount: number;
+  readonly handedness: "left" | "right" | null;
+  readonly handStated: "left" | "right" | undefined;
+  readonly landmarkConfidence: number;
+  readonly landmarksMm: readonly Point2[];
+  readonly paperCornersMm: readonly Point2[];
+  readonly laplacianVariance: number;
+}
+
+/**
+ * The hand half of `runPaperEdgeGates` on its own, so the pipeline can run
+ * the paper half exactly once (through `evaluatePaperEdgeCalibration`) and
+ * add these — no paper check is evaluated twice.
+ */
+export function runPaperEdgeHandGates(
+  input: PaperEdgeHandGateInput,
+): PhotoGateReport {
+  const errors: GateFailure[] = [];
   const handDetectedFailure = checkHandDetected(input.landmarkCount);
   if (handDetectedFailure) {
     errors.push(handDetectedFailure);
@@ -410,7 +477,7 @@ export function runPaperEdgeGates(input: PaperEdgeGateInput): PhotoGateReport {
     }
     const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
     if (confidenceFailure) errors.push(confidenceFailure);
-    if (!paperFoundFailure && input.paperCornersMm.length > 0) {
+    if (input.paperFound && input.paperCornersMm.length > 0) {
       const boundsFailure = checkHandInBounds(
         input.landmarksMm,
         input.paperCornersMm,

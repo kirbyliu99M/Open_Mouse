@@ -29,6 +29,41 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** Row-major 3×3 matrix, flattened. Mirrors the reviewer's independent generator's `H3` convention (PR #59 review). */
+type Mat3Flat = number[];
+
+function mat3(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number,
+  g: number,
+  h: number,
+  i: number,
+): Mat3Flat {
+  return [a, b, c, d, e, f, g, h, i];
+}
+
+function mul3(a: Mat3Flat, b: Mat3Flat): Mat3Flat {
+  const r = new Array<number>(9).fill(0);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      for (let k = 0; k < 3; k++) r[i * 3 + j] += a[i * 3 + k] * b[k * 3 + j];
+    }
+  }
+  return r;
+}
+
+function applyMat3(h: Mat3Flat, p: Point2): Point2 {
+  const w = h[6] * p.x + h[7] * p.y + h[8];
+  return {
+    x: (h[0] * p.x + h[1] * p.y + h[2]) / w,
+    y: (h[3] * p.x + h[4] * p.y + h[5]) / w,
+  };
+}
+
 export interface SyntheticPaperOptions {
   readonly width: number;
   readonly height: number;
@@ -42,6 +77,25 @@ export interface SyntheticPaperOptions {
   /** Shift the quad so its left side sits outside the frame. */
   readonly clipLeftSide?: boolean;
   readonly noiseAmplitude?: number;
+  /**
+   * True paper HEIGHT/WIDTH ratio, default A4 portrait (297/210 ≈ 1.4143).
+   * 2026-09-25 PR #59 review (M1): this used to be implied by two
+   * INDEPENDENTLY randomised x/y margins, which rendered a "paper" of
+   * whatever aspect ratio the random draw happened to produce (≈1.16 in
+   * the reviewer's repro) — silently NOT actually A4-shaped, so every
+   * corner-accuracy assertion against it was accuracy on the wrong
+   * target. The rectangle is now built at exactly this ratio and then
+   * rotated/jittered, never the other way around.
+   */
+  readonly paperAspectRatio?: number;
+  /** In-plane rotation of the paper rectangle in degrees (0 = upright). */
+  readonly rotationDeg?: number;
+  /** Camera tilt off straight-down, about the world X axis, degrees. */
+  readonly tiltXDeg?: number;
+  /** Camera tilt off straight-down, about the world Y axis, degrees. */
+  readonly tiltYDeg?: number;
+  /** Override the background's base brightness (default 110) — e.g. a bright wall or a light desk close to the paper's own tone. */
+  readonly backgroundLevel?: number;
 }
 
 export interface SyntheticPaperCase {
@@ -83,29 +137,73 @@ export function generateSyntheticPaper(
   const noiseAmplitude = options.noiseAmplitude ?? 4;
   const rng = mulberry32(seed);
 
-  const marginXFrac = 0.12 + rng() * 0.06;
-  const marginYFrac = 0.12 + rng() * 0.06;
-  const mx = width * marginXFrac;
-  const my = height * marginYFrac;
+  // Genuine pinhole-camera projection (2026-09-25 PR #59 review, M1):
+  // the paper is a real rectangle in its own plane, rotated in-plane then
+  // tilted and placed at a distance chosen to fill `fillFrac` of the
+  // frame, then projected through a pinhole camera — mirroring the
+  // reviewer's own independent generator's model (gen.mts). Replaces the
+  // previous "jitter each corner independently" approach: independent
+  // per-corner jitter does NOT correspond to any real camera's
+  // perspective of a rectangle (it doesn't preserve the orthogonality a
+  // real rectangle's edges have in 3D), so it could — and did — produce
+  // "true corners" that `detectPaperQuad`'s rectified-aspect sanity check
+  // correctly refuses to call a valid A4/Letter sheet.
+  const aspectRatio = options.paperAspectRatio ?? 297 / 210; // height/width
+  const rotationRad = ((options.rotationDeg ?? 0) * Math.PI) / 180;
+  const tiltXRad = ((options.tiltXDeg ?? 0) * Math.PI) / 180;
+  const tiltYRad = ((options.tiltYDeg ?? 0) * Math.PI) / 180;
+
+  const paperWidthMm = 210;
+  const paperHeightMm = paperWidthMm * aspectRatio;
+  const fillFrac = 0.5 + rng() * 0.12;
+  const fPx = 0.85 * Math.max(width, height);
+  const longSideMm = Math.max(paperWidthMm, paperHeightMm);
+  const targetLongPx = fillFrac * Math.min(width, height);
+  const distanceMm = (fPx * longSideMm) / targetLongPx;
+
+  const T0 = mat3(1, 0, -paperWidthMm / 2, 0, 1, -paperHeightMm / 2, 0, 0, 1);
+  const Rz = mat3(
+    Math.cos(rotationRad),
+    -Math.sin(rotationRad),
+    0,
+    Math.sin(rotationRad),
+    Math.cos(rotationRad),
+    0,
+    0,
+    0,
+    1,
+  );
+  const cosX = Math.cos(tiltXRad);
+  const sinX = Math.sin(tiltXRad);
+  const cosY = Math.cos(tiltYRad);
+  const sinY = Math.sin(tiltYRad);
+  const Rx = mat3(1, 0, 0, 0, cosX, -sinX, 0, sinX, cosX);
+  const Ry = mat3(cosY, 0, sinY, 0, 1, 0, -sinY, 0, cosY);
+  const R = mul3(Ry, Rx);
+  // [r1 r2 t] — the plane (Z=0) points map through R's first two columns
+  // plus the translation to distance.
+  const worldToImage = mat3(
+    R[0],
+    R[1],
+    0,
+    R[3],
+    R[4],
+    0,
+    R[6],
+    R[7],
+    distanceMm,
+  );
+  const K = mat3(fPx, 0, width / 2, 0, fPx, height / 2, 0, 0, 1);
+  const H = mul3(K, mul3(worldToImage, mul3(Rz, T0)));
+
   const base: [Point2, Point2, Point2, Point2] = [
-    { x: mx, y: my },
-    { x: width - mx, y: my },
-    { x: width - mx, y: height - my },
-    { x: mx, y: height - my },
+    applyMat3(H, { x: 0, y: 0 }),
+    applyMat3(H, { x: paperWidthMm, y: 0 }),
+    applyMat3(H, { x: paperWidthMm, y: paperHeightMm }),
+    applyMat3(H, { x: 0, y: paperHeightMm }),
   ];
 
-  const jitterFrac = 0.04;
   let corners: [Point2, Point2, Point2, Point2] = base;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const candidate = base.map((c) => ({
-      x: c.x + (rng() - 0.5) * 2 * width * jitterFrac,
-      y: c.y + (rng() - 0.5) * 2 * height * jitterFrac,
-    })) as [Point2, Point2, Point2, Point2];
-    if (isConvex(candidate)) {
-      corners = candidate;
-      break;
-    }
-  }
 
   if (options.clipLeftSide) {
     // Force the left side (TL, BL — indices 0 and 3) unambiguously off-canvas,
@@ -133,12 +231,26 @@ export function generateSyntheticPaper(
   const lightFy = 0.3 + rng() * 0.9;
   const lightPhase = rng() * Math.PI * 2;
 
+  // Sized relative to the RENDERED PAPER's own pixel dimensions, not the
+  // frame's — the paper only fills part of the frame (`fillFrac` above),
+  // so an occluder sized off frame width/height could end up covering
+  // most or all of a small paper, unrealistically. (2026-09-25 PR #59
+  // review: this mismatch, introduced together with the pinhole-camera
+  // fix above, was blowing up otherwise-normal hand-occlusion cases.)
+  const paperWidthPx = Math.hypot(
+    corners[1].x - corners[0].x,
+    corners[1].y - corners[0].y,
+  );
+  const paperHeightPx = Math.hypot(
+    corners[3].x - corners[0].x,
+    corners[3].y - corners[0].y,
+  );
   const occluderCentre = {
-    x: (corners[2].x + corners[3].x) / 2 + (rng() - 0.5) * width * 0.1,
+    x: (corners[2].x + corners[3].x) / 2 + (rng() - 0.5) * paperWidthPx * 0.1,
     y: (corners[2].y + corners[3].y) / 2,
   };
-  const occluderRx = width * (0.14 + rng() * 0.06);
-  const occluderRy = height * (0.12 + rng() * 0.05);
+  const occluderRx = paperWidthPx * (0.14 + rng() * 0.06);
+  const occluderRy = paperHeightPx * (0.12 + rng() * 0.05);
   const skinR = 190 + rng() * 30;
   const skinG = 140 + rng() * 25;
   const skinB = 110 + rng() * 25;
@@ -181,7 +293,7 @@ export function generateSyntheticPaper(
               lightPhase,
           );
       const noise = (rng() - 0.5) * 2 * noiseAmplitude;
-      const backgroundV = 110 * light + noise;
+      const backgroundV = (options.backgroundLevel ?? 110) * light + noise;
       const paperV = 235 * light + noise;
       gray[idx] = backgroundV * (1 - alpha) + paperV * alpha;
       isPaperTint[idx] = alpha;
@@ -214,21 +326,6 @@ export function generateSyntheticPaper(
   }
 
   return { data, width, height, trueCorners: corners };
-}
-
-function isConvex(quad: readonly [Point2, Point2, Point2, Point2]): boolean {
-  let sign = 0;
-  for (let i = 0; i < 4; i++) {
-    const a = quad[i];
-    const b = quad[(i + 1) % 4];
-    const c = quad[(i + 2) % 4];
-    const cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
-    if (Math.abs(cr) < 1e-9) continue;
-    const s = cr > 0 ? 1 : -1;
-    if (sign === 0) sign = s;
-    else if (s !== sign) return false;
-  }
-  return sign !== 0;
 }
 
 function boxBlur(

@@ -71,6 +71,40 @@ export function localScaleMmPerPx(
   return (scaleX + scaleY) / 2;
 }
 
+/**
+ * Local mm-per-px scale ALONG A SPECIFIC SIDE's normal direction, at that
+ * side's midpoint — 2026-09-25 PR #59 review nit: `localScaleMmPerPx`'s
+ * plain x/y-axis average is a reasonable general-purpose estimate, but
+ * `edgeFitResidualPx` is a PERPENDICULAR distance to one particular
+ * fitted side (`detectPaperQuad`'s `worstSideIndex`), and under
+ * perspective the local scale genuinely varies by direction — this is
+ * what actually converts that residual to mm correctly, using the same
+ * direction the residual itself was measured in.
+ */
+export function localScaleMmPerPxAlongNormal(
+  homography: Homography,
+  sideStartPx: Point2,
+  sideEndPx: Point2,
+  deltaPx = 1,
+): number {
+  const midpoint: Point2 = {
+    x: (sideStartPx.x + sideEndPx.x) / 2,
+    y: (sideStartPx.y + sideEndPx.y) / 2,
+  };
+  const ex = sideEndPx.x - sideStartPx.x;
+  const ey = sideEndPx.y - sideStartPx.y;
+  const len = Math.hypot(ex, ey);
+  if (len < 1e-9) return localScaleMmPerPx(homography, midpoint, deltaPx);
+  const nx = -ey / len;
+  const ny = ex / len;
+  const centre = applyHomography(homography, midpoint);
+  const shifted = applyHomography(homography, {
+    x: midpoint.x + nx * deltaPx,
+    y: midpoint.y + ny * deltaPx,
+  });
+  return Math.hypot(shifted.x - centre.x, shifted.y - centre.y) / deltaPx;
+}
+
 /** Centroid of the 4 corners — the natural point to evaluate `localScaleMmPerPx` at. */
 export function quadCentroid(
   corners: readonly [Point2, Point2, Point2, Point2],
