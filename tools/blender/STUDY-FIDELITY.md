@@ -280,13 +280,27 @@ resolution, and `inventory-*.png` contains the inspected contact sheets.
 
 ## Decisions
 
-| Date       | Decision                                                              | By    |
-| ---------- | --------------------------------------------------------------------- | ----- |
-| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish  | Kirby |
-| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base | Kirby |
-| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                            | Kirby |
+| Date       | Decision                                                                                                                                           | By     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish                                                                               | Kirby  |
+| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base                                                                              | Kirby  |
+| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                                                                                                         | Kirby  |
+| 2026-09-28 | **Gate A passed.** G903 Hero and M750 go through the full AR pipeline of the 26 shells; their study geometry is replaced (approved geometry route) | Kirby  |
+| 2026-09-28 | SE uses the G Pro X Superlight 2 shell (geometry and detail maps) recoloured from SE photos (approved geometry route)                              | Kirby  |
+| 2026-09-28 | M550 is the photo-bake prototype for M100, M550, M705, M325s and M850L                                                                             | Kirby  |
+| 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json` | Claude |
 
 ## Progress log
+
+- 2026-09-28 Claude: audited Phase A. Downloads, sizes and hashes match the
+  sidecars. M750 medium matches the catalogue (107.6 × 60.6 × 38.3 mm raw vs
+  107.19 × 61.8 × 37.8 mm). The G903 AR bbox is 9–12% larger than the catalogue
+  on every axis. The 26 shells' calibration scales are all within 1.1%, so B1
+  must explain this first. Overlays show M550 is the M650 body without M650's
+  thumb buttons; SE differs from Superlight 2 only at seams. Committed Phase A
+  (`d044780`) after Codex's `npx` was blocked. **Tooling:** call `npx.cmd`
+  (or `node node_modules/prettier/bin/prettier.cjs`), not `npx`, from
+  PowerShell.
 
 - 2026-09-28 Codex: **Phase A discovery completed.** A1 made 181 serial official-host
   requests (145 HEAD / 36 GET, minimum interval 3.086 s, maximum 38 per study),
