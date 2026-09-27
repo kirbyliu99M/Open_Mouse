@@ -95,11 +95,12 @@ export function checkHandDetected(landmarkCount: number): GateFailure | null {
 export function checkHandedness(
   detected: "left" | "right",
   stated: "left" | "right" | undefined,
+  fixInstruction = "change the hand picker",
 ): GateFailure | null {
   if (stated === undefined || detected === stated) return null;
   return {
     code: "HANDEDNESS_MISMATCH",
-    message: `This looks like your ${detected} hand, but you selected ${stated}. Retake with your ${stated} hand, or change the hand picker.`,
+    message: `This looks like your ${detected} hand, but you selected ${stated}. Retake with your ${stated} hand, or ${fixInstruction}.`,
   };
 }
 
@@ -337,6 +338,8 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
         input.handStated,
       );
       if (handednessFailure) errors.push(handednessFailure);
+    } else {
+      errors.push(checkLandmarkConfidence(0)!);
     }
     const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
     if (confidenceFailure) errors.push(confidenceFailure);
@@ -449,6 +452,7 @@ export interface PaperEdgeHandGateInput {
   readonly landmarkCount: number;
   readonly handedness: "left" | "right" | null;
   readonly handStated: "left" | "right" | undefined;
+  readonly handednessFixInstruction?: string;
   readonly landmarkConfidence: number;
   readonly landmarksMm: readonly Point2[];
   readonly paperCornersMm: readonly Point2[];
@@ -472,8 +476,11 @@ export function runPaperEdgeHandGates(
       const handednessFailure = checkHandedness(
         input.handedness,
         input.handStated,
+        input.handednessFixInstruction,
       );
       if (handednessFailure) errors.push(handednessFailure);
+    } else {
+      errors.push(checkLandmarkConfidence(0)!);
     }
     const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
     if (confidenceFailure) errors.push(confidenceFailure);

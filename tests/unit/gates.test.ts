@@ -78,6 +78,15 @@ describe("checkHandedness", () => {
       "This looks like your left hand, but you selected right. Retake with your right hand, or change the hand picker.",
     );
   });
+
+  it("uses the easy-scan instruction when supplied", () => {
+    const failure = checkHandedness(
+      "left",
+      "right",
+      "tap the hand button below",
+    );
+    expect(failure?.message).toContain("tap the hand button below");
+  });
 });
 
 describe("checkLandmarkConfidence", () => {

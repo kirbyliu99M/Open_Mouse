@@ -329,6 +329,28 @@ const GRIP_OPTIONS: readonly { value: GripStyle | undefined; label: string }[] =
     { value: undefined, label: "Not sure" },
   ];
 
+function HandToggle({
+  state,
+  onClick,
+  inSheet = false,
+}: {
+  readonly state: HandChipState;
+  readonly onClick: () => void;
+  readonly inSheet?: boolean;
+}) {
+  const label = `${state.hand === "left" ? "Left" : "Right"} hand${state.locked ? "" : " · auto"}`;
+  return (
+    <button
+      type="button"
+      className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
+      aria-pressed={state.locked}
+      onClick={onClick}
+    >
+      <HandIcon width={16} height={16} /> {label}
+    </button>
+  );
+}
+
 export interface EasyScanCameraProps {
   /** Test/demo injection point — real pages never pass this. */
   readonly runPhotoPipelineImpl?: (
@@ -808,8 +830,17 @@ export default function EasyScanCamera({
   }, []);
 
   const toggleHand = useCallback(() => {
-    setHandChip((prev) => toggleHandChip(prev));
-  }, []);
+    const next = toggleHandChip(handChipRef.current);
+    handChipRef.current = next;
+    setHandChip(next);
+    if (
+      resultRef.current.kind === "gateFailure" &&
+      resultRef.current.errors[0]?.code === "HANDEDNESS_MISMATCH" &&
+      fileRef.current
+    ) {
+      void runPipeline(fileRef.current, resultRef.current.previewUrl);
+    }
+  }, [runPipeline]);
 
   // The live loop — identical shape to CameraCapture's, minus the hand
   // ghost and the redundant status-chips row (screen 14 shows only the
@@ -1022,8 +1053,6 @@ export default function EasyScanCamera({
       ? "Got it — hold still"
       : (cue?.message ?? "Point the camera at the paper");
 
-  const handChipLabel = `${handChip.hand === "left" ? "Left" : "Right"} hand · auto`;
-
   if (
     (deviceFit === "desktop" || deviceFit === "in-app") &&
     result.kind === "none"
@@ -1066,14 +1095,7 @@ export default function EasyScanCamera({
           >
             <HelpCircleIcon width={20} height={20} />
           </button>
-          <button
-            type="button"
-            className="easyHandChip"
-            aria-pressed={false}
-            onClick={toggleHand}
-          >
-            <HandIcon width={16} height={16} /> {handChipLabel}
-          </button>
+          <HandToggle state={handChip} onClick={toggleHand} />
         </div>
       </div>
 
@@ -1552,13 +1574,11 @@ export default function EasyScanCamera({
                 Retake needed
               </p>
               <p className="easySheetErrorMessage" role="alert">
-                {result.errors[0]?.code === "HANDEDNESS_MISMATCH"
-                  ? result.errors[0].message.replace(
-                      "change the hand picker",
-                      "tap the hand button at the top of this screen",
-                    )
-                  : result.errors[0]?.message}
+                {result.errors[0]?.message}
               </p>
+              {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
+                <HandToggle state={handChip} onClick={toggleHand} inSheet />
+              )}
               <button
                 type="button"
                 className="primaryButton easyTryAgainButton"

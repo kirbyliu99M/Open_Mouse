@@ -461,6 +461,7 @@ async function runPaperEdgePipeline(
       hand.handedness,
       input.handExplicit !== false,
     ).stated,
+    handednessFixInstruction: "tap the hand button below",
     landmarkConfidence: hand.confidence,
     landmarksMm,
     paperCornersMm,
@@ -604,9 +605,10 @@ async function runUserLengthPipeline(
               hand.handedness,
               input.handExplicit !== false,
             ).stated,
+            "tap the hand button below",
           ),
         ]
-      : []),
+      : [checkLandmarkConfidence(0)]),
     checkLandmarkConfidence(hand.confidence),
   ].filter(
     (failure): failure is NonNullable<typeof failure> => failure !== null,

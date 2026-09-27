@@ -6,6 +6,7 @@ import {
   type HandChipState,
 } from "../../src/client/camera/handInference";
 import { resolvePipelineHand } from "../../src/client/photo/pipeline";
+import { runPaperEdgeHandGates } from "../../src/client/photo/gates";
 
 describe("easy-scan hand chip state", () => {
   it("uses a detected left hand for an untouched right-hand default", () => {
@@ -20,6 +21,59 @@ describe("easy-scan hand chip state", () => {
       stated: "right",
       submission: "right",
     });
+  });
+  it("does not report a mismatch for an untouched chip and a detected left hand", () => {
+    const chip = INITIAL_HAND_CHIP_STATE;
+    const resolved = resolvePipelineHand(chip.hand, "left", chip.locked);
+    const report = runPaperEdgeHandGates({
+      paperFound: false,
+      landmarkCount: 21,
+      handedness: "left",
+      handStated: resolved.stated,
+      landmarkConfidence: 1,
+      landmarksMm: [],
+      paperCornersMm: [],
+      laplacianVariance: 100,
+    });
+    expect(report.errors.map((error) => error.code)).not.toContain(
+      "HANDEDNESS_MISMATCH",
+    );
+  });
+  it("blocks an untouched chip when handedness detection is null", () => {
+    const chip = INITIAL_HAND_CHIP_STATE;
+    const resolved = resolvePipelineHand(chip.hand, null, chip.locked);
+    const report = runPaperEdgeHandGates({
+      paperFound: false,
+      landmarkCount: 21,
+      handedness: null,
+      handStated: resolved.stated,
+      landmarkConfidence: 1,
+      landmarksMm: [],
+      paperCornersMm: [],
+      laplacianVariance: 100,
+    });
+    expect(report.errors.map((error) => error.code)).toContain(
+      "LOW_LANDMARK_CONFIDENCE",
+    );
+  });
+  it("shows the below-sheet hand instruction for a paper-edge mismatch", () => {
+    const chip = toggleHandChip(INITIAL_HAND_CHIP_STATE);
+    const resolved = resolvePipelineHand(chip.hand, "right", chip.locked);
+    const report = runPaperEdgeHandGates({
+      paperFound: false,
+      landmarkCount: 21,
+      handedness: "right",
+      handStated: resolved.stated,
+      handednessFixInstruction: "tap the hand button below",
+      landmarkConfidence: 1,
+      landmarksMm: [],
+      paperCornersMm: [],
+      laplacianVariance: 100,
+    });
+    expect(
+      report.errors.find((error) => error.code === "HANDEDNESS_MISMATCH")
+        ?.message,
+    ).toContain("tap the hand button below");
   });
   it("defaults to right hand, unlocked", () => {
     expect(INITIAL_HAND_CHIP_STATE).toEqual({ hand: "right", locked: false });

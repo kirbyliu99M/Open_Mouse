@@ -37,6 +37,10 @@
   font-size: 0.875rem;
   cursor: pointer;
 }
+.easyHandChipInSheet {
+  margin-bottom: 1.25rem;
+  background: var(--scan-fg, #1c1c1e);
+}
 
 .easyBottomRow {
   flex-shrink: 0;
