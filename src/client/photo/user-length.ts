@@ -17,9 +17,11 @@ export const USER_LENGTH_RETAKE =
 // Candidate — tune on M2 photos. A flat middle finger's joint chain is
 // almost collinear with the wrist-to-tip line; curling lengthens that chain.
 export const MIN_MIDDLE_FINGER_STRAIGHTNESS = 0.95;
-// Candidate — tune on M2 photos. Assumes an adult palm width of roughly
-// 38–56% of wrist-to-middle-tip hand length; this is a screening heuristic,
-// not a measured population percentile or a calibrated camera-pose estimate.
+// Candidate screening band derived from adult skin-to-skin palm proportions.
+// This gate instead compares landmark joint centres (5↔17 over 0↔12), so the
+// skin-based derivation does not directly apply: 5↔17 can read 10–20 mm narrower
+// than skin breadth, and the landmark ratio may sit lower. MUST measure this
+// band on real M2 photos before deploy.
 export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
 
 function distance(a: Point2, b: Point2): number {

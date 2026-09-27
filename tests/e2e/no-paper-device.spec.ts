@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const output = "docs/design/easy-scan-shell-2026-09-25/built";
 
-test("desktop shows a local QR code, the URL and upload path", async ({
+test("desktop shows a QR code, the URL and upload path", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
@@ -23,7 +23,7 @@ test("desktop shows a local QR code, the URL and upload path", async ({
     await page.screenshot({ path: `${output}/desktop-qr.png`, fullPage: true });
 });
 
-test("desktop QR and displayed link omit query parameters and hash", async ({
+test("desktop displayed link omits query parameters and hash", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");

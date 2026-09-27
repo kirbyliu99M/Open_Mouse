@@ -598,7 +598,6 @@ export default function EasyScanCamera({
     const fit = detectDeviceFit({
       userAgent: navigator.userAgent,
       coarsePointer: window.matchMedia("(pointer: coarse)").matches,
-      touchPoints: navigator.maxTouchPoints ?? 0,
     });
     setDeviceFit(fit);
     setPageUrl(window.location.origin + window.location.pathname);

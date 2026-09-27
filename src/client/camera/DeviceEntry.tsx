@@ -21,11 +21,23 @@ export function DeviceEntry({
   externalBrowserUrl?.searchParams.set("openExternalBrowser", "1");
   useEffect(() => {
     if (kind !== "desktop") return;
+    let active = true;
+    setQr("");
     void QRCode.toString(url, {
       type: "svg",
       margin: 2,
       color: { dark: "#1c1c1e", light: "#ffffff" },
-    }).then(setQr);
+    }).then(
+      (svg) => {
+        if (active) setQr(svg);
+      },
+      () => {
+        if (active) setQr("");
+      },
+    );
+    return () => {
+      active = false;
+    };
   }, [kind, url]);
   return (
     <main className="easyDeviceEntry">
@@ -43,12 +55,14 @@ export function DeviceEntry({
       {kind === "desktop" && (
         <>
           <p>Point your phone camera at this code.</p>
-          <div
-            className="easyQr"
-            role="img"
-            aria-label="QR code for this scan page"
-            dangerouslySetInnerHTML={{ __html: qr }}
-          />
+          {qr && (
+            <div
+              className="easyQr"
+              role="img"
+              aria-label="QR code for this scan page"
+              dangerouslySetInnerHTML={{ __html: qr }}
+            />
+          )}
         </>
       )}
       {externalBrowserUrl && (

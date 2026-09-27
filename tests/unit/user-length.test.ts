@@ -47,7 +47,7 @@ describe("user length calibration", () => {
       "Straighten your fingers and lay your hand flat, then retake.",
     );
   });
-  it("rejects a 25° long-axis tilt at the lower palm proportion bound", () => {
+  it("rejects when a hand near the lower bound is pushed past it by a 25° long-axis tilt", () => {
     const narrow = hand.map((point) => ({
       ...point,
       x: hand[0].x + (point.x - hand[0].x) * 0.98,
@@ -65,7 +65,7 @@ describe("user length calibration", () => {
       "The photo looks tilted — hold the phone flat, straight above your hand, and retake.",
     );
   });
-  it("rejects a 25° width-axis tilt at the upper palm proportion bound", () => {
+  it("rejects when a hand near the upper bound is pushed past it by a 25° width-axis tilt", () => {
     const wide = hand.map((point) => ({
       ...point,
       x: hand[0].x + (point.x - hand[0].x) * 1.29,
@@ -117,43 +117,30 @@ describe("user length calibration", () => {
 
 describe("device fit", () => {
   it.each([
-    [
-      "desktop",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130",
-      false,
-      0,
-    ],
-    ["phone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/604", true, 5],
-    ["phone", "Mozilla/5.0 (Linux; Android 15) Chrome/130 Mobile", true, 5],
-    ["in-app", "Mozilla/5.0 (iPhone) Line/14.0", true, 5],
-    ["in-app", "Mozilla/5.0 (iPhone) Instagram 300", true, 5],
-    ["in-app", "Mozilla/5.0 (iPhone) FBAN/FBIOS; FBAV/400", true, 5],
-    ["in-app", "Mozilla/5.0 (Android) MicroMessenger/8", true, 5],
-    [
-      "desktop",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130",
-      false,
-      10,
-    ],
+    ["desktop", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130", false],
+    ["phone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/604", true],
+    ["phone", "Mozilla/5.0 (Linux; Android 15) Chrome/130 Mobile", true],
+    ["in-app", "Mozilla/5.0 (iPhone) Line/14.0", true],
+    ["in-app", "Mozilla/5.0 (iPhone) Instagram 300", true],
+    ["in-app", "Mozilla/5.0 (iPhone) FBAN/FBIOS; FBAV/400", true],
+    ["in-app", "Mozilla/5.0 (Android) MicroMessenger/8", true],
     [
       "phone",
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605 Safari/605",
       true,
-      5,
     ],
-    ["phone", "Mozilla/5.0 (Linux; Android 15) SamsungBrowser/27", false, 0],
-    ["phone", "Mozilla/5.0 (Android 15; Mobile) Firefox/130", false, 0],
-    ["phone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) CriOS/130", false, 0],
-    ["in-app", "Mozilla/5.0 (iPhone) BytedanceWebview", true, 5],
-    ["in-app", "Mozilla/5.0 (iPhone) musical_ly", true, 5],
-    ["in-app", "Mozilla/5.0 (iPhone) Barcelona", true, 5],
-    ["in-app", "Mozilla/5.0 (Android) KAKAOTALK", true, 5],
+    ["phone", "Mozilla/5.0 (Linux; Android 15) SamsungBrowser/27", false],
+    ["phone", "Mozilla/5.0 (Android 15; Mobile) Firefox/130", false],
+    ["phone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) CriOS/130", false],
+    ["in-app", "Mozilla/5.0 (iPhone) BytedanceWebview", true],
+    ["in-app", "Mozilla/5.0 (iPhone) musical_ly", true],
+    ["in-app", "Mozilla/5.0 (iPhone) Barcelona", true],
+    ["in-app", "Mozilla/5.0 (Android) KAKAOTALK", true],
+    ["phone", "Mozilla/5.0 (iPhone) Line/not-a-version", false],
   ] as const)(
     "classifies %s with UA %s",
-    (expected, userAgent, coarsePointer, touchPoints) => {
-      expect(detectDeviceFit({ userAgent, coarsePointer, touchPoints })).toBe(
-        expected,
-      );
+    (expected, userAgent, coarsePointer) => {
+      expect(detectDeviceFit({ userAgent, coarsePointer })).toBe(expected);
     },
   );
 });
