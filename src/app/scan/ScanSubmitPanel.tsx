@@ -37,7 +37,7 @@ type SubmitState =
   | { kind: "idle" }
   | { kind: "submitting" }
   | { kind: "success" }
-  | { kind: "error"; message: string; detail?: string };
+  | { kind: "error"; message: string };
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
@@ -79,7 +79,6 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
       setState({
         kind: "error",
         message: outcome.message,
-        detail: outcome.detail,
       });
     });
   }, [submission, router]);
@@ -117,7 +116,6 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
       {state.kind === "error" && (
         <div className="feedback feedback-error" role="alert">
           <p className="feedbackTitle">{state.message}</p>
-          {state.detail && <p className="feedbackDetail">{state.detail}</p>}
         </div>
       )}
     </div>

@@ -641,6 +641,7 @@ export default function EasyScanCamera({
         const pipelineResult = await runPhotoPipelineImpl({
           file,
           hand: handChipRef.current.hand,
+          handExplicit: handChipRef.current.locked,
           gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null
@@ -1551,7 +1552,12 @@ export default function EasyScanCamera({
                 Retake needed
               </p>
               <p className="easySheetErrorMessage" role="alert">
-                {result.errors[0]?.message}
+                {result.errors[0]?.code === "HANDEDNESS_MISMATCH"
+                  ? result.errors[0].message.replace(
+                      "change the hand picker",
+                      "tap the hand button at the top of this screen",
+                    )
+                  : result.errors[0]?.message}
               </p>
               <button
                 type="button"

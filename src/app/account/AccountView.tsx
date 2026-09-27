@@ -122,7 +122,7 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       {visibleScans.length === 0 ? (
         <div>
           <p className="note">No scans yet.</p>
-          <Link className="account-empty-link" href="/sheet">
+          <Link className="account-empty-link" href="/scan/easy">
             Start measuring
           </Link>
         </div>

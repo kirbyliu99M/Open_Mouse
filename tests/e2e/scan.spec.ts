@@ -615,12 +615,18 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
     },
     {
       status: 503,
-      body: {},
+      body: { error: "Internal server failure." },
       expectedSubstring: "went wrong on our end",
       label: "5xx server error",
     },
+    {
+      status: 429,
+      body: { error: "Too many scan submissions." },
+      expectedSubstring: "Too many tries in a short time",
+      label: "429 rate limit",
+    },
   ] as const) {
-    test(`${c.label} — names the problem, the one action that fixes it, and re-enables the button to retry`, async ({
+    test(`${c.label} shows user-facing copy without server text and permits retry`, async ({
       page,
     }) => {
       await page.route("**/api/scans", async (route) => {
@@ -637,6 +643,9 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
 
       await expect(page.locator(".feedback-error")).toContainText(
         c.expectedSubstring,
+      );
+      await expect(page.locator(".feedback-error")).not.toContainText(
+        c.body.error,
       );
       await expect(button).toBeEnabled();
     });

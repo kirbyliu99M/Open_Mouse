@@ -5,8 +5,22 @@ import {
   toggleHandChip,
   type HandChipState,
 } from "../../src/client/camera/handInference";
+import { resolvePipelineHand } from "../../src/client/photo/pipeline";
 
 describe("easy-scan hand chip state", () => {
+  it("uses a detected left hand for an untouched right-hand default", () => {
+    expect(resolvePipelineHand("right", "left", false)).toEqual({
+      stated: undefined,
+      submission: "left",
+    });
+  });
+
+  it("keeps an explicit right-hand choice when the photo detects left", () => {
+    expect(resolvePipelineHand("right", "left", true)).toEqual({
+      stated: "right",
+      submission: "right",
+    });
+  });
   it("defaults to right hand, unlocked", () => {
     expect(INITIAL_HAND_CHIP_STATE).toEqual({ hand: "right", locked: false });
   });

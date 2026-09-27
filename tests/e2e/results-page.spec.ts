@@ -233,7 +233,7 @@ test.describe("/results/[scanId] — real results page", () => {
       .locator(".results-page-error")
       .getByRole("link", { name: "Scan again", exact: true });
     await expect(scanAgain).toBeVisible();
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // Never shows the numeric ranking for a 404.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
   });
@@ -407,7 +407,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     await expect(heading).toBeFocused();
     await expect(page.getByText("permanently removed")).toBeVisible();
     const scanAgain = page.getByRole("link", { name: "Scan again" });
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // The ranking is gone — deleted really replaces the page, not just a toast.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
 

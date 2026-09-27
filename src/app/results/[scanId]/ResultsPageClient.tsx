@@ -129,7 +129,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -144,7 +144,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -155,7 +155,7 @@ export function ResultsPageClient({
             It may have expired, or the link isn&apos;t yours. Scans without an
             account are only kept for 24 hours.
           </p>
-          <Link href="/scan" className="results-page-action">
+          <Link href="/scan/easy" className="results-page-action">
             Scan again
           </Link>
         </div>
@@ -172,7 +172,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -192,7 +192,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -212,7 +212,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -241,7 +241,7 @@ export function ResultsPageClient({
             This scan has been deleted
           </h1>
           <p>Its measurements have been permanently removed.</p>
-          <Link href="/scan" className="results-page-action">
+          <Link href="/scan/easy" className="results-page-action">
             Scan again
           </Link>
         </div>

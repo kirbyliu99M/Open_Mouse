@@ -26,7 +26,7 @@ export function ResultsView({
   return (
     <div className="results-view">
       <TopBar
-        backHref="/scan"
+        backHref="/scan/easy"
         backLabel="Scan again"
         stepLabel="Your matches"
       />
