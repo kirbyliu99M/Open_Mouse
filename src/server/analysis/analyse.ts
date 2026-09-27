@@ -280,7 +280,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
  * place below — the branch where a model response was received, passed
  * `analysisOutputSchema`, AND passed `findViolation`'s output checks
  * check. Every other path (no model, JSON parse failure, schema failure,
- * a numeral/provisional-caveat violation on both attempts, or
+ * a numeral, provisional-caveat, or medical-claim violation on both attempts, or
  * `options.beforeModelCall` refusing a call) returns `buildFallbackOutput`
  * with `source: "fallback"`. Never inferred from whether a key was
  * configured — a keyed call can still fail or violate the rule and fall
