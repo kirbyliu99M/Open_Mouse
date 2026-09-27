@@ -7,7 +7,7 @@ import bpy
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 from gen_shell import generate_shell
-from asset_utils import dimensions_mm, validate_mesh, glb_json, validate_assembly
+from asset_utils import dimensions_mm, validate_mesh, glb_json, validate_assembly, support_margin_mm, MIN_SUPPORT_MARGIN_MM
 
 
 def main():
@@ -52,6 +52,9 @@ def main():
             error = max(abs(a-b) for a,b in zip(dims, entry["dimensionsXYZmm"]))
             assert error <= .5, (slug, error)
             result["maxRoundTripErrorMm"] = error
+            margin = support_margin_mm(meshes[0])
+            assert margin >= MIN_SUPPORT_MARGIN_MM, (slug, "would tip", margin)
+            result["supportMarginMm"] = margin
         else:
             armature = next(obj for obj in scene.objects if obj.type == "ARMATURE")
             assert set(armature.data.bones.keys()) == {f"mp_{i}" for i in range(21)}

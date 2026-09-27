@@ -14,7 +14,7 @@ HERE=Path(__file__).resolve().parent
 ROOT=HERE/'out/reference-library'
 CHOICES={
  'logitech-g-pro-x-superlight-2-se':('pro-x-superlight-2-se-red-top-angle-gallery-1.png','pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png'),
- 'logitech-m100':('top.png','extra-2.png'),
+ 'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
  'logitech-m750':('top.png','right.png'),
@@ -25,7 +25,10 @@ CHOICES={
 TRUE_SIDE_STUDIES = {
  'logitech-g-pro-x-superlight-2-se', 'logitech-m550', 'logitech-m705-marathon',
 }
-FLAT_BASE_STUDIES = set(CHOICES) - TRUE_SIDE_STUDIES
+# Kirby's call (2026-09-28): M100 keeps the sheared trace, which levels its
+# three-quarter side photo as a whole instead of zeroing only the underside.
+LEVELLED_STUDIES = {'logitech-m100'}
+FLAT_BASE_STUDIES = set(CHOICES) - TRUE_SIDE_STUDIES - LEVELLED_STUDIES
 
 
 def study_base_profile(slug, projected_low):
@@ -44,7 +47,7 @@ def body_mask(path):
     result=mask[yy.min():yy.max()+1,xx.min():xx.max()+1]
     if path.parent.name=='logitech-m100':
         from compare_reconstruction import remove_thin_lead
-        result=remove_thin_lead(result.T).T if path.name=='extra-2.png' else remove_thin_lead(result)
+        result=remove_thin_lead(result.T).T if path.name=='m100-charcoal-gallery-4.png' else remove_thin_lead(result)
     return result
 
 
@@ -57,6 +60,20 @@ def contour(mask,axis):
         low.append(indices[0] if len(indices) else mask.shape[1]/2)
         high.append(indices[-1] if len(indices) else mask.shape[1]/2)
     return np.array(low,dtype=float),np.array(high,dtype=float)
+
+
+def level_base(u,upper,lower,span=(.2,.8)):
+    """Shear a side contour so its base is level.
+
+    Gallery "profile" shots are three-quarter views, so the underside edge
+    rises toward one end (M100: 5.9 mm over the mid-length). Mice sit on a flat
+    base, so the tilt of a line fitted to the mid-length underside is removed
+    from both edges. Returns the tilt in image rows per unit length.
+    """
+    mask=(u>span[0])&(u<span[1])
+    slope=np.polyfit(u[mask],lower[mask],1)[0]
+    shear=slope*(u-.5)
+    return upper-shear,lower-shear,float(slope)
 
 
 def cameras(target):
@@ -87,6 +104,8 @@ def reconstruct(slug,files):
     upper[interval]=np.interp(u[interval],u[~interval],upper[~interval])
     upper=ndimage.gaussian_filter1d(upper,len(upper)*.008)
     lower=ndimage.gaussian_filter1d(lower,len(lower)*.008)
+    base_tilt=None
+    if slug in LEVELLED_STUDIES:upper,lower,base_tilt=level_base(u,upper,lower)
     target=np.array([record['widthMm'],record['lengthMm'],record['heightMm']])/1000
     samples=np.linspace(0,1,129)
     left=np.interp(samples,np.linspace(0,1,len(l)),l/top.shape[1]-.5)*target[0]
@@ -99,12 +118,6 @@ def reconstruct(slug,files):
         # must touch the desk along the length; finish_reconstruction then
         # calibrates its complete bounding box to the published L/W/H.
         low=study_base_profile(slug,low)
-    if slug=='logitech-m100':
-        # The near-side photograph sees some of the top deck at the nose.
-        # Suppress that projected thickness locally; the cord is removed above.
-        nose=np.clip(samples/.11,0,1)
-        nose=nose*nose*(3-2*nose)
-        high=low+(high-low)*(.45+.55*nose)
     vertices=[];faces=[];segments=80
     vertices.append(((left[0]+right[0])/2,-target[1]/2,(high[0]+low[0])/2))
     for i in range(1,128):
@@ -136,9 +149,12 @@ def reconstruct(slug,files):
         'cameraFile':str((folder/'cameras.json').relative_to(HERE)),'dimensionsXYZ':target.tolist(),
         'rawVertices':len(vertices),'rawTriangles':len(faces),'status':'Limited-view silhouette study; transverse shape and details unverified',
         'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography','Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed']}
-    if slug=='logitech-m100':report['limitations'].append('The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length')
+    if slug=='logitech-m100':report['limitations'].append('The cord is excluded from both contours')
     if slug=='logitech-m325s':report['limitations'].append('Patterned side colourway provides silhouette only; charcoal top photo provides upper texture')
     if slug in FLAT_BASE_STUDIES:report['limitations'].append('Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified')
+    if slug in LEVELLED_STUDIES:
+        report['baseLevelling']={'method':'Mid-length underside line fit removed by shear','removedRiseMmOverMidLength':base_tilt*.6/side.shape[0]*record['heightMm']}
+        report['limitations'].append('Side trace sheared level from a mid-length underside line fit; the three-quarter view perspective is not calibrated')
     (folder/'reconstruction.json').write_text(json.dumps(report,indent=2)+'\n')
     print('TRACED',slug,flush=True)
 

@@ -63,6 +63,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -127,6 +128,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.299087111893105,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -191,6 +193,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.490273276389463,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -257,6 +260,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.509128868285263,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -323,6 +327,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.574942280433472,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -391,6 +396,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.14810226260821,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -459,6 +465,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.555981240544558,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -525,6 +532,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.554050815579323,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -591,6 +599,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.895363805244855,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -657,6 +666,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.62276277650138,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -723,6 +733,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.03789211835509,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -789,6 +800,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -855,6 +867,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -921,6 +934,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.744950685251297,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -987,6 +1001,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.320639295712933,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1053,6 +1068,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 20.250784275869,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1119,6 +1135,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 20.60913154565747,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1187,6 +1204,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 15.421830829736379,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1253,6 +1271,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.582861476254337,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1319,6 +1338,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 30.520380229040054,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1385,6 +1405,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.107552165967043,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1453,6 +1474,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 30.080465256994962,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1489,7 +1511,7 @@
       "dimensionCalibrationScale": [
         1.010317077254113, 1.0064363940464847, 1.0032671704417886
       ],
-      "bytes": 284360,
+      "bytes": 287868,
       "path": "shells/logitech-mx-master-4.glb",
       "orientation": {
         "up": "+Z",
@@ -1519,6 +1541,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 29.237831928572103,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1585,6 +1608,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.2400533011976,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1651,6 +1675,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 16.4819995147211,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1717,6 +1742,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 15.99125490656468,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1783,6 +1809,7 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516,
       "aliasOf": "logitech-ergo-m575",
       "limitations": [
         "shape assumed identical to ERGO M575 (same published dimensions); not independently reconstructed — candidate"
@@ -1875,6 +1902,7 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.009646421084657,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1972,6 +2000,7 @@
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.98135272161565,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1985,22 +2014,22 @@
       "method": "Model-specific top and side photo contour loft",
       "source": [
         {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
-          "file": "logitech-m100/top.png",
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
+          "file": "logitech-m100/m100-charcoal-gallery-1.png",
           "width": 1600,
           "height": 1374,
-          "mode": "P",
-          "sha256": "0414eb9aaee2a08143223af4f5758de9c7e9817fcfd31d015702a276a7b1ed3b",
-          "viewHint": "top"
+          "mode": "RGBA",
+          "sha256": "699b18cd2e3a9287b41d161b1792721815837a08c4d138f95a2afdaad89e27c5",
+          "viewHint": "unclassified"
         },
         {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-4.png",
-          "file": "logitech-m100/extra-2.png",
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-4.png",
+          "file": "logitech-m100/m100-charcoal-gallery-4.png",
           "width": 1600,
           "height": 1374,
-          "mode": "P",
-          "sha256": "b7efb9c0c63e0aec88bf4ab11446fec2c6f29552847d8167e2d55317a3021b70",
-          "viewHint": "other"
+          "mode": "RGBA",
+          "sha256": "330068cd0a53b92feb435fbc02c9fb1872ea18dd8d5762d8d021a65dea1c4de8",
+          "viewHint": "unclassified"
         }
       ],
       "mesh": {
@@ -2009,27 +2038,27 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 176374.77691979063
+        "volumeMm3": 174289.54060936475
       },
       "dimensionsXYZmm": [
         62.00000271201134, 113.00000548362732, 38.00000250339508
       ],
       "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6,
       "uncalibratedDimensionsXYZmm": [
-        61.84315122663975, 112.00157552957535, 37.970175213274615
+        61.84292770922184, 112.00157552957535, 35.101579735055566
       ],
       "dimensionCalibrationScale": [
-        1.0025362351408234, 1.008914378799618, 1.0007854793020539
+        1.0025398585836152, 1.008914378799618, 1.0825723596151946
       ],
-      "bytes": 75064,
+      "bytes": 76416,
       "path": "studies/logitech-m100.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
         "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
         "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
-        "The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length",
-        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
+        "The cord is excluded from both contours",
+        "Side trace sheared level from a mid-length underside line fit; the three-quarter view perspective is not calibrated"
       ],
       "orientation": {
         "up": "+Z",
@@ -2050,17 +2079,18 @@
         "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
         "approximate": true,
         "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
-          "file": "logitech-m100/top.png",
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
+          "file": "logitech-m100/m100-charcoal-gallery-1.png",
           "width": 1600,
           "height": 1374,
-          "mode": "P",
-          "sha256": "0414eb9aaee2a08143223af4f5758de9c7e9817fcfd31d015702a276a7b1ed3b",
-          "viewHint": "top"
+          "mode": "RGBA",
+          "sha256": "699b18cd2e3a9287b41d161b1792721815837a08c4d138f95a2afdaad89e27c5",
+          "viewHint": "unclassified"
         },
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.425003317287157,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -2150,6 +2180,7 @@
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 22.97278216469783,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -2237,6 +2268,7 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.514769113889002,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -2324,6 +2356,7 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 11.361876007048018,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -2412,6 +2445,7 @@
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.844684428767117,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -2500,6 +2534,7 @@
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 27.747661179205323,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,

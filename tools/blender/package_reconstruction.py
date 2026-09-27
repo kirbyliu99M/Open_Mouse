@@ -12,7 +12,7 @@ import bpy
 from mathutils import Matrix, Euler
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
-from asset_utils import validate_mesh,dimensions_mm,studio,label,material
+from asset_utils import validate_mesh,dimensions_mm,studio,label,material,support_margin_mm,MIN_SUPPORT_MARGIN_MM
 from pretty_json import write_pretty_json
 from check_catalogues import NO_SHELL, ALIASES
 ROOT=HERE/'out/reconstructed'
@@ -68,7 +68,9 @@ def main():
             from mathutils import Vector
             ground=min((mesh.matrix_world@Vector(p)).z for p in mesh.bound_box)
             if abs(ground)>.00001:raise RuntimeError('Base not on ground: '+folder.name)
-            results[-1].update(orientation=record['orientation'],textureRefinement=record['textureRefinement'],groundErrorMm=abs(ground)*1000)
+            margin=support_margin_mm(mesh)
+            if margin<MIN_SUPPORT_MARGIN_MM:raise RuntimeError(f'Would tip on a desk: {folder.name} support margin {margin:.1f} mm')
+            results[-1].update(orientation=record['orientation'],textureRefinement=record['textureRefinement'],groundErrorMm=abs(ground)*1000,supportMarginMm=margin)
         # A display copy keeps exported geometry in its original metric frame.
         display=mesh.copy();display.data=mesh.data.copy();review.collection.objects.link(display)
         index=len(results)-1;col=index%6;row=index//6

@@ -5,7 +5,7 @@ from mathutils import Matrix
 from asset_utils import activate,material
 from color_reconstruction import source_surface
 
-def bake_materials(mesh,record,calibration,folder,resolution=512):
+def bake_materials(mesh,record,calibration,folder,resolution=2048):
     tree,verts,tris,samples,objects=source_surface(record,calibration)
     offset=0
     for obj in objects:
@@ -33,6 +33,15 @@ def bake_materials(mesh,record,calibration,folder,resolution=512):
         image=bpy.data.images.new(record['slug']+'_'+channel,width=resolution,height=resolution)
         if channel!='BaseColour':image.colorspace_settings.name='Non-Color'
         receiver.image=image
+        if channel=='Roughness':
+            # Colour keeps the blended composite (MX Master 4's clear button
+            # covers over darker plastic). Roughness and normals belong to the
+            # outer surface; baked through Cycles transparency they read near 0
+            # and leave mirror patches, so bake them with sources opaque.
+            for source_mat in {m for obj in objects for m in obj.data.materials if m}:
+                alpha=next(n for n in source_mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED').inputs['Alpha']
+                for link in list(alpha.links):source_mat.node_tree.links.remove(link)
+                alpha.default_value=1
         if channel=='Metallic':
             # Emission bake transfers scalar metallic maps without lighting.
             for source_mat in {m for obj in objects for m in obj.data.materials if m}:
