@@ -68,8 +68,8 @@ def main():
     parser.add_argument('--model')
     args = parser.parse_args()
     manifest_path = ROOT / 'manifest.json'
-    manifest = json.loads(manifest_path.read_text())
-    entries = [*manifest['shells'], *manifest['studies']]
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    entries = [entry for entry in [*manifest['shells'], *manifest['studies']] if not entry.get('aliasOf')]
     if args.model:
         selected = set(args.model.split(','))
         entries = [entry for entry in entries if entry['slug'] in selected]
@@ -92,10 +92,15 @@ def main():
             entry['deliveredTexture'] = texture
             print(entry['slug'], 'source', before, 'delivered', after, 'maps', maps, 'normal PNG/JPEG bytes', normal_sizes)
     if not args.check:
+        by_slug = {entry['slug']: entry for entry in manifest['shells'] + manifest['studies']}
+        for alias in (entry for entry in manifest['shells'] if entry.get('aliasOf')):
+            source = by_slug[alias['aliasOf']]
+            alias['bytes'] = source['bytes']
+            alias['deliveredTexture'] = source['deliveredTexture']
         write_pretty_json(manifest_path, manifest)
         validation_path = ROOT / 'validation.json'
-        validation = json.loads(validation_path.read_text())
-        sizes = {entry['slug']: entry['bytes'] for entry in entries}
+        validation = json.loads(validation_path.read_text(encoding='utf-8'))
+        sizes = {entry['slug']: entry['bytes'] for entry in manifest['shells'] + manifest['studies']}
         for entry in validation['roundTrips']:
             if entry['slug'] in sizes: entry['bytes'] = sizes[entry['slug']]
         write_pretty_json(validation_path, validation)

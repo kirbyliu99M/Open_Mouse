@@ -20,10 +20,17 @@ CHOICES={
  'logitech-m750':('top.png','right.png'),
  'logitech-m325s':('top.png','extra-4.png'),
  'logitech-signature-comfort-plus-m850l':('top.png','left.png'),
- 'logitech-mx-ergo-s':('top.png','right.png'),
- 'logitech-ergo-m575s':('top.png','right.png'),
  'logitech-g903-hero':('top.png','left.png'),
 }
+TRUE_SIDE_STUDIES = {
+ 'logitech-g-pro-x-superlight-2-se', 'logitech-m550', 'logitech-m705-marathon',
+}
+FLAT_BASE_STUDIES = set(CHOICES) - TRUE_SIDE_STUDIES
+
+
+def study_base_profile(slug, projected_low):
+    """Use a desk-flat base unless the reference is a true side view."""
+    return projected_low if slug in TRUE_SIDE_STUDIES else np.zeros_like(projected_low)
 
 
 def body_mask(path):
@@ -86,6 +93,12 @@ def reconstruct(slug,files):
     right=np.interp(samples,np.linspace(0,1,len(r)),r/top.shape[1]-.5)*target[0]
     high=np.interp(samples,u,1-upper/side.shape[0])*target[2]
     low=np.interp(samples,u,1-lower/side.shape[0])*target[2]
+    if slug in FLAT_BASE_STUDIES:
+        # Oblique product photos expose the underside as a rising silhouette.
+        # That projection is not a physical base profile. The loft's underside
+        # must touch the desk along the length; finish_reconstruction then
+        # calibrates its complete bounding box to the published L/W/H.
+        low=study_base_profile(slug,low)
     if slug=='logitech-m100':
         # The near-side photograph sees some of the top deck at the nose.
         # Suppress that projected thickness locally; the cord is removed above.
@@ -125,7 +138,7 @@ def reconstruct(slug,files):
         'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography','Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed']}
     if slug=='logitech-m100':report['limitations'].append('The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length')
     if slug=='logitech-m325s':report['limitations'].append('Patterned side colourway provides silhouette only; charcoal top photo provides upper texture')
-    if slug in {'logitech-mx-ergo-s','logitech-ergo-m575s'}:report['limitations'].append('Thumb-side trackball is a photo projection on the loft, not separate ball geometry')
+    if slug in FLAT_BASE_STUDIES:report['limitations'].append('Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified')
     (folder/'reconstruction.json').write_text(json.dumps(report,indent=2)+'\n')
     print('TRACED',slug,flush=True)
 

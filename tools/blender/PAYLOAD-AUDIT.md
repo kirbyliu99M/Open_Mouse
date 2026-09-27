@@ -87,24 +87,25 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 | logitech-pebble-2-m350s           | 203,580 |
 | logitech-pop-mouse                | 323,548 |
 
-## Six retained added limited-view studies (2026-09-27)
+## Current catalogue after independent review (2026-09-27)
 
-The 36 mice total **7,574,540 bytes (7.22 MiB)**; including the hand, the 37
-published GLBs total **7,736,800 bytes (7.38 MiB)**. The audit finds 92 embedded
-JPEG maps, 4,103,466 image bytes and 3,633,334 other bytes. All six retained studies
-have 14,000 triangles and their longest texture edge is at most 512 px. The
-26 source-derived normal maps remain JPEG q90 with 4:4:4 sampling. The new
-studies use photo projections without normal maps.
+The manifest has 27 shell entries (26 source-derived shells and one M575S alias), 8 limited-view studies, and 3 NO_SHELL entries. The alias points to the M575 GLB, so 35 distinct GLBs including the hand are published. They total **7,533,076 bytes (7.18 MiB)**, including **4,058,711 image bytes** across 88 JPEG maps. The 26 source-derived GLBs and SE, M550, and M705 study GLBs are byte-identical to the prior build.
 
-| Added study                           |   Bytes |
-| ------------------------------------- | ------: |
-| logitech-m750                         |  80,340 |
-| logitech-m325s                        |  77,380 |
-| logitech-signature-comfort-plus-m850l |  80,868 |
-| logitech-mx-ergo-s                    |  99,940 |
-| logitech-ergo-m575s                   |  91,316 |
-| logitech-g903-hero                    | 113,928 |
+MX Ergo S has no shell: only front-oblique side photos were available and its study was not recognisable. M575S is a candidate shape alias of ERGO M575 because their published dimensions are both 134 × 100 × 48 mm. Its manifest entry uses `shells/logitech-ergo-m575.glb` without publishing a second file.
 
-Mobi Fold and M840L remain in the 38-row app catalogue with verified dimensions,
-but have no shell because their available views are inadequate. Reference photos remain outside the repository. The baked photo-derived maps
-inside these GLBs follow Kirby's 2026-09-27 R8 publishing decision.
+### Lowest base Z by length tenth
+
+Values are millimetres in Blender desk coordinates, rear to nose. Each value is the lowest decoded GLB mesh vertex in that length tenth. The five changed studies have a flat base within 0.021 mm after Draco quantisation. SE, M550, and M705 retain their prior GLBs.
+
+| Study                        | Before (mm, rear → nose)                                             | After (mm, rear → nose)                                              |
+| ---------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| m100                         | 8.172, 6.030, 4.607, 3.442, 2.585, 1.714, 0.657, 0.064, 0.000, 0.822 | 0.001, 0.005, 0.002, 0.006, 0.006, 0.002, 0.006, 0.005, 0.001, 0.000 |
+| g903-hero                    | 6.422, 4.327, 3.577, 3.286, 2.087, 0.872, 0.179, 0.000, 0.179, 1.200 | 0.000, 0.004, 0.006, 0.001, 0.006, 0.001, 0.005, 0.001, 0.014, 0.000 |
+| signature-comfort-plus-m850l | 3.134, 0.761, 0.128, 0.000, 0.030, 0.275, 0.827, 1.396, 1.867, 2.850 | 0.000, 0.018, 0.006, 0.002, 0.007, 0.006, 0.006, 0.001, 0.000, 0.000 |
+| m750                         | 0.648, 0.004, 0.002, 0.163, 0.110, 0.261, 0.564, 0.000, 0.000, 0.590 | 0.000, 0.004, 0.001, 0.020, 0.001, 0.006, 0.001, 0.014, 0.004, 0.000 |
+| m325s                        | 0.575, 0.001, 0.020, 0.487, 0.449, 0.448, 0.461, 0.122, 0.000, 0.077 | 0.001, 0.005, 0.006, 0.021, 0.001, 0.005, 0.001, 0.005, 0.004, 0.000 |
+| g-pro-x-superlight-2-se      | 0.000, 0.015, 0.005, 0.001, 0.071, 0.073, 0.008, 0.001, 0.000, 0.221 | 0.000, 0.015, 0.005, 0.001, 0.071, 0.073, 0.008, 0.001, 0.000, 0.221 |
+| m550                         | 0.651, 0.000, 0.004, 0.127, 0.124, 0.214, 0.556, 0.001, 0.000, 0.582 | 0.651, 0.000, 0.004, 0.127, 0.124, 0.214, 0.556, 0.001, 0.000, 0.582 |
+| m705-marathon                | 0.923, 0.266, 0.011, 0.000, 0.080, 0.252, 0.534, 0.796, 1.039, 1.438 | 0.923, 0.266, 0.011, 0.000, 0.080, 0.252, 0.534, 0.796, 1.039, 1.438 |
+
+The five before/after top, left, right, and back sheets and `combined.png` are in the review scratchpad `new-shells-v3/`. The Logitech gallery photos remain outside the repository.

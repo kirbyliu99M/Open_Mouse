@@ -1723,67 +1723,45 @@
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
       }
-    }
-  ],
-  "studies": [
+    },
     {
       "slug": "logitech-ergo-m575s",
       "model": "ERGO M575S",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-1.png",
-          "file": "logitech-ergo-m575s/top.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "3a6f79676f39785baa9de252c76e7e1e1c90899224a87ddfecfeb20d600329d2",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-blue-ball-gallery-3.png",
-          "file": "logitech-ergo-m575s/right.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "ad064a4440516a966358182b6fcfb13203d2662c3565c7673a6d2b09efa84d7f",
-          "viewHint": "right"
-        }
-      ],
+      "status": "source-shell-alias",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+        "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+        "bytes": 3779732,
+        "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+      },
       "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
+        "vertices": 6997,
+        "triangles": 13998,
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 333243.613041992
+        "volumeMm3": 251522.64115474958
       },
       "dimensionsXYZmm": [
-        100.00001266598701, 134.0000182390213, 48.00000786781311
+        100.00000894069672, 134.0000182390213, 48.00000786781311
       ],
       "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
       "uncalibratedDimensionsXYZmm": [
-        99.6907576918602, 132.81594216823578, 47.83962898363825
+        99.38473999500275, 133.3036944270134, 47.82551146490732
       ],
       "dimensionCalibrationScale": [
-        1.0031020158267396, 1.0089150279133239, 1.0033522629620852
+        1.0061907038761113, 1.0052234779676565, 1.003648449268613
       ],
-      "bytes": 91316,
-      "path": "studies/logitech-ergo-m575s.glb",
-      "limitations": [
-        "No working official 360 asset found",
-        "Cross-sections interpolated between traced outlines",
-        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
-        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
-      ],
+      "bytes": 240712,
+      "path": "shells/logitech-ergo-m575.glb",
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
         "groundZ": 0,
         "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
           [0.0, 0.0, 1.0, 0.0],
           [0.0, 0.0, 0.0, 1.0]
         ],
@@ -1793,26 +1771,31 @@
         ]
       },
       "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
-        "approximate": true,
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
         "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-1.png",
-          "file": "logitech-ergo-m575s/top.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "3a6f79676f39785baa9de252c76e7e1e1c90899224a87ddfecfeb20d600329d2",
-          "viewHint": "top"
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+          "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+          "bytes": 3779732,
+          "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "aliasOf": "logitech-ergo-m575",
+      "limitations": [
+        "shape assumed identical to ERGO M575 (same published dimensions); not independently reconstructed — candidate"
+      ],
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
-        "maps": 2
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
       }
-    },
+    }
+  ],
+  "studies": [
     {
       "slug": "logitech-g-pro-x-superlight-2-se",
       "model": "G Pro X Superlight 2 SE",
@@ -1938,25 +1921,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 217672.9443869258
+        "volumeMm3": 235267.92663988523
       },
       "dimensionsXYZmm": [
-        67.00000166893005, 130.0000101327896, 40.000006556510925
+        67.00000539422035, 130.0000101327896, 39.99999910593033
       ],
       "calibratedBboxRoundTripDifferenceMm": 1.0132789611816406e-5,
       "uncalibratedDimensionsXYZmm": [
-        66.82539731264114, 128.85138392448425, 39.87800787581364
+        66.82542711496353, 128.85138392448425, 39.95812480718541
       ],
       "dimensionCalibrationScale": [
-        1.0026128192929702, 1.008914270382916, 1.0030591328575456
+        1.0026123721549305, 1.008914270382916, 1.001047976926261
       ],
-      "bytes": 113928,
+      "bytes": 111564,
       "path": "studies/logitech-g903-hero.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
-        "Side image perspective has not been camera-calibrated",
-        "Wheel and button details are not reconstructed"
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
       ],
       "orientation": {
         "up": "+Z",
@@ -1985,11 +1969,7 @@
           "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry",
-        "sideSources": [
-          "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-left-angle-gallery-2.png",
-          "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-right-angle-black-gallery-6.png"
-        ]
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
       "deliveredTexture": {
@@ -2029,26 +2009,27 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 159675.1032988183
+        "volumeMm3": 176374.77691979063
       },
       "dimensionsXYZmm": [
         62.00000271201134, 113.00000548362732, 38.00000250339508
       ],
       "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6,
       "uncalibratedDimensionsXYZmm": [
-        61.84295192360878, 112.00157552957535, 37.881598313106224
+        61.84315122663975, 112.00157552957535, 37.970175213274615
       ],
       "dimensionCalibrationScale": [
-        1.0025394660427143, 1.008914378799618, 1.0031255726306778
+        1.0025362351408234, 1.008914378799618, 1.0007854793020539
       ],
-      "bytes": 76852,
+      "bytes": 75064,
       "path": "studies/logitech-m100.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
         "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
         "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
-        "The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length"
+        "The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
       ],
       "orientation": {
         "up": "+Z",
@@ -2077,7 +2058,7 @@
           "sha256": "0414eb9aaee2a08143223af4f5758de9c7e9817fcfd31d015702a276a7b1ed3b",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
       "deliveredTexture": {
@@ -2117,25 +2098,27 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 135313.9959574343
+        "volumeMm3": 137525.08800341538
       },
       "dimensionsXYZmm": [
-        57.00000002980232, 94.69999372959137, 39.09999877214432
+        57.00000002980232, 94.69999372959137, 39.100002497434616
       ],
       "calibratedBboxRoundTripDifferenceMm": 6.270408633213265e-6,
       "uncalibratedDimensionsXYZmm": [
-        56.871164590120316, 93.86329352855682, 38.994334543531295
+        56.871164590120316, 93.86329352855682, 39.06819006664364
       ],
       "dimensionCalibrationScale": [
-        1.0022653907442942, 1.0089140966611045, 1.0027097643210388
+        1.0022653907442942, 1.0089140966611045, 1.0008142156906195
       ],
-      "bytes": 77380,
+      "bytes": 75284,
       "path": "studies/logitech-m325s.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
         "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
-        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Patterned side colourway provides silhouette only; charcoal top photo provides upper texture",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
       ],
       "orientation": {
         "up": "+Z",
@@ -2164,7 +2147,7 @@
           "sha256": "23f827a24b5f171a6fea092891fbc16c04ff09ff0c5959439f99795d468a24ef",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
       "deliveredTexture": {
@@ -2378,25 +2361,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 154982.99133346375
+        "volumeMm3": 158652.74936482793
       },
       "dimensionsXYZmm": [
         61.80000305175781, 107.19000548124313, 37.79999911785126
       ],
       "calibratedBboxRoundTripDifferenceMm": 5.481243135818659e-6,
       "uncalibratedDimensionsXYZmm": [
-        61.591072008013725, 106.24295473098755, 37.67302790947724
+        61.591072008013725, 106.24295473098755, 37.76472786069007
       ],
       "dimensionCalibrationScale": [
-        1.0033921798269574, 1.008913958308204, 1.0033703712594553
+        1.0033921798269574, 1.008913958308204, 1.0009339969147941
       ],
-      "bytes": 80340,
+      "bytes": 77644,
       "path": "studies/logitech-m750.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
-        "Side image perspective has not been camera-calibrated",
-        "Wheel and button details are not reconstructed"
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
       ],
       "orientation": {
         "up": "+Z",
@@ -2425,100 +2409,13 @@
           "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
-      }
-    },
-    {
-      "slug": "logitech-mx-ergo-s",
-      "model": "MX Ergo S",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-1.png",
-          "file": "logitech-mx-ergo-s/top.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "ae1db59ffcf58af7ac912f67b897ca0bdec788d0d2bc6cd1f5fccf8ba22581bf",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-4.png",
-          "file": "logitech-mx-ergo-s/right.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "bff67d8653bf9994e8b6d63e8797cf17781dcb03f8ed9fea758fd89cfc3b09ab",
-          "viewHint": "right"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 355546.24955461075
-      },
-      "dimensionsXYZmm": [
-        99.8000018298626, 132.50000774860382, 51.40000581741333
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 7.748603820800781e-6,
-      "uncalibratedDimensionsXYZmm": [
-        99.60416704416275, 131.32929801940918, 51.1179547465872
-      ],
-      "dimensionCalibrationScale": [
-        1.0019661120779255, 1.0089142483683862, 1.005517537914242
-      ],
-      "bytes": 99940,
-      "path": "studies/logitech-mx-ergo-s.glb",
-      "limitations": [
-        "No working official 360 asset found",
-        "Cross-sections interpolated between traced outlines",
-        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
-        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
-      ],
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          1.000000018992262, 1.000000053981568, 1.0000000317736832
-        ]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-1.png",
-          "file": "logitech-mx-ergo-s/top.png",
-          "width": 1600,
-          "height": 1374,
-          "mode": "P",
-          "sha256": "ae1db59ffcf58af7ac912f67b897ca0bdec788d0d2bc6cd1f5fccf8ba22581bf",
-          "viewHint": "top"
-        },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
-      },
-      "groundErrorMm": 0.0,
-      "deliveredTexture": {
-        "format": "JPEG",
-        "maxResolution": 512,
-        "maps": 2
       }
     },
     {
@@ -2552,25 +2449,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 228241.94135230983
+        "volumeMm3": 238753.78853980565
       },
       "dimensionsXYZmm": [
-        74.30000603199005, 121.8000054359436, 44.199999421834946
+        74.30000603199005, 121.8000054359436, 44.200003147125244
       ],
       "calibratedBboxRoundTripDifferenceMm": 6.031990054111702e-6,
       "uncalibratedDimensionsXYZmm": [
-        74.12109524011612, 120.72384357452393, 43.96591447584797
+        74.12109524011612, 120.72384357452393, 44.16398205705718
       ],
       "dimensionCalibrationScale": [
-        1.0024136820874585, 1.0089141994954107, 1.0053242500910706
+        1.0024136820874585, 1.0089141994954107, 1.0008155501670182
       ],
-      "bytes": 80868,
+      "bytes": 77344,
       "path": "studies/logitech-signature-comfort-plus-m850l.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
-        "Side image perspective has not been camera-calibrated",
-        "Wheel and button details are not reconstructed"
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
       ],
       "orientation": {
         "up": "+Z",
@@ -2599,7 +2497,7 @@
           "sha256": "0ae590a9b5d4c09eb3487d7f2fe8f5d6281ce47df99bb7b7bbbb9c5ca65c1103",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
       "deliveredTexture": {
@@ -2617,6 +2515,10 @@
     {
       "slug": "logitech-signature-comfort-m840l",
       "reason": "M840L: no top-down photo"
+    },
+    {
+      "slug": "logitech-mx-ergo-s",
+      "reason": "only front-oblique side photos; study was not recognisable"
     }
   ],
   "hand": {
@@ -2660,7 +2562,7 @@
     "calibratedBboxRoundTripDifferenceMm": "Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy",
     "silhouetteIoU": "In-sample comparison with the same reference views used for reconstruction; not independent validation"
   },
-  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Ten gallery projections remain approximate. Two catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
+  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Eight gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
   "orientationConvention": {
     "blender": "Z up, nose +Y, ground Z=0",
     "gltf": "Y up, nose -Z, ground Y=0"

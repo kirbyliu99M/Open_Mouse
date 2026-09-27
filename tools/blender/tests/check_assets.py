@@ -28,7 +28,14 @@ def main():
             bpy.data.objects.remove(obj, do_unlink=True)
         print("FIXTURE_OK", params["id"], flush=True)
     target = HERE.parent.parent / "public/models"
-    manifest = json.loads((target / "manifest.json").read_text())
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    by_slug = {entry["slug"]: entry for entry in manifest["shells"] + manifest.get("studies", [])}
+    for entry in by_slug.values():
+        if "aliasOf" in entry:
+            source = by_slug[entry["aliasOf"]]
+            assert entry["path"] == source["path"], entry["slug"]
+            assert entry["dimensionsXYZmm"] == source["dimensionsXYZmm"], entry["slug"]
+            assert entry["bytes"] == source["bytes"], entry["slug"]
     for entry in [*manifest["shells"], *manifest.get("studies", []), {"slug": "hand", "path": "hand.glb"}]:
         slug = entry["slug"]
         path = target / entry["path"]

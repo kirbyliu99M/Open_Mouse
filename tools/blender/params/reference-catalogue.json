@@ -409,18 +409,6 @@
   },
   {
     "brand": "Logitech",
-    "model": "MX Ergo S",
-    "lengthMm": 132.5,
-    "widthMm": 99.8,
-    "heightMm": 51.4,
-    "weightG": 164,
-    "warnings": [],
-    "connectivity": "wireless",
-    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
-    "retrievedAt": "2026-09-27T10:06:40.898Z"
-  },
-  {
-    "brand": "Logitech",
     "model": "ERGO M575S",
     "lengthMm": 134,
     "widthMm": 100,

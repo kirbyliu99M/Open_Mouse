@@ -12,7 +12,9 @@ FIELDS = ("lengthMm", "widthMm", "heightMm")
 NO_SHELL = {
     "logitech-mobi-fold": "Mobi Fold: only a folded side photo exists",
     "logitech-signature-comfort-m840l": "M840L: no top-down photo",
+    "logitech-mx-ergo-s": "only front-oblique side photos; study was not recognisable",
 }
+ALIASES = {"logitech-ergo-m575s": "logitech-ergo-m575"}
 
 
 def slug(record: dict) -> str:
@@ -30,17 +32,21 @@ def entries(records: list[dict]) -> dict[str, tuple]:
     return result
 
 
-def check(seed: list[dict], reference: list[dict]) -> None:
+def check(seed: list[dict], reference: list[dict], aliases: dict[str, str] = ALIASES,
+          no_shell: dict[str, str] = NO_SHELL) -> None:
     seeded, referenced = entries(seed), entries(reference)
-    expected_missing = NO_SHELL.keys() & seeded.keys()
+    expected_missing = no_shell.keys() & seeded.keys()
     if seeded.keys() - referenced.keys() != expected_missing or any(
         seeded[key] != referenced[key] for key in seeded.keys() & referenced.keys()
-    ) or referenced.keys() - seeded.keys():
-        missing = sorted(seeded.keys() - referenced.keys() - NO_SHELL.keys())
+    ) or referenced.keys() - seeded.keys() or no_shell.keys() - (seeded.keys() - referenced.keys()):
+        missing = sorted(seeded.keys() - referenced.keys() - no_shell.keys())
         extra = sorted(referenced.keys() - seeded.keys())
         dimensions = sorted(key for key in seeded.keys() & referenced.keys() if seeded[key] != referenced[key])
-        stale_exemptions = sorted(expected_missing - (seeded.keys() - referenced.keys()))
+        stale_exemptions = sorted(no_shell.keys() - (seeded.keys() - referenced.keys()))
         raise ValueError(f"Catalogue mismatch: missing={missing}, extra={extra}, dimensions={dimensions}, staleNoShell={stale_exemptions}")
+    for alias, source in aliases.items():
+        if alias not in seeded or source not in seeded or seeded[alias] != seeded[source]:
+            raise ValueError(f"Invalid alias dimensions or seed entry: {alias} -> {source}")
 
 
 if __name__ == "__main__":
