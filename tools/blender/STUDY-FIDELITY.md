@@ -278,6 +278,94 @@ Reproducible local inventory: `out/phase_a_inventory.py`; per-study
 `out/ar-candidates/<slug>/inventory-files.json` records every actual file and
 resolution, and `inventory-*.png` contains the inspected contact sheets.
 
+### B1 — G903 Hero and M750
+
+**Blocked at Step 1 on 2026-09-28; no reconstruction or calibration performed.**
+Kirby's B1 brief requires every source-to-catalogue axis scale to be within
+0.97–1.03 and the scales to differ by no more than 2%. Both assets fail.
+Dimensions and scales below are in **W / L / H** order (Blender X / Y / Z).
+
+| Asset       | Raw dimensions (mm)                | Catalogue dimensions (mm) | Required calibration scales (not applied) | Scale spread, max/min − 1 | Result                                        |
+| ----------- | ---------------------------------- | ------------------------- | ----------------------------------------- | ------------------------- | --------------------------------------------- |
+| G903 Hero   | 72.858803 / 142.634690 / 44.776070 | 67 / 130 / 40             | 0.919587 / 0.911419 / 0.893334            | 2.938718%                 | All axes outside 0.97–1.03; spread exceeds 2% |
+| M750 medium | 60.589999 / 107.614987 / 38.281003 | 61.8 / 107.19 / 37.8      | 1.019970 / 0.996051 / 0.987435            | 3.294938%                 | Individual axes pass; spread exceeds 2%       |
+
+The absolute max-minus-min scale differences are also above 0.02:
+**0.026253** for G903 and **0.032535** for M750. Thus the result does not
+depend on interpreting the 2% limit as a relative ratio or percentage-point
+difference. Catalogue dimensions are targets only; no calibrated shell exists
+from this run.
+
+Inspection used Blender **5.2.2 LTS / Python 3.13.13**, importing the exact
+Phase A GLBs without modifying their transforms. Bounds use every actual vertex
+after its world transform, not object bounding-box corners. Isolated top and
+hero renders identify the parts; the descriptions below are visual observations.
+
+G903's five meshes:
+
+| Object / mesh  | Source material | Individual W / L / H bbox (mm)     | Observed geometry                           |
+| -------------- | --------------- | ---------------------------------- | ------------------------------------------- |
+| Node1 / Mesh_2 | Material1       | 70.212148 / 96.085224 / 43.891995  | Main buttons, side buttons and wheel pieces |
+| Node2 / Mesh_3 | Material2       | 72.858803 / 140.617877 / 44.776070 | Rear upper shell and chassis/base geometry  |
+| Node3 / Mesh_4 | Material2       | 37.887165 / 37.887259 / 4.004106   | Circular fitted underside puck/cover        |
+| Node4 / Mesh_0 | Material3       | 70.209384 / 132.616937 / 35.382203 | Inner shell/base surfaces                   |
+| Node5 / Mesh_1 | Material4       | 39.174447 / 80.557773 / 29.497342  | Centre/front wheel surround and trim        |
+
+**No non-body part explains the G903 discrepancy.** Node2 sets both width
+extrema, both height extrema and the positive-Y length extremum. Node5 sets
+the negative-Y length extremum. Node3 is wholly within those bounds; excluding
+it leaves **72.858803 / 142.634690 / 44.776070 mm** unchanged. There is no
+external cable, dongle, stand or detached weight in the inspected assembly.
+All five imported objects have the same uniform 0.01 world scale. The oversize
+belongs to the assembled body, rather than a removable accessory; why the
+source body differs from the catalogue remains unresolved. No part was excluded,
+no cable trim was added, and no uniform or per-axis correction was applied.
+
+M750 medium's eight meshes all use source **Material1**:
+
+| Object / source mesh | Individual W / L / H bbox (mm)     | Observed geometry                        |
+| -------------------- | ---------------------------------- | ---------------------------------------- |
+| Node1 / Mesh_0       | 58.674002 / 96.657995 / 32.391999  | Inner upper shell surface                |
+| Node5 / Mesh_1       | 16.219000 / 24.991004 / 24.989999  | Wheel                                    |
+| Node9 / Mesh_2       | 58.809998 / 73.493997 / 6.518996   | Lower/base panel                         |
+| Node13 / Mesh_3      | 56.215998 / 107.614987 / 27.951003 | Outer upper shell and main buttons       |
+| Node17 / Mesh_4      | 50.455997 / 80.419995 / 36.423000  | Feet, underside details and side buttons |
+| Node21 / Mesh_5      | 60.356997 / 41.613999 / 13.371000  | Rear lower/base panel                    |
+| Node25 / Mesh_6      | 60.589999 / 98.573998 / 28.342000  | Side shell/grips                         |
+| Node29 / Mesh_7      | 15.618000 / 51.718993 / 25.541000  | Centre wheel/button surround             |
+
+M750 has no external accessory explaining its mismatch. Node25 sets width,
+Node13 sets length and upper height, and Node17's feet set lower height.
+All imported object world transforms are identity. The medium asset alone was
+inspected; the large asset was not used. Source names above are read from the
+GLB JSON; Blender added `.001` to some imported datablock names because G903
+datablocks remained loaded in the inspection process.
+
+Local ignored evidence:
+
+- `out/b1_inspect.py`: import-only measurements and isolated-part renders.
+- `out/study-fidelity/b1/logitech-g903-hero-inspection.json` and
+  `logitech-m750-inspection.json`: full-precision bounds, transforms, materials,
+  triangle counts and leave-one-mesh-out bounds, plus source SHA256 hashes.
+- [G903 part inspection sheet](out/study-fidelity/b1/logitech-g903-hero-parts.png)
+  and [M750 part inspection sheet](out/study-fidelity/b1/logitech-m750-parts.png):
+  complete source followed by isolated meshes, at top and hero views. These are
+  diagnostic sheets, not the requested old-study/new-shell comparison sheets.
+- `out/study-fidelity/b1/byte-identical.json`: **35/35** tracked GLBs under
+  `public/models/` compared byte-for-byte with HEAD; **0 changed**, **0 extra**.
+
+**Not run because of the Step 1 hard stop:** source registration, limited-view
+list edits, capture/reconstruction/finish/compare/polish, packaging, optimisation,
+and the Step 4 Python, Blender, catalogue, payload and optimisation gates.
+No new-shell triangles, topology, support margin, silhouettes, baked maps,
+512 px JPEG sizes or delivered GLB sizes are claimed. The requested four-view
+comparison sheets (`b1/<slug>.png`, including G703/M650) were not generated
+because there are no new shells. Both committed studies, all other packaged
+assets, manifest and validation remain unchanged. Only this report is committed;
+all inspection helpers and images remain under ignored `out/`. Prettier is
+checked for this report using `npx.cmd`. B2 and B3 were not started. The scale
+mismatch needs adjudication before B1 can resume; neither threshold was relaxed.
+
 ## Decisions
 
 | Date       | Decision                                                                                                                                           | By     |
@@ -291,6 +379,17 @@ resolution, and `inventory-*.png` contains the inspected contact sheets.
 | 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json` | Claude |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B1 stopped at the Step 1 scale gate.** Imported and
+  inspected G903's five meshes and M750 medium's eight meshes, including
+  materials, world-space bounds and isolated-part renders. G903's fitted puck
+  does not affect its bbox; the assembled body requires scales
+  **0.919587 / 0.911419 / 0.893334** (relative spread **2.938718%**).
+  M750 medium requires **1.019970 / 0.996051 / 0.987435** (spread **3.294938%**).
+  No justified non-body exclusion fixes either mismatch. No pipeline or asset
+  edits; **35/35 GLBs byte-identical to HEAD**. Results above record the blocker
+  and local inspection evidence. Downstream generation, comparison sheets and
+  gates were not run; B2/B3 not started. This commit records the blocker only.
 
 - 2026-09-28 Claude: audited Phase A. Downloads, sizes and hashes match the
   sidecars. M750 medium matches the catalogue (107.6 × 60.6 × 38.3 mm raw vs
