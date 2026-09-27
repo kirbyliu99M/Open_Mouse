@@ -425,6 +425,19 @@ outputs, recorded the evidence below and committed the assets.
   smooth lofts. Both wheel recesses bake dark, the same limitation as MX Master
   4 and the other AR shells. **Kirby's visual acceptance is pending.**
 
+### Step 0 ? reviewer fixes before B2
+
+Source alpha and metallic emission overrides now live in a restoring per-channel
+context: BaseColour retains blended source alpha; Roughness, Normal and Metallic
+use opaque sources regardless of channel order. A tiny synthetic cover-over-part
+Blender regression measures **0.000000** roughness through transparency versus
+**0.800000** with the opaque cover, and checks restoration after Normal, Metallic
+and BaseColour. Source-calibration arithmetic is pure and tested with identity
+and non-self-inverse `[1, 2, 0]` axis permutations. Removed the dead side-projection
+loop without changing its effective fallback behaviour. The payload generator
+now derives classifications/counts from the manifest and sizes from actual GLBs;
+it no longer requires stale local study snapshots.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -447,6 +460,13 @@ outputs, recorded the evidence below and committed the assets.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: Step 0 reviewer fixes implemented before B2. Python unit
+  discovery: 33 tests, 8 Blender-only skips; TypeScript: 9 passed; Blender alpha:
+  1 passed, orientation: 4 passed, colour sampling: 3 passed. Catalogue, payload
+  and optimisation checks passed. Full asset gate: `ALL_ASSET_CHECKS_PASSED`; prettier passed for
+  `tools/blender` and `public/models`. **35/35 GLBs byte-identical** to starting
+  commit `5bf18ad`; zero changed. No published asset generation was invoked.
 
 - 2026-09-28 Claude: Sonnet reviewer verdict on `origin/m4a-eight-new-shells..b5c7456`: **approve with fixes**. No blockers or hard-rule violations; 5 of 5 numeric spot checks matched. Should-fix items: (1) the opaque-source mutation in `bake_refinement.py` depends on channel order and is untested; (2) this Scope table was stale (fixed here); (3) `PAYLOAD-AUDIT.md` still counts 8 studies; (5) `reconstruct_views.py` `sourceCalibration` has no unit test; nit: dead `side_sources` loop in `polish_reconstruction.py`. Items 1, 3 and 5 and the nit go to Codex before B2. (4) Governance: Claude committed Codex's B1 assets after Codex hit its usage limit. This is flagged to Kirby.
 

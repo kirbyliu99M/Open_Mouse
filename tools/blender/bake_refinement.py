@@ -1,9 +1,43 @@
 """Bake high-resolution source appearance onto the reconstructed topology."""
 import math
+from contextlib import contextmanager
 import bpy
 from mathutils import Matrix
 from asset_utils import activate,material
 from color_reconstruction import source_surface
+
+@contextmanager
+def source_channel(objects, channel):
+    """Use composite alpha only for colour; restore sources after every channel."""
+    saved=[]
+    try:
+        for mat in {m for obj in objects for m in obj.data.materials if m}:
+            nodes=mat.node_tree.nodes;links=mat.node_tree.links
+            shader=next(n for n in nodes if n.type=='BSDF_PRINCIPLED')
+            alpha=shader.inputs['Alpha']
+            output=next(n for n in nodes if n.type=='OUTPUT_MATERIAL').inputs['Surface']
+            saved.append((mat,alpha,alpha.default_value,
+                          [link.from_socket for link in alpha.links],output,
+                          [link.from_socket for link in output.links],None))
+            if channel!='BaseColour':
+                for link in list(alpha.links):links.remove(link)
+                alpha.default_value=1
+            if channel=='Metallic':
+                emission=nodes.new('ShaderNodeEmission')
+                saved[-1]=saved[-1][:-1]+(emission,)
+                socket=shader.inputs['Metallic']
+                if socket.is_linked:links.new(socket.links[0].from_socket,emission.inputs['Color'])
+                else:emission.inputs['Color'].default_value=(socket.default_value,)*3+(1,)
+                links.new(emission.outputs[0],output)
+        yield
+    finally:
+        for mat,alpha,value,alpha_links,output,output_links,emission in saved:
+            links=mat.node_tree.links
+            for socket,original in ((alpha,alpha_links),(output,output_links)):
+                for link in list(socket.links):links.remove(link)
+                for source in original:links.new(source,socket)
+            alpha.default_value=value
+            if emission is not None:mat.node_tree.nodes.remove(emission)
 
 def bake_materials(mesh,record,calibration,folder,resolution=2048):
     tree,verts,tris,samples,objects=source_surface(record,calibration)
@@ -33,26 +67,8 @@ def bake_materials(mesh,record,calibration,folder,resolution=2048):
         image=bpy.data.images.new(record['slug']+'_'+channel,width=resolution,height=resolution)
         if channel!='BaseColour':image.colorspace_settings.name='Non-Color'
         receiver.image=image
-        if channel=='Roughness':
-            # Colour keeps the blended composite (MX Master 4's clear button
-            # covers over darker plastic). Roughness and normals belong to the
-            # outer surface; baked through Cycles transparency they read near 0
-            # and leave mirror patches, so bake them with sources opaque.
-            for source_mat in {m for obj in objects for m in obj.data.materials if m}:
-                alpha=next(n for n in source_mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED').inputs['Alpha']
-                for link in list(alpha.links):source_mat.node_tree.links.remove(link)
-                alpha.default_value=1
-        if channel=='Metallic':
-            # Emission bake transfers scalar metallic maps without lighting.
-            for source_mat in {m for obj in objects for m in obj.data.materials if m}:
-                node=next(n for n in source_mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
-                output=next(n for n in source_mat.node_tree.nodes if n.type=='OUTPUT_MATERIAL')
-                emission=source_mat.node_tree.nodes.new('ShaderNodeEmission')
-                socket=node.inputs['Metallic']
-                if socket.is_linked:source_mat.node_tree.links.new(socket.links[0].from_socket,emission.inputs['Color'])
-                else:emission.inputs['Color'].default_value=(socket.default_value,)*3+(1,)
-                source_mat.node_tree.links.new(emission.outputs[0],output.inputs['Surface'])
-        bpy.ops.object.bake(type=bake_type)
+        with source_channel(objects,channel):
+            bpy.ops.object.bake(type=bake_type)
         image.filepath_raw=str(folder/(channel+'.png'));image.file_format='PNG';image.save();image.pack();images[channel]=image
     for channel,socket in [('BaseColour','Base Color'),('Roughness','Roughness'),('Metallic','Metallic')]:
         node=mat.node_tree.nodes.new('ShaderNodeTexImage');node.image=images[channel]

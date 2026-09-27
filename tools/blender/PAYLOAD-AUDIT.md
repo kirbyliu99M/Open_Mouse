@@ -87,25 +87,48 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 | logitech-pebble-2-m350s           | 203,580 |
 | logitech-pop-mouse                | 323,548 |
 
-## Current catalogue after independent review (2026-09-27)
+## Current catalogue (generated from manifest)
 
-The manifest has 27 shell entries (26 source-derived shells and one M575S alias), 8 limited-view studies, and 3 NO_SHELL entries. The alias points to the M575 GLB, so 35 distinct GLBs including the hand are published. They total **7,533,076 bytes (7.18 MiB)**, including **4,058,711 image bytes** across 88 JPEG maps. The 26 source-derived GLBs and SE, M550, and M705 study GLBs are byte-identical to the prior build.
+The manifest has 29 shell entries (28 source-derived shells and 1 alias), 6 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,057,128 bytes (7.68 MiB)**, including **4,453,807 image bytes** across 90 JPEG maps.
 
-MX Ergo S has no shell: only front-oblique side photos were available and its study was not recognisable. M575S is a candidate shape alias of ERGO M575 because their published dimensions are both 134 × 100 × 48 mm. Its manifest entry uses `shells/logitech-ergo-m575.glb` without publishing a second file.
+Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
-### Lowest base Z by length tenth
+| Model                                 | Classification     | Delivered file                                      |   Bytes |
+| ------------------------------------- | ------------------ | --------------------------------------------------- | ------: |
+| logitech-ergo-m575                    | AR-derived shell   | `shells/logitech-ergo-m575.glb`                     | 240,712 |
+| logitech-g-pro-2-lightspeed           | AR-derived shell   | `shells/logitech-g-pro-2-lightspeed.glb`            | 298,712 |
+| logitech-g-pro-x-superlight-2         | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2.glb`          | 302,612 |
+| logitech-g-pro-x-superlight-2-dex     | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-dex.glb`      | 295,228 |
+| logitech-g-pro-x-superlight-2c        | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2c.glb`         | 311,696 |
+| logitech-g203-lightsync               | AR-derived shell   | `shells/logitech-g203-lightsync.glb`                | 219,512 |
+| logitech-g305-lightspeed              | AR-derived shell   | `shells/logitech-g305-lightspeed.glb`               | 157,032 |
+| logitech-g309                         | AR-derived shell   | `shells/logitech-g309.glb`                          | 393,416 |
+| logitech-g403-hero                    | AR-derived shell   | `shells/logitech-g403-hero.glb`                     | 192,348 |
+| logitech-g502-hero                    | AR-derived shell   | `shells/logitech-g502-hero.glb`                     | 251,940 |
+| logitech-g502-x                       | AR-derived shell   | `shells/logitech-g502-x.glb`                        | 346,560 |
+| logitech-g502-x-lightspeed            | AR-derived shell   | `shells/logitech-g502-x-lightspeed.glb`             | 301,524 |
+| logitech-g502-x-plus                  | AR-derived shell   | `shells/logitech-g502-x-plus.glb`                   | 267,616 |
+| logitech-g703-lightspeed              | AR-derived shell   | `shells/logitech-g703-lightspeed.glb`               | 198,948 |
+| logitech-g903-hero                    | AR-derived shell   | `shells/logitech-g903-hero.glb`                     | 385,136 |
+| logitech-lift-vertical                | AR-derived shell   | `shells/logitech-lift-vertical.glb`                 | 261,156 |
+| logitech-m190                         | AR-derived shell   | `shells/logitech-m190.glb`                          | 260,380 |
+| logitech-m196                         | AR-derived shell   | `shells/logitech-m196.glb`                          | 255,260 |
+| logitech-m240                         | AR-derived shell   | `shells/logitech-m240.glb`                          | 210,324 |
+| logitech-m650                         | AR-derived shell   | `shells/logitech-m650.glb`                          | 322,536 |
+| logitech-m720-triathlon               | AR-derived shell   | `shells/logitech-m720-triathlon.glb`                | 240,392 |
+| logitech-m750                         | AR-derived shell   | `shells/logitech-m750.glb`                          | 323,264 |
+| logitech-mx-anywhere-3s               | AR-derived shell   | `shells/logitech-mx-anywhere-3s.glb`                | 190,876 |
+| logitech-mx-master-3s                 | AR-derived shell   | `shells/logitech-mx-master-3s.glb`                  | 202,760 |
+| logitech-mx-master-4                  | AR-derived shell   | `shells/logitech-mx-master-4.glb`                   | 287,868 |
+| logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 179,812 |
+| logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
+| logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |
+| logitech-ergo-m575s                   | Shell alias        | `shells/logitech-ergo-m575.glb`                     | 240,712 |
+| logitech-g-pro-x-superlight-2-se      | Limited-view study | `studies/logitech-g-pro-x-superlight-2-se.glb`      |  81,464 |
+| logitech-m100                         | Limited-view study | `studies/logitech-m100.glb`                         |  76,416 |
+| logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
+| logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         |  79,044 |
+| logitech-m705-marathon                | Limited-view study | `studies/logitech-m705-marathon.glb`                |  80,568 |
+| logitech-signature-comfort-plus-m850l | Limited-view study | `studies/logitech-signature-comfort-plus-m850l.glb` |  77,344 |
 
-Values are millimetres in Blender desk coordinates, rear to nose. Each value is the lowest decoded GLB mesh vertex in that length tenth. The five changed studies have a flat base within 0.021 mm after Draco quantisation. SE, M550, and M705 retain their prior GLBs.
-
-| Study                        | Before (mm, rear → nose)                                             | After (mm, rear → nose)                                              |
-| ---------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| m100                         | 8.172, 6.030, 4.607, 3.442, 2.585, 1.714, 0.657, 0.064, 0.000, 0.822 | 0.001, 0.005, 0.002, 0.006, 0.006, 0.002, 0.006, 0.005, 0.001, 0.000 |
-| g903-hero                    | 6.422, 4.327, 3.577, 3.286, 2.087, 0.872, 0.179, 0.000, 0.179, 1.200 | 0.000, 0.004, 0.006, 0.001, 0.006, 0.001, 0.005, 0.001, 0.014, 0.000 |
-| signature-comfort-plus-m850l | 3.134, 0.761, 0.128, 0.000, 0.030, 0.275, 0.827, 1.396, 1.867, 2.850 | 0.000, 0.018, 0.006, 0.002, 0.007, 0.006, 0.006, 0.001, 0.000, 0.000 |
-| m750                         | 0.648, 0.004, 0.002, 0.163, 0.110, 0.261, 0.564, 0.000, 0.000, 0.590 | 0.000, 0.004, 0.001, 0.020, 0.001, 0.006, 0.001, 0.014, 0.004, 0.000 |
-| m325s                        | 0.575, 0.001, 0.020, 0.487, 0.449, 0.448, 0.461, 0.122, 0.000, 0.077 | 0.001, 0.005, 0.006, 0.021, 0.001, 0.005, 0.001, 0.005, 0.004, 0.000 |
-| g-pro-x-superlight-2-se      | 0.000, 0.015, 0.005, 0.001, 0.071, 0.073, 0.008, 0.001, 0.000, 0.221 | 0.000, 0.015, 0.005, 0.001, 0.071, 0.073, 0.008, 0.001, 0.000, 0.221 |
-| m550                         | 0.651, 0.000, 0.004, 0.127, 0.124, 0.214, 0.556, 0.001, 0.000, 0.582 | 0.651, 0.000, 0.004, 0.127, 0.124, 0.214, 0.556, 0.001, 0.000, 0.582 |
-| m705-marathon                | 0.923, 0.266, 0.011, 0.000, 0.080, 0.252, 0.534, 0.796, 1.039, 1.438 | 0.923, 0.266, 0.011, 0.000, 0.080, 0.252, 0.534, 0.796, 1.039, 1.438 |
-
-The five before/after top, left, right, and back sheets and `combined.png` are in the review scratchpad `new-shells-v3/`. The Logitech gallery photos remain outside the repository.
+`logitech-ergo-m575s` aliases `logitech-ergo-m575`; shape identity remains a candidate assumption.

@@ -78,23 +78,13 @@ def polish(slug):
         mesh.data.materials.append(mat)
         base=material('Matte underside',(.012,.014,.016),.7);mesh.data.materials.append(base)
         side=material('Matched matte side',GALLERY_COLOURS[slug],.58);mesh.data.materials.append(side)
-        side_sources={}
-        side_materials={}
-        for direction,filename in side_sources.items():
-            side_mat=material('Gallery side '+str(direction),GALLERY_COLOURS[slug],.58)
-            side_shader=next(n for n in side_mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
-            side_texture=side_mat.node_tree.nodes.new('ShaderNodeTexImage')
-            side_texture.image=bpy.data.images.load(str(OUT/slug/'textures'/filename));side_texture.image.pack()
-            side_mat.node_tree.links.new(side_texture.outputs['Color'],side_shader.inputs['Base Color'])
-            side_materials[direction]=len(mesh.data.materials);mesh.data.materials.append(side_mat)
         uv=mesh.data.uv_layers.new(name='GalleryProjection')
         for polygon in mesh.data.polygons:
-            direction=-1 if polygon.normal.x<0 else 1
-            polygon.material_index=1 if polygon.normal.z<-.35 else (side_materials.get(direction,2) if polygon.normal.z<.5 else 0)
+            polygon.material_index=1 if polygon.normal.z<-.35 else (2 if polygon.normal.z<.5 else 0)
             for loop,idx in zip(polygon.loop_indices,polygon.vertices):
                 co=mesh.data.vertices[idx].co
-                uv.data[loop].uv=(co.y/length+.5,co.z/height) if polygon.material_index in side_materials.values() else (co.x/width+.5,.5-co.y/length)
-        report['textureRefinement']={'method':'Model-specific top-gallery image projected onto upper shell; matched matte sides and underside'+(' with side-photo projection' if side_sources else ''),'approximate':True,'source':report['source'][0],'limitation':'Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry'}
+                uv.data[loop].uv=(co.x/width+.5,.5-co.y/length)
+        report['textureRefinement']={'method':'Model-specific top-gallery image projected onto upper shell; matched matte sides and underside','approximate':True,'source':report['source'][0],'limitation':'Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry'}
     dims=np.array([record['widthMm'],record['lengthMm'],record['heightMm']])/1000
     report['orientation']=orient(mesh,slug,dims)
     mesh['orientation']='Base on Z=0; buttons up; nose +Y; glTF maps up to +Y and nose to -Z'

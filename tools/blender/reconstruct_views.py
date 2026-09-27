@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 from skimage.measure import marching_cubes
+from source_calibration import source_calibration
 
 
 def reconstruct(path, spacing=.00045, closing=1):
@@ -70,12 +71,9 @@ def reconstruct(path, spacing=.00045, closing=1):
         "status":"reference-derived review mesh; silhouette and detail review pending"}
     # This source calibration precedes carving. finish_reconstruction records
     # its separate, post-smoothing dimensionCalibrationScale as before.
-    source_dimensions = np.asarray(calibration['referenceOriginalDimensions'])[calibration['sourceAxisPermutation']]
-    report['sourceCalibration'] = {
-        'uncalibratedDimensionsXYZmm': (source_dimensions*1000).tolist(),
-        'dimensionCalibrationScale': (target/source_dimensions).tolist(),
-        'cableTrim': calibration.get('cableTrim'),
-    }
+    report['sourceCalibration'] = source_calibration(
+        calibration['referenceOriginalDimensions'],calibration['sourceAxisPermutation'],
+        target.tolist(),calibration.get('cableTrim'))
     (destination/"reconstruction.json").write_text(json.dumps(report,indent=2)+"\n")
     print("RECONSTRUCTED",calibration["slug"],len(vertices),len(faces),flush=True)
 
