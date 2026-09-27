@@ -423,6 +423,14 @@ outputs, recorded the evidence below and committed the assets.
   smooth lofts. Both wheel recesses bake dark, the same limitation as MX Master
   4 and the other AR shells. **Kirby's visual acceptance is pending.**
 
+## Open issues (candidates for Phase C)
+
+| #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                   | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side                                                            |
+| O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate |
+| O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                  | None required; recorded for review                                                                                                                             |
+
 ## Decisions
 
 | Date       | Decision                                                                                                                                                                                                                                                  | By     |
