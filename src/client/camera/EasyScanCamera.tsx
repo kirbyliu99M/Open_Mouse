@@ -664,6 +664,7 @@ export default function EasyScanCamera({
           file,
           hand: handChipRef.current.hand,
           handExplicit: handChipRef.current.locked,
+          handednessFixInstruction: "tap the hand button below",
           gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null

@@ -341,8 +341,12 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
     } else {
       errors.push(checkLandmarkConfidence(0)!);
     }
-    const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
-    if (confidenceFailure) errors.push(confidenceFailure);
+    if (input.handedness) {
+      const confidenceFailure = checkLandmarkConfidence(
+        input.landmarkConfidence,
+      );
+      if (confidenceFailure) errors.push(confidenceFailure);
+    }
   }
 
   if (!markerFailure) {
@@ -482,8 +486,12 @@ export function runPaperEdgeHandGates(
     } else {
       errors.push(checkLandmarkConfidence(0)!);
     }
-    const confidenceFailure = checkLandmarkConfidence(input.landmarkConfidence);
-    if (confidenceFailure) errors.push(confidenceFailure);
+    if (input.handedness) {
+      const confidenceFailure = checkLandmarkConfidence(
+        input.landmarkConfidence,
+      );
+      if (confidenceFailure) errors.push(confidenceFailure);
+    }
     if (input.paperFound && input.paperCornersMm.length > 0) {
       const boundsFailure = checkHandInBounds(
         input.landmarksMm,

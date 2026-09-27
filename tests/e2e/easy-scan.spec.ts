@@ -1,6 +1,81 @@
 import { expect, test } from "@playwright/test";
 import { checkHandDetected } from "../../src/client/photo/gates";
 
+test("the in-sheet hand toggle reruns the same photo with an explicit hand and updates the sheet", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    if (!media?.getUserMedia) return;
+    const original = media.getUserMedia.bind(media);
+    let calls = 0;
+    Object.defineProperty(window, "__cameraStartCount", {
+      get: () => calls,
+    });
+    media.getUserMedia = (...args) => {
+      calls += 1;
+      return original(...args);
+    };
+  });
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  await expect(sheet).toContainText("Tap the hand button below.");
+  const before = await page.evaluate(
+    () =>
+      (window as Window & { __cameraStartCount?: number }).__cameraStartCount ??
+      0,
+  );
+  await sheet.locator(".easyHandChipInSheet").click();
+  await expect(sheet).toContainText("Hand choice updated.");
+  await expect(sheet).not.toContainText("Tap the hand button below.");
+  expect(
+    await page.evaluate(() => {
+      const calls = (
+        window as Window & {
+          __easyScanMismatchCalls?: Array<{
+            file: File;
+            hand: string;
+            handExplicit?: boolean;
+            handednessFixInstruction?: string;
+          }>;
+        }
+      ).__easyScanMismatchCalls;
+      return {
+        count: calls?.length,
+        sameFile: calls?.[0]?.file === calls?.[1]?.file,
+        firstExplicit: calls?.[0]?.handExplicit,
+        secondExplicit: calls?.[1]?.handExplicit,
+        secondHand: calls?.[1]?.hand,
+        instruction: calls?.[0]?.handednessFixInstruction,
+      };
+    }),
+  ).toEqual({
+    count: 2,
+    sameFile: true,
+    firstExplicit: false,
+    secondExplicit: true,
+    secondHand: "left",
+    instruction: "tap the hand button below",
+  });
+  await expect(sheet.getByRole("button", { name: "Try again" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __cameraStartCount?: number })
+          .__cameraStartCount ?? 0,
+    ),
+  ).toBe(before);
+});
+
 test.describe("/scan/easy — no setup page, hand chip and first-run tip", () => {
   test("the tip and hand chip render immediately — no primer, no 'Turn on camera' click needed", async ({
     page,

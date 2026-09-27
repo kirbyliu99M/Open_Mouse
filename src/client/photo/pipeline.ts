@@ -134,6 +134,8 @@ export interface RunPhotoPipelineInput {
   readonly hand: "left" | "right";
   /** Easy scan leaves this false until the hand button is tapped. */
   readonly handExplicit?: boolean;
+  /** Wording for the mismatch fix available in this caller's UI. */
+  readonly handednessFixInstruction?: string;
   readonly gripStyleStated?: "palm" | "claw" | "fingertip";
   /** A user-dragged correction/override for the card's 4 corners. Printed-sheet only. */
   readonly manualCardCorners?: CardCorners;
@@ -461,7 +463,7 @@ async function runPaperEdgePipeline(
       hand.handedness,
       input.handExplicit !== false,
     ).stated,
-    handednessFixInstruction: "tap the hand button below",
+    handednessFixInstruction: input.handednessFixInstruction,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     paperCornersMm,
@@ -609,7 +611,7 @@ async function runUserLengthPipeline(
           ),
         ]
       : [checkLandmarkConfidence(0)]),
-    checkLandmarkConfidence(hand.confidence),
+    ...(hand.handedness ? [checkLandmarkConfidence(hand.confidence)] : []),
   ].filter(
     (failure): failure is NonNullable<typeof failure> => failure !== null,
   );

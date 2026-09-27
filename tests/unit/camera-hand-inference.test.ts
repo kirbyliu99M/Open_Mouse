@@ -55,8 +55,11 @@ describe("easy-scan hand chip state", () => {
     expect(report.errors.map((error) => error.code)).toContain(
       "LOW_LANDMARK_CONFIDENCE",
     );
+    expect(
+      report.errors.filter((error) => error.code === "LOW_LANDMARK_CONFIDENCE"),
+    ).toHaveLength(1);
   });
-  it("shows the below-sheet hand instruction for a paper-edge mismatch", () => {
+  it("uses the supplied fix instruction for a paper-edge mismatch", () => {
     const chip = toggleHandChip(INITIAL_HAND_CHIP_STATE);
     const resolved = resolvePipelineHand(chip.hand, "right", chip.locked);
     const report = runPaperEdgeHandGates({
