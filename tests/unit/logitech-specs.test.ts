@@ -78,6 +78,80 @@ describe("parseLogitechDimensions", () => {
   });
 });
 
+describe("AXIS_OVERRIDES", () => {
+  const MOBI_FOLD_URL = "https://www.logitech.com/en-us/shop/p/mobi-fold-mouse";
+  const MX_ERGO_S_URL =
+    "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse";
+
+  it("axis override: Mobi Fold's own page labels Height/Depth the opposite of every other logitech.com page — its override maps Height→height and Depth→length", () => {
+    const html = page(
+      facet("Mobi Fold"),
+      facet("Height", "1.3 in (33 mm)"),
+      facet("Width", "2.24 in (57 mm)"),
+      facet("Depth", "4.8 in (122 mm)"),
+      facet("Weight", "2.79 oz (79 g)"),
+    );
+    expect(parseLogitechDimensions(html, MOBI_FOLD_URL)).toEqual({
+      lengthMm: 122,
+      widthMm: 57,
+      heightMm: 33,
+      weightG: 79,
+    });
+  });
+
+  it("without an override, the same Height/Depth facets keep the default logitech.com mapping (Height→length, Depth→height)", () => {
+    // Same facet names and header shape as the Mobi Fold fixture above, but a
+    // URL not present in AXIS_OVERRIDES — proves the override is keyed to
+    // that one page, not a global change to how Height/Depth are read.
+    const html = page(
+      facet("Some Other Mouse"),
+      facet("Height", "1.3 in (33 mm)"),
+      facet("Width", "2.24 in (57 mm)"),
+      facet("Depth", "4.8 in (122 mm)"),
+      facet("Weight", "2.79 oz (79 g)"),
+    );
+    expect(parseLogitechDimensions(html, CONSUMER_URL)).toEqual({
+      lengthMm: 33,
+      widthMm: 57,
+      heightMm: 122,
+      weightG: 79,
+    });
+  });
+
+  it("weight-group override: MX Ergo S's weight sits in a later group ('without metal plate'), past where the default parser would stop", () => {
+    const html = page(
+      facet("Mouse"),
+      facet("Height", "5.22 in (132.5 mm)"),
+      facet("Width", "3.93 in (99.8 mm)"),
+      facet("Depth", "2.02 in (51.4 mm)"),
+      facet("Mouse (without metal plate/without receiver)"),
+      facet("Weight", "5.78 oz (164 g)"),
+      facet("Mouse (with metal plate/without receiver)"),
+      facet("Weight", "9.14 oz (259 g)"),
+    );
+    expect(parseLogitechDimensions(html, MX_ERGO_S_URL)).toEqual({
+      lengthMm: 132.5,
+      widthMm: 99.8,
+      heightMm: 51.4,
+      weightG: 164, // not 259 — the "with metal plate" group's weight
+    });
+  });
+
+  it("without a weight-group override, a page still stops at the second group (no regression for every other page)", () => {
+    const html = page(
+      facet("Mouse"),
+      facet("Height", "5.22 in (132.5 mm)"),
+      facet("Width", "3.93 in (99.8 mm)"),
+      facet("Depth", "2.02 in (51.4 mm)"),
+      facet("Mouse (without metal plate/without receiver)"),
+      facet("Weight", "5.78 oz (164 g)"),
+    );
+    const d = parseLogitechDimensions(html, CONSUMER_URL);
+    expect(d.lengthMm).toBe(132.5);
+    expect(d.weightG).toBeNull(); // stopped before the second group's weight
+  });
+});
+
 describe("dimensionWarnings", () => {
   it("accepts a normal mouse and a vertical one", () => {
     expect(
