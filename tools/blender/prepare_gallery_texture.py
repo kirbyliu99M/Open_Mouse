@@ -8,9 +8,8 @@ from scipy import ndimage
 from reconstruct_gallery import CHOICES
 HERE=Path(__file__).resolve().parent
 PALETTES={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
-          'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),
-          'logitech-signature-comfort-plus-m850l':(.06,.065,.07),
-          'logitech-g903-hero':(.025,.027,.03)}
+          'logitech-m325s':(.045,.05,.055),
+          'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
 parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()
 for slug,files in CHOICES.items():
     if args.model and slug not in args.model.split(','):continue
@@ -39,22 +38,3 @@ for slug,files in CHOICES.items():
     folder=HERE/'out/polished'/slug/'textures';folder.mkdir(parents=True,exist_ok=True)
     Image.fromarray(crop).save(folder/'GalleryTop.png')
     (folder/'gallery-projection.json').write_text(json.dumps({'source':str(path.relative_to(HERE)),'cropPixels':[int(xx.min()),int(yy.min()),int(xx.max()+1),int(yy.max()+1)],'warning':'Photographic top projection; lighting remains in image, unseen sides inferred'},indent=2))
-    if slug=='logitech-g903-hero':
-        side=np.array(Image.open(HERE/'out/reference-library'/slug/files[1]).convert('RGBA'))
-        alpha=side[:,:,3]>180
-        labels,n=ndimage.label(alpha);sizes=np.bincount(labels.ravel());sizes[0]=0;alpha=labels==sizes.argmax()
-        sy,sx=np.where(alpha)
-        cropped=side[sy.min():sy.max()+1,sx.min():sx.max()+1,:3].copy()
-        mask=alpha[sy.min():sy.max()+1,sx.min():sx.max()+1]
-        indices=ndimage.distance_transform_edt(~mask,return_distances=False,return_indices=True)
-        cropped[~mask]=cropped[tuple(indices[:,~mask])]
-        Image.fromarray(cropped).save(folder/'GalleryLeft.png')
-        if slug=='logitech-g903-hero':
-            side=np.array(Image.open(HERE/'out/reference-library'/slug/'right.png').convert('RGBA'))
-            alpha=side[:,:,3]>180
-            labels,n=ndimage.label(alpha);sizes=np.bincount(labels.ravel());sizes[0]=0;alpha=labels==sizes.argmax()
-            sy,sx=np.where(alpha);cropped=side[sy.min():sy.max()+1,sx.min():sx.max()+1,:3].copy()
-            mask=alpha[sy.min():sy.max()+1,sx.min():sx.max()+1]
-            indices=ndimage.distance_transform_edt(~mask,return_distances=False,return_indices=True)
-            cropped[~mask]=cropped[tuple(indices[:,~mask])]
-            Image.fromarray(cropped).save(folder/'GalleryRight.png')

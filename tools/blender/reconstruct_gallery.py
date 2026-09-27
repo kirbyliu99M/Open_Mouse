@@ -17,10 +17,8 @@ CHOICES={
  'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
- 'logitech-m750':('top.png','right.png'),
  'logitech-m325s':('top.png','extra-4.png'),
  'logitech-signature-comfort-plus-m850l':('top.png','left.png'),
- 'logitech-g903-hero':('top.png','left.png'),
 }
 TRUE_SIDE_STUDIES = {
  'logitech-g-pro-x-superlight-2-se', 'logitech-m550', 'logitech-m705-marathon',

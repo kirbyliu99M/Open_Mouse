@@ -13,14 +13,12 @@ sys.path.insert(0,str(HERE))
 from color_reconstruction import LIB,REBUILT
 from asset_utils import export_glb,validate_mesh,dimensions_mm,material
 OUT=HERE/'out/polished'
-REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','g-pro-x-superlight-2-se','m100','m550','m705-marathon'}
+REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','g-pro-x-superlight-2-se','m100','m550','m705-marathon','g903-hero','m750'}
 GALLERY_STUDIES={'logitech-g-pro-x-superlight-2-se','logitech-m100','logitech-m550','logitech-m705-marathon',
-                 'logitech-m750','logitech-m325s','logitech-signature-comfort-plus-m850l',
-                 'logitech-g903-hero'}
+                 'logitech-m325s','logitech-signature-comfort-plus-m850l'}
 GALLERY_COLOURS={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
-                 'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),
-                 'logitech-signature-comfort-plus-m850l':(.06,.065,.07),
-                 'logitech-g903-hero':(.025,.027,.03)}
+                 'logitech-m325s':(.045,.05,.055),
+                 'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
 
 def orient(mesh,slug,dimensions):
     rotation=Matrix.Rotation(math.pi if slug.removeprefix('logitech-') in REVERSE else 0,4,'Z')
@@ -81,12 +79,6 @@ def polish(slug):
         base=material('Matte underside',(.012,.014,.016),.7);mesh.data.materials.append(base)
         side=material('Matched matte side',GALLERY_COLOURS[slug],.58);mesh.data.materials.append(side)
         side_sources={}
-        if slug=='logitech-g903-hero':
-            side_sources[-1]='GalleryLeft.png'
-            if slug=='logitech-g903-hero':
-                side_sources[1]='GalleryRight.png'
-                right_source=next(image for image in record['images'] if Path(image['file']).name=='right.png')
-                if right_source not in report['source']:report['source'].append(right_source)
         side_materials={}
         for direction,filename in side_sources.items():
             side_mat=material('Gallery side '+str(direction),GALLERY_COLOURS[slug],.58)

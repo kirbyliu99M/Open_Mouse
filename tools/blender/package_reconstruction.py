@@ -56,6 +56,7 @@ def main():
             'uncalibratedDimensionsXYZmm':record['uncalibratedDimensionsXYZmm'],'dimensionCalibrationScale':record['dimensionCalibrationScale'],
             'bytes':path.stat().st_size,'path':('studies/' if study else 'shells/')+path.name})
         if study:results[-1]['limitations']=record['limitations']
+        if 'sourceCalibration' in record:results[-1]['sourceCalibration']=record['sourceCalibration']
         if args.colored:
             results[-1]['colourVerification']=record['colourVerification']
             from asset_utils import glb_json
@@ -103,7 +104,10 @@ def main():
         shutil.copy2(ROOT/result['slug']/(result['slug']+'.glb'),destination)
     for slug in (*NO_SHELL.keys(),*ALIASES.keys()):
         (PUBLIC/'studies'/(slug+'.glb')).unlink(missing_ok=True)
-    report={'status':'visual-review-pending','galleryImageCount':658,'fullRotationReferenceModels':26,'viewsPerRotation':26,
+    source_count=sum(r['status']=='reference-derived-review' for r in results)
+    study_count=sum(r['status']=='limited-view-study' for r in results)
+    alias_count=sum(bool(r.get('aliasOf')) for r in results)
+    report={'status':'visual-review-pending','galleryImageCount':658,'fullRotationReferenceModels':source_count,'viewsPerRotation':26,
         'shells':[r for r in results if r['status'] in {'reference-derived-review','source-shell-alias'}],
         'studies':[r for r in results if r['status']=='limited-view-study'],
         'noShell':[{'slug':slug,'reason':reason} for slug,reason in NO_SHELL.items()],
@@ -113,7 +117,7 @@ def main():
     bpy.context.window.scene=review
     studio(review,1.5,1.3)
     title=label('OPEN_MOUSE / POLISHED CATALOGUE' if args.polished else 'OPEN_MOUSE / REFERENCE REBUILD',-.70,.60,.015)
-    caption=label('Base down / nose +Y / 26 baked materials + 8 gallery studies + 1 alias' if args.polished else '26 source reconstructions + 8 limited-view studies + 1 alias',-.70,.575,.007)
+    caption=label(f'Base down / nose +Y / {source_count} baked materials + {study_count} gallery studies + {alias_count} alias' if args.polished else f'{source_count} source reconstructions + {study_count} limited-view studies + {alias_count} alias',-.70,.575,.007)
     if args.polished:
         title.location.z=caption.location.z=.0005
         review.camera.location=(0,-1.4,1.9)
@@ -122,7 +126,7 @@ def main():
         bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.0001))
         plane=bpy.context.object;plane.name='Desk surface';plane.data.materials.append(material('Desk',(.025,.033,.044),.8))
         report['orientationConvention']={'blender':'Z up, nose +Y, ground Z=0','gltf':'Y up, nose -Z, ground Y=0'}
-        report['note']='Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Eight gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.'
+        report['note']=f'Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. {study_count} gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.'
         write_pretty_json(PUBLIC/'manifest.json', report)
     bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'catalogue-review.blend'))
     print('PACKAGED',len(results),'MAX_BBOX_ERROR_MM',max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),flush=True)

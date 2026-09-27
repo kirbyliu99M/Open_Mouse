@@ -44,12 +44,12 @@ texture decoder extension. These files still use Draco geometry, which needs
 its own decoder in the viewer.
 
 The retained studies added 2026-09-27 use official Logitech CDN gallery photos.
-G903 Hero projects both left and right photos for its ambidextrous side
-button markings. These details are surface projections on a single lofted body,
-not separately sculpted components. M325s uses its patterned `extra-4.png`
+G903 Hero and M750 medium now use official AR sources through the full
+reconstruction and material-bake pipeline. Their per-axis source calibration
+to catalogue dimensions was approved by Kirby on 2026-09-28. M325s uses its patterned `extra-4.png`
 only for the side silhouette; its charcoal top photo supplies texture. M100
 uses `top.png` and low side `extra-2.png`, with the cord excluded from the
-contours and a local nose taper. M100, M750, M325s, M850L, and G903 Hero have
+contours and a local nose taper. M325s and M850L have
 their oblique-photo base contours flattened to Z=0 along the length before
 L/W/H calibration. Mobi Fold, M840L, and MX Ergo S have verified dimensions
 in the app seed but intentionally have no shell. MX Ergo S has only front-oblique

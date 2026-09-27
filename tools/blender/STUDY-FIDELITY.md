@@ -280,7 +280,9 @@ resolution, and `inventory-*.png` contains the inspected contact sheets.
 
 ### B1 — G903 Hero and M750
 
-**Blocked at Step 1 on 2026-09-28; no reconstruction or calibration performed.**
+**Initial Step 1 inspection, 2026-09-28 (blocker subsequently waived by Kirby).**
+The findings below describe the first run. Per-axis calibration is now explicitly
+approved for these two assets only; see Decisions and the continuation below.
 Kirby's B1 brief requires every source-to-catalogue axis scale to be within
 0.97–1.03 and the scales to differ by no more than 2%. Both assets fail.
 Dimensions and scales below are in **W / L / H** order (Blender X / Y / Z).
@@ -354,7 +356,7 @@ Local ignored evidence:
 - `out/study-fidelity/b1/byte-identical.json`: **35/35** tracked GLBs under
   `public/models/` compared byte-for-byte with HEAD; **0 changed**, **0 extra**.
 
-**Not run because of the Step 1 hard stop:** source registration, limited-view
+**Historical first-run stop (before Kirby's waiver):** source registration, limited-view
 list edits, capture/reconstruction/finish/compare/polish, packaging, optimisation,
 and the Step 4 Python, Blender, catalogue, payload and optimisation gates.
 No new-shell triangles, topology, support margin, silhouettes, baked maps,
@@ -365,6 +367,34 @@ assets, manifest and validation remain unchanged. Only this report is committed;
 all inspection helpers and images remain under ignored `out/`. Prettier is
 checked for this report using `npx.cmd`. B2 and B3 were not started. The scale
 mismatch needs adjudication before B1 can resume; neither threshold was relaxed.
+
+#### B1 continuation after the scale waiver
+
+Resumed from `3a7c0f4` after `git pull --ff-only`. Registered the exact G903
+and **medium** M750 GLBs in their local `sources.json`, retaining all photos and
+other metadata. Removed both models from gallery-study lists and projections.
+The AR top views plus their camera matrices establish both noses at source ?Y;
+`REVERSE` now rotates each 180 degrees about Z into catalogue +Y without a
+reflection. A Blender regression test checks nose direction and handedness.
+
+Both 26-view captures, 0.45 mm depth/silhouette reconstructions, finishing and
+same-camera comparisons completed. Each finished mesh has **14,000 triangles**,
+**0 non-manifold edges, 0 degenerate faces, 0 non-adjacent intersection pairs**.
+Mean / worst silhouette IoU: **0.9893 / 0.9869** for G903, **0.9930 / 0.9885**
+for M750. Bbox-normalized independent gallery top IoU: **0.983662 / 0.992292**.
+Full-precision evidence is in each ignored `out/reconstructed/<slug>/` report.
+The source-to-catalogue scales are retained separately under `sourceCalibration`;
+the existing `dimensionCalibrationScale` still records the subsequent
+post-smoothing reconstruction correction. This avoids conflating the two stages.
+
+The first reconstruction command found `skimage` missing in this worktree.
+Copied the existing pinned offline dependency directory into local ignored
+`out/python-deps/`, then reran successfully; no network package download or
+shared writable dependency folder. Blender runs use 5.2.2 / Python 3.13.13;
+standalone image-analysis commands use the installed `python` (3.12.10).
+Bakes, packaging, delivered-asset checks and final contact sheets remain pending
+at this checkpoint. No public asset has changed yet. No push attempted;
+Claude will audit and push the local commits.
 
 ## Decisions
 
@@ -380,6 +410,14 @@ mismatch needs adjudication before B1 can resume; neither threshold was relaxed.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B1 resumed under Kirby's scale waiver (`3a7c0f4`).**
+  Registered both AR sources, removed gallery routing, reconstructed and finished
+  both 14k meshes with clean topology, and measured 26-view silhouette agreement.
+  Confirmed both source noses need a Z half-turn, preserving handedness.
+  Captures and reconstruction evidence stay local; bakes and final packaging
+  are in progress. This checkpoint contains pipeline routing and evidence
+  changes only. Commits remain local for Claude's audit/push.
 
 - 2026-09-28 Claude: pushed Codex's `3f2a292` (sandbox push has no GitHub credentials). Kirby waived the B1 scale stop for G903 and M750 (Decisions). B1 resumes from Step 2.
 
