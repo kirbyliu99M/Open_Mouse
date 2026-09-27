@@ -216,6 +216,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-25 | The camera flow borrows TONALITE's documented principles, not its screens | Public reviews describe its step-by-step flow and QR-sticker fiducials but not the capture UI; our ArUco markers play the stickers' role. |
 | 2026-09-27 | **Catalogue grows 30 → 38**: M750, M325s, Mobi Fold, M850L, M840L, MX Ergo S, ERGO M575S, G903 Hero | Kirby's call, from a PChome Taiwan shelf check plus a first-party spec read. Descriptors pending; the dated Size-gate figure (27/30) covers only the original 30 — the 8 new rows are unmeasured |
 | 2026-09-27 | **R8: Blender assets are published** (open-source project); **no medical claims** anywhere | Kirby's call. Logitech trademarks and source 3D models are not covered by the project licence — note it in the asset README |
+| 2026-09-27 | **New-mouse shells**: Mobi Fold, M840L and MX Ergo S get no shell (`NO_SHELL`); ERGO M575S aliases the ERGO M575 shell; oblique-photo studies get a flat base, with the resulting boxy lower edge accepted for now | Kirby: drop Mobi Fold and M840L, fix the rest, "fine for now". Only folded, front-oblique or no top photos exist for the three. The M575S alias rests on identical published dimensions — shape not independently verified |
 ---
 
 ## Risks
