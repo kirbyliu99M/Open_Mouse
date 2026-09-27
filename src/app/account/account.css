@@ -1,0 +1,54 @@
+.account-unavailable {
+  background: #e7f0fd;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-top: 1.5rem;
+}
+.account-unavailable p {
+  margin: 0 0 0.5rem;
+}
+.account-unavailable a,
+.account-empty-link {
+  color: #0a64e0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+.account .journey-top-bar {
+  margin-bottom: 2rem;
+}
+.account dialog.dialog {
+  border: 0;
+  margin: auto;
+  animation: none;
+}
+.account dialog.dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.account dialog.dialog:focus {
+  outline: none;
+}
+.account dialog.dialog button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+  .account-unavailable {
+    background: #17395f;
+  }
+  .account-unavailable a,
+  .account-empty-link {
+    color: #a8ceff;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .account dialog.dialog::backdrop {
+    background: #000;
+  }
+}
+@media (prefers-contrast: more) {
+  .account-unavailable,
+  .account dialog.dialog {
+    border: 2px solid currentColor;
+  }
+}

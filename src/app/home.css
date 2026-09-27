@@ -1,0 +1,120 @@
+.home-main {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 5rem;
+}
+.home-main h1 {
+  margin: 0.8rem 0 1rem;
+}
+.home-status,
+.home-intro,
+.home-privacy {
+  color: #55555d;
+}
+.home-status {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.home-intro {
+  font-size: clamp(1.1rem, 3vw, 1.35rem);
+  margin: 0 0 2rem;
+}
+.home-steps {
+  background: #fff;
+  border-radius: 1rem;
+  list-style: none;
+  margin: 0 0 1.75rem;
+  padding: 1.25rem;
+  display: grid;
+  gap: 1.2rem;
+}
+.home-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+.home-steps li > span {
+  flex: 0 0 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e7f0fd;
+  color: #0a64e0;
+  font-weight: 700;
+}
+.home-steps strong {
+  font-size: 1.05rem;
+}
+.home-steps p {
+  margin: 0.1rem 0 0;
+  color: #55555d;
+}
+.home-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+.home-actions a {
+  display: grid;
+  place-items: center;
+  min-height: 3.25rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.7rem;
+  text-decoration: none;
+  font-weight: 600;
+  text-align: center;
+}
+.home-actions a:active,
+.home-account:active {
+  opacity: 0.7;
+}
+.home-primary {
+  background: #0a64e0;
+  color: #fff;
+}
+.home-secondary {
+  background: #fff;
+  border: 1px solid #d5d5dc;
+  color: #0a64e0;
+}
+.home-privacy {
+  text-align: center;
+  margin: 1.5rem 0 0.75rem;
+}
+.home-account {
+  display: grid;
+  place-items: center;
+  min-height: 2.75rem;
+  color: #0a64e0;
+  text-align: center;
+}
+.home-main a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+  .home-status,
+  .home-intro,
+  .home-privacy,
+  .home-steps p {
+    color: #b5b5bd;
+  }
+  .home-steps,
+  .home-secondary {
+    background: #242426;
+  }
+  .home-steps li > span {
+    background: #17395f;
+    color: #a8ceff;
+  }
+  .home-secondary,
+  .home-account {
+    color: #a8ceff;
+  }
+}
+@media (prefers-contrast: more) {
+  .home-steps,
+  .home-secondary {
+    border: 2px solid currentColor;
+  }
+}

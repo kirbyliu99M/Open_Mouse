@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  analyse,
-  buildPrompt,
-  LOW_CONFIDENCE_THRESHOLD,
-} from "../../src/server/analysis/analyse";
+import { analyse, buildPrompt } from "../../src/server/analysis/analyse";
+import { REASON_CODES } from "../../src/lib/contracts/fit";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { FakeTextModel } from "../../src/server/analysis/client";
 import { slugify } from "../../src/server/catalogue/seed-rows";
@@ -58,9 +55,81 @@ describe("analyse — no-new-numerals rule", () => {
   it("path 1: accepts a clean answer with only numbers from the input", async () => {
     const input = inputFor();
     const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(output.headline).toBe("A strong match for your hand.");
     expect(client.calls).toHaveLength(1);
+  });
+
+  it("accepts presented values and rejects an invented percent", async () => {
+    const fit = makeFit({
+      results: [{ ...makeEntry(), confidence: 0.7575757575757576 }],
+    });
+    const input = buildAnalysisInput(
+      fit,
+      makeMeasurements({ handLengthMm: 180.456 }),
+    );
+    const answer = (whyTopPick: string) =>
+      JSON.stringify({
+        headline: "A strong match for your hand.",
+        whyTopPick,
+        tradeoffs: [],
+        whatToAvoid: [],
+        caveats: [],
+      });
+    const client = new FakeTextModel({
+      answer: (_args, index) =>
+        index === 0
+          ? answer("Confidence is 77% and your hand is 180.5 mm long.")
+          : answer("Confidence is 76% and your hand is 180.5 mm long."),
+    });
+    const { output, source } = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(output.whyTopPick).toContain("76%");
+    expect(source).toBe("model");
+  });
+
+  it("keeps every slug, every reason code and the engine version out of the prompt data", () => {
+    const fit = makeFit();
+    const prompt = buildPrompt(buildAnalysisInput(fit, makeMeasurements()));
+    const data = prompt.split("Data:\n")[1]!;
+    expect(data).not.toContain(fit.engineVersion);
+    for (const slug of [
+      ...fit.results.map((r) => r.mouse.slug),
+      ...fit.excluded.map((e) => e.slug),
+    ]) {
+      expect(data).not.toContain(slug);
+    }
+    for (const code of REASON_CODES) {
+      expect(data).not.toContain(`"${code}"`);
+    }
+    expect(data).toContain("Fit settings have not yet been validated");
+    expect(data).toContain("its length matches your hand well");
+    expect(prompt).toContain("Never mention internal identifiers");
+  });
+
+  it("describes each exclusion in the same terms as the results page", () => {
+    const fit = makeFit({
+      excluded: [
+        {
+          slug: "logitech-lift-vertical",
+          brand: "Logitech",
+          model: "Lift Vertical",
+          reason: "vertical_form_factor",
+        },
+        {
+          slug: "logitech-lift-left",
+          brand: "Logitech",
+          model: "Lift Left",
+          reason: "wrong_hand",
+        },
+      ],
+    });
+    const data = buildPrompt(buildAnalysisInput(fit, makeMeasurements())).split(
+      "Data:\n",
+    )[1]!;
+    expect(data).toContain("vertical shape, excluded from this comparison");
+    expect(data).toContain("doesn't fit your handedness");
+    expect(data).not.toContain("scored separately");
   });
 
   it("path 2: retries once, naming the violation, then accepts the corrected answer", async () => {
@@ -76,7 +145,7 @@ describe("analyse — no-new-numerals rule", () => {
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(output.headline).toBe("A strong match for your hand.");
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("130");
@@ -93,7 +162,7 @@ describe("analyse — no-new-numerals rule", () => {
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => badAnswer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     // The fallback never quotes 130 — it's built purely from reason codes.
     expect(output.headline).toBe(
@@ -107,20 +176,38 @@ describe("analyse — no-new-numerals rule", () => {
     const client = new FakeTextModel({
       answer: () => JSON.stringify({ oops: true }),
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(output.headline).toContain("top match");
   });
 });
 
 describe("analyse — low confidence", () => {
-  it("the prompt says descriptors are provisional when confidence is below the threshold", () => {
+  it("the instructions (not just the data) say descriptors are provisional at low confidence", () => {
     const input = inputFor(0.4);
-    expect(input.topPicks[0]!.confidence).toBeLessThan(
-      LOW_CONFIDENCE_THRESHOLD,
-    );
-    const prompt = buildPrompt(input);
-    expect(prompt).toMatch(/provisional/i);
+    expect(input.topPicks[0]!.lowConfidence).toBe(true);
+    const instructions = buildPrompt(input).split("\n\nData:")[0]!;
+    expect(instructions).toMatch(/provisional/i);
+  });
+
+  it("does not accept the copied ranking-status sentence as the low-confidence caveat", async () => {
+    const input = inputFor(0.4);
+    // Whatever sentence the prompt actually shows the model, verbatim.
+    const shown = JSON.parse(buildPrompt(input).split("Data:\n")[1]!) as {
+      rankingStatus: string;
+    };
+    expect(shown.rankingStatus).toBeTypeOf("string");
+    const copiedStatus = JSON.stringify({
+      headline: "A strong match.",
+      whyTopPick: "It fits.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [shown.rankingStatus],
+    });
+    const client = new FakeTextModel({ answer: () => copiedStatus });
+    const { source } = await analyse(input, client);
+    expect(client.calls).toHaveLength(2);
+    expect(source).toBe("fallback");
   });
 
   it("does not add the provisional instruction at high confidence", () => {
@@ -151,7 +238,7 @@ describe("analyse — low confidence", () => {
       answer: (_args, callIndex) =>
         callIndex === 0 ? missingCaveat : withCaveat,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(output.caveats.some((c) => /provisional/i.test(c))).toBe(true);
   });
@@ -168,7 +255,7 @@ describe("analyse — low confidence", () => {
           caveats: [],
         }),
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(output.caveats.some((c) => /provisional/i.test(c))).toBe(true);
   });
 });
@@ -190,7 +277,7 @@ describe("analyse — product-name exemption wired through the real call path", 
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => answer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(output.headline).toContain("G502 X");
     expect(client.calls).toHaveLength(1);
   });
@@ -205,7 +292,7 @@ describe("analyse — product-name exemption wired through the real call path", 
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => badAnswer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("68");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -223,7 +310,7 @@ describe("analyse — product-name exemption wired through the real call path", 
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => badAnswer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.5");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -240,7 +327,7 @@ describe("analyse — product-name exemption wired through the real call path", 
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => badAnswer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     // "G999" was never sent in the input, so its digits must still be
     // checked — the exemption only covers tokens that appear verbatim in
     // the input, not any letter-digit combination the model invents.
@@ -270,7 +357,7 @@ describe("analyse — product-name exemption wired through the real call path", 
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => badAnswer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     // Must NOT pass on the first attempt.
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("502");
@@ -297,7 +384,7 @@ describe("analyse — Change 2: ordinal vs. fraction, real call path", () => {
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     // Must NOT pass on the first attempt — it must retry, naming the
     // fraction value as the violation, then accept the corrected answer.
     expect(client.calls).toHaveLength(2);
@@ -322,7 +409,7 @@ describe("analyse — Change 2: ordinal vs. fraction, real call path", () => {
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.333");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -346,7 +433,7 @@ describe("analyse — Change 2: ordinal vs. fraction, real call path", () => {
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.333");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -363,7 +450,7 @@ describe("analyse — Change 2: ordinal vs. fraction, real call path", () => {
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => answer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(1);
     expect(output.whatToAvoid[0]).toContain("third pick");
   });
@@ -387,7 +474,7 @@ describe("analyse — Change 3: sentence-boundary punctuation as a token boundar
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.333");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -404,7 +491,7 @@ describe("analyse — Change 3: sentence-boundary punctuation as a token boundar
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => answer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(1);
     expect(output.whatToAvoid[0]).toBe("Consider the third pick instead.");
   });
@@ -419,7 +506,7 @@ describe("analyse — Change 3: sentence-boundary punctuation as a token boundar
       caveats: [],
     });
     const client = new FakeTextModel({ answer: () => answer });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(1);
     expect(output.headline).toBe("The G502 X suits your grip well.");
   });
@@ -444,7 +531,7 @@ describe("analyse — Change 4: Unicode sentence-boundary punctuation as a token
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.333");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
@@ -464,10 +551,111 @@ describe("analyse — Change 4: Unicode sentence-boundary punctuation as a token
       answer: (_args, callIndex) =>
         callIndex === 0 ? badAnswer : CLEAN_ANSWER,
     });
-    const output = await analyse(input, client);
+    const { output } = await analyse(input, client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("0.333");
     expect(client.calls[1]!.prompt).toContain("does not appear anywhere");
     expect(output.headline).toBe("A strong match for your hand.");
+  });
+});
+
+// Issue #28 acceptance criterion 1: `source` must be real, never inferred
+// from whether a key/client is configured. Every branch of `analyse()` is
+// exercised here for its `source`, on top of the existing `output` coverage
+// above.
+describe("analyse — source provenance (issue #28)", () => {
+  it('source is "model" when the first attempt is clean', async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const { output, source } = await analyse(input, client);
+    expect(source).toBe("model");
+    expect(output.headline).toBe("A strong match for your hand.");
+  });
+
+  it('source is "model" after a retry that fixes a numeral violation', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.",
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("model");
+  });
+
+  it('source is "fallback" when both attempts violate the no-new-numerals rule', async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.",
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("fallback");
+  });
+
+  it('source is "fallback" when both attempts fail schema validation', async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({
+      answer: () => JSON.stringify({ oops: true }),
+    });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("fallback");
+  });
+
+  it('source is "fallback" when both attempts return unparsable JSON', async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => "not json at all" });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("fallback");
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it('source is "fallback", and no network call is made, when client is null (no model configured)', async () => {
+    const input = inputFor();
+    const { output, source } = await analyse(input, null);
+    expect(source).toBe("fallback");
+    // The deterministic fallback, built purely from reason codes.
+    expect(output.headline).toBe(
+      "Logitech G Pro X Superlight 2 is the top match for your hand.",
+    );
+  });
+
+  it('a low-confidence answer that includes the provisional caveat still reports source "model"', async () => {
+    const input = inputFor(0.4);
+    const answer = JSON.stringify({
+      headline: "A likely match, though provisional.",
+      whyTopPick: "It fits.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [
+        "This ranking is provisional — some descriptors aren't classified yet.",
+      ],
+    });
+    const client = new FakeTextModel({ answer: () => answer });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("model");
+  });
+
+  it('source is never derived from key/client presence alone: a configured client that fails twice still reports "fallback"', async () => {
+    // A non-null client is provided (as if GEMINI_API_KEY were set and the
+    // call went through), yet every attempt is rejected — source must still
+    // be "fallback", proving it is not read off `client !== null`.
+    const input = inputFor();
+    const client = new FakeTextModel({
+      answer: () => JSON.stringify({ oops: true }),
+    });
+    const { source } = await analyse(input, client);
+    expect(client).not.toBeNull();
+    expect(source).toBe("fallback");
   });
 });

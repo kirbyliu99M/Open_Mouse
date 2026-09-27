@@ -29,10 +29,19 @@ export function parseCookieHeader(
   return out;
 }
 
-/** The session id from the request's Cookie header, or null if absent. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The session id from the request's Cookie header, or null if absent or not
+ * a UUID. Every id this app issues is a UUID (`scan_sessions.id`), so any
+ * other value is tampering or corruption — treated as "no cookie" rather
+ * than passed to Postgres, where a non-UUID makes the query throw (a 500
+ * instead of the contract's 404).
+ */
 export function readSessionCookie(header: string | null): string | null {
   const value = parseCookieHeader(header)[SCAN_SESSION_COOKIE];
-  return value && value.length > 0 ? value : null;
+  return value && UUID_PATTERN.test(value) ? value : null;
 }
 
 /** Set-Cookie value for a newly created session. No Max-Age — see above. */

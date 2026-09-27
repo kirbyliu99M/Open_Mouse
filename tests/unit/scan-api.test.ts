@@ -43,7 +43,7 @@ function createFakeRepo() {
     ),
     createAnonymousSession: vi.fn(
       async (expiresAt: Date): Promise<SessionRecord> => {
-        const id = `session-${++counter}`;
+        const id = `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
         sessions.set(id, { id, userId: null, expiresAt });
         return { id };
       },
@@ -74,6 +74,9 @@ function createFakeRepo() {
       }
       return removed;
     }),
+    // Not exercised here — covered against a real Postgres in
+    // tests/unit/rate-limit-db.test.ts (L2 hardening).
+    deleteEndedRateLimitWindows: vi.fn(async () => 0),
     claimSession: vi.fn(
       async (sessionId: string, userId: string, now: Date) => {
         const row = sessions.get(sessionId);
@@ -83,6 +86,12 @@ function createFakeRepo() {
         sessions.set(sessionId, { ...row, userId, expiresAt: null });
       },
     ),
+    // Not exercised by the scan-submission/session/expiry tests below —
+    // covered on its own in tests/unit/fit-service.test.ts and
+    // tests/unit/scan-ownership.test.ts. Kept here only so this fake keeps
+    // satisfying ScanRepo's shape.
+    findOwnedScan: vi.fn(async () => null),
+    deleteOwnedScan: vi.fn(async () => false),
   };
   return { repo, sessions, insertedScans };
 }
@@ -132,6 +141,7 @@ describe("POST /api/scans — valid submission", () => {
     });
 
     expect(res.status).toBe(201);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body.scanId).toEqual(expect.any(String));
 
@@ -152,6 +162,27 @@ describe("POST /api/scans — valid submission", () => {
         scaleCheckRatio: validSubmission.calibration.cardScaleRatio,
         measurements: expect.objectContaining({ handLengthMm: 180 }),
       }),
+    );
+  });
+
+  it("stores a null scale check for a plain-paper scan, which has no card", async () => {
+    const { repo } = createFakeRepo();
+    const res = await handleScanSubmission(
+      scanRequest({
+        ...validSubmission,
+        calibration: {
+          method: "paper-edge",
+          paperSize: "a4",
+          edgeFitResidualMm: 0.6,
+          minSideCoverage: 0.72,
+          parallaxCorrected: true,
+        },
+      }),
+      { repo },
+    );
+    expect(res.status).toBe(201);
+    expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
+      expect.objectContaining({ scaleCheckRatio: null }),
     );
   });
 
@@ -265,24 +296,82 @@ describe("POST /api/scans — oversized body", () => {
   });
 });
 
+describe("POST /api/scans — per-IP rate limit (M2 hardening)", () => {
+  it("429s with a no-store, user-facing error body when the limiter rejects the request, without creating a session or scan", async () => {
+    const { repo } = createFakeRepo();
+
+    const res = await handleScanSubmission(
+      scanRequest(validSubmission, {
+        "x-vercel-forwarded-for": "203.0.113.9",
+      }),
+      { repo, limiter: { allow: () => false } },
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = await res.json();
+    expect(typeof body.error).toBe("string");
+    expect(repo.createAnonymousSession).not.toHaveBeenCalled();
+    expect(repo.insertScanWithMeasurements).not.toHaveBeenCalled();
+  });
+
+  it("does not limit when the request carries no usable client IP (local dev)", async () => {
+    const { repo } = createFakeRepo();
+
+    const res = await handleScanSubmission(scanRequest(validSubmission), {
+      repo,
+      limiter: { allow: () => false },
+    });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("keys the limiter on the caller's IP (x-vercel-forwarded-for)", async () => {
+    const { repo } = createFakeRepo();
+    const seen: string[] = [];
+
+    await handleScanSubmission(
+      scanRequest(validSubmission, {
+        "x-vercel-forwarded-for": "203.0.113.9",
+      }),
+      {
+        repo,
+        limiter: {
+          allow: (key) => {
+            seen.push(key);
+            return true;
+          },
+        },
+      },
+    );
+
+    expect(seen).toEqual(["203.0.113.9"]);
+  });
+});
+
 describe("DELETE /api/scans/session", () => {
   it("deletes the caller's session and clears the cookie", async () => {
     const { repo, sessions } = createFakeRepo();
-    sessions.set("abc", {
-      id: "abc",
+    sessions.set("44444444-4444-4444-8444-444444444444", {
+      id: "44444444-4444-4444-8444-444444444444",
       userId: null,
       expiresAt: new Date(Date.now() + 1000),
     });
     const request = new Request("http://localhost/api/scans/session", {
       method: "DELETE",
-      headers: { cookie: `${SCAN_SESSION_COOKIE}=abc` },
+      headers: {
+        cookie: `${SCAN_SESSION_COOKIE}=44444444-4444-4444-8444-444444444444`,
+      },
     });
 
     const res = await handleSessionDelete(request, { repo });
 
     expect(res.status).toBe(204);
-    expect(repo.deleteSession).toHaveBeenCalledWith("abc");
+    expect(repo.deleteSession).toHaveBeenCalledWith(
+      "44444444-4444-4444-8444-444444444444",
+    );
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("is a no-op but still clears the cookie when there is no session cookie", async () => {
@@ -352,6 +441,24 @@ describe("GET /api/cron/expire-sessions — auth", () => {
     expect(res.status).toBe(200);
     expect(repo.deleteExpiredAnonymousSessions).toHaveBeenCalledTimes(1);
   });
+
+  it("also sweeps ended rate-limit windows and reports both counts (L2 hardening)", async () => {
+    const { repo } = createFakeRepo();
+    repo.deleteExpiredAnonymousSessions = vi.fn(async () => 3);
+    repo.deleteEndedRateLimitWindows = vi.fn(async () => 7);
+    const request = new Request("http://localhost/api/cron/expire-sessions", {
+      headers: { authorization: "Bearer secret" },
+    });
+
+    const res = await handleExpireSessions(request, {
+      repo,
+      cronSecret: "secret",
+    });
+
+    expect(res.status).toBe(200);
+    expect(repo.deleteEndedRateLimitWindows).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toEqual({ deleted: 3, rateLimitsDeleted: 7 });
+  });
 });
 
 describe("expiry query — anonymous sessions past expires_at", () => {
@@ -382,9 +489,15 @@ describe("expiry query — anonymous sessions past expires_at", () => {
 
 describe("scan session cookie", () => {
   it("round-trips a session id through Set-Cookie and Cookie headers", () => {
-    const setCookie = buildSessionCookie("session-123");
-    const cookieHeader = setCookie.split(";")[0]!;
-    expect(readSessionCookie(cookieHeader)).toBe("session-123");
+    const id = "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
+    const cookieHeader = buildSessionCookie(id).split(";")[0]!;
+    expect(readSessionCookie(cookieHeader)).toBe(id);
+  });
+
+  it("treats a non-UUID cookie value as no session, so it never reaches Postgres", () => {
+    for (const value of ["session-123", "abc", "' OR 1=1 --", "%E0%A4%A"]) {
+      expect(readSessionCookie(`${SCAN_SESSION_COOKIE}=${value}`)).toBeNull();
+    }
   });
 
   it.each([

@@ -6,6 +6,8 @@
  * answer.
  */
 import { Type } from "@google/genai";
+import type { AnalysisSource } from "../../lib/contracts/analysis";
+import type { ExclusionReason } from "../fit/exclusions";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
@@ -16,8 +18,19 @@ import {
   REASON_TEXT,
 } from "./reasonText";
 
-/** Confidence below this means real descriptors are missing for the ranking. */
-export const LOW_CONFIDENCE_THRESHOLD = 0.6;
+/** `analyse()`'s result: the prose plus who actually wrote it. */
+export interface AnalyseResult {
+  output: AnalysisOutput;
+  source: AnalysisSource;
+}
+
+/** Plain words for each exclusion, matching what the results page says
+ * (`EXCLUDED_REASON_LABELS`). A `Record` so a new reason cannot silently
+ * reuse another's text. */
+const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
+  wrong_hand: "doesn't fit your handedness",
+  vertical_form_factor: "vertical shape, excluded from this comparison",
+};
 
 const PROVISIONAL_NOTE =
   "This ranking is provisional: some shape descriptors it depends on are not classified yet.";
@@ -67,7 +80,48 @@ function collectExemptTokens(input: AnalysisInput): Set<string> {
 
 function isLowConfidence(input: AnalysisInput): boolean {
   const top = input.topPicks[0];
-  return top !== undefined && top.confidence < LOW_CONFIDENCE_THRESHOLD;
+  return top !== undefined && top.lowConfidence;
+}
+
+/** Only display facts go into the prompt; identifiers stay in the engine data. */
+function promptData(input: AnalysisInput) {
+  return {
+    rankingStatus: input.rankingProvisional
+      ? // Deliberately avoids the word "provisional": that word is what the
+        // low-confidence caveat check looks for, and copying this sentence
+        // must not satisfy it without saying descriptors are unclassified.
+        "Fit settings have not yet been validated against owner ratings."
+      : undefined,
+    gripStyle: input.gripStyle,
+    targets: input.targets,
+    hand: input.hand,
+    excluded: input.excluded.map(({ brand, model, reason }) => ({
+      brand,
+      model,
+      reason: EXCLUSION_TEXT[reason],
+    })),
+    topPicks: input.topPicks.map((entry) => ({
+      rank: entry.rank,
+      brand: entry.brand,
+      model: entry.model,
+      lengthMm: entry.lengthMm,
+      widthMm: entry.widthMm,
+      heightMm: entry.heightMm,
+      weightG: entry.weightG,
+      total: entry.total,
+      confidencePercent: entry.confidencePercent,
+      subscores: Object.fromEntries(
+        Object.entries(entry.subscores).map(([key, sub]) => [
+          key,
+          {
+            score: sub.score,
+            reason: REASON_TEXT[sub.reasonCode],
+            params: sub.params,
+          },
+        ]),
+      ),
+    })),
+  };
 }
 
 /**
@@ -82,13 +136,15 @@ export function buildPrompt(input: AnalysisInput): string {
     "- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number.",
     "- Be concise: a one-sentence headline, one sentence on why the top pick fits, up to 3 tradeoffs, up to 2 things to avoid, and any caveats.",
     "- Write plainly for someone who has not seen the JSON.",
+    "- Never mention internal identifiers, reason codes, or version strings. Describe the facts in plain language.",
+    "- If a grip style was stated, describe it as the user's choice, not a prediction.",
   ];
   if (isLowConfidence(input)) {
     lines.push(
-      `- The top pick's confidence is below ${LOW_CONFIDENCE_THRESHOLD}: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.`,
+      '- The top pick has low confidence: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.',
     );
   }
-  lines.push("", "Data:", JSON.stringify(input));
+  lines.push("", "Data:", JSON.stringify(promptData(input)));
   return lines.join("\n");
 }
 
@@ -178,7 +234,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
     .slice(0, 2)
     .map((t) => t[0]!.toUpperCase() + t.slice(1));
   const caveats: string[] = [];
-  if (top.confidence < LOW_CONFIDENCE_THRESHOLD) {
+  if (top.lowConfidence) {
     caveats.push(PROVISIONAL_NOTE);
   }
   return { headline, whyTopPick, tradeoffs, whatToAvoid, caveats };
@@ -189,22 +245,60 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
  * no-new-numerals rule. Retries once, naming the violation; a second
  * violation returns the deterministic fallback instead of ever surfacing
  * unverified model output.
+ *
+ * `client` is `null` when no model is configured (`createAnalysisModel`
+ * returned `null` — no `GEMINI_API_KEY`): this goes straight to the
+ * fallback and makes no network call.
+ *
+ * `source` in the returned `AnalyseResult` is `"model"` in exactly one
+ * place below — the branch where a model response was received, passed
+ * `analysisOutputSchema`, AND passed `findViolation`'s no-new-numerals
+ * check. Every other path (no model, JSON parse failure, schema failure,
+ * a numeral/provisional-caveat violation on both attempts) returns
+ * `buildFallbackOutput` with `source: "fallback"`. Never inferred from
+ * whether a key was configured — a keyed call can still fail or violate
+ * the rule and fall back, which is exactly what this function's retry
+ * loop exists to handle.
  */
 export async function analyse(
   input: AnalysisInput,
-  client: TextModel,
-): Promise<AnalysisOutput> {
+  client: TextModel | null,
+): Promise<AnalyseResult> {
+  if (client === null) {
+    return { output: buildFallbackOutput(input), source: "fallback" };
+  }
+
   const allowedNumbers = collectNumbers(input);
   const exemptTokens = collectExemptTokens(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const raw = await client.generate({
-      prompt,
-      schema: ANALYSIS_RESPONSE_SCHEMA,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-    });
+    let raw: string;
+    try {
+      raw = await client.generate({
+        prompt,
+        schema: ANALYSIS_RESPONSE_SCHEMA,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      });
+    } catch (error) {
+      // The call itself failed — an API error, a timeout, the network. The
+      // retry loop below exists for a response that came back unusable; a
+      // failed call is not fixed by rephrasing the prompt, so stop and give
+      // the reader the deterministic answer instead of an error. Before this
+      // guard, one rejected request config turned every analysis into a 500.
+      // Log the status only. The SDK puts the whole API response body in
+      // `error.message`, and a response that echoes the request could carry
+      // hand measurements into logs that outlive the 24-hour promise.
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? String((error as { status: unknown }).status)
+          : "none";
+      console.error(
+        `analysis model call failed (status ${status}); serving the fallback`,
+      );
+      return { output: buildFallbackOutput(input), source: "fallback" };
+    }
 
     let parsed: unknown;
     try {
@@ -227,9 +321,9 @@ export async function analyse(
       allowedNumbers,
       exemptTokens,
     );
-    if (violation === null) return result.data;
+    if (violation === null) return { output: result.data, source: "model" };
     prompt = retryPrompt(basePrompt, violation);
   }
 
-  return buildFallbackOutput(input);
+  return { output: buildFallbackOutput(input), source: "fallback" };
 }

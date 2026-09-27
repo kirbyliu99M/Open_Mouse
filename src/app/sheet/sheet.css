@@ -1,4 +1,4 @@
-/*
+﻿/*
  * globals.css has an unscoped `main { max-width: 44rem; margin: 18vh auto;
  * padding: 0 1.5rem; }` meant for the marketing-style home page. At print
  * time that 18vh top+bottom margin alone is ~53 mm on A4 — enough to push
@@ -23,9 +23,6 @@
   display: flex;
   justify-content: center;
   padding: 2rem 1rem 4rem;
-  /* A narrow flex container would otherwise flex-shrink the SVG below its
-   * true 210mm width (flex items shrink by default) — that's rescaling
-   * exactly as unwanted on screen (e.g. a phone preview) as in print. */
   overflow-x: auto;
 }
 
@@ -53,4 +50,109 @@
 @page {
   size: auto;
   margin: 0;
+}
+
+/* The screen preview fits its container; the print rule below restores physical size. */
+@media screen {
+  .sheetMain {
+    padding: 2rem 1.5rem 4rem;
+  }
+  .instructions {
+    margin-bottom: 1.25rem;
+    padding: 0;
+  }
+  .instructions h1 {
+    margin: 1rem 0 1.5rem;
+  }
+  .sheet-callout {
+    background: #e7f0fd;
+    border-radius: 0.9rem;
+    padding: 1.25rem;
+  }
+  .sheet-callout h2 {
+    color: #0a64e0;
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .sheet-callout p {
+    margin: 0.5rem 0 0;
+  }
+  .printPage {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 0;
+    overflow: visible;
+  }
+  .printPage svg {
+    width: 100%;
+    height: auto;
+  }
+  .sheet-after {
+    max-width: 40rem;
+    margin: 1.25rem auto 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+  .sheet-after p {
+    color: #55555d;
+    margin: 0 0 0.5rem;
+  }
+  .sheet-primary,
+  .sheet-secondary {
+    min-height: 3.25rem;
+    display: grid;
+    place-items: center;
+    padding: 0.65rem 1rem;
+    border-radius: 0.7rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  .sheet-primary {
+    color: #fff;
+    background: #0a64e0;
+  }
+  .sheet-secondary {
+    color: #0a64e0;
+    background: #fff;
+    border: 1px solid #d5d5dc;
+    text-decoration: none;
+  }
+  .sheet-after .sheet-privacy {
+    text-align: center;
+    margin-top: 0.5rem;
+  }
+  .sheet-secondary:active {
+    opacity: 0.7;
+  }
+  .sheet-secondary:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  .sheet-callout {
+    background: #17395f;
+  }
+  .sheet-callout h2,
+  .sheet-secondary {
+    color: #a8ceff;
+  }
+  .sheet-secondary {
+    background: #242426;
+  }
+  .sheet-after p {
+    color: #b5b5bd;
+  }
+}
+@media screen and (prefers-contrast: more) {
+  .sheet-secondary,
+  .printPage svg {
+    border: 2px solid currentColor;
+  }
+}
+@media print {
+  .printPage svg {
+    width: 210mm;
+    height: 265mm;
+  }
 }

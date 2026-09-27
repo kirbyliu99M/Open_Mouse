@@ -36,6 +36,30 @@ export const ID1_CARD_MM = { width: 85.6, height: 53.98 } as const;
 /** Sheet-vs-card scale disagreement beyond this blocks the scan. */
 export const MAX_SCALE_DISAGREEMENT = 0.01;
 
+/**
+ * Plain-paper calibration (2026-09-25, Kirby): any blank sheet of a known
+ * size is the scale reference — its four corners, found from its edges, give
+ * the homography. No printing, so no printer-scaling risk. Portrait mm.
+ * The size cannot be told apart reliably from one photo (A4 and Letter
+ * differ by 6 %), so the user picks it; A4 is the default.
+ */
+export const PAPER_SIZES_MM = {
+  a4: { width: 210, height: 297 },
+  letter: { width: 215.9, height: 279.4 },
+} as const;
+export type PaperSize = keyof typeof PAPER_SIZES_MM;
+
+/**
+ * Candidate limits for a plain-paper scan, to be tuned against the M2 ruler
+ * ground truth: the mean distance of edge points from their fitted side, and
+ * the smallest fraction of any side's length that was actually seen (the
+ * wrist usually hides part of one edge).
+ */
+export const PAPER_EDGE_LIMITS = {
+  maxEdgeFitResidualMm: 1.5,
+  minSideCoverage: 0.4,
+} as const;
+
 // ── MediaPipe landmark definitions ──────────────────────────────────────────
 //
 // MediaPipe Hand Landmarker indices: 0 wrist; thumb 1 CMC · 2 MCP · 3 IP · 4 TIP;
@@ -105,7 +129,8 @@ export const handMeasurementsSchema = z
     path: ["palmLengthMm"],
   });
 
-export const calibrationEvidenceSchema = z.strictObject({
+/** Printed calibration sheet: ArUco markers + bank-card cross-check. */
+export const printedSheetEvidenceSchema = z.strictObject({
   /** The flat-flap markers detected: exactly ids 0–3, each once. */
   markerIds: z
     .array(z.number().int())
@@ -131,6 +156,39 @@ export const calibrationEvidenceSchema = z.strictObject({
   parallaxCorrected: z.boolean(),
 });
 
+/** Plain paper: four corners from the paper's own edges. */
+export const paperEdgeEvidenceSchema = z.strictObject({
+  method: z.literal("paper-edge"),
+  paperSize: z.enum(Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]]),
+  /** Mean distance of detected edge points from their fitted side, in mm. */
+  edgeFitResidualMm: z
+    .number()
+    .finite()
+    .min(0)
+    .max(PAPER_EDGE_LIMITS.maxEdgeFitResidualMm, {
+      message:
+        "The paper's edges don't fit a flat sheet — is it curled or folded?",
+    }),
+  /** Smallest fraction of any side's length that was seen, 0–1. */
+  minSideCoverage: z
+    .number()
+    .finite()
+    .max(1)
+    .min(PAPER_EDGE_LIMITS.minSideCoverage, {
+      message: "Too much of one paper edge is hidden to trust its corners.",
+    }),
+  parallaxCorrected: z.boolean(),
+});
+
+/**
+ * Either calibration method. The printed sheet keeps its original shape (no
+ * `method` field) so clients built before plain paper still parse.
+ */
+export const calibrationEvidenceSchema = z.union([
+  printedSheetEvidenceSchema,
+  paperEdgeEvidenceSchema,
+]);
+
 /**
  * Strict: an unexpected field fails the parse instead of being silently
  * stripped, so a client that tries to send an image is rejected loudly.
@@ -145,4 +203,6 @@ export const scanSubmissionSchema = z.strictObject({
 
 export type HandMeasurements = z.infer<typeof handMeasurementsSchema>;
 export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
+export type PrintedSheetEvidence = z.infer<typeof printedSheetEvidenceSchema>;
+export type PaperEdgeEvidence = z.infer<typeof paperEdgeEvidenceSchema>;
 export type ScanSubmission = z.infer<typeof scanSubmissionSchema>;

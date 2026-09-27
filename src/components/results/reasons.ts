@@ -114,9 +114,8 @@ const TEMPLATES: Record<ReasonCode, (params: Params) => string> = {
     }
     return "This mouse is lighter than you prefer.";
   },
-  descriptor_unknown: () =>
-    "Not yet assessed — this mouse hasn't been shape-classified yet.",
-  no_preference: () => "You haven't set a preference here, so it isn't scored.",
+  descriptor_unknown: () => "Shape not rated yet",
+  no_preference: () => "No weight preference given",
 };
 
 /** Renders the plain-language sentence for a reason code + its params. */

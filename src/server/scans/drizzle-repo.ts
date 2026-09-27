@@ -1,8 +1,42 @@
 import "server-only";
-import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
-import { scanMeasurements, scanSessions, scans } from "../../db/schema";
-import type { ScanInsertInput, ScanRepo, SessionRecord } from "./repo";
+import {
+  rateLimits,
+  scanMeasurements,
+  scanSessions,
+  scans,
+} from "../../db/schema";
+import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
+import type {
+  OwnedScan,
+  ScanInsertInput,
+  ScanOwnershipContext,
+  ScanRepo,
+  SessionRecord,
+} from "./repo";
+
+function ownershipPredicate(ctx: ScanOwnershipContext) {
+  const ownership = [];
+  if (ctx.userId !== null) {
+    ownership.push(eq(scanSessions.userId, ctx.userId));
+  }
+  if (ctx.cookieSessionId !== null) {
+    // The cookie proves ownership of an *anonymous* session only (contract:
+    // src/lib/contracts/routes.ts). Once claimed, ownership follows the user:
+    // a cookie left behind after sign-out must not read or delete the
+    // account's scans. Anonymous sessions always have an expiry (DB CHECK),
+    // so there is no "no expiry" case to allow here.
+    ownership.push(
+      and(
+        eq(scanSessions.id, ctx.cookieSessionId),
+        isNull(scanSessions.userId),
+        gt(scanSessions.expiresAt, ctx.now),
+      ),
+    );
+  }
+  return ownership.length > 0 ? or(...ownership) : undefined;
+}
 
 /**
  * The real `ScanRepo`, over the Neon HTTP driver.
@@ -96,6 +130,16 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       return deleted.length;
     },
 
+    async deleteEndedRateLimitWindows(now) {
+      // Mirrors `isEndedRateLimitWindow` (rate-limit-config.ts) exactly.
+      const cutoff = now.getTime() - RATE_LIMIT_ROW_RETENTION_MS;
+      const deleted = await db
+        .delete(rateLimits)
+        .where(lte(rateLimits.windowStart, cutoff))
+        .returning({ key: rateLimits.key });
+      return deleted.length;
+    },
+
     async claimSession(sessionId, userId, now) {
       // One UPDATE, gated on all three conditions at once: this is the
       // caller's own session id (equality on the primary key), it is not
@@ -112,6 +156,88 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
             or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, now)),
           ),
         );
+    },
+
+    async findOwnedScan(
+      scanId: string,
+      ctx: ScanOwnershipContext,
+    ): Promise<OwnedScan | null> {
+      // Each half of the ownership rule (routes.ts header) is optional
+      // depending on what the caller presents; only include the ones that
+      // apply. Neither present (signed out, no cookie) can never match
+      // anything, so skip the query entirely rather than run an OR with no
+      // real conditions in it.
+      const ownership = ownershipPredicate(ctx);
+      if (!ownership) return null;
+
+      const rows = await db
+        .select({
+          hand: scans.hand,
+          gripStyleStated: scans.gripStyleStated,
+          handLengthMm: scanMeasurements.handLengthMm,
+          palmLengthMm: scanMeasurements.palmLengthMm,
+          palmWidthMm: scanMeasurements.palmWidthMm,
+          thumbLengthMm: scanMeasurements.thumbLengthMm,
+          indexLengthMm: scanMeasurements.indexLengthMm,
+          middleLengthMm: scanMeasurements.middleLengthMm,
+          ringLengthMm: scanMeasurements.ringLengthMm,
+          pinkyLengthMm: scanMeasurements.pinkyLengthMm,
+          palmThicknessMm: scanMeasurements.palmThicknessMm,
+          knuckleHeightMm: scanMeasurements.knuckleHeightMm,
+          gripApertureMm: scanMeasurements.gripApertureMm,
+          thumbAngleDeg: scanMeasurements.thumbAngleDeg,
+        })
+        .from(scans)
+        .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
+        .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
+        .where(and(eq(scans.id, scanId), ownership))
+        .limit(1);
+
+      const row = rows[0];
+      if (!row) return null;
+
+      return {
+        hand: row.hand,
+        gripStyleStated: row.gripStyleStated,
+        measurements: {
+          handLengthMm: row.handLengthMm,
+          palmLengthMm: row.palmLengthMm,
+          palmWidthMm: row.palmWidthMm,
+          thumbLengthMm: row.thumbLengthMm ?? undefined,
+          indexLengthMm: row.indexLengthMm ?? undefined,
+          middleLengthMm: row.middleLengthMm ?? undefined,
+          ringLengthMm: row.ringLengthMm ?? undefined,
+          pinkyLengthMm: row.pinkyLengthMm ?? undefined,
+          palmThicknessMm: row.palmThicknessMm ?? undefined,
+          knuckleHeightMm: row.knuckleHeightMm ?? undefined,
+          gripApertureMm: row.gripApertureMm ?? undefined,
+          thumbAngleDeg: row.thumbAngleDeg ?? undefined,
+        },
+      };
+    },
+
+    async deleteOwnedScan(scanId, ctx) {
+      const ownership = ownershipPredicate(ctx);
+      if (!ownership) return false;
+
+      // One DELETE with an ownership subquery. No read/delete gap, and only
+      // the scan row is targeted; its dependent rows cascade from that row.
+      const deleted = await db
+        .delete(scans)
+        .where(
+          and(
+            eq(scans.id, scanId),
+            inArray(
+              scans.sessionId,
+              db
+                .select({ id: scanSessions.id })
+                .from(scanSessions)
+                .where(ownership),
+            ),
+          ),
+        )
+        .returning({ id: scans.id });
+      return deleted.length > 0;
     },
   };
 }

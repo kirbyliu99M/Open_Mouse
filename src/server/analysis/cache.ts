@@ -1,7 +1,18 @@
 /**
- * Analysis cache — keyed so identical fit results never re-prompt Gemini.
- * A DB-backed table comes later (out of scope for M5); this defines the
- * interface and an in-memory implementation for tests and local dev.
+ * Analysis cache — scoped to a scan, then keyed by fit and measurements so
+ * repeat requests for that scan do not re-prompt Gemini. Cache rows are
+ * deleted with their scan; results are never reused across scans.
+ * `./drizzle-cache` has the DB-backed implementation (`analysis_cache`
+ * table); this defines the interface and an in-memory implementation for
+ * tests and local dev.
+ *
+ * Only `source: "model"` results are ever cached (issue #28 acceptance
+ * criterion 2): the fallback is deterministic and free to recompute from
+ * the fit response alone, so caching it saves nothing, and it would keep
+ * serving stale template text after a transient model failure clears. The
+ * `source: "model"` literal on `CachedAnalysis` makes this a type error to
+ * get wrong at the call site, not just a runtime convention — see
+ * `handleAnalysisRequest` in `./handler`, the only caller.
  */
 import { createHash } from "node:crypto";
 import type { FitResponse } from "../../lib/contracts/fit";
@@ -23,14 +34,23 @@ function roundedMeasurements(
 }
 
 /**
- * `cacheKey = sha256(engineVersion + gripUsed + rounded measurements (1 mm) +
- * top-3 slugs)`. Deterministic and order-independent w.r.t. object key order.
+ * Bump whenever what the model is shown or told changes (`buildPrompt` in
+ * `./analyse`, `buildAnalysisInput` in `./input`), so a cached answer
+ * written under the old prompt is a miss rather than served again.
+ */
+export const ANALYSIS_PROMPT_VERSION = 2;
+
+/**
+ * `cacheKey = sha256(promptVersion + engineVersion + gripUsed + rounded
+ * measurements (1 mm) + top-3 slugs)`. Deterministic and order-independent
+ * w.r.t. object key order. Scoped to one scan by the cache itself.
  */
 export function computeCacheKey(
   fit: FitResponse,
   measurements: HandMeasurements,
 ): string {
   const payload = JSON.stringify({
+    promptVersion: ANALYSIS_PROMPT_VERSION,
     engineVersion: fit.engineVersion,
     gripUsed: fit.gripStyle.used,
     measurements: roundedMeasurements(measurements),
@@ -39,20 +59,31 @@ export function computeCacheKey(
   return createHash("sha256").update(payload).digest("hex");
 }
 
+/** A cached analysis is always a real model answer — see the module comment. */
+export interface CachedAnalysis {
+  output: AnalysisOutput;
+  source: "model";
+}
+
 export interface AnalysisCache {
-  get(key: string): Promise<AnalysisOutput | null>;
-  set(key: string, value: AnalysisOutput): Promise<void>;
+  get(scanId: string, key: string): Promise<CachedAnalysis | null>;
+  set(scanId: string, key: string, value: CachedAnalysis): Promise<void>;
 }
 
 /** In-memory `AnalysisCache` for tests and local dev; not shared across instances. */
 export class InMemoryAnalysisCache implements AnalysisCache {
-  private readonly store = new Map<string, AnalysisOutput>();
+  private readonly store = new Map<string, Map<string, CachedAnalysis>>();
 
-  async get(key: string): Promise<AnalysisOutput | null> {
-    return this.store.get(key) ?? null;
+  async get(scanId: string, key: string): Promise<CachedAnalysis | null> {
+    return this.store.get(scanId)?.get(key) ?? null;
   }
 
-  async set(key: string, value: AnalysisOutput): Promise<void> {
-    this.store.set(key, value);
+  async set(scanId: string, key: string, value: CachedAnalysis): Promise<void> {
+    let entries = this.store.get(scanId);
+    if (!entries) {
+      entries = new Map<string, CachedAnalysis>();
+      this.store.set(scanId, entries);
+    }
+    entries.set(key, value);
   }
 }

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -15,6 +16,10 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import {
+  ANALYSIS_SOURCES,
+  type AnalysisOutput,
+} from "../lib/contracts/analysis";
 import {
   CONNECTIVITY,
   FRONT_FLARES,
@@ -291,3 +296,53 @@ export const fitResults = pgTable(
     ),
   ],
 );
+
+export const analysisSourceEnum = pgEnum("analysis_source", ANALYSIS_SOURCES);
+
+/**
+ * Persists Gemini analysis answers across serverless instances/deploys,
+ * keyed by scan and `computeCacheKey`'s sha256 hash
+ * (`src/server/analysis/cache.ts`). Rows live exactly as long as their scan:
+ * the 24-hour sweep, user deletion, and account deletion cascade to the prose
+ * in the same deletion bound. Cross-scan reuse is deliberately given up;
+ * identical 1 mm-rounded measurements were required for a hit anyway.
+ * `DrizzleAnalysisCache` (`src/server/analysis/drizzle-cache.ts`) is the only
+ * writer, and only ever inserts `source: 'model'` (issue #28 acceptance
+ * criterion 2: the fallback is deterministic and free to recompute, so
+ * caching it saves nothing and would keep serving stale template text after
+ * a transient model failure clears). `analysisSourceEnum` still carries both
+ * contract values so a row's provenance is self-describing, but the CHECK
+ * below is the DB-level half of the guarantee — same "code explains a
+ * violation; the DB guarantees none is stored" pattern as the rubric
+ * consistency checks on `mice` above.
+ */
+export const analysisCache = pgTable(
+  "analysis_cache",
+  {
+    scanId: uuid("scan_id")
+      .notNull()
+      .references(() => scans.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    output: jsonb("output").notNull().$type<AnalysisOutput>(),
+    source: analysisSourceEnum("source").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.scanId, t.key] }),
+    check("analysis_cache_source_is_model", sql`${t.source} = 'model'`),
+  ],
+);
+
+/**
+ * DB-backed fixed-window rate limiting (`src/server/analysis/rate-limit.ts`
+ * has the pure window decision; `drizzle-rate-limiter.ts` the atomic
+ * upsert-increment this table backs). One row per limited key; `windowStart`
+ * is an epoch-ms fixed-window boundary, not a timestamp column, so the
+ * atomic upsert can compare it with plain numeric equality instead of
+ * dealing with timestamp/timezone round-tripping through the HTTP driver.
+ */
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: bigint("window_start", { mode: "number" }).notNull(),
+  count: integer("count").notNull(),
+});
