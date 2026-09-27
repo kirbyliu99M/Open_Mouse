@@ -13,6 +13,7 @@ HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 from asset_utils import validate_mesh,dimensions_mm,studio,label,material
 from pretty_json import write_pretty_json
+from check_catalogues import NO_SHELL
 ROOT=HERE/'out/reconstructed'
 PUBLIC=HERE.parent.parent/'public/models'
 
@@ -52,6 +53,7 @@ def main():
             'method':record['method'],'source':record['source'],'mesh':stats,'dimensionsXYZmm':actual,'calibratedBboxRoundTripDifferenceMm':error,
             'uncalibratedDimensionsXYZmm':record['uncalibratedDimensionsXYZmm'],'dimensionCalibrationScale':record['dimensionCalibrationScale'],
             'bytes':path.stat().st_size,'path':('studies/' if study else 'shells/')+path.name})
+        if study:results[-1]['limitations']=record['limitations']
         if args.colored:
             results[-1]['colourVerification']=record['colourVerification']
             from asset_utils import glb_json
@@ -77,7 +79,7 @@ def main():
         title=label(specification['model'],display.location.x-.09,display.location.y-.085,.007)
         status=label('2-VIEW STUDY' if study else 'TEXTURED REBUILD' if args.polished else 'REFERENCE REBUILD',display.location.x-.09,display.location.y-.1,.0045)
         if args.polished:title.location.z=status.location.z=.0005
-    expected=set(specs)
+    expected=set(specs)-NO_SHELL.keys()
     actual={r['slug'] for r in results}
     if actual!=expected:raise RuntimeError(f'Catalogue mismatch: missing={sorted(expected-actual)}, extra={sorted(actual-expected)}')
     # All checks complete before installing any replacement shell.
@@ -91,13 +93,14 @@ def main():
     report={'status':'visual-review-pending','galleryImageCount':658,'fullRotationReferenceModels':26,'viewsPerRotation':26,
         'shells':[r for r in results if r['status']=='reference-derived-review'],
         'studies':[r for r in results if r['status']=='limited-view-study'],
-        'hand':old_manifest.get('hand'),'measurementNotes':{'calibratedBboxRoundTripDifferenceMm':'Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy','silhouetteIoU':'In-sample comparison with the same reference views used for reconstruction; not independent validation'},'note':'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Fine detail and runtime orientation require review. Colour pass samples manufacturer albedo/PBR maps when available; twelve gallery palettes are approximate.' if args.colored else 'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Original reference files remain local. Fine detail and runtime orientation require review.'}
+        'noShell':[{'slug':slug,'reason':reason} for slug,reason in NO_SHELL.items()],
+        'hand':old_manifest.get('hand'),'measurementNotes':{'calibratedBboxRoundTripDifferenceMm':'Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy','silhouetteIoU':'In-sample comparison with the same reference views used for reconstruction; not independent validation'},'note':'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Fine detail and runtime orientation require review. Colour pass samples manufacturer albedo/PBR maps when available; ten gallery palettes are approximate.' if args.colored else 'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Original reference files remain local. Fine detail and runtime orientation require review.'}
     write_pretty_json(PUBLIC/'manifest.json', report)
     write_pretty_json(PUBLIC/'validation.json', {'roundTrips':results,'maxCalibratedBboxRoundTripDifferenceMm':max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),'passed':True})
     bpy.context.window.scene=review
     studio(review,1.5,1.3)
     title=label('OPEN_MOUSE / POLISHED CATALOGUE' if args.polished else 'OPEN_MOUSE / REFERENCE REBUILD',-.70,.60,.015)
-    caption=label('Base down / nose +Y / 26 baked materials + 12 gallery studies' if args.polished else '26 source reconstructions + 12 limited-view studies / visual acceptance pending',-.70,.575,.007)
+    caption=label('Base down / nose +Y / 26 baked materials + 10 gallery studies' if args.polished else '26 source reconstructions + 10 limited-view studies / visual acceptance pending',-.70,.575,.007)
     if args.polished:
         title.location.z=caption.location.z=.0005
         review.camera.location=(0,-1.4,1.9)
@@ -106,7 +109,7 @@ def main():
         bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.0001))
         plane=bpy.context.object;plane.name='Desk surface';plane.data.materials.append(material('Desk',(.025,.033,.044),.8))
         report['orientationConvention']={'blender':'Z up, nose +Y, ground Z=0','gltf':'Y up, nose -Z, ground Y=0'}
-        report['note']='Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Twelve gallery projections remain approximate. Physical verification and final acceptance pending.'
+        report['note']='Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Ten gallery projections remain approximate. Two catalogue mice intentionally have no shell. Physical verification and final acceptance pending.'
         write_pretty_json(PUBLIC/'manifest.json', report)
     bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'catalogue-review.blend'))
     print('PACKAGED',len(results),'MAX_BBOX_ERROR_MM',max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),flush=True)

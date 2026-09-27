@@ -14,16 +14,14 @@ HERE=Path(__file__).resolve().parent
 ROOT=HERE/'out/reference-library'
 CHOICES={
  'logitech-g-pro-x-superlight-2-se':('pro-x-superlight-2-se-red-top-angle-gallery-1.png','pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png'),
- 'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
+ 'logitech-m100':('top.png','extra-2.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
  'logitech-m750':('top.png','right.png'),
- 'logitech-m325s':('top.png','left.png'),
- 'logitech-mobi-fold':('top.png','right.png'),
+ 'logitech-m325s':('top.png','extra-4.png'),
  'logitech-signature-comfort-plus-m850l':('top.png','left.png'),
- 'logitech-signature-comfort-m840l':('extra-5.png','left.png'),
- 'logitech-mx-ergo-s':('top.png','left.png'),
- 'logitech-ergo-m575s':('top.png','left.png'),
+ 'logitech-mx-ergo-s':('top.png','right.png'),
+ 'logitech-ergo-m575s':('top.png','right.png'),
  'logitech-g903-hero':('top.png','left.png'),
 }
 
@@ -37,9 +35,9 @@ def body_mask(path):
     mask=ndimage.binary_fill_holes(labels==sizes.argmax())
     yy,xx=np.where(mask)
     result=mask[yy.min():yy.max()+1,xx.min():xx.max()+1]
-    if 'm100' in path.name:
+    if path.parent.name=='logitech-m100':
         from compare_reconstruction import remove_thin_lead
-        result=remove_thin_lead(result.T).T if 'gallery-4' in path.name else remove_thin_lead(result)
+        result=remove_thin_lead(result.T).T if path.name=='extra-2.png' else remove_thin_lead(result)
     return result
 
 
@@ -88,6 +86,12 @@ def reconstruct(slug,files):
     right=np.interp(samples,np.linspace(0,1,len(r)),r/top.shape[1]-.5)*target[0]
     high=np.interp(samples,u,1-upper/side.shape[0])*target[2]
     low=np.interp(samples,u,1-lower/side.shape[0])*target[2]
+    if slug=='logitech-m100':
+        # The near-side photograph sees some of the top deck at the nose.
+        # Suppress that projected thickness locally; the cord is removed above.
+        nose=np.clip(samples/.11,0,1)
+        nose=nose*nose*(3-2*nose)
+        high=low+(high-low)*(.45+.55*nose)
     vertices=[];faces=[];segments=80
     vertices.append(((left[0]+right[0])/2,-target[1]/2,(high[0]+low[0])/2))
     for i in range(1,128):
@@ -118,7 +122,10 @@ def reconstruct(slug,files):
         'source':[next(image for image in record['images'] if Path(image['file']).name==name) for name in files],
         'cameraFile':str((folder/'cameras.json').relative_to(HERE)),'dimensionsXYZ':target.tolist(),
         'rawVertices':len(vertices),'rawTriangles':len(faces),'status':'Limited-view silhouette study; transverse shape and details unverified',
-        'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Side image perspective has not been camera-calibrated','Wheel and button details are not reconstructed']}
+        'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography','Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed']}
+    if slug=='logitech-m100':report['limitations'].append('The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length')
+    if slug=='logitech-m325s':report['limitations'].append('Patterned side colourway provides silhouette only; charcoal top photo provides upper texture')
+    if slug in {'logitech-mx-ergo-s','logitech-ergo-m575s'}:report['limitations'].append('Thumb-side trackball is a photo projection on the loft, not separate ball geometry')
     (folder/'reconstruction.json').write_text(json.dumps(report,indent=2)+'\n')
     print('TRACED',slug,flush=True)
 

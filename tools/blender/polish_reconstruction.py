@@ -15,11 +15,11 @@ from asset_utils import export_glb,validate_mesh,dimensions_mm,material
 OUT=HERE/'out/polished'
 REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','g-pro-x-superlight-2-se','m100','m550','m705-marathon'}
 GALLERY_STUDIES={'logitech-g-pro-x-superlight-2-se','logitech-m100','logitech-m550','logitech-m705-marathon',
-                 'logitech-m750','logitech-m325s','logitech-mobi-fold','logitech-signature-comfort-plus-m850l',
-                 'logitech-signature-comfort-m840l','logitech-mx-ergo-s','logitech-ergo-m575s','logitech-g903-hero'}
+                 'logitech-m750','logitech-m325s','logitech-signature-comfort-plus-m850l',
+                 'logitech-mx-ergo-s','logitech-ergo-m575s','logitech-g903-hero'}
 GALLERY_COLOURS={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
-                 'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),'logitech-mobi-fold':(.52,.48,.41),
-                 'logitech-signature-comfort-plus-m850l':(.06,.065,.07),'logitech-signature-comfort-m840l':(.07,.075,.08),
+                 'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),
+                 'logitech-signature-comfort-plus-m850l':(.06,.065,.07),
                  'logitech-mx-ergo-s':(.055,.06,.065),'logitech-ergo-m575s':(.045,.05,.055),'logitech-g903-hero':(.025,.027,.03)}
 
 def orient(mesh,slug,dimensions):

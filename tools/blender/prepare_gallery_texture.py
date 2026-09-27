@@ -8,8 +8,8 @@ from scipy import ndimage
 from reconstruct_gallery import CHOICES
 HERE=Path(__file__).resolve().parent
 PALETTES={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
-          'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),'logitech-mobi-fold':(.52,.48,.41),
-          'logitech-signature-comfort-plus-m850l':(.06,.065,.07),'logitech-signature-comfort-m840l':(.07,.075,.08),
+          'logitech-m750':(.07,.075,.08),'logitech-m325s':(.045,.05,.055),
+          'logitech-signature-comfort-plus-m850l':(.06,.065,.07),
           'logitech-mx-ergo-s':(.055,.06,.065),'logitech-ergo-m575s':(.045,.05,.055),'logitech-g903-hero':(.025,.027,.03)}
 parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()
 for slug,files in CHOICES.items():

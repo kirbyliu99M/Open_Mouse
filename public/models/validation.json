@@ -76,13 +76,13 @@
           "viewHint": "top"
         },
         {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-2.png",
-          "file": "logitech-ergo-m575s/left.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-blue-ball-gallery-3.png",
+          "file": "logitech-ergo-m575s/right.png",
           "width": 1600,
           "height": 1374,
           "mode": "P",
-          "sha256": "bf5e2966afb092e3f7934b8a7b421a12fc9f6c5a7b1eef80de778c14988505fc",
-          "viewHint": "left"
+          "sha256": "ad064a4440516a966358182b6fcfb13203d2662c3565c7673a6d2b09efa84d7f",
+          "viewHint": "right"
         }
       ],
       "mesh": {
@@ -91,20 +91,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 306533.9222622573
+        "volumeMm3": 333243.613041992
       },
       "dimensionsXYZmm": [
-        100.00000894069672, 134.0000182390213, 48.00000414252281
+        100.00001266598701, 134.0000182390213, 48.00000786781311
       ],
       "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
       "uncalibratedDimensionsXYZmm": [
-        99.69020262360573, 132.81594216823578, 47.85789042216493
+        99.6907576918602, 132.81594216823578, 47.83962898363825
       ],
       "dimensionCalibrationScale": [
-        1.0031076010304039, 1.0089150279133239, 1.002969407480804
+        1.0031020158267396, 1.0089150279133239, 1.0033522629620852
       ],
-      "bytes": 94336,
+      "bytes": 91316,
       "path": "studies/logitech-ergo-m575s.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -357,6 +363,12 @@
       ],
       "bytes": 81464,
       "path": "studies/logitech-g-pro-x-superlight-2-se.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1044,6 +1056,12 @@
       ],
       "bytes": 113928,
       "path": "studies/logitech-g903-hero.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1071,7 +1089,11 @@
           "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
           "viewHint": "top"
         },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry",
+        "sideSources": [
+          "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-left-angle-gallery-2.png",
+          "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-right-angle-black-gallery-6.png"
+        ]
       },
       "groundErrorMm": 0.0
     },
@@ -1142,22 +1164,22 @@
       "method": "Model-specific top and side photo contour loft",
       "source": [
         {
-          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
-          "file": "logitech-m100/m100-charcoal-gallery-1.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
+          "file": "logitech-m100/top.png",
           "width": 1600,
           "height": 1374,
-          "mode": "RGBA",
-          "sha256": "699b18cd2e3a9287b41d161b1792721815837a08c4d138f95a2afdaad89e27c5",
-          "viewHint": "unclassified"
+          "mode": "P",
+          "sha256": "0414eb9aaee2a08143223af4f5758de9c7e9817fcfd31d015702a276a7b1ed3b",
+          "viewHint": "top"
         },
         {
-          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-4.png",
-          "file": "logitech-m100/m100-charcoal-gallery-4.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-4.png",
+          "file": "logitech-m100/extra-2.png",
           "width": 1600,
           "height": 1374,
-          "mode": "RGBA",
-          "sha256": "330068cd0a53b92feb435fbc02c9fb1872ea18dd8d5762d8d021a65dea1c4de8",
-          "viewHint": "unclassified"
+          "mode": "P",
+          "sha256": "b7efb9c0c63e0aec88bf4ab11446fec2c6f29552847d8167e2d55317a3021b70",
+          "viewHint": "other"
         }
       ],
       "mesh": {
@@ -1166,20 +1188,27 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 161495.9306672163
+        "volumeMm3": 159675.1032988183
       },
       "dimensionsXYZmm": [
         62.00000271201134, 113.00000548362732, 38.00000250339508
       ],
       "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6,
       "uncalibratedDimensionsXYZmm": [
-        61.8429072201252, 112.00157552957535, 37.88231935322983
+        61.84295192360878, 112.00157552957535, 37.881598313106224
       ],
       "dimensionCalibrationScale": [
-        1.0025401907338483, 1.008914378799618, 1.0031064794547786
+        1.0025394660427143, 1.008914378799618, 1.0031255726306778
       ],
-      "bytes": 76312,
+      "bytes": 76852,
       "path": "studies/logitech-m100.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "The cord is excluded from both contours and the near-side projected nose thickness is tapered over the front 11% of length"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1199,15 +1228,15 @@
         "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
         "approximate": true,
         "source": {
-          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
-          "file": "logitech-m100/m100-charcoal-gallery-1.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m100/gallery/m100-charcoal-gallery-1.png",
+          "file": "logitech-m100/top.png",
           "width": 1600,
           "height": 1374,
-          "mode": "RGBA",
-          "sha256": "699b18cd2e3a9287b41d161b1792721815837a08c4d138f95a2afdaad89e27c5",
-          "viewHint": "unclassified"
+          "mode": "P",
+          "sha256": "0414eb9aaee2a08143223af4f5758de9c7e9817fcfd31d015702a276a7b1ed3b",
+          "viewHint": "top"
         },
-        "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0
     },
@@ -1409,13 +1438,13 @@
           "viewHint": "top"
         },
         {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/red/m325s-red-mouse-3-qtr-left-view-5.png",
-          "file": "logitech-m325s/left.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/celebration-black/m325s-celebration-mouse-profile-view-2.png",
+          "file": "logitech-m325s/extra-4.png",
           "width": 1600,
           "height": 1382,
           "mode": "P",
-          "sha256": "6c565d17c624184431d25efc90ccd904f01595bb6b08b698febc9593b290ff77",
-          "viewHint": "left"
+          "sha256": "0ce689a63289eaf0244339eb684cc40daca3365c8699609483252b0524b414f8",
+          "viewHint": "right"
         }
       ],
       "mesh": {
@@ -1424,20 +1453,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 130101.73230670017
+        "volumeMm3": 135313.9959574343
       },
       "dimensionsXYZmm": [
         57.00000002980232, 94.69999372959137, 39.09999877214432
       ],
       "calibratedBboxRoundTripDifferenceMm": 6.270408633213265e-6,
       "uncalibratedDimensionsXYZmm": [
-        56.871144101023674, 93.86329352855682, 39.0099237265531
+        56.871164590120316, 93.86329352855682, 38.994334543531295
       ],
       "dimensionCalibrationScale": [
-        1.0022657518327296, 1.0089140966611045, 1.0023090604862064
+        1.0022653907442942, 1.0089140966611045, 1.0027097643210388
       ],
-      "bytes": 76336,
+      "bytes": 77380,
       "path": "studies/logitech-m325s.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1514,6 +1549,12 @@
       ],
       "bytes": 79044,
       "path": "studies/logitech-m550.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1650,6 +1691,12 @@
       ],
       "bytes": 80568,
       "path": "studies/logitech-m705-marathon.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1786,6 +1833,12 @@
       ],
       "bytes": 80340,
       "path": "studies/logitech-m750.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -1811,82 +1864,6 @@
           "height": 1382,
           "mode": "P",
           "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
-          "viewHint": "top"
-        },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
-      },
-      "groundErrorMm": 0.0
-    },
-    {
-      "slug": "logitech-mobi-fold",
-      "model": "Mobi Fold",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-top-angle-gallery-1.png",
-          "file": "logitech-mobi-fold/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "aa8ae2a471422b3712e7c44bbac6ad9770d9b2cacd4344afd08b7754f41edc0d",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-profile-fold-angle-gallery-9.png",
-          "file": "logitech-mobi-fold/right.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "bc51274be1da994f6e59a2c198f88d7929c325667397bb0c89ec1a9ebf5b5e59",
-          "viewHint": "right"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 192796.02550222882
-      },
-      "dimensionsXYZmm": [
-        57.00000002980232, 122.00000882148743, 33.000003546476364
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 8.821487426757812e-6,
-      "uncalibratedDimensionsXYZmm": [
-        56.847743690013885, 120.92199921607971, 32.84779987006914
-      ],
-      "dimensionCalibrationScale": [
-        1.0026783175567417, 1.0089148442046014, 1.0046334954101308
-      ],
-      "bytes": 67980,
-      "path": "studies/logitech-mobi-fold.glb",
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          0.9999999994771522, 0.9999999887630588, 1.0000000054186042
-        ]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-top-angle-gallery-1.png",
-          "file": "logitech-mobi-fold/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "aa8ae2a471422b3712e7c44bbac6ad9770d9b2cacd4344afd08b7754f41edc0d",
           "viewHint": "top"
         },
         "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
@@ -1969,13 +1946,13 @@
           "viewHint": "top"
         },
         {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-plus-graphite-gallery-4.png",
-          "file": "logitech-mx-ergo-s/left.png",
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-4.png",
+          "file": "logitech-mx-ergo-s/right.png",
           "width": 1600,
           "height": 1374,
           "mode": "P",
-          "sha256": "7dbb5047926cfd4c3845fd333d43fa7437c14e6b463de9167f93e548fd75be16",
-          "viewHint": "left"
+          "sha256": "bff67d8653bf9994e8b6d63e8797cf17781dcb03f8ed9fea758fd89cfc3b09ab",
+          "viewHint": "right"
         }
       ],
       "mesh": {
@@ -1984,20 +1961,26 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 344567.67011428316
+        "volumeMm3": 355546.24955461075
       },
       "dimensionsXYZmm": [
-        99.8000018298626, 132.50000774860382, 51.39999836683273
+        99.8000018298626, 132.50000774860382, 51.40000581741333
       ],
       "calibratedBboxRoundTripDifferenceMm": 7.748603820800781e-6,
       "uncalibratedDimensionsXYZmm": [
-        99.60423037409782, 131.32929801940918, 51.199371948314365
+        99.60416704416275, 131.32929801940918, 51.1179547465872
       ],
       "dimensionCalibrationScale": [
-        1.0019654750121245, 1.0089142483683862, 1.003918564702086
+        1.0019661120779255, 1.0089142483683862, 1.005517537914242
       ],
-      "bytes": 98884,
+      "bytes": 99940,
       "path": "studies/logitech-mx-ergo-s.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",
@@ -2332,82 +2315,6 @@
       "groundErrorMm": 0.0
     },
     {
-      "slug": "logitech-signature-comfort-m840l",
-      "model": "Signature Comfort M840L",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/graphite/signature-comfort-m840-l-mouse-graphite-3qtr-front.png",
-          "file": "logitech-signature-comfort-m840l/extra-5.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "2dc82c243c24ec4dc39bd3be01b410878a048403a7a1acf0d9036d22e19abc94",
-          "viewHint": "other"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/black/signature-comfort-m840-l-mouse-black-profile.png",
-          "file": "logitech-signature-comfort-m840l/left.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "e70904738acf1c78c1f3d7adf5598317ff8c023bc403502ebcf0c9be58a371f4",
-          "viewHint": "left"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 206884.9517096021
-      },
-      "dimensionsXYZmm": [
-        74.30000603199005, 121.8000054359436, 43.20000112056732
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 6.031990054111702e-6,
-      "uncalibratedDimensionsXYZmm": [
-        74.1412453353405, 120.72384357452393, 43.02943704533391
-      ],
-      "dimensionCalibrationScale": [
-        1.002141246265037, 1.0089141994954107, 1.003963866747464
-      ],
-      "bytes": 78792,
-      "path": "studies/logitech-signature-comfort-m840l.glb",
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          1.0000000190927398, 1.0000000165405338, 0.9999999740609423
-        ]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/graphite/signature-comfort-m840-l-mouse-graphite-3qtr-front.png",
-          "file": "logitech-signature-comfort-m840l/extra-5.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "2dc82c243c24ec4dc39bd3be01b410878a048403a7a1acf0d9036d22e19abc94",
-          "viewHint": "other"
-        },
-        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
-      },
-      "groundErrorMm": 0.0
-    },
-    {
       "slug": "logitech-signature-comfort-plus-m850l",
       "model": "Signature Comfort Plus M850L",
       "status": "limited-view-study",
@@ -2452,6 +2359,12 @@
       ],
       "bytes": 80868,
       "path": "studies/logitech-signature-comfort-plus-m850l.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
       "orientation": {
         "up": "+Z",
         "forward": "+Y",

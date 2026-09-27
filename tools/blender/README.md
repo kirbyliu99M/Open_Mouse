@@ -9,10 +9,14 @@ The commands and evidence below describe the superseded prototype only.
 
 ## Add a mouse to the current catalogue
 
-1. Add its manufacturer dimensions and source URLs to
-   `params/reference-catalogue.json` **and** `src/db/seed/logitech.json`.
-   Keep the brand/model-derived slug and L/W/H identical; run
-   `python tools/blender/check_catalogues.py` to verify both catalogues.
+1. Add its manufacturer dimensions and source URLs to `src/db/seed/logitech.json`.
+   If the photos support a shell, add the same row to
+   `params/reference-catalogue.json`; keep the brand/model-derived slug and
+   L/W/H identical. If a top or usable side reference is missing, add its slug
+   and specific reason to `NO_SHELL` in `check_catalogues.py` instead. The
+   catalogue retains the product for fit scoring without publishing a shell.
+   Run `python tools/blender/check_catalogues.py`: any unlisted missing shell
+   row, stale exception, or dimension mismatch fails.
 2. Capture its reference source in the ignored `out/reference-library/`.
    For an AR source, run `render_reference_views.py`, `reconstruct_views.py`,
    `finish_reconstruction.py`, and `compare_reconstruction.py`. For a limited
@@ -39,13 +43,20 @@ JPEG is a core glTF image format handled by three.js GLTFLoader without a
 texture decoder extension. These files still use Draco geometry, which needs
 its own decoder in the viewer.
 
-The eight studies added 2026-09-27 use official Logitech CDN gallery photos.
-M575S and MX Ergo S project the left photo over the thumb side so the ball is
+The six retained studies added 2026-09-27 use official Logitech CDN gallery photos.
+M575S and MX Ergo S project the low right photo over the thumb side so the ball is
 visible. G903 Hero projects both left and right photos for its ambidextrous side
 button markings. These details are surface projections on a single lofted body,
-not separately sculpted components. M840L has no top reference; its front
-three-quarter image supplies the approximate plan contour. Mobi Fold's available
-side reference is folded while its top reference is open. Raw photos remain
+not separately sculpted components. M325s uses its patterned `extra-4.png`
+only for the side silhouette; its charcoal top photo supplies texture. M100
+uses `top.png` and low side `extra-2.png`, with the cord excluded from the
+contours and a local nose taper. Mobi Fold and M840L have verified dimensions
+in the app seed but intentionally have no shell: Mobi Fold has only a folded
+side photo and M840L has no top-down photo. `NO_SHELL` is the authoritative list.
+All four rebuilt gallery studies have uncalibrated local perspective in their
+side photos; contour cropping and dimension scaling fix framing and global
+scale, while local hump, nose, and trackball shapes remain estimates. The
+limitations are also recorded per study in the manifest. Raw photos remain
 outside the repository; only their baked GLBs are published under Kirby's
 2026-09-27 R8 decision.
 

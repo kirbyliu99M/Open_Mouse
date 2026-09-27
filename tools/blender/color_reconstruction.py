@@ -107,8 +107,7 @@ def colorize(slug):
         choices={'logitech-g-pro-x-superlight-2-se':('#be202b','red'), 'logitech-m100':('#333539','charcoal'),
                  'logitech-m550':('#454749','graphite'),'logitech-m705-marathon':('#484a4d','charcoal'),
                  'logitech-m750':('#4a4c50','graphite'),'logitech-m325s':('#3c3e42','graphite'),
-                 'logitech-mobi-fold':('#bbaea2','sand'),'logitech-signature-comfort-plus-m850l':('#454749','graphite'),
-                 'logitech-signature-comfort-m840l':('#494b4e','graphite'),'logitech-mx-ergo-s':('#424548','graphite'),
+                 'logitech-signature-comfort-plus-m850l':('#454749','graphite'),'logitech-mx-ergo-s':('#424548','graphite'),
                  'logitech-ergo-m575s':('#3c3e42','black'),'logitech-g903-hero':('#292a2c','black')}
         hexcode,variant=choices[slug]
         srgb=np.array([int(hexcode[i:i+2],16)/255 for i in (1,3,5)])

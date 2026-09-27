@@ -87,11 +87,11 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 | logitech-pebble-2-m350s           | 203,580 |
 | logitech-pop-mouse                | 323,548 |
 
-## Eight added limited-view studies (2026-09-27)
+## Six retained added limited-view studies (2026-09-27)
 
-The 38 mice total **7,721,692 bytes (7.36 MiB)**; including the hand, the 39
-published GLBs total **7,883,952 bytes (7.52 MiB)**. The audit finds 94 embedded
-JPEG maps, 4,116,209 image bytes and 3,767,743 other bytes. All eight new studies
+The 36 mice total **7,574,540 bytes (7.22 MiB)**; including the hand, the 37
+published GLBs total **7,736,800 bytes (7.38 MiB)**. The audit finds 92 embedded
+JPEG maps, 4,103,466 image bytes and 3,633,334 other bytes. All six retained studies
 have 14,000 triangles and their longest texture edge is at most 512 px. The
 26 source-derived normal maps remain JPEG q90 with 4:4:4 sampling. The new
 studies use photo projections without normal maps.
@@ -99,13 +99,12 @@ studies use photo projections without normal maps.
 | Added study                           |   Bytes |
 | ------------------------------------- | ------: |
 | logitech-m750                         |  80,340 |
-| logitech-m325s                        |  76,336 |
-| logitech-mobi-fold                    |  67,980 |
+| logitech-m325s                        |  77,380 |
 | logitech-signature-comfort-plus-m850l |  80,868 |
-| logitech-signature-comfort-m840l      |  78,792 |
-| logitech-mx-ergo-s                    |  98,884 |
-| logitech-ergo-m575s                   |  94,336 |
+| logitech-mx-ergo-s                    |  99,940 |
+| logitech-ergo-m575s                   |  91,316 |
 | logitech-g903-hero                    | 113,928 |
 
-Reference photos remain outside the repository. The baked photo-derived maps
+Mobi Fold and M840L remain in the 38-row app catalogue with verified dimensions,
+but have no shell because their available views are inadequate. Reference photos remain outside the repository. The baked photo-derived maps
 inside these GLBs follow Kirby's 2026-09-27 R8 publishing decision.

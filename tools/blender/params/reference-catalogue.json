@@ -397,18 +397,6 @@
   },
   {
     "brand": "Logitech",
-    "model": "Mobi Fold",
-    "lengthMm": 122,
-    "widthMm": 57,
-    "heightMm": 33,
-    "weightG": 79,
-    "warnings": [],
-    "connectivity": "wireless",
-    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mobi-fold-mouse",
-    "retrievedAt": "2026-09-27T10:06:40.898Z"
-  },
-  {
-    "brand": "Logitech",
     "model": "Signature Comfort Plus M850L",
     "lengthMm": 121.8,
     "widthMm": 74.3,
@@ -417,18 +405,6 @@
     "warnings": [],
     "connectivity": "wireless",
     "sourceUrl": "https://www.logitech.com/en-us/shop/p/signature-comfort-plus-m850l",
-    "retrievedAt": "2026-09-27T10:06:40.898Z"
-  },
-  {
-    "brand": "Logitech",
-    "model": "Signature Comfort M840L",
-    "lengthMm": 121.8,
-    "widthMm": 74.3,
-    "heightMm": 43.2,
-    "weightG": 104.6,
-    "warnings": [],
-    "connectivity": "wireless",
-    "sourceUrl": "https://www.logitech.com/en-us/shop/p/signature-comfort-m840l",
     "retrievedAt": "2026-09-27T10:06:40.898Z"
   },
   {
