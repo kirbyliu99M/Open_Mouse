@@ -586,6 +586,8 @@ B3 is not started.
 
 ## Progress log
 
+- 2026-09-28 Claude: audited Step 0 (`70f7765`) and B2 (`9546d3f`); both pushed. Independent reimport: SE vertex positions equal Superlight 2's delivered shell (max difference 0.0), bbox error 0.000 mm, clean topology, support margin 25.49 mm, same three-map material contract. Only the SE GLB changed since `5bf18ad`. Unit tests, `check_catalogues.py` and `optimize_glbs.py --check` pass. Contact sheet reviewed: seams, side buttons, wheel and front port match the reference photos. Accepted exceptions, as reported: side wordmark, indicator and underside logo ΔE2000 17–32, small printed marks. **Kirby's visual acceptance is pending.** B3 did not start: Codex hit its usage limit again (reset shown as 10:17 Asia/Taipei).
+
 - 2026-09-28 Codex: **B2 SE built** after separate reviewer-fix commit `70f7765`.
   Only SE moved from study to shell; other 34 GLBs are byte-identical. Source
   component/UV region bake, photo de-shading, base-only GLB rewrite, camera fits
