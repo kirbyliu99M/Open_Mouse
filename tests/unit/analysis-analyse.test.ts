@@ -51,6 +51,126 @@ const CLEAN_ANSWER = JSON.stringify({
   caveats: [],
 });
 
+describe("analyse — medical claims", () => {
+  const answerWith = (text: string) =>
+    JSON.stringify({
+      headline: text,
+      whyTopPick: "It has a taller hump and wider grip.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+
+  it("instructs the model to avoid medical claims and vendor health copy", () => {
+    const instructions = buildPrompt(inputFor()).split("\n\nData:")[0]!;
+    expect(instructions).toMatch(/medical, diagnostic, therapeutic/i);
+    expect(instructions).toMatch(/injury.prevention/i);
+    expect(instructions).toMatch(/vendor marketing copy/i);
+    expect(instructions).toMatch(/vertical grip.*taller hump.*wider/i);
+  });
+
+  it.each([
+    "carpal tunnel syndrome",
+    "CTS",
+    "RSI",
+    "repetitive strain",
+    "tendinitis",
+    "tendonitis",
+    "injuries",
+    "painless",
+    "relief",
+    "prevents",
+    "therapeutic",
+    "medical",
+    "diagnosis",
+    "treated",
+    "cure",
+    "healthier",
+    "safer",
+    "ergonomic",
+    "wrist-friendly",
+    "strain",
+    "腕隧道",
+    "腕管",
+    "肌腱炎",
+    "疼痛",
+    "酸痛",
+    "預防",
+    "治療",
+    "醫療",
+    "診斷",
+    "護腕",
+    "人體工學",
+  ])("rejects model output containing %s", async (term) => {
+    const client = new FakeTextModel({
+      answer: () => answerWith(`A ${term} choice.`),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(2);
+    expect(result.source).toBe("fallback");
+    expect(JSON.stringify(result.output).toLowerCase()).not.toContain(
+      term.toLowerCase(),
+    );
+  });
+
+  it.each(["Spain", "painted"])(
+    "accepts output containing near-miss word %s",
+    async (word) => {
+      const client = new FakeTextModel({
+        answer: () => answerWith(`A ${word} finish with a wider grip.`),
+      });
+      const result = await analyse(inputFor(), client);
+      expect(client.calls).toHaveLength(1);
+      expect(result.source).toBe("model");
+    },
+  );
+
+  it("retries a medical claim and accepts a corrected shape-only answer", async () => {
+    const client = new FakeTextModel({
+      answer: (_args, index) =>
+        index === 0
+          ? answerWith("Wrist-friendly shape.")
+          : answerWith("A wider grip and taller hump."),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toMatch(/wrist-friendly/i);
+    expect(result.source).toBe("model");
+    expect(result.output.headline).toBe("A wider grip and taller hump.");
+  });
+
+  it.each(["whyTopPick", "tradeoffs", "whatToAvoid", "caveats"] as const)(
+    "rejects a medical term in %s",
+    async (field) => {
+      const answer = {
+        headline: "A wider shape.",
+        whyTopPick: "It has a taller hump.",
+        tradeoffs: [] as string[],
+        whatToAvoid: [] as string[],
+        caveats: [] as string[],
+      };
+      if (field === "whyTopPick") answer.whyTopPick = "Pain relief.";
+      else answer[field] = ["Pain relief."];
+      const client = new FakeTextModel({
+        answer: () => JSON.stringify(answer),
+      });
+      const result = await analyse(inputFor(), client);
+      expect(client.calls).toHaveLength(2);
+      expect(result.source).toBe("fallback");
+    },
+  );
+
+  it("accepts a shape-only analysis on the first attempt", async () => {
+    const client = new FakeTextModel({
+      answer: () =>
+        answerWith("A vertical grip with a taller hump and wider shell."),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(1);
+    expect(result.source).toBe("model");
+  });
+});
+
 describe("analyse — no-new-numerals rule", () => {
   it("path 1: accepts a clean answer with only numbers from the input", async () => {
     const input = inputFor();
