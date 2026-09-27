@@ -57,6 +57,7 @@ def main():
             'bytes':path.stat().st_size,'path':('studies/' if study else 'shells/')+path.name})
         if study:results[-1]['limitations']=record['limitations']
         if 'sourceCalibration' in record:results[-1]['sourceCalibration']=record['sourceCalibration']
+        if 'inheritedShell' in record:results[-1]['inheritedShell']=record['inheritedShell']
         if args.colored:
             results[-1]['colourVerification']=record['colourVerification']
             from asset_utils import glb_json

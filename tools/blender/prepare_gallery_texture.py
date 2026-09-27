@@ -7,7 +7,7 @@ from PIL import Image
 from scipy import ndimage
 from reconstruct_gallery import CHOICES
 HERE=Path(__file__).resolve().parent
-PALETTES={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
+PALETTES={'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
           'logitech-m325s':(.045,.05,.055),
           'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
 parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()

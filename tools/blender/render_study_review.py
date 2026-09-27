@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SLUGS = (
     "logitech-m100",
     "logitech-signature-comfort-plus-m850l", "logitech-m325s",
-    "logitech-g-pro-x-superlight-2-se", "logitech-m550", "logitech-m705-marathon",
+    "logitech-m550", "logitech-m705-marathon",
 )
 
 

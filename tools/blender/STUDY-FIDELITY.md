@@ -28,7 +28,7 @@ Status as of 2026-09-28. The Route column follows the Decisions table.
 | ---------------------------- | -------------------------------------------------- | -------------------------------------------- | --------------------------------------- |
 | G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; Kirby's visual acceptance pending |
 | M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; Kirby's visual acceptance pending |
-| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Pending B2                              |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; visual acceptance pending        |
 | M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Pending B3                              |
 | M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
 | M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
@@ -438,6 +438,131 @@ loop without changing its effective fallback behaviour. The payload generator
 now derives classifications/counts from the manifest and sizes from actual GLBs;
 it no longer requires stale local study snapshots.
 
+### B2 ? SE
+
+**Built 2026-09-28 after separate Step 0 commit `70f7765`; Kirby's visual
+acceptance remains pending.** SE is now an AR-derived sibling shell, with red
+SE photo colour, and the old study GLB is removed. This follows Kirby's decision,
+not a changed A2 gate: A2 top/side IoU was 0.994485/0.989098, maximum seam gaps
+1.008/2.338 mm, and the original shell-identity verdict was inconclusive.
+
+**Method.** The official off-white Superlight 2 AR file is SHA256-pinned to
+`ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888`.
+It has only two materials, so material IDs alone cannot identify every part.
+`bake_se_regions.py` labels disconnected source components by inspected geometry
+and uses explicit source-UV boxes for the top G logo and side SUPERLIGHT mark.
+The 2048 px emission ID bake uses the existing 4 mm cage, 12 mm ray distance and
+12 px margin on the imported sibling UV atlas. No RGB classifier determines the
+physical regions. Source geometry and UVs are not rebuilt.
+
+`recolour_se.py` records interior photo patches in normalized alpha-bbox
+coordinates, erodes patch boundaries by two pixels, rejects luminance tails and
+robust-fit outliers, and subtracts a neutral specular term only on saturated red
+plastic. It removes a quadratic log-luminance field before taking linear-RGB
+medians. Shell and main buttons share one illumination field; its median fixes
+the otherwise unknown exposure gauge. This is repeatable relative studio
+de-shading, **not absolute reflectance calibration**: no colour chart or known
+exposure exists. Shell-sample luminance coefficient of variation falls from
+**0.320358 to 0.030843**. The [flat-patch before/after](out/study-fidelity/b2/deshading-shell-before-after.png)
+is arranged left/right. The script and `colour-evidence.json` preserve the
+patches, fit coefficients, counts and raw/corrected medians.
+
+Physical-region recolour is `SE median ? (sibling texel / sibling region median)`.
+Within the spatial print boxes, continuous ink/substrate compositing preserves
+printed edges while changing ink to the SE photo colour; it does not classify
+physical parts by RGB. The underside G uses separate source mesh components and
+the SE bottom-photo median. Underside regulatory glyphs retain sibling artwork
+and relative contrast: they are not SE serial/model-label evidence. Nearest
+spatial labels extend into bake padding; inherited dark recess detail remains.
+
+Photo-backed region transfer covers **99.9700% upper / 99.9966% side / 99.9987%
+underside area**, using triangle-area-weighted UV-centroid ray-hit labels. This
+is region-colour coverage, not full photo projection. Grain, seams, geometry and
+PBR detail are inherited. The tiny remainder uses nearest-region extension and
+source appearance. Hidden surfaces share their visible region's measured colour.
+
+**Photos.** All four named red SE photos are in the read-only
+`out/reference-library/logitech-g-pro-x-superlight-2-se/`:
+
+- `pro-x-superlight-2-se-red-top-angle-gallery-1.png`
+- `pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png`
+- `pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png`
+- `pro-x-superlight-2-se-red-bottom-angle-gallery-6.png`
+
+The red `3qtr-high-back-angle-gallery-3.png` is held out from colour sampling.
+Exact first-party URLs and SHA256 values are in manifest/validation. No reference
+junction was written and no network download was needed.
+
+**Registration.** Top/left/right/bottom use A2's repeatable affine framing:
+alpha >180, largest component, enclosed holes filled, independent X/Y bbox
+normalisation. This solves framing, not a physical lens. The held-out oblique
+also fits camera angles by silhouette IoU: azimuth -49.5254?, elevation 36.2130?,
+roll 0.0002?. Its appearance is not used to derive the palette.
+
+| View   | Silhouette IoU | Used for colour |
+| ------ | -------------: | --------------- |
+| Top    |       0.994138 | Yes             |
+| Left   |       0.986633 | Yes             |
+| Right  |       0.985874 | Yes             |
+| Bottom |       0.992936 | Yes             |
+| Hero   |       0.978914 | No; held out    |
+
+**Colour evidence.** Values are linear RGB; photo medians are after de-shading.
+Delivered medians come from the actual 512 px JPEG, excluding region and printed
+boundaries. These are consistency measurements against the photo palette, not
+independent physical colour verification. The 2048 px medians/errors are also
+recorded in manifest/validation and ignored evidence.
+
+| Region             | SE photo median RGB    | Delivered median RGB   | ?E2000 |
+| ------------------ | ---------------------- | ---------------------- | -----: |
+| shell              | 0.6796, 0.0000, 0.0103 | 0.6724, 0.0000, 0.0103 |  0.220 |
+| main buttons       | 0.6719, 0.0000, 0.0251 | 0.6654, 0.0000, 0.0252 |  0.212 |
+| side buttons       | 0.9216, 0.0000, 0.0368 | 0.9216, 0.0003, 0.0356 |  0.245 |
+| wheel rubber       | 0.0316, 0.0296, 0.0299 | 0.0319, 0.0296, 0.0307 |  0.582 |
+| wheel rim          | 0.6358, 0.6122, 0.6174 | 0.6445, 0.6038, 0.5972 |  1.360 |
+| underside          | 0.0222, 0.0224, 0.0225 | 0.0232, 0.0232, 0.0232 |  0.277 |
+| feet               | 0.0945, 0.1165, 0.1484 | 0.0976, 0.1170, 0.1470 |  0.536 |
+| logo               | 0.3662, 0.3611, 0.3707 | 0.3916, 0.3515, 0.3515 |  3.402 |
+| side wordmark      | 0.6724, 0.6723, 0.6654 | 1.0000, 0.5552, 0.5215 | 18.759 |
+| indicator          | 0.0837, 0.4634, 0.0238 | 0.4564, 0.2831, 0.1356 | 31.936 |
+| ports and recesses | 0.0068, 0.0068, 0.0068 | 0.0070, 0.0070, 0.0070 |  0.115 |
+| underside logo     | 0.2152, 0.2161, 0.2160 | 0.4649, 0.4649, 0.4707 | 16.987 |
+
+Shell, main buttons and side buttons meet **?E2000 ?5**. Three other regions
+exceed 5 after delivery: the thin side wordmark has only four fully covered
+pixels and red JPEG chroma bleed (18.759); the indicator has one footprint pixel
+and mixes with red (31.936); the high-contrast inherited underside-logo texture
+averages differently after filtering (16.987, 148 evaluation pixels). Their
+2048 px errors are 0.019 / 0.078 / 0.132 respectively. These are reported
+limitations, not a claim of passing an all-region threshold. No gate changed.
+
+**Geometry and delivery.** Decoded positions match the delivered sibling
+**exactly: maximum displacement 0 mm**; UVs are exactly equal. Delivered W/L/H
+is **63.500009 / 125.000015 / 40.000003 mm**, max catalogue error
+**0.000014901 mm**. Geometry has **14,000 triangles**, **0 non-manifold edges**,
+**0 degenerate faces**, **0 non-adjacent intersection pairs**, outward volume
+**184,729.863 mm?**, and support margin **25.490273 mm**. One material retains
+normal strength 0.65 and three 512 px JPEG maps (colour, packed metallic/roughness,
+tangent normal). Geometry/UV bytes and both non-colour image payloads match the
+sibling byte-for-byte; only the base image is rewritten. The lossless 2048 px
+source stays under ignored `out/polished/<SE>/`. Delivered SE is **305,720 bytes**.
+The **other 34/34 GLBs are byte-identical to `70f7765`**, with no unexpected
+additions or missing files. There are still 35 delivered GLBs.
+
+[Four-view contact sheet](out/study-fidelity/b2/logitech-g-pro-x-superlight-2-se.png):
+SE photos | old SE study | new SE | Superlight 2, at top, side, front and hero.
+All model renders share lighting/cameras. Photos retain their studio lighting.
+A3 has no straight-on front photo, so that reference cell says so explicitly.
+The new shell inherits the sibling's wheel/recess rendering limitations and
+adds no wheel geometry. Kirby's visual acceptance remains pending.
+
+**Gates:** Python discovery 42 tests (34 passed, 8 Blender-only skips); TypeScript
+9 passed; Blender orientation 4 passed, colour sampling 3 passed, alpha regression
+1 passed; `check_assets.py` reported `ALL_ASSET_CHECKS_PASSED`. Catalogue, payload,
+optimisation and prettier checks all passed. The nine new SE tests also pass
+with OpenCV/scikit-image imports disabled, matching CI's existing dependencies.
+B3 is not started.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -460,6 +585,17 @@ it no longer requires stale local study snapshots.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B2 SE built** after separate reviewer-fix commit `70f7765`.
+  Only SE moved from study to shell; other 34 GLBs are byte-identical. Source
+  component/UV region bake, photo de-shading, base-only GLB rewrite, camera fits
+  and four-view sheet are complete. Vertex displacement is exactly 0 mm. Colour
+  results and small-feature exceptions are in Results B2. Final gates: Python
+  42 tests (8 bpy skips), TypeScript 9 passed; Blender orientation 4, colour 3,
+  alpha 1 passed; full asset gate `ALL_ASSET_CHECKS_PASSED`; catalogue, payload,
+  optimisation and prettier passed. New SE tests also pass without optional
+  OpenCV/scikit-image imports. Only SE entries changed in manifest/validation.
+  No push; Claude audits/pushes. B3 not started.
 
 - 2026-09-28 Codex: Step 0 reviewer fixes implemented before B2. Python unit
   discovery: 33 tests, 8 Blender-only skips; TypeScript: 9 passed; Blender alpha:

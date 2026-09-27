@@ -1,7 +1,7 @@
 {
   "status": "visual-review-pending",
   "galleryImageCount": 658,
-  "fullRotationReferenceModels": 28,
+  "fullRotationReferenceModels": 29,
   "viewsPerRotation": 26,
   "shells": [
     {
@@ -64,6 +64,77 @@
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 33.025334709357516,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      }
+    },
+    {
+      "slug": "logitech-ergo-m575s",
+      "model": "ERGO M575S",
+      "status": "source-shell-alias",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+        "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+        "bytes": 3779732,
+        "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+      },
+      "mesh": {
+        "vertices": 6997,
+        "triangles": 13998,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 251522.64115474958
+      },
+      "dimensionsXYZmm": [
+        100.00000894069672, 134.0000182390213, 48.00000786781311
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
+      "uncalibratedDimensionsXYZmm": [
+        99.38473999500275, 133.3036944270134, 47.82551146490732
+      ],
+      "dimensionCalibrationScale": [
+        1.0061907038761113, 1.0052234779676565, 1.003648449268613
+      ],
+      "bytes": 240712,
+      "path": "shells/logitech-ergo-m575.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999985098839, 0.9999999750905969, 0.999999991307656
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+          "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+          "bytes": 3779732,
+          "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516,
+      "aliasOf": "logitech-ergo-m575",
+      "limitations": [
+        "shape assumed identical to ERGO M575 (same published dimensions); not independently reconstructed — candidate"
+      ],
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -266,6 +337,395 @@
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
+      }
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2-se",
+      "model": "G Pro X Superlight 2 SE",
+      "status": "reference-derived-review",
+      "method": "Kirby-approved Superlight 2 AR-derived sibling shell with photo-measured red SE base colour",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "bytes": 9233256,
+        "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 184729.86320531598
+      },
+      "dimensionsXYZmm": [
+        63.50000947713852, 125.0000149011612, 40.00000283122063
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
+      "uncalibratedDimensionsXYZmm": [
+        63.24205920100212, 123.94244968891144, 39.63208264030982
+      ],
+      "dimensionCalibrationScale": [
+        1.0040786594999378, 1.0085325916483252, 1.0092833928070335
+      ],
+      "bytes": 305720,
+      "path": "shells/logitech-g-pro-x-superlight-2-se.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [0.999999968085703, 1.0, 0.9999999292194893]
+      },
+      "textureRefinement": {
+        "method": "Source component ID bake; explicit spatial UV print annotations; robust quadratic log-luminance removal with median illumination anchor and neutral specular subtraction on saturated red plastic; median linear RGB; multiplicative detail recolour and continuous ink compositing",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "bytes": 9233256,
+          "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+        },
+        "normalStrength": 0.65,
+        "baseColourPhotos": [
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+            "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+            "sha256": "5094027798ff04124626e2753850cb2e3add2a313b1cca06141d36972fb9317c"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+            "sha256": "36670af1ad6d8049ce44a4318f0b0200708252348842453cf71cb4d882096b67"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+            "sha256": "eb99c90942416c8713861e43e5f135afa2fbe5aaf00f5eb6586d0df35dd34929"
+          }
+        ],
+        "baseColourRegions": [
+          {
+            "region": "shell",
+            "photoLinearRGB": [0.6796035481577938, 0.0, 0.010290862157551437],
+            "textureLinearRGB": [0.6795424696330938, 0.0, 0.010329823029626936],
+            "deltaE2000": 0.013263414116185195,
+            "textureCorePixels": 788286,
+            "deliveredLinearRGB": [
+              0.6724431569576875, 0.0, 0.010329823029626936
+            ],
+            "deliveredDeltaE2000": 0.22022226785379426,
+            "deliveredCorePixels": 47805,
+            "subpixelFallback": false
+          },
+          {
+            "region": "main_buttons",
+            "photoLinearRGB": [0.6719035485634272, 0.0, 0.025114456081087953],
+            "textureLinearRGB": [0.6724431569576875, 0.0, 0.02518685962736163],
+            "deltaE2000": 0.020400286172217594,
+            "textureCorePixels": 399836,
+            "deliveredLinearRGB": [0.665387298282272, 0.0, 0.02518685962736163],
+            "deliveredDeltaE2000": 0.2119457285123935,
+            "deliveredCorePixels": 23169,
+            "subpixelFallback": false
+          },
+          {
+            "region": "side_buttons",
+            "photoLinearRGB": [0.9215820968665375, 0.0, 0.03678270356938445],
+            "textureLinearRGB": [0.9215818562772946, 0.0, 0.03688945040110004],
+            "deltaE2000": 0.019706154455140082,
+            "textureCorePixels": 23775,
+            "deliveredLinearRGB": [
+              0.9215818562772946, 0.0003035269835488375, 0.03560131487502034
+            ],
+            "deliveredDeltaE2000": 0.24507934395643857,
+            "deliveredCorePixels": 1211,
+            "subpixelFallback": false
+          },
+          {
+            "region": "wheel_rubber",
+            "photoLinearRGB": [
+              0.031592138594987176, 0.029580768633465197, 0.029882861009358976
+            ],
+            "textureLinearRGB": [
+              0.03189603307301153, 0.0295568344378088, 0.0295568344378088
+            ],
+            "deltaE2000": 0.22479793296807168,
+            "textureCorePixels": 13682,
+            "deliveredLinearRGB": [
+              0.03189603307301153, 0.0295568344378088, 0.030713443732993635
+            ],
+            "deliveredDeltaE2000": 0.5824204438236626,
+            "deliveredCorePixels": 703,
+            "subpixelFallback": false
+          },
+          {
+            "region": "wheel_rim",
+            "photoLinearRGB": [
+              0.6357919660260487, 0.6122087570381255, 0.6173772145348393
+            ],
+            "textureLinearRGB": [
+              0.6375968739940326, 0.6104955708078648, 0.6172065624196511
+            ],
+            "deltaE2000": 0.30691111818882033,
+            "textureCorePixels": 23810,
+            "deliveredLinearRGB": [
+              0.6444796819705821, 0.6038273388553378, 0.5972017883637634
+            ],
+            "deliveredDeltaE2000": 1.3596753633263838,
+            "deliveredCorePixels": 911,
+            "subpixelFallback": false
+          },
+          {
+            "region": "underside",
+            "photoLinearRGB": [
+              0.022249240421722598, 0.022438453256610556, 0.0224520964464043
+            ],
+            "textureLinearRGB": [
+              0.02217388479338738, 0.02217388479338738, 0.02217388479338738
+            ],
+            "deltaE2000": 0.15157630434826064,
+            "textureCorePixels": 456634,
+            "deliveredLinearRGB": [
+              0.02315336617811041, 0.02315336617811041, 0.02315336617811041
+            ],
+            "deliveredDeltaE2000": 0.2769736075978594,
+            "deliveredCorePixels": 26896,
+            "subpixelFallback": false
+          },
+          {
+            "region": "feet",
+            "photoLinearRGB": [
+              0.09445485122299627, 0.11650939088408446, 0.1484081536871295
+            ],
+            "textureLinearRGB": [
+              0.0953074666309647, 0.11697066775851084, 0.14702726649759498
+            ],
+            "deltaE2000": 0.328121121931068,
+            "textureCorePixels": 217225,
+            "deliveredLinearRGB": [
+              0.09758734714186246, 0.11697066775851084, 0.14702726649759498
+            ],
+            "deliveredDeltaE2000": 0.5364691859531293,
+            "deliveredCorePixels": 13044,
+            "subpixelFallback": false
+          },
+          {
+            "region": "logo",
+            "photoLinearRGB": [
+              0.36617269914479245, 0.3611454780004699, 0.370710163968508
+            ],
+            "textureLinearRGB": [
+              0.3662525955988395, 0.3613067797835095, 0.3712376804741491
+            ],
+            "deltaE2000": 0.040852077097710424,
+            "textureCorePixels": 7045,
+            "deliveredLinearRGB": [
+              0.39157247774972326, 0.35153259950043936, 0.35153259950043936
+            ],
+            "deliveredDeltaE2000": 3.401652864240701,
+            "deliveredCorePixels": 326,
+            "subpixelFallback": false
+          },
+          {
+            "region": "side_wordmark",
+            "photoLinearRGB": [
+              0.672443156961918, 0.6722855072523601, 0.6653872982864583
+            ],
+            "textureLinearRGB": [
+              0.6724431569576875, 0.6724431569576875, 0.665387298282272
+            ],
+            "deltaE2000": 0.01926776173977427,
+            "textureCorePixels": 3527,
+            "deliveredLinearRGB": [1.0, 0.5552179835375579, 0.5215161256799179],
+            "deliveredDeltaE2000": 18.758745921136118,
+            "deliveredCorePixels": 4,
+            "subpixelFallback": false
+          },
+          {
+            "region": "indicator",
+            "photoLinearRGB": [
+              0.08372948120588206, 0.46343845042659176, 0.02378736386680226
+            ],
+            "textureLinearRGB": [
+              0.08437621154414882, 0.4620769996544071, 0.024157632448504756
+            ],
+            "deltaE2000": 0.07845715839357363,
+            "textureCorePixels": 14,
+            "deliveredLinearRGB": [
+              0.45641102318040466, 0.2831487404299921, 0.13563332965520566
+            ],
+            "deliveredDeltaE2000": 31.935767397405193,
+            "deliveredCorePixels": 1,
+            "subpixelFallback": true
+          },
+          {
+            "region": "ports_and_recesses",
+            "photoLinearRGB": [
+              0.006776989277595347, 0.006816390222481452, 0.006816390222481452
+            ],
+            "textureLinearRGB": [
+              0.006995410187265387, 0.006995410187265387, 0.006995410187265387
+            ],
+            "deltaE2000": 0.11495169916457214,
+            "textureCorePixels": 150408,
+            "deliveredLinearRGB": [
+              0.006995410187265387, 0.006995410187265387, 0.006995410187265387
+            ],
+            "deliveredDeltaE2000": 0.11495169916457214,
+            "deliveredCorePixels": 7628,
+            "subpixelFallback": false
+          },
+          {
+            "region": "underside_logo",
+            "photoLinearRGB": [
+              0.21524677785822038, 0.21607145000154118, 0.21602365434631055
+            ],
+            "textureLinearRGB": [
+              0.21586050011389926, 0.21586050011389926, 0.21586050011389926
+            ],
+            "deltaE2000": 0.13230318195831645,
+            "textureCorePixels": 3684,
+            "deliveredLinearRGB": [
+              0.46493039788328305, 0.46493039788328305, 0.47065764613008426
+            ],
+            "deliveredDeltaE2000": 16.987242951676404,
+            "deliveredCorePixels": 148,
+            "subpixelFallback": false
+          }
+        ],
+        "cameraRegistration": {
+          "method": "Canonical orthographic bbox registration and held-out oblique silhouette fit.\n\nThe orthogonal registration repeats A2: alpha >180, largest component, filled\nholes, independent X/Y bbox normalisation. It is explicitly an affine framing\nfit, not a recovered physical lens or an independent shape-identity proof.\n",
+          "views": [
+            {
+              "view": "top",
+              "iou": 0.9941377011798662,
+              "axes": [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0]
+              ],
+              "size": [504, 1000],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+              "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9",
+              "bbox": [851, 286, 1653, 1877]
+            },
+            {
+              "view": "left",
+              "iou": 0.9866333582065341,
+              "axes": [
+                [0, -1, 0],
+                [0, 0, 1],
+                [-1, 0, 0]
+              ],
+              "size": [1000, 317],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+              "sha256": "5094027798ff04124626e2753850cb2e3add2a313b1cca06141d36972fb9317c",
+              "bbox": [346, 796, 2152, 1369]
+            },
+            {
+              "view": "right",
+              "iou": 0.9858744385554249,
+              "axes": [
+                [0, 1, 0],
+                [0, 0, 1],
+                [1, 0, 0]
+              ],
+              "size": [1000, 318],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+              "sha256": "eb99c90942416c8713861e43e5f135afa2fbe5aaf00f5eb6586d0df35dd34929",
+              "bbox": [353, 793, 2154, 1365]
+            },
+            {
+              "view": "bottom",
+              "iou": 0.9929363576818512,
+              "axes": [
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, 0, -1]
+              ],
+              "size": [504, 1000],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+              "sha256": "36670af1ad6d8049ce44a4318f0b0200708252348842453cf71cb4d882096b67",
+              "bbox": [850, 283, 1654, 1877]
+            },
+            {
+              "view": "hero-held-out",
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-3qtr-high-back-angle-gallery-3.png",
+              "iou": 0.9789141207863639,
+              "angles": [
+                -49.52540034558602, 36.21298153854552, 0.0001921639946296404
+              ],
+              "axes": [
+                [
+                  -0.6491093743326405, -0.7606950901288674,
+                  2.7060108129756408e-6
+                ],
+                [0.449411317745405, -0.38348468365838434, 0.8068264775537352],
+                [-0.6137479023473944, 0.5237198461517985, 0.5907884859329182]
+              ],
+              "usedForColour": false
+            }
+          ]
+        },
+        "regionBakeSurfaceCoveragePercent": {
+          "upper": 99.97004286568742,
+          "side": 99.99657076485667,
+          "underside": 99.99866062974296
+        },
+        "colourLimitation": "Relative studio de-shading only: no colour chart or known exposure; unknown global illumination scale remains.",
+        "smallFeatureLimitations": "512px JPEG red chroma bleed shifts side wordmark and subpixel indicator; filtered high-contrast inherited underside logo shifts its median. Underside regulatory glyphs retain sibling artwork and relative contrast; not SE serial/model-label evidence."
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 25.490273276389463,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      },
+      "inheritedShell": {
+        "slug": "logitech-g-pro-x-superlight-2",
+        "deliveredSHA256": "86e0a50d879d35e5e23b791d410ca5f5ebadd917cd6775491eb0cd5691e86142",
+        "geometryAndUV": "Byte-identical compressed geometry and UV atlas; decoded vertex displacement 0 mm",
+        "detailMaps": "Byte-identical sibling tangent normal and packed metallic/roughness maps",
+        "preservedBufferViews": [
+          {
+            "bufferView": 0,
+            "bytes": 106546,
+            "sha256": "3711fad8f93294a279c30ce31e4e8b4aaa15b77ef2b0f46729700747acd31203"
+          },
+          {
+            "bufferView": 1,
+            "bytes": 95110,
+            "sha256": "15fe0c57c5963d1aa56928a83b8af24c8be21bab86491a6ea08c5a2b57f23015"
+          },
+          {
+            "bufferView": 3,
+            "bytes": 45355,
+            "sha256": "e9b4bbab4e0759621bf7224265799619da35c5271d9aa9320f7249f23067dbb8"
+          }
+        ],
+        "decision": "Kirby approved the Superlight 2 sibling shell and detail-map route for red SE on 2026-09-28",
+        "a2": {
+          "topIoU": 0.994485,
+          "sideIoU": 0.989098,
+          "topMaxBoundaryGapMm": 1.008,
+          "sideMaxBoundaryGapMm": 2.338,
+          "interpretation": "Original same-shell gate inconclusive at a narrow seam; substitution is Kirby-approved, not a changed gate"
+        }
       }
     },
     {
@@ -1901,166 +2361,9 @@
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
       }
-    },
-    {
-      "slug": "logitech-ergo-m575s",
-      "model": "ERGO M575S",
-      "status": "source-shell-alias",
-      "method": "26-view silhouette and depth image carving",
-      "source": {
-        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
-        "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
-        "bytes": 3779732,
-        "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
-      },
-      "mesh": {
-        "vertices": 6997,
-        "triangles": 13998,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 251522.64115474958
-      },
-      "dimensionsXYZmm": [
-        100.00000894069672, 134.0000182390213, 48.00000786781311
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
-      "uncalibratedDimensionsXYZmm": [
-        99.38473999500275, 133.3036944270134, 47.82551146490732
-      ],
-      "dimensionCalibrationScale": [
-        1.0061907038761113, 1.0052234779676565, 1.003648449268613
-      ],
-      "bytes": 240712,
-      "path": "shells/logitech-ergo-m575.glb",
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
-          [8.742277657347586e-8, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          0.999999985098839, 0.9999999750905969, 0.999999991307656
-        ]
-      },
-      "textureRefinement": {
-        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
-        "resolution": 2048,
-        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
-        "source": {
-          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
-          "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
-          "bytes": 3779732,
-          "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
-        },
-        "normalStrength": 0.65
-      },
-      "groundErrorMm": 0.0,
-      "supportMarginMm": 33.025334709357516,
-      "aliasOf": "logitech-ergo-m575",
-      "limitations": [
-        "shape assumed identical to ERGO M575 (same published dimensions); not independently reconstructed — candidate"
-      ],
-      "deliveredTexture": {
-        "format": "JPEG",
-        "maxResolution": 512,
-        "maps": 3,
-        "normalEncoding": "JPEG q90 4:4:4"
-      }
     }
   ],
   "studies": [
-    {
-      "slug": "logitech-g-pro-x-superlight-2-se",
-      "model": "G Pro X Superlight 2 SE",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
-          "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
-          "width": 2500,
-          "height": 2160,
-          "mode": "RGBA",
-          "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
-          "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
-          "width": 2500,
-          "height": 2160,
-          "mode": "RGBA",
-          "sha256": "5094027798ff04124626e2753850cb2e3add2a313b1cca06141d36972fb9317c",
-          "viewHint": "left"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 205890.27396929573
-      },
-      "dimensionsXYZmm": [
-        63.50000947713852, 125.0000149011612, 39.99999910593033
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
-      "uncalibratedDimensionsXYZmm": [
-        63.36846575140953, 123.89553338289261, 39.897228343761526
-      ],
-      "dimensionCalibrationScale": [
-        1.002075705116587, 1.0089144990699066, 1.0025759096685358
-      ],
-      "bytes": 81464,
-      "path": "studies/logitech-g-pro-x-superlight-2-se.glb",
-      "limitations": [
-        "No working official 360 asset found",
-        "Cross-sections interpolated between traced outlines",
-        "Side image perspective has not been camera-calibrated",
-        "Wheel and button details are not reconstructed"
-      ],
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [0.999999968085703, 1.0, 1.0000000223517422]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
-          "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
-          "width": 2500,
-          "height": 2160,
-          "mode": "RGBA",
-          "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9",
-          "viewHint": "top"
-        },
-        "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
-      },
-      "groundErrorMm": 0.0,
-      "supportMarginMm": 26.009646421084657,
-      "deliveredTexture": {
-        "format": "JPEG",
-        "maxResolution": 512,
-        "maps": 1
-      }
-    },
     {
       "slug": "logitech-m100",
       "model": "M100",
@@ -2562,7 +2865,7 @@
     "calibratedBboxRoundTripDifferenceMm": "Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy",
     "silhouetteIoU": "In-sample comparison with the same reference views used for reconstruction; not independent validation"
   },
-  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. 6 gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
+  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. 5 gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
   "orientationConvention": {
     "blender": "Z up, nose +Y, ground Z=0",
     "gltf": "Y up, nose -Z, ground Y=0"

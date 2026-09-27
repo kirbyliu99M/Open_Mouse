@@ -80,6 +80,8 @@ def source_surface(record, calibration):
     return BVHTree.FromPolygons(vertices,triangles,all_triangles=True),vertices,triangles,samples,objects
 
 def colorize(slug):
+    if slug=='logitech-g-pro-x-superlight-2-se':
+        raise ValueError('SE uses bake_se_regions.py and recolour_se.py on the sibling atlas')
     record=json.loads((LIB/slug/'sources.json').read_text())
     report=json.loads((REBUILT/slug/'reconstruction.json').read_text())
     scene=bpy.data.scenes.new('Colour_'+slug);bpy.context.window.scene=scene
@@ -104,7 +106,7 @@ def colorize(slug):
                     'distanceP95mm':float(np.percentile(distances,95)),'distanceMaxMm':max(distances)}
     else:
         # Conservative, photo-matched shell palette only: no invented component boundaries.
-        choices={'logitech-g-pro-x-superlight-2-se':('#be202b','red'), 'logitech-m100':('#333539','charcoal'),
+        choices={'logitech-m100':('#333539','charcoal'),
                  'logitech-m550':('#454749','graphite'),'logitech-m705-marathon':('#484a4d','charcoal'),
                  'logitech-m325s':('#3c3e42','graphite'),
                  'logitech-signature-comfort-plus-m850l':('#454749','graphite')}
@@ -162,4 +164,5 @@ if __name__=='__main__':
     if not bpy.app.background:raise RuntimeError('Background only')
     parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     for path in sorted(REBUILT.glob('*/reconstruction.json')):
+        if path.parent.name=='logitech-g-pro-x-superlight-2-se' and not args.model:continue
         if not args.model or path.parent.name in args.model.split(','):colorize(path.parent.name)

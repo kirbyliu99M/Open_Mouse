@@ -89,16 +89,18 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 29 shell entries (28 source-derived shells and 1 alias), 6 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,057,128 bytes (7.68 MiB)**, including **4,453,807 image bytes** across 90 JPEG maps.
+The manifest has 30 shell entries (29 source-derived shells and 1 alias), 5 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,281,384 bytes (7.90 MiB)**, including **4,644,253 image bytes** across 92 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
 | Model                                 | Classification     | Delivered file                                      |   Bytes |
 | ------------------------------------- | ------------------ | --------------------------------------------------- | ------: |
 | logitech-ergo-m575                    | AR-derived shell   | `shells/logitech-ergo-m575.glb`                     | 240,712 |
+| logitech-ergo-m575s                   | Shell alias        | `shells/logitech-ergo-m575.glb`                     | 240,712 |
 | logitech-g-pro-2-lightspeed           | AR-derived shell   | `shells/logitech-g-pro-2-lightspeed.glb`            | 298,712 |
 | logitech-g-pro-x-superlight-2         | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2.glb`          | 302,612 |
 | logitech-g-pro-x-superlight-2-dex     | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-dex.glb`      | 295,228 |
+| logitech-g-pro-x-superlight-2-se      | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-se.glb`       | 305,720 |
 | logitech-g-pro-x-superlight-2c        | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2c.glb`         | 311,696 |
 | logitech-g203-lightsync               | AR-derived shell   | `shells/logitech-g203-lightsync.glb`                | 219,512 |
 | logitech-g305-lightspeed              | AR-derived shell   | `shells/logitech-g305-lightspeed.glb`               | 157,032 |
@@ -123,8 +125,6 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 179,812 |
 | logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
 | logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |
-| logitech-ergo-m575s                   | Shell alias        | `shells/logitech-ergo-m575.glb`                     | 240,712 |
-| logitech-g-pro-x-superlight-2-se      | Limited-view study | `studies/logitech-g-pro-x-superlight-2-se.glb`      |  81,464 |
 | logitech-m100                         | Limited-view study | `studies/logitech-m100.glb`                         |  76,416 |
 | logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
 | logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         |  79,044 |

@@ -65,6 +65,32 @@ limitations are also recorded per study in the manifest. Raw photos remain
 outside the repository; only their baked GLBs are published under Kirby's
 2026-09-27 R8 decision.
 
+## SE sibling-shell recolour (B2)
+
+G Pro X Superlight 2 SE is an AR-derived sibling shell, approved by Kirby on
+2026-09-28. It uses Superlight 2's exact delivered geometry, UVs and PBR detail
+maps, with red SE photo colour. It is excluded from gallery-study generators.
+Its direct-reference inventory still correctly has no SE AR download; provenance
+names the Superlight 2 AR source and each red SE photograph separately.
+
+Reproduction (all intermediate evidence stays under ignored `out/`):
+
+1. Preserve the prior study as `out/study-fidelity/b2/old-se.glb` for the comparison.
+2. Blender background: `bake_se_regions.py` (2048 px component/UV region bake).
+3. Python: `recolour_se.py`, then `fit_se_photos.py`.
+4. Use `optimize_glbs.optimize` on the lossless SE GLB to
+   `out/study-fidelity/b2/logitech-g-pro-x-superlight-2-se-delivered.glb`.
+5. Python: `check_se_delivery.py`; Blender background: `check_se_geometry.py`
+   and `render_se_comparison.py`; Python: `assemble_se_sheet.py`.
+6. Python: `package_se.py` installs only SE and records its evidence; regenerate
+   `write_payload_audit.py` and run the catalogue, asset and formatting gates.
+
+See [B2 evidence](STUDY-FIDELITY.md#b2--se), including small-feature colour
+errors after JPEG delivery. The region map follows source mesh connectivity,
+with explicit UV print boxes. No RGB threshold chooses a physical region.
+Photos have no colour chart, so de-shading uses a documented relative exposure
+gauge; colour measurements are not calibrated physical reflectance.
+
 ## Superseded prototype
 
 First authoring batch for issue #7: three procedural shells and one rigged hand.

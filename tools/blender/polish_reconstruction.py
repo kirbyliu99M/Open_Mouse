@@ -13,10 +13,10 @@ sys.path.insert(0,str(HERE))
 from color_reconstruction import LIB,REBUILT
 from asset_utils import export_glb,validate_mesh,dimensions_mm,material
 OUT=HERE/'out/polished'
-REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','g-pro-x-superlight-2-se','m100','m550','m705-marathon','g903-hero','m750'}
-GALLERY_STUDIES={'logitech-g-pro-x-superlight-2-se','logitech-m100','logitech-m550','logitech-m705-marathon',
+REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','m100','m550','m705-marathon','g903-hero','m750'}
+GALLERY_STUDIES={'logitech-m100','logitech-m550','logitech-m705-marathon',
                  'logitech-m325s','logitech-signature-comfort-plus-m850l'}
-GALLERY_COLOURS={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
+GALLERY_COLOURS={'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
                  'logitech-m325s':(.045,.05,.055),
                  'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
 
@@ -58,6 +58,8 @@ def render(scene,folder,dimensions):
         scene.render.filepath=str(folder/'renders'/(name+'.png'));bpy.ops.render.render(write_still=True)
 
 def polish(slug):
+    if slug=='logitech-g-pro-x-superlight-2-se':
+        raise ValueError('SE uses bake_se_regions.py and recolour_se.py on the sibling atlas')
     record=json.loads((LIB/slug/'sources.json').read_text());report=json.loads((REBUILT/slug/'reconstruction.json').read_text())
     scene=bpy.data.scenes.new('Polished_'+slug);bpy.context.window.scene=scene
     prior=REBUILT/slug/(slug+'.blend')
@@ -102,5 +104,6 @@ if __name__=='__main__':
     if not bpy.app.background:raise RuntimeError('Background only')
     parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     for path in sorted(REBUILT.glob('*/reconstruction.json')):
+        if path.parent.name=='logitech-g-pro-x-superlight-2-se' and not args.model:continue
         if path.parent.name in {'logitech-mx-ergo-s','logitech-ergo-m575s'}:continue
         if not args.model or path.parent.name in args.model.split(','):polish(path.parent.name)
