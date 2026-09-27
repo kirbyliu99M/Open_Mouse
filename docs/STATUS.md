@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-25 · by: Codex (product-shell design)_
+_Last updated: 2026-09-27 · by: Claude (Blender asset fixes, R8)_
 
 ---
 
@@ -56,7 +56,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 ### Not required for the first deployment — _candidate_
 
-- **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged and its textures are optimised.
+- **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged (textures optimised 2026-09-27: 30 mice 6.70 MiB). It needs three.js `DRACOLoader` plus decoder files — the GLBs list `KHR_draco_mesh_compression` as required.
 - **M1 descriptor gate.** First live run (2026-09-23, 30 models, gemini-3.8-flash) **failed** on flare and curvature, so its output was kept out of the seed (saved outside the repo in `../Fixtures/m1-run-2026-09-23/`). Hump, flare and curvature stay unclassified and those sub-scores use a neutral prior (`UNKNOWN_PRIOR_SCORE = 75`), so rankings lean on dimensions. Deployable but weaker: either ship saying so, or wait for the key.
 - **M3 coefficients** stay provisional (`fit-v0-provisional`) until tuned against mice Kirby owns. The analysis already states this.
 
@@ -77,10 +77,9 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 1. Ground-truth hand photos in `../Fixtures/hands/`, with ruler measurements → R2
 2. Gemini API key → model-written analysis (R5) and the M1 gate
 3. ~~A decision on the photo-derived shell textures → R8~~ — decided 2026-09-27: publish
-4. M4b viewer needs three.js `DRACOLoader` plus decoder files (the GLBs list `KHR_draco_mesh_compression` as required)
-5. Production DB variables back to Sensitive, or permission for the API call that does it → R6
-6. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
-7. Final acceptance on a real phone
+4. Production DB variables back to Sensitive, or permission for the API call that does it → R6
+5. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
+6. Final acceptance on a real phone
 
 ### Other open items
 
@@ -215,6 +214,8 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-24 | M1 descriptors from the first live run stay out of the seed | Gate failed (flare 72.4%, curvature 25.0%). Rule 4: revise the rubric, not the gate. Shape sub-scores stay "Shape not rated yet" and the UI says the total leans on size. |
 | 2026-09-25 | Production DB env vars stay non-Sensitive in Vercel (known risk, accepted by Kirby) | The Neon integration offers no Sensitive toggle; Hobby project with Kirby as the only member. Password rotated 2026-09-24 after it had been pasted into a conversation. |
 | 2026-09-25 | The camera flow borrows TONALITE's documented principles, not its screens | Public reviews describe its step-by-step flow and QR-sticker fiducials but not the capture UI; our ArUco markers play the stickers' role. |
+| 2026-09-27 | **Catalogue grows 30 → 38**: M750, M325s, Mobi Fold, M850L, M840L, MX Ergo S, ERGO M575S, G903 Hero | Kirby's call, from a PChome Taiwan shelf check plus a first-party spec read. Descriptors pending; the dated Size-gate figure (27/30) covers only the original 30 — the 8 new rows are unmeasured |
+| 2026-09-27 | **R8: Blender assets are published** (open-source project); **no medical claims** anywhere | Kirby's call. Logitech trademarks and source 3D models are not covered by the project licence — note it in the asset README |
 ---
 
 ## Risks
@@ -227,7 +228,7 @@ Append; don't rewrite. Each entry: what, why, when.
 
 **Credential redaction leaks quoted secrets (P1, open since 2026-09-21).** Codex's M0 review reported that `describeMigrationError` lets quoted credentials through. It was never fixed. Re-tested 2026-09-23 against `main`: of seven forms, **five leak the full secret** — `password="…"`, `password='…'`, `{"password":"…"}`, escaped quotes, and `PGPASSWORD=…`. This code runs in every preview build, so a failing migration could write the database password into Vercel build logs. Fix in flight; blocks R6.
 
-**Shell textures are derived from product photos.** 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decided R8 on 2026-09-27: publish (open-source project); the rights caveat above stands. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
+**Shell textures are derived from product photos.** Before 2026-09-27, 98% of the 118 MB of GLBs in #26 (115 MB) was embedded PNG textures; the optimised build is 6.86 MiB of 512 px JPEG-textured GLBs, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decided R8 on 2026-09-27: publish (open-source project); the rights caveat above stands. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
 
 **M1 is the riskiest gate in the project.** Analysis of the validation fixture
 shows `Hump placement` and `Front flare` have **no numeric proxy**: height/length
