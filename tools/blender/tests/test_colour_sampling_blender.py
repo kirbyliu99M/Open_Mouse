@@ -2,12 +2,17 @@
 import sys
 import unittest
 from pathlib import Path
-import bpy
+try:
+    import bpy
+except ImportError:
+    bpy = None
 import numpy as np
-from mathutils import Vector
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from color_reconstruction import socket_value, image_pixels
+if bpy is not None:
+    from mathutils import Vector
+    from color_reconstruction import socket_value, image_pixels
 
+@unittest.skipUnless(bpy is not None, "Requires Blender bpy; run with Blender --background")
 class ColourSamplingTests(unittest.TestCase):
     def test_srgb_midpoint_is_linearized(self):
         image=bpy.data.images.new('gamma fixture',width=1,height=1,float_buffer=True)
@@ -39,5 +44,6 @@ class ColourSamplingTests(unittest.TestCase):
         np.testing.assert_allclose(socket_value(node.inputs['Base Color'],Vector((0,0)),{}),[.1,.2,.3,1],atol=1e-6)
         bpy.data.materials.remove(mat)
 
-result=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(ColourSamplingTests))
-if not result.wasSuccessful():raise RuntimeError('Colour sampling tests failed')
+if __name__ == '__main__':
+    result=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(ColourSamplingTests))
+    if not result.wasSuccessful():raise RuntimeError('Colour sampling tests failed')

@@ -24,7 +24,7 @@ def inspect_glb(path: Path, estimate_1024: bool = False) -> dict:
     views = document.get("bufferViews", [])
     images = document.get("images", [])
     image_bytes = sum(views[image["bufferView"]]["byteLength"] for image in images)
-    if any(image.get("mimeType") != "image/png" for image in images):
+    if any(image.get("mimeType") not in ("image/png", "image/jpeg") for image in images):
         raise ValueError(f"Unexpected image format: {path}")
     if "KHR_draco_mesh_compression" not in document.get("extensionsUsed", []):
         raise ValueError(f"Draco compression missing: {path}")
@@ -32,6 +32,8 @@ def inspect_glb(path: Path, estimate_1024: bool = False) -> dict:
             "bytes": len(data), "imageBytes": image_bytes, "imageCount": len(images),
             "otherBytes": len(data) - image_bytes}
     if estimate_1024:
+        if any(image.get("mimeType") != "image/png" for image in images):
+            raise ValueError("--estimate-1024 only applies to the historical PNG build")
         from PIL import Image
 
         bin_header = 20 + json_length

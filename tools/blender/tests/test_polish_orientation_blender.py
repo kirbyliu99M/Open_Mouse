@@ -2,12 +2,17 @@
 import sys
 import unittest
 from pathlib import Path
-import bpy
+try:
+    import bpy
+except ImportError:
+    bpy = None
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from polish_reconstruction import orient
-from asset_utils import validate_mesh,dimensions_mm
+if bpy is not None:
+    from polish_reconstruction import orient
+    from asset_utils import validate_mesh,dimensions_mm
 
+@unittest.skipUnless(bpy is not None, "Requires Blender bpy; run with Blender --background")
 class OrientationTests(unittest.TestCase):
     def cube(self):
         bpy.ops.mesh.primitive_cube_add(size=1)
@@ -35,5 +40,6 @@ class OrientationTests(unittest.TestCase):
         self.assertGreater(obj.data.vertices[index].co.y,0)
         self.assertGreater(validate_mesh(obj)['volumeMm3'],0)
 
-result=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(OrientationTests))
-if not result.wasSuccessful():raise RuntimeError('Orientation tests failed')
+if __name__ == '__main__':
+    result=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(OrientationTests))
+    if not result.wasSuccessful():raise RuntimeError('Orientation tests failed')

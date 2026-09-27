@@ -79,10 +79,10 @@ after explicit dimension calibration is **0.00002845 mm**; this is numerical
 export precision, not physical measurement accuracy. The five reference
 geometry unit tests passed.
 
-Across the 26 AR-derived reconstructions, mean silhouette IoU is **99.272%**.
-The worst per-view 95th-percentile boundary distance is **2.106 mm**. These
-comparisons use the manufacturer reference renders and do not establish a
-physical surface-accuracy gate. The final catalogue was loaded and inspected
+Across the 26 AR-derived reconstructions, mean silhouette IoU is **99.272%**
+on the same calibrated views used to carve the meshes. The worst per-view
+95th-percentile boundary distance is **2.106 mm**. These are in-sample fit
+diagnostics, not independent silhouette evidence or a physical accuracy gate. The final catalogue was loaded and inspected
 in live Blender; the four limited-view studies are amber.
 
 The comparisons cover all 26 calibrated views per AR reconstruction. Metrics

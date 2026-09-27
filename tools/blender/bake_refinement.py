@@ -5,7 +5,7 @@ from mathutils import Matrix
 from asset_utils import activate,material
 from color_reconstruction import source_surface
 
-def bake_materials(mesh,record,calibration,folder,resolution=2048):
+def bake_materials(mesh,record,calibration,folder,resolution=512):
     tree,verts,tris,samples,objects=source_surface(record,calibration)
     offset=0
     for obj in objects:

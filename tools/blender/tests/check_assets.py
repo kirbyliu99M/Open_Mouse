@@ -29,20 +29,21 @@ def main():
         print("FIXTURE_OK", params["id"], flush=True)
     target = HERE.parent.parent / "public/models"
     manifest = json.loads((target / "manifest.json").read_text())
-    for entry in [*manifest["shells"], {"id":"hand"}]:
-        path = target / ("hand.glb" if entry["id"] == "hand" else "shells/" + entry["id"] + ".glb")
-        scene = bpy.data.scenes.new("Import_" + entry["id"])
+    for entry in [*manifest["shells"], *manifest.get("studies", []), {"slug": "hand", "path": "hand.glb"}]:
+        slug = entry["slug"]
+        path = target / entry["path"]
+        scene = bpy.data.scenes.new("Import_" + slug)
         bpy.context.window.scene = scene
         bpy.ops.import_scene.gltf(filepath=str(path))
         meshes = [obj for obj in scene.objects if obj.type == "MESH"]
         stats = [validate_mesh(obj, weld=True) for obj in meshes]
         validate_assembly(meshes)
-        result = {"id": entry["id"], "meshes": stats}
-        if entry["id"] != "hand":
-            shell = next(obj for obj in meshes if "_shell" in obj.name)
-            dims = dimensions_mm(shell)
+        result = {"slug": slug, "meshes": stats}
+        if slug != "hand":
+            assert len(meshes) == 1, (slug, len(meshes))
+            dims = dimensions_mm(meshes[0])
             error = max(abs(a-b) for a,b in zip(dims, entry["dimensionsXYZmm"]))
-            assert error <= .5, (entry["id"], error)
+            assert error <= .5, (slug, error)
             result["maxRoundTripErrorMm"] = error
         else:
             armature = next(obj for obj in scene.objects if obj.type == "ARMATURE")

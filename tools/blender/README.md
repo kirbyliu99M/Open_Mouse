@@ -7,6 +7,39 @@ It extends the [source-based rebuild](REFERENCE-REBUILD.md), with
 downloaded per-model references, image-derived geometry and comparison overlays.
 The commands and evidence below describe the superseded prototype only.
 
+## Add a mouse to the current catalogue
+
+1. Add its manufacturer dimensions and source URLs to
+   `params/reference-catalogue.json` **and** `src/db/seed/logitech.json`.
+   Keep the brand/model-derived slug and L/W/H identical; run
+   `python tools/blender/check_catalogues.py` to verify both catalogues.
+2. Capture its reference source in the ignored `out/reference-library/`.
+   For an AR source, run `render_reference_views.py`, `reconstruct_views.py`,
+   `finish_reconstruction.py`, and `compare_reconstruction.py`. For a limited
+   gallery study, add its two source image names to `reconstruct_gallery.py`
+   and run that before `finish_reconstruction.py`.
+3. Check orientation in `polish_reconstruction.py`: its `REVERSE` set rotates
+   named models 180 degrees; Lift Vertical and MX Vertical use the `axis_fix`
+   width/height correction. Add a new model to either rule when its reference
+   views require it. The four limited-view studies also have explicit lists in
+   `reconstruct_gallery.py` (`CHOICES`), `polish_reconstruction.py` (gallery
+   reflection and side colours), `color_reconstruction.py` (palettes), and
+   `prepare_gallery_texture.py` (crop exception and palettes). Update all
+   relevant lists together for another gallery study.
+4. Run `polish_reconstruction.py -- --model <slug>`, then
+   `package_reconstruction.py -- --polished`. Packaging checks catalogue slugs
+   against the reconstructed models; no model count is hard-coded.
+5. After `npm ci`, run `python tools/blender/optimize_glbs.py` to deliver 512 px JPEG maps
+   from the ignored, lossless `out/polished/<slug>/<slug>.glb` source files,
+   then run `optimize_glbs.py --check` and the background Blender
+   `tests/check_assets.py` gate. Review the silhouette and texture.
+
+JPEG is a core glTF image format handled by three.js GLTFLoader without a
+texture decoder extension. These files still use Draco geometry, which needs
+its own decoder in the viewer.
+
+## Superseded prototype
+
 First authoring batch for issue #7: three procedural shells and one rigged hand.
 Kirby authorised construction alongside the earlier milestones on 2026-09-22.
 Work is restricted to this directory and generated `public/models/` assets.
@@ -78,6 +111,9 @@ the original scene. `preflight.py` remains an independent toolchain smoke test.
 | G Pro X Superlight 2 |                     11,738 |    73,188 |           0.000002027 |              0.000014901 |
 | G305 Lightspeed      |                     11,856 |    75,324 |           0.000001562 |              0.000011176 |
 | G703 Lightspeed      |                     12,212 |    79,064 |           0.000003695 |              0.000007451 |
+
+The numbers above measure force-scaled prototype export precision, not independent
+physical or silhouette accuracy.
 
 All 20 synthetic fixtures pass the 0.5 mm bbox and 15k triangle limits
 (largest fixture: 12,106 triangles). All source and imported meshes report zero

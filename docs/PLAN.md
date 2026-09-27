@@ -82,6 +82,7 @@ RUNTIME — Browser (photos never leave the device)
 - **Subdivision surfaces** — a genuinely mouse-like shell instead of a faceted loft.
 - **Boolean ops** — thumb scoops, button splits, scroll cutouts as real geometry.
 - **Decimate + Draco** — clean, web-sized meshes (~100 KB each; 76 models ≈ 8 MB total, small enough to commit and review).
+  The shipped 30-model catalogue (512 px JPEG; normal maps q90 4:4:4) measures 6.70 MiB: 74.5 to 384.2 KiB per mouse, with 4/30 at or below 100 KiB. Draco geometry alone is ~100 KiB per mouse, so the target cannot be met with textures kept. The original estimate remains a target, not measured performance.
 - **Reviewable artifacts** — I can look at a rendered contact sheet and judge whether a G Pro X Superlight actually looks like one. That's the M4 gate.
 
 **The cost is a build step**, and the honest risk is a slow iteration loop. Mitigation: the Blender script is the **single source of truth** — no second runtime implementation to drift — plus a fast preview CLI (`npm run shell:preview -- --model "G Pro X Superlight 2"` renders a PNG in seconds) so rubric tuning stays tight.

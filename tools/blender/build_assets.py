@@ -9,6 +9,7 @@ sys.path.insert(0, str(HERE))
 from asset_utils import dimensions_mm, export_glb, validate_mesh, validate_assembly
 from gen_shell import generate_shell
 from gen_hand import generate_hand
+from pretty_json import write_pretty_json
 
 
 def main():
@@ -51,7 +52,7 @@ def main():
     report["hand"] = {"mesh": hand_stats, "bones": 21, "weightSumMaxError": weight_error,
         "landmarksMetres": landmarks, "bytes": path.stat().st_size,
         "restPose": "flat palm down; authored template, not a population measurement"}
-    (target / "manifest.json").write_text(json.dumps(report, indent=2) + "\n")
+    write_pretty_json(target / "manifest.json", report)
     bpy.ops.wm.save_as_mainfile(filepath=str(out / "assets.blend"))
     print("ASSETS_OK", flush=True)
 

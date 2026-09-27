@@ -54,14 +54,16 @@ by `package_reconstruction.py --polished`. Measured results are written to
 `public/models/validation.json`; source and texture provenance are included in
 `public/models/manifest.json`.
 
-The full batch passed those 30 GLB round-trip checks. Maximum calibrated bbox
-error was **0.00001894 mm**, with **0 mm ground offset** on every imported mesh.
+The full batch passed those 30 GLB round-trip checks. Maximum bbox difference
+after force-scaling to catalogue dimensions was **0.00001894 mm**, with **0 mm
+ground offset** on every imported mesh. This is export precision, not independent
+evidence of physical dimensional accuracy.
 Top, side and bottom contact sheets were visually inspected for all 30 models.
-The 2K textures increase download size substantially over the earlier flat
-materials (about 116 MiB for the full catalogue); the original lightweight
-neutral/vertex-coloured versions remain available locally. These are review
-assets, and the frontend owner should assess loading/compression before using
-the full catalogue in a browser.
+The published set now uses 512 px JPEG maps: 30 mice total **6.70 MiB**,
+plus the 158.5 KiB hand (**6.86 MiB** overall). Mouse files range from
+74.5 to 384.2 KiB; 4 of 30 meet the original 100 KiB target. All mouse
+meshes remain at 13,998–14,000 triangles. This is a payload measurement,
+not a mobile loading or texture-quality acceptance test.
 
 ```powershell
 $blenderExe = 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe'

@@ -55,7 +55,7 @@ def render(scene,folder,dimensions):
 def polish(slug):
     record=json.loads((LIB/slug/'sources.json').read_text());report=json.loads((REBUILT/slug/'reconstruction.json').read_text())
     scene=bpy.data.scenes.new('Polished_'+slug);bpy.context.window.scene=scene
-    prior=(REBUILT if record['arModels'] else HERE/'out/colored')/slug/(slug+'.blend')
+    prior=REBUILT/slug/(slug+'.blend')
     with bpy.data.libraries.load(str(prior),link=False) as (source,target):target.objects=[slug]
     mesh=target.objects[0];scene.collection.objects.link(mesh)
     calibration=json.loads((HERE/report['cameraFile']).read_text())

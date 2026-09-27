@@ -52,7 +52,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 | R5  | The analysis is honest                                                                                          | model vs. template prose labelled in the UI; no-new-numerals check                                             | #28, #30                               |
 | R6  | Security review passed before public exposure (PLAN §M7) — redaction ✅ #31, rate limits ✅ #41                 | `/security-review`; credential redaction fixed; Production DB vars back to Sensitive; rate limits live         | Claude + reviewer; Kirby (Sensitive)   |
 | R7  | Cost controls live (PLAN §M5) — cap, thinking, cache, per-IP limit ✅; dated reminder ✅ #44; budget alarm open | output-token cap, minimal thinking budget, cache, per-IP limit, budget alarm, reminder for the 2027-01-01 rise | #28; **Kirby** (alarm, Google console) |
-| R8  | Every served asset is cleared for public serving                                                                | decision on the photo-derived shell textures                                                                   | **Kirby**                              |
+| R8  | Every served asset is cleared for public serving                                                                | **Decided 2026-09-27: publish** (Logitech trademarks and source 3D models not covered by the project licence)  | **Kirby**                              |
 
 ### Not required for the first deployment — _candidate_
 
@@ -76,10 +76,11 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 1. Ground-truth hand photos in `../Fixtures/hands/`, with ruler measurements → R2
 2. Gemini API key → model-written analysis (R5) and the M1 gate
-3. A decision on the photo-derived shell textures → R8
-4. Production DB variables back to Sensitive, or permission for the API call that does it → R6
-5. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
-6. Final acceptance on a real phone
+3. ~~A decision on the photo-derived shell textures → R8~~ — decided 2026-09-27: publish
+4. M4b viewer needs three.js `DRACOLoader` plus decoder files (the GLBs list `KHR_draco_mesh_compression` as required)
+5. Production DB variables back to Sensitive, or permission for the API call that does it → R6
+6. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
+7. Final acceptance on a real phone
 
 ### Other open items
 
@@ -226,7 +227,7 @@ Append; don't rewrite. Each entry: what, why, when.
 
 **Credential redaction leaks quoted secrets (P1, open since 2026-09-21).** Codex's M0 review reported that `describeMigrationError` lets quoted credentials through. It was never fixed. Re-tested 2026-09-23 against `main`: of seven forms, **five leak the full secret** — `password="…"`, `password='…'`, `{"password":"…"}`, escaped quotes, and `PGPASSWORD=…`. This code runs in every preview build, so a failing migration could write the database password into Vercel build logs. Fix in flight; blocks R6.
 
-**Shell textures are derived from product photos.** 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decides (R8) before #26 merges. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
+**Shell textures are derived from product photos.** 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decided R8 on 2026-09-27: publish (open-source project); the rights caveat above stands. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
 
 **M1 is the riskiest gate in the project.** Analysis of the validation fixture
 shows `Hump placement` and `Front flare` have **no numeric proxy**: height/length
