@@ -22,6 +22,7 @@
       "dimensionsXYZmm": [
         100.00000894069672, 134.0000182390213, 48.00000786781311
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
       "uncalibratedDimensionsXYZmm": [
         99.38473999500275, 133.3036944270134, 47.82551146490732
       ],
@@ -57,8 +58,83 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-ergo-m575s",
+      "model": "ERGO M575S",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-1.png",
+          "file": "logitech-ergo-m575s/top.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "3a6f79676f39785baa9de252c76e7e1e1c90899224a87ddfecfeb20d600329d2",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-2.png",
+          "file": "logitech-ergo-m575s/left.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "bf5e2966afb092e3f7934b8a7b421a12fc9f6c5a7b1eef80de778c14988505fc",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 306533.9222622573
+      },
+      "dimensionsXYZmm": [
+        100.00000894069672, 134.0000182390213, 48.00000414252281
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
+      "uncalibratedDimensionsXYZmm": [
+        99.69020262360573, 132.81594216823578, 47.85789042216493
+      ],
+      "dimensionCalibrationScale": [
+        1.0031076010304039, 1.0089150279133239, 1.002969407480804
+      ],
+      "bytes": 94336,
+      "path": "studies/logitech-ergo-m575s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999985098839, 0.9999999750905969, 0.999999991307656
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m575s-ergo-wireless-trackball/gallery/ergo-m575s-m575sp-black-silver-ball-gallery-1.png",
+          "file": "logitech-ergo-m575s/top.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "3a6f79676f39785baa9de252c76e7e1e1c90899224a87ddfecfeb20d600329d2",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g-pro-2-lightspeed",
@@ -82,6 +158,7 @@
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 40.00000283122063
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
         63.2573626935482, 123.98982793092728, 39.84402784408303
       ],
@@ -115,8 +192,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g-pro-x-superlight-2",
@@ -140,6 +216,7 @@
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 40.00000283122063
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
         63.24205920100212, 123.94244968891144, 39.63208264030982
       ],
@@ -173,8 +250,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g-pro-x-superlight-2-dex",
@@ -198,6 +274,7 @@
       "dimensionsXYZmm": [
         67.70000606775284, 125.8000135421753, 43.900009244680405
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.3542175295810921e-5,
       "uncalibratedDimensionsXYZmm": [
         67.3091821372509, 124.72071498632431, 43.768318650108995
       ],
@@ -233,8 +310,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.3542175295810921e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g-pro-x-superlight-2-se",
@@ -272,6 +348,7 @@
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 39.99999910593033
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
         63.36846575140953, 123.89553338289261, 39.897228343761526
       ],
@@ -307,8 +384,7 @@
         },
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g-pro-x-superlight-2c",
@@ -332,6 +408,7 @@
       "dimensionsXYZmm": [
         61.40001118183136, 118.40000748634338, 38.49999979138374
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1181831361284367e-5,
       "uncalibratedDimensionsXYZmm": [
         60.937270522117615, 117.45145544409752, 38.33272954216227
       ],
@@ -367,8 +444,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.1181831361284367e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g203-lightsync",
@@ -393,6 +469,7 @@
       "dimensionsXYZmm": [
         62.10000067949295, 116.60000681877136, 38.200005888938904
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
       "uncalibratedDimensionsXYZmm": [
         61.68647110462189, 116.1031536757946, 38.054062981245806
       ],
@@ -429,8 +506,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g305-lightspeed",
@@ -455,6 +531,7 @@
       "dimensionsXYZmm": [
         62.10000067949295, 116.60000681877136, 38.200005888938904
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
       "uncalibratedDimensionsXYZmm": [
         61.77341379225254, 115.78962206840515, 38.05063934851205
       ],
@@ -491,8 +568,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g309",
@@ -516,6 +592,7 @@
       "dimensionsXYZmm": [
         64.00001049041748, 120.00000476837158, 39.000000804662704
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.049041748046875e-5,
       "uncalibratedDimensionsXYZmm": [
         63.74146416783333, 118.69828030467033, 38.83600520930486
       ],
@@ -551,8 +628,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.049041748046875e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g403-hero",
@@ -576,6 +652,7 @@
       "dimensionsXYZmm": [
         68.00001114606857, 124.00000542402267, 43.000005185604095
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
       "uncalibratedDimensionsXYZmm": [
         67.65294820070267, 123.25747311115265, 42.74003184400499
       ],
@@ -611,8 +688,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g502-hero",
@@ -636,6 +712,7 @@
       "dimensionsXYZmm": [
         75.00001043081284, 131.20001554489136, 40.000006556510925
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.554489136879056e-5,
       "uncalibratedDimensionsXYZmm": [
         74.31714981794357, 130.40413707494736, 39.663036357524106
       ],
@@ -671,8 +748,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.554489136879056e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g502-x",
@@ -696,6 +772,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.19097116589546, 130.73594868183136, 40.63201285316609
       ],
@@ -731,8 +808,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g502-x-lightspeed",
@@ -756,6 +832,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.17047834396362, 129.94390726089478, 40.5975799440057
       ],
@@ -791,8 +868,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g502-x-plus",
@@ -816,6 +892,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.17047834396362, 129.94390726089478, 40.5975799440057
       ],
@@ -851,8 +928,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-g703-lightspeed",
@@ -876,6 +952,7 @@
       "dimensionsXYZmm": [
         68.00001114606857, 124.00000542402267, 43.000005185604095
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
       "uncalibratedDimensionsXYZmm": [
         67.64046102762222, 122.65227362513542, 42.74955928849522
       ],
@@ -911,8 +988,92 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-g903-hero",
+      "model": "G903 Hero",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-top-angle-gallery-1.png",
+          "file": "logitech-g903-hero/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-left-angle-gallery-2.png",
+          "file": "logitech-g903-hero/left.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "003a0b050af7a87723e130744301eb85ff931bd2fcf82a22f57c9fac84e483ce",
+          "viewHint": "left"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-right-angle-black-gallery-6.png",
+          "file": "logitech-g903-hero/right.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "608e23fc20d4efbb7d1ee6ef2bf682e09ce0d1a99cbdcc084c1a3ec2e3d7022f",
+          "viewHint": "right"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 217672.9443869258
+      },
+      "dimensionsXYZmm": [
+        67.00000166893005, 130.0000101327896, 40.000006556510925
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0132789611816406e-5,
+      "uncalibratedDimensionsXYZmm": [
+        66.82539731264114, 128.85138392448425, 39.87800787581364
+      ],
+      "dimensionCalibrationScale": [
+        1.0026128192929702, 1.008914270382916, 1.0030591328575456
+      ],
+      "bytes": 113928,
+      "path": "studies/logitech-g903-hero.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999750905969, 1.0000000366797828, 1.0000000223517422
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-top-angle-gallery-1.png",
+          "file": "logitech-g903-hero/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-lift-vertical",
@@ -936,6 +1097,7 @@
       "dimensionsXYZmm": [
         70.00000029802322, 108.0000102519989, 71.00000977516174
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0251998901367188e-5,
       "uncalibratedDimensionsXYZmm": [
         69.62908059358597, 107.5732484459877, 70.5227360012941
       ],
@@ -971,8 +1133,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.0251998901367188e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m100",
@@ -1005,11 +1166,12 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 161495.9152224667
+        "volumeMm3": 161495.9306672163
       },
       "dimensionsXYZmm": [
-        61.99999898672104, 112.99999803304672, 37.99999877810478
+        62.00000271201134, 113.00000548362732, 38.00000250339508
       ],
+      "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6,
       "uncalibratedDimensionsXYZmm": [
         61.8429072201252, 112.00157552957535, 37.88231935322983
       ],
@@ -1047,8 +1209,7 @@
         },
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m190",
@@ -1072,6 +1233,7 @@
       "dimensionsXYZmm": [
         66.10000133514404, 115.39999395608902, 40.300000458955765
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.043910985908951e-6,
       "uncalibratedDimensionsXYZmm": [
         65.84659963846207, 114.55817520618439, 40.04804048599908
       ],
@@ -1107,8 +1269,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 6.043910985908951e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m196",
@@ -1132,6 +1293,7 @@
       "dimensionsXYZmm": [
         59.999994933605194, 100.00000894069672, 38.00000250339508
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.940696716308594e-6,
       "uncalibratedDimensionsXYZmm": [
         59.24980528652668, 99.23302382230759, 37.75226156722056
       ],
@@ -1167,8 +1329,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 8.940696716308594e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m240",
@@ -1193,6 +1354,7 @@
       "dimensionsXYZmm": [
         60.00000610947609, 99.0000069141388, 39.000000804662704
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.9141387939453125e-6,
       "uncalibratedDimensionsXYZmm": [
         59.378160163760185, 98.35385903716087, 38.714693022484425
       ],
@@ -1229,8 +1391,83 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 6.9141387939453125e-6
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-m325s",
+      "model": "M325s",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/graphite/m325s-graphite-mouse-top-view-1.png",
+          "file": "logitech-m325s/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "23f827a24b5f171a6fea092891fbc16c04ff09ff0c5959439f99795d468a24ef",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/red/m325s-red-mouse-3-qtr-left-view-5.png",
+          "file": "logitech-m325s/left.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "6c565d17c624184431d25efc90ccd904f01595bb6b08b698febc9593b290ff77",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 130101.73230670017
+      },
+      "dimensionsXYZmm": [
+        57.00000002980232, 94.69999372959137, 39.09999877214432
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.270408633213265e-6,
+      "uncalibratedDimensionsXYZmm": [
+        56.871144101023674, 93.86329352855682, 39.0099237265531
+      ],
+      "dimensionCalibrationScale": [
+        1.0022657518327296, 1.0089140966611045, 1.0023090604862064
+      ],
+      "bytes": 76336,
+      "path": "studies/logitech-m325s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999994771522, 0.9999999875377831, 1.0000000314029598
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/graphite/m325s-graphite-mouse-top-view-1.png",
+          "file": "logitech-m325s/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "23f827a24b5f171a6fea092891fbc16c04ff09ff0c5959439f99795d468a24ef",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m550",
@@ -1268,6 +1505,7 @@
       "dimensionsXYZmm": [
         61.000000685453415, 108.20000618696213, 38.80000859498978
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.594989779453499e-6,
       "uncalibratedDimensionsXYZmm": [
         60.87794341146946, 107.24397748708725, 38.705760140146594
       ],
@@ -1305,8 +1543,7 @@
         },
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 8.594989779453499e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m650",
@@ -1330,6 +1567,7 @@
       "dimensionsXYZmm": [
         61.000000685453415, 108.20000618696213, 38.80000114440918
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6,
       "uncalibratedDimensionsXYZmm": [
         60.10241433978081, 107.12982341647148, 38.59023517725291
       ],
@@ -1365,8 +1603,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m705-marathon",
@@ -1404,6 +1641,7 @@
       "dimensionsXYZmm": [
         71.00000232458115, 109.00000482797623, 41.999999433755875
       ],
+      "calibratedBboxRoundTripDifferenceMm": 4.827976226806641e-6,
       "uncalibratedDimensionsXYZmm": [
         70.84275037050247, 108.03690552711487, 41.73445167543832
       ],
@@ -1441,8 +1679,7 @@
         },
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 4.827976226806641e-6
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-m720-triathlon",
@@ -1466,6 +1703,7 @@
       "dimensionsXYZmm": [
         74.00000840425491, 114.99999463558197, 44.999998062849045
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.404254913330078e-6,
       "uncalibratedDimensionsXYZmm": [
         73.20867851376534, 114.08388614654541, 44.72765985701699
       ],
@@ -1501,8 +1739,159 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 8.404254913330078e-6
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-m750",
+      "model": "M750",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-top-angle-gallery-1.png",
+          "file": "logitech-m750/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-profile-angle-gallery-4.png",
+          "file": "logitech-m750/right.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "abd932a4ecefc0a889011b547c3e04e932656c98c3ab95351d40dd71355073ac",
+          "viewHint": "right"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 154982.99133346375
+      },
+      "dimensionsXYZmm": [
+        61.80000305175781, 107.19000548124313, 37.79999911785126
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 5.481243135818659e-6,
+      "uncalibratedDimensionsXYZmm": [
+        61.591072008013725, 106.24295473098755, 37.67302790947724
+      ],
+      "dimensionCalibrationScale": [
+        1.0033921798269574, 1.008913958308204, 1.0033703712594553
+      ],
+      "bytes": 80340,
+      "path": "studies/logitech-m750.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.000000010898584, 1.0000000183723994, 1.0000000233372688
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-top-angle-gallery-1.png",
+          "file": "logitech-m750/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-mobi-fold",
+      "model": "Mobi Fold",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-top-angle-gallery-1.png",
+          "file": "logitech-mobi-fold/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "aa8ae2a471422b3712e7c44bbac6ad9770d9b2cacd4344afd08b7754f41edc0d",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-profile-fold-angle-gallery-9.png",
+          "file": "logitech-mobi-fold/right.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "bc51274be1da994f6e59a2c198f88d7929c325667397bb0c89ec1a9ebf5b5e59",
+          "viewHint": "right"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 192796.02550222882
+      },
+      "dimensionsXYZmm": [
+        57.00000002980232, 122.00000882148743, 33.000003546476364
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 8.821487426757812e-6,
+      "uncalibratedDimensionsXYZmm": [
+        56.847743690013885, 120.92199921607971, 32.84779987006914
+      ],
+      "dimensionCalibrationScale": [
+        1.0026783175567417, 1.0089148442046014, 1.0046334954101308
+      ],
+      "bytes": 67980,
+      "path": "studies/logitech-mobi-fold.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999994771522, 0.9999999887630588, 1.0000000054186042
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mobi-fold-mouse/gallery/mobi-fold-sand-top-angle-gallery-1.png",
+          "file": "logitech-mobi-fold/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "aa8ae2a471422b3712e7c44bbac6ad9770d9b2cacd4344afd08b7754f41edc0d",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-mx-anywhere-3s",
@@ -1526,6 +1915,7 @@
       "dimensionsXYZmm": [
         64.99999761581421, 100.50000995397568, 34.400004893541336
       ],
+      "calibratedBboxRoundTripDifferenceMm": 9.953975677490234e-6,
       "uncalibratedDimensionsXYZmm": [
         64.19152393937111, 99.69508647918701, 34.18226969006355
       ],
@@ -1561,8 +1951,83 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 9.953975677490234e-6
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-mx-ergo-s",
+      "model": "MX Ergo S",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-1.png",
+          "file": "logitech-mx-ergo-s/top.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "ae1db59ffcf58af7ac912f67b897ca0bdec788d0d2bc6cd1f5fccf8ba22581bf",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-plus-graphite-gallery-4.png",
+          "file": "logitech-mx-ergo-s/left.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "7dbb5047926cfd4c3845fd333d43fa7437c14e6b463de9167f93e548fd75be16",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 344567.67011428316
+      },
+      "dimensionsXYZmm": [
+        99.8000018298626, 132.50000774860382, 51.39999836683273
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 7.748603820800781e-6,
+      "uncalibratedDimensionsXYZmm": [
+        99.60423037409782, 131.32929801940918, 51.199371948314365
+      ],
+      "dimensionCalibrationScale": [
+        1.0019654750121245, 1.0089142483683862, 1.003918564702086
+      ],
+      "bytes": 98884,
+      "path": "studies/logitech-mx-ergo-s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.000000018992262, 1.000000053981568, 1.0000000317736832
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/mx-ergo-s-wireless-trackball-mouse/gallery/mx-ergo-s-graphite-gallery-1.png",
+          "file": "logitech-mx-ergo-s/top.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "P",
+          "sha256": "ae1db59ffcf58af7ac912f67b897ca0bdec788d0d2bc6cd1f5fccf8ba22581bf",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-mx-master-3s",
@@ -1587,6 +2052,7 @@
       "dimensionsXYZmm": [
         84.30001139640808, 124.90000575780869, 51.00000649690628
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1396408083896858e-5,
       "uncalibratedDimensionsXYZmm": [
         83.36737751960754, 123.91875684261322, 50.774821120285196
       ],
@@ -1623,8 +2089,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.1396408083896858e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-mx-master-4",
@@ -1648,6 +2113,7 @@
       "dimensionsXYZmm": [
         88.35000544786453, 128.15001606941223, 50.79999938607216
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.606941222576097e-5,
       "uncalibratedDimensionsXYZmm": [
         87.44779974222183, 127.33045220375061, 50.63457133655902
       ],
@@ -1683,8 +2149,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.606941222576097e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-mx-vertical",
@@ -1708,6 +2173,7 @@
       "dimensionsXYZmm": [
         79.00001108646393, 120.00000476837158, 78.50001007318497
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1086463928222656e-5,
       "uncalibratedDimensionsXYZmm": [
         78.48895713686943, 119.3273738026619, 78.00160127226263
       ],
@@ -1743,8 +2209,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.1086463928222656e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-pebble-2-m350s",
@@ -1768,6 +2233,7 @@
       "dimensionsXYZmm": [
         58.70001018047333, 106.00000619888306, 26.62000060081482
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0180473324794548e-5,
       "uncalibratedDimensionsXYZmm": [
         58.3631731569767, 105.61281815171242, 26.452623118530028
       ],
@@ -1803,8 +2269,7 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 1.0180473324794548e-5
+      "groundErrorMm": 0.0
     },
     {
       "slug": "logitech-pop-mouse",
@@ -1828,6 +2293,7 @@
       "dimensionsXYZmm": [
         59.400007128715515, 104.80000823736191, 35.200007259845734
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.237361910801155e-6,
       "uncalibratedDimensionsXYZmm": [
         58.862559497356415, 103.8270927965641, 34.9959999366547
       ],
@@ -1863,10 +2329,161 @@
         },
         "normalStrength": 0.65
       },
-      "groundErrorMm": 0.0,
-      "calibratedBboxRoundTripDifferenceMm": 8.237361910801155e-6
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-signature-comfort-m840l",
+      "model": "Signature Comfort M840L",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/graphite/signature-comfort-m840-l-mouse-graphite-3qtr-front.png",
+          "file": "logitech-signature-comfort-m840l/extra-5.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "2dc82c243c24ec4dc39bd3be01b410878a048403a7a1acf0d9036d22e19abc94",
+          "viewHint": "other"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/black/signature-comfort-m840-l-mouse-black-profile.png",
+          "file": "logitech-signature-comfort-m840l/left.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "e70904738acf1c78c1f3d7adf5598317ff8c023bc403502ebcf0c9be58a371f4",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 206884.9517096021
+      },
+      "dimensionsXYZmm": [
+        74.30000603199005, 121.8000054359436, 43.20000112056732
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.031990054111702e-6,
+      "uncalibratedDimensionsXYZmm": [
+        74.1412453353405, 120.72384357452393, 43.02943704533391
+      ],
+      "dimensionCalibrationScale": [
+        1.002141246265037, 1.0089141994954107, 1.003963866747464
+      ],
+      "bytes": 78792,
+      "path": "studies/logitech-signature-comfort-m840l.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000190927398, 1.0000000165405338, 0.9999999740609423
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-m840l/gallery/graphite/signature-comfort-m840-l-mouse-graphite-3qtr-front.png",
+          "file": "logitech-signature-comfort-m840l/extra-5.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "2dc82c243c24ec4dc39bd3be01b410878a048403a7a1acf0d9036d22e19abc94",
+          "viewHint": "other"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
+    },
+    {
+      "slug": "logitech-signature-comfort-plus-m850l",
+      "model": "Signature Comfort Plus M850L",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/graphite/signature-comfort-plus-m850-l-mouse-graphite-top-angle-gallery-1.png",
+          "file": "logitech-signature-comfort-plus-m850l/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "0ae590a9b5d4c09eb3487d7f2fe8f5d6281ce47df99bb7b7bbbb9c5ca65c1103",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/black/signature-comfort-plus-m850-l-mouse-black-profile.png",
+          "file": "logitech-signature-comfort-plus-m850l/left.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "44c62edb98e8b263b7787b3f93749ce032a7feccbf47dd858a8aed34d3c63e04",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 228241.94135230983
+      },
+      "dimensionsXYZmm": [
+        74.30000603199005, 121.8000054359436, 44.199999421834946
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.031990054111702e-6,
+      "uncalibratedDimensionsXYZmm": [
+        74.12109524011612, 120.72384357452393, 43.96591447584797
+      ],
+      "dimensionCalibrationScale": [
+        1.0024136820874585, 1.0089141994954107, 1.0053242500910706
+      ],
+      "bytes": 80868,
+      "path": "studies/logitech-signature-comfort-plus-m850l.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000190927398, 1.0000000165405338, 1.0000000130806577
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/graphite/signature-comfort-plus-m850-l-mouse-graphite-top-angle-gallery-1.png",
+          "file": "logitech-signature-comfort-plus-m850l/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "0ae590a9b5d4c09eb3487d7f2fe8f5d6281ce47df99bb7b7bbbb9c5ca65c1103",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel, trackball and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0
     }
   ],
-  "passed": true,
-  "maxCalibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+  "maxCalibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
+  "passed": true
 }

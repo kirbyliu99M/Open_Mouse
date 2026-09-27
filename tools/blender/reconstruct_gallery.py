@@ -1,7 +1,7 @@
 """Limited-view studies: trace each model's actual top/side image boundaries.
 
 Transverse curvature is interpolated, explicitly unverified where views lack it.
-These four studies are not labelled complete 360 reconstructions.
+These studies are not labelled complete 360 reconstructions.
 """
 import json
 import argparse
@@ -17,6 +17,14 @@ CHOICES={
  'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
+ 'logitech-m750':('top.png','right.png'),
+ 'logitech-m325s':('top.png','left.png'),
+ 'logitech-mobi-fold':('top.png','right.png'),
+ 'logitech-signature-comfort-plus-m850l':('top.png','left.png'),
+ 'logitech-signature-comfort-m840l':('extra-5.png','left.png'),
+ 'logitech-mx-ergo-s':('top.png','left.png'),
+ 'logitech-ergo-m575s':('top.png','left.png'),
+ 'logitech-g903-hero':('top.png','left.png'),
 }
 
 
@@ -118,4 +126,4 @@ def reconstruct(slug,files):
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()
     for slug,files in CHOICES.items():
-        if not args.model or args.model==slug:reconstruct(slug,files)
+        if not args.model or slug in args.model.split(','):reconstruct(slug,files)

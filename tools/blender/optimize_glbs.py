@@ -71,7 +71,8 @@ def main():
     manifest = json.loads(manifest_path.read_text())
     entries = [*manifest['shells'], *manifest['studies']]
     if args.model:
-        entries = [entry for entry in entries if entry['slug'] == args.model]
+        selected = set(args.model.split(','))
+        entries = [entry for entry in entries if entry['slug'] in selected]
         if not entries: raise ValueError(f'Unknown model: {args.model}')
     for entry in entries:
         path = ROOT / entry['path']

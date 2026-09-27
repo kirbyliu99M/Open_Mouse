@@ -88,16 +88,16 @@ def main():
     for result in results:
         destination=PUBLIC/result['path'];destination.parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(ROOT/result['slug']/(result['slug']+'.glb'),destination)
-    report={'status':'visual-review-pending','galleryImageCount':599,'fullRotationReferenceModels':26,'viewsPerRotation':26,
+    report={'status':'visual-review-pending','galleryImageCount':658,'fullRotationReferenceModels':26,'viewsPerRotation':26,
         'shells':[r for r in results if r['status']=='reference-derived-review'],
         'studies':[r for r in results if r['status']=='limited-view-study'],
-        'hand':old_manifest.get('hand'),'measurementNotes':{'calibratedBboxRoundTripDifferenceMm':'Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy','silhouetteIoU':'In-sample comparison with the same reference views used for reconstruction; not independent validation'},'note':'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Fine detail and runtime orientation require review. Colour pass samples manufacturer albedo/PBR maps when available; four gallery palettes are approximate.' if args.colored else 'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Original reference files remain local. Fine detail and runtime orientation require review.'}
+        'hand':old_manifest.get('hand'),'measurementNotes':{'calibratedBboxRoundTripDifferenceMm':'Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy','silhouetteIoU':'In-sample comparison with the same reference views used for reconstruction; not independent validation'},'note':'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Fine detail and runtime orientation require review. Colour pass samples manufacturer albedo/PBR maps when available; twelve gallery palettes are approximate.' if args.colored else 'Manufacturer AR-render depth reconstruction plus explicitly limited gallery studies. Original reference files remain local. Fine detail and runtime orientation require review.'}
     write_pretty_json(PUBLIC/'manifest.json', report)
     write_pretty_json(PUBLIC/'validation.json', {'roundTrips':results,'maxCalibratedBboxRoundTripDifferenceMm':max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),'passed':True})
     bpy.context.window.scene=review
     studio(review,1.5,1.3)
     title=label('OPEN_MOUSE / POLISHED CATALOGUE' if args.polished else 'OPEN_MOUSE / REFERENCE REBUILD',-.70,.60,.015)
-    caption=label('Base down / nose +Y / 26 baked materials + 4 gallery studies' if args.polished else '26 source reconstructions + 4 limited-view studies / visual acceptance pending',-.70,.575,.007)
+    caption=label('Base down / nose +Y / 26 baked materials + 12 gallery studies' if args.polished else '26 source reconstructions + 12 limited-view studies / visual acceptance pending',-.70,.575,.007)
     if args.polished:
         title.location.z=caption.location.z=.0005
         review.camera.location=(0,-1.4,1.9)
@@ -106,7 +106,7 @@ def main():
         bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.0001))
         plane=bpy.context.object;plane.name='Desk surface';plane.data.materials.append(material('Desk',(.025,.033,.044),.8))
         report['orientationConvention']={'blender':'Z up, nose +Y, ground Z=0','gltf':'Y up, nose -Z, ground Y=0'}
-        report['note']='Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Four gallery projections remain approximate. Physical verification and final acceptance pending.'
+        report['note']='Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Twelve gallery projections remain approximate. Physical verification and final acceptance pending.'
         write_pretty_json(PUBLIC/'manifest.json', report)
     bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'catalogue-review.blend'))
     print('PACKAGED',len(results),'MAX_BBOX_ERROR_MM',max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),flush=True)

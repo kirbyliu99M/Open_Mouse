@@ -21,10 +21,11 @@ The commands and evidence below describe the superseded prototype only.
 3. Check orientation in `polish_reconstruction.py`: its `REVERSE` set rotates
    named models 180 degrees; Lift Vertical and MX Vertical use the `axis_fix`
    width/height correction. Add a new model to either rule when its reference
-   views require it. The four limited-view studies also have explicit lists in
+   views require it. The limited-view studies also have explicit lists in
    `reconstruct_gallery.py` (`CHOICES`), `polish_reconstruction.py` (gallery
    reflection and side colours), `color_reconstruction.py` (palettes), and
-   `prepare_gallery_texture.py` (crop exception and palettes). Update all
+   `prepare_gallery_texture.py` (crop exception, palettes, and optional side
+   photo projections). Update all
    relevant lists together for another gallery study.
 4. Run `polish_reconstruction.py -- --model <slug>`, then
    `package_reconstruction.py -- --polished`. Packaging checks catalogue slugs
@@ -37,6 +38,16 @@ The commands and evidence below describe the superseded prototype only.
 JPEG is a core glTF image format handled by three.js GLTFLoader without a
 texture decoder extension. These files still use Draco geometry, which needs
 its own decoder in the viewer.
+
+The eight studies added 2026-09-27 use official Logitech CDN gallery photos.
+M575S and MX Ergo S project the left photo over the thumb side so the ball is
+visible. G903 Hero projects both left and right photos for its ambidextrous side
+button markings. These details are surface projections on a single lofted body,
+not separately sculpted components. M840L has no top reference; its front
+three-quarter image supplies the approximate plan contour. Mobi Fold's available
+side reference is folded while its top reference is open. Raw photos remain
+outside the repository; only their baked GLBs are published under Kirby's
+2026-09-27 R8 decision.
 
 ## Superseded prototype
 
