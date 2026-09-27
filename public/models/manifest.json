@@ -26,6 +26,7 @@
       "dimensionsXYZmm": [
         100.00000894069672, 134.0000182390213, 48.00000786781311
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
       "uncalibratedDimensionsXYZmm": [
         99.38473999500275, 133.3036944270134, 47.82551146490732
       ],
@@ -62,13 +63,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5
+      }
     },
     {
       "slug": "logitech-g-pro-2-lightspeed",
@@ -92,6 +93,7 @@
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 40.00000283122063
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
         63.2573626935482, 123.98982793092728, 39.84402784408303
       ],
@@ -126,13 +128,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.299087111893105,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      }
     },
     {
       "slug": "logitech-g-pro-x-superlight-2",
@@ -156,6 +158,7 @@
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 40.00000283122063
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
         63.24205920100212, 123.94244968891144, 39.63208264030982
       ],
@@ -190,13 +193,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.490273276389463,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      }
     },
     {
       "slug": "logitech-g-pro-x-superlight-2-dex",
@@ -220,6 +223,7 @@
       "dimensionsXYZmm": [
         67.70000606775284, 125.8000135421753, 43.900009244680405
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.3542175295810921e-5,
       "uncalibratedDimensionsXYZmm": [
         67.3091821372509, 124.72071498632431, 43.768318650108995
       ],
@@ -256,13 +260,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.509128868285263,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.3542175295810921e-5
+      }
     },
     {
       "slug": "logitech-g-pro-x-superlight-2c",
@@ -286,6 +290,7 @@
       "dimensionsXYZmm": [
         61.40001118183136, 118.40000748634338, 38.49999979138374
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1181831361284367e-5,
       "uncalibratedDimensionsXYZmm": [
         60.937270522117615, 117.45145544409752, 38.33272954216227
       ],
@@ -322,13 +327,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.574942280433472,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.1181831361284367e-5
+      }
     },
     {
       "slug": "logitech-g203-lightsync",
@@ -353,6 +358,7 @@
       "dimensionsXYZmm": [
         62.10000067949295, 116.60000681877136, 38.200005888938904
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
       "uncalibratedDimensionsXYZmm": [
         61.68647110462189, 116.1031536757946, 38.054062981245806
       ],
@@ -390,13 +396,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.14810226260821,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6
+      }
     },
     {
       "slug": "logitech-g305-lightspeed",
@@ -421,6 +427,7 @@
       "dimensionsXYZmm": [
         62.10000067949295, 116.60000681877136, 38.200005888938904
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
       "uncalibratedDimensionsXYZmm": [
         61.77341379225254, 115.78962206840515, 38.05063934851205
       ],
@@ -458,13 +465,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.555981240544558,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6
+      }
     },
     {
       "slug": "logitech-g309",
@@ -488,6 +495,7 @@
       "dimensionsXYZmm": [
         64.00001049041748, 120.00000476837158, 39.000000804662704
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.049041748046875e-5,
       "uncalibratedDimensionsXYZmm": [
         63.74146416783333, 118.69828030467033, 38.83600520930486
       ],
@@ -524,13 +532,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 23.554050815579323,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.049041748046875e-5
+      }
     },
     {
       "slug": "logitech-g403-hero",
@@ -554,6 +562,7 @@
       "dimensionsXYZmm": [
         68.00001114606857, 124.00000542402267, 43.000005185604095
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
       "uncalibratedDimensionsXYZmm": [
         67.65294820070267, 123.25747311115265, 42.74003184400499
       ],
@@ -590,13 +599,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.895363805244855,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5
+      }
     },
     {
       "slug": "logitech-g502-hero",
@@ -620,6 +629,7 @@
       "dimensionsXYZmm": [
         75.00001043081284, 131.20001554489136, 40.000006556510925
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.554489136879056e-5,
       "uncalibratedDimensionsXYZmm": [
         74.31714981794357, 130.40413707494736, 39.663036357524106
       ],
@@ -656,13 +666,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.62276277650138,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.554489136879056e-5
+      }
     },
     {
       "slug": "logitech-g502-x",
@@ -686,6 +696,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.19097116589546, 130.73594868183136, 40.63201285316609
       ],
@@ -722,13 +733,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.03789211835509,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      }
     },
     {
       "slug": "logitech-g502-x-lightspeed",
@@ -752,6 +763,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.17047834396362, 129.94390726089478, 40.5975799440057
       ],
@@ -788,13 +800,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      }
     },
     {
       "slug": "logitech-g502-x-plus",
@@ -818,6 +830,7 @@
       "dimensionsXYZmm": [
         79.20000702142715, 131.40001893043518, 41.10000655055046
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
       "uncalibratedDimensionsXYZmm": [
         78.17047834396362, 129.94390726089478, 40.5975799440057
       ],
@@ -854,13 +867,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5
+      }
     },
     {
       "slug": "logitech-g703-lightspeed",
@@ -884,6 +897,7 @@
       "dimensionsXYZmm": [
         68.00001114606857, 124.00000542402267, 43.000005185604095
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
       "uncalibratedDimensionsXYZmm": [
         67.64046102762222, 122.65227362513542, 42.74955928849522
       ],
@@ -920,13 +934,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.744950685251297,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5
+      }
     },
     {
       "slug": "logitech-lift-vertical",
@@ -950,6 +964,7 @@
       "dimensionsXYZmm": [
         70.00000029802322, 108.0000102519989, 71.00000977516174
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0251998901367188e-5,
       "uncalibratedDimensionsXYZmm": [
         69.62908059358597, 107.5732484459877, 70.5227360012941
       ],
@@ -986,13 +1001,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.320639295712933,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.0251998901367188e-5
+      }
     },
     {
       "slug": "logitech-m190",
@@ -1016,6 +1031,7 @@
       "dimensionsXYZmm": [
         66.10000133514404, 115.39999395608902, 40.300000458955765
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.043910985908951e-6,
       "uncalibratedDimensionsXYZmm": [
         65.84659963846207, 114.55817520618439, 40.04804048599908
       ],
@@ -1052,13 +1068,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 20.250784275869,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 6.043910985908951e-6
+      }
     },
     {
       "slug": "logitech-m196",
@@ -1082,6 +1098,7 @@
       "dimensionsXYZmm": [
         59.999994933605194, 100.00000894069672, 38.00000250339508
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.940696716308594e-6,
       "uncalibratedDimensionsXYZmm": [
         59.24980528652668, 99.23302382230759, 37.75226156722056
       ],
@@ -1118,13 +1135,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 20.60913154565747,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 8.940696716308594e-6
+      }
     },
     {
       "slug": "logitech-m240",
@@ -1149,6 +1166,7 @@
       "dimensionsXYZmm": [
         60.00000610947609, 99.0000069141388, 39.000000804662704
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.9141387939453125e-6,
       "uncalibratedDimensionsXYZmm": [
         59.378160163760185, 98.35385903716087, 38.714693022484425
       ],
@@ -1186,13 +1204,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 15.421830829736379,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 6.9141387939453125e-6
+      }
     },
     {
       "slug": "logitech-m650",
@@ -1216,6 +1234,7 @@
       "dimensionsXYZmm": [
         61.000000685453415, 108.20000618696213, 38.80000114440918
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6,
       "uncalibratedDimensionsXYZmm": [
         60.10241433978081, 107.12982341647148, 38.59023517725291
       ],
@@ -1252,13 +1271,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.582861476254337,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6
+      }
     },
     {
       "slug": "logitech-m720-triathlon",
@@ -1282,6 +1301,7 @@
       "dimensionsXYZmm": [
         74.00000840425491, 114.99999463558197, 44.999998062849045
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.404254913330078e-6,
       "uncalibratedDimensionsXYZmm": [
         73.20867851376534, 114.08388614654541, 44.72765985701699
       ],
@@ -1318,13 +1338,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 30.520380229040054,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 8.404254913330078e-6
+      }
     },
     {
       "slug": "logitech-mx-anywhere-3s",
@@ -1348,6 +1368,7 @@
       "dimensionsXYZmm": [
         64.99999761581421, 100.50000995397568, 34.400004893541336
       ],
+      "calibratedBboxRoundTripDifferenceMm": 9.953975677490234e-6,
       "uncalibratedDimensionsXYZmm": [
         64.19152393937111, 99.69508647918701, 34.18226969006355
       ],
@@ -1384,13 +1405,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 21.107552165967043,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 9.953975677490234e-6
+      }
     },
     {
       "slug": "logitech-mx-master-3s",
@@ -1415,6 +1436,7 @@
       "dimensionsXYZmm": [
         84.30001139640808, 124.90000575780869, 51.00000649690628
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1396408083896858e-5,
       "uncalibratedDimensionsXYZmm": [
         83.36737751960754, 123.91875684261322, 50.774821120285196
       ],
@@ -1452,13 +1474,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 30.080465256994962,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.1396408083896858e-5
+      }
     },
     {
       "slug": "logitech-mx-master-4",
@@ -1482,13 +1504,14 @@
       "dimensionsXYZmm": [
         88.35000544786453, 128.15001606941223, 50.79999938607216
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.606941222576097e-5,
       "uncalibratedDimensionsXYZmm": [
         87.44779974222183, 127.33045220375061, 50.63457133655902
       ],
       "dimensionCalibrationScale": [
         1.010317077254113, 1.0064363940464847, 1.0032671704417886
       ],
-      "bytes": 284360,
+      "bytes": 287868,
       "path": "shells/logitech-mx-master-4.glb",
       "orientation": {
         "up": "+Z",
@@ -1518,13 +1541,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 29.237831928572103,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.606941222576097e-5
+      }
     },
     {
       "slug": "logitech-mx-vertical",
@@ -1548,6 +1571,7 @@
       "dimensionsXYZmm": [
         79.00001108646393, 120.00000476837158, 78.50001007318497
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1086463928222656e-5,
       "uncalibratedDimensionsXYZmm": [
         78.48895713686943, 119.3273738026619, 78.00160127226263
       ],
@@ -1584,13 +1608,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.2400533011976,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.1086463928222656e-5
+      }
     },
     {
       "slug": "logitech-pebble-2-m350s",
@@ -1614,6 +1638,7 @@
       "dimensionsXYZmm": [
         58.70001018047333, 106.00000619888306, 26.62000060081482
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0180473324794548e-5,
       "uncalibratedDimensionsXYZmm": [
         58.3631731569767, 105.61281815171242, 26.452623118530028
       ],
@@ -1650,13 +1675,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 16.4819995147211,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.0180473324794548e-5
+      }
     },
     {
       "slug": "logitech-pop-mouse",
@@ -1680,6 +1705,7 @@
       "dimensionsXYZmm": [
         59.400007128715515, 104.80000823736191, 35.200007259845734
       ],
+      "calibratedBboxRoundTripDifferenceMm": 8.237361910801155e-6,
       "uncalibratedDimensionsXYZmm": [
         58.862559497356415, 103.8270927965641, 34.9959999366547
       ],
@@ -1716,13 +1742,13 @@
         "normalStrength": 0.65
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 15.99125490656468,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 3,
         "normalEncoding": "JPEG q90 4:4:4"
-      },
-      "calibratedBboxRoundTripDifferenceMm": 8.237361910801155e-6
+      }
     }
   ],
   "studies": [
@@ -1757,18 +1783,19 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 205890.27396929573
+        "volumeMm3": 205733.2586352549
       },
       "dimensionsXYZmm": [
         63.50000947713852, 125.0000149011612, 39.99999910593033
       ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
       "uncalibratedDimensionsXYZmm": [
-        63.36846575140953, 123.89553338289261, 39.897228343761526
+        63.36846575140953, 123.89553338289261, 39.927679896209156
       ],
       "dimensionCalibrationScale": [
-        1.002075705116587, 1.0089144990699066, 1.0025759096685358
+        1.002075705116587, 1.0089144990699066, 1.0018112773889902
       ],
-      "bytes": 81464,
+      "bytes": 77632,
       "path": "studies/logitech-g-pro-x-superlight-2-se.glb",
       "orientation": {
         "up": "+Z",
@@ -1798,12 +1825,12 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 25.632566066476898,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
-      },
-      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5
+      }
     },
     {
       "slug": "logitech-m100",
@@ -1836,18 +1863,19 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 161495.9152224667
+        "volumeMm3": 174289.54060936475
       },
       "dimensionsXYZmm": [
-        61.99999898672104, 112.99999803304672, 37.99999877810478
+        62.00000271201134, 113.00000548362732, 38.00000250339508
       ],
+      "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6,
       "uncalibratedDimensionsXYZmm": [
-        61.8429072201252, 112.00157552957535, 37.88231935322983
+        61.84292770922184, 112.00157552957535, 35.101579735055566
       ],
       "dimensionCalibrationScale": [
-        1.0025401907338483, 1.008914378799618, 1.0031064794547786
+        1.0025398585836152, 1.008914378799618, 1.0825723596151946
       ],
-      "bytes": 76312,
+      "bytes": 76416,
       "path": "studies/logitech-m100.glb",
       "orientation": {
         "up": "+Z",
@@ -1879,12 +1907,12 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.425003317287157,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
-      },
-      "calibratedBboxRoundTripDifferenceMm": 5.4836273193359375e-6
+      }
     },
     {
       "slug": "logitech-m550",
@@ -1917,18 +1945,19 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 158011.14782451105
+        "volumeMm3": 157929.76546618104
       },
       "dimensionsXYZmm": [
-        61.000000685453415, 108.20000618696213, 38.80000859498978
+        61.000000685453415, 108.20000618696213, 38.80000486969948
       ],
+      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6,
       "uncalibratedDimensionsXYZmm": [
-        60.87794341146946, 107.24397748708725, 38.705760140146594
+        60.87794341146946, 107.24397748708725, 38.72570824023569
       ],
       "dimensionCalibrationScale": [
-        1.0020049394196116, 1.0089144634068414, 1.0024347761034063
+        1.0020049394196116, 1.0089144634068414, 1.0019184093239415
       ],
-      "bytes": 79044,
+      "bytes": 78244,
       "path": "studies/logitech-m550.glb",
       "orientation": {
         "up": "+Z",
@@ -1960,12 +1989,12 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 24.437283315274478,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
-      },
-      "calibratedBboxRoundTripDifferenceMm": 8.594989779453499e-6
+      }
     },
     {
       "slug": "logitech-m705-marathon",
@@ -1998,18 +2027,19 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 197472.76914499397
+        "volumeMm3": 198039.7247519447
       },
       "dimensionsXYZmm": [
-        71.00000232458115, 109.00000482797623, 41.999999433755875
+        71.00000232458115, 109.00000482797623, 42.00000315904617
       ],
+      "calibratedBboxRoundTripDifferenceMm": 4.827976226806641e-6,
       "uncalibratedDimensionsXYZmm": [
-        70.84275037050247, 108.03690552711487, 41.73445167543832
+        70.84275037050247, 108.03690552711487, 41.61497743916698
       ],
       "dimensionCalibrationScale": [
-        1.002219699668281, 1.0089144951735352, 1.0063628085167335
+        1.002219699668281, 1.0089144951735352, 1.0092520189731173
       ],
-      "bytes": 80568,
+      "bytes": 79708,
       "path": "studies/logitech-m705-marathon.glb",
       "orientation": {
         "up": "+Z",
@@ -2041,12 +2071,12 @@
         "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
       },
       "groundErrorMm": 0.0,
+      "supportMarginMm": 26.497314359945616,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
-      },
-      "calibratedBboxRoundTripDifferenceMm": 4.827976226806641e-6
+      }
     }
   ],
   "hand": {
@@ -2086,13 +2116,13 @@
     "bytes": 162260,
     "restPose": "flat palm down; authored template, not a population measurement"
   },
+  "measurementNotes": {
+    "calibratedBboxRoundTripDifferenceMm": "Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy",
+    "silhouetteIoU": "In-sample comparison with the same reference views used for reconstruction; not independent validation"
+  },
   "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Four gallery projections remain approximate. Physical verification and final acceptance pending.",
   "orientationConvention": {
     "blender": "Z up, nose +Y, ground Z=0",
     "gltf": "Y up, nose -Z, ground Y=0"
-  },
-  "measurementNotes": {
-    "calibratedBboxRoundTripDifferenceMm": "Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy",
-    "silhouetteIoU": "In-sample comparison with the same reference views used for reconstruction; not independent validation"
   }
 }

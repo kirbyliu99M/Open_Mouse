@@ -46,6 +46,20 @@ def contour(mask,axis):
     return np.array(low,dtype=float),np.array(high,dtype=float)
 
 
+def level_base(u,upper,lower,span=(.2,.8)):
+    """Shear a side contour so its base is level.
+
+    Gallery "profile" shots are three-quarter views, so the underside edge
+    rises toward one end (M100: 5.9 mm over the mid-length). Mice sit on a flat
+    base, so the tilt of a line fitted to the mid-length underside is removed
+    from both edges. Returns the tilt in image rows per unit length.
+    """
+    mask=(u>span[0])&(u<span[1])
+    slope=np.polyfit(u[mask],lower[mask],1)[0]
+    shear=slope*(u-.5)
+    return upper-shear,lower-shear,float(slope)
+
+
 def cameras(target):
     center=np.array([0,0,target[2]/2]);distance=max(target)*4
     result=[]
@@ -74,6 +88,7 @@ def reconstruct(slug,files):
     upper[interval]=np.interp(u[interval],u[~interval],upper[~interval])
     upper=ndimage.gaussian_filter1d(upper,len(upper)*.008)
     lower=ndimage.gaussian_filter1d(lower,len(lower)*.008)
+    upper,lower,base_tilt=level_base(u,upper,lower)
     target=np.array([record['widthMm'],record['lengthMm'],record['heightMm']])/1000
     samples=np.linspace(0,1,129)
     left=np.interp(samples,np.linspace(0,1,len(l)),l/top.shape[1]-.5)*target[0]
@@ -109,7 +124,8 @@ def reconstruct(slug,files):
     report={'slug':slug,'method':'Model-specific top and side photo contour loft','referenceMode':'gallery-only',
         'source':[next(image for image in record['images'] if Path(image['file']).name==name) for name in files],
         'cameraFile':str((folder/'cameras.json').relative_to(HERE)),'dimensionsXYZ':target.tolist(),
-        'rawVertices':len(vertices),'rawTriangles':len(faces),'status':'Limited-view silhouette study; transverse shape and details unverified',
+        'rawVertices':len(vertices),'rawTriangles':len(faces),
+        'baseLevelling':{'method':'Mid-length underside line fit removed by shear','removedRiseMmOverMidLength':base_tilt*.6/side.shape[0]*record['heightMm']},'status':'Limited-view silhouette study; transverse shape and details unverified',
         'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Side image perspective has not been camera-calibrated','Wheel and button details are not reconstructed']}
     (folder/'reconstruction.json').write_text(json.dumps(report,indent=2)+'\n')
     print('TRACED',slug,flush=True)

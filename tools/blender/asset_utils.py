@@ -66,6 +66,17 @@ def validate_mesh(obj, weld=False):
     return result
 
 
+MIN_SUPPORT_MARGIN_MM = 5
+
+
+def support_margin_mm(obj):
+    """Centre of mass to the edge of the desk-contact footprint, in mm."""
+    from stability import support_margin
+    obj.data.calc_loop_triangles()
+    vertices = [tuple(obj.matrix_world @ v.co) for v in obj.data.vertices]
+    return support_margin(vertices, [tuple(t.vertices) for t in obj.data.loop_triangles]) * 1000
+
+
 def dimensions_mm(obj):
     points = [obj.matrix_world @ Vector(p) for p in obj.bound_box]
     return [(max(p[a] for p in points) - min(p[a] for p in points)) * 1000 for a in range(3)]
