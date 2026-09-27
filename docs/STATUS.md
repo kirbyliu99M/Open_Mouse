@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-27 · by: Claude (Blender asset fixes, R8)_
+_Last updated: 2026-09-28 · by: Claude (study fidelity: B1, B2)_
 
 ---
 
@@ -24,6 +24,8 @@ _Last updated: 2026-09-27 · by: Claude (Blender asset fixes, R8)_
 **Production verified 2026-09-25 (`7748c90`):** submit → fit (stated grip honoured) → analysis by Gemini, cached on repeat (0.7 s) → delete → 404; the unmocked live e2e (reload included) passes on Pixel 7; `/`, `/sheet`, `/scan`, `/account`, `/results/demo` load with **zero CSP violations** and no horizontal scroll; CSP, nosniff, Referrer-Policy, Permissions-Policy and HSTS present. **The anonymous flow is operational.**
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
+
+**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the eight limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds and Claude audits. Done: G903 Hero and M750 rebuilt from official AR sources (B1); G Pro X Superlight 2 SE on the Superlight 2 shell, recoloured (B2); the MX Master 4 mirror-button bake fixed; M100 base levelled; desk-support gate. Next: B3, an M550 photo-bake prototype, then C for M100, M705, M325s and M850L. **Blocked on Codex quota** (resets 10:17 Asia/Taipei). Kirby's visual acceptance of G903, M750, SE, MX Master 4 and M100 is pending; sheets are in the worktree's `tools/blender/out/study-fidelity/acceptance/`. The branch also carries `m4a-eight-new-shells` and `m4a-m100-level-base`.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
@@ -217,6 +219,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-27 | **Catalogue grows 30 → 38**: M750, M325s, Mobi Fold, M850L, M840L, MX Ergo S, ERGO M575S, G903 Hero | Kirby's call, from a PChome Taiwan shelf check plus a first-party spec read. Descriptors pending; the dated Size-gate figure (27/30) covers only the original 30 — the 8 new rows are unmeasured |
 | 2026-09-27 | **R8: Blender assets are published** (open-source project); **no medical claims** anywhere | Kirby's call. Logitech trademarks and source 3D models are not covered by the project licence — note it in the asset README |
 | 2026-09-27 | **New-mouse shells**: Mobi Fold, M840L and MX Ergo S get no shell (`NO_SHELL`); ERGO M575S aliases the ERGO M575 shell; oblique-photo studies get a flat base, with the resulting boxy lower edge accepted for now | Kirby: drop Mobi Fold and M840L, fix the rest, "fine for now". Only folded, front-oblique or no top photos exist for the three. The M575S alias rests on identical published dimensions — shape not independently verified |
+| 2026-09-28 | **Study fidelity:** all eight studies target the AR shells' finish. G903 Hero and M750 use the full AR pipeline, calibrated per axis despite 2.9% / 3.3% source-scale spread. SE uses the Superlight 2 shell recoloured from SE photos. M550 is the photo-bake prototype. M100 keeps the sheared trace. Codex runs on `gpt-6-astra` | Kirby's calls, recorded in `tools/blender/STUDY-FIDELITY.md` Decisions. Official AR GLBs were found for G903 and M750 only, after 181 rate-limited requests |
 ---
 
 ## Risks
