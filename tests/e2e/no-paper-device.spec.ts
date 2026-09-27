@@ -2,11 +2,14 @@ import { expect, test } from "@playwright/test";
 
 const output = "docs/design/easy-scan-shell-2026-09-25/built";
 
-test("desktop shows a QR code, the URL and upload path", async ({
+test("desktop shows a QR code, the URL and upload path, with no request after load", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
+  const requests: string[] = [];
+  page.on("request", (request) => requests.push(request.url()));
   await page.goto("/scan/easy");
+  const requestsAfterInitialLoad = requests.length;
   await expect(
     page.getByRole("heading", { name: "Scan with your phone" }),
   ).toBeVisible();
@@ -15,6 +18,7 @@ test("desktop shows a QR code, the URL and upload path", async ({
       .getByRole("img", { name: "QR code for this scan page" })
       .locator("svg"),
   ).toBeVisible();
+  expect(requests.slice(requestsAfterInitialLoad)).toEqual([]);
   await expect(page.getByText(page.url(), { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Or upload a photo" }),

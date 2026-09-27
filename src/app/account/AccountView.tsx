@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AccountScan } from "../../server/account/repo";
-import { resultLengthKey } from "../../components/results/userLengthDisclosure";
-import { resultHandKey } from "../../components/results/handDisclosure";
+import { clearScanDisclosures } from "../../components/results/userLengthDisclosure";
 
 type Status = "idle" | "working" | "done" | "error";
 
@@ -78,10 +77,10 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       const res = await fetch("/api/account/scans", { method: "DELETE" });
       if (!res.ok) throw new Error("delete failed");
       try {
-        for (const scan of visibleScans) {
-          localStorage.removeItem(resultLengthKey(scan.scanId));
-          localStorage.removeItem(resultHandKey(scan.scanId));
-        }
+        clearScanDisclosures(
+          localStorage,
+          visibleScans.map((scan) => scan.scanId),
+        );
       } catch {
         // Browser storage may be unavailable; server deletion succeeded.
       }

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { deleteScan } from "./fetchResults";
-import { resultLengthKey } from "./userLengthDisclosure";
-import { resultHandKey } from "./handDisclosure";
+import { clearScanDisclosures } from "./userLengthDisclosure";
 
 type Status = "idle" | "confirming" | "deleting" | "error";
 
@@ -67,8 +66,7 @@ export function DeleteScanAction({
     // same "deleted" screen, not a "check your connection" retry loop.
     if (outcome === "deleted" || outcome === "notFound") {
       try {
-        localStorage.removeItem(resultLengthKey(scanId));
-        localStorage.removeItem(resultHandKey(scanId));
+        clearScanDisclosures(localStorage, [scanId]);
       } catch {
         // Storage may be blocked; deletion on the server still succeeded.
       }
