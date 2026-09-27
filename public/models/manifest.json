@@ -1,7 +1,7 @@
 {
   "status": "visual-review-pending",
   "galleryImageCount": 658,
-  "fullRotationReferenceModels": 26,
+  "fullRotationReferenceModels": 28,
   "viewsPerRotation": 26,
   "shells": [
     {
@@ -943,6 +943,82 @@
       }
     },
     {
+      "slug": "logitech-g903-hero",
+      "model": "G903 Hero",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g903-lightspeed/g903-lightspeed-black-gaming-mice-ar-360.glb",
+        "file": "logitech-g903-hero/g903-lightspeed-black-gaming-mice-ar-360.glb",
+        "bytes": 4691004,
+        "sha256": "10756b6c181b4fd3d8578a148c43f141ae47b462c46a3a593378fae48dab6baa"
+      },
+      "mesh": {
+        "vertices": 6960,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 188259.07007137945
+      },
+      "dimensionsXYZmm": [
+        67.00001657009125, 130.0000101327896, 39.99999910593033
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.6570091247558594e-5,
+      "uncalibratedDimensionsXYZmm": [
+        66.12597405910492, 128.51621955633163, 39.852618145232555
+      ],
+      "dimensionCalibrationScale": [
+        1.0132176141412135, 1.011545551071922, 1.0036982434993598
+      ],
+      "bytes": 385136,
+      "path": "shells/logitech-g903-hero.glb",
+      "sourceCalibration": {
+        "uncalibratedDimensionsXYZmm": [
+          72.85880297422409, 142.63468980789185, 44.7760708630085
+        ],
+        "dimensionCalibrationScale": [
+          0.9195869124096541, 0.9114193069573797, 0.8933343649915118
+        ],
+        "cableTrim": null
+      },
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999750905969, 0.9999999220554706, 0.9999999292194893
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g903-lightspeed/g903-lightspeed-black-gaming-mice-ar-360.glb",
+          "file": "logitech-g903-hero/g903-lightspeed-black-gaming-mice-ar-360.glb",
+          "bytes": 4691004,
+          "sha256": "10756b6c181b4fd3d8578a148c43f141ae47b462c46a3a593378fae48dab6baa"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.57788751771076,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      }
+    },
+    {
       "slug": "logitech-lift-vertical",
       "model": "Lift Vertical",
       "status": "reference-derived-review",
@@ -1339,6 +1415,82 @@
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 30.520380229040054,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      }
+    },
+    {
+      "slug": "logitech-m750",
+      "model": "M750",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m750/m750-m-graphite-ar-360.glb",
+        "file": "logitech-m750/m750-m-graphite-ar-360.glb",
+        "bytes": 6180480,
+        "sha256": "259a809168b944f9f6ca65c53fa5d31205e850d2052e097afb40d9b89e3e6dea"
+      },
+      "mesh": {
+        "vertices": 6990,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 141166.45095237612
+      },
+      "dimensionsXYZmm": [
+        61.80000305175781, 107.19000548124313, 37.800002843141556
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 5.481243135818659e-6,
+      "uncalibratedDimensionsXYZmm": [
+        60.89291162788868, 106.22432455420494, 37.619239676132565
+      ],
+      "dimensionCalibrationScale": [
+        1.0148965027228833, 1.0090909585077703, 1.0048050723131354
+      ],
+      "bytes": 323264,
+      "path": "shells/logitech-m750.glb",
+      "sourceCalibration": {
+        "uncalibratedDimensionsXYZmm": [
+          60.589998960494995, 107.61498659849167, 38.28100115060806
+        ],
+        "dimensionCalibrationScale": [
+          1.019970359993763, 0.9960509113955092, 0.9874350645748755
+        ],
+        "cableTrim": null
+      },
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999950618808, 0.999999948864233, 0.9999999247846206
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m750/m750-m-graphite-ar-360.glb",
+          "file": "logitech-m750/m750-m-graphite-ar-360.glb",
+          "bytes": 6180480,
+          "sha256": "259a809168b944f9f6ca65c53fa5d31205e850d2052e097afb40d9b89e3e6dea"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.741765310900302,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
@@ -1910,104 +2062,6 @@
       }
     },
     {
-      "slug": "logitech-g903-hero",
-      "model": "G903 Hero",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-top-angle-gallery-1.png",
-          "file": "logitech-g903-hero/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-left-angle-gallery-2.png",
-          "file": "logitech-g903-hero/left.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "003a0b050af7a87723e130744301eb85ff931bd2fcf82a22f57c9fac84e483ce",
-          "viewHint": "left"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-profile-right-angle-black-gallery-6.png",
-          "file": "logitech-g903-hero/right.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "608e23fc20d4efbb7d1ee6ef2bf682e09ce0d1a99cbdcc084c1a3ec2e3d7022f",
-          "viewHint": "right"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 235267.92663988523
-      },
-      "dimensionsXYZmm": [
-        67.00000539422035, 130.0000101327896, 39.99999910593033
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 1.0132789611816406e-5,
-      "uncalibratedDimensionsXYZmm": [
-        66.82542711496353, 128.85138392448425, 39.95812480718541
-      ],
-      "dimensionCalibrationScale": [
-        1.0026123721549305, 1.008914270382916, 1.001047976926261
-      ],
-      "bytes": 111564,
-      "path": "studies/logitech-g903-hero.glb",
-      "limitations": [
-        "No working official 360 asset found",
-        "Cross-sections interpolated between traced outlines",
-        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
-        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
-        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
-      ],
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          0.9999999750905969, 1.0000000366797828, 1.0000000223517422
-        ]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside with side-photo projection",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g903-hero/2025-update/g903-lightspeed-mouse-top-angle-gallery-1.png",
-          "file": "logitech-g903-hero/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "2c191ae78c21e5cbabbefc116f6927e8fcd257540feaef1552e49219604546b9",
-          "viewHint": "top"
-        },
-        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
-      },
-      "groundErrorMm": 0.0,
-      "supportMarginMm": 25.98135272161565,
-      "deliveredTexture": {
-        "format": "JPEG",
-        "maxResolution": 512,
-        "maps": 3
-      }
-    },
-    {
       "slug": "logitech-m100",
       "model": "M100",
       "status": "limited-view-study",
@@ -2364,95 +2418,6 @@
       }
     },
     {
-      "slug": "logitech-m750",
-      "model": "M750",
-      "status": "limited-view-study",
-      "method": "Model-specific top and side photo contour loft",
-      "source": [
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-top-angle-gallery-1.png",
-          "file": "logitech-m750/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
-          "viewHint": "top"
-        },
-        {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-profile-angle-gallery-4.png",
-          "file": "logitech-m750/right.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "abd932a4ecefc0a889011b547c3e04e932656c98c3ab95351d40dd71355073ac",
-          "viewHint": "right"
-        }
-      ],
-      "mesh": {
-        "vertices": 7002,
-        "triangles": 14000,
-        "nonManifoldEdges": 0,
-        "degenerateFaces": 0,
-        "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 158652.74936482793
-      },
-      "dimensionsXYZmm": [
-        61.80000305175781, 107.19000548124313, 37.79999911785126
-      ],
-      "calibratedBboxRoundTripDifferenceMm": 5.481243135818659e-6,
-      "uncalibratedDimensionsXYZmm": [
-        61.591072008013725, 106.24295473098755, 37.76472786069007
-      ],
-      "dimensionCalibrationScale": [
-        1.0033921798269574, 1.008913958308204, 1.0009339969147941
-      ],
-      "bytes": 77644,
-      "path": "studies/logitech-m750.glb",
-      "limitations": [
-        "No working official 360 asset found",
-        "Cross-sections interpolated between traced outlines",
-        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
-        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
-        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
-      ],
-      "orientation": {
-        "up": "+Z",
-        "forward": "+Y",
-        "groundZ": 0,
-        "rotationMatrix": [
-          [1.0, 0.0, 0.0, 0.0],
-          [0.0, -1.0, 0.0, 0.0],
-          [0.0, 0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0, 1.0]
-        ],
-        "correctedWidthHeightSwap": false,
-        "dimensionScale": [
-          1.000000010898584, 1.0000000183723994, 1.0000000233372688
-        ]
-      },
-      "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
-        "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m750/2026-updates/gallery/graphite-medium/m750-medium-graphite-top-angle-gallery-1.png",
-          "file": "logitech-m750/top.png",
-          "width": 1600,
-          "height": 1382,
-          "mode": "P",
-          "sha256": "de28ed0b40ab396d5659bb48b1977cda0ea27e40e485ef989b54792a16ed763e",
-          "viewHint": "top"
-        },
-        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
-      },
-      "groundErrorMm": 0.0,
-      "supportMarginMm": 24.844684428767117,
-      "deliveredTexture": {
-        "format": "JPEG",
-        "maxResolution": 512,
-        "maps": 1
-      }
-    },
-    {
       "slug": "logitech-signature-comfort-plus-m850l",
       "model": "Signature Comfort Plus M850L",
       "status": "limited-view-study",
@@ -2597,7 +2562,7 @@
     "calibratedBboxRoundTripDifferenceMm": "Export precision after forced scaling to catalogue L/W/H; not independent physical accuracy",
     "silhouetteIoU": "In-sample comparison with the same reference views used for reconstruction; not independent validation"
   },
-  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. Eight gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
+  "note": "Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. 6 gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.",
   "orientationConvention": {
     "blender": "Z up, nose +Y, ground Z=0",
     "gltf": "Y up, nose -Z, ground Y=0"

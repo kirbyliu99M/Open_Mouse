@@ -396,6 +396,33 @@ Bakes, packaging, delivered-asset checks and final contact sheets remain pending
 at this checkpoint. No public asset has changed yet. No push attempted;
 Claude will audit and push the local commits.
 
+**B1 continuation, 2026-09-28: built after Kirby's waiver.** Codex ran Steps
+2–4 and committed the code (`36f87a5`). Its Codex usage limit ended the run
+before it committed the assets or wrote this evidence. Claude audited the
+outputs, recorded the evidence below and committed the assets.
+
+| Shell     | Status           | Delivered W × L × H (mm) | Source calibration (pre-carving, W/L/H) | Post-smoothing calibration | Silhouette IoU mean / worst | Support margin | Triangles | Delivered bytes |
+| --------- | ---------------- | ------------------------ | --------------------------------------- | -------------------------- | --------------------------- | -------------- | --------- | --------------- |
+| G903 Hero | AR-derived shell | 67.0 × 130.0 × 40.0      | 0.9196 / 0.9114 / 0.8933                | 1.0132 / 1.0115 / 1.0037   | 0.9893 / 0.9869             | 26.6 mm        | 14,000    | 385,136         |
+| M750      | AR-derived shell | 61.8 × 107.19 × 37.8     | 1.0200 / 0.9961 / 0.9874                | 1.0149 / 1.0091 / 1.0048   | 0.9930 / 0.9885             | 21.7 mm        | 14,000    | 323,264         |
+
+- Material contract matches the 26 shells: colour (sRGB), metallic/roughness
+  and tangent normal (Non-Color), baked at 2048 px, delivered as 512 px JPEG,
+  normal strength 0.65.
+- Topology on reimport: 0 non-manifold edges, 0 self-intersections, one
+  component, outward normals, 0 degenerate faces, bbox error 0.000 mm.
+- Only these two mice changed. The other 33 GLBs are byte-identical to
+  `3a7c0f4`. The old study GLBs were removed from `public/models/studies/`.
+- Gates (Codex run and Claude re-run): unit tests OK (7 bpy tests skipped
+  outside Blender), orientation and colour Blender tests OK, `check_assets.py`
+  `ALL_ASSET_CHECKS_PASSED`, `check_catalogues.py`, `audit_payloads.py`,
+  `optimize_glbs.py --check` and prettier all pass.
+- Visual check (Claude, AR source | old study | new shell at top, side, front
+  and hero): the new shells carry the AR source's panel seams, side wings,
+  buttons, wheel surround and logos. The old studies were photo projections on
+  smooth lofts. Both wheel recesses bake dark, the same limitation as MX Master
+  4 and the other AR shells. **Kirby's visual acceptance is pending.**
+
 ## Decisions
 
 | Date       | Decision                                                                                                                                                                                                                                                  | By     |
@@ -410,6 +437,8 @@ Claude will audit and push the local commits.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Claude: B1 audited and assets committed (see B1 continuation). Codex hit its usage limit at the end of the run; the reset is shown as 05:16 Asia/Taipei. B2 and B3 wait for Codex.
 
 - 2026-09-28 Codex: **B1 resumed under Kirby's scale waiver (`3a7c0f4`).**
   Registered both AR sources, removed gallery routing, reconstructed and finished
