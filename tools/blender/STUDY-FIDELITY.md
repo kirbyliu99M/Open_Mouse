@@ -368,17 +368,20 @@ mismatch needs adjudication before B1 can resume; neither threshold was relaxed.
 
 ## Decisions
 
-| Date       | Decision                                                                                                                                           | By     |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish                                                                               | Kirby  |
-| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base                                                                              | Kirby  |
-| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                                                                                                         | Kirby  |
-| 2026-09-28 | **Gate A passed.** G903 Hero and M750 go through the full AR pipeline of the 26 shells; their study geometry is replaced (approved geometry route) | Kirby  |
-| 2026-09-28 | SE uses the G Pro X Superlight 2 shell (geometry and detail maps) recoloured from SE photos (approved geometry route)                              | Kirby  |
-| 2026-09-28 | M550 is the photo-bake prototype for M100, M550, M705, M325s and M850L                                                                             | Kirby  |
-| 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json` | Claude |
+| Date       | Decision                                                                                                                                                                                                                                                  | By     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish                                                                                                                                                                                      | Kirby  |
+| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base                                                                                                                                                                                     | Kirby  |
+| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                                                                                                                                                                                                                | Kirby  |
+| 2026-09-28 | **Gate A passed.** G903 Hero and M750 go through the full AR pipeline of the 26 shells; their study geometry is replaced (approved geometry route)                                                                                                        | Kirby  |
+| 2026-09-28 | SE uses the G Pro X Superlight 2 shell (geometry and detail maps) recoloured from SE photos (approved geometry route)                                                                                                                                     | Kirby  |
+| 2026-09-28 | M550 is the photo-bake prototype for M100, M550, M705, M325s and M850L                                                                                                                                                                                    | Kirby  |
+| 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json`                                                                                                        | Claude |
+| 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Claude: pushed Codex's `3f2a292` (sandbox push has no GitHub credentials). Kirby waived the B1 scale stop for G903 and M750 (Decisions). B1 resumes from Step 2.
 
 - 2026-09-28 Codex: **B1 stopped at the Step 1 scale gate.** Imported and
   inspected G903's five meshes and M750 medium's eight meshes, including
