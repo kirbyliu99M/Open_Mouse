@@ -22,16 +22,18 @@ What the 26 shells have that the studies lack:
 
 ## Scope
 
-| Study                        | Geometry kept from                    | Notes                                                   |
-| ---------------------------- | ------------------------------------- | ------------------------------------------------------- |
-| M100                         | `m4a-m100-level-base` (sheared trace) | Kirby's choice                                          |
-| M550                         | `m4a-eight-new-shells`                | Same published L/W/H as M650 (AR shell)                 |
-| M705 Marathon                | `m4a-eight-new-shells`                |                                                         |
-| G Pro X Superlight 2 SE      | `m4a-eight-new-shells`                | Same published L/W/H as G Pro X Superlight 2 (AR shell) |
-| G903 Hero                    | `m4a-eight-new-shells`                |                                                         |
-| M325s                        | `m4a-eight-new-shells`                |                                                         |
-| M750                         | `m4a-eight-new-shells`                |                                                         |
-| Signature Comfort Plus M850L | `m4a-eight-new-shells`                |                                                         |
+Status as of 2026-09-28. The Route column follows the Decisions table.
+
+| Model                        | Route                                              | Geometry                                     | State                                   |
+| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | --------------------------------------- |
+| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; Kirby's visual acceptance pending |
+| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; Kirby's visual acceptance pending |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Pending B2                              |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Pending B3                              |
+| M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
+| M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
+| M325s                        | Photo bake (C); only a top photo in its colourway  | Study, `m4a-eight-new-shells`                | Pending C                               |
+| Signature Comfort Plus M850L | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
 
 ## Agent distribution
 
@@ -445,6 +447,8 @@ outputs, recorded the evidence below and committed the assets.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Claude: Sonnet reviewer verdict on `origin/m4a-eight-new-shells..b5c7456`: **approve with fixes**. No blockers or hard-rule violations; 5 of 5 numeric spot checks matched. Should-fix items: (1) the opaque-source mutation in `bake_refinement.py` depends on channel order and is untested; (2) this Scope table was stale (fixed here); (3) `PAYLOAD-AUDIT.md` still counts 8 studies; (5) `reconstruct_views.py` `sourceCalibration` has no unit test; nit: dead `side_sources` loop in `polish_reconstruction.py`. Items 1, 3 and 5 and the nit go to Codex before B2. (4) Governance: Claude committed Codex's B1 assets after Codex hit its usage limit. This is flagged to Kirby.
 
 - 2026-09-28 Claude: B1 audited and assets committed (see B1 continuation). Codex hit its usage limit at the end of the run; the reset is shown as 05:16 Asia/Taipei. B2 and B3 wait for Codex.
 
