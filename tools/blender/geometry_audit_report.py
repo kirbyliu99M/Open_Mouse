@@ -60,6 +60,9 @@ def deviation_map(data, size=360):
 
 
 def main():
+    global OUT
+    if len(sys.argv) > 1:
+        OUT = Path(sys.argv[1])
     rows = json.loads((OUT / 'distances.json').read_text())
     for row in rows:
         data = np.load(OUT / (row['slug'] + '.npz'))

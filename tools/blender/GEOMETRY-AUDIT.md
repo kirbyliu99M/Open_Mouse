@@ -88,10 +88,15 @@ Ranked by lowest silhouette IoU, then by p95 distance.
 
 ## Recommendations
 
-- **D4 (proposed): local outward fit where the shell is inside the source.** Move only shell vertices
-  that lie more than 1 mm inside the source onto its outer surface, then fair them smoothly.
-  Targets: the four wheels and G903's channel. Sealed seams and openings stay sealed. Gate:
-  inside share > 2 mm → about 0, silhouette IoU not lower in any view, clean topology, support ≥ 5 mm,
-  calibrated bbox unchanged.
+- **D4: tried by Claude and stopped; handed to Codex after D1 as local remeshing.** Claude tried
+  moving the shell's inside-the-source vertices outward onto the source and blending the
+  displacement over the surrounding rings (harmonic extension). On M190 it found only 12 target
+  vertices at the wheel crown, yet the result self-intersected: 253 pairs with 3 rings and lateral
+  moves, 349 with 5 rings and moves along the normal only. The wheel is a thin disc rising through a
+  slot, and a closed shell of about 14k near-uniform triangles cannot follow it by moving vertices.
+  The fix needs **local remeshing**: finer triangles around the wheel crowns and G903's channel,
+  within the 15k-triangle budget, then fitting to the source there. Gate as before: inside share
+  > 2 mm falls by at least half, outside share rises by at most 0.2 points, IoU drops by at most
+  > 0.001, clean topology, support ≥ 5 mm, calibrated bbox. The failed script was not kept.
 - The Phase C install decisions for G203 and G502 Hero ("kept") were colour decisions based on
   the squashed reference. Colour is now out of scope, so they are not revisited.

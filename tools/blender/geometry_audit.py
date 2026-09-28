@@ -78,8 +78,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', required=True)
     parser.add_argument('--only', nargs='*')
+    parser.add_argument('--out')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     data = Path(args.data)
+    global OUT
+    if args.out:
+        OUT = Path(args.out)
     color_reconstruction.LIB = data / 'out/reference-library'
     OUT.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((HERE.parents[1] / 'public/models/manifest.json').read_text(encoding='utf-8'))
