@@ -2720,19 +2720,19 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 137525.08800341538
+        "volumeMm3": 137358.08287757862
       },
       "dimensionsXYZmm": [
-        57.00000002980232, 94.69999372959137, 39.100002497434616
+        57.00000002980232, 94.70000118017197, 39.09999877214432
       ],
-      "calibratedBboxRoundTripDifferenceMm": 6.270408633213265e-6,
+      "calibratedBboxRoundTripDifferenceMm": 1.2278556837941323e-6,
       "uncalibratedDimensionsXYZmm": [
         56.871164590120316, 93.86329352855682, 39.06819006664364
       ],
       "dimensionCalibrationScale": [
         1.0022653907442942, 1.0089140966611045, 1.0008142156906195
       ],
-      "bytes": 75284,
+      "bytes": 181492,
       "path": "studies/logitech-m325s.glb",
       "limitations": [
         "No working official 360 asset found",
@@ -2772,11 +2772,193 @@
         "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
       },
       "groundErrorMm": 0.0,
-      "supportMarginMm": 22.97278216469783,
+      "supportMarginMm": 22.720195600521492,
       "deliveredTexture": {
         "format": "JPEG",
         "maxResolution": 512,
         "maps": 1
+      },
+      "geometryRefinement": {
+        "deformation": {
+          "method": "12 smooth Gaussian loft fields; fixed baseline perspective cameras",
+          "coefficients": [
+            0.07580209946627968, 0.3090351106707338, -0.07701372318089625,
+            0.8172958817782922, 0.7228095318496257, 1.903810691608264,
+            -3.323631320735252, 0.5831066382205333, 0.9291331206875266,
+            -1.12641677482662, 0.06890987952904687, -1.5903246917788687
+          ],
+          "coefficientBoundMm": 5,
+          "stages": [
+            {
+              "resolution": 320,
+              "loss": 0.023548100518657245,
+              "evaluations": 408,
+              "iterations": 226,
+              "converged": true,
+              "message": "Optimization terminated successfully.",
+              "coefficients": [
+                -0.027147311712894816, 0.26097127836282985,
+                0.020927902893388858, 0.8257219589347904, 1.3508117844475032,
+                1.5308605524152643, -3.321763422451901, 0.39696192521595275,
+                0.7302669460950689, -1.3468126981264927, 0.3952378428896527,
+                -1.684984248797963
+              ]
+            },
+            {
+              "resolution": 720,
+              "loss": 0.02445082132670289,
+              "evaluations": 357,
+              "iterations": 174,
+              "converged": true,
+              "message": "Optimization terminated successfully.",
+              "coefficients": [
+                0.07580209946627968, 0.3090351106707338, -0.07701372318089625,
+                0.8172958817782922, 0.7228095318496257, 1.903810691608264,
+                -3.323631320735252, 0.5831066382205333, 0.9291331206875266,
+                -1.12641677482662, 0.06890987952904687, -1.5903246917788687
+              ]
+            }
+          ],
+          "trainingFiles": [
+            "top.png",
+            "left.png",
+            "extra-1.png",
+            "extra-2.png",
+            "extra-3.png",
+            "extra-4.png",
+            "extra-5.png"
+          ],
+          "heldOutUsed": false,
+          "maxDisplacementMm": 1.7467647961395312,
+          "dimensionsXYZmm": [57.0, 94.7, 39.1],
+          "minZmm": 0.0,
+          "topologyChanged": false,
+          "cameraRefitted": false,
+          "materialsChanged": false,
+          "uvChanged": false
+        },
+        "roundTrip": {
+          "mesh": {
+            "vertices": 7002,
+            "triangles": 14000,
+            "nonManifoldEdges": 0,
+            "degenerateFaces": 0,
+            "nonAdjacentIntersectionPairs": 0,
+            "volumeMm3": 137358.08287757862
+          },
+          "dimensionsXYZmm": [
+            57.00000002980232, 94.70000118017197, 39.09999877214432
+          ],
+          "maxBboxErrorMm": 1.2278556837941323e-6,
+          "supportMarginMm": 22.720195600521492,
+          "minZmm": 0.0,
+          "uvUnchanged": true,
+          "materialsUnchanged": true,
+          "textureBytesUnchanged": true,
+          "trianglePositionsMatchFloat32Candidate": true,
+          "bytes": 181492,
+          "roundtripMeshSHA256": "e247c1bbdd0c268916a183226bb29970f4bf231ae21559b7ca752d404d41d18c",
+          "candidateSHA256": "b76997c9df7dc4a7474cb1354463e9cbd59ecdd9104d9b2d00408322f987c104"
+        },
+        "silhouettes": {
+          "views": [
+            {
+              "file": "top.png",
+              "view": "graphite top",
+              "role": "fit",
+              "beforeIoU": 0.9897281732774557,
+              "afterIoU": 0.9890520187318061,
+              "deltaIoU": -0.0006761545456495099,
+              "beforeGapMm": 0.7343248964055535,
+              "afterGapMm": 0.6852040874024053
+            },
+            {
+              "file": "left.png",
+              "view": "red front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.969655609333439,
+              "afterIoU": 0.9748720998293107,
+              "deltaIoU": 0.005216490495871695,
+              "beforeGapMm": 1.7988917938323903,
+              "afterGapMm": 1.7546240515553537
+            },
+            {
+              "file": "right.png",
+              "view": "patterned rear-left oblique",
+              "role": "held-out",
+              "beforeIoU": 0.9665325000340957,
+              "afterIoU": 0.9665635483846178,
+              "deltaIoU": 3.104835052203381e-5,
+              "beforeGapMm": 2.2955261552116566,
+              "afterGapMm": 2.2359337553627823
+            },
+            {
+              "file": "extra-1.png",
+              "view": "pale-grey front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.9718008957526801,
+              "afterIoU": 0.9747060935743964,
+              "deltaIoU": 0.0029051978217162766,
+              "beforeGapMm": 1.9428382374513196,
+              "afterGapMm": 1.952013439550875
+            },
+            {
+              "file": "extra-2.png",
+              "view": "lilac front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.9707777520650008,
+              "afterIoU": 0.9754401267817016,
+              "deltaIoU": 0.0046623747167007235,
+              "beforeGapMm": 2.03550962270597,
+              "afterGapMm": 2.00860743193327
+            },
+            {
+              "file": "extra-3.png",
+              "view": "blue front-right oblique",
+              "role": "fit",
+              "beforeIoU": 0.9720564044295962,
+              "afterIoU": 0.9753028712749277,
+              "deltaIoU": 0.003246466845331475,
+              "beforeGapMm": 1.7935278323625117,
+              "afterGapMm": 1.7520606375564842
+            },
+            {
+              "file": "extra-4.png",
+              "view": "patterned elevated left",
+              "role": "fit",
+              "beforeIoU": 0.9759184563574044,
+              "afterIoU": 0.9740675079661795,
+              "deltaIoU": -0.0018509483912249047,
+              "beforeGapMm": 3.0662700481111482,
+              "afterGapMm": 2.974568140885802
+            },
+            {
+              "file": "extra-5.png",
+              "view": "patterned front-right oblique",
+              "role": "fit",
+              "beforeIoU": 0.9692987593507723,
+              "afterIoU": 0.9744088402937165,
+              "deltaIoU": 0.005110080942944295,
+              "beforeGapMm": 1.956900386207389,
+              "afterGapMm": 1.9760364793843974
+            }
+          ],
+          "gate": {
+            "passed": true,
+            "reasons": [],
+            "meanBefore": 0.9741765786523354,
+            "meanAfter": 0.9768356512074341,
+            "worstFittedDelta": -0.0018509483912249047,
+            "heldOutDeltas": [3.104835052203381e-5]
+          },
+          "camerasFrozen": true,
+          "evaluationMaxDimension": 1440,
+          "largestRemainingGapMm": 2.974568140885802,
+          "gapInterpretation": "Projected boundary Hausdorff gap at fitted target plane, not 3D surface error",
+          "candidateSHA256": "b76997c9df7dc4a7474cb1354463e9cbd59ecdd9104d9b2d00408322f987c104"
+        },
+        "baselineSHA256": "d2e9f8a3b4b1cca1e868927b04290e4a5c3207e2e0e30a16566ace81a8584ac7",
+        "limitation": "Smooth photo-silhouette refinement; existing projected details can stretch; local shape remains approximate"
       }
     },
     {

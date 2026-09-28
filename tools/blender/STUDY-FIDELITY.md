@@ -154,8 +154,32 @@ Rules for the schedule:
 
 ### D1 — study geometry refinement
 
-**Final state: stopped at M850L delivery gate failure; no public assets changed.**
-See the D1 final-stop subsection below for all measured values and remaining work.
+**D1b resumed 2026-09-29 after H1 at `f61740c`. M325s delivered; M705 and M850L pending.**
+The previous final-stop subsection is historical; the resumed results follow here.
+
+#### D1b M325s delivery after round trip
+
+The existing **12-field symmetric** candidate passes after position-lossless Draco
+export and Blender reimport. Largest absolute coefficient **3.323631321 mm**
+(shoulder-height field); maximum displacement **1.746764796 mm**. Every view is
+numerically identical to the raw candidate table below: fitted mean
+**0.974176579 ? 0.976835651**, worst fitted delta **-0.001850948**; held-out
+`right.png` **0.966532500 ? 0.966563548** (gain **0.000031048351**).
+Largest remaining projected silhouette gap **2.974568 mm**. **Delivered.**
+
+Round trip: **14,000 triangles**, **0 non-manifold / degenerate / intersections**,
+bbox max error **0.000001228 mm**, ground Z **0**, support **22.720196 mm**.
+Per-corner UVs, triangle connectivity and material assignments survive the export;
+original material JSON and embedded JPEG bytes are preserved. Shape changes mildly
+stretch the existing projected top detail as described in the previous sheet.
+Payload **75,284 ? 181,492 bytes** because position and UV quantisation are disabled.
+No M550 or AR shell changed. Only M325s manifest and validation entries changed.
+
+Evidence: `out/study-fidelity/d1/logitech-m325s/roundtrip-geometry.json`,
+`roundtrip-silhouette-evaluation.json`, `roundtrip-silhouette-comparison.png`,
+and the inspected `geometry-contact-sheet.png`. The round-trip evaluator binds
+its results to the candidate SHA256 before packaging. Baselines and frozen cameras
+remain unchanged. No held-out result was used to select or tune a candidate.
 
 **2026-09-28, baseline geometry checkpoint; no delivery yet.** Worktree pulled
 to `4b282a2`. Only M705 Marathon, M325s and M850L are in scope. Baseline GLBs,
@@ -1719,6 +1743,12 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-29 Codex, D1b: pulled H1 (`f61740c`). M325s existing candidate exported,
+  reimported and remeasured in all eight views; all three delivery rules pass.
+  Installed M325s only; original texture bytes, material JSON and UVs retained.
+  Added reusable export/round-trip/package tools; payload audit regenerated.
+  M705 extended-basis fit and M850L retry are next. No push.
 
 - 2026-09-28 23:45 Claude: **Handoff H1 done** (planned 03:15; D2 finished early). Fast-forwarded this branch to `m4a-geometry-audit` (`de87d32`): D0 audit with review fixes (approve with fixes; winding and box-filter checks clean) and D2 (M550 delivered as a shell). Codex D1b resumes by timer at 03:38 from this state; the D4 brief is ready for after H2.
 

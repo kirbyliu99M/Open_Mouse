@@ -4,6 +4,7 @@ Writes evidence and comparison sheets only. A failed gate returns exit 2;
 never retry/tune a shape against held-out results.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -18,11 +19,13 @@ from study_deformation_math import delivery_gate
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory',type=Path,required=True)
+    parser.add_argument('--round-trip', action='store_true')
     args = parser.parse_args()
     out = args.directory
     baseline = np.load(out/'baseline-mesh.npz')
-    candidate = np.load(out/'candidate-mesh.npz')
-    assert np.array_equal(baseline['faces'],candidate['faces'])
+    candidate = np.load(out/('roundtrip-mesh.npz' if args.round_trip else 'candidate-mesh.npz'))
+    if not args.round_trip:
+        assert np.array_equal(baseline['faces'],candidate['faces'])
     deformation = json.loads((out/'deformation.json').read_text())
     assert not deformation['heldOutUsed'] and not deformation['cameraRefitted']
     rows = [r for r in json.loads((out/'photo-inventory.json').read_text()) if r['role']!='excluded']
@@ -71,8 +74,14 @@ def main():
     report = dict(views=results,gate=gate,camerasFrozen=True,evaluationMaxDimension=1440,
                   largestRemainingGapMm=max(r['afterGapMm'] for r in results),
                   gapInterpretation='Projected boundary Hausdorff gap at fitted target plane, not 3D surface error')
-    (out/'silhouette-evaluation.json').write_text(json.dumps(report,indent=2)+'\n')
-    sheet.save(out/'silhouette-comparison.png')
+    if args.round_trip:
+        geometry = json.loads((out/'roundtrip-geometry.json').read_text())
+        assert geometry['roundtripMeshSHA256'] == hashlib.sha256((out/'roundtrip-mesh.npz').read_bytes()).hexdigest()
+        assert geometry['candidateSHA256'] == hashlib.sha256((out/'candidate.glb').read_bytes()).hexdigest()
+        report['candidateSHA256'] = geometry['candidateSHA256']
+    prefix = 'roundtrip-' if args.round_trip else ''
+    (out/(prefix+'silhouette-evaluation.json')).write_text(json.dumps(report,indent=2)+'\n')
+    sheet.save(out/(prefix+'silhouette-comparison.png'))
     print(json.dumps(report),flush=True)
     if not gate['passed']:
         raise SystemExit(2)
