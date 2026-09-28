@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-28 · by: Claude (study fidelity: B1, B2)_
+_Last updated: 2026-09-28 · by: Claude (study fidelity: B1–B3)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-28 · by: Claude (study fidelity: B1, B2)_
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the eight limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds and Claude audits. Done: G903 Hero and M750 rebuilt from official AR sources (B1); G Pro X Superlight 2 SE on the Superlight 2 shell, recoloured (B2); the MX Master 4 mirror-button bake fixed; M100 base levelled; desk-support gate. Next: B3, an M550 photo-bake prototype, then C for M100, M705, M325s and M850L. **Blocked on Codex quota** (resets 10:17 Asia/Taipei). Kirby's visual acceptance of G903, M750, SE, MX Master 4 and M100 is pending; sheets are in the worktree's `tools/blender/out/study-fidelity/acceptance/`. The branch also carries `m4a-eight-new-shells` and `m4a-m100-level-base`.
+**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the eight limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds and Claude audits. Done and audited: G903 Hero and M750 rebuilt from official AR sources (B1); G Pro X Superlight 2 SE on the Superlight 2 shell, recoloured (B2); an M550 multi-view photo bake prototype (B3; a real but modest gain, so the gap is geometry); the MX Master 4 mirror-button bake fix; the M100 base levelled; a desk-support gate. Independent Sonnet review: approve with fixes, and the fixes are in (`70f7765`). Next (C): fix missed bake rays and dark wheel recesses on the AR shells, and build a non-delivered M550-on-M650 candidate. The photo bake of M100, M705, M325s and M850L is **on hold for Kirby's B3 verdict**. **Blocked on Codex quota** until 17:17 Asia/Taipei; Kirby chose to wait. Kirby's visual acceptance of G903, M750, SE, MX Master 4, M100 and M550 is pending; sheets are in the worktree's `tools/blender/out/study-fidelity/acceptance/` and `b3/`.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
