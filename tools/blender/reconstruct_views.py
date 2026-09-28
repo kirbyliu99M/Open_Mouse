@@ -4,6 +4,7 @@ This stage reads no manufacturer mesh: it carves a voxel grid against the
 captured silhouettes and visible surface depths, then extracts a new isosurface.
 Outputs are review assets, with provenance; they are not independent scans.
 """
+from check_catalogues import NO_SHELL
 import argparse
 import json
 import os
@@ -84,5 +85,6 @@ if __name__ == "__main__":
     parser.add_argument("--closing",type=int,default=1)
     args = parser.parse_args()
     for path in sorted((HERE/"out/reference-library").glob("*/views/cameras.json")):
+        if path.parent.parent.name in NO_SHELL:continue
         if not args.model or path.parent.parent.name in args.model.split(','):
             reconstruct(path,closing=args.closing)

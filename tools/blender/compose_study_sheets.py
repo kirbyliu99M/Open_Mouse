@@ -5,7 +5,6 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 SLUGS = (
-    "logitech-m100",
     "logitech-signature-comfort-plus-m850l", "logitech-m325s",
 )
 VIEWS = ("top", "left", "right", "back")

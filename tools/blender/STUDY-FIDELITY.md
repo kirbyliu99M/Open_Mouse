@@ -1075,6 +1075,55 @@ are no new M100 IoUs, gap measurements or contact sheet. Parts 2, 1 and 3 were
 also not started; the prior O1 table and O4 deferrals stand, O2 has no verified
 new cause/fix, and no M550 sibling candidate exists. No push.
 
+#### Part M ? M100 removed, 2026-09-28
+
+Deleted `public/models/studies/logitech-m100.glb` (76,416 bytes). M100 is now
+`noShell` with Kirby's exact reason, and absent from validation round trips and
+the generation reference catalogue. The app catalogue and fit fixtures were
+not edited. Reference inventories remain historical evidence. Removed active
+gallery routing, blocked stale reconstruction folders and prototype generation,
+and made catalogue/payload/optimisation/asset checks reject stale no-shell
+entries or files. The geometry and orientation tests now use M325s and M550;
+new regressions retain M100 in the product catalogue while rejecting its return.
+
+SHA-256 comparison against the start of this run: **34/34 remaining GLBs are
+byte-identical; M100 is the only removed file; zero other GLBs changed**.
+Evidence: `out/study-fidelity/c/removal/{before-sha256,hash-evidence}.json`.
+Payload audit regenerated: **34 files, 8,290,492 bytes**. Gates: Python **63
+tests, 54 passed / 9 bpy skips**; TypeScript **9 passed**; Blender orientation
+**4**, colour sampling **3**, alpha controls **2 passed**; full asset gate
+`ALL_ASSET_CHECKS_PASSED`; catalogue, payload, optimisation and Prettier pass.
+Blender tests' native exit codes are recorded separately (all zero); PowerShell
+stderr wrapping is not treated as a failed test. No check outside the allowed
+paths required M100's GLB. No generator was run against public assets.
+
+Removed file: `public/models/studies/logitech-m100.glb`.
+Changed files (plus this Results/Progress log):
+
+- `public/models/manifest.json`
+- `public/models/validation.json`
+- `tools/blender/PAYLOAD-AUDIT.md`
+- `tools/blender/README.md`
+- `tools/blender/audit_payloads.py`
+- `tools/blender/build_assets.py`
+- `tools/blender/check_catalogues.py`
+- `tools/blender/color_reconstruction.py`
+- `tools/blender/compose_study_sheets.py`
+- `tools/blender/finish_reconstruction.py`
+- `tools/blender/optimize_glbs.py`
+- `tools/blender/package_reconstruction.py`
+- `tools/blender/params/reference-catalogue.json`
+- `tools/blender/polish_reconstruction.py`
+- `tools/blender/prepare_gallery_texture.py`
+- `tools/blender/reconstruct_gallery.py`
+- `tools/blender/reconstruct_views.py`
+- `tools/blender/render_reference_views.py`
+- `tools/blender/render_study_review.py`
+- `tools/blender/tests/check_assets.py`
+- `tools/blender/tests/test_catalogues.py`
+- `tools/blender/tests/test_polish_orientation_blender.py`
+- `tools/blender/tests/test_reference_geometry.py`
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1106,6 +1155,12 @@ new cause/fix, and no M550 sibling candidate exists. No push.
 | 2026-09-28 | **Claude's MX Master 4 diagnosis corrected.** The all-opaque bake is not the fix: in Codex's identical-light studio the left button is AR 89.7, blended 73.3, opaque 109.5 (mean sRGB). The clear cover sits over the button body. The blended bake composited it over black; the opaque bake drops the body. Part 2b now composites the cover over the layer beneath it                                                                                                                           | Claude         |
 
 ## Progress log
+
+- 2026-09-28 Codex: **Part M complete.** M100 removed and routed to noShell;
+  generation/checks agree. All 34 remaining GLBs unchanged. Python 54 pass /
+  9 skips, TypeScript 9, Blender 9, full asset and catalogue/payload/optimisation/
+  formatting checks pass. Separate local commit; no push. Next: Part 2b layer
+  hypothesis preflight; Parts 2, 1, 3 pending; Part 4 cancelled.
 
 - 2026-09-28 Claude: audited `5f04a91` (2b control test fixed; opaque candidate fails the colour gate, not installed) and `9ade5ba`; pushed. No public GLB changed. Kirby removed M100's 3D model (Decisions). Resume brief: M100 removal first, then 2b with cover-over-body compositing, then Parts 2, 1, 3.
 

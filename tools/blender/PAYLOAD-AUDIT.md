@@ -89,7 +89,7 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 30 shell entries (29 source-derived shells and 1 alias), 5 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,366,908 bytes (7.98 MiB)**, including **4,679,005 image bytes** across 94 JPEG maps.
+The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,290,492 bytes (7.91 MiB)**, including **4,672,025 image bytes** across 93 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
@@ -125,7 +125,6 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 179,812 |
 | logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
 | logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |
-| logitech-m100                         | Limited-view study | `studies/logitech-m100.glb`                         |  76,416 |
 | logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
 | logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         | 164,568 |
 | logitech-m705-marathon                | Limited-view study | `studies/logitech-m705-marathon.glb`                |  80,568 |

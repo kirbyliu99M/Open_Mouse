@@ -6,6 +6,7 @@ import bpy
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
+from check_catalogues import check_no_shell_assets
 from gen_shell import generate_shell
 from asset_utils import dimensions_mm, validate_mesh, glb_json, validate_assembly, support_margin_mm, MIN_SUPPORT_MARGIN_MM
 
@@ -29,6 +30,7 @@ def main():
         print("FIXTURE_OK", params["id"], flush=True)
     target = HERE.parent.parent / "public/models"
     manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    check_no_shell_assets(manifest, target, json.loads((target / "validation.json").read_text(encoding="utf-8")))
     by_slug = {entry["slug"]: entry for entry in manifest["shells"] + manifest.get("studies", [])}
     for entry in by_slug.values():
         if "aliasOf" in entry:

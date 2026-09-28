@@ -10,7 +10,7 @@ from reconstruct_gallery import cameras, contour, study_base_profile
 class ReferenceGeometryTests(unittest.TestCase):
     def test_oblique_study_base_is_flat_but_true_side_is_preserved(self):
         projected=np.array([.008,.004,0.0])
-        np.testing.assert_array_equal(study_base_profile('logitech-m100',projected),[0,0,0])
+        np.testing.assert_array_equal(study_base_profile('logitech-m325s',projected),[0,0,0])
         np.testing.assert_array_equal(study_base_profile('logitech-m550',projected),projected)
 
     def test_identical_silhouettes_are_exact(self):

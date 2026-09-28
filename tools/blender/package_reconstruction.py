@@ -127,7 +127,7 @@ def main():
         bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.0001))
         plane=bpy.context.object;plane.name='Desk surface';plane.data.materials.append(material('Desk',(.025,.033,.044),.8))
         report['orientationConvention']={'blender':'Z up, nose +Y, ground Z=0','gltf':'Y up, nose -Z, ground Y=0'}
-        report['note']=f'Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. {study_count} gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. Three catalogue mice intentionally have no shell. Physical verification and final acceptance pending.'
+        report['note']=f'Polished source-derived texture bakes on reconstructed geometry; canonical desk orientation. {study_count} gallery projections remain approximate. ERGO M575S uses the ERGO M575 GLB path as a documented alias. {len(NO_SHELL)} catalogue mice intentionally have no shell. Physical verification and final acceptance pending.'
         write_pretty_json(PUBLIC/'manifest.json', report)
     bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'catalogue-review.blend'))
     print('PACKAGED',len(results),'MAX_BBOX_ERROR_MM',max(r['calibratedBboxRoundTripDifferenceMm'] for r in results),flush=True)

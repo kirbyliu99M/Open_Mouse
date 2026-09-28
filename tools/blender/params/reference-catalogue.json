@@ -349,18 +349,6 @@
   },
   {
     "brand": "Logitech",
-    "model": "M100",
-    "lengthMm": 113,
-    "widthMm": 62,
-    "heightMm": 38,
-    "weightG": 90,
-    "warnings": [],
-    "connectivity": "wired",
-    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m100-usb-mouse",
-    "retrievedAt": "2026-09-21T13:11:58.690Z"
-  },
-  {
-    "brand": "Logitech",
     "model": "G903 Hero",
     "lengthMm": 130,
     "widthMm": 67,

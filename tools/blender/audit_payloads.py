@@ -1,5 +1,6 @@
 """Read-only size and format audit of the published mouse GLBs."""
 
+from check_catalogues import check_no_shell_assets
 import argparse
 import io
 import json
@@ -65,6 +66,7 @@ def main() -> None:
                         help="Re-encode embedded images in memory at up to 1024 px; does not alter GLBs")
     args = parser.parse_args()
     manifest = json.loads((MODELS / "manifest.json").read_text(encoding="utf-8"))
+    check_no_shell_assets(manifest, MODELS)
     published = sorted(MODELS.rglob("*.glb"))
     records = [inspect_glb(path, args.estimate_1024) for path in published]
     expected = {entry["path"] for entry in manifest["shells"] + manifest["studies"]}

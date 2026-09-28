@@ -4,6 +4,7 @@ Transverse curvature is interpolated, explicitly unverified where views lack it.
 These studies are not labelled complete 360 reconstructions.
 """
 import json
+from check_catalogues import NO_SHELL
 import argparse
 import math
 from pathlib import Path
@@ -13,7 +14,6 @@ from scipy import ndimage
 HERE=Path(__file__).resolve().parent
 ROOT=HERE/'out/reference-library'
 CHOICES={
- 'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
  'logitech-m325s':('top.png','extra-4.png'),
@@ -22,9 +22,7 @@ CHOICES={
 TRUE_SIDE_STUDIES = {
  'logitech-m550', 'logitech-m705-marathon',
 }
-# Kirby's call (2026-09-28): M100 keeps the sheared trace, which levels its
-# three-quarter side photo as a whole instead of zeroing only the underside.
-LEVELLED_STUDIES = {'logitech-m100'}
+LEVELLED_STUDIES = set()
 FLAT_BASE_STUDIES = set(CHOICES) - TRUE_SIDE_STUDIES - LEVELLED_STUDIES
 
 
@@ -90,6 +88,7 @@ def cameras(target):
 
 
 def reconstruct(slug,files):
+    if slug in NO_SHELL:raise ValueError(NO_SHELL[slug])
     record=json.loads((ROOT/slug/'sources.json').read_text())
     top,side=[body_mask(ROOT/slug/name) for name in files]
     l,r=contour(top,0)

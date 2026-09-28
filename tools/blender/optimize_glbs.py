@@ -1,4 +1,5 @@
 """Downsample lossless source maps without touching geometry."""
+from check_catalogues import check_no_shell_assets
 import argparse
 from io import BytesIO
 import json
@@ -69,6 +70,7 @@ def main():
     args = parser.parse_args()
     manifest_path = ROOT / 'manifest.json'
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    check_no_shell_assets(manifest, ROOT)
     entries = [entry for entry in [*manifest['shells'], *manifest['studies']] if not entry.get('aliasOf')]
     if args.model:
         selected = set(args.model.split(','))

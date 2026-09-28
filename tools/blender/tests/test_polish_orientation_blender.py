@@ -49,7 +49,7 @@ class OrientationTests(unittest.TestCase):
 
     def test_gallery_reflection_preserves_outward_normals(self):
         obj=self.cube();index=next(v.index for v in obj.data.vertices if v.co.y<0)
-        orient(obj,'logitech-m100',np.array([.062,.113,.038]))
+        orient(obj,'logitech-m550',np.array([.066,.108,.042]))
         self.assertGreater(obj.data.vertices[index].co.y,0)
         self.assertGreater(validate_mesh(obj)['volumeMm3'],0)
 

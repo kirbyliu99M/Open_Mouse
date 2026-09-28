@@ -8,10 +8,12 @@ import numpy as np
 from mathutils import Matrix, Vector
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
+from check_catalogues import NO_SHELL
 from asset_utils import mesh_object, material, apply_modifier, validate_mesh, export_glb, dimensions_mm, clean_export_mesh
 
 
 def finish(folder):
+    if folder.name in NO_SHELL:raise ValueError(NO_SHELL[folder.name])
     report=json.loads((folder/'reconstruction.json').read_text())
     scene=bpy.data.scenes.new('Rebuilt_'+report['slug'])
     bpy.context.window.scene=scene
@@ -98,6 +100,7 @@ if __name__=='__main__':
     args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     failures=[]
     for folder in sorted((HERE/'out/reconstructed').glob('*')):
+        if folder.name in NO_SHELL:continue
         if (folder/'mesh.npz').exists() and (not args.model or folder.name in args.model.split(',')):
             try:
                 finish(folder)
