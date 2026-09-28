@@ -1558,6 +1558,15 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 
 ## Progress log
 
+- 2026-09-28 Codex: **All 30 D1 baseline camera fits complete and recorded.**
+  Fitted-view IoU minima: M705 0.922794809, M325s 0.969298759, M850L
+  0.918674852. Held-out baselines: 0.955600933 / 0.966532500 / 0.954755529.
+  M325s and M850L geometry fits converged; M705 is fitting with checkpoints.
+  M850L candidate mesh gates pass, 0.143377 mm max displacement, unchanged UVs
+  and materials, 27.704527 mm support. Full asset, catalogue, payload, optimizer
+  and prettier checks pass on unchanged public assets. No held-out candidate
+  evaluation or publication yet. Local checkpoint; no push.
+
 - 2026-09-28 Codex: **D1 smooth-deformation code verified before the long fit.**
   Five new deformation/gate tests pass; full Python suite 71 pass / 12 skips,
   Blender suite 12 pass. Baseline perspective fits are progressing with no
