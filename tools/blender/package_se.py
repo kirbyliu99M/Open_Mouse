@@ -6,6 +6,12 @@ from pretty_json import write_pretty_json
 from recolour_se import HERE,OUT,SE,SIBLING
 
 
+def validate_camera_views(views):
+    # B2's original colour rows omit the flag; only the held-out row sets False.
+    assert all(row['iou'] >= .95 for row in views if row.get('usedForColour', True))
+    assert any(not row.get('usedForColour', True) for row in views)
+
+
 def main():
     public=HERE.parents[1]/'public/models'
     delivery=json.loads((OUT/'delivery-evidence.json').read_text())
@@ -17,7 +23,7 @@ def main():
     assert geometry['maxVertexDisplacementMm']==0 and geometry['uvsEqual']
     assert geometry['bboxErrorMm']<=.5 and geometry['supportMarginMm']>=5
     assert all(row['deliveredDeltaE2000']<=5 for row in delivery['regions'] if row['region'] in ('shell','main_buttons','side_buttons'))
-    assert all(row['iou']>=.95 for row in cameras['views'])
+    validate_camera_views(cameras['views'])
     manifest=json.loads((public/'manifest.json').read_text(encoding='utf-8'))
     sibling=next(e for e in manifest['shells'] if e['slug']==SIBLING)
     entry=deepcopy(sibling)

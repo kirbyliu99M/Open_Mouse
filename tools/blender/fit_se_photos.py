@@ -14,13 +14,7 @@ from scipy.optimize import minimize
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 from recolour_se import OUT,SE,photo
-
-
-def orthographic_axes(azimuth,elevation,roll=0):
-    az,el,angle=np.deg2rad([azimuth,elevation,roll])
-    direction=np.array([np.sin(az)*np.cos(el),np.cos(az)*np.cos(el),np.sin(el)])
-    right=np.array([-np.cos(az),np.sin(az),0]);up=np.cross(direction,right)
-    return np.array([right*np.cos(angle)+up*np.sin(angle),-right*np.sin(angle)+up*np.cos(angle),direction])
+from photo_camera_math import camera_axes as orthographic_axes
 
 
 def raster_silhouette(vertices,faces,axes,size):

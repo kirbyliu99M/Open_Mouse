@@ -822,6 +822,22 @@ rear as held out. The atlas reads versioned baseline geometry from `d448cc6`
 on a fresh run. No photo/reference junction was written; no network download,
 push or `out/` commit occurred.
 
+### C — AR shell fixes and M550 candidate
+
+**Part 0, 2026-09-28:** SE packaging now applies IoU >= 0.95 only to
+colour-source views and separately requires a held-out view. A regression accepts
+a held-out IoU of 0.90, rejects colour IoU of 0.949 and rejects missing holdouts.
+SE reuses `photo_camera_math.camera_axes`; the old and shared formulas return
+exactly equal arrays at the tested angles. No fit or asset was regenerated.
+`PAYLOAD-AUDIT.md` is regenerated after B3: 35 GLBs, 8,366,908 bytes,
+4,679,005 image bytes, 94 JPEG maps. README now documents B3 reproduction and
+payload-report regeneration after Phase C delivery changes.
+
+Part 0 gates: Python 58 tests (50 pass, 8 bpy skips); Blender orientation 4,
+colour 3 and alpha 1 pass; TypeScript 9 pass; full asset, catalogue, payload,
+optimisation and formatting checks pass. All 35 public GLBs remain byte-identical
+to `48a2af7`. Parts 1–4 are pending; O1/O2 remain open.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -850,6 +866,13 @@ push or `out/` commit occurred.
 | 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-28 Codex: **Part 0 second-review fixes verified.** Pulled `48a2af7`.
+  Corrected the SE camera gate and tested held-out/colour roles; reused the
+  byte-identical camera-axis formula. Regenerated the payload audit and added
+  B3 reproduction steps. Python 50 pass / 8 skips, Blender 8 pass, TypeScript
+  9 pass; asset, catalogue, payload, optimisation and prettier gates pass.
+  All 35 GLBs unchanged. Separate local commit; no push. Parts 1–4 pending.
 
 - 2026-09-28 Claude: Kirby decided the M550 / C1 route (Decisions). Acceptance sheets were copied to a visible folder outside the repo (`Mouse Shape Project/模型驗收-2026-09-28/`); Kirby could not see the files under `.claude/`. Visual acceptance of G903, M750, SE, MX Master 4 and M100 is still pending.
 

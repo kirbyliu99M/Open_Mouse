@@ -8,8 +8,30 @@ import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from fit_se_photos import orthographic_axes,raster_silhouette
 from recolour_se import read_glb,image_chunk,replace_image
+from package_se import validate_camera_views
 
 class SEPipelineTests(unittest.TestCase):
+    def test_camera_gate_applies_only_to_colour_views_and_requires_holdout(self):
+        colour = [{'iou': .95}, {'iou': .96, 'usedForColour': True}]
+        held_out = {'iou': .90, 'usedForColour': False}
+        validate_camera_views(colour + [held_out])
+        with self.assertRaises(AssertionError):
+            validate_camera_views(colour)
+        with self.assertRaises(AssertionError):
+            validate_camera_views([{'iou': .949}, held_out])
+        with self.assertRaises(AssertionError):
+            validate_camera_views([{'iou': .949, 'usedForColour': True}, held_out])
+
+    def test_shared_axes_are_bit_identical_to_se_formula(self):
+        for angles in [(0, 0, 0), (-49.5254, 36.2130, .0002), (10, 89, 20)]:
+            az, el, angle = np.deg2rad(angles)
+            direction = np.array([np.sin(az)*np.cos(el), np.cos(az)*np.cos(el), np.sin(el)])
+            right = np.array([-np.cos(az), np.sin(az), 0])
+            up = np.cross(direction, right)
+            previous = np.array([right*np.cos(angle)+up*np.sin(angle),
+                                 -right*np.sin(angle)+up*np.cos(angle), direction])
+            np.testing.assert_array_equal(orthographic_axes(*angles), previous)
+
     def test_camera_axes_are_right_handed_and_orthonormal(self):
         for angles in [(0,0,0),(-49.5,36.2,0),(10,89,20)]:
             axes=orthographic_axes(*angles)

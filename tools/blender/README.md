@@ -91,6 +91,29 @@ with explicit UV print boxes. No RGB threshold chooses a physical region.
 Photos have no colour chart, so de-shading uses a documented relative exposure
 gauge; colour measurements are not calibrated physical reflectance.
 
+## M550 multi-view photo bake (B3)
+
+This prototype keeps the committed study geometry. Top, left, bottom and front
+photos texture the shell; the rear photograph is held out. Camera fitting and
+photo drivers are M550-specific. See [B3 evidence](STUDY-FIDELITY.md#b3--m550-photo-bake-prototype).
+
+Reproduction, with intermediate files under ignored `out/study-fidelity/b3/`:
+
+1. Blender background: `prepare_m550_photo_bake.py`; Python:
+   `fit_m550_photos.py`, then `m550_photo_evidence.py` to record camera roles.
+2. Blender background: `m550_atlas.py`; Python: `bake_m550_photos.py`.
+3. Blender background: `export_m550_photo_bake.py`; use
+   `optimize_glbs.optimize(candidate, lossless)` to create the delivered candidate.
+4. Blender background: `check_m550_photo_bake.py`; Python:
+   `package_m550_photo_bake.py` installs only the verified candidate.
+5. Blender background: `render_m550_comparison.py`; Python:
+   `assemble_m550_sheet.py` creates the four-view comparison.
+6. Run `python tools/blender/write_payload_audit.py` after packaging. Repeat
+   this step after any Phase C delivery changes sizes. Run Python unit tests,
+   Blender tests and `tests/check_assets.py`, `check_catalogues.py`,
+   `audit_payloads.py`, `optimize_glbs.py --check`, and `npx.cmd prettier --check`
+   on changed Markdown and generated JSON.
+
 ## Superseded prototype
 
 First authoring batch for issue #7: three procedural shells and one rigged hand.

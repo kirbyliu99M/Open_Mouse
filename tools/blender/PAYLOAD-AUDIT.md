@@ -89,7 +89,7 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 30 shell entries (29 source-derived shells and 1 alias), 5 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,281,384 bytes (7.90 MiB)**, including **4,644,253 image bytes** across 92 JPEG maps.
+The manifest has 30 shell entries (29 source-derived shells and 1 alias), 5 limited-view studies, and 3 NO_SHELL entries. There are 35 distinct GLBs including the hand, totalling **8,366,908 bytes (7.98 MiB)**, including **4,679,005 image bytes** across 94 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
@@ -127,7 +127,7 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |
 | logitech-m100                         | Limited-view study | `studies/logitech-m100.glb`                         |  76,416 |
 | logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
-| logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         |  79,044 |
+| logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         | 164,568 |
 | logitech-m705-marathon                | Limited-view study | `studies/logitech-m705-marathon.glb`                |  80,568 |
 | logitech-signature-comfort-plus-m850l | Limited-view study | `studies/logitech-signature-comfort-plus-m850l.glb` |  77,344 |
 
