@@ -13,10 +13,13 @@ def calibrate_bbox(vertices, dimensions):
     return result
 
 
-def deformation_basis(vertices):
+def deformation_basis(vertices, asymmetric=False):
     """12 smooth displacement fields: shoulder width, roof, shoulder height,
     and upper-shell longitudinal shift at rear/middle/front stations.
 
+    Optional fields 12:24 add upper-shell lateral shift, left-only width,
+    right-only width, and lateral roof tilt at the same three stations.
+    The one-sided cubic fields are C2 at x=0. The first 12 are unchanged.
     Fields vanish at ground Z=0 and depend only on position, preserving UV seam
     duplicates. Coefficients have mm units. No independent vertex noise.
     """
@@ -28,20 +31,27 @@ def deformation_basis(vertices):
     u = (v-low)/span
     x, y, z = u[:,0]*2-1, u[:,1], u[:,2]
     stations = np.exp(-.5*((y[:,None]-np.array([.2,.5,.8]))/.22)**2)
-    basis = np.zeros((len(v),3,12))
+    basis = np.zeros((len(v),3,24 if asymmetric else 12))
     basis[:,0,0:3] = stations*(x*np.sin(np.pi*z))[:,None]
     basis[:,2,3:6] = stations*z[:,None]
     basis[:,2,6:9] = stations*(z*x*x)[:,None]
     basis[:,1,9:12] = stations*z[:,None]
+    if asymmetric:
+        basis[:,0,12:15] = stations*z[:,None]
+        basis[:,0,15:18] = -stations*(np.maximum(-x,0)**3*np.sin(np.pi*z))[:,None]
+        basis[:,0,18:21] = stations*(np.maximum(x,0)**3*np.sin(np.pi*z))[:,None]
+        basis[:,2,21:24] = stations*(z*x)[:,None]
     return basis
 
 
 def deform(vertices, coefficients, dimensions, basis=None):
     params = np.asarray(coefficients, dtype=float)
-    if params.shape != (12,) or not np.isfinite(params).all() or np.any(abs(params)>5):
-        raise ValueError('12 finite deformation coefficients bounded to +/-5 mm required')
+    if params.shape not in ((12,), (24,)) or not np.isfinite(params).all() or np.any(abs(params)>5):
+        raise ValueError('12 or 24 finite deformation coefficients bounded to +/-5 mm required')
     if basis is None:
-        basis = deformation_basis(vertices)
+        basis = deformation_basis(vertices, asymmetric=len(params)==24)
+    if basis.shape != (len(vertices), 3, len(params)) or not np.isfinite(basis).all():
+        raise ValueError('Basis must match vertices and coefficient count and be finite')
     moved = np.asarray(vertices)+np.einsum('vcp,p->vc',basis,params)
     if np.any(moved[:,2] < np.min(vertices,axis=0)[2]-1e-9):
         raise ValueError('Deformation crosses the ground plane')

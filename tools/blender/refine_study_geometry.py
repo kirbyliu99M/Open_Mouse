@@ -19,12 +19,14 @@ from study_deformation_math import deform, deformation_basis
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--basis', choices=('symmetric', 'asymmetric'), default='symmetric')
     args = parser.parse_args()
     out = args.directory
     mesh = np.load(out/'baseline-mesh.npz')
     vertices,faces = mesh['vertices'],mesh['faces']
     dimensions = json.loads((out/'baseline-geometry.json').read_text())['catalogueDimensionsXYZmm']
-    basis = deformation_basis(vertices)
+    basis = deformation_basis(vertices, asymmetric=args.basis=='asymmetric')
+    count = basis.shape[2]
     inventory = json.loads((out/'photo-inventory.json').read_text())
     training = []
     for row in inventory:
@@ -35,7 +37,7 @@ def main():
         mask = np.array(Image.open(out/row['maskFile']))>0
         x0,y0,x1,y1 = camera['crop']
         training.append((camera,mask[y0:y1,x0:x1]))
-    params = np.zeros(12)
+    params = np.zeros(count)
     stages = []
     for resolution in (320,720):
         views = []
@@ -81,8 +83,8 @@ def main():
             return float(loss)
 
         objective(params)
-        simplex = np.tile(params,(13,1))
-        for i in range(12):
+        simplex = np.tile(params,(count+1,1))
+        for i in range(count):
             simplex[i+1,i] += .75 if resolution==320 else .25
         fit = minimize(objective,params,method='Nelder-Mead',options=dict(
             initial_simplex=simplex,maxiter=1100,maxfev=1800,xatol=.003,fatol=1e-7))
@@ -93,7 +95,8 @@ def main():
         (out/'deformation-stages.json').write_text(json.dumps(stages,indent=2)+'\n')
     candidate = deform(vertices,params,dimensions,basis)
     np.savez_compressed(out/'candidate-mesh.npz',vertices=candidate,faces=faces)
-    evidence = dict(method='12 smooth Gaussian loft fields; fixed baseline perspective cameras',
+    evidence = dict(method=f'{count} smooth Gaussian loft fields; fixed baseline perspective cameras',
+                    basis=args.basis, largestCoefficientMm=float(np.max(abs(params))),
                     coefficients=params.tolist(),coefficientBoundMm=5,stages=stages,
                     trainingFiles=[c['file'] for c,_ in training],heldOutUsed=False,
                     maxDisplacementMm=float(np.linalg.norm(candidate-vertices,axis=1).max()),

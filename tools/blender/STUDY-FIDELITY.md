@@ -1744,6 +1744,19 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 
 ## Progress log
 
+- 2026-09-29 Codex, D1b extended-basis checkpoint before long M705 fit:
+  24 fields retain all original 12 and add three each of upper-shell lateral
+  shift, left-only width, right-only width and roof tilt. One-sided cubic width
+  fields are C2 at the centreline; all fields vanish at ground and depend only
+  on position. Coefficients remain bounded to +/-5 mm; catalogue recalibration
+  remains mandatory. Nine deformation tests pass, including independent-side,
+  reflection, legacy-subspace, ground, seam and bbox checks. Full Python suite:
+  91 tests, 79 passed / 12 Blender skips. M325s delivery `50a9512`: asset gate,
+  12 Blender tests, 9 TypeScript tests, catalogue/payload/optimisation checks pass.
+  Next: M705 from zero with the 24-field basis, existing frozen cameras and
+  unchanged training-only objective; only then evaluate its held-out photo.
+  A delivery failure will leave that study unchanged and continue to M850L.
+
 - 2026-09-29 Codex, D1b: pulled H1 (`f61740c`). M325s existing candidate exported,
   reimported and remeasured in all eight views; all three delivery rules pass.
   Installed M325s only; original texture bytes, material JSON and UVs retained.

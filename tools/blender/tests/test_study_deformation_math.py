@@ -39,6 +39,50 @@ class StudyDeformationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calibrate_bbox(np.zeros((8,3)),[60,100,40])
 
+    def test_extended_basis_contains_original_as_special_case(self):
+        basis = deformation_basis(self.vertices, asymmetric=True)
+        np.testing.assert_array_equal(basis[:,:,:12], deformation_basis(self.vertices))
+        params = np.linspace(-1,1,12)
+        np.testing.assert_array_equal(deform(self.vertices,np.r_[params,np.zeros(12)],[60,100,40]),
+                                      deform(self.vertices,params,[60,100,40]))
+
+    def test_asymmetry_can_move_only_one_side(self):
+        basis = deformation_basis(self.vertices, asymmetric=True)
+        left = basis[:,:,16]
+        right = basis[:,:,19]
+        np.testing.assert_array_equal(left[self.vertices[:,0]>=0],0)
+        np.testing.assert_array_equal(right[self.vertices[:,0]<=0],0)
+        self.assertGreater(np.linalg.norm(left[self.vertices[:,0]<0]),0)
+        self.assertGreater(np.linalg.norm(right[self.vertices[:,0]>0]),0)
+        # Reflected counterpart has equal outward magnitude and opposite sign.
+        np.testing.assert_allclose(left[self.vertices[:,0]<0],-right[self.vertices[:,0]>0])
+        params = np.zeros(24)
+        params[16] = .5
+        moved = deform(self.vertices,params,[60,100,40])
+        self.assertFalse(np.allclose(moved[self.vertices[:,0]<0,0],
+                                    -moved[self.vertices[:,0]>0,0]))
+
+    def test_extended_ground_seams_bbox_smoothness_and_bound(self):
+        points = np.vstack([self.vertices,[0,8,17],[1e-5,8,17],self.vertices[12]])
+        basis = deformation_basis(points, asymmetric=True)
+        np.testing.assert_array_equal(basis[points[:,2]==0],0)
+        self.assertLess(abs(basis[-2]-basis[-3]).max(),1e-5)
+        moved = deform(points,np.linspace(-.5,.5,24),[60,100,40])
+        np.testing.assert_allclose(np.ptp(moved,axis=0),[60,100,40],atol=1e-12)
+        np.testing.assert_array_equal(moved[points[:,2]==0,2],0)
+        np.testing.assert_array_equal(moved[12],moved[-1])
+        for bad in (np.full(24,5.001),np.full(24,np.nan),np.zeros(23)):
+            with self.assertRaises(ValueError):
+                deform(points,bad,[60,100,40])
+
+    def test_lateral_shift_even_and_roof_tilt_odd(self):
+        basis = deformation_basis(self.vertices, asymmetric=True)
+        left, right = self.vertices[:,0]<0, self.vertices[:,0]>0
+        np.testing.assert_array_equal(basis[left,0,12:15],basis[right,0,12:15])
+        np.testing.assert_array_equal(basis[left,2,21:24],-basis[right,2,21:24])
+        self.assertGreater(np.linalg.norm(basis[left,0,12:15]),0)
+        self.assertGreater(np.linalg.norm(basis[left,2,21:24]),0)
+
     def test_delivery_all_three_requirements_and_held_out_strict(self):
         self.assertTrue(delivery_gate([.9,.9],[.901,.902],[.8],[.81])['passed'])
         self.assertTrue(delivery_gate([.9,.9],[.898,.91],[.8],[.81])['passed'])
