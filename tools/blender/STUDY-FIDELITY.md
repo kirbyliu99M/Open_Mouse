@@ -24,16 +24,16 @@ What the 26 shells have that the studies lack:
 
 Status as of 2026-09-28. The Route column follows the Decisions table.
 
-| Model                        | Route                                              | Geometry                                     | State                                   |
-| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | --------------------------------------- |
-| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**  |
-| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**  |
-| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28** |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Built; **accepted by Kirby 2026-09-28** |
-| M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
-| M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
-| M325s                        | Photo bake (C); only a top photo in its colourway  | Study, `m4a-eight-new-shells`                | Pending C                               |
-| Signature Comfort Plus M850L | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
+| Model                        | Route                                              | Geometry                                     | State                                                                           |
+| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
+| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**                                          |
+| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**                                          |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28**                                         |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | B3 prototype built; Kirby awaits the M650-shell candidate (C)                   |
+| M100                         | No photo bake (C1 dropped)                         | Study, `m4a-m100-level-base` (sheared trace) | Kept as is (Kirby, 2026-09-28) ; base levelling not accepted, changes requested |
+| M705 Marathon                | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
+| M325s                        | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
+| Signature Comfort Plus M850L | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
 
 ## Agent distribution
 
