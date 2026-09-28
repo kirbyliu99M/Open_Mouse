@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C built and installed)_
+_Last updated: 2026-09-28 23:45 · by: Claude (Phase D: D0 and D2 done, H1 handoff)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C built and insta
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the limited-view studies to the 26 AR shells' finish. **Accepted by Kirby:** G903 Hero, M750, G Pro X Superlight 2 SE. **Kept as is:** M705, M325s, M850L. **Removed:** M100's 3D model (it stays in the catalogue, `noShell`). **Phase C (built by Claude while Codex was out of quota, Kirby's decision):** MX Master 4 buttons composited cover-over-body (left ΔE2000 6.02 → 0.72). The black wheels were caused by the DIFFUSE colour pass zeroing metal (wheel 38.3 → 1.48). Missed bake rays are repaired by an outward-only second pass plus a neighbour fill. Every AR shell was re-baked; **20 installed** under an install rule set before the batch, with 0 mm geometry change each; MX Vertical went 8.12 → 0.91. M550-on-M650 candidate built but not delivered (IoU ≥ 0.988 in every view vs the B3 study's 0.932 rear); Kirby chooses. Open: O5 (Superlight 2 + SE together), O6 (high ΔE vs AR on G403, G502 Hero, G203). **Independent Sonnet review: approve with fixes; fixes in (`30a2707`). Kirby's visual acceptance pending** (`Mouse Shape Project/模型驗收-2026-09-28/C階段驗收.html`).
+**In flight — study fidelity, Phase D (geometry quality; Kirby 2026-09-28: no more colouring), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md` (schedule and handoffs inside):** **D0** (Claude) geometry audit of every AR shell in `tools/blender/GEOMETRY-AUDIT.md`: all silhouette IoU ≥ 0.9823 against the AR sources; real loss only at wheel crowns (M190, M750, M650, G903) and G903's channel. O6 was a comparison artefact (the reference render kept the cable). **D2** (Claude) M550 delivered on the M650 AR shell (photo IoU ≥ 0.988 in all views; the old study's rear view was 0.932). D0 + D2 were independently reviewed (approve with fixes; fixes in). **D1** (Codex) refines the geometry of M325s, M705 and M850L: M325s passes before export, M850L failed with the symmetric basis. D1b adds asymmetric fields and resumes by timer at 03:38 on 2026-09-29 after the quota reset. **D4** (Codex, after D1b) is local remeshing at the wheel crowns. Kirby's visual acceptance of Phase C, D2 and D1 is planned for about 09:00 on 2026-09-29.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 

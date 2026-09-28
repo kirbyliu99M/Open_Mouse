@@ -1720,6 +1720,8 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 
 ## Progress log
 
+- 2026-09-28 23:45 Claude: **Handoff H1 done** (planned 03:15; D2 finished early). Fast-forwarded this branch to `m4a-geometry-audit` (`de87d32`): D0 audit with review fixes (approve with fixes; winding and box-filter checks clean) and D2 (M550 delivered as a shell). Codex D1b resumes by timer at 03:38 from this state; the D4 brief is ready for after H2.
+
 - 2026-09-28 Claude (D2, worktree `m4a-geometry-audit`): **M550 delivered on the M650 AR shell.** Study entry moved to shells; all gates pass. D0 audit committed on the same branch (`GEOMETRY-AUDIT.md`). Codex D1b stopped on quota after about a minute (reset 03:36); a timer resumes it at 03:38. Next: Sonnet review of D0 + D2, then handoff H1.
 
 - 2026-09-28 Codex: **D1 STOP: M850L delivery gate failed (exit 2).** Mean
