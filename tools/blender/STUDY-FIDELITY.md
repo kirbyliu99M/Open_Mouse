@@ -163,8 +163,8 @@ The existing **12-field symmetric** candidate passes after position-lossless Dra
 export and Blender reimport. Largest absolute coefficient **3.323631321 mm**
 (shoulder-height field); maximum displacement **1.746764796 mm**. Every view is
 numerically identical to the raw candidate table below: fitted mean
-**0.974176579 ? 0.976835651**, worst fitted delta **-0.001850948**; held-out
-`right.png` **0.966532500 ? 0.966563548** (gain **0.000031048351**).
+**0.974176579 → 0.976835651**, worst fitted delta **-0.001850948**; held-out
+`right.png` **0.966532500 → 0.966563548** (gain **0.000031048351**).
 Largest remaining projected silhouette gap **2.974568 mm**. **Delivered.**
 
 Round trip: **14,000 triangles**, **0 non-manifold / degenerate / intersections**,
@@ -172,7 +172,7 @@ bbox max error **0.000001228 mm**, ground Z **0**, support **22.720196 mm**.
 Per-corner UVs, triangle connectivity and material assignments survive the export;
 original material JSON and embedded JPEG bytes are preserved. Shape changes mildly
 stretch the existing projected top detail as described in the previous sheet.
-Payload **75,284 ? 181,492 bytes** because position and UV quantisation are disabled.
+Payload **75,284 → 181,492 bytes** because position and UV quantisation are disabled.
 No M550 or AR shell changed. Only M325s manifest and validation entries changed.
 
 Evidence: `out/study-fidelity/d1/logitech-m325s/roundtrip-geometry.json`,
@@ -1743,6 +1743,8 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-29 03:55 Claude: **Codex hit its weekly usage limit (next run: 2026-10-04 13:10).** D1b delivered M325s (`50a9512`, audited and pushed) and added the tested asymmetric basis (`fd43c2e`, audited and pushed). The M705 fit never started. Codex's uncommitted README reproduction section and doc fixes are committed by Claude as WIP. Also on 09-29 at 03:38, a temp cleanup deleted the session scratchpad with the Codex briefs, so the timer dispatch failed; briefs now live in `Mouse Shape Project/codex-briefs/`. Remaining: D1b (M705, M850L) and D4. Kirby decides who builds them.
 
 - 2026-09-29 Codex, D1b extended-basis checkpoint before long M705 fit:
   24 fields retain all original 12 and add three each of upper-shell lateral

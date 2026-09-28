@@ -115,6 +115,36 @@ Reproduction, with intermediate files under ignored `out/study-fidelity/b3/`:
    `audit_payloads.py`, `optimize_glbs.py --check`, and `npx.cmd prettier --check`
    on changed Markdown and generated JSON.
 
+## D1 study geometry refinement
+
+Only M325s, M705 Marathon and M850L use this route. M550 is an AR-derived shell
+after D2 and is excluded. Evidence lives in `out/study-fidelity/d1/<slug>/`.
+Preserve the committed baseline, inventory, masks and frozen camera files before
+fitting; `study_geometry_preflight.py` would overwrite the baseline if rerun.
+
+1. `refine_study_geometry.py --directory <evidence-dir> --basis asymmetric`
+   fits 24 smooth fields using fitting-role photos only. `--basis symmetric`
+   retains the original 12-field method used for M325s. Both bound coefficients
+   to +/-5 mm and recalibrate catalogue XYZ. Neither reads held-out cameras.
+2. `evaluate_study_geometry.py --directory <evidence-dir>` independently checks
+   all views at 1440 px, including the held-out photo. Exit 2 is a per-study
+   rejection: preserve the public asset and continue to the next study, without
+   tuning against that held-out result.
+3. Blender background: `inspect_study_candidate.py -- --directory <evidence-dir>`
+   checks topology, ground and stability and renders top/side/front/hero views.
+   `assemble_study_geometry_sheet.py --directory <evidence-dir>` adds references.
+4. For a passing candidate, Blender background:
+   `export_study_geometry.py -- --directory <evidence-dir>`. This preserves
+   material JSON and embedded texture bytes and verifies per-corner UVs and
+   triangle positions through a position/UV-lossless Draco round trip.
+5. `evaluate_study_geometry.py --directory <evidence-dir> --round-trip` measures
+   every view again on the exported GLB's decoded mesh. Only after it passes,
+   `package_study_geometry.py --directory <evidence-dir>` installs that study
+   and updates only its manifest/validation entries using hash-bound evidence.
+6. Regenerate the payload audit and run the gates in the D1 brief. The original
+   loft generators and `out/polished` files predate D1: regenerating from them
+   requires reapplying this refinement route before delivery.
+
 ## Superseded prototype
 
 First authoring batch for issue #7: three procedural shells and one rigged hand.
