@@ -678,6 +678,44 @@ robust SH fit, tangent normals, region assignment). M650's lossless 2048 px
 baked material samples are extracted for region statistics. No public asset has
 changed at this checkpoint; projection, delighting and delivery follow.
 
+**B3 bake checkpoint:** all 14,000 atlas triangles contain sampled texels.
+Area-weighted photo coverage is **100% upper / 99.266668% side / 100%
+underside**. Side coverage separates **72.738618% direct**, **26.527334%
+mirrored-only**, **0.733332% region-colour fill**. Coverage bits and per-texel
+weights preserve every contributor; rear is absent. Hidden texels use observed
+region medians; nearest-colour extension is only the 12 px outside-island margin.
+
+The relative delighting pass fits second-order log-SH over uniform plastic,
+rubber and underside samples, then a quadratic residual image field because
+the unchanged loft normals differ from the photographed cross-section. Strong
+detail and luminance outliers are excluded. The fixed top-shell patch's linear
+luminance CV falls **0.286330 to 0.167610**. This is partial lighting removal,
+not absolute reflectance recovery; residual gradients remain. Exposure anchors
+are top plastic, left rubber and bottom underside. Top dominates roof artwork;
+the front oblique contributes chiefly to the steep nose to avoid duplicate
+wheel/logo projections.
+
+M650 lossless bake medians, mapped by shared-family spatial footprints plus
+bright-ink colour in the logo footprint:
+
+| Region    | Samples | Roughness | Metallic |
+| --------- | ------: | --------: | -------: |
+| Shell     |    3431 |  0.490196 |        0 |
+| Buttons   |    2805 |  0.501961 |        0 |
+| Wheel     |     271 |  0.552941 |        0 |
+| Logo      |      74 |  0.486275 |        0 |
+| Rubber    |    2665 |  0.498039 |        0 |
+| Underside |    4754 |  0.498039 |        0 |
+
+The bounded log-colour high pass becomes shallow height and tangent normals;
+normal shader strength remains **0.65**, with the same float32 encoding as M650
+(`0.6499999761581421`). The delivered candidate has **one material**, **three
+512 px JPEG maps**, from four **2048 px** lossless PNG bakes, **164,764 bytes**.
+Reimport confirms **0 mm** displacement and identical triangle position
+connectivity, support **24.514769 mm**, clean topology and bbox error
+**0.000008595 mm**. Fourteen new photo-math/raster tests pass. Public installation,
+full gates and visual contact-sheet review are still pending at this checkpoint.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -700,6 +738,16 @@ changed at this checkpoint; projection, delighting and delivery follow.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B3 bake/candidate verified.** Depth-tested, feathered
+  linear blending includes four direct photos and separately labelled mirrored
+  left; no rear appearance. Coverage **100 / 99.266668 / 100%** upper/side/base;
+  side fill **0.733332%**. SH plus residual quadratic delighting changes the
+  fixed-patch CV **0.286330 to 0.167610**. M650 region PBR medians and restrained
+  tangent normals exported. Candidate reimport: exact positions and triangle
+  connectivity, one material/three 512 px JPEG maps, **164,764 bytes**, geometry
+  gates pass. Fourteen photo tests pass. Rendering in progress; no public asset
+  changes yet. Local checkpoint only; no push.
 
 - 2026-09-28 Codex: **B3 resumed under Claude's photo-role interpretation.**
   Pulled `d448cc6`; rear is held out, the four passing views texture. Top mirror
