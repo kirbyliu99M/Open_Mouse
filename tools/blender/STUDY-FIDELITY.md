@@ -563,6 +563,28 @@ optimisation and prettier checks all passed. The nine new SE tests also pass
 with OpenCV/scikit-image imports disabled, matching CI's existing dependencies.
 B3 is not started.
 
+### B3 ? M550 photo bake prototype
+
+**2026-09-28, geometry and camera preflight checkpoint.** Pulled successfully
+from `origin/m4a-study-fidelity`; no asset edits. Blender 5.2.2 imports of the
+committed and lossless M550 have exactly equal decoded position sets:
+**max displacement 0 mm**. The committed mesh has **14,000 triangles**, **0
+non-manifold edges**, **0 degenerate faces**, **0 non-adjacent intersection
+pairs**, dimensions **61.000001 / 108.200006 / 38.800009 mm**, and support margin
+**24.514769 mm**. Source seam duplicates are retained; topology validation welds
+only its diagnostic copy. Evidence: `out/study-fidelity/b3/geometry-preflight.json`.
+
+Camera fitting is implemented before atlas generation to test whether the fixed
+study geometry supports the photo gate. It fits perspective rotation, distance,
+focal length and camera-plane translation with square pixels; it does not
+independently rescale image axes. Only the five graphite-medium cutouts are
+selected. The front three-quarter view is held out from appearance sampling.
+Other sizes, colours and uncertain supplemental revisions are excluded; no
+photo is mirrored. The alpha convention is >180, largest component, enclosed
+holes filled. Four unit tests cover camera rotations, projection, rejection of
+points behind the camera and IoU. Camera measurements and subsequent bake work
+are pending at this checkpoint; no improved appearance is claimed.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -585,6 +607,13 @@ B3 is not started.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B3 preflight checkpoint.** Read-only geometry inspection
+  confirms lossless/committed position equality (0 mm), clean 14k topology and
+  24.514769 mm support. Added the focused perspective camera fitter and four
+  passing camera-math tests. Five graphite-medium views selected; front
+  three-quarter held out from texturing. Fits are running before UV/bake work.
+  No public asset or reference-library changes. No push; Claude will push.
 
 - 2026-09-28 Claude: audited Step 0 (`70f7765`) and B2 (`9546d3f`); both pushed. Independent reimport: SE vertex positions equal Superlight 2's delivered shell (max difference 0.0), bbox error 0.000 mm, clean topology, support margin 25.49 mm, same three-map material contract. Only the SE GLB changed since `5bf18ad`. Unit tests, `check_catalogues.py` and `optimize_glbs.py --check` pass. Contact sheet reviewed: seams, side buttons, wheel and front port match the reference photos. Accepted exceptions, as reported: side wordmark, indicator and underside logo ΔE2000 17–32, small printed marks. **Kirby's visual acceptance is pending.** B3 did not start: Codex hit its usage limit again (reset shown as 10:17 Asia/Taipei).
 
