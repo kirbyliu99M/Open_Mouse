@@ -838,13 +838,106 @@ colour 3 and alpha 1 pass; TypeScript 9 pass; full asset, catalogue, payload,
 optimisation and formatting checks pass. All 35 public GLBs remain byte-identical
 to `48a2af7`. Parts 1–4 are pending; O1/O2 remain open.
 
+#### Part 1 measurement checkpoint and Blender regression stop
+
+All 28 direct AR shells were measured in production pre-orientation coordinates,
+using area-weighted polygon-centroid rays, a 4 mm cage, and total ray lengths of
+16 mm / 54 mm. SE inherits the exact Superlight 2 geometry; ERGO M575S aliases
+ERGO M575. These are shell-area estimates, not actual atlas texel counts. The
+50 mm guarded column adds rejected opposing geometric-normal hits to remaining
+misses; it is a diagnostic prediction, **not a delivered after-bake measurement**.
+The first hit is always retained by the proposed selection rule.
+
+| AR shell                 | Production 12 mm miss % | 50 mm miss % | 50 mm with backface guard, unresolved % | Delivered after % |
+| ------------------------ | ----------------------: | -----------: | --------------------------------------: | ----------------- |
+| ergo-m575                |                0.802443 |     0.132892 |                                0.132892 | Unchanged         |
+| g-pro-2-lightspeed       |                3.748429 |     0.263402 |                                0.263402 | Unchanged         |
+| g-pro-x-superlight-2     |                0.092346 |     0.004386 |                                0.004386 | Unchanged         |
+| g-pro-x-superlight-2-dex |                2.182867 |     0.099209 |                                0.099209 | Unchanged         |
+| g-pro-x-superlight-2c    |                0.078062 |     0.000449 |                                0.000449 | Unchanged         |
+| g203-lightsync           |                0.041749 |     0.000000 |                                0.021924 | Unchanged         |
+| g305-lightspeed          |                0.000000 |     0.000000 |                                0.000000 | Unchanged         |
+| g309                     |                2.713391 |     0.088516 |                                0.088516 | Unchanged         |
+| g403-hero                |                1.034175 |     0.026585 |                                0.540783 | Unchanged         |
+| g502-hero                |                0.119983 |     0.089541 |                                0.089541 | Unchanged         |
+| g502-x                   |                0.312965 |     0.027572 |                                0.057214 | Unchanged         |
+| g502-x-lightspeed        |                0.298338 |     0.015668 |                                0.015668 | Unchanged         |
+| g502-x-plus              |                0.298338 |     0.015668 |                                0.015668 | Unchanged         |
+| g703-lightspeed          |                0.929059 |     0.033356 |                                0.540090 | Unchanged         |
+| g903-hero                |                2.969815 |     0.106334 |                                2.029328 | Unchanged         |
+| lift-vertical            |                0.002502 |     0.000000 |                                0.002502 | Unchanged         |
+| m190                     |                0.585296 |     0.006818 |                                0.232671 | Unchanged         |
+| m196                     |                0.022393 |     0.000446 |                                0.000446 | Unchanged         |
+| m240                     |                0.040650 |     0.000000 |                                0.000914 | Unchanged         |
+| m650                     |                2.635738 |     0.067734 |                                0.726643 | Unchanged         |
+| m720-triathlon           |                0.050662 |     0.034911 |                                0.039441 | Unchanged         |
+| m750                     |                2.997578 |     0.047355 |                                0.771922 | Unchanged         |
+| mx-anywhere-3s           |                0.000439 |     0.000000 |                                0.000439 | Unchanged         |
+| mx-master-3s             |                0.005702 |     0.000000 |                                0.000000 | Unchanged         |
+| mx-master-4              |                0.016669 |     0.008653 |                                0.010896 | Unchanged         |
+| mx-vertical              |                0.000860 |     0.000000 |                                0.000000 | Unchanged         |
+| pebble-2-m350s           |                0.000000 |     0.000000 |                                0.000000 | Unchanged         |
+| pop-mouse                |                0.162357 |     0.000455 |                                0.001502 | Unchanged         |
+| g-pro-x-superlight-2-se  |                0.092346 |     0.004386 |                                0.004386 | Unchanged         |
+
+Seven shells exceed 1%: G Pro 2 Lightspeed, Superlight 2 DEX, G309, G403 Hero,
+G903 Hero, M650 and M750. Thus the requested threshold would select five more
+than the expected G903/M750 pair. G903's normal guard rejects 1.922994% of total
+shell area; its guarded unresolved estimate is 2.029328%, not the unguarded
+0.106334%. M750's guarded estimate is 0.771922%. No normal guard was relaxed.
+The diagnostic stops at the first long-ray hit; it does not seek a later face
+past a rejected opposing normal.
+
+The pure selection and exact-preservation merge have two passing unit tests.
+A production second-pass prototype was attempted, but the new Blender regression
+**failed before baking** on this import chain:
+
+```text
+bake_refinement.py -> photo_raster.py -> photo_bake_math.py
+from scipy import ndimage
+ModuleNotFoundError: No module named 'scipy'
+Error: script failed, file: 'tools/blender/tests/test_bake_rays_blender.py', exiting.
+```
+
+Blender command exit code **1**. Bundled Blender is 5.2.2 / Python 3.13.13;
+standalone Python has SciPy, bundled Blender does not. This is a prototype
+integration failure, not a numerical rejection of the proposed ray policy.
+Per the task's stop-on-gate-failure instruction, no re-bake, packaging, wheel
+work, colour work or geometry work followed. The failed production prototype
+and its Blender regression are preserved under ignored
+`out/study-fidelity/c/blocked-ray-prototype/`, including `regression.log`.
+`bake_refinement.py` was restored byte-for-byte to the Part 0 commit; no failed
+prototype is active in the production pipeline. A continuation should remove
+the unintended SciPy dependency from this UV-only path (or supply the pinned
+Blender-compatible dependency), then rerun the preserved regression before use.
+The regression must demonstrate near-hit preservation, long-hit recovery and
+backface rejection; it has **not** yet done so.
+
+Committed checkpoint: `measure_bake_rays.py`, `bake_ray_math.py` and two pure
+unit tests. Measurements are saved in `out/study-fidelity/c/ray-area.json`;
+import/measurement log: `out/part1-ray-area.log`. Missing reconstructed inputs
+were copied from main into this worktree only; main and reference junctions were
+not written. All 35 public GLBs remain byte-identical to `48a2af7`; no manifest
+or validation changes. After removing the inactive failed prototype from the
+production path, Python discovery passes **60 tests (52 passed, 8 bpy skips)**.
+The production alpha regression and formatting were rechecked. Part 0's complete
+gate results remain valid for the unchanged assets. The new fallback's Blender
+regression remains **failed/unresolved**, so Phase C is not gate-complete.
+
+**Not done:** production fallback and re-bakes; formerly black-region crops;
+O2 cause verification/fix and wheel crops; Part 2b opacity change, regional
+DeltaE2000 measurements and crops; Part 3 sibling candidate, geometry/IoU evidence
+and contact sheet; Part 4 AGY-lead verification, geometry route, before/after IoU,
+maximum gap and contact sheet. No general web search or candidate download was
+performed. No new contact sheet exists. M705, M325s and M850L remain untouched.
+
 ## Open issues (candidates for Phase C)
 
-| #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
-| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                   | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side                                                            |
-| O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate |
-| O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                  | None required; recorded for review                                                                                                                             |
+| #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                   | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side; **Open: C stopped before production changes (see Results C)**                                                            |
+| O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate; **Open: C stopped before production changes (see Results C)** |
+| O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                  | None required; recorded for review                                                                                                                                                                                            |
 
 ## Decisions
 
@@ -866,6 +959,19 @@ to `48a2af7`. Parts 1–4 are pending; O1/O2 remain open.
 | 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-28 Codex: **C Part 1 stopped on Blender regression import failure.**
+  Part 0 committed separately as `eafbf39`, all gates green and all 35 GLBs
+  unchanged. Measured all 28 direct AR sources plus inherited SE: seven exceed
+  1%, full table in Results C. G903 2.969815% misses at 12 mm, 0.106334% at
+  50 mm, but 2.029328% unresolved with the required backface guard; M750
+  2.997578% / 0.047355% / 0.771922%. Two pure fallback-selection tests pass.
+  New Blender regression exited 1: `ModuleNotFoundError: No module named 'scipy'`
+  through `photo_raster -> photo_bake_math`. Failed prototype/test/log archived
+  under `out/study-fidelity/c/blocked-ray-prototype/`; production bake restored.
+  No GLB, manifest or validation changes; no re-bakes. O1/O2 remain open;
+  Parts 2, 2b, 3 and 4 not started per stop instruction. Local checkpoint only,
+  no push. Resume with the dependency fix and preserved Blender regression.
 
 - 2026-09-28 Codex: **Part 0 second-review fixes verified.** Pulled `48a2af7`.
   Corrected the SE camera gate and tested held-out/colour roles; reused the
