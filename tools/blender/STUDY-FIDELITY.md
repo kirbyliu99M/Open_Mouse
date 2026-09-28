@@ -1412,7 +1412,7 @@ because SE is Superlight 2's GLB with only its base colour replaced and SE's del
 check requires every other chunk to match (O5).
 
 Gates after install: `ALL_ASSET_CHECKS_PASSED`; Blender alpha (4 tests), colour-sampling
-and orientation tests; SE geometry and SE delivery checks; unit discovery 72 tests (61 run and pass, 11 Blender-only skips); `check_catalogues.py`,
+and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tests (61 run and pass, 12 Blender-only skips; all 4 Blender test files pass under Blender); `check_catalogues.py`,
 `audit_payloads.py`, `optimize_glbs.py --check`, prettier and 967 Vitest tests pass. `PAYLOAD-AUDIT.md` regenerated.
 
 ## Open issues (candidates for Phase C)
