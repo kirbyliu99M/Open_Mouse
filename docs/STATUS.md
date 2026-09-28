@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-28 · by: Claude (study fidelity: B1–B3)_
+_Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C, M100 removed)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-28 · by: Claude (study fidelity: B1–B3)_
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the eight limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds and Claude audits. Done and audited: G903 Hero and M750 rebuilt from official AR sources (B1); G Pro X Superlight 2 SE on the Superlight 2 shell, recoloured (B2); an M550 multi-view photo bake prototype (B3; a real but modest gain, so the gap is geometry); the MX Master 4 mirror-button bake fix; the M100 base levelled; a desk-support gate. Independent Sonnet review: approve with fixes, and the fixes are in (`70f7765`). Next (C): fix missed bake rays and dark wheel recesses on the AR shells, and build a non-delivered M550-on-M650 candidate. The photo bake of M100, M705, M325s and M850L is **on hold for Kirby's B3 verdict**. **Blocked on Codex quota** until 17:17 Asia/Taipei; Kirby chose to wait. Kirby's visual acceptance of G903, M750, SE, MX Master 4, M100 and M550 is pending; sheets are in the worktree's `tools/blender/out/study-fidelity/acceptance/` and `b3/`.
+**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds; Claude audits; AGY (Gemini) does web searches. **Accepted by Kirby:** G903 Hero and M750 (rebuilt from official AR files), G Pro X Superlight 2 SE (Superlight 2 shell, recoloured). **Kept as is:** M705, M325s, M850L (photo bake dropped). **Removed:** M100's 3D model (Kirby, 2026-09-28); it stays in the catalogue and moves to `noShell`. **Phase C in progress:** MX Master 4 button colour. The clear cover (alpha 0.40) is being composited over the button body; the delivery gate is ΔE2000 ≤ 3. Then the dark wheel openings, the missed bake rays on G903 and M750, and a non-delivered M550-on-M650 candidate. Five accepted shells with more than 1% missed bake rays (G Pro 2, Superlight 2 DEX, G309, G403, M650) are listed as O4 for Kirby. AGY found no Logitech-hosted AR file for M100, M550, M705, M325s, M850L or SE. **Codex usage limit** until 22:19 Asia/Taipei; a timer resumes it at 22:21.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
