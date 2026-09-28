@@ -652,6 +652,32 @@ packaging/provenance update and the final comparison sheet remain undone.
 B3 needs camera-fit adjudication/refinement before resuming; geometry is still
 protected and Phase C has not started. Commits remain local for Claude to push.
 
+#### B3 continuation under Claude's criterion 3 interpretation
+
+2026-09-28: Claude clarified that the 0.95 threshold applies to photographs
+**used for texturing**. Top, left, bottom and front pass and will be used; rear
+is held out and is never sampled for appearance. This supersedes the historical
+stop above without changing the acceptance criterion or any threshold.
+
+Top alpha silhouette versus its tight-bbox horizontal reflection has IoU
+**0.999123599**, above the required **0.98**. Mirrored left-profile appearance
+is therefore allowed for the right flank and will be labelled separately in
+provenance and coverage. Other colours, sizes and supplemental revisions remain
+excluded. The rear mismatch is an interpolated-cross-section accuracy finding
+for Kirby: red at the rear hump and blue at the right flank/front lower edge.
+Its symmetric boundary Hausdorff gap is **3.882600 mm**, using **0.070592729
+mm/pixel** at the fitted target plane. This is a projected silhouette gap, not
+an independently measured 3D surface error.
+
+Checkpoint: smart-project atlas uses the AR pipeline's **66 degrees / 0.015
+island margin**. Vertex coordinates remain identical. Draco position
+quantisation **0 (disabled)** also roundtrips the exact decoded position set,
+avoiding a second quantisation error when UV seams change. Seven new pure-math
+tests pass (boundary gap, barycentrics, perspective depth, blend visibility,
+robust SH fit, tangent normals, region assignment). M650's lossless 2048 px
+baked material samples are extracted for region statistics. No public asset has
+changed at this checkpoint; projection, delighting and delivery follow.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -674,6 +700,13 @@ protected and Phase C has not started. Commits remain local for Claude to push.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B3 resumed under Claude's photo-role interpretation.**
+  Pulled `d448cc6`; rear is held out, the four passing views texture. Top mirror
+  IoU **0.999123599** permits mirrored-left right-flank coverage. Rear largest
+  projected gap **3.882600 mm**. Smart atlas and unquantised Draco preserve
+  positions exactly; seven new math tests pass. M650 PBR samples extracted.
+  No public changes yet, no push, no Phase C work.
 
 - 2026-09-28 Codex: **B3 stopped at the camera gate**, after preflight commit
   `6772f0f`. Corrected triangle-union rasterisation and added its regression test.
