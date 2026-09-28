@@ -72,10 +72,34 @@ class BakeAlphaTests(unittest.TestCase):
         scene.render.bake.use_pass_direct = False
         scene.render.bake.use_pass_indirect = False
         scene.render.bake.use_pass_color = True
-        with source_channel(self.sources, 'BaseColour'):
+        def colour_bake():
             bpy.ops.object.bake(type='DIFFUSE')
-        rgb = np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
-        np.testing.assert_allclose(rgb, [.7, .6, .5], atol=1e-5)
+            return np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
+        transparent = colour_bake()
+        with source_channel(self.sources, 'BaseColour'):
+            rgb = colour_bake()
+        # Independent material: opaque from creation, with identical shader
+        # settings. DIFFUSE includes Principled's dielectric energy weighting.
+        cover_obj = self.sources[1]
+        original = cover_obj.data.materials[0]
+        control = bpy.data.materials.new('originally opaque control')
+        shader = next(n for n in control.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+        shader.inputs['Base Color'].default_value = (.7, .6, .5, 1)
+        shader.inputs['Roughness'].default_value = .8
+        self.assertEqual(shader.inputs['Alpha'].default_value, 1)
+        self.assertFalse(shader.inputs['Alpha'].is_linked)
+        cover_obj.data.materials[0] = control
+        try:
+            control_rgb = colour_bake()
+            repeat_rgb = colour_bake()
+        finally:
+            cover_obj.data.materials[0] = original
+        spread = float(np.max(np.abs(control_rgb - repeat_rgb)))
+        print(f'COLOUR_CONTROL forced={rgb.tolist()} opaque={control_rgb.tolist()} '
+              f'transparent={transparent.tolist()} repeat_spread={spread:.9g}', flush=True)
+        np.testing.assert_allclose(rgb, control_rgb, atol=1e-5)
+        np.testing.assert_allclose(control_rgb, repeat_rgb, atol=1e-5)
+        self.assertGreater(float(np.max(np.abs(transparent - control_rgb))), 1e-5)
         with self.assertRaisesRegex(RuntimeError, 'synthetic'):
             with source_channel(self.sources, 'BaseColour'):
                 raise RuntimeError('synthetic')

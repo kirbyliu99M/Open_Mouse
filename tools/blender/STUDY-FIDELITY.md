@@ -975,6 +975,106 @@ The full gates were not rerun after this failed regression. The code and test
 changes are committed only as an explicit failing WIP checkpoint, not as a
 gate-complete Part 2b implementation.
 
+#### Part 2b control correction and real colour-gate stop
+
+2026-09-28, resumed from Claude's audited `9ade5ba`. The independent opaque
+control proves that raw Base Color was the wrong oracle for the new synthetic
+DIFFUSE test. The control material is created with Alpha 1, no alpha link, and
+the same Base Color, roughness and default Principled settings as the forced
+cover. Only the cover material is exchanged; geometry and bake settings stay
+fixed. Measurements (linear RGB):
+
+| Bake                           |         Red |       Green |        Blue |
+| ------------------------------ | ----------: | ----------: | ----------: |
+| Forced opaque cover            | 0.683209062 | 0.585607767 | 0.488006473 |
+| Originally opaque control      | 0.683209062 | 0.585607767 | 0.488006473 |
+| Original transparent composite | 0.170802265 | 0.146401942 | 0.122001618 |
+
+Forced/control maximum difference **0**, control/control repeat spread **0**;
+transparent/control maximum difference **0.512406796**. The existing
+`atol=1e-5`, default `rtol=1e-7` remains unchanged. Both Blender alpha tests
+pass, process exit **0**; exception restoration and the roughness negative
+control still pass. No production colour compensation was added. The uniform
+0.976013 ratio is shared by the independently opaque control, confirming it is
+not an opacity loss. Log: `out/study-fidelity/c/alpha-control.log`.
+
+MX Master 4 was re-baked at the production 2048 px resolution in an isolated
+candidate folder, exported with the existing Draco settings, and optimised to
+three 512 px JPEG maps (**289,652 bytes**, current public **287,868 bytes**).
+The pre-export mesh remains **14,000 triangles**, with clean topology and
+**29.237824557 mm** support margin. No candidate was installed in public.
+
+**The existing Part 2b colour target fails.** Fixed interior rectangles selected
+on the reference exclude button rims, seams and printed logos. The side patch
+samples the thumb-rest flank in the top view; the wheel patch includes its
+central crown. Identical cameras, source calibration, Cycles 32 samples/seed 0,
+neutral world and two area lights are used for AR, committed and candidate
+renders; Standard view transform, no exposure change. DeltaE2000 is measured
+between the mean encoded-sRGB patch colours, converted to D65 Lab. This is a
+new shared studio, not a reproduction of Claude's earlier absolute sRGB values.
+
+| Region       | Committed vs AR DeltaE2000 | Opaque candidate vs AR DeltaE2000 | Target                       |
+| ------------ | -------------------------: | --------------------------------: | ---------------------------- |
+| Left button  |                   6.021381 |                      **7.306253** | <= 3, **fail**               |
+| Right button |                   4.209348 |                      **7.812137** | <= 3, **fail**               |
+| Palm         |                   0.113540 |                          0.116268 | <= 3, pass                   |
+| Side         |                   0.610098 |                          0.612467 | Report only                  |
+| Wheel        |                  38.291572 |                         38.269722 | Report only; O2 remains open |
+
+Left-button mean sRGB255 is AR **89.653968/91.748095/95.764603**, old
+**73.288095/74.403016/78.797619**, new
+**109.478730/110.676190/116.391270**. The opaque candidate overshoots the
+reference in this studio. The control-test correction does not resolve this
+rendered appearance mismatch. No existing tolerance or material was adjusted
+after the failure. Exact error, exit **1**:
+
+```text
+PART_2B_COLOUR_GATE_FAILED: buttons and palm must be <= 3
+```
+
+Evidence under `out/study-fidelity/c/colour/logitech-mx-master-4/`:
+`colour-evidence.json` (full precision RGB, boxes, DeltaE), `patches.png`,
+`colour-crops.png`, `comparison.png` (AR | committed | candidate; top/side/hero),
+all nine original 800 px renders, lossless and optimised candidate GLBs, and
+the candidate blend/report/textures. Bake/render logs are in the parent `c/`.
+`phase_c_colour.py` reproduces the isolated bake and renders using only
+bpy/mathutils/numpy; `measure_phase_c_colour.py` uses the already-present local
+`out/python-deps` for external image analysis. No packages were installed and
+Blender's environment was not changed.
+
+Reproduction (Blender means 5.2.2 background with `--python-exit-code 1`):
+
+1. Blender: `--python tools/blender/tests/test_bake_alpha_blender.py`.
+2. Blender: `--python tools/blender/phase_c_colour.py -- --model logitech-mx-master-4`.
+3. External Python: call `optimize_glbs.optimize(destination, source)` with
+   `destination=c/colour/logitech-mx-master-4/logitech-mx-master-4-delivered.glb`
+   and `source=c/colour/logitech-mx-master-4/logitech-mx-master-4.glb`, both paths
+   relative to `out/study-fidelity/`.
+4. Blender: `--python tools/blender/phase_c_colour.py -- --model logitech-mx-master-4 --render`.
+5. External Python: `python tools/blender/measure_phase_c_colour.py` (records
+   the evidence and exits 1 at the existing colour target).
+
+M720, MX Vertical and Pebble 2 isolated candidate bakes had already been
+started while the MX Master 4 comparison was being measured. All three finished
+successfully (exit 0), but their regional opacity-impact measurements and
+renders were **not performed after the stop**. Their generated candidates are
+not approval to re-bake or replace their delivered assets. The Blender log also
+contains a thumbnail-cache write warning for `.thumbnails`; candidate saves
+and exports completed. All **35/35 public GLBs**, manifest and validation are
+unchanged from `9ade5ba`. Full asset/catalogue/payload/optimisation/unit gates
+were not rerun after the failed colour gate; Phase C remains incomplete.
+
+AGY's report was read: **no Logitech-hosted AR candidate URL** for M100 or any
+sibling, and none for M550/M705/M325s/M850L/SE. No requests or general web
+search were made. Record only as **unverified leads**: B100/M90 identical
+dimensions, M110 Silent near dimensions, M100r regional-variant claim, M105
+smaller-body claim, and M325s/M325 same-shell claim. These are not verified
+shell-equivalence evidence; most report citations are domain roots. Part 4's
+next route is photo-based geometry refinement. It was **not started**, so there
+are no new M100 IoUs, gap measurements or contact sheet. Parts 2, 1 and 3 were
+also not started; the prior O1 table and O4 deferrals stand, O2 has no verified
+new cause/fix, and no M550 sibling candidate exists. No push.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1004,6 +1104,18 @@ gate-complete Part 2b implementation.
 | 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-28 Codex: **Part 2b control fixed; stopped at the existing rendered
+  colour gate.** Forced/control RGB equal exactly, repeated control spread 0;
+  transparent/control differs by 0.512406796. Both Blender alpha tests pass at
+  unchanged 1e-5 tolerance; no production compensation. Isolated MX Master 4
+  opaque candidate fails button DeltaE2000: left **7.306253**, right
+  **7.812137** versus <=3; palm **0.116268** passes. Full crops, fixed-patch
+  annotations, RGB table and shared-lighting comparison are recorded in Results
+  C. No public replacement; all 35 GLBs unchanged. Sibling impact bakes finished
+  locally but measurements remain pending. AGY report has no AR candidates;
+  sibling notes recorded as unverified. Parts 4/2/1/3 not started per stop rule.
+  Local checkpoint only; no push, no full-gate-complete claim.
 
 - 2026-09-28 Codex: **Resumed C, stopped during Part 2b on a new synthetic
   Blender colour regression.** Pull already up to date. All-channel opaque
