@@ -89,7 +89,7 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,290,932 bytes (7.91 MiB)**, including **4,672,488 image bytes** across 93 JPEG maps.
+The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,298,316 bytes (7.91 MiB)**, including **4,679,871 image bytes** across 93 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
@@ -121,7 +121,7 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-m750                         | AR-derived shell   | `shells/logitech-m750.glb`                          | 323,264 |
 | logitech-mx-anywhere-3s               | AR-derived shell   | `shells/logitech-mx-anywhere-3s.glb`                | 190,876 |
 | logitech-mx-master-3s                 | AR-derived shell   | `shells/logitech-mx-master-3s.glb`                  | 202,760 |
-| logitech-mx-master-4                  | AR-derived shell   | `shells/logitech-mx-master-4.glb`                   | 288,308 |
+| logitech-mx-master-4                  | AR-derived shell   | `shells/logitech-mx-master-4.glb`                   | 295,692 |
 | logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 179,812 |
 | logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
 | logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |

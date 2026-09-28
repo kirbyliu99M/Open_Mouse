@@ -106,6 +106,29 @@ class BakeAlphaTests(unittest.TestCase):
         self.assertTrue(self.cover.inputs['Alpha'].is_linked)
         self.assertAlmostEqual(self.cover.inputs['Alpha'].default_value, .25)
 
+    def test_metallic_source_keeps_its_base_colour(self):
+        scene = bpy.context.scene
+        scene.render.bake.use_pass_direct = False
+        scene.render.bake.use_pass_indirect = False
+        scene.render.bake.use_pass_color = True
+        cover = self.sources[1]
+        cover.select_set(False)  # bake the part beneath directly
+        part = next(n for n in self.sources[0].data.materials[0].node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+        def colour_bake():
+            with source_channel(self.sources, 'BaseColour'):
+                bpy.ops.object.bake(type='DIFFUSE')
+            return np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
+        control = colour_bake()
+        part.inputs['Metallic'].default_value = 1
+        metal = colour_bake()
+        # Negative control: the raw DIFFUSE pass drops a metal's colour to black.
+        bpy.ops.object.bake(type='DIFFUSE')
+        raw = np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
+        print(f'METALLIC_COLOUR control={control.tolist()} metal={metal.tolist()} raw={raw.tolist()}', flush=True)
+        np.testing.assert_allclose(metal, control, atol=1e-5)
+        self.assertLess(float(raw.max()), .05)
+        self.assertEqual(part.inputs['Metallic'].default_value, 1)
+
     def test_cover_alpha_and_body_bakes_for_compositing(self):
         self.assertEqual(cover_objects(self.sources), [self.sources[1]])
         with source_channel(self.sources, 'CoverAlpha'):

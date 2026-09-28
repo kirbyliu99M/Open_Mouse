@@ -1259,6 +1259,42 @@ orientation tests pass; 69 Python tests OK (10 bpy skips), including 5 new
 Evidence: `out/study-fidelity/c/colour/logitech-mx-master-4/` (composite) and
 `logitech-mx-master-4-opaque/` (Codex's opaque candidate, kept).
 
+#### Part 2 — O2 cause found: metallic parts baked black (Claude, 2026-09-28)
+
+**Cause (verified).** Cycles' DIFFUSE colour pass scales Base Color by
+(1 − metallic). Every AR shell's base colour was baked through that pass with
+the source's own metallic value, so fully metallic parts (MX Master 4's wheel
+and thumb wheel, `METAL_MULTIMTL`) baked to black. Paired with the metallic map
+(≈1 there), they rendered as a black mirror. Partly metallic surfaces baked
+proportionally too dark. A synthetic Blender test pins this down: a metallic-1 part
+bakes to exactly (0, 0, 0) with the raw pass, and to the metallic-0 control's
+colour with the fix. On MX Master 4, 2,140 of 14,000 shell faces take their
+first hit from the metal material.
+
+**Fix.** `source_channel` sets metallic to 0 (and restores it) for the colour
+bakes (`BaseColour`, `Body`). The metallic map is still baked from the untouched
+socket.
+
+MX Master 4 re-baked with both fixes, same studio, ΔE2000 vs AR:
+
+| Region       | 2b composite | **Composite + metallic fix, delivered** |
+| ------------ | -----------: | --------------------------------------: |
+| Left button  |         2.23 |                                **0.72** |
+| Right button |         0.79 |                                **1.62** |
+| Palm         |         0.12 |                                **0.11** |
+| Side         |         0.61 |                                    0.63 |
+| Wheel        |        38.29 |                                **1.48** |
+
+Installed: 0.0 mm geometry change, 295,692 bytes. The wheel and thumb wheel
+now render as brushed metal; their knurling is absent because the shell seals
+over the wheel. **Second, smaller cause:** on MX Master 4, about 300 faces have
+a source part more than 4 mm above the shell (outside the cage), so their rays
+start underneath it. The O1 fallback pass addresses misses, not these.
+
+**Scope.** Every AR shell with metallic source values is affected. G903, M750
+and the five O4 shells are re-baked with both fixes in the O1 batch. The other
+shells get an impact check.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1293,6 +1329,8 @@ Evidence: `out/study-fidelity/c/colour/logitech-mx-master-4/` (composite) and
 | 2026-09-28 | **O4 in scope:** fix the missed bake rays on the five accepted shells as well (G Pro 2, Superlight 2 DEX, G309, G403, M650), not only G903 and M750                                                                                                                                                                                                                                                                                                                                                                                                 | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Claude (building): **O2 cause found and fixed**: DIFFUSE colour baked metal black. MX Master 4 re-installed with the metallic fix: wheel ΔE2000 38.29 → 1.48; buttons 0.72 / 1.62, palm 0.11. New Blender test. Sonnet review pending. Next: O1 fallback plus a re-bake of G903, M750 and the five O4 shells.
 
 - 2026-09-28 Claude (building): **2b delivered.** MX Master 4 buttons composited cover-over-body: ΔE2000 vs AR left 2.23, right 0.79, palm 0.12 (gate ≤ 3). Only its GLB changed; 0 mm geometry change. M720, MX Vertical, Pebble 2 unchanged (reasons in Results). All gates pass. Sonnet review pending. Next: Part 2 (wheel openings).
 

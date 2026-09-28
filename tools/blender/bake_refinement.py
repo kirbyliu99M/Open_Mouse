@@ -10,23 +10,34 @@ from layer_composite import composite_cover
 
 @contextmanager
 def source_channel(objects, channel):
-    """Bake the opaque source surface in every channel, then restore its graph."""
+    """Bake the opaque source surface in every channel, then restore its graph.
+
+    Colour channels also bake with metallic 0: Cycles' DIFFUSE colour pass scales
+    Base Color by (1 - metallic), which turned metal parts black. Metallic itself
+    is baked separately from the untouched socket.
+    """
     saved=[]
+    def hold(socket):
+        value=getattr(socket,'default_value',None)
+        saved[-1][1].append((socket,tuple(value) if hasattr(value,'__len__') else value,[link.from_socket for link in socket.links]))
     try:
         for mat in {m for obj in objects for m in obj.data.materials if m}:
             nodes=mat.node_tree.nodes;links=mat.node_tree.links
             shader=next(n for n in nodes if n.type=='BSDF_PRINCIPLED')
             alpha=shader.inputs['Alpha']
             output=next(n for n in nodes if n.type=='OUTPUT_MATERIAL').inputs['Surface']
-            saved.append((mat,alpha,alpha.default_value,
-                          [link.from_socket for link in alpha.links],output,
-                          [link.from_socket for link in output.links],None))
+            saved.append((mat,[],None))
+            hold(alpha);hold(output)
             original_alpha=(alpha.links[0].from_socket if alpha.is_linked else None,alpha.default_value)
             for link in list(alpha.links):links.remove(link)
             alpha.default_value=1
+            if channel in ('BaseColour','Body'):
+                metallic=shader.inputs['Metallic'];hold(metallic)
+                for link in list(metallic.links):links.remove(link)
+                metallic.default_value=0
             if channel in ('Metallic','CoverAlpha'):
                 emission=nodes.new('ShaderNodeEmission')
-                saved[-1]=saved[-1][:-1]+(emission,)
+                saved[-1]=saved[-1][:2]+(emission,)
                 if channel=='Metallic':
                     socket=shader.inputs['Metallic']
                     source,value=(socket.links[0].from_socket if socket.is_linked else None),socket.default_value
@@ -36,12 +47,12 @@ def source_channel(objects, channel):
                 links.new(emission.outputs[0],output)
         yield
     finally:
-        for mat,alpha,value,alpha_links,output,output_links,emission in saved:
+        for mat,sockets,emission in saved:
             links=mat.node_tree.links
-            for socket,original in ((alpha,alpha_links),(output,output_links)):
+            for socket,value,original in sockets:
                 for link in list(socket.links):links.remove(link)
                 for source in original:links.new(source,socket)
-            alpha.default_value=value
+                if value is not None:socket.default_value=value
             if emission is not None:mat.node_tree.nodes.remove(emission)
 
 def cover_objects(objects):
