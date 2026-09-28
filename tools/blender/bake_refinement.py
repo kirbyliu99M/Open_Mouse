@@ -107,7 +107,10 @@ def composite_cover_layers(receiver,objects,covers,colour,folder,resolution):
 
 CHANNELS=[('BaseColour','DIFFUSE'),('Roughness','ROUGHNESS'),('Normal','NORMAL'),('Metallic','EMIT')]
 FIRST_REACH=dict(cage_extrusion=.004,max_ray_distance=.012)
-SECOND_REACH=dict(cage_extrusion=.012,max_ray_distance=.05)
+# The first pass covers 4 mm above to 8 mm below the shell. The second looks only further
+# out (12 to 4 mm above): a deeper miss is a hole in the source skin, and rays through it
+# would pick up interior parts, so those texels are filled from neighbours instead.
+SECOND_REACH=dict(cage_extrusion=.012,max_ray_distance=.016)
 
 def pixels_of(image):
     pixels=np.empty(len(image.pixels),dtype=np.float32);image.pixels.foreach_get(pixels)
@@ -146,7 +149,7 @@ def bake_mask(receiver,objects,channel,bake_type,resolution,to_active=True,norma
         bpy.data.images.remove(image)
 
 def repair_missed_rays(mesh,receiver,objects,covers,images,name,folder,resolution):
-    """O1: second, longer pass only where the production ray missed.
+    """O1: second pass, further out, only where the production ray missed.
 
     A second-pass hit is used only if its source normal faces the same side as the
     shell normal, so rays cannot take colour from the far side of the source.
@@ -180,9 +183,10 @@ def repair_missed_rays(mesh,receiver,objects,covers,images,name,folder,resolutio
         image.pixels.foreach_set(merged.ravel());image.update()
     for image in extra.values():bpy.data.images.remove(image)
     return dict(stats,repairedTexels=int(selected.sum()),filledTexels=int(filled),unresolvedTexels=int(unresolved),
-                method='Second selected-to-active pass (cage 12 mm, reach 50 mm) for first-pass misses only, '
-                       'rejecting hits whose source normal faces away from the shell; remaining misses filled '
-                       'from resolved neighbours on the same island')
+                method='Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm '
+                       'above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away '
+                       'from the shell; remaining misses (holes in the source skin) filled from resolved neighbours '
+                       'on the same island')
 
 def bake_materials(mesh,record,calibration,folder,resolution=2048):
     tree,verts,tris,samples,objects=source_surface(record,calibration)

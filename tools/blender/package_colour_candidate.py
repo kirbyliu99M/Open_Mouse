@@ -1,4 +1,4 @@
-"""Install a Phase C colour candidate over its delivered AR shell.
+"""Install a Phase C re-bake (cover composite, metallic fix, missed-ray fallback) over its AR shell.
 
 Blender only. The candidate must keep the delivered geometry exactly: same
 triangle count and 0 mm vertex displacement. Only the GLB, its byte count and
@@ -54,8 +54,8 @@ def main():
     candidate = folder / (slug + '-delivered.glb')
     delivered = PUBLIC / 'shells' / (slug + '.glb')
     report = json.loads((folder / 'reconstruction.json').read_text(encoding='utf-8'))
-    if 'coverComposite' not in report['textureRefinement']:
-        raise RuntimeError('Candidate was not baked with the cover composite: ' + slug)
+    if 'missedRayFallback' not in report['textureRefinement']:
+        raise RuntimeError('Candidate was not baked with the Phase C pipeline: ' + slug)
     old_points, old_tris = geometry(delivered)
     new_points, new_tris = geometry(candidate)
     if len(old_tris) != len(new_tris):
