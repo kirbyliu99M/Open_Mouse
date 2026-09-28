@@ -89,7 +89,7 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,372,856 bytes (7.98 MiB)**, including **4,754,868 image bytes** across 93 JPEG maps.
+The manifest has 31 shell entries (30 source-derived shells and 1 alias), 3 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,535,584 bytes (8.14 MiB)**, including **4,915,240 image bytes** across 93 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
@@ -116,6 +116,7 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-m190                         | AR-derived shell   | `shells/logitech-m190.glb`                          | 260,380 |
 | logitech-m196                         | AR-derived shell   | `shells/logitech-m196.glb`                          | 255,260 |
 | logitech-m240                         | AR-derived shell   | `shells/logitech-m240.glb`                          | 209,888 |
+| logitech-m550                         | AR-derived shell   | `shells/logitech-m550.glb`                          | 327,296 |
 | logitech-m650                         | AR-derived shell   | `shells/logitech-m650.glb`                          | 331,176 |
 | logitech-m720-triathlon               | AR-derived shell   | `shells/logitech-m720-triathlon.glb`                | 244,336 |
 | logitech-m750                         | AR-derived shell   | `shells/logitech-m750.glb`                          | 331,092 |
@@ -126,7 +127,6 @@ Aliases share a delivered file; they do not add a GLB. Classification below come
 | logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
 | logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 325,364 |
 | logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
-| logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         | 164,568 |
 | logitech-m705-marathon                | Limited-view study | `studies/logitech-m705-marathon.glb`                |  80,568 |
 | logitech-signature-comfort-plus-m850l | Limited-view study | `studies/logitech-signature-comfort-plus-m850l.glb` |  77,344 |
 

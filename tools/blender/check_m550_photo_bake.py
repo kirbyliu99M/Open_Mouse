@@ -1,4 +1,7 @@
-"""Blender gate of the delivered candidate before replacing any public asset."""
+"""SUPERSEDED by Phase D2 (package_m550_sibling.py, 2026-09-28): M550 is now delivered on the
+M650 shell. Running this would reinstall or check the old B3 study; kept for the B3 record.
+
+Blender gate of the delivered candidate before replacing any public asset."""
 import hashlib
 import json
 from pathlib import Path

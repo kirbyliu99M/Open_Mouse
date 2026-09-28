@@ -1,4 +1,7 @@
-"""Install only the geometry-verified M550 candidate and its photo provenance."""
+"""SUPERSEDED by Phase D2 (package_m550_sibling.py, 2026-09-28): M550 is now delivered on the
+M650 shell. Running this would reinstall or check the old B3 study; kept for the B3 record.
+
+Install only the geometry-verified M550 candidate and its photo provenance."""
 from copy import deepcopy
 import hashlib
 import json

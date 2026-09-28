@@ -24,16 +24,16 @@ What the 26 shells have that the studies lack:
 
 Status as of 2026-09-28. The Route column follows the Decisions table.
 
-| Model                        | Route                                              | Geometry                                     | State                                                         |
-| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
-| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**                        |
-| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**                        |
-| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28**                       |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | B3 prototype built; Kirby awaits the M650-shell candidate (C) |
-| M100                         | Removed (Kirby, 2026-09-28)                        | Study, `m4a-m100-level-base` (sheared trace) | **3D model removed**; M100 moves to `noShell`                 |
-| M705 Marathon                | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
-| M325s                        | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
-| Signature Comfort Plus M850L | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
+| Model                        | Route                                              | Geometry                                     | State                                                                          |
+| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ |
+| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**                                         |
+| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**                                         |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28**                                        |
+| M550                         | M650 AR-derived sibling shell (Part 3 → D2)        | M650 AR shell, thumb buttons faired          | **Delivered as a shell (D2, Kirby-approved route)**; visual acceptance pending |
+| M100                         | Removed (Kirby, 2026-09-28)                        | Study, `m4a-m100-level-base` (sheared trace) | **3D model removed**; M100 moves to `noShell`                                  |
+| M705 Marathon                | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                 |
+| M325s                        | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                 |
+| Signature Comfort Plus M850L | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                 |
 
 ## Agent distribution
 
@@ -1659,6 +1659,28 @@ Gates after install: `ALL_ASSET_CHECKS_PASSED`; Blender alpha (4 tests), colour-
 and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tests (61 run and pass, 12 Blender-only skips; all 4 Blender test files pass under Blender); `check_catalogues.py`,
 `audit_payloads.py`, `optimize_glbs.py --check`, prettier and 967 Vitest tests pass. `PAYLOAD-AUDIT.md` regenerated.
 
+#### D2 — M550 delivered on the M650 AR shell (Claude, 2026-09-28)
+
+Kirby approved finishing and delivering the Part 3 candidate (2026-09-28, Phase D plan).
+`package_m550_sibling.py` deleted `studies/logitech-m550.glb`, wrote `shells/logitech-m550.glb`
+and moved the manifest and validation entries from `studies` to `shells`. The new entry has an
+`inheritedShell` record, as SE does, with the M650 source hash, the fairing numbers, photo IoU
+for the candidate and the old study, the decision, and the limitations. Mesh statistics were
+measured on the re-imported delivered GLB: 14,000 triangles, 0 non-manifold, 0 degenerate,
+0 intersections, 61.0 × 108.2 × 38.8 mm (bbox error 0.000007 mm), ground 0, support margin 21.56 mm,
+327,296 bytes. Silhouette IoU against M550's photos (fitted cameras): top 0.9923, left 0.9915, bottom 0.9918,
+rear ¾ 0.9880, front ¾ 0.9948, against the old study's 0.9951 / 0.9823 / 0.9929 / 0.9325 / 0.9571.
+
+Not done, by decision: the plate outline's sub-millimetre relief was not refaired
+(the gain is in overall shape; see Part 3). `check_m550_photo_bake.py` and
+`package_m550_photo_bake.py` are marked superseded; re-running the latter would
+reinstall the B3 study.
+
+Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 12 bpy skips),
+`check_catalogues.py`, `audit_payloads.py`, `optimize_glbs.py --check`, prettier, 967 Vitest tests.
+`PAYLOAD-AUDIT.md` regenerated. Changed: `shells/logitech-m550.glb` (new),
+`studies/logitech-m550.glb` (deleted), manifest, validation.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                          | Status (2026-09-28)                                                                                                                   |
@@ -1697,6 +1719,8 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Claude (D2, worktree `m4a-geometry-audit`): **M550 delivered on the M650 AR shell.** Study entry moved to shells; all gates pass. D0 audit committed on the same branch (`GEOMETRY-AUDIT.md`). Codex D1b stopped on quota after about a minute (reset 03:36); a timer resumes it at 03:38. Next: Sonnet review of D0 + D2, then handoff H1.
 
 - 2026-09-28 Codex: **D1 STOP: M850L delivery gate failed (exit 2).** Mean
   fitted IoU 0.964185763 to 0.964185281; held-out 0.954755529 to 0.954625159.
