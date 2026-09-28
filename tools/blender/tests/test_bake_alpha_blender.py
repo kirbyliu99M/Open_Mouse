@@ -24,7 +24,7 @@ class BakeAlphaTests(unittest.TestCase):
             shader = next(n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
             shader.inputs['Roughness'].default_value = roughness
             shader.inputs['Alpha'].default_value = alpha
-            shader.inputs['Base Color'].default_value = (.3, .2, .1, 1)
+            shader.inputs['Base Color'].default_value = ((.3, .2, .1, 1) if name == 'part' else (.7, .6, .5, 1))
             obj.data.materials.append(mat)
             self.sources.append(obj)
         self.cover = shader
@@ -52,19 +52,35 @@ class BakeAlphaTests(unittest.TestCase):
         transparent = self.median_bake()
         for preceding in ('Normal', 'Metallic', 'BaseColour'):
             with source_channel(self.sources, preceding):
-                if preceding != 'BaseColour':
-                    self.assertFalse(self.cover.inputs['Alpha'].is_linked)
-                    self.assertEqual(self.cover.inputs['Alpha'].default_value, 1)
+                self.assertFalse(self.cover.inputs['Alpha'].is_linked)
+                self.assertEqual(self.cover.inputs['Alpha'].default_value, 1)
             with source_channel(self.sources, 'Roughness'):
                 opaque = self.median_bake()
             self.assertAlmostEqual(opaque, .8, places=4)
             self.assertTrue(self.cover.inputs['Alpha'].is_linked)
             with source_channel(self.sources, 'BaseColour'):
-                self.assertTrue(self.cover.inputs['Alpha'].is_linked)
-                self.assertAlmostEqual(self.cover.inputs['Alpha'].default_value, .25)
+                self.assertFalse(self.cover.inputs['Alpha'].is_linked)
+                self.assertEqual(self.cover.inputs['Alpha'].default_value, 1)
+            self.assertTrue(self.cover.inputs['Alpha'].is_linked)
+            self.assertAlmostEqual(self.cover.inputs['Alpha'].default_value, .25)
         # Negative control proves this scene detects baking through transparency.
         self.assertGreater(opaque - transparent, .1)
         print(f'ALPHA_REGRESSION transparent={transparent:.6f} opaque={opaque:.6f}', flush=True)
+
+    def test_base_colour_hits_cover_and_restores_after_exception(self):
+        scene = bpy.context.scene
+        scene.render.bake.use_pass_direct = False
+        scene.render.bake.use_pass_indirect = False
+        scene.render.bake.use_pass_color = True
+        with source_channel(self.sources, 'BaseColour'):
+            bpy.ops.object.bake(type='DIFFUSE')
+        rgb = np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
+        np.testing.assert_allclose(rgb, [.7, .6, .5], atol=1e-5)
+        with self.assertRaisesRegex(RuntimeError, 'synthetic'):
+            with source_channel(self.sources, 'BaseColour'):
+                raise RuntimeError('synthetic')
+        self.assertTrue(self.cover.inputs['Alpha'].is_linked)
+        self.assertAlmostEqual(self.cover.inputs['Alpha'].default_value, .25)
 
 
 if __name__ == '__main__':

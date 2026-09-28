@@ -931,13 +931,58 @@ and contact sheet; Part 4 AGY-lead verification, geometry route, before/after Io
 maximum gap and contact sheet. No general web search or candidate download was
 performed. No new contact sheet exists. M705, M325s and M850L remain untouched.
 
+#### Part 2b resumed checkpoint — stopped on synthetic colour regression
+
+2026-09-28: `git pull --ff-only` reports already up to date. Part 0 remains
+accepted. The resumed order is **2b, 4, 2, 1, 3**. Blender-side work must use
+bpy/mathutils/numpy only; no SciPy dependency or environment changes are allowed.
+O1 delivery scope is now only G903 Hero and M750. The other five above-threshold
+accepted shells are deferred as O4 below. G903's 2.029328% guarded unresolved
+area still needs a location crop and an explicit account of its eventual fill.
+
+**Part 2b is WIP, not validated or delivered.** `source_channel` now makes
+sources opaque for BaseColour as well as Roughness, Normal and Metallic, while
+retaining the graph restoration logic. The alpha regression was updated to
+check that rule and a new synthetic colour-bake assertion was added. Blender
+5.2.2 / bundled Python 3.13.13 imported the production bake module successfully
+without installing anything. This checks that import chain only, not every
+Blender-run module; the separate O1 prototype remains inactive and unresolved.
+
+The Blender test run had **2 tests: 1 passed, 1 failed**. Roughness measured
+0.800000 opaque versus 0.000000 transparent. The new DIFFUSE colour assertion
+failed at `atol=0.00001`, `rtol=0.0000001`:
+
+| Measurement                 |      Red |    Green |     Blue |
+| --------------------------- | -------: | -------: | -------: |
+| Expected shader Base Color  | 0.700000 | 0.600000 | 0.500000 |
+| Actual median baked DIFFUSE | 0.683209 | 0.585608 | 0.488006 |
+
+Maximum absolute difference: **0.01679094**; maximum relative difference:
+**0.02398705**. Exact terminal error: `RuntimeError: Bake alpha tests failed`.
+The log is `out/study-fidelity/c/alpha.log`. The shell command subsequently
+printed the log tail, so its reported exit code 0 is **not** a successful Blender
+test result. No tolerance was changed. A next run should investigate whether
+Principled DIFFUSE energy weighting invalidates the test's raw Base Color oracle;
+an independently baked, originally opaque cover is a possible control. This is
+a hypothesis, not a verified cause or permission to weaken the test.
+
+Per the brief's stop rule, work stopped here. No MX Master 4 production re-bake,
+regional DeltaE2000 table, crops, or sibling alpha-impact measurements exist yet.
+Parts 4, 2, 1 and 3 were not started in this resumed run. The AGY report was not
+read and no download or web search was performed. Every public GLB remains
+byte-identical to `fb15dd1`; manifest, validation and payload sizes are unchanged.
+The full gates were not rerun after this failed regression. The code and test
+changes are committed only as an explicit failing WIP checkpoint, not as a
+gate-complete Part 2b implementation.
+
 ## Open issues (candidates for Phase C)
 
-| #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                                                                                           |
-| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                   | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side; **Open: C stopped before production changes (see Results C)**                                                            |
-| O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate; **Open: C stopped before production changes (see Results C)** |
-| O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                  | None required; recorded for review                                                                                                                                                                                            |
+| #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                                                                             | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side; **Open: C stopped before production changes (see Results C)**                                                            |
+| O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior                                                           | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate; **Open: C stopped before production changes (see Results C)** |
+| O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                                                                            | None required; recorded for review                                                                                                                                                                                            |
+| O4  | Accepted AR shells above 1% missed area, outside the narrowed O1 scope                                     | Production 12 mm / unguarded 50 mm miss percentages: G Pro 2 Lightspeed **3.748429 / 0.263402**; Superlight 2 DEX **2.182867 / 0.099209**; G309 **2.713391 / 0.088516**; G403 Hero **1.034175 / 0.026585**; M650 **2.635738 / 0.067734** | **Kirby's decision pending.** Keep all five delivered GLBs byte-identical. Guarded figures remain in Results C's full O1 table.                                                                                               |
 
 ## Decisions
 
@@ -959,6 +1004,17 @@ performed. No new contact sheet exists. M705, M325s and M850L remain untouched.
 | 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-28 Codex: **Resumed C, stopped during Part 2b on a new synthetic
+  Blender colour regression.** Pull already up to date. All-channel opaque
+  sources and the alpha test update are WIP. Two Blender tests: one pass, one
+  fail; actual DIFFUSE RGB 0.683209/0.585608/0.488006 versus expected
+  0.7/0.6/0.5, maximum error 0.01679094, tolerance 0.00001. No tolerance relaxed,
+  package installed, environment changed, or GLB delivered. Results C records
+  the exact failure and the possible test-oracle issue for investigation.
+  Recorded narrowed O1 scope and deferred the five accepted shells as O4.
+  Parts 4/2/1/3 remain pending; no new contact sheet or colour evidence exists.
+  Commit is an explicit failing WIP checkpoint; no push.
 
 - 2026-09-28 Codex: **C Part 1 stopped on Blender regression import failure.**
   Part 0 committed separately as `eafbf39`, all gates green and all 35 GLBs

@@ -8,7 +8,7 @@ from color_reconstruction import source_surface
 
 @contextmanager
 def source_channel(objects, channel):
-    """Use composite alpha only for colour; restore sources after every channel."""
+    """Bake the opaque source surface in every channel, then restore its graph."""
     saved=[]
     try:
         for mat in {m for obj in objects for m in obj.data.materials if m}:
@@ -19,9 +19,8 @@ def source_channel(objects, channel):
             saved.append((mat,alpha,alpha.default_value,
                           [link.from_socket for link in alpha.links],output,
                           [link.from_socket for link in output.links],None))
-            if channel!='BaseColour':
-                for link in list(alpha.links):links.remove(link)
-                alpha.default_value=1
+            for link in list(alpha.links):links.remove(link)
+            alpha.default_value=1
             if channel=='Metallic':
                 emission=nodes.new('ShaderNodeEmission')
                 saved[-1]=saved[-1][:-1]+(emission,)
