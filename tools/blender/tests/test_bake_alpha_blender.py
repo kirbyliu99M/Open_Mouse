@@ -9,7 +9,7 @@ except ImportError:
     bpy = None
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if bpy is not None:
-    from bake_refinement import source_channel
+    from bake_refinement import cover_objects, source_channel
 
 
 @unittest.skipUnless(bpy is not None, 'Requires Blender bpy')
@@ -105,6 +105,36 @@ class BakeAlphaTests(unittest.TestCase):
                 raise RuntimeError('synthetic')
         self.assertTrue(self.cover.inputs['Alpha'].is_linked)
         self.assertAlmostEqual(self.cover.inputs['Alpha'].default_value, .25)
+
+    def test_cover_alpha_and_body_bakes_for_compositing(self):
+        self.assertEqual(cover_objects(self.sources), [self.sources[1]])
+        with source_channel(self.sources, 'CoverAlpha'):
+            bpy.ops.object.bake(type='EMIT')
+        alpha = np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, 0])
+        self.assertAlmostEqual(float(alpha), .25, places=4)
+        self.assertTrue(self.cover.inputs['Alpha'].is_linked)
+        scene = bpy.context.scene
+        scene.render.bake.use_pass_direct = False
+        scene.render.bake.use_pass_indirect = False
+        scene.render.bake.use_pass_color = True
+        def colour_bake():
+            bpy.ops.object.bake(type='DIFFUSE')
+            return np.median(np.array(self.image.pixels[:]).reshape(32, 32, 4)[8:24, 8:24, :3], axis=(0, 1))
+        with source_channel(self.sources, 'BaseColour'):
+            cover = colour_bake()
+        # Body bake: the cover is left out of the selection, so rays reach the part beneath.
+        self.sources[1].select_set(False)
+        try:
+            with source_channel(self.sources, 'Body'):
+                body = colour_bake()
+        finally:
+            self.sources[1].select_set(True)
+        print(f'COVER_COMPOSITE alpha={float(alpha):.6f} cover={cover.tolist()} body={body.tolist()}', flush=True)
+        # The body is the part's Base Color times one uniform DIFFUSE energy factor
+        # (it depends on roughness, so it differs from the cover's factor).
+        factor = body / np.array([.3, .2, .1])
+        np.testing.assert_allclose(factor, factor.mean(), rtol=1e-4)
+        self.assertTrue(.9 < factor.mean() <= 1)
 
 
 if __name__ == '__main__':

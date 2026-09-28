@@ -1200,6 +1200,65 @@ passed; this preflight colour gate failed, so Phase C is **not gate-complete**.
 No full production gate rerun or success is claimed after the stop. Separate
 local checkpoint commit with the diagnostic and evidence, **no push**.
 
+#### Part 2b — cover-over-body composite, delivered (Claude, 2026-09-28)
+
+Built by Claude while Codex was out of quota (Kirby's decision, see Decisions).
+**Needs the independent Sonnet review before it counts as accepted.**
+
+`bake_refinement.py` now detects source objects with a transparent layer
+(`cover_objects`: scalar alpha < 1, or an alpha Value node or image below 1).
+For those shells it bakes two extra passes after the opaque base colour: the
+cover alpha (EMIT of each source's own alpha socket) and the body colour (DIFFUSE
+with the cover objects left out of the selection). `layer_composite.composite_cover`
+mixes `alpha × cover + (1 − alpha) × body` in linear light and leaves alpha-1
+texels bit-identical. Roughness, normal and metallic keep the opaque rule.
+Shells without a transparent layer bake exactly as before. Byte sRGB bake images
+hold encoded values (checked: `pixels = 0.5` saves as PNG 128), so the composite
+decodes, mixes and re-encodes.
+
+Texture check on MX Master 4: every alpha-0 texel is unbaked atlas space;
+alpha-1 texels are identical to the opaque bake (max difference 0); 356,127 of
+358,525 cover texels (alpha 0.34–0.41) change, mean 23.5 levels. Anti-aliased
+cover outlines (alpha < 0.34 or 0.41–1, 59,561 texels) change by 3–7 levels on average.
+
+Identical-light studio (`phase_c_colour.shared_studio`, unchanged), ΔE2000 vs AR:
+
+| Region       | Committed (blended) | Opaque candidate | **Composite, delivered** |
+| ------------ | ------------------: | ---------------: | -----------------------: |
+| Left button  |                6.02 |             7.31 |                 **2.23** |
+| Right button |                4.21 |             7.81 |                 **0.79** |
+| Palm         |                0.11 |             0.12 |                 **0.12** |
+| Side         |                0.61 |             0.61 |                     0.61 |
+| Wheel        |               38.29 |            38.27 |   38.29 (O2, still open) |
+
+Left button mean sRGB: AR 89.7 / 91.7 / 95.8, composite 84.4 / 85.6 / 90.0.
+Over all pixels the change touches, mean ΔE2000 to AR drops from 5.50 to 2.49 (top), 5.06 to 2.88 (hero)
+and 4.43 to 3.24 (side). Installed with `package_colour_candidate.py`: 14,000
+triangles, 0.0 mm corner displacement, 0.0 mm bbox difference, 288,308 bytes
+(was 287,868). Support margin 29.24 mm.
+
+Sibling impact (same rule, texture-space ΔE2000 from the delivered blended bake
+to the composite, on texels with 0 < alpha < 1):
+
+| Shell          | Transparent source | Mean ΔE2000 | Rendered change (top, side, hero, bottom)         | Action                 |
+| -------------- | ------------------ | ----------: | ------------------------------------------------- | ---------------------- |
+| M720 Triathlon | none (alpha 1)     |           — | —                                                 | unchanged              |
+| MX Vertical    | `Node9`            |        1.80 | not rendered (below the 2 threshold)              | unchanged              |
+| Pebble 2 M350S | `Node6`            |        6.49 | none: max 1 level (top), 19 px ≤ 1.11 ΔE (bottom) | unchanged: not visible |
+
+Pebble 2 exceeds 2 in texture space, but its changed texels are not visible
+in any of the four views, so its accepted GLB is kept. A future full rebuild
+will pick up the composite automatically.
+
+Gates: `ALL_ASSET_CHECKS_PASSED`; Blender alpha (3 tests, new
+`test_cover_alpha_and_body_bakes_for_compositing`), colour sampling and polish
+orientation tests pass; 64 Python tests OK (10 bpy skips), including 5 new
+`test_layer_composite` tests; `check_catalogues.py`, `audit_payloads.py`,
+`optimize_glbs.py --check`, prettier and 967 Vitest tests pass.
+`PAYLOAD-AUDIT.md` regenerated. Only `shells/logitech-mx-master-4.glb` changed.
+Evidence: `out/study-fidelity/c/colour/logitech-mx-master-4/` (composite) and
+`logitech-mx-master-4-opaque/` (Codex's opaque candidate, kept).
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1207,7 +1266,7 @@ local checkpoint commit with the diagnostic and evidence, **no push**.
 | O1  | Bake rays miss the AR source on part of G903 and M750; missed texels bake black                            | Cage 4 mm, max distance 12 mm: 2.97% (G903) and 3.00% (M750) of shell area miss, mostly mid and rear. At 50 mm only 0.11% / 0.05% still miss                                                                                             | Second bake pass for missed texels only, with a longer ray and a guard against hitting the far side; **Open: C stopped before production changes (see Results C)**                                                            |
 | O2  | Wheel recesses read black on MX Master 4, M750 and G903, where the reference shows a metal or rubber wheel | MX Master 4 ray misses are only 0.02% of area, so the cause is geometry, not misses: the rebuilt wheel opening sits below the wheel crown, and rays hit the dark slot interior                                                           | Sample the wheel material for texels inside wheel openings, or raise the sealed surface to the wheel crown; must not change bbox, topology or the support gate; **Open: C stopped before production changes (see Results C)** |
 | O3  | M705 has the lowest support margin                                                                         | 11.4 mm, passes the 5 mm gate. It is the eight-new-shells geometry Kirby kept                                                                                                                                                            | None required; recorded for review                                                                                                                                                                                            |
-| O4  | Accepted AR shells above 1% missed area, outside the narrowed O1 scope                                     | Production 12 mm / unguarded 50 mm miss percentages: G Pro 2 Lightspeed **3.748429 / 0.263402**; Superlight 2 DEX **2.182867 / 0.099209**; G309 **2.713391 / 0.088516**; G403 Hero **1.034175 / 0.026585**; M650 **2.635738 / 0.067734** | **Kirby's decision pending.** Keep all five delivered GLBs byte-identical. Guarded figures remain in Results C's full O1 table.                                                                                               |
+| O4  | Accepted AR shells above 1% missed area, outside the narrowed O1 scope                                     | Production 12 mm / unguarded 50 mm miss percentages: G Pro 2 Lightspeed **3.748429 / 0.263402**; Superlight 2 DEX **2.182867 / 0.099209**; G309 **2.713391 / 0.088516**; G403 Hero **1.034175 / 0.026585**; M650 **2.635738 / 0.067734** | **Kirby's decision pending.** Keep all five delivered GLBs byte-identical. Guarded figures remain in Results C's full O1 table. **In scope (Kirby, 2026-09-28): fix all five.**                                               |
 
 ## Decisions
 
@@ -1230,8 +1289,12 @@ local checkpoint commit with the diagnostic and evidence, **no push**.
 | 2026-09-28 | **M100's 3D model is removed.** It stays in the catalogue and fit results by its dimensions, and moves from `studies` to `noShell` in the manifest. Part 4 (M100 rework) is cancelled. AGY's web search found no Logitech-hosted AR file for M100 or its siblings                                                                                                                                                                                                                                                                                   | Kirby          |
 | 2026-09-28 | **Claude's MX Master 4 diagnosis corrected.** The all-opaque bake is not the fix: in Codex's identical-light studio the left button is AR 89.7, blended 73.3, opaque 109.5 (mean sRGB). The clear cover sits over the button body. The blended bake composited it over black; the opaque bake drops the body. Part 2b now composites the cover over the layer beneath it                                                                                                                                                                            | Claude         |
 | 2026-09-28 | **2b preflight ruling.** The region-mean preflight confirms the layer structure: cover alpha 0.40 over `MAIN_PLASTIC`, about 1.4 mm beneath. Prediction vs AR ΔE2000 is left 3.04, right 2.11, palm 0.16, against blended 6.02 / 4.21 and opaque 7.31 / 7.81. The ≤ 3 preflight threshold was Claude's hypothesis check, not a delivery gate; Claude rules the hypothesis confirmed and 2b proceeds to the per-texel composite bake. The delivery gate is unchanged: ΔE2000 ≤ 3 on the left button, right button and palm in the rendered candidate | Claude         |
+| 2026-09-28 | While Codex is out of quota, **Claude builds** the remaining Phase C work (2b, 2, 1 incl. O4, 3). Because Claude would otherwise approve its own work, every Claude-built part needs the independent Sonnet review plus Kirby's visual acceptance                                                                                                                                                                                                                                                                                                   | Kirby          |
+| 2026-09-28 | **O4 in scope:** fix the missed bake rays on the five accepted shells as well (G Pro 2, Superlight 2 DEX, G309, G403, M650), not only G903 and M750                                                                                                                                                                                                                                                                                                                                                                                                 | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Claude (building): **2b delivered.** MX Master 4 buttons composited cover-over-body: ΔE2000 vs AR left 2.23, right 0.79, palm 0.12 (gate ≤ 3). Only its GLB changed; 0 mm geometry change. M720, MX Vertical, Pebble 2 unchanged (reasons in Results). All gates pass. Sonnet review pending. Next: Part 2 (wheel openings).
 
 - 2026-09-28 Claude: audited and pushed `905e473` (M100 3D model removed; M100 in `noShell`; 34 other GLBs unchanged; 63 unit tests, catalogue, optimiser and payload checks pass on rerun). Codex hit its usage limit (reset 22:19) after the 2b preflight, with its work uncommitted. Claude committed that work as WIP so it is not lost; see the 2b preflight ruling in Decisions.
 

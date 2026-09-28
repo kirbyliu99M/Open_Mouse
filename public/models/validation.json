@@ -2761,7 +2761,7 @@
       "dimensionCalibrationScale": [
         1.010317077254113, 1.0064363940464847, 1.0032671704417886
       ],
-      "bytes": 287868,
+      "bytes": 288308,
       "path": "shells/logitech-mx-master-4.glb",
       "orientation": {
         "up": "+Z",
@@ -2788,7 +2788,13 @@
           "bytes": 10078436,
           "sha256": "9737671300c5b928c0517f190eb25fc0fc2f01bc08496f68a42e30012508938c"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "coverComposite": {
+          "coverObjects": ["LEFT_BUTTON.001", "RIGHT_BUTTON.001"],
+          "texelsComposited": 2268273,
+          "alphaRange": [0.0, 1.0],
+          "method": "Base colour: transparent cover composited over the body beneath it in linear light (alpha * cover + (1 - alpha) * body); other channels use the opaque cover"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 29.237831928572103
