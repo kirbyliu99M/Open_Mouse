@@ -39,10 +39,10 @@ import type { AnalysisOutput } from "./schema";
  * `./analyse`, `buildAnalysisInput` in `./input`), so a cached answer
  * written under the old prompt is a miss rather than served again.
  *
- * Bumped to 3 for the H1 fix above: the cache key's shape itself changed,
- * so every row cached under the old (unsafe) key must be treated as stale.
+ * Bumped to 4 for the no-medical-claims prompt and validation rule, so older
+ * cached model prose cannot be served under the new policy.
  */
-export const ANALYSIS_PROMPT_VERSION = 3;
+export const ANALYSIS_PROMPT_VERSION = 4;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s
