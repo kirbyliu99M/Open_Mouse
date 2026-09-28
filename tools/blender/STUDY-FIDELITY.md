@@ -93,6 +93,37 @@ below.
 - Publishing manufacturer-derived appearance is decision R8 (publish, rights
   caveat kept). No medical claims anywhere.
 
+## Phase D — geometry quality (Kirby, 2026-09-28)
+
+**Kirby: no more colouring; the focus is model quality.** Improve all of the following
+together. Codex and Claude work in parallel, in separate worktrees. Colour and texture
+are out of scope: keep existing materials and UVs as they are, even if a changed shape
+stretches a texture, and just report it.
+
+| Part | Work                                                                                                                                                                                                                                                                                                           | Owner                                                              | Where                                       | Changes public assets?        |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- | ----------------------------- |
+| D0   | Geometry audit of every delivered model. AR-derived shells: surface distance to their calibrated AR source (mean, p95, max mm) and silhouette IoU against the AR source in fixed orthographic views. Studies: silhouette IoU against their photos. Output `tools/blender/GEOMETRY-AUDIT.md` with a ranked list | Claude                                                             | worktree `m4a-geometry-audit` (own branch)  | No                            |
+| D1   | Refine the geometry of the kept studies M705 Marathon, M325s and Signature Comfort Plus M850L from their photos, of any colourway (silhouettes only)                                                                                                                                                           | Codex                                                              | this worktree                               | Yes: those three studies only |
+| D2   | Finish and deliver M550 on the M650 AR shell (Part 3 candidate): clean up the thumb-region fairing                                                                                                                                                                                                             | Claude                                                             | after D1 lands, to avoid manifest conflicts | Yes: M550 only                |
+| D3   | O6: G403, G502 Hero, G203 (and G502 X side) differ strongly from their AR sources. Diagnose from D0 (shape, orientation or source mismatch), then fix                                                                                                                                                          | Claude diagnoses; the owner of the fix is decided from the finding | —                                           | Decided later                 |
+
+**D1 acceptance (per study).**
+
+1. Cameras fitted to every usable photo with B3's perspective fitter (`photo_camera_math.py`,
+   `fit_m550_photos.py` as the model; generalise, don't fork per study). At least one
+   photo per study is **held out**, used neither for geometry nor for camera tuning beyond its own fit.
+2. Deliver only if **every fitted view's IoU does not drop by more than 0.002, the mean
+   fitted IoU improves, and the held-out IoU improves**. Otherwise leave that study unchanged
+   and report the numbers. Never relax this.
+3. Geometry gates stay green: at most 15,000 triangles, 0 non-manifold edges, 0 intersections,
+   calibrated catalogue bbox (≤ 0.5 mm), flat base on the ground plane, support margin ≥ 5 mm,
+   and `tests/check_assets.py`, `check_catalogues.py`, `audit_payloads.py`, `optimize_glbs.py --check`,
+   unit tests and prettier.
+4. Photos from iFixit or other third parties may be used as geometry and camera evidence
+   only, never as texture (AGENTS rule 1 and R8).
+5. Report per study: IoU per view before/after, held-out IoU before/after, largest remaining
+   silhouette gap in mm, and a contact sheet (photos | before | after, top/side/front/hero).
+
 ## Results
 
 ### A1 — official AR assets
