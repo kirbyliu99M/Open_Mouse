@@ -57,7 +57,7 @@ def delivery_gate(before, after, held_before, held_after):
     if not all(np.isfinite(x).all() and np.all((x>=0)&(x<=1)) for x in (a,b,h,k)):
         raise ValueError('IoU must be finite and in [0,1]')
     reasons = []
-    if np.any(b-a < -.002):
+    if np.any(b < a-.002):
         reasons.append('A fitted view drops by more than 0.002')
     if b.mean() <= a.mean():
         reasons.append('Mean fitted IoU does not improve')

@@ -41,6 +41,7 @@ class StudyDeformationTests(unittest.TestCase):
 
     def test_delivery_all_three_requirements_and_held_out_strict(self):
         self.assertTrue(delivery_gate([.9,.9],[.901,.902],[.8],[.81])['passed'])
+        self.assertTrue(delivery_gate([.9,.9],[.898,.91],[.8],[.81])['passed'])
         self.assertFalse(delivery_gate([.9,.9],[.897,.99],[.8],[.81])['passed'])
         self.assertFalse(delivery_gate([.9,.9],[.9,.9],[.8],[.81])['passed'])
         self.assertFalse(delivery_gate([.9,.9],[.91,.91],[.8],[.8])['passed'])

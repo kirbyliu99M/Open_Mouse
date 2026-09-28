@@ -128,6 +128,9 @@ stretches a texture, and just report it.
 
 ### D1 — study geometry refinement
 
+**Final state: stopped at M850L delivery gate failure; no public assets changed.**
+See the D1 final-stop subsection below for all measured values and remaining work.
+
 **2026-09-28, baseline geometry checkpoint; no delivery yet.** Worktree pulled
 to `4b282a2`. Only M705 Marathon, M325s and M850L are in scope. Baseline GLBs,
 decoded meshes and all public-file hashes are saved in `out/study-fidelity/d1/`.
@@ -198,6 +201,117 @@ retry improves baseline IoU **0.880964682 → 0.918674852**. The first camera
 is retained as `initial-camera-extra-1.json`; it is not a geometry baseline.
 Other baseline fits remain in progress. No held-out geometry result has been
 computed or used to select a shape.
+
+#### D1 final stop: M850L delivery gate failure
+
+**No study delivered. All 36 public files, including 34 GLBs, manifest and validation,
+are byte-identical to `4b282a2`.** Stopped on the M850L gate failure as instructed.
+M705 was interrupted; M325s was not exported or installed. No held-out result
+was used to retune a candidate. No threshold was relaxed.
+
+| Study | Mean fitted before | Mean candidate | Worst fitted delta | Held-out before | Held-out candidate | Decision                                          |
+| ----- | -----------------: | -------------: | -----------------: | --------------: | -----------------: | ------------------------------------------------- |
+| M325s |        0.974176579 |    0.976835651 |       -0.001850948 |     0.966532500 |        0.966563548 | Raw candidate passes; delivery unfinished at stop |
+| M850L |        0.964185763 |    0.964185281 |       -0.000128911 |     0.954755529 |        0.954625159 | FAIL: mean and held-out do not improve            |
+| M705  |        0.953122827 |  Not evaluated |      Not evaluated |     0.955600933 |      Not evaluated | Interrupted; unchanged                            |
+
+Failed command: `python tools/blender/evaluate_study_geometry.py --directory
+tools/blender/out/study-fidelity/d1/logitech-signature-comfort-plus-m850l` returned
+**exit 2**. Exact reasons: `Mean fitted IoU does not improve` and
+`Held-out IoU does not improve`. Mean delta **-0.000000481162**, held-out delta
+**-0.000130370173**. Passing the per-view 0.002 allowance does not override these failures.
+
+M325s passes all three silhouette criteria before export. Its held-out gain is
+only **0.000031048351**; export/reimport measurement is still required before
+delivery. No candidate GLB was exported.
+
+All usable photos below use their own perspective camera, fitted on the committed
+mesh and then frozen. IoUs are evaluated at 1440 px. A dash means that M705 has
+no final candidate; its unchanged delivered-after values equal its baseline.
+
+| Study | Photo                         | Role     | Baseline IoU | Candidate IoU |        Delta |
+| ----- | ----------------------------- | -------- | -----------: | ------------: | -----------: |
+| M705  | m705-gallery-1.png            | fit      |  0.995853503 |             - |            - |
+| M705  | m705-gallery-2.png            | held-out |  0.955600933 |             - |            - |
+| M705  | m705-gallery-3.png            | fit      |  0.958693836 |             - |            - |
+| M705  | m705-gallery-4.png            | fit      |  0.984413888 |             - |            - |
+| M705  | supplemental/techwalls-0.jpg  | fit      |  0.946388063 |             - |            - |
+| M705  | supplemental/techwalls-1.jpg  | fit      |  0.946409016 |             - |            - |
+| M705  | supplemental/techwalls-2.jpg  | fit      |  0.945603090 |             - |            - |
+| M705  | supplemental/techwalls-6.jpg  | fit      |  0.954700319 |             - |            - |
+| M705  | supplemental/techwalls-7.jpg  | fit      |  0.955551352 |             - |            - |
+| M705  | supplemental/techwalls-8.jpg  | fit      |  0.955638481 |             - |            - |
+| M705  | supplemental/techwalls-9.jpg  | fit      |  0.959893311 |             - |            - |
+| M705  | supplemental/techwalls-10.jpg | fit      |  0.960638534 |             - |            - |
+| M705  | supplemental/techwalls-11.jpg | fit      |  0.960391800 |             - |            - |
+| M705  | supplemental/techwalls-12.jpg | fit      |  0.924685179 |             - |            - |
+| M705  | supplemental/techwalls-13.jpg | fit      |  0.922794809 |             - |            - |
+| M705  | supplemental/techwalls-14.jpg | fit      |  0.925187224 |             - |            - |
+| M325s | top.png                       | fit      |  0.989728173 |   0.989052019 | -0.000676155 |
+| M325s | left.png                      | fit      |  0.969655609 |   0.974872100 | +0.005216490 |
+| M325s | right.png                     | held-out |  0.966532500 |   0.966563548 | +0.000031048 |
+| M325s | extra-1.png                   | fit      |  0.971800896 |   0.974706094 | +0.002905198 |
+| M325s | extra-2.png                   | fit      |  0.970777752 |   0.975440127 | +0.004662375 |
+| M325s | extra-3.png                   | fit      |  0.972056404 |   0.975302871 | +0.003246467 |
+| M325s | extra-4.png                   | fit      |  0.975918456 |   0.974067508 | -0.001850948 |
+| M325s | extra-5.png                   | fit      |  0.969298759 |   0.974408840 | +0.005110081 |
+| M850L | top.png                       | fit      |  0.995860793 |   0.995781529 | -0.000079265 |
+| M850L | left.png                      | fit      |  0.955185883 |   0.955269182 | +0.000083299 |
+| M850L | extra-1.png                   | fit      |  0.918674852 |   0.918802922 | +0.000128070 |
+| M850L | extra-3.png                   | fit      |  0.995157768 |   0.995152169 | -0.000005599 |
+| M850L | extra-5.png                   | held-out |  0.954755529 |   0.954625159 | -0.000130370 |
+| M850L | extra-6.png                   | fit      |  0.956049517 |   0.955920606 | -0.000128911 |
+
+Candidate mesh checks (Blender 5.2.2 / Python 3.13, before export):
+
+| Study | Triangles | Non-manifold / degenerate / intersections | Max bbox error mm | Ground Z mm | Support mm | Max move mm |
+| ----- | --------: | ----------------------------------------- | ----------------: | ----------: | ---------: | ----------: |
+| M325s |     14000 | 0 / 0 / 0                                 |       0.000001228 |           0 |  22.720196 |    1.746765 |
+| M850L |     14000 | 0 / 0 / 0                                 |       0.000002015 |           0 |  27.704527 |    0.143377 |
+
+Both candidates preserve topology, all original Z=0 vertex heights, UVs, materials
+and material assignments. Largest remaining projected silhouette gap: **M325s
+2.974568 mm**, **M850L 5.463152 mm**; M705 unchanged baseline **4.991808 mm**.
+These are target-plane boundary Hausdorff distances, not measured 3D surface errors.
+
+M705 completed its 320 px stage. Its 720 px stage was interrupted after the last
+saved checkpoint at **100 evaluations**. `deformation-stages.json`,
+`deformation-wip.json` and `deformation.log` preserve state. No final M705 mesh,
+candidate IoU, held-out evaluation or before/after render exists.
+
+Appearance was not edited. M325s mildly warps the existing projected top details:
+per-triangle surface area ratios **0.927025-1.058526**, p05/p95 **0.950416 /
+1.040619**. M850L changes are not visibly distinguishable in the shared-light
+sheet; area ratios **0.993982-1.005099**. Existing smeared flank appearance
+remains. No third-party photograph was sampled as texture.
+
+**Gates:** Python **83 tests: 71 passed / 12 Blender-only skips**; Blender
+`test_*_blender.py` **12 passed**, confirmed subprocess exit **0**;
+`tests/check_assets.py` **ALL_ASSET_CHECKS_PASSED**; catalogue, payload,
+`optimize_glbs.py --check`, Prettier and `git diff --check` pass. An earlier
+PowerShell stderr wrapper reported exit 1 despite passing Blender tests; an
+explicit subprocess run confirmed exit 0. No payload size changed, so
+`PAYLOAD-AUDIT.md` was not regenerated. Silhouette delivery gate: M850L fails,
+M325s passes only before export, M705 incomplete.
+
+**Inspected contact sheets:**
+
+- `out/study-fidelity/d1/logitech-m325s/geometry-contact-sheet.png`
+- `out/study-fidelity/d1/logitech-signature-comfort-plus-m850l/geometry-contact-sheet.png`
+- Both directories also contain `silhouette-comparison.png` with all used photos
+  and before/candidate overlays.
+- All three directories contain `photo-mask-inventory.png`; this is the only
+  completed D1 contact sheet for M705.
+
+The four-view sheets use top/side/front/hero renders. References are explicitly
+identified as oblique when no matching straight view exists. M850L extra-1 is
+an elevated oblique reference beside the front render, not a front-photo
+registration. Silhouette sheets instead use each actual fitted camera.
+
+**Not done:** M705 final fit/evaluation/rendering; candidate GLB exports and
+round-trip verification; M325s installation and manifest/validation changes.
+No M550, M100, AR shell or other worktree changes. No push. Claude must
+adjudicate the failed gate before continuation.
 
 ### A1 — official AR assets
 
@@ -1557,6 +1671,18 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Codex: **D1 STOP: M850L delivery gate failed (exit 2).** Mean
+  fitted IoU 0.964185763 to 0.964185281; held-out 0.954755529 to 0.954625159.
+  No retuning after holdout, no delivery. M325s raw candidate passes (mean
+  0.974176579 to 0.976835651; held-out 0.966532500 to 0.966563548), but export
+  and installation were not attempted after the stop. Interrupted M705 during
+  its 720 px stage; WIP saved at 100 evaluations, no final candidate/holdout.
+  All 36 public files / 34 GLBs byte-identical. Unit 71 pass / 12 skips, Blender
+  12 pass, asset/catalogue/payload/optimizer/prettier pass. Results records all
+  30 baselines, finished candidate comparisons, inspected sheets and remaining
+  work. Four prior local checkpoints: 8b5d429, 15ade1c, c0e81d0, b8c019e.
+  Final local failure-evidence checkpoint; no push.
 
 - 2026-09-28 Codex: **All 30 D1 baseline camera fits complete and recorded.**
   Fitted-view IoU minima: M705 0.922794809, M325s 0.969298759, M850L
