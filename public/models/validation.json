@@ -1760,7 +1760,7 @@
         "nonManifoldEdges": 0,
         "degenerateFaces": 0,
         "nonAdjacentIntersectionPairs": 0,
-        "volumeMm3": 158011.14782451105
+        "volumeMm3": 158011.14775771846
       },
       "dimensionsXYZmm": [
         61.000000685453415, 108.20000618696213, 38.80000859498978
@@ -1772,13 +1772,14 @@
       "dimensionCalibrationScale": [
         1.0020049394196116, 1.0089144634068414, 1.0024347761034063
       ],
-      "bytes": 79044,
+      "bytes": 164568,
       "path": "studies/logitech-m550.glb",
       "limitations": [
         "No working official 360 asset found",
         "Cross-sections interpolated between traced outlines",
-        "Side image perspective has not been camera-calibrated",
-        "Wheel and button details are not reconstructed"
+        "Wheel and button details are not reconstructed",
+        "Interpolated cross-section mismatch: photo-only red at rear hump; mesh-only blue at right flank and front lower edge",
+        "Relative studio de-shading, no colour chart; unchanged loft lacks real wheel/button geometry; reflected left is inferred right appearance; high-pass normal detail is shallow inferred relief"
       ],
       "orientation": {
         "up": "+Z",
@@ -1796,21 +1797,626 @@
         ]
       },
       "textureRefinement": {
-        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "method": "Smart UV atlas; perspective depth-tested cosine^4 photo blend; robust per-material second-order log-SH plus quadratic image-residual delighting; overlap-region exposure matching",
         "approximate": true,
-        "source": {
-          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-top-angle-gallery-1.png",
-          "file": "logitech-m550/m550-medium-graphite-top-angle-gallery-1.png",
-          "width": 2500,
-          "height": 2160,
-          "mode": "RGBA",
-          "sha256": "ed7ab3a48a61fc12e65d2665cab18ec410a927ad731228b5c6870da96287332e",
-          "viewHint": "top"
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Metallic", "Normal"],
+        "normalStrength": 0.65,
+        "photos": [
+          {
+            "view": "top",
+            "usedForTexturing": true,
+            "file": "m550-medium-graphite-top-angle-gallery-1.png",
+            "sha256": "ed7ab3a48a61fc12e65d2665cab18ec410a927ad731228b5c6870da96287332e",
+            "iou": 0.9950918119225537,
+            "evaluationSize": [842, 1440],
+            "anglesDegrees": [
+              181.3707397750212, 91.11969735747337, 1.3694669413123202
+            ],
+            "axes": [
+              [
+                0.999999890586402, -2.677735139704554e-5,
+                -0.00046702265183723235
+              ],
+              [
+                1.7648684792124364e-5, 0.9998091621905849, -0.019535580060098104
+              ],
+              [0.00046745663734942296, 0.01953556968030443, 0.9998090532704523]
+            ],
+            "centreMm": [0.0, -3.725290298461914e-6, 19.40000429749489],
+            "distanceMm": 978.7261861684467,
+            "focalPixels": 13388.543417749852,
+            "translationMm": [0.06338937439345675, -0.282787490112575],
+            "principalPointPixels": [1250.0, 1078.5],
+            "imageSize": [2500, 2160],
+            "crop": [796, 302, 1705, 1856],
+            "fittedParameters": [
+              181.3707397750212, 91.11969735747337, 1.3694669413123202,
+              6.886251916146634, 2.6159027352734325, 0.06338937439345675,
+              -0.282787490112575
+            ],
+            "mask": "alpha >180; largest component; filled enclosed holes",
+            "mirrored": false,
+            "target": 0.95,
+            "appearanceRole": "texture",
+            "sourceURL": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-top-angle-gallery-1.png"
+          },
+          {
+            "view": "left",
+            "usedForTexturing": true,
+            "file": "m550-medium-graphite-profile-angle-gallery-4.png",
+            "sha256": "96800d52f9aab33a1a7603378c44722a3ba4654a09fcf6a7f1347949e56ba2cd",
+            "iou": 0.982278862539463,
+            "evaluationSize": [1440, 553],
+            "anglesDegrees": [
+              -88.71121839866318, -0.42454570538486325, -0.030969450405331084
+            ],
+            "axes": [
+              [
+                -0.022487578212930417, -0.9997469763302761,
+                -0.0005405040125426385
+              ],
+              [
+                -0.007419934221546879, -0.00037372730646410813,
+                0.9999724020712012
+              ],
+              [-0.9997195873855154, 0.022490968106567588, -0.007409652580526616]
+            ],
+            "centreMm": [0.0, -3.725290298461914e-6, 19.40000429749489],
+            "distanceMm": 4402.490654674288,
+            "focalPixels": 71052.6710097606,
+            "translationMm": [0.059869751150951014, -0.06052589484346423],
+            "principalPointPixels": [1243.5, 1072.5],
+            "imageSize": [2500, 2160],
+            "crop": [319, 718, 2169, 1428],
+            "fittedParameters": [
+              -88.71121839866318, -0.42454570538486325, -0.030969450405331084,
+              8.389925717636544, 2.78125100856366, 0.059869751150951014,
+              -0.06052589484346423
+            ],
+            "mask": "alpha >180; largest component; filled enclosed holes",
+            "mirrored": false,
+            "target": 0.95,
+            "appearanceRole": "texture",
+            "sourceURL": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-profile-angle-gallery-4.png"
+          },
+          {
+            "view": "bottom",
+            "usedForTexturing": true,
+            "file": "m550-medium-graphite-bottom-angle-gallery-3.png",
+            "sha256": "318d44d0e8ee79eceaf3da9246a3bb1b00fdb928cb800b9398284088e5b74f97",
+            "iou": 0.9928751845391391,
+            "evaluationSize": [843, 1440],
+            "anglesDegrees": [
+              0.41746282275725327, -88.48379670392347, -0.4312445609952428
+            ],
+            "axes": [
+              [
+                -0.99999995187099, -0.00023790159118657148,
+                -0.0001991503219618093
+              ],
+              [
+                -0.00024308760577873133, 0.9996498724187686,
+                0.026458901745077874
+              ],
+              [0.00019278597911507616, 0.02645894888261208, -0.999649882137538]
+            ],
+            "centreMm": [0.0, -3.725290298461914e-6, 19.40000429749489],
+            "distanceMm": 4733.893642306121,
+            "focalPixels": 63989.71773705544,
+            "translationMm": [0.0690162584511374, 0.20799026925621458],
+            "principalPointPixels": [1253.5, 1077.5],
+            "imageSize": [2500, 2160],
+            "crop": [798, 299, 1710, 1857],
+            "fittedParameters": [
+              0.41746282275725327, -88.48379670392347, -0.4312445609952428,
+              8.462503323050555, 2.6039743660254873, 0.0690162584511374,
+              0.20799026925621458
+            ],
+            "mask": "alpha >180; largest component; filled enclosed holes",
+            "mirrored": false,
+            "target": 0.95,
+            "appearanceRole": "texture",
+            "sourceURL": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-bottom-angle-gallery-3.png"
+          },
+          {
+            "view": "rear",
+            "usedForTexturing": false,
+            "file": "m550-medium-graphite-3qtr-back-angle-gallery-2.png",
+            "sha256": "5505c7273d0a055acb5b4dec211093a6e304266df2c2c2ae667c143898113c48",
+            "iou": 0.9324733364141967,
+            "evaluationSize": [1440, 1058],
+            "anglesDegrees": [
+              -133.91703249898814, 35.43829024557492, 5.073335735555148
+            ],
+            "axes": [
+              [0.7278339138054952, -0.6819581097048381, 0.07204811255250804],
+              [0.35470128082231184, 0.46430148967849694, 0.8115485987082598],
+              [-0.5868941942953485, -0.5651170350379934, 0.5798257853978909]
+            ],
+            "centreMm": [0.0, -3.725290298461914e-6, 19.40000429749489],
+            "distanceMm": 474.9394677082978,
+            "focalPixels": 7251.160432373453,
+            "translationMm": [-1.337566613629455, 8.802714163551567],
+            "principalPointPixels": [1240.5, 1081.5],
+            "imageSize": [2500, 2160],
+            "crop": [465, 512, 2017, 1652],
+            "fittedParameters": [
+              -133.91703249898814, 35.43829024557492, 5.073335735555148,
+              6.163187359510349, 2.7257294351679118, -1.337566613629455,
+              8.802714163551567
+            ],
+            "mask": "alpha >180; largest component; filled enclosed holes",
+            "mirrored": false,
+            "target": 0.95,
+            "appearanceRole": "held-out",
+            "sourceURL": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-3qtr-back-angle-gallery-2.png"
+          },
+          {
+            "view": "front",
+            "usedForTexturing": true,
+            "file": "m550-medium-graphite-3qtr-front-angle-gallery-5.png",
+            "sha256": "a6a9f9f3253b33f994ac883b86159972bd922bc622b6a39b2d836028ee8a3e6a",
+            "iou": 0.9570764776347102,
+            "evaluationSize": [1440, 1021],
+            "anglesDegrees": [
+              -44.00735722909885, 26.660679537842878, 2.2898830113627255
+            ],
+            "axes": [
+              [-0.7062206175300964, -0.7070908209250947, 0.0357072869157678],
+              [0.3402276640121682, -0.2947151840296001, 0.8929658990931413],
+              [-0.6208845110133062, 0.64277953550644, 0.44870579750867157]
+            ],
+            "centreMm": [0.0, -3.725290298461914e-6, 19.40000429749489],
+            "distanceMm": 220.27117138165693,
+            "focalPixels": 3461.28715932847,
+            "translationMm": [1.3085141363801767, 8.29985754790767],
+            "principalPointPixels": [1254.0, 1081.5],
+            "imageSize": [2500, 2160],
+            "crop": [477, 531, 2032, 1633],
+            "fittedParameters": [
+              -44.00735722909885, 26.660679537842878, 2.2898830113627255,
+              5.394859384517446, 2.754536425721862, 1.3085141363801767,
+              8.29985754790767
+            ],
+            "mask": "alpha >180; largest component; filled enclosed holes",
+            "mirrored": false,
+            "target": 0.95,
+            "appearanceRole": "texture",
+            "sourceURL": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m550-signature-wireless-mouse/2025-update/gallery/graphite-medium/m550-medium-graphite-3qtr-front-angle-gallery-5.png"
+          }
+        ],
+        "cameraEvidence": {
+          "topMirrorIoU": 0.9991235987010688,
+          "mirrorAllowed": true,
+          "symmetryMethod": "Top alpha >180 tight-bbox horizontal reflection, no alignment or contour changes",
+          "heldOutGapMm": 3.8826001006701456,
+          "heldOutMmPerPixel": 0.07059272910309355,
+          "heldOutGapMethod": "Symmetric boundary Hausdorff distance at fitted camera target plane; projected mm, not a measured 3D surface distance",
+          "heldOutFinding": "Interpolated cross-section mismatch: photo-only red at rear hump; mesh-only blue at right flank and front lower edge",
+          "decision": "Claude 2026-09-28: criterion 3 threshold applies to texturing photos; rear held out; left may be mirrored only if top symmetry >=0.98"
         },
-        "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
+        "coverage": {
+          "upper": {
+            "photoPercent": 100.0,
+            "directPercent": 100.0,
+            "mirroredOnlyPercent": 0.0,
+            "fillPercent": 0.0,
+            "areaMm2": 5925.170942020149
+          },
+          "side": {
+            "photoPercent": 99.26666760798545,
+            "directPercent": 72.73861782698181,
+            "mirroredOnlyPercent": 26.527333955366874,
+            "fillPercent": 0.7333323920145398,
+            "areaMm2": 5215.656893168548
+          },
+          "underside": {
+            "photoPercent": 100.0,
+            "directPercent": 100.0,
+            "mirroredOnlyPercent": 0.0,
+            "fillPercent": 0.0,
+            "areaMm2": 5952.058087197004
+          }
+        },
+        "contributors": [
+          {
+            "name": "top",
+            "bit": 1,
+            "pixels": 581937,
+            "exposureGains": {
+              "1": [1.0, 1.0, 1.0],
+              "2": [0.9277118444442749, 0.927744448184967, 0.927677571773529],
+              "5": [0.9009501338005066, 0.9132156372070312, 0.9040108919143677]
+            },
+            "source": "m550-medium-graphite-top-angle-gallery-1.png",
+            "mirrored": false
+          },
+          {
+            "name": "left",
+            "bit": 2,
+            "pixels": 263688,
+            "exposureGains": {
+              "1": [0.8942989110946655, 0.8936188220977783, 0.8941665291786194],
+              "2": [0.7907119989395142, 0.7907425165176392, 0.7906910181045532],
+              "5": [1.0, 1.0, 1.0],
+              "6": [2.0, 2.0, 2.0]
+            },
+            "source": "m550-medium-graphite-profile-angle-gallery-4.png",
+            "mirrored": false
+          },
+          {
+            "name": "bottom",
+            "bit": 4,
+            "pixels": 479651,
+            "exposureGains": {
+              "6": [1.0, 1.0, 1.0]
+            },
+            "source": "m550-medium-graphite-bottom-angle-gallery-3.png",
+            "mirrored": false
+          },
+          {
+            "name": "front",
+            "bit": 8,
+            "pixels": 53088,
+            "exposureGains": {
+              "1": [1.188461422920227, 1.186867117881775, 1.1883013248443604],
+              "2": [1.1147258281707764, 1.113663911819458, 1.1148864030838013],
+              "5": [0.868123471736908, 0.8752564787864685, 0.8704320192337036],
+              "6": [2.0, 2.0, 2.0]
+            },
+            "source": "m550-medium-graphite-3qtr-front-angle-gallery-5.png",
+            "mirrored": false
+          },
+          {
+            "name": "mirrored-left",
+            "bit": 16,
+            "pixels": 262453,
+            "exposureGains": {
+              "1": [0.8942989110946655, 0.8936188220977783, 0.8941665291786194],
+              "2": [0.7907119989395142, 0.7907425165176392, 0.7906910181045532],
+              "5": [1.0, 1.0, 1.0],
+              "6": [2.0, 2.0, 2.0]
+            },
+            "source": "m550-medium-graphite-profile-angle-gallery-4.png",
+            "mirrored": true
+          }
+        ],
+        "fill": "Unseen valid texels use their observed region median; underside photographed from bottom; 12px nearest padding only outside atlas islands",
+        "coverageMap": "tools/blender/out/study-fidelity/b3/coverage-bits.png",
+        "perTexelWeights": "tools/blender/out/study-fidelity/b3/contribution-weights.npz",
+        "delighting": [
+          {
+            "view": "top",
+            "shadingFits": [
+              {
+                "region": "plastic",
+                "samples": 21487,
+                "coefficients": [
+                  -2.6409068532187248, -0.03458651352354327, 0.201341033086254,
+                  -0.009355529913824248, -0.0627561274825367,
+                  0.2594342474636545, -0.03881312268796508, 0.08397160596869177,
+                  0.09196612176070999
+                ],
+                "anchor": -2.44623002162236,
+                "residualImageField": {
+                  "coefficients": [
+                    -3.0930551502040684, 2.9562641764256785, 0.2102959906731627,
+                    -4.033236690132256, 1.7779728822585361, -1.2625642708316562
+                  ],
+                  "logAnchor": -2.43349541706668,
+                  "shadingMin": 0.8289091205958488,
+                  "shadingMax": 1.0578893837578531
+                },
+                "selectedCorrection": "SH",
+                "luminanceCvBefore": 0.216492953037243,
+                "luminanceCvAfter": 0.14896907445199126
+              },
+              {
+                "region": "rubber",
+                "samples": 28451,
+                "coefficients": [
+                  -2.285937062732198, -0.08368845916498477,
+                  0.036656768840853914, 0.01626235841664973,
+                  -0.04991249495895216, -0.0006462518531845496,
+                  -0.025800633792467914, -0.21920301657895738,
+                  0.0366244992106005
+                ],
+                "anchor": -2.3790142398479763,
+                "residualImageField": {
+                  "coefficients": [
+                    8.51739390023751, -42.84429787183702, -3.966554438356153,
+                    42.48273758479911, 0.7961282736526324, 3.414263836341723
+                  ],
+                  "logAnchor": -2.369178506030763,
+                  "shadingMin": 0.7506239278736806,
+                  "shadingMax": 1.3643966188030636
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.21272492365602164,
+                "luminanceCvAfter": 0.13549385037235817
+              }
+            ],
+            "correctedRegionMedians": {
+              "1": [
+                0.08634275197982788, 0.0863540768623352, 0.08634275197982788
+              ],
+              "2": [
+                0.09307065606117249, 0.0930795967578888, 0.09307409822940826
+              ],
+              "5": [
+                0.09902671724557877, 0.09921874105930328, 0.09906347841024399
+              ]
+            }
+          },
+          {
+            "view": "left",
+            "shadingFits": [
+              {
+                "region": "plastic",
+                "samples": 22317,
+                "coefficients": [
+                  -2.2466681085771856, 0.20190005706192565, 0.15056608299189939,
+                  0.04008457731068841, -0.13521775577805106,
+                  0.04474706015663098, 0.054665772645507066,
+                  -0.3993571374039623, 0.227057246987715
+                ],
+                "anchor": -2.410568145954757,
+                "residualImageField": {
+                  "coefficients": [
+                    0.13481628973472612, -1.806174385994916, -7.269785152963318,
+                    1.8086041311215917, -1.3043504350686257, 6.99499644460504
+                  ],
+                  "logAnchor": -2.3881400152413783,
+                  "shadingMin": 0.7816914663872079,
+                  "shadingMax": 1.334905003404707
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.4718357799612468,
+                "luminanceCvAfter": 0.3055520298921396
+              },
+              {
+                "region": "rubber",
+                "samples": 21785,
+                "coefficients": [
+                  -2.5674304807912716, -0.03226051704017905,
+                  0.07546385116958952, 0.10262890806493215,
+                  0.004817051323275511, 0.038978259936935024,
+                  -0.1513586962049008, 0.05060750784317183, 0.01562641498725144
+                ],
+                "anchor": -2.467679786058906,
+                "residualImageField": {
+                  "coefficients": [
+                    -3.6705214080477773, 2.6087125107542093, 2.1575884524179085,
+                    -2.086060689024505, 1.1941642833267714, -3.623779834721716
+                  ],
+                  "logAnchor": -2.406194396062205,
+                  "shadingMin": 0.4760804257029953,
+                  "shadingMax": 1.1734291578372582
+                },
+                "selectedCorrection": "SH",
+                "luminanceCvBefore": 0.20461113543742562,
+                "luminanceCvAfter": 0.19594502199186498
+              },
+              {
+                "region": "underside",
+                "samples": 24084,
+                "coefficients": [
+                  -3.183959365597268, 0.035203524378962826, -0.0347762208732041,
+                  0.10279767038362021, -0.023432164872810773,
+                  0.08841479825108488, -0.10625728925459496,
+                  -0.18205080489254977, -0.10722747720255706
+                ],
+                "anchor": -3.4255149654644184,
+                "residualImageField": {
+                  "coefficients": [
+                    115.00318280401173, 12.77661388245771, -395.71711629578346,
+                    2.7394505818722044, -25.804984188343617, 332.4139728561026
+                  ],
+                  "logAnchor": -3.44951861799332,
+                  "shadingMin": 0.9411168614151395,
+                  "shadingMax": 1.5894982125823178
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.2626533043090528,
+                "luminanceCvAfter": 0.19792863363560226
+              }
+            ],
+            "correctedRegionMedians": {
+              "1": [
+                0.09654797613620758, 0.09663412719964981, 0.09656227380037308
+              ],
+              "2": [
+                0.10919620841741562, 0.10920631885528564, 0.10919910669326782
+              ],
+              "5": [
+                0.0892181321978569, 0.09060810506343842, 0.08955446630716324
+              ],
+              "6": [0.03228817135095596, 0.032296322286129, 0.03228817135095596]
+            }
+          },
+          {
+            "view": "bottom",
+            "shadingFits": [
+              {
+                "region": "underside",
+                "samples": 19910,
+                "coefficients": [
+                  -2.5200561910217925, 0.016564804252967903,
+                  0.0037443628641486548, 0.015133582912764135,
+                  0.0016755080467860083, -0.0016323577684745712,
+                  -0.01584422969412944, -0.052461619191514625,
+                  -0.07327348808707747
+                ],
+                "anchor": -2.6808835101466193,
+                "residualImageField": {
+                  "coefficients": [
+                    -4.763585578358308, 8.749412744926703, -0.225276794573616,
+                    -8.570962641888835, -0.2028617501324031, 0.22230784243750656
+                  ],
+                  "logAnchor": -2.6753580338675897,
+                  "shadingMin": 0.8246725219746646,
+                  "shadingMax": 1.1003775676834735
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.12683099109092902,
+                "luminanceCvAfter": 0.11264176949609549
+              }
+            ],
+            "correctedRegionMedians": {
+              "6": [
+                0.06861419230699539, 0.06869921833276749, 0.06863971054553986
+              ]
+            }
+          },
+          {
+            "view": "front",
+            "shadingFits": [
+              {
+                "region": "plastic",
+                "samples": 21938,
+                "coefficients": [
+                  -2.5630626224255724, 0.15416496619471426, 0.2571820782881387,
+                  -0.02738956169215959, 0.10476984493874293,
+                  0.28656824003391285, 0.1419573552165258, -0.06907491321726293,
+                  -0.1043374102605982
+                ],
+                "anchor": -2.617736750120557,
+                "residualImageField": {
+                  "coefficients": [
+                    -3.103033445091808, -0.8339342582375562, 3.3797935753435753,
+                    -0.6409642073395592, 2.16849137097216, -4.332330651738425
+                  ],
+                  "logAnchor": -2.5876578872066833,
+                  "shadingMin": 0.7414376599623149,
+                  "shadingMax": 1.13138023848729
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.25297215184964716,
+                "luminanceCvAfter": 0.14845675109781598
+              },
+              {
+                "region": "rubber",
+                "samples": 23393,
+                "coefficients": [
+                  -2.726918160309766, -0.04980467155371117,
+                  0.004923251204331633, 0.037812156577721176,
+                  0.0432007866879843, 0.22945376699067818, -0.02133715607724085,
+                  0.13601915710806925, -0.294899316147656
+                ],
+                "anchor": -2.3332578872280076,
+                "residualImageField": {
+                  "coefficients": [
+                    -32.29017900167433, 30.814031309808815, 76.78965537431127,
+                    -5.289405591179708, -43.34046552114869, -47.665739604919374
+                  ],
+                  "logAnchor": -2.297616748164149,
+                  "shadingMin": 0.5474281574664598,
+                  "shadingMax": 1.714711743910491
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.34382611251416295,
+                "luminanceCvAfter": 0.22845398636715616
+              },
+              {
+                "region": "underside",
+                "samples": 1229,
+                "coefficients": [
+                  -3.107799715836905, -0.13494449553914742,
+                  -0.10714348098003214, 0.03364963481756635,
+                  -0.01352876375251334, 0.08913648014457157,
+                  0.06718615299921318, 0.2350248771833371, -0.08148895251033961
+                ],
+                "anchor": -3.3965751095192744,
+                "residualImageField": {
+                  "coefficients": [
+                    32.03749713213675, -10.229627289551921, -98.59036220754001,
+                    -1.6926424067567363, 17.54843629187067, 67.52068969954092
+                  ],
+                  "logAnchor": -3.3843554417102553,
+                  "shadingMin": 0.9492219384020795,
+                  "shadingMax": 1.0952224791670506
+                },
+                "selectedCorrection": "SH+quadratic",
+                "luminanceCvBefore": 0.3457953944043111,
+                "luminanceCvAfter": 0.04480816904290244
+              }
+            ],
+            "correctedRegionMedians": {
+              "1": [
+                0.07265086472034454, 0.07275799661874771, 0.0726606547832489
+              ],
+              "2": [
+                0.07745648920536041, 0.07754051685333252, 0.07744533568620682
+              ],
+              "5": [
+                0.10277124494314194, 0.10352177917957306, 0.10288507491350174
+              ],
+              "6": [
+                0.033733438700437546, 0.03393112123012543, 0.03376759588718414
+              ]
+            }
+          }
+        ],
+        "flatPatchEvidence": {
+          "box": [1005, 1156, 1150, 1622],
+          "cvBefore": 0.2863303143954127,
+          "cvAfter": 0.19962818012646527,
+          "meanBefore": 0.06522972662921478,
+          "meanAfter": 0.07302305059034689
+        },
+        "pbrReference": "logitech-m650 lossless AR bake: spatial/colour-labelled triangle-centroid samples",
+        "pbrRegions": [
+          {
+            "region": "shell",
+            "samples": 3431,
+            "roughness": 0.4901961088180542,
+            "metallic": 0.0
+          },
+          {
+            "region": "buttons",
+            "samples": 2805,
+            "roughness": 0.501960813999176,
+            "metallic": 0.0
+          },
+          {
+            "region": "wheel",
+            "samples": 271,
+            "roughness": 0.5529412031173706,
+            "metallic": 0.0
+          },
+          {
+            "region": "logo",
+            "samples": 74,
+            "roughness": 0.4862745404243469,
+            "metallic": 0.0
+          },
+          {
+            "region": "rubber",
+            "samples": 2665,
+            "roughness": 0.49803924560546875,
+            "metallic": 0.0
+          },
+          {
+            "region": "underside",
+            "samples": 4754,
+            "roughness": 0.49803924560546875,
+            "metallic": 0.0
+          }
+        ],
+        "normalMethod": "Log-luminance 2px high-pass, clamped shallow height, UV-gradient tangent normal; shader strength 0.65",
+        "limitation": "Relative studio de-shading, no colour chart; unchanged loft lacks real wheel/button geometry; reflected left is inferred right appearance; high-pass normal detail is shallow inferred relief",
+        "positionEncoding": "Draco, position quantisation disabled; exact original triangle positions",
+        "geometryBaseline": "d448cc6:public/models/studies/logitech-m550.glb"
       },
       "groundErrorMm": 0.0,
-      "supportMarginMm": 24.514769113889002
+      "supportMarginMm": 24.51476911388901,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      }
     },
     {
       "slug": "logitech-m650",

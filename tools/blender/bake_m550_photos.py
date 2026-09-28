@@ -63,6 +63,7 @@ def main():
             coeff, anchor, keep = fit_shading(normal[y, x], lum[y, x])
             apply = finite & np.isin(ids, [1, 2, 3, 4] if group=='plastic' else members)
             shading[apply] = shading_scale(normal[apply], coeff, anchor)
+            sh_only=shading[apply].copy()
             # The fixed loft's normals cannot describe the real cross-section
             # exactly. Remove a smooth residual image-space field fitted only
             # on the same uniform-albedo samples, never on logos or seams.
@@ -73,9 +74,19 @@ def main():
             design=np.column_stack((np.ones(len(xx)),xx,yy,xx*xx,xx*yy,yy*yy))
             residual_scale=np.exp(np.clip(design@residual_field['coefficients']-residual_field['logAnchor'],-.7,.7))
             shading[apply]=np.clip(shading[apply]*residual_scale,np.exp(-1.5),np.exp(1.5))
+            before = lum[y[keep], x[keep]]
+            baseline_cv=float(before.std()/before.mean())
+            combined_samples=before/shading[y[keep],x[keep]]
+            combined_cv=float(combined_samples.std()/combined_samples.mean())
+            combined=shading[apply].copy();shading[apply]=sh_only
+            sh_samples=before/shading[y[keep],x[keep]]
+            sh_cv=float(sh_samples.std()/sh_samples.mean())
+            choice=min([(baseline_cv,'identity'),(sh_cv,'SH'),(combined_cv,'SH+quadratic')])[1]
+            if choice=='identity':shading[apply]=1
+            elif choice=='SH+quadratic':shading[apply]=combined
             before = lum[y[keep], x[keep]];after = before/shading[y[keep], x[keep]]
             stats.append(dict(region=group, samples=int(keep.sum()), coefficients=coeff.tolist(), anchor=anchor,
-                residualImageField=residual_field,
+                residualImageField=residual_field, selectedCorrection=choice,
                 luminanceCvBefore=float(before.std()/before.mean()), luminanceCvAfter=float(after.std()/after.mean())))
             fields[group] = dict(coeff=coeff, anchor=anchor)
         corrected = np.clip(rgb/shading[:, :, None], 0, 1)
@@ -123,8 +134,8 @@ def main():
         w=blend_weights(cosine, sample(source['alpha_distance']), sample(source['filled_depth'])-d, sample(source['gradient']))
         # Top anchors fine roof artwork; oblique front contributes chiefly the
         # nose/steep front surface, preventing duplicate wheel/logo registration.
-        if name=='front':w*=np.clip((.8-n[:,2])/.35,0,1)
-        if name in ('left','mirrored-left'):w*=np.clip((.85-n[:,2])/.3,0,1)
+        if name=='front':w*=np.clip((.6-n[:,2])/.25,0,1)*np.clip((p[:,1]-20)/15,0,1)*np.clip(n[:,1]/.3,0,1)
+        if name in ('left','mirrored-left'):w*=np.clip((.65-n[:,2])/.25,0,1)
         colours=np.column_stack([sample(source['corrected'][:,:,i]) for i in range(3)])
         gains={}
         for region,target in targets.items():

@@ -29,7 +29,7 @@ Status as of 2026-09-28. The Route column follows the Decisions table.
 | G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; Kirby's visual acceptance pending |
 | M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; Kirby's visual acceptance pending |
 | G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; visual acceptance pending        |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Stopped: B3 camera gate                 |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Built; visual acceptance pending        |
 | M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
 | M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
 | M325s                        | Photo bake (C); only a top photo in its colourway  | Study, `m4a-eight-new-shells`                | Pending C                               |
@@ -585,7 +585,7 @@ holes filled. Four unit tests cover camera rotations, projection, rejection of
 points behind the camera and IoU. Camera measurements and subsequent bake work
 are pending at this checkpoint; no improved appearance is claimed.
 
-**Final B3 stop, 2026-09-28: camera criterion 3 failed.** The rear
+**Historical B3 stop, 2026-09-28, before Claude's interpretation below.** The rear
 three-quarter photograph reaches **0.932473336**, below **0.95** by
 **0.017526664**. No gate was relaxed and no appearance bake was started.
 This is a failed registration attempt, not proof that every possible camera
@@ -716,6 +716,112 @@ connectivity, support **24.514769 mm**, clean topology and bbox error
 **0.000008595 mm**. Fourteen new photo-math/raster tests pass. Public installation,
 full gates and visual contact-sheet review are still pending at this checkpoint.
 
+#### B3 final delivered prototype, 2026-09-28
+
+**Built, numeric checks pass; Kirby's visual acceptance pending.** Claude's
+interpretation is applied: only the four passing photographs texture M550.
+The rear remains a geometry evaluation photograph, not an appearance source.
+
+| Photograph                                     | Final role                       | Silhouette IoU |
+| ---------------------------------------------- | -------------------------------- | -------------: |
+| Graphite medium top, gallery 1                 | Texture                          |    0.995091812 |
+| Graphite medium left profile, gallery 4        | Texture; also mirrored for right |    0.982278863 |
+| Graphite medium bottom, gallery 3              | Texture                          |    0.992875185 |
+| Graphite medium front three-quarter, gallery 5 | Texture                          |    0.957076478 |
+| Graphite medium rear three-quarter, gallery 2  | **Held out; never projected**    |    0.932473336 |
+
+The final blend narrows profile contributions to side-facing surfaces and
+front-photo contributions to the steep nose. This reduces roof-edge double
+registration while retaining the angle/depth/edge weighting. Each uniform-region
+fit selects SH or SH-plus-residual only if it reduces sample luminance CV;
+otherwise it retains the uncorrected region. All eight sufficiently sampled
+photo/region fits improved here. The final top plastic uses SH alone, so the
+same fixed patch now measures **0.286330314 before / 0.199628180 after** (rather
+than the intermediate 0.167610 result above). Across the top plastic fitting
+samples, CV is **0.2165 before / 0.1490 after**. Relative shading and exposure
+are estimated from uncalibrated product photos; some studio gradients remain.
+No claim of complete or physical reflectance recovery is made.
+
+Final area-weighted coverage is unchanged:
+
+| Surface   | Direct photo | Mirrored-only | Region fill | Total photo |
+| --------- | -----------: | ------------: | ----------: | ----------: |
+| Upper     |  100.000000% |            0% |          0% | 100.000000% |
+| Side      |   72.738618% |    26.527334% |   0.733332% |  99.266668% |
+| Underside |  100.000000% |            0% |          0% | 100.000000% |
+
+`coverage-bits.png` uses bits **1 top / 2 left / 4 bottom / 8 front / 16
+mirrored-left**. Zero on a valid atlas texel means region-colour fill; the
+atlas mask distinguishes this from outside-island padding.
+`contribution-weights.npz` stores every contributor weight with its texel index.
+`coverage.png` shows direct blue, mirrored-only purple, fill amber. All
+14,000 triangles have texel samples; areas are triangle-area weighted, not
+plain atlas pixel counts. Left reflection is supported by the measured top
+symmetry **0.999123599**, but opposite-side appearance is still inferred.
+
+The six PBR rows above remain the final mapping. Labels use inspected photo
+features and shared-family millimetre footprints: front main buttons, the
+centre wheel footprint, bright ink within the rear top-logo footprint, lateral
+rubber, underside, and remaining shell. The source is the M650 lossless bake;
+no M650 geometry or artwork is transferred. The small normal map adds restrained
+seam/groove relief, not reconstructed physical wheel or button geometry.
+
+**Final delivery and gates:**
+
+- Four 2048 px PNG maps become one material with colour, packed MR and tangent
+  normal **512 px JPEG** maps through `optimize_glbs.optimize`; normal strength
+  **0.65**. Delivered size **164,568 bytes**.
+- **Max displacement 0 mm**, exact triangle position connectivity; **14,000
+  triangles**, **0 non-manifold edges**, **0 degenerate faces**, **0 non-adjacent
+  intersection pairs**. Support **24.514769 mm**; bbox **61.000001 / 108.200006 /
+  38.800009 mm**, max error **0.000008595 mm**. Draco position quantisation is
+  disabled to preserve the original coordinates.
+- `tests/check_assets.py`: **ALL_ASSET_CHECKS_PASSED**. Python discovery:
+  **56 tests, 48 passed / 8 Blender-only skips**, including **14 photo-math and
+  raster tests**. Blender orientation **4**, colour **3**, alpha regression
+  **1** pass. TypeScript **9** pass. Catalogue, payload, optimisation and
+  prettier checks pass.
+- Only M550's GLB changes: other **34/34 byte-identical to `d448cc6`**, no
+  extra or missing GLBs (35 total). All other manifest and validation entries
+  are unchanged. Manifest's aggregate note now identifies M550's multi-view
+  method. `limited-view-study` status remains. Reconstruction/manifest record
+  photo URLs, hashes, camera roles, mirror provenance, coverage, lighting fits,
+  PBR statistics and geometry limitations.
+
+**Review artifacts (ignored, local):**
+
+- [Required four-view comparison](out/study-fidelity/b3/logitech-m550.png):
+  reference photos | old M550 | new M550 | M650, top/side/front/hero. All model
+  cameras, physical framing and lighting match. No straight-on front reference
+  exists; its cell says so. Hero reference is the held-out rear photograph.
+- [Same flat patch before/after](out/study-fidelity/b3/delighting-before-after.png),
+  [coverage map](out/study-fidelity/b3/coverage.png),
+  [camera diagnostics](out/study-fidelity/b3/camera-fit-diagnostics.png).
+- `geometry-evidence.json`, `bake-evidence.json`, `camera-evidence.json`,
+  `delighting-patch.json`, `final-byte-identical.json`, `asset-gate.log`.
+
+**How close:** the new M550 gains photographed grip grooves, panel seams,
+underside markings and a complete PBR atlas, substantially improving the old
+matte sides. It is still less physically defined than the AR shells. Its smooth
+loft has no raised wheel, real button gap or accurately reconstructed transverse
+section; some projection blending and illumination gradients remain. The rear
+cross-section discrepancy (red hump, blue right flank/front lower edge) remains
+**55 px / 3.882600 projected mm** and needs Kirby's geometry judgement. No
+geometry was changed to hide it. Right-flank appearance is mirrored inference.
+This prototype does not establish AR-equivalent geometric fidelity or visual
+acceptance. Phase C is untouched.
+
+Reproduction order: `m550_photo_evidence.py`, Blender `m550_atlas.py`,
+`bake_m550_photos.py`, Blender `export_m550_photo_bake.py`,
+`optimize_glbs.optimize(candidate, lossless)`, Blender `check_m550_photo_bake.py`,
+`package_m550_photo_bake.py`, Blender `render_m550_comparison.py`,
+`assemble_m550_sheet.py`, then the listed gates. Camera fits are produced by
+`fit_m550_photos.py`; its historical `front-held-out` filename is retained,
+while `camera-evidence.json` and manifest correctly label front as texture and
+rear as held out. The atlas reads versioned baseline geometry from `d448cc6`
+on a fresh run. No photo/reference junction was written; no network download,
+push or `out/` commit occurred.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                  | Suggested direction                                                                                                                                            |
@@ -738,6 +844,20 @@ full gates and visual contact-sheet review are still pending at this checkpoint.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B3 M550 delivered and verified**, after checkpoints
+  `a7e3f0e` (symmetry/atlas) and `574fa9e` (first bake). Final side coverage
+  **99.266668%**, with **26.527334% mirrored-only / 0.733332% fill**; upper/base
+  **100%**. Four passing camera views texture; rear **0.932473336** is held out.
+  Final flat-patch CV **0.286330314 to 0.199628180**; residual lighting remains.
+  Tightened roof/nose blend and selected only beneficial region shading fits.
+  One-material/three-map JPEG candidate **164,568 bytes**, **0 mm** position
+  displacement and identical triangle connectivity. All listed gates green:
+  full assets, 56 Python tests (8 bpy skips), 8 Blender-specific tests, 9 TS,
+  catalogue/payload/optimisation/prettier. Only M550 changed; other **34/34** GLBs
+  and all other model entries unchanged. Four-view sheet reviewed; limitations
+  and **3.882600 mm** projected rear gap recorded for Kirby. Visual acceptance
+  pending. No push and no Phase C work.
 
 - 2026-09-28 Codex: **B3 bake/candidate verified.** Depth-tested, feathered
   linear blending includes four direct photos and separately labelled mirrored

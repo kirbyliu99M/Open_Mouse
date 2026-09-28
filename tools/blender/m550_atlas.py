@@ -3,6 +3,7 @@ import json
 import math
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import bpy
 import numpy as np
@@ -14,10 +15,14 @@ OUT = HERE/'out/study-fidelity/b3'
 
 def main():
     source = HERE/'out/polished/logitech-m550/logitech-m550.glb'
-    if not (OUT/'old-m550.glb').exists():shutil.copyfile(HERE.parents[1]/'public/models/studies/logitech-m550.glb', OUT/'old-m550.glb')
+    if not (OUT/'old-m550.glb').exists():
+        (OUT/'old-m550.glb').write_bytes(subprocess.check_output(
+            ['git','show','d448cc6:public/models/studies/logitech-m550.glb'],cwd=HERE.parents[1]))
     if not (OUT/'old-lossless.glb').exists():shutil.copyfile(source, OUT/'old-lossless.glb')
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_scene.gltf(filepath=str(OUT/'old-lossless.glb'))
+    # The delivered baseline has identical geometry/normals to the old lossless
+    # source. Read its versioned geometry so reruns cannot adopt the new bake.
+    bpy.ops.import_scene.gltf(filepath=str(OUT/'old-m550.glb'))
     obj = next(o for o in bpy.context.selected_objects if o.type == 'MESH')
     before = np.array([v.co[:] for v in obj.data.vertices])
     activate(obj)
