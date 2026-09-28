@@ -1345,13 +1345,20 @@ the wheel come from the M650 bake. Contact sheet: `contact-sheet.png`
 
 **Method.** After the production pass, `repair_missed_rays` bakes the shell's own
 object-space normals (the valid-texel mask) and a hit mask at the production reach.
-It repeats both only for texels that missed, with a **second pass that looks only
-further out**: cage 12 mm, reach 16 mm, so 12 to 4 mm above the shell. It uses
-Codex's `fallback_selection` to reject hits whose source normal faces away from the
-shell. The first pass already covers 4 mm above to 8 mm below, so a deeper miss is
-a hole in the source's outer skin. Those texels, and any still unresolved, take the mean of their
-resolved neighbours on the same island (`fill_from_neighbours`, numpy only, unit-tested).
-Texels the first pass hit are never changed. No scipy runs inside Blender.
+It repeats both only for texels that missed, with a **second pass** (cage 12 mm,
+reach 16 mm) and Codex's `fallback_selection`, which rejects hits whose source normal
+faces away from the shell. Rays start at the cage and travel inward, so the first pass spans
+4 mm above to 8 mm below the shell and the second spans 12 mm above to 4 mm below. The
+second pass's lower part repeats a stretch the first pass already found empty on the
+same line, so **a new hit can only lie 4–12 mm above the shell**. `tests/test_bake_reach_blender.py`
+confirms this with source planes at +14, +8, +2, −2, −6 and −10 mm: only +8 mm is gained.
+(An earlier version of this section said the second pass spans "12 to 4 mm above". The
+Sonnet reviewer caught that: the ray spans to 4 mm below, and the effective result is as
+stated here.) A miss deeper than 8 mm is a hole in the source's outer skin. Those texels,
+and any still unresolved, take the mean of their resolved neighbours within the
+UV island (`fill_from_neighbours`, numpy only, unit-tested). There is no explicit island ID:
+islands stay apart because of the 1.5% UV margin. Texels the first pass hit are never changed.
+No scipy runs inside Blender.
 
 A first version used a 50 mm reach. It improved five of six shells, but on M650 rays went
 through the gap around the wheel and picked up dark interior plastic (hero ΔE2000 on
@@ -1405,7 +1412,7 @@ because SE is Superlight 2's GLB with only its base colour replaced and SE's del
 check requires every other chunk to match (O5).
 
 Gates after install: `ALL_ASSET_CHECKS_PASSED`; Blender alpha (4 tests), colour-sampling
-and orientation tests; SE geometry and SE delivery checks; 69 Python tests OK (11 bpy skips); `check_catalogues.py`,
+and orientation tests; SE geometry and SE delivery checks; unit discovery 72 tests (61 run and pass, 11 Blender-only skips); `check_catalogues.py`,
 `audit_payloads.py`, `optimize_glbs.py --check`, prettier and 967 Vitest tests pass. `PAYLOAD-AUDIT.md` regenerated.
 
 ## Open issues (candidates for Phase C)
@@ -1445,6 +1452,8 @@ and orientation tests; SE geometry and SE delivery checks; 69 Python tests OK (1
 | 2026-09-28 | **Install rule for the AR re-bake**, fixed before the batch ran: no view's whole-silhouette ΔE2000 vs AR may rise by more than 0.1, and the shell must be in O1/O2/O4 scope or improve on its changed pixels in 2 of 3 views. 21 passed, 7 kept; Superlight 2 is held back for SE (O5)                                                                                                                                                                                                                                                              | Claude         |
 
 ## Progress log
+
+- 2026-09-28 Claude: **independent Sonnet review of Claude's Phase C work (`216ff52..300daa1`): approve with fixes.** No blockers; 5 of 5 spot checks reproduced exactly (decide.py table, exactly 20 GLBs changed with Superlight 2 untouched, unit and Blender tests including the metallic negative control, MX Master 4 evidence, M575 fallback record). Fixed: (1) the reach pass overwrote `CoverAlpha.png`/`Body.png` evidence, so it now writes `*-reach.png` (GLBs unaffected); (2) the second-pass reach was described wrongly, so the section is corrected and a new Blender test pins down the bands. Nits addressed: test count, the island-margin assumption, and the geometry check being a multiset comparison. No asset changes.
 
 - 2026-09-28 Claude (building): **O1 + O4 done; 20 AR shells re-baked and installed** under the pre-set rule, 0 mm geometry change each. The first 50 mm reach was rejected after M650 picked up interior plastic, and the second pass now looks only outward. All gates pass. New open issues O5 (Superlight 2 + SE) and O6 (high ΔE shells). Independent Sonnet review of Claude's Phase C work is next.
 

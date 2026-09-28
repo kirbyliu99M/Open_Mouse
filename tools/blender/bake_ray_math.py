@@ -18,8 +18,8 @@ def fill_from_neighbours(values, known, region):
     """Grow known texels into unknown ones inside `region`, one 4-neighbour ring at a time.
 
     Each unknown texel takes the mean of its already-known neighbours. Texels
-    outside `region` are never read or written, so islands do not bleed across
-    the atlas gap. Returns (filled values, texels filled, texels left unknown).
+    outside `region` are never read or written. There is no explicit island ID:
+    islands stay apart only because the UV unwrap leaves a margin (1.5%) between them. Returns (filled values, texels filled, texels left unknown).
     """
     values = np.array(values, dtype=np.float32, copy=True)
     region = np.asarray(region, bool)

@@ -75,7 +75,7 @@ def cover_objects(objects):
             if transparent:covers.append(obj);break
     return covers
 
-def composite_cover_layers(receiver,objects,covers,colour,folder,resolution):
+def composite_cover_layers(receiver,objects,covers,colour,folder,resolution,tag=''):
     """Replace the opaque-cover colour with the cover composited over the body beneath it.
 
     Two extra bakes into `receiver`: the cover alpha (emission of each source's own
@@ -92,7 +92,7 @@ def composite_cover_layers(receiver,objects,covers,colour,folder,resolution):
             with source_channel(objects,channel):bpy.ops.object.bake(type=bake_type)
         finally:
             for obj in covers:obj.select_set(True)
-        image.filepath_raw=str(folder/(channel+'.png'));image.file_format='PNG';image.save();extra[channel]=image
+        image.filepath_raw=str(folder/(channel+tag+'.png'));image.file_format='PNG';image.save();extra[channel]=image
     def read(image):
         pixels=np.empty(len(image.pixels),dtype=np.float32);image.pixels.foreach_get(pixels)
         return pixels.reshape(-1,4)
@@ -107,16 +107,19 @@ def composite_cover_layers(receiver,objects,covers,colour,folder,resolution):
 
 CHANNELS=[('BaseColour','DIFFUSE'),('Roughness','ROUGHNESS'),('Normal','NORMAL'),('Metallic','EMIT')]
 FIRST_REACH=dict(cage_extrusion=.004,max_ray_distance=.012)
-# The first pass covers 4 mm above to 8 mm below the shell. The second looks only further
-# out (12 to 4 mm above): a deeper miss is a hole in the source skin, and rays through it
-# would pick up interior parts, so those texels are filled from neighbours instead.
+# Rays start at the cage (extruded along the shell normal) and travel inward up to the
+# reach. First pass: 4 mm above to 8 mm below the shell. Second pass: 12 mm above to
+# 4 mm below. Its lower part repeats a stretch the first pass already found empty on the
+# same line, so a new hit can only lie 4 to 12 mm above the shell
+# (tests/test_bake_reach_blender.py). A miss deeper than 8 mm is a hole in the source skin;
+# rays through it would pick up interior parts, so those texels are filled from neighbours.
 SECOND_REACH=dict(cage_extrusion=.012,max_ray_distance=.016)
 
 def pixels_of(image):
     pixels=np.empty(len(image.pixels),dtype=np.float32);image.pixels.foreach_get(pixels)
     return pixels.reshape(image.size[1],image.size[0],4)
 
-def bake_channel_set(receiver,objects,covers,name,folder,resolution):
+def bake_channel_set(receiver,objects,covers,name,folder,resolution,tag=''):
     """Bake the four delivered channels with the current bake settings."""
     images={};layers=None
     for channel,bake_type in CHANNELS:
@@ -126,7 +129,7 @@ def bake_channel_set(receiver,objects,covers,name,folder,resolution):
         with source_channel(objects,channel):
             bpy.ops.object.bake(type=bake_type)
         if channel=='BaseColour' and covers:
-            layers=composite_cover_layers(receiver,objects,covers,image,folder,resolution)
+            layers=composite_cover_layers(receiver,objects,covers,image,folder,resolution,tag)
         images[channel]=image
     return images,layers
 
@@ -171,7 +174,7 @@ def repair_missed_rays(mesh,receiver,objects,covers,images,name,folder,resolutio
     try:
         second=bake_mask(receiver,objects,'Hit','EMIT',resolution)[...,0]>.5
         source=bake_mask(receiver,objects,'Normal','NORMAL',resolution,normal_space='OBJECT')[...,:3]*2-1
-        extra,_=bake_channel_set(receiver,objects,covers,name+'_reach',folder,resolution)
+        extra,_=bake_channel_set(receiver,objects,covers,name+'_reach',folder,resolution,tag='-reach')
     finally:
         for key,value in FIRST_REACH.items():setattr(bake,key,value)
     selected=fallback_selection(first,second,source,target,valid)
@@ -183,10 +186,10 @@ def repair_missed_rays(mesh,receiver,objects,covers,images,name,folder,resolutio
         image.pixels.foreach_set(merged.ravel());image.update()
     for image in extra.values():bpy.data.images.remove(image)
     return dict(stats,repairedTexels=int(selected.sum()),filledTexels=int(filled),unresolvedTexels=int(unresolved),
-                method='Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm '
-                       'above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away '
+                method='Second selected-to-active pass for first-pass misses only (cage 12 mm, reach 16 mm: new hits '
+                       'can only lie 4 to 12 mm above the shell) and rejecting hits whose source normal faces away '
                        'from the shell; remaining misses (holes in the source skin) filled from resolved neighbours '
-                       'on the same island')
+                       'within the UV island (islands are kept apart by the 1.5% UV margin)')
 
 def bake_materials(mesh,record,calibration,folder,resolution=2048):
     tree,verts,tris,samples,objects=source_surface(record,calibration)

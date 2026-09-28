@@ -40,7 +40,8 @@ def geometry(path):
 
 
 def canonical_triangles(triangles):
-    # UV seams split vertices differently, so compare triangles as sorted corner sets.
+    # UV seams split vertices differently, so compare the multiset of triangles, each as
+    # its sorted corners at 1 micrometre. This is set equality, not index-matched.
     rounded = np.round(triangles * 1e6).astype(np.int64)
     corners = np.sort(rounded.view([('', rounded.dtype)] * 3).reshape(len(rounded), 3), axis=1)
     return np.sort(corners.view(np.int64).reshape(len(rounded), 9), axis=0)
