@@ -107,6 +107,32 @@ stretches a texture, and just report it.
 | D2   | Finish and deliver M550 on the M650 AR shell (Part 3 candidate): clean up the thumb-region fairing                                                                                                                                                                                                             | Claude                                                             | after D1 lands, to avoid manifest conflicts | Yes: M550 only                |
 | D3   | O6: G403, G502 Hero, G203 (and G502 X side) differ strongly from their AR sources. Diagnose from D0 (shape, orientation or source mismatch), then fix                                                                                                                                                          | Claude diagnoses; the owner of the fix is decided from the finding | —                                           | Decided later                 |
 
+**Schedule and handoffs (planned 2026-09-28 23:15, Asia/Taipei).** Codex's quota has run
+out mid-phase four times, and a reset takes about 5 hours, so the plan puts Claude's work in
+Codex's quota gaps and treats every Codex run as possibly cut short.
+
+| When (planned)                                        | Codex                                                                                                             | Claude                                                                                                                                              | Handoff / checkpoint                                                      |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 09-28 23:15 – 09-29 02:30                             | Out of quota (resets 03:36)                                                                                       | **D2**: finish M550 on the M650 shell in worktree `m4a-geometry-audit`: fair the plate outline, move M550 from `studies` to `shells`, run the gates | —                                                                         |
+| 02:30 – 03:15                                         | —                                                                                                                 | Independent Sonnet review of D0 + D2; fix findings                                                                                                  | —                                                                         |
+| **03:15 – 03:30**                                     | —                                                                                                                 | **Handoff H1**: merge `m4a-geometry-audit` into this branch and push, then add a D1b brief note that M550 is now a shell and off-limits             | Branch holds D0 + D2                                                      |
+| **03:38** (timer)                                     | **D1b** starts: M325s export and delivery, then M705 and M850L with the asymmetric basis. Commits after each step | Audits each commit as it lands (monitor) and pushes; writes the D4 brief and its before/after check (`geometry_audit.py` on changed shells)         | —                                                                         |
+| ~05:00 – 07:00                                        | D1b ends (finished, or quota-stopped with work committed)                                                         | **Handoff H2**: audit D1b, push, run Sonnet review of D1b                                                                                           | —                                                                         |
+| After H2 (quota permitting, else timer at next reset) | **D4**: local remeshing at wheel crowns (M190, M750, M650, G903) and G903's channel, within 15k triangles         | Audits D4 commits; reruns the D0 audit on changed shells                                                                                            | —                                                                         |
+| **09-29 ~09:00**                                      | —                                                                                                                 | Updates `docs/STATUS.md` and the acceptance page in `模型驗收-2026-09-28/`                                                                          | **Kirby**: visual acceptance of D2 (M550), D1 studies and the D0 findings |
+| After D4                                              | —                                                                                                                 | Audit, review, acceptance sheet                                                                                                                     | **Kirby**: D4 acceptance                                                  |
+
+Rules for the schedule:
+
+1. **One writer per branch at a time.** Codex writes only in this worktree; Claude writes only in
+   `m4a-geometry-audit`. Claude merges into this branch only while Codex is idle (H1), and Codex
+   pulls at the start of each run.
+2. Codex never pushes. Claude pushes after an audit and records every handoff in the Progress log.
+3. If Codex's quota stops a run, Claude commits any uncommitted work as WIP and sets a timer to resume
+   just after the reset (Kirby's standing instruction). Claude takes over a Codex phase only if Kirby
+   says so.
+4. Times are targets, not gates. A gate failure moves the schedule; the gate never moves.
+
 **D1 acceptance (per study).**
 
 1. Cameras fitted to every usable photo with B3's perspective fitter (`photo_camera_math.py`,
@@ -125,6 +151,193 @@ stretches a texture, and just report it.
    silhouette gap in mm, and a contact sheet (photos | before | after, top/side/front/hero).
 
 ## Results
+
+### D1 — study geometry refinement
+
+**Final state: stopped at M850L delivery gate failure; no public assets changed.**
+See the D1 final-stop subsection below for all measured values and remaining work.
+
+**2026-09-28, baseline geometry checkpoint; no delivery yet.** Worktree pulled
+to `4b282a2`. Only M705 Marathon, M325s and M850L are in scope. Baseline GLBs,
+decoded meshes and all public-file hashes are saved in `out/study-fidelity/d1/`.
+`study_geometry_preflight.py` reads the committed files using Blender 5.2.2 /
+Python 3.13 and checks against the actual catalogue dimensions.
+
+| Study         | Triangles | Non-manifold / degenerate / intersections | Support margin mm | Minimum Z mm |
+| ------------- | --------: | ----------------------------------------- | ----------------: | -----------: |
+| M705 Marathon |     14000 | 0 / 0 / 0                                 |         11.361876 |            0 |
+| M325s         |     14000 | 0 / 0 / 0                                 |         22.972782 |            0 |
+| M850L         |     14000 | 0 / 0 / 0                                 |         27.747661 |            0 |
+
+All bbox errors are below 0.000007 mm. This checks the minimum ground height;
+flat-base preservation will also be checked on any proposed deformation.
+Re-inspected all 35 photographs in the three A3 contact sheets, including all
+15 M705 supplemental files. Camera/mask inventory and per-view IoU are pending.
+No geometry fit, new contact sheet or full delivery-gate claim at this checkpoint.
+No public asset, material, UV, manifest or validation entry changed.
+
+**Camera preflight checkpoint.** `photo_camera_fit.py` generalises B3's
+seven-parameter, square-pixel perspective registration; `fit_study_photos.py`
+consumes a mesh and inventory directory. Fits use 300/900/4000 mm starts,
+320/720 px optimisation, 1100 iterations per start and independent 1440 px
+evaluation with triangle-union masks. Existing M550 files remain untouched.
+Ten camera/mask tests pass, including five new tests. Geometry fitting has not
+started. The next long run fits the committed baselines, including each held-out
+photo's own camera, then freezes those cameras for before/after comparison.
+
+| Study | Fitting photos                                                                                                                                                                | Held out from geometry             | Excluded                        |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
+| M705  | gallery 1 top, 3 front-left oblique, 4 left profile; supplemental techwalls 0/1/2 left oblique, 6/7/8 front-left oblique, 9/10/11 bottom oblique, 12/13/14 rear-right oblique | gallery 2 rear-left oblique        | techwalls 3/4/5: hand occlusion |
+| M325s | top graphite; left red front-left; extra 1/2 pale-grey/lilac front-left; extra 3/5 blue/patterned front-right; extra 4 patterned elevated left                                | right patterned rear-left oblique  | None                            |
+| M850L | top graphite; left black elevated left; extra 1 graphite rear-left elevated; extra 3 bottom; extra 6 graphite elevated left                                                   | extra 5 graphite rear-left oblique | extra 2/4: hand occlusion       |
+
+All **35** local photos are inventoried, **30** usable (**27** fitting and
+**3** held-out). Every duplicate resolution is retained and labelled; all
+members of a duplicate group stay in the fitting split. These are correlated
+observations, not independent additional views. PNG masks use alpha >180,
+largest component and enclosed-hole filling. Supplemental M705 masks use
+photo-only fixed ROIs and max RGB <160 to separate the dark shell from the
+pale desk and red watermark, with the same component/hole convention.
+Masks were inspected before fitting. A rejected GrabCut preparation included
+desk/watermark pixels and was replaced before any camera run. No reference
+was modified. Four usable thumbnail URLs are missing in the existing sidecar and are
+recorded as unknown rather than invented; local SHA256 identifies each file.
+Third-party images are geometry/camera evidence only.
+
+Inventory and mask sheets (one per study):
+`out/study-fidelity/d1/<slug>/photo-inventory.json` and
+`out/study-fidelity/d1/<slug>/photo-mask-inventory.png`.
+
+**Deformation implementation checkpoint, before any geometry fit.** Added
+12 smooth Gaussian loft displacement fields: shoulder width, roof height,
+shoulder height and upper-shell longitudinal shift at rear/middle/front.
+Coefficients are bounded to ±5 mm, displacements vanish at Z=0, UV seam
+duplicates move together and each candidate is recalibrated to catalogue XYZ.
+The fitter reads **only fitting-role cameras** and keeps them fixed. Selection
+uses mean training IoU plus a regression penalty at 320/720 px, never held-out
+results. The independent 1440 px delivery check will apply all three D1 rules.
+Per-stage parameters and 50-evaluation WIP checkpoints survive interrupted runs.
+Five deformation/gate tests pass. Full Python suite: **83 tests, 71 passed /
+12 Blender-only skips**; Blender-only suite: **12 passed**. No candidate exists
+at this checkpoint and no public file has changed.
+
+M850L `extra-1.png`'s initial view label was corrected on photo inspection:
+the nose is toward the image top (rear-left elevated view). Its camera-only
+retry improves baseline IoU **0.880964682 → 0.918674852**. The first camera
+is retained as `initial-camera-extra-1.json`; it is not a geometry baseline.
+Other baseline fits remain in progress. No held-out geometry result has been
+computed or used to select a shape.
+
+#### D1 final stop: M850L delivery gate failure
+
+**No study delivered. All 36 public files, including 34 GLBs, manifest and validation,
+are byte-identical to `4b282a2`.** Stopped on the M850L gate failure as instructed.
+M705 was interrupted; M325s was not exported or installed. No held-out result
+was used to retune a candidate. No threshold was relaxed.
+
+| Study | Mean fitted before | Mean candidate | Worst fitted delta | Held-out before | Held-out candidate | Decision                                          |
+| ----- | -----------------: | -------------: | -----------------: | --------------: | -----------------: | ------------------------------------------------- |
+| M325s |        0.974176579 |    0.976835651 |       -0.001850948 |     0.966532500 |        0.966563548 | Raw candidate passes; delivery unfinished at stop |
+| M850L |        0.964185763 |    0.964185281 |       -0.000128911 |     0.954755529 |        0.954625159 | FAIL: mean and held-out do not improve            |
+| M705  |        0.953122827 |  Not evaluated |      Not evaluated |     0.955600933 |      Not evaluated | Interrupted; unchanged                            |
+
+Failed command: `python tools/blender/evaluate_study_geometry.py --directory
+tools/blender/out/study-fidelity/d1/logitech-signature-comfort-plus-m850l` returned
+**exit 2**. Exact reasons: `Mean fitted IoU does not improve` and
+`Held-out IoU does not improve`. Mean delta **-0.000000481162**, held-out delta
+**-0.000130370173**. Passing the per-view 0.002 allowance does not override these failures.
+
+M325s passes all three silhouette criteria before export. Its held-out gain is
+only **0.000031048351**; export/reimport measurement is still required before
+delivery. No candidate GLB was exported.
+
+All usable photos below use their own perspective camera, fitted on the committed
+mesh and then frozen. IoUs are evaluated at 1440 px. A dash means that M705 has
+no final candidate; its unchanged delivered-after values equal its baseline.
+
+| Study | Photo                         | Role     | Baseline IoU | Candidate IoU |        Delta |
+| ----- | ----------------------------- | -------- | -----------: | ------------: | -----------: |
+| M705  | m705-gallery-1.png            | fit      |  0.995853503 |             - |            - |
+| M705  | m705-gallery-2.png            | held-out |  0.955600933 |             - |            - |
+| M705  | m705-gallery-3.png            | fit      |  0.958693836 |             - |            - |
+| M705  | m705-gallery-4.png            | fit      |  0.984413888 |             - |            - |
+| M705  | supplemental/techwalls-0.jpg  | fit      |  0.946388063 |             - |            - |
+| M705  | supplemental/techwalls-1.jpg  | fit      |  0.946409016 |             - |            - |
+| M705  | supplemental/techwalls-2.jpg  | fit      |  0.945603090 |             - |            - |
+| M705  | supplemental/techwalls-6.jpg  | fit      |  0.954700319 |             - |            - |
+| M705  | supplemental/techwalls-7.jpg  | fit      |  0.955551352 |             - |            - |
+| M705  | supplemental/techwalls-8.jpg  | fit      |  0.955638481 |             - |            - |
+| M705  | supplemental/techwalls-9.jpg  | fit      |  0.959893311 |             - |            - |
+| M705  | supplemental/techwalls-10.jpg | fit      |  0.960638534 |             - |            - |
+| M705  | supplemental/techwalls-11.jpg | fit      |  0.960391800 |             - |            - |
+| M705  | supplemental/techwalls-12.jpg | fit      |  0.924685179 |             - |            - |
+| M705  | supplemental/techwalls-13.jpg | fit      |  0.922794809 |             - |            - |
+| M705  | supplemental/techwalls-14.jpg | fit      |  0.925187224 |             - |            - |
+| M325s | top.png                       | fit      |  0.989728173 |   0.989052019 | -0.000676155 |
+| M325s | left.png                      | fit      |  0.969655609 |   0.974872100 | +0.005216490 |
+| M325s | right.png                     | held-out |  0.966532500 |   0.966563548 | +0.000031048 |
+| M325s | extra-1.png                   | fit      |  0.971800896 |   0.974706094 | +0.002905198 |
+| M325s | extra-2.png                   | fit      |  0.970777752 |   0.975440127 | +0.004662375 |
+| M325s | extra-3.png                   | fit      |  0.972056404 |   0.975302871 | +0.003246467 |
+| M325s | extra-4.png                   | fit      |  0.975918456 |   0.974067508 | -0.001850948 |
+| M325s | extra-5.png                   | fit      |  0.969298759 |   0.974408840 | +0.005110081 |
+| M850L | top.png                       | fit      |  0.995860793 |   0.995781529 | -0.000079265 |
+| M850L | left.png                      | fit      |  0.955185883 |   0.955269182 | +0.000083299 |
+| M850L | extra-1.png                   | fit      |  0.918674852 |   0.918802922 | +0.000128070 |
+| M850L | extra-3.png                   | fit      |  0.995157768 |   0.995152169 | -0.000005599 |
+| M850L | extra-5.png                   | held-out |  0.954755529 |   0.954625159 | -0.000130370 |
+| M850L | extra-6.png                   | fit      |  0.956049517 |   0.955920606 | -0.000128911 |
+
+Candidate mesh checks (Blender 5.2.2 / Python 3.13, before export):
+
+| Study | Triangles | Non-manifold / degenerate / intersections | Max bbox error mm | Ground Z mm | Support mm | Max move mm |
+| ----- | --------: | ----------------------------------------- | ----------------: | ----------: | ---------: | ----------: |
+| M325s |     14000 | 0 / 0 / 0                                 |       0.000001228 |           0 |  22.720196 |    1.746765 |
+| M850L |     14000 | 0 / 0 / 0                                 |       0.000002015 |           0 |  27.704527 |    0.143377 |
+
+Both candidates preserve topology, all original Z=0 vertex heights, UVs, materials
+and material assignments. Largest remaining projected silhouette gap: **M325s
+2.974568 mm**, **M850L 5.463152 mm**; M705 unchanged baseline **4.991808 mm**.
+These are target-plane boundary Hausdorff distances, not measured 3D surface errors.
+
+M705 completed its 320 px stage. Its 720 px stage was interrupted after the last
+saved checkpoint at **100 evaluations**. `deformation-stages.json`,
+`deformation-wip.json` and `deformation.log` preserve state. No final M705 mesh,
+candidate IoU, held-out evaluation or before/after render exists.
+
+Appearance was not edited. M325s mildly warps the existing projected top details:
+per-triangle surface area ratios **0.927025-1.058526**, p05/p95 **0.950416 /
+1.040619**. M850L changes are not visibly distinguishable in the shared-light
+sheet; area ratios **0.993982-1.005099**. Existing smeared flank appearance
+remains. No third-party photograph was sampled as texture.
+
+**Gates:** Python **83 tests: 71 passed / 12 Blender-only skips**; Blender
+`test_*_blender.py` **12 passed**, confirmed subprocess exit **0**;
+`tests/check_assets.py` **ALL_ASSET_CHECKS_PASSED**; catalogue, payload,
+`optimize_glbs.py --check`, Prettier and `git diff --check` pass. An earlier
+PowerShell stderr wrapper reported exit 1 despite passing Blender tests; an
+explicit subprocess run confirmed exit 0. No payload size changed, so
+`PAYLOAD-AUDIT.md` was not regenerated. Silhouette delivery gate: M850L fails,
+M325s passes only before export, M705 incomplete.
+
+**Inspected contact sheets:**
+
+- `out/study-fidelity/d1/logitech-m325s/geometry-contact-sheet.png`
+- `out/study-fidelity/d1/logitech-signature-comfort-plus-m850l/geometry-contact-sheet.png`
+- Both directories also contain `silhouette-comparison.png` with all used photos
+  and before/candidate overlays.
+- All three directories contain `photo-mask-inventory.png`; this is the only
+  completed D1 contact sheet for M705.
+
+The four-view sheets use top/side/front/hero renders. References are explicitly
+identified as oblique when no matching straight view exists. M850L extra-1 is
+an elevated oblique reference beside the front render, not a front-photo
+registration. Silhouette sheets instead use each actual fitted camera.
+
+**Not done:** M705 final fit/evaluation/rendering; candidate GLB exports and
+round-trip verification; M325s installation and manifest/validation changes.
+No M550, M100, AR shell or other worktree changes. No push. Claude must
+adjudicate the failed gate before continuation.
 
 ### A1 — official AR assets
 
@@ -1484,6 +1697,52 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Codex: **D1 STOP: M850L delivery gate failed (exit 2).** Mean
+  fitted IoU 0.964185763 to 0.964185281; held-out 0.954755529 to 0.954625159.
+  No retuning after holdout, no delivery. M325s raw candidate passes (mean
+  0.974176579 to 0.976835651; held-out 0.966532500 to 0.966563548), but export
+  and installation were not attempted after the stop. Interrupted M705 during
+  its 720 px stage; WIP saved at 100 evaluations, no final candidate/holdout.
+  All 36 public files / 34 GLBs byte-identical. Unit 71 pass / 12 skips, Blender
+  12 pass, asset/catalogue/payload/optimizer/prettier pass. Results records all
+  30 baselines, finished candidate comparisons, inspected sheets and remaining
+  work. Four prior local checkpoints: 8b5d429, 15ade1c, c0e81d0, b8c019e.
+  Final local failure-evidence checkpoint; no push.
+
+- 2026-09-28 Codex: **All 30 D1 baseline camera fits complete and recorded.**
+  Fitted-view IoU minima: M705 0.922794809, M325s 0.969298759, M850L
+  0.918674852. Held-out baselines: 0.955600933 / 0.966532500 / 0.954755529.
+  M325s and M850L geometry fits converged; M705 is fitting with checkpoints.
+  M850L candidate mesh gates pass, 0.143377 mm max displacement, unchanged UVs
+  and materials, 27.704527 mm support. Full asset, catalogue, payload, optimizer
+  and prettier checks pass on unchanged public assets. No held-out candidate
+  evaluation or publication yet. Local checkpoint; no push.
+
+- 2026-09-28 Codex: **D1 smooth-deformation code verified before the long fit.**
+  Five new deformation/gate tests pass; full Python suite 71 pass / 12 skips,
+  Blender suite 12 pass. Baseline perspective fits are progressing with no
+  geometry changes. Corrected the M850L extra-1 camera start after inspecting
+  the photo/overlay; baseline IoU 0.918674852, initial 0.880964682 archived.
+  Next: once a study's baseline cameras finish, run `refine_study_geometry.py
+--directory tools/blender/out/study-fidelity/d1/<slug>`; it never opens a
+  held-out camera. WIP parameters save every 50 evaluations. No push.
+
+- 2026-09-28 Codex: **D1 camera preflight ready before the long fit.** Reusable
+  B3 camera engine and study driver added; ten camera/mask tests pass. Inventoried
+  35 photos, fixed 27 fitting / 3 held-out / 5 occluded roles before fitting.
+  Inspected mask sheets, corrected supplemental segmentation before any camera
+  solve. Next command: `python tools/blender/fit_study_photos.py --directory
+tools/blender/out/study-fidelity/d1/<slug>` for each of the three studies.
+  Per-photo JSON is resumable. All public files remain byte-identical. No push.
+
+- 2026-09-28 Codex: **D1 baseline geometry verified.** Pulled `4b282a2`; clean
+  starting worktree. Three committed studies each have 14,000 triangles and
+  zero topology defects; support margins 11.361876 / 22.972782 / 27.747661 mm.
+  Saved committed copies, decoded meshes and public hashes under ignored
+  `out/study-fidelity/d1/`. Read D1, A3, B3, Decisions, AGENTS and STATUS.
+  Photo mask preparation and reusable camera fitting are next; no long fit
+  started and no public file changed. Local checkpoint only; no push.
 
 - 2026-09-28 Claude: **independent Sonnet review of Claude's Phase C work (`216ff52..300daa1`): approve with fixes.** No blockers; 5 of 5 spot checks reproduced exactly (decide.py table, exactly 20 GLBs changed with Superlight 2 untouched, unit and Blender tests including the metallic negative control, MX Master 4 evidence, M575 fallback record). Fixed: (1) the reach pass overwrote `CoverAlpha.png`/`Body.png` evidence, so it now writes `*-reach.png` (GLBs unaffected); (2) the second-pass reach was described wrongly, so the section is corrected and a new Blender test pins down the bands. Nits addressed: test count, the island-margin assumption, and the geometry check being a multiset comparison. No asset changes.
 
