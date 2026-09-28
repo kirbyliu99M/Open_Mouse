@@ -1,0 +1,526 @@
+/*
+ * Live camera capture (docs/design/camera-capture-2026-09-25/README.md;
+ * visual details matched 2026-09-25 to Codex's product-shell design, PR
+ * #60 — docs/design/product-shell-2026-09-25/README.md,
+ * screens/03-camera.png and 04-review.png). The live viewfinder is a
+ * solid dark full-screen shell with an INSET, bordered preview frame
+ * (not edge-to-edge cropped video) — corner check-dots, chips, cue and
+ * shutter all sit on the same solid background, not a gradient over
+ * video. Review is a light page (matches the rest of /scan) with a dark
+ * photo card inset into it.
+ */
+
+.cameraPrimer {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: var(--scan-status-bg, #eef2f7);
+  border: 1px solid var(--scan-border, #d5d5dc);
+}
+
+.cameraPrimerRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 44px;
+  margin-bottom: 1rem;
+}
+.cameraPrimerRow:last-of-type {
+  margin-bottom: 1.25rem;
+}
+.cameraPrimerBadge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+.cameraPrimerText {
+  margin: 0;
+  line-height: 1.5;
+  padding-top: 0.25rem;
+}
+
+.cameraPaperToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--scan-muted, #55555d);
+}
+.cameraPaperToggleButtons {
+  display: inline-flex;
+  gap: 0.375rem;
+}
+.cameraPaperToggleButton {
+  min-height: 36px;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--scan-border, #d5d5dc);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--scan-fg, #1c1c1e);
+  font: inherit;
+  cursor: pointer;
+}
+.cameraPaperToggleButton.selected {
+  background: var(--scan-accent, #0a64e0);
+  border-color: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+}
+
+.cameraNotice {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--scan-muted, #55555d);
+  text-align: center;
+}
+
+.cameraErrorCard {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: var(--scan-warning-bg, #fff6e0);
+  border: 1px solid var(--scan-warning-fg, #7a5300);
+  color: var(--scan-fg, #1c1c1e);
+  line-height: 1.5;
+}
+.cameraErrorCard p {
+  margin: 0 0 0.75rem;
+}
+.cameraErrorCard ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+/* Full-screen viewfinder shell — solid dark, always on top. */
+.cameraViewfinder {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #12161c;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cameraTopBar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+}
+
+.cameraCloseButton {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cameraStepLabel {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* The inset, bordered preview frame — the paper's own aspect ratio, not
+   the full viewport; dark margin is visible around it (Codex's
+   03-camera.png), which is also what keeps all four corners reliably in
+   frame instead of cropping one off under object-fit: cover. */
+.cameraFrameWrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+}
+
+.cameraFrame {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #050607;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.cameraVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cameraOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Corner check-dots (Codex's product-shell design): a plain circle, white
+   outline until found, filled green with a check once locked on — no
+   bracket frame. */
+.cameraCornerDot {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  margin-top: -13px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  transition:
+    left 160ms ease,
+    top 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+.cameraCornerDot.found {
+  background: #2f9e5c;
+  border-color: #2f9e5c;
+}
+.cameraCornerDot svg {
+  width: 100%;
+  height: 100%;
+}
+.cameraCornerDot path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The hand-ghost silhouette — a placement hint only (handGhost.ts), drawn
+   in the same container-pixel space as the corner dots: a filled rounded
+   palm path plus one round-capped stroke per finger/thumb (near-constant
+   width — reads as a hand at thumbnail size, unlike a thin outline).
+   ~25% white fill + a thin white stroke keeps it legible over any photo
+   without ever looking like a real detected shape. */
+.cameraHandGhostSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* Widths come from SVG attributes (per-finger capsule widths), never CSS,
+   which would override them. Light accent fill + accent outline: the paper is white, so a white ghost
+   disappears into it. Outline #0a64e0 against the paper is 4.9:1 before the
+   group opacity; at 0.7 it still reads clearly as a line (non-text UI,
+   >= 3:1 is the bar). */
+.cameraHandGhost {
+  opacity: 0.7;
+}
+.cameraHandGhostOutline {
+  fill: #0a64e0;
+  stroke: #0a64e0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cameraHandGhostFill {
+  fill: #e7f0fd;
+  stroke: #e7f0fd;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cameraFlash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  animation: cameraFlashPulse 260ms ease-out;
+}
+@keyframes cameraFlashPulse {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Chips, cue and shutter sit BELOW the frame, on the shell's own solid
+   background — not overlaid on the video. */
+.cameraChips {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem 0;
+}
+
+.cameraChip {
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.cameraChip.pass {
+  border-color: #2f9e5c;
+  background: rgba(47, 158, 92, 0.28);
+}
+
+.cameraCueWrap {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0.75rem 1rem 0;
+}
+.cameraCue {
+  padding: 0.625rem 1.125rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-align: center;
+}
+.cameraCue.perfect {
+  background: #2f9e5c;
+  color: #f0fff6;
+}
+
+.cameraShutterRow {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0 1.5rem;
+}
+
+.cameraShutter {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.cameraShutterInner {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.cameraShutterRing {
+  position: absolute;
+  inset: 0;
+}
+.cameraShutterRing circle {
+  fill: none;
+  stroke: #2f9e5c;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 120ms linear;
+}
+
+.cameraResumeCard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+  padding: 1.5rem;
+}
+.cameraResumeButton {
+  min-height: 3rem;
+  padding: 0 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Review — a light page (matches the rest of /scan), a dark photo card
+   inset into it (Codex's 04-review.png). ────────────────────────────── */
+.cameraReviewPage {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--scan-bg, #f4f4f6);
+  color: var(--scan-fg, #1c1c1e);
+  overflow-y: auto;
+  padding: 0.75rem 1.25rem 1.5rem;
+}
+
+.cameraReviewTopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.cameraReviewBack {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  border: none;
+  background: transparent;
+  color: var(--scan-accent, #0a64e0);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.cameraReviewStepLabel {
+  color: var(--scan-muted, #55555d);
+  font-size: 0.875rem;
+}
+
+.cameraReviewHeading {
+  font-size: clamp(1.5rem, 6vw, 1.875rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0.5rem 0 0.375rem;
+}
+.cameraReviewSubtitle {
+  color: var(--scan-muted, #55555d);
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+.cameraReviewCard {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #12161c;
+}
+.cameraReviewImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cameraReviewSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.reviewCornerDot {
+  fill: #2f9e5c;
+  stroke: #fff;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.cameraReviewStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.875rem 0 0;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.625rem;
+  background: var(--scan-ok-bg, #e6f7ec);
+  color: var(--scan-ok-fg, #1e7b45);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.cameraReviewActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.cameraReviewActions button {
+  min-height: 3.25rem;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.cameraUsePhoto {
+  order: 1;
+  border: none;
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+}
+.cameraRetake {
+  order: 2;
+  border: 1.5px solid var(--scan-border, #d5d5dc);
+  background: #fff;
+  color: var(--scan-accent, #0a64e0);
+}
+.cameraReviewPage .cameraNotice {
+  margin-top: 1rem;
+}
+
+.visuallyHiddenLive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cameraCornerDot {
+    transition: none;
+  }
+  .cameraFlash {
+    animation: none;
+    display: none;
+  }
+  .cameraShutterRing circle {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .cameraChip,
+  .cameraCue,
+  .cameraStepLabel,
+  .cameraCloseButton,
+  .cameraCornerDot {
+    border: 2px solid #fff;
+  }
+  .cameraRetake {
+    border-width: 2px;
+  }
+}

@@ -15,18 +15,19 @@ import {
 import "../scan.css";
 
 export const metadata: Metadata = {
-  title: "Scan measured (mock data) — Open_Mouse",
+  title: "Scan measured, paper-edge (mock data) — Open_Mouse",
   description:
-    "Dev/demo route rendering /scan's measured state against fixed, schema-valid measurements — no photo, no MediaPipe. Exists because no e2e fixture can make MediaPipe detect a hand in a synthetic image (see tests/e2e/scan.spec.ts).",
+    "Dev/demo route rendering /scan's measured state in paper-edge mode against fixed, schema-valid measurements — no photo, no MediaPipe. Mirrors /scan/measured-demo for the future blank-paper calibration path (see src/client/paper/detect.ts).",
   robots: { index: false, follow: false },
 };
 
 /**
- * A fixed, schema-valid `ScanSubmission` (validated below, not just typed).
- * Mirrors `/scan/submit-demo`'s reason for existing, one step earlier in the
- * flow: this is the only deterministic way to reach and screenshot the
- * measured layout (chips, "Hand measured" card, primary/secondary actions)
- * in CI.
+ * The paper-edge counterpart to `/scan/measured-demo`: same fixed
+ * measurements, but a `calibration` shaped for `paperEdgeEvidenceSchema`
+ * (method/paperSize/edgeFitResidualMm/minSideCoverage/parallaxCorrected)
+ * instead of the printed-sheet shape — so the measured card's caption
+ * reads "All four paper corners were found, so the scale is checked."
+ * never "sheet markers and the card" (Kirby, 2026-09-25).
  */
 const DEMO_SUBMISSION = scanSubmissionSchema.parse({
   hand: "right",
@@ -42,15 +43,16 @@ const DEMO_SUBMISSION = scanSubmissionSchema.parse({
     pinkyLengthMm: 54,
   },
   calibration: {
-    markerIds: [0, 1, 2, 3],
-    reprojectionErrorMm: 0.4,
-    cardScaleRatio: 1.0,
-    parallaxCorrected: false,
+    method: "paper-edge",
+    paperSize: "a4",
+    edgeFitResidualMm: 0.6,
+    minSideCoverage: 0.92,
+    parallaxCorrected: true,
   },
   measurementModelVersion: MEASUREMENT_MODEL_VERSION,
 });
 
-const DEMO_PHOTO_URL = buildDemoPhotoUrl("sheet");
+const DEMO_PHOTO_URL = buildDemoPhotoUrl("paper");
 
 const DEMO_OVERLAY: PhotoOverlay = {
   imageWidth: DEMO_IMAGE_WIDTH,
@@ -60,11 +62,12 @@ const DEMO_OVERLAY: PhotoOverlay = {
   landmarksPx: DEMO_LANDMARKS_PX,
 };
 
-export default function ScanMeasuredDemoPage() {
+export default function ScanPaperEdgeMeasuredDemoPage() {
   guardDemoRouteFromProduction();
   return (
     <ScanClient
-      demoLabel="Demo — sample measurements"
+      demoLabel="Demo — sample measurements (paper-edge)"
+      calibrationMode="paper-edge"
       demoMeasured={{
         hand: DEMO_SUBMISSION.hand,
         gripStyle: "claw",

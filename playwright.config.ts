@@ -1,4 +1,30 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FAKE_VIDEO_FIXTURE = path.join(
+  __dirname,
+  "tests/e2e/fixtures/camera/sheet-full.y4m",
+);
+const FAKE_VIDEO_FIXTURE_PARTIAL = path.join(
+  __dirname,
+  "tests/e2e/fixtures/camera/paper-edge-partial.y4m",
+);
+const FAKE_VIDEO_FIXTURE_PAPER_EDGE = path.join(
+  __dirname,
+  "tests/e2e/fixtures/camera/paper-edge-full.y4m",
+);
+
+function fakeMediaLaunchOptions(fixturePath: string) {
+  return {
+    args: [
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+      `--use-file-for-fake-video-capture=${fixturePath}`,
+    ],
+  };
+}
 
 /**
  * Several agents build in parallel on one machine, each in its own worktree.
@@ -25,8 +51,57 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
+    // camera-capture.spec.ts's happy-path (fake-media) test is scoped to
+    // the "chromium-camera" project below; its permission-denied test
+    // needs a context with NO fake-media flags, so it runs here instead
+    // (mirroring every other e2e spec) rather than being excluded too.
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
+    // tests/e2e/camera-capture.spec.ts only: Chromium's fake media device
+    // fed the committed sheet-full.mjpeg fixture, so the live camera flow
+    // is testable without a phone (docs/design/camera-capture-2026-09-25/
+    // README.md). Scoped to its own project (rather than added to
+    // "chromium" above) because these launch args make getUserMedia
+    // auto-succeed for EVERY test in the project — the permission-denied
+    // case in that same spec deliberately runs under the plain "chromium"
+    // project instead, where there's no fake camera to grant.
+    {
+      name: "chromium-camera",
+      testMatch: /camera-capture\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        permissions: ["camera"],
+        launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE),
+      },
+    },
+    // Screenshots only: the "2 of 4 corners found" viewfinder state needs a
+    // fixture that genuinely only shows 2 corners — a separate project
+    // because the fake video file is a launch-time (not per-test) switch.
+    {
+      name: "chromium-camera-partial",
+      testMatch: /camera-screenshots\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        permissions: ["camera"],
+        launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PARTIAL),
+      },
+    },
+    // tests/e2e/camera-paper-edge.spec.ts and the paper-edge screenshots in
+    // camera-screenshots.spec.ts: the real detectPaperQuad's lock-on target
+    // — a blank paper fixture (no markers), fed to the paper-edge preview
+    // route.
+    {
+      name: "chromium-camera-paper-edge",
+      testMatch: /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        permissions: ["camera"],
+        launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PAPER_EDGE),
+      },
+    },
   ],
   webServer: {
     command: `npm run dev -- --hostname 127.0.0.1 --port ${PORT}`,
