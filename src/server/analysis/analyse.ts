@@ -252,13 +252,18 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   const whyTopPick =
     positives.length > 0
       ? `It's the top pick because ${positives.join(" and ")}.`
-      : "It's the top pick based on your measurements and grip style.";
+      : input.gripStyle.stated !== null
+        ? "It's the top pick based on your measurements and grip style."
+        : "It's the top pick based on your measurements.";
   const tradeoffs = negatives
     .slice(0, 3)
     .map((t) => t[0]!.toUpperCase() + t.slice(1));
-  const whatToAvoid = negatives
-    .slice(0, 2)
-    .map((t) => t[0]!.toUpperCase() + t.slice(1));
+  const whatToAvoid = input.excluded
+    .map(
+      ({ brand, model, reason }) =>
+        `${brand} ${model}: ${EXCLUSION_TEXT[reason]}.`,
+    )
+    .slice(0, 2);
   const caveats: string[] = [];
   if (top.lowConfidence) {
     caveats.push(PROVISIONAL_NOTE);
