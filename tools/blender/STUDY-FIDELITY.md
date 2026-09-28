@@ -24,16 +24,16 @@ What the 26 shells have that the studies lack:
 
 Status as of 2026-09-28. The Route column follows the Decisions table.
 
-| Model                        | Route                                              | Geometry                                     | State                                                                           |
-| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
-| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**                                          |
-| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**                                          |
-| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28**                                         |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | B3 prototype built; Kirby awaits the M650-shell candidate (C)                   |
-| M100                         | No photo bake (C1 dropped)                         | Study, `m4a-m100-level-base` (sheared trace) | Kept as is (Kirby, 2026-09-28) ; base levelling not accepted, changes requested |
-| M705 Marathon                | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
-| M325s                        | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
-| Signature Comfort Plus M850L | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                                  |
+| Model                        | Route                                              | Geometry                                     | State                                                         |
+| ---------------------------- | -------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**                        |
+| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**                        |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28**                       |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | B3 prototype built; Kirby awaits the M650-shell candidate (C) |
+| M100                         | Removed (Kirby, 2026-09-28)                        | Study, `m4a-m100-level-base` (sheared trace) | **3D model removed**; M100 moves to `noShell`                 |
+| M705 Marathon                | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
+| M325s                        | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
+| Signature Comfort Plus M850L | No photo bake (C1 dropped)                         | Study, `m4a-eight-new-shells`                | Kept as is (Kirby, 2026-09-28)                                |
 
 ## Agent distribution
 
@@ -1102,8 +1102,12 @@ new cause/fix, and no M550 sibling candidate exists. No push.
 | 2026-09-28 | **Visual acceptance:** G903 Hero, M750 and G Pro X Superlight 2 SE **accepted**. MX Master 4 and M100 **not accepted**; changes requested (details below)                                                                                                                                                                                                                                                                                                                                          | Kirby          |
 | 2026-09-28 | MX Master 4 changes requested: wheel black hole (O2) and **button colour/finish wrong**. Claude measured it under identical lighting (top view, mean sRGB). Left button: AR reference 177, current 146, the first all-opaque bake 182. Palm matches at 185–186 in all three. **Claude's error:** on 2026-09-27 it replaced the all-opaque bake with the blended-colour bake after judging it "too white" by eye, without measuring. The fix is to bake base colour with the sources opaque as well | Kirby / Claude |
 | 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
+| 2026-09-28 | **M100's 3D model is removed.** It stays in the catalogue and fit results by its dimensions, and moves from `studies` to `noShell` in the manifest. Part 4 (M100 rework) is cancelled. AGY's web search found no Logitech-hosted AR file for M100 or its siblings                                                                                                                                                                                                                                  | Kirby          |
+| 2026-09-28 | **Claude's MX Master 4 diagnosis corrected.** The all-opaque bake is not the fix: in Codex's identical-light studio the left button is AR 89.7, blended 73.3, opaque 109.5 (mean sRGB). The clear cover sits over the button body. The blended bake composited it over black; the opaque bake drops the body. Part 2b now composites the cover over the layer beneath it                                                                                                                           | Claude         |
 
 ## Progress log
+
+- 2026-09-28 Claude: audited `5f04a91` (2b control test fixed; opaque candidate fails the colour gate, not installed) and `9ade5ba`; pushed. No public GLB changed. Kirby removed M100's 3D model (Decisions). Resume brief: M100 removal first, then 2b with cover-over-body compositing, then Parts 2, 1, 3.
 
 - 2026-09-28 Codex: **Part 2b control fixed; stopped at the existing rendered
   colour gate.** Forced/control RGB equal exactly, repeated control spread 0;
