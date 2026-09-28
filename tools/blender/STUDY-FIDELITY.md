@@ -147,6 +147,38 @@ Re-inspected all 35 photographs in the three A3 contact sheets, including all
 No geometry fit, new contact sheet or full delivery-gate claim at this checkpoint.
 No public asset, material, UV, manifest or validation entry changed.
 
+**Camera preflight checkpoint.** `photo_camera_fit.py` generalises B3's
+seven-parameter, square-pixel perspective registration; `fit_study_photos.py`
+consumes a mesh and inventory directory. Fits use 300/900/4000 mm starts,
+320/720 px optimisation, 1100 iterations per start and independent 1440 px
+evaluation with triangle-union masks. Existing M550 files remain untouched.
+Ten camera/mask tests pass, including five new tests. Geometry fitting has not
+started. The next long run fits the committed baselines, including each held-out
+photo's own camera, then freezes those cameras for before/after comparison.
+
+| Study | Fitting photos                                                                                                                                                                | Held out from geometry             | Excluded                        |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
+| M705  | gallery 1 top, 3 front-left oblique, 4 left profile; supplemental techwalls 0/1/2 left oblique, 6/7/8 front-left oblique, 9/10/11 bottom oblique, 12/13/14 rear-right oblique | gallery 2 rear-left oblique        | techwalls 3/4/5: hand occlusion |
+| M325s | top graphite; left red front-left; extra 1/2 pale-grey/lilac front-left; extra 3/5 blue/patterned front-right; extra 4 patterned elevated left                                | right patterned rear-left oblique  | None                            |
+| M850L | top graphite; left black elevated left; extra 1 graphite front-left; extra 3 bottom; extra 6 graphite elevated left                                                           | extra 5 graphite rear-left oblique | extra 2/4: hand occlusion       |
+
+All **35** local photos are inventoried, **30** usable (**27** fitting and
+**3** held-out). Every duplicate resolution is retained and labelled; all
+members of a duplicate group stay in the fitting split. These are correlated
+observations, not independent additional views. PNG masks use alpha >180,
+largest component and enclosed-hole filling. Supplemental M705 masks use
+photo-only fixed ROIs and max RGB <160 to separate the dark shell from the
+pale desk and red watermark, with the same component/hole convention.
+Masks were inspected before fitting. A rejected GrabCut preparation included
+desk/watermark pixels and was replaced before any camera run. No reference
+was modified. Four thumbnail URLs are missing in the existing sidecar and are
+recorded as unknown rather than invented; local SHA256 identifies each file.
+Third-party images are geometry/camera evidence only.
+
+Inventory and mask sheets (one per study):
+`out/study-fidelity/d1/<slug>/photo-inventory.json` and
+`out/study-fidelity/d1/<slug>/photo-mask-inventory.png`.
+
 ### A1 — official AR assets
 
 Discovery date: 2026-09-28 (Asia/Taipei). Searches cover each study's product
@@ -1505,6 +1537,14 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Codex: **D1 camera preflight ready before the long fit.** Reusable
+  B3 camera engine and study driver added; ten camera/mask tests pass. Inventoried
+  35 photos, fixed 27 fitting / 3 held-out / 5 occluded roles before fitting.
+  Inspected mask sheets, corrected supplemental segmentation before any camera
+  solve. Next command: `python tools/blender/fit_study_photos.py --directory
+tools/blender/out/study-fidelity/d1/<slug>` for each of the three studies.
+  Per-photo JSON is resumable. All public files remain byte-identical. No push.
 
 - 2026-09-28 Codex: **D1 baseline geometry verified.** Pulled `4b282a2`; clean
   starting worktree. Three committed studies each have 14,000 triangles and
