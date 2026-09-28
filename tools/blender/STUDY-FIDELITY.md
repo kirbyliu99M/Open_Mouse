@@ -126,6 +126,27 @@ stretches a texture, and just report it.
 
 ## Results
 
+### D1 — study geometry refinement
+
+**2026-09-28, baseline geometry checkpoint; no delivery yet.** Worktree pulled
+to `4b282a2`. Only M705 Marathon, M325s and M850L are in scope. Baseline GLBs,
+decoded meshes and all public-file hashes are saved in `out/study-fidelity/d1/`.
+`study_geometry_preflight.py` reads the committed files using Blender 5.2.2 /
+Python 3.13 and checks against the actual catalogue dimensions.
+
+| Study         | Triangles | Non-manifold / degenerate / intersections | Support margin mm | Minimum Z mm |
+| ------------- | --------: | ----------------------------------------- | ----------------: | -----------: |
+| M705 Marathon |     14000 | 0 / 0 / 0                                 |         11.361876 |            0 |
+| M325s         |     14000 | 0 / 0 / 0                                 |         22.972782 |            0 |
+| M850L         |     14000 | 0 / 0 / 0                                 |         27.747661 |            0 |
+
+All bbox errors are below 0.000007 mm. This checks the minimum ground height;
+flat-base preservation will also be checked on any proposed deformation.
+Re-inspected all 35 photographs in the three A3 contact sheets, including all
+15 M705 supplemental files. Camera/mask inventory and per-view IoU are pending.
+No geometry fit, new contact sheet or full delivery-gate claim at this checkpoint.
+No public asset, material, UV, manifest or validation entry changed.
+
 ### A1 — official AR assets
 
 Discovery date: 2026-09-28 (Asia/Taipei). Searches cover each study's product
@@ -1484,6 +1505,14 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Codex: **D1 baseline geometry verified.** Pulled `4b282a2`; clean
+  starting worktree. Three committed studies each have 14,000 triangles and
+  zero topology defects; support margins 11.361876 / 22.972782 / 27.747661 mm.
+  Saved committed copies, decoded meshes and public hashes under ignored
+  `out/study-fidelity/d1/`. Read D1, A3, B3, Decisions, AGENTS and STATUS.
+  Photo mask preparation and reusable camera fitting are next; no long fit
+  started and no public file changed. Local checkpoint only; no push.
 
 - 2026-09-28 Claude: **independent Sonnet review of Claude's Phase C work (`216ff52..300daa1`): approve with fixes.** No blockers; 5 of 5 spot checks reproduced exactly (decide.py table, exactly 20 GLBs changed with Superlight 2 untouched, unit and Blender tests including the metallic negative control, MX Master 4 evidence, M575 fallback record). Fixed: (1) the reach pass overwrote `CoverAlpha.png`/`Body.png` evidence, so it now writes `*-reach.png` (GLBs unaffected); (2) the second-pass reach was described wrongly, so the section is corrected and a new Blender test pins down the bands. Nits addressed: test count, the island-margin assumption, and the geometry check being a multiset comparison. No asset changes.
 
