@@ -847,6 +847,8 @@ push or `out/` commit occurred.
 
 ## Progress log
 
+- 2026-09-28 Claude: second Sonnet review, of `b5c7456..587e906` (Step 0, B2, B3): **approve with fixes**. No blockers or hard-rule violations. No iFixit or other third-party texture sources. 7 of 7 numeric spot checks matched. 56 unit tests OK (8 bpy skipped). Step 0 fixes confirmed, including a real alpha regression test. Should-fix, queued for Codex before Phase C: (1) `package_se.py:20` applies the 0.95 IoU assert to the held-out photo too; filter on use as `package_m550_photo_bake.py` does. (2) `PAYLOAD-AUDIT.md` was not regenerated after B3; add a B3/Phase C step to the README. Nits: B3 driver scripts are M550-specific one-offs, so Phase C1 needs near-full per-study rewrites, not parameter changes. Only the pure maths modules (`photo_camera_math.py`, `photo_bake_math.py`, `photo_raster.py`, `se_colour_math.py`) carry over. Camera-axis maths is duplicated between `fit_se_photos.py` and `photo_camera_math.py`.
+
 - 2026-09-28 Claude: audited B3 (`e01836d`), pushed. Independent reimport: max vertex displacement 0.0 mm against the pre-B3 GLB (vertex count 7,565 → 8,161 from UV-seam splits only), bbox 0.000 mm, clean topology, support margin 24.51 mm, one material with three 512 px maps. Only M550 changed. Unit tests, catalogue and optimiser checks pass. Contact sheet: side grooves are now visible and the underside is complete, but streaks remain, and the shape and wheel stay far below the M650 AR shell. See the Decisions entry for routing.
 
 - 2026-09-28 Codex: **B3 M550 delivered and verified**, after checkpoints
