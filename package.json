@@ -26,6 +26,7 @@
     "seed:fetch-logitech": "tsx scripts/fetch-logitech-specs.ts",
     "db:seed": "tsx scripts/seed.ts",
     "m2:gate-replay": "tsx scripts/m2-gate-replay.ts",
+    "paper:bench": "tsx scripts/paper-quad-bench.ts",
     "classify:descriptors": "tsx scripts/classify-descriptors.ts"
   },
   "dependencies": {
