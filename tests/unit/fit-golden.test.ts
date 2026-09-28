@@ -11,10 +11,12 @@ import seedRows from "../../src/db/seed/logitech.json";
 
 /**
  * Golden fixtures (§Tests): 4 synthetic hand profiles run against the
- * checked-in 30-model seed, descriptors null (unclassified — the seed file
+ * checked-in 38-model seed, descriptors null (unclassified — the seed file
  * carries no shape descriptors). Snapshots the top-5 slugs + totals, so any
  * coefficient change in src/server/fit/coefficients.ts shows up as a diff
- * here instead of silently changing rankings.
+ * here instead of silently changing rankings. (Catalogue growth can also
+ * change a snapshot — that's expected and re-verified against scoreFit
+ * before updating, not a coefficient regression.)
  */
 interface SeedRow {
   brand: string;
@@ -74,8 +76,8 @@ describe("fit-golden", () => {
     },
   );
 
-  it("catalogue has exactly the 30-model seed, unclassified", () => {
-    expect(catalogue).toHaveLength(30);
+  it("catalogue has exactly the 38-model seed, unclassified", () => {
+    expect(catalogue).toHaveLength(38);
     expect(catalogue.every((m) => m.shape === null)).toBe(true);
   });
 });

@@ -45,13 +45,63 @@ export function conventionFor(url: string): keyof typeof AXIS_CONVENTIONS {
   throw new Error(`No axis convention for ${host}`);
 }
 
+/**
+ * Per-page exceptions for the handful of product pages that don't follow
+ * their storefront's usual convention. Keyed by the exact source URL from
+ * `LOGITECH_SOURCES`. Never a hand-typed dimension — only which label means
+ * which axis, or which dimension group holds the weight to read; the actual
+ * numbers still come from the fetched page.
+ */
+export interface AxisOverride {
+  /**
+   * Facet name (lowercased) → axis, replacing — not merging on top of a
+   * default that would otherwise apply — the host convention's mapping for
+   * that facet on this one page.
+   */
+  axes?: Record<string, Axis>;
+  /**
+   * This page carries more than one weight (e.g. with/without an accessory).
+   * Read the Weight facet from the first dimension-group header whose name
+   * contains this substring (case-insensitive), instead of the first group
+   * found. Leaves the default stop-at-second-group behaviour untouched for
+   * every page without this override.
+   */
+  weightGroupContains?: string;
+}
+
+export const AXIS_OVERRIDES: Readonly<Record<string, AxisOverride>> = {
+  // 2026-09-27: logitech.com/en-us/shop/p/mobi-fold-mouse's first dimension
+  // group (the open/unfolded mouse, header "Mobi Fold") literally reads
+  // "Height 1.3 in (33 mm) / Width 2.24 in (57 mm) / Depth 4.8 in (122 mm)".
+  // Every other logitech.com page in this lineup has "Height" label the
+  // mouse's length and "Depth" label its height (AXIS_CONVENTIONS.logitech
+  // above) — this page is the opposite: Height really is the height, Depth
+  // really is the length.
+  "https://www.logitech.com/en-us/shop/p/mobi-fold-mouse": {
+    axes: { height: "heightMm", depth: "lengthMm" },
+  },
+  // 2026-09-27: logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse
+  // lists three dimension groups: "Mouse" (Height/Width/Depth, no weight),
+  // "Mouse (without metal plate/without receiver)" (Weight 5.78 oz / 164 g),
+  // and "Mouse (with metal plate/without receiver)" (Weight 9.14 oz / 259 g).
+  // The shared parser stops after the second group header so a mouse's own
+  // USB-receiver dimensions never leak in — which also skips this page's
+  // only usable weight. Read it from the "without metal plate" group.
+  "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse": {
+    weightGroupContains: "without metal plate",
+  },
+};
+
 const MM = /\(\s*(\d+(?:\.\d+)?)\s*mm\s*\)/;
 const GRAMS = /\(\s*(\d+(?:\.\d+)?)\s*g\s*\)/;
 
 /**
  * Reads the first labelled group inside the page's embedded `productDimensions`
- * block. Stops at the second group so receiver/cable dimensions never leak in;
- * the first value per axis wins.
+ * block. Stops at the second group so receiver/cable dimensions never leak in
+ * — unless `AXIS_OVERRIDES[url].weightGroupContains` names a later group to
+ * pull the weight from, in which case scanning continues and only a Weight
+ * facet found inside that specific group is accepted. The first value per
+ * axis still wins either way.
  */
 export function parseLogitechDimensions(
   html: string,
@@ -65,18 +115,31 @@ export function parseLogitechDimensions(
   };
   const start = html.indexOf("productDimensions:");
   if (start < 0) return out;
-  const axes = AXIS_CONVENTIONS[conventionFor(url)];
+  const override = AXIS_OVERRIDES[url];
+  const axes = { ...AXIS_CONVENTIONS[conventionFor(url)], ...override?.axes };
+  const weightGroupContains = override?.weightGroupContains?.toLowerCase();
   let groups = 0;
+  let currentGroup = "";
   for (const [, name, value] of html
     .slice(start, start + 4000)
     .matchAll(/facet:"([^"]+)",value:"([^"]*)"/g)) {
     const axis = axes[name!.trim().toLowerCase()];
     if (!axis) {
       // A header facet with no value opens a group ("Dimensions", "<Model> Mouse", "USB Receiver").
-      if (value === "" && name !== "Dimensions" && ++groups > 1) break;
+      if (value === "" && name !== "Dimensions") {
+        groups++;
+        currentGroup = name!.toLowerCase();
+        if (!weightGroupContains && groups > 1) break;
+      }
       continue;
     }
     if (out[axis] !== null) continue;
+    if (
+      axis === "weightG" &&
+      weightGroupContains &&
+      !currentGroup.includes(weightGroupContains)
+    )
+      continue; // a weight in a group this override isn't targeting
     const m = (axis === "weightG" ? GRAMS : MM).exec(value!);
     if (m) out[axis] = Number(m[1]);
   }
