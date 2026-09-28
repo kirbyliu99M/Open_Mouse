@@ -659,3 +659,99 @@ describe("analyse — source provenance (issue #28)", () => {
     expect(source).toBe("fallback");
   });
 });
+
+// M2 (hardening finding): the site-wide daily model cap used to be spent
+// once per REQUEST, but analyse() can make up to MAX_ATTEMPTS (2) real
+// model calls per request (one attempt plus one retry), so the real
+// ceiling was ~2x the configured cap. `beforeModelCall` fixes that by
+// charging the budget once per actual call.
+describe("analyse — beforeModelCall (M2 global model-call budget)", () => {
+  it("a clean first attempt consumes exactly one unit", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      beforeModelCall: () => {
+        calls += 1;
+        return true;
+      },
+    });
+    expect(source).toBe("model");
+    expect(calls).toBe(1);
+    expect(client.calls).toHaveLength(1);
+  });
+
+  it("a retry (the second real model call) consumes a second unit", async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.", // 130 is not in the input
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      beforeModelCall: () => {
+        calls += 1;
+        return true;
+      },
+    });
+    expect(source).toBe("model");
+    expect(calls).toBe(2);
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it("refuses the very first call when the budget is already exhausted -- 0 model calls, fallback", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const { output, source } = await analyse(input, client, {
+      beforeModelCall: () => false,
+    });
+    expect(source).toBe("fallback");
+    expect(client.calls).toHaveLength(0);
+    expect(output.headline).toBe(
+      "Logitech G Pro X Superlight 2 is the top match for your hand.",
+    );
+  });
+
+  it("cap reached before the retry: stops retrying and serves the fallback WITHOUT a second model call", async () => {
+    const input = inputFor();
+    // First attempt violates the no-new-numerals rule, which would
+    // normally trigger a retry.
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.",
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      // Budget allows the first attempt, but is exhausted by the time the
+      // retry would run.
+      beforeModelCall: () => {
+        calls += 1;
+        return calls === 1;
+      },
+    });
+    expect(source).toBe("fallback");
+    // Only the first attempt actually called the model -- the retry never
+    // happened because the budget said no.
+    expect(client.calls).toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+
+  it("without beforeModelCall, no budget is ever consulted (existing callers are unaffected)", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("model");
+    expect(client.calls).toHaveLength(1);
+  });
+});

@@ -24,6 +24,22 @@ export interface AnalyseResult {
   source: AnalysisSource;
 }
 
+export interface AnalyseOptions {
+  /**
+   * Called immediately before EACH actual model call this function makes —
+   * once per attempt, up to `MAX_ATTEMPTS` times — so a caller can charge
+   * every real call against a shared budget (M2 hardening finding: the
+   * site-wide daily model cap in `./handler.ts` used to be consumed once per
+   * *request*, but a request can make up to `MAX_ATTEMPTS` real model calls,
+   * so the real ceiling was ~2x the configured cap). Returning `false` stops
+   * the retry loop immediately, WITHOUT making that call, and serves the
+   * deterministic fallback instead — including on the very first attempt,
+   * so a budget already exhausted before this request even started never
+   * calls the model at all. Omit it to never gate a call.
+   */
+  beforeModelCall?: () => boolean | Promise<boolean>;
+}
+
 /** Plain words for each exclusion, matching what the results page says
  * (`EXCLUDED_REASON_LABELS`). A `Record` so a new reason cannot silently
  * reuse another's text. */
@@ -254,15 +270,16 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
  * place below — the branch where a model response was received, passed
  * `analysisOutputSchema`, AND passed `findViolation`'s no-new-numerals
  * check. Every other path (no model, JSON parse failure, schema failure,
- * a numeral/provisional-caveat violation on both attempts) returns
- * `buildFallbackOutput` with `source: "fallback"`. Never inferred from
- * whether a key was configured — a keyed call can still fail or violate
- * the rule and fall back, which is exactly what this function's retry
- * loop exists to handle.
+ * a numeral/provisional-caveat violation on both attempts, or
+ * `options.beforeModelCall` refusing a call) returns `buildFallbackOutput`
+ * with `source: "fallback"`. Never inferred from whether a key was
+ * configured — a keyed call can still fail or violate the rule and fall
+ * back, which is exactly what this function's retry loop exists to handle.
  */
 export async function analyse(
   input: AnalysisInput,
   client: TextModel | null,
+  options: AnalyseOptions = {},
 ): Promise<AnalyseResult> {
   if (client === null) {
     return { output: buildFallbackOutput(input), source: "fallback" };
@@ -274,6 +291,17 @@ export async function analyse(
   let prompt = basePrompt;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (options.beforeModelCall) {
+      // M2: charge THIS attempt against the shared budget before making the
+      // call it gates. A `false` here (budget exhausted, whether before the
+      // first attempt or before the retry) stops the loop outright — no
+      // more model calls this request — and serves the fallback, same as
+      // every other "can't produce a trustworthy answer" path above.
+      const allowed = await options.beforeModelCall();
+      if (!allowed) {
+        return { output: buildFallbackOutput(input), source: "fallback" };
+      }
+    }
     let raw: string;
     try {
       raw = await client.generate({
