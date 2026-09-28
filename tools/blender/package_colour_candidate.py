@@ -69,9 +69,11 @@ def main():
         path = PUBLIC / name
         data = json.loads(path.read_text(encoding='utf-8'))
         rows = data['shells'] if name == 'manifest.json' else data['roundTrips']
-        entry = next(r for r in rows if r['slug'] == slug)
-        entry['bytes'] = delivered.stat().st_size
-        entry['textureRefinement'] = report['textureRefinement']
+        # Aliases (e.g. ERGO M575S) share the GLB, so they follow its bytes and record.
+        for entry in (r for r in rows if r['slug'] == slug or r.get('aliasOf') == slug):
+            entry['bytes'] = delivered.stat().st_size
+            if 'textureRefinement' in entry or entry['slug'] == slug:
+                entry['textureRefinement'] = report['textureRefinement']
         write_pretty_json(path, data)
     print('COLOUR_CANDIDATE_INSTALLED', json.dumps(dict(
         slug=slug, triangles=len(new_tris), maxCornerDisplacementMm=displacement,

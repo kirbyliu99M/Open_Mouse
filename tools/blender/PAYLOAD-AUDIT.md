@@ -89,42 +89,42 @@ smaller as JPEG q90 4:4:4. Visual quality and phone performance remain to be rev
 
 ## Current catalogue (generated from manifest)
 
-The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,298,316 bytes (7.91 MiB)**, including **4,679,871 image bytes** across 93 JPEG maps.
+The manifest has 30 shell entries (29 source-derived shells and 1 alias), 4 limited-view studies, and 4 NO_SHELL entries. There are 34 distinct GLBs including the hand, totalling **8,372,856 bytes (7.98 MiB)**, including **4,754,868 image bytes** across 93 JPEG maps.
 
 Aliases share a delivered file; they do not add a GLB. Classification below comes from the current manifest. Earlier sections are historical payload experiments, not the current catalogue.
 
 | Model                                 | Classification     | Delivered file                                      |   Bytes |
 | ------------------------------------- | ------------------ | --------------------------------------------------- | ------: |
-| logitech-ergo-m575                    | AR-derived shell   | `shells/logitech-ergo-m575.glb`                     | 240,712 |
-| logitech-ergo-m575s                   | Shell alias        | `shells/logitech-ergo-m575.glb`                     | 240,712 |
-| logitech-g-pro-2-lightspeed           | AR-derived shell   | `shells/logitech-g-pro-2-lightspeed.glb`            | 298,712 |
+| logitech-ergo-m575                    | AR-derived shell   | `shells/logitech-ergo-m575.glb`                     | 242,904 |
+| logitech-ergo-m575s                   | Shell alias        | `shells/logitech-ergo-m575.glb`                     | 242,904 |
+| logitech-g-pro-2-lightspeed           | AR-derived shell   | `shells/logitech-g-pro-2-lightspeed.glb`            | 313,576 |
 | logitech-g-pro-x-superlight-2         | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2.glb`          | 302,612 |
-| logitech-g-pro-x-superlight-2-dex     | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-dex.glb`      | 295,228 |
+| logitech-g-pro-x-superlight-2-dex     | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-dex.glb`      | 300,636 |
 | logitech-g-pro-x-superlight-2-se      | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2-se.glb`       | 305,720 |
-| logitech-g-pro-x-superlight-2c        | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2c.glb`         | 311,696 |
+| logitech-g-pro-x-superlight-2c        | AR-derived shell   | `shells/logitech-g-pro-x-superlight-2c.glb`         | 312,252 |
 | logitech-g203-lightsync               | AR-derived shell   | `shells/logitech-g203-lightsync.glb`                | 219,512 |
-| logitech-g305-lightspeed              | AR-derived shell   | `shells/logitech-g305-lightspeed.glb`               | 157,032 |
-| logitech-g309                         | AR-derived shell   | `shells/logitech-g309.glb`                          | 393,416 |
-| logitech-g403-hero                    | AR-derived shell   | `shells/logitech-g403-hero.glb`                     | 192,348 |
+| logitech-g305-lightspeed              | AR-derived shell   | `shells/logitech-g305-lightspeed.glb`               | 158,256 |
+| logitech-g309                         | AR-derived shell   | `shells/logitech-g309.glb`                          | 397,556 |
+| logitech-g403-hero                    | AR-derived shell   | `shells/logitech-g403-hero.glb`                     | 194,384 |
 | logitech-g502-hero                    | AR-derived shell   | `shells/logitech-g502-hero.glb`                     | 251,940 |
-| logitech-g502-x                       | AR-derived shell   | `shells/logitech-g502-x.glb`                        | 346,560 |
-| logitech-g502-x-lightspeed            | AR-derived shell   | `shells/logitech-g502-x-lightspeed.glb`             | 301,524 |
+| logitech-g502-x                       | AR-derived shell   | `shells/logitech-g502-x.glb`                        | 346,700 |
+| logitech-g502-x-lightspeed            | AR-derived shell   | `shells/logitech-g502-x-lightspeed.glb`             | 301,816 |
 | logitech-g502-x-plus                  | AR-derived shell   | `shells/logitech-g502-x-plus.glb`                   | 267,616 |
 | logitech-g703-lightspeed              | AR-derived shell   | `shells/logitech-g703-lightspeed.glb`               | 198,948 |
-| logitech-g903-hero                    | AR-derived shell   | `shells/logitech-g903-hero.glb`                     | 385,136 |
-| logitech-lift-vertical                | AR-derived shell   | `shells/logitech-lift-vertical.glb`                 | 261,156 |
+| logitech-g903-hero                    | AR-derived shell   | `shells/logitech-g903-hero.glb`                     | 393,920 |
+| logitech-lift-vertical                | AR-derived shell   | `shells/logitech-lift-vertical.glb`                 | 261,028 |
 | logitech-m190                         | AR-derived shell   | `shells/logitech-m190.glb`                          | 260,380 |
 | logitech-m196                         | AR-derived shell   | `shells/logitech-m196.glb`                          | 255,260 |
-| logitech-m240                         | AR-derived shell   | `shells/logitech-m240.glb`                          | 210,324 |
-| logitech-m650                         | AR-derived shell   | `shells/logitech-m650.glb`                          | 322,536 |
-| logitech-m720-triathlon               | AR-derived shell   | `shells/logitech-m720-triathlon.glb`                | 240,392 |
-| logitech-m750                         | AR-derived shell   | `shells/logitech-m750.glb`                          | 323,264 |
-| logitech-mx-anywhere-3s               | AR-derived shell   | `shells/logitech-mx-anywhere-3s.glb`                | 190,876 |
-| logitech-mx-master-3s                 | AR-derived shell   | `shells/logitech-mx-master-3s.glb`                  | 202,760 |
-| logitech-mx-master-4                  | AR-derived shell   | `shells/logitech-mx-master-4.glb`                   | 295,692 |
-| logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 179,812 |
+| logitech-m240                         | AR-derived shell   | `shells/logitech-m240.glb`                          | 209,888 |
+| logitech-m650                         | AR-derived shell   | `shells/logitech-m650.glb`                          | 331,176 |
+| logitech-m720-triathlon               | AR-derived shell   | `shells/logitech-m720-triathlon.glb`                | 244,336 |
+| logitech-m750                         | AR-derived shell   | `shells/logitech-m750.glb`                          | 331,092 |
+| logitech-mx-anywhere-3s               | AR-derived shell   | `shells/logitech-mx-anywhere-3s.glb`                | 194,984 |
+| logitech-mx-master-3s                 | AR-derived shell   | `shells/logitech-mx-master-3s.glb`                  | 207,976 |
+| logitech-mx-master-4                  | AR-derived shell   | `shells/logitech-mx-master-4.glb`                   | 295,680 |
+| logitech-mx-vertical                  | AR-derived shell   | `shells/logitech-mx-vertical.glb`                   | 183,740 |
 | logitech-pebble-2-m350s               | AR-derived shell   | `shells/logitech-pebble-2-m350s.glb`                | 203,580 |
-| logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 323,548 |
+| logitech-pop-mouse                    | AR-derived shell   | `shells/logitech-pop-mouse.glb`                     | 325,364 |
 | logitech-m325s                        | Limited-view study | `studies/logitech-m325s.glb`                        |  75,284 |
 | logitech-m550                         | Limited-view study | `studies/logitech-m550.glb`                         | 164,568 |
 | logitech-m705-marathon                | Limited-view study | `studies/logitech-m705-marathon.glb`                |  80,568 |

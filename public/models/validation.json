@@ -29,7 +29,7 @@
       "dimensionCalibrationScale": [
         1.0061907038761113, 1.0052234779676565, 1.003648449268613
       ],
-      "bytes": 240712,
+      "bytes": 242904,
       "path": "shells/logitech-ergo-m575.glb",
       "orientation": {
         "up": "+Z",
@@ -56,7 +56,17 @@
           "bytes": 3779732,
           "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2130757,
+          "firstPassMissedTexels": 21633,
+          "firstPassMissedShare": 0.010152729757546261,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10490,
+          "filledTexels": 11124,
+          "unresolvedTexels": 19,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 33.025334709357516
@@ -90,7 +100,7 @@
       "dimensionCalibrationScale": [
         1.003835748483306, 1.008147217283304, 1.0039146390457299
       ],
-      "bytes": 298712,
+      "bytes": 313576,
       "path": "shells/logitech-g-pro-2-lightspeed.glb",
       "orientation": {
         "up": "+Z",
@@ -115,7 +125,17 @@
           "bytes": 10838520,
           "sha256": "019fa91f7af013b18a258e05a68037633024974043bf517a6f7c94ae68de8430"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1717607,
+          "firstPassMissedTexels": 84180,
+          "firstPassMissedShare": 0.0490100471178797,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 23836,
+          "filledTexels": 55017,
+          "unresolvedTexels": 5327,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 23.299087111893105
@@ -208,7 +228,7 @@
       "dimensionCalibrationScale": [
         1.0058062877531988, 1.008653723288624, 1.0030086406801118
       ],
-      "bytes": 295228,
+      "bytes": 300636,
       "path": "shells/logitech-g-pro-x-superlight-2-dex.glb",
       "orientation": {
         "up": "+Z",
@@ -235,7 +255,17 @@
           "bytes": 7600472,
           "sha256": "6b02b8cec98bb8c5c5ffd8bcc68cd889c2aee3c038fe88c6727d4dee61cde86e"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1812022,
+          "firstPassMissedTexels": 55552,
+          "firstPassMissedShare": 0.030657464423721126,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 16695,
+          "filledTexels": 37775,
+          "unresolvedTexels": 1082,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 25.509128868285263
@@ -658,7 +688,7 @@
       "dimensionCalibrationScale": [
         1.0075935992073224, 1.0080761199481034, 1.0043637376338617
       ],
-      "bytes": 311696,
+      "bytes": 312252,
       "path": "shells/logitech-g-pro-x-superlight-2c.glb",
       "orientation": {
         "up": "+Z",
@@ -685,7 +715,17 @@
           "bytes": 6083632,
           "sha256": "f8970fd5366a6bd5223a28ef038cd7eb96d63d24ca9a3b255c6d2a71808ac413"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2095546,
+          "firstPassMissedTexels": 3349,
+          "firstPassMissedShare": 0.0015981515080079368,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 1515,
+          "filledTexels": 1806,
+          "unresolvedTexels": 28,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 25.574942280433472
@@ -783,7 +823,7 @@
       "dimensionCalibrationScale": [
         1.0052868518540798, 1.0069987684206056, 1.0039253693944146
       ],
-      "bytes": 157032,
+      "bytes": 158256,
       "path": "shells/logitech-g305-lightspeed.glb",
       "orientation": {
         "up": "+Z",
@@ -811,7 +851,17 @@
           "sha256": "48a1a909f3bd0182c54f1890e5decee16814c1e27df983c95d417fe41c5a0571",
           "discoveredOn": "https://www.logitechg.com/en-us/shop/p/g305-lightspeed-wireless-gaming-mouse"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2303891,
+          "firstPassMissedTexels": 22,
+          "firstPassMissedShare": 9.549062867991584e-6,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 12,
+          "filledTexels": 10,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 23.555981240544558
@@ -845,7 +895,7 @@
       "dimensionCalibrationScale": [
         1.0040560548048099, 1.010966666579836, 1.0042227719991796
       ],
-      "bytes": 393416,
+      "bytes": 397556,
       "path": "shells/logitech-g309.glb",
       "orientation": {
         "up": "+Z",
@@ -872,7 +922,17 @@
           "bytes": 14367228,
           "sha256": "7cbc75e914d9113c92bbcbe4f190d6db4e0f7023bdb86cab48b06ce474a34c08"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 986457,
+          "firstPassMissedTexels": 35651,
+          "firstPassMissedShare": 0.0361404501159199,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 7857,
+          "filledTexels": 27029,
+          "unresolvedTexels": 765,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 23.554050815579323
@@ -906,7 +966,7 @@
       "dimensionCalibrationScale": [
         1.0051299389607637, 1.0060242376719861, 1.0060825789100405
       ],
-      "bytes": 192348,
+      "bytes": 194384,
       "path": "shells/logitech-g403-hero.glb",
       "orientation": {
         "up": "+Z",
@@ -933,7 +993,17 @@
           "bytes": 2747304,
           "sha256": "e636d1ed7246185d17c559fe6b31efd0e80fef3891313a4c682fc8003b0600ee"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1927091,
+          "firstPassMissedTexels": 21647,
+          "firstPassMissedShare": 0.01123299314874077,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 2993,
+          "filledTexels": 17032,
+          "unresolvedTexels": 1622,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 24.895363805244855
@@ -1028,7 +1098,7 @@
       "dimensionCalibrationScale": [
         1.012904666483938, 1.0050793630530706, 1.0115176732320637
       ],
-      "bytes": 346560,
+      "bytes": 346700,
       "path": "shells/logitech-g502-x.glb",
       "orientation": {
         "up": "+Z",
@@ -1055,7 +1125,17 @@
           "bytes": 8754384,
           "sha256": "b776d5cfda8196c7906e9e05d440ab9dbe051822a1f962370df8a7cf0992c2fd"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1544476,
+          "firstPassMissedTexels": 8420,
+          "firstPassMissedShare": 0.005451687174161334,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 4429,
+          "filledTexels": 3981,
+          "unresolvedTexels": 10,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 26.03789211835509
@@ -1089,7 +1169,7 @@
       "dimensionCalibrationScale": [
         1.0131702050274385, 1.0112055793847705, 1.0123755937338415
       ],
-      "bytes": 301524,
+      "bytes": 301816,
       "path": "shells/logitech-g502-x-lightspeed.glb",
       "orientation": {
         "up": "+Z",
@@ -1116,7 +1196,17 @@
           "bytes": 9661560,
           "sha256": "fc5ca084f8108a07c1a6a5cd6f71b2af551b7593ccdfb56c54ae5946b0aafc0c"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1906909,
+          "firstPassMissedTexels": 9022,
+          "firstPassMissedShare": 0.004731216854081658,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 4191,
+          "filledTexels": 4831,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 26.3485830907993
@@ -1272,7 +1362,7 @@
       "dimensionCalibrationScale": [
         1.0132176141412135, 1.011545551071922, 1.0036982434993598
       ],
-      "bytes": 385136,
+      "bytes": 393920,
       "path": "shells/logitech-g903-hero.glb",
       "sourceCalibration": {
         "uncalibratedDimensionsXYZmm": [
@@ -1308,7 +1398,17 @@
           "bytes": 4691004,
           "sha256": "10756b6c181b4fd3d8578a148c43f141ae47b462c46a3a593378fae48dab6baa"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 665198,
+          "firstPassMissedTexels": 28235,
+          "firstPassMissedShare": 0.04244600855685074,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 14705,
+          "filledTexels": 13385,
+          "unresolvedTexels": 145,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 26.57788751771076
@@ -1342,7 +1442,7 @@
       "dimensionCalibrationScale": [
         1.0053270803129264, 1.0039671048480503, 1.006767552570256
       ],
-      "bytes": 261156,
+      "bytes": 261028,
       "path": "shells/logitech-lift-vertical.glb",
       "orientation": {
         "up": "+Z",
@@ -1369,7 +1469,17 @@
           "bytes": 7897616,
           "sha256": "335eb9dfd4473dbc87d1bc55d88fe21b6323d244054ddee3666c37191ecc15c0"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2382345,
+          "firstPassMissedTexels": 359,
+          "firstPassMissedShare": 0.00015069186033089246,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 40,
+          "filledTexels": 319,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 24.320639295712933
@@ -1526,7 +1636,7 @@
       "dimensionCalibrationScale": [
         1.0104725747431482, 1.006569624042243, 1.0073694961758468
       ],
-      "bytes": 210324,
+      "bytes": 209888,
       "path": "shells/logitech-m240.glb",
       "orientation": {
         "up": "+Z",
@@ -1554,7 +1664,17 @@
           "sha256": "7de341bf27d3ccb2bc00816389d2d4fd1d379db90bbecc5adb317d2e15d62421",
           "discoveredOn": "https://www.logitech.com/en-gb/shop/p/m240-silent-bluetooth-mouse"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1980773,
+          "firstPassMissedTexels": 1234,
+          "firstPassMissedShare": 0.0006229891057683036,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 27,
+          "filledTexels": 1207,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 15.421830829736379
@@ -2362,7 +2482,7 @@
       "dimensionCalibrationScale": [
         1.014934343001406, 1.0099895181918643, 1.0054357265819391
       ],
-      "bytes": 322536,
+      "bytes": 331176,
       "path": "shells/logitech-m650.glb",
       "orientation": {
         "up": "+Z",
@@ -2389,7 +2509,17 @@
           "bytes": 2636936,
           "sha256": "631402f0eb3b84818bc90c60090f7742ab1ccf9f1b6a338a51d66105ad79df68"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1324295,
+          "firstPassMissedTexels": 44576,
+          "firstPassMissedShare": 0.033660173903850725,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 9625,
+          "filledTexels": 33379,
+          "unresolvedTexels": 1572,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 21.582861476254337
@@ -2506,7 +2636,7 @@
       "dimensionCalibrationScale": [
         1.010809134326338, 1.0080301957670024, 1.006088892913087
       ],
-      "bytes": 240392,
+      "bytes": 244336,
       "path": "shells/logitech-m720-triathlon.glb",
       "orientation": {
         "up": "+Z",
@@ -2533,7 +2663,17 @@
           "bytes": 4481588,
           "sha256": "eff2bb2e0a0fbcc389efa7b3c54aeca64d17b5470aaeefe8b53418a9f72af084"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2102710,
+          "firstPassMissedTexels": 2130,
+          "firstPassMissedShare": 0.0010129784896633393,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 619,
+          "filledTexels": 1509,
+          "unresolvedTexels": 2,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 30.520380229040054
@@ -2567,7 +2707,7 @@
       "dimensionCalibrationScale": [
         1.0148965027228833, 1.0090909585077703, 1.0048050723131354
       ],
-      "bytes": 323264,
+      "bytes": 331092,
       "path": "shells/logitech-m750.glb",
       "sourceCalibration": {
         "uncalibratedDimensionsXYZmm": [
@@ -2603,7 +2743,17 @@
           "bytes": 6180480,
           "sha256": "259a809168b944f9f6ca65c53fa5d31205e850d2052e097afb40d9b89e3e6dea"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1420576,
+          "firstPassMissedTexels": 46124,
+          "firstPassMissedShare": 0.03246851981168202,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10471,
+          "filledTexels": 32638,
+          "unresolvedTexels": 3015,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 21.741765310900302
@@ -2637,7 +2787,7 @@
       "dimensionCalibrationScale": [
         1.0125948268152554, 1.0080737782837081, 1.00636982872852
       ],
-      "bytes": 190876,
+      "bytes": 194984,
       "path": "shells/logitech-mx-anywhere-3s.glb",
       "orientation": {
         "up": "+Z",
@@ -2664,7 +2814,17 @@
           "bytes": 6168520,
           "sha256": "cb8e16cf0931a955968266e6110454b47bfa92032f1ad525622572c1c045c072"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1938812,
+          "firstPassMissedTexels": 16,
+          "firstPassMissedShare": 8.252476258657364e-6,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10,
+          "filledTexels": 6,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 21.107552165967043
@@ -2699,7 +2859,7 @@
       "dimensionCalibrationScale": [
         1.0111869469085866, 1.0079184857901837, 1.0044349078216805
       ],
-      "bytes": 202760,
+      "bytes": 207976,
       "path": "shells/logitech-mx-master-3s.glb",
       "orientation": {
         "up": "+Z",
@@ -2727,7 +2887,17 @@
           "sha256": "804a363ff86c792eca8828684e392836d02df6909faaf2c5432d928c925cfc0c",
           "discoveredOn": "https://www.logitech.com/en-gb/shop/p/mx-master-3s"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1721927,
+          "firstPassMissedTexels": 158,
+          "firstPassMissedShare": 9.17576645235251e-5,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 1,
+          "filledTexels": 157,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 30.080465256994962
@@ -2761,7 +2931,7 @@
       "dimensionCalibrationScale": [
         1.010317077254113, 1.0064363940464847, 1.0032671704417886
       ],
-      "bytes": 295692,
+      "bytes": 295680,
       "path": "shells/logitech-mx-master-4.glb",
       "orientation": {
         "up": "+Z",
@@ -2789,6 +2959,16 @@
           "sha256": "9737671300c5b928c0517f190eb25fc0fc2f01bc08496f68a42e30012508938c"
         },
         "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1733937,
+          "firstPassMissedTexels": 552,
+          "firstPassMissedShare": 0.0003183506667197251,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 230,
+          "filledTexels": 322,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        },
         "coverComposite": {
           "coverObjects": ["LEFT_BUTTON.001", "RIGHT_BUTTON.001"],
           "texelsComposited": 2268273,
@@ -2828,7 +3008,7 @@
       "dimensionCalibrationScale": [
         1.0065110624176434, 1.0056368538439642, 1.0063896297282677
       ],
-      "bytes": 179812,
+      "bytes": 183740,
       "path": "shells/logitech-mx-vertical.glb",
       "orientation": {
         "up": "+Z",
@@ -2855,7 +3035,23 @@
           "bytes": 7077964,
           "sha256": "3740a177977655f5f517c862d64c6b2e32ecf07cc72d926d7c23423171cf384b"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2248502,
+          "firstPassMissedTexels": 76,
+          "firstPassMissedShare": 3.380028125391928e-5,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 0,
+          "filledTexels": 76,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        },
+        "coverComposite": {
+          "coverObjects": ["Node9"],
+          "texelsComposited": 1639632,
+          "alphaRange": [0.0, 1.0],
+          "method": "Base colour: transparent cover composited over the body beneath it in linear light (alpha * cover + (1 - alpha) * body); other channels use the opaque cover"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 26.2400533011976
@@ -2950,7 +3146,7 @@
       "dimensionCalibrationScale": [
         1.0091304882196457, 1.0093705353255351, 1.0058293404466225
       ],
-      "bytes": 323548,
+      "bytes": 325364,
       "path": "shells/logitech-pop-mouse.glb",
       "orientation": {
         "up": "+Z",
@@ -2977,7 +3173,17 @@
           "bytes": 2535936,
           "sha256": "4819609788d75ceb8681c8de9741101cfc19003176cea0bd8eb6abfdafe005ab"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1697758,
+          "firstPassMissedTexels": 4722,
+          "firstPassMissedShare": 0.002781315122649989,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 2350,
+          "filledTexels": 2371,
+          "unresolvedTexels": 1,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 15.99125490656468
@@ -3095,7 +3301,7 @@
       "dimensionCalibrationScale": [
         1.0061907038761113, 1.0052234779676565, 1.003648449268613
       ],
-      "bytes": 240712,
+      "bytes": 242904,
       "path": "shells/logitech-ergo-m575.glb",
       "orientation": {
         "up": "+Z",
@@ -3122,7 +3328,17 @@
           "bytes": 3779732,
           "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
         },
-        "normalStrength": 0.65
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2130757,
+          "firstPassMissedTexels": 21633,
+          "firstPassMissedShare": 0.010152729757546261,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10490,
+          "filledTexels": 11124,
+          "unresolvedTexels": 19,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
       },
       "groundErrorMm": 0.0,
       "supportMarginMm": 33.025334709357516,
