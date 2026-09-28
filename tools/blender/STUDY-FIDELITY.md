@@ -1295,6 +1295,52 @@ start underneath it. The O1 fallback pass addresses misses, not these.
 and the five O4 shells are re-baked with both fixes in the O1 batch. The other
 shells get an impact check.
 
+#### Part 3 — M550 on the M650 AR shell, candidate only (Claude, 2026-09-28)
+
+**Not delivered.** Files are under `out/study-fidelity/c/m550-sibling-candidate/`
+(ignored). Nothing in `public/models/`, the manifest or validation changed.
+Built by `build_m550_sibling_candidate.py` from the Phase C M650 re-bake.
+
+**Geometry.** The thumb buttons are 17 connected pieces of the M650 AR source's
+`Node10` (button skins) and `Node13` (caps), inside x 17–29, y −17–16,
+z 17.5–31 mm (import frame). Shell vertices whose nearest source triangle is a
+button piece form the region: 290 vertices in one patch, and a stray 84-vertex patch
+near the front was dropped. The region plus 2 rings (382 vertices) was refaired
+by biharmonic hole filling (bi-Laplacian least squares, full rank 382/382), with
+the rest of the shell fixed and vertices moving only along the region's mean normal.
+Two earlier attempts failed and were discarded: a quadratic height fit (RMS 5.3 mm)
+and free 3-D biharmonic (vertices slid up to 33 mm, 255 intersections).
+Removed-region area **572 mm²**; largest displacement from M650 **2.98 mm**,
+mean 0.64 mm. Mesh: 14,000 triangles, 0 non-manifold edges, 0 intersections,
+dimensions unchanged at 61.0 × 108.2 × 38.8 mm (M550 catalogue is the same), support margin
+21.56 mm, volume 144,843 mm³ (M650 144,937).
+
+**Colour.** M550 and M650 graphite-medium top gallery photos match on the palm,
+buttons and rear shell (ΔE2000 0.00, 0.36, 0.69, 0.00; crops are 1474 × 829 and
+1475 × 830 px). The one difference is M650's light grey wheel-to-LED plate, which M550 lacks.
+Its neutral light texels on the plate source object (`Node1`), plus the thumb region,
+each grown 8 texels over their seam rims, are filled with the median of a clean surrounding band
+(feathered 4 texels), with the normal map flat there. The green LED is kept. Neighbour growth
+was tried first and discarded because it carried dark seam rims inward.
+
+Silhouette IoU against M550's photos, cameras fitted by `fit_m550_photos.py`
+(unchanged) on each mesh:
+
+| View                 | Committed B3 study |  Candidate |
+| -------------------- | -----------------: | ---------: |
+| Top                  |             0.9951 |     0.9923 |
+| Left                 |             0.9823 | **0.9915** |
+| Bottom               |             0.9929 |     0.9918 |
+| Rear ¾ (B3 held out) |             0.9325 | **0.9880** |
+| Front ¾ (held out)   |             0.9571 | **0.9948** |
+
+**Limitations, for Kirby's decision.** A faint outline of the M650 plate remains
+(the plate is slightly raised in the geometry). The filled thumb area is smooth,
+slightly flatter plastic with some mottling at its front edge, and lacks M550's
+side grip ridges. M550's thin centre seam is not drawn. The dark smudges beside
+the wheel come from the M650 bake. Contact sheet: `contact-sheet.png`
+(M550 photos | committed B3 M550 | candidate | M650; top, side, front, hero).
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1329,6 +1375,8 @@ shells get an impact check.
 | 2026-09-28 | **O4 in scope:** fix the missed bake rays on the five accepted shells as well (G Pro 2, Superlight 2 DEX, G309, G403, M650), not only G903 and M750                                                                                                                                                                                                                                                                                                                                                                                                 | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Claude (building): **Part 3 candidate built, not delivered.** M650 AR shell with thumb buttons refaired (max 2.98 mm) and plate recoloured. IoU vs M550 photos is ≥ 0.988 in all five views (B3 study: rear 0.932, front 0.957). Awaits Kirby's choice between it and the B3 study.
 
 - 2026-09-28 Claude (building): **O2 cause found and fixed**: DIFFUSE colour baked metal black. MX Master 4 re-installed with the metallic fix: wheel ΔE2000 38.29 → 1.48; buttons 0.72 / 1.62, palm 0.11. New Blender test. Sonnet review pending. Next: O1 fallback plus a re-bake of G903, M750 and the five O4 shells.
 
