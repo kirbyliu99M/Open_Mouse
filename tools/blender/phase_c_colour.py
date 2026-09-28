@@ -54,7 +54,14 @@ def reference(slug):
     orientation = json.loads((OUT / slug / 'reconstruction.json').read_text())['orientation']
     rotation = Matrix(orientation['rotationMatrix'])
     coords = np.array([rotation @ v for v in verts])
-    low, high = coords.min(axis=0), coords.max(axis=0)
+    # Normalise by the product body only. source_surface maps the body into the
+    # calibrated box (x, y centred, z from 0); a trimmed cable lies outside it and
+    # must not stretch the bbox (it squashed the G203/G403/G502 references, O6).
+    box = np.array(calibration['dimensionsXYZ'])
+    raw = np.array([tuple(v) for v in verts])
+    body = ((np.abs(raw[:, 0]) <= box[0] / 2 + .001) & (np.abs(raw[:, 1]) <= box[1] / 2 + .001)
+            & (raw[:, 2] >= -.001) & (raw[:, 2] <= box[2] + .001))
+    low, high = coords[body].min(axis=0), coords[body].max(axis=0)
     dims = np.array([record['widthMm'], record['lengthMm'], record['heightMm']]) / 1000
     coords = (coords - low) / (high - low) * dims
     coords[:, :2] -= dims[:2] / 2
