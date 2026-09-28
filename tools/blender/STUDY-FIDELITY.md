@@ -1252,7 +1252,7 @@ will pick up the composite automatically.
 
 Gates: `ALL_ASSET_CHECKS_PASSED`; Blender alpha (3 tests, new
 `test_cover_alpha_and_body_bakes_for_compositing`), colour sampling and polish
-orientation tests pass; 64 Python tests OK (10 bpy skips), including 5 new
+orientation tests pass; 69 Python tests OK (10 bpy skips), including 5 new
 `test_layer_composite` tests; `check_catalogues.py`, `audit_payloads.py`,
 `optimize_glbs.py --check`, prettier and 967 Vitest tests pass.
 `PAYLOAD-AUDIT.md` regenerated. Only `shells/logitech-mx-master-4.glb` changed.
