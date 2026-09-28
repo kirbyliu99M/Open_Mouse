@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C, M100 removed)_
+_Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C built and installed)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-28 · by: Claude (study fidelity: Phase C, M100 removed)_
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the limited-view studies to the 26 AR shells' finish. Codex (`gpt-6-astra`, high) builds; Claude audits; AGY (Gemini) does web searches. **Accepted by Kirby:** G903 Hero and M750 (rebuilt from official AR files), G Pro X Superlight 2 SE (Superlight 2 shell, recoloured). **Kept as is:** M705, M325s, M850L (photo bake dropped). **Removed:** M100's 3D model (Kirby, 2026-09-28); it stays in the catalogue and moves to `noShell`. **Phase C in progress:** MX Master 4 button colour. The clear cover (alpha 0.40) is being composited over the button body; the delivery gate is ΔE2000 ≤ 3. Then the dark wheel openings, the missed bake rays on G903 and M750, and a non-delivered M550-on-M650 candidate. Five accepted shells with more than 1% missed bake rays (G Pro 2, Superlight 2 DEX, G309, G403, M650) are listed as O4 for Kirby. AGY found no Logitech-hosted AR file for M100, M550, M705, M325s, M850L or SE. **Codex usage limit** until 22:19 Asia/Taipei; a timer resumes it at 22:21.
+**In flight — study fidelity (Kirby, 2026-09-28), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** bring the limited-view studies to the 26 AR shells' finish. **Accepted by Kirby:** G903 Hero, M750, G Pro X Superlight 2 SE. **Kept as is:** M705, M325s, M850L. **Removed:** M100's 3D model (it stays in the catalogue, `noShell`). **Phase C (built by Claude while Codex was out of quota, Kirby's decision):** MX Master 4 buttons composited cover-over-body (left ΔE2000 6.02 → 0.72). The black wheels were caused by the DIFFUSE colour pass zeroing metal (wheel 38.3 → 1.48). Missed bake rays are repaired by an outward-only second pass plus a neighbour fill. Every AR shell was re-baked; **20 installed** under an install rule set before the batch, with 0 mm geometry change each; MX Vertical went 8.12 → 0.91. M550-on-M650 candidate built but not delivered (IoU ≥ 0.988 in every view vs the B3 study's 0.932 rear); Kirby chooses. Open: O5 (Superlight 2 + SE together), O6 (high ΔE vs AR on G403, G502 Hero, G203). **Independent Sonnet review in progress; Kirby's visual acceptance pending** (`Mouse Shape Project/模型驗收-2026-09-28/C階段驗收.html`).
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
