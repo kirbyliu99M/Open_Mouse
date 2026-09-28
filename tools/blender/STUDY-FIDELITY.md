@@ -1124,6 +1124,82 @@ Changed files (plus this Results/Progress log):
 - `tools/blender/tests/test_polish_orientation_blender.py`
 - `tools/blender/tests/test_reference_geometry.py`
 
+#### Part 2b ? cover/body hypothesis preflight stopped, 2026-09-28
+
+The new hypothesis was checked **before** any per-texel bake. The exact existing
+studio was extracted into `phase_c_colour.shared_studio` without changing its
+settings. `inspect_button_layers.py` imports the official AR source, inspects
+material alpha and casts top-camera rays on the fixed patch grids (252 rays per
+button, 648 palm rays), then renders the original, opaque-cover and hidden-cover
+variants. No production bake logic or public asset was changed.
+
+**Actual layers:** `LEFT_BUTTON` / `RIGHT_BUTTON` use
+`TRANSPARENT_LEFT_BUTTON` / `TRANSPARENT_RIGHT_BUTTON`. Alpha is linked to the
+base-colour texture's Alpha output, not a scalar default. Whole-image ranges
+are **0.349019617?1** (left) and **0.400000036?1** (right); all sampled texels in
+both button patches have **0.400000036** alpha. Both covers' sampled Base Color
+is linear RGB **0.116970479 / 0.124771573 / 0.141263425**. Every button ray finds
+`MAIN_PLASTIC` with `MAIN_PLASTIC_SUB` beneath the cover, sampled linear RGB
+**0.026241273 / 0.026241273 / 0.027320866**. Cover-to-body top-ray separations:
+left **1.308143?1.471281 mm**, mean **1.373823 mm**; right
+**1.405299?1.505792 mm**, mean **1.451073 mm**. Palm is the opaque
+`PATTERN_PLASTIC_SHELL` (alpha 1).
+
+The prediction decodes each render to linear light, takes each patch's mean
+radiance, computes `alpha * cover + (1-alpha) * body`, and re-encodes the result
+to sRGB. CIEDE2000 compares it with the AR's mean encoded patch RGB using the
+same D65 convention as the existing gate. This is a region-mean preflight,
+**not a rendered composite-bake candidate**. The opaque column below is the
+opaque **AR source layer**, not the previously baked opaque shell.
+
+| Region       | AR sRGB255                           | Opaque cover sRGB255                 | Hidden-cover body sRGB255            | Predicted composite sRGB255          | Prediction vs AR DeltaE2000 |
+| ------------ | ------------------------------------ | ------------------------------------ | ------------------------------------ | ------------------------------------ | --------------------------: |
+| Left button  | 89.654127 / 91.748095 / 95.764603    | 116.112857 / 119.575714 / 126.396984 | 83.172857 / 83.319841 / 84.294444    | 98.199171 / 99.990220 / 103.897049   |         **3.043410 ? fail** |
+| Right button | 77.098730 / 79.005397 / 82.804444    | 103.649048 / 106.717143 / 112.894921 | 65.575079 / 65.613333 / 66.738889    | 83.372227 / 85.000192 / 88.783069    |                    2.112469 |
+| Palm         | 130.383333 / 130.683642 / 132.523457 | 130.383210 / 130.681481 / 132.525062 | 130.381667 / 130.685309 / 132.524198 | 130.817403 / 131.122117 / 132.949909 |                    0.162278 |
+
+**Stop:** left button exceeds the unchanged **DeltaE2000 <=3** hypothesis gate
+by **0.043410**. No rounding to a pass. The body is present, but this simple
+mean-radiance cover/hidden-body prediction is still too light. Hiding the cover
+also changes illumination of the body; shadowing/interreflection or multiple
+cover intersections are possible causes, **not verified diagnoses**. No further
+shader changes or candidate bake were attempted after the failure.
+
+For comparison, the existing delivered-blended / opaque-shell / proposed
+composite-prediction DeltaE2000 values are:
+
+| Region       | Delivered blended shell | Prior opaque shell candidate | New source-layer prediction |
+| ------------ | ----------------------: | ---------------------------: | --------------------------: |
+| Left button  |                6.021381 |                     7.306253 |                    3.043410 |
+| Right button |                4.209348 |                     7.812137 |                    2.112469 |
+| Palm         |                0.113540 |                     0.116268 |                    0.162278 |
+
+These are explicitly different stages; **there is no composite-shell variant**.
+The existing side/wheel values remain in the previous table. New per-texel
+compositing code/tests, remeasurement of a composite shell and the M720 / MX
+Vertical / Pebble 2 impact check were not started. Parts 2 (wheel cause/fix),
+1 (G903/M750 fallback and crops) and 3 (M550 candidate/IoUs/area/displacement)
+remain unattempted under the stop rule. Part 4 is cancelled; Part M is complete.
+O1/O2/O4 remain unchanged; Part 0 remains accepted.
+
+Evidence: `out/study-fidelity/c/button-layers/` contains `layers.json`,
+`prediction.json`, `layer-crops.png` (AR | opaque source | hidden-cover body),
+three original 800 px renders, `blender.log` and `measurement.log`.
+Reproduce with Blender 5.2.2 / Python 3.13:
+`--background --factory-startup --python-exit-code 1 --python tools/blender/inspect_button_layers.py`,
+then external Python `tools/blender/measure_button_layers.py`.
+Blender exits **0** without SciPy or environment changes; measurement exits
+**1**, exact error `PART_2B_LAYER_HYPOTHESIS_FAILED: prediction must be <= 3`.
+The AR left patch reproduces the previous studio to within **0.000159 sRGB255**
+per channel. The small palm offset in the predicted statistic includes
+averaging linear light before encoding versus averaging encoded reference RGB.
+
+No delivered GLB changed in Part 2b. All **34 remaining GLBs are byte-identical**
+to the start of this run; only Part M deleted M100. Part M's full asset gates
+passed; this preflight colour gate failed, so Phase C is **not gate-complete**.
+No full production gate rerun or success is claimed after the stop. Separate
+local checkpoint commit with the diagnostic and evidence, **no push**.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                      | Evidence (Claude, 2026-09-28)                                                                                                                                                                                                            | Suggested direction                                                                                                                                                                                                           |
@@ -1135,26 +1211,38 @@ Changed files (plus this Results/Progress log):
 
 ## Decisions
 
-| Date       | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | By             |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish                                                                                                                                                                                                                                                                                                                                                                                                                               | Kirby          |
-| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base                                                                                                                                                                                                                                                                                                                                                                                                                              | Kirby          |
-| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Kirby          |
-| 2026-09-28 | **Gate A passed.** G903 Hero and M750 go through the full AR pipeline of the 26 shells; their study geometry is replaced (approved geometry route)                                                                                                                                                                                                                                                                                                                                                 | Kirby          |
-| 2026-09-28 | SE uses the G Pro X Superlight 2 shell (geometry and detail maps) recoloured from SE photos (approved geometry route)                                                                                                                                                                                                                                                                                                                                                                              | Kirby          |
-| 2026-09-28 | M550 is the photo-bake prototype for M100, M550, M705, M325s and M850L                                                                                                                                                                                                                                                                                                                                                                                                                             | Kirby          |
-| 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json`                                                                                                                                                                                                                                                                                                                                                 | Claude         |
-| 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded                                                                                                                                                                                                                                          | Kirby          |
-| 2026-09-28 | B3 camera gate: the rear three-quarter photo (IoU 0.932) is held out rather than projected. Texture comes from top, left, bottom and front ¾ (all ≥ 0.95), plus mirrored left after a mirror-IoU check (0.9991). This interprets criterion 3; it does not relax it                                                                                                                                                                                                                                 | Claude         |
-| 2026-09-28 | B3 assessment: the photo bake is a real but modest improvement. The remaining gap to the AR shells is mostly geometry: an interpolated loft, a 3.9 mm cross-section error at the rear ¾, and wheel and gaps present only in the texture. Phase C1 (photo bake of M100, M705, M325s and M850L, which have fewer photos) is **on hold for Kirby**. Meanwhile C runs O1/O2 on the AR shells, plus a non-delivered candidate: M550 on the M650 AR shell with the thumb buttons removed                 | Claude         |
-| 2026-09-28 | M550 waits for the Phase C candidate on the M650 AR shell before a final choice. **M100, M705, M325s and M850L stay as they are**: no photo bake (C1 dropped)                                                                                                                                                                                                                                                                                                                                      | Kirby          |
-| 2026-09-28 | **Visual acceptance:** G903 Hero, M750 and G Pro X Superlight 2 SE **accepted**. MX Master 4 and M100 **not accepted**; changes requested (details below)                                                                                                                                                                                                                                                                                                                                          | Kirby          |
-| 2026-09-28 | MX Master 4 changes requested: wheel black hole (O2) and **button colour/finish wrong**. Claude measured it under identical lighting (top view, mean sRGB). Left button: AR reference 177, current 146, the first all-opaque bake 182. Palm matches at 185–186 in all three. **Claude's error:** on 2026-09-27 it replaced the all-opaque bake with the blended-colour bake after judging it "too white" by eye, without measuring. The fix is to bake base colour with the sources opaque as well | Kirby / Claude |
-| 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                  | Kirby / Claude |
-| 2026-09-28 | **M100's 3D model is removed.** It stays in the catalogue and fit results by its dimensions, and moves from `studies` to `noShell` in the manifest. Part 4 (M100 rework) is cancelled. AGY's web search found no Logitech-hosted AR file for M100 or its siblings                                                                                                                                                                                                                                  | Kirby          |
-| 2026-09-28 | **Claude's MX Master 4 diagnosis corrected.** The all-opaque bake is not the fix: in Codex's identical-light studio the left button is AR 89.7, blended 73.3, opaque 109.5 (mean sRGB). The clear cover sits over the button body. The blended bake composited it over black; the opaque bake drops the body. Part 2b now composites the cover over the layer beneath it                                                                                                                           | Claude         |
+| Date       | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | By             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 2026-09-28 | Scope: all eight studies; target is the 26 AR-derived shells' finish                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Kirby          |
+| 2026-09-28 | Geometry: eight-new-shells versions, except M100 from m100-level-base                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Kirby          |
+| 2026-09-28 | Codex runs `gpt-6-astra` at reasoning high                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Kirby          |
+| 2026-09-28 | **Gate A passed.** G903 Hero and M750 go through the full AR pipeline of the 26 shells; their study geometry is replaced (approved geometry route)                                                                                                                                                                                                                                                                                                                                                                                                  | Kirby          |
+| 2026-09-28 | SE uses the G Pro X Superlight 2 shell (geometry and detail maps) recoloured from SE photos (approved geometry route)                                                                                                                                                                                                                                                                                                                                                                                                                               | Kirby          |
+| 2026-09-28 | M550 is the photo-bake prototype for M100, M550, M705, M325s and M850L                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Kirby          |
+| 2026-09-28 | Phase B runs as B1 (G903, M750), then B2 (SE), then B3 (M550), one Codex run each, because all three rewrite `manifest.json` and `validation.json`                                                                                                                                                                                                                                                                                                                                                                                                  | Claude         |
+| 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded                                                                                                                                                                                                                                                                                           | Kirby          |
+| 2026-09-28 | B3 camera gate: the rear three-quarter photo (IoU 0.932) is held out rather than projected. Texture comes from top, left, bottom and front ¾ (all ≥ 0.95), plus mirrored left after a mirror-IoU check (0.9991). This interprets criterion 3; it does not relax it                                                                                                                                                                                                                                                                                  | Claude         |
+| 2026-09-28 | B3 assessment: the photo bake is a real but modest improvement. The remaining gap to the AR shells is mostly geometry: an interpolated loft, a 3.9 mm cross-section error at the rear ¾, and wheel and gaps present only in the texture. Phase C1 (photo bake of M100, M705, M325s and M850L, which have fewer photos) is **on hold for Kirby**. Meanwhile C runs O1/O2 on the AR shells, plus a non-delivered candidate: M550 on the M650 AR shell with the thumb buttons removed                                                                  | Claude         |
+| 2026-09-28 | M550 waits for the Phase C candidate on the M650 AR shell before a final choice. **M100, M705, M325s and M850L stay as they are**: no photo bake (C1 dropped)                                                                                                                                                                                                                                                                                                                                                                                       | Kirby          |
+| 2026-09-28 | **Visual acceptance:** G903 Hero, M750 and G Pro X Superlight 2 SE **accepted**. MX Master 4 and M100 **not accepted**; changes requested (details below)                                                                                                                                                                                                                                                                                                                                                                                           | Kirby          |
+| 2026-09-28 | MX Master 4 changes requested: wheel black hole (O2) and **button colour/finish wrong**. Claude measured it under identical lighting (top view, mean sRGB). Left button: AR reference 177, current 146, the first all-opaque bake 182. Palm matches at 185–186 in all three. **Claude's error:** on 2026-09-27 it replaced the all-opaque bake with the blended-colour bake after judging it "too white" by eye, without measuring. The fix is to bake base colour with the sources opaque as well                                                  | Kirby / Claude |
+| 2026-09-28 | M100 changes requested: detail too low and proportions wrong. Route: (1) search for an AR source of a same-shell sibling (B100 is the business variant, commonly said to share the shell; Claude has not verified this) and verify it with A2-style silhouettes; (2) otherwise refine the geometry from the four gallery photos with B3's camera fitter. Deliver only if every view's IoU improves and the held-out view improves                                                                                                                   | Kirby / Claude |
+| 2026-09-28 | **M100's 3D model is removed.** It stays in the catalogue and fit results by its dimensions, and moves from `studies` to `noShell` in the manifest. Part 4 (M100 rework) is cancelled. AGY's web search found no Logitech-hosted AR file for M100 or its siblings                                                                                                                                                                                                                                                                                   | Kirby          |
+| 2026-09-28 | **Claude's MX Master 4 diagnosis corrected.** The all-opaque bake is not the fix: in Codex's identical-light studio the left button is AR 89.7, blended 73.3, opaque 109.5 (mean sRGB). The clear cover sits over the button body. The blended bake composited it over black; the opaque bake drops the body. Part 2b now composites the cover over the layer beneath it                                                                                                                                                                            | Claude         |
+| 2026-09-28 | **2b preflight ruling.** The region-mean preflight confirms the layer structure: cover alpha 0.40 over `MAIN_PLASTIC`, about 1.4 mm beneath. Prediction vs AR ΔE2000 is left 3.04, right 2.11, palm 0.16, against blended 6.02 / 4.21 and opaque 7.31 / 7.81. The ≤ 3 preflight threshold was Claude's hypothesis check, not a delivery gate; Claude rules the hypothesis confirmed and 2b proceeds to the per-texel composite bake. The delivery gate is unchanged: ΔE2000 ≤ 3 on the left button, right button and palm in the rendered candidate | Claude         |
 
 ## Progress log
+
+- 2026-09-28 Claude: audited and pushed `905e473` (M100 3D model removed; M100 in `noShell`; 34 other GLBs unchanged; 63 unit tests, catalogue, optimiser and payload checks pass on rerun). Codex hit its usage limit (reset 22:19) after the 2b preflight, with its work uncommitted. Claude committed that work as WIP so it is not lost; see the 2b preflight ruling in Decisions.
+
+- 2026-09-28 Codex: **Part 2b stopped at the cover/body hypothesis preflight.**
+  Both button patches have texture alpha 0.400000036 over MAIN_PLASTIC. Shared
+  studio linear-light region prediction DeltaE2000: left **3.043410** (fails
+  <=3), right **2.112469**, palm **0.162278**. No composite bake or production
+  replacement; Parts 2/1/3 and sibling impact measurements remain pending.
+  Part M committed as `905e473`, all gates green, 34 remaining GLBs unchanged.
+  Results C has actual layer details, RGB values, reproduction and crops.
+  Local diagnostic checkpoint only; no push.
 
 - 2026-09-28 Codex: **Part M complete.** M100 removed and routed to noShell;
   generation/checks agree. All 34 remaining GLBs unchanged. Python 54 pass /

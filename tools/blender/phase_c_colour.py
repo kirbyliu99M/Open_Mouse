@@ -69,9 +69,8 @@ def reference(slug):
     return objects
 
 
-def comparisons(slug):
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    folder = OUT / slug
+def shared_studio():
+    """Identical studio for delivered comparisons and layer hypothesis tests."""
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.samples = 32
@@ -103,6 +102,13 @@ def comparisons(slug):
     scene.collection.objects.link(cam)
     scene.camera = cam
     centre = Vector((0, 0, .025))
+    return scene, cam, centre
+
+
+def comparisons(slug):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    folder = OUT / slug
+    scene, cam, centre = shared_studio()
     for name in ('old', 'new', 'reference'):
         if name == 'reference':
             objects = reference(slug)
