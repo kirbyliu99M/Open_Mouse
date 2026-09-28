@@ -26,10 +26,10 @@ Status as of 2026-09-28. The Route column follows the Decisions table.
 
 | Model                        | Route                                              | Geometry                                     | State                                   |
 | ---------------------------- | -------------------------------------------------- | -------------------------------------------- | --------------------------------------- |
-| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; Kirby's visual acceptance pending |
-| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; Kirby's visual acceptance pending |
-| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; visual acceptance pending        |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Built; visual acceptance pending        |
+| G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; **accepted by Kirby 2026-09-28**  |
+| M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; **accepted by Kirby 2026-09-28**  |
+| G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; **accepted by Kirby 2026-09-28** |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Built; **accepted by Kirby 2026-09-28** |
 | M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
 | M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
 | M325s                        | Photo bake (C); only a top photo in its colourway  | Study, `m4a-eight-new-shells`                | Pending C                               |
@@ -845,6 +845,7 @@ push or `out/` commit occurred.
 | 2026-09-28 | B3 camera gate: the rear three-quarter photo (IoU 0.932) is held out rather than projected. Texture comes from top, left, bottom and front ¾ (all ≥ 0.95), plus mirrored left after a mirror-IoU check (0.9991). This interprets criterion 3; it does not relax it                                                                                                                                                                                                                 | Claude |
 | 2026-09-28 | B3 assessment: the photo bake is a real but modest improvement. The remaining gap to the AR shells is mostly geometry: an interpolated loft, a 3.9 mm cross-section error at the rear ¾, and wheel and gaps present only in the texture. Phase C1 (photo bake of M100, M705, M325s and M850L, which have fewer photos) is **on hold for Kirby**. Meanwhile C runs O1/O2 on the AR shells, plus a non-delivered candidate: M550 on the M650 AR shell with the thumb buttons removed | Claude |
 | 2026-09-28 | M550 waits for the Phase C candidate on the M650 AR shell before a final choice. **M100, M705, M325s and M850L stay as they are**: no photo bake (C1 dropped)                                                                                                                                                                                                                                                                                                                      | Kirby  |
+| 2026-09-28 | **Visual acceptance:** G903 Hero, M750 and G Pro X Superlight 2 SE **accepted**. MX Master 4 and M100 **not accepted**; changes requested (details below)                                                                                                                                                                                                                                                                                                                          | Kirby  |
 
 ## Progress log
 
