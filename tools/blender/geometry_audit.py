@@ -14,6 +14,7 @@ import json
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
@@ -41,6 +42,23 @@ def mesh_arrays(obj):
     return vertices, faces
 
 
+def winding_suspect_triangles(objects):
+    """Flag source triangles next to an edge whose two faces disagree in winding.
+
+    source_surface builds its triangle list object by object from loop_triangles, so the
+    flags follow the same order. A signed-distance reading on a flagged triangle may be
+    a normal-orientation artefact rather than a shape difference.
+    """
+    flags = []
+    for obj in objects:
+        bm = bmesh.new(); bm.from_mesh(obj.data); bm.faces.ensure_lookup_table()
+        bad = {f.index for e in bm.edges if len(e.link_faces) == 2 and not e.is_contiguous for f in e.link_faces}
+        bm.free()
+        obj.data.calc_loop_triangles()
+        flags.extend(t.polygon_index in bad for t in obj.data.loop_triangles)
+    return np.array(flags, bool)
+
+
 def audit(slug, data):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     record = json.loads((data / 'out/reference-library' / slug / 'sources.json').read_text())
@@ -54,6 +72,7 @@ def audit(slug, data):
     shell_v, shell_f = mesh_arrays(shell)
     rng = np.random.default_rng(0)
     points = area_weighted_samples(shell_v, shell_f, SAMPLES, rng)
+    suspect = winding_suspect_triangles(objects)
     nearest = [tree.find_nearest(Vector(p)) for p in points]
     distances = np.array([n[3] for n in nearest]) * 1000
     # Sign by the source normal at the nearest point: + means the shell lies outside the
@@ -71,7 +90,10 @@ def audit(slug, data):
                 shellTriangles=int(len(shell_f)), sourceTriangles=int(len(source_f)),
                 distanceMm=distance_summary(distances),
                 over2mmOutsideShare=float(((distances > 2) & (signed > 0)).mean()),
-                over2mmInsideShare=float(((distances > 2) & (signed < 0)).mean()))
+                over2mmInsideShare=float(((distances > 2) & (signed < 0)).mean()),
+                windingSuspectSourceTriangleShare=float(suspect.mean()),
+                over2mmInsideOnSuspectTriangles=int(((distances > 2) & (signed < 0) & suspect[[n[2] for n in nearest]]).sum()),
+                over2mmInsideSamples=int(((distances > 2) & (signed < 0)).sum()))
 
 
 def main():

@@ -25,6 +25,7 @@ def views(data):
     shell_v, shell_f = data['shell_v'], data['shell_f']
     source_f = inside_box(data['source_v'], data['source_f'], data['dims'], BOX_MARGIN_MM / 1000)
     source_v = data['source_v']
+    result_dropped = int(len(data['source_f']) - len(source_f))
     both = np.vstack([shell_v, source_v[np.unique(source_f)]])
     lo = both.min(0); span = float((both.max(0) - lo).max()) * 1.02
     lo = lo - span * .01
@@ -38,6 +39,7 @@ def views(data):
         overlay = np.zeros((SIZE, SIZE, 3), np.uint8)
         overlay[b] = (225, 70, 70); overlay[a] = (40, 170, 240); overlay[a & b] = (190, 195, 195)
         overlays.append(Image.fromarray(overlay).resize((360, 360)))
+    result['droppedOutsideBoxTriangles'] = result_dropped
     return result, overlays
 
 
@@ -72,18 +74,19 @@ def main():
             sheet.paste(image, (i * 360, 0))
         sheet.save(OUT / (row['slug'] + '-silhouettes.png'))
         deviation_map(data).save(OUT / (row['slug'] + '-deviation.png'))
+        row['droppedOutsideBoxTriangles'] = row['silhouette'].pop('droppedOutsideBoxTriangles')
         row['minIoU'] = min(v['iou'] for v in row['silhouette'].values())
         print(row['slug'], {k: round(v['iou'], 4) for k, v in row['silhouette'].items()},
               {k: round(row['distanceMm'][k], 2) for k in ('mean', 'p95', 'max')}, flush=True)
     rows.sort(key=lambda r: (r['minIoU'], -r['distanceMm']['p95']))
     (OUT / 'audit.json').write_text(json.dumps(rows, indent=2) + '\n')
-    lines = ['| Rank | Shell | IoU top | IoU side | IoU front | Distance mean / p95 / max (mm) | > 2 mm | of which shell outside / inside | Cable trimmed |',
-             '| ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- |']
+    lines = ['| Rank | Shell | IoU top | IoU side | IoU front | Distance mean / p95 / max (mm) | > 2 mm | of which shell outside / inside | Inside samples on winding-suspect faces | Source triangles outside box | Cable trimmed |',
+             '| ---: | --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | --- |']
     for i, r in enumerate(rows, 1):
         s, d = r['silhouette'], r['distanceMm']
         lines.append(f"| {i} | {r['slug'].removeprefix('logitech-')} | {s['top']['iou']:.4f} | {s['side']['iou']:.4f} | "
                      f"{s['front']['iou']:.4f} | {d['mean']:.2f} / {d['p95']:.2f} / {d['max']:.2f} | "
-                     f"{d['shareOver2mm'] * 100:.1f}% | {r['over2mmOutsideShare'] * 100:.1f}% / {r['over2mmInsideShare'] * 100:.1f}% | {'yes' if r['cableTrim'] else ''} |")
+                     f"{d['shareOver2mm'] * 100:.1f}% | {r['over2mmOutsideShare'] * 100:.1f}% / {r['over2mmInsideShare'] * 100:.1f}% | {r['over2mmInsideOnSuspectTriangles']} / {r['over2mmInsideSamples']} | {r['droppedOutsideBoxTriangles']} | {'yes' if r['cableTrim'] else ''} |")
     (OUT / 'table.md').write_text('\n'.join(lines) + '\n')
     print('\n'.join(lines))
 
