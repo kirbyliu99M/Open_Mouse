@@ -32,3 +32,21 @@ def silhouette_iou(rendered, target):
     if union == 0:
         raise ValueError('Empty silhouette union')
     return float(np.count_nonzero(a & b)/union)
+
+
+def raster_silhouette(points, faces, size):
+    """Union triangle coverage, including overlapping front and back faces."""
+    polygons = np.rint(np.asarray(points)[faces]).astype(np.int32)
+    try:
+        import cv2
+    except ImportError:
+        from PIL import Image, ImageDraw
+        image = Image.new('L', size)
+        draw = ImageDraw.Draw(image)
+        for polygon in polygons:
+            draw.polygon(polygon.ravel().tolist(), fill=1)
+        return np.array(image) > 0
+    mask = np.zeros((size[1], size[0]), np.uint8)
+    for polygon in polygons:
+        cv2.fillConvexPoly(mask, polygon, 1)
+    return mask > 0

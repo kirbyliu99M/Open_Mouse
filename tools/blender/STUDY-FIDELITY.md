@@ -29,7 +29,7 @@ Status as of 2026-09-28. The Route column follows the Decisions table.
 | G903 Hero                    | Full AR pipeline (B1)                              | Rebuilt from the official AR source          | Done; Kirby's visual acceptance pending |
 | M750                         | Full AR pipeline (B1)                              | Rebuilt from the official AR source (medium) | Done; Kirby's visual acceptance pending |
 | G Pro X Superlight 2 SE      | Superlight 2 shell, recoloured from SE photos (B2) | Superlight 2 AR-derived shell                | Built; visual acceptance pending        |
-| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Pending B3                              |
+| M550                         | Multi-view photo bake prototype (B3)               | Study, `m4a-eight-new-shells`                | Stopped: B3 camera gate                 |
 | M100                         | Photo bake (C), after B3 is accepted               | Study, `m4a-m100-level-base` (sheared trace) | Pending C                               |
 | M705 Marathon                | Photo bake (C)                                     | Study, `m4a-eight-new-shells`                | Pending C                               |
 | M325s                        | Photo bake (C); only a top photo in its colourway  | Study, `m4a-eight-new-shells`                | Pending C                               |
@@ -563,7 +563,7 @@ optimisation and prettier checks all passed. The nine new SE tests also pass
 with OpenCV/scikit-image imports disabled, matching CI's existing dependencies.
 B3 is not started.
 
-### B3 ? M550 photo bake prototype
+### B3 — M550 photo bake prototype
 
 **2026-09-28, geometry and camera preflight checkpoint.** Pulled successfully
 from `origin/m4a-study-fidelity`; no asset edits. Blender 5.2.2 imports of the
@@ -584,6 +584,73 @@ photo is mirrored. The alpha convention is >180, largest component, enclosed
 holes filled. Four unit tests cover camera rotations, projection, rejection of
 points behind the camera and IoU. Camera measurements and subsequent bake work
 are pending at this checkpoint; no improved appearance is claimed.
+
+**Final B3 stop, 2026-09-28: camera criterion 3 failed.** The rear
+three-quarter photograph reaches **0.932473336**, below **0.95** by
+**0.017526664**. No gate was relaxed and no appearance bake was started.
+This is a failed registration attempt, not proof that every possible camera
+fit must fail. The unchanged loft matches top and profile much better than
+the rear oblique; the overlay shows broad roof/rear-flank contour differences.
+
+| Graphite-medium photo          | Silhouette IoU | Appearance role             | Camera target |
+| ------------------------------ | -------------: | --------------------------- | ------------- |
+| Top, gallery 1                 |    0.995091812 | Candidate; not textured     | Pass          |
+| Left profile, gallery 4        |    0.982278863 | Candidate; not textured     | Pass          |
+| Bottom, gallery 3              |    0.992875185 | Candidate; not textured     | Pass          |
+| Rear three-quarter, gallery 2  |    0.932473336 | Candidate; not textured     | **Fail**      |
+| Front three-quarter, gallery 5 |    0.957076478 | **Held out from texturing** | Pass          |
+
+Each fit uses seven parameters: azimuth, elevation, roll, log camera distance,
+log focal/distance ratio, and two camera-plane translations. Fixed view-class
+initial angles use three distance starts (**300 / 900 / 4000 mm**); Nelder-Mead
+fits at **320 px**, refines at **720 px**, and reports IoU independently at
+**1440 px** maximum image dimension. Each optimisation permits 1100 iterations.
+Camera distance is constrained to 120–10000 mm. These are silhouette-driven
+perspective registrations, not uniquely recovered physical lenses. Masks retain
+open notches; no contour dilation, independent X/Y rescaling or mirroring is
+used. Fitted matrices, focal pixels, translation, exact photo URLs and SHA256
+hashes are in `out/study-fidelity/b3/camera-*.json`.
+
+During implementation, an OpenCV all-triangles `fillPoly` call incorrectly
+cancelled overlapping front/back coverage. It was replaced by triangle unions;
+the erroneous preliminary scores are discarded. A regression test requires a
+fully filled square with duplicated opposing faces. **Only corrected union
+raster scores appear above.** The raster is the actual unchanged mesh's
+triangle projection; no surrogate ellipsoid or adjusted mesh is fitted.
+
+**Stop status against criteria 1–7:**
+
+- **1:** not implemented: no smart atlas, 2048 px maps or new single material.
+- **2:** passes for the unchanged assets: exact decoded-position equality,
+  **0 mm** displacement; no replacement GLB was written.
+- **3:** **fails**, rear IoU **0.932473336 < 0.95**. Front is held out from
+  all appearance work; all five photos were used only to evaluate silhouettes.
+- **4:** photo coverage not measured; no new projection/blending or fill exists.
+- **5:** delighting not attempted; no before/after evidence or claim exists.
+- **6:** geometry preflight passes: support **24.514769 mm**, clean topology,
+  bbox max error **0.000008595 mm**. Python **47 tests: 39 passed, 8 bpy-only
+  skips** (including **5 new camera tests**); TypeScript **9 passed**;
+  catalogue, payload, optimisation and prettier checks pass. Full
+  `tests/check_assets.py` was not rerun after the camera stop; these are baseline
+  checks of unchanged assets, not verification of a completed prototype.
+- **7:** the requested `out/study-fidelity/b3/logitech-m550.png` four-view
+  old/new/M650 sheet is **not generated**, because no new M550 exists. Instead,
+  [camera diagnostics](out/study-fidelity/b3/camera-fit-diagnostics.png) shows
+  all five references and silhouette overlays (red photo-only, blue mesh-only).
+
+**Preservation:** all **35/35** public GLBs, including M550 and the other
+**34/34**, are byte-identical to starting commit `881f1f7`; **0 extras, 0 missing**.
+`byte-identical.json` stores SHA256 values and comparisons. Manifest, validation,
+lossless polished source, reconstruction metadata and reference junctions are
+unchanged. No network photo requests were needed. No `out/` file is committed.
+
+**Appearance assessment:** M550 remains the old top-photo projection with matte
+sides/underside and studio lighting baked in. It has made **no appearance
+progress toward the AR shells** in this stopped run. UV atlas, visible-photo
+blending, coverage/fill, delighting, M650-region PBR transfer, tangent normals,
+packaging/provenance update and the final comparison sheet remain undone.
+B3 needs camera-fit adjudication/refinement before resuming; geometry is still
+protected and Phase C has not started. Commits remain local for Claude to push.
 
 ## Open issues (candidates for Phase C)
 
@@ -607,6 +674,16 @@ are pending at this checkpoint; no improved appearance is claimed.
 | 2026-09-28 | B1 scale gate: G903 Hero and M750 are calibrated per axis to catalogue L/W/H like the 26 shells, despite 2.9% / 3.3% scale spread. The Step 1 stop limits (0.97–1.03, 2% spread) are waived for these two only, and their calibration scales are recorded | Kirby  |
 
 ## Progress log
+
+- 2026-09-28 Codex: **B3 stopped at the camera gate**, after preflight commit
+  `6772f0f`. Corrected triangle-union rasterisation and added its regression test.
+  Top/left/bottom/rear/held-out-front IoU: **0.995092 / 0.982279 / 0.992875 /
+  0.932473 / 0.957076**; rear fails **0.95**. No atlas, bake or public asset
+  changes. All **35/35** GLBs are byte-identical to `881f1f7`; decoded M550
+  geometry displacement is **0 mm**. Python 47 tests (8 bpy skips), TypeScript 9,
+  catalogue, payload, optimisation and prettier pass. Full asset integration
+  gate not rerun; no finished-prototype claim. Results B3 records the stop,
+  camera diagnostic sheet and every unattempted step. No push; Phase C untouched.
 
 - 2026-09-28 Codex: **B3 preflight checkpoint.** Read-only geometry inspection
   confirms lossless/committed position equality (0 mm), clean 14k topology and

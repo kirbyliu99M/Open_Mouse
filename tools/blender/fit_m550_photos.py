@@ -14,7 +14,7 @@ from PIL import Image
 from scipy import ndimage
 from scipy.optimize import minimize
 
-from photo_camera_math import camera_axes, project_points, silhouette_iou
+from photo_camera_math import camera_axes, project_points, silhouette_iou, raster_silhouette
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / 'out/study-fidelity/b3'
@@ -35,6 +35,8 @@ def main():
     mesh = np.load(OUT / 'lossless-mesh.npz')
     vertices, faces = mesh['vertices']*1000, mesh['faces']
     centre = (vertices.min(0)+vertices.max(0))/2
+    sources = json.loads((REFERENCE/'sources.json').read_text())['images']
+    results = []
     for view in args.views:
         suffix, az, el = VIEWS[view]
         path = REFERENCE / ('m550-medium-graphite-'+suffix+'.png')
@@ -63,9 +65,7 @@ def main():
                 focal = np.exp(params[4])*distance*scale
                 points, _ = project_points(vertices, camera_axes(*params[:3]), centre,
                                            distance, focal, params[5:7], image_centre)
-                mask = np.zeros(target.shape, np.uint8)
-                cv2.fillPoly(mask, list(np.rint(points[faces]).astype(np.int32)), 1)
-                return mask > 0
+                return raster_silhouette(points, faces, size)
 
             def objective(params):
                 if not 120 <= np.exp(params[3]) <= 10000 or abs(params[2])>180:
@@ -105,8 +105,10 @@ def main():
         # Translate principal point from crop centre back to full image centre.
         distance = np.exp(best[3]); focal = np.exp(best[4])*distance
         crop_centre = np.array([(crop[0]+crop[2]-1)/2, (crop[1]+crop[3]-1)/2])
-        result = dict(view=view, usedForTexturing=view!='front-held-out',
+        result = dict(view=view, usedForTexturing=False,
+                      appearanceRole='held-out' if view=='front-held-out' else 'candidate',
                       file=path.name, sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                      sourceURL=next(p['url'] for p in sources if Path(p['file']).name==path.name),
                       iou=silhouette_iou(rendered, target), evaluationSize=size,
                       anglesDegrees=best[:3].tolist(), axes=camera_axes(*best[:3]).tolist(),
                       centreMm=centre.tolist(), distanceMm=float(distance), focalPixels=float(focal),
@@ -115,7 +117,11 @@ def main():
                       fittedParameters=best.tolist(), mask='alpha >180; largest component; filled enclosed holes',
                       mirrored=False, target=.95)
         (OUT/('camera-'+view+'.json')).write_text(json.dumps(result, indent=2)+'\n')
+        results.append(result)
         print('EVALUATED', view, result['iou'], flush=True)
+    failures = [r for r in results if r['iou'] < r['target']]
+    if failures:
+        raise SystemExit('CAMERA_GATE_FAILED: '+', '.join(f"{r['view']} {r['iou']:.9f} < {r['target']}" for r in failures))
 
 
 if __name__ == '__main__':

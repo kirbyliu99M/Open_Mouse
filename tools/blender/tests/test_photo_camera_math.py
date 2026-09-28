@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from photo_camera_math import camera_axes, project_points, silhouette_iou
+from photo_camera_math import camera_axes, project_points, silhouette_iou, raster_silhouette
 
 
 class PhotoCameraTests(unittest.TestCase):
@@ -34,3 +34,9 @@ class PhotoCameraTests(unittest.TestCase):
         self.assertEqual(silhouette_iou([1, 1], [1, 1]), 1)
         with self.assertRaises(ValueError):
             silhouette_iou([0], [0])
+
+    def test_overlapping_front_back_faces_union_instead_of_cancel(self):
+        points = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+        faces = np.array([[0, 1, 2], [0, 2, 3], [2, 1, 0], [3, 2, 0]])
+        mask = raster_silhouette(points, faces, (11, 11))
+        self.assertTrue(mask.all())
