@@ -51,7 +51,7 @@ def specifications():
     result['logitech-signature-comfort-plus-m850l'] = [
         row('top.png', 'graphite top', [180,90,0]),
         row('left.png', 'black elevated left', [-90,10,0]),
-        row('extra-1.png', 'graphite front-left oblique', [-35,50,0]),
+        row('extra-1.png', 'graphite rear-left elevated oblique', [-150,35,0]),
         row('extra-2.jpg', 'top with hand', None, 'excluded', reason='Hand occludes shell outline'),
         row('extra-3.png', 'graphite bottom', [0,-90,0]),
         row('extra-4.jpg', 'left with hand', None, 'excluded', reason='Hand occludes shell outline'),

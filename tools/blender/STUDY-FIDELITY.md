@@ -160,7 +160,7 @@ photo's own camera, then freezes those cameras for before/after comparison.
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
 | M705  | gallery 1 top, 3 front-left oblique, 4 left profile; supplemental techwalls 0/1/2 left oblique, 6/7/8 front-left oblique, 9/10/11 bottom oblique, 12/13/14 rear-right oblique | gallery 2 rear-left oblique        | techwalls 3/4/5: hand occlusion |
 | M325s | top graphite; left red front-left; extra 1/2 pale-grey/lilac front-left; extra 3/5 blue/patterned front-right; extra 4 patterned elevated left                                | right patterned rear-left oblique  | None                            |
-| M850L | top graphite; left black elevated left; extra 1 graphite front-left; extra 3 bottom; extra 6 graphite elevated left                                                           | extra 5 graphite rear-left oblique | extra 2/4: hand occlusion       |
+| M850L | top graphite; left black elevated left; extra 1 graphite rear-left elevated; extra 3 bottom; extra 6 graphite elevated left                                                   | extra 5 graphite rear-left oblique | extra 2/4: hand occlusion       |
 
 All **35** local photos are inventoried, **30** usable (**27** fitting and
 **3** held-out). Every duplicate resolution is retained and labelled; all
@@ -171,13 +171,33 @@ photo-only fixed ROIs and max RGB <160 to separate the dark shell from the
 pale desk and red watermark, with the same component/hole convention.
 Masks were inspected before fitting. A rejected GrabCut preparation included
 desk/watermark pixels and was replaced before any camera run. No reference
-was modified. Four thumbnail URLs are missing in the existing sidecar and are
+was modified. Four usable thumbnail URLs are missing in the existing sidecar and are
 recorded as unknown rather than invented; local SHA256 identifies each file.
 Third-party images are geometry/camera evidence only.
 
 Inventory and mask sheets (one per study):
 `out/study-fidelity/d1/<slug>/photo-inventory.json` and
 `out/study-fidelity/d1/<slug>/photo-mask-inventory.png`.
+
+**Deformation implementation checkpoint, before any geometry fit.** Added
+12 smooth Gaussian loft displacement fields: shoulder width, roof height,
+shoulder height and upper-shell longitudinal shift at rear/middle/front.
+Coefficients are bounded to ±5 mm, displacements vanish at Z=0, UV seam
+duplicates move together and each candidate is recalibrated to catalogue XYZ.
+The fitter reads **only fitting-role cameras** and keeps them fixed. Selection
+uses mean training IoU plus a regression penalty at 320/720 px, never held-out
+results. The independent 1440 px delivery check will apply all three D1 rules.
+Per-stage parameters and 50-evaluation WIP checkpoints survive interrupted runs.
+Five deformation/gate tests pass. Full Python suite: **83 tests, 71 passed /
+12 Blender-only skips**; Blender-only suite: **12 passed**. No candidate exists
+at this checkpoint and no public file has changed.
+
+M850L `extra-1.png`'s initial view label was corrected on photo inspection:
+the nose is toward the image top (rear-left elevated view). Its camera-only
+retry improves baseline IoU **0.880964682 → 0.918674852**. The first camera
+is retained as `initial-camera-extra-1.json`; it is not a geometry baseline.
+Other baseline fits remain in progress. No held-out geometry result has been
+computed or used to select a shape.
 
 ### A1 — official AR assets
 
@@ -1537,6 +1557,15 @@ and orientation tests; SE geometry and SE delivery checks; unit discovery 73 tes
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 
 ## Progress log
+
+- 2026-09-28 Codex: **D1 smooth-deformation code verified before the long fit.**
+  Five new deformation/gate tests pass; full Python suite 71 pass / 12 skips,
+  Blender suite 12 pass. Baseline perspective fits are progressing with no
+  geometry changes. Corrected the M850L extra-1 camera start after inspecting
+  the photo/overlay; baseline IoU 0.918674852, initial 0.880964682 archived.
+  Next: once a study's baseline cameras finish, run `refine_study_geometry.py
+--directory tools/blender/out/study-fidelity/d1/<slug>`; it never opens a
+  held-out camera. WIP parameters save every 50 evaluations. No push.
 
 - 2026-09-28 Codex: **D1 camera preflight ready before the long fit.** Reusable
   B3 camera engine and study driver added; ten camera/mask tests pass. Inventoried
