@@ -107,6 +107,32 @@ stretches a texture, and just report it.
 | D2   | Finish and deliver M550 on the M650 AR shell (Part 3 candidate): clean up the thumb-region fairing                                                                                                                                                                                                             | Claude                                                             | after D1 lands, to avoid manifest conflicts | Yes: M550 only                |
 | D3   | O6: G403, G502 Hero, G203 (and G502 X side) differ strongly from their AR sources. Diagnose from D0 (shape, orientation or source mismatch), then fix                                                                                                                                                          | Claude diagnoses; the owner of the fix is decided from the finding | —                                           | Decided later                 |
 
+**Schedule and handoffs (planned 2026-09-28 23:15, Asia/Taipei).** Codex's quota has run
+out mid-phase four times, and a reset takes about 5 hours, so the plan puts Claude's work in
+Codex's quota gaps and treats every Codex run as possibly cut short.
+
+| When (planned)                                        | Codex                                                                                                             | Claude                                                                                                                                              | Handoff / checkpoint                                                      |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 09-28 23:15 – 09-29 02:30                             | Out of quota (resets 03:36)                                                                                       | **D2**: finish M550 on the M650 shell in worktree `m4a-geometry-audit`: fair the plate outline, move M550 from `studies` to `shells`, run the gates | —                                                                         |
+| 02:30 – 03:15                                         | —                                                                                                                 | Independent Sonnet review of D0 + D2; fix findings                                                                                                  | —                                                                         |
+| **03:15 – 03:30**                                     | —                                                                                                                 | **Handoff H1**: merge `m4a-geometry-audit` into this branch and push, then add a D1b brief note that M550 is now a shell and off-limits             | Branch holds D0 + D2                                                      |
+| **03:38** (timer)                                     | **D1b** starts: M325s export and delivery, then M705 and M850L with the asymmetric basis. Commits after each step | Audits each commit as it lands (monitor) and pushes; writes the D4 brief and its before/after check (`geometry_audit.py` on changed shells)         | —                                                                         |
+| ~05:00 – 07:00                                        | D1b ends (finished, or quota-stopped with work committed)                                                         | **Handoff H2**: audit D1b, push, run Sonnet review of D1b                                                                                           | —                                                                         |
+| After H2 (quota permitting, else timer at next reset) | **D4**: local remeshing at wheel crowns (M190, M750, M650, G903) and G903's channel, within 15k triangles         | Audits D4 commits; reruns the D0 audit on changed shells                                                                                            | —                                                                         |
+| **09-29 ~09:00**                                      | —                                                                                                                 | Updates `docs/STATUS.md` and the acceptance page in `模型驗收-2026-09-28/`                                                                          | **Kirby**: visual acceptance of D2 (M550), D1 studies and the D0 findings |
+| After D4                                              | —                                                                                                                 | Audit, review, acceptance sheet                                                                                                                     | **Kirby**: D4 acceptance                                                  |
+
+Rules for the schedule:
+
+1. **One writer per branch at a time.** Codex writes only in this worktree; Claude writes only in
+   `m4a-geometry-audit`. Claude merges into this branch only while Codex is idle (H1), and Codex
+   pulls at the start of each run.
+2. Codex never pushes. Claude pushes after an audit and records every handoff in the Progress log.
+3. If Codex's quota stops a run, Claude commits any uncommitted work as WIP and sets a timer to resume
+   just after the reset (Kirby's standing instruction). Claude takes over a Codex phase only if Kirby
+   says so.
+4. Times are targets, not gates. A gate failure moves the schedule; the gate never moves.
+
 **D1 acceptance (per study).**
 
 1. Cameras fitted to every usable photo with B3's perspective fitter (`photo_camera_math.py`,
