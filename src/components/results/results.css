@@ -808,3 +808,8 @@
     transition: opacity 0.12s ease;
   }
 }
+.results-fitNotice,
+.results-handNotice {
+  color: #55555d;
+  line-height: 1.5;
+}

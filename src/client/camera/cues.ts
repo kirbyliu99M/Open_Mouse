@@ -50,8 +50,14 @@ const CUE_MESSAGES: Record<CueCode, string> = {
   perfect: "Perfect — hold still",
 };
 
-function cue(code: CueCode): Cue {
-  return { code, message: CUE_MESSAGES[code], allPass: code === "perfect" };
+export type CueCalibrationMode = "printed-sheet" | "paper-edge";
+
+function cue(code: CueCode, mode: CueCalibrationMode): Cue {
+  const message =
+    mode === "printed-sheet"
+      ? CUE_MESSAGES[code].replaceAll("paper", "sheet")
+      : CUE_MESSAGES[code];
+  return { code, message, allPass: code === "perfect" };
 }
 
 export interface CueInput {
@@ -78,37 +84,40 @@ export interface CueInput {
  * quad exists — a partial corner set always short-circuits to
  * "some-corners".
  */
-export function pickCue(input: CueInput): Cue {
+export function pickCue(
+  input: CueInput,
+  mode: CueCalibrationMode = "paper-edge",
+): Cue {
   if (input.cornersSeen <= 0) {
     if (
       input.msSinceLastDetection >
       CAMERA_CONSTANTS.noDetection.placePaperTimeoutMs
     ) {
-      return cue("place-paper");
+      return cue("place-paper", mode);
     }
-    return cue("no-corners");
+    return cue("no-corners", mode);
   }
-  if (input.cornersSeen < 4) return cue("some-corners");
-  if (!input.quad) return cue("some-corners");
+  if (input.cornersSeen < 4) return cue("some-corners", mode);
+  if (!input.quad) return cue("some-corners", mode);
 
   const skew = computeQuadSkew(input.quad);
-  if (isQuadSkewed(skew)) return cue("tilted");
+  if (isQuadSkewed(skew)) return cue("tilted", mode);
 
   const widthFraction = computeQuadWidthFraction(input.quad, input.frameWidth);
   const sizeStatus = computeQuadSizeStatus(widthFraction);
-  if (sizeStatus === "too-far") return cue("too-far");
-  if (sizeStatus === "too-close") return cue("too-close");
+  if (sizeStatus === "too-far") return cue("too-far", mode);
+  if (sizeStatus === "too-close") return cue("too-close", mode);
 
   const light: LightStatus = computeLightStatus(
     input.meanLuma,
     input.clippedFraction,
   );
-  if (light === "dark") return cue("dark");
-  if (light === "bright") return cue("bright");
+  if (light === "dark") return cue("dark", mode);
+  if (light === "bright") return cue("bright", mode);
 
-  if (!input.steady || !input.sharpEnough) return cue("hold-still");
+  if (!input.steady || !input.sharpEnough) return cue("hold-still", mode);
 
-  return cue("perfect");
+  return cue("perfect", mode);
 }
 
 export interface StatusChip {
@@ -127,11 +136,17 @@ export interface StatusChips {
  * redundant with the cue line for anyone scanning rather than reading, per
  * the spec.
  */
-export function computeStatusChips(input: CueInput): StatusChips {
+export function computeStatusChips(
+  input: CueInput,
+  mode: CueCalibrationMode = "paper-edge",
+): StatusChips {
   const paperPass = input.cornersSeen >= 4;
   const light = computeLightStatus(input.meanLuma, input.clippedFraction);
   return {
-    paper: { label: `Paper ${input.cornersSeen}/4`, pass: paperPass },
+    paper: {
+      label: `${mode === "printed-sheet" ? "Sheet" : "Paper"} ${input.cornersSeen}/4`,
+      pass: paperPass,
+    },
     steady: { label: "Steady", pass: input.steady && input.sharpEnough },
     light: { label: "Light", pass: light === "ok" },
   };

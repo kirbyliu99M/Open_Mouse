@@ -67,6 +67,22 @@ export interface PhotoOverlay {
   readonly markers: readonly DetectedMarker[];
   readonly card: CardCorners | null;
   readonly landmarksPx: readonly Point2[] | null;
+  /**
+   * MediaPipe's own handedness for the detected hand, when one was found —
+   * `undefined` wherever no hand was ever detected in this photo (existing
+   * overlay literals that predate this field). Lets a caller (the easy-scan
+   * camera's hand chip) reflect what MediaPipe actually saw without a
+   * second detection pass; the printed-sheet and paper-edge gates already
+   * compute this value internally, this just also returns it.
+   */
+  readonly handedness?: "left" | "right" | null;
+  /**
+   * The detected blank sheet's own 4 corners (TL, TR, BR, BL), in this
+   * photo's full-resolution pixel space — paper-edge calibration only.
+   * `undefined` for the printed-sheet flow (which draws `markers`/`card`
+   * instead) and wherever paper-edge didn't find a quad at all.
+   */
+  readonly paperCorners?: readonly [Point2, Point2, Point2, Point2] | null;
 }
 
 export type PipelineResult =
@@ -255,7 +271,11 @@ export async function runPhotoPipeline(
     return {
       status: "error",
       errors: report.errors,
-      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+      overlay: {
+        ...overlayBase,
+        landmarksPx: hand.landmarksPx,
+        handedness: hand.handedness,
+      },
     };
   }
 
@@ -272,7 +292,11 @@ export async function runPhotoPipeline(
             "These measurements look implausible — retake with your whole hand flat on the sheet and the camera directly overhead.",
         },
       ],
-      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+      overlay: {
+        ...overlayBase,
+        landmarksPx: hand.landmarksPx,
+        handedness: hand.handedness,
+      },
     };
   }
 
@@ -290,7 +314,11 @@ export async function runPhotoPipeline(
     measurements,
     submission,
     warnings: report.warnings,
-    overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    overlay: {
+      ...overlayBase,
+      landmarksPx: hand.landmarksPx,
+      handedness: hand.handedness,
+    },
   };
 }
 
@@ -406,7 +434,12 @@ async function runPaperEdgePipeline(
     return {
       status: "error",
       errors: report.errors,
-      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+      overlay: {
+        ...overlayBase,
+        landmarksPx: hand.landmarksPx,
+        handedness: hand.handedness,
+        paperCorners: quad.corners,
+      },
     };
   }
 
@@ -441,7 +474,12 @@ async function runPaperEdgePipeline(
             "These measurements look implausible — retake with your whole hand flat on the sheet and the camera directly overhead.",
         },
       ],
-      overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+      overlay: {
+        ...overlayBase,
+        landmarksPx: hand.landmarksPx,
+        handedness: hand.handedness,
+        paperCorners: quad.corners,
+      },
     };
   }
 
@@ -471,6 +509,11 @@ async function runPaperEdgePipeline(
     measurements: corrected.measurements,
     submission,
     warnings: report.warnings,
-    overlay: { ...overlayBase, landmarksPx: hand.landmarksPx },
+    overlay: {
+      ...overlayBase,
+      landmarksPx: hand.landmarksPx,
+      handedness: hand.handedness,
+      paperCorners: quad.corners,
+    },
   };
 }

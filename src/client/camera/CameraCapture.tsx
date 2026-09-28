@@ -69,6 +69,8 @@ import {
   type SheetQuadSource,
 } from "./quad-source";
 import "./camera.css";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import { requestCameraStream } from "./requestStream";
 
 /** TL, TR, BR, BL — the order every per-corner array in this file uses. */
 type CornerTuple<T> = readonly [T, T, T, T];
@@ -272,6 +274,12 @@ export default function CameraCapture({
   const lastCueCodeRef = useRef<Cue["code"] | null>(null);
   const capturingRef = useRef(false);
   const reducedMotionRef = useRef(false);
+  const mountedRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const stateKindRef = useRef<CamState["kind"]>(state.kind);
+  stateKindRef.current = state.kind;
+  const reviewUrlRef = useRef<string | null>(null);
+  reviewUrlRef.current = state.kind === "review" ? state.previewUrl : null;
 
   const defaultQuadSource = useCallback(
     () =>
@@ -301,19 +309,37 @@ export default function CameraCapture({
 
   // Hard rule: stop every media track on unmount, no matter which state we
   // were in when the component went away.
-  useEffect(() => stopStream, [stopStream]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+      stopStream();
+      if (reviewUrlRef.current) URL.revokeObjectURL(reviewUrlRef.current);
+    };
+  }, [stopStream]);
 
   const startCamera = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    stateKindRef.current = "requesting";
     setState({ kind: "requesting" });
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 3840 },
-          height: { ideal: 2160 },
+      const stream = await requestCameraStream(
+        navigator.mediaDevices,
+        {
+          video: {
+            facingMode: "environment",
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
+          audio: false,
         },
-        audio: false,
-      });
+        () =>
+          mountedRef.current &&
+          requestId === requestIdRef.current &&
+          stateKindRef.current === "requesting",
+      );
+      if (!stream) return;
       streamRef.current = stream;
       stream.getVideoTracks().forEach((track) => {
         track.addEventListener("ended", () => {
@@ -337,7 +363,12 @@ export default function CameraCapture({
         name === "NotAllowedError" || name === "PermissionDeniedError"
           ? "Camera access was blocked."
           : "The camera couldn't be opened.";
-      setState({ kind: "cameraError", message });
+      if (
+        mountedRef.current &&
+        requestId === requestIdRef.current &&
+        stateKindRef.current === "requesting"
+      )
+        setState({ kind: "cameraError", message });
     }
   }, [stopStream]);
 
@@ -345,7 +376,11 @@ export default function CameraCapture({
   // rather than let the OS revoke them, and show the resume state.
   useEffect(() => {
     function onVisibilityChange() {
-      if (document.hidden && state.kind === "live") {
+      if (
+        document.hidden &&
+        (state.kind === "live" || state.kind === "requesting")
+      ) {
+        requestIdRef.current += 1;
         stopStream();
         setState({ kind: "streamEnded" });
       }
@@ -551,26 +586,32 @@ export default function CameraCapture({
       const msSinceLastDetection =
         detection.cornersSeen > 0 ? 0 : now - lastDetectionAtRef.current;
 
-      const nextCue = pickCue({
-        cornersSeen: detection.cornersSeen,
-        quad: sampleQuad,
-        frameWidth: width,
-        meanLuma,
-        clippedFraction,
-        steady,
-        sharpEnough,
-        msSinceLastDetection,
-      });
-      const nextChips = computeStatusChips({
-        cornersSeen: detection.cornersSeen,
-        quad: sampleQuad,
-        frameWidth: width,
-        meanLuma,
-        clippedFraction,
-        steady,
-        sharpEnough,
-        msSinceLastDetection,
-      });
+      const nextCue = pickCue(
+        {
+          cornersSeen: detection.cornersSeen,
+          quad: sampleQuad,
+          frameWidth: width,
+          meanLuma,
+          clippedFraction,
+          steady,
+          sharpEnough,
+          msSinceLastDetection,
+        },
+        calibrationMode,
+      );
+      const nextChips = computeStatusChips(
+        {
+          cornersSeen: detection.cornersSeen,
+          quad: sampleQuad,
+          frameWidth: width,
+          meanLuma,
+          clippedFraction,
+          steady,
+          sharpEnough,
+          msSinceLastDetection,
+        },
+        calibrationMode,
+      );
 
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
@@ -649,7 +690,7 @@ export default function CameraCapture({
       cancelled = true;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [state.kind, paperSize, captureNow, hand]);
+  }, [state.kind, paperSize, captureNow, hand, calibrationMode]);
 
   if (state.kind === "primer") {
     return (
@@ -748,7 +789,7 @@ export default function CameraCapture({
           Turn on camera
         </button>
         <p className="cameraNotice">
-          The camera view stays on this phone. Only measurements are sent.
+          {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </div>
     );
@@ -865,9 +906,7 @@ export default function CameraCapture({
             Retake photo
           </button>
         </div>
-        <p className="cameraNotice">
-          The photo is checked on this device and never uploaded.
-        </p>
+        <p className="cameraNotice">{PHOTO_PRIVACY_COPY}</p>
       </div>
     );
   }
