@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  FORM_FACTORS,
   HAND_COMPATIBILITY,
   SHAPES,
 } from "../../src/lib/contracts/descriptors";
@@ -16,13 +17,7 @@ import seed from "../../src/db/seed/logitech.json";
  * checks the file is well formed and internally consistent. It cannot re-read
  * the pages (no network in tests); every excerpt was cut out of the downloaded
  * page between two exact phrases when the file was made, on `retrievedAt`.
- *
- * The form factor vocabulary is the `FORM_FACTORS` contract added by C1
- * (`src/lib/contracts/descriptors.ts`); it is repeated here until C1 is on
- * `main`, and should then be imported instead.
  */
-const FORM_FACTORS = ["standard", "vertical", "trackball"] as const;
-
 const FIELDS = ["handCompatibility", "shape", "formFactor"] as const;
 type FieldName = (typeof FIELDS)[number];
 
