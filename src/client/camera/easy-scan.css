@@ -303,6 +303,19 @@
 .easyTryAgainButton {
   width: 100%;
 }
+.easyEditLengthButton {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--scan-accent, #0a64e0);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
 
 .easyTipList {
   list-style: none;
@@ -457,6 +470,11 @@
   background: Field;
   color: FieldText;
 }
+/* The browser's default placeholder grey is 2.43:1 on the dark field. */
+.easyLengthStep input::placeholder {
+  color: var(--scan-muted, #55555d);
+  opacity: 1;
+}
 .easyLengthStep .primaryButton {
   width: 100%;
   margin-top: 0.5rem;
@@ -507,7 +525,10 @@
 .easyDevicePlaceholder {
   min-height: 100dvh;
   padding: 0;
-  background: var(--scan-bg, #f4f4f6);
+  /* The camera shell's own colour (.cameraViewfinder in camera.css), in both
+     themes, so a phone sees no flash when the shell replaces this and a
+     desktop sees no camera controls before its entry screen. */
+  background: #12161c;
 }
 .easyDeviceEntry {
   min-height: 100dvh;

@@ -10,7 +10,10 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
-import { resultLengthKey } from "@/components/results/userLengthDisclosure";
+import {
+  parseStoredUserLength,
+  resultLengthKey,
+} from "@/components/results/userLengthDisclosure";
 import { resultHandKey } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
@@ -70,11 +73,8 @@ export function ResultsPageClient({
 
   useEffect(() => {
     try {
-      const length = Number(localStorage.getItem(resultLengthKey(scanId)));
       setEnteredLength(
-        Number.isFinite(length) && length >= 100 && length <= 280
-          ? length
-          : null,
+        parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
       );
       const hand = localStorage.getItem(resultHandKey(scanId));
       setScanHand(hand === "left" || hand === "right" ? hand : null);
