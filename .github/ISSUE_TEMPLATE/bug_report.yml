@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in Open_Mouse does not work as it should.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are **public and permanent**.
+
+        - **Do not attach photos**, of a hand or of a person, and do not post names, email addresses or other personal data.
+        - A security problem does not belong here. Follow [the security policy](https://github.com/kirbyliu99M/Open_Mouse/security/policy) instead.
+        - A measurement that looks wrong has its own form: "Measurement looks wrong".
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, in a sentence or two. Copy any error text exactly.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The path only, for example /scan/easy or /results/...
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      description: For example Pixel 7, iPhone 14, or "laptop".
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and version
+      placeholder: Android 15, iOS 18.1, Windows 11 ...
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: Say so if it is the in-app browser of another app (LINE, Instagram, ...).
+      placeholder: Chrome 140, Safari 18 ...
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output (optional)
+      description: Error lines from the browser's developer console, if you can get them.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report contains no photo and no personal data (names, email addresses, phone numbers, addresses).
+          required: true

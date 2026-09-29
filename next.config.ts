@@ -74,6 +74,28 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
 ].join("; ");
 
+/**
+ * `public/mediapipe/**` (the ~11 MB WASM runtime, its JS glue and the 7.8 MB
+ * hand model) is served with Vercel's default for static files,
+ * `public, max-age=0, must-revalidate`: every page load sends a conditional
+ * request per file even though the bytes almost never change.
+ *
+ * The file names carry no hash, so `immutable` would be wrong: it would pin a
+ * replaced file in browsers for as long as the header says. A bounded
+ * `max-age` plus `stale-while-revalidate` is the safe middle: repeat visits
+ * within a day use the cached copy with no request; after that the stale copy
+ * is used once while the browser refreshes it in the background.
+ *
+ * The one hazard is replacing these files in place (a MediaPipe upgrade): the
+ * JS glue and the WASM binary must come from the same version, and caches
+ * expire per file. `public/mediapipe/README.md` says an upgrade goes in a new,
+ * versioned directory (with the two paths in
+ * `src/client/photo/landmarks.ts` updated) — which also makes `immutable`
+ * safe — rather than over the existing names.
+ */
+const MEDIAPIPE_CACHE_CONTROL =
+  "public, max-age=86400, stale-while-revalidate=604800";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The dev-mode indicator badge has no place in a design screenshot — off
@@ -95,6 +117,12 @@ const nextConfig: NextConfig = {
             value: "camera=(self), microphone=(), geolocation=()",
           },
         ],
+      },
+      // After the catch-all rule on purpose: it sets no Cache-Control, but if
+      // two matching rules ever set the same header, the later one wins.
+      {
+        source: "/mediapipe/:path*",
+        headers: [{ key: "Cache-Control", value: MEDIAPIPE_CACHE_CONTROL }],
       },
     ];
   },
