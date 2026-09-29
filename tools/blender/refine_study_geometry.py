@@ -16,10 +16,16 @@ from photo_camera_math import camera_axes, project_points, raster_silhouette, si
 from study_deformation_math import deform, deformation_basis
 
 
+MAX_TRAINING_DROP = .0015  # gate allows .002 at 1440 px; keep margin at fit resolution
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--basis', choices=('symmetric', 'asymmetric'), default='symmetric')
+    parser.add_argument('--weighting', choices=('uniform', 'groups'), default='uniform',
+                        help='groups: each duplicate group of photos shares one vote, and no fitted view may '
+                             'drop more than MAX_TRAINING_DROP (hard constraint)')
     args = parser.parse_args()
     out = args.directory
     mesh = np.load(out/'baseline-mesh.npz')
@@ -29,14 +35,18 @@ def main():
     count = basis.shape[2]
     inventory = json.loads((out/'photo-inventory.json').read_text())
     training = []
+    groups = []
     for row in inventory:
         if row['role'] != 'fit':
             continue
+        groups.append(row.get('duplicateGroup') or row['file'])
         camera = json.loads((out/('camera-'+Path(row['file']).stem+'.json')).read_text())
         assert camera['role'] == 'fit'
         mask = np.array(Image.open(out/row['maskFile']))>0
         x0,y0,x1,y1 = camera['crop']
         training.append((camera,mask[y0:y1,x0:x1]))
+    sizes = {g: groups.count(g) for g in groups}
+    weights = np.array([1/sizes[g] if args.weighting == 'groups' else 1. for g in groups])
     params = np.zeros(count)
     stages = []
     for resolution in (320,720):
@@ -72,7 +82,11 @@ def main():
                 return 2.
             # Tight training guard leaves room for the independent 1440px check.
             regression = np.maximum(baseline-current-.001,0)
-            loss = 1-current.mean()+10*regression.mean()+.000005*np.mean(coefficients**2)
+            if args.weighting == 'groups':
+                drop = float(np.max(baseline-current))
+                if drop > MAX_TRAINING_DROP:
+                    return 1.+drop  # hard constraint: no fitted view may regress past the limit
+            loss = 1-np.average(current,weights=weights)+10*regression.mean()+.000005*np.mean(coefficients**2)
             if loss < best[0]:
                 best[:] = [float(loss),coefficients.copy()]
             if calls%50 == 0:
@@ -96,7 +110,10 @@ def main():
     candidate = deform(vertices,params,dimensions,basis)
     np.savez_compressed(out/'candidate-mesh.npz',vertices=candidate,faces=faces)
     evidence = dict(method=f'{count} smooth Gaussian loft fields; fixed baseline perspective cameras',
-                    basis=args.basis, largestCoefficientMm=float(np.max(abs(params))),
+                    basis=args.basis, weighting=args.weighting,
+                    viewWeights=dict(zip([c['file'] for c,_ in training], weights.tolist())),
+                    maxTrainingDrop=MAX_TRAINING_DROP if args.weighting == 'groups' else None,
+                    largestCoefficientMm=float(np.max(abs(params))),
                     coefficients=params.tolist(),coefficientBoundMm=5,stages=stages,
                     trainingFiles=[c['file'] for c,_ in training],heldOutUsed=False,
                     maxDisplacementMm=float(np.linalg.norm(candidate-vertices,axis=1).max()),

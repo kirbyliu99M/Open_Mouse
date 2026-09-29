@@ -1705,6 +1705,39 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 `PAYLOAD-AUDIT.md` regenerated. Changed: `shells/logitech-m550.glb` (new),
 `studies/logitech-m550.glb` (deleted), manifest, validation.
 
+#### D1b finish — M705 and M850L (Claude, 2026-09-29; Codex out of quota)
+
+Run with Codex's committed tools (`refine_study_geometry.py`, `evaluate_study_geometry.py`),
+frozen baseline cameras, and the unchanged delivery gate. The held-out photo was never used for
+selection. Earlier attempts are kept under `out/study-fidelity/d1/<slug>/symmetric-attempt/` and
+`uniform-attempt/`.
+
+| Study | Attempt                                                                                | Mean fitted IoU     |            Worst fitted Δ | Held-out Δ | Largest coefficient | Gate                                                             |
+| ----- | -------------------------------------------------------------------------------------- | ------------------- | ------------------------: | ---------: | ------------------: | ---------------------------------------------------------------- |
+| M850L | asymmetric basis (24 fields)                                                           | 0.964186 → 0.964181 |            −0.00044 (top) |   −0.00047 |             0.31 mm | **fail**: mean and held-out do not improve                       |
+| M705  | asymmetric, uniform view weights                                                       | 0.953123 → 0.955752 | −0.00273 (gallery 1, top) |   −0.00097 |             4.90 mm | **fail**: a fitted view drops > 0.002; held-out does not improve |
+| M705  | asymmetric, **duplicate groups share one vote** + hard ≤ 0.0015 drop at fit resolution | 0.953123 → 0.954547 | −0.00648 (gallery 1, top) |   +0.00074 |             3.32 mm | **fail**: a fitted view drops > 0.002                            |
+
+**Result: M705 and M850L stay byte-identical.** Only M325s (Codex, `50a9512`) was delivered in D1.
+
+What the failures show:
+
+- **M850L:** even with one-sided fields, the optimiser finds almost nothing to change. Its
+  worst view (extra 1, rear-left elevated, IoU 0.919) is not a smooth whole-body error.
+  It needs a local correction or a check of that photo's mask and camera.
+- **M705, first attempt:** 12 of 15 fitting photos are third-party desk photos in four
+  near-duplicate groups (Codex's inventory marks them correlated). They outvote the three
+  official photos: the rear-right group gains about 0.01, while the official top view loses 0.0027.
+- **M705, second attempt:** weighting each duplicate group once was a principled change, driven by
+  the fitted top view's failure and not by the held-out result, and Claude committed to one
+  retry only. It also exposed a method limit. A drop kept under 0.0015 at the 720 px fit resolution
+  became −0.0065 at the 1440 px evaluation. **Constraints checked at fit resolution do not hold at
+  evaluation resolution.**
+- **Next step (open, for Codex or a Sonnet builder):** run the final fit stage, and its no-regression
+  constraint, at the 1440 px evaluation resolution. Also consider masks of the official photos only.
+  `refine_study_geometry.py` gained an opt-in `--weighting groups` flag (default `uniform`, so
+  M325s's reproduction is unchanged).
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                          | Status (2026-09-28)                                                                                                                   |
@@ -1742,8 +1775,11 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 | 2026-09-28 | **Install rule for the AR re-bake**, fixed before the batch ran: no view's whole-silhouette ΔE2000 vs AR may rise by more than 0.1, and the shell must be in O1/O2/O4 scope or improve on its changed pixels in 2 of 3 views. 21 passed, 7 kept; Superlight 2 is held back for SE (O5)                                                                                                                                                                                                                                                              | Claude         |
 | 2026-09-28 | **Direction: no more colouring; the focus is model (geometry) quality.** Kirby says this was noted before, but it had not reached this doc, so Phase C went into colour work. Installed colour work stays (0 mm geometry change). No new recolour or texture tasks: O5 (Superlight 2 + SE) and the M550 plate recolour are dropped. Future work is judged by geometry: silhouette IoU, surface distance to AR sources, shape detail, orientation                                                                                                    | Kirby          |
 | 2026-09-29 | Codex is out until 2026-10-04 13:10 (weekly limit). **Claude builds the rest of D1b (M705, M850L) and D4 now**, in this worktree (no second writer while Codex is out), with Codex's committed tools and unchanged gates. As before, an independent Sonnet review and Kirby's visual acceptance are required. Codex takes whatever is left when it returns                                                                                                                                                                                          | Kirby          |
+| 2026-09-29 | Kirby: Sonnet subagents may assist. **D4 goes to a Sonnet builder** in its own worktree `m4a-d4-remesh` (branch from `dbdd5fd`, read-only junctions to this worktree's reference data), with the same D4 gate. Claude audits and pushes                                                                                                                                                                                                                                                                                                             | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-29 13:40 Claude: **D1b finished; M705 and M850L not delivered** (gate failures above). The laptop was on battery, which throttled the fits about 100×; raising process priority fixed it (a background loop does this now). D4 is running with a Sonnet builder in `m4a-d4-remesh`.
 
 - 2026-09-29 03:55 Claude: **Codex hit its weekly usage limit (next run: 2026-10-04 13:10).** D1b delivered M325s (`50a9512`, audited and pushed) and added the tested asymmetric basis (`fd43c2e`, audited and pushed). The M705 fit never started. Codex's uncommitted README reproduction section and doc fixes are committed by Claude as WIP. Also on 09-29 at 03:38, a temp cleanup deleted the session scratchpad with the Codex briefs, so the timer dispatch failed; briefs now live in `Mouse Shape Project/codex-briefs/`. Remaining: D1b (M705, M850L) and D4. Kirby decides who builds them.
 
