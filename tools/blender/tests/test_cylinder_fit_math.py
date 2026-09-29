@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cylinder_fit_math import axis_extent, fit_cylinder
+from cylinder_fit_math import axis_extent, fit_cylinder, fit_cylinder_fixed_axis, robust_fit_cylinder
 
 
 def synthetic_cylinder(axis, center, radius, width, n=400, noise=0.0, seed=0):
@@ -66,6 +66,45 @@ class CylinderFitMathTests(unittest.TestCase):
     def test_requires_minimum_points(self):
         with self.assertRaises(ValueError):
             fit_cylinder([[0, 0, 0], [1, 0, 0]])
+
+    def test_robust_fit_rejects_outlier_contamination(self):
+        clean = synthetic_cylinder(axis=(1, 0, 0), center=(0, 0, 0), radius=10.0, width=8.0,
+                                    n=300, noise=0.02, seed=2)
+        rng = np.random.default_rng(3)
+        # A small minority of points well off the true cylinder surface: like stray
+        # non-cylindrical vertices a proximity crop swept in alongside the real tread.
+        outliers = clean[:40] + rng.normal(0, 4.0, (40, 3))
+        contaminated = np.vstack([clean, outliers])
+        plain = fit_cylinder(contaminated)
+        robust, inliers = robust_fit_cylinder(contaminated, keep_fraction=0.85, iterations=6)
+        # Trimming drives the residual down a lot further than the untrimmed fit manages,
+        # and keeps most (but not all) of the candidate points.
+        self.assertLess(robust['rms'], plain['rms'] / 2)
+        self.assertLess(robust['rms'], 0.5)
+        self.assertLess(len(inliers), len(contaminated))
+        self.assertGreater(len(inliers), len(clean) * 0.3)
+
+
+    def test_fixed_axis_fits_partial_arc(self):
+        # Only a 60-degree arc of the tread (e.g. the exposed crown above a slot): a free
+        # 5-DOF fit is poorly constrained by an arc this narrow, but a fixed-axis fit
+        # (axis known from the wheel's lateral rotation axis) recovers the radius cleanly.
+        rng = np.random.default_rng(4)
+        axis = np.array([1.0, 0.0, 0.0])
+        u, v = np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])
+        theta = rng.uniform(-np.pi / 6, np.pi / 6, 200)
+        t = rng.uniform(-3, 3, 200)
+        radius, center = 9.5, np.array([2.0, -1.0, 4.0])
+        points = center + radius * (np.cos(theta)[:, None] * u + np.sin(theta)[:, None] * v) + t[:, None] * axis
+        fit = fit_cylinder_fixed_axis(points, axis=axis)
+        self.assertAlmostEqual(fit['radius'], 9.5, delta=0.05)
+        self.assertLess(fit['rms'], 1e-6)
+
+    def test_fixed_axis_matches_free_fit_on_full_cylinder(self):
+        points = synthetic_cylinder(axis=(1, 0, 0), center=(0, 0, 0), radius=7.0, width=10.0, n=500)
+        fixed = fit_cylinder_fixed_axis(points, axis=(1, 0, 0))
+        self.assertAlmostEqual(fixed['radius'], 7.0, delta=1e-3)
+        self.assertLess(fixed['rms'], 1e-6)
 
 
 if __name__ == '__main__':
