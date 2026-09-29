@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-28 23:45 · by: Claude (Phase D: D0 and D2 done, H1 handoff)_
+_Last updated: 2026-09-29 · by: Claude (Phase D: D1, D2, D4 results; awaiting Kirby)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-28 23:45 · by: Claude (Phase D: D0 and D2 done, H1 hando
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity, Phase D (geometry quality; Kirby 2026-09-28: no more colouring), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md` (schedule and handoffs inside):** **D0** (Claude) geometry audit of every AR shell in `tools/blender/GEOMETRY-AUDIT.md`: all silhouette IoU ≥ 0.9823 against the AR sources; real loss only at wheel crowns (M190, M750, M650, G903) and G903's channel. O6 was a comparison artefact (the reference render kept the cable). **D2** (Claude) M550 delivered on the M650 AR shell (photo IoU ≥ 0.988 in all views; the old study's rear view was 0.932). D0 + D2 were independently reviewed (approve with fixes; fixes in). **D1** (Codex) refines the geometry of M325s, M705 and M850L: M325s passes before export, M850L failed with the symmetric basis. D1b adds asymmetric fields and resumes by timer at 03:38 on 2026-09-29 after the quota reset. **D4** (Codex, after D1b) is local remeshing at the wheel crowns. Kirby's visual acceptance of Phase C, D2 and D1 is planned for about 09:00 on 2026-09-29.
+**In flight — study fidelity, Phase D (geometry quality; Kirby 2026-09-28: no more colouring), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** **Delivered:** D2 M550 on the M650 AR shell (photo IoU ≥ 0.988 in all views) and D1 M325s geometry refinement (mean photo IoU 0.9742 → 0.9768). **Not delivered (gate):** D1 M705 and M850L (smooth whole-body deformation cannot improve them without regressing an official view) and D4 local remeshing of wheel crowns and G903's channel (a Sonnet builder showed clean meshes cap moves at 0.3–0.5 mm against 7–11 mm gaps; this needs feature-aware topology). **D0 audit:** every AR shell's silhouette IoU ≥ 0.9823 against its source; O6 was a comparison artefact. All of Claude's and the Sonnet builder's work was independently reviewed (approve with fixes; fixes in). Codex is out until 2026-10-04 13:10. **Waiting on Kirby** (`Mouse Shape Project/模型驗收-2026-09-28/D階段驗收.html`): accept M325s and M550; one more M705 attempt or keep it; feature-aware wheel/channel modelling or keep it.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
