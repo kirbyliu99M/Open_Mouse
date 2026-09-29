@@ -42,25 +42,59 @@ def new_mesh_object(name, vertices, faces):
     return obj
 
 
-def decimate_to_budget(obj, max_triangles):
-    def triangle_count():
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bmesh.ops.triangulate(bm, faces=list(bm.faces))
-        count = len(bm.faces)
-        bm.free()
-        return count
+def triangle_count(obj):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    count = len(bm.faces)
+    bm.free()
+    return count
 
-    current = triangle_count()
-    if current <= max_triangles:
-        return current
-    ratio = max_triangles/current*0.97  # a small safety margin under the budget
-    modifier = obj.modifiers.new('Decimate', 'DECIMATE')
-    modifier.decimate_type = 'COLLAPSE'
-    modifier.ratio = max(1e-4, min(1.0, ratio))
+
+def trial_remesh_triangle_count(obj, voxel_size):
+    duplicate = obj.copy()
+    duplicate.data = obj.data.copy()
+    bpy.context.collection.objects.link(duplicate)
+    modifier = duplicate.modifiers.new('Remesh', 'REMESH')
+    modifier.mode = 'VOXEL'
+    modifier.voxel_size = voxel_size
+    modifier.use_smooth_shade = False
+    bpy.context.view_layer.objects.active = duplicate
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    count = triangle_count(duplicate)
+    bpy.data.objects.remove(duplicate, do_unlink=True)
+    return count
+
+
+def remesh_to_budget(obj, max_triangles):
+    """Voxel Remesh (watertight, self-intersection-free by construction)
+    bisected on voxel size to land safely under the triangle budget, with a
+    gentle Decimate/COLLAPSE only to trim any small remaining excess -- far
+    milder than decimating the raw ~14x-oversized hull directly, which
+    Blender's edge-collapse decimator can fold into local self-intersections."""
+    dims = obj.dimensions
+    lo, hi = max(dims)/400, max(dims)/8
+    for _ in range(10):
+        mid = (lo+hi)/2
+        count = trial_remesh_triangle_count(obj, mid)
+        if count > max_triangles:
+            lo = mid
+        else:
+            hi = mid
+    modifier = obj.modifiers.new('Remesh', 'REMESH')
+    modifier.mode = 'VOXEL'
+    modifier.voxel_size = hi
+    modifier.use_smooth_shade = False
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.modifier_apply(modifier=modifier.name)
-    return triangle_count()
+    count = triangle_count(obj)
+    if count > max_triangles:
+        modifier = obj.modifiers.new('Decimate', 'DECIMATE')
+        modifier.decimate_type = 'COLLAPSE'
+        modifier.ratio = max(1e-4, min(1.0, max_triangles/count*0.97))
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        count = triangle_count(obj)
+    return count
 
 
 def transfer_uvs(target, source):
@@ -113,7 +147,7 @@ def main():
 
     hull_obj = new_mesh_object('candidate', smoothed['vertices'], smoothed['faces'])
     triangles_before_decimate = len(smoothed['faces'])
-    triangles = decimate_to_budget(hull_obj, MAX_TRIANGLES)
+    triangles = remesh_to_budget(hull_obj, MAX_TRIANGLES)
 
     # Recalibrate to the exact catalogue bbox before UV transfer, so nearest-
     # face correspondence uses final positions.
