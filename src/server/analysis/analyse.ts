@@ -13,6 +13,7 @@ import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import { findMedicalClaimTerm } from "./medicalClaims";
+import { mentionsProvisional } from "./provisional";
 import {
   NEGATIVE_REASON_CODES,
   POSITIVE_REASON_CODES,
@@ -106,8 +107,10 @@ function promptData(input: AnalysisInput) {
   return {
     rankingStatus: input.rankingProvisional
       ? // Deliberately avoids the word "provisional": that word is what the
-        // low-confidence caveat check looks for, and copying this sentence
-        // must not satisfy it without saying descriptors are unclassified.
+        // low-confidence caveat check looks for (`mentionsProvisional`, which
+        // also knows the Chinese markers), and copying this sentence must not
+        // satisfy it without saying descriptors are unclassified. A Chinese
+        // version of this sentence must avoid 暫定 / 暂定 / 初步 too.
         "Fit settings have not yet been validated against owner ratings."
       : undefined,
     gripStyle: input.gripStyle,
@@ -203,10 +206,8 @@ function findViolation(
     if (unknown !== null) return String(unknown);
   }
   if (isLowConfidence(input)) {
-    const mentionsProvisional = candidate.caveats.some((c) =>
-      /provisional/i.test(c),
-    );
-    if (!mentionsProvisional) {
+    // In whichever language the model answered: see ./provisional.
+    if (!candidate.caveats.some(mentionsProvisional)) {
       return "(missing) a caveat noting the ranking is provisional";
     }
   }
