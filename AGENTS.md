@@ -14,8 +14,8 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 |---|---|---|
 | **Claude** — orchestrator | Plan, milestone specs, `src/lib/contracts/`, shape rubric, dispatching builders, reviewing their output, gate adjudication, `docs/STATUS.md`, **merging reviewed PRs into `main`** and running production migrate + seed after schema changes | Approves a PR it authored directly; merges a PR without an independent reviewer's approval |
 | **Sonnet builder subagents** | Backend and frontend implementation, one scoped task each, **each in its own git worktree** | Changes a contract; touches files outside its task; merges |
-| **Reviewers — `pr-review` workflow** | Independent review of every PR against its acceptance criteria and the hard rules: three Sonnet lenses in parallel, then a refuter for each of the six most severe findings (the rest reach Claude unverified). The script is Claude's local tooling, outside this repo; Claude adjudicates what survives | Reviews code it wrote |
-| **Codex** — Blender, plus tasks Claude assigns (2026-09-23) | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | Pushes (Claude runs git); edits `docs/STATUS.md` or `.github/` |
+| **Reviewers — `pr-review` workflow** | Independent review of every code PR (a docs-only STATUS/AGENTS PR gets one independent fact-check agent) against its acceptance criteria and the hard rules: three Sonnet lenses in parallel, then a refuter for each of the six most severe findings (the rest reach Claude unverified). The script is Claude's local tooling, outside this repo; Claude adjudicates what survives | Reviews code it wrote |
+| **Codex** — Blender, plus tasks Claude assigns (2026-09-23) | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | In tasks Claude dispatches: pushes (Claude runs git) or edits `docs/STATUS.md` / `.github/`. A Codex task Kirby launches may push (2026-09-23) |
 | **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, dashboards, secrets, final acceptance | — |
 
 ### Directory ownership
@@ -34,8 +34,9 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 2. The builder works in an isolated worktree on its own branch and opens the PR
    as a **draft**. It keeps CI-equivalent checks green locally (typecheck, lint,
    prettier, vitest, drizzle check, and every Playwright project). Pushing work in
-   progress to the draft is fine and, once #78 is merged, costs no CI minutes; the
-   builder never marks the PR ready.
+   progress to the draft is fine and costs no CI minutes. On a branch created
+   before #78, merge `main` in first: a `push` runs the `ci.yml` of the pushed
+   commit. The builder never marks the PR ready.
 3. The `pr-review` workflow reviews it (agents that did not write the code), and
    Claude adjudicates the findings. Claude then marks the PR ready. That triggers
    CI once, and Claude confirms the run actually executed: a skipped job also
@@ -55,9 +56,10 @@ workflow agents. A workflow caps its own concurrency with an in-script pool of t
 and uses at most ten agents per run. Codex and AGY (the Gemini CLI, used only for web
 searches) are external CLIs and do not count.
 
-**GitHub Actions minutes are budgeted** (Kirby, 2026-09-30). Once #78 is merged, CI runs
-on pushes to `main` and on PRs that are not drafts, so pushing to a feature branch or a
-draft costs nothing. Until then, `main`'s old `ci.yml` runs on every push and every PR.
+**GitHub Actions minutes are budgeted** (Kirby, 2026-09-30). Since #78, CI runs on
+pushes to `main` (lightweight gate, ≈ 90 s) and on PRs that are not drafts (full gate
+with e2e; ≈ 10 s when only docs changed), so pushing to a feature branch or a draft
+costs nothing.
 Live e2e against production runs locally (`BASE_URL=… npm run test:e2e:live`) rather
 than through `live-e2e.yml`.
 Do not add scheduled workflows without Claude's sign-off.
