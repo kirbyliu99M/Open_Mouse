@@ -52,7 +52,7 @@ Several promises made on a screen are not kept anywhere else.
 
 | Severity                      | Count |
 | ----------------------------- | ----- |
-| P1 — breaks trust or the flow | 5     |
+| P1 — breaks trust or the flow | 6     |
 | P2 — a clear defect           | 9     |
 | P3 — polish                   | 8     |
 
@@ -80,6 +80,36 @@ Several promises made on a screen are not kept anywhere else.
 ---
 
 ## P1 — breaks trust or the flow
+
+**0. Detected hand is reversed for palm-down photos. [A responsibility] [U feedback] — found while testing the learning kit, after this audit's first commit**
+
+`normalizeHandedness` (`src/client/photo/landmarks.ts:75`) swaps
+MediaPipe's label, assuming the photo is not mirrored. That reasoning
+ignores that the hand is photographed palm down: a rear-camera photo of the
+back of a hand is itself a mirror of MediaPipe's palm-facing convention, so
+the two flips cancel. Measured through the real pipeline (MediaPipe
+in-browser, `/learn/check` on the `learning-kit` branch):
+
+| Photo                                         | Hand in photo    | Pipeline says (confidence) |
+| --------------------------------------------- | ---------------- | -------------------------- |
+| Kirby's 2026-09-23 photo (`../Fixure Hands/`) | right, palm down | **left** (0.91)            |
+| the same photo mirrored                       | left, palm down  | **right** (0.96)           |
+| `public/images/hand-on-a4-camera.png`         | left, palm down  | **right** (0.93)           |
+
+Consequences on `main`:
+
+- **Easy scan** auto-labels a right-handed user's scan "Left hand · auto".
+  Results then show the left-hand line.
+- **The printed-sheet flow** rejects a correct right-hand photo with
+  `HANDEDNESS_MISMATCH` ("This looks like your left hand…").
+
+The function's comment says it is unit-tested, but no test calls it.
+
+→ Return MediaPipe's category unchanged (lower-cased) for palm-down
+rear-camera photos. Add a unit test naming the convention, and an e2e check
+on a real right-hand photo. Verify on three or more real photos from the
+learning kit before merging. This needs its own reviewed PR, because the
+easy-scan e2e asserts on the "· auto" chip.
 
 **1. Two calibration journeys, crossed. [A wayfinding, familiarity] [U navigation]**
 
@@ -356,13 +386,15 @@ check ruler and a card outline"`.
 
 ## Suggested order
 
-1. Findings 1, 2, 4, 8, 9, 10: one Sonnet builder, one PR ("journey and
+1. Finding 0 first, on its own PR: the handedness fix, verified on real
+   photos.
+2. Findings 1, 2, 4, 8, 9, 10: one Sonnet builder, one PR ("journey and
    accessibility fixes"). Small, testable, no design decisions left.
-2. Finding 5: gate demo routes (touches e2e config).
-3. Findings 6, 7, 12, 13: needs **Kirby**: privacy page wording and the
+3. Finding 5: gate demo routes (touches e2e config).
+4. Findings 6, 7, 12, 13: needs **Kirby**: privacy page wording and the
    auth-off navigation.
-4. Finding 3: decided by the M2 data. The learning kit below produces it.
-5. P3 items: batch with the home-sketch motion (finding 17) as one design PR.
+5. Finding 3: decided by the M2 data. The learning kit below produces it.
+6. P3 items: batch with the home-sketch motion (finding 17) as one design PR.
 
 Evidence (screenshots and `audit.json`) was generated locally and is not
 committed. It can be reproduced with `node audit.mjs http://127.0.0.1:<port>`
