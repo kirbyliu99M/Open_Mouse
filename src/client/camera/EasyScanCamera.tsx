@@ -90,6 +90,7 @@ import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import { parseUserLength } from "../photo/user-length";
+import { noPaperEntryLabel } from "./noPaperEntry";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -1023,6 +1024,10 @@ export default function EasyScanCamera({
 
   const handChipLabel = `${handChip.hand === "left" ? "Left" : "Right"} hand · auto`;
 
+  // Null while the typed-hand-length feature flag is off: every "no paper"
+  // entry below renders only when this is non-null.
+  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null);
+
   if (
     (deviceFit === "desktop" || deviceFit === "in-app") &&
     result.kind === "none"
@@ -1198,15 +1203,15 @@ export default function EasyScanCamera({
             >
               Upload a photo
             </label>
-            <button
-              type="button"
-              className="easyTipNoPaper"
-              onClick={startLengthStep}
-            >
-              {userLengthMm === null
-                ? "No paper? Use a ruler instead"
-                : "Edit hand length"}
-            </button>
+            {noPaperLabel && (
+              <button
+                type="button"
+                className="easyTipNoPaper"
+                onClick={startLengthStep}
+              >
+                {noPaperLabel}
+              </button>
+            )}
           </div>
         )}
 
@@ -1332,15 +1337,15 @@ export default function EasyScanCamera({
                 </svg>
               </label>
             </div>
-            <button
-              type="button"
-              className="easyNoPaperLink"
-              onClick={startLengthStep}
-            >
-              {userLengthMm === null
-                ? "No paper? Use a ruler instead"
-                : "Edit hand length"}
-            </button>
+            {noPaperLabel && (
+              <button
+                type="button"
+                className="easyNoPaperLink"
+                onClick={startLengthStep}
+              >
+                {noPaperLabel}
+              </button>
+            )}
           </>
         )}
 
@@ -1597,13 +1602,15 @@ export default function EasyScanCamera({
         >
           Got it
         </button>
-        <button
-          type="button"
-          className="easyTipNoPaper"
-          onClick={startLengthStep}
-        >
-          No paper? Use a ruler instead
-        </button>
+        {noPaperLabel && (
+          <button
+            type="button"
+            className="easyTipNoPaper"
+            onClick={startLengthStep}
+          >
+            {noPaperLabel}
+          </button>
+        )}
         <p className="easyTipFinePrint">
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
