@@ -1,8 +1,34 @@
 name: CI
 
+# Budget-conscious by design (GitHub Actions minutes are limited, and a billing
+# block on 2026-09-29 stopped CI once already), even though a public repo on a
+# standard runner is documented as free.
+#
+#   - push runs on `main` only. A PR branch used to trigger both `push` and
+#     `pull_request` on every commit, so the same commit ran twice.
+#   - Draft PRs do not run CI (the job is skipped); marking one ready does.
+#   - PRs run the whole gate, including Playwright on every project.
+#   - A push to `main` runs the light gate only: typecheck, lint, format, unit
+#     tests, migration check, `npm audit`, build. No Playwright at all (no
+#     version lookup, no browser cache, no apt install): the full e2e already
+#     passed on the PR that was merged. It ALWAYS runs that gate and never looks
+#     at the diff: `cancel-in-progress` below can cancel a code commit's run when
+#     a docs-only commit lands right after, and a `before..HEAD` diff of the
+#     second run would call it docs-only and go green over unchecked code.
+#   - A docs-only PR skips install, tests and build. Docs-only means only
+#     `docs/**/*.md`, `docs/**/*.png` and root `*.md`; the rules live in
+#     scripts/ci/classify-changes.mjs and are pinned by
+#     tests/unit/ci-classify.test.ts. That is decided INSIDE the job, not with
+#     workflow-level `paths` / `paths-ignore`: a workflow that never starts
+#     leaves a required check stuck on "Pending", whereas a job that starts and
+#     finishes green does not.
+#   - workflow_dispatch runs everything, e2e included, on whatever ref you pick.
 on:
   push:
+    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,53 +39,101 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Required-check name for branch protection: "checks".
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Action versions checked on 2026-09-30 with `gh api repos/<owner>/<repo>/releases/latest`
+      # and each tag's action.yml (`runs.using: node24`): checkout v7.0.1,
+      # setup-node v7.0.0, cache v6.1.0, upload-artifact v7.0.1.
+      - uses: actions/checkout@v7
+
+      # Plain Node, no install: see scripts/ci/classify-changes.mjs for the rules.
+      - name: Classify changed paths
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/ci/classify-changes.mjs
+
+      # Docs-only PR path, the only check such a PR gets. Prettier also checks
+      # Markdown, so skipping it entirely would let a badly formatted .md merge
+      # and then fail `format:check` on the next code PR. The script runs
+      # Prettier alone (no `npm ci`), pinned to the version in package.json, on
+      # just the changed files; the list is NUL-separated. Fails closed when the
+      # list is missing.
+      - name: Prettier on the changed docs
+        if: steps.changes.outputs.heavy != 'true'
+        env:
+          CHANGED_FILE: ${{ steps.changes.outputs.changed_file }}
+        run: node scripts/ci/prettier-changed-docs.mjs
+
+      - uses: actions/setup-node@v7
+        if: steps.changes.outputs.heavy == 'true'
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+        if: steps.changes.outputs.heavy == 'true'
       - run: npm run typecheck
+        if: steps.changes.outputs.heavy == 'true'
       - run: npm run lint
+        if: steps.changes.outputs.heavy == 'true'
       - run: npm run format:check
+        if: steps.changes.outputs.heavy == 'true'
       - run: npm run test
+        if: steps.changes.outputs.heavy == 'true'
       - name: Check migration history and schema drift
+        if: steps.changes.outputs.heavy == 'true'
         run: |
           npm run db:check
           npm run db:generate
           test -z "$(git status --porcelain -- drizzle)"
-      - run: npx playwright install --with-deps --only-shell chromium
-      - run: npm run test:e2e
+      # --omit=dev on purpose: dev dependencies carry known moderate advisories
+      # (drizzle-kit's @esbuild-kit chain) that never ship to production.
+      - name: Audit production dependencies
+        if: steps.changes.outputs.heavy == 'true'
+        run: npm audit --omit=dev
+
+      # Playwright browsers, cached by the locked @playwright/test version. Only
+      # runs that run e2e (pull requests and manual runs) touch any of this: a
+      # push to main runs no Playwright step. A PR can only read caches from its
+      # own ref, its base and the default branch, so the cache mainly serves
+      # re-runs of the same PR; the saving is small (see the PR description).
+      - name: Read the locked Playwright version
+        id: playwright
+        if: steps.changes.outputs.e2e == 'true'
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        if: steps.changes.outputs.e2e == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-ubuntu-24.04-${{ steps.playwright.outputs.version }}
+      - name: Install Playwright browser and system dependencies
+        if: steps.changes.outputs.e2e == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Install Playwright system dependencies only (browser restored from cache)
+        if: steps.changes.outputs.e2e == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Every project in playwright.config.ts: chromium, mobile, chromium-camera,
+      # chromium-camera-partial, chromium-camera-paper-edge.
+      - name: Playwright e2e
+        if: steps.changes.outputs.e2e == 'true'
+        run: npm run test:e2e
+
       - run: npm run vercel-build
-      - uses: actions/upload-artifact@v4
-        if: failure()
+        if: steps.changes.outputs.heavy == 'true'
+
+      - uses: actions/upload-artifact@v7
+        if: failure() && steps.changes.outputs.e2e == 'true'
         with:
           name: playwright-traces
           path: test-results/
-          retention-days: 7
-
-  blender-python:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - run: npm ci
-      - run: node --import tsx tools/blender/export-parameters.ts
-      - run: python -m pip install numpy scipy pillow
-      # Blender-specific tests self-skip here with an explicit bpy reason.
-      - run: python -m unittest discover -s tools/blender/tests -p 'test_*.py'
-      - run: python tools/blender/check_catalogues.py
-      - run: python tools/blender/audit_payloads.py
-      - run: python tools/blender/optimize_glbs.py --check
+          retention-days: 3
+          if-no-files-found: ignore

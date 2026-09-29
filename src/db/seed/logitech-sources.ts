@@ -26,6 +26,7 @@ export const LOGITECH_SOURCES: ReadonlyArray<{
       ["G203 Lightsync", "g203-lightsync-rgb-gaming-mouse", "wired"],
       ["G403 Hero", "g403-hero-gaming-mouse", "wired"],
       ["G703 Lightspeed", "g703-hero-wireless-gaming-mouse", "wireless"],
+      ["G903 Hero", "g903-hero-wireless-gaming-mouse", "wireless"],
     ] as const
   ).map(([model, path, connectivity]) => ({
     model,
@@ -50,6 +51,17 @@ export const LOGITECH_SOURCES: ReadonlyArray<{
       ["M705 Marathon", "m705-wireless-mouse", "wireless"],
       ["M190", "m190-wireless-mouse", "wireless"],
       ["M100", "m100-usb-mouse", "wired"],
+      ["M750", "m750-signature-plus-wireless-mouse", "wireless"],
+      ["M325s", "m325s-wireless-mouse", "wireless"],
+      ["Mobi Fold", "mobi-fold-mouse", "wireless"],
+      [
+        "Signature Comfort Plus M850L",
+        "signature-comfort-plus-m850l",
+        "wireless",
+      ],
+      ["Signature Comfort M840L", "signature-comfort-m840l", "wireless"],
+      ["MX Ergo S", "mx-ergo-s-wireless-trackball-mouse", "wireless"],
+      ["ERGO M575S", "ergo-m575s-wireless-trackball", "wireless"],
     ] as const
   ).map(([model, path, connectivity]) => ({
     model,

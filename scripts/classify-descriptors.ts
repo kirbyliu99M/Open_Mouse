@@ -7,7 +7,7 @@
  *   npm run classify:descriptors -- --dry-run     (image discovery only, no Gemini calls)
  *
  * Sequential with a 1 s delay between product-page fetches, same as
- * scripts/fetch-logitech-specs.ts — this is 30 pages, not a crawl.
+ * scripts/fetch-logitech-specs.ts — this is a few dozen pages (LOGITECH_SOURCES.length), not a crawl.
  */
 import { writeFileSync } from "node:fs";
 import nextEnv from "@next/env";
@@ -148,7 +148,7 @@ async function main() {
         `ring=${result.ringFingerRest ?? "–"}${result.needsReview ? "  NEEDS REVIEW" : ""}`,
     );
     // Checkpoint after every model, not just at the end — a crash midway
-    // through the 30 models keeps everything classified so far on disk.
+    // through the full lineup keeps everything classified so far on disk.
     writeCheckpoint(results);
     await sleep(1000);
   }

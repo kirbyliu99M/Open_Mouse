@@ -267,6 +267,68 @@ h1 {
   outline-offset: 2px;
 }
 
+/* Measured-state overlay ("draw the measured result over the photo") —
+   the 21-point MediaPipe hand skeleton (HAND_CONNECTIONS + every joint),
+   the MCP/PIP/DIP knuckles emphasised, and the two labelled dimension
+   lines (hand length, palm width). Every stroke/dot here uses
+   `vector-effect: non-scaling-stroke` (lines) or the zero-length-round-
+   capped-line dot trick (ScanClient.tsx's `<Dot>`) so sizes are literal
+   SCREEN pixels regardless of the photo's own resolution — a plain
+   `r={4}` circle on a 3000px-wide photo was the "scattered tiny dots"
+   problem this replaces. */
+.overlaySkeletonHalo {
+  stroke: #1c1c1e;
+  stroke-opacity: 0.55;
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.overlaySkeletonLine {
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.overlayJointHalo {
+  stroke: #1c1c1e;
+  stroke-opacity: 0.55;
+}
+.overlayJoint {
+  stroke: #ffffff;
+}
+.overlayKnuckleRing {
+  stroke: #ffffff;
+}
+.overlayKnuckleDot {
+  stroke: var(--scan-landmark);
+}
+
+.overlayDimensionExtension {
+  stroke: #1c1c1e;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.overlayDimensionLine {
+  stroke: var(--scan-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.overlayDimensionTick {
+  stroke: var(--scan-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.overlayMeasureLabelBg {
+  fill: #1c1c1e;
+  opacity: 0.85;
+}
+.overlayMeasureLabelText {
+  fill: #ffffff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .primaryButton {
   min-height: 44px;
   min-width: 44px;

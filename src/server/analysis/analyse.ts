@@ -12,6 +12,7 @@ import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
+import { findMedicalClaimTerm } from "./medicalClaims";
 import {
   NEGATIVE_REASON_CODES,
   POSITIVE_REASON_CODES,
@@ -22,6 +23,22 @@ import {
 export interface AnalyseResult {
   output: AnalysisOutput;
   source: AnalysisSource;
+}
+
+export interface AnalyseOptions {
+  /**
+   * Called immediately before EACH actual model call this function makes —
+   * once per attempt, up to `MAX_ATTEMPTS` times — so a caller can charge
+   * every real call against a shared budget (M2 hardening finding: the
+   * site-wide daily model cap in `./handler.ts` used to be consumed once per
+   * *request*, but a request can make up to `MAX_ATTEMPTS` real model calls,
+   * so the real ceiling was ~2x the configured cap). Returning `false` stops
+   * the retry loop immediately, WITHOUT making that call, and serves the
+   * deterministic fallback instead — including on the very first attempt,
+   * so a budget already exhausted before this request even started never
+   * calls the model at all. Omit it to never gate a call.
+   */
+  beforeModelCall?: () => boolean | Promise<boolean>;
 }
 
 /** Plain words for each exclusion, matching what the results page says
@@ -138,6 +155,10 @@ export function buildPrompt(input: AnalysisInput): string {
     "- Write plainly for someone who has not seen the JSON.",
     "- Never mention internal identifiers, reason codes, or version strings. Describe the facts in plain language.",
     "- If a grip style was stated, describe it as the user's choice, not a prediction.",
+    "- Never make medical, diagnostic, therapeutic, or injury-prevention claims. Do not claim a mouse prevents or reduces strain or injury, or relieves pain.",
+    "- Do not mention carpal tunnel syndrome, CTS, RSI, tendinitis, tendonitis, pain relief, or other health conditions. Do not call a mouse ergonomic, wrist-friendly, healthier, or safer for the body.",
+    "- Describe shape facts only, such as vertical grip, taller hump, or wider shell. Never repeat vendor marketing copy about wrist health.",
+    '- For an asymmetric, right-hand sculpted shape, say "asymmetric right-hand shape", not "ergonomic".',
   ];
   if (isLowConfidence(input)) {
     lines.push(
@@ -149,12 +170,15 @@ export function buildPrompt(input: AnalysisInput): string {
 }
 
 function retryPrompt(basePrompt: string, violation: string): string {
+  if (violation.startsWith("medical claim: ")) {
+    return `${basePrompt}\n\nYour previous answer used a prohibited medical or health term (${violation.slice("medical claim: ".length)}). Rewrite the full answer using only shape facts, with no medical, diagnostic, therapeutic, injury-prevention, or body-safety claims.`;
+  }
   return `${basePrompt}\n\nYour previous answer used the number ${violation}, which does not appear anywhere in the Data above. Every number in your answer MUST come from Data verbatim. Rewrite your full answer without inventing any new numbers.`;
 }
 
 /**
  * Finds a reason `analyse()` should not accept a candidate output as-is:
- * a numeral not traceable to the input, or a missing provisional caveat
+ * a medical term, a numeral not traceable to the input, or a missing provisional caveat
  * when confidence is low. Returns a human-readable violation description,
  * or null when the output is acceptable.
  */
@@ -172,6 +196,8 @@ function findViolation(
     ...candidate.caveats,
   ];
   for (const text of fields) {
+    const medicalTerm = findMedicalClaimTerm(text);
+    if (medicalTerm !== null) return `medical claim: ${medicalTerm}`;
     const unknown = findUnknownNumeral(text, allowedNumbers, exemptTokens);
     if (unknown !== null) return String(unknown);
   }
@@ -226,13 +252,18 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   const whyTopPick =
     positives.length > 0
       ? `It's the top pick because ${positives.join(" and ")}.`
-      : "It's the top pick based on your measurements and grip style.";
+      : input.gripStyle.stated !== null
+        ? "It's the top pick based on your measurements and grip style."
+        : "It's the top pick based on your measurements.";
   const tradeoffs = negatives
     .slice(0, 3)
     .map((t) => t[0]!.toUpperCase() + t.slice(1));
-  const whatToAvoid = negatives
-    .slice(0, 2)
-    .map((t) => t[0]!.toUpperCase() + t.slice(1));
+  const whatToAvoid = input.excluded
+    .map(
+      ({ brand, model, reason }) =>
+        `${brand} ${model}: ${EXCLUSION_TEXT[reason]}.`,
+    )
+    .slice(0, 2);
   const caveats: string[] = [];
   if (top.lowConfidence) {
     caveats.push(PROVISIONAL_NOTE);
@@ -242,7 +273,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
 
 /**
  * Calls the model, validates its structured output, and enforces the
- * no-new-numerals rule. Retries once, naming the violation; a second
+ * no-new-numerals and no-medical-claims rules. Retries once, naming the violation; a second
  * violation returns the deterministic fallback instead of ever surfacing
  * unverified model output.
  *
@@ -252,17 +283,18 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
  *
  * `source` in the returned `AnalyseResult` is `"model"` in exactly one
  * place below — the branch where a model response was received, passed
- * `analysisOutputSchema`, AND passed `findViolation`'s no-new-numerals
+ * `analysisOutputSchema`, AND passed `findViolation`'s output checks
  * check. Every other path (no model, JSON parse failure, schema failure,
- * a numeral/provisional-caveat violation on both attempts) returns
- * `buildFallbackOutput` with `source: "fallback"`. Never inferred from
- * whether a key was configured — a keyed call can still fail or violate
- * the rule and fall back, which is exactly what this function's retry
- * loop exists to handle.
+ * a numeral, provisional-caveat, or medical-claim violation on both attempts, or
+ * `options.beforeModelCall` refusing a call) returns `buildFallbackOutput`
+ * with `source: "fallback"`. Never inferred from whether a key was
+ * configured — a keyed call can still fail or violate the rule and fall
+ * back, which is exactly what this function's retry loop exists to handle.
  */
 export async function analyse(
   input: AnalysisInput,
   client: TextModel | null,
+  options: AnalyseOptions = {},
 ): Promise<AnalyseResult> {
   if (client === null) {
     return { output: buildFallbackOutput(input), source: "fallback" };
@@ -274,6 +306,17 @@ export async function analyse(
   let prompt = basePrompt;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (options.beforeModelCall) {
+      // M2: charge THIS attempt against the shared budget before making the
+      // call it gates. A `false` here (budget exhausted, whether before the
+      // first attempt or before the retry) stops the loop outright — no
+      // more model calls this request — and serves the fallback, same as
+      // every other "can't produce a trustworthy answer" path above.
+      const allowed = await options.beforeModelCall();
+      if (!allowed) {
+        return { output: buildFallbackOutput(input), source: "fallback" };
+      }
+    }
     let raw: string;
     try {
       raw = await client.generate({

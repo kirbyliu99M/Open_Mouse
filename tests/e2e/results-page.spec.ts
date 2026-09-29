@@ -61,6 +61,65 @@ async function stubHappyFit(page: Page) {
 }
 
 test.describe("/results/[scanId] — real results page", () => {
+  test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({
+    page,
+  }) => {
+    const fixture = structuredClone(highConfidenceFixture) as {
+      results: { total: number }[];
+    };
+    fixture.results[0].total = 49;
+    await page.addInitScript(
+      ([key]) => sessionStorage.setItem(key, "left"),
+      [`openMouse.resultHand.${SCAN_ID}`],
+    );
+    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(
+      page.getByText(
+        "None of these fits your hand well. The closest is below.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Left-hand fit isn't rated yet — check each mouse's shape before you buy.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Other matches" }),
+    ).toBeVisible();
+  });
+
+  test("omits the poor-fit line at 50 and the left-hand disclosure for a right scan", async ({
+    page,
+  }) => {
+    const fixture = structuredClone(highConfidenceFixture) as {
+      results: { total: number }[];
+    };
+    fixture.results[0].total = 50;
+    await page.addInitScript(
+      ([key]) => sessionStorage.setItem(key, "right"),
+      [`openMouse.resultHand.${SCAN_ID}`],
+    );
+    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(
+      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "None of these fits your hand well. The closest is below.",
+      ),
+    ).toHaveCount(0);
+    await expect(page.getByText(/Left-hand fit isn't rated yet/)).toHaveCount(
+      0,
+    );
+  });
   test("renders the ranking as soon as the fit route resolves, then the written analysis once it resolves too", async ({
     page,
   }) => {

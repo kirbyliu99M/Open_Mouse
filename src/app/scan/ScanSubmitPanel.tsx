@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { submitScan } from "@/client/scan/submitScan";
+import { resultHandKey } from "@/components/results/handDisclosure";
 
 type SubmitState =
   | { kind: "idle" }
@@ -54,6 +55,14 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     setState({ kind: "submitting" });
     void submitScan(submission).then((outcome) => {
       if (outcome.status === "success") {
+        try {
+          sessionStorage.setItem(
+            resultHandKey(outcome.scanId),
+            submission.hand,
+          );
+        } catch {
+          // Storage may be disabled; results remain available without a hand disclosure.
+        }
         setState({ kind: "success" });
         router.push(resultsPagePath(outcome.scanId));
         return;

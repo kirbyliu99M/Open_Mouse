@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
 import { claimAnonymousSession } from "./server/auth/claim";
-import { isAuthConfigured } from "./server/auth/config";
+import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
 import { SCAN_SESSION_COOKIE } from "./server/scans/cookies";
 
@@ -55,12 +55,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }),
       ]
     : [],
-  // No real secret exists in this environment (issue #17); providers is
-  // empty whenever AUTH_SECRET is unset, so nothing can actually reach a
-  // code path that signs or verifies with this value — it only keeps
-  // Auth.js's own CSRF/state-cookie machinery from throwing on a session
-  // read. A real deployment always sets AUTH_SECRET.
-  secret: process.env.AUTH_SECRET ?? "unconfigured-build-only-placeholder",
+  // L3 (security hardening finding): see resolveAuthSecret. A missing AUTH_SECRET used to fall
+  // back silently to a public, checked-in placeholder even in production —
+  // `resolveAuthSecret` (`./server/auth/config.ts`) now keeps that fixed
+  // placeholder only where neither VERCEL_ENV nor NODE_ENV is "production":
+  // `next dev` and the test runner (issue #17: no real secret exists in this
+  // environment, and nothing reaches a code path that signs or verifies with
+  // this value while providers is empty). `next build` sets
+  // NODE_ENV=production, so every build and every deployed runtime without
+  // AUTH_SECRET gets a random secret, generated once per process, that
+  // nobody knows — not the placeholder — so nothing can be forged with a
+  // value anyone can read in this repo's source history.
+  // It deliberately does NOT throw: production runs without sign-in today
+  // (no provider is enabled), and a throw at module load would fail
+  // `next build` and every route that imports this file. Sign-in itself
+  // still needs AUTH_SECRET: `isAuthConfigured` keeps `providers` empty
+  // without it.
+  secret: resolveAuthSecret(),
   callbacks: {
     // Database session strategy hands the callback `user`, not a decoded
     // token; `session.user.id` isn't populated by default (see

@@ -5,6 +5,13 @@ import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
 } from "@/lib/contracts/measurement";
+import type { PhotoOverlay } from "@/client/photo/pipeline";
+import {
+  DEMO_IMAGE_WIDTH,
+  DEMO_IMAGE_HEIGHT,
+  DEMO_LANDMARKS_PX,
+  buildDemoPhotoUrl,
+} from "../demo-photo";
 import "../scan.css";
 
 export const metadata: Metadata = {
@@ -43,6 +50,16 @@ const DEMO_SUBMISSION = scanSubmissionSchema.parse({
   measurementModelVersion: MEASUREMENT_MODEL_VERSION,
 });
 
+const DEMO_PHOTO_URL = buildDemoPhotoUrl("sheet");
+
+const DEMO_OVERLAY: PhotoOverlay = {
+  imageWidth: DEMO_IMAGE_WIDTH,
+  imageHeight: DEMO_IMAGE_HEIGHT,
+  markers: [],
+  card: null,
+  landmarksPx: DEMO_LANDMARKS_PX,
+};
+
 export default function ScanMeasuredDemoPage() {
   guardDemoRouteFromProduction();
   return (
@@ -53,6 +70,8 @@ export default function ScanMeasuredDemoPage() {
         gripStyle: "claw",
         measurements: DEMO_SUBMISSION.measurements,
         submission: DEMO_SUBMISSION,
+        overlay: DEMO_OVERLAY,
+        previewUrl: DEMO_PHOTO_URL,
       }}
     />
   );

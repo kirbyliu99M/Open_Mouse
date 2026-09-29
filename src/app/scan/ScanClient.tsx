@@ -6,8 +6,9 @@ import Link from "next/link";
 import type {
   HandMeasurements,
   ScanSubmission,
+  PaperSize,
 } from "@/lib/contracts/measurement";
-import { scanSubmissionSchema } from "@/lib/contracts/measurement";
+import { scanSubmissionSchema, LANDMARK } from "@/lib/contracts/measurement";
 import type { Point2 } from "@/client/geometry/homography";
 import type { CardCorners } from "@/client/geometry/card-scale";
 import {
@@ -23,6 +24,15 @@ import {
 } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
+import CameraCapture from "@/client/camera/CameraCapture";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import {
+  HAND_CONNECTIONS,
+  KNUCKLE_LANDMARK_IDS,
+  computeDimensionLine,
+  separateLabelBoxes,
+  type Box,
+} from "@/client/geometry/handSilhouette";
 
 type Hand = "left" | "right";
 type GripStyle = "palm" | "claw" | "fingertip";
@@ -99,6 +109,231 @@ function cornersToPoints(corners: readonly Point2[]): string {
   return corners.map((p) => `${p.x},${p.y}`).join(" ");
 }
 
+/**
+ * A fixed-screen-size dot at `p`: a zero-length, round-capped line with
+ * `vector-effect: non-scaling-stroke` — the standard SVG trick for a dot
+ * whose SIZE is a literal screen pixel count regardless of the viewBox's
+ * own scale (a real photo can be thousands of px wide; a plain `r={4}`
+ * circle would render as a near-invisible speck on one, which is exactly
+ * what "landmarks are scattered tiny dots" was — this file's dots and the
+ * skeleton's lines below all use this trick instead).
+ */
+function Dot({
+  p,
+  diameterPx,
+  className,
+}: {
+  p: Point2;
+  diameterPx: number;
+  className: string;
+}) {
+  return (
+    <line
+      x1={p.x}
+      y1={p.y}
+      x2={p.x}
+      y2={p.y}
+      strokeWidth={diameterPx}
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+      className={className}
+    />
+  );
+}
+
+const JOINT_DOT_PX = 4;
+const JOINT_HALO_PX = 6;
+const KNUCKLE_DOT_PX = 7;
+const KNUCKLE_RING_PX = 9;
+
+/**
+ * The full 21-point MediaPipe hand skeleton: HAND_CONNECTIONS as 2px white
+ * lines with a 1px dark halo (a wider dark line underneath), every joint
+ * as a 4px dot, and the MCP/PIP/DIP "knuckle" joints emphasised as 7px
+ * accent dots with a white ring. Pure presentation — the points themselves
+ * come straight from `runPhotoPipeline`'s own `landmarksPx`.
+ */
+function SkeletonOverlay({ landmarksPx }: { landmarksPx: readonly Point2[] }) {
+  return (
+    <>
+      {HAND_CONNECTIONS.map(([a, b], i) => {
+        const pa = landmarksPx[a];
+        const pb = landmarksPx[b];
+        if (!pa || !pb) return null;
+        return (
+          <g key={i}>
+            <line
+              x1={pa.x}
+              y1={pa.y}
+              x2={pb.x}
+              y2={pb.y}
+              vectorEffect="non-scaling-stroke"
+              className="overlaySkeletonHalo"
+            />
+            <line
+              x1={pa.x}
+              y1={pa.y}
+              x2={pb.x}
+              y2={pb.y}
+              vectorEffect="non-scaling-stroke"
+              className="overlaySkeletonLine"
+            />
+          </g>
+        );
+      })}
+      {landmarksPx.map((p, i) => (
+        <Dot
+          key={`halo-${i}`}
+          p={p}
+          diameterPx={JOINT_HALO_PX}
+          className="overlayJointHalo"
+        />
+      ))}
+      {landmarksPx.map((p, i) => (
+        <Dot
+          key={`joint-${i}`}
+          p={p}
+          diameterPx={JOINT_DOT_PX}
+          className="overlayJoint"
+        />
+      ))}
+      {KNUCKLE_LANDMARK_IDS.map((id) => {
+        const p = landmarksPx[id];
+        if (!p) return null;
+        return (
+          <g key={`knuckle-${id}`}>
+            <Dot
+              p={p}
+              diameterPx={KNUCKLE_RING_PX}
+              className="overlayKnuckleRing"
+            />
+            <Dot
+              p={p}
+              diameterPx={KNUCKLE_DOT_PX}
+              className="overlayKnuckleDot"
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+interface DimensionSpec {
+  readonly a: Point2;
+  readonly b: Point2;
+  readonly label: string;
+  readonly side: 1 | -1;
+}
+
+/**
+ * Hand-length / palm-width as proper technical-drawing dimension lines —
+ * offset to the side of the hand (never crossing the skeleton), with
+ * perpendicular end ticks and extension lines back to the real joints.
+ * Each line gets one label pill; `separateLabelBoxes` nudges the two
+ * labels apart if their (independently, per-line-side) placed positions
+ * would otherwise overlap — pure geometry, unit-tested in
+ * tests/unit/hand-silhouette.test.ts.
+ */
+function DimensionLinesOverlay({
+  specs,
+  imageWidth,
+}: {
+  specs: readonly DimensionSpec[];
+  imageWidth: number;
+}) {
+  // Base range candidate: 16-24px at a typical decoded-photo width
+  // (src/client/photo/decode.ts caps the long edge at 3000px). Scaled up
+  // for a smaller image (e.g. a demo fixture) so the offset still clears
+  // the hand's own visible width rather than landing on top of it —
+  // 16-24px measured from the joint centreline only clears a real,
+  // thin photographed finger; it needs more room against anything drawn
+  // wider than that (a demo illustration's own thick strokes).
+  const offsetPx = Math.max(16, Math.min(100, imageWidth * 0.06));
+  const fontSize = Math.max(14, imageWidth * 0.018);
+  const paddingX = fontSize * 0.6;
+  const labelHeight = fontSize * 1.8;
+
+  const geometries = specs.map((s) =>
+    computeDimensionLine(s.a, s.b, offsetPx, s.side),
+  );
+  const rawBoxes: Box[] = geometries.map((g, i) => ({
+    x: g.labelAnchor.x,
+    y: g.labelAnchor.y,
+    width: specs[i].label.length * fontSize * 0.56 + paddingX * 2,
+    height: labelHeight,
+  }));
+  const boxes =
+    rawBoxes.length === 2
+      ? separateLabelBoxes(rawBoxes[0], rawBoxes[1])
+      : rawBoxes;
+
+  return (
+    <>
+      {geometries.map((g, i) => (
+        <g key={i} className="overlayDimension">
+          <line
+            x1={g.startConnector[0].x}
+            y1={g.startConnector[0].y}
+            x2={g.startConnector[1].x}
+            y2={g.startConnector[1].y}
+            className="overlayDimensionExtension"
+          />
+          <line
+            x1={g.endConnector[0].x}
+            y1={g.endConnector[0].y}
+            x2={g.endConnector[1].x}
+            y2={g.endConnector[1].y}
+            className="overlayDimensionExtension"
+          />
+          <line
+            x1={g.offsetStart.x}
+            y1={g.offsetStart.y}
+            x2={g.offsetEnd.x}
+            y2={g.offsetEnd.y}
+            className="overlayDimensionLine"
+          />
+          <line
+            x1={g.startTick[0].x}
+            y1={g.startTick[0].y}
+            x2={g.startTick[1].x}
+            y2={g.startTick[1].y}
+            className="overlayDimensionTick"
+          />
+          <line
+            x1={g.endTick[0].x}
+            y1={g.endTick[0].y}
+            x2={g.endTick[1].x}
+            y2={g.endTick[1].y}
+            className="overlayDimensionTick"
+          />
+        </g>
+      ))}
+      {boxes.map((box, i) => (
+        <g key={i} transform={`translate(${box.x} ${box.y})`}>
+          <rect
+            x={-box.width / 2}
+            y={-box.height / 2}
+            width={box.width}
+            height={box.height}
+            rx={box.height / 2}
+            className="overlayMeasureLabelBg"
+          />
+          <text
+            x={0}
+            y={fontSize * 0.32}
+            textAnchor="middle"
+            fontSize={fontSize}
+            className="overlayMeasureLabelText"
+          >
+            {specs[i].label}
+          </text>
+        </g>
+      ))}
+    </>
+  );
+}
+
 /** A plain circled checkmark for the "Hand measured" completion state —
  * decorative only, the text next to it already says what it means. */
 function CheckIcon() {
@@ -143,6 +378,15 @@ export interface ScanDemoMeasuredState {
   readonly gripStyle?: GripStyle;
   readonly measurements: HandMeasurements;
   readonly submission: ScanSubmission;
+  /**
+   * Optional synthetic photo + overlay, so `/scan/measured-demo` can also
+   * screenshot the measured-state overlay (landmarks, knuckle emphasis,
+   * hand-length/palm-width lines) — otherwise there is no photo to show at
+   * all in that demo route. Omitted, the route behaves exactly as before
+   * (no photo section rendered).
+   */
+  readonly overlay?: PhotoOverlay;
+  readonly previewUrl?: string;
 }
 
 const EMPTY_OVERLAY: PhotoOverlay = {
@@ -157,6 +401,7 @@ export default function ScanClient({
   demoMeasured,
   demoLabel,
   runPhotoPipelineImpl = runPhotoPipeline,
+  calibrationMode = "printed-sheet",
 }: {
   demoMeasured?: ScanDemoMeasuredState;
   /** Visible "this is fixture data" banner for `/scan/measured-demo` —
@@ -172,6 +417,21 @@ export default function ScanClient({
   runPhotoPipelineImpl?: (
     input: RunPhotoPipelineInput,
   ) => Promise<PipelineResult>;
+  /**
+   * Which calibration method the surrounding page chrome (heading,
+   * subtitle, TopBar, "Print it" link) describes. `runPhotoPipeline`
+   * itself is unchanged and still only understands the printed sheet +
+   * ArUco markers + card, so this defaults to "printed-sheet" — the
+   * currently-shipped, still-correct copy for that unchanged path.
+   * "paper-edge" previews the copy for the future blank-paper pipeline
+   * (docs/design/camera-capture-2026-09-25/README.md's 2026-09-25 revision)
+   * once a separate builder's paper-edge detector lands; until then only
+   * `/scan/paper-edge-preview` (screenshots/e2e) passes it. The live
+   * CameraCapture component's own primer/viewfinder copy already describes
+   * blank paper unconditionally — that's the forward-looking part by
+   * design, independent of this flag.
+   */
+  calibrationMode?: "printed-sheet" | "paper-edge";
 } = {}) {
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
@@ -184,13 +444,31 @@ export default function ScanClient({
           measurements: demoMeasured.measurements,
           submission: demoMeasured.submission,
           warnings: [],
-          overlay: EMPTY_OVERLAY,
+          overlay: demoMeasured.overlay ?? EMPTY_OVERLAY,
           cardSource: "auto",
         }
       : { kind: "idle" },
   );
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    demoMeasured?.previewUrl ?? null,
+  );
   const [manualCorners, setManualCorners] = useState<CardCorners | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [paperSize, setPaperSize] = useState<PaperSize>("a4");
+  // Defaults false on both the server render and the client's first render
+  // (no hydration mismatch), then flips true after mount if this device can
+  // actually open the camera — per docs/design/camera-capture-2026-09-25/
+  // README.md: "No rear camera / getUserMedia missing / insecure context →
+  // go straight to the upload path, no error styling", i.e. the camera
+  // button simply never appears rather than appearing and failing.
+  const [cameraAvailable, setCameraAvailable] = useState(false);
+  useEffect(() => {
+    setCameraAvailable(
+      typeof window !== "undefined" &&
+        window.isSecureContext &&
+        typeof navigator.mediaDevices?.getUserMedia === "function",
+    );
+  }, []);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
@@ -257,6 +535,10 @@ export default function ScanClient({
           hand: selectedHand,
           gripStyleStated: selectedGrip,
           manualCardCorners: corners,
+          calibration:
+            calibrationMode === "paper-edge"
+              ? { method: "paper-edge", paperSize }
+              : { method: "printed-sheet" },
         });
         if (runId !== runIdRef.current) return;
         if (result.status === "ok") {
@@ -302,7 +584,14 @@ export default function ScanClient({
         });
       }
     },
-    [hand, gripStyle, applyLatestGrip, runPhotoPipelineImpl],
+    [
+      hand,
+      gripStyle,
+      applyLatestGrip,
+      runPhotoPipelineImpl,
+      calibrationMode,
+      paperSize,
+    ],
   );
 
   const onFileChosen = useCallback(
@@ -456,20 +745,38 @@ export default function ScanClient({
               ? state.errors[0]?.message
               : "";
 
+  const isPaperEdge = calibrationMode === "paper-edge";
+
   return (
     <main className="scanMain">
       {demoLabel && <p className="demoLabel">{demoLabel}</p>}
-      <TopBar
-        backHref="/sheet"
-        backLabel="Sheet"
-        stepLabel="Step 2 of 2 · Photo"
-      />
+      {isPaperEdge ? (
+        <TopBar backHref="/" backLabel="Home" stepLabel="Photo" />
+      ) : (
+        <TopBar
+          backHref="/sheet"
+          backLabel="Sheet"
+          stepLabel="Step 2 of 2 · Photo"
+        />
+      )}
 
-      <h1>Photograph your hand on the sheet</h1>
-      <p className="hint">
-        Lay your hand flat on the sheet next to a bank card, fingers together,
-        and photograph both from directly above.
-      </p>
+      {isPaperEdge ? (
+        <>
+          <h1>Photograph your hand on a sheet of paper</h1>
+          <p className="hint">
+            Lay your hand flat on a blank A4 sheet, fingers together, and
+            photograph it from directly above.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1>Photograph your hand on the sheet</h1>
+          <p className="hint">
+            Lay your hand flat on the sheet next to a bank card, fingers
+            together, and photograph both from directly above.
+          </p>
+        </>
+      )}
 
       {/* Always interactive, including once measured (item 2 fix): grip
           never needs a re-measure, and changing hand re-runs detection on
@@ -514,23 +821,54 @@ export default function ScanClient({
 
       {/* The choose/replace-photo control only exists before "ok" — once
           measured it reappears further down, after the primary action, in
-          its own DOM position (no CSS `order` — item 4). */}
-      {state.kind !== "ok" && (
+          its own DOM position (no CSS `order` — item 4). Camera-capable
+          devices get "Open camera" as the primary action here; devices
+          without a usable camera (no getUserMedia, or an insecure context)
+          fall straight back to today's plain upload button, unchanged, per
+          docs/design/camera-capture-2026-09-25/README.md. */}
+      {state.kind !== "ok" && !cameraOpen && (
         <div className="uploadSlot">
+          {cameraAvailable && (
+            <button
+              type="button"
+              className="primaryButton"
+              style={{ width: "100%", marginBottom: "0.75rem" }}
+              onClick={() => setCameraOpen(true)}
+            >
+              Open camera
+            </button>
+          )}
           <label className="uploadButton" htmlFor="top-down-photo">
-            {previewUrl ? "Replace photo" : "Choose photo"}
+            {cameraAvailable
+              ? "Upload a photo instead"
+              : previewUrl
+                ? "Replace photo"
+                : "Choose photo"}
           </label>
           <input
             id="top-down-photo"
             type="file"
             accept="image/*"
+            {...(!cameraAvailable ? { capture: "environment" } : {})}
             onChange={onInputChange}
             className="visuallyHidden"
           />
-          <p className="deviceNotice">
-            Processed on this device — the photo is never uploaded.
-          </p>
+          <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
         </div>
+      )}
+
+      {cameraOpen && (
+        <CameraCapture
+          hand={hand}
+          calibrationMode={calibrationMode}
+          paperSize={paperSize}
+          onPaperSizeChange={setPaperSize}
+          onExit={() => setCameraOpen(false)}
+          onUsePhoto={(file) => {
+            setCameraOpen(false);
+            onFileChosen(file);
+          }}
+        />
       )}
 
       <div
@@ -645,6 +983,60 @@ export default function ScanClient({
 
       {state.kind === "ok" && (
         <>
+          {previewUrl && state.overlay.landmarksPx && (
+            <div
+              className="photoStage"
+              style={{
+                aspectRatio: `${state.overlay.imageWidth} / ${state.overlay.imageHeight}`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- local object URL, not an optimizable remote asset */}
+              <img src={previewUrl} alt="" className="photoImg" />
+              <svg
+                viewBox={`0 0 ${state.overlay.imageWidth} ${state.overlay.imageHeight}`}
+                className="photoOverlaySvg"
+                role="img"
+                aria-label={
+                  isPaperEdge
+                    ? "Your measured hand: the paper corners and hand skeleton, with hand length and palm width labelled"
+                    : "Your measured hand: the sheet markers, card and hand skeleton, with hand length and palm width labelled"
+                }
+              >
+                {state.overlay.markers.map((m) => (
+                  <polygon
+                    key={m.id}
+                    points={cornersToPoints(m.corners)}
+                    className="overlayMarker"
+                  />
+                ))}
+                {state.overlay.card && (
+                  <polygon
+                    points={cornersToPoints(state.overlay.card)}
+                    className="overlayCard"
+                  />
+                )}
+                <SkeletonOverlay landmarksPx={state.overlay.landmarksPx} />
+                <DimensionLinesOverlay
+                  imageWidth={state.overlay.imageWidth}
+                  specs={[
+                    {
+                      a: state.overlay.landmarksPx[0],
+                      b: state.overlay.landmarksPx[LANDMARK.middle[3]],
+                      label: `Hand length ${state.measurements.handLengthMm.toFixed(1)} mm`,
+                      side: 1,
+                    },
+                    {
+                      a: state.overlay.landmarksPx[LANDMARK.index[0]],
+                      b: state.overlay.landmarksPx[LANDMARK.pinky[0]],
+                      label: `Palm width ${state.measurements.palmWidthMm.toFixed(1)} mm`,
+                      side: 1,
+                    },
+                  ]}
+                />
+              </svg>
+            </div>
+          )}
+
           <div className="feedback feedback-ok">
             <p className="feedbackTitle">
               <CheckIcon /> Hand measured
@@ -675,9 +1067,14 @@ export default function ScanClient({
               ))}
             </dl>
             <p className="feedbackCaption">
-              {state.cardSource === "auto"
-                ? "All four sheet markers and the card were found, so the scale is checked."
-                : "All four sheet markers were found; the card corners you placed set the scale."}
+              {isPaperEdge
+                ? // No card, no manual-correction path in paper-edge mode
+                  // (runPaperEdgePipeline never returns "needsManualCard") —
+                  // one sentence covers it, never "sheet markers and the card".
+                  "All four paper corners were found, so the scale is checked."
+                : state.cardSource === "auto"
+                  ? "All four sheet markers and the card were found, so the scale is checked."
+                  : "All four sheet markers were found; the card corners you placed set the scale."}
             </p>
           </div>
 
@@ -694,17 +1091,16 @@ export default function ScanClient({
               onChange={onInputChange}
               className="visuallyHidden"
             />
-            <p className="deviceNotice">
-              Processed on this device — only measurements are sent, never the
-              photo.
-            </p>
+            <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
           </div>
         </>
       )}
 
-      <Link href="/sheet" className="scanSheetLink">
-        Don&apos;t have the sheet? Print it
-      </Link>
+      {!isPaperEdge && (
+        <Link href="/sheet" className="scanSheetLink">
+          Don&apos;t have the sheet? Print it
+        </Link>
+      )}
     </main>
   );
 }

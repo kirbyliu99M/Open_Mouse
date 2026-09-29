@@ -8,11 +8,11 @@
     },
     "predictedGrip": "fingertip",
     "top5": [
+      { "slug": "logitech-m325s", "total": 69 },
       { "slug": "logitech-m240", "total": 64 },
       { "slug": "logitech-m196", "total": 61 },
       { "slug": "logitech-mx-anywhere-3s", "total": 58 },
-      { "slug": "logitech-pebble-2-m350s", "total": 56 },
-      { "slug": "logitech-pop-mouse", "total": 49 }
+      { "slug": "logitech-pebble-2-m350s", "total": 56 }
     ]
   },
   "medium_claw": {
@@ -57,10 +57,10 @@
     "predictedGrip": "claw",
     "top5": [
       { "slug": "logitech-m100", "total": 83 },
+      { "slug": "logitech-m750", "total": 82 },
       { "slug": "logitech-m550", "total": 78 },
       { "slug": "logitech-m650", "total": 78 },
-      { "slug": "logitech-pop-mouse", "total": 75 },
-      { "slug": "logitech-g203-lightsync", "total": 70 }
+      { "slug": "logitech-pop-mouse", "total": 75 }
     ]
   }
 }

@@ -79,6 +79,47 @@ describe("checked-in Logitech seed", () => {
   });
 });
 
+/**
+ * 2026-09-27 addition: eight models approved by the owner. Every figure below
+ * was verified independently of `npm run seed:fetch-logitech` (not read back
+ * from the scraper it is checking) — L×W×H mm, weight g.
+ */
+describe("2026-09-27 additions — Logitech mice", () => {
+  const rows = seed as unknown as (SpecRecord & { warnings?: string[] })[];
+  const byModel = (model: string) => {
+    const row = rows.find((r) => r.model === model);
+    if (!row) throw new Error(`${model} missing from the checked-in seed`);
+    return row;
+  };
+
+  it.each([
+    ["M750", 107.19, 61.8, 37.8, 101.2],
+    ["M325s", 94.7, 57, 39.1, 93],
+    ["Signature Comfort Plus M850L", 121.8, 74.3, 44.2, 107.9],
+    ["Signature Comfort M840L", 121.8, 74.3, 43.2, 104.6],
+    ["ERGO M575S", 134, 100, 48, 145],
+    ["G903 Hero", 130, 67, 40, 110],
+    // Mobi Fold and MX Ergo S needed a per-URL AXIS_OVERRIDES entry in
+    // src/server/catalogue/logitech-specs.ts (added 2026-09-27) before their
+    // fetched values matched: Mobi Fold's own page labels Height/Depth the
+    // opposite of every other logitech.com page in this lineup, and MX Ergo
+    // S's usable weight sits in a later dimension group ("without metal
+    // plate") than the default stop-at-second-group heuristic reads. See
+    // tests/unit/logitech-specs.test.ts for the override's own unit tests.
+    ["Mobi Fold", 122, 57, 33, 79],
+    ["MX Ergo S", 132.5, 99.8, 51.4, 164],
+  ] as const)(
+    "%s matches the independently verified dimensions",
+    (model, lengthMm, widthMm, heightMm, weightG) => {
+      const row = byModel(model);
+      expect(row.lengthMm).toBe(lengthMm);
+      expect(row.widthMm).toBe(widthMm);
+      expect(row.heightMm).toBe(heightMm);
+      expect(row.weightG).toBe(weightG);
+    },
+  );
+});
+
 describe("applyDescriptors", () => {
   const row = toMouseRow(record)!;
   const classified: DescriptorRecord = {
