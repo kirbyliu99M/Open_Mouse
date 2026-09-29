@@ -58,6 +58,17 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(classify_inside_samples([[0, 0, 0]], [[0, 0, 1]], [3.], source),
                          ['bridges-gap'])
 
+    def test_known_limit_tall_steep_bump_near_its_wall_is_under_counted(self):
+        # Shell sample 1 mm from a 6 mm-tall bump's vertical wall: the nearest source point is
+        # the wall (1 mm), but the outward ray meets the bump's top skin at 6 mm > 1 + 1.5.
+        # Documented limit, not desired behaviour: the no-depth-check share bounds it.
+        top = quad(0, 10, -10, 10, 6)
+        self.assertEqual(classify_inside_samples([[-1, 0, 0]], [[0, 0, 1]], [1.], top),
+                         ['bridges-gap'])
+        top_under = quad(-10, 10, -10, 10, 6)
+        self.assertEqual(classify_inside_samples([[-1, 0, 0]], [[0, 0, 1]], [1.], top_under,
+                                                 depth_tolerance=15.), ['missing-material'])
+
     def test_rejects_mismatched_inputs(self):
         with self.assertRaises(ValueError):
             classify_inside_samples([[0, 0, 0]], [[0, 0, 1], [0, 0, 1]], [1.], quad(0, 1, 0, 1, 1))

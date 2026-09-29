@@ -11,6 +11,11 @@ a ray from the sample along the shell's outward normal must hit a source face th
 outward along the ray (outer skin seen from within), at a depth consistent with the sample's
 measured distance. Without the depth condition, rays pass through the slot and meet some far
 outer skin 7-13 mm away, which is how the artefact passed D4's earlier ray check.
+
+Known limit: near a steep wall the nearest source point is lateral, while the outward ray meets
+the top skin at the feature's full height, so features taller than about depth_tolerance + 2 mm
+are under-counted (Sonnet review, 2026-09-30: 53% of a 6 mm bump's truly missing samples read as
+bridging). Report the no-depth-check share alongside as an upper bound.
 Pure numpy; lengths in mm.
 """
 import numpy as np

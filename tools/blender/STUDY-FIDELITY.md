@@ -2013,9 +2013,12 @@ Branch `m4a-d6-geometry`, worktree `m4a-d6`. The gates are unchanged. Evidence i
   - left +0.0088, extra-6 +0.0080, top −0.0006, extra-3 −0.0003.
   - The held-out extra-5 (rear-left, elevated) falls 0.0032, although its projected gap improves
     from 4.69 to 4.42 mm.
-- **Reading:** both held-out views are rear-left. M705's fitting set has rear-right photos but
-  no rear-left ones. The hull, a conservative upper bound, is least constrained there, so
-  copying its heights over-raises the rear-left.
+- **Reading (a hypothesis, not tested):** both held-out views are rear-left. M705's fitting set
+  has rear-right photos but no rear-left ones. The hull, a conservative upper bound, may be least
+  constrained there, so copying its heights could over-raise the rear-left. M850L does have a
+  rear-left fitting view (extra-1, +0.0001), so the explanation is weaker for M850L.
+- Two of M705's 24 hat coefficients sit near the 0.08 bound (maximum 0.0768). M850L's reach at
+  most 0.0205.
 - **Held-out use is now exhausted.** M705's gallery-2 has been evaluated four times (D1 ×2,
   D5a, D6) and M850L's extra-5 three times (D1, D5a, D6). No further attempt may be selected
   against them. A third attempt needs **new held-out photos**, such as Kirby's own photos of
@@ -2023,21 +2026,26 @@ Branch `m4a-d6-geometry`, worktree `m4a-d6`. The gates are unchanged. Evidence i
 
 #### D6b — the wheel-area "shape loss" is mostly a measurement artefact
 
-**Nothing to build; the D0 "inside > 2 mm" figures that D4 and D5b targeted are 83–99% gap
+**Nothing to build; the D0 "inside > 2 mm" figures that D4 and D5b targeted are 83–100% gap
 bridging.**
 
 - **What D0 got wrong:** D0 signs each shell sample by the normal of the nearest AR-source
   point. Where the shell bridges a slot, a button seam or the wheel well, that nearest point is a
   gap wall or the housing's low-poly inner wall, whose normals face into the product. D0 therefore
   labelled bridging samples "inside" (missing material).
-  - Evidence: on M650 and M750 the nearest source faces of the flagged samples have a median
-    longest edge of 19–23 mm, against 1 mm across the source. Their nearest-surface distance is
-    4–5 mm.
+  - Evidence (ad-hoc check, not in the committed tooling): on M650 and M750 the nearest source
+    faces of the flagged samples have a median longest edge of 19.4 and 22.7 mm, against about 1 mm
+    across the source. Their median nearest-surface distance is 4.6 and 3.8 mm.
 - **Test** (`gap_bridge_math.py`, 8 unit tests; `d6_audit_recheck.py`): a flagged sample is real
   missing material only if a ray along the shell's outward normal meets a source face that also
   faces outward, within 1.5 mm of the sample's measured depth.
   - Without the depth condition, rays pass through the slot to outer skin 7–13 mm away (median
     12.8 mm on G903). That is how the artefact passed D4's earlier ray check.
+  - **Known limit (Sonnet review):** near a steep wall, the nearest source point is lateral while
+    the outward ray meets the top skin at the bump's full height. So the tight test under-counts
+    tall features. On a synthetic flat shell under a box bump, the share of truly missing samples
+    labelled bridging was 0% at 3 mm height, 12% at 4 mm, 53% at 6 mm and 81% at 8 mm. The
+    1.5 / 3 / 5 mm / no-depth columns below bound this.
 - The D0 audit was re-run for all 28 shells (`out/d6/audit-d0`) and reproduces D0 exactly.
 
 | Shell     | D0 inside > 2 mm | Bridges a gap | Real missing material, depth tolerance 1.5 / 3 / 5 mm / none |
@@ -2050,12 +2058,11 @@ bridging.**
 | 6 others  |          ≤ 0.10% |       95–100% | ≤ 0.005% at 1.5 mm                                           |
 | 17 others |               0% |             — | 0%                                                           |
 
-- **Consequence:** D4's and D5b's gate asked the inside share to halve. That share was ~95%
-  bridging, which no correct closed shell should remove, so both failures were unavoidable and
-  are not evidence of missing geometry.
-- **Real missing material over 2 mm is at most 0.075% of any shell's surface**, and at most
-  0.65% even with no depth check. The gate is not changed. The measurement is corrected, and
-  the correction is recorded here for Kirby's decision.
+- **Consequence:** D4's and D5b's gate asked the inside share to halve. That share was mostly
+  bridging, which no correct closed shell should remove, so both failures are largely explained by
+  the measurement, not by missing geometry.
+- **Real missing material over 2 mm is 0.005–0.075% under the tight 1.5 mm depth test, and at most 0.65% (G903; ≤ 0.29% elsewhere) with no depth test. The tight test under-counts features taller than about 3.5 mm.** The gate is not changed. The measurement is
+  corrected, and the correction is recorded here for Kirby's decision.
 - **Proposal:** close the wheel-area item, and report the corrected share next to D0's in
   future audits.
 
@@ -2099,8 +2106,8 @@ bridging.**
 | 2026-09-29 | Kirby: Sonnet subagents may assist. **D4 goes to a Sonnet builder** in its own worktree `m4a-d4-remesh` (branch from `dbdd5fd`, read-only junctions to this worktree's reference data), with the same D4 gate. Claude audits and pushes                                                                                                                                                                                                                                                                                                             | Kirby / Claude |
 | 2026-09-29 | **Pause after D5.** Kirby: finish the D5 work in progress (builders A and B), then pause. After Claude audits, merges and records D5, no new phases, retries or Codex timers start until Kirby resumes                                                                                                                                                                                                                                                                                                                                              | Kirby          |
 | 2026-09-30 | **Resumed (Kirby):** "finish the model building and auditing that failed before". Claude runs D6 (D6a M705/M850L, D6b wheel-area audit) in worktree `m4a-d6` with unchanged gates. Claude-built work goes to the independent Sonnet review and Kirby's visual acceptance, as before                                                                                                                                                                                                                                                                 | Kirby          |
-| 2026-09-30 | **D6 held-out rule:** each D6a candidate is frozen (hash recorded) before its one evaluation. After D6, M705's and M850L's held-out photos are exhausted; any further attempt needs new held-out photos or Kirby's explicit ruling                                                                                                                                                                                                                                                                                                                  | Claude         |
-| 2026-09-30 | **D6b measurement correction (not a gate change):** D0's inside sign counts gap bridging as missing material. The corrected test (outward ray meets outward-facing outer skin within 1.5 mm of the measured depth) puts real missing material at ≤ 0.075% on every shell. Proposed: close the wheel-area item. **Kirby decides**                                                                                                                                                                                                                    | Claude         |
+| 2026-09-30 | **D6 held-out rule (proposed; Kirby to confirm):** each D6a candidate is frozen (hash recorded) before its one evaluation. After D6, M705's and M850L's held-out photos are exhausted; any further attempt needs new held-out photos or Kirby's explicit ruling                                                                                                                                                                                                                                                                                     | Claude         |
+| 2026-09-30 | **D6b measurement correction (not a gate change):** D0's inside sign counts gap bridging as missing material. The corrected test (outward ray meets outward-facing outer skin within 1.5 mm of the measured depth) puts real missing material at 0.005–0.075% per shell; with no depth test, at most 0.65% (G903). The tight test under-counts features taller than about 3.5 mm. Proposed: close the wheel-area item. **Kirby decides**                                                                                                            | Claude         |
 
 ## Progress log
 
@@ -2109,9 +2116,15 @@ bridging.**
     0.9531 → 0.9617 and M850L 0.9642 → 0.9674, with no fitted view dropping more than 0.0006. Both
     fail on their rear-left held-out views (−0.0118, −0.0032). The held-out photos are now
     exhausted.
-  - **D6b:** 83–99% of D0's "inside > 2 mm" samples are the shell bridging slots and seams; real
-    missing material is ≤ 0.075% on all 28 shells. D4 and D5b chased this artefact.
-  - No public file changed; `out/` not committed; 19 new unit tests.
+  - **D6b:** 83–100% of D0's "inside > 2 mm" samples are the shell bridging slots and seams. Real
+    missing material is 0.005–0.075% per shell under the tight depth test, and at most 0.65% (G903)
+    with none. D4 and D5b largely chased this artefact.
+  - No public file changed; `out/` not committed; 20 new unit tests.
+  - **Independent Sonnet review: approve with fixes, no blockers.** D6a reproduced exactly: held-out
+    isolation, frozen evaluator, hashes and gate numbers. Fixed: the over-claimed "≤ 0.075%"
+    headline, now a range with the classifier's steep-bump limit; a new steep-bump test; a rim
+    test that could not fail; the uniform-grid check; and wording (83–100%, "largely explained",
+    rear-left hypothesis marked untested, held-out rule marked proposed).
 
 - 2026-09-29 Claude: **D5 closed; nothing delivered; project paused** (Kirby: pause after D5). Audited and merged `m4a-d5-wheels` (`f3d0fc6`) and `m4a-d5-studies` (`d3e650e`): no public file changed, nothing from `out/` committed, and the builders' unit suites passed. D5a: a voxel hull plus remesh improves side and oblique views but loses 0.015–0.045 on top and bottom views that the lofts already fit at 0.995, so both studies fail the gate. Patent USD1002618S1 was not used; it shows M650 features (thumb flange, side buttons). D5b: wheel crowns built cleanly (M190, M750, M650; G903's fit was rejected at radius 16.2 mm), but the "inside" share rose slightly. **The D0 inside samples lie 13–42 mm from the wheel axis, on the wheel housing and button trim, not the wheel**, so `GEOMETRY-AUDIT.md` is corrected. Possible next steps, if Kirby resumes: a hybrid that keeps the loft where it already fits the top and bottom views; and feature modelling of the wheel housing and trim. Neither is started.
 

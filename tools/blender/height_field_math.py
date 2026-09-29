@@ -30,6 +30,8 @@ def top_height_map(vertices, faces, x_centres, y_centres):
         raise ValueError('vertices (N,3) and faces (M,3) required')
     if xs.size < 2 or ys.size < 2 or np.any(np.diff(xs) <= 0) or np.any(np.diff(ys) <= 0):
         raise ValueError('grid centres must be increasing with at least two values per axis')
+    if not (np.allclose(np.diff(xs), xs[1]-xs[0]) and np.allclose(np.diff(ys), ys[1]-ys[0])):
+        raise ValueError('grid centres must be uniformly spaced')
     dx, dy = xs[1]-xs[0], ys[1]-ys[0]
     height = np.full((ys.size, xs.size), -np.inf)
     tri = v[f]

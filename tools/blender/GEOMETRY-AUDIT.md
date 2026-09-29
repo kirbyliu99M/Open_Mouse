@@ -75,10 +75,13 @@ The "inside" sign trusts the normal of the nearest source point. Where the shell
 seam or wheel well, the nearest source point is a gap wall or the housing's inner wall. Its normal
 faces into the product, so D0 counted bridging samples as missing material.
 
-A consistent test puts real missing material over 2 mm at **≤ 0.075%** of every shell's surface:
-an outward ray from the sample must meet outward-facing outer skin within 1.5 mm of the measured
-depth. D0 reported 0.33–1.59%, and 83–99% of those samples are bridging. Even with no depth check,
-the real share is at most 0.65% (G903).
+A consistent test counts a sample as real missing material only if an outward ray from it
+meets outward-facing outer skin within 1.5 mm of the measured depth. It puts real missing material
+over 2 mm at **0.005–0.075%** of each shell's surface, where D0 reported 0.33–1.59%. 83–100% of
+D0's samples are bridging.
+
+With no depth test the real share is at most 0.65% (G903; ≤ 0.29% elsewhere). The tight test
+under-counts features taller than about 3.5 mm.
 
 **Finding 3 below ("real shape loss is small and local") is therefore superseded.** The wheel-area
 and G903-channel losses it describes are almost entirely bridging. Details, sensitivity table and

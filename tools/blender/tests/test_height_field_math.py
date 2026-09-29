@@ -40,6 +40,8 @@ class TopHeightMapTests(unittest.TestCase):
             top_height_map(v, f, [0.], [0., 1.])
         with self.assertRaises(ValueError):
             top_height_map(v, f, [1., 0.], [0., 1.])
+        with self.assertRaises(ValueError):
+            top_height_map(v, f, [0., 1., 3.], [0., 1.])
 
 
 class RatioFieldTests(unittest.TestCase):
@@ -54,10 +56,13 @@ class RatioFieldTests(unittest.TestCase):
     def test_thin_rim_carries_no_evidence_and_ratio_is_clamped(self):
         loft = np.full((10, 10), 10.)
         loft[0] = 1.  # rim thinner than the minimum height
-        hull = loft*2.
+        hull = loft*1.1
         hull[0] = 50.  # wild ratio on the rim must not leak
-        r = height_ratio_field(hull, loft, sigma_px=0, clamp=(.8, 1.25))
-        np.testing.assert_allclose(r, 1.25)
+        r = height_ratio_field(hull, loft, sigma_px=2, clamp=(.8, 1.25))
+        # A leak would pull the rows next to the rim towards 1.25; without one, every cell is 1.1.
+        np.testing.assert_allclose(r, 1.1)
+        clamped = height_ratio_field(np.full((4, 4), 50.), np.full((4, 4), 10.), sigma_px=0)
+        np.testing.assert_allclose(clamped, 1.25)
 
     def test_needs_evidence(self):
         with self.assertRaises(ValueError):
