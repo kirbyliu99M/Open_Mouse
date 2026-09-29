@@ -7,9 +7,47 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from photo_camera_math import camera_axes, project_points, raster_silhouette
 from visual_hull_math import (
-    carve, grid_points, group_reject_votes, occupancy_volume, pad_for_marching_cubes,
-    reject_by_mask, voxel_grid, weighted_votes,
+    carve, grid_points, group_reject_votes, occupancy_volume, orient_outward, pad_for_marching_cubes,
+    reject_by_mask, signed_volume, voxel_grid, weighted_votes,
 )
+
+
+def unit_box():
+    vertices = np.array([[x, y, z] for x in (0, 1) for y in (0, 1) for z in (0, 1)], float)
+    idx = lambda x, y, z: (int(x)*4+int(y)*2+int(z))
+    quads = [
+        [idx(0, 0, 0), idx(0, 1, 0), idx(1, 1, 0), idx(1, 0, 0)],  # bottom, outward = -Z
+        [idx(0, 0, 1), idx(1, 0, 1), idx(1, 1, 1), idx(0, 1, 1)],  # top, outward = +Z
+        [idx(0, 0, 0), idx(1, 0, 0), idx(1, 0, 1), idx(0, 0, 1)],
+        [idx(0, 1, 0), idx(0, 1, 1), idx(1, 1, 1), idx(1, 1, 0)],
+        [idx(0, 0, 0), idx(0, 0, 1), idx(0, 1, 1), idx(0, 1, 0)],
+        [idx(1, 0, 0), idx(1, 1, 0), idx(1, 1, 1), idx(1, 0, 1)],
+    ]
+    faces = []
+    for q in quads:
+        faces.append([q[0], q[1], q[2]])
+        faces.append([q[0], q[2], q[3]])
+    return vertices, np.array(faces)
+
+
+class OrientationTests(unittest.TestCase):
+    def test_outward_box_has_positive_signed_volume(self):
+        vertices, faces = unit_box()
+        self.assertAlmostEqual(signed_volume(vertices, faces), 6.0, places=9)  # 6x the unit volume
+
+    def test_inward_winding_has_negative_signed_volume(self):
+        vertices, faces = unit_box()
+        self.assertLess(signed_volume(vertices, faces[:, ::-1]), 0)
+
+    def test_orient_outward_fixes_inward_winding(self):
+        vertices, faces = unit_box()
+        flipped = orient_outward(vertices, faces[:, ::-1])
+        self.assertGreater(signed_volume(vertices, flipped), 0)
+
+    def test_orient_outward_leaves_correct_winding_alone(self):
+        vertices, faces = unit_box()
+        result = orient_outward(vertices, faces)
+        np.testing.assert_array_equal(result, faces)
 
 
 class VoxelGridTests(unittest.TestCase):

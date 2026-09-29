@@ -16,7 +16,7 @@ from skimage.measure import marching_cubes
 from photo_camera_fit import crop_mask, evaluation_raster
 from photo_camera_math import camera_axes, project_points, silhouette_iou
 from visual_hull_math import (
-    carve, grid_points, group_reject_votes, occupancy_volume, pad_for_marching_cubes,
+    carve, grid_points, group_reject_votes, occupancy_volume, orient_outward, pad_for_marching_cubes,
     reject_by_mask, voxel_grid, weighted_votes,
 )
 
@@ -135,7 +135,7 @@ def main():
     # (i+1)*spacing + offset gives offset = xs[0] - spacing, per axis.
     origin = np.array([xs[0]-spacing[0], ys[0]-spacing[1], zs[0]-spacing[2]])
     vertices = verts_idx+origin
-    faces = faces.astype(np.int64)
+    faces = orient_outward(vertices, faces)
 
     np.savez_compressed(args.output/'hull-mesh.npz', vertices=vertices, faces=faces)
     record = dict(method='visual-hull voxel carving', voxelSizeMm=args.voxel_size, cvVoxelSizeMm=args.cv_voxel_size,

@@ -105,6 +105,26 @@ def occupancy_volume(survive, shape):
     return survive.reshape(shape)
 
 
+def signed_volume(vertices, faces):
+    """Six times the signed volume enclosed by the (triangulated) mesh, using
+    the divergence theorem; positive for outward-wound triangles."""
+    vertices = np.asarray(vertices, dtype=float)
+    faces = np.asarray(faces, dtype=np.int64)
+    a, b, c = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
+    return float(np.einsum('ij,ij->i', a, np.cross(b, c)).sum())
+
+
+def orient_outward(vertices, faces):
+    """Flip every triangle's winding if the mesh's signed volume is negative,
+    so normals point outward (as `bmesh`'s `calc_volume(signed=True)` and
+    the delivery gate's mesh validation expect). `marching_cubes`'s winding
+    convention is a documented implementation detail, not a physical one."""
+    faces = np.asarray(faces, dtype=np.int64)
+    if signed_volume(vertices, faces) < 0:
+        faces = faces[:, ::-1].copy()
+    return faces
+
+
 def pad_for_marching_cubes(volume):
     """One empty voxel border on every side, so `skimage.measure.marching_cubes`
     always closes the surface, including a flat cap at the true Z=0 base
