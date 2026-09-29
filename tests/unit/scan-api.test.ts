@@ -161,6 +161,10 @@ describe("POST /api/scans — valid submission", () => {
         gripStyleStated: "palm",
         scaleCheckRatio: validSubmission.calibration.cardScaleRatio,
         measurements: expect.objectContaining({ handLengthMm: 180 }),
+        // #63: the model and the calibration evidence are kept with the scan.
+        measurementModelVersion: validSubmission.measurementModelVersion,
+        calibrationMethod: "printed-sheet",
+        calibrationEvidence: validSubmission.calibration,
       }),
     );
   });
@@ -182,7 +186,15 @@ describe("POST /api/scans — valid submission", () => {
     );
     expect(res.status).toBe(201);
     expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
-      expect.objectContaining({ scaleCheckRatio: null }),
+      expect.objectContaining({
+        scaleCheckRatio: null,
+        calibrationMethod: "paper-edge",
+        calibrationEvidence: expect.objectContaining({
+          method: "paper-edge",
+          paperSize: "a4",
+          edgeFitResidualMm: 0.6,
+        }),
+      }),
     );
   });
 
