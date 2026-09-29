@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-29 · by: Claude (D5 closed; paused)_
+_Last updated: 2026-09-30 · by: Claude (D6: study rebuild retry, wheel-area audit corrected)_
 
 ---
 
@@ -24,6 +24,15 @@ _Last updated: 2026-09-29 · by: Claude (D5 closed; paused)_
 **Production verified 2026-09-25 (`7748c90`):** submit → fit (stated grip honoured) → analysis by Gemini, cached on repeat (0.7 s) → delete → 404; the unmocked live e2e (reload included) passes on Pixel 7; `/`, `/sheet`, `/scan`, `/account`, `/results/demo` load with **zero CSP violations** and no horizontal scroll; CSP, nosniff, Referrer-Policy, Permissions-Policy and HSTS present. **The anonymous flow is operational.**
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
+
+**D6 (Kirby resumed 2026-09-30; branch `m4a-d6-geometry`; `tools/blender/STUDY-FIDELITY.md` § D6): nothing delivered; one audit finding corrected.**
+
+- **M705 and M850L**, height-only hybrid fitted at 1440 px and judged by the unmodified D1 evaluator:
+  - Fitted means improve (0.9531 → 0.9617 and 0.9642 → 0.9674), and no fitted view drops more than 0.0006.
+  - Both fail only on their rear-left held-out views (−0.0118, −0.0032), so both stay unchanged.
+  - Their held-out photos are now exhausted. A further attempt needs new photos or Kirby's ruling.
+- **Wheel-area "shape loss"** (the target of D4 and D5b) is 83–99% the shell bridging slots and seams, which D0's sign rule misread. Real missing material over 2 mm is ≤ 0.075% on all 28 shells.
+- **Waiting on Kirby:** close the wheel-area item, and decide on new held-out photos for M705/M850L.
 
 **Paused (Kirby, 2026-09-29) — study fidelity, Phase D (geometry quality), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** **Delivered:** M550 on the M650 AR shell (D2) and M325s geometry refinement (D1). **Not delivered (gates held):** M705 and M850L. Smooth deformation (D1) and a visual-hull rebuild (D5a) both lose ground on top and bottom views the lofts already fit at 0.995. Wheel-area shape loss is also not delivered: local remeshing (D4) and wheel cylinders (D5b) failed. D5b showed the deficit is the wheel housing and button trim, not the wheel. D0 audit: every AR shell silhouette ≥ 0.9823. All work is reviewed or audited and pushed; builder branches `m4a-d4-remesh`, `m4a-d5-studies` and `m4a-d5-wheels` are merged. Codex is out until 2026-10-04 13:10. **Waiting on Kirby:** visual acceptance of M325s and M550 (`Mouse Shape Project/模型驗收-2026-09-28/D階段驗收.html`), and whether to resume.
 

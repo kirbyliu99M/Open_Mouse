@@ -69,6 +69,21 @@ Ranked by lowest silhouette IoU, then by p95 distance.
   (G203 2,198; G403 3,327; G502 Hero 1,425; G502 X 3,745) and **0** on the other 24, so no real
   product geometry is being removed.
 
+## Correction, 2026-09-30 (D6b): most "inside" samples are gap bridging
+
+The "inside" sign trusts the normal of the nearest source point. Where the shell bridges a slot,
+seam or wheel well, the nearest source point is a gap wall or the housing's inner wall. Its normal
+faces into the product, so D0 counted bridging samples as missing material.
+
+A consistent test puts real missing material over 2 mm at **≤ 0.075%** of every shell's surface:
+an outward ray from the sample must meet outward-facing outer skin within 1.5 mm of the measured
+depth. D0 reported 0.33–1.59%, and 83–99% of those samples are bridging. Even with no depth check,
+the real share is at most 0.65% (G903).
+
+**Finding 3 below ("real shape loss is small and local") is therefore superseded.** The wheel-area
+and G903-channel losses it describes are almost entirely bridging. Details, sensitivity table and
+method are in `STUDY-FIDELITY.md` under D6b (`gap_bridge_math.py`, `d6_audit_recheck.py`).
+
 ## Findings
 
 1. **Silhouettes are good everywhere:** the lowest IoU in any view is 0.9823 (G502 Hero, side). No shell
