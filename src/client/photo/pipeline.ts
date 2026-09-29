@@ -48,6 +48,7 @@ import {
 import {
   assembleScanSubmission,
   assemblePaperEdgeSubmission,
+  submittedHand,
 } from "./submission";
 import { detectPaperQuad } from "../paper/detect";
 import { evaluatePaperEdgeCalibration } from "../paper/calibration";
@@ -118,6 +119,13 @@ export type CalibrationInput =
 export interface RunPhotoPipelineInput {
   readonly file: File;
   readonly hand: "left" | "right";
+  /**
+   * `true` when `hand` is only a default the user never chose (easy scan's
+   * "· auto" chip). The detected hand is then used instead, and a
+   * disagreement is not a retake: there is nothing the user said to
+   * contradict. Defaults to `false`: a stated hand is checked.
+   */
+  readonly handIsAuto?: boolean;
   readonly gripStyleStated?: "palm" | "claw" | "fingertip";
   /** A user-dragged correction/override for the card's 4 corners. Printed-sheet only. */
   readonly manualCardCorners?: CardCorners;
@@ -258,7 +266,7 @@ export async function runPhotoPipeline(
     detectedMarkerIds: detected.map((m) => m.id),
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: input.hand,
+    handStated: input.handIsAuto ? undefined : input.hand,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     flatMarkerCornersMm,
@@ -301,7 +309,7 @@ export async function runPhotoPipeline(
   }
 
   const submission = assembleScanSubmission({
-    hand: input.hand,
+    hand: submittedHand(input, hand.handedness),
     gripStyleStated: input.gripStyleStated,
     measurements,
     markerIds: detected.map((m) => m.id),
@@ -418,7 +426,7 @@ async function runPaperEdgePipeline(
     paperFound: quad.paperRegionFound,
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: input.hand,
+    handStated: input.handIsAuto ? undefined : input.hand,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     paperCornersMm,
@@ -495,7 +503,7 @@ async function runPaperEdgePipeline(
     };
   }
   const submission = assemblePaperEdgeSubmission({
-    hand: input.hand,
+    hand: submittedHand(input, hand.handedness),
     gripStyleStated: input.gripStyleStated,
     measurements: corrected.measurements,
     paperSize: calibration.paperSize,
