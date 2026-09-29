@@ -1,6 +1,12 @@
 import QRCode from "qrcode";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import {
+  PHOTO_PRIVACY_COPY,
+  PHOTO_PRIVACY_COPY_THIS_DEVICE,
+} from "@/components/privacy-copy";
+
+const COPY_FAILED =
+  "Couldn't copy automatically. Select the link below and copy it.";
 
 export function DeviceEntry({
   kind,
@@ -13,7 +19,14 @@ export function DeviceEntry({
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const [qr, setQr] = useState("");
-  const [copied, setCopied] = useState(false);
+  // A new `n` each time replaces the message node, so a screen reader
+  // announces a repeat ("Link copied" twice) as well as a failure.
+  const [copyStatus, setCopyStatus] = useState<{
+    n: number;
+    text: string;
+  } | null>(null);
+  const announceCopy = (text: string) =>
+    setCopyStatus((prev) => ({ n: (prev?.n ?? 0) + 1, text }));
   const [showSelectableUrl, setShowSelectableUrl] = useState(false);
   const [lineBrowser, setLineBrowser] = useState(false);
   useEffect(() => {
@@ -79,17 +92,23 @@ export function DeviceEntry({
         onClick={() => {
           if (!navigator.clipboard?.writeText) {
             setShowSelectableUrl(true);
+            announceCopy(COPY_FAILED);
             return;
           }
           void navigator.clipboard.writeText(url).then(
-            () => setCopied(true),
-            () => setShowSelectableUrl(true),
+            () => announceCopy("Link copied"),
+            () => {
+              setShowSelectableUrl(true);
+              announceCopy(COPY_FAILED);
+            },
           );
         }}
       >
         Copy link
       </button>
-      <span aria-live="polite">{copied ? "Link copied" : ""}</span>
+      <p role="status" aria-live="polite" className="easyCopyStatus">
+        {copyStatus && <span key={copyStatus.n}>{copyStatus.text}</span>}
+      </p>
       {showSelectableUrl && (
         <input
           className="easySelectableUrl"
@@ -106,7 +125,11 @@ export function DeviceEntry({
       >
         Or upload a photo
       </button>
-      <p className="easyDevicePrivacy">{PHOTO_PRIVACY_COPY}</p>
+      <p className="easyDevicePrivacy">
+        {kind === "desktop"
+          ? PHOTO_PRIVACY_COPY_THIS_DEVICE
+          : PHOTO_PRIVACY_COPY}
+      </p>
       {/* The button above opens this picker; the input itself is not a
           second control, so it stays out of the tab order and the
           accessibility tree. */}

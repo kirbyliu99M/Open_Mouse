@@ -17,3 +17,15 @@ export function noPaperEntryLabel(
   if (!enabled) return null;
   return hasEnteredLength ? EDIT_HAND_LENGTH_LABEL : NO_PAPER_ENTRY_LABEL;
 }
+
+/**
+ * Only a palm that does not fit the typed length is fixed by editing the
+ * length; every other failure (no hand, tilted, curled fingers) is fixed by
+ * retaking, which "Try again" already offers.
+ */
+export function failureOffersLengthEdit(
+  noPaperMode: boolean,
+  errorCode: string | undefined,
+): boolean {
+  return noPaperMode && errorCode === "MEASUREMENT_OUT_OF_RANGE";
+}

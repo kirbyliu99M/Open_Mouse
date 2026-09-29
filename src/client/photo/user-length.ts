@@ -15,11 +15,12 @@ export const USER_LENGTH_RETAKE =
   "The palm proportions look implausible — keep your whole hand flat, fingers together, and retake from directly above.";
 
 /**
- * Shown when the palm does not fit the typed length. Retaking alone never
- * fixes a mistyped number, so the message names both causes.
+ * Shown when the palm does not fit the typed length: one instruction, as every
+ * error message gives. The failure sheet offers "Edit hand length" for it
+ * next to "Try again", which is the retake.
  */
 export function userLengthRetakeMessage(handLengthMm: number): string {
-  return `Your palm doesn't fit the ${handLengthMm} mm you entered — check that number (wrist crease to the tip of your middle finger), or keep your whole hand flat, fingers together, and retake from directly above.`;
+  return `Your palm doesn't fit the ${handLengthMm} mm you entered. Check that number: wrist crease to the tip of your middle finger.`;
 }
 
 // Candidate — tune on M2 photos. A flat middle finger's joint chain is
@@ -43,6 +44,15 @@ export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
  * length at the schema's own 100/280 mm limits can be pushed out of range by
  * floating-point error in the measurement round trip. The range shown in the
  * UI, the input attributes and this validation all read this one constant.
+ *
+ * When this is re-derived (a new palm band, a new schema limit), revisit
+ * together with it:
+ *  - tests/unit/user-length.test.ts ("typed hand length range") ties the range
+ *    to the band and the schema limits;
+ *  - src/components/results/userLengthDisclosure.ts reads a stored length back
+ *    with a deliberately WIDER tolerance (the schema's own 100-280 mm), so a
+ *    scan made under an earlier range still shows its "measured without
+ *    paper" note; keep it at least as wide as any range ever shipped.
  */
 export const USER_LENGTH_RANGE_MM = { min: 135, max: 265 } as const;
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseFlag } from "../../src/lib/flags";
 import {
   EDIT_HAND_LENGTH_LABEL,
+  failureOffersLengthEdit,
   NO_PAPER_ENTRY_LABEL,
   noPaperEntryLabel,
 } from "../../src/client/camera/noPaperEntry";
@@ -114,5 +115,36 @@ describe("device routing does not depend on the flag", () => {
     "src/client/camera/DeviceEntry.tsx",
   ])("%s does not import the flags module", (path) => {
     expect(readFileSync(path, "utf8")).not.toMatch(/flags|noPaperEntry/);
+  });
+});
+
+describe("failureOffersLengthEdit", () => {
+  it("offers the edit only for a palm that does not fit the typed length", () => {
+    expect(failureOffersLengthEdit(true, "MEASUREMENT_OUT_OF_RANGE")).toBe(
+      true,
+    );
+    for (const code of [
+      "HAND_NOT_DETECTED",
+      "FINGER_NOT_STRAIGHT",
+      "HAND_TILTED",
+      "HANDEDNESS_MISMATCH",
+      "LOW_LANDMARK_CONFIDENCE",
+      undefined,
+    ]) {
+      expect(failureOffersLengthEdit(true, code), String(code)).toBe(false);
+    }
+  });
+
+  it("never offers it outside no-paper mode", () => {
+    expect(failureOffersLengthEdit(false, "MEASUREMENT_OUT_OF_RANGE")).toBe(
+      false,
+    );
+  });
+
+  it("is what the failure sheet checks", () => {
+    const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
+    expect(source).toContain(
+      "failureOffersLengthEdit(noPaperMode, result.errors[0]?.code)",
+    );
   });
 });

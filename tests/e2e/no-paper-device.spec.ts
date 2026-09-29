@@ -1,5 +1,8 @@
 import { devices, expect, test, type Page } from "@playwright/test";
-import { PHOTO_PRIVACY_COPY } from "../../src/components/privacy-copy";
+import {
+  PHOTO_PRIVACY_COPY,
+  PHOTO_PRIVACY_COPY_THIS_DEVICE,
+} from "../../src/components/privacy-copy";
 
 const output = "docs/design/easy-scan-shell-2026-09-25/built";
 
@@ -166,7 +169,7 @@ function contrast(fg: string, bg: string): number {
   return (a + 0.05) / (b + 0.05);
 }
 
-test("desktop entry fills the screen with no extra scroll, and shows the privacy promise", async ({
+test("desktop entry fills the screen with no extra scroll, and shows the device-neutral privacy promise", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
@@ -181,7 +184,7 @@ test("desktop entry fills the screen with no extra scroll, and shows the privacy
     innerHeight: window.innerHeight,
   }));
   expect(scrollHeight).toBeLessThanOrEqual(innerHeight);
-  await expect(page.getByText(PHOTO_PRIVACY_COPY)).toBeVisible();
+  await expect(page.getByText(PHOTO_PRIVACY_COPY_THIS_DEVICE)).toBeVisible();
 });
 
 test("in-app browser entry shows the privacy promise too", async ({
@@ -291,6 +294,9 @@ test("the length step takes focus, keeps the covered top bar out of reach, submi
   ).toBeFocused();
   await expect(page.locator(".cameraTopBar")).toHaveAttribute("inert", "");
   await expect(page.locator("#easy-scan-upload")).toHaveAttribute("inert", "");
+  await expect(
+    page.getByRole("button", { name: "Back to camera" }),
+  ).toBeVisible();
   for (let i = 0; i < 8; i++) {
     await page.keyboard.press("Tab");
     const focused = await page.evaluate(() => {
@@ -419,7 +425,11 @@ test("without a usable camera, the length step goes back to the upload screen, n
   await page
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
-  await page.getByRole("button", { name: "Back to camera" }).click();
+  // No camera can open here, so Back does not promise one.
+  await expect(
+    page.getByRole("button", { name: "Back to camera" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to upload" }).click();
   await expect(page.getByText(paperCopy)).toBeVisible();
   await expect(page.getByText(/camera couldn.t be opened/i)).toHaveCount(0);
   await expect(page.getByText(/camera access was blocked/i)).toHaveCount(0);
@@ -554,4 +564,213 @@ test("the tip's no-paper link and the measured sheet's precision note keep their
     return { color, background };
   });
   expect(contrast(note.color, note.background)).toBeGreaterThan(4.5);
+});
+
+// ── Round 3: placeholder, mode change, copy status, wording, labels ────────
+
+const CAMERA_SHELL_BG = "rgb(18, 22, 28)";
+
+test("the length field's placeholder keeps its contrast in light and dark", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await openLengthStepFromTip(page);
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const placeholder = await page.evaluate(() => {
+      const input = document.querySelector("#easy-hand-length")!;
+      const shown = getComputedStyle(input, "::placeholder");
+      return {
+        color: shown.color,
+        opacity: shown.opacity,
+        background: getComputedStyle(input).backgroundColor,
+      };
+    });
+    expect(placeholder.opacity, `${scheme} placeholder opacity`).toBe("1");
+    expect(
+      contrast(placeholder.color, placeholder.background),
+      `${scheme} placeholder`,
+    ).toBeGreaterThan(4.5);
+  }
+});
+
+test("switching back to paper moves focus to the entry and announces the mode; entering no-paper mode announces it too", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await openLengthStepFromTip(page);
+  await page.getByLabel("Hand length (mm)").fill("186");
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  await expect(page.getByTestId("camera-cue")).toBeVisible();
+  const announcements = page.locator("[data-testid=mode-announcement]");
+  await expect(announcements).toHaveAttribute("aria-live", "polite");
+  await expect(announcements).toContainText("186 mm");
+
+  await page.getByRole("button", { name: "Use paper instead" }).click();
+  await expect(
+    page.getByRole("button", { name: "No paper? Use a ruler instead" }),
+  ).toBeFocused();
+  // Not just any text with "paper mode" in it: the earlier no-paper message
+  // contains that too, so pin the start of the new one.
+  await expect(announcements).toHaveText(/^Paper mode:/);
+  await expect(announcements).not.toContainText("186 mm");
+});
+
+test("copy link says what happened every time: copied, copied again, and failed", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.addInitScript(() => {
+    let calls = 0;
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async () => {
+          calls += 1;
+          if (calls === 3) throw new Error("denied");
+        },
+      },
+    });
+  });
+  await page.goto("/scan/easy");
+  const status = page.getByRole("status");
+  await expect(status).toHaveAttribute("aria-live", "polite");
+  const copy = page.getByRole("button", { name: "Copy link" });
+
+  await copy.click();
+  await expect(status).toHaveText("Link copied");
+  const first = await status.locator("span").elementHandle();
+
+  // Copying again re-announces: the message is a new node, not the same text.
+  await copy.click();
+  await expect
+    .poll(() => first!.evaluate((node) => node.isConnected))
+    .toBe(false);
+  await expect(status).toHaveText("Link copied");
+
+  // A refused copy says so and points at the box that appears.
+  await copy.click();
+  await expect(status).toContainText("Couldn't copy");
+  await expect(
+    page.getByRole("textbox", { name: "Select link to copy" }),
+  ).toBeVisible();
+});
+
+test("without the Clipboard API, copy link still says what to do", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined });
+  });
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.getByRole("status")).toContainText("Couldn't copy");
+});
+
+test("the placeholder shown before the device is known is the camera shell's own dark, with no controls", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      colorScheme,
+    });
+    const page = await context.newPage();
+    await page.goto("/scan/easy");
+    const placeholder = page.locator(".easyDevicePlaceholder");
+    await expect(placeholder).toHaveCount(1);
+    expect(
+      await placeholder.evaluate((el) => getComputedStyle(el).backgroundColor),
+      colorScheme,
+    ).toBe(CAMERA_SHELL_BG);
+    await expect(
+      page.locator("button, a, input, select, textarea"),
+    ).toHaveCount(0);
+    await context.close();
+  }
+});
+
+test("the camera shell the placeholder hands over to is the same dark", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await page.goto("/scan/easy");
+  await expect(page.locator(".cameraViewfinder")).toBeVisible();
+  expect(
+    await page
+      .locator(".cameraViewfinder")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe(CAMERA_SHELL_BG);
+});
+
+test("desktop names no device in its privacy promise, and the in-app browser keeps the phone wording", async ({
+  browser,
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  await page.goto("/scan/easy");
+  await expect(page.getByText(PHOTO_PRIVACY_COPY_THIS_DEVICE)).toBeVisible();
+  await expect(page.getByText(PHOTO_PRIVACY_COPY)).toHaveCount(0);
+
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (iPhone) AppleWebKit/605 Mobile LINE/14.0",
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const inApp = await context.newPage();
+  await inApp.goto("/scan/easy");
+  await expect(inApp.getByText(PHOTO_PRIVACY_COPY)).toBeVisible();
+  await expect(inApp.getByText(PHOTO_PRIVACY_COPY_THIS_DEVICE)).toHaveCount(0);
+  await context.close();
+});
+
+test("a palm that does not fit the typed length gets one instruction and a way to change the number", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "mobile", "Uses the upload path.");
+  await page.goto("/scan/easy/length-failure-demo");
+  await page
+    .getByRole("dialog", { name: "One blank sheet is all you need" })
+    .getByRole("button", { name: "No paper? Use a ruler instead" })
+    .click();
+  await page.getByLabel("Hand length (mm)").fill("186");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  const message = sheet.locator(".easySheetErrorMessage");
+  await expect(message).toContainText("186 mm you entered");
+  // One instruction in the message; the retry and the edit are the buttons.
+  await expect(message).not.toContainText(/retake|or /i);
+  await expect(sheet.getByRole("button", { name: "Try again" })).toBeVisible();
+
+  await sheet.getByRole("button", { name: "Edit hand length" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Hand length" }),
+  ).toBeFocused();
+  await expect(page.getByLabel("Hand length (mm)")).toHaveValue("186");
+});
+
+test("other no-paper failures offer only Try again", async ({ page }, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await openLengthStepFromTip(page);
+  await page.getByLabel("Hand length (mm)").fill("186");
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  await expect(page.getByTestId("camera-cue")).toBeVisible();
+  await page.waitForTimeout(1200);
+  await page.getByRole("button", { name: "Take photo" }).click();
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  await expect(sheet).toContainText("couldn't find a hand", {
+    timeout: 20000,
+  });
+  await expect(sheet.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(
+    sheet.getByRole("button", { name: "Edit hand length" }),
+  ).toHaveCount(0);
 });

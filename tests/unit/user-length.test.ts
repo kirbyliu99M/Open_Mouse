@@ -195,11 +195,13 @@ describe("typed hand length range", () => {
     expect(USER_LENGTH_RANGE_MM.max).toBeLessThan(280);
   });
 
-  it("tells a mistyped length from a bad photo when the palm does not fit", () => {
+  it("names the typed number and gives one instruction when the palm does not fit", () => {
     const message = userLengthRetakeMessage(120);
-    expect(message).toContain("120 mm");
+    expect(message).toContain("120 mm you entered");
     expect(message).toMatch(/check that number/i);
-    expect(message).toMatch(/retake/i);
+    // The failure sheet's own buttons are the retry and the edit; the message
+    // is a single instruction, so it does not offer a second way out.
+    expect(message).not.toMatch(/retake|\bor\b/i);
   });
 });
 

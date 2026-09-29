@@ -135,6 +135,37 @@ test("a new tab retains typed-length and hand disclosures, then deletion clears 
   await newTab.close();
 });
 
+test("a typed length stored under an earlier, wider range still gets its note; an implausible one gets none", async ({
+  page,
+}) => {
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  for (const [stored, shown] of [
+    ["120", true], // below today's input range, inside the schema's
+    ["280", true],
+    ["50", false],
+    ["abc", false],
+  ] as const) {
+    await page.addInitScript(
+      ([key, value]) => localStorage.setItem(key, value),
+      [LENGTH_KEY, stored],
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(
+      page.getByRole("heading", { name: "Your best match" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Based on the hand length you entered/),
+    ).toHaveCount(shown ? 1 : 0);
+    if (shown)
+      await expect(
+        page.getByText(`(${stored} mm)`, { exact: false }),
+      ).toBeVisible();
+  }
+});
+
 test.describe("/results/[scanId] — real results page", () => {
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({
     page,

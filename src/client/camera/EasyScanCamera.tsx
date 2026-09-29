@@ -96,7 +96,11 @@ import {
   USER_LENGTH_RANGE_MM,
   userLengthRangeMessage,
 } from "../photo/user-length";
-import { noPaperEntryLabel } from "./noPaperEntry";
+import {
+  EDIT_HAND_LENGTH_LABEL,
+  failureOffersLengthEdit,
+  noPaperEntryLabel,
+} from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import "../../app/scan/scan.css";
 import "./camera.css";
@@ -417,6 +421,12 @@ export default function EasyScanCamera({
   // Whichever "no paper" entry is on screen, so focus can return to it.
   const noPaperEntryRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
+  // Set when the user leaves no-paper mode from a button that is about to
+  // disappear: focus then goes to the entry instead of falling to <body>.
+  const focusEntryAfterSwitchRef = useRef(false);
+  // Read by screen readers when the mode changes. A new `n` replaces the
+  // message node so a repeat of the same text is announced again.
+  const [modeAnnouncement, setModeAnnouncement] = useState({ n: 0, text: "" });
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(undefined);
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
@@ -520,6 +530,12 @@ export default function EasyScanCamera({
       gotItRef.current?.focus();
     }
   }, [tipOpen, deviceFit, lengthStep]);
+
+  useEffect(() => {
+    if (userLengthMm !== null || !focusEntryAfterSwitchRef.current) return;
+    focusEntryAfterSwitchRef.current = false;
+    (noPaperEntryRef.current ?? helpTriggerRef.current)?.focus();
+  }, [userLengthMm]);
 
   // The hand-length step replaces the screen: focus moves to its heading on
   // the way in and back to the "no paper" entry on the way out.
@@ -1072,6 +1088,8 @@ export default function EasyScanCamera({
     deviceFit === "phone" &&
     window.isSecureContext &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
+  const announceMode = (text: string) =>
+    setModeAnnouncement((prev) => ({ n: prev.n + 1, text }));
   const startLengthStep = () => {
     restoreFocusRef.current = true;
     dismissTip();
@@ -1093,12 +1111,25 @@ export default function EasyScanCamera({
     }
     setLengthError("");
     setUserLengthMm(value);
+    announceMode(
+      `No-paper mode: using your hand length of ${value} mm. No sheet needed.`,
+    );
     leaveLengthStep();
   };
   const switchToPaper = () => {
+    focusEntryAfterSwitchRef.current = true;
     setUserLengthMm(null);
     userLengthRef.current = null;
     resetLoopState();
+    announceMode("Paper mode: place your hand on a blank sheet of paper.");
+  };
+  // The failure sheet's edit-length button: the sheet closes first, so the
+  // browser's focus restore cannot land after the heading takes focus.
+  const editLengthFromFailure = () => {
+    sheetDialogRef.current?.close();
+    if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
+    setResult({ kind: "none" });
+    startLengthStep();
   };
 
   const cueLabel =
@@ -1131,6 +1162,16 @@ export default function EasyScanCamera({
 
   return (
     <div className="cameraViewfinder easyScanShell">
+      <p
+        className="visuallyHiddenLive"
+        role="status"
+        aria-live="polite"
+        data-testid="mode-announcement"
+      >
+        {modeAnnouncement.text && (
+          <span key={modeAnnouncement.n}>{modeAnnouncement.text}</span>
+        )}
+      </p>
       <div className="cameraTopBar" inert={lengthStep}>
         <button
           type="button"
@@ -1165,7 +1206,7 @@ export default function EasyScanCamera({
             className="easyLengthBack"
             onClick={leaveLengthStep}
           >
-            Back to camera
+            {cameraAvailable() ? "Back to camera" : "Back to upload"}
           </button>
           <svg
             className="easyHandDrawing"
@@ -1681,6 +1722,15 @@ export default function EasyScanCamera({
               >
                 Try again
               </button>
+              {failureOffersLengthEdit(noPaperMode, result.errors[0]?.code) && (
+                <button
+                  type="button"
+                  className="easyEditLengthButton"
+                  onClick={editLengthFromFailure}
+                >
+                  {EDIT_HAND_LENGTH_LABEL}
+                </button>
+              )}
             </>
           )}
         </dialog>
