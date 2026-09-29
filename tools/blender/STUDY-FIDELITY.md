@@ -363,6 +363,97 @@ round-trip verification; M325s installation and manifest/validation changes.
 No M550, M100, AR shell or other worktree changes. No push. Claude must
 adjudicate the failed gate before continuation.
 
+#### D4 — local remeshing (Sonnet builder)
+
+**Not delivered for any of the four shells; the mesh's own tolerances block the gate.**
+Sonnet builder, worktree `m4a-d4-remesh` (branch `m4a-d4-remesh`, from `dbdd5fd`).
+
+**Method.** `tools/blender/local_remesh_math.py` (pure numpy, 12 unit tests in
+`tests/test_local_remesh_math.py`) provides target-vertex thresholding, BFS ring
+distance for a topological blend zone, a smoothstep blend weight and a millimetre
+displacement clamp. `tools/blender/d4_local_remesh.py` (Blender) loads each shell
+and its calibrated AR source exactly as `geometry_audit.py` does, then: (1) marks a
+vertex a target when it sits more than 1 mm inside the source **and** a straight-up
+ray from it actually hits the source (confirms it, doesn't rely on source normals);
+(2) locally subdivides the faces touching target vertices (`bmesh.ops.subdivide_edges`,
+selectable ring and cut count, always checked against the 15,000-triangle cap before
+any vertex moves); (3) projects target and near-ring vertices onto the source along a
+**vertical** ray (not the vertex normal — the normal flips sharply between a slot's
+near-vertical wall and its floor, which fans divergent moves into folds); (4) blends
+the move to zero over `local_remesh_math.blend_weight`'s ring taper; (5) clamps the
+per-vertex displacement and validates with `asset_utils.validate_mesh`.
+
+**Baseline (this branch, matches D0):**
+
+| Shell     | IoU top/side/front       | Distance mean/p95/max mm | inside share >2mm | outside share >2mm | Triangles |
+| --------- | ------------------------ | ------------------------ | ----------------- | ------------------ | --------: |
+| M190      | 0.9953 / 0.9937 / 0.9941 | 0.14 / 0.44 / 7.42       | 0.42%             | 0.24%              |     14000 |
+| M750      | 0.9949 / 0.9885 / 0.9923 | 0.37 / 1.50 / 11.02      | 0.33%             | 4.06%              |     14000 |
+| M650      | 0.9942 / 0.9893 / 0.9920 | 0.48 / 2.78 / 11.23      | 1.16%             | 4.54%              |     14000 |
+| G903 Hero | 0.9951 / 0.9877 / 0.9908 | 0.47 / 2.22 / 8.22       | 1.60%             | 4.18%              |     14000 |
+
+Reproduced with `blender -b --factory-startup --python-exit-code 1 --python
+geometry_audit.py -- --data <worktree>/tools/blender --only logitech-m190
+logitech-m750 logitech-m650 logitech-g903-hero --out out/d4/baseline`, then
+`geometry_audit_report.py out/d4/baseline`.
+
+**Why none passes.** Systematically swept threshold (1 mm per the brief),
+subdivide ring (0/1), face-selection strictness (any-vertex vs. all-vertex per
+face), cut count (1/2/3) and blend ring (0–4) on M190 and M750 (the smaller
+target sets):
+
+| Shell | Config (subdivide ring / strict / cuts / inner / outer) | Moved verts | Max clamp mm | Self-intersection pairs |
+| ----- | ------------------------------------------------------- | ----------: | -----------: | ----------------------: |
+| M190  | 0 / any / 1 / 0 / 1                                     |         154 |          6.0 |                    1081 |
+| M190  | 1 / strict / 1 / 0 / 2                                  |         564 |          6.0 |                     201 |
+| M190  | 1 / strict / 1 / 0 / 2                                  |         564 |          4.0 |                     112 |
+| M190  | 1 / strict / 1 / 0 / 2                                  |         564 |          1.0 |                      13 |
+| M190  | 1 / strict / 1 / 0 / 2                                  |         564 |      **0.3** |                   **0** |
+| M750  | 1 / strict / 1 / 0 / 2                                  |         523 |          2.0 |                      60 |
+| M750  | 1 / strict / 1 / 0 / 2                                  |         523 |          0.5 |                       9 |
+
+Every configuration that keeps the mesh clean (0 self-intersections) caps the
+per-vertex displacement at roughly **0.3–0.5 mm** — the mesh has other surfaces
+that close to it near the wheel slot and G-shape seams, so any larger, gate-relevant
+correction (the deficits run to 7–11 mm) immediately folds the local patch into a
+neighbour. Adding more local resolution does not fix this: it is not an
+under-sampling problem, it is that the target displacement is topologically
+incompatible with the existing nearby geometry at this triangle budget. A 0.3–0.5 mm
+correction cannot move the ">2 mm inside" or ">2 mm outside" shares by a measurable
+amount, so it would not pass "inside share falls by at least half" either — there is
+no clamp value where both the topology gate and the improvement gate hold.
+
+M650 (348 candidate target vertices) and G903 Hero (265) are worse: subdividing
+even a one-ring strict selection around their target vertices already exceeds the
+15,000-triangle cap before any vertex is moved (16,798 and 16,972 respectively),
+because their affected regions (the whole wheel neighbourhood for M650; the button
+channel and both wing seams for G903) are far larger than M190's or M750's.
+
+**Conclusion.** Per shell: **left alone, gate not attempted to relax.** This
+confirms and extends the D0 recommendation ("the fix needs local remeshing") with a
+negative result: local remeshing was tried, with ray-confirmed target selection,
+budget-checked local subdivision, vertical (not normal) projection to avoid
+divergent-normal folding, and smooth ring blending, and it still cannot satisfy
+both the topology gate and the improvement gate on any of the four shells within
+15,000 triangles. A fix would need feature-aware topology (e.g. explicitly modelling
+the wheel as a separate loop with its own boundary curve fixed to the slot rim,
+or constrained fairing that treats the slot walls as a hard boundary) — out of scope
+for a normal-displacement remesher. No public asset changed; `out/reference-library`
+and `out/reconstructed` untouched (read-only, as required).
+
+Tooling delivered and kept (not reverted, since it is generically useful evidence
+and the failure mode it exposes is itself the finding): `tools/blender/local_remesh_math.py`,
+`tools/blender/tests/test_local_remesh_math.py`, `tools/blender/d4_local_remesh.py`.
+Baseline audit outputs: `tools/blender/out/d4/baseline/` (gitignored, reproducible).
+
+**Not done:** no `out/d4/reconstructed/*`, no Phase C bake, no `optimize_glbs`,
+no installer, no before/after render sheets — there is no "after" state to render,
+since no shell passed the gate. Existing gates re-verified green with no asset
+changes: `check_catalogues.py` → `CATALOGUES_MATCH`; `tests/check_assets.py` →
+`ALL_ASSET_CHECKS_PASSED`; full Python suite `python -m unittest discover -s tests`
+→ 102 passed / 12 Blender-only skips (up from 90/12 with the 12 new local-remesh-math
+tests).
+
 ### A1 — official AR assets
 
 Discovery date: 2026-09-28 (Asia/Taipei). Searches cover each study's product
@@ -1744,6 +1835,18 @@ Gates: `ALL_ASSET_CHECKS_PASSED`, all 4 Blender test files, unit tests (61 run, 
 | 2026-09-29 | Codex is out until 2026-10-04 13:10 (weekly limit). **Claude builds the rest of D1b (M705, M850L) and D4 now**, in this worktree (no second writer while Codex is out), with Codex's committed tools and unchanged gates. As before, an independent Sonnet review and Kirby's visual acceptance are required. Codex takes whatever is left when it returns                                                                                                                                                                                          | Kirby          |
 
 ## Progress log
+
+- 2026-09-29 Sonnet builder (D4, worktree `m4a-d4-remesh`): **D4 not delivered.**
+  Built and tested `local_remesh_math.py` (12 unit tests) and `d4_local_remesh.py`
+  (ray-confirmed target selection, budget-checked local bmesh subdivision, vertical
+  projection with ring-blended fairing, `asset_utils.validate_mesh` gate). Swept
+  threshold/ring/cut/clamp parameters on M190 and M750. Every mesh-clean configuration
+  caps displacement at ~0.3–0.5 mm, far below the 7–11 mm deficits, so no clamp value
+  satisfies both the 0-self-intersection gate and the inside-share-halves gate. M650
+  and G903 Hero exceed the 15,000-triangle cap during subdivision alone (348 and 265
+  target vertices) before any vertex moves. All four shells left unchanged; no public
+  asset touched. See STUDY-FIDELITY.md "D4 — local remeshing (Sonnet builder)" for the
+  full sweep table and baseline numbers. Existing gates re-verified green.
 
 - 2026-09-29 03:55 Claude: **Codex hit its weekly usage limit (next run: 2026-10-04 13:10).** D1b delivered M325s (`50a9512`, audited and pushed) and added the tested asymmetric basis (`fd43c2e`, audited and pushed). The M705 fit never started. Codex's uncommitted README reproduction section and doc fixes are committed by Claude as WIP. Also on 09-29 at 03:38, a temp cleanup deleted the session scratchpad with the Codex briefs, so the timer dispatch failed; briefs now live in `Mouse Shape Project/codex-briefs/`. Remaining: D1b (M705, M850L) and D4. Kirby decides who builds them.
 
