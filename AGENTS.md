@@ -38,7 +38,9 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 3. The `pr-review` workflow reviews it (agents that did not write the code), and
    Claude adjudicates the findings. Claude then marks the PR ready. That triggers
    CI once, and Claude confirms the run actually executed: a skipped job also
-   reports success. Once findings are resolved and CI is green, Claude merges the
+   reports success, and a PR whose HEAD commit carries `[skip ci]` never runs.
+   `[skip ci]` is only for Claude's STATUS commits on `main`. Once findings are
+   resolved and CI is green, Claude merges the
    PR into `main` (merge commit, stack order, retargeting the next PR to `main`).
    _Kirby's call, 2026-09-22: merge per PR once reviewed, don't let the stack pile up._
 
