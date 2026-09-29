@@ -3,6 +3,7 @@ import { analyse, buildPrompt } from "../../src/server/analysis/analyse";
 import { REASON_CODES } from "../../src/lib/contracts/fit";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { FakeTextModel } from "../../src/server/analysis/client";
+import { findMedicalClaimTerm } from "../../src/server/analysis/medicalClaims";
 import { slugify } from "../../src/server/catalogue/seed-rows";
 import { makeEntry, makeFit, makeMeasurements } from "./analysis-fixtures";
 
@@ -49,6 +50,181 @@ const CLEAN_ANSWER = JSON.stringify({
   tradeoffs: ["The front flare may crowd your fingertips a little."],
   whatToAvoid: [],
   caveats: [],
+});
+
+describe("analyse — medical claims", () => {
+  it("returns readable labels for matched patterns", () => {
+    expect(findMedicalClaimTerm("an injured wrist")).toBe("injury");
+    expect(findMedicalClaimTerm("safer for your hand")).toBe(
+      "safer for wrist or body",
+    );
+    expect(
+      findMedicalClaimTerm("Treat this ranking as provisional"),
+    ).toBeNull();
+  });
+
+  const answerWith = (text: string) =>
+    JSON.stringify({
+      headline: text,
+      whyTopPick: "It has a taller hump and wider grip.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+
+  it("instructs the model to avoid medical claims and vendor health copy", () => {
+    const instructions = buildPrompt(inputFor()).split("\n\nData:")[0]!;
+    expect(instructions).toMatch(/medical, diagnostic, therapeutic/i);
+    expect(instructions).toMatch(/injury.prevention/i);
+    expect(instructions).toMatch(/vendor marketing copy/i);
+    expect(instructions).toMatch(/vertical grip.*taller hump.*wider/i);
+  });
+
+  it.each([
+    "carpal tunnel syndrome",
+    "CTS",
+    "RSI",
+    "repetitive strain",
+    "tendinitis",
+    "tendonitis",
+    "injuries",
+    "painless",
+    "relief",
+    "prevents wrist pain",
+    "prevent injury",
+    "preventing injuries",
+    "prevention",
+    "prevention of injury",
+    "therapeutic",
+    "medical",
+    "diagnosis",
+    "treatment",
+    "treats pain",
+    "to treat wrist pain",
+    "cure",
+    "healthier",
+    "safer for your wrist",
+    "ergonomic",
+    "ergonomically",
+    "ergonomics",
+    "wrist-friendly",
+    "strain",
+    "strains",
+    "strained",
+    "painful",
+    "injured",
+    "wrist health",
+    "wrist-saving",
+    "wrist saving",
+    "reduces wrist stress",
+    "reducing hand strain",
+    "reduced forearm tension",
+    "reduce finger pressure",
+    "腕隧道",
+    "腕管",
+    "肌腱炎",
+    "疼痛",
+    "酸痛",
+    "預防受傷",
+    "预防受伤",
+    "預防手腕疼痛",
+    "预防腕疼痛",
+    "治療",
+    "治疗",
+    "醫療",
+    "医疗",
+    "診斷",
+    "诊断",
+    "護腕",
+    "护腕",
+    "人體工學",
+    "人体工学",
+    "減輕手腕負擔",
+    "减轻手腕负担",
+    "受傷",
+    "受伤",
+    "緩解",
+    "缓解",
+  ])("rejects model output containing %s", async (term) => {
+    const client = new FakeTextModel({
+      answer: () => answerWith(`A ${term} choice.`),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(2);
+    expect(result.source).toBe("fallback");
+    expect(JSON.stringify(result.output).toLowerCase()).not.toContain(
+      term.toLowerCase(),
+    );
+  });
+
+  it.each([
+    "Spain",
+    "painted",
+    "prevents your palm from sliding",
+    "should be treated as provisional",
+    "Treat this ranking as provisional",
+    "a safer pick",
+    "secure",
+    "curve",
+    "restrain",
+    "less fatigue",
+    "comfortable for long sessions",
+    "預防滑動",
+  ])("accepts output containing near-miss word %s", async (word) => {
+    const client = new FakeTextModel({
+      answer: () => answerWith(`A ${word} finish with a wider grip.`),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(1);
+    expect(result.source).toBe("model");
+  });
+
+  it("retries a medical claim and accepts a corrected shape-only answer", async () => {
+    const client = new FakeTextModel({
+      answer: (_args, index) =>
+        index === 0
+          ? answerWith("Wrist-friendly shape.")
+          : answerWith("A wider grip and taller hump."),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain(
+      "prohibited medical or health term (wrist-friendly)",
+    );
+    expect(result.source).toBe("model");
+    expect(result.output.headline).toBe("A wider grip and taller hump.");
+  });
+
+  it.each(["whyTopPick", "tradeoffs", "whatToAvoid", "caveats"] as const)(
+    "rejects a medical term in %s",
+    async (field) => {
+      const answer = {
+        headline: "A wider shape.",
+        whyTopPick: "It has a taller hump.",
+        tradeoffs: [] as string[],
+        whatToAvoid: [] as string[],
+        caveats: [] as string[],
+      };
+      if (field === "whyTopPick") answer.whyTopPick = "Pain relief.";
+      else answer[field] = ["Pain relief."];
+      const client = new FakeTextModel({
+        answer: () => JSON.stringify(answer),
+      });
+      const result = await analyse(inputFor(), client);
+      expect(client.calls).toHaveLength(2);
+      expect(result.source).toBe("fallback");
+    },
+  );
+
+  it("accepts a shape-only analysis on the first attempt", async () => {
+    const client = new FakeTextModel({
+      answer: () =>
+        answerWith("A vertical grip with a taller hump and wider shell."),
+    });
+    const result = await analyse(inputFor(), client);
+    expect(client.calls).toHaveLength(1);
+    expect(result.source).toBe("model");
+  });
 });
 
 describe("analyse — no-new-numerals rule", () => {
@@ -657,5 +833,101 @@ describe("analyse — source provenance (issue #28)", () => {
     const { source } = await analyse(input, client);
     expect(client).not.toBeNull();
     expect(source).toBe("fallback");
+  });
+});
+
+// M2 (hardening finding): the site-wide daily model cap used to be spent
+// once per REQUEST, but analyse() can make up to MAX_ATTEMPTS (2) real
+// model calls per request (one attempt plus one retry), so the real
+// ceiling was ~2x the configured cap. `beforeModelCall` fixes that by
+// charging the budget once per actual call.
+describe("analyse — beforeModelCall (M2 global model-call budget)", () => {
+  it("a clean first attempt consumes exactly one unit", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      beforeModelCall: () => {
+        calls += 1;
+        return true;
+      },
+    });
+    expect(source).toBe("model");
+    expect(calls).toBe(1);
+    expect(client.calls).toHaveLength(1);
+  });
+
+  it("a retry (the second real model call) consumes a second unit", async () => {
+    const input = inputFor();
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.", // 130 is not in the input
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      beforeModelCall: () => {
+        calls += 1;
+        return true;
+      },
+    });
+    expect(source).toBe("model");
+    expect(calls).toBe(2);
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it("refuses the very first call when the budget is already exhausted -- 0 model calls, fallback", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const { output, source } = await analyse(input, client, {
+      beforeModelCall: () => false,
+    });
+    expect(source).toBe("fallback");
+    expect(client.calls).toHaveLength(0);
+    expect(output.headline).toBe(
+      "Logitech G Pro X Superlight 2 is the top match for your hand.",
+    );
+  });
+
+  it("cap reached before the retry: stops retrying and serves the fallback WITHOUT a second model call", async () => {
+    const input = inputFor();
+    // First attempt violates the no-new-numerals rule, which would
+    // normally trigger a retry.
+    const badAnswer = JSON.stringify({
+      headline: "A 130 mm mouse for your hand.",
+      whyTopPick: "It fits well.",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    let calls = 0;
+    const { source } = await analyse(input, client, {
+      // Budget allows the first attempt, but is exhausted by the time the
+      // retry would run.
+      beforeModelCall: () => {
+        calls += 1;
+        return calls === 1;
+      },
+    });
+    expect(source).toBe("fallback");
+    // Only the first attempt actually called the model -- the retry never
+    // happened because the budget said no.
+    expect(client.calls).toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+
+  it("without beforeModelCall, no budget is ever consulted (existing callers are unaffected)", async () => {
+    const input = inputFor();
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    const { source } = await analyse(input, client);
+    expect(source).toBe("model");
+    expect(client.calls).toHaveLength(1);
   });
 });

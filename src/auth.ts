@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
 import { claimAnonymousSession } from "./server/auth/claim";
-import { isAuthConfigured } from "./server/auth/config";
+import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
 import { SCAN_SESSION_COOKIE } from "./server/scans/cookies";
 
@@ -55,12 +55,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }),
       ]
     : [],
-  // No real secret exists in this environment (issue #17); providers is
-  // empty whenever AUTH_SECRET is unset, so nothing can actually reach a
-  // code path that signs or verifies with this value — it only keeps
-  // Auth.js's own CSRF/state-cookie machinery from throwing on a session
-  // read. A real deployment always sets AUTH_SECRET.
-  secret: process.env.AUTH_SECRET ?? "unconfigured-build-only-placeholder",
+  // L3 (security hardening finding): see resolveAuthSecret. A missing AUTH_SECRET used to fall
+  // back silently to a public, checked-in placeholder even in production —
+  // `resolveAuthSecret` (`./server/auth/config.ts`) keeps that fallback for
+  // dev/test/build (issue #17: no real secret exists in this environment,
+  // and nothing reaches a code path that signs or verifies with this value
+  // while providers is empty), but throws here, at module load, in a real
+  // production runtime (VERCEL_ENV or NODE_ENV === "production") — a
+  // production deployment must configure a real AUTH_SECRET, never run
+  // with a value anyone can read in this repo's source history.
+  secret: resolveAuthSecret(),
   callbacks: {
     // Database session strategy hands the callback `user`, not a decoded
     // token; `session.user.id` isn't populated by default (see

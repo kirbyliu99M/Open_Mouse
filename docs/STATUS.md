@@ -90,16 +90,16 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status              | PR                                                     | Notes                                                                                             |
-| --- | ---------------------------------- | ----- | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | ✅ merged           | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | merged to `main` as `f5d9814`                                                                     |
-| M1  | Data layer + shape rubric          | ✅    | 🔍 in review        | #4 #5 #8                                               | schema, 30-model seed, classifier built (fake-tested); gate run needs the Gemini key              |
-| M2  | Calibration + measurement          | ✅    | 🔍 in review        | #9 #18 #19 #23                                         | A sheet+geometry, B API+photo pipeline, C parallax; ground-truth photos still needed for the gate |
-| M3  | Fit engine                         | –     | 🔍 in review        | #12 #21 #22                                            | contract, engine and results UI built; coefficients still need real pairings                      |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                  | –                                                      | M4a Blender → Codex, issue #7                                                                     |
-| M5  | Gemini analysis                    | –     | 🏗 changes requested | #20                                                    | re-review found two hard-rule-2 bypasses in the numeral check; fix in flight                      |
-| M6  | Sessions, auth, privacy            | –     | 🔍 in review        | #24                                                    | reviewed: approve with nits (no-store header, `isAuthConfigured`, app-wide `auth()` call)         |
-| M7  | Polish + security review           | –     | ⬜                  | –                                                      | before any public exposure                                                                        |
+| #   | Milestone                          | Gated | Status              | PR                                                     | Notes                                                                                                                   |
+| --- | ---------------------------------- | ----- | ------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | ✅ merged           | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | merged to `main` as `f5d9814`                                                                                           |
+| M1  | Data layer + shape rubric          | ✅    | 🔍 in review        | #4 #5 #8                                               | schema, 38-model seed (30 + 8 owner-approved 2026-09-27), classifier built (fake-tested); gate run needs the Gemini key |
+| M2  | Calibration + measurement          | ✅    | 🔍 in review        | #9 #18 #19 #23                                         | A sheet+geometry, B API+photo pipeline, C parallax; ground-truth photos still needed for the gate                       |
+| M3  | Fit engine                         | –     | 🔍 in review        | #12 #21 #22                                            | contract, engine and results UI built; coefficients still need real pairings                                            |
+| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                  | –                                                      | M4a Blender → Codex, issue #7                                                                                           |
+| M5  | Gemini analysis                    | –     | 🏗 changes requested | #20                                                    | re-review found two hard-rule-2 bypasses in the numeral check; fix in flight                                            |
+| M6  | Sessions, auth, privacy            | –     | 🔍 in review        | #24                                                    | reviewed: approve with nits (no-store header, `isAuthConfigured`, app-wide `auth()` call)                               |
+| M7  | Polish + security review           | –     | ⬜                  | –                                                      | before any public exposure                                                                                              |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -214,6 +214,8 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-24 | M1 descriptors from the first live run stay out of the seed | Gate failed (flare 72.4%, curvature 25.0%). Rule 4: revise the rubric, not the gate. Shape sub-scores stay "Shape not rated yet" and the UI says the total leans on size. |
 | 2026-09-25 | Production DB env vars stay non-Sensitive in Vercel (known risk, accepted by Kirby) | The Neon integration offers no Sensitive toggle; Hobby project with Kirby as the only member. Password rotated 2026-09-24 after it had been pasted into a conversation. |
 | 2026-09-25 | The camera flow borrows TONALITE's documented principles, not its screens | Public reviews describe its step-by-step flow and QR-sticker fiducials but not the capture UI; our ArUco markers play the stickers' role. |
+| 2026-09-27 | **Catalogue grows 30 → 38**: M750, M325s, Mobi Fold, M850L, M840L, MX Ergo S, ERGO M575S, G903 Hero | Kirby's call, from a PChome Taiwan shelf check plus a first-party spec read. Descriptors pending; the dated Size-gate figure (27/30) covers only the original 30 — the 8 new rows are unmeasured |
+| 2026-09-27 | **R8: Blender assets are published** (open-source project); **no medical claims** anywhere | Kirby's call. Logitech trademarks and source 3D models are not covered by the project licence — note it in the asset README |
 ---
 
 ## Risks
