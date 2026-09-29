@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-29 · by: Claude (Phase D: D1, D2, D4 results; awaiting Kirby)_
+_Last updated: 2026-09-29 · by: Claude (D5 closed; paused)_
 
 ---
 
@@ -25,7 +25,7 @@ _Last updated: 2026-09-29 · by: Claude (Phase D: D1, D2, D4 results; awaiting K
 
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
-**In flight — study fidelity, Phase D (geometry quality; Kirby 2026-09-28: no more colouring), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** **Delivered:** D2 M550 on the M650 AR shell (photo IoU ≥ 0.988 in all views) and D1 M325s geometry refinement (mean photo IoU 0.9742 → 0.9768). **Not delivered (gate):** D1 M705 and M850L (smooth whole-body deformation cannot improve them without regressing an official view) and D4 local remeshing of wheel crowns and G903's channel (a Sonnet builder showed clean meshes cap moves at 0.3–0.5 mm against 7–11 mm gaps; this needs feature-aware topology). **D0 audit:** every AR shell's silhouette IoU ≥ 0.9823 against its source; O6 was a comparison artefact. All of Claude's and the Sonnet builder's work was independently reviewed (approve with fixes; fixes in). Codex is out until 2026-10-04 13:10. **Waiting on Kirby** (`Mouse Shape Project/模型驗收-2026-09-28/D階段驗收.html`): accept M325s and M550; one more M705 attempt or keep it; feature-aware wheel/channel modelling or keep it.
+**Paused (Kirby, 2026-09-29) — study fidelity, Phase D (geometry quality), branch `m4a-study-fidelity`, living doc `tools/blender/STUDY-FIDELITY.md`:** **Delivered:** M550 on the M650 AR shell (D2) and M325s geometry refinement (D1). **Not delivered (gates held):** M705 and M850L. Smooth deformation (D1) and a visual-hull rebuild (D5a) both lose ground on top and bottom views the lofts already fit at 0.995. Wheel-area shape loss is also not delivered: local remeshing (D4) and wheel cylinders (D5b) failed. D5b showed the deficit is the wheel housing and button trim, not the wheel. D0 audit: every AR shell silhouette ≥ 0.9823. All work is reviewed or audited and pushed; builder branches `m4a-d4-remesh`, `m4a-d5-studies` and `m4a-d5-wheels` are merged. Codex is out until 2026-10-04 13:10. **Waiting on Kirby:** visual acceptance of M325s and M550 (`Mouse Shape Project/模型驗收-2026-09-28/D階段驗收.html`), and whether to resume.
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
