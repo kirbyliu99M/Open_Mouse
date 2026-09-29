@@ -64,6 +64,20 @@ describe("fitResponseSchema", () => {
     ).toBe(false);
   });
 
+  it.each(["left", "right"])("accepts a %s-hand response", (hand) => {
+    expect(fitResponseSchema.safeParse({ ...valid, hand }).success).toBe(true);
+  });
+
+  // Pinned literally: iterating EXCLUSION_REASONS alone would shrink with the
+  // list instead of failing when a reason is dropped.
+  it("lists exactly the contract's exclusion reasons", () => {
+    expect(EXCLUSION_REASONS).toEqual([
+      "wrong_hand",
+      "vertical_form_factor",
+      "trackball_form_factor",
+    ]);
+  });
+
   it.each(EXCLUSION_REASONS)("accepts the %s exclusion reason", (reason) => {
     const excluded = [{ ...valid.excluded[0], reason }];
     expect(fitResponseSchema.safeParse({ ...valid, excluded }).success).toBe(

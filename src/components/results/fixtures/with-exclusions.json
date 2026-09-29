@@ -7,11 +7,7 @@
     "predicted": "fingertip",
     "used": "fingertip"
   },
-  "targets": {
-    "lengthMm": 110,
-    "gripWidthMm": 58,
-    "heightMm": 34
-  },
+  "targets": { "lengthMm": 110, "gripWidthMm": 58, "heightMm": 34 },
   "excluded": [
     {
       "slug": "logitech-lift-vertical",
@@ -45,58 +41,32 @@
         "length": {
           "score": 96,
           "weight": 0.2,
-          "reason": {
-            "code": "length_ideal",
-            "params": {
-              "deltaMm": 1.4
-            }
-          }
+          "reason": { "code": "length_ideal", "params": { "deltaMm": 1.4 } }
         },
         "gripWidth": {
           "score": 94,
           "weight": 0.2,
-          "reason": {
-            "code": "width_ideal",
-            "params": {
-              "deltaMm": 0.4
-            }
-          }
+          "reason": { "code": "width_ideal", "params": { "deltaMm": 0.4 } }
         },
         "heightHump": {
           "score": 88,
           "weight": 0.15,
-          "reason": {
-            "code": "height_ideal",
-            "params": {
-              "deltaMm": 1.9
-            }
-          }
+          "reason": { "code": "height_ideal", "params": { "deltaMm": 1.9 } }
         },
         "frontFlare": {
           "score": 80,
           "weight": 0.15,
-          "reason": {
-            "code": "flare_neutral",
-            "params": {}
-          }
+          "reason": { "code": "flare_neutral", "params": {} }
         },
         "thumb": {
           "score": 75,
           "weight": 0.15,
-          "reason": {
-            "code": "thumb_neutral",
-            "params": {}
-          }
+          "reason": { "code": "thumb_neutral", "params": {} }
         },
         "weight": {
           "score": 65,
           "weight": 0.15,
-          "reason": {
-            "code": "weight_lighter",
-            "params": {
-              "deltaG": 3
-            }
-          }
+          "reason": { "code": "weight_lighter", "params": { "deltaG": 3 } }
         }
       }
     },
@@ -118,56 +88,32 @@
         "length": {
           "score": 85,
           "weight": 0.2,
-          "reason": {
-            "code": "length_long",
-            "params": {
-              "deltaMm": 3
-            }
-          }
+          "reason": { "code": "length_long", "params": { "deltaMm": 3 } }
         },
         "gripWidth": {
           "score": 78,
           "weight": 0.2,
-          "reason": {
-            "code": "width_wide",
-            "params": {
-              "deltaMm": 1
-            }
-          }
+          "reason": { "code": "width_wide", "params": { "deltaMm": 1 } }
         },
         "heightHump": {
           "score": 70,
           "weight": 0.15,
-          "reason": {
-            "code": "hump_matches_grip",
-            "params": {}
-          }
+          "reason": { "code": "hump_matches_grip", "params": {} }
         },
         "frontFlare": {
           "score": 60,
           "weight": 0.15,
-          "reason": {
-            "code": "flare_neutral",
-            "params": {}
-          }
+          "reason": { "code": "flare_neutral", "params": {} }
         },
         "thumb": {
           "score": 55,
           "weight": 0.15,
-          "reason": {
-            "code": "thumb_rest_unneeded",
-            "params": {}
-          }
+          "reason": { "code": "thumb_rest_unneeded", "params": {} }
         },
         "weight": {
           "score": 72,
           "weight": 0.15,
-          "reason": {
-            "code": "weight_heavier",
-            "params": {
-              "deltaG": 8
-            }
-          }
+          "reason": { "code": "weight_heavier", "params": { "deltaG": 8 } }
         }
       }
     }

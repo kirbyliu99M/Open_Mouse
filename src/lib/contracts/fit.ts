@@ -4,7 +4,8 @@
  * Numbers a user sees originate HERE, in the engine. Gemini (M5) receives this
  * object and writes prose about it; it never computes. Reasons are codes plus
  * numeric params so the UI and the LLM render the same engine-made facts.
- * Change this file only in a PR of its own.
+ * Change this file only in a contract PR of its own, carrying no more than the
+ * minimal consumer updates that keep `main` green.
  */
 import { z } from "zod";
 import { SIZES } from "./descriptors";
