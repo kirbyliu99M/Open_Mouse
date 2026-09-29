@@ -136,3 +136,15 @@ export function assembleUserLengthSubmission(input: {
     calibration: userLengthEvidenceSchema.parse(parsed.calibration),
   };
 }
+
+/**
+ * The hand a scan is submitted as. When the stated hand was only a default
+ * the user never chose (easy scan's "· auto" chip), the detected hand wins;
+ * a hand the user chose is always kept. Pure.
+ */
+export function submittedHand(
+  input: { readonly hand: "left" | "right"; readonly handIsAuto?: boolean },
+  detected: "left" | "right" | null,
+): "left" | "right" {
+  return input.handIsAuto && detected ? detected : input.hand;
+}

@@ -642,6 +642,7 @@ export default function EasyScanCamera({
         const pipelineResult = await runPhotoPipelineImpl({
           file,
           hand: handChipRef.current.hand,
+          handIsAuto: !handChipRef.current.locked,
           gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null

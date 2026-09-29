@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-25 · by: Codex (product-shell design)_
+_Last updated: 2026-09-29 · by: Claude (handedness fix)_
 
 ---
 
@@ -26,6 +26,8 @@ _Last updated: 2026-09-25 · by: Codex (product-shell design)_
 **Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
+
+**Field-test bug (Kirby, 2026-09-29): right hands detected as left, and blank-paper scans failing.** One cause behind both: `normalizeHandedness` swapped MediaPipe's label, which is wrong for palm-down rear-camera photos. Every right hand read as left, and the handedness gate then rejected the scan. Fix on branch `fix-handedness`: the label is no longer swapped, and while the hand chip is on "auto" the detected hand is used instead of failing. Verified in-browser on 4 photos; the only other gate that failed was PAPER_NOT_FOUND when Letter was chosen for an A4 sheet.
 
 **In flight:** live camera capture with on-screen cues (Kirby, 2026-09-25; spec `docs/design/camera-capture-2026-09-25/`, branch `m7-camera-capture`, Sonnet builder).
 
