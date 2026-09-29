@@ -173,6 +173,12 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("A close match for your palm grip"),
     ).toBeVisible();
+    // "Ready" previews model-written text, so it carries the source line.
+    await expect(
+      page.getByText(
+        "Written by Google's AI service from your measurements and scores. Your photo is never sent.",
+      ),
+    ).toBeVisible();
   });
 
   test("'Why this one' sits between the top pick and 'Show the other ranked mice' (item 5), with a card surface", async ({

@@ -2,6 +2,20 @@ import type { AnalysisState } from "./analysisState";
 import { joinHeadlineAndBody } from "./format";
 
 /**
+ * One line under model-written analysis text (`source === "model"`): who wrote
+ * it, what they were sent, and that a photo never leaves the phone. The text
+ * was written by Google's AI service, which was sent the user's derived
+ * measurements and scores (never a photo — see
+ * `src/server/analysis/input.ts`). This is a short notice, not the full
+ * third-party disclosure; that belongs on the /privacy page.
+ *
+ * Same vocabulary rule as the fallback note below: user-visible text says
+ * "Google's AI service", never "Gemini", "LLM", "model" or "fallback".
+ */
+export const ANALYSIS_AI_DISCLOSURE =
+  "Written by Google's AI service from your measurements and scores. Your photo is never sent.";
+
+/**
  * Optional slot for the written analysis (M5 `analysisResponseSchema`). Its
  * loading, rate-limited and error states never block or hide the numeric
  * results above — every message says so explicitly, per
@@ -107,6 +121,12 @@ export function AnalysisSlot({
         <p className="results-analysis-provenance" role="status">
           <InfoIcon />
           Generated automatically from your scores above.
+        </p>
+      )}
+      {source === "model" && (
+        <p className="results-analysis-provenance">
+          <InfoIcon />
+          {ANALYSIS_AI_DISCLOSURE}
         </p>
       )}
       {output.caveats.length > 0 && (

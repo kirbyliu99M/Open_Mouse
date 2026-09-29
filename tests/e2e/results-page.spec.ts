@@ -41,6 +41,10 @@ const READY_ANALYSIS_MODEL = {
   cached: false,
 };
 
+/** Under model-written text (AnalysisSlot's ANALYSIS_AI_DISCLOSURE). */
+const AI_DISCLOSURE =
+  "Written by Google's AI service from your measurements and scores. Your photo is never sent.";
+
 const READY_ANALYSIS_FALLBACK = {
   ...READY_ANALYSIS_MODEL,
   source: "fallback",
@@ -271,10 +275,54 @@ test.describe("/results/[scanId] — real results page", () => {
       page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
 
+    // Template-written text must not claim an AI wrote it.
+    await expect(page.getByText(AI_DISCLOSURE)).toHaveCount(0);
+
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
       expect(bodyText).not.toContain(forbidden);
     }
+  });
+
+  test("source disclosure: model-written analysis says Google's AI service wrote it from the measurements and scores and that the photo is never sent, without internal vocabulary", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const analysis = page.locator(".results-analysis-ready");
+    await expect(analysis).toBeVisible();
+    // Under the analysis text, after the lists it ends with.
+    await expect(analysis.getByText(AI_DISCLOSURE)).toBeVisible();
+    // Model-written text is not labelled as template-written.
+    await expect(
+      page.getByText("Generated automatically from your scores above."),
+    ).toHaveCount(0);
+
+    const bodyText = (await page.locator("body").innerText()).toLowerCase();
+    for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
+      expect(bodyText).not.toContain(forbidden);
+    }
+  });
+
+  test("source disclosure: the error state of the analysis slot makes no claim about who wrote it", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "internal error" }),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Written analysis" }),
+    ).toBeVisible();
+    await expect(page.getByText(AI_DISCLOSURE)).toHaveCount(0);
   });
 });
 
