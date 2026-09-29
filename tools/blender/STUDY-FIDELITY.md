@@ -1852,6 +1852,85 @@ What the failures show:
   `refine_study_geometry.py` gained an opt-in `--weighting groups` flag (default `uniform`, so
   M325s's reproduction is unchanged).
 
+#### D5a — study rebuild (Sonnet builder A)
+
+**Neither study delivered; M705 and M850L stay byte-identical (no public file changed).** Both
+fail the unrelaxed D1 gate.
+
+Method (fitting views only): catalogue L/W/H box, base at Z=0; voxel carving at <= 0.5 mm
+(`visual_hull_math.py`, 21 unit tests) against the frozen perspective cameras and masks at 1440 px;
+each duplicate group counts as one vote, so an official photo weighs as much as a whole
+third-party group. Rule and threshold chosen by leave-one-duplicate-group-out cross-validation
+on fitting views, scored with the gate's own renderer (`build_visual_hull.py`). M705: 7 groups,
+rule `any`, threshold 0, CV mean IoU 0.929. M850L: 5 groups, rule `majority`, threshold 0, CV mean
+0.947. Then marching cubes, Taubin smoothing with the base pinned (15 iterations, max move
+0.32 mm), Blender voxel Remesh to the budget (a direct decimate to 14,000 gave 9
+self-intersections), catalogue bbox calibration, UV transfer from the baseline (nearest face
+interpolated) with its material and texture bytes unchanged, Draco export
+(`export_visual_hull.py`). Depth cues: no separate depth-edge refinement was attempted.
+
+Mesh gates (re-imported GLB): M705 13,932 triangles, 0/0/0, bbox error 0.000003 mm, ground 0,
+support 26.4 mm (baseline 11.4); M850L 13,940 triangles, 0/0/0, 0.000002 mm, 0, 31.0 mm.
+UV stretch percentiles are in `out/d5/<slug>/export-geometry.json`; not fixed.
+
+The frozen `evaluate_study_geometry.py` asserts identical faces, which a rebuild cannot meet, and
+was left untouched. `evaluate_visual_hull_geometry.py` re-implements the same computation from the
+same functions (`evaluation_raster`, `silhouette_iou`, `delivery_gate`), same frozen cameras, 1440 px.
+
+M705 gate: FAIL (`A fitted view drops by more than 0.002`, `Held-out IoU does not improve`). Mean
+fitted 0.9531 -> 0.9687 (improves), worst fitted delta -0.0148
+(gallery-1 top), held-out -0.0106. **M705's held-out photo
+(gallery 2) had already been seen after two earlier attempts**; it was not used to choose anything
+here. Official gallery photos alone: gallery-1 -0.0148, gallery-3 +0.0092, gallery-4 -0.0013, held-out
+-0.0106; so two of three official fitted views improve or hold, the top view does not.
+
+M850L gate: FAIL (per-view drop, mean does not improve, held-out does not improve). Mean fitted
+0.9642 -> 0.9636, worst -0.0445 (bottom, extra-3), top -0.0372,
+held-out -0.0468. Side views gain (+0.023 to +0.032) while the top
+and bottom views, which the baseline already fits to 0.995, lose about 0.04.
+
+Why: the baseline loft was fitted per view to 0.995 on top/bottom; a voxel hull plus remesh
+cannot match that within 0.002, the same structural limit as the earlier deformation attempts.
+Not tried (out of budget): a hull constrained to keep the top and bottom outlines, or a hybrid
+that keeps the baseline where it already fits. No gate was relaxed.
+
+Patent USD1002618S1 (figs 5-10, sheets 5-9): downloaded to `out/d5/`, viewed. Not verified as
+M850L and **not used**: it shows a large angled thumb flange, side buttons and a thumb-wheel
+strip that the M850L photos lack, and its filing date fits the M650. No outline extraction or IoU
+comparison was done.
+
+| M705 view                     | Role     | Baseline IoU | Rebuild IoU |   Delta |
+| ----------------------------- | -------- | -----------: | ----------: | ------: |
+| m705-gallery-1.png            | fit      |       0.9959 |      0.9811 | -0.0148 |
+| m705-gallery-2.png            | held-out |       0.9556 |      0.9450 | -0.0106 |
+| m705-gallery-3.png            | fit      |       0.9587 |      0.9679 | +0.0092 |
+| m705-gallery-4.png            | fit      |       0.9844 |      0.9831 | -0.0013 |
+| supplemental/techwalls-0.jpg  | fit      |       0.9464 |      0.9561 | +0.0098 |
+| supplemental/techwalls-1.jpg  | fit      |       0.9464 |      0.9564 | +0.0100 |
+| supplemental/techwalls-2.jpg  | fit      |       0.9456 |      0.9557 | +0.0101 |
+| supplemental/techwalls-6.jpg  | fit      |       0.9547 |      0.9694 | +0.0147 |
+| supplemental/techwalls-7.jpg  | fit      |       0.9556 |      0.9719 | +0.0163 |
+| supplemental/techwalls-8.jpg  | fit      |       0.9556 |      0.9713 | +0.0157 |
+| supplemental/techwalls-9.jpg  | fit      |       0.9599 |      0.9762 | +0.0163 |
+| supplemental/techwalls-10.jpg | fit      |       0.9606 |      0.9768 | +0.0162 |
+| supplemental/techwalls-11.jpg | fit      |       0.9604 |      0.9765 | +0.0161 |
+| supplemental/techwalls-12.jpg | fit      |       0.9247 |      0.9631 | +0.0385 |
+| supplemental/techwalls-13.jpg | fit      |       0.9228 |      0.9606 | +0.0378 |
+| supplemental/techwalls-14.jpg | fit      |       0.9252 |      0.9649 | +0.0397 |
+
+| M850L view  | Role     | Baseline IoU | Rebuild IoU |   Delta |
+| ----------- | -------- | -----------: | ----------: | ------: |
+| top.png     | fit      |       0.9959 |      0.9586 | -0.0372 |
+| left.png    | fit      |       0.9552 |      0.9797 | +0.0245 |
+| extra-1.png | fit      |       0.9187 |      0.9502 | +0.0315 |
+| extra-3.png | fit      |       0.9952 |      0.9507 | -0.0445 |
+| extra-5.png | held-out |       0.9548 |      0.9080 | -0.0468 |
+| extra-6.png | fit      |       0.9560 |      0.9791 | +0.0230 |
+
+Evidence: `out/d5/<slug>/silhouette-evaluation.json`, `silhouette-comparison.png` (photo | baseline |
+rebuild for every view), `candidate.glb`. The four-view contact sheet was not produced. No
+installer was written because nothing passed.
+
 ## Open issues (candidates for Phase C)
 
 | #   | Issue                                                                                                          | Status (2026-09-28)                                                                                                                   |
@@ -1892,6 +1971,8 @@ What the failures show:
 | 2026-09-29 | Kirby: Sonnet subagents may assist. **D4 goes to a Sonnet builder** in its own worktree `m4a-d4-remesh` (branch from `dbdd5fd`, read-only junctions to this worktree's reference data), with the same D4 gate. Claude audits and pushes                                                                                                                                                                                                                                                                                                             | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-29 Sonnet builder A (D5a, `m4a-d5-studies`): **M705 and M850L visual-hull rebuilds fail the D1 gate; nothing installed.** Mesh gates pass (13.9k triangles, 0/0/0, support 26 and 31 mm). M705 mean fitted 0.9531 -> 0.9687 but official top -0.0148 and held-out -0.0106 (held-out already seen twice before); M850L mean 0.9642 -> 0.9636, top -0.037, bottom -0.044, held-out -0.047. Patent USD1002618S1 not used. See "D5a" under Results.
 
 - 2026-09-29 Claude: **audited and merged D4 (`m4a-d4-remesh`, `5a0f44d`, `d96c511`).** No public asset changed, nothing from `out/` committed, 102 unit tests pass with 12 Blender skips, prettier clean. Accepted as a documented negative result. Wheel crowns and G903's channel need feature-aware topology: a separate wheel loop with a fixed rim curve, or fairing that treats the slot walls as a hard boundary. Moving or subdividing vertices is not enough. Silhouettes are already ≥ 0.9877 per view, so the four shells stay as they are unless Kirby asks for that follow-up.
 
