@@ -15,7 +15,11 @@ import {
   type IdentifiedPhoto,
   type KitCode,
 } from "../../src/lib/learning/kit";
-import { QR_QUIET_MODULES, qrDarkRuns, qrMatrix } from "../../src/lib/learning/qr";
+import {
+  QR_QUIET_MODULES,
+  qrDarkRuns,
+  qrMatrix,
+} from "../../src/lib/learning/qr";
 import {
   KIT_PAGE_HEIGHT_MM,
   KIT_PAGE_WIDTH_MM,
@@ -29,7 +33,12 @@ import { computeSheetLayout } from "../../src/client/sheet/layout";
 const gestureCode = (
   gesture: (typeof GESTURE_CODES)[number],
   hand: "right" | "left",
-): KitCode => ({ kind: "gesture", version: LEARNING_KIT_VERSION, gesture, hand });
+): KitCode => ({
+  kind: "gesture",
+  version: LEARNING_KIT_VERSION,
+  gesture,
+  hand,
+});
 const participantCode = (participant: string): KitCode => ({
   kind: "participant",
   version: LEARNING_KIT_VERSION,
@@ -37,7 +46,10 @@ const participantCode = (participant: string): KitCode => ({
 });
 
 const ALL_CODES: KitCode[] = [
-  ...GESTURE_CODES.flatMap((g) => [gestureCode(g, "right"), gestureCode(g, "left")]),
+  ...GESTURE_CODES.flatMap((g) => [
+    gestureCode(g, "right"),
+    gestureCode(g, "left"),
+  ]),
   participantCode("P001"),
   participantCode("P999"),
 ];
@@ -55,13 +67,18 @@ describe("gesture catalogue", () => {
 
   it("takes five repeats of the M2 gate pose and at least three of every other", () => {
     expect(GESTURES[0]?.shots).toBe(5);
-    for (const g of GESTURES.slice(1)) expect(g.shots).toBeGreaterThanOrEqual(3);
+    for (const g of GESTURES.slice(1))
+      expect(g.shots).toBeGreaterThanOrEqual(3);
     expect(shotsPerHand()).toBe(23);
   });
 
   it("makes no medical claims", () => {
-    const text = GESTURES.flatMap((g) => [g.name, g.yields, ...g.steps]).join(" ");
-    expect(text).not.toMatch(/diagnos|carpal|tunnel|injur|treat|prevent|cure|RSI|pain/i);
+    const text = GESTURES.flatMap((g) => [g.name, g.yields, ...g.steps]).join(
+      " ",
+    );
+    expect(text).not.toMatch(
+      /diagnos|carpal|tunnel|injur|treat|prevent|cure|RSI|pain/i,
+    );
   });
 });
 
@@ -149,10 +166,13 @@ function renderQr(text: string, pxPerModule = 6) {
 }
 
 describe("printed QR codes", () => {
-  it.each(ALL_CODES.map((c) => kitCodeUrl(c)))("%s decodes back to itself", (url) => {
-    const { data, side } = renderQr(url);
-    expect(jsQR(data, side, side)?.data).toBe(url);
-  });
+  it.each(ALL_CODES.map((c) => kitCodeUrl(c)))(
+    "%s decodes back to itself",
+    (url) => {
+      const { data, side } = renderQr(url);
+      expect(jsQR(data, side, side)?.data).toBe(url);
+    },
+  );
 
   it("stays at version 3 (29 modules) so a 24 mm code has ≥ 0.6 mm modules", () => {
     for (const code of ALL_CODES) {
@@ -282,8 +302,13 @@ describe("sorting a folder of photos", () => {
 });
 
 const overlaps = (a: Rect, b: Rect, gap = 0) =>
-  a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
-const markerRect = (m: { corners: readonly { x: number; y: number }[] }): Rect => ({
+  a.x < b.x + b.w + gap &&
+  b.x < a.x + a.w + gap &&
+  a.y < b.y + b.h + gap &&
+  b.y < a.y + a.h + gap;
+const markerRect = (m: {
+  corners: readonly { x: number; y: number }[];
+}): Rect => ({
   x: m.corners[0]!.x,
   y: m.corners[0]!.y,
   w: m.corners[1]!.x - m.corners[0]!.x,
@@ -292,24 +317,33 @@ const markerRect = (m: { corners: readonly { x: number; y: number }[] }): Rect =
 
 describe("kit page layouts", () => {
   it("keeps the product sheet's marker geometry on top-down pages", () => {
-    expect(computeTopDownKitLayout().markers).toEqual(computeSheetLayout().markers);
+    expect(computeTopDownKitLayout().markers).toEqual(
+      computeSheetLayout().markers,
+    );
   });
 
   it.each([
     ["top-down", computeTopDownKitLayout()],
     ["side", computeSideKitLayout()],
-  ] as const)("%s page: QR codes, markers and title never touch", (_, layout) => {
-    const boxes = [...layout.qr, ...layout.markers.map(markerRect), layout.titleBox];
-    for (let i = 0; i < boxes.length; i++)
-      for (let j = i + 1; j < boxes.length; j++)
-        expect(overlaps(boxes[i]!, boxes[j]!, 3)).toBe(false);
-    for (const b of boxes) {
-      expect(b.x).toBeGreaterThanOrEqual(15);
-      expect(b.x + b.w).toBeLessThanOrEqual(KIT_PAGE_WIDTH_MM - 15);
-      expect(b.y).toBeGreaterThanOrEqual(0);
-      expect(b.y + b.h).toBeLessThanOrEqual(KIT_PAGE_HEIGHT_MM);
-    }
-  });
+  ] as const)(
+    "%s page: QR codes, markers and title never touch",
+    (_, layout) => {
+      const boxes = [
+        ...layout.qr,
+        ...layout.markers.map(markerRect),
+        layout.titleBox,
+      ];
+      for (let i = 0; i < boxes.length; i++)
+        for (let j = i + 1; j < boxes.length; j++)
+          expect(overlaps(boxes[i]!, boxes[j]!, 3)).toBe(false);
+      for (const b of boxes) {
+        expect(b.x).toBeGreaterThanOrEqual(15);
+        expect(b.x + b.w).toBeLessThanOrEqual(KIT_PAGE_WIDTH_MM - 15);
+        expect(b.y).toBeGreaterThanOrEqual(0);
+        expect(b.y + b.h).toBeLessThanOrEqual(KIT_PAGE_HEIGHT_MM);
+      }
+    },
+  );
 
   it("top-down QR codes sit on the top flap, away from the hand", () => {
     const layout = computeTopDownKitLayout();

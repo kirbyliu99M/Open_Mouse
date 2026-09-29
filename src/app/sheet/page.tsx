@@ -1,13 +1,10 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
 import { PrintButton } from "./PrintButton";
 import { ID1_CARD_MM, SHEET } from "@/lib/contracts/measurement";
-import {
-  ARUCO_MARKER_MODULES,
-  markerBitGrid,
-} from "@/client/sheet/aruco-codes";
-import { computeSheetLayout, type MarkerLayout } from "@/client/sheet/layout";
+import { MarkerGlyph } from "@/components/sheet/MarkerGlyph";
+import { computeSheetLayout } from "@/client/sheet/layout";
 import "./sheet.css";
 
 export const metadata: Metadata = {
@@ -18,57 +15,6 @@ export const metadata: Metadata = {
 
 const TICK_INTERVAL_MM = 10;
 const TICK_LENGTH_MM = 3;
-
-function MarkerGlyph({ marker }: { marker: MarkerLayout }) {
-  const grid = markerBitGrid(marker.id);
-  const moduleSizeMm = marker.sizeMm / ARUCO_MARKER_MODULES;
-  const outerTopLeft = marker.corners[0];
-  const isFlat = (SHEET.flatMarkerIds as readonly number[]).includes(marker.id);
-  // Point the id label into the marker square's interior so it never
-  // strays into the page margin.
-  const labelY = isFlat
-    ? marker.id === SHEET.flatMarkerIds[2] ||
-      marker.id === SHEET.flatMarkerIds[3]
-      ? marker.corners[0].y - 2
-      : marker.corners[3].y + 4.5
-    : marker.corners[3].y + 4.5;
-
-  return (
-    <g>
-      <rect
-        x={outerTopLeft.x}
-        y={outerTopLeft.y}
-        width={marker.sizeMm}
-        height={marker.sizeMm}
-        fill="black"
-      />
-      {grid.map((row, gy) =>
-        row.map(
-          (isWhite, gx) =>
-            isWhite && (
-              <rect
-                key={`${marker.id}-${gx}-${gy}`}
-                x={outerTopLeft.x + (gx + 1) * moduleSizeMm}
-                y={outerTopLeft.y + (gy + 1) * moduleSizeMm}
-                width={moduleSizeMm}
-                height={moduleSizeMm}
-                fill="white"
-              />
-            ),
-        ),
-      )}
-      <text
-        x={marker.centre.x}
-        y={labelY}
-        fontSize={3.2}
-        textAnchor="middle"
-        fill="black"
-      >
-        id {marker.id}
-      </text>
-    </g>
-  );
-}
 
 export default function SheetPage() {
   const layout = computeSheetLayout();

@@ -12,7 +12,11 @@
  * tall) would hide them. The side page folds 100 mm from the top, so its
  * markers and QR code stand 55–80 mm above the table, clear of the hand.
  */
-import { computeSheetLayout, type MarkerLayout, type Point } from "../../client/sheet/layout";
+import {
+  computeSheetLayout,
+  type MarkerLayout,
+  type Point,
+} from "../../client/sheet/layout";
 import type { Camera } from "./kit";
 
 export const KIT_PAGE_WIDTH_MM = 210;
@@ -130,7 +134,9 @@ export function computeSideKitLayout(): KitPageLayout {
 }
 
 export function computeKitLayout(camera: Camera): KitPageLayout {
-  return camera === "above" ? computeTopDownKitLayout() : computeSideKitLayout();
+  return camera === "above"
+    ? computeTopDownKitLayout()
+    : computeSideKitLayout();
 }
 
 /** Height of a side-page point above the table once the flap is folded up. */

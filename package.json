@@ -27,7 +27,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "m2:gate-replay": "tsx scripts/m2-gate-replay.ts",
     "paper:bench": "tsx scripts/paper-quad-bench.ts",
-    "classify:descriptors": "tsx scripts/classify-descriptors.ts"
+    "classify:descriptors": "tsx scripts/classify-descriptors.ts",
+    "learn:sort": "tsx scripts/learn-sort.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

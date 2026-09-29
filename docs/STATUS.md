@@ -3,7 +3,7 @@
 **Every PR updates this file — Claude's and Codex's.** It is the single source of
 truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-25 · by: Codex (product-shell design)_
+_Last updated: 2026-09-29 · by: Claude (learning kit; UI/UX audit)_
 
 ---
 
@@ -27,7 +27,7 @@ _Last updated: 2026-09-25 · by: Codex (product-shell design)_
 
 **Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
 
-**In flight:** live camera capture with on-screen cues (Kirby, 2026-09-25; spec `docs/design/camera-capture-2026-09-25/`, branch `m7-camera-capture`, Sonnet builder).
+**In flight (2026-09-29):** **learning kit** (branch `learning-kit`, `docs/learning/README.md`). It prints QR-coded pages for seven hand poses per hand, plus participant cards, and ships an on-device photo checker (`/learn/check`) and a folder sorter (`npm run learn:sort`). It produces the M2 ground truth and paired marker/paper-edge samples for tuning blank paper. Needs an independent review. **UI/UX audit** (branch `audit-uiux-2026-09-29`, `docs/reviews/uiux-audit-2026-09-29.md`): 6 P1s. The first is that the detected hand is reversed for palm-down photos (measured on 3 real photos).
 
 **Design direction (Kirby, 2026-09-25):** main page with mouse-shape concepts and simple sketch motion, then functional pages, login, and a side menu. The new blank-paper flow and navigation are recorded in `docs/design/product-shell-2026-09-25/`. The older printed-sheet journey and camera spec need copy and flow updates before implementation is considered current.
 
