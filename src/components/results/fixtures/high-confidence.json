@@ -1,8 +1,17 @@
 {
   "scanId": "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d",
   "engineVersion": "fit-v0-provisional",
-  "gripStyle": { "stated": "claw", "predicted": "claw", "used": "claw" },
-  "targets": { "lengthMm": 120, "gripWidthMm": 64, "heightMm": 38 },
+  "hand": "right",
+  "gripStyle": {
+    "stated": "claw",
+    "predicted": "claw",
+    "used": "claw"
+  },
+  "targets": {
+    "lengthMm": 120,
+    "gripWidthMm": 64,
+    "heightMm": 38
+  },
   "excluded": [],
   "results": [
     {
@@ -23,32 +32,58 @@
         "length": {
           "score": 88,
           "weight": 0.2,
-          "reason": { "code": "length_long", "params": { "deltaMm": 5 } }
+          "reason": {
+            "code": "length_long",
+            "params": {
+              "deltaMm": 5
+            }
+          }
         },
         "gripWidth": {
           "score": 92,
           "weight": 0.2,
-          "reason": { "code": "width_ideal", "params": { "deltaMm": -0.5 } }
+          "reason": {
+            "code": "width_ideal",
+            "params": {
+              "deltaMm": -0.5
+            }
+          }
         },
         "heightHump": {
           "score": 85,
           "weight": 0.15,
-          "reason": { "code": "height_ideal", "params": { "deltaMm": 2 } }
+          "reason": {
+            "code": "height_ideal",
+            "params": {
+              "deltaMm": 2
+            }
+          }
         },
         "frontFlare": {
           "score": 95,
           "weight": 0.15,
-          "reason": { "code": "flare_supports_fingers", "params": {} }
+          "reason": {
+            "code": "flare_supports_fingers",
+            "params": {}
+          }
         },
         "thumb": {
           "score": 80,
           "weight": 0.15,
-          "reason": { "code": "thumb_neutral", "params": {} }
+          "reason": {
+            "code": "thumb_neutral",
+            "params": {}
+          }
         },
         "weight": {
           "score": 96,
           "weight": 0.15,
-          "reason": { "code": "weight_in_range", "params": { "deltaG": 2 } }
+          "reason": {
+            "code": "weight_in_range",
+            "params": {
+              "deltaG": 2
+            }
+          }
         }
       }
     },
@@ -70,32 +105,56 @@
         "length": {
           "score": 70,
           "weight": 0.2,
-          "reason": { "code": "length_long", "params": { "deltaMm": 8 } }
+          "reason": {
+            "code": "length_long",
+            "params": {
+              "deltaMm": 8
+            }
+          }
         },
         "gripWidth": {
           "score": 65,
           "weight": 0.2,
-          "reason": { "code": "width_wide", "params": { "deltaMm": 4 } }
+          "reason": {
+            "code": "width_wide",
+            "params": {
+              "deltaMm": 4
+            }
+          }
         },
         "heightHump": {
           "score": 80,
           "weight": 0.15,
-          "reason": { "code": "hump_matches_grip", "params": {} }
+          "reason": {
+            "code": "hump_matches_grip",
+            "params": {}
+          }
         },
         "frontFlare": {
           "score": 75,
           "weight": 0.15,
-          "reason": { "code": "flare_neutral", "params": {} }
+          "reason": {
+            "code": "flare_neutral",
+            "params": {}
+          }
         },
         "thumb": {
           "score": 90,
           "weight": 0.15,
-          "reason": { "code": "thumb_rest_supports", "params": {} }
+          "reason": {
+            "code": "thumb_rest_supports",
+            "params": {}
+          }
         },
         "weight": {
           "score": 97,
           "weight": 0.15,
-          "reason": { "code": "weight_in_range", "params": { "deltaG": 1 } }
+          "reason": {
+            "code": "weight_in_range",
+            "params": {
+              "deltaG": 1
+            }
+          }
         }
       }
     },
@@ -117,32 +176,56 @@
         "length": {
           "score": 95,
           "weight": 0.2,
-          "reason": { "code": "length_ideal", "params": { "deltaMm": 2 } }
+          "reason": {
+            "code": "length_ideal",
+            "params": {
+              "deltaMm": 2
+            }
+          }
         },
         "gripWidth": {
           "score": 82,
           "weight": 0.2,
-          "reason": { "code": "width_wide", "params": { "deltaMm": 2 } }
+          "reason": {
+            "code": "width_wide",
+            "params": {
+              "deltaMm": 2
+            }
+          }
         },
         "heightHump": {
           "score": 55,
           "weight": 0.15,
-          "reason": { "code": "hump_mismatch_grip", "params": {} }
+          "reason": {
+            "code": "hump_mismatch_grip",
+            "params": {}
+          }
         },
         "frontFlare": {
           "score": 50,
           "weight": 0.15,
-          "reason": { "code": "flare_crowds_fingers", "params": {} }
+          "reason": {
+            "code": "flare_crowds_fingers",
+            "params": {}
+          }
         },
         "thumb": {
           "score": 60,
           "weight": 0.15,
-          "reason": { "code": "thumb_rest_unneeded", "params": {} }
+          "reason": {
+            "code": "thumb_rest_unneeded",
+            "params": {}
+          }
         },
         "weight": {
           "score": 68,
           "weight": 0.15,
-          "reason": { "code": "weight_heavier", "params": { "deltaG": 13 } }
+          "reason": {
+            "code": "weight_heavier",
+            "params": {
+              "deltaG": 13
+            }
+          }
         }
       }
     },
@@ -164,32 +247,56 @@
         "length": {
           "score": 99,
           "weight": 0.2,
-          "reason": { "code": "length_ideal", "params": { "deltaMm": 0 } }
+          "reason": {
+            "code": "length_ideal",
+            "params": {
+              "deltaMm": 0
+            }
+          }
         },
         "gripWidth": {
           "score": 96,
           "weight": 0.2,
-          "reason": { "code": "width_ideal", "params": { "deltaMm": -1 } }
+          "reason": {
+            "code": "width_ideal",
+            "params": {
+              "deltaMm": -1
+            }
+          }
         },
         "heightHump": {
           "score": 40,
           "weight": 0.15,
-          "reason": { "code": "hump_mismatch_grip", "params": {} }
+          "reason": {
+            "code": "hump_mismatch_grip",
+            "params": {}
+          }
         },
         "frontFlare": {
           "score": 35,
           "weight": 0.15,
-          "reason": { "code": "flare_crowds_fingers", "params": {} }
+          "reason": {
+            "code": "flare_crowds_fingers",
+            "params": {}
+          }
         },
         "thumb": {
           "score": 45,
           "weight": 0.15,
-          "reason": { "code": "thumb_rest_unneeded", "params": {} }
+          "reason": {
+            "code": "thumb_rest_unneeded",
+            "params": {}
+          }
         },
         "weight": {
           "score": 55,
           "weight": 0.15,
-          "reason": { "code": "weight_lighter", "params": { "deltaG": 8 } }
+          "reason": {
+            "code": "weight_lighter",
+            "params": {
+              "deltaG": 8
+            }
+          }
         }
       }
     }

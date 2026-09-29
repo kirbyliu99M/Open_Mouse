@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EXCLUSION_REASONS,
   SUBSCORES,
   fitPreferencesSchema,
   fitResponseSchema,
@@ -34,6 +35,7 @@ const entry = {
 const valid = {
   scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f",
   engineVersion: "fit-v0-provisional",
+  hand: "right",
   gripStyle: { stated: null, predicted: "claw", used: "claw" },
   targets: { lengthMm: 118, gripWidthMm: 62, heightMm: 39 },
   excluded: [
@@ -50,6 +52,30 @@ const valid = {
 describe("fitResponseSchema", () => {
   it("accepts a response with unknown descriptors as null sub-scores", () => {
     expect(fitResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  // #62: the results page must not depend on sessionStorage to know the hand.
+  it("requires the scan's hand", () => {
+    const withoutHand: Record<string, unknown> = { ...valid };
+    delete withoutHand.hand;
+    expect(fitResponseSchema.safeParse(withoutHand).success).toBe(false);
+    expect(
+      fitResponseSchema.safeParse({ ...valid, hand: "both" }).success,
+    ).toBe(false);
+  });
+
+  it.each(EXCLUSION_REASONS)("accepts the %s exclusion reason", (reason) => {
+    const excluded = [{ ...valid.excluded[0], reason }];
+    expect(fitResponseSchema.safeParse({ ...valid, excluded }).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects an exclusion reason outside the contract", () => {
+    const excluded = [{ ...valid.excluded[0], reason: "too_heavy" }];
+    expect(fitResponseSchema.safeParse({ ...valid, excluded }).success).toBe(
+      false,
+    );
   });
 
   it.each([

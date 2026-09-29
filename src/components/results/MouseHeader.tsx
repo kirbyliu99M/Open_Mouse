@@ -1,4 +1,4 @@
-import { LABELS } from "@/lib/contracts/descriptors";
+import { SIZE_LABELS } from "@/lib/contracts/descriptors";
 import type { FitEntry } from "@/lib/contracts/fit";
 import { formatConfidence, formatWeight } from "./format";
 
@@ -16,7 +16,7 @@ export function MouseHeader({ entry }: { entry: FitEntry }) {
       <dl className="results-mouseHeader-stats">
         <div>
           <dt>Size</dt>
-          <dd>{LABELS[mouse.size] ?? mouse.size}</dd>
+          <dd>{SIZE_LABELS[mouse.size]}</dd>
         </div>
         <div>
           <dt>Weight</dt>

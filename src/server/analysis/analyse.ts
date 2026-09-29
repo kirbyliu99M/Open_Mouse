@@ -47,6 +47,7 @@ export interface AnalyseOptions {
 const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
   wrong_hand: "doesn't fit your handedness",
   vertical_form_factor: "vertical shape, excluded from this comparison",
+  trackball_form_factor: "trackball, excluded from this comparison",
 };
 
 const PROVISIONAL_NOTE =

@@ -1,8 +1,8 @@
-import type { FitPreferences } from "../../lib/contracts/fit";
+import type { ExclusionReason, FitPreferences } from "../../lib/contracts/fit";
 import { VERTICAL_FORM_FACTOR_RATIO } from "./coefficients";
 import type { CatalogueMouse } from "./types";
 
-export type ExclusionReason = "wrong_hand" | "vertical_form_factor";
+export type { ExclusionReason };
 
 /**
  * §5 (revised): right-hand scan excludes left-handed mice; left-hand scan
