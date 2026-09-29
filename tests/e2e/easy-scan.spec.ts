@@ -76,6 +76,61 @@ test("the in-sheet hand toggle reruns the same photo with an explicit hand and u
   ).toBe(before);
 });
 
+test("the hand chip is disabled while a photo is processing, and drops 'auto' once the user has chosen", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+
+  await page.addInitScript(() => {
+    const demoWindow = window as Window & {
+      __easyScanMismatchHold?: Promise<void>;
+      __releaseEasyScanMismatch?: () => void;
+    };
+    demoWindow.__easyScanMismatchHold = new Promise<void>((resolve) => {
+      demoWindow.__releaseEasyScanMismatch = resolve;
+    });
+  });
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  const chip = page.locator(".easyScanTopRight .easyHandChip");
+  await expect(chip).toHaveText(/right hand · auto/i);
+
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  // Processing: the pipeline already read the hand, so the chip must not
+  // change it underneath the running scan.
+  await expect(chip).toBeDisabled();
+  await chip.click({ force: true });
+  await expect(chip).toHaveText(/right hand · auto/i);
+
+  await page.evaluate(() =>
+    (
+      window as Window & { __releaseEasyScanMismatch?: () => void }
+    ).__releaseEasyScanMismatch?.(),
+  );
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  await expect(sheet).toContainText("Tap the hand button below.");
+  await expect(chip).toBeEnabled();
+
+  await sheet.locator(".easyHandChipInSheet").click();
+  await expect(sheet).toContainText("Hand choice updated.");
+  // Chosen by the user now: no "· auto" on the chip.
+  await expect(chip).toHaveText(/^\s*left hand\s*$/i);
+  // The in-sheet toggle is only offered for a hand mismatch, which is fixed.
+  await expect(sheet.locator(".easyHandChipInSheet")).toHaveCount(0);
+  // The tap during processing started no extra run: 1 upload + 1 re-check.
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __easyScanMismatchCalls?: unknown[] })
+          .__easyScanMismatchCalls?.length,
+    ),
+  ).toBe(2);
+});
+
 test.describe("/scan/easy — no setup page, hand chip and first-run tip", () => {
   test("the tip and hand chip render immediately — no primer, no 'Turn on camera' click needed", async ({
     page,

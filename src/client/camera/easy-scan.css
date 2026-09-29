@@ -37,6 +37,10 @@
   font-size: 0.875rem;
   cursor: pointer;
 }
+.easyHandChip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .easyHandChipInSheet {
   margin-bottom: 1.25rem;
   background: var(--scan-fg, #1c1c1e);

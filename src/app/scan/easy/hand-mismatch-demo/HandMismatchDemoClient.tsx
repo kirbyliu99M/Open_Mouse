@@ -8,6 +8,8 @@ import type {
 
 type DemoWindow = Window & {
   __easyScanMismatchCalls?: RunPhotoPipelineInput[];
+  /** Test hook: while unresolved, the fake pipeline stays "processing". */
+  __easyScanMismatchHold?: Promise<void>;
 };
 
 async function mismatchPipeline(
@@ -16,6 +18,7 @@ async function mismatchPipeline(
   const demoWindow = window as DemoWindow;
   const calls = (demoWindow.__easyScanMismatchCalls ??= []);
   calls.push(input);
+  await demoWindow.__easyScanMismatchHold;
   return {
     status: "error",
     errors: [

@@ -70,6 +70,8 @@ import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
+  canToggleHandChip,
+  handChipLabel,
   toggleHandChip,
   type HandChipState,
 } from "./handInference";
@@ -90,6 +92,7 @@ import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import { parseUserLength } from "../photo/user-length";
+import { noPaperEntryLabel } from "./noPaperEntry";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -332,21 +335,23 @@ const GRIP_OPTIONS: readonly { value: GripStyle | undefined; label: string }[] =
 function HandToggle({
   state,
   onClick,
+  disabled = false,
   inSheet = false,
 }: {
   readonly state: HandChipState;
   readonly onClick: () => void;
+  readonly disabled?: boolean;
   readonly inSheet?: boolean;
 }) {
-  const label = `${state.hand === "left" ? "Left" : "Right"} hand${state.locked ? "" : " · auto"}`;
   return (
     <button
       type="button"
       className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
       aria-pressed={state.locked}
+      disabled={disabled}
       onClick={onClick}
     >
-      <HandIcon width={16} height={16} /> {label}
+      <HandIcon width={16} height={16} /> {handChipLabel(state)}
     </button>
   );
 }
@@ -831,6 +836,7 @@ export default function EasyScanCamera({
   }, []);
 
   const toggleHand = useCallback(() => {
+    if (!canToggleHandChip(resultRef.current.kind)) return;
     const next = toggleHandChip(handChipRef.current);
     handChipRef.current = next;
     setHandChip(next);
@@ -1054,6 +1060,10 @@ export default function EasyScanCamera({
       ? "Got it — hold still"
       : (cue?.message ?? "Point the camera at the paper");
 
+  // Null while the typed-hand-length feature flag is off: every "no paper"
+  // entry below renders only when this is non-null.
+  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null);
+
   if (
     (deviceFit === "desktop" || deviceFit === "in-app") &&
     result.kind === "none"
@@ -1096,7 +1106,11 @@ export default function EasyScanCamera({
           >
             <HelpCircleIcon width={20} height={20} />
           </button>
-          <HandToggle state={handChip} onClick={toggleHand} />
+          <HandToggle
+            state={handChip}
+            onClick={toggleHand}
+            disabled={!canToggleHandChip(result.kind)}
+          />
         </div>
       </div>
 
@@ -1222,15 +1236,15 @@ export default function EasyScanCamera({
             >
               Upload a photo
             </label>
-            <button
-              type="button"
-              className="easyTipNoPaper"
-              onClick={startLengthStep}
-            >
-              {userLengthMm === null
-                ? "No paper? Use a ruler instead"
-                : "Edit hand length"}
-            </button>
+            {noPaperLabel && (
+              <button
+                type="button"
+                className="easyTipNoPaper"
+                onClick={startLengthStep}
+              >
+                {noPaperLabel}
+              </button>
+            )}
           </div>
         )}
 
@@ -1356,15 +1370,15 @@ export default function EasyScanCamera({
                 </svg>
               </label>
             </div>
-            <button
-              type="button"
-              className="easyNoPaperLink"
-              onClick={startLengthStep}
-            >
-              {userLengthMm === null
-                ? "No paper? Use a ruler instead"
-                : "Edit hand length"}
-            </button>
+            {noPaperLabel && (
+              <button
+                type="button"
+                className="easyNoPaperLink"
+                onClick={startLengthStep}
+              >
+                {noPaperLabel}
+              </button>
+            )}
           </>
         )}
 
@@ -1624,13 +1638,15 @@ export default function EasyScanCamera({
         >
           Got it
         </button>
-        <button
-          type="button"
-          className="easyTipNoPaper"
-          onClick={startLengthStep}
-        >
-          No paper? Use a ruler instead
-        </button>
+        {noPaperLabel && (
+          <button
+            type="button"
+            className="easyTipNoPaper"
+            onClick={startLengthStep}
+          >
+            {noPaperLabel}
+          </button>
+        )}
         <p className="easyTipFinePrint">
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>

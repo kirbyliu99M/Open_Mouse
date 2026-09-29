@@ -2,29 +2,41 @@ import { describe, expect, it } from "vitest";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
+  canToggleHandChip,
+  handChipLabel,
   toggleHandChip,
   type HandChipState,
 } from "../../src/client/camera/handInference";
-import { resolvePipelineHand } from "../../src/client/photo/pipeline";
+import { resolvePipelineHand } from "../../src/client/photo/hand";
 import { runPaperEdgeHandGates } from "../../src/client/photo/gates";
 
 describe("easy-scan hand chip state", () => {
   it("uses a detected left hand for an untouched right-hand default", () => {
-    expect(resolvePipelineHand("right", "left", false)).toEqual({
-      stated: undefined,
-      submission: "left",
-    });
+    expect(
+      resolvePipelineHand({
+        selected: "right",
+        detected: "left",
+        explicit: false,
+      }),
+    ).toEqual({ stated: undefined, submitted: "left" });
   });
 
   it("keeps an explicit right-hand choice when the photo detects left", () => {
-    expect(resolvePipelineHand("right", "left", true)).toEqual({
-      stated: "right",
-      submission: "right",
-    });
+    expect(
+      resolvePipelineHand({
+        selected: "right",
+        detected: "left",
+        explicit: true,
+      }),
+    ).toEqual({ stated: "right", submitted: "right" });
   });
   it("does not report a mismatch for an untouched chip and a detected left hand", () => {
     const chip = INITIAL_HAND_CHIP_STATE;
-    const resolved = resolvePipelineHand(chip.hand, "left", chip.locked);
+    const resolved = resolvePipelineHand({
+      selected: chip.hand,
+      detected: "left",
+      explicit: chip.locked,
+    });
     const report = runPaperEdgeHandGates({
       paperFound: false,
       landmarkCount: 21,
@@ -41,7 +53,11 @@ describe("easy-scan hand chip state", () => {
   });
   it("blocks an untouched chip when handedness detection is null", () => {
     const chip = INITIAL_HAND_CHIP_STATE;
-    const resolved = resolvePipelineHand(chip.hand, null, chip.locked);
+    const resolved = resolvePipelineHand({
+      selected: chip.hand,
+      detected: null,
+      explicit: chip.locked,
+    });
     const report = runPaperEdgeHandGates({
       paperFound: false,
       landmarkCount: 21,
@@ -61,7 +77,11 @@ describe("easy-scan hand chip state", () => {
   });
   it("uses the supplied fix instruction for a paper-edge mismatch", () => {
     const chip = toggleHandChip(INITIAL_HAND_CHIP_STATE);
-    const resolved = resolvePipelineHand(chip.hand, "right", chip.locked);
+    const resolved = resolvePipelineHand({
+      selected: chip.hand,
+      detected: "right",
+      explicit: chip.locked,
+    });
     const report = runPaperEdgeHandGates({
       paperFound: false,
       landmarkCount: 21,
@@ -110,5 +130,29 @@ describe("easy-scan hand chip state", () => {
   it("never overwrites a locked (manually chosen) hand", () => {
     const locked: HandChipState = { hand: "right", locked: true };
     expect(applyDetectedHandedness(locked, "left")).toBe(locked);
+  });
+
+  it("labels an untouched chip 'auto' and a tapped chip without it", () => {
+    expect(handChipLabel(INITIAL_HAND_CHIP_STATE)).toBe("Right hand · auto");
+    expect(handChipLabel({ hand: "left", locked: false })).toBe(
+      "Left hand · auto",
+    );
+    const tapped = toggleHandChip(INITIAL_HAND_CHIP_STATE);
+    expect(handChipLabel(tapped)).toBe("Left hand");
+    // Tapping back to the default hand is still the user's choice, not 'auto'.
+    expect(handChipLabel(toggleHandChip(tapped))).toBe("Right hand");
+  });
+
+  it("never says 'auto' once a detection is folded into a locked chip", () => {
+    const locked = toggleHandChip(INITIAL_HAND_CHIP_STATE);
+    const after = applyDetectedHandedness(locked, "right");
+    expect(handChipLabel(after)).not.toContain("auto");
+  });
+
+  it("does not let the chip change while a photo is being processed", () => {
+    expect(canToggleHandChip("processing")).toBe(false);
+    for (const kind of ["none", "measured", "gateFailure"]) {
+      expect(canToggleHandChip(kind)).toBe(true);
+    }
   });
 });

@@ -505,6 +505,75 @@ describe("handleAnalysisRequest — site-wide daily model cap (M1)", () => {
     expect(response.body).toMatchObject({ source: "fallback" });
     expect(calls).toHaveLength(0);
   });
+
+  // M2 (hardening finding): the cap used to be spent once per REQUEST, but
+  // analyse() can make up to two real model calls per request (one attempt
+  // plus one retry), so the real ceiling was ~2x the configured cap. Every
+  // actual model call must now spend its own unit.
+  it("M2: a clean request (no retry) spends exactly one global-limiter unit", async () => {
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+    let units = 0;
+    const response = await handleAnalysisRequest(request, {
+      client,
+      cache: new InMemoryAnalysisCache(),
+      limiter: alwaysAllow(),
+      globalLimiter: {
+        allow: () => {
+          units += 1;
+          return true;
+        },
+      },
+    });
+    expect(response.body).toMatchObject({ source: "model" });
+    expect(units).toBe(1);
+    expect(client.calls).toHaveLength(1);
+  });
+
+  it("M2: a request whose first answer needs a retry spends two global-limiter units, one per real model call", async () => {
+    const badAnswer = JSON.stringify({ oops: true }); // fails schema, forces a retry
+    const client = new FakeTextModel({
+      answer: (_args, callIndex) =>
+        callIndex === 0 ? badAnswer : CLEAN_ANSWER,
+    });
+    let units = 0;
+    const response = await handleAnalysisRequest(request, {
+      client,
+      cache: new InMemoryAnalysisCache(),
+      limiter: alwaysAllow(),
+      globalLimiter: {
+        allow: () => {
+          units += 1;
+          return true;
+        },
+      },
+    });
+    expect(response.body).toMatchObject({ source: "model" });
+    expect(units).toBe(2);
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it("M2: cap exhausted between the attempt and the retry stops retrying -- fallback, never a second model call", async () => {
+    const badAnswer = JSON.stringify({ oops: true }); // would normally force a retry
+    const client = new FakeTextModel({ answer: () => badAnswer });
+    let units = 0;
+    const response = await handleAnalysisRequest(request, {
+      client,
+      cache: new InMemoryAnalysisCache(),
+      limiter: alwaysAllow(),
+      globalLimiter: {
+        // Allows the first attempt, then the cap is hit before the retry.
+        allow: () => {
+          units += 1;
+          return units === 1;
+        },
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ source: "fallback", cached: false });
+    // Only the first attempt actually reached the model.
+    expect(client.calls).toHaveLength(1);
+    expect(units).toBe(2);
+  });
 });
 
 describe("handleAnalysisRequest — the cache never fails a request", () => {

@@ -51,6 +51,7 @@ import {
   assemblePaperEdgeSubmission,
   assembleUserLengthSubmission,
 } from "./submission";
+import { resolvePipelineHand, type HandDecision } from "./hand";
 import {
   measureWithUserLength,
   USER_LENGTH_RETAKE,
@@ -132,7 +133,12 @@ export type CalibrationInput =
 export interface RunPhotoPipelineInput {
   readonly file: File;
   readonly hand: "left" | "right";
-  /** Easy scan leaves this false until the hand button is tapped. */
+  /**
+   * `true` when `hand` is the user's own choice. `false` means it is only a
+   * default (easy scan until its hand button is tapped): the detected hand is
+   * submitted instead and a disagreement is not a retake. Defaults to `true`,
+   * so a caller that never says (the printed-sheet page) has its hand checked.
+   */
   readonly handExplicit?: boolean;
   /** Wording for the mismatch fix available in this caller's UI. */
   readonly handednessFixInstruction?: string;
@@ -143,15 +149,19 @@ export interface RunPhotoPipelineInput {
   readonly calibration?: CalibrationInput;
 }
 
-export function resolvePipelineHand(
-  selected: "left" | "right",
+/**
+ * Every pipeline decides the hand exactly once, through here, right after the
+ * hand was detected. It is the only place `input.hand` is read.
+ */
+function decideHand(
+  input: RunPhotoPipelineInput,
   detected: "left" | "right" | null,
-  explicit: boolean,
-): { stated: "left" | "right" | undefined; submission: "left" | "right" } {
-  return {
-    stated: explicit ? selected : undefined,
-    submission: explicit ? selected : (detected ?? selected),
-  };
+): HandDecision {
+  return resolvePipelineHand({
+    selected: input.hand,
+    detected,
+    explicit: input.handExplicit !== false,
+  });
 }
 
 function emptyOverlay(width: number, height: number): PhotoOverlay {
@@ -276,6 +286,8 @@ export async function runPhotoPipeline(
     };
   }
 
+  const handDecision = decideHand(input, hand.handedness);
+
   const landmarksMm = hand.landmarksPx.map((p) =>
     applyHomography(homography, p),
   );
@@ -290,11 +302,8 @@ export async function runPhotoPipeline(
     detectedMarkerIds: detected.map((m) => m.id),
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: resolvePipelineHand(
-      input.hand,
-      hand.handedness,
-      input.handExplicit !== false,
-    ).stated,
+    handStated: handDecision.stated,
+    handednessFixInstruction: input.handednessFixInstruction,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     flatMarkerCornersMm,
@@ -337,11 +346,7 @@ export async function runPhotoPipeline(
   }
 
   const submission = assembleScanSubmission({
-    hand: resolvePipelineHand(
-      input.hand,
-      hand.handedness,
-      input.handExplicit !== false,
-    ).submission,
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements,
     markerIds: detected.map((m) => m.id),
@@ -437,6 +442,8 @@ async function runPaperEdgePipeline(
     };
   }
 
+  const handDecision = decideHand(input, hand.handedness);
+
   const landmarksMm = hand.landmarksPx.map((p) =>
     applyHomography(homography, p),
   );
@@ -458,11 +465,7 @@ async function runPaperEdgePipeline(
     paperFound: quad.paperRegionFound,
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: resolvePipelineHand(
-      input.hand,
-      hand.handedness,
-      input.handExplicit !== false,
-    ).stated,
+    handStated: handDecision.stated,
     handednessFixInstruction: input.handednessFixInstruction,
     landmarkConfidence: hand.confidence,
     landmarksMm,
@@ -540,11 +543,7 @@ async function runPaperEdgePipeline(
     };
   }
   const submission = assemblePaperEdgeSubmission({
-    hand: resolvePipelineHand(
-      input.hand,
-      hand.handedness,
-      input.handExplicit !== false,
-    ).submission,
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements: corrected.measurements,
     paperSize: calibration.paperSize,
@@ -592,6 +591,7 @@ async function runUserLengthPipeline(
       ],
       overlay: { ...overlayBase, landmarksPx: null },
     };
+  const handDecision = decideHand(input, hand.handedness);
   const overlay = {
     ...overlayBase,
     landmarksPx: hand.landmarksPx,
@@ -602,12 +602,8 @@ async function runUserLengthPipeline(
       ? [
           checkHandedness(
             hand.handedness,
-            resolvePipelineHand(
-              input.hand,
-              hand.handedness,
-              input.handExplicit !== false,
-            ).stated,
-            "tap the hand button below",
+            handDecision.stated,
+            input.handednessFixInstruction,
           ),
         ]
       : [checkLandmarkConfidence(0)]),
@@ -640,11 +636,7 @@ async function runUserLengthPipeline(
     computeLaplacianVariance(gray, width, height),
   );
   const submission = assembleUserLengthSubmission({
-    hand: resolvePipelineHand(
-      input.hand,
-      hand.handedness,
-      input.handExplicit !== false,
-    ).submission,
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements,
     handLengthMm,

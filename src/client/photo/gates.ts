@@ -299,6 +299,7 @@ export interface PhotoGateInput {
   readonly landmarkCount: number;
   readonly handedness: "left" | "right" | null;
   readonly handStated: "left" | "right" | undefined;
+  readonly handednessFixInstruction?: string;
   readonly landmarkConfidence: number;
   readonly landmarksMm: readonly Point2[];
   readonly flatMarkerCornersMm: readonly Point2[];
@@ -336,6 +337,7 @@ export function runPhotoGates(input: PhotoGateInput): PhotoGateReport {
       const handednessFailure = checkHandedness(
         input.handedness,
         input.handStated,
+        input.handednessFixInstruction,
       );
       if (handednessFailure) errors.push(handednessFailure);
     } else {
