@@ -95,14 +95,15 @@ describe("every no-paper entry in EasyScanCamera goes through the flag", () => {
     const openers = [...source.matchAll(/onClick=\{startLengthStep\}/g)];
     expect(openers.length).toBeGreaterThan(0);
     for (const opener of openers) {
-      // The guard opens the JSX element that owns this onClick, a few lines up.
-      const before = source.slice(
-        Math.max(0, opener.index - 200),
-        opener.index,
-      );
-      expect(before, `guard before offset ${opener.index}`).toContain(
-        "{noPaperLabel && (",
-      );
+      // The nearest guard above this onClick must still be open here: a line
+      // that is just `)}` between them would have closed it.
+      const before = source.slice(0, opener.index);
+      const guardAt = before.lastIndexOf("{noPaperLabel && (");
+      expect(guardAt, `guard above offset ${opener.index}`).toBeGreaterThan(-1);
+      expect(
+        before.slice(guardAt),
+        `guard closed before offset ${opener.index}`,
+      ).not.toMatch(/\n\s*\)\}\s*\n/);
     }
   });
 });

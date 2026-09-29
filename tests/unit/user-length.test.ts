@@ -3,10 +3,15 @@ import {
   measureWithUserLength,
   parseUserLength,
   USER_LENGTH_RETAKE,
+  USER_LENGTH_PALM_RATIO,
+  USER_LENGTH_RANGE_MM,
+  userLengthRangeMessage,
+  userLengthRetakeMessage,
   checkUserLengthStraightness,
   checkUserLengthProportion,
 } from "../../src/client/photo/user-length";
 import { assembleUserLengthSubmission } from "../../src/client/photo/submission";
+import { computeHandMeasurements } from "../../src/client/geometry/measurements";
 import { detectDeviceFit } from "../../src/client/camera/deviceFit";
 
 const hand = [
@@ -112,6 +117,89 @@ describe("user length calibration", () => {
     expect(() => measureWithUserLength(narrow, 190)).toThrow(
       USER_LENGTH_RETAKE,
     );
+  });
+});
+
+// A wider or narrower palm: the reference hand with x stretched about the
+// wrist column (the hand's first landmark), which changes palmWidth / length
+// and leaves the middle finger straight.
+function handWithPalmStretch(kx: number) {
+  const centreX = hand[0].x;
+  return hand.map((p) => ({ x: centreX + (p.x - centreX) * kx, y: p.y }));
+}
+
+describe("typed hand length range", () => {
+  it("is exactly what parseUserLength accepts, and what its message names", () => {
+    const { min, max } = USER_LENGTH_RANGE_MM;
+    expect(parseUserLength(String(min))).toBe(min);
+    expect(parseUserLength(String(max))).toBe(max);
+    expect(parseUserLength(String(min - 0.1))).toBeNull();
+    expect(parseUserLength(String(max + 0.1))).toBeNull();
+    expect(parseUserLength("")).toBeNull();
+    expect(parseUserLength("abc")).toBeNull();
+    expect(userLengthRangeMessage()).toBe(
+      `Enter a hand length between ${min} and ${max} mm.`,
+    );
+  });
+
+  it("is derived from the palm-ratio band and the schema's palm-width limits (50-150 mm)", () => {
+    // A hand that passes the proportion gate has palmWidth = ratio * length.
+    // It satisfies the schema for every ratio in the band only inside this.
+    expect(USER_LENGTH_RANGE_MM.min).toBeGreaterThanOrEqual(
+      50 / USER_LENGTH_PALM_RATIO.min,
+    );
+    expect(USER_LENGTH_RANGE_MM.max).toBeLessThanOrEqual(
+      150 / USER_LENGTH_PALM_RATIO.max,
+    );
+  });
+
+  it.each([0.385, 0.42, 0.555])(
+    "measures a hand at palm ratio ~%s at every length in the range",
+    (targetRatio) => {
+      const kx = Math.sqrt((targetRatio * 190) ** 2 - 4) / 80;
+      const stretched = handWithPalmStretch(kx);
+      const { min, max } = USER_LENGTH_RANGE_MM;
+      for (const length of [min, min + 1, 150, 190, 230, max - 1, max]) {
+        const measured = measureWithUserLength(stretched, length);
+        expect(measured.handLengthMm).toBe(length);
+        expect(checkUserLengthProportion(measured), `${length} mm`).toBeNull();
+      }
+    },
+  );
+
+  it("shows why the floor is not 100 mm: a normally proportioned hand fails the measurement schema below 119 mm", () => {
+    // The same wrist-anchored scale userLengthHomography builds, applied
+    // directly so lengths outside the accepted range can still be tried.
+    const measureAt = (length: number) => {
+      const wrist = hand[0];
+      const tip = hand[12];
+      const scale = length / Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+      return computeHandMeasurements(hand, [
+        [scale, 0, -wrist.x * scale],
+        [0, scale, -wrist.y * scale],
+        [0, 0, 1],
+      ]);
+    };
+    for (const length of [100, 105, 110, 115, 118]) {
+      expect(() => measureAt(length), `${length} mm`).toThrow();
+    }
+    expect(() => measureAt(119)).not.toThrow();
+    expect(USER_LENGTH_RANGE_MM.min).toBeGreaterThan(119);
+  });
+
+  it("keeps clear of the schema's own 100 and 280 mm limits, where rounding can push the measured length out of range", () => {
+    // At exactly 280 mm, 7 of 190 differently scaled but otherwise identical
+    // photos of the same hand threw (279.99 mm: none), because the measured
+    // length is recomputed through the homography and can land a hair over.
+    expect(USER_LENGTH_RANGE_MM.min).toBeGreaterThan(100);
+    expect(USER_LENGTH_RANGE_MM.max).toBeLessThan(280);
+  });
+
+  it("tells a mistyped length from a bad photo when the palm does not fit", () => {
+    const message = userLengthRetakeMessage(120);
+    expect(message).toContain("120 mm");
+    expect(message).toMatch(/check that number/i);
+    expect(message).toMatch(/retake/i);
   });
 });
 

@@ -92,6 +92,32 @@ test("a new tab retains typed-length and hand disclosures, then deletion clears 
     newTab.getByText(/Based on the hand length you entered \(190 mm\)/),
   ).toBeVisible();
   await expect(newTab.getByText(/Left-hand fit isn't rated yet/)).toBeVisible();
+  // The no-paper disclosure sits right after the top pick, styled like the
+  // left-hand notice, not in the page-bottom footnote.
+  await expect(
+    newTab.locator(".results-handNotice", {
+      hasText: "Based on the hand length you entered (190 mm)",
+    }),
+  ).toHaveCount(1);
+  await expect(
+    newTab.locator(".results-previewNotice", { hasText: "Based on the hand" }),
+  ).toHaveCount(0);
+  expect(
+    await newTab.evaluate(() => {
+      const follows = (a: Element, b: Element) =>
+        Boolean(
+          a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      const [disclosure, leftHand] = [
+        ...document.querySelectorAll(".results-handNotice"),
+      ];
+      const analysis = document.querySelector(".results-analysis");
+      return {
+        beforeLeftHandNotice: follows(disclosure, leftHand),
+        beforeAnalysis: analysis ? follows(disclosure, analysis) : false,
+      };
+    }),
+  ).toEqual({ beforeLeftHandNotice: true, beforeAnalysis: true });
   await newTab.getByRole("button", { name: "Delete this scan now" }).click();
   await newTab.getByRole("button", { name: "Delete scan" }).click();
   await expect(
