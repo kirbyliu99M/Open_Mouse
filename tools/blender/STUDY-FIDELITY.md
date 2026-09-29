@@ -150,6 +150,25 @@ Rules for the schedule:
 5. Report per study: IoU per view before/after, held-out IoU before/after, largest remaining
    silhouette gap in mm, and a contact sheet (photos | before | after, top/side/front/hero).
 
+## Phase D5 — rebuild the undone items (Kirby, 2026-09-29)
+
+Kirby: work on the undone items first, with AGY and Sonnet subagents working together. **"Use the
+dimensions as a reference, then build up the models by analysing the depth and edges."**
+Codex is out until 2026-10-04.
+
+| Part | Work                                                                                                                                                                                                                                                        | Owner            | Where                                         |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------- |
+| D5-R | Web research: orthographic references (design patents or registered designs with six-view drawings, official dimension drawings, spec sheets) for M705 Marathon and Signature Comfort Plus M850L. Report only                                               | **AGY** (Gemini) | report in `Mouse Shape Project/codex-briefs/` |
+| D5a  | Rebuild M705 and M850L from catalogue L/W/H as the bounding frame: visual-hull carving from the edges and silhouettes of every calibrated photo, fitting at the 1440 px evaluation resolution, then smoothing. Add orthographic drawings from D5-R if found | Sonnet builder A | worktree `m4a-d5-studies`                     |
+| D5b  | Wheels as a separate feature: fit a cylinder to each AR source's wheel part (M190, M750, M650, G903) and merge it into the shell with an exact boolean union (one clean manifold mesh), instead of moving vertices. G903's channel is optional              | Sonnet builder B | worktree `m4a-d5-wheels`                      |
+| —    | Orchestration, checking each commit, merges, independent Sonnet review, forwarding AGY's findings                                                                                                                                                           | Claude           | —                                             |
+
+**Gates are unchanged.** D5a uses D1's delivery gate. Because M705's held-out photo has been
+seen twice, the M705 report must state it and also show the result on the **official photos only**.
+D5b uses D4's gate: the inside > 2 mm share falls by at least half; the outside share rises by at most
+0.2 points; IoU against the source drops by at most 0.001 per view; clean topology; ≤ 15,000 triangles;
+calibrated bbox; support margin ≥ 5 mm; and all existing gates.
+
 ## Results
 
 ### D1 — study geometry refinement
