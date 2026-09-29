@@ -473,6 +473,52 @@ changes: `check_catalogues.py` → `CATALOGUES_MATCH`; `tests/check_assets.py` �
 → 102 passed / 12 Blender-only skips (up from 90/12 with the 12 new local-remesh-math
 tests).
 
+#### D5b — wheel crowns as features (Sonnet builder B)
+
+**Not delivered for any shell; the built wheels do not cover the deficient region. All four shells unchanged.**
+Worktree `m4a-d5-wheels` (from `ee15fcb`). Tools: `cylinder_fit_math.py` (numpy: free-axis, fixed-axis and trimmed
+cylinder fits, 8 unit tests), `d5_wheel_fit.py` (locate and fit), `d5_build_wheel.py` (capped 56-segment cylinder,
+8% narrower than the fitted width, Blender exact boolean union, `clean_export_mesh`, `validate_mesh`), plus the
+inspection scripts `d5_wheel_diagnose/objects/locate/fit_diagnose.py`.
+
+**Wheel fits** (reconstruction frame; axis fixed to lateral X; tread points only, within 2.5 mm of a rough radius;
+accepted only if width 4-12 mm, radius 6-15 mm):
+
+| Shell | Source of the wheel                                  | Radius mm | Width mm | Residual RMS / max mm | Result                                      |
+| ----- | ---------------------------------------------------- | --------: | -------: | --------------------- | ------------------------------------------- |
+| M190  | own topological island in the AR mesh (363 vertices) |     12.16 |     4.01 | 0.11 / 0.17           | fit                                         |
+| M750  | glTF node Node5 (7,535 vertices)                     |      8.25 |     9.43 | 0.24 / 0.49           | fit                                         |
+| M650  | glTF node Node19 (7,515 vertices)                    |      8.36 |     9.31 | 0.25 / 0.49           | fit                                         |
+| G903  | fused to the shell; deficiency-cluster band          |     16.23 |    11.99 | 0.18 / 0.37           | **rejected**: radius above 15 mm; not built |
+
+A first free-axis attempt fitted hub, housing and chassis (widths 22 mm, oblique axes) and was discarded after Claude's audit.
+
+**Build:** all three unions are one closed manifold mesh: 0 non-manifold, 0 degenerate, 0 intersections; triangles
+14,284 (M190), 14,318 (M750), 14,372 (M650); calibrated bbox and ground unchanged (0.0 mm; the crown is below the
+highest point).
+
+**Audit before -> after (D4 gate):**
+
+| Shell | Inside > 2 mm   | Outside > 2 mm  | IoU top / side / front after (before)                     | Gate                                     |
+| ----- | --------------- | --------------- | --------------------------------------------------------- | ---------------------------------------- |
+| M190  | 0.42% -> 0.475% | 0.24% -> 0.245% | 0.99532 / 0.99374 / 0.99414 (0.99532 / 0.99366 / 0.99414) | **fail**: inside share must fall by half |
+| M750  | 0.33% -> 0.345% | 4.06% -> 3.92%  | unchanged to 5 places                                     | **fail**                                 |
+| M650  | 1.16% -> 1.29%  | 4.54% -> 4.385% | unchanged to 5 places                                     | **fail**                                 |
+
+**Why it fails.** Every "inside > 2 mm" sample lies 13-42 mm from the fitted axis (M190 13.3-26.0; M750 16.2-42.4;
+M650 3.9-30.6), and 0 (M650: 1) of them fall within the fitted tread band. The wheels the shells lack are therefore not
+what the deficient samples measure: they are the wheel housing, the surrounding button and trim geometry above the
+slot, which a single cylinder cannot represent. The wheel itself is small and mostly already hidden by the shell.
+Adding it changes the inside share by +0.015 to +0.13 points, so the gate's "fall by half" cannot be met by this method.
+Nothing was re-baked, optimised or installed; no public file changed. The installer step was not written because no
+shell passed (ERGO M575S alias handling is therefore untested). G903's channel (optional) was skipped.
+
+Evidence: `out/d5/baseline`, `out/d5/after` (audit tables, deviation maps), `out/d5/wheel-fits.json`,
+`out/d5/reconstructed/<slug>/d5b-build-report.json` (gitignored, reproducible). Close-up renders were not produced
+because there is no delivered "after". Gates run: unit tests 110 pass / 12 Blender skips, `check_catalogues.py`
+CATALOGUES_MATCH, `audit_payloads.py`, `optimize_glbs.py --check` clean, public files unchanged.
+Next step, if wanted: model the wheel housing and button surround (the deficient region) as features, not the wheel.
+
 ### A1 — official AR assets
 
 Discovery date: 2026-09-28 (Asia/Taipei). Searches cover each study's product
@@ -1893,6 +1939,8 @@ What the failures show:
 | 2026-09-29 | **Pause after D5.** Kirby: finish the D5 work in progress (builders A and B), then pause. After Claude audits, merges and records D5, no new phases, retries or Codex timers start until Kirby resumes                                                                                                                                                                                                                                                                                                                                              | Kirby          |
 
 ## Progress log
+
+- 2026-09-29 Sonnet builder B (D5b, worktree `m4a-d5-wheels`): **not delivered.** Fitted wheels (M190 r12.2/w4.0, M750 r8.2/w9.4, M650 r8.4/w9.3 mm; G903 rejected, r16.2 mm) and unioned them cleanly (0 defects, <= 14,372 triangles), but the inside > 2 mm share did not fall (0.42->0.475, 0.33->0.345, 1.16->1.29%): the deficient samples sit 13-42 mm from the wheel axis, i.e. the housing and surround, not the wheel. All shells unchanged. See "D5b" under Results.
 
 - 2026-09-29 Claude: **D5-R (AGY) done** (`Mouse Shape Project/codex-briefs/logs/agy-orthographic.md`). M705: no design patent; official 109 × 71 × 42 mm, 135 g. M850L: AGY found design patent USD1002618S1 (Logitech Europe S.A., filed 2021-09-01, granted 2023-10-24; 10 figures including six orthographic views). **The match is unverified:** the filing date fits the M650 (launched 2022) better than the M850 (about 2024), so builder A must compare its outlines against M850L photos and M650 before using it. Patent drawings are public documents, used as outline evidence only. Builders A and B were stopped by a harness safety-check outage (their partial work was kept) and resumed with corrections. Builder B's fits for M750, M650 and G903 were not wheels (oblique axes, width about 22 mm), so it now uses dimension constraints: axis within 10° of lateral, width 4–12 mm, radius 6–15 mm, outer tread only.
 
