@@ -10,11 +10,17 @@ name: CI
 #   - PRs run the whole gate, including Playwright on every project.
 #   - A push to `main` runs the light gate only: typecheck, lint, format, unit
 #     tests, migration check, `npm audit`, build. The full e2e already passed on
-#     the PR that was merged.
-#   - A docs-only change (`docs/**` and `*.md`) skips install, tests and build.
-#     That is decided INSIDE the job, not with workflow-level `paths` /
-#     `paths-ignore`: a workflow that never starts leaves a required check
-#     stuck on "Pending", whereas a job that starts and finishes green does not.
+#     the PR that was merged. It ALWAYS runs that gate and never looks at the
+#     diff: `cancel-in-progress` below can cancel a code commit's run when a
+#     docs-only commit lands right after, and a `before..HEAD` diff of the
+#     second run would call it docs-only and go green over unchecked code.
+#   - A docs-only PR skips install, tests and build. Docs-only means only
+#     `docs/**/*.md`, `docs/**/*.png` and root `*.md`; the rules live in
+#     scripts/ci/classify-changes.mjs and are pinned by
+#     tests/unit/ci-classify.test.ts. That is decided INSIDE the job, not with
+#     workflow-level `paths` / `paths-ignore`: a workflow that never starts
+#     leaves a required check stuck on "Pending", whereas a job that starts and
+#     finishes green does not.
 #   - workflow_dispatch runs everything, e2e included, on whatever ref you pick.
 on:
   push:
@@ -44,70 +50,19 @@ jobs:
       # setup-node v7.0.0, cache v6.1.0, upload-artifact v7.0.1.
       - uses: actions/checkout@v7
 
+      # Plain Node, no install: see scripts/ci/classify-changes.mjs for the rules.
       - name: Classify changed paths
         id: changes
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          # Fail safe: anything we cannot classify runs the full gate.
-          heavy=true
-          reason="no base commit to compare against"
-          base=""
-          case "$EVENT_NAME" in
-            pull_request) base="$PR_BASE_SHA" ;;
-            push) base="$PUSH_BEFORE_SHA" ;;
-          esac
-          changed="$RUNNER_TEMP/changed-files.txt"
-          : > "$changed"
-          if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
-            # Shallow checkout: fetch just the base commit. A PR checkout is the
-            # merge commit, so base..HEAD is exactly what the PR changes.
-            if git fetch --no-tags --depth=1 origin "$base" \
-              && git diff --name-only --no-renames "$base" HEAD > "$changed"; then
-              if [ -s "$changed" ]; then
-                heavy=false
-                reason="only docs/** and *.md changed"
-                while IFS= read -r file; do
-                  case "$file" in
-                    docs/* | *.md) ;;
-                    *)
-                      heavy=true
-                      reason="non-docs change: $file"
-                      break
-                      ;;
-                  esac
-                done < "$changed"
-              else
-                reason="empty diff"
-              fi
-            else
-              reason="could not diff against $base"
-            fi
-          fi
-          # e2e: every PR and manual run, never a push to main.
-          e2e=false
-          if [ "$heavy" = "true" ] && [ "$EVENT_NAME" != "push" ]; then e2e=true; fi
-          {
-            echo "heavy=$heavy"
-            echo "e2e=$e2e"
-            echo "changed_file=$changed"
-          } >> "$GITHUB_OUTPUT"
-          {
-            echo "### Changed paths"
-            echo "- event: \`$EVENT_NAME\`"
-            echo "- full gate: **$heavy** ($reason)"
-            echo "- e2e: **$e2e**"
-            echo "- files: $(wc -l < "$changed")"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "heavy=$heavy e2e=$e2e ($reason)"
+        run: node scripts/ci/classify-changes.mjs
 
-      # Docs-only path. Prettier also checks Markdown, so skipping it entirely
+      # Docs-only PR path. Prettier also checks Markdown, so skipping it entirely
       # would let a badly formatted .md merge and then fail `format:check` on the
       # next code PR. This runs Prettier alone (no `npm ci`), pinned to the
-      # version in package.json, on just the changed files.
+      # version in package.json, on just the changed files (the list is
+      # NUL-separated, so unusual file names are safe).
       - name: Prettier on the changed docs
         if: steps.changes.outputs.heavy != 'true'
         env:
@@ -116,7 +71,7 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./package.json').devDependencies.prettier")"
           existing=()
-          while IFS= read -r file; do
+          while IFS= read -r -d '' file; do
             if [ -f "$file" ]; then existing+=("$file"); fi
           done < "$CHANGED_FILE"
           if [ "${#existing[@]}" -eq 0 ]; then
