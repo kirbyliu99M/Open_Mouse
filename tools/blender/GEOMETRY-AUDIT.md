@@ -79,8 +79,11 @@ Ranked by lowest silhouette IoU, then by p95 distance.
    window, battery door). G Pro 2's 6.6% is entirely on the underside. A closed hand-contact
    shell is meant to span these.
 3. **Real shape loss ("inside") is small and local:**
-   - **Scroll wheels:** M190 (0.4%), M750, M650 (1.2%) and G903. The shell sits more than 2 mm
-     below the wheel crown, the part a finger touches. This is the geometric side of O2.
+   - **Around the scroll wheels:** M190 (0.4%), M750, M650 (1.2%) and G903. **Corrected
+     2026-09-29 (D5b):** these samples lie 13–42 mm from the fitted wheel axis, on the **wheel
+     housing and the button/trim surround above the slot**, not on the wheel crown. The earlier
+     wording, "the shell sits below the wheel crown", was wrong. Adding a wheel cylinder does not
+     reduce them (D5b).
    - **G903's central button channel and wing seams** (1.6% inside, 4.2% outside): the shell
      smooths over its layered top.
    - **G502 X** front-left underside pocket (0.6%).
