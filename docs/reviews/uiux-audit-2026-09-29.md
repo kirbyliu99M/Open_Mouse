@@ -393,7 +393,8 @@ check ruler and a card outline"`.
 3. Finding 5: gate demo routes (touches e2e config).
 4. Findings 6, 7, 12, 13: needs **Kirby**: privacy page wording and the
    auth-off navigation.
-5. Finding 3: decided by the M2 data. The learning kit below produces it.
+5. Finding 3: decided by the M2 data, which the learning kit (branch
+   `learning-kit`) is built to collect.
 6. P3 items: batch with the home-sketch motion (finding 17) as one design PR.
 
 Evidence (screenshots and `audit.json`) was generated locally and is not
