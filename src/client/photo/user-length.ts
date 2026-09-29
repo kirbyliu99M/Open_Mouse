@@ -14,6 +14,14 @@ interface UserLengthFailure {
 export const USER_LENGTH_RETAKE =
   "The palm proportions look implausible — keep your whole hand flat, fingers together, and retake from directly above.";
 
+/**
+ * Shown when the palm does not fit the typed length. Retaking alone never
+ * fixes a mistyped number, so the message names both causes.
+ */
+export function userLengthRetakeMessage(handLengthMm: number): string {
+  return `Your palm doesn't fit the ${handLengthMm} mm you entered — check that number (wrist crease to the tip of your middle finger), or keep your whole hand flat, fingers together, and retake from directly above.`;
+}
+
 // Candidate — tune on M2 photos. A flat middle finger's joint chain is
 // almost collinear with the wrist-to-tip line; curling lengthens that chain.
 export const MIN_MIDDLE_FINGER_STRAIGHTNESS = 0.95;
@@ -23,6 +31,24 @@ export const MIN_MIDDLE_FINGER_STRAIGHTNESS = 0.95;
 // than skin breadth, and the landmark ratio may sit lower. MUST measure this
 // band on real M2 photos before deploy.
 export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
+
+/**
+ * The typed hand lengths accepted (candidate, derived from the band above and
+ * the measurement schema — re-derive if either changes). The schema requires
+ * palmWidthMm in 50-150 mm, and a hand that passes the proportion gate has
+ * palmWidthMm = ratio * handLength, so every gate-passing hand satisfies the
+ * schema only for 50 / 0.38 = 131.6 <= length <= 150 / 0.56 = 267.9. Rounded
+ * inward to 135-265. Below that, a normally proportioned hand always fails the
+ * schema (the reference hand fails for every length under 119 mm), and a
+ * length at the schema's own 100/280 mm limits can be pushed out of range by
+ * floating-point error in the measurement round trip. The range shown in the
+ * UI, the input attributes and this validation all read this one constant.
+ */
+export const USER_LENGTH_RANGE_MM = { min: 135, max: 265 } as const;
+
+export function userLengthRangeMessage(): string {
+  return `Enter a hand length between ${USER_LENGTH_RANGE_MM.min} and ${USER_LENGTH_RANGE_MM.max} mm.`;
+}
 
 function distance(a: Point2, b: Point2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -81,11 +107,11 @@ export function userLengthHomography(
   if (
     landmarks.length !== 21 ||
     !Number.isFinite(handLengthMm) ||
-    handLengthMm < 100 ||
-    handLengthMm > 280
+    handLengthMm < USER_LENGTH_RANGE_MM.min ||
+    handLengthMm > USER_LENGTH_RANGE_MM.max
   ) {
     throw new RangeError(
-      "Hand length must be between 100 and 280 mm with all 21 landmarks present.",
+      `Hand length must be between ${USER_LENGTH_RANGE_MM.min} and ${USER_LENGTH_RANGE_MM.max} mm with all 21 landmarks present.`,
     );
   }
   const wrist = landmarks[LANDMARK.wrist];
@@ -121,7 +147,9 @@ export function measureWithUserLength(
 export function parseUserLength(value: string): number | null {
   if (value.trim() === "") return null;
   const number = Number(value);
-  return Number.isFinite(number) && number >= 100 && number <= 280
+  return Number.isFinite(number) &&
+    number >= USER_LENGTH_RANGE_MM.min &&
+    number <= USER_LENGTH_RANGE_MM.max
     ? number
     : null;
 }

@@ -253,16 +253,11 @@ export function ResultsPageClient({
     <main className="resultsMain">
       <ResultsView
         scanHand={scanHand}
+        enteredLengthMm={enteredLength}
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}
       />
-      {enteredLength !== null && (
-        <div className="results-previewNotice">
-          <p>Based on the hand length you entered ({enteredLength} mm)</p>
-          <p>Measured without paper — less precise than a scan on A4.</p>
-        </div>
-      )}
       <p className="results-previewNotice">
         Early preview · measurements still being validated.
       </p>

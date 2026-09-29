@@ -1,15 +1,17 @@
 import QRCode from "qrcode";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 
 export function DeviceEntry({
   kind,
   url,
-  onUpload,
+  onFilePicked,
 }: {
   kind: "desktop" | "in-app";
   url: string;
-  onUpload: () => void;
+  onFilePicked: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const uploadRef = useRef<HTMLInputElement>(null);
   const [qr, setQr] = useState("");
   const [copied, setCopied] = useState(false);
   const [showSelectableUrl, setShowSelectableUrl] = useState(false);
@@ -97,9 +99,26 @@ export function DeviceEntry({
           onFocus={(event) => event.currentTarget.select()}
         />
       )}
-      <button type="button" className="easyDeviceUpload" onClick={onUpload}>
+      <button
+        type="button"
+        className="easyDeviceUpload"
+        onClick={() => uploadRef.current?.click()}
+      >
         Or upload a photo
       </button>
+      <p className="easyDevicePrivacy">{PHOTO_PRIVACY_COPY}</p>
+      {/* The button above opens this picker; the input itself is not a
+          second control, so it stays out of the tab order and the
+          accessibility tree. */}
+      <input
+        ref={uploadRef}
+        type="file"
+        accept="image/*"
+        className="visuallyHidden"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onFilePicked}
+      />
     </main>
   );
 }

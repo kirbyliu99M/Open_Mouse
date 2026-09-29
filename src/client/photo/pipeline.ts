@@ -54,7 +54,7 @@ import {
 import { resolvePipelineHand, type HandDecision } from "./hand";
 import {
   measureWithUserLength,
-  USER_LENGTH_RETAKE,
+  userLengthRetakeMessage,
   checkUserLengthStraightness,
   checkUserLengthProportion,
 } from "./user-length";
@@ -622,7 +622,10 @@ async function runUserLengthPipeline(
     return {
       status: "error",
       errors: [
-        { code: "MEASUREMENT_OUT_OF_RANGE", message: USER_LENGTH_RETAKE },
+        {
+          code: "MEASUREMENT_OUT_OF_RANGE",
+          message: userLengthRetakeMessage(handLengthMm),
+        },
       ],
       overlay,
     };
