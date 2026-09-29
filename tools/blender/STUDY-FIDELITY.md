@@ -1730,9 +1730,13 @@ What the failures show:
   official photos: the rear-right group gains about 0.01, while the official top view loses 0.0027.
 - **M705, second attempt:** weighting each duplicate group once was a principled change, driven by
   the fitted top view's failure and not by the held-out result, and Claude committed to one
-  retry only. It also exposed a method limit. A drop kept under 0.0015 at the 720 px fit resolution
-  became −0.0065 at the 1440 px evaluation. **Constraints checked at fit resolution do not hold at
-  evaluation resolution.**
+  retry only. It also exposed a method limit. **Corrected after the Sonnet review:** the hard ≤ 0.0015
+  cap held at 320 px. But at 720 px, no candidate the optimiser tried, including the inherited
+  320 px result, satisfied it (`deformation-stages.json`: 720 px loss `inf` after 617 evaluations).
+  So that stage silently passed the 320 px result through, and the 1440 px evaluation then measured
+  a −0.0065 drop on the top view. **The constraint is resolution-sensitive already between 320 and
+  720 px**; an earlier version of this note wrongly said it held at 720 px.
+  `refine_study_geometry.py` now prints `STAGE_INFEASIBLE` and records `feasible: false` when that happens.
 - **Next step (open, for Codex or a Sonnet builder):** run the final fit stage, and its no-regression
   constraint, at the 1440 px evaluation resolution. Also consider masks of the official photos only.
   `refine_study_geometry.py` gained an opt-in `--weighting groups` flag (default `uniform`, so
@@ -1778,6 +1782,8 @@ What the failures show:
 | 2026-09-29 | Kirby: Sonnet subagents may assist. **D4 goes to a Sonnet builder** in its own worktree `m4a-d4-remesh` (branch from `dbdd5fd`, read-only junctions to this worktree's reference data), with the same D4 gate. Claude audits and pushes                                                                                                                                                                                                                                                                                                             | Kirby / Claude |
 
 ## Progress log
+
+- 2026-09-29 Claude: **independent Sonnet review of D1 (Codex D1 + Claude D1b): approve with fixes.** No blockers. Held-out separation confirmed in code, gate implemented as documented, M850L evaluation reproduced exactly, M325s bytes match, and 79 tests pass with 12 skipped. Fixed: the M705 second-attempt explanation (the cap was already infeasible at 720 px, not only at 1440 px), and the silent pass-through in `refine_study_geometry.py`. No asset changes.
 
 - 2026-09-29 13:40 Claude: **D1b finished; M705 and M850L not delivered** (gate failures above). The laptop was on battery, which throttled the fits about 100×; raising process priority fixed it (a background loop does this now). D4 is running with a Sonnet builder in `m4a-d4-remesh`.
 

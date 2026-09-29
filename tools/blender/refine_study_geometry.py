@@ -103,7 +103,11 @@ def main():
         fit = minimize(objective,params,method='Nelder-Mead',options=dict(
             initial_simplex=simplex,maxiter=1100,maxfev=1800,xatol=.003,fatol=1e-7))
         params = best[1]
-        stages.append(dict(resolution=resolution,loss=best[0],evaluations=calls,
+        if not np.isfinite(best[0]):
+            # Every candidate at this stage, including the inherited start, broke the hard
+            # constraint, so the previous stage's result passes through unchanged. Say so.
+            print('STAGE_INFEASIBLE',dict(resolution=resolution,evaluations=calls),flush=True)
+        stages.append(dict(resolution=resolution,loss=best[0],evaluations=calls,feasible=bool(np.isfinite(best[0])),
                            iterations=int(fit.nit),converged=bool(fit.success),
                            message=str(fit.message),coefficients=params.tolist()))
         (out/'deformation-stages.json').write_text(json.dumps(stages,indent=2)+'\n')
