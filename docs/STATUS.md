@@ -1,41 +1,92 @@
 # STATUS — live project board
 
-**Every PR updates this file — Claude's and Codex's.** It is the single source of
-truth for where the project stands. Read it before starting any task.
+**Claude updates this file after every merge; builders and Codex never edit it**
+(Kirby, 2026-09-30 — parallel branches kept colliding here). It is the single
+source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-29 · by: Claude (handedness fix)_
+_Last updated: 2026-09-30 · by: Claude (launch sequence approved; #77 merged)_
 
 ---
 
 ## Right now
 
-**Goal (Kirby, 2026-09-23): carry the product through to a genuine, real-world deployment.** The release plan below defines what that means and who does what.
+**Launch plan (Kirby, 2026-09-30):** the work sequence is approved, as set out in the PRD doc "Open_Mouse PRD 與上市缺口評估" (claude.ai) and the plan written from it.
 
-**Merged 2026-09-23:** #25 contracts · #31 credential redaction · #33 results page · #34 fit route · #36 scan submit · #37 analysis infra · #38 24-hour deletion bound · #40 e2e isolation · #41 analysis route · #46 rate-limit only model calls · #47 single-scan delete contract · #48 hotfix for model errors. **The whole user flow is on `main`.**
+- Two builder lanes roll by file owner: UI (Builder 1) and system (Builder 2).
+- The **real-hand-photo ML (M2 calibration) is the last job**. The site stays non-public (`noindex`, Early preview) until M2 passes.
+- Taiwan launches first, with zh-TW as the default language.
 
-**Merged 2026-09-24:** #51 analysis quality (stated grip honoured, rounded model input, no internal identifiers) · #45 reload no longer deletes results + single-scan delete + a stale cookie can no longer read or delete a claimed session's scans · #49 journey UI on home, sheet and account + shared top bar · #53 `analysis_cache` rows bound to their scan (cascade delete) + prompt version in the cache key; cache is best-effort.
+The reasons for each call are in the 2026-09-30 decisions below.
 
-**Gemini is live in production (key added 2026-09-23).** Analysis now returns `source: model` (≈ 2–3 s), with a working DB cache on repeat requests. Adding the key first broke every analysis with a 500 — the API rejected `ThinkingLevel.MINIMAL`, and a failed call escaped `analyse()`; #48 fixed both.
+**Production:** `a238428` (#77, 2026-09-30). The anonymous flow is operational. The last unmocked live e2e was on 2026-09-25 (`7748c90`). From now on, every merge is followed by a local `npm run test:e2e:live` against production.
 
-**Merged 2026-09-24:** #54 contract doc · #55 `/scan` and `/results` match the journey design; audit findings closed · #56 pre-launch hardening (site-wide daily model cap 500 — candidate; per-IP limits on submit/fit; CSP and security headers; hashed rate-limit keys) · #57 contract doc for 429s.
+**Merged 2026-09-28:**
 
-**Merged 2026-09-25:** #58 plain-paper calibration contract (`80ce9cf`). A4/Letter paper-edge evidence is accepted alongside the existing printed-sheet payload; the full paper-edge detector and UI remain separate work. Independent code review found no blocker; CI and Vercel preview passed.
+- #59 paper-edge detection
+- #65 cache-key hotfix
+- #66 live camera capture
+- #67 easy scan and new landing
+- #68 typed-length contract
+- #70 no medical claims
+- #71 catalogue 30 → 38
+- #72 honest fallback
 
-**Production verified 2026-09-25 (`7748c90`):** submit → fit (stated grip honoured) → analysis by Gemini, cached on repeat (0.7 s) → delete → 404; the unmocked live e2e (reload included) passes on Pixel 7; `/`, `/sheet`, `/scan`, `/account`, `/results/demo` load with **zero CSP violations** and no horizontal scroll; CSP, nosniff, Referrer-Policy, Permissions-Policy and HSTS present. **The anonymous flow is operational.**
+**Merged 2026-09-30:** #77. Palm-down photos no longer read as the other hand, and an "auto" hand chip no longer fails the scan. The `pr-review` workflow reviewed it; its test-coverage follow-ups moved to S2 (#74).
 
-**Open PRs:** #26 M4a Blender assets (Kirby: keep the textures; review pending).
+**Open work:**
 
-**Production 0005 migration: applied 2026-09-24** (Kirby ran it; cache verified). The Neon `neondb_owner` password was rotated by Kirby 2026-09-24; a redeploy picked it up.
+- **#69 no-paper scan + device routing:** draft, base `main`. The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`, which is off until W7 measures its two candidate thresholds.
+- **#74 behaviour fixes:** draft, stacked on #69. S2 unifies the hand API on `handExplicit`.
+- **#76 learning kit:** draft. Needs data format v2 before merge (G3).
+- **#75 UI/UX audit:** draft. Findings 3 and 5 need correcting first (F8).
+- **C1 (`c1-fit-contracts`):** new exclusion reasons (including trackball), per-descriptor labels, `thumb_rest_missing`, and `hand` in the fit response (#62).
+- **G1 (`g1-ci-budget`):** CI budget and security config.
+- **3D assets:** #26 → #73 → `m4a-study-fidelity` (no PR yet), merged in that order after #26 is re-reviewed. Codex is back 2026-10-04 13:10.
 
-**Field-test bug (Kirby, 2026-09-29): right hands detected as left, and blank-paper scans failing.** One cause behind both: `normalizeHandedness` swapped MediaPipe's label, which is wrong for palm-down rear-camera photos. Every right hand read as left, and the handedness gate then rejected the scan. Fix on branch `fix-handedness`: the label is no longer swapped, and while the hand chip is on "auto" the detected hand is used instead of failing. Verified in-browser on 4 photos; the only other gate that failed was PAPER_NOT_FOUND when Letter was chosen for an A4 sheet.
+**3D study fidelity: closed 2026-09-30 (Kirby).**
 
-**In flight:** live camera capture with on-screen cues (Kirby, 2026-09-25; spec `docs/design/camera-capture-2026-09-25/`, branch `m7-camera-capture`, Sonnet builder).
+- **Delivered:** M550 on the M650 AR shell, a refined M325s, G903 and M750 on AR shells, and SE on the Superlight 2 shell.
+- **Not delivered, gates held:** M705 and M850L, because their held-out photos are exhausted. The wheel area is not delivered either; D6 found the loss is mostly gap bridging.
+- The living doc is `tools/blender/STUDY-FIDELITY.md` on `m4a-study-fidelity`.
 
-**Design direction (Kirby, 2026-09-25):** main page with mouse-shape concepts and simple sketch motion, then functional pages, login, and a side menu. The new blank-paper flow and navigation are recorded in `docs/design/product-shell-2026-09-25/`. The older printed-sheet journey and camera spec need copy and flow updates before implementation is considered current.
+**GitHub Actions budget is limited (Kirby, 2026-09-30).**
 
-**Queued:** #52 submit after sign-out joins the previous user's claimed session (blocks enabling sign-in, not the anonymous launch) · M1 rubric revision (gate failed, see Gate results) · `/security-review` · #26 review incl. the M4 bbox gate.
+- 7-day baseline, 09-23 → 09-30:
+  - CI/push: 129 runs, ≈ 655 min. 54 of those runs came from one feature branch.
+  - CI/pull_request: 44 runs, ≈ 261 min.
+  - Expire schedule: 27 runs.
+- G1 limits push CI to `main` and skips draft PRs.
+- On 2026-09-29, jobs from 11:49Z were refused with "recent account payments have failed". They ran again from 18:51Z.
 
-**Blocked — Kirby:** **M2 needs new photos for the blank-paper path.** Needed: five top-down photos on a flat blank A4 or Letter sheet with all four paper edges visible, re-placing the hand between shots; record the chosen paper size and ruler measurements of hand length (wrist crease to middle fingertip) and palm width in `../Fixtures/hands/truth.json` and `../Fixtures/hands/<session>/top-N.jpg`. The paper-edge thresholds in #58 remain candidates until this gate is measured.
+**Deletion-promise risk (found 2026-09-30).** The hourly GitHub schedule actually ran about 5 times a day: 33 runs between 09-23 and 09-29, with a longest gap of 8.56 h. Physical deletion can therefore land later than 24 h.
+
+- Expired data is still unreadable, because reads treat expired rows as gone.
+- The fix is G7: run the sweep from the fit and analysis routes, and add a backup scheduler (Kirby decision 9).
+- `expire-sessions.yml` stays until the backup scheduler exists.
+
+**Blocked on Kirby (decision packet, 2026-09-30):**
+
+- Check Actions billing and set a budget alert
+- LICENSE
+- Gemini tier, and the 2027-01-01 price rise (#44)
+- Business model and Vercel plan
+- Camera primer
+- Catalogue brands
+- Analytics tool
+- Backup scheduler
+- Neon PITR retention
+- Keep or remove the legacy `/scan` flow
+- Branch protection, after G1
+- M325s / M550 acceptance
+
+**M2 ground truth** moved to the last phase (W7) and will be collected with the learning kit. This supersedes the earlier request to put five blank-A4 photos in `../Fixtures/hands/`.
+
+**Queued:**
+
+- #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
+- M1 rubric revision (the gate failed; see Gate results).
+- `security-review` workflow, after U1 and G6.
+- Re-review of #26.
 
 ---
 
@@ -47,14 +98,14 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 | #   | Criterion                                                                                                       | Evidence                                                                                                       | Owner                                  |
 | --- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| R1  | End to end works: sheet → photo → submit → ranking → written analysis — **on `main`; reload bug #42 open**      | Playwright E2E over the whole flow, model stubbed                                                              | Sonnet builders                        |
-| R2  | Hand measurement is accurate                                                                                    | **M2 gate:** ±2 mm hand length vs ruler, ±1.5 mm over 5 captures                                               | **Kirby** (photos) → replay script     |
+| R1  | End to end works: sheet → photo → submit → ranking → written analysis — **on `main`; reload bug fixed (#45)**   | Playwright E2E over the whole flow, model stubbed                                                              | Sonnet builders                        |
+| R2  | Hand measurement is accurate                                                                                    | **M2 gate:** ±2 mm hand length vs ruler, ±1.5 mm over 5 captures                                               | **Kirby** (photos, W7) → evaluator     |
 | R3  | Every shipped screen meets `docs/design-guidelines.md`, mobile first                                            | Codex UI audit; findings fixed                                                                                 | Codex (audit) → Sonnet (fixes)         |
 | R4  | Every privacy promise is true                                                                                   | photos-never-leave E2E; 24 h expiry tested; export and delete work                                             | enforced today; re-verified at R6      |
 | R5  | The analysis is honest                                                                                          | model vs. template prose labelled in the UI; no-new-numerals check                                             | #28, #30                               |
 | R6  | Security review passed before public exposure (PLAN §M7) — redaction ✅ #31, rate limits ✅ #41                 | `/security-review`; credential redaction fixed; Production DB vars back to Sensitive; rate limits live         | Claude + reviewer; Kirby (Sensitive)   |
 | R7  | Cost controls live (PLAN §M5) — cap, thinking, cache, per-IP limit ✅; dated reminder ✅ #44; budget alarm open | output-token cap, minimal thinking budget, cache, per-IP limit, budget alarm, reminder for the 2027-01-01 rise | #28; **Kirby** (alarm, Google console) |
-| R8  | Every served asset is cleared for public serving                                                                | decision on the photo-derived shell textures                                                                   | **Kirby**                              |
+| R8  | Every served asset is cleared for public serving                                                                | **Decided 2026-09-27: publish** (Logitech trademarks and source 3D models not covered by the project licence)  | **Kirby**                              |
 
 ### Not required for the first deployment — _candidate_
 
@@ -66,19 +117,19 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 | Phase         | Work                                                                                                                                                | Agents                                               | Status       |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
-| 1 Integration | #27 fit route · #28 analysis infra · #29 scan submit · #30 results page                                                                             | 4 Sonnet builders, parallel                          | 🏗 in flight  |
-| 1 Assets      | #26 Blender pipeline + 31 GLBs                                                                                                                      | Codex (built) · Sonnet reviewer (incl. M4 bbox gate) | 🔍 in review |
-| 1 UI audit    | design-guidelines audit of every screen                                                                                                             | Codex (independent reviewer)                         | 🏗 in flight  |
-| 1 Security    | credential redaction in migration errors                                                                                                            | Sonnet builder                                       | 🏗 in flight  |
-| 2 Wire-up     | analysis route (needs #27 + #28) · full-flow E2E · UI-audit fixes                                                                                   | Sonnet builders                                      | ⬜           |
-| 3 Hardening   | `/security-review` · Production vars Sensitive · budget alarm · mobile/a11y pass · error and empty states · launch checklist · texture optimisation | Claude + reviewers · Codex (textures) · Kirby        | ⬜           |
-| 4 Acceptance  | M2 gate on ground-truth photos · real-phone run on production · final acceptance                                                                    | **Kirby**                                            | ⬜           |
+| 1 Integration | #27 fit route · #28 analysis infra · #29 scan submit · #30 results page                                                                             | 4 Sonnet builders, parallel                          | ✅ merged    |
+| 1 Assets      | #26 Blender pipeline + 31 GLBs                                                                                                                      | Codex (built) · Sonnet reviewer (incl. M4 bbox gate) | 🔍 re-review |
+| 1 UI audit    | design-guidelines audit of every screen                                                                                                             | Codex (independent reviewer)                         | ✅ done      |
+| 1 Security    | credential redaction in migration errors                                                                                                            | Sonnet builder                                       | ✅ merged    |
+| 2 Wire-up     | analysis route (needs #27 + #28) · full-flow E2E · UI-audit fixes                                                                                   | Sonnet builders                                      | ✅ merged    |
+| 3 Hardening   | `/security-review` · Production vars Sensitive · budget alarm · mobile/a11y pass · error and empty states · launch checklist · texture optimisation | Claude + reviewers · Codex (textures) · Kirby        | 🏗 lanes      |
+| 4 Acceptance  | M2 gate on ground-truth photos · real-phone run on production · final acceptance                                                                    | **Kirby**                                            | ⬜ last (W7) |
 
 ### Only Kirby can supply
 
-1. Ground-truth hand photos in `../Fixtures/hands/`, with ruler measurements → R2
-2. Gemini API key → model-written analysis (R5) and the M1 gate
-3. A decision on the photo-derived shell textures → R8
+1. Ground-truth hand photos with ruler measurements, collected with the learning kit in W7 (last) → R2
+2. ~~Gemini API key~~ — added 2026-09-23
+3. ~~A decision on the photo-derived shell textures~~ — decided 2026-09-27: publish
 4. Production DB variables back to Sensitive, or permission for the API call that does it → R6
 5. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
 6. Final acceptance on a real phone
@@ -92,16 +143,16 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 ## Milestone board
 
-| #   | Milestone                          | Gated | Status              | PR                                                     | Notes                                                                                                                   |
-| --- | ---------------------------------- | ----- | ------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| M0  | Scaffold                           | –     | ✅ merged           | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | merged to `main` as `f5d9814`                                                                                           |
-| M1  | Data layer + shape rubric          | ✅    | 🔍 in review        | #4 #5 #8                                               | schema, 38-model seed (30 + 8 owner-approved 2026-09-27), classifier built (fake-tested); gate run needs the Gemini key |
-| M2  | Calibration + measurement          | ✅    | 🔍 in review        | #9 #18 #19 #23                                         | A sheet+geometry, B API+photo pipeline, C parallax; ground-truth photos still needed for the gate                       |
-| M3  | Fit engine                         | –     | 🔍 in review        | #12 #21 #22                                            | contract, engine and results UI built; coefficients still need real pairings                                            |
-| M4  | 3D simulation (Blender + three.js) | ✅    | ⬜                  | –                                                      | M4a Blender → Codex, issue #7                                                                                           |
-| M5  | Gemini analysis                    | –     | 🏗 changes requested | #20                                                    | re-review found two hard-rule-2 bypasses in the numeral check; fix in flight                                            |
-| M6  | Sessions, auth, privacy            | –     | 🔍 in review        | #24                                                    | reviewed: approve with nits (no-store header, `isAuthConfigured`, app-wide `auth()` call)                               |
-| M7  | Polish + security review           | –     | ⬜                  | –                                                      | before any public exposure                                                                                              |
+| #   | Milestone                          | Gated | Status         | PR                                                     | Notes                                                                                                 |
+| --- | ---------------------------------- | ----- | -------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| M0  | Scaffold                           | –     | ✅ merged      | [#3](https://github.com/kirbyliu99M/Open_Mouse/pull/3) | merged to `main` as `f5d9814`                                                                         |
+| M1  | Data layer + shape rubric          | ✅    | ⛔ gate failed | #4 #5 #8                                               | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M2  | Calibration + measurement          | ✅    | 🏗 gate in W7   | #9 #18 #19 #23 #59                                     | merged incl. paper-edge; gate measured last (W7) with learning-kit photos                             |
+| M3  | Fit engine                         | –     | ✅ merged      | #12 #21 #22                                            | coefficients provisional (`fit-v0-provisional`) until owner ratings in W8                             |
+| M4  | 3D simulation (Blender + three.js) | ✅    | 🔍 in review   | #26 #73                                                | study fidelity closed 2026-09-30; M4b viewer optional                                                 |
+| M5  | Gemini analysis                    | –     | ✅ merged      | #20                                                    | live since 2026-09-23; zh-TW numerals and provisional check queued (G4)                               |
+| M6  | Sessions, auth, privacy            | –     | ✅ merged      | #24                                                    | sign-in not enabled in production; fix #52 before enabling                                            |
+| M7  | Polish + security review           | –     | 🏗 in progress  | –                                                      | UI lane and system lane; `security-review` after U1 + G6                                              |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
 
@@ -126,19 +177,19 @@ Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · �
 Fill in with **measured numbers** as each gate is attempted. Record failures too —
 a failed attempt is information, not something to overwrite.
 
-| Gate                              | Target                              | Measured                              | Date       | Verdict |
-| --------------------------------- | ----------------------------------- | ------------------------------------- | ---------- | ------- |
-| M1 flare direction                | ≥ 85% (Inward/Flat/Outward)         | **72.4%** (n=29)                      | 2026-09-23 | ⛔ fail |
-| M1 hump Center-vs-Back            | ≥ 85%                               | **85.2%** (n=27)                      | 2026-09-23 | ✅ pass |
-| M1 side curvature Inward-vs-Flat  | ≥ 85%                               | **25.0%** (n=8)                       | 2026-09-23 | ⛔ fail |
-| M1 within-one-level (all three)   | ≥ 90%                               | hump 100% · flare 86.2% · curve 62.5% | 2026-09-23 | ⛔ fail |
-| M1 computed Size                  | ≥ 85% exact                         | **89.5%** (Logitech, n=76)            | 2026-09-21 | ✅ pass |
-| M1 Size from **first-party** dims | ≥ 85% exact                         | **90.0%** (27/30, current lineup)     | 2026-09-21 | ✅ pass |
-| M2 repeatability                  | ≤ ±1.5 mm over 5 captures           | –                                     | –          | –       |
-| M2 accuracy                       | ≤ ±2 mm hand length vs ruler        | –                                     | –          | –       |
-| M4 bbox fidelity                  | ≤ 0.5 mm vs spec L/W/H              | –                                     | –          | –       |
-| M4 watertight                     | no holes, no self-intersection      | –                                     | –          | –       |
-| M4 silhouette review              | Kirby judges 76 shells recognisable | –                                     | –          | –       |
+| Gate                              | Target                              | Measured                              | Date           | Verdict            |
+| --------------------------------- | ----------------------------------- | ------------------------------------- | -------------- | ------------------ |
+| M1 flare direction                | ≥ 85% (Inward/Flat/Outward)         | **72.4%** (n=29)                      | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M1 hump Center-vs-Back            | ≥ 85%                               | **85.2%** (n=27)                      | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M1 side curvature Inward-vs-Flat  | ≥ 85%                               | **25.0%** (n=8)                       | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M1 within-one-level (all three)   | ≥ 90%                               | hump 100% · flare 86.2% · curve 62.5% | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M1 computed Size                  | ≥ 85% exact                         | **89.5%** (Logitech, n=76)            | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M1 Size from **first-party** dims | ≥ 85% exact                         | **90.0%** (27/30, current lineup)     | ⛔ gate failed | #4 #5 #8           | merged; 38-model seed; descriptors kept out after the 2026-09-23 gate failure; rubric revision queued |
+| M2 repeatability                  | ≤ ±1.5 mm over 5 captures           | –                                     | 🏗 gate in W7   | #9 #18 #19 #23 #59 | merged incl. paper-edge; gate measured last (W7) with learning-kit photos                             |
+| M2 accuracy                       | ≤ ±2 mm hand length vs ruler        | –                                     | 🏗 gate in W7   | #9 #18 #19 #23 #59 | merged incl. paper-edge; gate measured last (W7) with learning-kit photos                             |
+| M4 bbox fidelity                  | ≤ 0.5 mm vs spec L/W/H              | –                                     | 🔍 in review   | #26 #73            | study fidelity closed 2026-09-30; M4b viewer optional                                                 |
+| M4 watertight                     | no holes, no self-intersection      | –                                     | 🔍 in review   | #26 #73            | study fidelity closed 2026-09-30; M4b viewer optional                                                 |
+| M4 silhouette review              | Kirby judges 76 shells recognisable | –                                     | 🔍 in review   | #26 #73            | study fidelity closed 2026-09-30; M4b viewer optional                                                 |
 
 ---
 
@@ -218,17 +269,27 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-25 | The camera flow borrows TONALITE's documented principles, not its screens | Public reviews describe its step-by-step flow and QR-sticker fiducials but not the capture UI; our ArUco markers play the stickers' role. |
 | 2026-09-27 | **Catalogue grows 30 → 38**: M750, M325s, Mobi Fold, M850L, M840L, MX Ergo S, ERGO M575S, G903 Hero | Kirby's call, from a PChome Taiwan shelf check plus a first-party spec read. Descriptors pending; the dated Size-gate figure (27/30) covers only the original 30 — the 8 new rows are unmeasured |
 | 2026-09-27 | **R8: Blender assets are published** (open-source project); **no medical claims** anywhere | Kirby's call. Logitech trademarks and source 3D models are not covered by the project licence — note it in the asset README |
+| 2026-09-30 | **Launch sequence approved; real-hand-photo ML (M2 calibration) is the last job; the site stays non-public until M2 passes** | Kirby's call. Everything that does not depend on measurement accuracy is built first, so the ML phase is only data → train → gate |
+| 2026-09-30 | **Taiwan first: zh-TW is the default language, English stays** | Kirby's call. i18n runs after the UI lanes settle; the catalogue expands for the first market |
+| 2026-09-30 | **Learning-kit code (#76) merges early; photo collection waits for W7** | Kirby's call. Merging early avoids rebase drift and lets the printed QR codes resolve; format v2 adds the fields training needs |
+| 2026-09-30 | **Study fidelity (D phase) closed**; delivered assets merge via #26 → #73 → `m4a-study-fidelity` | Kirby's call after D6: the M705/M850L held-out photos are exhausted, and the wheel-area loss was mostly gap bridging |
+| 2026-09-30 | **At most five agents at once** (two builders plus up to three workflow agents), replacing the 2026-09-23 cap of three | Kirby's call. Each workflow caps itself with an in-script pool of 3 and uses ≤ 10 agents per run |
+| 2026-09-30 | **GitHub Actions budget is limited**: CI runs only on push to `main` and on non-draft PRs; live e2e runs locally | Kirby's call. The 7-day baseline was ≈ 916 min of CI, mostly WIP pushes on feature branches and duplicate push + PR runs |
+| 2026-09-30 | **Builders never edit STATUS**; Claude commits it after each merge with `[skip ci]` | Every parallel branch collided on this file (#77, #76, #73, study fidelity) |
+| 2026-09-30 | **Every PR is reviewed by the `pr-review` workflow** (3 Sonnet lenses, one refuter per finding) | Independent perspectives, plus a check that catches plausible-but-wrong findings. Claude still adjudicates |
+| 2026-09-30 | **#69's typed-length entry ships behind a build-time flag, set to off** | Its two thresholds are candidates and must be measured on M2 photos before users see the path |
+| 2026-09-30 | #77 merged; its wiring-test gap moved to S2 (#74) | S2 replaces `handIsAuto` with `handExplicit`, so the tests belong with the code that stays |
 ---
 
 ## Risks
 
-**Cached analysis prose outlives the scan it came from — live since the key was added.** `analysis_cache` stores model-written prose keyed by a hash of rounded measurements and the top three mice. It has no scan or session id, so deleting a scan — or the 24-hour sweep — does not remove it, and the prose may quote the measurements. It cannot be traced to a person without already knowing their measurements. **It began filling on 2026-09-23** when `GEMINI_API_KEY` went live; a retention limit is queued behind #45 (raised by Codex's review of #47).
+~~**Cached analysis prose outlives the scan it came from — live since the key was added.**~~ **Resolved 2026-09-24 (#53):** `analysis_cache` rows are bound to their scan and cascade-deleted.
 
 **Credential redaction: two known limitations after #31 (accepted, follow-up queued).** Both found by the fourth review pass; neither is reachable with any variable this project uses. (1) A key with an unbroken run of more than 64 characters on either side of the credential word is not matched at all — the cost of bounding the pattern to make it linear. (2) A quoted `Bearer` token containing an internal space leaks the part after the space. Every form that leaked in any review round — 11 in all — is redacted on `main`, and a 1 MB adversarial input takes under 10 ms.
 
-**Anonymous results vanish on reload (found 2026-09-23 in production; fix in flight, #42).** `BeaconOnUnload` in the root layout sends a session-delete beacon on every `pagehide`, and `pagehide` fires on reload, back/forward and full navigation as well as on tab close. Reproduced in a real browser against production: fit 200, one reload, fit 404; production logs show `POST /api/scans/session` between every submit and fit. **No test caught it because every test mocked the seam it lives on** — the results-page e2e stubs the backend, the scan-submit e2e stubs `/api/scans`. The fix removes the beacon, adds an explicit delete action, and adds a regression test with nothing mocked between browser and database.
+~~**Anonymous results vanish on reload (found 2026-09-23 in production; fix in flight, #42).**~~ **Resolved 2026-09-24 (#45):** the pagehide beacon is gone; deleting is an explicit action.
 
-**Credential redaction leaks quoted secrets (P1, open since 2026-09-21).** Codex's M0 review reported that `describeMigrationError` lets quoted credentials through. It was never fixed. Re-tested 2026-09-23 against `main`: of seven forms, **five leak the full secret** — `password="…"`, `password='…'`, `{"password":"…"}`, escaped quotes, and `PGPASSWORD=…`. This code runs in every preview build, so a failing migration could write the database password into Vercel build logs. Fix in flight; blocks R6.
+~~**Credential redaction leaks quoted secrets (P1, open since 2026-09-21).**~~ **Resolved 2026-09-23 (#31):** every leaking form is redacted on `main`; two accepted limitations remain (above).
 
 **Shell textures are derived from product photos.** 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decides (R8) before #26 merges. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
 

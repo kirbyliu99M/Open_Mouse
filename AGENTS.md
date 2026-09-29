@@ -8,14 +8,14 @@ Full design: `docs/PLAN.md`.
 
 ## Roles
 
-_Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; builders are Sonnet subagents dispatched by Claude._
+_Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; builders are Sonnet subagents dispatched by Claude. Revised 2026-09-30: reviews run as the `pr-review` workflow, at most five agents at once, STATUS is Claude's alone._
 
 | Agent | Owns | Never does |
 |---|---|---|
 | **Claude** — orchestrator | Plan, milestone specs, `src/lib/contracts/`, shape rubric, dispatching builders, reviewing their output, gate adjudication, `docs/STATUS.md`, **merging reviewed PRs into `main`** and running production migrate + seed after schema changes | Approves a PR it authored directly; merges a PR without an independent reviewer's approval |
 | **Sonnet builder subagents** | Backend and frontend implementation, one scoped task each, **each in its own git worktree** | Changes a contract; touches files outside its task; merges |
-| **Sonnet reviewer subagent** | Independent review of every PR against its acceptance criteria and the hard rules | Reviews code it wrote |
-| **Codex** — Blender only | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | Anything outside `tools/blender/` and its generated assets |
+| **Reviewers — `pr-review` workflow** | Independent review of every PR against its acceptance criteria and the hard rules: three Sonnet lenses in parallel, then one refuter per finding; Claude adjudicates what survives | Reviews code it wrote |
+| **Codex** — Blender, plus tasks Claude assigns (2026-09-23) | M4a: `tools/blender/` shell and hand generation, GLB export, Blender MCP work | Pushes (Claude runs git); edits `docs/STATUS.md` or `.github/` |
 | **Kirby** | Ground-truth photos, rubric spot-checks, silhouette review, dashboards, secrets, final acceptance | — |
 
 ### Directory ownership
@@ -25,18 +25,21 @@ _Revised 2026-09-21 (second revision): Codex narrowed to Blender for cost; build
 | `src/lib/contracts/` | Claude only. The seam every builder codes against |
 | `tools/blender/`, generated `public/models/**` | Codex |
 | Everything else | Whichever builder subagent Claude assigns, scoped per task |
-| `docs/STATUS.md` | Claude updates after each task lands |
+| `docs/STATUS.md` | **Claude only**, committed to `main` after each merge with `[skip ci]`. Builders and Codex never edit it — parallel branches kept colliding here |
 
 ### How a builder task runs
 
 1. Claude writes a self-contained brief: goal, files in scope, contract to code
    against, acceptance criteria, non-goals.
-2. The builder works in an isolated worktree on its own branch, keeps CI-equivalent
-   checks green locally (typecheck, lint, prettier, vitest, drizzle check), pushes,
-   and opens a PR.
-3. A reviewer subagent that did not write the code reviews it; Claude adjudicates
-   the findings; once the reviewer approves and CI is green, Claude merges the PR
-   into `main` (merge commit, stack order, retargeting the next PR to `main`).
+2. The builder works in an isolated worktree on its own branch and opens the PR
+   as a **draft**. It keeps CI-equivalent checks green locally (typecheck, lint,
+   prettier, vitest, drizzle check, and every Playwright project) and pushes once
+   they are green. Review fixes go up in one push, not one push per commit.
+3. The `pr-review` workflow reviews it (agents that did not write the code), and
+   Claude adjudicates the findings. Claude then marks the PR ready. That triggers
+   CI once, and Claude confirms the run actually executed: a skipped job also
+   reports success. Once findings are resolved and CI is green, Claude merges the
+   PR into `main` (merge commit, stack order, retargeting the next PR to `main`).
    _Kirby's call, 2026-09-22: merge per PR once reviewed, don't let the stack pile up._
 
 **Neon has exactly two branches: `main` (production) and `preview` (shared by every
@@ -44,6 +47,15 @@ PR preview).** Previews migrate and seed the shared `preview` branch. Seeds must
 idempotent and migrations additive. If the preview schema drifts (two open PRs add
 conflicting migrations), reset `preview` from `main` in the Neon console and
 redeploy. Never create per-PR Neon branches: the Free plan caps branches at 10.
+
+**At most five agents run at once** (Kirby, 2026-09-30): two builders plus up to three
+workflow agents. A workflow caps its own concurrency with an in-script pool of three
+and uses at most ten agents per run. Codex and AGY are external CLIs and do not count.
+
+**GitHub Actions minutes are budgeted** (Kirby, 2026-09-30). CI runs on pushes to `main`
+and on PRs that are not drafts. Pushing WIP to a feature branch costs nothing. Live e2e
+against production runs locally (`BASE_URL=… npm run test:e2e:live`), not in Actions.
+Do not add scheduled workflows without Claude's sign-off.
 
 **Commit and push work in progress after each meaningful step** (a draft PR is fine early). Builders can be stopped mid-task by usage limits; anything uncommitted is at risk and pushed work resumes cleanly.
 
@@ -101,5 +113,5 @@ caused one agent's uncommitted work to be committed by another.
 - [ ] Unit tests for every new pure function
 - [ ] CI green; Vercel preview deploys
 - [ ] Gate evidence posted as numbers (gated milestones)
-- [ ] **`docs/STATUS.md` updated** — milestone row, decisions, blockers
+- [ ] **`docs/STATUS.md` updated by Claude after the merge** — milestone row, decisions, blockers (builders report these in the PR description instead)
 - [ ] No licensed data anywhere in the diff or in `git log -p`
