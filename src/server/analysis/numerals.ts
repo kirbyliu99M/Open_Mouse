@@ -31,7 +31,16 @@
  *    value first, and also collapses a literal "a⁄b" fraction-slash form
  *    the model might write directly.
  *
- * Digit runs glued to letters ("G502", "about68mm") are a fifth, separate
+ * 5. Chinese numerals — 五, 十二, 一百二十, 半, 百分之三十, 三分之一, 七成,
+ *    and Arabic digits with a Chinese unit (3萬) — in Traditional and
+ *    Simplified. `extractChineseNumerals` (`./chinese-numerals`) reads them
+ *    into the same tokens, and `findUnknownNumeral` checks them against the
+ *    input like any other number. Ordinary words that contain a numeral
+ *    character (一些, 一樣, 一定, 十分適合, 萬一, 零件) are a listed exception;
+ *    anything unlisted is flagged. The rule and the list are documented in
+ *    that file.
+ *
+ * Digit runs glued to letters ("G502", "about68mm") are a sixth, separate
  * concern handled by `matchDigitNumerals` and the caller-supplied
  * `exemptTokens` set — see the comment above `matchDigitNumerals`. Callers
  * build that set with `stringTokens` over the *specific* display-name fields
@@ -52,6 +61,8 @@
  * worse failure mode for a hard-rule gate than the gap itself. Left closed
  * only to digits and spelled-out words.
  */
+
+import { readChineseNumerals } from "./chinese-numerals";
 
 const NUMERAL_PATTERN = /-?\d+(?:\.\d+)?(?!\d)/g;
 const EPSILON = 1e-9;
@@ -330,7 +341,11 @@ function matchDigitNumerals(
     }
     const value = Number.parseFloat(match[0]);
     const after = normalized.slice(end);
-    tokens.push({ value, percent: /^\s*%/.test(after) });
+    // 30%, 30 %, 30個百分點, 30趴 and 百分之30 are all "30 percent".
+    const percent =
+      /^\s*(?:%|(?:個|个)?百分[點点]|趴)/.test(after) ||
+      /百分之\s*$/.test(normalized.slice(0, start));
+    tokens.push({ value, percent });
   }
   return tokens;
 }
@@ -671,6 +686,16 @@ export function extractWordNumerals(text: string): NumeralToken[] {
   return results;
 }
 
+/**
+ * Numeral tokens for the Chinese numbers in `text` (Traditional and
+ * Simplified): 五, 一百二十, 三點五, 半, 百分之三十, 三分之一, 七成, 3萬 ... See
+ * `./chinese-numerals` for what is read and what is deliberately not.
+ * Bare Arabic digits are `extractNumerals`' job and are not returned here.
+ */
+export function extractChineseNumerals(text: string): NumeralToken[] {
+  return readChineseNumerals(normalizeUnicodeDigits(text));
+}
+
 function isAllowed(n: number, allowed: ReadonlySet<number>): boolean {
   for (const a of allowed) {
     if (Math.abs(a - n) < EPSILON) return true;
@@ -695,8 +720,8 @@ function isAllowedToken(
 
 /**
  * Returns the first numeral in `text` that isn't in `allowed`, or null if
- * every numeral — digit, Unicode-digit, spelled-out, or a multiplier/
- * fraction word — traces back to the input. Percent forms of an allowed
+ * every numeral — digit, Unicode-digit, spelled-out (English or Chinese), or
+ * a multiplier/fraction word — traces back to the input. Percent forms of an allowed
  * fraction are treated as the same number, not a new one.
  *
  * `exemptTokens` — the verbatim alphanumeric tokens from the input's
@@ -714,6 +739,7 @@ export function findUnknownNumeral(
   for (const token of [
     ...matchDigitNumerals(text, exemptTokens),
     ...extractWordNumerals(text),
+    ...extractChineseNumerals(text),
   ]) {
     if (!isAllowedToken(token, allowed)) return token.value;
   }
