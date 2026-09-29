@@ -207,7 +207,9 @@ describe("scoreThumb", () => {
   it.each([
     // [grip, thumbRest, expectedScore, expectedCode]
     ["palm", true, 100, "thumb_rest_supports"],
-    ["palm", false, 75, "thumb_neutral"],
+    // A palm grip would normally rest the thumb on a rest: its absence is a
+    // tradeoff (`thumb_rest_missing`), not neutral. The score stays 75.
+    ["palm", false, 75, "thumb_rest_missing"],
     ["claw", true, 65, "thumb_rest_unneeded"],
     ["claw", false, 85, "thumb_neutral"],
     ["fingertip", true, 65, "thumb_rest_unneeded"],
