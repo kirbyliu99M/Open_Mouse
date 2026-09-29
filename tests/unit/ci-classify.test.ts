@@ -5,28 +5,62 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   classify,
+  existingFiles,
   isDocsOnlyPath,
-} from "../../scripts/ci/classify-changes.mjs";
+  parseNulList,
+  prettierInvocation,
+  prettierMain,
+  prettierVersion,
+  readChangedPaths,
+} from "../../scripts/ci/lib.mjs";
+import type { Invocation } from "../../scripts/ci/lib.mjs";
 
 /**
  * G1 (CI budget). The first step of .github/workflows/ci.yml decides whether a
  * run skips the gate. A wrong answer there turns a red change green, and the
  * workflow file itself is not otherwise tested, so this file pins:
  *
- *   1. the pure decision (`classify`, `isDocsOnlyPath`),
- *   2. the CLI against a real git repository (NUL-separated names, renames,
- *      deletions, and every "cannot tell, so run everything" path),
- *   3. the shape of ci.yml (job id `checks`, triggers, and that every step
- *      after the classifier is gated on its outputs).
+ *   1. the pure decision (`classify`, `isDocsOnlyPath`) and the git layer with
+ *      git injected (`readChangedPaths`),
+ *   2. the classify-changes.mjs CLI against a real git repository (NUL-separated
+ *      names, renames, deletions, every "cannot tell, so run everything" path,
+ *      and fail-closed when the outputs cannot be written),
+ *   3. the docs-only Prettier check (prettier-changed-docs.mjs),
+ *   4. the shape of ci.yml (job id `checks`, triggers, and an explicit
+ *      command -> gate table for every step after the classifier).
  */
+
+/** process.env minus everything the scripts read, so a run inside Actions cannot leak in. */
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (
+      /^(GITHUB_|RUNNER_|INPUT_)/i.test(key) ||
+      /^(EVENT_NAME|PR_BASE_SHA|CHANGED_FILE)$/i.test(key)
+    ) {
+      delete env[key];
+    }
+  }
+  return env;
+}
 
 // ---------------------------------------------------------------------------
 // 1. Pure decision
@@ -228,8 +262,140 @@ describe("classify on other events", () => {
   );
 });
 
+describe("readChangedPaths (git is injected)", () => {
+  const SHA = "a".repeat(40);
+
+  function recorder(impl: (args: string[]) => string = () => "") {
+    const calls: string[][] = [];
+    const run = (args: string[]) => {
+      calls.push(args);
+      return impl(args);
+    };
+    return { calls, run };
+  }
+
+  // The base comes from the event payload. Anything that is not a well-formed
+  // commit SHA must never reach git (it could be read as an option), and the
+  // problem must say so, so this cannot be confused with a fetch failure.
+  it.each([
+    ["an option", "--upload-pack=x"],
+    ["an option with a SHA-looking tail", `--${SHA}`],
+    ["40 characters that start with a dash", `-${"a".repeat(39)}`],
+    ["short hex", "abc123"],
+    ["39 hex digits", "a".repeat(39)],
+    ["41 hex digits", "a".repeat(41)],
+    ["a SHA and more", `${SHA} extra`],
+    ["a SHA and a newline", `${SHA}\n`],
+    ["a ref name", "refs/heads/main"],
+    ["non-hex letters", "z".repeat(40)],
+  ])("never hands a malformed base to git: %s", (_name, base) => {
+    const { calls, run } = recorder();
+    const result = readChangedPaths(base, "/nowhere", run);
+    expect(calls).toEqual([]);
+    expect(result.paths).toBeNull();
+    expect("problem" in result && result.problem).toMatch(
+      /not a commit SHA, so git was not called/,
+    );
+  });
+
+  it.each([
+    ["undefined", undefined, /no base commit/],
+    ["empty", "", /no base commit/],
+    ["all zeros", "0".repeat(40), /all-zero SHA/],
+  ])("does not call git without a real base: %s", (_name, base, problem) => {
+    const { calls, run } = recorder();
+    const result = readChangedPaths(base, "/nowhere", run);
+    expect(calls).toEqual([]);
+    expect(result).toEqual({
+      paths: null,
+      problem: expect.stringMatching(problem),
+    });
+  });
+
+  it.each([
+    ["40 lower-case hex", SHA],
+    ["40 upper-case hex", "ABCDEF0123".repeat(4)],
+    ["64 hex (sha256 repository)", "b".repeat(64)],
+  ])(
+    "a well-formed base (%s) is fetched, then diffed, NUL-separated",
+    (_name, base) => {
+      const { calls, run } = recorder((args) =>
+        args.includes("diff") ? "docs/使用 說明.md\0README.md\0" : "",
+      );
+      const result = readChangedPaths(base, "/repo", run);
+      expect(calls).toEqual([
+        ["fetch", "--no-tags", "--depth=1", "origin", base],
+        [
+          "-c",
+          "core.quotePath=false",
+          "diff",
+          "--name-only",
+          "-z",
+          "--no-renames",
+          base,
+          "HEAD",
+        ],
+      ]);
+      expect(result).toEqual({ paths: ["docs/使用 說明.md", "README.md"] });
+    },
+  );
+
+  it("a fetch failure is reported as such and the diff is not attempted", () => {
+    const { calls, run } = recorder(() => {
+      throw new Error("boom");
+    });
+    const result = readChangedPaths(SHA, "/repo", run);
+    expect(calls).toHaveLength(1);
+    expect(result).toEqual({
+      paths: null,
+      problem: expect.stringMatching(/^could not fetch base /),
+    });
+  });
+
+  it("a diff failure is reported as such", () => {
+    const { run } = recorder((args) => {
+      if (args.includes("diff")) throw new Error("boom");
+      return "";
+    });
+    expect(readChangedPaths(SHA, "/repo", run)).toEqual({
+      paths: null,
+      problem: expect.stringMatching(/^could not diff against /),
+    });
+  });
+
+  it("the three failure reasons are distinguishable", () => {
+    const bad = readChangedPaths("--x", "/r", () => "");
+    const fetch = readChangedPaths(SHA, "/r", () => {
+      throw new Error("x");
+    });
+    const diff = readChangedPaths(SHA, "/r", (args) => {
+      if (args.includes("diff")) throw new Error("x");
+      return "";
+    });
+    const problems = [bad, fetch, diff].map((r) =>
+      "problem" in r ? r.problem : "",
+    );
+    expect(new Set(problems).size).toBe(3);
+  });
+});
+
+describe("parseNulList", () => {
+  it("splits on NUL and drops the empty tail", () => {
+    expect(parseNulList("a b.md\0docs/使用說明.md\0")).toEqual([
+      "a b.md",
+      "docs/使用說明.md",
+    ]);
+    expect(parseNulList("")).toEqual([]);
+    expect(parseNulList("\0\0")).toEqual([]);
+  });
+
+  it("does not split on newlines (a name may contain one)", () => {
+    expect(parseNulList("odd\nname.md\0")).toEqual(["odd\nname.md"]);
+  });
+});
+
 // ---------------------------------------------------------------------------
-// 2. CLI against a real git repository
+// 2. classify-changes.mjs CLI against a real git repository
 // ---------------------------------------------------------------------------
 
 const SCRIPT = fileURLToPath(
@@ -282,17 +448,17 @@ describe(
       return git("rev-parse", "HEAD");
     }
 
-    function runCli(env: Record<string, string>) {
+    function runCli(env: Record<string, string>, script = SCRIPT) {
       const dir = join(outDir, `run-${runCount++}`);
       mkdirSync(dir);
       const outputFile = join(dir, "github-output.txt");
       const summaryFile = join(dir, "summary.md");
       writeFileSync(outputFile, "");
-      const result = spawnSync(process.execPath, [SCRIPT], {
+      const result = spawnSync(process.execPath, [script], {
         cwd: repo,
         encoding: "utf8",
         env: {
-          ...process.env,
+          ...cleanEnv(),
           // Never touch a real runner's files when this test runs inside Actions.
           GITHUB_OUTPUT: outputFile,
           GITHUB_STEP_SUMMARY: summaryFile,
@@ -474,23 +640,34 @@ describe(
     });
 
     it.each([
-      ["missing", ""],
-      ["all zeros", "0000000000000000000000000000000000000000"],
-      ["not a sha", "not-a-sha"],
-      ["looks like a git option", "--upload-pack=echo"],
+      ["missing", "", /no base commit/],
+      ["all zeros", "0000000000000000000000000000000000000000", /all-zero SHA/],
+      ["not a sha", "not-a-sha", /not a commit SHA, so git was not called/],
+      [
+        "looks like a git option",
+        "--upload-pack=echo",
+        /not a commit SHA, so git was not called/,
+      ],
       [
         "well-formed but not in origin",
         "1111111111111111111111111111111111111111",
+        /could not fetch base/,
       ],
     ])(
       "pull_request with an unusable base (%s) runs the full gate",
-      (_name, base) => {
+      (_name, base, reason) => {
         // A docs-only change: only the unusable base can make this heavy.
         commitOnBase({ write: { "docs/a.md": "a3\n" } });
         const run = runCli({ EVENT_NAME: "pull_request", PR_BASE_SHA: base });
         expect(run.status).toBe(0);
         expect(run.outputs.heavy).toBe("true");
         expect(run.outputs.e2e).toBe("true");
+        // The reason tells a malformed base (never given to git) from a real
+        // fetch failure.
+        expect(run.stdout).toMatch(reason);
+        if (!/could not fetch/.test(String(reason))) {
+          expect(run.stdout).not.toMatch(/could not fetch/);
+        }
       },
     );
 
@@ -511,7 +688,7 @@ describe(
         cwd: lonely,
         encoding: "utf8",
         env: {
-          ...process.env,
+          ...cleanEnv(),
           GITHUB_OUTPUT: outputFile,
           GITHUB_STEP_SUMMARY: "",
           RUNNER_TEMP: lonely,
@@ -540,29 +717,392 @@ describe(
       expect(run.outputs.e2e).toBe("true");
     });
 
-    it("works without GITHUB_OUTPUT (local run)", () => {
+    it("works without GITHUB_OUTPUT outside Actions (local run)", () => {
       commitOnBase({ write: { "docs/a.md": "a6\n" } });
-      const env: NodeJS.ProcessEnv = {
-        ...process.env,
-        EVENT_NAME: "pull_request",
-        PR_BASE_SHA: baseSha,
-        RUNNER_TEMP: join(outDir, "local"),
-      };
-      delete env.GITHUB_OUTPUT;
-      delete env.GITHUB_STEP_SUMMARY;
       const result = spawnSync(process.execPath, [SCRIPT], {
         cwd: repo,
         encoding: "utf8",
-        env,
+        env: {
+          ...cleanEnv(),
+          EVENT_NAME: "pull_request",
+          PR_BASE_SHA: baseSha,
+          RUNNER_TEMP: join(outDir, "local"),
+        },
       });
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("heavy=false e2e=false");
+    });
+
+    // Fail closed. A classifier that exits 0 without publishing heavy/e2e turns
+    // every gated step off and the job goes green over unchecked code.
+    it("inside Actions, a missing GITHUB_OUTPUT is an error, not a silent pass", () => {
+      const result = spawnSync(process.execPath, [SCRIPT], {
+        cwd: repo,
+        encoding: "utf8",
+        env: {
+          ...cleanEnv(),
+          GITHUB_ACTIONS: "true",
+          EVENT_NAME: "push",
+          RUNNER_TEMP: join(outDir, "no-output"),
+        },
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/GITHUB_OUTPUT/);
+    });
+
+    it("an unwritable GITHUB_OUTPUT is an error, not a silent pass", () => {
+      const result = spawnSync(process.execPath, [SCRIPT], {
+        cwd: repo,
+        encoding: "utf8",
+        env: {
+          ...cleanEnv(),
+          GITHUB_ACTIONS: "true",
+          // A directory: appending to it fails.
+          GITHUB_OUTPUT: outDir,
+          EVENT_NAME: "push",
+          RUNNER_TEMP: join(outDir, "unwritable"),
+        },
+      });
+      expect(result.status).not.toBe(0);
+    });
+
+    // The old "am I the main module?" check compared argv[1] with the module's
+    // real path; through a symlink or junction they differ, and the script did
+    // nothing and exited 0.
+    it("still publishes its outputs when started through a symlink or junction", () => {
+      const link = join(root, "linked-scripts");
+      symlinkSync(dirname(SCRIPT), link, "junction");
+      commitOnBase({ write: { "src/app.ts": "export const y = 2;\n" } });
+      const run = runCli(
+        { EVENT_NAME: "pull_request", PR_BASE_SHA: baseSha },
+        join(link, "classify-changes.mjs"),
+      );
+      expect(run.status).toBe(0);
+      expect(run.outputs.heavy).toBe("true");
+      expect(run.outputs.e2e).toBe("true");
+      expect(run.changed).toEqual(["src/app.ts"]);
     });
   },
 );
 
 // ---------------------------------------------------------------------------
-// 3. Shape of .github/workflows/ci.yml
+// 3. prettier-changed-docs.mjs: the only check a docs-only PR gets
+// ---------------------------------------------------------------------------
+
+const PRETTIER_SCRIPT = fileURLToPath(
+  new URL("../../scripts/ci/prettier-changed-docs.mjs", import.meta.url),
+);
+const LOCAL_PRETTIER = fileURLToPath(
+  new URL("../../node_modules/prettier/bin/prettier.cjs", import.meta.url),
+);
+
+describe("prettier-changed-docs", { timeout: 60_000 }, () => {
+  const GOOD = "# 標題\n\n- 項目\n";
+  const BAD = "#  Title\n\n*   item\n";
+  let dir: string;
+  let listCount = 0;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "ci-prettier-"));
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ devDependencies: { prettier: "9.9.9" } }),
+    );
+    const files: Record<string, string> = {
+      "README.md": GOOD,
+      "docs/使用 說明.md": GOOD,
+      "docs/My Notes.md": GOOD,
+      "-dash name.md": GOOD,
+      "docs/壞 格式.md": BAD,
+    };
+    for (const [name, body] of Object.entries(files)) {
+      writeFileSync(join(dir, name), body);
+    }
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  let logs: string[];
+  beforeEach(() => {
+    logs = [];
+    const keep = (...args: unknown[]) => void logs.push(args.join(" "));
+    vi.spyOn(console, "log").mockImplementation(keep);
+    vi.spyOn(console, "error").mockImplementation(keep);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** A NUL-separated list file, the way classify-changes.mjs writes it. */
+  function listFile(...names: string[]): string {
+    const path = join(dir, `list-${listCount++}.bin`);
+    writeFileSync(path, names.map((name) => `${name}\0`).join(""));
+    return path;
+  }
+
+  function fakeRun(status = 0) {
+    const calls: Invocation[] = [];
+    const run = (invocation: Invocation) => {
+      calls.push(invocation);
+      return status;
+    };
+    return { calls, run };
+  }
+
+  /** The part of the argument list that starts at `--yes` (a Windows launcher may precede it). */
+  const npxArgs = (invocation: Invocation) =>
+    invocation.args.slice(invocation.args.indexOf("--yes"));
+
+  it("passes names with spaces and Chinese characters as separate arguments", () => {
+    const { calls, run } = fakeRun();
+    const code = prettierMain(
+      {
+        CHANGED_FILE: listFile(
+          "docs/使用 說明.md",
+          "docs/My Notes.md",
+          "README.md",
+        ),
+      },
+      dir,
+      run,
+    );
+    expect(code).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(npxArgs(calls[0])).toEqual([
+      "--yes",
+      "prettier@9.9.9",
+      "--check",
+      "--ignore-unknown",
+      "docs/使用 說明.md",
+      "docs/My Notes.md",
+      "README.md",
+    ]);
+  });
+
+  it("checks only the files that still exist", () => {
+    const { calls, run } = fakeRun();
+    const code = prettierMain(
+      {
+        CHANGED_FILE: listFile("docs/gone.md", "README.md", "docs/已刪 除.md"),
+      },
+      dir,
+      run,
+    );
+    expect(code).toBe(0);
+    expect(npxArgs(calls[0]).slice(4)).toEqual(["README.md"]);
+  });
+
+  it("only deletions: nothing to check, Prettier is not started, exit 0", () => {
+    const { calls, run } = fakeRun();
+    const code = prettierMain(
+      { CHANGED_FILE: listFile("docs/gone.md", "docs/已刪 除.md") },
+      dir,
+      run,
+    );
+    expect(code).toBe(0);
+    expect(calls).toEqual([]);
+    expect(logs.join("\n")).toMatch(/Only deletions/);
+  });
+
+  it.each([
+    ["a zero-byte list", ""],
+    ["a list of bare NULs", "\0\0"],
+  ])("%s: nothing to check, Prettier is not started, exit 0", (_name, body) => {
+    const path = join(dir, `empty-${listCount++}.bin`);
+    writeFileSync(path, body);
+    const { calls, run } = fakeRun();
+    expect(prettierMain({ CHANGED_FILE: path }, dir, run)).toBe(0);
+    expect(calls).toEqual([]);
+    expect(logs.join("\n")).toMatch(/No changed files listed/);
+  });
+
+  it("a directory in the list is not a file", () => {
+    expect(existingFiles(["docs", "README.md", "nope.md"], dir)).toEqual([
+      "README.md",
+    ]);
+  });
+
+  it("names starting with a dash are passed as ./name so they cannot be read as options", () => {
+    const { calls, run } = fakeRun();
+    prettierMain({ CHANGED_FILE: listFile("-dash name.md") }, dir, run);
+    expect(npxArgs(calls[0]).slice(4)).toEqual(["./-dash name.md"]);
+  });
+
+  it.each([0, 1, 2])(
+    "Prettier's exit status %i is the script's exit status",
+    (status) => {
+      const { run } = fakeRun(status);
+      expect(
+        prettierMain({ CHANGED_FILE: listFile("README.md") }, dir, run),
+      ).toBe(status);
+    },
+  );
+
+  describe("fails closed", () => {
+    it("when CHANGED_FILE is not set", () => {
+      const { calls, run } = fakeRun();
+      expect(prettierMain({}, dir, run)).toBe(1);
+      expect(prettierMain({ CHANGED_FILE: "" }, dir, run)).toBe(1);
+      expect(calls).toEqual([]);
+      expect(logs.join("\n")).toMatch(/CHANGED_FILE/);
+    });
+
+    it("when the list cannot be read", () => {
+      const { calls, run } = fakeRun();
+      expect(
+        prettierMain(
+          { CHANGED_FILE: join(dir, "does-not-exist.bin") },
+          dir,
+          run,
+        ),
+      ).toBe(1);
+      expect(calls).toEqual([]);
+    });
+
+    it("when package.json has no Prettier version", () => {
+      const bare = mkdtempSync(join(dir, "bare-"));
+      writeFileSync(join(bare, "README.md"), GOOD);
+      const { calls, run } = fakeRun();
+      const env = { CHANGED_FILE: listFile("README.md") };
+      // no package.json at all
+      expect(prettierMain(env, bare, run)).toBe(1);
+      // package.json without devDependencies.prettier
+      writeFileSync(join(bare, "package.json"), "{}");
+      expect(prettierMain(env, bare, run)).toBe(1);
+      expect(calls).toEqual([]);
+    });
+  });
+
+  describe("with the real Prettier (this repo's node_modules, no network)", () => {
+    let output = "";
+    // Same arguments as the workflow, minus the npx launcher.
+    const localPrettier = (invocation: Invocation, cwd: string) => {
+      const args = invocation.args.slice(invocation.args.indexOf("--check"));
+      const result = spawnSync(process.execPath, [LOCAL_PRETTIER, ...args], {
+        cwd,
+        encoding: "utf8",
+      });
+      output = `${result.stdout}${result.stderr}`;
+      return result.status ?? 1;
+    };
+
+    it("well-formatted files (spaces, Chinese, leading dash) pass", () => {
+      const code = prettierMain(
+        {
+          CHANGED_FILE: listFile(
+            "README.md",
+            "docs/使用 說明.md",
+            "docs/My Notes.md",
+            "-dash name.md",
+            "docs/deleted.md",
+          ),
+        },
+        dir,
+        localPrettier,
+      );
+      expect(output).toMatch(/All matched files use Prettier code style/);
+      expect(code).toBe(0);
+    });
+
+    it("a badly formatted file makes it exit 1, and Prettier names that file", () => {
+      const code = prettierMain(
+        { CHANGED_FILE: listFile("README.md", "docs/壞 格式.md") },
+        dir,
+        localPrettier,
+      );
+      expect(code).toBe(1);
+      expect(output).toContain("壞 格式.md");
+    });
+  });
+
+  describe("the real script", () => {
+    function runScript(env: Record<string, string>) {
+      return spawnSync(process.execPath, [PRETTIER_SCRIPT], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...cleanEnv(), ...env },
+      });
+    }
+
+    it("exits 1 without a list (fail closed), naming CHANGED_FILE", () => {
+      const result = runScript({});
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/CHANGED_FILE/);
+    });
+
+    it("exits 0 when the list has only deletions, without starting Prettier", () => {
+      const result = runScript({ CHANGED_FILE: listFile("docs/gone.md") });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toMatch(/Only deletions/);
+    });
+  });
+
+  describe("helpers", () => {
+    it("prettierVersion reads devDependencies.prettier", () => {
+      expect(prettierVersion('{"devDependencies":{"prettier":"3.9.8"}}')).toBe(
+        "3.9.8",
+      );
+      for (const text of [
+        "{}",
+        '{"devDependencies":{}}',
+        '{"dependencies":{"prettier":"3.9.8"}}',
+        '{"devDependencies":{"prettier":""}}',
+      ]) {
+        expect(() => prettierVersion(text)).toThrow(
+          /devDependencies\.prettier/,
+        );
+      }
+    });
+
+    it("the Linux invocation is npx with an argument array, no shell string", () => {
+      expect(
+        prettierInvocation({
+          version: "3.9.8",
+          files: ["docs/a b.md", "-x.md"],
+          platform: "linux",
+        }),
+      ).toEqual({
+        command: "npx",
+        args: [
+          "--yes",
+          "prettier@3.9.8",
+          "--check",
+          "--ignore-unknown",
+          "docs/a b.md",
+          "./-x.md",
+        ],
+      });
+    });
+
+    it("on Windows node runs npm's npx-cli.js (npx.cmd cannot be spawned without a shell)", () => {
+      const execPath = join("C:", "node", "node.exe");
+      const invocation = prettierInvocation({
+        version: "3.9.8",
+        files: ["a.md"],
+        platform: "win32",
+        execPath,
+        exists: () => true,
+      });
+      expect(invocation.command).toBe(execPath);
+      expect(invocation.args[0]).toMatch(/npx-cli\.js$/);
+      expect(invocation.args.slice(1, 3)).toEqual(["--yes", "prettier@3.9.8"]);
+      const fallback = prettierInvocation({
+        version: "3.9.8",
+        files: ["a.md"],
+        platform: "win32",
+        execPath,
+        exists: () => false,
+      });
+      expect(fallback.command).toBe("npx");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Shape of .github/workflows/ci.yml
 //
 // Regex over the raw text on purpose: no yaml package (package.json must not
 // change for this), and the file's layout is fixed at 2-space indentation.
@@ -697,45 +1237,149 @@ describe(".github/workflows/ci.yml shape", () => {
     expect(steps[classifyAt].text).toMatch(
       /^ {8}run: node scripts\/ci\/classify-changes\.mjs\s*$/m,
     );
-    expect(steps[classifyAt].text).toMatch(
-      /EVENT_NAME: \$\{\{ github\.event_name \}\}/,
+  });
+
+  it("hands the classifier the event name and the PR base sha from the payload", () => {
+    const text = steps[classifyAt].text;
+    expect(text).toMatch(
+      /^ {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\s*$/m,
+    );
+    expect(text).toMatch(
+      /^ {10}PR_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\s*$/m,
     );
   });
 
-  it("every step after the classifier is gated on steps.changes.outputs", () => {
-    const after = steps.slice(classifyAt + 1);
-    expect(after.length).toBeGreaterThan(5);
-    for (const step of after) {
-      expect(step.ifExpr, `step without an if:\n${step.text}`).toBeDefined();
-      expect(step.ifExpr).toMatch(/steps\.changes\.outputs\.(heavy|e2e)/);
-    }
+  // The explicit map from command to gate. Each command is in exactly one step,
+  // and its `if:` is exactly this text. A push runs the `heavy` rows only: it
+  // must not touch Playwright at all (no version lookup, cache or apt install).
+  const HEAVY = "steps.changes.outputs.heavy == 'true'";
+  const E2E = "steps.changes.outputs.e2e == 'true'";
+  const GATES: ReadonlyArray<{ command: string; match: RegExp; gate: string }> =
+    [
+      // Light gate: pull_request, workflow_dispatch and push to main.
+      {
+        command: "actions/setup-node",
+        match: /^ {8}uses: actions\/setup-node@/m,
+        gate: HEAVY,
+      },
+      { command: "npm ci", match: /^ {8}run: npm ci\s*$/m, gate: HEAVY },
+      {
+        command: "npm run typecheck",
+        match: /^ {8}run: npm run typecheck\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run lint",
+        match: /^ {8}run: npm run lint\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run format:check",
+        match: /^ {8}run: npm run format:check\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run test",
+        match: /^ {8}run: npm run test\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run db:check",
+        match: /^ {10}npm run db:check\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run db:generate",
+        match: /^ {10}npm run db:generate\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm audit --omit=dev",
+        match: /^ {8}run: npm audit --omit=dev\s*$/m,
+        gate: HEAVY,
+      },
+      {
+        command: "npm run vercel-build",
+        match: /^ {8}run: npm run vercel-build\s*$/m,
+        gate: HEAVY,
+      },
+      // Playwright and everything it needs: pull_request and workflow_dispatch only.
+      {
+        command: "read the locked Playwright version",
+        match: /^ {8}id: playwright\s*$/m,
+        gate: E2E,
+      },
+      {
+        command: "actions/cache (Playwright browsers)",
+        match: /^ {8}uses: actions\/cache@/m,
+        gate: E2E,
+      },
+      {
+        command: "npx playwright install --with-deps",
+        match: /^ {8}run: npx playwright install --with-deps\b/m,
+        gate: `${E2E} && steps.playwright-cache.outputs.cache-hit != 'true'`,
+      },
+      {
+        command: "npx playwright install-deps",
+        match: /^ {8}run: npx playwright install-deps\b/m,
+        gate: `${E2E} && steps.playwright-cache.outputs.cache-hit == 'true'`,
+      },
+      {
+        command: "npm run test:e2e",
+        match: /^ {8}run: npm run test:e2e\s*$/m,
+        gate: E2E,
+      },
+      {
+        command: "actions/upload-artifact",
+        match: /^ {8}uses: actions\/upload-artifact@/m,
+        gate: `failure() && ${E2E}`,
+      },
+      // Docs-only pull requests: the one step that runs when heavy is not true.
+      {
+        command: "node scripts/ci/prettier-changed-docs.mjs",
+        match: /^ {8}run: node scripts\/ci\/prettier-changed-docs\.mjs\s*$/m,
+        gate: "steps.changes.outputs.heavy != 'true'",
+      },
+    ];
+
+  it.each(GATES)(
+    "$command is in exactly one step, after the classifier",
+    ({ match }) => {
+      const at = steps
+        .map((step, index) => (match.test(step.text) ? index : -1))
+        .filter((index) => index >= 0);
+      expect(at).toHaveLength(1);
+      expect(at[0]).toBeGreaterThan(classifyAt);
+    },
+  );
+
+  it.each(GATES)("$command runs only when: $gate", ({ match, gate }) => {
+    const step = steps.find((candidate) => match.test(candidate.text));
+    expect(step).toBeDefined();
+    expect(step?.ifExpr).toBe(gate);
   });
 
-  it("the heavy commands require heavy == 'true' and e2e requires e2e == 'true'", () => {
-    const after = steps.slice(classifyAt + 1);
-    const heavyCommand =
-      /\b(npm ci|npm run|npm audit|npx playwright|actions\/setup-node@|actions\/cache@)/;
-    const heavySteps = after.filter((step) => heavyCommand.test(step.text));
-    expect(heavySteps.length).toBeGreaterThan(8);
-    for (const step of heavySteps) {
-      expect(step.ifExpr, step.text).toMatch(
-        /steps\.changes\.outputs\.(heavy|e2e) == 'true'/,
-      );
-      expect(step.ifExpr, step.text).not.toMatch(
-        /steps\.changes\.outputs\.\w+ != /,
-      );
-    }
-    const e2e = after.filter((step) => /npm run test:e2e/.test(step.text));
-    expect(e2e).toHaveLength(1);
-    expect(e2e[0].ifExpr).toMatch(/steps\.changes\.outputs\.e2e == 'true'/);
+  it("every step after the classifier is in the table (a new step needs a row)", () => {
+    const uncovered = steps
+      .slice(classifyAt + 1)
+      .filter((step) => !GATES.some((row) => row.match.test(step.text)))
+      .map((step) => step.text);
+    expect(uncovered).toEqual([]);
   });
 
-  it("only the docs-only Prettier step runs when heavy is false", () => {
-    const after = steps.slice(classifyAt + 1);
-    const docsSteps = after.filter((step) =>
+  it("the docs-only Prettier step reads the classifier's changed-file list", () => {
+    const step = steps.find((candidate) =>
+      /prettier-changed-docs\.mjs/.test(candidate.text),
+    );
+    expect(step?.text).toMatch(
+      /^ {10}CHANGED_FILE: \$\{\{ steps\.changes\.outputs\.changed_file \}\}\s*$/m,
+    );
+  });
+
+  it("the docs-only Prettier step is the only one that runs when heavy is false", () => {
+    const docs = steps.filter((step) =>
       step.ifExpr?.includes("heavy != 'true'"),
     );
-    expect(docsSteps).toHaveLength(1);
-    expect(docsSteps[0].text).toMatch(/prettier/);
+    expect(docs).toHaveLength(1);
   });
 });

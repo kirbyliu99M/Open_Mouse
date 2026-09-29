@@ -9,10 +9,11 @@ name: CI
 #   - Draft PRs do not run CI (the job is skipped); marking one ready does.
 #   - PRs run the whole gate, including Playwright on every project.
 #   - A push to `main` runs the light gate only: typecheck, lint, format, unit
-#     tests, migration check, `npm audit`, build. The full e2e already passed on
-#     the PR that was merged. It ALWAYS runs that gate and never looks at the
-#     diff: `cancel-in-progress` below can cancel a code commit's run when a
-#     docs-only commit lands right after, and a `before..HEAD` diff of the
+#     tests, migration check, `npm audit`, build. No Playwright at all (no
+#     version lookup, no browser cache, no apt install): the full e2e already
+#     passed on the PR that was merged. It ALWAYS runs that gate and never looks
+#     at the diff: `cancel-in-progress` below can cancel a code commit's run when
+#     a docs-only commit lands right after, and a `before..HEAD` diff of the
 #     second run would call it docs-only and go green over unchecked code.
 #   - A docs-only PR skips install, tests and build. Docs-only means only
 #     `docs/**/*.md`, `docs/**/*.png` and root `*.md`; the rules live in
@@ -58,27 +59,17 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/ci/classify-changes.mjs
 
-      # Docs-only PR path. Prettier also checks Markdown, so skipping it entirely
-      # would let a badly formatted .md merge and then fail `format:check` on the
-      # next code PR. This runs Prettier alone (no `npm ci`), pinned to the
-      # version in package.json, on just the changed files (the list is
-      # NUL-separated, so unusual file names are safe).
+      # Docs-only PR path, the only check such a PR gets. Prettier also checks
+      # Markdown, so skipping it entirely would let a badly formatted .md merge
+      # and then fail `format:check` on the next code PR. The script runs
+      # Prettier alone (no `npm ci`), pinned to the version in package.json, on
+      # just the changed files; the list is NUL-separated. Fails closed when the
+      # list is missing.
       - name: Prettier on the changed docs
         if: steps.changes.outputs.heavy != 'true'
         env:
           CHANGED_FILE: ${{ steps.changes.outputs.changed_file }}
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./package.json').devDependencies.prettier")"
-          existing=()
-          while IFS= read -r -d '' file; do
-            if [ -f "$file" ]; then existing+=("$file"); fi
-          done < "$CHANGED_FILE"
-          if [ "${#existing[@]}" -eq 0 ]; then
-            echo "Only deletions; nothing to format-check."
-            exit 0
-          fi
-          npx --yes "prettier@${version}" --check --ignore-unknown "${existing[@]}"
+        run: node scripts/ci/prettier-changed-docs.mjs
 
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.heavy == 'true'
@@ -107,23 +98,24 @@ jobs:
         if: steps.changes.outputs.heavy == 'true'
         run: npm audit --omit=dev
 
-      # Playwright browsers, cached by the locked @playwright/test version. The
-      # step runs on main pushes too so main seeds the cache that PRs restore
-      # (a PR can only read caches from its own ref, its base and the default
-      # branch); on main it costs one browser download per Playwright version.
+      # Playwright browsers, cached by the locked @playwright/test version. Only
+      # runs that run e2e (pull requests and manual runs) touch any of this: a
+      # push to main runs no Playwright step. A PR can only read caches from its
+      # own ref, its base and the default branch, so the cache mainly serves
+      # re-runs of the same PR; the saving is small (see the PR description).
       - name: Read the locked Playwright version
         id: playwright
-        if: steps.changes.outputs.heavy == 'true'
+        if: steps.changes.outputs.e2e == 'true'
         run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
         id: playwright-cache
-        if: steps.changes.outputs.heavy == 'true'
+        if: steps.changes.outputs.e2e == 'true'
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-ubuntu-24.04-${{ steps.playwright.outputs.version }}
       - name: Install Playwright browser and system dependencies
-        if: steps.changes.outputs.heavy == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.changes.outputs.e2e == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps --only-shell chromium
       - name: Install Playwright system dependencies only (browser restored from cache)
         if: steps.changes.outputs.e2e == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
