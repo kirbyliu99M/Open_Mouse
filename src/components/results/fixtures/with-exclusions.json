@@ -1,6 +1,7 @@
 {
   "scanId": "c3d4e5f6-3333-4c5d-8e6f-1a2b3c4d5e6f",
   "engineVersion": "fit-v0-provisional",
+  "hand": "right",
   "gripStyle": {
     "stated": "fingertip",
     "predicted": "fingertip",

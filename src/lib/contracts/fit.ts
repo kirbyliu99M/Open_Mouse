@@ -4,7 +4,8 @@
  * Numbers a user sees originate HERE, in the engine. Gemini (M5) receives this
  * object and writes prose about it; it never computes. Reasons are codes plus
  * numeric params so the UI and the LLM render the same engine-made facts.
- * Change this file only in a PR of its own.
+ * Change this file only in a contract PR of its own, carrying no more than the
+ * minimal consumer updates that keep `main` green.
  */
 import { z } from "zod";
 import { SIZES } from "./descriptors";
@@ -42,7 +43,8 @@ export const REASON_CODES = [
   "flare_neutral",
   "flare_crowds_fingers",
   "thumb_rest_supports",
-  "thumb_neutral",
+  "thumb_neutral", // no thumb rest, and the grip used doesn't rely on one
+  "thumb_rest_missing", // no thumb rest, and the grip used (palm) would rest the thumb on one
   "thumb_rest_unneeded",
   "weight_in_range",
   "weight_heavier",
@@ -51,6 +53,19 @@ export const REASON_CODES = [
   "no_preference", // e.g. no weight preference given
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
+
+/**
+ * Why a mouse was left out of the ranking. `trackball_form_factor` (like
+ * `vertical_form_factor`) marks a device the length/width model does not
+ * score; which entries are trackballs comes from catalogue facts
+ * (`FORM_FACTORS` in ./descriptors).
+ */
+export const EXCLUSION_REASONS = [
+  "wrong_hand",
+  "vertical_form_factor",
+  "trackball_form_factor",
+] as const;
+export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
 
 const reasonSchema = z.strictObject({
   code: z.enum(REASON_CODES),
@@ -96,6 +111,8 @@ export const fitEntrySchema = z.strictObject({
 export const fitResponseSchema = z.strictObject({
   scanId: z.string().uuid(),
   engineVersion: z.string(),
+  /** The hand this scan measured — the one exclusions and disclosures use (#62). */
+  hand: z.enum(["left", "right"]),
   gripStyle: z.strictObject({
     stated: z.enum(GRIP_STYLES).nullable(),
     predicted: z.enum(GRIP_STYLES),
@@ -108,13 +125,13 @@ export const fitResponseSchema = z.strictObject({
     gripWidthMm: z.number(),
     heightMm: z.number(),
   }),
-  /** Mice excluded before ranking, with why (handedness, vertical form factor). */
+  /** Mice excluded before ranking, with why (handedness, form factor). */
   excluded: z.array(
     z.strictObject({
       slug: z.string(),
       brand: z.string(),
       model: z.string(),
-      reason: z.enum(["wrong_hand", "vertical_form_factor"]),
+      reason: z.enum(EXCLUSION_REASONS),
     }),
   ),
   results: z.array(fitEntrySchema),
