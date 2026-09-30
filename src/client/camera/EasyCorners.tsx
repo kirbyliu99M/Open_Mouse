@@ -5,6 +5,7 @@ import {
   isCornerReturning,
   type CornerStates,
 } from "./cornerSmoother";
+import { EDGES, edgeTransform } from "./edgeGeometry";
 import type { Point } from "./quad";
 
 const DOT_SIZE = 26;
@@ -13,24 +14,6 @@ const DOT_SIZE = 26;
 function dotTransform(p: Point): string {
   return `translate3d(${p.x - DOT_SIZE / 2}px, ${p.y - DOT_SIZE / 2}px, 0)`;
 }
-
-/**
- * The line between two corners, as one 1 px wide element stretched and
- * turned by a transform, so it glides with the dots (same property, same
- * timing) instead of stepping with each sample.
- */
-function edgeTransform(a: Point, b: Point): string {
-  const length = Math.hypot(b.x - a.x, b.y - a.y);
-  const angle = Math.atan2(b.y - a.y, b.x - a.x);
-  return `translate3d(${a.x}px, ${a.y}px, 0) rotate(${angle}rad) scaleX(${length})`;
-}
-
-const EDGES: readonly (readonly [number, number])[] = [
-  [0, 1],
-  [1, 2],
-  [2, 3],
-  [3, 0],
-];
 
 /**
  * The four paper-corner dots (scan v2). Each sits where its smoothed state
@@ -61,7 +44,7 @@ export function EasyCorners({
     >
       {EDGES.map(([from, to]) => (
         <span
-          key={`edge-${from}`}
+          key={`edge-${from}-${to}`}
           className={`easyEdge${allFound ? " on" : ""}`}
           style={{ transform: edgeTransform(points[from], points[to]) }}
         />
