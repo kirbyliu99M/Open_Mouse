@@ -133,6 +133,30 @@ const photos = readdirSync(input)
   .sort(compareFileNames);
 if (photos.length === 0) fail(`No .jpg or .png photos in ${input}.`);
 
+async function answers(url: string): Promise<boolean> {
+  try {
+    return (await fetch(url, { signal: AbortSignal.timeout(2000) })).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** End the dev server and everything it started (Next forks a worker), so no server is left on the port. */
+function stopServer(child: ChildProcess) {
+  if (child.pid === undefined) return;
+  try {
+    if (process.platform === "win32") {
+      execFileSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+      });
+    } else {
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch {
+    child.kill();
+  }
+}
+
 async function waitForServer(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -200,13 +224,28 @@ async function main() {
   let server: ChildProcess | null = null;
   if (!externalBase) {
     console.log(`Starting dev server on ${baseUrl} …`);
+    // A server already answering here would be a stale one (an earlier run's,
+    // or another branch's) and the run log's git commit would not describe it.
+    if (await answers(`${baseUrl}/learn/check`))
+      fail(
+        `Something already answers on ${baseUrl}. Stop it, choose another --port, or pass --base to use it on purpose.`,
+      );
+    // Node runs Next directly (no shell), in its own process group where the
+    // platform has them, so `stopServer` can end the whole tree.
     server = spawn(
-      "npx",
-      ["next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
+      process.execPath,
+      [
+        join(scriptRoot, "node_modules", "next", "dist", "bin", "next"),
+        "dev",
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        String(port),
+      ],
       {
         cwd: scriptRoot,
         stdio: "ignore",
-        shell: true,
+        detached: process.platform !== "win32",
       },
     );
   }
@@ -316,7 +355,7 @@ async function main() {
     }
     if (reports.length === 0) console.log("No reports returned.");
   } finally {
-    server?.kill();
+    if (server) stopServer(server);
   }
 }
 

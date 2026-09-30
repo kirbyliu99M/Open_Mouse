@@ -3,7 +3,9 @@
  * tested by running the real script: it must stop before it starts a server
  * or opens a browser. Nothing here needs photos, Chromium or a network.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import {
   existsSync,
   mkdirSync,
@@ -11,6 +13,7 @@ import {
   rmSync,
   symlinkSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -33,6 +36,23 @@ function sorter(args: readonly string[], env: Record<string, string> = {}) {
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   };
+}
+
+/** The same, asynchronously: for tests that run a server in this process, which `spawnSync` would freeze. */
+function sorterAsync(args: readonly string[]) {
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>(
+    (done) => {
+      const child = spawn(process.execPath, [TSX, SCRIPT, ...args], {
+        cwd: REPO,
+        env: { ...process.env, CI: "" },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+      child.on("close", (status) => done({ status, stdout, stderr }));
+    },
+  );
 }
 
 /** Removes a symlink or Windows junction itself, never what it points to. */
@@ -112,6 +132,30 @@ describe("learn-sort refuses to run where it must not", () => {
     expect(result.stderr).not.toMatch(REFUSED);
     expect(result.stderr).toMatch(/No \.jpg or \.png photos/);
     expect(result.stdout).not.toMatch(/Starting dev server/);
+  }, 60_000);
+
+  it("does not reuse a server that already answers on its port (it could be another branch's)", async () => {
+    const photos = join(scratch, "one-photo");
+    mkdirSync(photos);
+    writeFileSync(join(photos, "IMG_0001.jpg"), "not really a jpeg");
+    const stale: Server = createServer((_req, res) => res.end("ok"));
+    await new Promise<void>((ready) => stale.listen(0, "127.0.0.1", ready));
+    const { port } = stale.address() as AddressInfo;
+    try {
+      const result = await sorterAsync([
+        "--in",
+        photos,
+        "--out",
+        outside,
+        "--port",
+        String(port),
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Something already answers/);
+      expect(result.stdout).not.toMatch(/Checking/);
+    } finally {
+      await new Promise((closed) => stale.close(closed));
+    }
   }, 60_000);
 
   it("never runs in CI", () => {
