@@ -8,6 +8,7 @@
 import { Type } from "@google/genai";
 import type { AnalysisSource } from "../../lib/contracts/analysis";
 import type { ExclusionReason } from "../fit/exclusions";
+import { LOG_ROUTES, log } from "../log";
 import type { TextModel } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
@@ -319,6 +320,7 @@ export async function analyse(
       }
     }
     let raw: string;
+    const callStartedAt = Date.now();
     try {
       raw = await client.generate({
         prompt,
@@ -338,9 +340,12 @@ export async function analyse(
         typeof error === "object" && error !== null && "status" in error
           ? String((error as { status: unknown }).status)
           : "none";
-      console.error(
-        `analysis model call failed (status ${status}); serving the fallback`,
-      );
+      log.error("analysis.model_call_failed", {
+        route: LOG_ROUTES.analysis,
+        ms: Date.now() - callStartedAt,
+        status,
+        action: "serve_fallback",
+      });
       return { output: buildFallbackOutput(input), source: "fallback" };
     }
 
