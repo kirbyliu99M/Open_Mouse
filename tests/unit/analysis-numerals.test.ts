@@ -512,6 +512,52 @@ describe("slash fractions ('1/3') are one number, not two", () => {
     expect(findUnknownNumeral("1/0", new Set([1, 0]))).toBeNull();
   });
 
+  describe("a score out of 100 ('78/100') is the score, not 0.78", () => {
+    // Fit scores run 0 to 100, so "78/100" and "fit 78/100" are natural.
+    it.each([
+      "78/100",
+      "fit 78/100",
+      "78 / 100",
+      "７８／１００",
+      "78⁄100",
+      "總分 78/100 分",
+      "The fit score is 78/100.",
+    ])("passes when 78 is in the input: %s", (text) => {
+      expect(findUnknownNumeral(text, new Set([78]))).toBeNull();
+    });
+
+    it("passes a decimal score that is in the input", () => {
+      expect(findUnknownNumeral("78.5/100", new Set([78.5]))).toBeNull();
+    });
+
+    it.each(["78/100", "fit 78/100", "７８／１００"])(
+      "is flagged when 78 is not in the input: %s",
+      (text) => {
+        expect(findUnknownNumeral(text, new Set([1, 3]))).toBeCloseTo(0.78, 9);
+      },
+    );
+
+    it("other slash fractions stay fractions, even beside an allowed score", () => {
+      const allowed = new Set([1, 3, 50, 78, 200]);
+      expect(findUnknownNumeral("1/3", allowed)).toBeCloseTo(1 / 3, 9);
+      expect(findUnknownNumeral("50/200", allowed)).toBeCloseTo(0.25, 9);
+      expect(findUnknownNumeral("78/1000", allowed)).toBeCloseTo(0.078, 9);
+      expect(findUnknownNumeral("78/10", allowed)).toBeCloseTo(7.8, 9);
+      expect(findUnknownNumeral("fit 78/100, about 1/3", allowed)).toBeCloseTo(
+        1 / 3,
+        9,
+      );
+    });
+
+    it("a chain is still not a score: every number in it is checked", () => {
+      expect(findUnknownNumeral("78/100/5", new Set([78, 5]))).toBe(100);
+    });
+
+    it("100 itself does not need to be in the input", () => {
+      expect(findUnknownNumeral("78/100", new Set([78]))).toBeNull();
+    });
+  });
+
   it("leaves slashes that are not between two numbers alone", () => {
     expect(normalizeVulgarFractions("and/or")).toBe("and/or");
     expect(normalizeVulgarFractions("km/h 3/")).toBe("km/h 3/");

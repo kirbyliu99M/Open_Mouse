@@ -36,7 +36,9 @@
  *    while the fraction itself (0.333…) is never checked.
  *    `normalizeVulgarFractions` folds them to their decimal value like "⅓". A
  *    chain ("2024/10/05", "1/2/3") is not a fraction and stays separate
- *    numbers, all of them checked.
+ *    numbers, all of them checked. One exception, made in `findUnknownNumeral`
+ *    because it needs the input: "78/100" with 78 in the input is a score out
+ *    of 100 (the product's scale), not the fraction 0.78.
  *
  * 6. Chinese numerals — 五, 十二, 一百二十, 半, 百分之三十, 三分之一, 七成,
  *    and Arabic digits with a Chinese unit (3萬) — in Traditional and
@@ -200,6 +202,26 @@ function collapseSlashFractions(text: string): string {
     const denominator = Number(d.normalize("NFKC"));
     if (denominator === 0) return all;
     return fractionDecimalString(Number(n.normalize("NFKC")), denominator);
+  });
+}
+
+/**
+ * A score written out of 100 ("78/100", "fit 78/100") is "78 points", not the
+ * fraction 0.78: the product's scores run 0 to 100. So an "N/100" whose N is
+ * itself in `allowed` is replaced by N. Both conditions are needed. Only a
+ * denominator of 100 is a scale (50/200 and 1/3 stay fractions), and only an N
+ * the input contains is a score we sent (an invented "78/100" is still 78 and
+ * is flagged). ASCII and full-width digits only; a score written in another
+ * script's digits is read as a fraction and flagged.
+ */
+function withoutOutOf100Scores(
+  text: string,
+  allowed: ReadonlySet<number>,
+): string {
+  return text.replace(SLASH_FRACTION, (all, n: string, d: string) => {
+    if (Number(d.normalize("NFKC")) !== 100) return all;
+    const score = n.normalize("NFKC");
+    return isAllowed(Number(score), allowed) ? score : all;
   });
 }
 
@@ -762,6 +784,9 @@ function isAllowedToken(
  * a multiplier/fraction word — traces back to the input. Percent forms of an allowed
  * fraction are treated as the same number, not a new one.
  *
+ * A slash fraction is one number (see the header, item 5), except a score out
+ * of 100 whose score is in `allowed`: "78/100" is 78 (see `withoutOutOf100Scores`).
+ *
  * `exemptTokens` — the verbatim alphanumeric tokens from the input's
  * *display-name* fields (see `stringTokens` and `analyse.ts`'s
  * `collectExemptTokens`) — protects product names ("G502") from being
@@ -774,10 +799,11 @@ export function findUnknownNumeral(
   allowed: ReadonlySet<number>,
   exemptTokens: ReadonlySet<string> = new Set(),
 ): number | null {
+  const scored = withoutOutOf100Scores(text, allowed);
   for (const token of [
-    ...matchDigitNumerals(text, exemptTokens),
-    ...extractWordNumerals(text),
-    ...extractChineseNumerals(text),
+    ...matchDigitNumerals(scored, exemptTokens),
+    ...extractWordNumerals(scored),
+    ...extractChineseNumerals(scored),
   ]) {
     if (!isAllowedToken(token, allowed)) return token.value;
   }
