@@ -38,6 +38,10 @@ Kirby's report: the scan screen jumps around, and focus fails.
 
 The screens show the designed states; the photo is an illustration, not a real scan.
 
+Screens 1 and 2 in `screens/` still show the line "Takes the photo by itself — or tap". That line
+is dropped (Kirby, 2026-10-01): it is not built and not wanted, and the screenshots in
+[`built/`](built/) are authoritative for those two states. The two PNGs will be replaced later.
+
 ## Behaviour
 
 **Stage.** The live video fills the viewport (`object-fit: cover`). There is no `frameAspect`
@@ -156,9 +160,9 @@ in its own worktree. `pr-review` workflow: independent review. Codex: not involv
 What the built version does differently from the text above. None of it changes an acceptance
 criterion; each item is a decision the build had to make or a thing it could not settle.
 
-- **Hint lines on screens 1 and 2 are not built.** The storyboard shows "Takes the photo by
-  itself — or tap" there. It is not one of the three approved strings, so the hint line is empty in
-  those states. Pending Kirby: add it, and with what words?
+- **Hint lines on screens 1 and 2: dropped by Kirby's decision, 2026-10-01.** The storyboard shows
+  "Takes the photo by itself — or tap" there. It is not one of the three approved strings and it is
+  not wanted, so the hint line is empty in those states. Nothing is pending on it.
 - **The photo scales to 90% or less, never below 0.4.** #92's sheet is taller than the storyboard's
   (numbers, the "Not yet verified" note), and at 90% the paper would sit under it, so the scale
   shrinks to fit: 0.783 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
@@ -185,6 +189,37 @@ criterion; each item is a decision the build had to make or a thing it could not
   each sit on a dark halo so they read on white paper.
 - **Reduced motion cross-fades**: the moved picture fades in over the unmoved one, which stays
   opaque until it is covered, so the picture is never see-through.
+- **The sheet's buttons stay at its foot.** The result sheet scrolls inside above 52vh, and at
+  large text the main button used to be below the fold. The row with Retake and See my matches
+  (on the failure sheet: Try again, and Edit hand length when it is offered) is
+  `position: sticky; bottom: 0` with the sheet's own background (light and dark) and the padding
+  the sheet had below it, so content scrolls behind it and, scrolled to the end, nothing is under
+  it. The DOM order is unchanged, so the focus order is the reading order; `scroll-padding-bottom`
+  keeps a focused control clear of the row. The sheet's real height is still what the photo
+  layout measures.
+- **Dots and the steadiness check follow corners, not labels.** `detectPaperQuad` relabels its
+  corners (a cyclic shift) when the paper is held sideways, at about 134 and 314 degrees of
+  rotation in the synthetic sweep. Before smoothing, the new observation is matched to the dots by
+  the cyclic shift (0 to 3) that puts it nearest in total (`labelShift.ts`), only when all four
+  corners are seen on both sides. `computeMaxCornerMovement` matches the same way; before, a
+  relabel counted as a movement of the paper's own size and reset the steadiness ring.
+- **Accepted limits (measured on the fake-camera phone sizes).**
+  - 360x640 at 200% text: the top bar is 139 px tall and the band for the paper is about 6 px
+    short of clearing it, so one check mark overlaps the hand chip by about 6 px (measured 6.2 px).
+    Its middle is clear of the chip, so it stays visible. Everything is above the sheet there
+    (lowest drawn part 297 px, sheet top 307 px).
+  - On a window shorter than that with 200% text, the scale floor of 0.4 can leave part of the
+    drawing under the sheet or the top bar. Measured once, outside the suite: at 360x568 a check
+    mark reaches about 15 px under the top bar (highest drawn part 124 px, bar ends 139 px) and
+    the sheet is still clear (272 px against 273 px); at 320x480 the drawing reaches about 11 px
+    under the sheet (241 px against 230 px) and about 27 px under the top bar. The buttons were
+    still fully on screen and in front on all of them.
+- **The axe comparison for the live camera is relaxed in one direction.** An open rule nobody has
+  reviewed still fails. A review that axe no longer needs also still fails, except colour
+  contrast over the live picture, which axe may decide by itself on a run where it sees no picture
+  behind the controls; that counts as a pass and is attached to the report. Every listed element
+  is now also measured directly on every live-camera audit (text colour and alpha, fill alpha and
+  opacity, over white), whether or not axe named it.
 - **Not built (nice to have):** dragging the sheet to dismiss it; rounded photo corners.
 - **Motion budget.** Only `transform` and `opacity` animate, except the shutter ring's
   `stroke-dashoffset` (existing, unchanged).
