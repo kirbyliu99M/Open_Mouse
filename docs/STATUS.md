@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-30 · by: Claude (#80, #69 and #90 merged)_
+_Last updated: 2026-09-30 · by: Claude (#80, #69, #90 and #74 merged)_
 
 ---
 
@@ -27,9 +27,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `8c66c0a` (#69). The latest deploy is `2cb92a1`, the #90 merge, which adds tests only.
+**Production:** behaves as of `85ebc3d` (#74).
 
-- **Anonymous flow:** operational. The unmocked live e2e (reload included) passed after each 2026-09-30 merge, most recently against `2cb92a1`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 14.3 s.
+- **Anonymous flow:** operational. The unmocked live e2e (reload included) passed after each 2026-09-30 merge, most recently against `85ebc3d`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 16.1 s. In production the new `/scan/hand-explicit-demo` returns 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
 - **Kirby's phone test** of #77 (right and left hand) is still pending.
 
@@ -52,6 +52,12 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **#69:** no-paper scan and device routing (desktop QR hand-off, in-app browser notice).
   - The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY` (off) until W7 measures its thresholds.
   - Its input range, 135–265 mm, is derived from schema limits and is a candidate.
+- **#74 (S2):** one hand decision for all three pipelines (`handExplicit`; only a hand the user chose can trigger a mismatch).
+  - The results page's left-hand note reads the fit response's `hand`. Old browser-storage hand keys are swept.
+  - Every re-scan link goes to `/scan/easy`, and raw server errors reach the console only.
+  - Dark-mode contrast is fixed on the hand and grip chips. The hand chip has an accessible name instead of `aria-pressed`.
+  - The `/scan/easy` placeholder now takes its colour from a server-side user-agent hint, so it no longer flashes. As a result `/scan/easy` is rendered per request and no longer cached by the CDN.
+  - Merged before Kirby approved two strings it adds: the "…or tap the hand button below." hint and the hand-chip accessible names. Both are on Kirby's copy list below.
 - **#90 (G1b):** tests only. They pin #78's CI rules; an independent mutation run killed all 26 targeted mutants. Two low-severity follow-ups are open. Extra keys on the migration step (`shell:`, `working-directory:`) still pass the tests, so the step's keys should be pinned. The link-cleanup helper should also confirm a link is gone before the recursive delete.
 
 #77 was reviewed by the `pr-review` workflow; its test-coverage follow-ups moved to S2 (#74).
@@ -60,7 +66,6 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#85 (C2)** — contracts for accepted measurement-model versions, plus calibration evidence stored with each scan (#63). Migration 0006 must run in production before the code deploys.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
-- **#74 (S2)** — behaviour fixes (draft, base `main`); the hand API is unified on `handExplicit`. Review fixes in progress.
 - **#86 (G4)** — scoring and copy logic: Chinese numerals in the no-new-numerals check, a Chinese provisional check, Chinese medical terms, the `weight_in_range` parameters and `thumb_rest_missing`. Draft; review fixes in progress (one major: 萬分之N slipped past the numeral check).
 - **#89 (G9a)** — first-party facts (hand compatibility, shape, form factor) for the 38 Logitech mice, as data only. Draft; in review, then Kirby spot-checks it.
 - **#82 (G2)** and **#84 (G6)** — honest home copy, AI-source disclosure, `/results/demo` guard; NOTICE, README, CONTRIBUTING, MediaPipe caching, non-SIMD fallback. Both are drafts; their copy awaits Kirby.
@@ -112,6 +117,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 - Phone test of #77 (right and left hand)
 - Run migration 0006 on production before #85 merges (`DATABASE_URL_UNPOOLED` pointing at the Neon production branch, then `npm run db:migrate`)
 - Copy approval for #82 and #84, after their review
+- Copy approval, after the fact, for #74's "…or tap the hand button below." hint and its hand-chip accessible names (for example "Right hand · auto, set automatically. Change hand")
 - #89: spot-check the facts, and three questions for G9b: exclude explicitly right-handed mice (M705, M720, M850L) for left-handers unless the page says symmetrical; apply the rubric rule ambidextrous ⇒ symmetrical; leave `formFactor` "standard" as null
 - The typed-length input range, 135–265 mm (candidate)
 - M325s / M550 acceptance
