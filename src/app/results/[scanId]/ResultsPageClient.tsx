@@ -69,17 +69,16 @@ export function ResultsPageClient({
   });
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
-  const [scanHand, setScanHand] = useState<"left" | "right" | null>(null);
 
   useEffect(() => {
     try {
       setEnteredLength(
         parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
       );
-      const hand = localStorage.getItem(resultHandKey(scanId));
-      setScanHand(hand === "left" || hand === "right" ? hand : null);
+      // The hand is read from the fit response now. Builds before that
+      // stored it here; drop a leftover so it is not kept for nothing.
+      localStorage.removeItem(resultHandKey(scanId));
     } catch {
-      setScanHand(null);
       setEnteredLength(null);
     }
   }, [scanId]);
@@ -252,7 +251,6 @@ export function ResultsPageClient({
   return (
     <main className="resultsMain">
       <ResultsView
-        scanHand={scanHand}
         enteredLengthMm={enteredLength}
         response={pageState.response}
         analysisState={analysisState}

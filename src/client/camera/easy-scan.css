@@ -533,10 +533,18 @@
 .easyDevicePlaceholder {
   min-height: 100dvh;
   padding: 0;
-  /* The camera shell's own colour (.cameraViewfinder in camera.css), in both
-     themes, so a phone sees no flash when the shell replaces this and a
-     desktop sees no camera controls before its entry screen. */
-  background: #12161c;
+  /* What replaces this depends on the device, and the device is only known
+     after mount, so the colour follows the input type (a media query works in
+     the server-rendered first paint): a desktop or mouse device gets the page
+     background its entry screen uses, in either theme, and a touch device
+     gets the camera shell's own dark (.cameraViewfinder in camera.css).
+     Neither flashes, and neither shows any control. */
+  background: var(--scan-bg, #f4f4f6);
+}
+@media (pointer: coarse) {
+  .easyDevicePlaceholder {
+    background: #12161c;
+  }
 }
 .easyDeviceEntry {
   min-height: 100dvh;

@@ -1722,15 +1722,19 @@ export default function EasyScanCamera({
               >
                 Try again
               </button>
-              {failureOffersLengthEdit(noPaperMode, result.errors[0]?.code) && (
-                <button
-                  type="button"
-                  className="easyEditLengthButton"
-                  onClick={editLengthFromFailure}
-                >
-                  {EDIT_HAND_LENGTH_LABEL}
-                </button>
-              )}
+              {noPaperLabel &&
+                failureOffersLengthEdit(
+                  noPaperMode,
+                  result.errors[0]?.code,
+                ) && (
+                  <button
+                    type="button"
+                    className="easyEditLengthButton"
+                    onClick={editLengthFromFailure}
+                  >
+                    {EDIT_HAND_LENGTH_LABEL}
+                  </button>
+                )}
             </>
           )}
         </dialog>

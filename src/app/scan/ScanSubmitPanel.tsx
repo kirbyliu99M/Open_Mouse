@@ -31,7 +31,6 @@ import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { submitScan } from "@/client/scan/submitScan";
 import { resultLengthKey } from "@/components/results/userLengthDisclosure";
-import { resultHandKey } from "@/components/results/handDisclosure";
 
 type SubmitState =
   | { kind: "idle" }
@@ -57,7 +56,6 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     void submitScan(submission).then((outcome) => {
       if (outcome.status === "success") {
         try {
-          localStorage.setItem(resultHandKey(outcome.scanId), submission.hand);
           if (
             "method" in submission.calibration &&
             submission.calibration.method === "user-length"
@@ -68,7 +66,8 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
             );
           }
         } catch {
-          // Storage may be disabled; results remain available without a hand disclosure.
+          // Storage may be disabled; results remain available without the
+          // no-paper disclosure.
         }
         setState({ kind: "success" });
         router.push(resultsPagePath(outcome.scanId));

@@ -41,7 +41,12 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
     page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);
   await page.getByRole("link", { name: "Scan my hand" }).click();
-  await expect(page).toHaveURL(/\/scan\/easy$/);
+  // This is the first visit to /scan/easy when the dev server is cold, and the
+  // dev server compiles that page (the camera, MediaPipe glue and the QR code
+  // library) before navigating: about 5-10 s here, over the default 5 s
+  // expect timeout. Only this assertion waits longer; it passes as soon as the
+  // URL changes, so warm runs are not slower.
+  await expect(page).toHaveURL(/\/scan\/easy$/, { timeout: 30_000 });
   expect(errors).toEqual([]);
 });
 

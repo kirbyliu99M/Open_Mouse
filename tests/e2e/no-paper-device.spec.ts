@@ -667,28 +667,105 @@ test("without the Clipboard API, copy link still says what to do", async ({
   await expect(page.getByRole("status")).toContainText("Couldn't copy");
 });
 
-test("the placeholder shown before the device is known is the camera shell's own dark, with no controls", async ({
+const PAGE_BG = { light: "rgb(244, 244, 246)", dark: "rgb(22, 22, 23)" };
+
+test("on a desktop the placeholder is the entry screen's own background in both themes, with no controls", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
   for (const colorScheme of ["light", "dark"] as const) {
-    const context = await browser.newContext({
+    // Scripts off: only the server-rendered first paint exists.
+    const bare = await browser.newContext({
       javaScriptEnabled: false,
       colorScheme,
     });
-    const page = await context.newPage();
-    await page.goto("/scan/easy");
-    const placeholder = page.locator(".easyDevicePlaceholder");
+    const first = await bare.newPage();
+    await first.goto("/scan/easy");
+    const placeholder = first.locator(".easyDevicePlaceholder");
     await expect(placeholder).toHaveCount(1);
-    expect(
-      await placeholder.evaluate((el) => getComputedStyle(el).backgroundColor),
+    const before = await placeholder.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    await expect(
+      first.locator("button, a, input, select, textarea"),
+    ).toHaveCount(0);
+    await bare.close();
+
+    // Scripts on: what replaces it.
+    const full = await browser.newContext({ colorScheme });
+    const second = await full.newPage();
+    await second.goto("/scan/easy");
+    const after = await second
+      .locator(".easyDeviceEntry")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    await full.close();
+
+    expect(before, `${colorScheme} placeholder`).toBe(PAGE_BG[colorScheme]);
+    expect(after, `${colorScheme} entry`).toBe(before);
+  }
+});
+
+test("on a touch device the placeholder is the camera shell's own dark in both themes, and the shell that replaces it is the same dark", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const bare = await browser.newContext({
+      ...devices["Pixel 7"],
+      javaScriptEnabled: false,
       colorScheme,
+    });
+    const first = await bare.newPage();
+    await first.goto("/scan/easy");
+    expect(
+      await first
+        .locator(".easyDevicePlaceholder")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      `${colorScheme} placeholder`,
     ).toBe(CAMERA_SHELL_BG);
     await expect(
-      page.locator("button, a, input, select, textarea"),
+      first.locator("button, a, input, select, textarea"),
     ).toHaveCount(0);
-    await context.close();
+    await bare.close();
+
+    const full = await browser.newContext({
+      ...devices["Pixel 7"],
+      colorScheme,
+    });
+    const second = await full.newPage();
+    await second.goto("/scan/easy");
+    await expect(second.locator(".cameraViewfinder")).toBeVisible();
+    expect(
+      await second
+        .locator(".cameraViewfinder")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      `${colorScheme} shell`,
+    ).toBe(CAMERA_SHELL_BG);
+    await full.close();
   }
+});
+
+test("a mode announcement that repeats word for word is announced again", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await openLengthStepFromTip(page);
+  await page.getByLabel("Hand length (mm)").fill("186");
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  const announcements = page.locator("[data-testid=mode-announcement]");
+  await expect(announcements).toContainText("186 mm");
+  const first = await announcements.locator("span").elementHandle();
+  const text = await announcements.innerText();
+
+  // Same length entered again: the same words, so only a fresh node makes a
+  // screen reader say them once more.
+  await page.getByRole("button", { name: "Edit hand length" }).click();
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  await expect(page.getByTestId("camera-cue")).toBeVisible();
+  await expect
+    .poll(() => first!.evaluate((node) => node.isConnected))
+    .toBe(false);
+  await expect(announcements).toHaveText(text);
 });
 
 test("the camera shell the placeholder hands over to is the same dark", async ({
