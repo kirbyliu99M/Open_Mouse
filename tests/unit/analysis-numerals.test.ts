@@ -428,7 +428,7 @@ describe("normalizeVulgarFractions", () => {
   });
 
   it("collapses a literal fraction-slash form 'a⁄b'", () => {
-    expect(normalizeVulgarFractions("1⁄2")).toBe("0.5");
+    expect(normalizeVulgarFractions("1⁄2")).toBe("0.5 ; 1 ; 2");
   });
 
   it("leaves ordinary text untouched", () => {
@@ -466,18 +466,21 @@ describe("slash fractions ('1/3') are one number, not two", () => {
   const allowed = new Set([1, 3]);
 
   it("normalizeVulgarFractions folds a slash fraction like '⅓'", () => {
-    expect(normalizeVulgarFractions("1/3")).toBe("0.3333333333");
-    expect(normalizeVulgarFractions("1 / 3")).toBe("0.3333333333");
-    expect(normalizeVulgarFractions("１／３")).toBe("0.3333333333");
-    expect(normalizeVulgarFractions("１/３")).toBe("0.3333333333");
-    expect(normalizeVulgarFractions("3/4")).toBe("0.75");
-    expect(normalizeVulgarFractions("1.5/3")).toBe("0.5");
-    expect(normalizeVulgarFractions("about1/2 mm")).toBe("about0.5 mm");
+    // The quotient first, then the two numbers written: all three are checked.
+    expect(normalizeVulgarFractions("1/3")).toBe("0.3333333333 ; 1 ; 3");
+    expect(normalizeVulgarFractions("1 / 3")).toBe("0.3333333333 ; 1 ; 3");
+    expect(normalizeVulgarFractions("１／３")).toBe("0.3333333333 ; 1 ; 3");
+    expect(normalizeVulgarFractions("１/３")).toBe("0.3333333333 ; 1 ; 3");
+    expect(normalizeVulgarFractions("3/4")).toBe("0.75 ; 3 ; 4");
+    expect(normalizeVulgarFractions("1.5/3")).toBe("0.5 ; 1.5 ; 3");
+    expect(normalizeVulgarFractions("about1/2 mm")).toBe("about0.5 ; 1 ; 2 mm");
+    // A vulgar fraction character has no operands.
+    expect(normalizeVulgarFractions("½")).toBe("0.5");
   });
 
   it("normalizeUnicodeDigits folds one written in another script's digits", () => {
-    expect(normalizeUnicodeDigits("١/٣")).toBe("0.3333333333");
-    expect(normalizeUnicodeDigits("१/४")).toBe("0.25");
+    expect(normalizeUnicodeDigits("١/٣")).toBe("0.3333333333 ; 1 ; 3");
+    expect(normalizeUnicodeDigits("१/४")).toBe("0.25 ; 1 ; 4");
   });
 
   it("rejects '約1/3' when only 1 and 3 are in the input", () => {
@@ -497,8 +500,10 @@ describe("slash fractions ('1/3') are one number, not two", () => {
   });
 
   it("accepts the fraction when its value is in the input", () => {
-    expect(findUnknownNumeral("約1/3", new Set([1 / 3]))).toBeNull();
-    expect(findUnknownNumeral("約１／２", new Set([0.5]))).toBeNull();
+    // ...and so are the two numbers written.
+    expect(findUnknownNumeral("約1/3", new Set([1, 3, 1 / 3]))).toBeNull();
+    expect(findUnknownNumeral("約１／２", new Set([1, 2, 0.5]))).toBeNull();
+    expect(findUnknownNumeral("約1/3", new Set([1 / 3]))).toBe(1);
   });
 
   it("a chain of slashes is not a fraction: every number in it is checked", () => {
@@ -803,4 +808,280 @@ describe("findUnknownNumeral — sentence-boundary gap, Unicode extension (SENTE
       findUnknownNumeral("the third, of course, of the width", allowed),
     ).toBeCloseTo(1 / 3);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Round 3 (independent verification): slash fractions, percentages, grouping,
+// invisible characters, word forms and unreadable numeral symbols.
+// ---------------------------------------------------------------------------
+
+describe("a slash fraction is checked by its quotient AND both numbers written", () => {
+  // Ranks 1, 2 and 3 are in every input, so a fraction whose quotient is 1, 2
+  // or 3 used to pass whatever it was made of.
+  const ranks = new Set([1, 2, 3]);
+
+  it.each([
+    "5/5",
+    "10/10",
+    "50/50",
+    "100/100",
+    "滿分100/100",
+    "6/2",
+    "9/3",
+    "4/2",
+    "10/5",
+    "20/10",
+    "200/100",
+    "300/100",
+    "100/50",
+    "５／５",
+    "10 / 10",
+    "about6/2",
+  ])("%s is flagged", (text) => {
+    expect(findUnknownNumeral(text, ranks)).not.toBeNull();
+  });
+
+  it("names the first number that is not in the input", () => {
+    expect(findUnknownNumeral("6/2", ranks)).toBe(6);
+    expect(findUnknownNumeral("10/5", ranks)).toBe(10);
+    expect(findUnknownNumeral("1/5", ranks)).toBeCloseTo(0.2, 9);
+  });
+
+  it("passes when the quotient and both numbers are in the input", () => {
+    expect(findUnknownNumeral("1/1", ranks)).toBeNull();
+    expect(findUnknownNumeral("3/3", ranks)).toBeNull();
+    expect(findUnknownNumeral("6/2", new Set([6, 2, 3]))).toBeNull();
+    expect(findUnknownNumeral("1/3", new Set([1, 3, 1 / 3]))).toBeNull();
+  });
+
+  it("is still flagged when only the quotient or only the numbers are there", () => {
+    expect(findUnknownNumeral("6/2", new Set([3]))).toBe(6);
+    expect(findUnknownNumeral("1/3", new Set([1, 3]))).toBeCloseTo(1 / 3, 9);
+  });
+
+  it("N/100 is the exception: the score alone is checked", () => {
+    expect(findUnknownNumeral("78/100", new Set([78]))).toBeNull();
+    expect(findUnknownNumeral("７８／１００", new Set([78]))).toBeNull();
+    expect(findUnknownNumeral("78/100", ranks)).toBeCloseTo(0.78, 9);
+    expect(findUnknownNumeral("1/3", new Set([1, 3]))).toBeCloseTo(1 / 3, 9);
+    expect(
+      findUnknownNumeral("50/200", new Set([1, 2, 3, 50, 78])),
+    ).toBeCloseTo(0.25, 9);
+  });
+
+  it.each(["1∕3", "1⧸3", "1╱3", "1÷3", "1／3", "1⁄3"])(
+    "reads %s as a slash",
+    (text) => {
+      expect(findUnknownNumeral(text, new Set([1, 3]))).toBeCloseTo(1 / 3, 9);
+      expect(findUnknownNumeral(text, new Set([1, 3, 1 / 3]))).toBeNull();
+    },
+  );
+
+  it("6÷2 is not 3", () => {
+    expect(findUnknownNumeral("6÷2", ranks)).toBe(6);
+  });
+});
+
+describe("a percentage matches an input fraction only strictly between 0 and 1", () => {
+  const ranks = new Set([1, 2, 3]);
+
+  it.each([
+    "100%",
+    "200%",
+    "300%",
+    "100 %",
+    "１００％",
+    "100趴",
+    "100個百分點",
+  ])("%s is not the rank it divides down to", (text) => {
+    expect(findUnknownNumeral(text, ranks)).not.toBeNull();
+  });
+
+  it("names the number written", () => {
+    expect(findUnknownNumeral("100%", ranks)).toBe(100);
+    expect(findUnknownNumeral("200%", ranks)).toBe(200);
+  });
+
+  it("90% still matches a confidence of 0.9, and the number itself still matches", () => {
+    expect(findUnknownNumeral("90%", new Set([0.9]))).toBeNull();
+    expect(findUnknownNumeral("信心約９０％", new Set([0.9]))).toBeNull();
+    expect(findUnknownNumeral("90%", new Set([90]))).toBeNull();
+    expect(findUnknownNumeral("100%", new Set([100]))).toBeNull();
+    expect(findUnknownNumeral("92%", new Set([0.92, 92]))).toBeNull();
+  });
+
+  it("does not let a percentage match 1, 0 or a value above 1", () => {
+    expect(findUnknownNumeral("100%", new Set([1]))).toBe(100);
+    expect(findUnknownNumeral("0%", new Set([0]))).toBeNull(); // the number 0 itself
+    expect(findUnknownNumeral("150%", new Set([1.5]))).toBe(150);
+  });
+});
+
+describe("digits grouped by a comma, space or underscore are one number", () => {
+  it("reads 1,600 as 1600", () => {
+    expect(extractNumerals("1,600 DPI")).toEqual([1600]);
+    expect(extractNumerals("12,345,678")).toEqual([12345678]);
+    expect(extractNumerals("1,234.5")).toEqual([1234.5]);
+  });
+
+  it("reads 1 000 and 1_250 as one number", () => {
+    expect(extractNumerals("1 000")).toEqual([1000]);
+    expect(extractNumerals("12 345")).toEqual([12345]);
+    expect(extractNumerals("1_250")).toEqual([1250]);
+    expect(extractNumerals("１ ０００")).toEqual([1000]);
+  });
+
+  it("does not run other numbers together", () => {
+    expect(extractNumerals("1, 2, 3")).toEqual([1, 2, 3]);
+    expect(extractNumerals("1,23")).toEqual([1, 23]);
+    expect(extractNumerals("1,2345")).toEqual([1, 2345]);
+    expect(extractNumerals("3 1234")).toEqual([3, 1234]);
+    expect(extractNumerals("1 2 3")).toEqual([1, 2, 3]);
+  });
+
+  it("a grouped number is checked as its value, not as its pieces", () => {
+    expect(findUnknownNumeral("1,600 DPI", new Set([1, 600]))).toBe(1600);
+    expect(findUnknownNumeral("1,600 DPI", new Set([1600]))).toBeNull();
+    expect(findUnknownNumeral("1 000 g", new Set([1, 0]))).toBe(1000);
+  });
+
+  it("a slash fraction's three numbers never run together", () => {
+    // "1/100" is "0.01 ; 1 ; 100", not "0.01 1 100" (= 1100).
+    expect(extractNumerals(normalizeVulgarFractions("1/100"))).toEqual([
+      0.01, 1, 100,
+    ]);
+  });
+});
+
+describe("k and M after a number", () => {
+  it("5k is 5000, 1.5k is 1500, 2M is 2000000", () => {
+    expect(extractNumerals("5k")).toEqual([5000]);
+    expect(extractNumerals("5K")).toEqual([5000]);
+    expect(extractNumerals("1.5k")).toEqual([1500]);
+    expect(extractNumerals("2M")).toEqual([2_000_000]);
+    expect(extractNumerals("最多16K，4K解析")).toEqual([16000, 4000]);
+    expect(extractNumerals("5k.")).toEqual([5000]);
+  });
+
+  it("not when a letter follows", () => {
+    expect(extractNumerals("5kg")).toEqual([5]);
+    expect(extractNumerals("3MB")).toEqual([3]);
+    expect(extractNumerals("5km")).toEqual([5]);
+    expect(extractNumerals("2Mbps")).toEqual([2]);
+    expect(extractNumerals("5mm")).toEqual([5]);
+  });
+
+  it("is checked as its value", () => {
+    expect(findUnknownNumeral("5k", new Set([5]))).toBe(5000);
+    expect(findUnknownNumeral("5k", new Set([5000]))).toBeNull();
+  });
+});
+
+describe("invisible format characters do not split a number", () => {
+  const invisible = [
+    ["U+200B zero-width space", "​"],
+    ["U+2060 word joiner", "⁠"],
+    ["U+00AD soft hyphen", "­"],
+    ["U+200C zero-width non-joiner", "‌"],
+    ["U+200D zero-width joiner", "‍"],
+    ["U+FEFF byte-order mark", "﻿"],
+    ["U+200E left-to-right mark", "‎"],
+  ] as const;
+
+  it.each(invisible)("%s inside digits", (_name, ch) => {
+    const text = `長度1${ch}85毫米`;
+    expect(extractNumerals(text)).toEqual([185]);
+    expect(findUnknownNumeral(text, new Set([1, 85]))).toBe(185);
+    expect(normalizeUnicodeDigits(text)).toBe("長度185毫米");
+  });
+
+  it.each(invisible)("%s inside a Chinese number", (_name, ch) => {
+    expect(findUnknownNumeral(`五${ch}十`, new Set([5, 10]))).toBe(50);
+    expect(findUnknownNumeral(`三${ch}分之一`, new Set([1, 3]))).toBeCloseTo(
+      1 / 3,
+      9,
+    );
+  });
+
+  it.each(invisible)("%s inside an English number word", (_name, ch) => {
+    expect(extractWordNumerals(`fi${ch}ve`)).toEqual([
+      { value: 5, percent: false },
+    ]);
+    expect(findUnknownNumeral(`tw${ch}enty`, new Set([1]))).toBe(20);
+  });
+});
+
+describe("English number words are read after NFKC", () => {
+  it("full-width and mathematical letters are the plain word", () => {
+    expect(extractWordNumerals("ＦＩＶＥ")).toEqual([
+      { value: 5, percent: false },
+    ]);
+    expect(extractWordNumerals("ｔｅｎ")).toEqual([
+      { value: 10, percent: false },
+    ]);
+    expect(extractWordNumerals("𝐟𝐢𝐯𝐞")).toEqual([{ value: 5, percent: false }]);
+    expect(extractWordNumerals("𝗍𝗐𝗈")).toEqual([{ value: 2, percent: false }]);
+    expect(findUnknownNumeral("ＦＩＶＥ", new Set([1]))).toBe(5);
+    expect(findUnknownNumeral("ＦＩＶＥ", new Set([5]))).toBeNull();
+  });
+});
+
+describe("a numeral symbol nothing reads is refused", () => {
+  const ranks = new Set([1, 2, 3, 5]);
+
+  it.each([
+    "❺",
+    "⓿",
+    "➄",
+    "⓴",
+    "Ⅴ",
+    "Ⅲ",
+    "ⅷ",
+    "፭",
+    "௰",
+    "\u{11067}", // Brahmi digit
+    "\u{11137}", // Chakma digit
+    "\u{10107}", // Aegean number
+    "長度❺毫米",
+    "第Ⅴ名",
+  ])("%s is flagged whatever the input has", (text) => {
+    expect(Number.isNaN(findUnknownNumeral(text, ranks))).toBe(true);
+    expect(
+      findUnknownNumeral(text, new Set([0, 4, 5, 6, 7, 10, 20])),
+    ).toBeNaN();
+  });
+
+  it("but a real value found first is still the one named", () => {
+    expect(findUnknownNumeral("7 ❺", ranks)).toBe(7);
+  });
+
+  it.each([
+    "①",
+    "⑳",
+    "²",
+    "₃",
+    "１２３",
+    "٣", // Arabic-Indic digit
+    "३", // Devanagari digit
+    "㊄",
+    "㈠",
+    "〇",
+    "〥",
+    "〹",
+    "½",
+    "¾",
+    "五",
+    "ABC",
+    "",
+  ])(
+    "%s is read by a path, so nothing is refused for being unreadable",
+    (text) => {
+      expect(
+        findUnknownNumeral(
+          text,
+          new Set([0, 1, 2, 3, 5, 12, 123, 20, 0.5, 0.75]),
+        ),
+      ).not.toBeNaN();
+    },
+  );
 });

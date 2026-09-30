@@ -177,7 +177,13 @@ function retryPrompt(basePrompt: string, violation: string): string {
   if (violation.startsWith("medical claim: ")) {
     return `${basePrompt}\n\nYour previous answer used a prohibited medical or health term (${violation.slice("medical claim: ".length)}). Rewrite the full answer using only shape facts, with no medical, diagnostic, therapeutic, injury-prevention, or body-safety claims.`;
   }
-  return `${basePrompt}\n\nYour previous answer used the number ${violation}, which does not appear anywhere in the Data above. Every number in your answer MUST come from Data verbatim. Rewrite your full answer without inventing any new numbers.`;
+  // `findUnknownNumeral` reports a numeral symbol it cannot read (❺, ⓴, Ⅴ...)
+  // as NaN: there is no value to name, but the symbol is still a number.
+  const what =
+    violation === "NaN"
+      ? "a numeral symbol (a circled, dingbat, Roman or other special number sign)"
+      : `the number ${violation}`;
+  return `${basePrompt}\n\nYour previous answer used ${what}, which does not appear anywhere in the Data above. Every number in your answer MUST come from Data verbatim. Rewrite your full answer without inventing any new numbers.`;
 }
 
 /**

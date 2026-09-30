@@ -38,7 +38,10 @@
  *    chain ("2024/10/05", "1/2/3") is not a fraction and stays separate
  *    numbers, all of them checked. One exception, made in `findUnknownNumeral`
  *    because it needs the input: "78/100" with 78 in the input is a score out
- *    of 100 (the product's scale), not the fraction 0.78.
+ *    of 100 (the product's scale), not the fraction 0.78. Every other slash
+ *    fraction is checked by its quotient AND both operands: the quotient alone
+ *    let "5/5", "10/10", "6/2" and "100/100" through as the ranks 1, 2 and 3
+ *    that every input has.
  *
  * 6. Chinese numerals — 五, 十二, 一百二十, 半, 百分之三十, 三分之一, 七成,
  *    and Arabic digits with a Chinese unit (3萬) — in Traditional and
@@ -60,9 +63,13 @@
  * fabricated "g502" quantity the model never should have been allowed to
  * write).
  *
- * Out of scope, deliberately: Roman numerals ("Ⅲ" NFKC-decomposes to plain
- * "III"). Closing this reliably would require telling a genuine Roman
- * numeral apart from an ordinary English word made entirely of the letters
+ * Roman numeral *characters* (Ⅴ, Ⅲ) are numbers to Unicode and are refused by
+ * the last check in `findUnknownNumeral`, together with every other numeral
+ * character no path reads (❺ ⓿ ⓴ ፭ ௰, Brahmi and Chakma digits).
+ *
+ * Out of scope, deliberately: Roman numerals written with Latin letters
+ * ("III"; the character "Ⅲ" NFKC-decomposes to exactly that). Closing this
+ * reliably would require telling a genuine Roman numeral apart from an ordinary English word made entirely of the letters
  * I/V/X/L/C/D/M — and some common words pass the standard strict Roman
  * numeral grammar outright (e.g. "mix" parses as M + IX = 1009). Adding
  * Roman numeral parsing would trade a rare, low-severity gap for a much
@@ -71,9 +78,19 @@
  * only to digits and spelled-out words.
  */
 
-import { readChineseNumerals } from "./chinese-numerals";
+import {
+  DIGITS as CHINESE_DIGITS,
+  SHORTHAND as CHINESE_SHORTHAND,
+  UNITS as CHINESE_UNITS,
+  readChineseNumerals,
+} from "./chinese-numerals";
 
-const NUMERAL_PATTERN = /-?\d+(?:\.\d+)?(?!\d)/g;
+/**
+ * A number written with digits. Groups of three digits set apart by a comma, a
+ * space or an underscore are one number ("1,600", "1 000", "1_250"), so
+ * "1,600 DPI" is 1600 and not 1 and 600.
+ */
+const NUMERAL_PATTERN = /-?(?:\d{1,3}(?:[, _]\d{3})+|\d+)(?:\.\d+)?(?!\d)/g;
 const EPSILON = 1e-9;
 
 /**
@@ -178,7 +195,9 @@ function fractionDecimalString(numerator: number, denominator: number): string {
 
 const SLASH_DIGIT = "[0-9０-９]";
 const SLASH_NUMBER = `${SLASH_DIGIT}+(?:[.．]${SLASH_DIGIT}+)?`;
-const SLASH = "[/／⁄]";
+/** Slash-like characters: / ／ ⁄ (fraction slash) ∕ (division slash) ⧸ ╱ ÷. */
+const SLASH_CHARS = "/／⁄∕⧸╱÷";
+const SLASH = `[${SLASH_CHARS}]`;
 /**
  * "a/b" with ASCII or full-width digits, optional spaces and an optional
  * decimal part on either side. Not matched: a slash that is part of a longer
@@ -188,20 +207,36 @@ const SLASH = "[/／⁄]";
  * closed on purpose (see `matchDigitNumerals`).
  */
 const SLASH_FRACTION = new RegExp(
-  `(?<![0-9０-９.．/／⁄])(${SLASH_NUMBER})\\s*${SLASH}\\s*(${SLASH_NUMBER})(?!${SLASH_DIGIT}|\\s*${SLASH}\\s*${SLASH_DIGIT})`,
+  `(?<![0-9０-９.．${SLASH_CHARS}])(${SLASH_NUMBER})\\s*${SLASH}\\s*(${SLASH_NUMBER})(?!${SLASH_DIGIT}|\\s*${SLASH}\\s*${SLASH_DIGIT})`,
   "g",
 );
 
 /**
- * Replaces each "a/b" (also "a／b" and "a⁄b", spaces allowed, full-width digits
- * allowed) with its decimal value, like a vulgar fraction character. A zero
- * denominator is not a fraction and is left as it is.
+ * Between the quotient and the two operands of a slash fraction. It is not a
+ * digit, a group separator (see `NUMERAL_PATTERN`) or a space, so the three
+ * numbers never run together into one ("1/100" -> "0.01 ; 1 ; 100", not
+ * "... 1 100").
+ */
+const OPERAND_SEPARATOR = " ; ";
+
+/**
+ * Replaces each "a/b" (also "a／b", "a⁄b", "a∕b", "a÷b", spaces allowed,
+ * full-width digits allowed) with three numbers: the quotient and both
+ * operands. Every one of them has to be in the input: only checking the
+ * quotient let "5/5", "10/10", "6/2" and "100/100" through as 1, 2 and 3, which
+ * are always there as ranks. A zero denominator is not a fraction and is left
+ * as it is.
  */
 function collapseSlashFractions(text: string): string {
   return text.replace(SLASH_FRACTION, (all, n: string, d: string) => {
-    const denominator = Number(d.normalize("NFKC"));
-    if (denominator === 0) return all;
-    return fractionDecimalString(Number(n.normalize("NFKC")), denominator);
+    const numerator = n.normalize("NFKC");
+    const denominator = d.normalize("NFKC");
+    if (Number(denominator) === 0) return all;
+    return [
+      fractionDecimalString(Number(numerator), Number(denominator)),
+      numerator,
+      denominator,
+    ].join(OPERAND_SEPARATOR);
   });
 }
 
@@ -233,7 +268,9 @@ function withoutOutOf100Scores(
  * 1 and 2, not 0.5. Also collapses a literal "a⁄b" fraction-slash form,
  * whether the model wrote it directly or NFKC would otherwise produce it, and
  * the slash forms "a/b" and "a／b" (ASCII or full-width digits): "約1/3" is a
- * third, not the two numbers 1 and 3.
+ * third, and the quotient and both operands are then checked (see
+ * `collapseSlashFractions`). A vulgar fraction character has no operands to
+ * check: "½" is 0.5 and nothing else.
  */
 export function normalizeVulgarFractions(text: string): string {
   let out = "";
@@ -242,6 +279,17 @@ export function normalizeVulgarFractions(text: string): string {
     out += frac ? fractionDecimalString(frac[0], frac[1]) : ch;
   }
   return collapseSlashFractions(out);
+}
+
+/**
+ * Removes invisible format characters (Unicode category Cf): zero-width space
+ * and joiners, the word joiner, the soft hyphen, the byte-order mark, the
+ * bidirectional marks. Sitting inside a number they split it in two ("1<ZWSP>85"
+ * is 185, "五<ZWSP>十" is 50, "三<ZWSP>分之一" is a third), and every path here
+ * reads the pieces separately.
+ */
+function stripFormatChars(text: string): string {
+  return text.replace(/\p{Cf}/gu, "");
 }
 
 /**
@@ -254,7 +302,9 @@ export function normalizeVulgarFractions(text: string): string {
  * through unchanged.
  */
 export function normalizeUnicodeDigits(text: string): string {
-  const nfkc = normalizeVulgarFractions(text).normalize("NFKC");
+  const nfkc = normalizeVulgarFractions(stripFormatChars(text)).normalize(
+    "NFKC",
+  );
   let out = "";
   for (const ch of nfkc) {
     const digit = UNICODE_DIGIT_VALUES.get(ch.codePointAt(0)!);
@@ -399,7 +449,15 @@ function matchDigitNumerals(
       const token = surroundingToken(normalized, tokenStart, end);
       if (isExemptToken(token, exemptTokens)) continue;
     }
-    const value = Number.parseFloat(match[0]);
+    let value = Number.parseFloat(match[0].replace(/[, _]/g, ""));
+    // 5k is 5000 and 1.5M is 1500000, unless a letter follows (5kg, 3MB).
+    const suffix = normalized[end];
+    if (
+      (suffix === "k" || suffix === "K" || suffix === "M") &&
+      !/[A-Za-z]/.test(normalized[end + 1] ?? "")
+    ) {
+      value *= suffix === "M" ? 1_000_000 : 1000;
+    }
     const after = normalized.slice(end);
     // 30%, 30 %, 30個百分點, 30趴 and 百分之30 are all "30 percent".
     const percent =
@@ -649,7 +707,9 @@ const SENTENCE_BOUNDARY_PATTERN = /[\n…]|\p{Terminal_Punctuation}/u;
  * "5" would be.
  */
 export function extractWordNumerals(text: string): NumeralToken[] {
-  const lowered = text.toLowerCase();
+  // NFKC first, so full-width and mathematical-alphabet letters ("ＦＩＶＥ",
+  // "𝐟𝐢𝐯𝐞") are the plain word, and no invisible character splits it.
+  const lowered = stripFormatChars(text).normalize("NFKC").toLowerCase();
   const wordMatches = [...lowered.matchAll(WORD_TOKEN_PATTERN)];
   const tokens = wordMatches.map((m) => m[0]);
   // See the "FIXED GAP" comment above WORD_TOKEN_PATTERN: true at index `i`
@@ -768,14 +828,55 @@ function isAllowed(n: number, allowed: ReadonlySet<number>): boolean {
  * when it was actually written as a percentage — its `/100` fraction form
  * is. This makes `"90%"` match an input `confidence: 0.9` without loosening
  * anything for a plain `"90"` that isn't marked as a percentage.
+ *
+ * The fraction form only counts when it lies strictly between 0 and 1, which is
+ * what a confidence is. Otherwise "100%", "200%", "百分之百" and "十成" would be
+ * the ranks 1 and 2 that every input contains, and a percentage that says 100 or
+ * 200 would pass without either number being in the input. (A 0 to 100 value
+ * such as `confidencePercent` is matched by the number itself, as above.)
  */
 function isAllowedToken(
   token: NumeralToken,
   allowed: ReadonlySet<number>,
 ): boolean {
   if (isAllowed(token.value, allowed)) return true;
-  if (token.percent && isAllowed(token.value / 100, allowed)) return true;
+  if (token.percent) {
+    const fraction = token.value / 100;
+    if (fraction > 0 && fraction < 1 && isAllowed(fraction, allowed)) {
+      return true;
+    }
+  }
   return false;
+}
+
+/**
+ * True for a character that is a number in Unicode (category N) but that no
+ * path above reads: circled and dingbat digits (❺ ⓿ ➄ ⓴), other scripts' number
+ * signs (፭ ௰), digits of scripts the digit table leaves out (Brahmi, Chakma),
+ * and Roman numeral characters (Ⅴ, which NFKC turns into the letter V). Digits
+ * the table folds, super- and subscripts, fullwidth digits, circled numbers that
+ * NFKC turns into digits or Chinese numerals, and the Chinese numeral characters
+ * themselves are read, so they are not caught here.
+ */
+function isUnreadNumeralChar(ch: string): boolean {
+  if (!/\p{N}/u.test(ch)) return false;
+  if (UNICODE_DIGIT_VALUES.has(ch.codePointAt(0)!)) return false;
+  if (isChineseNumeralChar(ch)) return false;
+  const folded = ch.normalize("NFKC");
+  if (/[0-9]/.test(folded)) return false;
+  return ![...folded].some(isChineseNumeralChar);
+}
+
+const isChineseNumeralChar = (ch: string) =>
+  CHINESE_DIGITS.has(ch) || CHINESE_UNITS.has(ch) || CHINESE_SHORTHAND.has(ch);
+
+/** The first character of `text` that is a number but is not read, or null. */
+function findUnreadNumeralChar(text: string): string | null {
+  // ½ and the like are turned into digits before anything is read.
+  for (const ch of normalizeVulgarFractions(stripFormatChars(text))) {
+    if (isUnreadNumeralChar(ch)) return ch;
+  }
+  return null;
 }
 
 /**
@@ -807,5 +908,8 @@ export function findUnknownNumeral(
   ]) {
     if (!isAllowedToken(token, allowed)) return token.value;
   }
+  // Last: a number that no path can read (❺, ⓴, ፭, Ⅴ...) is not in the input
+  // either. Its value is unknown, so NaN stands for "some number".
+  if (findUnreadNumeralChar(scored) !== null) return Number.NaN;
   return null;
 }
