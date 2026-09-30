@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
+import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 import {
   LOAD_FAILED,
   MODEL_URL,
@@ -23,6 +24,10 @@ import {
  * not dropped either: every run attaches the full list, and each state must
  * name the rules it leaves open in `NEEDS_REVIEW`, with why and a check that
  * settles it here. A new open item fails until someone has looked at it.
+ * The other way round is tolerated only where a review says `mayResolve`: axe
+ * may decide such a rule itself (and pass it) on a run where the thing that
+ * made it undecidable is not there. Any other review that axe no longer needs
+ * fails, so the list cannot go stale.
  */
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -38,6 +43,13 @@ interface Review {
    * review can be a closed list and not just a rule name.
    */
   readonly check: (page: Page, targets: readonly string[]) => Promise<void>;
+  /**
+   * Axe may legitimately decide this rule itself on some runs (the picture it
+   * could not see through is not there that time). Then it is not open, there
+   * is nothing to review, and that is not a failure. Never set it to excuse a
+   * rule that axe has simply stopped asking about.
+   */
+  readonly mayResolve?: true;
 }
 
 /** The text sits on a translucent pill over a photo; axe cannot see the photo. */
@@ -210,6 +222,7 @@ const overLivePicture = async (page: Page, targets: readonly string[]) => {
 
 const LIVE_CAMERA_REVIEW: Record<string, Review> = {
   "color-contrast": {
+    mayResolve: true,
     why: "The controls, the cue, the hint and the detector's progress pill are white text on a translucent black fill laid over the live picture: axe cannot see the picture. A closed list (OVER_LIVE_PICTURE), each measured on a white picture.",
     check: overLivePicture,
   },
@@ -276,11 +289,27 @@ async function audit(page: Page, info: TestInfo, state: string) {
     })),
   ).toEqual([]);
   const reviews = NEEDS_REVIEW[state] ?? {};
+  const openRules = open.map((item) => item.rule).sort();
+  // An open rule nobody has looked at fails...
   expect(
-    open.map((item) => item.rule).sort(),
+    openRules.filter((rule) => !(rule in reviews)),
     `needs review in "${state}" (add it to NEEDS_REVIEW, with why and a check, once looked at): ${JSON.stringify(open, null, 1)}`,
-  ).toEqual(Object.keys(reviews).sort());
+  ).toEqual([]);
+  // ...and so does a review that axe no longer needs, unless axe may decide
+  // that rule by itself (then it passed: there were no violations above).
+  const decidedByAxe = Object.keys(reviews).filter(
+    (rule) => !openRules.includes(rule),
+  );
+  await info.attach(`axe-decided-itself ${state}.json`, {
+    body: JSON.stringify(decidedByAxe),
+    contentType: "application/json",
+  });
+  expect(
+    decidedByAxe.filter((rule) => !reviews[rule].mayResolve),
+    `reviewed in "${state}" but axe no longer leaves it open: remove the review`,
+  ).toEqual([]);
   for (const [rule, review] of Object.entries(reviews)) {
+    if (decidedByAxe.includes(rule)) continue;
     const targets = incomplete
       .filter((item) => item.id === rule)
       .flatMap((item) => item.nodes.map((n) => n.target.join(" ")));
@@ -484,30 +513,36 @@ for (const colorScheme of SCHEMES) {
         "Needs the fake camera project.",
       );
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      // Freeze the detection loop the moment the picture is playing: once the
+      // sheet is found the auto-shutter fires within a second and would replace
+      // the viewfinder under the audit. (The green "hold still" cue is checked
+      // on its own below, so it does not depend on catching that moment.) Done
+      // in the page, in the same tick, not by polling from here.
+      await installLoopFreeze(page, {
+        selector: "video.cameraVideo.ready",
+        count: 1,
+      });
       if (loading) await slowModel(page, "gated");
       await page.goto("/scan/easy");
       await dismissTip(page);
       await expect(page.locator(".cameraFrame")).toBeVisible();
-      await expect(page.locator("video.cameraVideo")).toBeVisible();
-      // The stream is attached a moment after the element shows.
-      await expect
-        .poll(() =>
-          page.evaluate(
-            () =>
-              (document.querySelector("video.cameraVideo") as HTMLVideoElement)
-                .srcObject !== null,
-          ),
-        )
-        .toBe(true);
-      if (loading) await expect(pill(page)).toBeVisible();
-      // Freeze the detection loop where it is: once the sheet is found the
-      // auto-shutter fires within a second and would replace the viewfinder
-      // under the audit. (The green "hold still" cue is checked on its own
-      // below, so it does not depend on catching that moment.)
-      await expect(page.locator(".cameraCue")).toBeVisible();
-      await page.evaluate(() => {
-        window.requestAnimationFrame = () => 0;
+      // The picture is transparent until the video is playing (it fades in
+      // over 200 ms), and axe rightly sees no picture behind the controls
+      // before that: it decides colour contrast itself, where with the picture
+      // up it leaves it open. Every live state is audited with the picture up.
+      await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+        timeout: 20_000,
       });
+      await loopFrozen(page);
+      const stream = await page.evaluate(() => {
+        const video =
+          document.querySelector<HTMLVideoElement>("video.cameraVideo")!;
+        return { attached: video.srcObject !== null, state: video.readyState };
+      });
+      expect(stream.attached).toBe(true);
+      expect(stream.state).toBeGreaterThanOrEqual(2); // HAVE_CURRENT_DATA: a frame to show
+      if (loading) await expect(pill(page)).toBeVisible();
+      await expect(page.locator(".cameraCue")).toBeVisible();
       await audit(page, info, state);
     });
   }
