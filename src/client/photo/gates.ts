@@ -50,7 +50,7 @@ export const GATE_THRESHOLDS = {
   /**
    * Laplacian-variance floor below which a photo is flagged as blurry.
    * Heuristic starting point (BT.601 luma, full downscaled frame); M2's
-   * gate-replay harness (scripts/m2-gate-replay.ts) against Kirby's ground
+   * evaluator (scripts/m2-evaluate.ts) on run logs of Kirby's ground
    * truth photos is what should tune this for real.
    */
   minLaplacianVariance: 50,

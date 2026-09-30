@@ -22,6 +22,8 @@ import { LANDMARK_HEIGHTS_MM } from "../../../src/client/geometry/parallax";
 import { detectPaperQuad } from "../../../src/client/paper/detect";
 import { buildPaperHomography } from "../../../src/client/paper/homography";
 import type { PaperSize } from "../../../src/lib/contracts/measurement";
+import type { DetectedMarker } from "../../../src/client/photo/markers";
+import { computeSheetLayout } from "../../../src/client/sheet/layout";
 import {
   SHEET_MM_MARKER_CORNERS,
   buildSyntheticCamera,
@@ -179,4 +181,25 @@ export function independentShot(
     markerHomography,
     paperHomography,
   };
+}
+
+/**
+ * The four corner markers the printed sheet would show through the scene's
+ * camera, as the ArUco detector would report them (ids 0 to 3).
+ */
+export function flatMarkerDetections(
+  scene: IndependentScene,
+): DetectedMarker[] {
+  const camera = independentSceneCamera(scene);
+  return computeSheetLayout()
+    .markers.filter((m) => [0, 1, 2, 3].includes(m.id))
+    .map((m) => ({
+      id: m.id,
+      corners: m.corners.map((c) => camera.project(c.x, c.y, 0)) as [
+        Point2,
+        Point2,
+        Point2,
+        Point2,
+      ],
+    }));
 }

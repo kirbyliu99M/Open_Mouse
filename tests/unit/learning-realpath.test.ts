@@ -152,6 +152,30 @@ describe("realpathLoose", () => {
       },
     );
 
+    // The link's folder is itself reached through a folder link. ".." in a
+    // relative target means the parent of the folder as it REALLY is, not of
+    // the folder as the path was spelt.
+    it.skipIf(WINDOWS)(
+      "a relative target is read from the link's REAL folder when the path reaches it through a folder link (POSIX)",
+      () => {
+        const base = join(real, "base");
+        const other = join(real, "other");
+        mkdirSync(base);
+        mkdirSync(other);
+        const viaLink = join(base, "rel"); // base/rel -> ../other
+        symlinkSync(join("..", "other"), viaLink, "dir");
+        links.push(viaLink);
+        const at = join(other, "r.json"); // other/r.json -> ../elsewhere/r.json
+        symlinkSync(join("..", "elsewhere", "r.json"), at, "file");
+        links.push(at);
+        // Spelt through base/rel, the "..": lexically that is base/elsewhere;
+        // really it is real/elsewhere.
+        expect(realpathLoose(join(viaLink, "r.json"))).toBe(
+          join(realpathSync.native(real), "elsewhere", "r.json"),
+        );
+      },
+    );
+
     it.skipIf(WINDOWS)(
       "a symlink to a FILE that is not there yet (POSIX)",
       () => {

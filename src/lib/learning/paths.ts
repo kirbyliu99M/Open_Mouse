@@ -124,7 +124,13 @@ export function realpathLoose(target: string): string {
     }
     if (isLink) {
       if (++hops > 40) return path.resolve(target);
-      current = path.resolve(path.dirname(current), readlinkSync(current));
+      // A relative target is read from the link's folder as it really is: if
+      // that folder is reached through a link, "../x" means the real parent's
+      // sibling, not the one the path was spelt with.
+      current = path.resolve(
+        realpathLoose(path.dirname(current)),
+        readlinkSync(current),
+      );
       continue;
     }
     const parent = path.dirname(current);
@@ -132,6 +138,21 @@ export function realpathLoose(target: string): string {
     tail.unshift(path.basename(current));
     current = parent;
   }
+}
+
+/**
+ * The checkout an output path would land inside (this one, the main one or any
+ * other worktree), or `null` when it is outside all of them. Photos, truth
+ * files and evaluation reports are personal data and must not be written where
+ * they could be committed. Symlinks and junctions are resolved first.
+ */
+export function outputInsideRepo(
+  outPath: string,
+  scriptRoot: string,
+  git: (args: readonly string[]) => string | null,
+): string | null {
+  const { roots } = gitRefusalRoots(scriptRoot, git);
+  return containingRoot(realpathLoose(outPath), roots.map(realpathLoose));
 }
 
 /** The first of `roots` that contains `candidate`, or `null`. */
@@ -222,14 +243,41 @@ export interface RedactOptions {
 // "Program Files (x86)". A "(" that opens a stack frame's location ends the
 // path at the ")" that closes it.
 const PATH_BODY = "(?:[^'\"`<>|()\\r\\n]|\\([^()\\r\\n]*\\))*";
+// The same without spaces, for paths whose start we can only guess.
+const WORD_BODY = "[^\\s'\"`<>|()]";
+
 const WINDOWS_PATH = new RegExp(
   `(?<![A-Za-z0-9])[A-Za-z]:[\\\\/]${PATH_BODY}`,
   "g",
 );
+// \\server\share\...: the server and share, then whatever follows.
+const UNC_PATH = new RegExp(
+  `(?<![\\\\A-Za-z0-9])\\\\\\\\[^\\\\\\s'"\`<>|()]+\\\\${PATH_BODY}`,
+  "g",
+);
+// file:///home/bob/x.mjs, file:///C:/Users/bob/x.mjs
+const FILE_URL = new RegExp(`(?<![A-Za-z0-9])file://${WORD_BODY}*`, "gi");
+
+// What may stand right before the "/" that starts a POSIX path: anything that
+// is not part of a word, a relative path ("./x", "../x", "~/x", "a/b"), a URL
+// ("host/learn/check": a letter or digit before), a closing bracket or ">"
+// (the end of "<path>" or "<checkout>"). So ":", "[", "{", ",", ";", a quote,
+// a backtick, "(", "<", "=" and white space all can.
+const NOT_AFTER = "(?<![A-Za-z0-9_.~/\\\\%>)\\]}-])";
 const POSIX_ROOTS =
-  "home|Users|root|tmp|var|private|mnt|opt|usr|etc|srv|media|Volumes|run|proc|snap|nix";
+  "home|Users|root|tmp|var|private|mnt|opt|usr|etc|srv|media|Volumes|run|proc|snap|nix|" +
+  "Applications|Library|System";
+// Under a system root: as far as a Windows path goes (spaces included, but
+// not past a closing "]" or "}"), and the root alone counts.
+const POSIX_BODY = "(?:[^'\"`<>|()\\]}\\r\\n]|\\([^()\\r\\n]*\\))*";
+const POSIX_ROOTED = new RegExp(
+  `${NOT_AFTER}/(?:${POSIX_ROOTS})(?![A-Za-z0-9_~-])(?:/${POSIX_BODY})?`,
+  "g",
+);
+// Any other path: a slash, a word, and at least one more segment. To the next
+// white space, since the folders of an unknown root are not known to hold any.
 const POSIX_PATH = new RegExp(
-  `(?<![A-Za-z0-9_.~/:-])/(?:${POSIX_ROOTS})(?![A-Za-z0-9_~-])(?:/${PATH_BODY})?`,
+  `${NOT_AFTER}/[^\\s/'"\`<>|()\\]}]+(?:/[^\\s/'"\`<>|()\\]}]+)+/?`,
   "g",
 );
 
@@ -247,7 +295,10 @@ function dropFrames(text: string): string {
     const line = lines[i]!;
     const eol = lines[i + 1] ?? "";
     if (/^[ \t]+at\s/.test(line)) {
-      if (!inFrames) out.push("    (stack frames omitted)" + eol);
+      // One note per run of frames, ending the way the last frame's line did.
+      const note = "    (stack frames omitted)" + eol;
+      if (inFrames) out[out.length - 1] = note;
+      else out.push(note);
       inFrames = true;
       continue;
     }
@@ -274,7 +325,12 @@ export function redactText(text: string, options: RedactOptions = {}): string {
     }
   }
   if (options.hideOtherPaths) {
-    out = out.replace(WINDOWS_PATH, hidePath).replace(POSIX_PATH, hidePath);
+    out = out
+      .replace(FILE_URL, hidePath)
+      .replace(UNC_PATH, hidePath)
+      .replace(WINDOWS_PATH, hidePath)
+      .replace(POSIX_ROOTED, hidePath)
+      .replace(POSIX_PATH, hidePath);
   }
   const user = options.username;
   if (user && user.length >= 3) {
@@ -356,14 +412,19 @@ export function buildSorterRunLog(args: {
 }
 
 /**
- * Is this command-line path a Git Bash (MSYS) spelling such as `/c/Users/me`?
- * On Windows, Node reads it as the folder "\c\Users\me" on the current drive
- * and will create it: a stray `C:\c` tree. There it is refused (the user
- * passes `C:\Users\me`). Elsewhere `/c/...` is an ordinary path.
+ * Is this command-line path a Git Bash, Cygwin or WSL-style spelling of a
+ * Windows drive: `/c/Users/me` (Git Bash), `/cygdrive/c/Users/me` (Cygwin),
+ * `/mnt/c/Users/me` (WSL)? On Windows, Node reads each as a folder tree on the
+ * current drive ("\c\Users\me", "\cygdrive\c\...") and will create it: a stray
+ * `C:\c` tree. There it is refused (the user passes `C:\Users\me`). Elsewhere
+ * these are ordinary paths.
  */
 export function looksLikeMsysPath(
   value: string,
   platform: NodeJS.Platform = process.platform,
 ): boolean {
-  return platform === "win32" && /^\/[a-zA-Z](\/|$)/.test(value);
+  return (
+    platform === "win32" &&
+    /^\/(?:(?:cygdrive|mnt)\/)?[a-zA-Z](\/|$)/.test(value)
+  );
 }
