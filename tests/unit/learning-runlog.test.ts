@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import { handMeasurementsSchema } from "../../src/lib/contracts/measurement";
 import { LEARNING_KIT_VERSION } from "../../src/lib/learning/kit";
 import {
+  carriesAccount,
   containingRoot,
   isInsideDirectory,
   mainCheckoutOf,
+  redactText,
   relativeInputPath,
+  terminalRedaction,
 } from "../../src/lib/learning/paths";
 import {
   assembleLearningReport,
@@ -333,19 +336,180 @@ describe("relativeInputPath", () => {
     ).toBe("Camera");
   });
 
-  it("replaces the segment after Users or home, and a segment equal to the username", () => {
+  it("replaces the segment after Users or home, and every segment that holds the username", () => {
     expect(
       relativeInputPath("/home/kirby/Pictures/S1", "/srv/repo", {
         api: path.posix,
         username: null,
       }),
     ).toBe("../../home/~/Pictures/S1");
+    // `kirby-usb` holds the name too, so it goes as well.
     expect(
       relativeInputPath("/mnt/kirby-usb/kirby/S1", "/srv/repo", {
         api: path.posix,
         username: "Kirby",
       }),
-    ).toBe("../../mnt/kirby-usb/~/S1");
+    ).toBe("../../mnt/~/~/S1");
+  });
+
+  // The verifier found a run log `input` like the first of these: Claude Code
+  // names its project folders after the whole path, account name inside.
+  it.each([
+    [
+      "a folder named after a whole path",
+      "C--Users-kirby-Desktop-Mouse-Shape-Project",
+    ],
+    ["a folder with the name and a space", "Kirby Photos"],
+    ["a folder starting with the name", "kirby-DCIM"],
+    ["a folder ending with the name", "DCIM_KIRBY"],
+    ["the name in the middle of a word", "photosKiRbYsession"],
+  ])("masks a segment that holds the username: %s", (_label, segment) => {
+    const out = relativeInputPath(
+      `E:\\data\\${segment}\\2026-09-30`,
+      "E:\\repos\\Open_Mouse",
+      { api: win, username: "kirby" },
+    );
+    expect(out).toBe("../../data/~/2026-09-30");
+    // The segments that do not carry the name stay.
+    expect(
+      relativeInputPath(`E:\\data\\photos\\${segment}`, "E:\\data", {
+        api: win,
+        username: "kirby",
+      }),
+    ).toBe("photos/~");
+  });
+
+  it("keeps a segment that only looks similar", () => {
+    expect(
+      relativeInputPath("E:\\data\\kirb\\Kirsten\\kiwi", "E:\\repos", {
+        api: win,
+        username: "kirby",
+      }),
+    ).toBe("../data/kirb/Kirsten/kiwi");
+  });
+
+  it("matches a name of one or two characters only as a whole segment", () => {
+    expect(
+      relativeInputPath("/data/ab/cabin/sab", "/srv", {
+        api: path.posix,
+        username: "ab",
+      }),
+    ).toBe("../data/~/cabin/sab");
+  });
+});
+
+describe("carriesAccount", () => {
+  it.each([
+    ["kirby", "kirby", true],
+    ["Kirby Photos", "kirby", true],
+    ["C--Users-KIRBY-Desktop", "kirby", true],
+    ["kirb", "kirby", false],
+    ["Pictures", "kirby", false],
+    ["Pictures", "", false],
+    ["Pictures", null, false],
+    ["ab", "ab", true],
+    ["cabin", "ab", false],
+  ])("%j with the account %j is %s", (segment, username, expected) => {
+    expect(carriesAccount(segment, username)).toBe(expected);
+  });
+});
+
+describe("redactText", () => {
+  it("replaces the account name wherever it is and in any letter case", () => {
+    expect(
+      redactText("open C:\\Users\\Kirby\\x and /home/KIRBY/y and kirby-usb", {
+        username: "kirby",
+      }),
+    ).toBe("open C:\\Users\\~\\x and /home/~/y and ~-usb");
+  });
+
+  it("replaces given paths, in either slash style and any letter case, longest first", () => {
+    const out = redactText(
+      [
+        "C:\\repo\\node_modules\\next\\dist\\bin\\next",
+        "c:/REPO/tests/x.ts",
+        "photos: D:\\shots\\day1 and D:\\shots\\day1\\IMG.jpg",
+      ].join("\n"),
+      {
+        paths: [
+          { from: "C:\\repo", to: "." },
+          { from: "D:\\shots", to: "SHOTS" },
+          { from: "D:\\shots\\day1", to: "day1" },
+        ],
+      },
+    );
+    expect(out).toBe(
+      [
+        ".\\node_modules\\next\\dist\\bin\\next",
+        "./tests/x.ts",
+        "photos: day1 and day1\\IMG.jpg",
+      ].join("\n"),
+    );
+  });
+
+  it("does not choke on regex characters in a path or the account", () => {
+    expect(
+      redactText("at C:\\a+b(1)\\[x]\\f.ts by k.rby", {
+        username: "k.rby",
+        paths: [{ from: "C:\\a+b(1)\\[x]", to: "." }],
+      }),
+    ).toBe("at .\\f.ts by ~");
+    // "." is not a wildcard: kxrby is a different name.
+    expect(redactText("kxrby", { username: "k.rby" })).toBe("kxrby");
+  });
+
+  it("leaves a name of one or two characters alone (it would match half the text)", () => {
+    expect(redactText("a cabin by the sea", { username: "ab" })).toBe(
+      "a cabin by the sea",
+    );
+  });
+
+  it("changes nothing when there is nothing to hide", () => {
+    expect(redactText("plain", {})).toBe("plain");
+  });
+});
+
+describe("terminalRedaction", () => {
+  const win = path.win32;
+  const main = "C:\\Users\\kirby\\Desktop\\Mouse Shape Project\\Open_Mouse";
+  const cwd = `${main}\\.claude\\worktrees\\kit`;
+  const base = {
+    cwd,
+    scriptRoot: cwd,
+    checkouts: [main, cwd],
+    input: "C:\\Users\\kirby\\Pictures\\Session 1",
+    outDir:
+      "C:\\Users\\kirby\\Desktop\\Mouse Shape Project\\Fixtures\\learning",
+    username: "kirby",
+    api: win,
+  };
+  const show = (text: string, over: Partial<typeof base> = {}) =>
+    redactText(text, terminalRedaction({ ...base, ...over }));
+
+  it("shows the working folder and this checkout as '.', the other checkouts as <checkout>", () => {
+    expect(show(`${cwd}\\node_modules\\next\\dist\\bin\\next`)).toBe(
+      ".\\node_modules\\next\\dist\\bin\\next",
+    );
+    expect(show(`from ${main}\\.git`)).toBe("from <checkout>\\.git");
+  });
+
+  it("shows the photo and output folders the way the run log names them", () => {
+    expect(show(`Checking 3 photos from ${base.input} …`)).toBe(
+      "Checking 3 photos from ../../../../../../Pictures/Session 1 …",
+    );
+    expect(show(`Copied 4 to ${base.outDir}.`)).toBe(
+      "Copied 4 to ../../../../Fixtures/learning.",
+    );
+  });
+
+  it("leaves nothing that names the account, whatever the path", () => {
+    const texts = [
+      `${base.input}\\IMG_0001.jpg`,
+      "C:\\Users\\Kirby\\AppData\\Local\\ms-playwright\\chromium\\chrome.exe",
+      "/home/kirby/.cache/ms-playwright",
+      `ENOENT: no such file or directory, open '${base.outDir}\\P001\\truth.json'`,
+    ];
+    for (const text of texts) expect(show(text)).not.toMatch(/kirby/i);
   });
 });
 

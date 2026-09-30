@@ -7,6 +7,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
+import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +24,7 @@ import {
   type DevServerOptions,
   type SignalTarget,
 } from "../../src/lib/learning/devserver";
+import { redactText } from "../../src/lib/learning/paths";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FAKE_TREE = join(
@@ -60,7 +62,9 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-function treeSpec(port: number, mode: "http" | "silent" | "exit" = "http") {
+type Mode = "http" | "silent" | "exit" | "exit-paths";
+
+function treeSpec(port: number, mode: Mode = "http") {
   return {
     command: process.execPath,
     args: [FAKE_TREE, String(port), "parent", mode],
@@ -108,7 +112,7 @@ afterEach(async () => {
   }
 });
 
-function startTree(port: number, mode: "http" | "silent" | "exit" = "http") {
+function startTree(port: number, mode: Mode = "http") {
   const spec = treeSpec(port, mode);
   const child = spawn(spec.command, [...spec.args], spec.options);
   started.push(child);
@@ -284,12 +288,104 @@ describe("waitForServer", () => {
     ).rejects.toThrow(/exited before it was ready.*EADDRINUSE/s);
     expect(Date.now() - began).toBeLessThan(10_000);
   }, 60_000);
+
+  // The server's last words quote absolute paths (its folder, the account's
+  // home); the message that reaches a terminal must not.
+  describe("redact", () => {
+    const shown = (text: string) =>
+      redactText(text, {
+        username: userInfo().username,
+        paths: [{ from: REPO, to: "." }],
+      });
+
+    async function failureOf(redact?: (text: string) => string) {
+      const port = await freePort();
+      const child = startTree(port, "exit-paths");
+      let tail = "";
+      child.stderr?.on("data", (d: Buffer) => (tail += d.toString()));
+      const gone = new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }>((resolve) =>
+        child.once("exit", (code, signal) => resolve({ code, signal })),
+      );
+      try {
+        await waitForServer(`http://127.0.0.1:${port}/`, {
+          timeoutMs: 30_000,
+          pollMs: 50,
+          exited: gone,
+          stderrTail: () => tail.trim(),
+          redact,
+        });
+      } catch (err) {
+        return (err as Error).message;
+      }
+      throw new Error("waitForServer did not fail");
+    }
+
+    it("the server's own words quote absolute paths (so the next test means something)", async () => {
+      const raw = await failureOf();
+      expect(raw.toLowerCase()).toContain(REPO.toLowerCase());
+    }, 60_000);
+
+    it("applies to the whole failure message, the server's last output included", async () => {
+      const message = await failureOf(shown);
+      expect(message).toMatch(/exited before it was ready \(code 1\)/);
+      expect(message).toMatch(/Cannot find module/);
+      expect(message.toLowerCase()).not.toContain(REPO.toLowerCase());
+      expect(message.toLowerCase()).not.toContain(
+        userInfo().username.toLowerCase(),
+      );
+      // This checkout is shown as ".".
+      expect(message).toMatch(/'\.[\\/]node_modules[\\/]next/);
+    }, 60_000);
+
+    it("also covers a server that could not be started at all", async () => {
+      const missing = join(REPO, "no-such-node-binary");
+      const child = spawn(missing, [], { stdio: "ignore" });
+      const gone = new Promise<{
+        code: null;
+        signal: null;
+        error: Error;
+      }>((resolve) =>
+        child.once("error", (error) =>
+          resolve({ code: null, signal: null, error }),
+        ),
+      );
+      const raw = (await gone).error.message;
+      expect(raw.toLowerCase()).toContain(REPO.toLowerCase());
+      const message = await waitForServer("http://127.0.0.1:1/", {
+        timeoutMs: 5000,
+        pollMs: 20,
+        exited: gone,
+        redact: shown,
+      }).then(
+        () => "",
+        (err: Error) => err.message,
+      );
+      expect(message).toMatch(/could not start/);
+      expect(message.toLowerCase()).not.toContain(REPO.toLowerCase());
+      expect(message).toMatch(/spawn \.[\\/]no-such-node-binary ENOENT/);
+    }, 60_000);
+
+    it("covers the timeout message too", async () => {
+      const port = await freePort();
+      await expect(
+        waitForServer(`http://127.0.0.1:${port}/`, {
+          timeoutMs: 300,
+          fetchTimeoutMs: 100,
+          pollMs: 20,
+          redact: (text) => text.replaceAll("127.0.0.1", "HOST"),
+        }),
+      ).rejects.toThrow(/Server at http:\/\/HOST:\d+\/ did not become ready/);
+    }, 60_000);
+  });
 });
 
 describe("withDevServer", () => {
   const options = (
     port: number,
-    mode: "http" | "silent" | "exit" = "http",
+    mode: Mode = "http",
     extra: Partial<DevServerOptions> = {},
   ): DevServerOptions => ({
     spec: treeSpec(port, mode),
@@ -373,6 +469,22 @@ describe("withDevServer", () => {
       ),
     ).rejects.toThrow(/exited before it was ready.*EADDRINUSE/s);
     expect(Date.now() - began).toBeLessThan(10_000);
+  }, 60_000);
+
+  it("passes its redaction to the failure it throws when the server dies at start-up", async () => {
+    const port = await freePort();
+    const error = await withDevServer(
+      options(port, "exit-paths", {
+        readyTimeoutMs: 30_000,
+        redact: (text) =>
+          redactText(text, { paths: [{ from: REPO, to: "." }] }),
+      }),
+      async () => "never",
+    ).catch((err: Error) => err);
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toMatch(/exited before it was ready.*Cannot find module/s);
+    expect(message.toLowerCase()).not.toContain(REPO.toLowerCase());
   }, 60_000);
 
   it("stops a server that never becomes ready", async () => {

@@ -205,8 +205,11 @@ export function kitCodeToken(code: KitCode): string {
 }
 
 /**
- * The QR content: a URL, so a phone camera opens that pose's instructions,
- * and the same string identifies the photo for the sorter.
+ * The QR content: a URL of the form /l/v<version>/<token>, and the same
+ * string identifies the photo for the checker and the sorter. The pages are
+ * served only by a local dev server (production answers 404, Kirby 2026-09-30),
+ * so scanning a printed code with a phone does not open them; the code is read
+ * from the photo.
  */
 export function kitCodeUrl(
   code: KitCode,

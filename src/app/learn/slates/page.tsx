@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { SLATES_PER_PAGE, SlatePageSvg } from "@/components/learning/KitSvg";
 import { formatParticipantId } from "@/lib/learning/kit";
 import { PrintButton } from "../PrintButton";
@@ -25,6 +26,7 @@ export default async function LearnSlatesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  guardDemoRouteFromProduction();
   const params = await searchParams;
   const from = intParam(params.from, 1, 1, 999);
   const count = Math.min(intParam(params.count, 8, 1, 96), 999 - from + 1);

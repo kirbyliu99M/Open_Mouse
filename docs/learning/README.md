@@ -22,9 +22,10 @@ anyone keeping notes.
 - **The QR code, not the file order, says what a photo is.** A skipped or
   repeated photo cannot shift the ones after it. A participant card (the
   "slate") starts each person's block, like a film clapperboard.
-- **Easy to access.** Each QR code is a URL (`/l/v1/G03R`). Scanning a page
-  with the phone camera opens that pose's instructions and a link to the next
-  pose.
+- **Easy to identify.** Each QR code holds a name in the form of a URL
+  (`https://open-mouse.vercel.app/l/v1/G03R`). The checker and the sorter read
+  that text from the photo. The URL is a name, not a link (see "Where the
+  pages live").
 - **Easy to test.** `/learn/check` reads photos on the device and says, per
   photo, what to retake and why. `npm run learn:sort` does the same for a
   whole folder and files the photos.
@@ -32,6 +33,29 @@ anyone keeping notes.
   below) holds the homographies, the landmarks in sheet millimetres and the
   parallax settings, so the mm values can be worked out again from the record
   alone, without the photo.
+
+## Where the pages live
+
+Kirby's decision, 2026-09-30: the learning data is collected by hand, on his own
+machine, and **the production site does not serve the kit**. `/learn`,
+`/learn/print`, `/learn/slates`, `/learn/check` and every `/l/v1/...` page
+answer 404 in production (each page calls `guardDemoRouteFromProduction()`
+first, like the demo pages). They are served by a local dev server, which is
+also what `npm run learn:sort` starts, and by Vercel previews.
+
+- **The QR codes encode the production address**, for example
+  `https://open-mouse.vercel.app/l/v1/G03R` (`LEARNING_QR_BASE_URL` in
+  `src/lib/learning/kit.ts`). **Scanning a printed code with a phone opens the
+  production site and shows a 404. That is expected.** The checker only reads
+  the code's text out of the photo and never goes online, so the pose, hand and
+  participant are identified all the same.
+- **Print from the local server.** Run `npm run dev`, then open
+  `http://localhost:3000/learn/print?hands=both` and
+  `http://localhost:3000/learn/slates`.
+- **The check page is local too.** Open `http://localhost:3000/learn/check` on
+  the computer that has the photos.
+- `/l/v1/[token]` (the page a code names) exists on the local server and on
+  previews only; no participant reaches it by scanning.
 
 ## Poses (kit v1)
 
@@ -60,10 +84,10 @@ correction is not built yet.
 
 ## A session
 
-1. **Print once:**
-   - `/learn/print?hands=both`: 14 A4 pages at 100%. Check the 100 mm line
-     with a ruler.
-   - `/learn/slates`: participant cards, 8 per page.
+1. **Print once**, from the local dev server (`npm run dev`):
+   - `http://localhost:3000/learn/print?hands=both`: 14 A4 pages at 100%. Check
+     the 100 mm line with a ruler.
+   - `http://localhost:3000/learn/slates`: participant cards, 8 per page.
 
    Pages are reusable across people.
 
@@ -74,10 +98,11 @@ correction is not built yet.
       and Left columns, never their name.
    3. Photograph the card.
 3. Work through G01 to G07 with the right hand, then G01 to G07 with the
-   left. Scan a page's QR code for its instructions. Lift the hand and place
-   it again between every photo.
-4. Before the person leaves, open `/learn/check`, choose the session's
-   photos, and retake anything marked **Retake**.
+   left, following the instructions on each printed page. Lift the hand and
+   place it again between every photo.
+4. Before the person leaves, open `http://localhost:3000/learn/check` on the
+   computer, choose the session's photos, and retake anything marked
+   **Retake**.
 5. At the computer, run
    `npm run learn:sort -- --in "<folder of photos>"`. It copies (never moves
    or overwrites) photos to `../Fixtures/learning/<participant>/<pose>/<n>.jpg`,
@@ -191,24 +216,24 @@ format name did not change.
 Each entry of `reports[]` repeats `kitVersion`, `gitSha` and `gitDirty`, so a
 single record can be lifted out and still say which code made it.
 
-| Field                              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `file`                             | The file's own name, never a path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `width`, `height`                  | The decoded frame (oriented, downscaled). Every px value in the record is in this frame                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `paperSize`                        | As above, per photo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `exif`                             | `focalLengthMm`, `focalLengthIn35mmFilm`, `pixelXDimension`, `pixelYDimension`; `null` where missing. Nothing else (see EXIF white-list)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `qrText`, `code`                   | The kit QR code as read, and what it means (`code.version` is the printed page's kit version). `qrText` is kept **only when it parsed as a kit code**; any other QR code in the photo (a shop link, a Wi-Fi code) is ignored and never recorded, and the reader keeps looking for the kit code                                                                                                                                                                                                                                                                                                                                  |
-| `markers[]`                        | ArUco markers found: `id` and four corners in px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `reprojectionErrorMm`              | How well the four flat markers fit one plane                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `paperCorners`, `paperCornersSeen` | The sheet's corners in px (TL, TR, BR, BL), and how many were seen                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `paperEdge`                        | What the paper detector saw, kept even when it found fewer than four corners: `regionFound`, `minSideCoverage` (smallest fraction of any side seen, 0 to 1), `edgeFitResidualPx`, `worstSideIndex`, `cornersFound` (four booleans). `null` on cards and side pages, where paper detection does not run                                                                                                                                                                                                                                                                                                                          |
-| `productGates`                     | Would the product's blank-paper flow take this photo, and if not why: `paper` (found, four corners, edge coverage, not curled: `checkPaperEdgeGatesOnly`), `hand` (detected, label agrees with the page, confident, inside the sheet, sharp: `runPaperEdgeHandGates`; `null` when there is no paper homography, because the product would have stopped at the paper), and `accepted`. Each group is `{ ok, errorCodes, warningCodes }` with the product's `GateFailureCode`s. Worked out with the product's own functions from values recorded next to it, so it can be re-derived from the record. `null` where `paperEdge` is |
-| `laplacianVariance`                | Sharpness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `hand`                             | `landmarksPx` (21 points), `handedness` (`left`, `right` or `null`: the hand in the photo), `confidence`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `markerPlane`, `paperPlane`        | The two calibration planes, below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `markerMm`, `paperMm`              | The hand measurements through each plane, **parallax-corrected exactly as the product's blank-paper path does it**. `null` if there is no hand, or a value fell outside the contract's ranges (a folded grip can)                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `checks[]`, `verdict`              | What the checker told the operator                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `error`, `errorKind`               | Only on a photo that could not be analysed: a fixed sentence, and the error's class name (`TypeError`, ...). Never the error's message, which can quote a path or pixel values. The other photos in the batch are analysed as usual                                                                                                                                                                                                                                                                                                                                                                                             |
+| Field                              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file`                             | The file's own name, never a path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `width`, `height`                  | The decoded frame (oriented, downscaled). Every px value in the record is in this frame                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `paperSize`                        | As above, per photo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `exif`                             | `focalLengthMm`, `focalLengthIn35mmFilm`, `pixelXDimension`, `pixelYDimension`; `null` where missing. Nothing else (see EXIF white-list)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `qrText`, `code`                   | The kit QR code as read, and what it means (`code.version` is the printed page's kit version). `qrText` is kept **only when it parsed as a kit code**; any other QR code in the photo (a shop link, a Wi-Fi code) is ignored and never recorded, and the reader keeps looking for the kit code                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `markers[]`                        | ArUco markers found: `id` and four corners in px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `reprojectionErrorMm`              | How well the four flat markers fit one plane                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `paperCorners`, `paperCornersSeen` | The sheet's corners in px (TL, TR, BR, BL), and how many were seen                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `paperEdge`                        | What the paper detector saw, kept even when it found fewer than four corners: `regionFound`, `minSideCoverage` (smallest fraction of any side seen, 0 to 1), `edgeFitResidualPx`, `worstSideIndex`, `cornersFound` (four booleans). `null` on cards and side pages, where paper detection does not run                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `productGates`                     | Would the product's blank-paper flow take this photo, and if not why: `paper` (found, four corners, edge coverage, not curled: `checkPaperEdgeGatesOnly`), `hand` (detected, label agrees with the page, confident, inside the sheet, sharp: `runPaperEdgeHandGates`; `null` when there is no paper homography, because the product would have stopped at the paper, and also `null` when `runPaperEdgeHandGates` itself threw; the record does not say which), and `accepted`. Each group is `{ ok, errorCodes, warningCodes }` with the product's `GateFailureCode`s. Worked out with the product's own functions from values recorded next to it, so it can be re-derived from the record. `null` where `paperEdge` is |
+| `laplacianVariance`                | Sharpness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `hand`                             | `landmarksPx` (21 points), `handedness` (`left`, `right` or `null`: the hand in the photo), `confidence`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `markerPlane`, `paperPlane`        | The two calibration planes, below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `markerMm`, `paperMm`              | The hand measurements through each plane, **parallax-corrected exactly as the product's blank-paper path does it**. `null` if there is no hand, or a value fell outside the contract's ranges (a folded grip can)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `checks[]`, `verdict`              | What the checker told the operator                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `error`, `errorKind`               | Only on a photo that could not be analysed: a fixed sentence, and the error's class name (`TypeError`, ...). Never the error's message, which can quote a path or pixel values. The other photos in the batch are analysed as usual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 A plane (`markerPlane`, `paperPlane`):
 
@@ -372,8 +397,16 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
   second line of defence. Tests run the real script to check the refusals.
 - **The run log holds no account name.** `input` is the photo folder relative
   to where the command ran; on another drive only the folder's own name is
-  kept. A segment equal to the account name, or the one after `Users` or
-  `home`, is replaced by `~`. Photo `file` values are file names, not paths.
+  kept. Any path segment that contains the account name, in any letter case
+  (`Kirby Photos`, `kirby-DCIM`, `C--Users-kirby-Desktop-...`), and the segment
+  after `Users` or `home`, is replaced by `~`. (An account name shorter than
+  three characters is only matched as a whole segment, since it would match
+  half of every path.) Photo `file` values are file names, not paths.
+- **The terminal holds no absolute path or stack either.** When something
+  fails, `learn:sort` prints the message only, never the stack. Anything it
+  prints, including the last words of the dev server, has the working folder
+  and the sorter's own folders shown as `.`, the photo and output folders
+  relative to where the command ran, and the account name as `~`.
 - **Only white-listed EXIF in the run log** (above): no GPS, time or device
   serial number. Two things it does not cover:
   - **File names.** Phone cameras often put the time of the shot in the file
@@ -393,7 +426,7 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
 
 A printed QR code is permanent. To change a pose, its page or the code
 format, raise `LEARNING_KIT_VERSION` and add a `/l/v2/[token]` route. Keep
-`/l/v1/[token]` answering for pages already printed. The sorter files only
+`/l/v1/[token]` answering (locally) for pages already printed. The sorter files only
 the current version, so mixed-version photos are reported rather than mixed.
 
 The participant card's layout changed on 2026-09-30: it now has a Right and a
@@ -403,20 +436,20 @@ Reprint the cards before a session so each hand gets its own values.
 
 ## Files
 
-| Path                                                              | What                                                                      |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)            |
-| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                         |
-| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                            |
-| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                          |
-| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)          |
-| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                         |
-| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                   |
-| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe           |
-| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch             |
-| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI |
-| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF           |
-| `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                                  |
-| `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (all `noindex`)        |
-| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                               |
-| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                     |
+| Path                                                              | What                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)                    |
+| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                                 |
+| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                                    |
+| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                                  |
+| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)                  |
+| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                                 |
+| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                           |
+| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe                   |
+| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch                     |
+| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI         |
+| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF                   |
+| `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                                          |
+| `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (`noindex`; 404 in production) |
+| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                                       |
+| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                             |

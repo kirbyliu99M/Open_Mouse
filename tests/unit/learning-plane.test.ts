@@ -250,7 +250,28 @@ describe("buildPlane: when the correction does not apply", () => {
     const built = buildPlane(input(shot, { homography: singular }))!;
     expect(built.measurements).toBeNull();
     expect(built.plane.landmarksSheetMm).toBeNull();
-    expect(built.plane.parallax!.error).toEqual(expect.any(String));
+    // Only the error's class name: its message can quote values.
+    expect(built.plane.parallax!.error).toBe("RangeError");
+  });
+
+  it("also records only the class name when the focal length cannot be recovered (no EXIF focal length, degenerate homography)", () => {
+    const shot = syntheticShot();
+    const singular: Homography = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 0],
+    ];
+    const built = buildPlane(
+      input(shot, { homography: singular, exifFocalPx: null }),
+    )!;
+    expect(built.measurements).toBeNull();
+    expect(built.plane.landmarksSheetMm).toBeNull();
+    expect(built.plane.parallax).toMatchObject({
+      corrected: false,
+      focalSource: "none",
+      focalPx: null,
+      error: "RangeError",
+    });
   });
 
   it("gives no plane at all for a homography that is not finite", () => {
@@ -270,7 +291,9 @@ describe("buildPlane: when the correction does not apply", () => {
     )!;
     expect(built.measurements).toBeNull();
     expect(built.plane.landmarksSheetMm).toBeNull();
-    expect(built.plane.parallax!.error).toMatch(/21|20|heights/);
+    expect(built.plane.parallax!.error).toBe("RangeError");
+    // Not the message, which says how many landmarks it got and wanted.
+    expect(built.plane.parallax!.error).not.toMatch(/landmark|height|\d/i);
   });
 });
 

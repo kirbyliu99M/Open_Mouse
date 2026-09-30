@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import {
   GESTURES,
   LEARNING_KIT_VERSION,
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default function LearnPage() {
+  guardDemoRouteFromProduction();
   const perHand = shotsPerHand();
   return (
     <main className="learn">
@@ -63,9 +65,8 @@ export default function LearnPage() {
 
       <h2>Session order</h2>
       <p>
-        {perHand} photos per hand, about 10 minutes per hand. Scan any
-        page&apos;s QR code with the phone camera to open that pose&apos;s
-        instructions.
+        {perHand} photos per hand, about 10 minutes per hand. Each page&apos;s
+        QR code names its pose and hand; the checker reads it from the photo.
       </p>
       <ol className="learn-sequence">
         <li>

@@ -138,12 +138,30 @@ export function containingRoot(
 }
 
 /**
+ * Does this path segment, or piece of text, carry the account name? Any
+ * letter case, anywhere inside it: an account name turns up in folder names
+ * such as `Kirby Photos`, `kirby-DCIM` and Claude Code's project folders
+ * (`C--Users-kirby-Desktop-...`), not only as a whole segment. A name shorter
+ * than three characters would match half of every path, so for those only a
+ * segment that IS the name counts.
+ */
+export function carriesAccount(
+  segment: string,
+  username: string | null | undefined,
+): boolean {
+  if (!username) return false;
+  const user = username.toLowerCase();
+  const lower = segment.toLowerCase();
+  return user.length >= 3 ? lower.includes(user) : lower === user;
+}
+
+/**
  * How the run log names the photo folder: relative to `base`, with `/`
  * separators, so the log does not carry the account name in an absolute
  * path such as `C:\Users\<name>\Pictures`. Where no relative path exists
  * (another drive) only the folder's own name is kept. As a last guard, a
- * segment equal to `username`, or the one after `Users` or `home`, becomes
- * `~`.
+ * segment that contains the account name in any letter case
+ * (`carriesAccount`), or the one after `Users` or `home`, becomes `~`.
  */
 export function relativeInputPath(
   input: string,
@@ -154,18 +172,97 @@ export function relativeInputPath(
   const rel = api.relative(api.resolve(base), api.resolve(input));
   const kept =
     rel === "" ? "." : api.isAbsolute(rel) ? api.basename(input) : rel;
-  const user = options.username?.toLowerCase();
   const segments = kept.split(/[\\/]+/).filter((s) => s.length > 0);
   return (
     segments
       .map((segment, i) => {
-        const lower = segment.toLowerCase();
         const afterHome =
           i > 0 && ["users", "home"].includes(segments[i - 1]!.toLowerCase());
-        return lower === user || afterHome ? "~" : segment;
+        return carriesAccount(segment, options.username) || afterHome
+          ? "~"
+          : segment;
       })
       .join("/") || "."
   );
+}
+
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * What a terminal may show. Each absolute path in `paths` is replaced by the
+ * shorter form given for it (for example the photo folder by its path relative
+ * to the working folder), in either slash style and any letter case, longest
+ * first; then every occurrence of the account name (any letter case) becomes
+ * `~`. A stack trace, a server's last words or an error from the file system
+ * can quote a path; this is the one place they pass through.
+ */
+export interface RedactOptions {
+  readonly username?: string | null;
+  readonly paths?: readonly { readonly from: string; readonly to: string }[];
+}
+
+export function redactText(text: string, options: RedactOptions = {}): string {
+  let out = text;
+  const paths = [...(options.paths ?? [])]
+    .filter((p) => p.from.length > 0)
+    .sort((a, b) => b.from.length - a.from.length);
+  for (const { from, to } of paths) {
+    const bare = from.replace(/[\\/]+$/, "");
+    const forms = new Set([
+      bare,
+      bare.replaceAll("\\", "/"),
+      bare.replaceAll("/", "\\"),
+    ]);
+    for (const form of forms) {
+      out = out.replace(new RegExp(escapeRegExp(form), "gi"), () => to);
+    }
+  }
+  const user = options.username;
+  if (user && user.length >= 3) {
+    out = out.replace(new RegExp(escapeRegExp(user), "gi"), "~");
+  }
+  return out;
+}
+
+/**
+ * What `redactText` needs so that nothing `learn:sort` prints carries an
+ * absolute path or the account name: the photo and output folders as the
+ * relative paths the run log uses, the working folder and this checkout as `.`,
+ * every other checkout (main, other worktrees) as `<checkout>`.
+ */
+export function terminalRedaction(args: {
+  /** Where the command ran. */
+  readonly cwd: string;
+  /** This checkout (where the script and the dev server run). */
+  readonly scriptRoot: string;
+  /** Every other checkout git lists; may include `scriptRoot`. */
+  readonly checkouts?: readonly string[];
+  /** The photo folder and the output folder, as given, once known. */
+  readonly input?: string;
+  readonly outDir?: string;
+  readonly username?: string | null;
+  readonly api?: PathApi;
+}): { username: string | null; paths: { from: string; to: string }[] } {
+  const api = args.api ?? path;
+  const username = args.username ?? null;
+  const shown = (p: string) =>
+    relativeInputPath(p, args.cwd, { api, username });
+  const paths: { from: string; to: string }[] = [];
+  const same = (a: string, b: string) =>
+    isInsideDirectory(a, b, api) && isInsideDirectory(b, a, api);
+  for (const checkout of args.checkouts ?? []) {
+    // This checkout and the working folder are '.', whatever else lists them.
+    if (same(checkout, args.scriptRoot) || same(checkout, args.cwd)) continue;
+    paths.push({ from: api.resolve(checkout), to: "<checkout>" });
+  }
+  paths.push({ from: api.resolve(args.scriptRoot), to: "." });
+  paths.push({ from: api.resolve(args.cwd), to: "." });
+  if (args.input)
+    paths.push({ from: api.resolve(args.input), to: shown(args.input) });
+  if (args.outDir)
+    paths.push({ from: api.resolve(args.outDir), to: shown(args.outDir) });
+  return { username, paths };
 }
 
 /**

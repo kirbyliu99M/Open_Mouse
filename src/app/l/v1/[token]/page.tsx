@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/nav/TopBar";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import {
   GESTURES,
   buildSequence,
@@ -34,6 +35,7 @@ export default async function KitCodePage({
 }: {
   params: Promise<{ token: string }>;
 }) {
+  guardDemoRouteFromProduction();
   const { token } = await params;
   const code = parseKitToken(token, VERSION);
   if (!code) notFound();

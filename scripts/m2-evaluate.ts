@@ -36,7 +36,9 @@ import {
 import { execFileSync } from "node:child_process";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { outputInsideRepo } from "../src/lib/learning/paths";
+import { userInfo } from "node:os";
+import { outputInsideRepo, terminalRedaction } from "../src/lib/learning/paths";
+import { makeTerminal } from "../src/lib/learning/terminal";
 import {
   ALL_PATHS,
   evaluateJson,
@@ -185,5 +187,23 @@ try {
   }
 } catch (err) {
   if (err instanceof EvaluationInputError) fail(err.message);
-  throw err;
+  // Anything else (a file system error, say): the message only, never the
+  // stack, which is a list of absolute paths. The report's folder (which
+  // any path of the report file starts with) is shown relative to where the
+  // command ran, the account name as "~".
+  let username: string | null = null;
+  try {
+    username = userInfo().username;
+  } catch {
+    // no account name to hide
+  }
+  makeTerminal(
+    terminalRedaction({
+      cwd: process.cwd(),
+      scriptRoot,
+      outDir: out ? dirname(out) : undefined,
+      username,
+    }),
+  ).failure(err);
+  process.exit(1);
 }

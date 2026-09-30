@@ -62,7 +62,8 @@ export interface ProductGatesRecord {
   /**
    * Hand detected, its label agrees with the page's hand, confident, inside the
    * sheet, sharp (`runPaperEdgeHandGates`). `null` when the product would not
-   * have got this far because there is no paper homography.
+   * have got this far because there is no paper homography, and also when
+   * `runPaperEdgeHandGates` itself threw (the record does not say which).
    */
   readonly hand: GateRecord | null;
   /** `paper.ok` and `hand.ok`. */

@@ -110,6 +110,49 @@ describe("m2-evaluate script", () => {
     expect(everything).not.toMatch(/landmarks/i);
   });
 
+  // An unexpected failure prints the message only: no stack, no absolute path,
+  // no account name. Two ways to get one, by what the message quotes: the
+  // report's folder (cannot be created below a file), and the report file
+  // itself (a name no file system accepts).
+  const account = userInfo().username;
+  it.each([
+    [
+      "the report's folder cannot be created",
+      () =>
+        join(
+          runs,
+          "2026-10-02.json",
+          account.length >= 3 ? `${account}-sub` : "sub",
+          "report.json",
+        ),
+    ],
+    [
+      "the report file cannot be written",
+      () => join(scratch, "unwritable", `${"a".repeat(300)}.json`),
+    ],
+  ])("when %s, it prints the message only", (_label, outOf) => {
+    const out = outOf();
+    const result = evaluator(["--log", runs, "--truth", truth, "--out", out]);
+    expect(result.status).toBe(1);
+    // The file system's own words are there...
+    expect(result.stderr).toMatch(/ENOTDIR|EEXIST|ENOENT|ENAMETOOLONG|EINVAL/);
+    // ...without the stack that would have listed where the script lives.
+    expect(result.stderr).not.toMatch(/^\s+at /m);
+    expect(result.stderr).not.toMatch(/scripts[\\/]m2-evaluate|node_modules/);
+    // No absolute path of either kind (a drive letter, or a POSIX root folder).
+    // The account name is masked wherever it is, so on a machine where the
+    // scratch folder sits under the profile the checks below could pass just
+    // because the name was cut out; this one cannot.
+    expect(result.stderr).not.toMatch(/[A-Za-z]:[\\/]/);
+    expect(result.stderr).not.toMatch(
+      /(^|[\s'"(])\/(tmp|home|var|Users|private|mnt)\//,
+    );
+    const lower = result.stderr.toLowerCase();
+    for (const secret of [scratch, REPO, tmpdir()])
+      expect(lower).not.toContain(secret.toLowerCase());
+    if (account.length >= 3) expect(lower).not.toContain(account.toLowerCase());
+  });
+
   it("takes a single run log file and a single truth file, and the options", () => {
     const result = evaluator([
       "--log",

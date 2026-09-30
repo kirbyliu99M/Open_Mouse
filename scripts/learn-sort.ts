@@ -22,6 +22,11 @@
  *
  * The dev server is started and stopped by `withDevServer`
  * (src/lib/learning/devserver.ts): it is always stopped, also on Ctrl+C.
+ *
+ * Everything printed goes through `say`/`warn`/`fail`, which show no absolute
+ * path and no account name: the photo and output folders as paths relative to
+ * where the command ran, this checkout and the working folder as `.`, the
+ * account name as `~`. A failure prints its message only, never a stack.
  */
 import {
   copyFileSync,
@@ -42,7 +47,6 @@ import {
 import { compareFileNames } from "../src/lib/learning/checks";
 import {
   DEV_SERVER_HOST,
-  PortBusyError,
   devServerSpec,
   waitForServer,
   withDevServer,
@@ -52,6 +56,7 @@ import {
   containingRoot,
   gitRefusalRoots,
   realpathLoose,
+  terminalRedaction,
 } from "../src/lib/learning/paths";
 import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
@@ -60,6 +65,7 @@ import {
   sortReports,
   type LearningRunLog,
 } from "../src/lib/learning/runlog";
+import { makeTerminal } from "../src/lib/learning/terminal";
 import { emptyTruth } from "../src/lib/learning/truth";
 
 if (process.env.CI) {
@@ -100,8 +106,28 @@ const baseUrl = externalBase ?? `http://${DEV_SERVER_HOST}:${port}`;
 const dryRun = process.argv.includes("--dry-run");
 const paperArg = arg("--paper") ?? "a4";
 
+function osUsername(): string | null {
+  try {
+    return userInfo().username;
+  } catch {
+    return null;
+  }
+}
+
+// What the terminal may show (see the header). The photo folder is resolved
+// here, before it is checked, so that a complaint about it is redacted too.
+const redaction = terminalRedaction({
+  cwd: process.cwd(),
+  scriptRoot,
+  checkouts: roots,
+  input: inDir ? resolve(inDir) : undefined,
+  outDir,
+  username: osUsername(),
+});
+const { show, say, warn, failure } = makeTerminal(redaction);
+
 function fail(message: string): never {
-  console.error(message);
+  warn(message);
   process.exit(1);
 }
 
@@ -171,20 +197,12 @@ function provenance() {
   });
 }
 
-function osUsername(): string | null {
-  try {
-    return userInfo().username;
-  } catch {
-    return null;
-  }
-}
-
 /** Check the photos on a dev server this run starts (and always stops), or on `--base`. */
 async function reportsFromServer(): Promise<LearningPhotoReport[]> {
   const readyUrl = `${baseUrl}/learn/check`;
   if (externalBase) {
-    await waitForServer(readyUrl);
-    console.log(`Checking ${photos.length} photos from ${input} …`);
+    await waitForServer(readyUrl, { redact: show });
+    say(`Checking ${photos.length} photos from ${input} …`);
     return checkAll();
   }
   return withDevServer(
@@ -192,10 +210,11 @@ async function reportsFromServer(): Promise<LearningPhotoReport[]> {
       spec: devServerSpec(scriptRoot, port),
       port,
       readyUrl,
-      log: (message) => console.log(message),
+      log: say,
+      redact: show,
     },
     async () => {
-      console.log(`Checking ${photos.length} photos from ${input} …`);
+      say(`Checking ${photos.length} photos from ${input} …`);
       return checkAll();
     },
   );
@@ -252,60 +271,58 @@ async function main() {
   }
 
   const count = (s: string) => sort.photos.filter((p) => p.status === s).length;
-  console.log(
+  say(
     `\n${photos.length} photos: ${count("slate")} cards, ${count("ok")} filed, ` +
       `${count("hand-mismatch")} filed with a hand that differs from the page, ` +
       `${count("no-code")} without a readable kit code or to retake, ` +
       `${count("no-participant")} before any card, ${count("version-mismatch")} from another kit version.`,
   );
   if (!dryRun)
-    console.log(
+    say(
       `Copied ${copied} to ${outDir}${skipped ? ` (${skipped} already there, left as is)` : ""}.`,
     );
   if (externalBase)
-    console.log(
+    say(
       "The code version of an external --base server is unknown, so the run log has no git commit.",
     );
 
   const mismatched = sort.photos.filter((p) => p.status === "hand-mismatch");
   if (mismatched.length) {
-    console.log(
-      "\nHand differs from the page (check the right page was used):",
-    );
-    for (const p of mismatched) console.log(`  ${p.file} → ${p.destination}`);
+    say("\nHand differs from the page (check the right page was used):");
+    for (const p of mismatched) say(`  ${p.file} → ${p.destination}`);
   }
   const retakes = reports.filter(
     (r) => r.verdict === "retake" || r.verdict === "unidentified",
   );
   if (retakes.length) {
-    console.log("\nRetake or check:");
+    say("\nRetake or check:");
     for (const r of retakes) {
       const reasons = r.checks
         .filter((c) => c.tone === "bad")
         .map((c) => c.message);
-      console.log(`  ${r.file}: ${reasons.join(" ")}`);
+      say(`  ${r.file}: ${reasons.join(" ")}`);
     }
   }
   const short = sort.coverage.filter((c) => c.got < c.expected);
   if (short.length) {
-    console.log("\nShort of photos:");
+    say("\nShort of photos:");
     for (const c of short) {
-      console.log(
+      say(
         `  ${c.participant} ${c.gesture}${c.hand === "right" ? "R" : "L"}: ${c.got} of ${c.expected}`,
       );
     }
   }
   const unfiled = sort.photos.filter((p) => p.status === "no-participant");
   if (unfiled.length) {
-    console.log(
+    say(
       `\n${unfiled.length} photos came before any participant card and were not filed.`,
     );
   }
-  if (reports.length === 0) console.log("No reports returned.");
+  if (reports.length === 0) say("No reports returned.");
 }
 
 main().catch((err) => {
-  if (err instanceof PortBusyError) console.error(err.message);
-  else console.error(err);
+  // The message only: a stack is a list of absolute paths.
+  failure(err);
   process.exit(1);
 });
