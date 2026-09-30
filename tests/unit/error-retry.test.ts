@@ -109,15 +109,16 @@ describe("error screen: Try again while a retry runs", () => {
   });
 
   it("says Trying again in that region while it works", () => {
+    // Built outside the call: `children` is required by the type, but this
+    // is a .ts file and the element takes it as the third argument.
+    const props = {
+      eyebrow: "e",
+      title: "t",
+      message: "m",
+      status: RETRYING,
+    } as Parameters<typeof ErrorScreen>[0];
     const busy = renderToStaticMarkup(
-      createElement(ErrorScreen, {
-        eyebrow: "e",
-        title: "t",
-        message: "m",
-        status: RETRYING,
-        // eslint-disable-next-line react/no-children-prop -- a .ts file: no JSX, and the prop is required
-        children: "actions",
-      }),
+      createElement(ErrorScreen, props, "actions"),
     );
     expect(busy).toContain(`role="status">${RETRYING}</p>`);
   });
