@@ -65,7 +65,11 @@ const hasEvidence = (field: Field): boolean =>
  * evidence and leaves the value empty. These are the decisions G9b has to
  * make. Turning any of them into a value, or dropping its evidence, means
  * editing this list in the same change, so the decision leaves a trace in the
- * diff. Keep it equal to the PR description's ⚠ list.
+ * diff. The rule is enforced below: the list must equal exactly the set of
+ * fields that are null and still carry page evidence ("the list is exactly the
+ * set of null fields that carry page evidence"), so an entry that is missing,
+ * stale or misspelled fails that test. It is a different set from the ⚠ list in
+ * the PR description, which also marks filled values Kirby is to spot-check.
  */
 const DELIBERATE_NULLS: ReadonlyArray<
   readonly [slug: string, field: FieldName, why: string]
@@ -79,11 +83,6 @@ const DELIBERATE_NULLS: ReadonlyArray<
     "logitech-m750",
     "handCompatibility",
     "FAQ says symmetrical and ambidextrous, then recommends the left-handed version",
-  ],
-  [
-    "logitech-m750",
-    "shape",
-    "same self-contradicting FAQ answer as its hand value",
   ],
   [
     "logitech-lift-vertical",
@@ -183,6 +182,58 @@ describe("logitech-facts.json — the deliberate nulls stay null until G9b decid
       ([slug, name]) => `${slug} / ${name}`,
     ).sort();
     expect(carrying).toEqual(pinned);
+  });
+});
+
+describe("logitech-facts.json — the M750 decision (Kirby, 2026-09-30)", () => {
+  // Kirby decided on 2026-09-30 that the M750's shape is recorded like the
+  // M550's: symmetrical, on the strength of the same FAQ sentence ("its
+  // physical shape is perfectly symmetrical"). Its hand stays null, because
+  // that answer goes on to recommend the left-handed dedicated version.
+  // G9b infers neither value: the rubric step "ambidextrous implies
+  // symmetrical" is still to be verified and is not applied here, and the rule
+  // that excludes left-handed users stays as it is (it does not become "exclude
+  // when the page says right-handed").
+  const m750 = entries["logitech-m750"]!;
+  const m550 = entries["logitech-m550"]!;
+
+  it("records the shape as symmetrical and leaves the hand null", () => {
+    expect(m750.shape.value).toBe("symmetrical");
+    expect(m750.handCompatibility.value).toBeNull();
+  });
+
+  it("the hand keeps its page evidence, so it stays on the deliberate-null list", () => {
+    expect(hasEvidence(m750.handCompatibility)).toBe(true);
+    expect(
+      DELIBERATE_NULLS.some(
+        ([slug, name]) =>
+          slug === "logitech-m750" && name === "handCompatibility",
+      ),
+    ).toBe(true);
+    expect(
+      DELIBERATE_NULLS.some(
+        ([slug, name]) => slug === "logitech-m750" && name === "shape",
+      ),
+    ).toBe(false);
+  });
+
+  it("the shape excerpt is a verbatim piece of the FAQ answer recorded for the hand", () => {
+    expect(m750.shape.excerpt).toContain(
+      "its physical shape is perfectly symmetrical",
+    );
+    expect(m750.handCompatibility.excerpt).toContain(m750.shape.excerpt!);
+    expect(m750.shape.source).toBe(m750.handCompatibility.source);
+    expect(m750.shape.location).toBe(m750.handCompatibility.location);
+  });
+
+  it("the reasons say what the decision rests on", () => {
+    expect(m750.shape.reason).toMatch(/M550/);
+    expect(m750.shape.reason).toMatch(/Kirby/);
+    expect(m750.shape.reason).toMatch(/2026-09-30/);
+    expect(m750.handCompatibility.reason).toMatch(/2026-09-30/);
+    expect(m750.handCompatibility.reason).toMatch(/left-handed/);
+    // The M550 sentence it follows is filled the same way.
+    expect(m550.shape.value).toBe("symmetrical");
   });
 });
 
@@ -324,7 +375,7 @@ describe("logitech-facts.json — the real `mice` table accepts these combinatio
   // The `mice_ambidextrous_is_symmetrical` CHECK is exercised in a real
   // Postgres (PGlite) with the repo's own migrations, not restated in JS:
   // SQL treats a NULL operand as "not false", so an unstated shape must pass.
-  let pg: PGlite;
+  let pg: PGlite | undefined;
   let n = 0;
 
   // One in-process Postgres for this block, with every migration applied
@@ -334,7 +385,9 @@ describe("logitech-facts.json — the real `mice` table accepts these combinatio
     ({ pg } = await migratedDatabase());
   }, 30_000);
   afterAll(async () => {
-    await pg.close();
+    // If the setup itself failed there is nothing to close, and a TypeError
+    // here would hide the real error.
+    await pg?.close();
   });
 
   const insertMouse = (
@@ -342,7 +395,7 @@ describe("logitech-facts.json — the real `mice` table accepts these combinatio
     shape: string | null,
   ): Promise<unknown> => {
     n += 1;
-    return pg.query(
+    return pg!.query(
       `INSERT INTO mice (slug, brand, model, length_mm, width_mm, height_mm,
          size, hand_compatibility, shape, source_url, spec_retrieved_at)
        VALUES ($1, 'Logitech', $1, 100, 60, 40, 'medium', $2, $3,

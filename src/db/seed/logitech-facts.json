@@ -548,14 +548,14 @@
       "source": "https://www.logitech.com/en-us/shop/p/m750-signature-plus-wireless-mouse",
       "excerpt": "Yes, as its physical shape is perfectly symmetrical and ambidextrous. However, for the better fit, we recommend using left-handed dedicated version",
       "location": "page data: FAQ answer",
-      "reason": "Disputed by the page itself: the FAQ calls the shape symmetrical and ambidextrous, then recommends the dedicated left-handed version for a better fit. Not filled; owner to decide."
+      "reason": "Disputed by the page itself: the FAQ calls the shape symmetrical and ambidextrous, then recommends the dedicated left-handed version for a better fit. Not filled; owner to decide. Kirby, 2026-09-30: the shape is recorded as symmetrical (see the shape field) but the hand stays null, because the FAQ itself recommends the left-handed dedicated version for left-handed users, so the hand value is in doubt."
     },
     "shape": {
-      "value": null,
+      "value": "symmetrical",
       "source": "https://www.logitech.com/en-us/shop/p/m750-signature-plus-wireless-mouse",
-      "excerpt": "Yes, as its physical shape is perfectly symmetrical and ambidextrous. However, for the better fit, we recommend using left-handed dedicated version",
+      "excerpt": "as its physical shape is perfectly symmetrical",
       "location": "page data: FAQ answer",
-      "reason": "Same disputed FAQ answer as the hand value. Not filled; owner to decide."
+      "reason": "The page's FAQ says the physical shape is perfectly symmetrical (the same sentence as its hand answer, quoted there in full). The same FAQ sentence is recorded as symmetrical for the M550, and Kirby decided on 2026-09-30 to record the M750 the same way. The hand value stays null: that answer goes on to recommend the left-handed dedicated version."
     },
     "formFactor": {
       "value": null,
