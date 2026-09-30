@@ -31,7 +31,14 @@
  *    value first, and also collapses a literal "a⁄b" fraction-slash form
  *    the model might write directly.
  *
- * 5. Chinese numerals — 五, 十二, 一百二十, 半, 百分之三十, 三分之一, 七成,
+ * 5. Slash fractions — "1/3", "１／３", "1 / 3", "1⁄3". Read digit by digit,
+ *    "約1/3" is the two numbers 1 and 3, which are easy to have in the input,
+ *    while the fraction itself (0.333…) is never checked.
+ *    `normalizeVulgarFractions` folds them to their decimal value like "⅓". A
+ *    chain ("2024/10/05", "1/2/3") is not a fraction and stays separate
+ *    numbers, all of them checked.
+ *
+ * 6. Chinese numerals — 五, 十二, 一百二十, 半, 百分之三十, 三分之一, 七成,
  *    and Arabic digits with a Chinese unit (3萬) — in Traditional and
  *    Simplified. `extractChineseNumerals` (`./chinese-numerals`) reads them
  *    into the same tokens, and `findUnknownNumeral` checks them against the
@@ -40,7 +47,7 @@
  *    anything unlisted is flagged. The rule and the list are documented in
  *    that file.
  *
- * Digit runs glued to letters ("G502", "about68mm") are a sixth, separate
+ * Digit runs glued to letters ("G502", "about68mm") are a seventh, separate
  * concern handled by `matchDigitNumerals` and the caller-supplied
  * `exemptTokens` set — see the comment above `matchDigitNumerals`. Callers
  * build that set with `stringTokens` over the *specific* display-name fields
@@ -167,13 +174,44 @@ function fractionDecimalString(numerator: number, denominator: number): string {
   return String(Number((numerator / denominator).toFixed(10)));
 }
 
+const SLASH_DIGIT = "[0-9０-９]";
+const SLASH_NUMBER = `${SLASH_DIGIT}+(?:[.．]${SLASH_DIGIT}+)?`;
+const SLASH = "[/／⁄]";
+/**
+ * "a/b" with ASCII or full-width digits, optional spaces and an optional
+ * decimal part on either side. Not matched: a slash that is part of a longer
+ * chain (dates, "1/2/3"), which is not a fraction and keeps every number in it
+ * visible to the digit path. A letter in front does not stop the match
+ * ("about1/3" is still a third), because the digit-glued-to-a-letter bypass is
+ * closed on purpose (see `matchDigitNumerals`).
+ */
+const SLASH_FRACTION = new RegExp(
+  `(?<![0-9０-９.．/／⁄])(${SLASH_NUMBER})\\s*${SLASH}\\s*(${SLASH_NUMBER})(?!${SLASH_DIGIT}|\\s*${SLASH}\\s*${SLASH_DIGIT})`,
+  "g",
+);
+
+/**
+ * Replaces each "a/b" (also "a／b" and "a⁄b", spaces allowed, full-width digits
+ * allowed) with its decimal value, like a vulgar fraction character. A zero
+ * denominator is not a fraction and is left as it is.
+ */
+function collapseSlashFractions(text: string): string {
+  return text.replace(SLASH_FRACTION, (all, n: string, d: string) => {
+    const denominator = Number(d.normalize("NFKC"));
+    if (denominator === 0) return all;
+    return fractionDecimalString(Number(n.normalize("NFKC")), denominator);
+  });
+}
+
 /**
  * Converts vulgar fraction characters ("½", "¾", "⅓", ...) to their decimal
  * value as plain ASCII digits, *before* NFKC runs. NFKC's compatibility
  * decomposition turns "½" into three separate characters — "1", U+2044
  * FRACTION SLASH, "2" — which left alone reads as the two unrelated numbers
  * 1 and 2, not 0.5. Also collapses a literal "a⁄b" fraction-slash form,
- * whether the model wrote it directly or NFKC would otherwise produce it.
+ * whether the model wrote it directly or NFKC would otherwise produce it, and
+ * the slash forms "a/b" and "a／b" (ASCII or full-width digits): "約1/3" is a
+ * third, not the two numbers 1 and 3.
  */
 export function normalizeVulgarFractions(text: string): string {
   let out = "";
@@ -181,9 +219,7 @@ export function normalizeVulgarFractions(text: string): string {
     const frac = VULGAR_FRACTIONS.get(ch.codePointAt(0)!);
     out += frac ? fractionDecimalString(frac[0], frac[1]) : ch;
   }
-  return out.replace(/(\d+)⁄(\d+)/g, (_all, n: string, d: string) =>
-    fractionDecimalString(Number(n), Number(d)),
-  );
+  return collapseSlashFractions(out);
 }
 
 /**
@@ -202,7 +238,9 @@ export function normalizeUnicodeDigits(text: string): string {
     const digit = UNICODE_DIGIT_VALUES.get(ch.codePointAt(0)!);
     out += digit !== undefined ? String(digit) : ch;
   }
-  return out;
+  // Second pass: a fraction written in Arabic-Indic, Devanagari... digits is
+  // only ASCII now (the first pass saw ASCII and full-width digits only).
+  return collapseSlashFractions(out);
 }
 
 /** Recursively collects every numeric leaf value in an arbitrary object tree. */

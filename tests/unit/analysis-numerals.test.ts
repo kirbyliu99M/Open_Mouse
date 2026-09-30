@@ -460,6 +460,65 @@ describe("findUnknownNumeral — Finding 2: vulgar fractions", () => {
   });
 });
 
+describe("slash fractions ('1/3') are one number, not two", () => {
+  // Read digit by digit, "約1/3" is the numbers 1 and 3: both easy to have in
+  // the input (a rank and a count), so the fraction itself was never checked.
+  const allowed = new Set([1, 3]);
+
+  it("normalizeVulgarFractions folds a slash fraction like '⅓'", () => {
+    expect(normalizeVulgarFractions("1/3")).toBe("0.3333333333");
+    expect(normalizeVulgarFractions("1 / 3")).toBe("0.3333333333");
+    expect(normalizeVulgarFractions("１／３")).toBe("0.3333333333");
+    expect(normalizeVulgarFractions("１/３")).toBe("0.3333333333");
+    expect(normalizeVulgarFractions("3/4")).toBe("0.75");
+    expect(normalizeVulgarFractions("1.5/3")).toBe("0.5");
+    expect(normalizeVulgarFractions("about1/2 mm")).toBe("about0.5 mm");
+  });
+
+  it("normalizeUnicodeDigits folds one written in another script's digits", () => {
+    expect(normalizeUnicodeDigits("١/٣")).toBe("0.3333333333");
+    expect(normalizeUnicodeDigits("१/४")).toBe("0.25");
+  });
+
+  it("rejects '約1/3' when only 1 and 3 are in the input", () => {
+    expect(findUnknownNumeral("約1/3", allowed)).toBeCloseTo(1 / 3, 9);
+    expect(findUnknownNumeral("about 1/3 shorter", allowed)).toBeCloseTo(
+      1 / 3,
+      9,
+    );
+  });
+
+  it("rejects the full-width, spaced and fraction-slash spellings too", () => {
+    expect(findUnknownNumeral("約１／３", allowed)).toBeCloseTo(1 / 3, 9);
+    expect(findUnknownNumeral("約 1 / 3", allowed)).toBeCloseTo(1 / 3, 9);
+    expect(findUnknownNumeral("約1⁄3", allowed)).toBeCloseTo(1 / 3, 9);
+    expect(findUnknownNumeral("約1／3", allowed)).toBeCloseTo(1 / 3, 9);
+    expect(findUnknownNumeral("about1/3", allowed)).toBeCloseTo(1 / 3, 9);
+  });
+
+  it("accepts the fraction when its value is in the input", () => {
+    expect(findUnknownNumeral("約1/3", new Set([1 / 3]))).toBeNull();
+    expect(findUnknownNumeral("約１／２", new Set([0.5]))).toBeNull();
+  });
+
+  it("a chain of slashes is not a fraction: every number in it is checked", () => {
+    expect(findUnknownNumeral("2024/10/05", new Set([10, 5]))).toBe(2024);
+    expect(findUnknownNumeral("2024/10/05", new Set([2024, 10, 5]))).toBeNull();
+    expect(findUnknownNumeral("1/2/3", new Set([1, 2]))).toBe(3);
+  });
+
+  it("a zero denominator is not a fraction", () => {
+    expect(findUnknownNumeral("1/0", new Set([1]))).toBe(0);
+    expect(findUnknownNumeral("1/0", new Set([1, 0]))).toBeNull();
+  });
+
+  it("leaves slashes that are not between two numbers alone", () => {
+    expect(normalizeVulgarFractions("and/or")).toBe("and/or");
+    expect(normalizeVulgarFractions("km/h 3/")).toBe("km/h 3/");
+    expect(findUnknownNumeral("a and/or b", new Set())).toBeNull();
+  });
+});
+
 describe("findUnknownNumeral — Finding 3 (redesigned): ordinal vs. fraction 'third'/'quarter'", () => {
   // Commit 6ffbd0f made ordinal the default and only recognised a fraction
   // directly after "a"/"an"/"one" — inverting hard rule 2's safe direction:
