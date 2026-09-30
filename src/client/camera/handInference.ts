@@ -45,3 +45,37 @@ export function applyDetectedHandedness(
   if (state.locked || !detected || detected === state.hand) return state;
   return { hand: detected, locked: false };
 }
+
+/**
+ * The chip's text. "· auto" is only true while the hand is still inferred:
+ * once the user has tapped the chip the hand is theirs, and the label says
+ * just "Left hand" / "Right hand".
+ */
+export function handChipLabel(state: HandChipState): string {
+  return `${state.hand === "left" ? "Left" : "Right"} hand${state.locked ? "" : " · auto"}`;
+}
+
+/**
+ * The chip's accessible name. Its visible text changes with the hand and
+ * with whether the user has chosen it, so it is a plain button (a button
+ * whose label changes is not a toggle, and `aria-pressed` would misreport
+ * it: it stays "pressed" after the first tap). The name starts with the
+ * visible text, as it must, then says where the hand came from and what a
+ * tap does.
+ */
+export function handChipAccessibleName(state: HandChipState): string {
+  return `${handChipLabel(state)}, ${
+    state.locked ? "set by you" : "set automatically"
+  }. Change hand`;
+}
+
+/**
+ * A tap while a photo is still being processed would change the hand after
+ * the running pipeline already read it, so the result on screen would answer
+ * a different question than the chip shows. The chip is disabled instead
+ * (nothing to re-run: processing is short and the sheet that follows
+ * offers the retry). `resultKind` is `EasyScanCamera`'s `result.kind`.
+ */
+export function canToggleHandChip(resultKind: string): boolean {
+  return resultKind !== "processing";
+}

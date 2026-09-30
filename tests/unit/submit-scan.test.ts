@@ -132,7 +132,20 @@ describe("submitScan — success (201)", () => {
 });
 
 describe("submitScan — error paths, distinct copy per kind", () => {
-  it("400 — parses a well-formed errorResponseSchema body and surfaces its detail alongside the invalid-scan copy", async () => {
+  it("does not include a server error body in the 400 outcome", async () => {
+    const outcome = await submitScan(
+      validSubmission,
+      vi.fn(async () =>
+        jsonResponse(400, { error: "Invalid scan submission." }),
+      ),
+    );
+    expect(outcome).toEqual({
+      status: "error",
+      kind: "invalid",
+      message: SUBMIT_ERROR_MESSAGES.invalid,
+    });
+  });
+  it("400 uses the invalid-scan copy for a well-formed server error body", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(400, {
         error: "Invalid scan submission.",
@@ -144,7 +157,6 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       status: "error",
       kind: "invalid",
       message: SUBMIT_ERROR_MESSAGES.invalid,
-      detail: "Invalid scan submission.",
     });
   });
 
@@ -157,7 +169,6 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       status: "error",
       kind: "invalid",
       message: SUBMIT_ERROR_MESSAGES.invalid,
-      detail: undefined,
     });
   });
 
@@ -186,7 +197,6 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       status: "error",
       kind: "tooLarge",
       message: SUBMIT_ERROR_MESSAGES.tooLarge,
-      detail: "Request body too large.",
     });
     expect(SUBMIT_ERROR_MESSAGES.tooLarge).not.toBe(
       SUBMIT_ERROR_MESSAGES.invalid,
@@ -202,7 +212,6 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       status: "error",
       kind: "rateLimited",
       message: SUBMIT_ERROR_MESSAGES.rateLimited,
-      detail: "Too many scan submissions.",
     });
     expect(SUBMIT_ERROR_MESSAGES.rateLimited).not.toBe(
       SUBMIT_ERROR_MESSAGES.server,
@@ -228,7 +237,6 @@ describe("submitScan — error paths, distinct copy per kind", () => {
       status: "error",
       kind: "server",
       message: SUBMIT_ERROR_MESSAGES.server,
-      detail: undefined,
     });
   });
 

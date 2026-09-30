@@ -15,6 +15,7 @@
   --scan-muted: #55555d;
   --scan-border: #d5d5dc;
   --scan-accent: #0a64e0;
+  --scan-accent-soft: #e7f0fd; /* 4.67:1 under --scan-accent text */
   --scan-on-accent: #ffffff; /* 5.37:1 on #0a64e0 */
   --scan-status-bg: #eef2f7;
   --scan-ok-bg: #e6f7ec;
@@ -37,6 +38,7 @@
     --scan-muted: #b5b5bd;
     --scan-border: #3a3a3d;
     --scan-accent: #79adff;
+    --scan-accent-soft: #1f3554; /* 5.45:1 under --scan-accent text */
     --scan-on-accent: #101114; /* 8.29:1 on #79adff; white is 2.27:1 */
     --scan-status-bg: #1f2733;
     --scan-ok-bg: #103522;
@@ -363,12 +365,6 @@ h1 {
   min-height: 1.25rem;
   color: var(--scan-muted);
   font-size: 0.9375rem;
-}
-
-.feedbackDetail {
-  margin: 0;
-  font-size: 0.8125rem;
-  opacity: 0.85;
 }
 
 .feedback {
