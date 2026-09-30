@@ -78,9 +78,14 @@ test("the camera screen is the <main>, with a visually hidden h1, and the hand-l
   expect(top).toBe(0);
   expect(width).toBe(page.viewportSize()!.width);
 
-  await page
-    .getByRole("button", { name: "No paper? Use a ruler instead" })
-    .click();
+  // Until the page has hydrated the tip is not modal yet, so the link behind
+  // it is still reachable and there are two such buttons. Wait for the modal
+  // (one button left), which is also when the click handler is attached.
+  const noPaper = page.getByRole("button", {
+    name: "No paper? Use a ruler instead",
+  });
+  await expect(noPaper).toHaveCount(1);
+  await noPaper.click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(
     page.getByRole("heading", { level: 2, name: "Hand length" }),
