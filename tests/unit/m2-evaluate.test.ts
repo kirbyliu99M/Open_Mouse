@@ -314,6 +314,30 @@ describe("missing things are reasons, never zeros", () => {
     ]);
   });
 
+  it("a plane of the wrong kind for the path is not used (a strip plane is not the marker plane)", () => {
+    const log = runLogOf([right(190), right(189)]);
+    const swapped = {
+      ...log,
+      reports: log.reports.map((r) =>
+        r.markerPlane
+          ? {
+              ...r,
+              markerPlane: {
+                ...r.markerPlane,
+                method: "strip-markers" as const,
+              },
+            }
+          : r,
+      ),
+    };
+    const r = evaluate({ logs: [swapped], truths: [TRUTH_P001] });
+    expect(r.groups.all.markers!.photos).toBe(0);
+    expect(r.groups.all["paper-edge"]!.photos).toBe(2);
+    expect(
+      r.excluded.filter((e) => e.path === "markers").map((e) => e.reasons),
+    ).toEqual([["NO_PLANE"], ["NO_PLANE"]]);
+  });
+
   it("a pose outside the measurement ranges gives NO_MEASUREMENT, not a number", () => {
     // 60 mm is shorter than any hand the contract accepts (100 to 280).
     const r = run([right(60), right(190)]);
@@ -416,6 +440,19 @@ describe("several logs", () => {
     ).toHaveLength(2);
     expect(r.inputs.runLogs).toHaveLength(3);
     expect(r.inputs.participants).toEqual(["P001", "P002"]);
+    // Each log has a participant card per participant; cards are neither measured nor excluded.
+    expect(r.counts.cards).toBe(3);
+    expect(r.counts.reports).toBe(3 + 3 + 2); // card + 2 photos, card + 2 photos, card + 1 photo
+    expect(
+      r.excluded.some((e) => e.reasons.some((x) => x.includes("slate"))),
+    ).toBe(false);
+    // P001's two filed photos are one repeat group; P002's single photo is none, and the two participants never merge.
+    expect(
+      field(r, "all", "paper-edge").repeatability.rows.map((row) => [
+        row.participant,
+        row.n,
+      ]),
+    ).toEqual([["P001", 2]]);
   });
 });
 

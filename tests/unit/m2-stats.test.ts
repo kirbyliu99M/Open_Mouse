@@ -98,6 +98,13 @@ describe("repeatability", () => {
     expect(second.maxDeviationFromMean).toBeCloseTo(1.2, 10);
   });
 
+  it("the largest deviation counts the sign: a low outlier is the largest deviation", () => {
+    // 190 190 190 186: mean 189; deviations +1 +1 +1 -3 -> the largest is 3, not 1.
+    expect(
+      repeatabilityRow([190, 190, 190, 186])!.maxDeviationFromMean,
+    ).toBeCloseTo(3, 10);
+  });
+
   it("a single photo is not a repeat", () => {
     expect(repeatabilityRow([190])).toBeNull();
     expect(repeatabilityRow([])).toBeNull();
