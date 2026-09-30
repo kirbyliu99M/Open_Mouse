@@ -82,7 +82,9 @@ tokens, legible over any photo: 2 px stroke + 1 px dark halo):
   5. "More light, please" (mean luma < 70/255) / "Too bright — avoid glare"
      (> 5 % pixels clipped at 250+ inside the sheet quad)
   6. "Hold still" (marker corners moved > 1.5 % of frame diagonal between
-     samples, or sharpness below threshold)
+     samples, or sharpness below threshold) — _changed by scan v2, see the
+     note below: "Hold still" is now shake only, and sharpness below the
+     threshold reads "Waiting for a sharp picture"_
   7. All pass → "Perfect — hold still" and auto-capture starts.
 - **Three status chips** above the cue: `Sheet 4/4`, `Steady`, `Light` —
   each outlined when failing, filled when passing. Redundant with the cue for
@@ -90,12 +92,23 @@ tokens, legible over any photo: 2 px stroke + 1 px dark halo):
 - **Shutter**: 72 px circle, always tappable (manual capture is never
   blocked — the photo pipeline still gates quality afterwards).
   - **Auto-capture**: once every check passes continuously, a progress ring
-    fills around the shutter over **800 ms**; any failure resets it. At full,
+    fills around the shutter over **800 ms** of passing samples; ~~any failure
+    resets it~~ it empties after 3 consecutive failed samples (scan v2, see
+    the note below). At full,
     capture fires, with a short `navigator.vibrate(30)` where supported and a
     brief white flash (skipped under `prefers-reduced-motion`).
 
 Thresholds are **candidates** to tune on real phones; keep them in one
 constants file with a comment saying so.
+
+> **Scan v2 note (2026-09-30).** The easy scan
+> ([`scan-v2-2026-09-30`](../scan-v2-2026-09-30/README.md)) changed two pure
+> modules this screen shares, so this screen changed with them:
+> `advanceAutoCapture` empties the ring only after 3 consecutive failed
+> samples (one or two pause it), and `pickCue` reports blur as its own cue,
+> "Waiting for a sharp picture", while "Hold still" means shake only. The
+> `Steady` chip follows: it fails on shake only, not on blur. The rest of this
+> screen is as written above.
 
 ### 3 · Review
 

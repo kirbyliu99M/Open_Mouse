@@ -188,13 +188,26 @@ describe("computeStatusChips", () => {
     expect(chips.paper).toEqual({ label: "Paper 2/4", pass: false });
   });
 
-  it("steady chip fails on either unsteady or not-sharp-enough", () => {
+  it("steady chip means shake only, like the hold-still cue: it fails on unsteady, not on blur", () => {
     expect(computeStatusChips(baseInput({ steady: false })).steady.pass).toBe(
       false,
     );
     expect(
       computeStatusChips(baseInput({ sharpEnough: false })).steady.pass,
+    ).toBe(true);
+    expect(
+      computeStatusChips(baseInput({ steady: false, sharpEnough: false }))
+        .steady.pass,
     ).toBe(false);
+    // ...and it agrees with the cue: the chip fails exactly when the cue is hold-still.
+    for (const steady of [true, false]) {
+      for (const sharpEnough of [true, false]) {
+        const input = baseInput({ steady, sharpEnough });
+        expect(computeStatusChips(input).steady.pass).toBe(
+          pickCue(input).code !== "hold-still",
+        );
+      }
+    }
   });
 
   it("light chip fails when dark or bright", () => {

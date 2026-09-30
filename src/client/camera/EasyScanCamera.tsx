@@ -17,8 +17,12 @@
  * file is its own component rather than a CameraCapture mode because the
  * chrome around the loop (no primer, no review page, the hand chip, the
  * bottom sheets) differs enough that sharing one state machine would make
- * both harder to read. `calibrationMode` is always "paper-edge" here — the
- * printed-sheet flow stays exactly as shipped at `/scan`.
+ * both harder to read. `calibrationMode` is always "paper-edge" here. The
+ * printed-sheet flow keeps its own screen at `/scan`, but it shares this
+ * file's pure logic, so scan v2 changed it too: the ring waits for 3
+ * consecutive failed samples before it empties (`advanceAutoCapture`), blur is
+ * its own cue, "out-of-focus", and "hold-still" is shake only (`pickCue`). See
+ * the note in docs/design/camera-capture-2026-09-25/README.md.
  */
 import {
   useCallback,

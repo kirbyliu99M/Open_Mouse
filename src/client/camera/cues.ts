@@ -200,7 +200,9 @@ export function computeStatusChips(
       label: `${mode === "printed-sheet" ? "Sheet" : "Paper"} ${input.cornersSeen}/4`,
       pass: paperPass,
     },
-    steady: { label: "Steady", pass: input.steady && input.sharpEnough },
+    // "Steady" means what the "hold-still" cue means: shake only. A soft
+    // picture is the "out-of-focus" cue's business, and holding still cannot fix it.
+    steady: { label: "Steady", pass: input.steady },
     light: { label: "Light", pass: light === "ok" },
   };
 }
