@@ -18,6 +18,7 @@
  * Pure: positions are in the stage's own pixels, time steps are passed in.
  */
 import { CAMERA_CONSTANTS } from "./constants";
+import { bestCyclicShift, shiftFour, type Four } from "./labelShift";
 import type { Point } from "./quad";
 
 export interface CornerState {
@@ -111,17 +112,49 @@ export const INITIAL_CORNER_STATES: CornerStates = [
   INITIAL_CORNER_STATE,
 ];
 
+export type Observed = Four<Point | null>;
+
+/**
+ * Matches a new observation to the corners being followed. The detector
+ * relabels its corners (a cyclic shift) when the paper is held sideways, so
+ * the corner that arrives as "top-left" may be the one that was "bottom-right".
+ * Taken at face value every dot would then glide across the paper to the
+ * opposite corner. So, when all four corners are observed and all four are
+ * being followed, the observation is shifted by whichever of the four cyclic
+ * shifts puts it closest to where the dots are (labelShift.ts). A corner's
+ * found/lost flag travels with its position, because a lost corner is simply
+ * a null entry in the same array. Fewer than four observed, or a dot with no
+ * position yet: there is nothing safe to match on, and it is left as it is.
+ */
+export function alignObservation(
+  states: CornerStates,
+  observed: Observed,
+): Observed {
+  const tracked = states.map((state) => state.point);
+  if (
+    tracked.some((point) => point === null) ||
+    observed.some((point) => point === null)
+  )
+    return observed;
+  const shift = bestCyclicShift(
+    tracked as unknown as Four<Point>,
+    observed as unknown as Four<Point>,
+  );
+  return shift === 0 ? observed : shiftFour(observed, shift);
+}
+
 /** Advance all four corners (TL, TR, BR, BL) by one sample. */
 export function advanceCorners(
   states: CornerStates,
-  observed: readonly [Point | null, Point | null, Point | null, Point | null],
+  observed: Observed,
   dtMs: number,
   options: CornerOptions = DEFAULT_OPTIONS,
 ): CornerStates {
+  const matched = alignObservation(states, observed);
   return [
-    advanceCorner(states[0], observed[0], dtMs, options),
-    advanceCorner(states[1], observed[1], dtMs, options),
-    advanceCorner(states[2], observed[2], dtMs, options),
-    advanceCorner(states[3], observed[3], dtMs, options),
+    advanceCorner(states[0], matched[0], dtMs, options),
+    advanceCorner(states[1], matched[1], dtMs, options),
+    advanceCorner(states[2], matched[2], dtMs, options),
+    advanceCorner(states[3], matched[3], dtMs, options),
   ];
 }

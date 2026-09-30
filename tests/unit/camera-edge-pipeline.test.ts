@@ -13,14 +13,17 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { detectPaperQuad } from "../../src/client/paper/detect";
+import { CAMERA_CONSTANTS } from "../../src/client/camera/constants";
+import { computeMaxCornerMovement } from "../../src/client/camera/steadiness";
 import {
   INITIAL_CORNER_STATES,
+  advanceCorner,
   advanceCorners,
   cornerDrawPoint,
   type CornerStates,
 } from "../../src/client/camera/cornerSmoother";
 import { placeEdges } from "../../src/client/camera/edgeGeometry";
-import type { Point } from "../../src/client/camera/quad";
+import type { Point, Quad } from "../../src/client/camera/quad";
 import { generateSyntheticPaper } from "./helpers/synthetic-paper";
 
 const WIDTH = 640;
@@ -247,5 +250,143 @@ describe("the outline through the real detector, paper rotated 0 to 360 degrees"
         ).toBeLessThan(1e-6);
       });
     }
+  });
+});
+
+describe("the dots and the steadiness check across the detector's relabels", () => {
+  // The detector relabels the corners when the paper is sideways (134 and 314
+  // degrees in this sweep). A dot has to stay with its corner across that.
+  const DIAGONAL = Math.hypot(WIDTH, HEIGHT);
+
+  /** Where each of the four dots is drawn after every sample (the real smoother). */
+  function drawnDots(samples: readonly Sample[]): Point[][] {
+    let states: CornerStates = INITIAL_CORNER_STATES;
+    return samples.map((sample) => {
+      states = advanceCorners(states, sample.corners, 125);
+      return states.map((state, i) => cornerDrawPoint(state, NO_GUIDE[i]));
+    });
+  }
+
+  /** What the smoother did before the remap: each label its own dot. */
+  function drawnDotsByLabel(samples: readonly Sample[]): Point[][] {
+    let states: CornerStates = INITIAL_CORNER_STATES;
+    return samples.map((sample) => {
+      states = [
+        advanceCorner(states[0], sample.corners[0], 125),
+        advanceCorner(states[1], sample.corners[1], 125),
+        advanceCorner(states[2], sample.corners[2], 125),
+        advanceCorner(states[3], sample.corners[3], 125),
+      ];
+      return states.map((state, i) => cornerDrawPoint(state, NO_GUIDE[i]));
+    });
+  }
+
+  /** The largest distance any dot moves between neighbouring degrees. */
+  function largestDotStep(samples: readonly Sample[], dots: Point[][]) {
+    let largest = 0;
+    let at = -1;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i].deg !== samples[i - 1].deg + 1) continue;
+      for (let d = 0; d < 4; d++) {
+        const step = Math.hypot(
+          dots[i][d].x - dots[i - 1][d].x,
+          dots[i][d].y - dots[i - 1][d].y,
+        );
+        if (step > largest) {
+          largest = step;
+          at = samples[i].deg;
+        }
+      }
+    }
+    return { largest, at };
+  }
+
+  it("no dot moves more than a few px between neighbouring degrees, the relabels at 134 and 314 included", () => {
+    const { samples } = sweep();
+    const { largest, at } = largestDotStep(samples, drawnDots(samples));
+    const swaps = samples
+      .filter((s, i) => i > 0 && s.shift !== samples[i - 1].shift)
+      .map((s) => s.deg);
+    console.log(
+      `dots: largest step ${largest.toFixed(2)} px (at ${at} degrees); the detector relabelled at ${swaps.join(", ")} degrees`,
+    );
+    expect(swaps.length).toBeGreaterThanOrEqual(2);
+    // One degree of paper rotation moves a corner about 3 px (half the
+    // diagonal of the paper, a little over 150 px, times 0.0175), and the
+    // +-1.5 px of noise adds to it; after the smoother it is less. A dot that
+    // went to the opposite corner would move 300 px or more.
+    expect(largest).toBeLessThan(8);
+  });
+
+  it("without the remap the dots cross the paper at the relabels (a control that reads the labels as identities)", () => {
+    const { samples } = sweep();
+    const { largest, at } = largestDotStep(samples, drawnDotsByLabel(samples));
+    console.log(
+      `dots without the remap: largest step ${largest.toFixed(1)} px (at ${at} degrees)`,
+    );
+    expect(largest).toBeGreaterThan(60);
+  });
+
+  it("the outline keeps its size across the whole sweep (it does not collapse while the labels settle)", () => {
+    const { samples } = sweep();
+    const dots = drawnDots(samples);
+    const sides = dots.map((quad) =>
+      [0, 1, 2, 3].map((i) =>
+        Math.hypot(
+          quad[(i + 1) % 4].x - quad[i].x,
+          quad[(i + 1) % 4].y - quad[i].y,
+        ),
+      ),
+    );
+    const shortest = Math.min(...sides.flat().slice(40)); // past the first sightings
+    console.log(
+      `outline: shortest side over the sweep ${shortest.toFixed(1)} px`,
+    );
+    expect(shortest).toBeGreaterThan(100);
+  });
+
+  it("steadiness: the corner movement stays under the 1.5% threshold at every step, the relabels included", () => {
+    const { samples } = sweep();
+    const quadOf = (s: Sample): Quad => ({
+      topLeft: s.corners[0],
+      topRight: s.corners[1],
+      bottomRight: s.corners[2],
+      bottomLeft: s.corners[3],
+    });
+    const labelByLabel = (a: Quad, b: Quad) =>
+      Math.max(
+        Math.hypot(a.topLeft.x - b.topLeft.x, a.topLeft.y - b.topLeft.y),
+        Math.hypot(a.topRight.x - b.topRight.x, a.topRight.y - b.topRight.y),
+        Math.hypot(
+          a.bottomRight.x - b.bottomRight.x,
+          a.bottomRight.y - b.bottomRight.y,
+        ),
+        Math.hypot(
+          a.bottomLeft.x - b.bottomLeft.x,
+          a.bottomLeft.y - b.bottomLeft.y,
+        ),
+      );
+    let fixed = 0;
+    let old = 0;
+    let oldAt = -1;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i].deg !== samples[i - 1].deg + 1) continue;
+      const a = quadOf(samples[i - 1]);
+      const b = quadOf(samples[i]);
+      fixed = Math.max(fixed, computeMaxCornerMovement(a, b));
+      const before = labelByLabel(a, b);
+      if (before > old) {
+        old = before;
+        oldAt = samples[i].deg;
+      }
+    }
+    const limit =
+      CAMERA_CONSTANTS.steadiness.maxCornerMovementFraction * DIAGONAL;
+    console.log(
+      `steadiness: largest movement ${fixed.toFixed(1)} px now (${((fixed / DIAGONAL) * 100).toFixed(2)}% of the diagonal), ${old.toFixed(1)} px label by label (at ${oldAt} degrees); limit ${limit.toFixed(1)} px`,
+    );
+    expect(fixed).toBeLessThan(limit);
+    // The old reading did call the relabel movement: a jump of the paper's own size.
+    expect(old).toBeGreaterThan(limit * 5);
   });
 });
