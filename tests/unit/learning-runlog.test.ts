@@ -6,6 +6,7 @@ import {
   carriesAccount,
   containingRoot,
   isInsideDirectory,
+  looksLikeMsysPath,
   mainCheckoutOf,
   redactText,
   relativeInputPath,
@@ -469,6 +470,143 @@ describe("redactText", () => {
   });
 });
 
+describe("an account name of exactly three characters (the shortest that is matched inside text)", () => {
+  it("is masked inside a segment and inside text", () => {
+    expect(carriesAccount("xabcx", "abc")).toBe(true);
+    expect(carriesAccount("XABCX", "abc")).toBe(true);
+    expect(redactText("open /home/xAbCx/y", { username: "abc" })).toBe(
+      "open /home/x~x/y",
+    );
+    expect(
+      relativeInputPath("/data/photos-abc/S1", "/srv", {
+        api: path.posix,
+        username: "abc",
+      }),
+    ).toBe("../data/~/S1");
+  });
+
+  it("and two characters are not", () => {
+    expect(carriesAccount("xabx", "ab")).toBe(false);
+    expect(redactText("xabx", { username: "ab" })).toBe("xabx");
+  });
+});
+
+describe("redactText: paths it was not told about, and stack frames", () => {
+  const hide = { hideOtherPaths: true } as const;
+
+  it("a drive-letter path becomes <path>, up to the quote or line end that ends it (spaces are part of a path)", () => {
+    expect(
+      redactText(
+        "browserType.launch: Executable doesn't exist at C:\\Users\\kirby\\AppData\\Local\\ms-playwright\\chromium-1208\\chrome.exe\n\u2554\u2550\u2550",
+        hide,
+      ),
+    ).toBe(
+      "browserType.launch: Executable doesn't exist at <path>\n\u2554\u2550\u2550",
+    );
+    expect(
+      redactText("ENOENT: open 'D:\\My Photos\\Day 1\\a.jpg' failed", hide),
+    ).toBe("ENOENT: open '<path>' failed");
+    expect(
+      redactText("in C:/Program Files (x86)/Tool/bin.exe. Then", hide),
+      // A path with spaces has no end but the delimiter, so the rest of this
+      // line goes with it: over-hiding is the safe way to be wrong.
+    ).toBe("in <path>");
+  });
+
+  it("keeps the punctuation that ended a sentence with a path", () => {
+    expect(redactText('see "C:\\a\\b".', hide)).toBe('see "<path>".');
+    expect(redactText("failed: C:\\a\\b,", hide)).toBe("failed: <path>,");
+  });
+
+  it("a POSIX path under a system root becomes <path>", () => {
+    expect(
+      redactText("Cannot find /home/runner/work/x/y.js\nand /tmp/z", hide),
+    ).toBe("Cannot find <path>\nand <path>");
+    expect(redactText("at '/Users/me/Pictures/S 1/IMG.jpg'", hide)).toBe(
+      "at '<path>'",
+    );
+    expect(redactText("/var", hide)).toBe("<path>");
+  });
+
+  it("leaves alone what is not an absolute path: URLs, relative paths, page routes, words", () => {
+    for (const text of [
+      "http://127.0.0.1:3401/learn/check",
+      "https://open-mouse.vercel.app/l/v1/G03R",
+      "../../home/~/Pictures/S1",
+      "./node_modules/next/dist",
+      ".\\node_modules\\next",
+      "open /learn/print in the browser",
+      "a:b and c:d",
+      "the /tmpfile idea",
+    ]) {
+      expect(redactText(text, hide)).toBe(text);
+    }
+  });
+
+  it("known paths are shortened first, so they are not just <path>", () => {
+    expect(
+      redactText("open 'C:\\repo\\a.json' and 'C:\\elsewhere\\b.json'", {
+        ...hide,
+        paths: [{ from: "C:\\repo", to: "." }],
+      }),
+    ).toBe("open '.\\a.json' and '<path>'");
+  });
+
+  it("the account name is still masked after that", () => {
+    expect(
+      redactText("user kirby wrote to 'C:\\x'", { ...hide, username: "kirby" }),
+    ).toBe("user ~ wrote to '<path>'");
+  });
+
+  it("stack frames become one note, the message lines stay", () => {
+    const text = [
+      "Error: Cannot find module 'x'",
+      "    at Module._resolve (C:\\a\\b.js:1:1)",
+      "    at run (C:\\a\\c.js:2:2)",
+      "Require stack:",
+      "  at not-a-frame",
+      "  - C:\\a\\d.js",
+    ].join("\n");
+    expect(redactText(text, { dropStackFrames: true })).toBe(
+      [
+        "Error: Cannot find module 'x'",
+        "    (stack frames omitted)",
+        "Require stack:",
+        "    (stack frames omitted)",
+        "  - C:\\a\\d.js",
+      ].join("\n"),
+    );
+  });
+
+  it("is off unless asked for", () => {
+    expect(redactText("C:\\a\\b\n    at x (y:1:1)", {})).toBe(
+      "C:\\a\\b\n    at x (y:1:1)",
+    );
+  });
+});
+
+describe("looksLikeMsysPath", () => {
+  it.each([
+    ["/c/Users/me/Photos", true],
+    ["/D/DCIM", true],
+    ["/c", true],
+    ["/c/", true],
+    ["/cx/Users", false],
+    ["/Users/me", false],
+    ["C:\\Users\\me", false],
+    ["c/Users", false],
+    ["./c/Users", false],
+    ["", false],
+  ])("on Windows %j is %s", (value, expected) => {
+    expect(looksLikeMsysPath(value, "win32")).toBe(expected);
+  });
+
+  it("elsewhere /c/... is an ordinary path", () => {
+    expect(looksLikeMsysPath("/c/Users/me", "linux")).toBe(false);
+    expect(looksLikeMsysPath("/c/Users/me", "darwin")).toBe(false);
+  });
+});
+
 describe("terminalRedaction", () => {
   const win = path.win32;
   const main = "C:\\Users\\kirby\\Desktop\\Mouse Shape Project\\Open_Mouse";
@@ -491,6 +629,43 @@ describe("terminalRedaction", () => {
       ".\\node_modules\\next\\dist\\bin\\next",
     );
     expect(show(`from ${main}\\.git`)).toBe("from <checkout>\\.git");
+  });
+
+  // The script is often run from another folder than the checkout it lives in
+  // (`npm run --prefix ...`, a shell already in the photos folder). Both are ".",
+  // each on its own account.
+  describe("when the working folder is not the checkout", () => {
+    const elsewhere = "C:\\Users\\kirby\\Pictures\\Session 1";
+    const apart = { ...base, cwd: elsewhere, checkouts: [main, cwd] };
+
+    it("this checkout is '.' although the working folder is somewhere else", () => {
+      expect(show(`${cwd}\\node_modules\\next\\dist\\bin\\next`, apart)).toBe(
+        ".\\node_modules\\next\\dist\\bin\\next",
+      );
+    });
+
+    it("the working folder is '.' although it is not the checkout", () => {
+      expect(show(`'${elsewhere}\\IMG_0001.jpg' was skipped`, apart)).toBe(
+        "'.\\IMG_0001.jpg' was skipped",
+      );
+    });
+
+    it("the two mappings are independent: each one alone is enough for its own paths", () => {
+      const onlyCwd = terminalRedaction({ ...apart, scriptRoot: elsewhere });
+      expect(
+        redactText(`${cwd}\\x`, { ...onlyCwd, hideOtherPaths: false }),
+      ).not.toBe(".\\x");
+      const onlyRoot = terminalRedaction({ ...apart, cwd });
+      expect(
+        redactText(`${elsewhere}\\x`, { ...onlyRoot, hideOtherPaths: false }),
+      ).not.toBe(".\\x");
+    });
+
+    it("an unrelated absolute path in a server's words is <path>, not left as it was", () => {
+      expect(show("no such file 'D:\\other\\thing.txt'", apart)).toBe(
+        "no such file '<path>'",
+      );
+    });
   });
 
   it("shows the photo and output folders the way the run log names them", () => {

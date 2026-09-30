@@ -3,7 +3,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { failureKind, failureMessage } from "../../src/lib/learning/errorkind";
-import { makeTerminal } from "../../src/lib/learning/terminal";
+import { spawnSync } from "node:child_process";
+import {
+  installLastResort,
+  makeTerminal,
+} from "../../src/lib/learning/terminal";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -95,7 +99,84 @@ describe("scripts/learn-sort.ts prints only through the terminal", () => {
   });
 
   it("prints a failure through terminal.failure, not the error itself", () => {
-    expect(code).toMatch(/\.catch\(\(err\) => \{[^}]*failure\(err\)/s);
+    expect(code).toMatch(/run\(\)\.catch\(\(err\) => \{[^}]*failure\(err\)/s);
     expect(code).not.toMatch(/\.stack\b/);
   });
+
+  it("runs everything, argument checks and folder listing included, inside run() and its catch", () => {
+    // Nothing that touches the file system or the arguments may sit at the top
+    // level, outside the catch: it would fail with a raw stack. Only
+    // definitions (and the `realpathLoose` helper) do.
+    const top = code
+      .slice(0, code.indexOf("async function run()"))
+      .replace(/function realpathLoose[\s\S]*?\n}\n/, "");
+    for (const call of [
+      "readdirSync(",
+      "statSync(",
+      "realpathLoose(",
+      "existsSync(",
+      "process.argv",
+    ]) {
+      expect(top).not.toContain(call);
+    }
+    expect(code).toMatch(/installLastResort\(failure/);
+  });
+});
+
+describe("installLastResort", () => {
+  it("prints what escaped through the failure printer and exits 1", () => {
+    const handlers: Record<string, (x: never) => void> = {};
+    const seen: unknown[] = [];
+    const exits: number[] = [];
+    installLastResort(
+      (e) => seen.push(e),
+      (c) => exits.push(c),
+      {
+        on: (event: string, l: (x: never) => void) => (handlers[event] = l),
+      } as never,
+    );
+    expect(Object.keys(handlers).sort()).toEqual([
+      "uncaughtException",
+      "unhandledRejection",
+    ]);
+    const boom = new Error("boom");
+    handlers.uncaughtException!(boom as never);
+    handlers.unhandledRejection!("plain reason" as never);
+    expect(seen).toEqual([boom, "plain reason"]);
+    expect(exits).toEqual([1, 1]);
+  });
+
+  // The real thing, in a real process: an exception from a timer, and a
+  // promise nobody awaits. Node's own handling would print the stack and the
+  // absolute paths in it.
+  it.each([
+    ["an exception from a timer", "throw"],
+    ["a rejected promise nobody awaits", "reject"],
+  ])(
+    "%s: a redacted message, no stack, exit 1",
+    (_label, mode) => {
+      const tsx = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
+      const driver = join(
+        REPO,
+        "tests",
+        "unit",
+        "helpers",
+        "last-resort-driver.ts",
+      );
+      const result = spawnSync(process.execPath, [tsx, driver, mode], {
+        cwd: REPO,
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/^escaped while reading '<path>' and /);
+      // The working folder, as ".", and the home folder we were not told about, as <path>.
+      expect(result.stderr).toMatch(/ and '\.[\\/]data\.json'/);
+      expect(result.stderr).not.toMatch(/^\s+at /m);
+      expect(result.stderr).not.toMatch(/[A-Za-z]:[\\/]/);
+      expect(result.stderr.toLowerCase()).not.toContain(REPO.toLowerCase());
+      expect(result.stderr).not.toMatch(/node:internal|last-resort-driver/);
+    },
+    60_000,
+  );
 });

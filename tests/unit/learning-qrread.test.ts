@@ -1,6 +1,6 @@
 import jsQR from "jsqr";
 import { describe, expect, it } from "vitest";
-import { decodeKitQr, readKitQr } from "../../src/lib/learning/qrread";
+import { crop, decodeKitQr, readKitQr } from "../../src/lib/learning/qrread";
 import { kitCodeUrl } from "../../src/lib/learning/kit";
 import { computeKitLayout, type Rect } from "../../src/lib/learning/layout";
 import { QR_QUIET_MODULES, qrMatrix } from "../../src/lib/learning/qr";
@@ -176,5 +176,101 @@ describe("readKitQr with the printed position known", () => {
     expect(readKitQr(image, markers, null)).toBe(KIT_G01R);
     // One marker is not enough to place anything.
     expect(readKitQr(image, markers.slice(0, 1), null)).toBeNull();
+  });
+
+  // The crop around a printed square is that square grown by 4 mm. Not less:
+  // paper slips and the homography is a little off, so a code sits some mm from
+  // where it was printed (the quiet zone gives the first ~2.6 mm for free).
+  // Not much more: a wider crop takes in whatever sits next to the code, and
+  // jsQR may answer with that instead of the kit's code.
+  describe("the crop reaches 4 mm beyond the printed square", () => {
+    const [left] = computeKitLayout("above").qr as [Rect, Rect];
+    const H = imageToSheet(60, 60);
+    const to = toImage(60, 60);
+
+    it("a code printed 6.4 mm from its square is still read", () => {
+      const image = whiteImage(1400, TALL);
+      stamp(image, KIT_G01R, { ...left, x: left.x + 6.4 }, to, PX_PER_MODULE);
+      drawQr(image, OTHER_URL, 1000, 300, 3); // so the whole-photo pass answers wrongly
+      expect(readKitQr(image, [], null)).toBeNull();
+      expect(readKitQr(image, [], H)).toBe(KIT_G01R);
+    });
+
+    it("the same, 6.4 mm the other way and 6.4 mm down", () => {
+      const a = whiteImage(1400, TALL);
+      stamp(a, KIT_G01R, { ...left, x: left.x - 6.4 }, to, PX_PER_MODULE);
+      drawQr(a, OTHER_URL, 1000, 300, 3);
+      expect(readKitQr(a, [], null)).toBeNull();
+      expect(readKitQr(a, [], H)).toBe(KIT_G01R);
+      const b = whiteImage(1400, TALL + 100);
+      stamp(b, KIT_G01R, { ...left, y: left.y + 6.4 }, to, PX_PER_MODULE);
+      drawQr(b, OTHER_URL, 1000, 300, 3);
+      expect(readKitQr(b, [], null)).toBeNull();
+      expect(readKitQr(b, [], H)).toBe(KIT_G01R);
+    });
+
+    it("a foreign code that starts just beyond the margin is not taken into the crop", () => {
+      const image = whiteImage(1400, TALL);
+      stamp(image, KIT_G01R, left, to, PX_PER_MODULE);
+      // A small foreign code (modules 2 px) whose data starts 24.6 mm from the
+      // square's left edge, and rises into the margin above it. With the 4 mm
+      // margin jsQR still answers with the kit's code; with 5 mm or more (probed:
+      // 5, 6, 7, 8 and 12) it answers with this one instead.
+      const foreignModule = 2;
+      const quiet = QR_QUIET_MODULES * foreignModule;
+      const x = Math.round(60 + (left.x + 24.6) * scale - quiet);
+      const y = Math.round(60 + (left.y - 3) * scale);
+      const foreignSide = drawQr(image, OTHER_URL, x, y, foreignModule);
+      // Preconditions: it is readable on its own, and it is small enough
+      // (and close enough) for jsQR to answer with it on a whole-photo pass.
+      const alone = whiteImage(1400, TALL);
+      drawQr(alone, OTHER_URL, x, y, foreignModule);
+      expect(jsQR(alone.data, alone.width, alone.height)?.data).toBe(OTHER_URL);
+      expect(foreignSide).toBeLessThan(scale * 6);
+      expect(decodeKitQr(image)).toBeNull();
+      expect(readKitQr(image, [], null)).toBeNull();
+      expect(readKitQr(image, [], H)).toBe(KIT_G01R);
+    });
+  });
+
+  describe("crop", () => {
+    // A 300 x 200 image whose red channel says where each pixel is.
+    const image = whiteImage(300, 200);
+    for (let y = 0; y < 200; y++)
+      for (let x = 0; x < 300; x++) {
+        image.data[(y * 300 + x) * 4] = x % 256;
+        image.data[(y * 300 + x) * 4 + 1] = y;
+      }
+    const px = (
+      c: { data: Uint8ClampedArray; width: number },
+      x: number,
+      y: number,
+    ) => [c.data[(y * c.width + x) * 4], c.data[(y * c.width + x) * 4 + 1]];
+
+    it("cuts the box out of the image", () => {
+      const c = crop(image, 50, 40, 100, 80)!;
+      expect([c.width, c.height]).toEqual([100, 80]);
+      expect(px(c, 0, 0)).toEqual([50, 40]);
+      expect(px(c, 99, 79)).toEqual([149, 119]);
+    });
+
+    it("a box that starts outside the image keeps only the part inside it: it does not slide over", () => {
+      const c = crop(image, -50, -30, 200, 150)!;
+      expect([c.width, c.height]).toEqual([150, 120]);
+      expect(px(c, 0, 0)).toEqual([0, 0]);
+      expect(px(c, 149, 119)).toEqual([149, 119]);
+    });
+
+    it("a box that ends outside the image is cut at its edge", () => {
+      const c = crop(image, 250, 150, 200, 200)!;
+      expect([c.width, c.height]).toEqual([50, 50]);
+      expect(px(c, 0, 0)).toEqual([250, 150]);
+    });
+
+    it("nothing left to read (a box mostly or wholly outside, or tiny) is null", () => {
+      expect(crop(image, -300, 0, 320, 100)).toBeNull(); // 20 px inside
+      expect(crop(image, 400, 0, 100, 100)).toBeNull();
+      expect(crop(image, 0, 0, 30, 30)).toBeNull();
+    });
   });
 });

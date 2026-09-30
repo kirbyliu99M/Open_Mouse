@@ -28,3 +28,30 @@ export function makeTerminal(
     failure: (err: unknown) => sinks.error(show(failureMessage(err))),
   };
 }
+
+/** What `installLastResort` needs from `process`; a stand-in in tests. */
+export interface ProcessLike {
+  on(event: "uncaughtException", listener: (err: Error) => void): unknown;
+  on(event: "unhandledRejection", listener: (reason: unknown) => void): unknown;
+}
+
+/**
+ * The last line of defence for a script: an exception or a rejected promise
+ * that nothing caught is printed through `failure` (redacted, message only)
+ * and the process exits 1, instead of Node printing a raw stack with absolute
+ * paths.
+ */
+export function installLastResort(
+  failure: (err: unknown) => void,
+  exit: (code: number) => void,
+  target: ProcessLike = process,
+): void {
+  target.on("uncaughtException", (err) => {
+    failure(err);
+    exit(1);
+  });
+  target.on("unhandledRejection", (reason) => {
+    failure(reason);
+    exit(1);
+  });
+}
