@@ -1,6 +1,7 @@
 {
   "scanId": "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d",
   "engineVersion": "fit-v0-provisional",
+  "hand": "right",
   "gripStyle": { "stated": "claw", "predicted": "claw", "used": "claw" },
   "targets": { "lengthMm": 120, "gripWidthMm": 64, "heightMm": 38 },
   "excluded": [],

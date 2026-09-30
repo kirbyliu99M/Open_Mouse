@@ -136,6 +136,7 @@ export function scoreFit(
 
   return {
     engineVersion: ENGINE_VERSION,
+    hand,
     gripStyle: { stated, predicted, used },
     targets,
     excluded,

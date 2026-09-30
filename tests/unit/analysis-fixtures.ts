@@ -47,6 +47,7 @@ export function makeFit(overrides: Partial<FitResponse> = {}): FitResponse {
   return {
     scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f",
     engineVersion: "fit-v0-provisional",
+    hand: "right",
     gripStyle: { stated: null, predicted: "claw", used: "claw" },
     targets: { lengthMm: 118, gripWidthMm: 62, heightMm: 39 },
     excluded: [
