@@ -68,6 +68,31 @@ function treeSpec(port: number, mode: "http" | "silent" | "exit" = "http") {
   };
 }
 
+/**
+ * The same fake server behind a shell, the shape of the bug this code exists
+ * for: the process that is spawned is `cmd.exe` or `sh` (which is not Node and
+ * so does not take its children down with it), and the process that holds the
+ * port is its grandchild. Ending only the shell leaves the port taken.
+ */
+function shellTreeSpec(port: number) {
+  const run = `"${process.execPath}" "${FAKE_TREE}" ${port} grandchild http`;
+  return WINDOWS
+    ? {
+        command: "cmd.exe",
+        args: ["/d", "/s", "/c", `"${run}"`],
+        options: {
+          ...serverSpawnOptions(REPO),
+          windowsVerbatimArguments: true,
+        },
+      }
+    : {
+        command: "sh",
+        // "; :" stops sh from replacing itself with the last command.
+        args: ["-c", `${run}; :`],
+        options: serverSpawnOptions(REPO),
+      };
+}
+
 const portFree = async (port: number) => !(await isListening(port));
 const exited = (child: ChildProcess) =>
   child.exitCode !== null || child.signalCode !== null;
@@ -100,6 +125,19 @@ describe("stopServer", () => {
 
     await until("the port is released", () => portFree(port));
     await until("the parent has ended", () => exited(child));
+  }, 60_000);
+
+  it("ends the tree behind a shell too (cmd.exe or sh in front, the port held by its grandchild)", async () => {
+    const port = await freePort();
+    const spec = shellTreeSpec(port);
+    const child = spawn(spec.command, [...spec.args], spec.options);
+    started.push(child);
+    await until("the grandchild listens", () => isListening(port));
+
+    stopServer(child);
+
+    await until("the port is released", () => portFree(port));
+    await until("the shell has ended", () => exited(child));
   }, 60_000);
 
   it("Windows: ends the tree by parent link (taskkill /T), and does not signal a group", () => {

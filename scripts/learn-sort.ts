@@ -51,8 +51,7 @@ import {
 import {
   buildSorterRunLog,
   containingRoot,
-  mainCheckoutOf,
-  refusalRoots,
+  gitRefusalRoots,
 } from "../src/lib/learning/paths";
 import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
@@ -100,16 +99,10 @@ const arg = (flag: string) => {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
-const gitCommonDir = git(["rev-parse", "--git-common-dir"])?.trim() || null;
-// Every checkout an output folder must stay out of: this one, the main one and
-// every other worktree git lists.
-const roots = refusalRoots(
-  scriptRoot,
-  gitCommonDir,
-  git(["worktree", "list", "--porcelain"]) ?? "",
-);
-// The default output sits next to the main checkout.
-const mainRoot = mainCheckoutOf(scriptRoot, gitCommonDir);
+// `roots`: every checkout an output folder must stay out of (this one, the main
+// one and every other worktree git lists). The default output sits next to the
+// main checkout.
+const { mainRoot, roots } = gitRefusalRoots(scriptRoot, git);
 const inDir = arg("--in");
 const outDir = resolve(
   arg("--out") ?? resolve(mainRoot, "..", "Fixtures", "learning"),

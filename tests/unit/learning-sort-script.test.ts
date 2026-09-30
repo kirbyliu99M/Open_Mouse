@@ -5,7 +5,11 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import {
+  createServer as createNetServer,
+  type AddressInfo,
+  type Server as NetServer,
+} from "node:net";
 import {
   existsSync,
   mkdirSync,
@@ -96,7 +100,9 @@ describe("learn-sort refuses to run where it must not", () => {
     ["a relative path that lands inside the repo", "./learning-out"],
     [
       "a dot-dot path that leaves and comes back",
-      join(REPO, "..", basename(REPO), "again"),
+      // Joined as text: `path.join` would fold the `..` away before the
+      // script ever saw it.
+      `${REPO}/../${basename(REPO)}/again`,
     ],
   ])(
     "--out as %s",
@@ -134,29 +140,49 @@ describe("learn-sort refuses to run where it must not", () => {
     expect(result.stdout).not.toMatch(/Starting dev server/);
   }, 60_000);
 
-  it("does not reuse a server that already answers on its port (it could be another branch's)", async () => {
-    const photos = join(scratch, "one-photo");
-    mkdirSync(photos);
-    writeFileSync(join(photos, "IMG_0001.jpg"), "not really a jpeg");
-    const stale: Server = createServer((_req, res) => res.end("ok"));
-    await new Promise<void>((ready) => stale.listen(0, "127.0.0.1", ready));
-    const { port } = stale.address() as AddressInfo;
-    try {
-      const result = await sorterAsync([
-        "--in",
-        photos,
-        "--out",
-        outside,
-        "--port",
-        String(port),
-      ]);
-      expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/Something already answers/);
-      expect(result.stdout).not.toMatch(/Checking/);
-    } finally {
-      await new Promise((closed) => stale.close(closed));
-    }
-  }, 60_000);
+  // Anything listening in the way is refused, whatever it would say over HTTP:
+  // a live page, a 404, or nothing at all (a server that accepts and hangs).
+  const inTheWay: [string, () => Server | NetServer][] = [
+    ["answers 200", () => createServer((_req, res) => res.end("ok"))],
+    [
+      "answers 404",
+      () =>
+        createServer((_req, res) => {
+          res.statusCode = 404;
+          res.end("no");
+        }),
+    ],
+    ["accepts connections and never answers", () => createNetServer(() => {})],
+  ];
+  it.each(inTheWay)(
+    "does not reuse a server that already listens on its port and %s (it could be another branch's)",
+    async (_label, make) => {
+      const photos = join(scratch, "one-photo");
+      mkdirSync(photos, { recursive: true });
+      writeFileSync(join(photos, "IMG_0001.jpg"), "not really a jpeg");
+      const stale = make();
+      await new Promise<void>((ready) => stale.listen(0, "127.0.0.1", ready));
+      const { port } = stale.address() as AddressInfo;
+      try {
+        const result = await sorterAsync([
+          "--in",
+          photos,
+          "--out",
+          outside,
+          "--port",
+          String(port),
+        ]);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/Something already answers/);
+        // Not said before the check, and nothing was started or run.
+        expect(result.stdout).not.toMatch(/Starting dev server/);
+        expect(result.stdout).not.toMatch(/Checking/);
+      } finally {
+        await new Promise((closed) => stale.close(closed));
+      }
+    },
+    60_000,
+  );
 
   it("never runs in CI", () => {
     const result = sorter(["--in", emptyInput, "--out", outside], { CI: "1" });

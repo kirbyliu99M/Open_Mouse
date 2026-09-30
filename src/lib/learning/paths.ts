@@ -80,6 +80,25 @@ export function refusalRoots(
   return [...new Set(roots.map((root) => api.resolve(root)))];
 }
 
+/**
+ * Where `learn:sort` may not write, from what git says about this checkout.
+ * `git` runs one git command in the checkout and returns its output, or `null`
+ * if it failed (no git, not a repository): the answer is then just this
+ * checkout. `mainRoot` is the checkout the default output folder sits next to.
+ */
+export function gitRefusalRoots(
+  scriptRoot: string,
+  git: (args: readonly string[]) => string | null,
+  api: PathApi = path,
+): { mainRoot: string; roots: string[] } {
+  const common = git(["rev-parse", "--git-common-dir"])?.trim() || null;
+  const list = git(["worktree", "list", "--porcelain"]) ?? "";
+  return {
+    mainRoot: mainCheckoutOf(scriptRoot, common, api),
+    roots: refusalRoots(scriptRoot, common, list, api),
+  };
+}
+
 /** The first of `roots` that contains `candidate`, or `null`. */
 export function containingRoot(
   candidate: string,
