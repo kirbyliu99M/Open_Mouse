@@ -495,6 +495,8 @@ export default function EasyScanCamera({
     height: number | null;
     frameRate: number | null;
   } | null>(null);
+  // The <video>'s own size, last seen (the element is gone once a photo is taken).
+  const debugVideoSizeRef = useRef<Size | null>(null);
   const debugFocusRef = useRef<{
     continuous: FocusApplyResult | null;
     lastTap: FocusApplyResult | null;
@@ -1161,6 +1163,10 @@ export default function EasyScanCamera({
             : null;
         live.cornersSeen = detection.cornersSeen;
         live.cueCode = nextCue.code;
+        debugVideoSizeRef.current = {
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
       }
       prevSampleQuadRef.current = sampleQuad;
 
@@ -1286,15 +1292,15 @@ export default function EasyScanCamera({
     const live = debugLiveRef.current;
     const capture = debugCaptureRef.current;
     const support = focusSupportRef.current;
-    const video = videoRef.current;
+    const videoSize = debugVideoSizeRef.current;
     const trackInfo = debugTrackRef.current;
     return {
       userAgent: shortUserAgent(navigator.userAgent),
       track: trackInfo
         ? {
             ...trackInfo,
-            videoWidth: video?.videoWidth || null,
-            videoHeight: video?.videoHeight || null,
+            videoWidth: videoSize?.width ?? null,
+            videoHeight: videoSize?.height ?? null,
           }
         : null,
       capabilities: trackInfo
