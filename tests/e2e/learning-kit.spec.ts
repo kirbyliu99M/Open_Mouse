@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   PRIVATE,
   TAG,
@@ -12,12 +13,27 @@ function countPdfPageObjects(pdf: Buffer): number {
   return matches ? matches.length : 0;
 }
 
-/** The G01R page rendered at about 8 px/mm, used as the "photo". */
-async function renderKitPagePhoto(page: Page): Promise<Buffer> {
+/**
+ * A printed page (0 = G01R, 5 = G06R, ... in print order for the right hand)
+ * rendered at about 8 px/mm, used as the "photo".
+ */
+async function renderKitPagePhoto(page: Page, index = 0): Promise<Buffer> {
   await page.setViewportSize({ width: 1800, height: 2400 });
   await page.goto("/learn/print?hands=right");
-  const svg = page.locator(".learn-print-page svg").first();
+  const svg = page.locator(".learn-print-page svg").nth(index);
   return svg.screenshot({ type: "jpeg", quality: 92 });
+}
+
+/**
+ * Most of these tests do not depend on the device, so one project runs them
+ * (the convention of camera-*.spec.ts: `testInfo.project.name`). Only the
+ * index page, whose layout is checked at every width, runs in both.
+ */
+function onlyInChromium(testInfo: TestInfo) {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "device-independent: run once, in the desktop project",
+  );
 }
 
 /** Requests other than GET (next dev's error overlay posts stack frames; that is not app traffic). */
@@ -53,7 +69,8 @@ test.describe("learning kit", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test("prints one A4 page per pose and hand", async ({ page }) => {
+  test("prints one A4 page per pose and hand", async ({ page }, testInfo) => {
+    onlyInChromium(testInfo);
     await page.goto("/learn/print?hands=both");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(14);
     const pdf = await page.pdf({
@@ -67,7 +84,10 @@ test.describe("learning kit", () => {
     await expect(page.locator(".learn-print-page svg")).toHaveCount(7);
   });
 
-  test("prints eight participant cards per page", async ({ page }) => {
+  test("prints eight participant cards per page", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
     await page.goto("/learn/slates?from=5&count=10");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(2);
     await expect(page.getByText("Cards P005 to P014.")).toBeVisible();
@@ -80,7 +100,10 @@ test.describe("learning kit", () => {
     await expect(card.getByText(/R \/ L \/ both/)).toHaveCount(0);
   });
 
-  test("a printed QR code opens its pose's instructions", async ({ page }) => {
+  test("a printed QR code opens its pose's instructions", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
     await page.goto("/l/v1/G03R");
     await expect(
       page.getByRole("heading", { level: 1, name: "Palm grip" }),
@@ -104,7 +127,8 @@ test.describe("learning kit", () => {
 
   test("the checker identifies a photographed kit page on this device", async ({
     page,
-  }) => {
+  }, testInfo) => {
+    onlyInChromium(testInfo);
     const photo = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
@@ -158,7 +182,8 @@ test.describe("learning kit", () => {
   });
   test("the run log keeps only white-listed EXIF, and uses the photo's focal length", async ({
     page,
-  }) => {
+  }, testInfo) => {
+    onlyInChromium(testInfo);
     const screenshot = await renderKitPagePhoto(page);
     // A phone-like EXIF block: GPS, time, serial number, device, lens, ...
     // (no Orientation tag, which would rotate the photo).
@@ -216,7 +241,9 @@ test.describe("learning kit", () => {
 
   test("the sheet size is a setting: preset by ?paper=, changed on the page, and recorded", async ({
     page,
-  }) => {
+  }, testInfo) => {
+    onlyInChromium(testInfo);
+    const uploads = watchUploads(page);
     await page.goto("/learn/check?paper=letter");
     const select = page.getByTestId("learning-check-paper");
     await expect(select).toHaveValue("letter");
@@ -240,5 +267,115 @@ test.describe("learning kit", () => {
     const log = JSON.parse((await json.textContent()) ?? "{}");
     expect(log.paperSize).toBe("letter");
     expect(log.reports[0].paperSize).toBe("letter");
+    // Photos never leave the browser (hard rule 5): no request but GETs.
+    expect(uploads).toEqual([]);
+  });
+
+  test("a side page gives a strip plane and no paper plane (G06)", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
+    const photo = await renderKitPagePhoto(page, 5);
+    const uploads = watchUploads(page);
+
+    await page.goto("/learn/check");
+    await page.getByTestId("learning-check-input").setInputFiles({
+      name: "IMG_0004.jpg",
+      mimeType: "image/jpeg",
+      buffer: photo,
+    });
+    const json = page.getByTestId("learning-check-json");
+    await expect(json).not.toBeEmpty({ timeout: 60_000 });
+    const { reports } = JSON.parse((await json.textContent()) ?? "{}");
+
+    expect(reports[0].code).toMatchObject({ gesture: "G06", hand: "right" });
+    expect(reports[0].markerPlane.method).toBe("strip-markers");
+    expect(reports[0].markerPlane.homography).toHaveLength(3);
+    // No paper detection on a side page.
+    expect(reports[0].paperPlane).toBeNull();
+    expect(reports[0].paperEdge).toBeNull();
+    expect(reports[0].productGates).toBeNull();
+    expect(uploads).toEqual([]);
+  });
+
+  test("the download button hands over the run log as a file", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
+    const photo = await renderKitPagePhoto(page);
+    const uploads = watchUploads(page);
+
+    await page.goto("/learn/check");
+    await page.getByTestId("learning-check-input").setInputFiles({
+      name: "IMG_0005.jpg",
+      mimeType: "image/jpeg",
+      buffer: photo,
+    });
+    const button = page.getByRole("button", {
+      name: "Download results (JSON)",
+    });
+    await expect(button).toBeEnabled({ timeout: 60_000 });
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      button.click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("learning-manifest.json");
+    const path = await download.path();
+    const text = readFileSync(path, "utf-8");
+    const log = JSON.parse(text);
+
+    expect(log).toMatchObject({
+      format: "open-mouse-learning-run/2",
+      kitVersion: 1,
+      paperSize: "a4",
+      input: null,
+    });
+    expect(log.reports).toHaveLength(1);
+    expect(log.reports[0]).toMatchObject({
+      file: "IMG_0005.jpg",
+      code: { gesture: "G01", hand: "right" },
+    });
+    // The same log the hidden test hook holds, and no photo bytes.
+    const hooked = JSON.parse(
+      (await page.getByTestId("learning-check-json").textContent()) ?? "{}",
+    );
+    expect(log.reports).toEqual(hooked.reports);
+    expect(text).not.toContain("data:image");
+    expect(text.length).toBeLessThan(200_000);
+    expect(uploads).toEqual([]);
+  });
+
+  test("one photo that cannot be read does not stop the others", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
+    const good = await renderKitPagePhoto(page);
+    const uploads = watchUploads(page);
+
+    await page.goto("/learn/check");
+    await page.getByTestId("learning-check-input").setInputFiles([
+      {
+        name: "IMG_0006.jpg",
+        mimeType: "image/jpeg",
+        buffer: Buffer.from("this is not a jpeg at all"),
+      },
+      { name: "IMG_0007.jpg", mimeType: "image/jpeg", buffer: good },
+    ]);
+    const json = page.getByTestId("learning-check-json");
+    await expect(json).not.toBeEmpty({ timeout: 90_000 });
+    const { reports } = JSON.parse((await json.textContent()) ?? "{}");
+
+    expect(reports.map((r: { file: string }) => r.file)).toEqual([
+      "IMG_0006.jpg",
+      "IMG_0007.jpg",
+    ]);
+    expect(reports[0].verdict).toBe("unidentified");
+    expect(reports[0].error).toEqual(expect.any(String));
+    expect(reports[0].errorKind).toEqual(expect.any(String));
+    // The second photo was analysed as usual.
+    expect(reports[1].code).toMatchObject({ gesture: "G01", hand: "right" });
+    expect(reports[1].markerPlane.method).toBe("markers");
+    expect(uploads).toEqual([]);
   });
 });
