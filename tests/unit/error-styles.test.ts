@@ -140,6 +140,7 @@ describe.each(["light", "dark"] as const)(
       ".errorScreen-eyebrow",
       ".errorScreen-message",
       ".errorScreen-reference",
+      ".errorScreen-status",
     ])("%s is at least 4.5:1 on the page", (selector) => {
       expect(
         contrast(errors.value(scheme, selector, "color"), bg),

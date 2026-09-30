@@ -39,3 +39,6 @@ export const GLOBAL_ERROR_COPY = {
 } as const;
 
 export const REFERENCE_LABEL = "Reference";
+
+/** Announced (role=status) while the Try again request is running. */
+export const RETRYING = "Trying again…";

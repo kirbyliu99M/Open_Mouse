@@ -27,6 +27,15 @@
  *    and a short `code` / `status` (the SDK puts whole API response bodies in
  *    `error.message`; see analyse.ts).
  *
+ * Also: fields named `error`, `msg`, `description`, `reason` and the like keep
+ * only a short lower-case token ("timeout", "proceed_without_limit"), never a
+ * sentence; `key=value` pairs (`password=`, `token=`, `api_key=`, ...) inside a
+ * string lose the value; object KEY names are scrubbed like any text; bytes
+ * (Buffer, typed arrays) print as a size; and everything is bounded: a string
+ * is cut at 2000 characters before any pattern runs, a line visits at most 500
+ * values, and the finished line is at most 8 KB (fields are dropped from the
+ * end and the line says so).
+ *
  * The rules match on the field NAME (and, for strings, on what the text looks
  * like). A sensitive value under an innocent name, holding a bare number, can
  * not be recognised: pass named, non-sensitive facts (`status`, `code`,
@@ -46,6 +55,16 @@ export const REDACTED = "[redacted]";
 
 const MAX_DEPTH = 6;
 const MAX_STRING_LENGTH = 300;
+/**
+ * Text longer than this is cut BEFORE any pattern runs, so the cost of
+ * scrubbing one string is bounded whatever a caller passes in (several
+ * patterns are quadratic on a long unbroken run of key characters).
+ */
+const MAX_INPUT_LENGTH = 2000;
+/** Values visited in one line, counting every entry, so a shared reference cannot fan out. */
+const MAX_NODES = 500;
+/** The finished line, in bytes; over it, whole fields are dropped and the line says so. */
+export const MAX_LINE_BYTES = 8192;
 const MAX_KEYS = 40;
 const MAX_ITEMS = 20;
 /** Keys the log line itself owns; a caller's field of the same name is dropped. */
@@ -176,6 +195,25 @@ export const KEY_RULES: readonly KeyRule[] = [
       )(key),
   },
   {
+    // Field names that carry a sentence. Only a short lower-case token (an
+    // enumerated reason such as "timeout") is kept, see redactField; any other
+    // string or number is dropped, an Error is reduced as usual.
+    category: "free-text",
+    matches: has(
+      new Set([
+        "error",
+        "errors",
+        "err",
+        "errormsg",
+        "errmsg",
+        "msg",
+        "description",
+        "reason",
+        "exception",
+      ]),
+    ),
+  },
+  {
     category: "error-detail",
     matches: has(
       new Set([
@@ -210,6 +248,14 @@ interface StringRule {
 
 /** What text looks like when it must not be logged, whatever key it sits under. */
 export const STRING_RULES: readonly StringRule[] = [
+  {
+    // password=..., "token": "...", api_key: ..., authorization: Bearer ...
+    // The name is kept, the value goes.
+    name: "secret-assignment",
+    pattern:
+      /(?<![A-Za-z0-9])(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
+    replace: (match) => `${/^[A-Za-z_-]+/.exec(match)![0]}=[redacted]`,
+  },
   {
     name: "uuid",
     pattern:
@@ -252,7 +298,7 @@ export const STRING_RULES: readonly StringRule[] = [
   },
   {
     name: "millimetres",
-    pattern: /\b\d+(?:\.\d+)?\s?mm\b/gi,
+    pattern: /\b\d+(?:[.,]\d+)?\s?mm\b/gi,
     replace: "[redacted-measurement]",
   },
   {
@@ -266,15 +312,23 @@ export const STRING_RULES: readonly StringRule[] = [
 /** Redacts the sensitive patterns inside one string, then bounds its length. */
 export function scrubString(text: string): string {
   let out = text;
+  let cut = false;
+  if (out.length > MAX_INPUT_LENGTH) {
+    // Drop the half-word left at the cut too: a fragment of an address or key
+    // matches no pattern and would otherwise survive.
+    out = out.slice(0, MAX_INPUT_LENGTH).replace(/\S+$/, "");
+    cut = true;
+  }
   for (const rule of STRING_RULES) {
     out =
       typeof rule.replace === "string"
         ? out.replace(rule.pattern, rule.replace)
         : out.replace(rule.pattern, rule.replace);
   }
-  return out.length > MAX_STRING_LENGTH
-    ? `${out.slice(0, MAX_STRING_LENGTH)}…`
-    : out;
+  if (out.length > MAX_STRING_LENGTH) {
+    return `${out.slice(0, MAX_STRING_LENGTH)}…`;
+  }
+  return cut ? `${out}…` : out;
 }
 
 function redactError(error: Error): Record<string, unknown> {
@@ -289,9 +343,25 @@ function redactError(error: Error): Record<string, unknown> {
   return out;
 }
 
+/** A short lower-case identifier: an enumerated value, never a sentence. */
+const ENUM_TOKEN = /^[a-z][a-z0-9_.:-]{0,39}$/;
+
 function redactField(key: string, value: unknown): unknown {
   const category = categoryOfKey(key);
   if (category === null) return undefined;
+  if (category === "free-text") {
+    if (typeof value === "string") {
+      return ENUM_TOKEN.test(value) ? undefined : REDACTED;
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) =>
+        typeof item === "string" && ENUM_TOKEN.test(item) ? item : REDACTED,
+      );
+    }
+    // An Error or another object is reduced by the normal walk.
+    if (typeof value === "object" && value !== null) return undefined;
+    return REDACTED;
+  }
   // The scan id is the one thing kept in a form that still correlates.
   if (category === "scanId" && typeof value === "string") {
     return `id:${shortHash(value.toLowerCase())}`;
@@ -303,11 +373,18 @@ function redactField(key: string, value: unknown): unknown {
  * Returns a copy of `value` that is safe to serialise: sensitive fields
  * replaced, strings scrubbed, depth / width / length bounded, cycles broken.
  */
+export interface RedactState {
+  seen: WeakSet<object>;
+  nodes: number;
+}
+
 export function redact(
   value: unknown,
   depth = 0,
-  seen: WeakSet<object> = new WeakSet(),
+  state: RedactState = { seen: new WeakSet(), nodes: 0 },
 ): unknown {
+  if ((state.nodes += 1) > MAX_NODES) return "[truncated]";
+  const seen = state.seen;
   if (value === null || value === undefined) return value ?? null;
   switch (typeof value) {
     case "string":
@@ -332,10 +409,19 @@ export function redact(
     if (object instanceof Date) {
       return Number.isNaN(object.getTime()) ? null : object.toISOString();
     }
+    // Bytes (a Buffer is a Uint8Array): the content is never printed.
+    if (
+      ArrayBuffer.isView(object) ||
+      object instanceof ArrayBuffer ||
+      (typeof SharedArrayBuffer !== "undefined" &&
+        object instanceof SharedArrayBuffer)
+    ) {
+      return `[binary ${(object as ArrayBufferView).byteLength} bytes]`;
+    }
     if (Array.isArray(object)) {
       const items = object
         .slice(0, MAX_ITEMS)
-        .map((item) => redact(item, depth + 1, seen));
+        .map((item) => redact(item, depth + 1, state));
       if (object.length > MAX_ITEMS) {
         items.push(`[+${object.length - MAX_ITEMS} more]`);
       }
@@ -348,8 +434,12 @@ export function redact(
     const entries = Object.entries(object as Record<string, unknown>);
     for (const [key, item] of entries.slice(0, MAX_KEYS)) {
       const replaced = redactField(key, item);
-      out[key] =
-        replaced !== undefined ? replaced : redact(item, depth + 1, seen);
+      // The name is text too: an address, an email or an id used as a key.
+      const clean = scrubString(key);
+      let name = clean;
+      for (let n = 2; name in out; n += 1) name = `${clean}#${n}`;
+      out[name] =
+        replaced !== undefined ? replaced : redact(item, depth + 1, state);
     }
     if (entries.length > MAX_KEYS)
       out["…"] = `+${entries.length - MAX_KEYS} keys`;
@@ -365,6 +455,32 @@ export interface LogFields {
   /** Duration of the thing the event is about, in milliseconds. */
   ms?: number | null;
   [key: string]: unknown;
+}
+
+/**
+ * Serialises `line`; if it is over `MAX_LINE_BYTES`, drops fields from the end
+ * (never level, event, route, ms) until it fits and says how many went, so the
+ * line stays valid JSON and never silently loses data.
+ */
+function capLine(line: Record<string, unknown>): string {
+  const whole = JSON.stringify(line);
+  const size = Buffer.byteLength(whole);
+  if (size <= MAX_LINE_BYTES) return whole;
+  const entries = Object.entries(line);
+  const fixed = Object.fromEntries(entries.slice(0, 4));
+  const extra = entries.slice(4);
+  for (let keep = extra.length - 1; keep >= 0; keep -= 1) {
+    const candidate = JSON.stringify({
+      ...fixed,
+      ...Object.fromEntries(extra.slice(0, keep)),
+      truncated: { droppedFields: extra.length - keep, originalBytes: size },
+    });
+    if (Buffer.byteLength(candidate) <= MAX_LINE_BYTES) return candidate;
+  }
+  return JSON.stringify({
+    ...fixed,
+    truncated: { droppedFields: extra.length, originalBytes: size },
+  });
 }
 
 /** The exact line that would be written, as a JSON string (pure, for tests). */
@@ -385,7 +501,7 @@ export function formatLogLine(
     for (const [key, value] of Object.entries(safe)) {
       if (!RESERVED_KEYS.has(key)) line[key] = value;
     }
-    return JSON.stringify(line);
+    return capLine(line);
   } catch {
     // A getter that throws, or anything else unforeseen: a log call must
     // never throw into a request, and must not fall back to printing the

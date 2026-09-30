@@ -132,6 +132,45 @@ test.describe("error screen", () => {
     await expect(retry).toBeEnabled();
   });
 
+  test("pressing Try again from the keyboard never drops focus to the page body", async ({
+    page,
+  }) => {
+    await page.goto("/scan/error-demo");
+    const retry = page.getByRole("button", { name: ACTIONS.retry });
+    await expect(retry).toBeVisible();
+    await retry.focus();
+    await expect(retry).toBeFocused();
+
+    const activeTags: string[] = [];
+    const refetches: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/scan/error-demo?_rsc=")) {
+        refetches.push(request.url());
+      }
+    });
+    await page.keyboard.press("Enter");
+    // Sample where focus is while the retry runs and after it ends.
+    for (let i = 0; i < 20; i += 1) {
+      activeTags.push(
+        await page.evaluate(() => document.activeElement?.tagName ?? "none"),
+      );
+      await page.waitForTimeout(50);
+    }
+    await expect.poll(() => refetches.length).toBeGreaterThan(0);
+
+    expect(activeTags).not.toContain("BODY");
+    expect(activeTags).not.toContain("none");
+    // The retry ended on the same screen: focus is on the heading or the
+    // button, and the button was never given the disabled attribute.
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.activeElement?.tagName ?? "none"),
+      )
+      .toMatch(/^(H1|BUTTON)$/);
+    await expect(retry).not.toHaveAttribute("disabled");
+    await expect(retry).toHaveAttribute("aria-disabled", "false");
+  });
+
   test("its links lead somewhere real", async ({ page }) => {
     await page.goto("/scan/error-demo");
     await page.getByRole("link", { name: ACTIONS.home }).click();

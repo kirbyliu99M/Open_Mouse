@@ -2,19 +2,23 @@
 
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
 import { ACTIONS, GLOBAL_ERROR_COPY } from "@/components/errors/copy";
+import { reloadPage } from "@/components/errors/reload";
 
 /**
  * The last resort: an error in the root layout itself. It replaces the whole
  * document, so it brings its own `<html>` and `<body>` (the root layout is
  * gone) and its own styles. Plain `<a>` links, because the app router may be
  * what failed. Shows a fixed message and, at most, the error's digest.
+ *
+ * "Try again" reloads the page. It does NOT call `reset()` (the prop Next
+ * passes): that re-renders with the payload the boundary already holds, which
+ * for a server-side failure is the failure itself. See reload.ts.
  */
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  reset?: () => void;
 }) {
   return (
     <html lang="en">
@@ -33,7 +37,7 @@ export default function GlobalError({
           <button
             type="button"
             className="errorAction errorAction-primary"
-            onClick={() => reset()}
+            onClick={() => reloadPage()}
           >
             {ACTIONS.retry}
           </button>

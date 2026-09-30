@@ -227,6 +227,20 @@ const KEY_CASES: Record<string, { keys: string[]; value: unknown }> = {
     ],
     value: SECRETS.prompt,
   },
+  "free-text": {
+    keys: [
+      "error",
+      "errors",
+      "err",
+      "errorMsg",
+      "err_msg",
+      "msg",
+      "description",
+      "reason",
+      "exception",
+    ],
+    value: "the query for the 187.4 hand failed on (secret-row)",
+  },
   "error-detail": {
     keys: [
       "message",

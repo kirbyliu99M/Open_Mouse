@@ -16,6 +16,13 @@ interface ErrorScreenProps {
    * is announced instead of leaving focus on an element that vanished.
    */
   focusHeading?: boolean;
+  /**
+   * Change this number to move focus to the heading again (after a retry that
+   * ended on the same screen), so focus never falls back to the page body.
+   */
+  focusKey?: number;
+  /** A sentence for the status region below the actions (announced politely). */
+  status?: string | undefined;
   /** The buttons and links. */
   children: ReactNode;
 }
@@ -32,12 +39,14 @@ export function ErrorScreen({
   message,
   reference,
   focusHeading = false,
+  focusKey = 0,
+  status,
   children,
 }: ErrorScreenProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (focusHeading) heading.current?.focus();
-  }, [focusHeading]);
+  }, [focusHeading, focusKey]);
 
   return (
     <main className="errorScreen" aria-labelledby="errorScreenTitle">
@@ -52,6 +61,10 @@ export function ErrorScreen({
         </p>
       ) : null}
       <div className="errorScreen-actions">{children}</div>
+      {/* Always in the page, so a change of its text is announced. */}
+      <p className="errorScreen-status" role="status">
+        {status}
+      </p>
     </main>
   );
 }
