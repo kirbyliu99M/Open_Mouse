@@ -8,6 +8,12 @@ reduced-motion animations and console errors. A manual pass followed:
 screenshots read by eye, the navigation menu driven by keyboard, and the source
 read for anything the screenshots could not show.
 
+**Corrections, 2026-09-30.** Two findings overstated the problem and are
+corrected in place, in the blockquote under each: finding 3 (the preview
+notice already exists in two places) and finding 5 (six of the seven demo
+routes were already guarded at the audit's own commit, and the seventh is now).
+The rest of the audit is unchanged.
+
 **Lenses.** The audit uses three lenses, and each finding is tagged with the
 ones that apply:
 
@@ -60,22 +66,22 @@ Several promises made on a screen are not kept anywhere else.
 
 ## Feature inventory (what a user can reach on `main`)
 
-| Feature                                  | Route                                                       | State                                                                  |
-| ---------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Landing                                  | `/`                                                         | Live; static sketch                                                    |
-| How it works                             | `/how-it-works`                                             | Live                                                                   |
-| **Easy scan**: blank paper + live camera | `/scan/easy`                                                | **Primary entry.** Auto-capture, upload fallback, grip after measuring |
-| Classic scan: printed sheet + bank card  | `/scan`                                                     | Still live; reached from Results, Account and `/sheet`                 |
-| Printable calibration sheet              | `/sheet`                                                    | Live; linked from Account's empty state                                |
-| Results + written analysis               | `/results/[scanId]`                                         | Live; Gemini prose labelled; unrated shape sub-scores disclosed        |
-| Delete a scan                            | Results, Account                                            | Live                                                                   |
-| Account and sign-in                      | `/account`                                                  | Sign-in unavailable (no OAuth yet); explained honestly on the page     |
-| Navigation menu                          | every page                                                  | Native modal `<dialog>`: Home, Scan my hand, How it works, Account     |
-| Demo and mock routes                     | `/results/demo`, `/scan/*-demo`, `/scan/paper-edge-preview` | **Public in production**, titled "(mock data)"                         |
-| Mouse shapes: browse and compare         | —                                                           | In the 09-25 product-shell design; not built                           |
-| Privacy page                             | —                                                           | Not built. "Read Privacy & data" links to a card on the same page      |
-| My results                               | —                                                           | In the product-shell menu spec; not built                              |
-| 3D viewer (M4b)                          | —                                                           | Not built (not required for launch)                                    |
+| Feature                                  | Route                                                       | State                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Landing                                  | `/`                                                         | Live; static sketch                                                       |
+| How it works                             | `/how-it-works`                                             | Live                                                                      |
+| **Easy scan**: blank paper + live camera | `/scan/easy`                                                | **Primary entry.** Auto-capture, upload fallback, grip after measuring    |
+| Classic scan: printed sheet + bank card  | `/scan`                                                     | Still live; reached from Results, Account and `/sheet`                    |
+| Printable calibration sheet              | `/sheet`                                                    | Live; linked from Account's empty state                                   |
+| Results + written analysis               | `/results/[scanId]`                                         | Live; Gemini prose labelled; unrated shape sub-scores disclosed           |
+| Delete a scan                            | Results, Account                                            | Live                                                                      |
+| Account and sign-in                      | `/account`                                                  | Sign-in unavailable (no OAuth yet); explained honestly on the page        |
+| Navigation menu                          | every page                                                  | Native modal `<dialog>`: Home, Scan my hand, How it works, Account        |
+| Demo and mock routes                     | `/results/demo`, `/scan/*-demo`, `/scan/paper-edge-preview` | Titled "(mock data)". Corrected 2026-09-30: 404 in production (finding 5) |
+| Mouse shapes: browse and compare         | —                                                           | In the 09-25 product-shell design; not built                              |
+| Privacy page                             | —                                                           | Not built. "Read Privacy & data" links to a card on the same page         |
+| My results                               | —                                                           | In the product-shell menu spec; not built                                 |
+| 3D viewer (M4b)                          | —                                                           | Not built (not required for launch)                                       |
 
 ---
 
@@ -165,6 +171,17 @@ M2 passes. Or collect the learning-kit data first (below) and let the M2
 numbers decide. A caveat that appears only before the scan is forgotten by the
 time the number shows up.
 
+> **Correction, 2026-09-30.** The preview notice is not "one small line under
+> the button". It already exists in two places on `main`: the landing page
+> ("Early preview — measurements are still being validated.",
+> `src/app/page.tsx`) and the results page ("Early preview · measurements still
+> being validated.", `src/app/results/[scanId]/ResultsPageClient.tsx`). What
+> was missing is the caveat next to the number itself. #92 (draft, not merged)
+> adds it: "Not yet verified against a ruler." beside every measured number on
+> the scan screens (`src/client/photo/unverified-note.ts`, wording pending
+> Kirby's confirmation). The alternative in the arrow above, waiting for the
+> M2 data from the learning kit, stays open.
+
 **4. The dark-mode selected chip fails contrast (1.98 : 1). [U accessibility P1]**
 
 On the easy-scan result sheet in dark mode, the selected grip chip ("Not
@@ -191,6 +208,20 @@ score".
 → Gate them behind `NODE_ENV !== "production"`, or a
 `OPEN_MOUSE_DEMO_ROUTES` flag that e2e sets, and return `notFound()`
 otherwise. Keep them in e2e.
+
+> **Correction, 2026-09-30.** At the audit's own commit (`5ffbdaa`) six of the
+> seven routes above already returned 404 in production:
+> `guardDemoRouteFromProduction()` (`src/app/scan/demo-guard.ts`, commit
+> `3aae1cc`, 2026-09-24) was on `/scan/measured-demo`,
+> `/scan/easy/measured-demo`, `/scan/grip-race-demo`, `/scan/submit-demo`,
+> `/scan/paper-edge-preview` and `/scan/paper-edge-measured-demo`. Only
+> `/results/demo` was public. #82 (merged 2026-09-30) put the same guard on it.
+> `main` at `3a585a3` has the guard on all ten demo pages, including the three
+> added since (`/scan/easy/hand-mismatch-demo`, `/scan/hand-explicit-demo`,
+> `/scan/easy/length-failure-demo`). **Public demo pages in production: none.**
+> This comes from reading the pages on `main` and from the tests that pin it
+> (`tests/unit/demo-guard.test.ts`, `tests/unit/scan-routes-guarded.test.ts`),
+> not from requesting the production site.
 
 ---
 
@@ -390,7 +421,8 @@ check ruler and a card outline"`.
    photos.
 2. Findings 1, 2, 4, 8, 9, 10: one Sonnet builder, one PR ("journey and
    accessibility fixes"). Small, testable, no design decisions left.
-3. Finding 5: gate demo routes (touches e2e config).
+3. Finding 5: gate demo routes (touches e2e config). _Done: see the
+   correction under finding 5._
 4. Findings 6, 7, 12, 13: needs **Kirby**: privacy page wording and the
    auth-off navigation.
 5. Finding 3: decided by the M2 data, which the learning kit (branch
