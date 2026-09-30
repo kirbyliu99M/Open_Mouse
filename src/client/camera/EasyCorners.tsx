@@ -1,11 +1,12 @@
 "use client";
 
+import { useRef } from "react";
 import {
   cornerDrawPoint,
   isCornerReturning,
   type CornerStates,
 } from "./cornerSmoother";
-import { EDGES, edgeTransform } from "./edgeGeometry";
+import { edgeTransform, placeEdges } from "./edgeGeometry";
 import type { Point } from "./quad";
 
 const DOT_SIZE = 26;
@@ -36,17 +37,24 @@ export function EasyCorners({
 }) {
   const points = states.map((state, i) => cornerDrawPoint(state, guide[i]));
   const allFound = states.every((state) => state.found);
+  // Each edge keeps its last angle, so a new one is taken as the equivalent
+  // nearest to it and a rotation never sweeps more than a quarter turn (see
+  // edgeGeometry.ts). Assigning here is safe to repeat: the same points give
+  // the same angles.
+  const edgeAngles = useRef<(number | null)[]>([null, null, null, null]);
+  const { placements, angles } = placeEdges(points, edgeAngles.current);
+  edgeAngles.current = angles;
   return (
     <div
       className={`easyCorners${hidden ? " hidden" : ""}`}
       data-testid="easy-corners"
       aria-hidden="true"
     >
-      {EDGES.map(([from, to]) => (
+      {placements.map((edge, i) => (
         <span
-          key={`edge-${from}-${to}`}
+          key={i}
           className={`easyEdge${allFound ? " on" : ""}`}
-          style={{ transform: edgeTransform(points[from], points[to]) }}
+          style={{ transform: edgeTransform(edge) }}
         />
       ))}
       {states.map((state, i) => (

@@ -1193,3 +1193,35 @@ test.describe("fix round 1: the close button is a circle", () => {
     }
   });
 });
+
+test.describe("fix round 2: the outline is drawn as centred segments", () => {
+  test("four edges, each centred on its own origin, each laid by a transform and never turned a full circle", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await openLive(page);
+    // Wait until the dots are found, so the edges have real corners to lie on.
+    await expect(page.locator(".easyCorner[data-found=true]")).toHaveCount(4, {
+      timeout: 20_000,
+    });
+    const edges = await page.locator(".easyEdge").evaluateAll((els) =>
+      els.map((el) => {
+        const style = getComputedStyle(el);
+        const m = new DOMMatrix(style.transform);
+        return {
+          left: style.left,
+          origin: style.transformOrigin,
+          angle: Math.atan2(m.b, m.a),
+        };
+      }),
+    );
+    expect(edges).toHaveLength(4);
+    for (const edge of edges) {
+      expect(edge.left).toBe("-0.5px");
+      expect(edge.origin).toBe("0.5px 1px");
+      // Unwrapped against nothing yet, so within a half turn either way.
+      expect(Math.abs(edge.angle)).toBeLessThanOrEqual(Math.PI / 2 + 1e-6);
+    }
+    await release(page);
+  });
+});

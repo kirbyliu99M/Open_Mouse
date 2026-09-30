@@ -988,14 +988,16 @@ main.easyScanShell {
   }
 }
 /* The green outline joins the four dots once all are found. */
+/* A 1 px element centred on its own origin: the transform puts its middle on
+   the middle of the edge, so it does not matter which corner is which. */
 .easyEdge {
   position: absolute;
-  left: 0;
+  left: -0.5px;
   top: -1px;
   width: 1px;
   height: 2px;
   background: #2f9e5c;
-  transform-origin: 0 50%;
+  transform-origin: 50% 50%;
   opacity: 0;
   transition:
     transform 140ms linear,
