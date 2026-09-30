@@ -43,9 +43,22 @@ const productGates = z.looseObject({
   hand: gateRecord.nullable(),
   accepted: z.boolean(),
 });
+const check = z.looseObject({ id: z.string(), tone: z.string() });
 const report = z.looseObject({
   file: z.string(),
-  code: z.looseObject({ kind: z.string() }).nullable(),
+  verdict: z.string(),
+  checks: z.array(check),
+  code: z
+    .discriminatedUnion("kind", [
+      z.looseObject({
+        kind: z.literal("gesture"),
+        version: finite,
+        gesture: z.string(),
+        hand: z.enum(["left", "right"]),
+      }),
+      z.looseObject({ kind: z.literal("participant") }),
+    ])
+    .nullable(),
   hand: z.looseObject({ landmarksPx: z.array(point).length(21) }).nullable(),
   markerPlane: plane.nullable(),
   paperPlane: plane.nullable(),

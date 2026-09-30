@@ -291,17 +291,36 @@ npm run m2:evaluate -- \
   --out ../Fixtures/evaluations/baseline.json
 ```
 
-| Option                   | Meaning                                                                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--log <file or folder>` | A run log, or a folder of `*.json` run logs. Repeat freely                                                                                       |
-| `--truth <file or dir>`  | A `truth.json`, or a folder that holds `<participant>/truth.json`                                                                                |
-| `--path`                 | `markers`, `paper-edge` or `both` (default): which calibration plane to judge                                                                    |
-| `--gesture G01[,G02]`    | Poses to judge. Default `G01`, the pose the M2 gate is defined on (grips fold the fingers, so their hand length is not a ruler hand length)      |
-| `--participants P1,P2`   | Only these participants: a cross-validation fold, or the held-out set                                                                            |
-| `--thresholds <file>`    | JSON limits, for example `{"accuracyMm":{"handLengthMm":2}}`. Default: the candidates below                                                      |
-| `--out <file>`           | Write the JSON report here. Never overwritten, never inside the repo or any git worktree (the same rule as `learn:sort`). Summary goes to stdout |
+| Option                   | Meaning                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--log <file or folder>` | A run log, or a folder of `*.json` run logs. Repeat freely                                                                                                    |
+| `--truth <file or dir>`  | A `truth.json`, or a folder that holds `<participant>/truth.json`                                                                                             |
+| `--path`                 | `markers`, `paper-edge` or `both` (default): which calibration plane to judge                                                                                 |
+| `--gesture G01[,G02]`    | Poses to judge. Default `G01`, the pose the M2 gate is defined on (grips fold the fingers, so their hand length is not a ruler hand length)                   |
+| `--participants P1,P2`   | Only these participants: a cross-validation fold, or the held-out set                                                                                         |
+| `--thresholds <file>`    | JSON limits, for example `{"accuracyMm":{"handLengthMm":2}}`. Checked strictly: an unknown key or measurement name is an error. Default: the candidates below |
+| `--out <file>`           | Write the JSON report here. Never overwritten, never inside the repo or any git worktree (the same rule as `learn:sort`). Summary goes to stdout              |
 
 It never runs in CI. The code is `src/lib/m2/` (pure) and `scripts/m2-evaluate.ts`.
+
+**The command line is checked strictly** (`src/lib/m2/cli.ts`). A misspelt or
+unknown flag (`--participant`), a flag with no value, an empty value, a
+single-value flag given twice, and a list with an empty or malformed entry
+(`--participants P001,,P002`, `P01`, `p001`; `--gesture G99`) are errors: the
+message names the flag, the usage follows, the exit code is 1 and nothing is
+evaluated. `--participants` never falls back to "everyone" because it was
+mistyped. Only `--log` and `--truth` may be repeated. If a participant you asked
+for has no measured photo, stderr says so, and the run goes on.
+
+**What is printed.** The Markdown summary goes to stdout. On stderr, a failure is
+its message only, never a stack, with the paths given on the command line shown
+relative to where the command ran and the account name as `~`. That holds for
+file system errors too (an unreadable folder, a report that cannot be written).
+After a report is written stderr says only `JSON report written.`, not the file
+name, which is yours and can say who or when. Exit codes: 0 done; 1 refused,
+bad input or failure; 2 nothing could be evaluated, and the message says why
+(no reports, everything of another pose or participant, or which reasons kept
+the photos from being measured).
 
 ### What it does
 
@@ -315,20 +334,28 @@ It never runs in CI. The code is `src/lib/m2/` (pure) and `scripts/m2-evaluate.t
    the photo, and reports two groups side by side: the photos the product
    accepts, and all measured photos. Every photo the product refuses is listed
    with its reason codes (`paper:PAPER_CORNER_HIDDEN`, `hand:HANDEDNESS_MISMATCH`, ...).
+   A photo the kit's own checker said to **retake** is measured too when its
+   record still has the page's code and the planes: it stays in "all measured
+   photos" (its value is a real measurement of the page's hand), never enters
+   "accepted", and is listed as `KIT_RETAKE:<check id>` for each check that
+   failed. (`learn:sort` does not file it, so the sort has no place for it; the
+   page's code in the record supplies the pose and hand.)
 4. **Compares** each measurement with the ruler value of the **same hand of the
    same participant**. The page's hand decides which one, so a left-hand photo is
    never compared with the right-hand value, even if the hand detector
-   disagreed with the page.
+   disagreed with the page. Such a photo (`hand-mismatch` in the sort) is
+   filed and evaluated like any other.
 5. **Counts** accuracy and repeatability per path.
 
 A photo that cannot be measured or compared is listed under `excluded` with a
 reason and a stage; nothing is ever counted as zero:
 
-| Stage         | Reasons                                                                                                                                                                                                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `measurement` | `NOT_FILED:<status>` (retake, no code, no card before it), `NOT_IN_SORT`, `AMBIGUOUS_FILE_NAME`, `DUPLICATE_DESTINATION` (`learn:sort` never overwrites, so the first copy counts), `NO_HAND`, `NO_PLANE`, `RECOMPUTE_FAILED`, `NO_MEASUREMENT` (a folded grip can fall outside the contract's ranges) |
-| `truth`       | `NO_TRUTH_FILE`, `NO_TRUTH_VALUE:<hand>`. The photo still counts for repeatability, which needs no ruler value                                                                                                                                                                                         |
-| `product`     | The product's gate codes, `NO_PRODUCT_GATES` when the record has none                                                                                                                                                                                                                                  |
+| Stage         | Reasons                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `measurement` | `NOT_FILED:<status>` (no readable code, no card before it, another kit version), `NOT_IN_SORT`, `AMBIGUOUS_FILE_NAME`, `DUPLICATE_DESTINATION` (`learn:sort` never overwrites, so the first copy counts), `NO_HAND`, `NO_PLANE`, `RECOMPUTE_FAILED`, `NO_MEASUREMENT` (a folded grip can fall outside the contract's ranges), `CALIBRATION_INVALID` (a correction returned a missing or non-finite value, or threw) |
+| `kit`         | `KIT_RETAKE:<check id>`: measured, but the kit's checker said to retake it, so it is out of "accepted" and stays in "all"                                                                                                                                                                                                                                                                                           |
+| `truth`       | `NO_TRUTH_FILE`, `NO_TRUTH_VALUE:<hand>`. The photo still counts for repeatability, which needs no ruler value                                                                                                                                                                                                                                                                                                      |
+| `product`     | The product's gate codes, `NO_PRODUCT_GATES` when the record has none                                                                                                                                                                                                                                                                                                                                               |
 
 ### Statistics (candidate definitions, 待 W7 前置協議拍板)
 
@@ -359,6 +386,10 @@ reports **every reading**, so the agreement can pick one without a re-run:
 - repeatability, for the worst group: range within the limit; half-range (range / 2) within the limit, i.e. +/- the limit; deviation from the group mean within the limit.
 
 The three readings can disagree, and the report does not say which one is the verdict.
+In the summary a value is shown with two decimals, except where that would make
+it look equal to its limit while the verdict says otherwise (the verdict uses
+the unrounded value): then it gets as many decimals as it takes to tell them
+apart, for example `2.004 mm against 2.00 mm: OUTSIDE`.
 
 ### The report
 

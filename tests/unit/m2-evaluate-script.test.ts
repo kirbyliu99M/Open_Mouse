@@ -5,11 +5,15 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  rmdirSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -91,7 +95,9 @@ describe("m2-evaluate script", () => {
     expect(
       report.groups.all["paper-edge"].fields.handLengthMm.accuracy.stats.n,
     ).toBe(5);
-    expect(result.stderr).toMatch(/JSON report written to baseline\.json\./);
+    // The confirmation does not repeat the file name the user chose.
+    expect(result.stderr).toMatch(/^JSON report written\.$/m);
+    expect(result.stderr).not.toMatch(/baseline/);
   });
 
   it("puts no path, account name or file name in the summary, the report or the messages", () => {
@@ -151,6 +157,259 @@ describe("m2-evaluate script", () => {
     for (const secret of [scratch, REPO, tmpdir()])
       expect(lower).not.toContain(secret.toLowerCase());
     if (account.length >= 3) expect(lower).not.toContain(account.toLowerCase());
+  });
+
+  // Other ways the file system can say no, at the places the script touches it.
+  describe("other file system failures print the redacted message only", () => {
+    function expectQuiet(stderr: string) {
+      expect(stderr).not.toMatch(/^\s+at /m);
+      expect(stderr).not.toMatch(/[A-Za-z]:[\\/]/);
+      expect(stderr).not.toMatch(
+        /(^|[\s'"(])\/(tmp|home|var|Users|private|mnt)\//,
+      );
+      const lower = stderr.toLowerCase();
+      for (const secret of [scratch, REPO, tmpdir()])
+        expect(lower).not.toContain(secret.toLowerCase());
+      if (account.length >= 3)
+        expect(lower).not.toContain(account.toLowerCase());
+    }
+
+    // A folder that exists and is a folder but cannot be listed. Windows: an
+    // ACL entry that denies listing; elsewhere: mode 000 (which root ignores).
+    function withUnlistable<T>(dir: string, run: () => T): T | "unsupported" {
+      if (process.platform === "win32") {
+        try {
+          execFileSync("icacls", [dir, "/deny", `${account}:(RD)`], {
+            stdio: "ignore",
+          });
+        } catch {
+          return "unsupported";
+        }
+        try {
+          return run();
+        } finally {
+          execFileSync("icacls", [dir, "/remove:d", account], {
+            stdio: "ignore",
+          });
+        }
+      }
+      if (process.getuid?.() === 0) return "unsupported";
+      chmodSync(dir, 0o000);
+      try {
+        return run();
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+    }
+
+    it.each([
+      ["--log", "runs-locked", "logs"],
+      ["--truth", "truth-locked", "truths"],
+    ])("a %s folder that cannot be listed", (flag, name) => {
+      const locked = join(
+        scratch,
+        name,
+        account.length >= 3 ? `${account}-x` : "x",
+      );
+      mkdirSync(locked, { recursive: true });
+      const other = flag === "--log" ? truth : runs;
+      const otherFlag = flag === "--log" ? "--truth" : "--log";
+      const result = withUnlistable(locked, () =>
+        evaluator([flag, locked, otherFlag, other]),
+      );
+      if (result === "unsupported") return;
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/EPERM|EACCES/);
+      expectQuiet(result.stderr);
+      expect(result.stdout).toBe("");
+    });
+
+    // A file already sitting where the report goes, that the up-front check
+    // cannot see: a link to nothing. Writing with "wx" then fails.
+    it("the report path is taken by a link the up-front check cannot see (EEXIST or similar)", () => {
+      const dir = join(scratch, "taken");
+      mkdirSync(dir);
+      const out = join(dir, account.length >= 3 ? `${account}.json` : "r.json");
+      const target = join(dir, "gone");
+      mkdirSync(target);
+      symlinkSync(target, out, "junction");
+      rmdirSync(target);
+      try {
+        expect(existsSync(out)).toBe(false);
+        const result = evaluator([
+          "--log",
+          runs,
+          "--truth",
+          truth,
+          "--out",
+          out,
+        ]);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/EEXIST|EISDIR|EPERM|EACCES|ENOENT/);
+        expectQuiet(result.stderr);
+      } finally {
+        if (process.platform === "win32") rmdirSync(out);
+        else unlinkSync(out);
+      }
+    });
+  });
+
+  describe("the command line is checked", () => {
+    it.each([
+      [
+        "a misspelt flag",
+        ["--participant", "P001"],
+        /Unknown option "--participant"/,
+      ],
+      [
+        "--participants with no value",
+        ["--participants"],
+        /--participants needs a value/,
+      ],
+      [
+        "--participants with an empty value",
+        ["--participants", ""],
+        /--participants needs a non-empty value/,
+      ],
+      [
+        "--participants with a mistyped code",
+        ["--participants", "P01"],
+        /not a participant code/,
+      ],
+      [
+        "a single-value flag given twice",
+        ["--out", "a.json", "--out", "b.json"],
+        /--out was given more than once/,
+      ],
+      ["a value where a flag should be", ["oops"], /Unexpected argument/],
+    ])("%s is an error, and nothing is evaluated", (_label, extra, pattern) => {
+      const result = evaluator(["--log", runs, "--truth", truth, ...extra]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(pattern);
+      expect(result.stderr).toMatch(/Usage: npm run m2:evaluate/);
+      // Not a run over everyone with the flag ignored.
+      expect(result.stdout).toBe("");
+    });
+
+    it("never echoes the path in a misspelt flag", () => {
+      const result = evaluator([
+        "--log",
+        runs,
+        "--truth",
+        truth,
+        `--out=${join(scratch, "x.json")}`,
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Unknown option "--out"/);
+      expect(result.stderr).not.toContain(scratch);
+    });
+  });
+
+  describe("defaults and repeated flags", () => {
+    let mixed: string;
+    let two: { a: string; b: string; truths: string };
+
+    beforeAll(() => {
+      // One log with two poses of the same participant.
+      mixed = join(scratch, "mixed");
+      mkdirSync(mixed);
+      writeFileSync(
+        join(mixed, "log.json"),
+        JSON.stringify(
+          runLogOf([
+            ...[188, 190].map(photo),
+            ...[189, 191].map((mm) => ({ ...photo(mm), gesture: "G02" })),
+          ]),
+        ),
+      );
+      // Two separate logs, two participants, named one by one.
+      two = {
+        a: join(scratch, "a.json"),
+        b: join(scratch, "b.json"),
+        truths: join(scratch, "learning-2"),
+      };
+      writeFileSync(
+        two.a,
+        JSON.stringify(runLogOf([188, 190].map(photo), { gitSha: null })),
+      );
+      writeFileSync(
+        two.b,
+        JSON.stringify(
+          runLogOf(
+            [200, 202].map((mm) => ({
+              participant: "P002",
+              hand: "right" as const,
+              paperMm: mm,
+            })),
+          ),
+        ),
+      );
+      for (const [code, mm] of [
+        ["P001", 190],
+        ["P002", 200],
+      ] as const) {
+        mkdirSync(join(two.truths, code), { recursive: true });
+        writeFileSync(
+          join(two.truths, code, "truth.json"),
+          JSON.stringify(truthOf(code, { handLengthMm: mm, palmWidthMm: 80 })),
+        );
+      }
+    });
+
+    const reportOf = (args: string[]) => {
+      const out = join(
+        scratch,
+        `default-${Math.random().toString(36).slice(2)}.json`,
+      );
+      const result = evaluator([...args, "--out", out]);
+      expect(result.status).toBe(0);
+      return JSON.parse(readFileSync(out, "utf8"));
+    };
+
+    it("--gesture defaults to G01 only: the other poses are counted out of scope", () => {
+      const byDefault = reportOf(["--log", mixed, "--truth", truth]);
+      expect(byDefault.options.gestures).toEqual(["G01"]);
+      expect(byDefault.counts).toMatchObject({ measured: 2, outOfScope: 2 });
+      const both = reportOf([
+        "--log",
+        mixed,
+        "--truth",
+        truth,
+        "--gesture",
+        "G01,G02",
+      ]);
+      expect(both.counts).toMatchObject({ measured: 4, outOfScope: 0 });
+    });
+
+    it("--log can be repeated: every file named is read, and only those", () => {
+      const both = reportOf([
+        "--log",
+        two.a,
+        "--log",
+        two.b,
+        "--truth",
+        two.truths,
+      ]);
+      expect(both.inputs.runLogs).toHaveLength(2);
+      expect(both.inputs.participants).toEqual(["P001", "P002"]);
+      expect(both.counts.measured).toBe(4);
+      const onlyA = reportOf(["--log", two.a, "--truth", two.truths]);
+      expect(onlyA.inputs.runLogs).toHaveLength(1);
+      expect(onlyA.inputs.participants).toEqual(["P001"]);
+    });
+
+    it("a requested participant with nothing evaluated is named on stderr, without stopping the run", () => {
+      const result = evaluator([
+        "--log",
+        two.a,
+        "--truth",
+        two.truths,
+        "--participants",
+        "P001,P002",
+      ]);
+      expect(result.status).toBe(0);
+      expect(result.stderr).toMatch(/Nothing was evaluated for P002/);
+    });
   });
 
   it("takes a single run log file and a single truth file, and the options", () => {

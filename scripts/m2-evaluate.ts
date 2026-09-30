@@ -17,9 +17,17 @@
  * --out <file>            write the JSON report here (never overwritten; never inside the repo
  *                         or any worktree). The Markdown summary always goes to stdout.
  *
+ * The command line is checked strictly (src/lib/m2/cli.ts): an unknown or
+ * misspelt flag, a flag without a value, a single-value flag given twice or a
+ * malformed list is an error and exits 1. Nothing falls back to a default.
+ *
  * NEVER runs in CI: run logs hold hand landmarks of real people. The report
  * holds totals, anonymous participant codes and photo ids like "P007/G01R/3",
- * and no path, account name, EXIF or landmark.
+ * and no path, account name, EXIF or landmark. Neither does anything printed:
+ * every failure, including a file system error, goes through the same
+ * redaction as `learn:sort` (message only, never a stack; the paths given on
+ * the command line shown relative; the account name as "~"), and the file name
+ * given to --out is not repeated.
  *
  * The held-out participants are evaluated ONCE, by Claude, on the frozen
  * model: not from a workflow, and not again after looking at the result
@@ -34,11 +42,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { userInfo } from "node:os";
-import { outputInsideRepo, terminalRedaction } from "../src/lib/learning/paths";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  outputInsideRepo,
+  relativeInputPath,
+  terminalRedaction,
+} from "../src/lib/learning/paths";
 import { makeTerminal } from "../src/lib/learning/terminal";
+import { parseM2Args } from "../src/lib/m2/cli";
 import {
   ALL_PATHS,
   evaluateJson,
@@ -46,7 +59,7 @@ import {
   type EvaluateOptions,
 } from "../src/lib/m2/evaluate";
 import { EvaluationInputError } from "../src/lib/m2/inputs";
-import { renderMarkdown } from "../src/lib/m2/markdown";
+import { nothingEvaluatedReason, renderMarkdown } from "../src/lib/m2/markdown";
 import { parseThresholds } from "../src/lib/m2/thresholds";
 
 if (process.env.CI) {
@@ -70,25 +83,28 @@ function git(args: readonly string[]): string | null {
   }
 }
 
-function fail(message: string): never {
-  console.error(message);
-  process.exit(1);
-}
-
-/** Every value of a repeatable flag: `--log a --log b`. */
-function all(flag: string): string[] {
-  const out: string[] = [];
-  process.argv.forEach((a, i) => {
-    if (a === flag && process.argv[i + 1] !== undefined) {
-      out.push(process.argv[i + 1]!);
-    }
-  });
-  return out;
-}
-const one = (flag: string) => all(flag).at(-1);
-
 const USAGE =
   "Usage: npm run m2:evaluate -- --log <run log or folder> --truth <truth.json or folder> [--path markers|paper-edge|both] [--gesture G01] [--participants P001,P002] [--thresholds <file>] [--out <report.json>]";
+
+let username: string | null = null;
+try {
+  username = userInfo().username;
+} catch {
+  // no account name to hide
+}
+const cwd = process.cwd();
+
+/**
+ * What a terminal may show: the paths given on the command line as the
+ * relative paths the run log uses, this checkout and the working folder as
+ * ".", the account name as "~". Widened once the arguments are known.
+ */
+let terminal = makeTerminal(terminalRedaction({ cwd, scriptRoot, username }));
+
+function fail(message: string): never {
+  terminal.warn(message);
+  process.exit(1);
+}
 
 function readJson(file: string, label: string): unknown {
   try {
@@ -119,51 +135,60 @@ function truthFiles(target: string): string[] {
     .filter((f) => existsSync(f));
 }
 
-const logs = all("--log").flatMap((t) => logFiles(resolve(t)));
-const truths = all("--truth").flatMap((t) => truthFiles(resolve(t)));
-if (logs.length === 0 || all("--truth").length === 0) fail(USAGE);
-if (truths.length === 0) fail("No truth.json was found under --truth.");
-
-const pathArg = one("--path") ?? "both";
-if (!["markers", "paper-edge", "both"].includes(pathArg)) {
-  fail(`--path must be markers, paper-edge or both, not "${pathArg}".`);
-}
-const paths: EvalPath[] =
-  pathArg === "both" ? [...ALL_PATHS] : [pathArg as EvalPath];
-const gestures = (one("--gesture") ?? "G01")
-  .split(",")
-  .map((g) => g.trim())
-  .filter(Boolean);
-const participantsArg = one("--participants");
-const participants = participantsArg
-  ? participantsArg
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean)
-  : null;
-
-const outArg = one("--out");
-const out = outArg ? resolve(outArg) : null;
-if (out) {
-  if (outputInsideRepo(out, scriptRoot, git)) {
-    fail(
-      "--out must be outside the repo and every git worktree: an evaluation report is derived from real people's photos.",
-    );
-  }
-  if (existsSync(out)) {
-    fail("--out already exists and is never overwritten. Choose a new file.");
-  }
-}
-
-const thresholdsArg = one("--thresholds");
-
+// Everything below, file system calls included, runs inside one try, so that
+// no error can reach the terminal as a raw stack.
 try {
+  const parsed = parseM2Args(process.argv.slice(2));
+  if (!parsed.ok) fail(`${parsed.message}\n${USAGE}`);
+  const args = parsed.args;
+
+  const out = args.out ? resolve(args.out) : null;
+  const named = [
+    ...args.logs,
+    ...args.truths,
+    ...(args.thresholds ? [args.thresholds] : []),
+  ].map((p) => resolve(p));
+  // A file the sorter wrote sits below its folder; the folder is enough to
+  // show any path inside it relative.
+  const shownPaths = [...named, ...(out ? [out, dirname(out)] : [])];
+  const base = terminalRedaction({ cwd, scriptRoot, username });
+  terminal = makeTerminal({
+    username,
+    paths: [
+      ...base.paths,
+      ...shownPaths.map((from) => ({
+        from,
+        to: relativeInputPath(from, cwd, { username }),
+      })),
+    ],
+  });
+
+  const logs = args.logs.flatMap((t) => logFiles(resolve(t)));
+  const truths = args.truths.flatMap((t) => truthFiles(resolve(t)));
+  if (logs.length === 0) fail("No run log (*.json) was found under --log.");
+  if (truths.length === 0) fail("No truth.json was found under --truth.");
+
+  const paths: EvalPath[] = args.path === "both" ? [...ALL_PATHS] : [args.path];
+
+  if (out) {
+    if (outputInsideRepo(out, scriptRoot, git)) {
+      fail(
+        "--out must be outside the repo and every git worktree: an evaluation report is derived from real people's photos.",
+      );
+    }
+    if (existsSync(out)) {
+      fail("--out already exists and is never overwritten. Choose a new file.");
+    }
+  }
+
   const options: EvaluateOptions = {
     paths,
-    gestures,
-    participants,
-    thresholds: thresholdsArg
-      ? parseThresholds(readJson(resolve(thresholdsArg), "The thresholds file"))
+    gestures: args.gestures,
+    participants: args.participants,
+    thresholds: args.thresholds
+      ? parseThresholds(
+          readJson(resolve(args.thresholds), "The thresholds file"),
+        )
       : undefined,
   };
   const report = evaluateJson(
@@ -177,33 +202,27 @@ try {
     writeFileSync(out, JSON.stringify(report, null, 2) + "\n", {
       flag: "wx",
     });
-    console.error(`JSON report written to ${basename(out)}.`);
+    // Not the file name: it is the user's own and can say who or when.
+    terminal.warn("JSON report written.");
+  }
+  if (args.participants) {
+    const unseen = args.participants.filter(
+      (p) => !report.inputs.participants.includes(p),
+    );
+    if (unseen.length > 0) {
+      terminal.warn(
+        `Nothing was evaluated for ${unseen.join(", ")}: no measured photo in the logs.`,
+      );
+    }
   }
   if (report.counts.measured === 0) {
-    console.error(
-      "No photo could be evaluated. The excluded list above says why.",
-    );
+    terminal.warn(nothingEvaluatedReason(report));
     process.exit(2);
   }
 } catch (err) {
   if (err instanceof EvaluationInputError) fail(err.message);
   // Anything else (a file system error, say): the message only, never the
-  // stack, which is a list of absolute paths. The report's folder (which
-  // any path of the report file starts with) is shown relative to where the
-  // command ran, the account name as "~".
-  let username: string | null = null;
-  try {
-    username = userInfo().username;
-  } catch {
-    // no account name to hide
-  }
-  makeTerminal(
-    terminalRedaction({
-      cwd: process.cwd(),
-      scriptRoot,
-      outDir: out ? dirname(out) : undefined,
-      username,
-    }),
-  ).failure(err);
+  // stack, which is a list of absolute paths.
+  terminal.failure(err);
   process.exit(1);
 }

@@ -13,6 +13,7 @@ import {
   parseThresholds,
   repeatabilityReadings,
 } from "../../src/lib/m2/thresholds";
+import { EvaluationInputError } from "../../src/lib/m2/inputs";
 
 // Everything below is worked out by hand in the comments.
 
@@ -202,12 +203,48 @@ describe("candidate limits and readings", () => {
     });
     expect(parseThresholds({}).status).toMatch(/candidate/);
     expect(() => parseThresholds([])).toThrow(/object/);
-    expect(() => parseThresholds({ extra: 1 })).toThrow(/Unknown key/);
+    expect(() => parseThresholds({ extra: 1 })).toThrow(/unknown key "extra"/);
     expect(() => parseThresholds({ accuracyMm: { handLengthMm: 0 } })).toThrow(
       /positive/,
     );
     expect(() =>
       parseThresholds({ repeatabilityMm: { handLengthMm: "1.5" } }),
     ).toThrow(/positive/);
+  });
+
+  it("is strict: a misspelt measurement or section name is an error, not a limit that applies to nothing", () => {
+    // The typo would otherwise leave hand length unlimited without a word.
+    expect(() => parseThresholds({ accuracyMm: { handLenghtMm: 2 } })).toThrow(
+      /accuracyMm: unknown key "handLenghtMm" \(known: handLengthMm, palmWidthMm\)/,
+    );
+    expect(() =>
+      parseThresholds({ repeatabilityMm: { palmWidth: 1 } }),
+    ).toThrow(/repeatabilityMm: unknown key "palmWidth"/);
+    expect(() => parseThresholds({ accuracyMM: { handLengthMm: 2 } })).toThrow(
+      /\(top level\): unknown key "accuracyMM" \(known: status, accuracyMm, repeatabilityMm\)/,
+    );
+    expect(() => parseThresholds({ status: 3 })).toThrow(/status must be text/);
+    expect(() => parseThresholds({ accuracyMm: [] })).toThrow(
+      EvaluationInputError,
+    );
+    expect(() => parseThresholds({ accuracyMm: null })).toThrow(
+      EvaluationInputError,
+    );
+    expect(() =>
+      parseThresholds({ accuracyMm: { handLengthMm: Infinity } }),
+    ).toThrow(/handLengthMm/);
+    expect(() => parseThresholds({ accuracyMm: { handLengthMm: -1 } })).toThrow(
+      /accuracyMm.handLengthMm must be a positive number of mm/,
+    );
+    // Every measurement a truth file holds can be limited.
+    expect(
+      parseThresholds({
+        accuracyMm: { handLengthMm: 2, palmWidthMm: 3 },
+        repeatabilityMm: { palmWidthMm: 1 },
+      }),
+    ).toMatchObject({
+      accuracyMm: { handLengthMm: 2, palmWidthMm: 3 },
+      repeatabilityMm: { palmWidthMm: 1 },
+    });
   });
 });

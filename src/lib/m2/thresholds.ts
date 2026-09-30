@@ -6,6 +6,8 @@
  * agreement? range or half-range?). That waits for the W7 pre-agreement, so
  * the evaluator reports every reading and chooses none.
  */
+import { z } from "zod";
+import { emptyTruth } from "../learning/truth";
 import { EvaluationInputError } from "./inputs";
 import type { AccuracyStats, RepeatabilitySummary } from "./stats";
 
@@ -27,24 +29,23 @@ export const CANDIDATE_THRESHOLDS: Thresholds = {
   repeatabilityMm: { handLengthMm: 1.5 },
 };
 
-function limits(value: unknown, what: string): Record<string, number> {
-  if (value === undefined) return {};
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new EvaluationInputError(
-      `${what} must be an object of millimetre limits.`,
-    );
-  }
-  const out: Record<string, number> = {};
-  for (const [field, limit] of Object.entries(value)) {
-    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
-      throw new EvaluationInputError(
-        `${what}.${field} must be a positive number of mm.`,
-      );
-    }
-    out[field] = limit;
-  }
-  return out;
-}
+/** The measurements a limit can be set for: exactly those a truth file holds. */
+const LIMIT_FIELDS = Object.keys(emptyTruth("P000").right);
+
+const positiveMm = z
+  .number({ error: "must be a positive number of mm" })
+  .finite({ error: "must be a positive number of mm" })
+  .positive({ error: "must be a positive number of mm" });
+// Strict: a field name with a typo ("handLenghtMm") is an error, not a limit
+// that silently applies to nothing.
+const fieldLimits = z.strictObject(
+  Object.fromEntries(LIMIT_FIELDS.map((f) => [f, positiveMm.optional()])),
+);
+const thresholdsFile = z.strictObject({
+  status: z.string({ error: "must be text" }).optional(),
+  accuracyMm: fieldLimits.optional(),
+  repeatabilityMm: fieldLimits.optional(),
+});
 
 /** Thresholds from a JSON config file; anything the file leaves out is not limited. */
 export function parseThresholds(json: unknown): Thresholds {
@@ -53,19 +54,33 @@ export function parseThresholds(json: unknown): Thresholds {
       "The thresholds file must hold a JSON object.",
     );
   }
-  const o = json as Record<string, unknown>;
-  const known = new Set(["status", "accuracyMm", "repeatabilityMm"]);
-  for (const key of Object.keys(o)) {
-    if (!known.has(key))
-      throw new EvaluationInputError(`Unknown key "${key}" in thresholds.`);
+  const parsed = thresholdsFile.safeParse(json);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 3).map((i) => {
+      const where = i.path.length > 0 ? i.path.join(".") : "(top level)";
+      if (i.code === "unrecognized_keys") {
+        return `${where}: unknown key ${i.keys.map((k) => JSON.stringify(k)).join(", ")} (known: ${
+          i.path.length === 0
+            ? "status, accuracyMm, repeatabilityMm"
+            : LIMIT_FIELDS.join(", ")
+        })`;
+      }
+      return `${where} ${i.message}`;
+    });
+    throw new EvaluationInputError(
+      `The thresholds file does not fit: ${issues.join("; ")}.`,
+    );
   }
-  if (o.status !== undefined && typeof o.status !== "string") {
-    throw new EvaluationInputError("thresholds.status must be text.");
-  }
+  const clean = (limits: Record<string, number | undefined> | undefined) =>
+    Object.fromEntries(
+      Object.entries(limits ?? {}).filter(
+        (e): e is [string, number] => e[1] !== undefined,
+      ),
+    );
   return {
-    status: typeof o.status === "string" ? o.status : THRESHOLD_STATUS,
-    accuracyMm: limits(o.accuracyMm, "accuracyMm"),
-    repeatabilityMm: limits(o.repeatabilityMm, "repeatabilityMm"),
+    status: parsed.data.status ?? THRESHOLD_STATUS,
+    accuracyMm: clean(parsed.data.accuracyMm),
+    repeatabilityMm: clean(parsed.data.repeatabilityMm),
   };
 }
 

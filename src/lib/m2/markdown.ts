@@ -13,10 +13,29 @@ import type { Reading } from "./thresholds";
 
 const mm = (v: number | null): string => (v === null ? "n/a" : v.toFixed(2));
 
+/**
+ * A reading's value, shown with two decimals unless that would make it look
+ * equal to its limit when it is not (the verdict is decided on the unrounded
+ * value: "2.00 mm against 2.00 mm: OUTSIDE" is unreadable). Then it gets as
+ * many decimals as it takes to tell the two apart, up to eight.
+ */
+export function readingValue(valueMm: number | null, limitMm: number): string {
+  if (valueMm === null) return "n/a";
+  let digits = 2;
+  while (
+    digits < 8 &&
+    valueMm !== limitMm &&
+    valueMm.toFixed(digits) === limitMm.toFixed(digits)
+  ) {
+    digits++;
+  }
+  return valueMm.toFixed(digits);
+}
+
 function readingLine(r: Reading): string {
   const verdict =
     r.withinLimit === null ? "n/a" : r.withinLimit ? "within" : "OUTSIDE";
-  return `- ${r.name}: ${mm(r.valueMm)} mm against ${mm(r.limitMm)} mm: **${verdict}**`;
+  return `- ${r.name}: ${readingValue(r.valueMm, r.limitMm)} mm against ${mm(r.limitMm)} mm: **${verdict}**`;
 }
 
 function fieldSection(field: string, result: FieldResult): string[] {
@@ -122,4 +141,38 @@ export function renderMarkdown(report: EvaluationReport): string {
     "",
   );
   return lines.join("\n");
+}
+
+/**
+ * Why nothing could be evaluated, from the report's own counts and the
+ * exclusion reasons: the explanation that goes with a non-zero exit. It never
+ * points at an "excluded list" that has nothing in it.
+ */
+export function nothingEvaluatedReason(report: EvaluationReport): string {
+  const c = report.counts;
+  if (c.reports === 0) return "The run logs hold no photo reports at all.";
+  const parts: string[] = [];
+  if (c.cards > 0) parts.push(`${c.cards} are participant cards`);
+  if (c.outOfScope > 0) {
+    parts.push(
+      `${c.outOfScope} are of other poses or participants than selected (poses ${report.options.gestures.join(", ")}; participants ${report.options.participants ? report.options.participants.join(", ") : "all"})`,
+    );
+  }
+  if (c.notMeasured > 0) {
+    const counts = new Map<string, number>();
+    for (const row of report.excluded) {
+      if (row.stage !== "measurement") continue;
+      for (const reason of row.reasons)
+        counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    }
+    const top = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 5)
+      .map(([reason, n]) => `${reason} x${n}`)
+      .join(", ");
+    parts.push(
+      `${c.notMeasured} were in scope but could not be measured${top ? ` (${top})` : ""}`,
+    );
+  }
+  return `No photo could be evaluated: of ${c.reports} reports, ${parts.length > 0 ? parts.join("; ") : "none matched"}.`;
 }

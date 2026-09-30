@@ -100,8 +100,10 @@ export interface ExclusionRow {
    *  - truth: it was measured but has no ruler value to be compared with.
    *  - product: it was measured, and the product's gates would refuse it, so
    *    it is out of the "accepted" group but stays in "all".
+   *  - kit: it was measured, and the kit's own checker said to retake it
+   *    (`KIT_RETAKE:<check id>`), so it is out of "accepted" and stays in "all".
    */
-  readonly stage: "measurement" | "truth" | "product";
+  readonly stage: "measurement" | "truth" | "product" | "kit";
   readonly path: EvalPath | null;
   readonly field: string | null;
   readonly reasons: readonly string[];
@@ -203,6 +205,36 @@ function gateReasons(report: LearningPhotoReport): string[] {
   return reasons.length > 0 ? reasons : ["NOT_ACCEPTED"];
 }
 
+/**
+ * A photo the checker said to retake, when its record still says which page it
+ * was and who it belongs to: the sort files nothing for it (its QR code is
+ * dropped), so the page's code comes from the report. `null` when it cannot be
+ * placed (no readable code, a code of another kit version, no participant card
+ * before it), which leaves it `NOT_FILED`.
+ */
+function retakeOf(
+  report: LearningPhotoReport,
+  sorted: { readonly status: string; readonly participant: string | null },
+  kitVersion: number,
+): { gesture: string; hand: Hand; reasons: string[] } | null {
+  if (report.verdict !== "retake" || sorted.status !== "no-code") return null;
+  if (sorted.participant === null) return null;
+  const code = report.code;
+  if (!code || code.kind !== "gesture" || code.version !== kitVersion) {
+    return null;
+  }
+  const bad = [
+    ...new Set(report.checks.filter((c) => c.tone === "bad").map((c) => c.id)),
+  ];
+  return {
+    gesture: code.gesture,
+    hand: code.hand,
+    reasons: (bad.length > 0 ? bad : ["unspecified"]).map(
+      (id) => `KIT_RETAKE:${id}`,
+    ),
+  };
+}
+
 /** Recompute one path's measurements from the record alone. */
 function measure(
   report: LearningPhotoReport,
@@ -220,13 +252,31 @@ function measure(
     return { reason: "RECOMPUTE_FAILED" };
   }
   if (!recomputed.measurements) return { reason: "NO_MEASUREMENT" };
-  const calibrated = calibration.apply(recomputed.measurements, { path, hand });
-  const values: Record<string, number> = {};
-  for (const field of FIELDS) {
-    const v = (calibrated as Record<string, number | undefined>)[field];
-    if (typeof v === "number" && Number.isFinite(v)) values[field] = v;
+  const finiteFields = (m: unknown): Record<string, number> | null => {
+    if (m === null || typeof m !== "object") return null;
+    const values: Record<string, number> = {};
+    for (const field of FIELDS) {
+      const v = (m as Record<string, unknown>)[field];
+      if (typeof v !== "number" || !Number.isFinite(v)) return null;
+      values[field] = v;
+    }
+    return values;
+  };
+  // The recomputed values themselves must be usable before a correction is
+  // applied to them; a photo is never measured "partly".
+  if (finiteFields(recomputed.measurements) === null) {
+    return { reason: "NO_MEASUREMENT" };
   }
-  return { values };
+  let calibrated: unknown;
+  try {
+    calibrated = calibration.apply(recomputed.measurements, { path, hand });
+  } catch {
+    return { reason: "CALIBRATION_INVALID" };
+  }
+  // A correction that returns a missing or non-finite value for any
+  // measurement invalidates the photo; it is not quietly left out of a field.
+  const values = finiteFields(calibrated);
+  return values === null ? { reason: "CALIBRATION_INVALID" } : { values };
 }
 
 export function evaluate(
@@ -293,10 +343,17 @@ export function evaluate(
         cards++;
         return;
       }
+      // `hand-mismatch` is a filed photo: the sheet is the ground truth of
+      // what was asked, so the page's hand (`sorted.hand`) is used, never the
+      // detector's.
       const filed = sorted.status === "ok" || sorted.status === "hand-mismatch";
-      const gesture = sorted.gesture;
+      // A photo the kit's checker said to retake is not filed by `learn:sort`
+      // (the sort sees no code), but its record still holds the page's code and
+      // the planes. It is measured and kept in "all", never in "accepted".
+      const retake = filed ? null : retakeOf(report, sorted, log.kitVersion);
+      const gesture = retake ? retake.gesture : sorted.gesture;
       const participant = sorted.participant;
-      const hand = sorted.hand;
+      const hand = retake ? retake.hand : sorted.hand;
 
       // Scope: poses and participants that were asked for.
       if (gesture !== null && !gestures.includes(gesture)) {
@@ -307,7 +364,12 @@ export function evaluate(
         outOfScope++;
         return;
       }
-      if (!filed || participant === null || gesture === null || hand === null) {
+      if (
+        (!filed && !retake) ||
+        participant === null ||
+        gesture === null ||
+        hand === null
+      ) {
         notMeasured++;
         excluded.push({
           id: anonymous,
@@ -319,9 +381,12 @@ export function evaluate(
         return;
       }
 
-      const id = `${participant}/${gesture}${handLetter(hand)}/${sorted.shot}`;
-      const destination = `${participant}/${gesture}${handLetter(hand)}/${sorted.shot}`;
-      if (filedTo.has(destination)) {
+      const place = `${participant}/${gesture}${handLetter(hand)}`;
+      const id = retake
+        ? `${place}/retake@${anonymous}`
+        : `${place}/${sorted.shot}`;
+      const destination = `${place}/${sorted.shot}`;
+      if (!retake && filedTo.has(destination)) {
         // `learn:sort` never overwrites a filed copy, so the first one is the one on disk.
         notMeasured++;
         excluded.push({
@@ -333,7 +398,7 @@ export function evaluate(
         });
         return;
       }
-      filedTo.add(destination);
+      if (!retake) filedTo.add(destination);
 
       const measured: Partial<
         Record<EvalPath, Readonly<Record<string, number>>>
@@ -356,6 +421,15 @@ export function evaluate(
         return;
       }
 
+      if (retake) {
+        excluded.push({
+          id,
+          stage: "kit",
+          path: null,
+          field: null,
+          reasons: retake.reasons,
+        });
+      }
       const reasons = gateReasons(report);
       if (reasons.length > 0) {
         excluded.push({
@@ -371,7 +445,9 @@ export function evaluate(
         participant,
         gesture,
         hand,
-        accepted: reasons.length === 0,
+        // A retake photo is never in the accepted group, whatever the
+        // product's gates say: the kit's own checker refused it.
+        accepted: reasons.length === 0 && !retake,
         measured,
       });
     });

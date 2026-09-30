@@ -7,7 +7,11 @@ import {
   type EvaluationReport,
 } from "../../src/lib/m2/evaluate";
 import { EvaluationInputError } from "../../src/lib/m2/inputs";
-import { renderMarkdown } from "../../src/lib/m2/markdown";
+import {
+  nothingEvaluatedReason,
+  readingValue,
+  renderMarkdown,
+} from "../../src/lib/m2/markdown";
 import {
   PALM_RATIO,
   runLogOf,
@@ -209,13 +213,60 @@ describe("left and right hands are paired with their own ruler values", () => {
     ]);
   });
 
-  it("uses the page's hand, so a left-hand photo is not compared with the right-hand truth even when the detector disagreed", () => {
+  // The detector says RIGHT on a page printed for the LEFT hand. The sorter
+  // still files it (the page is the ground truth of what was asked) but flags
+  // it `hand-mismatch`, and the evaluator must pair it with the page's hand.
+  describe("a photo whose detected hand contradicts its page (hand-mismatch)", () => {
+    const photos = [
+      left(170, { detectedHand: "right" }),
+      left(172),
+      right(190),
+    ];
+    const log = runLogOf(photos);
+    const r = evaluate({ logs: [log], truths: [TRUTH_P001] });
+
+    it("is a real hand-mismatch in the sort (the scenario is not a no-op)", () => {
+      const mismatched = log.sort.photos.filter(
+        (p) => p.status === "hand-mismatch",
+      );
+      expect(mismatched).toHaveLength(1);
+      expect(mismatched[0]).toMatchObject({ hand: "left", shot: 1 });
+      // ...and the report of that photo says the detector saw the other hand.
+      const report = log.reports.find((x) => x.file === mismatched[0]!.file)!;
+      expect(report.hand!.handedness).toBe("right");
+      expect(report.code).toMatchObject({ kind: "gesture", hand: "left" });
+    });
+
+    it("is still evaluated, in the group of the page's hand", () => {
+      expect(r.counts.measured).toBe(3);
+      const rows = field(r, "all", "paper-edge").repeatability.rows;
+      // Both left-page photos form one repeat group; the lone right photo has no row.
+      expect(rows.map((row) => [row.hand, row.n])).toEqual([["left", 2]]);
+      expect(r.excluded.filter((e) => e.stage === "measurement")).toEqual([]);
+    });
+
+    it("is compared with the truth of the PAGE's hand (left 170), not the detected hand's (right 190)", () => {
+      const s = field(r, "all", "paper-edge").accuracy.stats!;
+      // Errors: 170-170 = 0, 172-170 = +2 (both left), 190-190 = 0 (right).
+      // Against the detected hand's truth the first would be 170-190 = -20.
+      expect(s.n).toBe(3);
+      expect(s.maxAbsError).toBeCloseTo(2, 8);
+      expect(s.bias).toBeCloseTo(2 / 3, 8);
+    });
+
+    it("the product's gates decide 'accepted' on their own record, not the sorter's flag", () => {
+      // The synthetic gates accept all three; a hand-mismatch is not a gate.
+      expect(r.groups.accepted["paper-edge"]!.photos).toBe(3);
+    });
+  });
+
+  it("a page hand and a product refusal are independent: a refused left photo still uses the left truth", () => {
     const r = run([
       left(170, { refusedBy: { hand: ["HANDEDNESS_MISMATCH"] } }),
     ]);
     const s = field(r, "all", "paper-edge").accuracy.stats!;
-    // 170 against the LEFT ruler value 170 -> error 0 (against 190 it would be -20).
     expect(s.bias).toBeCloseTo(0, 8);
+    expect(r.groups.accepted["paper-edge"]!.photos).toBe(0);
   });
 });
 
@@ -347,12 +398,133 @@ describe("missing things are reasons, never zeros", () => {
     ]);
   });
 
-  it("a photo that was never filed (retake) is listed as such", () => {
-    const r = run([right(190), right(190, { retake: true })]);
+  it("a photo whose QR code was not read is listed as not filed (NOT_FILED:no-code)", () => {
+    const log = runLogOf([right(190), right(190)]);
+    const lost = log.reports[2]!.file;
+    const unread = {
+      ...log,
+      reports: log.reports.map((r) =>
+        r.file === lost ? { ...r, code: null } : r,
+      ),
+      // What the sort makes of a photo without a readable code.
+      sort: {
+        ...log.sort,
+        photos: log.sort.photos.map((p) =>
+          p.file === lost
+            ? {
+                ...p,
+                status: "no-code" as const,
+                gesture: null,
+                hand: null,
+                shot: null,
+                destination: null,
+              }
+            : p,
+        ),
+      },
+    };
+    const r = evaluate({ logs: [unread], truths: [TRUTH_P001] });
     expect(r.counts.measured).toBe(1);
     const row = r.excluded.find((e) => e.reasons[0]!.startsWith("NOT_FILED"))!;
     expect(row.reasons).toEqual(["NOT_FILED:no-code"]);
     expect(row.id).toMatch(/^run1#\d+$/);
+  });
+
+  describe("a photo the kit's checker said to retake", () => {
+    // Not filed by learn:sort (its QR code is dropped), but its record has the
+    // page's code and the planes, so it can be measured: it stays in "all" and
+    // never enters "accepted", and it says why.
+    const r = run([
+      right(190),
+      right(188, { retake: true, retakeBecause: ["markers", "sharp"] }),
+      right(192, { retake: true, retakeBecause: [] }),
+    ]);
+
+    it("stays in the 'all' group, measured on its recorded planes", () => {
+      expect(r.counts.measured).toBe(3);
+      expect(r.counts.notMeasured).toBe(0);
+      expect(r.groups.all["paper-edge"]!.photos).toBe(3);
+      const s = field(r, "all", "paper-edge").accuracy.stats!;
+      expect(s.n).toBe(3);
+      // 190, 188, 192 against the ruler 190: errors 0, -2, +2.
+      expect(s.maxAbsError).toBeCloseTo(2, 8);
+      expect(field(r, "all", "paper-edge").repeatability.rows[0]).toMatchObject(
+        { n: 3, min: 188, max: 192 },
+      );
+    });
+
+    it("is not in the 'accepted' group, even if the product's gates would take it", () => {
+      expect(r.groups.accepted["paper-edge"]!.photos).toBe(1);
+      expect(field(r, "accepted", "paper-edge").accuracy.stats!.n).toBe(1);
+    });
+
+    it("is listed as KIT_RETAKE with the failed checks, not as NOT_FILED", () => {
+      const kit = r.excluded.filter((e) => e.stage === "kit");
+      expect(kit.map((e) => e.reasons)).toEqual([
+        ["KIT_RETAKE:markers", "KIT_RETAKE:sharp"],
+        ["KIT_RETAKE:unspecified"],
+      ]);
+      expect(kit[0]!.id).toMatch(/^P001\/G01R\/retake@run1#\d+$/);
+      expect(
+        r.excluded.some((e) =>
+          e.reasons.some((x) => x.startsWith("NOT_FILED")),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps the page's hand for the truth (a left-hand retake uses the left ruler value)", () => {
+      const l = run([left(170, { retake: true })]);
+      const s = field(l, "all", "paper-edge").accuracy.stats!;
+      expect(s.bias).toBeCloseTo(0, 8);
+    });
+
+    it("respects the scope: another pose or another participant is out of scope, not measured", () => {
+      const o = run(
+        [
+          right(190),
+          right(190, { retake: true, gesture: "G02" }),
+          { participant: "P002", hand: "right", paperMm: 190, retake: true },
+        ],
+        { participants: ["P001"] },
+        [TRUTH_P001],
+      );
+      expect(o.counts.measured).toBe(1);
+      expect(o.counts.outOfScope).toBe(2);
+    });
+
+    it("cannot be placed without a readable code of this kit version: that stays NOT_FILED", () => {
+      const log = runLogOf([right(190), right(190, { retake: true })]);
+      const noCode = {
+        ...log,
+        reports: log.reports.map((x) =>
+          x.verdict === "retake" ? { ...x, code: null } : x,
+        ),
+      };
+      const n = evaluate({ logs: [noCode], truths: [TRUTH_P001] });
+      expect(n.counts.measured).toBe(1);
+      expect(
+        n.excluded.find((e) => e.reasons[0]!.startsWith("NOT_FILED"))!.reasons,
+      ).toEqual(["NOT_FILED:no-code"]);
+      const otherVersion = {
+        ...log,
+        reports: log.reports.map((x) =>
+          x.verdict === "retake" && x.code?.kind === "gesture"
+            ? { ...x, code: { ...x.code, version: 2 } }
+            : x,
+        ),
+      };
+      const v = evaluate({ logs: [otherVersion], truths: [TRUTH_P001] });
+      expect(v.counts.measured).toBe(1);
+    });
+
+    it("a retake photo without a plane says NO_PLANE like any other", () => {
+      const p = run([
+        right(190),
+        right(190, { retake: true, markersMm: null }),
+      ]);
+      expect(p.groups.all.markers!.photos).toBe(1);
+      expect(p.groups.all["paper-edge"]!.photos).toBe(2);
+    });
   });
 
   it("nothing at all to measure gives an empty report, not a crash", () => {
@@ -536,6 +708,62 @@ describe("what the report holds", () => {
     }
   });
 
+  it("every kind of exclusion row is named without a file name too (duplicate destination, retake, not in sort, ambiguous name, invalid correction)", () => {
+    const one = runLogOf([
+      right(188),
+      right(190),
+      right(189, { retake: true }),
+    ]);
+    const two = runLogOf([right(191), right(187)]); // same destinations as `one`
+    const lost = one.reports[1]!.file;
+    const gapped = {
+      ...one,
+      sort: {
+        ...one.sort,
+        photos: one.sort.photos.filter((p) => p.file !== lost),
+      },
+    };
+    const twin = {
+      ...two,
+      reports: two.reports.map((x, i) =>
+        i === 2 ? { ...x, file: two.reports[1]!.file } : x,
+      ),
+    };
+    const r = evaluate(
+      { logs: [gapped, two, twin], truths: [TRUTH_P001] },
+      {
+        calibration: {
+          name: "odd",
+          apply: (m) =>
+            m.handLengthMm > 189.5 ? ({ handLengthMm: 1 } as never) : m,
+        },
+      },
+    );
+    const reasons = new Set(r.excluded.flatMap((e) => e.reasons));
+    for (const wanted of [
+      "DUPLICATE_DESTINATION",
+      "NOT_IN_SORT",
+      "AMBIGUOUS_FILE_NAME",
+      "CALIBRATION_INVALID",
+      "KIT_RETAKE:markers",
+    ]) {
+      expect(reasons).toContain(wanted);
+    }
+    const everything = [JSON.stringify(r), renderMarkdown(r)];
+    const names = [...one.reports, ...two.reports].map((x) => x.file);
+    for (const text of everything) {
+      expect(text).not.toMatch(/IMG_|[.]jpg/i);
+      for (const name of names) expect(text).not.toContain(name);
+      expect(text).not.toMatch(/session-1|Photos\//);
+    }
+    // Every id is a participant code, a pose and a shot (or a run position), nothing else.
+    for (const row of r.excluded) {
+      expect(row.id).toMatch(
+        /^(P[0-9]{3}\/G[0-9]{2}[LR]\/([0-9]+|retake@run[0-9]+#[0-9]+)(@run[0-9]+)?|run[0-9]+#[0-9]+)$/,
+      );
+    }
+  });
+
   it("photos are named by participant code, pose and shot only", () => {
     expect(report.excluded.map((e) => e.id)).toEqual(["P001/G01R/2"]);
     expect(report.inputs.participants).toEqual(["P001"]);
@@ -588,5 +816,246 @@ describe("evaluateJson: inputs off disk are checked", () => {
     } catch (err) {
       expect((err as Error).message).toMatch(/^run log 2 /);
     }
+  });
+});
+
+describe("a correction that returns something unusable (CALIBRATION_INVALID)", () => {
+  const withApply = (apply: (m: never) => unknown) =>
+    run([right(190), right(188), right(192)], {
+      calibration: {
+        name: "broken",
+        apply: apply as never,
+      },
+    });
+
+  it.each([
+    [
+      "a non-finite hand length",
+      () => ({ handLengthMm: Number.NaN, palmLengthMm: 90, palmWidthMm: 80 }),
+    ],
+    [
+      "an infinite palm width",
+      () => ({ handLengthMm: 190, palmLengthMm: 90, palmWidthMm: Infinity }),
+    ],
+    ["a missing field", () => ({ palmLengthMm: 90, palmWidthMm: 80 })],
+    [
+      "a value that is not a number",
+      () => ({ handLengthMm: "190", palmWidthMm: 80 }),
+    ],
+    ["nothing", () => undefined],
+    [
+      "a throw",
+      () => {
+        throw new RangeError("bad");
+      },
+    ],
+  ])(
+    "%s: the photo is excluded with a reason, on that path only",
+    (_label, apply) => {
+      const r = withApply(apply);
+      expect(r.counts.measured).toBe(0);
+      expect(r.counts.notMeasured).toBe(3);
+      expect(field(r, "all", "paper-edge").accuracy.stats).toBeNull();
+      const rows = r.excluded.filter((e) => e.stage === "measurement");
+      // 3 photos x 2 paths
+      expect(rows).toHaveLength(6);
+      expect(new Set(rows.map((e) => e.reasons.join()))).toEqual(
+        new Set(["CALIBRATION_INVALID"]),
+      );
+    },
+  );
+
+  it("only the photo it broke is dropped; the rest are measured as usual", () => {
+    const r = run([right(190), right(188), right(192)], {
+      calibration: {
+        name: "picky",
+        apply: (m) =>
+          m.handLengthMm > 191 ? { ...m, handLengthMm: Number.NaN } : m,
+      },
+    });
+    expect(r.counts.measured).toBe(2);
+    expect(field(r, "all", "paper-edge").accuracy.stats!.n).toBe(2);
+    expect(
+      r.excluded
+        .filter((e) => e.reasons[0] === "CALIBRATION_INVALID")
+        .map((e) => e.id),
+    ).toEqual(["P001/G01R/3", "P001/G01R/3"]);
+  });
+
+  it("a field is never half-filled: no photo counts for one measurement and not the other", () => {
+    const r = run([right(190), right(188)], {
+      calibration: {
+        name: "no-palm",
+        apply: (m) => ({ handLengthMm: m.handLengthMm }) as never,
+      },
+    });
+    expect(
+      field(r, "all", "paper-edge", "palmWidthMm").accuracy.stats,
+    ).toBeNull();
+    expect(field(r, "all", "paper-edge").accuracy.stats).toBeNull();
+  });
+});
+
+describe("what the correction is told", () => {
+  it("gets the path and the page's hand of each photo, and its answer is what is judged", () => {
+    const calls: { path: string; hand: string; length: number }[] = [];
+    const r = run(
+      [
+        right(190),
+        left(170, { markersMm: 171 }),
+        left(172, { detectedHand: "right" }), // the page decides, not the detector
+      ],
+      {
+        calibration: {
+          name: "spy",
+          apply: (m, context) => {
+            calls.push({
+              path: context.path,
+              hand: context.hand,
+              length: Math.round(m.handLengthMm),
+            });
+            return { ...m, handLengthMm: m.handLengthMm + 10 };
+          },
+        },
+      },
+    );
+    // Two paths per photo, in photo order and path order.
+    expect(calls).toEqual([
+      { path: "markers", hand: "right", length: 190 },
+      { path: "paper-edge", hand: "right", length: 190 },
+      { path: "markers", hand: "left", length: 171 },
+      { path: "paper-edge", hand: "left", length: 170 },
+      { path: "markers", hand: "left", length: 172 },
+      { path: "paper-edge", hand: "left", length: 172 },
+    ]);
+    // Its answer (+10) is what is judged, against each hand's own truth:
+    // 200 - 190, 180 - 170 and 182 - 170.
+    expect(field(r, "all", "paper-edge").accuracy.stats!.bias).toBeCloseTo(
+      (10 + 10 + 12) / 3,
+      8,
+    );
+  });
+
+  it("is not called for a photo that has no plane on that path", () => {
+    const paths: string[] = [];
+    run([right(190, { markersMm: null })], {
+      calibration: {
+        name: "spy",
+        apply: (m, context) => {
+          paths.push(context.path);
+          return m;
+        },
+      },
+    });
+    expect(paths).toEqual(["paper-edge"]);
+  });
+});
+
+describe("reports the sort cannot place", () => {
+  it("a report whose file is not in the log's sort is NOT_IN_SORT", () => {
+    const log = runLogOf([right(190), right(189)]);
+    const lost = log.reports[2]!.file;
+    const trimmed = {
+      ...log,
+      sort: {
+        ...log.sort,
+        photos: log.sort.photos.filter((p) => p.file !== lost),
+      },
+    };
+    const r = evaluate({ logs: [trimmed], truths: [TRUTH_P001] });
+    expect(r.counts.measured).toBe(1);
+    expect(r.counts.notMeasured).toBe(1);
+    const row = r.excluded.find((e) => e.reasons[0] === "NOT_IN_SORT")!;
+    expect(row).toMatchObject({ stage: "measurement", path: null });
+    expect(row.id).toMatch(/^run1#[0-9]+$/);
+    expect(row.id).not.toContain(lost);
+  });
+
+  it("a file name that appears twice among the reports cannot be told apart (AMBIGUOUS_FILE_NAME), for both", () => {
+    const log = runLogOf([right(190), right(189), right(188)]);
+    const dup = {
+      ...log,
+      reports: log.reports.map((x, i) =>
+        i === 3 ? { ...x, file: log.reports[2]!.file } : x,
+      ),
+    };
+    const r = evaluate({ logs: [dup], truths: [TRUTH_P001] });
+    expect(r.counts.measured).toBe(1); // the third photo only
+    const rows = r.excluded.filter(
+      (e) => e.reasons[0] === "AMBIGUOUS_FILE_NAME",
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.every((e) => /^run1#[0-9]+$/.test(e.id))).toBe(true);
+  });
+
+  it("a file name that appears twice in the sort is ambiguous too", () => {
+    const log = runLogOf([right(190), right(189)]);
+    const first = log.sort.photos.find((p) => p.status === "ok")!;
+    const dup = {
+      ...log,
+      sort: { ...log.sort, photos: [...log.sort.photos, { ...first }] },
+    };
+    const r = evaluate({ logs: [dup], truths: [TRUTH_P001] });
+    expect(
+      r.excluded.filter((e) => e.reasons[0] === "AMBIGUOUS_FILE_NAME"),
+    ).toHaveLength(1);
+    expect(r.counts.measured).toBe(1);
+  });
+});
+
+describe("nothing evaluated: the reason is the real one", () => {
+  it("no reports at all", () => {
+    const empty = {
+      ...runLogOf([right(190)]),
+      reports: [],
+      sort: { photos: [], coverage: [] },
+    };
+    expect(
+      nothingEvaluatedReason(evaluate({ logs: [empty], truths: [TRUTH_P001] })),
+    ).toMatch(/no photo reports at all/);
+  });
+
+  it("everything of another pose or participant: says so, with what was selected, and does not point at an empty list", () => {
+    const r = run([right(190, { gesture: "G02" })], { participants: ["P001"] });
+    expect(r.excluded).toEqual([]);
+    const text = nothingEvaluatedReason(r);
+    expect(text).toMatch(/1 are participant cards/);
+    expect(text).toMatch(/1 are of other poses or participants than selected/);
+    expect(text).toMatch(/poses G01; participants P001/);
+    expect(text).not.toMatch(/excluded list/);
+  });
+
+  it("in scope but unmeasurable: the top reasons with counts", () => {
+    const r = run([
+      right(190, { noHand: true }),
+      right(190, { noHand: true }),
+      right(190, { markersMm: null, paperMm: null }),
+    ]);
+    const text = nothingEvaluatedReason(r);
+    expect(text).toMatch(/3 were in scope but could not be measured/);
+    expect(text).toMatch(/NO_HAND x4/); // 2 photos x 2 paths
+    expect(text).toMatch(/NO_PLANE x2/);
+  });
+});
+
+describe("how a reading is shown", () => {
+  it("two decimals, unless that would make it look equal to its limit", () => {
+    expect(readingValue(1.4, 2)).toBe("1.40");
+    expect(readingValue(2.4, 2)).toBe("2.40");
+    expect(readingValue(null, 2)).toBe("n/a");
+    expect(readingValue(2, 2)).toBe("2.00"); // really equal
+    expect(readingValue(2.004, 2)).toBe("2.004");
+    expect(readingValue(1.9996, 2)).toBe("1.9996");
+    expect(readingValue(2.00000001, 2)).toBe("2.00000001");
+  });
+
+  it("the summary never says 'X mm against X mm: OUTSIDE'", () => {
+    // Errors -2.004 and 0: the worst |error| is 2.004 against the limit 2.
+    const r = run([right(187.996), right(190)]);
+    const md = renderMarkdown(r);
+    expect(md).toMatch(
+      /largest \|error\| within the limit: 2\.004 mm against 2\.00 mm: \*\*OUTSIDE\*\*/,
+    );
+    expect(md).not.toMatch(/: 2\.00 mm against 2\.00 mm: \*\*OUTSIDE\*\*/);
   });
 });

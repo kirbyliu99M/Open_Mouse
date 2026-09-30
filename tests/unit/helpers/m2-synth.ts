@@ -82,8 +82,16 @@ export interface SyntheticPhoto {
   };
   /** No hand was found. */
   readonly noHand?: boolean;
+  /**
+   * The hand the detector saw. Default: the page's hand. Give the other one to
+   * make a photo the sorter flags `hand-mismatch` (filed under the page's
+   * hand all the same). `null` = the detector could not tell.
+   */
+  readonly detectedHand?: "left" | "right" | null;
   /** The checker said retake: the photo is not filed. */
   readonly retake?: boolean;
+  /** The ids of the checks that failed on a retake photo. Default: ["markers"]. */
+  readonly retakeBecause?: readonly string[];
   /** A recorded value that must NOT be used (the evaluator recomputes). Default: absurd numbers. */
   readonly recordedMm?: number;
 }
@@ -150,7 +158,8 @@ function photoReport(photo: SyntheticPhoto, file: string): LearningPhotoReport {
       ? null
       : {
           landmarksPx: handOfLength(1), // replaced per plane below
-          handedness: photo.hand,
+          handedness:
+            photo.detectedHand === undefined ? photo.hand : photo.detectedHand,
           confidence: 0.9,
         },
     markerPlane: markersMm === null ? null : identityPlane("markers"),
@@ -159,7 +168,13 @@ function photoReport(photo: SyntheticPhoto, file: string): LearningPhotoReport {
     // them instead of recomputing from the planes would be off by miles.
     markerMm: measurements(wrong),
     paperMm: measurements(wrong),
-    checks: [],
+    checks: photo.retake
+      ? (photo.retakeBecause ?? ["markers"]).map((id) => ({
+          id,
+          tone: "bad",
+          message: `synthetic: ${id} failed`,
+        }))
+      : [],
     verdict: photo.retake ? "retake" : "ready",
   } as unknown as LearningPhotoReport;
 }
