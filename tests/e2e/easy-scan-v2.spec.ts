@@ -497,9 +497,19 @@ const constraintsSeen = (page: Page) =>
       (window as Window & { __constraints?: unknown[] }).__constraints ?? [],
   );
 
-/** Holds the live loop where it is, so the auto-shutter cannot fire mid-test. */
+/**
+ * Holds the live loop where it is, so the auto-shutter cannot fire mid-test.
+ * It first waits for the camera to be RUNNING and the loop to have SAMPLED (the
+ * fixture's four corners found): the cue line is on screen from the start, long
+ * before either, and freezing then leaves a screen with no camera behind it.
+ */
 async function freezeLoop(page: Page) {
-  await expect(page.locator(".cameraCue")).toBeVisible();
+  await expect(page.locator(".easyStage video.cameraVideo.ready")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator(".easyCorner[data-found=true]")).toHaveCount(4, {
+    timeout: 20_000,
+  });
   await page.evaluate(() => {
     window.requestAnimationFrame = () => 0;
   });
@@ -1087,6 +1097,22 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     expect(parseFloat(reticle.borderWidth)).toBeGreaterThanOrEqual(2);
     expect(reticle.shadow).toContain("rgb(255, 255, 255) 0px 0px 0px 2px");
     expect(reticle.shadow).toContain("rgb(0, 0, 0) 0px 0px 0px 3px");
+  });
+
+  test("also when the camera is slow to start (the loop is frozen only once it is sampling)", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const media = navigator.mediaDevices;
+      const real = media.getUserMedia.bind(media);
+      media.getUserMedia = async (...args) => {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return real(...args);
+      };
+    });
+    const reticle = await tapAndReadReticle(page);
+    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.width).toBeCloseTo(88, 0);
   });
 });
 
