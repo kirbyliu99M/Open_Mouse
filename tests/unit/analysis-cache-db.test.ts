@@ -7,6 +7,11 @@
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it, vi } from "vitest";
 
+// Each case starts a fresh in-process Postgres (PGlite) and applies every
+// migration, about 2.5 s on an idle machine; under load that crossed
+// Vitest's 5 s default (#61). The timeout covers the setup, not the logic.
+vi.setConfig({ testTimeout: 30_000 });
+
 vi.mock("server-only", () => ({}));
 
 import { createDrizzleAccountRepo } from "../../src/server/account/drizzle-repo";
