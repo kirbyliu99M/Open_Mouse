@@ -13,28 +13,28 @@ document supersedes its viewfinder and measured-sheet layout; the rest of that f
 
 Kirby's report: the scan screen jumps around, and focus fails.
 
-| Symptom | Cause in code |
-| --- | --- |
-| The frame changes shape twice | `frameAspect` starts at A4 (0.707), then takes the stream's aspect, then the processed photo's aspect (`EasyScanCamera.tsx` ~452, ~1374, ~1529). |
-| Corner dots swim and snap | Detected corners are set every 125 ms and animated with `left/top` over 160 ms (`camera.css` ~191). A corner that is not found falls back to its `ideal` position (`mappedPartial[i] ?? ideal[i]`), so it jumps. |
-| Cue text flickers | The cue is throttled to 1.5 s, but the throttle is bypassed whenever the cue code changes (`EasyScanCamera.tsx` ~1065), so it never debounces. |
-| Ring rarely completes | `advanceAutoCapture` resets to 0 on any single failed sample (`autoCapture.ts`). Samples run at 8 Hz, so one noisy sample restarts the 800 ms fill. |
-| Focus is never controlled | The stream asks for `width ideal 3840, height ideal 2160` and nothing else (~621). No `focusMode`, no tap to focus, no reading of `getCapabilities()`. |
-| Blur is reported as shake | `pickCue`: `!steady \|\| !sharpEnough` both return "Hold still" (`cues.ts`). Holding still cannot fix focus. |
-| Threshold unproven | Live sharpness floor 15 is measured on a ~640 px downscale and was never checked on a real phone (`constants.ts` says so). |
-| Shot swaps the picture | The still from `ImageCapture.takePhoto()` has a different aspect than the live stream, and the frozen frame is sized from it. |
+| Symptom                       | Cause in code                                                                                                                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The frame changes shape twice | `frameAspect` starts at A4 (0.707), then takes the stream's aspect, then the processed photo's aspect (`EasyScanCamera.tsx` ~452, ~1374, ~1529).                                                                 |
+| Corner dots swim and snap     | Detected corners are set every 125 ms and animated with `left/top` over 160 ms (`camera.css` ~191). A corner that is not found falls back to its `ideal` position (`mappedPartial[i] ?? ideal[i]`), so it jumps. |
+| Cue text flickers             | The cue is throttled to 1.5 s, but the throttle is bypassed whenever the cue code changes (`EasyScanCamera.tsx` ~1065), so it never debounces.                                                                   |
+| Ring rarely completes         | `advanceAutoCapture` resets to 0 on any single failed sample (`autoCapture.ts`). Samples run at 8 Hz, so one noisy sample restarts the 800 ms fill.                                                              |
+| Focus is never controlled     | The stream asks for `width ideal 3840, height ideal 2160` and nothing else (~621). No `focusMode`, no tap to focus, no reading of `getCapabilities()`.                                                           |
+| Blur is reported as shake     | `pickCue`: `!steady \|\| !sharpEnough` both return "Hold still" (`cues.ts`). Holding still cannot fix focus.                                                                                                     |
+| Threshold unproven            | Live sharpness floor 15 is measured on a ~640 px downscale and was never checked on a real phone (`constants.ts` says so).                                                                                       |
+| Shot swaps the picture        | The still from `ImageCapture.takePhoto()` has a different aspect than the live stream, and the frozen frame is sized from it.                                                                                    |
 
 ## Screens
 
-| # | State | File |
-| --- | --- | --- |
-| 1 | Searching for the paper | [01-searching.png](screens/01-searching.png) |
-| 2 | Locking corners (2 of 4) | [02-locking.png](screens/02-locking.png) |
-| 3 | Focus needed (new) | [03-focus-needed.png](screens/03-focus-needed.png) |
-| 4 | Ready, ring filling | [04-ready.png](screens/04-ready.png) |
-| 5 | Freeze and measure | [05-freeze-and-measure.png](screens/05-freeze-and-measure.png) |
-| 6 | Measured | [06-measured.png](screens/06-measured.png) |
-| 7 | Retake needed | [07-retake-needed.png](screens/07-retake-needed.png) |
+| #   | State                    | File                                                           |
+| --- | ------------------------ | -------------------------------------------------------------- |
+| 1   | Searching for the paper  | [01-searching.png](screens/01-searching.png)                   |
+| 2   | Locking corners (2 of 4) | [02-locking.png](screens/02-locking.png)                       |
+| 3   | Focus needed (new)       | [03-focus-needed.png](screens/03-focus-needed.png)             |
+| 4   | Ready, ring filling      | [04-ready.png](screens/04-ready.png)                           |
+| 5   | Freeze and measure       | [05-freeze-and-measure.png](screens/05-freeze-and-measure.png) |
+| 6   | Measured                 | [06-measured.png](screens/06-measured.png)                     |
+| 7   | Retake needed            | [07-retake-needed.png](screens/07-retake-needed.png)           |
 
 The screens show the designed states; the photo is an illustration, not a real scan.
 
@@ -58,6 +58,7 @@ often than every 500 ms except into "perfect". Pure function, unit tested.
 Fill time stays 800 ms of passing samples.
 
 **Focus.**
+
 - New cue code `out-of-focus`, between `steady` and `perfect` in priority: the frame is steady
   but `sharpEnough` is false. `hold-still` now means shake only.
 - At stream start read `track.getCapabilities?.()`. If `focusMode` includes `"continuous"`,
