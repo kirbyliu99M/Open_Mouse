@@ -335,6 +335,18 @@ describe("scan ids", () => {
     expect(line({ scanId: 12345 }).scanId).toBe("[redacted]");
   });
 
+  it("scrubs the route and the event name too, in case a caller passes a real URL", () => {
+    const out = JSON.parse(
+      formatLogLine("info", `failed for ${SECRETS.email}`, {
+        route: `/api/scans/${SCAN_ID}/analysis?ip=${SECRETS.ipv4}`,
+      }),
+    );
+    expect(out.route).not.toContain(SCAN_ID);
+    expect(out.route).not.toContain(SECRETS.ipv4);
+    expect(out.route).toContain(shortHash(SCAN_ID));
+    expect(out.event).not.toContain("example.org");
+  });
+
   it("hashes a scan id nested anywhere", () => {
     const printed = text({ context: { scans: [{ scanId: SCAN_ID }] } });
     expect(printed).not.toContain(SCAN_ID);
