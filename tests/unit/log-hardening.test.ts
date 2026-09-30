@@ -102,6 +102,7 @@ describe("binary data", () => {
     ["an ArrayBuffer", new ArrayBuffer(8)],
     ["a Float32Array", new Float32Array([187.4, 96.1])],
     ["a DataView", new DataView(new ArrayBuffer(16))],
+    ["a SharedArrayBuffer", new SharedArrayBuffer(8)],
   ])("%s is not printed, only its size", (_name, value) => {
     const printed = text({ payloadBytes: value, nested: [value] });
     expect(printed).toContain("[binary ");

@@ -187,3 +187,15 @@ describe.each(["light", "dark"] as const)(
     });
   },
 );
+
+describe("the Try again button while a retry runs", () => {
+  // aria-disabled, not disabled (see RetryButton): only the stylesheet makes it
+  // look busy, so the rule must exist in both colour schemes.
+  it.each(["light", "dark"] as const)("looks busy in %s mode", (scheme) => {
+    const selector = '.errorAction[aria-disabled="true"]';
+    expect(errors.value(scheme, selector, "cursor")).toBe("progress");
+    const opacity = Number(errors.value(scheme, selector, "opacity"));
+    expect(opacity).toBeGreaterThan(0.5);
+    expect(opacity).toBeLessThan(1);
+  });
+});
