@@ -64,7 +64,8 @@ describe("measurement model versions", () => {
     ).toBe(true);
   });
 
-  it.each(["calibrated-v1", "landmark-raw-v0", ""])(
+  // Not "calibrated-v1": that is the id W7 is expected to append.
+  it.each(["no-such-model-v9", "landmark-raw-v0", ""])(
     "rejects the unknown version %j",
     (version) => {
       expect(

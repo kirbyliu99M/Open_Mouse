@@ -128,11 +128,22 @@ describe("createDrizzleScanRepo().insertScanWithMeasurements", () => {
        VALUES ($1, 180, 104, 80)`,
       [scanId],
     );
-    const { rows } = await pg.query<{ calibration_method: string | null }>(
-      `SELECT calibration_method FROM scan_measurements WHERE scan_id = $1`,
+    // NULL means "unknown" for rows written before 0006; a default would
+    // backfill a value those rows never had.
+    const { rows } = await pg.query<{
+      measurement_model_version: string | null;
+      calibration_method: string | null;
+      calibration_evidence: unknown;
+    }>(
+      `SELECT measurement_model_version, calibration_method, calibration_evidence
+         FROM scan_measurements WHERE scan_id = $1`,
       [scanId],
     );
-    expect(rows[0].calibration_method).toBeNull();
+    expect(rows[0]).toEqual({
+      measurement_model_version: null,
+      calibration_method: null,
+      calibration_evidence: null,
+    });
     await pg.close();
   }, 30_000);
 });
