@@ -12,6 +12,7 @@ import {
   TAG,
   XMP_SEGMENT,
   buildExifJpeg,
+  exifSegment,
   phoneSpec,
 } from "./helpers/exif-jpeg";
 
@@ -191,6 +192,55 @@ describe("readExifWhitelist", () => {
     expect(readExifWhitelist(tooLong).focalLengthMm).toBeNull();
   });
 
+  it("does not read a tag that holds several values as if it held one", () => {
+    const jpeg = buildExifJpeg({
+      exif: [
+        {
+          tag: TAG.focalLengthIn35mmFilm,
+          value: { type: "shorts", values: [24, 35] },
+        },
+        { tag: TAG.pixelXDimension, value: { type: "long", value: 4032 } },
+      ],
+    });
+    expect(readExifWhitelist(jpeg)).toEqual({
+      ...NO_EXIF,
+      pixelXDimension: 4032,
+    });
+  });
+
+  it("ignores an Exif block that starts after the image data does (or after the end of the image)", () => {
+    const soi = [0xff, 0xd8];
+    const exif = Array.from(exifSegment(phoneSpec()));
+    const startOfScan = [0xff, 0xda, 0x00, 0x02];
+    // A zero-length-looking segment after EOI, so a reader that fails to stop walks on to the Exif block.
+    const endOfImage = [0xff, 0xd9, 0x00, 0x02];
+    expect(readExifWhitelist(new Uint8Array([...soi, ...exif]))).toEqual(WHITE);
+    expect(
+      readExifWhitelist(new Uint8Array([...soi, ...startOfScan, ...exif])),
+    ).toEqual(NO_EXIF);
+    expect(
+      readExifWhitelist(new Uint8Array([...soi, ...endOfImage, ...exif])),
+    ).toEqual(NO_EXIF);
+  });
+
+  it("rejects a block whose byte-order mark is neither II nor MM, whichever order the rest is in", () => {
+    for (const littleEndian of [true, false]) {
+      const good = buildExifJpeg(phoneSpec(littleEndian));
+      expect(readExifWhitelist(good)).toEqual(WHITE);
+      const at = good.findIndex(
+        (_, i) =>
+          good[i] === 0x45 &&
+          good[i + 1] === 0x78 &&
+          good[i + 2] === 0x69 &&
+          good[i + 3] === 0x66,
+      );
+      const bad = good.slice();
+      bad[at + 6] = 0x58;
+      bad[at + 7] = 0x58;
+      expect(readExifWhitelist(bad)).toEqual(NO_EXIF);
+    }
+  });
+
   it("rejects a block whose TIFF header is not II or MM, or whose magic number is not 42", () => {
     const good = buildExifJpeg(phoneSpec());
     expect(readExifWhitelist(good)).toEqual(WHITE);
@@ -253,6 +303,14 @@ describe("pickExifWhitelist", () => {
   });
 
   it("turns anything that is not a positive finite number into null", () => {
+    expect(
+      pickExifWhitelist({
+        focalLengthMm: 0,
+        focalLengthIn35mmFilm: 0,
+        pixelXDimension: "6.7",
+        pixelYDimension: 0,
+      }),
+    ).toEqual(NO_EXIF);
     expect(
       pickExifWhitelist({
         focalLengthMm: "6.7",

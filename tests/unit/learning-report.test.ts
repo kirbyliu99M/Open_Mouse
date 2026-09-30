@@ -146,6 +146,23 @@ describe("a top-down report (format 2)", () => {
     }
   });
 
+  it("carries what the detectors found through unchanged", () => {
+    const input = findings({ laplacianVariance: 312.5 });
+    const out = assembleLearningReport(input);
+    expect(out.file).toBe(input.file);
+    expect([out.width, out.height]).toEqual([750, 1000]);
+    expect(out.qrText).toBe(input.qrText);
+    expect(out.code).toEqual(G01R);
+    expect(out.markers).toEqual(flatMarkers);
+    expect(out.markers.map((m) => m.id)).toEqual([0, 1, 2, 3]);
+    expect(out.laplacianVariance).toBe(312.5);
+    expect(out.reprojectionErrorMm).toBe(input.reference!.reprojectionErrorMm);
+    expect(out.reprojectionErrorMm).not.toBeNull();
+    expect(out.paperCorners).toEqual(shot.quad.corners);
+    expect(out.paperCornersSeen).toBe(4);
+    expect(out.hand).toEqual(HAND);
+  });
+
   it("is a ready photo: four markers, four paper corners, a hand of the page's hand", () => {
     expect(report.verdict).toBe("ready");
     expect(report.checks.map((c) => c.id)).not.toContain("handedness");

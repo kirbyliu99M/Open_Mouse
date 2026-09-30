@@ -11,6 +11,8 @@
 
 export type ExifValue =
   | { readonly type: "short"; readonly value: number }
+  /** Two or more SHORTs (a tag that is not a single value). */
+  | { readonly type: "shorts"; readonly values: readonly number[] }
   | { readonly type: "long"; readonly value: number }
   | { readonly type: "ascii"; readonly value: string }
   /** One or more rationals: [numerator, denominator]. */
@@ -75,6 +77,12 @@ function encode(tag: ExifTag, little: boolean): Encoded {
     const bytes = new Uint8Array(2);
     new DataView(bytes.buffer).setUint16(0, v.value, little);
     return { tag: tag.tag, type: TYPE_SHORT, count: 1, bytes };
+  }
+  if (v.type === "shorts") {
+    const bytes = new Uint8Array(v.values.length * 2);
+    const view = new DataView(bytes.buffer);
+    v.values.forEach((n, i) => view.setUint16(i * 2, n, little));
+    return { tag: tag.tag, type: TYPE_SHORT, count: v.values.length, bytes };
   }
   if (v.type === "long") {
     const bytes = new Uint8Array(4);

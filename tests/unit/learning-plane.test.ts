@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   applyHomography,
   type Homography,
-  type Point2,
 } from "../../src/client/geometry/homography";
 import {
   computeCorrectedHandMeasurements,

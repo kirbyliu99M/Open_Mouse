@@ -384,26 +384,25 @@ describe("truth.json", () => {
       ...base,
       right: { ...base.right, ...r },
     });
-    expect(
-      truthSchema.safeParse(withRight({ handLengthMm: 1850 })).success,
-    ).toBe(false);
-    expect(truthSchema.safeParse(withRight({ palmWidthMm: 8 })).success).toBe(
-      false,
-    );
-    expect(
-      truthSchema.safeParse(withRight({ handLengthMm: "185" })).success,
-    ).toBe(false);
-    expect(truthSchema.safeParse(withRight({ gripMm: 12 })).success).toBe(
-      false,
-    );
-    expect(truthSchema.safeParse({ ...base, participant: "7" }).success).toBe(
-      false,
-    );
-    expect(truthSchema.safeParse({ ...base, format: "v1" }).success).toBe(
-      false,
-    );
-    expect(truthSchema.safeParse({ ...base, name: "Alice" }).success).toBe(
-      false,
-    );
+    const invalid: [string, unknown][] = [
+      ["a hand length typo (1850)", withRight({ handLengthMm: 1850 })],
+      [
+        "a hand length that is too short (18.5)",
+        withRight({ handLengthMm: 18.5 }),
+      ],
+      ["a palm width that is too narrow (8)", withRight({ palmWidthMm: 8 })],
+      ["a palm width that is too wide (840)", withRight({ palmWidthMm: 840 })],
+      ["an infinite palm width", withRight({ palmWidthMm: Infinity })],
+      ["a value written as text", withRight({ handLengthMm: "185" })],
+      ["an unknown key inside a hand", withRight({ gripMm: 12 })],
+      ["a participant without padding", { ...base, participant: "7" }],
+      ["a participant with too few digits", { ...base, participant: "P07" }],
+      ["a participant with too many digits", { ...base, participant: "P0007" }],
+      ["another format", { ...base, format: "v1" }],
+      ["a name", { ...base, name: "Alice" }],
+    ];
+    for (const [label, value] of invalid) {
+      expect(truthSchema.safeParse(value).success, label).toBe(false);
+    }
   });
 });
