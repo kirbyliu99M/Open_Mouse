@@ -70,6 +70,9 @@ import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
+  canToggleHandChip,
+  handChipAccessibleName,
+  handChipLabel,
   toggleHandChip,
   type HandChipState,
 } from "./handInference";
@@ -339,6 +342,30 @@ const GRIP_OPTIONS: readonly { value: GripStyle | undefined; label: string }[] =
     { value: undefined, label: "Not sure" },
   ];
 
+function HandToggle({
+  state,
+  onClick,
+  disabled = false,
+  inSheet = false,
+}: {
+  readonly state: HandChipState;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+  readonly inSheet?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
+      aria-label={handChipAccessibleName(state)}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <HandIcon width={16} height={16} /> {handChipLabel(state)}
+    </button>
+  );
+}
+
 export interface EasyScanCameraProps {
   /** Test/demo injection point — real pages never pass this. */
   readonly runPhotoPipelineImpl?: (
@@ -356,6 +383,12 @@ export interface EasyScanCameraProps {
     readonly imageWidth: number;
     readonly imageHeight: number;
   };
+  /**
+   * What the server took this device for, from its user agent alone
+   * (`detectDeviceFit`, the same function the client uses): only used to give
+   * the pre-mount placeholder the colour of the screen that will replace it.
+   */
+  readonly deviceHint?: DeviceFit;
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
@@ -364,6 +397,7 @@ export interface EasyScanCameraProps {
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
   demoMeasured,
+  deviceHint,
   forceTipOpen,
 }: EasyScanCameraProps) {
   const router = useRouter();
@@ -679,7 +713,8 @@ export default function EasyScanCamera({
         const pipelineResult = await runPhotoPipelineImpl({
           file,
           hand: handChipRef.current.hand,
-          handIsAuto: !handChipRef.current.locked,
+          handExplicit: handChipRef.current.locked,
+          handednessFixInstruction: "tap the hand button below",
           gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null
@@ -846,8 +881,18 @@ export default function EasyScanCamera({
   }, []);
 
   const toggleHand = useCallback(() => {
-    setHandChip((prev) => toggleHandChip(prev));
-  }, []);
+    if (!canToggleHandChip(resultRef.current.kind)) return;
+    const next = toggleHandChip(handChipRef.current);
+    handChipRef.current = next;
+    setHandChip(next);
+    if (
+      resultRef.current.kind === "gateFailure" &&
+      resultRef.current.errors[0]?.code === "HANDEDNESS_MISMATCH" &&
+      fileRef.current
+    ) {
+      void runPipeline(fileRef.current, resultRef.current.previewUrl);
+    }
+  }, [runPipeline]);
 
   const resetLoopState = useCallback(() => {
     const fresh = freshLiveLoopSampling();
@@ -1100,8 +1145,6 @@ export default function EasyScanCamera({
       ? "Got it — hold still"
       : (cue?.message ?? "Point the camera at the paper");
 
-  const handChipLabel = `${handChip.hand === "left" ? "Left" : "Right"} hand · auto`;
-
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
   const noPaperLabel = noPaperEntryLabel(userLengthMm !== null);
@@ -1112,7 +1155,11 @@ export default function EasyScanCamera({
   // see flash before its own entry screen replaces it.
   if (deviceFit === null && !demoMeasured)
     return (
-      <main className="easyDevicePlaceholder" aria-busy="true">
+      <main
+        className="easyDevicePlaceholder"
+        data-device-hint={deviceHint}
+        aria-busy="true"
+      >
         <p className="visuallyHidden">Loading the scanner…</p>
       </main>
     );
@@ -1156,14 +1203,11 @@ export default function EasyScanCamera({
           >
             <HelpCircleIcon width={20} height={20} />
           </button>
-          <button
-            type="button"
-            className="easyHandChip"
-            aria-pressed={false}
+          <HandToggle
+            state={handChip}
             onClick={toggleHand}
-          >
-            <HandIcon width={16} height={16} /> {handChipLabel}
-          </button>
+            disabled={!canToggleHandChip(result.kind)}
+          />
         </div>
       </div>
 
@@ -1679,6 +1723,9 @@ export default function EasyScanCamera({
               <p className="easySheetErrorMessage" role="alert">
                 {result.errors[0]?.message}
               </p>
+              {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
+                <HandToggle state={handChip} onClick={toggleHand} inSheet />
+              )}
               <button
                 type="button"
                 className="primaryButton easyTryAgainButton"
@@ -1687,15 +1734,19 @@ export default function EasyScanCamera({
               >
                 Try again
               </button>
-              {failureOffersLengthEdit(noPaperMode, result.errors[0]?.code) && (
-                <button
-                  type="button"
-                  className="easyEditLengthButton"
-                  onClick={editLengthFromFailure}
-                >
-                  {EDIT_HAND_LENGTH_LABEL}
-                </button>
-              )}
+              {noPaperLabel &&
+                failureOffersLengthEdit(
+                  noPaperMode,
+                  result.errors[0]?.code,
+                ) && (
+                  <button
+                    type="button"
+                    className="easyEditLengthButton"
+                    onClick={editLengthFromFailure}
+                  >
+                    {EDIT_HAND_LENGTH_LABEL}
+                  </button>
+                )}
             </>
           )}
         </dialog>

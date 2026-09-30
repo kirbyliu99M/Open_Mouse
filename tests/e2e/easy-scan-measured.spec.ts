@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 
 /**
  * `/scan/easy/measured-demo` mounts the real EasyScanCamera against a
@@ -87,4 +88,31 @@ test.describe("/scan/easy/measured-demo — the measured bottom sheet", () => {
     await page.getByRole("button", { name: "Retake photo" }).click();
     await expect(sheet).toBeHidden();
   });
+});
+
+test("the selected grip chip keeps its contrast in light and dark", async ({
+  page,
+}) => {
+  await page.goto("/scan/easy/measured-demo");
+  const sheet = page.getByRole("dialog", { name: "Hand measured" });
+  await expect(sheet).toBeVisible();
+  for (const grip of ["Not sure", "Palm"]) {
+    await sheet.getByRole("button", { name: grip, exact: true }).click();
+    for (const scheme of ["light", "dark"] as const) {
+      // No transitions: a computed colour read mid-fade is neither theme's.
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      const selected = sheet.locator(".easyGripChip.selected");
+      await expect(selected).toHaveCount(1);
+      const style = await selected.evaluate((el) => {
+        const computed = getComputedStyle(el);
+        return { color: computed.color, background: computed.backgroundColor };
+      });
+      // --scan-accent-soft was never defined, so the fallback light-blue
+      // fill sat under the dark theme's light-blue text: 1.98:1.
+      expect(
+        contrast(style.color, style.background),
+        `${grip} ${scheme}`,
+      ).toBeGreaterThan(4.5);
+    }
+  }
 });

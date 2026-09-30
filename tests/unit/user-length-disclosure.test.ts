@@ -10,6 +10,10 @@ import {
   parseUserLength,
   USER_LENGTH_RANGE_MM,
 } from "../../src/client/photo/user-length";
+import {
+  handMeasurementsSchema,
+  userLengthEvidenceSchema,
+} from "../../src/lib/contracts/measurement";
 
 describe("clearScanDisclosures", () => {
   it("removes both disclosures for every listed scan and preserves unlisted scans", () => {
@@ -61,5 +65,59 @@ describe("parseStoredUserLength", () => {
     expect(STORED_USER_LENGTH_MM.max).toBeGreaterThanOrEqual(
       USER_LENGTH_RANGE_MM.max,
     );
+  });
+});
+
+describe("STORED_USER_LENGTH_MM is the measurement schema's own hand-length limit", () => {
+  // A palm that fits every length in 100-280 mm, so only handLengthMm varies.
+  const measurements = (handLengthMm: number) => ({
+    handLengthMm,
+    palmLengthMm: 60,
+    palmWidthMm: 55,
+  });
+  const evidence = (referenceMm: number) => ({
+    method: "user-length",
+    referenceMeasurement: "handLengthMm",
+    referenceMm,
+    parallaxCorrected: false,
+  });
+
+  it("the schema accepts the tolerance's two ends and refuses just outside them", () => {
+    const { min, max } = STORED_USER_LENGTH_MM;
+    for (const inside of [min, max]) {
+      expect(
+        handMeasurementsSchema.safeParse(measurements(inside)).success,
+        `${inside} mm accepted`,
+      ).toBe(true);
+    }
+    for (const outside of [min - 0.1, max + 0.1]) {
+      expect(
+        handMeasurementsSchema.safeParse(measurements(outside)).success,
+        `${outside} mm refused`,
+      ).toBe(false);
+    }
+  });
+
+  it("the typed-length evidence has the same limits", () => {
+    const { min, max } = STORED_USER_LENGTH_MM;
+    expect(userLengthEvidenceSchema.safeParse(evidence(min)).success).toBe(
+      true,
+    );
+    expect(userLengthEvidenceSchema.safeParse(evidence(max)).success).toBe(
+      true,
+    );
+    expect(
+      userLengthEvidenceSchema.safeParse(evidence(min - 0.1)).success,
+    ).toBe(false);
+    expect(
+      userLengthEvidenceSchema.safeParse(evidence(max + 0.1)).success,
+    ).toBe(false);
+  });
+
+  it("the stored-length reader accepts and refuses exactly where the schema does", () => {
+    expect(parseStoredUserLength("100")).toBe(100);
+    expect(parseStoredUserLength("280")).toBe(280);
+    expect(parseStoredUserLength("99.9")).toBeNull();
+    expect(parseStoredUserLength("280.1")).toBeNull();
   });
 });
