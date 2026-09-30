@@ -69,7 +69,11 @@ describe("resuming the loop after the first-run tip", () => {
   });
 
   it("would fire on the first sample if the old ring were carried over (why the reset exists)", () => {
-    const carriedOver: AutoCaptureState = { elapsedMs: 700, fired: false };
+    const carriedOver: AutoCaptureState = {
+      elapsedMs: 700,
+      failStreak: 0,
+      fired: false,
+    };
     expect(firstSampleAfterResume(carriedOver, 1000).fired).toBe(true);
   });
 

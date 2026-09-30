@@ -1,0 +1,378 @@
+import { describe, expect, it } from "vitest";
+import {
+  GUIDE_INSETS,
+  MEASURED_LAYOUT,
+  applyMeasuredTransform,
+  boundingRect,
+  computeFrozenPhotoLayout,
+  computeGuideRect,
+  computeMeasuredTransform,
+  computeStillCrop,
+  padRect,
+  paperAspect,
+  photoPointToStage,
+  rectCorners,
+} from "../../src/client/camera/photoLayout";
+import { computeCoverRect } from "../../src/client/camera/quad";
+
+const STAGE = { width: 390, height: 844 };
+
+describe("computeGuideRect", () => {
+  it("is a centred A4 portrait sheet between the top bar and the shutter row", () => {
+    const guide = computeGuideRect(STAGE, paperAspect("a4"));
+    expect(guide.width).toBeCloseTo(390 * 0.85, 6);
+    expect(guide.height / guide.width).toBeCloseTo(297 / 210, 6);
+    expect(guide.x).toBeCloseTo((390 - guide.width) / 2, 6);
+    // The storyboard's guide runs from about y=166 to y=640 on this stage.
+    expect(guide.y).toBeGreaterThan(150);
+    expect(guide.y + guide.height).toBeLessThan(844 - 190);
+    expect(guide.y).toBeCloseTo(166, -1);
+  });
+
+  it("letter paper is a little shorter", () => {
+    const a4 = computeGuideRect(STAGE, paperAspect("a4"));
+    const letter = computeGuideRect(STAGE, paperAspect("letter"));
+    expect(letter.height).toBeLessThan(a4.height);
+    expect(letter.height / letter.width).toBeCloseTo(279.4 / 215.9, 6);
+  });
+
+  it("is the same rectangle every time for the same stage and paper: it never moves on its own", () => {
+    expect(computeGuideRect(STAGE, 1.4143)).toEqual(
+      computeGuideRect({ ...STAGE }, 1.4143),
+    );
+  });
+
+  it("shrinks to fit a short stage instead of running under the bars", () => {
+    const guide = computeGuideRect({ width: 390, height: 640 }, 1.4143);
+    expect(guide.y).toBeGreaterThanOrEqual(GUIDE_INSETS.topPx);
+    expect(guide.y + guide.height).toBeLessThanOrEqual(
+      640 - GUIDE_INSETS.bottomPx + 1e-9,
+    );
+    expect(guide.height / guide.width).toBeCloseTo(1.4143, 6);
+  });
+
+  it("falls back to the inset stage when there is no room for the bars (landscape)", () => {
+    const guide = computeGuideRect({ width: 844, height: 390 }, 1.4143);
+    expect(guide.x).toBeGreaterThan(0);
+    expect(guide.y).toBeGreaterThan(0);
+    expect(guide.x + guide.width).toBeLessThan(844);
+    expect(guide.y + guide.height).toBeLessThan(390);
+  });
+
+  it("rejects a stage without a size", () => {
+    expect(() => computeGuideRect({ width: 0, height: 10 }, 1.4)).toThrow(
+      RangeError,
+    );
+    expect(() => computeGuideRect(STAGE, 0)).toThrow(RangeError);
+  });
+
+  it("rectCorners lists TL, TR, BR, BL", () => {
+    expect(rectCorners({ x: 1, y: 2, width: 10, height: 20 })).toEqual([
+      { x: 1, y: 2 },
+      { x: 11, y: 2 },
+      { x: 11, y: 22 },
+      { x: 1, y: 22 },
+    ]);
+  });
+});
+
+describe("computeStillCrop — the still is cropped to what the stream showed", () => {
+  it("the same aspect ratio: the whole still", () => {
+    expect(
+      computeStillCrop(
+        { width: 1080, height: 1920 },
+        { width: 2160, height: 3840 },
+      ),
+    ).toEqual({ x: 0, y: 0, width: 2160, height: 3840 });
+  });
+
+  it("a 3:4 portrait still under a 9:16 portrait preview: the same height, less width", () => {
+    const crop = computeStillCrop(
+      { width: 1080, height: 1920 },
+      { width: 3000, height: 4000 },
+    );
+    expect(crop.height).toBe(4000);
+    expect(crop.width).toBeCloseTo(4000 * (1080 / 1920), 6);
+    expect(crop.x).toBeCloseTo((3000 - crop.width) / 2, 6);
+    expect(crop.y).toBe(0);
+    expect(crop.width / crop.height).toBeCloseTo(1080 / 1920, 9);
+  });
+
+  it("a relatively taller still keeps its width and loses height", () => {
+    const crop = computeStillCrop(
+      { width: 1600, height: 1200 }, // 4:3
+      { width: 1000, height: 1000 }, // square
+    );
+    expect(crop.width).toBe(1000);
+    expect(crop.height).toBeCloseTo(750, 6);
+    expect(crop.y).toBeCloseTo(125, 6);
+    expect(crop.x).toBe(0);
+  });
+
+  it("is centred, so it stays inside the still", () => {
+    for (const [sw, sh, tw, th] of [
+      [1080, 1920, 3000, 4000],
+      [1920, 1080, 4000, 3000],
+      [720, 1280, 3024, 4032],
+      [1000, 1000, 500, 1500],
+    ] as const) {
+      const crop = computeStillCrop(
+        { width: sw, height: sh },
+        { width: tw, height: th },
+      );
+      expect(crop.x).toBeGreaterThanOrEqual(0);
+      expect(crop.y).toBeGreaterThanOrEqual(0);
+      expect(crop.x + crop.width).toBeLessThanOrEqual(tw + 1e-9);
+      expect(crop.y + crop.height).toBeLessThanOrEqual(th + 1e-9);
+      expect(crop.width / crop.height).toBeCloseTo(sw / sh, 9);
+    }
+  });
+
+  it("treats aspect ratios within 0.001 as the same", () => {
+    const crop = computeStillCrop(
+      { width: 1000, height: 1000 },
+      { width: 1000, height: 1000.5 },
+    );
+    expect(crop).toEqual({ x: 0, y: 0, width: 1000, height: 1000.5 });
+  });
+});
+
+describe("computeFrozenPhotoLayout — the frozen picture is the last live frame", () => {
+  it("with a stream: the box is exactly where the video's cover rectangle was", () => {
+    const stream = { width: 1080, height: 1920 };
+    const layout = computeFrozenPhotoLayout({
+      stage: STAGE,
+      stream,
+      still: { width: 3000, height: 4000 },
+    });
+    expect(layout.box).toEqual(
+      computeCoverRect(STAGE.width, STAGE.height, stream.width, stream.height),
+    );
+    expect(layout.crop).toEqual(
+      computeStillCrop(stream, { width: 3000, height: 4000 }),
+    );
+  });
+
+  it("the same scene lands on the same stage pixel in the live frame and in the photo", () => {
+    // A point at the centre of the stream frame, and one a quarter across.
+    const stream = { width: 1080, height: 1920 };
+    const still = { width: 3000, height: 4000 };
+    const layout = computeFrozenPhotoLayout({ stage: STAGE, stream, still });
+    const cover = computeCoverRect(
+      STAGE.width,
+      STAGE.height,
+      stream.width,
+      stream.height,
+    );
+    for (const [u, v] of [
+      [0.5, 0.5],
+      [0.25, 0.75],
+      [0.9, 0.1],
+    ] as const) {
+      // Where the video shows the point (u, v) of its frame...
+      const live = {
+        x: cover.x + u * cover.width,
+        y: cover.y + v * cover.height,
+      };
+      // ...and where the photo shows the same point (u, v) of the cropped still.
+      const inStill = {
+        x: layout.crop.x + u * layout.crop.width,
+        y: layout.crop.y + v * layout.crop.height,
+      };
+      const frozen = photoPointToStage(inStill, layout);
+      expect(frozen.x).toBeCloseTo(live.x, 6);
+      expect(frozen.y).toBeCloseTo(live.y, 6);
+    }
+  });
+
+  it("the stage does not appear in the result's size: the box covers it whatever the still's shape", () => {
+    const layout = computeFrozenPhotoLayout({
+      stage: STAGE,
+      stream: { width: 1080, height: 1920 },
+      still: { width: 4000, height: 6000 },
+    });
+    expect(layout.box.x).toBeLessThanOrEqual(0);
+    expect(layout.box.y).toBeLessThanOrEqual(0);
+    expect(layout.box.x + layout.box.width).toBeGreaterThanOrEqual(390 - 1e-9);
+    expect(layout.box.y + layout.box.height).toBeGreaterThanOrEqual(844 - 1e-9);
+  });
+
+  it("a photo with no stream (the upload button) is shown whole, fitted inside the stage", () => {
+    const still = { width: 4000, height: 3000 };
+    const layout = computeFrozenPhotoLayout({
+      stage: STAGE,
+      stream: null,
+      still,
+    });
+    expect(layout.crop).toEqual({ x: 0, y: 0, width: 4000, height: 3000 });
+    expect(layout.box.width).toBeCloseTo(390, 6);
+    expect(layout.box.height).toBeCloseTo(390 * 0.75, 6);
+    expect(layout.box.x).toBeCloseTo(0, 6);
+    expect(layout.box.y).toBeCloseTo((844 - 292.5) / 2, 6);
+  });
+
+  it("a still whose orientation disagrees with the stream cannot be matched: shown whole", () => {
+    const layout = computeFrozenPhotoLayout({
+      stage: STAGE,
+      stream: { width: 1080, height: 1920 },
+      still: { width: 4000, height: 3000 },
+    });
+    expect(layout.crop).toEqual({ x: 0, y: 0, width: 4000, height: 3000 });
+    expect(layout.box.width).toBeCloseTo(390, 6);
+  });
+
+  it("ignores a stream without a size", () => {
+    const layout = computeFrozenPhotoLayout({
+      stage: STAGE,
+      stream: { width: 0, height: 0 },
+      still: { width: 3000, height: 4000 },
+    });
+    expect(layout.crop).toEqual({ x: 0, y: 0, width: 3000, height: 4000 });
+  });
+
+  it("rejects a stage or still without a size", () => {
+    expect(() =>
+      computeFrozenPhotoLayout({
+        stage: { width: 0, height: 844 },
+        stream: null,
+        still: { width: 1, height: 1 },
+      }),
+    ).toThrow(RangeError);
+    expect(() =>
+      computeFrozenPhotoLayout({
+        stage: STAGE,
+        stream: null,
+        still: { width: 1, height: 0 },
+      }),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("boundingRect and padRect", () => {
+  it("wraps the points", () => {
+    expect(
+      boundingRect([
+        { x: 5, y: 9 },
+        { x: -2, y: 4 },
+        { x: 7, y: 6 },
+      ]),
+    ).toEqual({ x: -2, y: 4, width: 9, height: 5 });
+    expect(boundingRect([])).toBeNull();
+  });
+
+  it("grows a rectangle on every side", () => {
+    expect(padRect({ x: 10, y: 10, width: 20, height: 30 }, 4)).toEqual({
+      x: 6,
+      y: 6,
+      width: 28,
+      height: 38,
+    });
+  });
+});
+
+describe("computeMeasuredTransform — nothing under the sheet", () => {
+  // The paper on the storyboard's stage, and a sheet about 240 px tall.
+  const paper = { x: 30, y: 166, width: 332, height: 474 };
+  const sheetTop = 844 - 240;
+
+  it("scales to 90% and moves the paper up, clear of the sheet and of the top buttons", () => {
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop,
+    });
+    expect(t.scale).toBe(0.9);
+    expect(t.translateY).toBeLessThan(0);
+    const top = applyMeasuredTransform({ x: paper.x, y: paper.y }, STAGE, t);
+    const bottom = applyMeasuredTransform(
+      { x: paper.x + paper.width, y: paper.y + paper.height },
+      STAGE,
+      t,
+    );
+    expect(top.y).toBeGreaterThanOrEqual(MEASURED_LAYOUT.topInsetPx);
+    expect(bottom.y).toBeLessThanOrEqual(sheetTop - MEASURED_LAYOUT.sheetGapPx);
+    // Storyboard screen 6 shows the paper from about y=109 to y=537; centring
+    // it in the free band gives 121 to 547 (candidate numbers either way).
+    expect(top.y).toBeCloseTo(120.7, 1);
+    expect(bottom.y).toBeCloseTo(547.3, 1);
+  });
+
+  it("sits centred in the free band above the sheet", () => {
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop,
+    });
+    const top = applyMeasuredTransform({ x: 0, y: paper.y }, STAGE, t).y;
+    const bottom = applyMeasuredTransform(
+      { x: 0, y: paper.y + paper.height },
+      STAGE,
+      t,
+    ).y;
+    const bandTop = MEASURED_LAYOUT.topInsetPx;
+    const bandBottom = sheetTop - MEASURED_LAYOUT.sheetGapPx;
+    expect(top - bandTop).toBeCloseTo(bandBottom - bottom, 6);
+  });
+
+  it("shrinks further than 90% when the content would not fit the band", () => {
+    const tall = { x: 0, y: 0, width: 390, height: 844 };
+    const t = computeMeasuredTransform({ stage: STAGE, focus: tall, sheetTop });
+    expect(t.scale).toBeLessThan(0.9);
+    const top = applyMeasuredTransform({ x: 0, y: 0 }, STAGE, t).y;
+    const bottom = applyMeasuredTransform({ x: 0, y: 844 }, STAGE, t).y;
+    expect(top).toBeGreaterThanOrEqual(MEASURED_LAYOUT.topInsetPx - 1e-9);
+    expect(bottom).toBeLessThanOrEqual(
+      sheetTop - MEASURED_LAYOUT.sheetGapPx + 1e-9,
+    );
+  });
+
+  it("with a shorter sheet the photo needs to move less", () => {
+    const tall = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop: 604,
+    });
+    const short = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop: 700,
+    });
+    expect(Math.abs(short.translateY)).toBeLessThan(Math.abs(tall.translateY));
+  });
+
+  it("stays defined when the sheet reaches the top (the band never inverts)", () => {
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop: 10,
+    });
+    expect(Number.isFinite(t.scale)).toBe(true);
+    expect(Number.isFinite(t.translateY)).toBe(true);
+    expect(t.scale).toBeGreaterThan(0);
+  });
+
+  it("a rectangle without height keeps the base scale", () => {
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: { x: 100, y: 300, width: 50, height: 0 },
+      sheetTop,
+    });
+    expect(t.scale).toBe(0.9);
+  });
+
+  it("horizontal content only comes closer to the centre", () => {
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: paper,
+      sheetTop,
+    });
+    const left = applyMeasuredTransform({ x: paper.x, y: 300 }, STAGE, t);
+    const right = applyMeasuredTransform(
+      { x: paper.x + paper.width, y: 300 },
+      STAGE,
+      t,
+    );
+    expect(left.x).toBeGreaterThan(paper.x);
+    expect(right.x).toBeLessThan(paper.x + paper.width);
+  });
+});
