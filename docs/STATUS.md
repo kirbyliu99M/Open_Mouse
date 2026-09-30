@@ -27,7 +27,7 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `3a585a3` (#82). The latest deploy is `9cf0612` (#89), which adds data that nothing reads yet.
+**Production:** behaves as of `3a585a3` (#82). The latest deploy is `9cf0612` (#89), which adds data that no product code reads yet.
 
 - **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each 2026-09-30 merge. The latest run passed against `9cf0612`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 13.3 s. In production `/results/demo` and every dev-only demo route return 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
@@ -61,7 +61,7 @@ The reasons for each call are in the 2026-09-30 decisions below.
   - The `/scan/easy` placeholder now takes its colour from a server-side user-agent hint, so it no longer flashes. As a result `/scan/easy` is rendered per request and no longer cached by the CDN.
   - Merged before Kirby approved two strings it adds: the "…or tap the hand button below." hint and the hand-chip accessible names. Both are on Kirby's copy list below.
 
-- **#82 (G2):** the home page now says mice are scored on "length, grip width and height" (weight was never scored), and `/results/demo` returns 404 in production. A demo-route test is now opt-out: every `page.tsx` outside a pinned product list must call the production guard first. The AI-source disclosure was dropped for now (Kirby: add it later).
+- **#82 (G2):** the home page now says mice are scored on "length, grip width and height" (weight is scored only when a weight preference is sent, and the results page always sends none), and `/results/demo` returns 404 in production. A demo-route test is now opt-out: every `page.tsx` outside a pinned product list must call the production guard first. The AI-source disclosure was dropped for now (Kirby: add it later).
 - **#89 (G9a):** first-party facts (hand compatibility, shape, form factor) for the 38 Logitech mice, as data only; nothing reads it until G9b. M750's shape is `symmetrical`, following M550 (Kirby). Kirby spot-checks the ⚠ models before G9b.
 
 #77 was reviewed by the `pr-review` workflow; its test-coverage follow-ups moved to S2 (#74).
@@ -71,12 +71,12 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **#85 (C2)** — contracts for accepted measurement-model versions, plus calibration evidence stored with each scan (#63). Migration 0006 must run in production before the code deploys.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
 - **#86 (G4)** — scoring and copy logic: Chinese numerals in the no-new-numerals check, a Chinese provisional check, Chinese medical terms, the `weight_in_range` parameters and `thumb_rest_missing`. Draft, through four review rounds with adversarial probing. It waits for Kirby's review of three results-page strings. Remaining Chinese false positives and negatives become G4b, measured on a labelled corpus before i18n PR3.
-- **#84 (G6)** — NOTICE, README, CONTRIBUTING, issue and PR templates, MediaPipe caching headers, non-SIMD fallback (+≈ 10.7 MB per deployment). Verified; it waits for Kirby's copy approval and for private vulnerability reporting to be switched on.
+- **#84 (G6)** — NOTICE, README, CONTRIBUTING, issue and PR templates, MediaPipe caching headers, non-SIMD fallback (adds ≈ 11.3 MB of static files to the repo and to each build). Verified; it waits for Kirby's copy approval and for private vulnerability reporting to be switched on.
 - **#76** — learning kit with data format v2 (G3). Draft, in final verification. Kirby collects the learning photos in person, so every kit page returns 404 in production and runs only on the local dev server that `npm run learn:sort` starts.
 - **#93 (G8)** — M2 evaluator (`npm run m2:evaluate`), stacked on #76. Review fixes in progress.
 - **#92 (S3)** — audit P1 fixes: detector download progress and a visible load-failure notice, landmarks and titles, dark-mode analysis card, axe on the main pages and phone states. It also carries the no-time deletion wording. Draft in verification; new copy awaits Kirby.
 - **#94 (G5a)** — error and 404 pages, `GET /api/health`, structured server logs with redaction. Draft in review; error-page copy awaits Kirby.
-- **#95** — Vercel builds previews only for ready PRs (`ignoreCommand`), after 406 deployments in 9 days nearly filled the account's deployment storage. The same day, 327 old preview, failed and cancelled deployments were deleted. The current production deployment, earlier production deployments and each open PR's latest preview were kept.
+- **#95** — makes Vercel build previews only for ready PRs (`ignoreCommand`; until it merges, drafts still get previews), after 406 deployments in 9 days nearly filled the account's deployment storage. The same day, 327 old preview, failed and cancelled deployments were deleted. The current production deployment, earlier production deployments and each open PR's latest preview were kept.
 - **#75** — UI/UX audit (draft). The corrections to findings 3 and 5 are pushed (`cda0957`).
 - **3D assets** — #26 → #73 → `m4a-study-fidelity` (no PR yet), merged in that order after #26 is re-reviewed. Codex is back 2026-10-04 13:10.
   - Those branches, and #76, carry STATUS edits; Claude keeps `main`'s STATUS when merging them.
@@ -103,7 +103,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Deletion promise (Kirby, 2026-09-30): no stated deletion time for now.** The hourly GitHub schedule actually ran about 5 times a day (longest gap 8.56 h), so physical deletion can land later than the "24 hours" the product still says.
 
 - Expired data is unreadable, because reads treat expired rows as gone.
-- Kirby's decision: product copy and README state no deletion time. The timing and the backup scheduler (decision 9) wait for the privacy policy (U1). #92 (UI) and #84 (README) carry the no-time drafts.
+- Kirby's decision: product copy and README state no deletion time. The timing and the backup scheduler wait for the privacy policy (U1). #92 (UI) and #84 (README) carry the no-time drafts.
 - `expire-sessions.yml` stays until a backup scheduler exists.
 
 **Blocked on Kirby (decision packet, 2026-09-30):**
@@ -121,12 +121,12 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 - GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection; private vulnerability reporting (all off as of 2026-09-30; the last one is required before #84 merges)
 - Phone test of #77 (right and left hand)
 - Run migration 0006 on production before #85 merges (`DATABASE_URL_UNPOOLED` pointing at the Neon production branch, then `npm run db:migrate`)
-- Copy approval for #84 (README, NOTICE, CONTRIBUTING), #92 (no-time deletion lines, detector notice, sheet numbers, "Not yet verified against a ruler.") and #94 (error pages)
+- Copy approval for #84 (README, NOTICE, CONTRIBUTING), #92 (see its two copy tables: no-time deletion lines, detector progress and failure notice, sheet numbers and "Not yet verified against a ruler.", titles, hidden h1, screen-reader labels) and #94 (error pages)
 - Copy approval, after the fact, for strings merged unapproved:
   - #69: the desktop privacy line "Your photo never leaves this device. Only measurements are sent." and the device-routing strings its PR lists as candidate
   - #74: the "…or tap the hand button below." hint and the hand-chip accessible names (for example "Right hand · auto, set automatically. Change hand")
 - Copy approval for #86 (G4): the `weight_in_range` sentence with the user's range and the two `thumb_rest_missing` sentences
-- #89: spot-check the ⚠ models before G9b
+- #89: spot-check the ⚠ models before G9b; and whether `formFactor` "standard" stays null (33 models) or G9b derives it
 - The typed-length input range, 135–265 mm (candidate)
 - M325s / M550 acceptance
 
@@ -137,7 +137,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Queued:**
 
 - #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
-- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82); already on `main`. Fixed in #92 (S3).
+- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82); already on `main`. The fix is in #92 (S3, draft, not merged).
 - M1 rubric revision (the gate failed; see Gate results).
 - `security-review` workflow, after U1 and G6.
 - Re-review of #26.
@@ -337,7 +337,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-30 | **The AI-source disclosure is dropped for now**; the home page's "weight" claim is corrected to "height"                                                                                                                                       | Kirby: add the disclosure later; weight was never scored                                                                                                                                                                                                                                                          |
 | 2026-09-30 | **G9: left-hand exclusion unchanged; ambidextrous ⇒ symmetrical not inferred (pending verification); M750 shape = symmetrical like M550**; #89 merges before Kirby's spot check                                                                | Kirby's answers on #89; the data is inert until G9b                                                                                                                                                                                                                                                               |
 | 2026-09-30 | **The learning kit pages are not served in production**                                                                                                                                                                                        | Kirby collects the learning photos in person; the pages run on the local dev server only                                                                                                                                                                                                                          |
-| 2026-09-30 | **Vercel builds previews only for ready PRs**; 327 old preview, failed and cancelled deployments deleted                                                                                                                                       | 406 deployments in 9 days nearly filled the account's deployment storage (Kirby)                                                                                                                                                                                                                                  |
+| 2026-09-30 | **Vercel is to build previews only for ready PRs** (implemented in #95, not yet merged; drafts still get previews until then); 327 old preview, failed and cancelled deployments deleted                                                       | 406 deployments in 9 days nearly filled the account's deployment storage (Kirby)                                                                                                                                                                                                                                  |
 
 ---
 
