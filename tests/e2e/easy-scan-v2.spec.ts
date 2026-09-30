@@ -461,3 +461,160 @@ test.describe("AC5: only transform and opacity move", () => {
     await release(page);
   });
 });
+
+/**
+ * A camera that reports focus support (Android Chrome does; the fake device
+ * does not) and records every constraint it is asked to apply.
+ */
+async function fakeFocusSupport(page: Page, supported: boolean) {
+  await page.addInitScript((supported) => {
+    const w = window as Window & { __constraints?: unknown[] };
+    w.__constraints = [];
+    const proto = MediaStreamTrack.prototype;
+    const realApply = proto.applyConstraints;
+    proto.applyConstraints = function (constraints) {
+      w.__constraints!.push(JSON.parse(JSON.stringify(constraints ?? {})));
+      return realApply.call(this, constraints).catch(() => undefined);
+    };
+    if (!supported) return;
+    const realCapabilities = proto.getCapabilities;
+    proto.getCapabilities = function () {
+      return {
+        ...realCapabilities.call(this),
+        focusMode: ["manual", "single-shot", "continuous"],
+      } as MediaTrackCapabilities;
+    };
+    const realSettings = proto.getSettings;
+    proto.getSettings = function () {
+      return { ...realSettings.call(this), pointsOfInterest: [] };
+    };
+  }, supported);
+}
+const constraintsSeen = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as Window & { __constraints?: unknown[] }).__constraints ?? [],
+  );
+
+/** Holds the live loop where it is, so the auto-shutter cannot fire mid-test. */
+async function freezeLoop(page: Page) {
+  await expect(page.locator(".cameraCue")).toBeVisible();
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
+}
+
+test.describe("AC3 and AC4: focus", () => {
+  test("a camera that reports focusMode is put in continuous focus; a tap focuses once at that point and shows the reticle", async ({
+    page,
+  }) => {
+    await fakeFocusSupport(page, true);
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    await freezeLoop(page);
+
+    expect((await constraintsSeen(page))[0]).toEqual({
+      advanced: [{ focusMode: "continuous" }],
+    });
+
+    const video = await page.evaluate(() => {
+      const v = document.querySelector<HTMLVideoElement>("video.cameraVideo")!;
+      return { width: v.videoWidth, height: v.videoHeight };
+    });
+    await page
+      .locator(".easyStage")
+      .click({ position: { x: 100, y: 300 }, force: true });
+
+    const reticle = page.getByTestId("focus-reticle");
+    await expect(reticle).toBeVisible();
+    // 88 px, centred on the tap.
+    const at = await reticle.boundingBox();
+    expect(at!.width).toBeCloseTo(88, 0);
+    expect(at!.x + at!.width / 2).toBeCloseTo(100, 0);
+    expect(at!.y + at!.height / 2).toBeCloseTo(300, 0);
+
+    // The tap is mapped into the video frame with the cover crop undone.
+    const scale = Math.max(390 / video.width, 844 / video.height);
+    const coverWidth = video.width * scale;
+    const coverHeight = video.height * scale;
+    const expected = {
+      x: (100 - (390 - coverWidth) / 2) / coverWidth,
+      y: (300 - (844 - coverHeight) / 2) / coverHeight,
+    };
+    const tapCall = (await constraintsSeen(page)).at(-1) as {
+      advanced: {
+        focusMode: string;
+        pointsOfInterest: { x: number; y: number }[];
+      }[];
+    };
+    expect(tapCall.advanced[0].focusMode).toBe("single-shot");
+    expect(tapCall.advanced[0].pointsOfInterest).toHaveLength(1);
+    expect(tapCall.advanced[0].pointsOfInterest[0].x).toBeCloseTo(
+      expected.x,
+      3,
+    );
+    expect(tapCall.advanced[0].pointsOfInterest[0].y).toBeCloseTo(
+      expected.y,
+      3,
+    );
+
+    // About 1.2 s later continuous focus is asked for again, and the reticle goes.
+    await expect
+      .poll(async () => (await constraintsSeen(page)).at(-1), {
+        timeout: 4_000,
+      })
+      .toEqual({ advanced: [{ focusMode: "continuous" }] });
+    await expect(reticle).toHaveCount(0, { timeout: 4_000 });
+  });
+
+  test("where the camera reports nothing: no reticle, no tap handling, no focus constraint at all", async ({
+    page,
+  }) => {
+    await fakeFocusSupport(page, false);
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    await freezeLoop(page);
+    await page
+      .locator(".easyStage")
+      .click({ position: { x: 100, y: 300 }, force: true });
+    await page.waitForTimeout(1600);
+    await expect(page.getByTestId("focus-reticle")).toHaveCount(0);
+    expect(await constraintsSeen(page)).toEqual([]);
+  });
+
+  test("a camera that lists focus modes but refuses the request does not break the scan", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const proto = MediaStreamTrack.prototype;
+      proto.getCapabilities = function () {
+        return {
+          focusMode: ["single-shot", "continuous"],
+        } as MediaTrackCapabilities;
+      };
+      proto.getSettings = function () {
+        return { width: 1000, height: 1300, pointsOfInterest: [] };
+      };
+      proto.applyConstraints = () =>
+        Promise.reject(new DOMException("no", "OverconstrainedError"));
+    });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    await page.goto("/scan/easy?debug=1");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    await expect(page.getByTestId("scan-debug-panel")).toContainText(
+      "continuous no (OverconstrainedError)",
+    );
+    // The scan carries on: the auto-shutter still fires (the fake scene has no
+    // hand, so it ends at the retake sheet).
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      /processing|gateFailure/,
+      { timeout: 20_000 },
+    );
+    expect(errors).toEqual([]);
+  });
+});
