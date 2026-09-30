@@ -62,6 +62,7 @@ const DEMO_ROUTES = [
   "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
   "/scan/easy/measured-demo",
+  "/scan/error-demo",
   "/scan/grip-race-demo",
   "/scan/hand-explicit-demo",
   "/scan/measured-demo",
