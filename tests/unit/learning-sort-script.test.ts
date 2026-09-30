@@ -320,13 +320,19 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     }
   }
 
-  it("a photo folder that cannot be listed: a redacted message, not a raw stack (EPERM/EACCES)", () => {
+  it("a photo folder that cannot be listed: a redacted message, not a raw stack (EPERM/EACCES)", ({
+    skip,
+  }) => {
     const locked = join(scratch, nameable ? `${username}-locked` : "locked");
     mkdirSync(locked, { recursive: true });
     const result = withUnlistable(locked, () =>
       sorter(["--in", locked, "--out", join(scratch, "out")]),
     );
-    if (result === "unsupported") return;
+    if (result === "unsupported") {
+      // Skipped, not passed: the count shows it.
+      skip("this machine cannot make a folder unlistable (no icacls, or root)");
+      return;
+    }
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/EPERM|EACCES/);
     expect(result.stderr).toMatch(/scandir|readdir|permission/i);

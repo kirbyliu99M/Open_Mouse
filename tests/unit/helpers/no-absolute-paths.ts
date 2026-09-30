@@ -5,16 +5,23 @@
  * Plain substring checks are wrong here. On Linux the scratch folder is
  * /tmp/xyz, and a correctly redacted, RELATIVE path such as
  * ../../../../tmp/xyz/report.json contains "/tmp/xyz" without leaking anything.
- * So a path counts as a leak only where it stands as an absolute path: at the
- * start of the text or after whitespace, a quote, a parenthesis or "=".
+ * So a path counts as a leak only where it stands as an absolute path: with
+ * nothing before it that would make it part of a word, a relative path or a
+ * URL. That is anything but a letter, digit, "_", ".", "~", "/", "\", "%",
+ * "-", ">" or a closing bracket: the start of the text, white space, a quote,
+ * a backtick, "(", "[", "{", "<", ",", ";", ":" and "=" all leave it standing
+ * as a path.
+ *
+ * Written on its own, not from the redactor's patterns, so that it can catch
+ * what the redactor misses.
  */
 import { expect } from "vitest";
 
 const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Where an absolute path can begin in a message. */
-const BEFORE = String.raw`(?:^|[\s'"(=])`;
+/** What may NOT stand right before something for it to be an absolute path. */
+const NOT_AFTER = String.raw`(?<![A-Za-z0-9_.~/\\%>)\]}-])`;
 
 /** The text names `folder` (either slash style, any letter case) as an absolute path. */
 export function namesAbsolutePath(text: string, folder: string): boolean {
@@ -24,18 +31,30 @@ export function namesAbsolutePath(text: string, folder: string): boolean {
     folder.replaceAll("/", "\\"),
   ]);
   return [...forms].some((form) =>
-    new RegExp(`${BEFORE}${escapeRegExp(form)}`, "im").test(text),
+    new RegExp(`${NOT_AFTER}${escapeRegExp(form)}`, "i").test(text),
   );
 }
 
-/** Any absolute path at all: a drive letter, or a POSIX path under a system root. */
+const SEGMENT = String.raw`[^\s/'"\x60<>|()\]}]+`;
+const ROOTS =
+  "tmp|home|var|Users|private|mnt|root|opt|usr|etc|srv|media|Volumes|run|proc|snap|nix|Applications|Library|System";
+
+const ANY_ABSOLUTE_PATH: readonly RegExp[] = [
+  // A drive letter (not the "p:" of "http://").
+  /(?<![A-Za-z0-9])[A-Za-z]:[\\/]/,
+  // \\server\share
+  /(?<![\\A-Za-z0-9])\\\\[^\\\s]+\\/,
+  // file:///anything
+  /(?<![A-Za-z0-9])file:\/\//i,
+  // /a/b, whatever the first folder is
+  new RegExp(`${NOT_AFTER}/${SEGMENT}/${SEGMENT}`),
+  // /tmp, /home ... on their own
+  new RegExp(`${NOT_AFTER}/(?:${ROOTS})(?![A-Za-z0-9_~-])`),
+];
+
+/** Any absolute path at all: drive, UNC, file URL, or a POSIX path of two segments (or a system root). */
 export function hasAnyAbsolutePath(text: string): boolean {
-  // (A drive letter, not the "p:" of "http://".)
-  if (/(?<![A-Za-z0-9])[A-Za-z]:[\\/]/.test(text)) return true;
-  return new RegExp(
-    `${BEFORE}/(?:tmp|home|var|Users|private|mnt|root|opt|usr|etc|srv|Volumes)(?:/|$)`,
-    "m",
-  ).test(text);
+  return ANY_ABSOLUTE_PATH.some((pattern) => pattern.test(text));
 }
 
 /**

@@ -278,6 +278,160 @@ in a real browser. The focal length in px that the parallax correction used is
 derived from the 35 mm value and recorded as a plain number
 (`parallax.exifFocalPx`).
 
+## Evaluation (`npm run m2:evaluate`)
+
+The M2 gate tool. It judges a measurement model from the v2 run logs and the
+`truth.json` files alone, and never opens a photo. It is not machine learning:
+it recomputes, compares and counts.
+
+```
+npm run m2:evaluate -- \
+  --log ../Fixtures/learning/runs \
+  --truth ../Fixtures/learning \
+  --out ../Fixtures/evaluations/baseline.json
+```
+
+| Option                   | Meaning                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--log <file or folder>` | A run log, or a folder of `*.json` run logs. Repeat freely                                                                                                    |
+| `--truth <file or dir>`  | A `truth.json`, or a folder that holds `<participant>/truth.json`                                                                                             |
+| `--path`                 | `markers`, `paper-edge` or `both` (default): which calibration plane to judge                                                                                 |
+| `--gesture G01[,G02]`    | Poses to judge. Default `G01`, the pose the M2 gate is defined on (grips fold the fingers, so their hand length is not a ruler hand length)                   |
+| `--participants P1,P2`   | Only these participants: a cross-validation fold, or the held-out set                                                                                         |
+| `--thresholds <file>`    | JSON limits, for example `{"accuracyMm":{"handLengthMm":2}}`. Checked strictly: an unknown key or measurement name is an error. Default: the candidates below |
+| `--out <file>`           | Write the JSON report here. Never overwritten, never inside the repo or any git worktree (the same rule as `learn:sort`). Summary goes to stdout              |
+
+It never runs in CI. The code is `src/lib/m2/` (pure) and `scripts/m2-evaluate.ts`.
+
+**The command line is checked strictly** (`src/lib/m2/cli.ts`). A misspelt or
+unknown flag (`--participant`), a flag with no value, an empty value, a
+single-value flag given twice, and a list with an empty or malformed entry
+(`--participants P001,,P002`, `P01`, `p001`; `--gesture G99`) are errors: the
+message names the flag, the usage follows, the exit code is 1 and nothing is
+evaluated. `--participants` never falls back to "everyone" because it was
+mistyped. Only `--log` and `--truth` may be repeated. If a participant you asked
+for has no measured photo, stderr says so, and the run goes on.
+
+**What is printed.** The Markdown summary goes to stdout. On stderr, a failure is
+its message only, never a stack, with the paths given on the command line shown
+relative to where the command ran and the account name as `~`. That holds for
+file system errors too (an unreadable folder, a report that cannot be written).
+After a report is written stderr says only `JSON report written.`, not the file
+name, which is yours and can say who or when. Exit codes: 0 done; 1 refused,
+bad input or failure; 2 nothing could be evaluated, and the message says why
+(no reports, everything of another pose or participant, or which reasons kept
+the photos from being measured).
+
+An unknown option is echoed by name only when it is a plain option name
+(`--partcipants`); anything else, such as a path with two dashes in front of it,
+is reported as "an unrecognised option". A real option written with `=`
+(`--participants=P001`) is answered by its name: "takes its value after a
+space, not after `=`". Any other absolute path a tool prints is shown as
+`<path>`, and stack frames are left out, exactly as in `learn:sort` (same
+filter, `src/lib/m2/terminal.ts`). `--log`, `--truth`, `--thresholds` and
+`--out` given in Git Bash, Cygwin or WSL spelling (`/c/Users/me/...`,
+`/cygdrive/c/...`, `/mnt/c/...`) are refused on Windows (Node would read them
+as a folder tree on the current drive, and `--out` would create it): use
+`C:\Users\me\...`.
+
+**Not covered: npm's own lines.** Run as `npm run m2:evaluate -- ...`, npm itself
+prints the whole command line, your paths included, to stderr (`npm notice run
+tsx scripts/m2-evaluate.ts --log C:\Users\...`) before the script starts. That is
+npm's output, outside the script's control. `npm run --silent m2:evaluate -- ...`
+hides it; use that when the output is going to be pasted somewhere.
+
+### What it does
+
+1. **Pairs** each report with its place in the session (participant, pose, hand,
+   shot) through the run log's own `sort`. Participant cards are not counted.
+2. **Recomputes** the millimetre values with `recomputePlane`, from the recorded
+   landmarks, homography and parallax settings only. The recorded `markerMm` and
+   `paperMm` are not read, so a log stays evaluable after the product's
+   constants change, and a model correction can be applied on top.
+3. **Asks the recorded `productGates`** whether the blank-paper flow would take
+   the photo, and reports two groups side by side: the photos the product
+   accepts, and all measured photos. Every photo the product refuses is listed
+   with its reason codes (`paper:PAPER_CORNER_HIDDEN`, `hand:HANDEDNESS_MISMATCH`, ...).
+   A photo the kit's own checker said to **retake** is measured too when its
+   record still has the page's code and the planes: it stays in "all measured
+   photos" (its value is a real measurement of the page's hand), never enters
+   "accepted", and is listed as `KIT_RETAKE:<check id>` for each check that
+   failed. (`learn:sort` does not file it, so the sort has no place for it; the
+   page's code in the record supplies the pose and hand.)
+4. **Compares** each measurement with the ruler value of the **same hand of the
+   same participant**. The page's hand decides which one, so a left-hand photo is
+   never compared with the right-hand value, even if the hand detector
+   disagreed with the page. Such a photo (`hand-mismatch` in the sort) is
+   filed and evaluated like any other.
+5. **Counts** accuracy and repeatability per path.
+
+A photo that cannot be measured or compared is listed under `excluded` with a
+reason and a stage; nothing is ever counted as zero:
+
+| Stage         | Reasons                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `measurement` | `NOT_FILED:<status>` (no readable code, no card before it, another kit version), `NOT_IN_SORT`, `AMBIGUOUS_FILE_NAME`, `DUPLICATE_DESTINATION` (`learn:sort` never overwrites, so the first copy counts), `NO_HAND`, `NO_PLANE`, `RECOMPUTE_FAILED`, `NO_MEASUREMENT` (a folded grip can fall outside the contract's ranges), `CALIBRATION_INVALID` (a correction returned a missing or non-finite value, or threw) |
+| `kit`         | `KIT_RETAKE:<check id>`: measured, but the kit's checker said to retake it, so it is out of "accepted" and stays in "all"                                                                                                                                                                                                                                                                                           |
+| `truth`       | `NO_TRUTH_FILE`, `NO_TRUTH_VALUE:<hand>`. The photo still counts for repeatability, which needs no ruler value                                                                                                                                                                                                                                                                                                      |
+| `product`     | The product's gate codes, `NO_PRODUCT_GATES` when the record has none                                                                                                                                                                                                                                                                                                                                               |
+
+### Statistics (candidate definitions, 待 W7 前置協議拍板)
+
+With `e = measured - ruler value` for one photo:
+
+| Statistic               | Definition                                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| n                       | Photos compared with a ruler value                                                                                                                                                                                                                                 |
+| bias                    | mean(e)                                                                                                                                                                                                                                                            |
+| MAE                     | mean(\|e\|)                                                                                                                                                                                                                                                        |
+| largest \|error\|       | max(\|e\|)                                                                                                                                                                                                                                                         |
+| SD                      | sample SD of e, divided by (n - 1); none for n < 2                                                                                                                                                                                                                 |
+| 95% limits of agreement | Bland-Altman: bias +/- 1.96 x SD; none for n < 2                                                                                                                                                                                                                   |
+| repeatability           | One row per participant, hand and pose with at least two photos: range = max - min, SD (n - 1), largest deviation from the group mean. Summary over the rows: mean and worst range, mean and pooled SD (sqrt of the (n-1)-weighted mean variance), worst deviation |
+
+Each is computed once per path and per measurement: `handLengthMm` and
+`palmWidthMm` (the values a `truth.json` holds).
+
+### Limits are candidates, and no reading is chosen
+
+`docs/PLAN.md` says "accuracy <= +/-2 mm on hand length vs. ruler" and
+"repeatability <= +/-1.5 mm across 5 photos", but not which statistic decides
+it. That is **未拍板 (candidate)** until the W7 pre-agreement. The evaluator
+reads the limits from configuration (defaults: hand length 2 mm and 1.5 mm) and
+reports **every reading**, so the agreement can pick one without a re-run:
+
+- accuracy: MAE within the limit; largest |error| within the limit; 95% limits of agreement within +/- the limit;
+- repeatability, for the worst group: range within the limit; half-range (range / 2) within the limit, i.e. +/- the limit; deviation from the group mean within the limit.
+
+The three readings can disagree, and the report does not say which one is the verdict.
+In the summary a value is shown with two decimals, except where that would make
+it look equal to its limit while the verdict says otherwise (the verdict uses
+the unrounded value): then it gets as many decimals as it takes to tell them
+apart, for example `2.004 mm against 2.00 mm: OUTSIDE`.
+
+### The report
+
+A JSON report (`open-mouse-m2-evaluation/1`) and a Markdown summary. They hold
+totals, the anonymous participant codes (`P007`), and photo ids like
+`P007/G01R/3` (participant, pose and hand as printed, shot). They hold **no file
+name, folder, account name, EXIF or landmark**; a test searches both for them.
+The model judged is named (`landmark-raw-v1` for the baseline); a correction
+such as the frozen `calibrated-v1` plugs in as `calibration` in
+`EvaluateOptions` and is applied after the recompute, so both models are judged
+by the same code.
+
+### Held-out participants are evaluated once
+
+The plan is to tune on some participants, freeze the model as `calibrated-v1`,
+and evaluate the held-out participants **once**. So:
+
+- **Claude runs the held-out evaluation, once, on the frozen model.** It is not in a workflow, and not re-run after looking at the result (a second look would make the held-out set a tuning set).
+- Cross-validation folds use `--participants`; the held-out set is the participants no fold ever contained.
+- `--out` refuses to overwrite, so a report cannot be quietly replaced.
+
+`scripts/m2-gate-replay.ts` (the old replay through `/scan`) is gone: it failed
+on blank-paper photos and had no parallax correction. This tool replaces it.
+
 ## Privacy and rules
 
 - **Photos never leave the device** (hard rule 5). The checker decodes,
@@ -307,12 +461,22 @@ derived from the 35 mm value and recorded as a plain number
     sorter's own checkout as `.`, other checkouts as `<checkout>`, the photo
     and output folders relative to where the command ran, and any path segment
     holding the account name as `~`.
-  - **Any other absolute path** (a drive letter such as `C:\...`, or a POSIX
-    path under `/home`, `/Users`, `/tmp` and the like), which comes from tools
-    that name their own folders (for example Playwright's "Executable doesn't
-    exist at ..."), becomes `<path>`. A path runs to the next quote or line
-    end and may contain spaces, so words after an unquoted path on the same
-    line go with it: better to hide too much than to leave a folder name.
+  - **Any other absolute path**, which comes from tools that name their own
+    folders (for example Playwright's "Executable doesn't exist at ..."),
+    becomes `<path>`: a drive path (`C:\...`), a UNC path (`\\server\share\...`),
+    a `file://` URL, and a POSIX path of two or more segments whatever its
+    first folder is (`/home/...`, `/data/...`, `/workspace/...`). A POSIX path
+    is recognised after the start of the text, white space, a quote, a
+    backtick, `(`, `[`, `{`, `<`, `,`, `;`, `:` or `=`; it is not one after a
+    letter, digit, `.`, `~`, `/`, `-`, `>` or a closing bracket, so URLs
+    (`http://127.0.0.1:3401/learn/check`), relative paths (`../x/y`,
+    `~/x/y`, `<path>/x`), fractions (`3/4`) and dates (`2026/09/30`) stay.
+    A route in prose (`open /learn/print`) looks like a path and is hidden.
+    A path under a system root (`/home`, `/Users`, `/tmp`, `/Applications`,
+    `/Library`, ...) and a Windows or UNC path run to the next quote or line
+    end and may contain spaces, so words after such a path on the same line go
+    with it: better to hide too much than to leave a folder name. Other POSIX
+    paths end at white space.
   - In the dev server's last words, stack frames (`    at f (file:1:1)`) are
     replaced by one `(stack frames omitted)` line.
   - The account name is masked wherever else it appears in text, in any letter
@@ -324,9 +488,10 @@ derived from the 35 mm value and recorded as a plain number
     script starts. That is npm's output, outside the script's control. `npm run
 --silent learn:sort -- ...` hides it (checked); use that when the output is
     going to be pasted somewhere.
-  - `--in` and `--out` given in Git Bash spelling (`/c/Users/me/...`) are
-    refused on Windows: Node would read that as a folder named `c` on the
-    current drive and create it. Use the Windows form (`C:\Users\me\...`).
+  - `--in` and `--out` given in Git Bash, Cygwin or WSL spelling
+    (`/c/Users/me/...`, `/cygdrive/c/...`, `/mnt/c/...`) are refused on
+    Windows: Node would read that as a folder tree on the current drive and
+    create it. Use the Windows form (`C:\Users\me\...`).
 - **Only white-listed EXIF in the run log** (above): no GPS, time or device
   serial number. Two things it does not cover:
   - **File names.** Phone cameras often put the time of the shot in the file
@@ -367,6 +532,7 @@ Reprint the cards before a session so each hand gets its own values.
 | `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                           |
 | `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe                   |
 | `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch                     |
+| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI         |
 | `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF                   |
 | `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                                          |
 | `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (`noindex`; 404 in production) |

@@ -1064,8 +1064,10 @@ export default function ScanClient({
                 ))}
               </div>
             )}
-            {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
-                from — the visible dl below is for people, formatted/rounded. */}
+            {/* Raw JSON with the exact values (the old scripts/m2-gate-replay.ts
+                read it; it was replaced by scripts/m2-evaluate.ts, which works
+                from learning-kit run logs) — the visible dl below is for
+                people, formatted/rounded. */}
             <p hidden data-testid="scan-measurements-json">
               {JSON.stringify(state.measurements)}
             </p>

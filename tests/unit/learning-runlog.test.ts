@@ -528,19 +528,118 @@ describe("redactText: paths it was not told about, and stack frames", () => {
     expect(redactText("/var", hide)).toBe("<path>");
   });
 
-  it("leaves alone what is not an absolute path: URLs, relative paths, page routes, words", () => {
+  it("leaves alone what is not an absolute path: URLs, relative paths, fractions, dates, words", () => {
     for (const text of [
       "http://127.0.0.1:3401/learn/check",
       "https://open-mouse.vercel.app/l/v1/G03R",
+      "http://localhost/learn/print?hands=both",
+      "ws://host:8080/a/b/c",
       "../../home/~/Pictures/S1",
+      "../../../../../tmp/m2-evaluate-test-X/out/r.json",
       "./node_modules/next/dist",
+      "~/Pictures/S1",
+      "<checkout>/scripts/x.ts",
+      "<path>/x/y",
       ".\\node_modules\\next",
-      "open /learn/print in the browser",
+      "3/4 of the photos, 1/2 and 10/12",
+      "on 2026/09/30 and 30/09/2026 at 10:30/11:00",
+      "range / 2 and a / b",
+      "and/or, either/or, TCP/IP",
       "a:b and c:d",
       "the /tmpfile idea",
+      "P001/G01R/3 and run1#2",
+      "open-mouse-m2-evaluation/1",
     ]) {
       expect(redactText(text, hide)).toBe(text);
     }
+  });
+
+  // Anything that starts with a slash and has two segments looks like a path,
+  // wherever it comes from: a page route in prose is hidden too (the safe way
+  // to be wrong), but the same route inside a URL is not.
+  it("a route in prose looks like a path and is hidden; in a URL it is kept", () => {
+    expect(redactText("open /learn/print in the browser", hide)).toBe(
+      "open <path> in the browser",
+    );
+    expect(
+      redactText("open http://localhost:3000/learn/print in the browser", hide),
+    ).toBe("open http://localhost:3000/learn/print in the browser");
+  });
+
+  // POSIX paths the old fixed list of roots let through.
+  describe("a POSIX path is hidden whatever stands before it and whatever its root", () => {
+    it.each([
+      ["a colon", "path:/home/bob/x", "path:<path>"],
+      ["a colon and a space", "cwd: /data/photos/day1", "cwd: <path>"],
+      ["a bracket", "[/data/photos/a.jpg]", "[<path>]"],
+      ["a brace", "{/workspace/repo/x.ts}", "{<path>}"],
+      ["a comma", "a,/data/x/y", "a,<path>"],
+      ["a semicolon", "a;/data/x/y", "a;<path>"],
+      ["a backtick", "`/Applications/Foo/bar`", "`<path>`"],
+      ["an angle bracket", "<file /opt/x/y>", "<file <path>>"],
+      ["a double quote", '"/data/x/y"', '"<path>"'],
+      ["a single quote", "'/data/x/y'", "'<path>'"],
+      ["a parenthesis", "(/srv/app/x.js:1:2)", "(<path>)"],
+      ["an equals sign", "root=/data/x/y", "root=<path>"],
+      ["white space", "at /workspace/repo/src/x.ts now", "at <path> now"],
+      ["the start of the text", "/data/x/y", "<path>"],
+      ["the start of a line", "one\n/data/x/y\ntwo", "one\n<path>\ntwo"],
+    ])("%s before it", (_label, text, expected) => {
+      expect(redactText(text, hide)).toBe(expected);
+    });
+
+    it.each([
+      ["an unknown root", "/workspace/repo/src/x.ts", "<path>"],
+      ["macOS", "/Applications/Google/Chrome/x", "<path>"],
+      ["a deep one", "/a/b/c/d/e/f", "<path>"],
+      ["with a trailing slash", "in /data/x/ now", "in <path> now"],
+      [
+        "a system root with spaces in it",
+        "in /Users/Bob Smith/My Photos/a.jpg",
+        "in <path>",
+      ],
+      [
+        "macOS folders with spaces",
+        "in /Applications/Google Chrome.app/Contents/MacOS/x",
+        "in <path>",
+      ],
+      [
+        "macOS library folders with spaces",
+        "in /Library/Application Support/Foo Bar/x",
+        "in <path>",
+      ],
+    ])("%s", (_label, text, expected) => {
+      expect(redactText(text, hide)).toBe(expected);
+    });
+
+    it("a file URL, POSIX or Windows", () => {
+      expect(redactText("at file:///home/bob/x/y.mjs:3:1 failed", hide)).toBe(
+        "at <path> failed",
+      );
+      expect(redactText("import 'file:///C:/Users/bob/x/y.mjs'", hide)).toBe(
+        "import '<path>'",
+      );
+      expect(redactText("FILE:///tmp/a/b", hide)).toBe("<path>");
+    });
+
+    it("a UNC path", () => {
+      expect(
+        redactText("cannot open \\\\srv\\share\\photos\\a.jpg now", hide),
+      ).toBe("cannot open <path>");
+      expect(redactText("'\\\\NAS\\My Share\\day 1\\a.jpg'", hide)).toBe(
+        "'<path>'",
+      );
+      // The extended-length prefix of a drive path is a path as well.
+      expect(redactText("open \\\\?\\C:\\Users\\bob\\a.txt", hide)).toBe(
+        "open <path>",
+      );
+    });
+
+    it("a single slash and a lone word after it are not a path", () => {
+      for (const text of ["a / b", "and /or", "/ 2", "1 /x", "//", "/"]) {
+        expect(redactText(text, hide)).toBe(text);
+      }
+    });
   });
 
   it("known paths are shortened first, so they are not just <path>", () => {
@@ -588,6 +687,19 @@ describe("redactText: paths it was not told about, and stack frames", () => {
 describe("looksLikeMsysPath", () => {
   it.each([
     ["/c/Users/me/Photos", true],
+    ["/cygdrive/c/Users/me", true],
+    ["/cygdrive/D/data", true],
+    ["/cygdrive/c", true],
+    ["/mnt/c/Users/me", true],
+    ["/mnt/d", true],
+    ["/mnt/c/", true],
+    ["/mnt/cc/Users", false],
+    ["/mnt/data/x", false],
+    ["/mnt", false],
+    ["/cygdrive", false],
+    ["/cygdrive/cc/x", false],
+    ["/cygdrive/", false],
+    ["/media/c/x", false],
     ["/D/DCIM", true],
     ["/c", true],
     ["/c/", true],
