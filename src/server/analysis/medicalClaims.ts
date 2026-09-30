@@ -1,3 +1,11 @@
+/** Nouns for the shape of a surface: a gentle 弧度 is a shape fact. */
+const SHAPE_NOUNS =
+  "(?:弧度|曲線|曲线|線條|线条|坡度|斜度|起伏|弧面|曲面|弧形|造型|輪廓|轮廓)";
+
+/** Body parts, for the claims about what a mouse does to them. */
+const BODY_PARTS =
+  "(?:手腕|腕部|手部|手掌|手指|手臂|前臂|關節|关节|肌肉|肌腱|肩頸|肩颈|肩膀|頸部|颈部|背部|身體|身体|掌心)";
+
 /**
  * Candidate list (未拍板) of medical or health claims to reject in model prose.
  * Strings match complete English words or Chinese substrings; labelled patterns
@@ -187,6 +195,20 @@ export const MEDICAL_CLAIM_TERMS: readonly (
     pattern:
       /舒[緩缓](?:壓力|压力|疼痛|痠痛|酸痛|不適|不适|疲勞|疲劳|症狀|症状|緊繃|紧绷)/u,
   },
+  // 舒緩 / 舒缓 is refused unless it describes a shape: 弧度舒緩, 曲線舒緩的
+  // 背部 (a shape noun in front) or 舒緩的曲面 (a shape noun after 的). Any
+  // other object (舒緩手腕, 有助舒緩, 舒緩負擔, 舒緩你的手) is a relief claim.
+  {
+    label: "舒緩/舒缓 outside a shape description",
+    pattern: new RegExp(`(?<!${SHAPE_NOUNS})舒[緩缓](?!的${SHAPE_NOUNS})`, "u"),
+  },
+  // The same words in their variant spellings, always a relief claim.
+  "紓緩",
+  "纾缓",
+  "紓解",
+  "纾解",
+  "抒解",
+  "舒解",
   {
     label: "減輕/降低 wrist or hand stress",
     pattern:
@@ -197,6 +219,50 @@ export const MEDICAL_CLAIM_TERMS: readonly (
     pattern:
       /(?:保護|保护|呵護|呵护|守護|守护)(?:好|你的|您的)?(?:手腕|腕部|手部|關節|关节|肌腱|身體|身体)/u,
   },
+
+  // A body part with a lower load: 手腕負擔較小, 對手腕壓力較低.
+  {
+    label: "身體部位 + 負擔/壓力 + 較小 (lower load on a body part)",
+    pattern: new RegExp(
+      `${BODY_PARTS}(?:的)?(?:負擔|负担|壓力|压力|張力|张力|勞累|劳累)(?:較|较|比較|比较|更|變|变|會|会)?(?:小|低|少|輕|轻|減少|减少|降低|減輕|减轻|下降)`,
+      "u",
+    ),
+  },
+  // Good for a body part: 有助於手腕, 有益身體, 有利於關節. The hands and
+  // fingers are left alone when the sentence goes on about gripping.
+  {
+    label: "有助於/有益/有利於 + 身體部位 (good for the body)",
+    pattern: new RegExp(
+      `(?:有助[於于]?|有益[於于]?|有利[於于]?)(?:你的|您的|使用者的)?(?:手腕|腕部|手臂|前臂|關節|关节|肌肉|肌腱|肩頸|肩颈|肩膀|頸部|颈部|背部|身體|身体|健康)`,
+      "u",
+    ),
+  },
+  {
+    label: "有助於/有益/有利於 + 手 (good for the hand, not for gripping)",
+    pattern:
+      /(?:有助[於于]?|有益[於于]?|有利[於于]?)(?:你的|您的|使用者的)?(?:手指|手掌|手部|掌心)(?!抓握|握持|貼合|貼附|发力|發力|施力|放置|擺放|摆放|定位|按壓|按压|點擊|点击|操作|移動|移动|滑動|滑动)/u,
+  },
+  {
+    label: "放鬆/放松 + 身體部位 (relax a body part)",
+    pattern: new RegExp(`(?:放鬆|放松|舒展)(?:你的|您的)?${BODY_PARTS}`, "u"),
+  },
+  {
+    label: "預防/避免 + 不適/問題 (prevent discomfort or problems)",
+    pattern: new RegExp(
+      `(?:預防|预防|防止|避免|防範|防范|防護|防护)(?:${BODY_PARTS})?(?:的)?(?:不適|不适|問題|问题)`,
+      "u",
+    ),
+  },
+  // Patients and evidence: 罹患, 患者, 科學證實, 研究顯示, 專家建議.
+  "罹患",
+  "患有",
+  "患者",
+  "科學證實",
+  "科学证实",
+  "研究顯示",
+  "研究显示",
+  "專家建議",
+  "专家建议",
 
   // Healthy, friendly and ergonomic claims.
   "健康",
