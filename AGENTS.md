@@ -105,7 +105,14 @@ caused one agent's uncommitted work to be committed by another.
 - **Branches:** `m<N>-<slug>` (e.g. `m0-scaffold`, `m2-calibration`).
 - **PRs:** reference the milestone issue, state gate evidence, keep to one
   milestone *and one side of the seam*. Review runs on the draft; CI runs once Claude marks it
-  ready, and a PR merges only with that run green *and* the Vercel preview live. A milestone that spans both sides (M2, M6) is two PRs.
+  ready, and a PR merges only with that run green (its full gate runs `npm run vercel-build`, which outside a
+  Vercel preview is only `next build`: it applies no migration).
+  **Vercel previews** (Kirby, 2026-09-30): drafts and branches without a PR are not built
+  (`vercel.json` `ignoreCommand`), and marking a PR ready does not deploy. A Vercel status of
+  "Canceled by Ignored Build Step" is green but means *no preview*: never count it as one. When
+  a PR needs a real preview (it adds a migration, or Kirby tests it on a phone), Claude runs
+  `npx vercel deploy` in the PR's worktree and checks the deployment is READY. A CLI deployment
+  was observed to build without the ignore step. A milestone that spans both sides (M2, M6) is two PRs.
 - **TypeScript:** strict. No `any` on the critical path.
 - **DB:** Drizzle with `@neondatabase/serverless` HTTP driver.
   **Never `pg.Pool`** — connections are not reused between serverless invocations.
@@ -118,7 +125,7 @@ caused one agent's uncommitted work to be committed by another.
 
 - [ ] Acceptance criteria in the milestone issue all met
 - [ ] Unit tests for every new pure function
-- [ ] CI green; Vercel preview deploys
+- [ ] CI green (and, when the PR adds a migration or needs a phone test, a Vercel preview Claude started with `npx vercel deploy` is READY)
 - [ ] Gate evidence posted as numbers (gated milestones)
 - [ ] **`docs/STATUS.md` updated by Claude after the merge** — milestone row, decisions, blockers (builders report these in the PR description instead)
 - [ ] No licensed data anywhere in the diff or in `git log -p`
