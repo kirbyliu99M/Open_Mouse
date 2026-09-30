@@ -618,3 +618,90 @@ test.describe("AC3 and AC4: focus", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("the measured and retake layouts", () => {
+  test("once measured, the paper corners, both lines and both labels are all above the sheet", async ({
+    page,
+  }) => {
+    const { sheet } = await captureAndMeasure(page);
+    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await page.waitForTimeout(1600); // the spring settles, the lines are drawn
+    const sheetTop = (await sheet.boundingBox())!.y;
+    const parts = await page.evaluate(() => {
+      const rects = (selector: string) =>
+        [...document.querySelectorAll(selector)].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+        });
+      return {
+        checks: rects(".easyCornerCheck circle"),
+        labels: rects(".easyDimLabelBg"),
+        lines: rects(".easyDimLine"),
+      };
+    });
+    expect(parts.checks).toHaveLength(4);
+    expect(parts.labels).toHaveLength(2);
+    expect(parts.lines).toHaveLength(2);
+    const all = [...parts.checks, ...parts.labels, ...parts.lines];
+    const lowest = Math.max(...all.map((r) => r.bottom));
+    const highest = Math.min(...all.map((r) => r.top));
+    console.log(
+      `measured layout: lowest drawn part ${lowest.toFixed(0)} px, sheet top ${sheetTop.toFixed(0)} px, highest ${highest.toFixed(0)} px`,
+    );
+    expect(lowest).toBeLessThanOrEqual(sheetTop);
+    expect(highest).toBeGreaterThanOrEqual(0);
+    for (const r of all) {
+      expect(r.left).toBeGreaterThanOrEqual(0);
+      expect(r.right).toBeLessThanOrEqual(390);
+    }
+  });
+
+  test("lines draw in order: hand length first, palm width 350 ms later", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await captureAndMeasure(page);
+    const timing = await page.locator(".easyDimGrow").evaluateAll((els) =>
+      els.map((el) => {
+        const style = getComputedStyle(el);
+        return [style.animationDuration, style.animationDelay];
+      }),
+    );
+    expect(timing).toEqual([
+      ["0.35s", "0.3s"],
+      ["0.35s", "0.65s"],
+    ]);
+  });
+
+  test("a located problem is outlined in amber, above the sheet; an unlocated one is not", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await openLive(page, `${LIVE_DEMO}?result=retake`);
+    await release(page);
+    const sheet = page.getByRole("dialog", { name: "Retake needed" });
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await page.waitForTimeout(1200);
+    const outline = page.locator(".easyProblem");
+    await expect(outline).toHaveCount(1);
+    const outlineBox = (await outline.boundingBox())!;
+    const sheetTop = (await sheet.boundingBox())!.y;
+    expect(outlineBox.y + outlineBox.height).toBeLessThanOrEqual(sheetTop);
+    expect(await outline.evaluate((el) => getComputedStyle(el).stroke)).toBe(
+      "rgb(240, 178, 58)",
+    );
+  });
+
+  test("no hand found means nothing to outline: the photo is shown, no box is guessed", async ({
+    page,
+  }) => {
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Retake needed" }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("svg.easyFrozenSvg")).toBeVisible();
+    await expect(page.locator(".easyProblem")).toHaveCount(0);
+  });
+});

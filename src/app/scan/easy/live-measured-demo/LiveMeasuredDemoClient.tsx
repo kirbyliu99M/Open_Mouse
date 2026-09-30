@@ -9,6 +9,7 @@ import type {
   PipelineResult,
   RunPhotoPipelineInput,
 } from "@/client/photo/pipeline";
+import { checkLandmarkConfidence } from "@/client/photo/gates";
 import {
   DEMO_IMAGE_HEIGHT,
   DEMO_IMAGE_WIDTH,
@@ -20,6 +21,13 @@ type DemoWindow = Window & {
   /** Test hook: while unresolved, the fake pipeline stays "processing". */
   __easyScanLiveHold?: Promise<void>;
 };
+
+/**
+ * Where the demo paper sits in the photo, as fractions of its width and
+ * height: an A4 sheet as the guide rectangle frames it on a 390x844 screen
+ * with a 9:16 camera. The screenshot spec draws its scene to match.
+ */
+const PAPER = { left: 0.151, top: 0.198, right: 0.849, bottom: 0.754 };
 
 const SUBMISSION = scanSubmissionSchema.parse({
   hand: "right",
@@ -58,29 +66,48 @@ async function measuredPipeline(
   const bitmap = await createImageBitmap(input.file);
   const { width, height } = bitmap;
   bitmap.close();
+  // The demo hand, laid inside the paper.
   const at = (x: number, y: number) => ({
-    x: (x / DEMO_IMAGE_WIDTH) * width,
-    y: (y / DEMO_IMAGE_HEIGHT) * height,
+    x:
+      width *
+      (PAPER.left + (x / DEMO_IMAGE_WIDTH) * (PAPER.right - PAPER.left)),
+    y:
+      height *
+      (PAPER.top + (y / DEMO_IMAGE_HEIGHT) * (PAPER.bottom - PAPER.top)),
   });
+  const overlay = {
+    imageWidth: width,
+    imageHeight: height,
+    markers: [],
+    card: null,
+    landmarksPx: DEMO_LANDMARKS_PX.map((p) => at(p.x, p.y)),
+    handedness: "right" as const,
+    paperCorners: [
+      { x: width * PAPER.left, y: height * PAPER.top },
+      { x: width * PAPER.right, y: height * PAPER.top },
+      { x: width * PAPER.right, y: height * PAPER.bottom },
+      { x: width * PAPER.left, y: height * PAPER.bottom },
+    ] as const,
+  };
+  // `?result=retake`: a problem with the hand that the pipeline located.
+  if (new URLSearchParams(window.location.search).get("result") === "retake") {
+    return {
+      status: "error",
+      errors: [
+        {
+          code: "LOW_LANDMARK_CONFIDENCE",
+          message: checkLandmarkConfidence(0)!.message,
+        },
+      ],
+      overlay,
+    };
+  }
   return {
     status: "ok",
     measurements: SUBMISSION.measurements,
     submission: SUBMISSION,
     warnings: [],
-    overlay: {
-      imageWidth: width,
-      imageHeight: height,
-      markers: [],
-      card: null,
-      landmarksPx: DEMO_LANDMARKS_PX.map((p) => at(p.x, p.y)),
-      handedness: "right",
-      paperCorners: [
-        at(200, 160),
-        at(1400, 160),
-        at(1400, 1840),
-        at(200, 1840),
-      ],
-    },
+    overlay,
   };
 }
 
