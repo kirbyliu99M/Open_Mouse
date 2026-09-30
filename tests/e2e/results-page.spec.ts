@@ -43,6 +43,9 @@ const READY_ANALYSIS_MODEL = {
   cached: false,
 };
 
+/** The one source line there is: under template-written text (AnalysisSlot). */
+const TEMPLATE_LINE = "Generated automatically from your scores above.";
+
 const READY_ANALYSIS_FALLBACK = {
   ...READY_ANALYSIS_MODEL,
   source: "fallback",
@@ -393,6 +396,136 @@ test.describe("/results/[scanId] — real results page", () => {
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
       expect(bodyText).not.toContain(forbidden);
+    }
+  });
+
+  // Kirby, 2026-09-30: no line about who wrote model text yet (an AI source
+  // line comes later). Until then only a template-written analysis carries a
+  // source line; a model-written one, fresh or cached, carries none.
+  test("a model-written analysis shows no source line yet, and no internal vocabulary", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(page.locator(".results-analysis-ready")).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+
+    const bodyText = (await page.locator("body").innerText()).toLowerCase();
+    for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
+      expect(bodyText).not.toContain(forbidden);
+    }
+  });
+
+  test("a cached model-written analysis shows no source line either", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, { ...READY_ANALYSIS_MODEL, cached: true }),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(page.locator(".results-analysis-ready")).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+  });
+
+  test("the error state of the analysis slot shows no source line", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "internal error" }),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Written analysis" }),
+    ).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+  });
+
+  // The template sentence already wraps on a phone (and on a larger text
+  // size), so its 14px icon has to sit on the FIRST line. The offset comes
+  // from the line height, so it must hold when the browser's root font size
+  // is larger than 16px, where a fixed offset drifts up.
+  for (const rootPx of [16, 20, 24]) {
+    test(`the template line's icon is centred on its first line at a ${rootPx}px root font size (390px wide)`, async ({
+      page,
+    }) => {
+      await stubHappyFit(page);
+      await page.route(ANALYSIS_URL, (route) =>
+        fulfillJson(route, 200, READY_ANALYSIS_FALLBACK),
+      );
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.goto(`/results/${SCAN_ID}`);
+      await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
+      await page.addStyleTag({ content: `html { font-size: ${rootPx}px; }` });
+
+      const { iconCentre, firstLineCentre } = await page.evaluate(() => {
+        const note = document.querySelector(".results-analysis-provenance")!;
+        const icon = note.querySelector("svg")!.getBoundingClientRect();
+        const box = note.getBoundingClientRect();
+        return {
+          iconCentre: icon.top + icon.height / 2 - box.top,
+          firstLineCentre: parseFloat(getComputedStyle(note).lineHeight) / 2,
+        };
+      });
+      expect(Math.abs(iconCentre - firstLineCentre)).toBeLessThan(0.75);
+    });
+  }
+
+  // On a phone the template sentence wraps to two lines, and without
+  // `text-wrap: pretty` the second can be a lone word ("above.", measured at
+  // 360 and 390px wide). Chromium implements `pretty`.
+  test("the template line never ends on a lone word on a phone (320 to 412 px wide)", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_FALLBACK),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
+
+    for (const width of [320, 360, 390, 412]) {
+      await page.setViewportSize({ width, height: 900 });
+      const wordsPerLine = await page.evaluate(() => {
+        const note = document.querySelector(".results-analysis-provenance")!;
+        const text = [...note.childNodes].find(
+          (node): node is Text => node.nodeType === Node.TEXT_NODE,
+        )!;
+        const lines: number[] = [];
+        let lastTop: number | null = null;
+        for (const match of text.data.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(text, match.index!);
+          range.setEnd(text, match.index! + match[0].length);
+          const top = Math.round(range.getBoundingClientRect().top);
+          if (top === lastTop) lines[lines.length - 1]++;
+          else {
+            lines.push(1);
+            lastTop = top;
+          }
+        }
+        return lines;
+      });
+      // On one line there is no last line to orphan.
+      if (wordsPerLine.length > 1) {
+        expect(
+          wordsPerLine.at(-1),
+          `at ${width}px: ${wordsPerLine}`,
+        ).toBeGreaterThan(1);
+      }
     }
   });
 });
