@@ -3,7 +3,7 @@
  * docs/design-guidelines.md ("Direct labels"): name things by what they are,
  * never the internal field name (e.g. "Grip width", not "gripWidth").
  */
-import type { Subscore } from "@/lib/contracts/fit";
+import type { ExclusionReason, Subscore } from "@/lib/contracts/fit";
 
 export const SUBSCORE_LABELS: Record<Subscore, string> = {
   length: "Length",
@@ -14,10 +14,8 @@ export const SUBSCORE_LABELS: Record<Subscore, string> = {
   weight: "Weight",
 };
 
-export const EXCLUDED_REASON_LABELS: Record<
-  "wrong_hand" | "vertical_form_factor",
-  string
-> = {
+export const EXCLUDED_REASON_LABELS: Record<ExclusionReason, string> = {
   wrong_hand: "Doesn't fit your handedness",
   vertical_form_factor: "Vertical shape, excluded from this comparison",
+  trackball_form_factor: "Trackball, excluded from this comparison",
 };

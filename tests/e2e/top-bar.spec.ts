@@ -21,12 +21,13 @@ test.describe("TopBar — chevron spacing and accessible name", () => {
     expect(gap).not.toBe("normal");
   });
 
-  test("/results/demo's back link has a non-zero visual gap and an accessible name without the chevron", async ({
+  test("/results/demo's back link has spacing, an accessible name, and the easy-scan destination", async ({
     page,
   }) => {
     await page.goto("/results/demo");
     const backLink = page.getByRole("link", { name: /scan again/i }).first();
     await expect(backLink).toHaveAccessibleName("Back to Scan again");
+    await expect(backLink).toHaveAttribute("href", "/scan/easy");
 
     const gap = await backLink.evaluate(
       (el) => getComputedStyle(el).columnGap || getComputedStyle(el).gap,

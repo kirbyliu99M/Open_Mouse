@@ -49,6 +49,8 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   flare_crowds_fingers: "its front flare may crowd your fingertips",
   thumb_rest_supports: "its thumb rest supports your grip",
   thumb_neutral: "its thumb area is neutral for your grip",
+  thumb_rest_missing:
+    "it has no thumb rest, which a palm grip would normally use",
   thumb_rest_unneeded: "its thumb rest isn't needed for your grip",
   weight_in_range: "its weight is within your preferred range",
   weight_heavier: "it's heavier than your preferred range",

@@ -8,6 +8,7 @@
 import {
   printedSheetEvidenceSchema,
   paperEdgeEvidenceSchema,
+  userLengthEvidenceSchema,
   scanSubmissionSchema,
   MEASUREMENT_MODEL_VERSION,
   type ScanSubmission,
@@ -15,6 +16,7 @@ import {
   type PrintedSheetEvidence,
   type PaperEdgeEvidence,
   type PaperSize,
+  type UserLengthEvidence,
 } from "../../lib/contracts/measurement";
 
 export interface AssembleScanSubmissionInput {
@@ -105,5 +107,32 @@ export function assemblePaperEdgeSubmission(
   return {
     ...parsed,
     calibration: paperEdgeEvidenceSchema.parse(parsed.calibration),
+  };
+}
+
+export function assembleUserLengthSubmission(input: {
+  readonly hand: "left" | "right";
+  readonly gripStyleStated?: "palm" | "claw" | "fingertip";
+  readonly measurements: HandMeasurements;
+  readonly handLengthMm: number;
+}): ScanSubmission & { calibration: UserLengthEvidence } {
+  const calibration: UserLengthEvidence = {
+    method: "user-length",
+    referenceMeasurement: "handLengthMm",
+    referenceMm: input.handLengthMm,
+    parallaxCorrected: false,
+  };
+  const parsed = scanSubmissionSchema.parse({
+    hand: input.hand,
+    measurements: input.measurements,
+    calibration,
+    measurementModelVersion: MEASUREMENT_MODEL_VERSION,
+    ...(input.gripStyleStated !== undefined
+      ? { gripStyleStated: input.gripStyleStated }
+      : {}),
+  });
+  return {
+    ...parsed,
+    calibration: userLengthEvidenceSchema.parse(parsed.calibration),
   };
 }

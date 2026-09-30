@@ -11,6 +11,7 @@ import {
   checkSharpness,
   computeFlatMarkerBoundsMm,
   runPhotoGates,
+  runPaperEdgeHandGates,
   type PhotoGateInput,
 } from "../../src/client/photo/gates";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
@@ -77,6 +78,15 @@ describe("checkHandedness", () => {
     expect(failure?.message).toBe(
       "This looks like your left hand, but you selected right. Retake with your right hand, or change the hand picker.",
     );
+  });
+
+  it("uses the easy-scan instruction when supplied", () => {
+    const failure = checkHandedness(
+      "left",
+      "right",
+      "tap the hand button below",
+    );
+    expect(failure?.message).toContain("tap the hand button below");
   });
 });
 
@@ -220,6 +230,28 @@ describe("runPhotoGates", () => {
     expect(codes).toContain("CARD_SCALE_MISMATCH");
   });
 
+  // #74 made the gates stricter: a hand was found but MediaPipe gave no
+  // handedness label at all. Before, that photo went through (the stated hand
+  // was trusted, the compare was skipped); now it is stopped, whether or not
+  // the user chose a hand, so the submitted hand is never a guess.
+  it.each([
+    ["a hand the user chose", "right"],
+    ["an untouched picker", undefined],
+  ] as const)(
+    "stops a photo with no handedness label for %s, once, as LOW_LANDMARK_CONFIDENCE",
+    (_name, handStated) => {
+      const report = runPhotoGates({
+        ...goodInput,
+        handedness: null,
+        handStated,
+      });
+      expect(report.ok).toBe(false);
+      expect(report.errors.map((e) => e.code)).toEqual([
+        "LOW_LANDMARK_CONFIDENCE",
+      ]);
+    },
+  );
+
   it("does not check handedness/confidence when no hand was detected", () => {
     const report = runPhotoGates({
       ...goodInput,
@@ -228,4 +260,44 @@ describe("runPhotoGates", () => {
     });
     expect(report.errors.map((e) => e.code)).toEqual(["HAND_NOT_DETECTED"]);
   });
+});
+
+describe("runPaperEdgeHandGates — a photo with no handedness label", () => {
+  const goodHand = {
+    paperFound: true,
+    landmarkCount: 21,
+    handedness: "right" as const,
+    handStated: "right" as const,
+    landmarkConfidence: 0.9,
+    landmarksMm: [{ x: 90, y: 90 }],
+    paperCornersMm: [
+      { x: 0, y: 0 },
+      { x: 210, y: 0 },
+      { x: 210, y: 297 },
+      { x: 0, y: 297 },
+    ],
+    laplacianVariance: 300,
+  };
+
+  it("passes when the label is there", () => {
+    expect(runPaperEdgeHandGates(goodHand).errors).toEqual([]);
+  });
+
+  it.each([
+    ["a hand the user chose", "left"],
+    ["an untouched picker", undefined],
+  ] as const)(
+    "stops it for %s, once, as LOW_LANDMARK_CONFIDENCE",
+    (_name, handStated) => {
+      const report = runPaperEdgeHandGates({
+        ...goodHand,
+        handedness: null,
+        handStated,
+      });
+      expect(report.ok).toBe(false);
+      expect(report.errors.map((e) => e.code)).toEqual([
+        "LOW_LANDMARK_CONFIDENCE",
+      ]);
+    },
+  );
 });

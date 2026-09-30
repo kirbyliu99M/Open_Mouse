@@ -64,20 +64,25 @@ export function getHandLandmarker(): Promise<HandLandmarker> {
 }
 
 /**
- * MediaPipe's documented convention: handedness assumes a mirrored
- * (front/selfie-camera) input image, and instructs callers to swap the
- * output when that isn't the case. Our top-down hand photos are shot with
- * the phone's rear/main camera per docs/PLAN.md §M2 ("ask for the main 1×
- * camera"), i.e. NOT mirrored, so the raw "Left"/"Right" category is the
- * mirror image of the hand actually in the photo and must be swapped.
- * Pure and unit-tested on its own, since it's easy to get backwards.
+ * MediaPipe's handedness label, lower-cased, NOT swapped.
+ *
+ * MediaPipe documents its label for a mirrored (selfie) image of a hand
+ * facing the camera, and says to swap it for an unmirrored image. Our photos
+ * are unmirrored rear-camera shots, but of the BACK of the hand (palm down on
+ * the paper), and seeing the back of a hand is itself a mirror of seeing its
+ * palm. The two flips cancel, so the raw label is already the hand in the
+ * photo. Swapping it (as this function did until 2026-09-29) reported every
+ * palm-down hand as the other hand: measured on four photos, including
+ * Kirby's own (right hand, palm down → "left", 0.91), and in Kirby's field
+ * test, where right-hand scans failed with HANDEDNESS_MISMATCH.
+ * Unit-tested in tests/unit/handedness.test.ts.
  */
 export function normalizeHandedness(
   categoryName: string,
 ): "left" | "right" | null {
   const normalized = categoryName.trim().toLowerCase();
-  if (normalized === "left") return "right";
-  if (normalized === "right") return "left";
+  if (normalized === "left") return "left";
+  if (normalized === "right") return "right";
   return null;
 }
 

@@ -95,9 +95,9 @@ export default defineConfig({
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts|no-paper-device\.spec\.ts/,
       use: {
-        ...devices["Desktop Chrome"],
+        ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
         permissions: ["camera"],
         launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PAPER_EDGE),
@@ -109,5 +109,12 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
     timeout: 120_000,
+    // The typed-hand-length entry is OFF in production (src/lib/flags.ts). It
+    // is a build-time flag, so the e2e server is started with it ON to keep
+    // the no-paper flow under test. The flag-off behaviour is covered by
+    // tests/unit/flags.test.ts (a build-time flag can't be toggled within one
+    // dev server). With PLAYWRIGHT_REUSE_SERVER=1 the attached `npm run dev`
+    // must be started with the same variable.
+    env: { NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY: "1" },
   },
 });
