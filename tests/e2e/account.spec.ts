@@ -37,6 +37,17 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
   await expect(
     page.getByText(/sign-in is unavailable right now/i),
   ).toBeVisible();
+  // No hours or days: the copy says the deletion is automatic, not when.
+  await expect(
+    page.getByText(
+      "Signing in is optional. Without an account, a scan is deleted automatically after a while.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "You can still scan — your result is kept for a while, then deleted automatically.",
+    ),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);

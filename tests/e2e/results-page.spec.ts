@@ -364,6 +364,10 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { name: "We couldn't find this scan" }),
     ).toBeVisible();
+    // No hours or days in the promise (Kirby, 2026-09-30).
+    await expect(page.locator(".results-page-error")).toContainText(
+      "It may have expired, or the link isn't yours. Scans without an account expire automatically.",
+    );
     // Scoped to the error panel's own action — the TopBar above it also has
     // a "Scan again" link (its accessible name is "Back to Scan again"),
     // and an unscoped query matches both.

@@ -98,7 +98,7 @@ export default function HowItWorksPage() {
           <span aria-hidden="true">
             <ClockIcon />
           </span>
-          Scans without an account are deleted within 24 hours.
+          Scans without an account are deleted automatically after a while.
         </p>
       </div>
 

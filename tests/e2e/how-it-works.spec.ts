@@ -30,7 +30,9 @@ test("How it works shows the illustration, steps, privacy details and navigation
     ),
   ).toBeVisible();
   await expect(
-    page.getByText("Scans without an account are deleted within 24 hours."),
+    page.getByText(
+      "Scans without an account are deleted automatically after a while.",
+    ),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "‹ Home" })).toHaveAttribute(
     "href",
@@ -45,4 +47,20 @@ test("How it works shows the illustration, steps, privacy details and navigation
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+// Kirby, 2026-09-30: the product pages do not promise a deletion time. The
+// server's schedule is a design detail (see src/server/scans/retention.ts),
+// not something the copy should state, so no page names an hour or day count.
+test("no product page promises a deletion time in hours or days", async ({
+  page,
+}) => {
+  const PROMISE =
+    /\b(\d+|twenty[- ]four|one|a)[- ]?(hours?|hrs?|days?)\b|\bwithin a day\b|\bovernight\b/i;
+  for (const path of ["/", "/how-it-works", "/account"]) {
+    await page.goto(path, { timeout: 60_000 });
+    const text = await page.locator("main").innerText();
+    expect(text, path).not.toMatch(PROMISE);
+    if (path !== "/") expect(text, path).toMatch(/deleted automatically/i);
+  }
 });
