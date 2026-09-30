@@ -17,11 +17,14 @@ export function ResultsView({
   analysisState = { status: "idle" },
   onRetryAnalysis,
   scanHand = null,
+  enteredLengthMm = null,
 }: {
   response: FitResponse;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
   scanHand?: "left" | "right" | null;
+  /** The hand length the user typed in, when the scan used no paper. */
+  enteredLengthMm?: number | null;
 }) {
   return (
     <div className="results-view">
@@ -38,6 +41,12 @@ export function ResultsView({
           </p>
         )}
       <TopPick response={response} />
+      {enteredLengthMm !== null && (
+        <p className="results-handNotice">
+          Based on the hand length you entered ({enteredLengthMm} mm). Measured
+          without paper — less precise than a scan on A4.
+        </p>
+      )}
       {scanHand === "left" && (
         <p className="results-handNotice">
           Left-hand fit isn&apos;t rated yet — check each mouse&apos;s shape

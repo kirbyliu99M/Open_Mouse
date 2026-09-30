@@ -11,8 +11,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     // they're deterministic, same reasoning as camera-capture.spec.ts's
     // permission-denied test.
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the initial UI stays stable.",
     );
     await page.goto("/scan/easy");
 
@@ -31,8 +31,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     page,
   }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the first-run tip stays stable.",
     );
     await page.goto("/scan/easy");
     const tip = page.getByRole("dialog", {
@@ -53,8 +53,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
 
   test("Escape dismisses the first-run tip", async ({ page }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so Escape targets the tip.",
     );
     await page.goto("/scan/easy");
     const tip = page.getByRole("dialog", {
@@ -67,8 +67,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
 
   test("the hand chip flips on tap", async ({ page }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the hand chip stays visible.",
     );
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
@@ -99,6 +99,7 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
     await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "Got it" }).click();
 
     const requestedUrls: string[] = [];
     page.on("request", (req) => {

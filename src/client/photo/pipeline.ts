@@ -43,13 +43,26 @@ import {
   checkMarkers,
   checkPaperFound,
   checkPaperCornersSeen,
+  checkSharpness,
   type GateFailure,
 } from "./gates";
 import {
   assembleScanSubmission,
   assemblePaperEdgeSubmission,
+  assembleUserLengthSubmission,
   submittedHand,
 } from "./submission";
+import {
+  measureWithUserLength,
+  userLengthRetakeMessage,
+  checkUserLengthStraightness,
+  checkUserLengthProportion,
+} from "./user-length";
+import {
+  checkHandDetected,
+  checkHandedness,
+  checkLandmarkConfidence,
+} from "./gates";
 import { detectPaperQuad } from "../paper/detect";
 import { evaluatePaperEdgeCalibration } from "../paper/calibration";
 import type {
@@ -114,7 +127,8 @@ export type PipelineResult =
  */
 export type CalibrationInput =
   | { readonly method: "printed-sheet" }
-  | { readonly method: "paper-edge"; readonly paperSize: PaperSize };
+  | { readonly method: "paper-edge"; readonly paperSize: PaperSize }
+  | { readonly method: "user-length"; readonly handLengthMm: number };
 
 export interface RunPhotoPipelineInput {
   readonly file: File;
@@ -176,6 +190,9 @@ export async function runPhotoPipeline(
   }
 
   const calibration = input.calibration ?? { method: "printed-sheet" };
+  if (calibration.method === "user-length") {
+    return runUserLengthPipeline(decoded, input, calibration.handLengthMm);
+  }
   if (calibration.method === "paper-edge") {
     return runPaperEdgePipeline(decoded, input, calibration.paperSize);
   }
@@ -523,5 +540,90 @@ async function runPaperEdgePipeline(
       handedness: hand.handedness,
       paperCorners: quad.corners,
     },
+  };
+}
+
+async function runUserLengthPipeline(
+  decoded: DecodedPhoto,
+  input: RunPhotoPipelineInput,
+  handLengthMm: number,
+): Promise<PipelineResult> {
+  const { bitmap, width, height } = decoded;
+  const overlayBase = {
+    imageWidth: width,
+    imageHeight: height,
+    markers: [] as DetectedMarker[],
+    card: null,
+  };
+  const hand = await detectHandLandmarks(bitmap);
+  if (!hand)
+    return {
+      status: "error",
+      errors: [
+        {
+          code: checkHandDetected(0)!.code,
+          message:
+            "We couldn't find a hand — keep your whole hand in view, fingers together, and retake.",
+        },
+      ],
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  const overlay = {
+    ...overlayBase,
+    landmarksPx: hand.landmarksPx,
+    handedness: hand.handedness,
+  };
+  const errors = [
+    ...(hand.handedness
+      ? [
+          checkHandedness(
+            hand.handedness,
+            input.handIsAuto ? undefined : input.hand,
+          ),
+        ]
+      : []),
+    checkLandmarkConfidence(hand.confidence),
+  ].filter(
+    (failure): failure is NonNullable<typeof failure> => failure !== null,
+  );
+  if (errors.length) return { status: "error", errors, overlay };
+  const straightnessFailure = checkUserLengthStraightness(hand.landmarksPx);
+  if (straightnessFailure)
+    return { status: "error", errors: [straightnessFailure], overlay };
+  let measurements: HandMeasurements;
+  try {
+    measurements = measureWithUserLength(hand.landmarksPx, handLengthMm);
+  } catch {
+    return {
+      status: "error",
+      errors: [
+        {
+          code: "MEASUREMENT_OUT_OF_RANGE",
+          message: userLengthRetakeMessage(handLengthMm),
+        },
+      ],
+      overlay,
+    };
+  }
+  const proportionFailure = checkUserLengthProportion(measurements);
+  if (proportionFailure)
+    return { status: "error", errors: [proportionFailure], overlay };
+  const imageData = getImageData(bitmap, width, height);
+  const gray = rgbaToGrayscale(imageData.data, width * height);
+  const sharpnessFailure = checkSharpness(
+    computeLaplacianVariance(gray, width, height),
+  );
+  const submission = assembleUserLengthSubmission({
+    hand: submittedHand(input, hand.handedness),
+    gripStyleStated: input.gripStyleStated,
+    measurements,
+    handLengthMm,
+  });
+  return {
+    status: "ok",
+    measurements,
+    submission,
+    warnings: sharpnessFailure ? [sharpnessFailure] : [],
+    overlay,
   };
 }
