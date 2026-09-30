@@ -1192,6 +1192,51 @@ main.easyScanShell {
      paper room at about 0.46 scale; the photo's floor is 0.4 (photoLayout.ts). */
   max-height: 52vh;
   overflow-y: auto;
+  /* The actions row carries the bottom padding (below), so that it can stay
+     pinned at the foot with the padding under it. */
+  padding-bottom: 0;
+  /* Something focused by keyboard is scrolled clear of the pinned row, not
+     left under it: the row's height (54px button, padding). */
+  scroll-padding-bottom: calc(54px + 2.25rem + env(safe-area-inset-bottom));
+}
+
+/* The buttons that finish the sheet (Retake and See my matches; Try again)
+   stay in view at the foot of the sheet however large the text is and however
+   far the content above has been scrolled. The row is in the flow, last, so
+   when scrolled to the end nothing is hidden behind it, and the focus order
+   is the reading order. It has the sheet's own background (light or dark) so
+   scrolled content passes behind it, and the padding the sheet used to have
+   below. */
+.easyStickyActions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 0.75rem 0 calc(1.5rem + env(safe-area-inset-bottom));
+  background: var(--scan-bg, #f4f4f6);
+}
+/* Content scrolling up behind the row fades out over a few px, so its last
+   line is not cut in half. Over the sheet's own background it cannot be seen. */
+.easyStickyActions::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 0.75rem;
+  background: linear-gradient(to bottom, transparent, var(--scan-bg, #f4f4f6));
+  pointer-events: none;
+}
+@media (prefers-contrast: more) {
+  .easyStickyActions {
+    border-top: 1px solid currentColor;
+  }
+  .easyStickyActions::before {
+    display: none;
+  }
+}
+/* (?debug=1 only) the debug numbers follow the row, so they need their own foot. */
+.easyResultSheet .easyDebugDetails {
+  padding-bottom: 1.5rem;
 }
 
 @supports (animation-timing-function: linear(0, 1)) {

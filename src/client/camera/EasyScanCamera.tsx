@@ -2100,7 +2100,7 @@ export default function EasyScanCamera({
                   );
                 })}
               </div>
-              <div className="easySheetActions">
+              <div className="easySheetActions easyStickyActions">
                 <button
                   type="button"
                   className="easyRetakeButton"
@@ -2144,27 +2144,29 @@ export default function EasyScanCamera({
               {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
                 <HandToggle state={handChip} onClick={toggleHand} inSheet />
               )}
-              <button
-                type="button"
-                className="primaryButton easyTryAgainButton"
-                ref={tryAgainRef}
-                onClick={retake}
-              >
-                Try again
-              </button>
-              {noPaperLabel &&
-                failureOffersLengthEdit(
-                  noPaperMode,
-                  result.errors[0]?.code,
-                ) && (
-                  <button
-                    type="button"
-                    className="easyEditLengthButton"
-                    onClick={editLengthFromFailure}
-                  >
-                    {EDIT_HAND_LENGTH_LABEL}
-                  </button>
-                )}
+              <div className="easyStickyActions">
+                <button
+                  type="button"
+                  className="primaryButton easyTryAgainButton"
+                  ref={tryAgainRef}
+                  onClick={retake}
+                >
+                  Try again
+                </button>
+                {noPaperLabel &&
+                  failureOffersLengthEdit(
+                    noPaperMode,
+                    result.errors[0]?.code,
+                  ) && (
+                    <button
+                      type="button"
+                      className="easyEditLengthButton"
+                      onClick={editLengthFromFailure}
+                    >
+                      {EDIT_HAND_LENGTH_LABEL}
+                    </button>
+                  )}
+              </div>
             </>
           )}
           {/* A modal sheet makes the rest of the page inert, so the debug

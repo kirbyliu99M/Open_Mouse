@@ -800,12 +800,12 @@ test.describe("fix round 1: the sheet growing after it opened", () => {
     await sheet.evaluate((el) => {
       const extra = document.createElement("div");
       extra.id = "grown";
-      extra.style.height = "120px";
+      extra.style.height = "60px"; // stays under the 52vh cap
       el.appendChild(extra);
     });
     await expect
       .poll(async () => (await sheet.boundingBox())!.y, { timeout: 3_000 })
-      .toBeLessThan(topBefore - 100);
+      .toBeLessThan(topBefore - 50);
     await expect
       .poll(layerTransform, { timeout: 3_000 })
       .not.toBe(before.transform);
@@ -1331,4 +1331,325 @@ test.describe("fix round 2: large text", () => {
       }
     });
   }
+});
+
+/**
+ * Fix round 3: the buttons that finish the sheet are pinned at its foot. At
+ * 200% text the capped sheet (52vh) scrolls inside, and the main action used to
+ * be below the fold. Two phones: 390x844 and the small 360x640.
+ */
+const PINNED_PHONES = [
+  { width: 390, height: 844 },
+  { width: 360, height: 640 },
+] as const;
+
+type PinnedLayout = {
+  viewport: { width: number; height: number };
+  sheet: { top: number; bottom: number; height: number };
+  scrollable: boolean;
+  scale: number;
+  barBottom: number;
+  /** Drawn parts of the measurement, in the photo. */
+  drawn: { top: number; bottom: number; left: number; right: number }[];
+  /** How many of them have their middle under a button of the top bar. */
+  middleUnderBar: number;
+  main: {
+    label: string;
+    rect: { top: number; bottom: number; left: number; right: number };
+    /** The element that is on top at the middle of the button. */
+    onTopIsIt: boolean;
+  };
+  retake: { top: number; bottom: number; onTopIsIt: boolean } | null;
+  row: { top: number; bottom: number; background: string; position: string };
+  sheetBackground: string;
+  /** Scrolled to the end: the lowest of the content above the row, and the row. */
+  endOfContent: { contentBottom: number; rowTop: number };
+};
+
+/** Open the measured (or retake) sheet at `percent` text on `phone`, and read how it is laid out. */
+async function pinnedLayout(
+  page: Page,
+  phone: { width: number; height: number },
+  percent: number,
+  kind: "measured" | "retake",
+): Promise<PinnedLayout> {
+  await page.setViewportSize(phone);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await holdPipeline(page);
+  await openLive(
+    page,
+    kind === "retake" ? `${LIVE_DEMO}?result=retake` : LIVE_DEMO,
+  );
+  await page.evaluate((percent) => {
+    document.documentElement.style.fontSize = `${percent}%`;
+  }, percent);
+  await expect(page.locator(".easyStage")).toHaveAttribute(
+    "data-phase",
+    "processing",
+    { timeout: 20_000 },
+  );
+  await release(page);
+  const sheet = page.getByRole("dialog", {
+    name: kind === "retake" ? "Retake needed" : "Hand measured",
+  });
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".easyStageContent.moved")).toBeAttached();
+  await page.waitForTimeout(700); // the sheet settles, the lines are drawn
+  return page.evaluate((kind) => {
+    const rect = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+    };
+    const dialog = document.querySelector<HTMLElement>(
+      "dialog.easyResultSheet",
+    )!;
+    const onTop = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return hit === el || el.contains(hit);
+    };
+    const bar = document.querySelector(".cameraTopBar")!;
+    const main = document.querySelector<HTMLElement>(
+      kind === "retake"
+        ? ".easyTryAgainButton"
+        : ".easySeeMatches .primaryButton",
+    )!;
+    const retake = document.querySelector<HTMLElement>(".easyRetakeButton");
+    const row = dialog.querySelector<HTMLElement>(".easyStickyActions")!;
+    const rowStyle = getComputedStyle(row);
+    const sheetRect = rect(dialog);
+    const drawn = [
+      ...document.querySelectorAll(
+        ".easyCornerCheck circle, .easyDimLine, .easyDimLabelBg, .easyProblem",
+      ),
+    ].map(rect);
+    const middleUnderBar = [
+      ...document.querySelectorAll(
+        ".easyCornerCheck circle, .easyDimLine, .easyDimLabelBg, .easyProblem",
+      ),
+    ].filter((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return !!hit?.closest(".cameraTopBar");
+    }).length;
+    // To the end of the content: what is above the row must clear it.
+    const scrollable = dialog.scrollHeight > dialog.clientHeight + 1;
+    dialog.scrollTop = dialog.scrollHeight;
+    const above = [...dialog.children].filter(
+      (child) => child !== row && !child.matches("details"),
+    );
+    const contentBottom = Math.max(
+      ...above.map((child) => child.getBoundingClientRect().bottom),
+    );
+    const rowTop = row.getBoundingClientRect().top;
+    dialog.scrollTop = 0;
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      sheet: {
+        top: sheetRect.top,
+        bottom: sheetRect.bottom,
+        height: dialog.offsetHeight,
+      },
+      scrollable,
+      scale: new DOMMatrix(
+        getComputedStyle(document.querySelector(".easyStageContent.moved")!)
+          .transform,
+      ).a,
+      barBottom: Math.max(
+        ...[...bar.querySelectorAll("button")].map(
+          (b) => b.getBoundingClientRect().bottom,
+        ),
+      ),
+      drawn,
+      middleUnderBar,
+      main: {
+        label: main.textContent ?? "",
+        rect: rect(main),
+        onTopIsIt: onTop(main),
+      },
+      retake: retake
+        ? {
+            top: rect(retake).top,
+            bottom: rect(retake).bottom,
+            onTopIsIt: onTop(retake),
+          }
+        : null,
+      row: {
+        top: rect(row).top,
+        bottom: rect(row).bottom,
+        background: rowStyle.backgroundColor,
+        position: rowStyle.position,
+      },
+      sheetBackground: getComputedStyle(dialog).backgroundColor,
+      endOfContent: { contentBottom, rowTop },
+    };
+  }, kind);
+}
+
+test.describe("fix round 3: the actions stay in view at large text", () => {
+  for (const phone of PINNED_PHONES) {
+    for (const percent of [100, 150, 200]) {
+      for (const kind of ["measured", "retake"] as const) {
+        test(`${phone.width}x${phone.height} at ${percent}% text: the ${kind === "retake" ? "Try again" : "See my matches"} button is fully on screen and in front`, async ({
+          page,
+        }) => {
+          const l = await pinnedLayout(page, phone, percent, kind);
+          const pinned = l.main.rect;
+          console.log(
+            `${phone.width}x${phone.height}, text ${percent}%, ${kind}: sheet ${l.sheet.height.toFixed(0)} px of ${l.viewport.height} (cap ${(0.52 * l.viewport.height).toFixed(0)}), scrolls inside: ${l.scrollable}, photo scale ${l.scale.toFixed(3)}, main button ${pinned.top.toFixed(0)}-${pinned.bottom.toFixed(0)} px, row ${l.row.position}`,
+          );
+          // The cap holds and the sheet sits on the bottom edge...
+          expect(l.sheet.height).toBeLessThanOrEqual(
+            0.52 * l.viewport.height + 1,
+          );
+          expect(l.sheet.bottom).toBeCloseTo(l.viewport.height, 0);
+          // ...and the main action is inside the screen, inside the sheet, and
+          // nothing covers it.
+          expect(pinned.top).toBeGreaterThanOrEqual(l.sheet.top);
+          expect(pinned.bottom).toBeLessThanOrEqual(l.viewport.height);
+          expect(pinned.left).toBeGreaterThanOrEqual(0);
+          expect(pinned.right).toBeLessThanOrEqual(l.viewport.width);
+          expect(l.main.onTopIsIt).toBe(true);
+          if (l.retake) {
+            expect(l.retake.top).toBeGreaterThanOrEqual(l.sheet.top);
+            expect(l.retake.bottom).toBeLessThanOrEqual(l.viewport.height);
+            expect(l.retake.onTopIsIt).toBe(true);
+          }
+          // The row is what holds it there, and it has the sheet's own
+          // (opaque) background, so what scrolls behind it does not show.
+          expect(l.row.position).toBe("sticky");
+          expect(l.row.background).toBe(l.sheetBackground);
+          // Scrolled to the end, nothing of the content is left under the row.
+          expect(l.endOfContent.contentBottom).toBeLessThanOrEqual(
+            l.endOfContent.rowTop + 0.5,
+          );
+        });
+      }
+    }
+  }
+
+  for (const phone of PINNED_PHONES) {
+    for (const percent of [100, 150, 200]) {
+      test(`${phone.width}x${phone.height} at ${percent}% text: nothing drawn on the photo is under the sheet or the top bar`, async ({
+        page,
+      }) => {
+        const l = await pinnedLayout(page, phone, percent, "measured");
+        expect(l.drawn.length).toBeGreaterThanOrEqual(8); // 4 checks, 2 lines, 2 labels
+        const lowest = Math.max(...l.drawn.map((r) => r.bottom));
+        const highest = Math.min(...l.drawn.map((r) => r.top));
+        console.log(
+          `${phone.width}x${phone.height}, text ${percent}%: photo scale ${l.scale.toFixed(3)}, top bar ends ${l.barBottom.toFixed(0)} px, highest drawn part ${highest.toFixed(0)} px, lowest ${lowest.toFixed(0)} px, sheet top ${l.sheet.top.toFixed(0)} px`,
+        );
+        for (const r of l.drawn) {
+          expect(r.left).toBeGreaterThanOrEqual(0);
+          expect(r.right).toBeLessThanOrEqual(l.viewport.width);
+        }
+        // Not under the sheet...
+        expect(lowest).toBeLessThanOrEqual(l.sheet.top);
+        // ...nor under the top bar's buttons. The one accepted exception
+        // (README, "Accepted limits"): on the 360x640 phone at 200% text the
+        // top bar is 139 px tall and the paper's band is 6 px short of clearing
+        // it, so a check mark touches the hand chip by a few px. Its middle is
+        // clear of the chip: it stays visible.
+        const accepted = phone.height === 640 && percent === 200;
+        if (accepted) {
+          expect(l.barBottom - highest).toBeLessThanOrEqual(8);
+        } else {
+          expect(highest).toBeGreaterThanOrEqual(l.barBottom);
+        }
+        expect(l.middleUnderBar).toBe(0);
+      });
+    }
+  }
+
+  test("the keyboard reaches every control in the sheet in reading order, each one visible and ringed, none under the pinned row", async ({
+    page,
+  }) => {
+    await pinnedLayout(page, { width: 360, height: 640 }, 200, "measured");
+    // The sheet focuses its heading when it opens; Tab goes on from there.
+    const stops = [] as {
+      name: string;
+      inRow: boolean;
+      visible: boolean;
+      ring: string;
+      ringWidth: number;
+    }[];
+    for (let press = 0; press < 12; press++) {
+      await page.keyboard.press("Tab");
+      const stop = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        const dialog = document.querySelector<HTMLElement>(
+          "dialog.easyResultSheet",
+        )!;
+        if (!el || !dialog.contains(el)) return null;
+        const row = dialog.querySelector(".easyStickyActions")!;
+        const r = el.getBoundingClientRect();
+        const d = dialog.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          r.left + r.width / 2,
+          r.top + r.height / 2,
+        );
+        const style = getComputedStyle(el);
+        return {
+          name:
+            el.getAttribute("aria-label") ??
+            (el.textContent ?? "").trim().slice(0, 30),
+          inRow: row.contains(el),
+          // Inside the sheet's box, and the thing on top at its middle.
+          visible:
+            r.top >= d.top - 0.5 &&
+            r.bottom <= d.bottom + 0.5 &&
+            (hit === el || el.contains(hit)),
+          ring: style.outlineStyle,
+          ringWidth: parseFloat(style.outlineWidth),
+        };
+      });
+      if (!stop || stops.some((s) => s.name === stop.name)) break;
+      stops.push(stop);
+    }
+    console.log(
+      `focus order: ${stops.map((s) => `${s.name}${s.inRow ? " [row]" : ""}`).join(" > ")}`,
+    );
+    const names = stops.map((s) => s.name);
+    // Grip chips, then Retake photo, then See my matches: the DOM's order.
+    expect(names.slice(0, 4)).toEqual([
+      "Palm",
+      "Claw",
+      "Fingertip",
+      "Not sure",
+    ]);
+    expect(names[4]).toBe("Retake photo");
+    expect(stops.length).toBeGreaterThanOrEqual(6);
+    expect(stops[5].inRow).toBe(true);
+    for (const stop of stops) {
+      expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
+        true,
+      );
+      expect(stop.ring, `${stop.name} has a focus ring`).toBe("solid");
+      expect(stop.ringWidth).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  test("dark mode: the pinned row wears the dark sheet's background, not the light one", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    const l = await pinnedLayout(
+      page,
+      { width: 360, height: 640 },
+      200,
+      "measured",
+    );
+    // --scan-bg in dark mode is #161617 (src/app/scan/scan.css).
+    expect(l.sheetBackground).toBe("rgb(22, 22, 23)");
+    expect(l.row.background).toBe("rgb(22, 22, 23)");
+    expect(l.main.onTopIsIt).toBe(true);
+    expect(l.main.rect.bottom).toBeLessThanOrEqual(l.viewport.height);
+  });
 });
