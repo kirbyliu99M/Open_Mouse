@@ -430,6 +430,94 @@ test.describe("/results/[scanId] — real results page", () => {
     ).toBeVisible();
     await expect(page.getByText(AI_DISCLOSURE)).toHaveCount(0);
   });
+
+  test("source disclosure: a cached model-written analysis carries the same line (the text was still written by Google's AI service)", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, { ...READY_ANALYSIS_MODEL, cached: true }),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(
+      page.locator(".results-analysis-ready").getByText(AI_DISCLOSURE),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Generated automatically from your scores above."),
+    ).toHaveCount(0);
+  });
+
+  // The 14px icon has to sit on the first line of the note. Its offset comes
+  // from the line height, so it must hold when the browser's root font size is
+  // larger than 16px (a phone's "larger text" setting), where a fixed offset
+  // drifts up.
+  for (const rootPx of [16, 20, 24]) {
+    test(`source disclosure: the icon is centred on the first line at a ${rootPx}px root font size`, async ({
+      page,
+    }) => {
+      await stubHappyFit(page);
+      await page.route(ANALYSIS_URL, (route) =>
+        fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+      );
+      await page.goto(`/results/${SCAN_ID}`);
+      await expect(page.getByText(AI_DISCLOSURE)).toBeVisible();
+      await page.addStyleTag({ content: `html { font-size: ${rootPx}px; }` });
+
+      const { iconCentre, firstLineCentre } = await page.evaluate(() => {
+        const note = document.querySelector(".results-analysis-provenance")!;
+        const icon = note.querySelector("svg")!.getBoundingClientRect();
+        const box = note.getBoundingClientRect();
+        return {
+          iconCentre: icon.top + icon.height / 2 - box.top,
+          firstLineCentre: parseFloat(getComputedStyle(note).lineHeight) / 2,
+        };
+      });
+      expect(Math.abs(iconCentre - firstLineCentre)).toBeLessThan(0.75);
+    });
+  }
+
+  // On a phone the sentence takes three lines. `text-wrap: pretty` keeps the
+  // last one from being a lone word ("sent."); Chromium implements it.
+  test("source disclosure: on a phone the last line is never a single word (320 to 412 px wide)", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(page.getByText(AI_DISCLOSURE)).toBeVisible();
+
+    for (const width of [320, 360, 390, 412]) {
+      await page.setViewportSize({ width, height: 900 });
+      const wordsPerLine = await page.evaluate(() => {
+        const note = document.querySelector(".results-analysis-provenance")!;
+        const text = [...note.childNodes].find(
+          (node): node is Text => node.nodeType === Node.TEXT_NODE,
+        )!;
+        const lines: number[] = [];
+        let lastTop: number | null = null;
+        for (const match of text.data.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(text, match.index!);
+          range.setEnd(text, match.index! + match[0].length);
+          const top = Math.round(range.getBoundingClientRect().top);
+          if (top === lastTop) lines[lines.length - 1]++;
+          else {
+            lines.push(1);
+            lastTop = top;
+          }
+        }
+        return lines;
+      });
+      expect(
+        wordsPerLine.at(-1),
+        `at ${width}px: ${wordsPerLine}`,
+      ).toBeGreaterThan(1);
+    }
+  });
 });
 
 // Issue #42, acceptance criterion 2: "deleting is the user's choice". No real
