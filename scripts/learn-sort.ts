@@ -38,7 +38,11 @@ import {
   type PaperSize,
 } from "../src/lib/contracts/measurement";
 import { compareFileNames } from "../src/lib/learning/checks";
-import { containingRoot, relativeInputPath } from "../src/lib/learning/paths";
+import {
+  containingRoot,
+  mainCheckoutOf,
+  relativeInputPath,
+} from "../src/lib/learning/paths";
 import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
   NO_PROVENANCE,
@@ -58,16 +62,17 @@ const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The checkout that owns this one when it is a git worktree; otherwise this checkout. */
 function mainCheckoutRoot(): string {
+  let common: string | null = null;
   try {
-    const common = execFileSync("git", ["rev-parse", "--git-common-dir"], {
+    common = execFileSync("git", ["rev-parse", "--git-common-dir"], {
       cwd: scriptRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    return dirname(resolve(scriptRoot, common));
   } catch {
-    return scriptRoot;
+    // no git: this checkout is the only one we know
   }
+  return mainCheckoutOf(scriptRoot, common || null);
 }
 
 /** `realpath`, also for a folder that does not exist yet (its nearest existing parent is resolved). */

@@ -1,9 +1,33 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import {
+  PRIVATE,
+  TAG,
+  exifSegment,
+  phoneSpec,
+} from "../unit/helpers/exif-jpeg";
 
 /** See sheet-print.spec.ts: counts `/Type /Page` objects, not `/Pages`. */
 function countPdfPageObjects(pdf: Buffer): number {
   const matches = pdf.toString("latin1").match(/\/Type\s*\/Page(?![a-zA-Z])/g);
   return matches ? matches.length : 0;
+}
+
+/** The G01R page rendered at about 8 px/mm, used as the "photo". */
+async function renderKitPagePhoto(page: Page): Promise<Buffer> {
+  await page.setViewportSize({ width: 1800, height: 2400 });
+  await page.goto("/learn/print?hands=right");
+  const svg = page.locator(".learn-print-page svg").first();
+  return svg.screenshot({ type: "jpeg", quality: 92 });
+}
+
+/** Requests other than GET (next dev's error overlay posts stack frames; that is not app traffic). */
+function watchUploads(page: Page): string[] {
+  const uploads: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() !== "GET" && !r.url().includes("/__nextjs"))
+      uploads.push(r.url());
+  });
+  return uploads;
 }
 
 test.describe("learning kit", () => {
@@ -47,6 +71,13 @@ test.describe("learning kit", () => {
     await page.goto("/learn/slates?from=5&count=10");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(2);
     await expect(page.getByText("Cards P005 to P014.")).toBeVisible();
+    // Ruler values are written per hand: a Right and a Left column on every card.
+    const card = page.locator(".learn-print-page svg").first();
+    await expect(card.getByText("Right", { exact: true })).toHaveCount(8);
+    await expect(card.getByText("Left", { exact: true })).toHaveCount(8);
+    await expect(card.getByText("Hand length")).toHaveCount(8);
+    await expect(card.getByText("Palm width")).toHaveCount(8);
+    await expect(card.getByText(/R \/ L \/ both/)).toHaveCount(0);
   });
 
   test("a printed QR code opens its pose's instructions", async ({ page }) => {
@@ -74,19 +105,8 @@ test.describe("learning kit", () => {
   test("the checker identifies a photographed kit page on this device", async ({
     page,
   }) => {
-    // Render the G01R page at about 8 px/mm and use that image as the "photo".
-    await page.setViewportSize({ width: 1800, height: 2400 });
-    await page.goto("/learn/print?hands=right");
-    const svg = page.locator(".learn-print-page svg").first();
-    const photo = await svg.screenshot({ type: "jpeg", quality: 92 });
-
-    const uploads: string[] = [];
-    page.on("request", (r) => {
-      // next dev's error overlay POSTs stack frames for console errors
-      // (MediaPipe logs an INFO line on start-up as an error); that is not app traffic.
-      if (r.method() !== "GET" && !r.url().includes("/__nextjs"))
-        uploads.push(r.url());
-    });
+    const photo = await renderKitPagePhoto(page);
+    const uploads = watchUploads(page);
 
     await page.goto("/learn/check");
     await page.getByTestId("learning-check-input").setInputFiles({
@@ -96,7 +116,28 @@ test.describe("learning kit", () => {
     });
     const json = page.getByTestId("learning-check-json");
     await expect(json).not.toBeEmpty({ timeout: 60_000 });
-    const { reports } = JSON.parse((await json.textContent()) ?? "{}");
+    const log = JSON.parse((await json.textContent()) ?? "{}");
+    const { reports } = log;
+    // Run log, format 2.
+    expect(log).toMatchObject({
+      format: "open-mouse-learning-run/2",
+      kitVersion: 1,
+      paperSize: "a4",
+      input: null,
+      gitSha: null,
+    });
+    expect(reports[0]).toMatchObject({ kitVersion: 1, paperSize: "a4" });
+    expect(Object.keys(reports[0].exif).sort()).toEqual([
+      "focalLengthIn35mmFilm",
+      "focalLengthMm",
+      "pixelXDimension",
+      "pixelYDimension",
+    ]);
+    // The four printed markers give a reference plane; there is no hand yet.
+    expect(reports[0].markerPlane.method).toBe("markers");
+    expect(reports[0].markerPlane.homography).toHaveLength(3);
+    expect(reports[0].markerPlane.landmarksSheetMm).toBeNull();
+    expect(reports[0].markerMm).toBeNull();
     expect(reports[0].code).toEqual({
       kind: "gesture",
       version: 1,
@@ -114,5 +155,90 @@ test.describe("learning kit", () => {
     ).toBeVisible();
     // Photos never leave the browser (hard rule 5).
     expect(uploads).toEqual([]);
+  });
+  test("the run log keeps only white-listed EXIF, and uses the photo's focal length", async ({
+    page,
+  }) => {
+    const screenshot = await renderKitPagePhoto(page);
+    // A phone-like EXIF block: GPS, time, serial number, device, lens, ...
+    // (no Orientation tag, which would rotate the photo).
+    const spec = phoneSpec();
+    const exif = exifSegment({
+      ...spec,
+      ifd0: spec.ifd0!.filter((t) => t.tag !== TAG.orientation),
+    });
+    const photo = Buffer.concat([
+      screenshot.subarray(0, 2),
+      Buffer.from(exif),
+      screenshot.subarray(2),
+    ]);
+    const uploads = watchUploads(page);
+
+    await page.goto("/learn/check");
+    await page.getByTestId("learning-check-input").setInputFiles({
+      name: "IMG_0002.jpg",
+      mimeType: "image/jpeg",
+      buffer: photo,
+    });
+    const json = page.getByTestId("learning-check-json");
+    await expect(json).not.toBeEmpty({ timeout: 60_000 });
+    const text = (await json.textContent()) ?? "";
+    const { reports } = JSON.parse(text);
+
+    expect(reports[0].exif).toEqual({
+      focalLengthMm: 6.765,
+      focalLengthIn35mmFilm: 24,
+      pixelXDimension: 4032,
+      pixelYDimension: 3024,
+    });
+    for (const secret of [
+      PRIVATE.make,
+      PRIVATE.model,
+      PRIVATE.serial,
+      PRIVATE.lens,
+      PRIVATE.uniqueId,
+      PRIVATE.dateTime,
+      PRIVATE.software,
+      String(PRIVATE.latitudeSeconds),
+      String(PRIVATE.altitude),
+    ]) {
+      expect(text).not.toContain(secret);
+    }
+    // 35 mm focal length 24 mm -> px of the decoded frame (the product's formula).
+    const { width, height } = reports[0];
+    expect(reports[0].markerPlane.parallax.focalSource).toBe("exif");
+    expect(reports[0].markerPlane.parallax.exifFocalPx).toBeCloseTo(
+      (24 / 43.27) * Math.hypot(width, height),
+      3,
+    );
+    expect(uploads).toEqual([]);
+  });
+
+  test("the sheet size is a setting: preset by ?paper=, changed on the page, and recorded", async ({
+    page,
+  }) => {
+    await page.goto("/learn/check?paper=letter");
+    const select = page.getByTestId("learning-check-paper");
+    await expect(select).toHaveValue("letter");
+
+    // Anything that is not a known size falls back to A4.
+    await page.goto("/learn/check?paper=toString");
+    await expect(select).toHaveValue("a4");
+    await page.goto("/learn/check?paper=nonsense");
+    await expect(select).toHaveValue("a4");
+
+    const photo = await renderKitPagePhoto(page);
+    await page.goto("/learn/check");
+    await select.selectOption("letter");
+    await page.getByTestId("learning-check-input").setInputFiles({
+      name: "IMG_0003.jpg",
+      mimeType: "image/jpeg",
+      buffer: photo,
+    });
+    const json = page.getByTestId("learning-check-json");
+    await expect(json).not.toBeEmpty({ timeout: 60_000 });
+    const log = JSON.parse((await json.textContent()) ?? "{}");
+    expect(log.paperSize).toBe("letter");
+    expect(log.reports[0].paperSize).toBe("letter");
   });
 });

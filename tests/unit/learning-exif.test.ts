@@ -154,6 +154,65 @@ describe("readExifWhitelist", () => {
     expect(readExifWhitelist(jpeg)).toEqual(NO_EXIF);
   });
 
+  it("gives null for a tag that is not a single value, or a focal length no lens has", () => {
+    const jpeg = buildExifJpeg({
+      exif: [
+        // Two rationals where one is expected.
+        {
+          tag: TAG.focalLength,
+          value: {
+            type: "rational",
+            values: [
+              [6765, 1000],
+              [1, 1],
+            ],
+          },
+        },
+        {
+          tag: TAG.focalLengthIn35mmFilm,
+          value: { type: "short", value: 5000 },
+        },
+        { tag: TAG.pixelXDimension, value: { type: "ascii", value: "4032" } },
+        { tag: TAG.pixelYDimension, value: { type: "short", value: 3024 } },
+      ],
+    });
+    expect(readExifWhitelist(jpeg)).toEqual({
+      ...NO_EXIF,
+      pixelYDimension: 3024,
+    });
+    const tooLong = buildExifJpeg({
+      exif: [
+        {
+          tag: TAG.focalLength,
+          value: { type: "rational", values: [[5000, 1]] },
+        },
+      ],
+    });
+    expect(readExifWhitelist(tooLong).focalLengthMm).toBeNull();
+  });
+
+  it("rejects a block whose TIFF header is not II or MM, or whose magic number is not 42", () => {
+    const good = buildExifJpeg(phoneSpec());
+    expect(readExifWhitelist(good)).toEqual(WHITE);
+    // The TIFF header follows the six bytes "Exif" + two NULs.
+    const at = good.findIndex(
+      (_, i) =>
+        good[i] === 0x45 &&
+        good[i + 1] === 0x78 &&
+        good[i + 2] === 0x69 &&
+        good[i + 3] === 0x66,
+    );
+    expect(at).toBeGreaterThan(0);
+    const tiff = at + 6;
+    const badOrder = good.slice();
+    badOrder[tiff] = 0x58;
+    badOrder[tiff + 1] = 0x58;
+    expect(readExifWhitelist(badOrder)).toEqual(NO_EXIF);
+    const badMagic = good.slice();
+    badMagic[tiff + 2] = 43; // little-endian: the magic is the next two bytes
+    expect(readExifWhitelist(badMagic)).toEqual(NO_EXIF);
+  });
+
   it("does not throw and stays white-listed on 400 randomly damaged copies of a real-looking file", () => {
     let seed = 12345;
     const next = () => {

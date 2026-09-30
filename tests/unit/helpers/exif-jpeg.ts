@@ -202,19 +202,26 @@ export interface JpegOptions {
   readonly leadingSegments?: readonly Uint8Array[];
 }
 
+/** The Exif APP1 segment alone (marker, length, "Exif\0\0", TIFF), to splice into a real JPEG. */
+export function exifSegment(spec: ExifSpec): Uint8Array {
+  return segment(
+    0xe1,
+    concat([
+      new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00]), // "Exif\0\0"
+      buildTiff(spec),
+    ]),
+  );
+}
+
 /** SOI, optional leading segments, one Exif APP1, EOI. */
 export function buildExifJpeg(
   spec: ExifSpec,
   options: JpegOptions = {},
 ): Uint8Array {
-  const exif = concat([
-    new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00]), // "Exif\0\0"
-    buildTiff(spec),
-  ]);
   return concat([
     new Uint8Array([0xff, 0xd8]),
     ...(options.leadingSegments ?? []),
-    segment(0xe1, exif),
+    exifSegment(spec),
     new Uint8Array([0xff, 0xd9]),
   ]);
 }

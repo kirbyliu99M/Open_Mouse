@@ -4,6 +4,7 @@ import { LEARNING_KIT_VERSION } from "../../src/lib/learning/kit";
 import {
   containingRoot,
   isInsideDirectory,
+  mainCheckoutOf,
   relativeInputPath,
 } from "../../src/lib/learning/paths";
 import {
@@ -98,6 +99,46 @@ describe("buildRunLog", () => {
       null,
     ]);
     expect(anon.reports.every((r) => r.gitSha === null)).toBe(true);
+  });
+});
+
+describe("sortReports", () => {
+  const card = {
+    kind: "participant",
+    version: 1,
+    participant: "P007",
+  } as const;
+  const pose = {
+    kind: "gesture",
+    version: 1,
+    gesture: "G01",
+    hand: "right",
+  } as const;
+  const named = (file: string, code: typeof card | typeof pose) => ({
+    ...report(file),
+    code,
+    verdict:
+      code.kind === "participant" ? ("slate" as const) : ("ready" as const),
+  });
+
+  it("goes by camera order (natural file-name order), not the order it was given", () => {
+    // Given newest first, and with IMG_10 after IMG_9 only in natural order.
+    const sort = sortReports([
+      named("IMG_10.jpg", pose),
+      named("IMG_9.jpg", pose),
+      named("IMG_1.jpg", card),
+    ]);
+    expect(sort.photos.map((p) => [p.file, p.destination])).toEqual([
+      ["IMG_1.jpg", "P007/slate.jpg"],
+      ["IMG_9.jpg", "P007/G01R/1.jpg"],
+      ["IMG_10.jpg", "P007/G01R/2.jpg"],
+    ]);
+  });
+
+  it("does not change the reports it is given", () => {
+    const given = [named("IMG_2.jpg", pose), named("IMG_1.jpg", card)];
+    sortReports(given);
+    expect(given.map((r) => r.file)).toEqual(["IMG_2.jpg", "IMG_1.jpg"]);
   });
 });
 
@@ -208,6 +249,42 @@ describe("isInsideDirectory", () => {
       containingRoot("C:\\work\\Fixtures\\learning", roots, win),
     ).toBeNull();
     expect(containingRoot("C:\\work\\Fixtures\\learning", [], win)).toBeNull();
+  });
+});
+
+describe("mainCheckoutOf", () => {
+  const win = path.win32;
+
+  it("in a worktree, the main checkout is the parent of the common .git", () => {
+    expect(
+      mainCheckoutOf(
+        "C:\\work\\Open_Mouse\\.claude\\worktrees\\learning-kit",
+        "C:/work/Open_Mouse/.git",
+        win,
+      ),
+    ).toBe("C:\\work\\Open_Mouse");
+  });
+
+  it("in the main checkout (a relative .git), or with no git answer, it is the script's own checkout", () => {
+    const root = "C:\\work\\Open_Mouse";
+    expect(mainCheckoutOf(root, ".git", win)).toBe(root);
+    expect(mainCheckoutOf(root, null, win)).toBe(root);
+    expect(mainCheckoutOf(root, "", win)).toBe(root);
+  });
+
+  it("so a worktree's usual output folder counts as inside the repo", () => {
+    const worktree = "C:\\work\\Open_Mouse\\.claude\\worktrees\\learning-kit";
+    const roots = [
+      worktree,
+      mainCheckoutOf(worktree, "C:/work/Open_Mouse/.git", win),
+    ];
+    // The old default, "../Fixtures/learning" from the worktree:
+    const out = "C:\\work\\Open_Mouse\\.claude\\worktrees\\Fixtures\\learning";
+    expect(containingRoot(out, roots, win)).toBe("C:\\work\\Open_Mouse");
+    // The new default, next to the main checkout:
+    expect(
+      containingRoot("C:\\work\\Fixtures\\learning", roots, win),
+    ).toBeNull();
   });
 });
 

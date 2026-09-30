@@ -7,7 +7,7 @@ import path, { type PlatformPath } from "node:path";
 
 export type PathApi = Pick<
   PlatformPath,
-  "resolve" | "relative" | "isAbsolute" | "basename" | "sep"
+  "resolve" | "relative" | "isAbsolute" | "basename" | "dirname" | "sep"
 >;
 
 /**
@@ -25,6 +25,23 @@ export function isInsideDirectory(
   // A different drive comes back as an absolute path.
   if (api.isAbsolute(rel)) return false;
   return rel !== ".." && !rel.startsWith(`..${api.sep}`);
+}
+
+/**
+ * The checkout that owns `scriptRoot`. In a git worktree that is not
+ * `scriptRoot` itself: `git rev-parse --git-common-dir` names the main
+ * checkout's `.git`, and the main checkout is its parent. Worktrees often sit
+ * inside the main checkout's folder, so output there is as much "inside the
+ * repo" as output next to the script. With no git answer (`null`) or a relative
+ * one such as `.git`, the checkout is `scriptRoot` itself.
+ */
+export function mainCheckoutOf(
+  scriptRoot: string,
+  gitCommonDir: string | null,
+  api: PathApi = path,
+): string {
+  if (!gitCommonDir) return scriptRoot;
+  return api.dirname(api.resolve(scriptRoot, gitCommonDir));
 }
 
 /** The first of `roots` that contains `candidate`, or `null`. */
