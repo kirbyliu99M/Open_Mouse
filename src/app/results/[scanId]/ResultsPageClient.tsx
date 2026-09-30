@@ -10,6 +10,10 @@ import {
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
 import { ResultsView } from "@/components/results/ResultsView";
+import {
+  parseStoredUserLength,
+  resultLengthKey,
+} from "@/components/results/userLengthDisclosure";
 import { resultHandKey } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
@@ -64,14 +68,19 @@ export function ResultsPageClient({
     status: "idle",
   });
   const [attempt, setAttempt] = useState(0);
+  const [enteredLength, setEnteredLength] = useState<number | null>(null);
   const [scanHand, setScanHand] = useState<"left" | "right" | null>(null);
 
   useEffect(() => {
     try {
-      const hand = sessionStorage.getItem(resultHandKey(scanId));
+      setEnteredLength(
+        parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
+      );
+      const hand = localStorage.getItem(resultHandKey(scanId));
       setScanHand(hand === "left" || hand === "right" ? hand : null);
     } catch {
       setScanHand(null);
+      setEnteredLength(null);
     }
   }, [scanId]);
 
@@ -244,6 +253,7 @@ export function ResultsPageClient({
     <main className="resultsMain">
       <ResultsView
         scanHand={scanHand}
+        enteredLengthMm={enteredLength}
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}

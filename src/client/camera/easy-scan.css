@@ -303,6 +303,19 @@
 .easyTryAgainButton {
   width: 100%;
 }
+.easyEditLengthButton {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--scan-accent, #0a64e0);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
 
 .easyTipList {
   list-style: none;
@@ -367,4 +380,235 @@
   .easySheet {
     border-top: 2px solid currentColor;
   }
+}
+.easyNoPaperLink,
+.easyTipNoPaper {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+.easyNoPaperLink {
+  align-self: center;
+  margin: 0 auto 1rem;
+  padding: 0 1rem;
+}
+.easyTipNoPaper {
+  display: block;
+  width: 100%;
+  color: var(--scan-accent, #0a64e0);
+  margin-top: 0.75rem;
+}
+/* The links under the live view / no-camera fallback sit on the dark shell. */
+.easyNoPaperRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.75rem;
+  margin: 0 auto 1rem;
+}
+.easyNoPaperRow .easyNoPaperLink,
+.easyScanNoCamera .easyNoPaperLink {
+  margin: 0;
+}
+.easyLengthStep {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.5rem max(1.5rem, calc((100vw - 420px) / 2));
+  background: var(--scan-bg, #f4f4f6);
+  color: var(--scan-fg, #1c1c1e);
+  text-align: center;
+}
+.easyLengthStep h1:focus {
+  outline: none;
+}
+.easyLengthForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  width: 100%;
+}
+/* The shell's focus ring is white (for the dark camera); this step is a
+   themed page, so its ring is the accent (>= 3:1 on both backgrounds). */
+.easyLengthStep button:focus-visible,
+.easyLengthStep input:focus-visible {
+  outline: 2px solid var(--scan-accent, #0a64e0);
+  outline-offset: 2px;
+}
+.easyLengthStep h1 {
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0.5rem 0 0;
+}
+.easyLengthStep p {
+  margin: 0 0 1rem;
+  color: var(--scan-muted, #55555d);
+  line-height: 1.5;
+}
+.easyLengthStep label {
+  align-self: flex-start;
+  font-weight: 600;
+}
+.easyLengthStep input {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid var(--scan-muted, #777783);
+  border-radius: 0.7rem;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  background: Field;
+  color: FieldText;
+}
+/* The browser's default placeholder grey is 2.43:1 on the dark field. */
+.easyLengthStep input::placeholder {
+  color: var(--scan-muted, #55555d);
+  opacity: 1;
+}
+.easyLengthStep .primaryButton {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.easyLengthStep #easy-length-error {
+  color: var(--scan-error-fg, #a5251b);
+  align-self: flex-start;
+  margin: 0;
+}
+.easyLengthBack {
+  align-self: flex-start;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--scan-accent, #0a64e0);
+  font: inherit;
+}
+.easyHandDrawing {
+  width: min(190px, 55vw);
+  height: auto;
+  color: var(--scan-muted, #55555d);
+}
+.easyHandDrawingMeasure {
+  stroke: var(--scan-accent, #0a64e0);
+}
+.easyLengthChip {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: #fff;
+  font-weight: 600;
+}
+.easyLengthDisclosure {
+  color: var(--scan-muted, #55555d);
+  line-height: 1.4;
+  margin: -0.25rem 0 1rem;
+}
+.easyLengthDisclosure p {
+  margin: 0.2rem 0;
+}
+.easyDeviceEntry,
+.easyDevicePlaceholder {
+  /* Undo the global `main { max-width; margin: 18vh auto }`, which added
+     about 36vh of scroll under a 100dvh screen. */
+  margin: 0;
+  max-width: none;
+}
+.easyDevicePlaceholder {
+  min-height: 100dvh;
+  padding: 0;
+  /* The camera shell's own colour (.cameraViewfinder in camera.css), in both
+     themes, so a phone sees no flash when the shell replaces this and a
+     desktop sees no camera controls before its entry screen. */
+  background: #12161c;
+}
+.easyDeviceEntry {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: var(--scan-bg, #f4f4f6);
+  color: var(--scan-fg, #1c1c1e);
+  text-align: center;
+}
+.easyDeviceEntry button:focus-visible,
+.easyDeviceEntry input:focus-visible {
+  outline: 2px solid var(--scan-accent, #0a64e0);
+  outline-offset: 2px;
+}
+.easyDeviceEntry h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  max-width: 14ch;
+  margin: 0;
+}
+.easyDeviceEntry p {
+  color: var(--scan-muted, #55555d);
+  margin: 0;
+}
+.easyDeviceEntry .easyDevicePrivacy {
+  max-width: 26rem;
+  font-size: 0.875rem;
+}
+.easyQr {
+  width: 224px;
+  height: 224px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 1rem;
+}
+.easyQr svg {
+  width: 100%;
+  height: 100%;
+}
+.easyDeviceUrl {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.easySelectableUrl {
+  width: min(100%, 28rem);
+  padding: 0.7rem;
+  border: 1px solid var(--scan-muted, #777780);
+  border-radius: 0.5rem;
+  background: var(--scan-bg, #f4f4f6);
+  color: var(--scan-fg, #1c1c1e);
+  font: inherit;
+}
+.easyCopyLink,
+.easyDeviceUpload {
+  min-height: 44px;
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1.2rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.easyCopyLink {
+  background: var(--scan-accent, #0a64e0);
+  color: var(--scan-on-accent, #fff);
+}
+.easyDeviceUpload {
+  background: transparent;
+  color: var(--scan-accent, #0a64e0);
+  text-decoration: underline;
+}
+
+.easyLengthStep .easyLengthHint {
+  align-self: flex-start;
+  margin: -0.35rem 0 0;
+  font-size: 0.875rem;
 }
