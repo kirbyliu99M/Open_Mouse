@@ -60,7 +60,15 @@ const MAX_STRING_LENGTH = 300;
  * scrubbing one string is bounded whatever a caller passes in (several
  * patterns are quadratic on a long unbroken run of key characters).
  */
-const MAX_INPUT_LENGTH = 2000;
+const MAX_INPUT_LENGTH = 512;
+/**
+ * All the text one line may run patterns over, in characters. Each string (and
+ * each key name) draws on it; once it is spent, further strings are replaced
+ * by a marker unread. Bounds the total cost of a line whatever its shape:
+ * 500 values of 512 characters each would otherwise cost seconds.
+ */
+const MAX_TEXT_BUDGET = 16_384;
+const BUDGET_SPENT = "[text budget exhausted]";
 /** Values visited in one line, counting every entry, so a shared reference cannot fan out. */
 const MAX_NODES = 500;
 /** The finished line, in bytes; over it, whole fields are dropped and the line says so. */
@@ -253,7 +261,7 @@ export const STRING_RULES: readonly StringRule[] = [
     // The name is kept, the value goes.
     name: "secret-assignment",
     pattern:
-      /(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
+      /(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:＝：]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
     replace: (match) => `${/^[A-Za-z_-]+/.exec(match)![0]}=[redacted]`,
   },
   {
@@ -331,13 +339,23 @@ export function scrubString(text: string): string {
   return cut ? `${out}…` : out;
 }
 
-function redactError(error: Error): Record<string, unknown> {
+/** `scrubString`, charged against the line's text budget. */
+function scrubWithin(state: RedactState, text: string): string {
+  if (state.chars <= 0) return BUDGET_SPENT;
+  state.chars -= Math.min(text.length, MAX_INPUT_LENGTH);
+  return scrubString(text);
+}
+
+function redactError(
+  error: Error,
+  state: RedactState,
+): Record<string, unknown> {
   // Class name plus at most a short code / status. Never message, stack, cause.
-  const out: Record<string, unknown> = { name: scrubString(error.name) };
+  const out: Record<string, unknown> = { name: scrubWithin(state, error.name) };
   for (const key of ["code", "status"] as const) {
     const value = (error as unknown as Record<string, unknown>)[key];
     if (typeof value === "string" || typeof value === "number") {
-      out[key] = typeof value === "string" ? scrubString(value) : value;
+      out[key] = typeof value === "string" ? scrubWithin(state, value) : value;
     }
   }
   return out;
@@ -346,17 +364,37 @@ function redactError(error: Error): Record<string, unknown> {
 /** A short lower-case identifier: an enumerated value, never a sentence. */
 const ENUM_TOKEN = /^[a-z][a-z0-9_.:-]{0,39}$/;
 
-function redactField(key: string, value: unknown): unknown {
+function redactField(key: string, value: unknown, state: RedactState): unknown {
   const category = categoryOfKey(key);
   if (category === null) return undefined;
   if (category === "free-text") {
+    // Nothing to hide in an absent or empty value: keep it as it is.
+    if (
+      value === null ||
+      value === undefined ||
+      value === false ||
+      value === 0
+    ) {
+      return undefined;
+    }
     if (typeof value === "string") {
       return ENUM_TOKEN.test(value) ? undefined : REDACTED;
     }
     if (Array.isArray(value)) {
-      return value.map((item) =>
-        typeof item === "string" && ENUM_TOKEN.test(item) ? item : REDACTED,
-      );
+      // Same limits as any other array: at most MAX_ITEMS entries, each one
+      // counted against the line's value budget, however long `value` claims
+      // to be.
+      const items = value.slice(0, MAX_ITEMS).map((item) => {
+        state.nodes += 1;
+        if (state.nodes > MAX_NODES) return "[truncated]";
+        return typeof item === "string" && ENUM_TOKEN.test(item)
+          ? item
+          : REDACTED;
+      });
+      if (value.length > MAX_ITEMS) {
+        items.push(`[+${value.length - MAX_ITEMS} more]`);
+      }
+      return items;
     }
     // An Error or another object is reduced by the normal walk.
     if (typeof value === "object" && value !== null) return undefined;
@@ -375,20 +413,26 @@ function redactField(key: string, value: unknown): unknown {
  */
 export interface RedactState {
   seen: WeakSet<object>;
+  /** Characters of text still allowed to be scanned in this line. */
+  chars: number;
   nodes: number;
 }
 
 export function redact(
   value: unknown,
   depth = 0,
-  state: RedactState = { seen: new WeakSet(), nodes: 0 },
+  state: RedactState = {
+    seen: new WeakSet(),
+    nodes: 0,
+    chars: MAX_TEXT_BUDGET,
+  },
 ): unknown {
   if ((state.nodes += 1) > MAX_NODES) return "[truncated]";
   const seen = state.seen;
   if (value === null || value === undefined) return value ?? null;
   switch (typeof value) {
     case "string":
-      return scrubString(value);
+      return scrubWithin(state, value);
     case "number":
       return Number.isFinite(value) ? value : String(value);
     case "boolean":
@@ -405,7 +449,7 @@ export function redact(
   if (seen.has(object)) return "[circular]";
   seen.add(object);
   try {
-    if (object instanceof Error) return redactError(object);
+    if (object instanceof Error) return redactError(object, state);
     if (object instanceof Date) {
       return Number.isNaN(object.getTime()) ? null : object.toISOString();
     }
@@ -433,9 +477,9 @@ export function redact(
     const out: Record<string, unknown> = {};
     const entries = Object.entries(object as Record<string, unknown>);
     for (const [key, item] of entries.slice(0, MAX_KEYS)) {
-      const replaced = redactField(key, item);
+      const replaced = redactField(key, item, state);
       // The name is text too: an address, an email or an id used as a key.
-      const clean = scrubString(key);
+      const clean = scrubWithin(state, key);
       let name = clean;
       for (let n = 2; name in out; n += 1) name = `${clean}#${n}`;
       out[name] =

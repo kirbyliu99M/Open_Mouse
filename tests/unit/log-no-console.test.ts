@@ -17,8 +17,16 @@ import { describe, expect, it } from "vitest";
  * src/db), the server component pages, and also the client components, since
  * a client component is rendered on the server first and a console call in
  * its render would land in the server log.
+ *
+ * This is a guardrail against a slip, not a security boundary. It follows
+ * names through imports and simple aliases, but it does not try to defeat
+ * someone who means to get around it: `Reflect.get(console, "log")`,
+ * `util.debuglog(...)`, `require(variable)`, a `Function("return console")()`
+ * or writing to a file descriptor through another module are not detected.
+ * Review still has to catch those.
  */
 const HIT_MODULES = new Set(["console", "node:console"]);
+const PROCESS_MODULES = new Set(["process", "node:process"]);
 const GLOBAL_OBJECTS = new Set(["globalThis", "global", "window", "self"]);
 const STREAMS = new Set(["stdout", "stderr"]);
 
@@ -47,6 +55,38 @@ export function findOutputCalls(source: string, name = "file.tsx"): string[] {
     ts.isIdentifier(node) &&
     (typeof names === "string" ? node.text === names : names.has(node.text));
 
+  // Names that stand for the `process` object: `process` itself, and whatever
+  // a file calls it when it imports the module (`import p from "node:process"`,
+  // `import * as p from "node:process"`, `const p = require("node:process")`).
+  const processNames = new Set(["process"]);
+  const isProcessRequire = (node: ts.Expression | undefined): boolean =>
+    node !== undefined &&
+    ts.isCallExpression(node) &&
+    isIdent(node.expression, "require") &&
+    node.arguments[0] !== undefined &&
+    PROCESS_MODULES.has(literal(node.arguments[0]) ?? "");
+  (function collectAliases(node: ts.Node) {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      PROCESS_MODULES.has(node.moduleSpecifier.text)
+    ) {
+      const clause = node.importClause;
+      if (clause?.name) processNames.add(clause.name.text);
+      if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+        processNames.add(clause.namedBindings.name.text);
+      }
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      isProcessRequire(node.initializer)
+    ) {
+      processNames.add(node.name.text);
+    }
+    ts.forEachChild(node, collectAliases);
+  })(file);
+
   function visit(node: ts.Node) {
     // Any use of the name `console`, unless it is only a property name
     // (`x.console`, `{ console: 1 }`, an interface member).
@@ -68,14 +108,17 @@ export function findOutputCalls(source: string, name = "file.tsx"): string[] {
       ) {
         at(node, `${(node.expression as ts.Identifier).text}.console`);
       }
-      if (isIdent(node.expression, "process") && STREAMS.has(node.name.text)) {
+      if (
+        isIdent(node.expression, processNames) &&
+        STREAMS.has(node.name.text)
+      ) {
         at(node, `process.${node.name.text}`);
       }
     }
     if (ts.isElementAccessExpression(node)) {
       const key = literal(node.argumentExpression);
       const onGlobal = isIdent(node.expression, GLOBAL_OBJECTS);
-      const onProcess = isIdent(node.expression, "process");
+      const onProcess = isIdent(node.expression, processNames);
       if (key === "console") at(node, '["console"]');
       if (onGlobal && key === null)
         at(node, "computed access on a global object");
@@ -93,7 +136,7 @@ export function findOutputCalls(source: string, name = "file.tsx"): string[] {
       node.initializer
     ) {
       const from = node.initializer;
-      const fromProcess = isIdent(from, "process");
+      const fromProcess = isIdent(from, processNames) || isProcessRequire(from);
       const fromGlobal = isIdent(from, GLOBAL_OBJECTS);
       for (const element of node.name.elements) {
         const property = (element.propertyName ?? element.name) as ts.Node;
@@ -114,6 +157,31 @@ export function findOutputCalls(source: string, name = "file.tsx"): string[] {
     ) {
       if (HIT_MODULES.has(node.moduleSpecifier.text))
         at(node, "imports the console module");
+      // import { stdout } from "node:process"
+      const bindings = node.importClause?.namedBindings;
+      if (
+        PROCESS_MODULES.has(node.moduleSpecifier.text) &&
+        bindings &&
+        ts.isNamedImports(bindings)
+      ) {
+        for (const element of bindings.elements) {
+          if (STREAMS.has((element.propertyName ?? element.name).text)) {
+            at(element, "imports a process output stream");
+          }
+        }
+      }
+    }
+    // import("node:console")  /  import("node:process")
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] !== undefined
+    ) {
+      const target = literal(node.arguments[0]) ?? "";
+      if (HIT_MODULES.has(target))
+        at(node, "dynamically imports the console module");
+      if (PROCESS_MODULES.has(target))
+        at(node, "dynamically imports the process module");
     }
     if (
       ts.isCallExpression(node) &&
@@ -185,6 +253,26 @@ describe("findOutputCalls (the scanner)", () => {
       'import { writeSync as w } from "node:fs"; w(2, "x")',
     ],
     ["a renamed writeSync import", 'import { writeSync } from "fs"'],
+    ["a named stdout import", 'import { stdout } from "node:process"'],
+    ["a renamed stderr import", 'import { stderr as e } from "process"'],
+    [
+      "a namespace import of process",
+      'import * as p from "node:process"; p.stdout.write("x")',
+    ],
+    [
+      "a default import of process",
+      'import proc from "node:process"; proc.stderr.write("x")',
+    ],
+    [
+      "a required process",
+      'const p = require("node:process"); p.stdout.write("x")',
+    ],
+    [
+      "destructuring a required process",
+      'const { stdout } = require("node:process")',
+    ],
+    ["a dynamic import of the console module", 'await import("node:console")'],
+    ["a dynamic import of process", 'const p = await import("node:process")'],
     ["writeSync imported by name", 'writeSync(1, "x")'],
     [
       "after a // inside a string",
@@ -215,6 +303,17 @@ describe("findOutputCalls (the scanner)", () => {
     ["a similar identifier", "const consoleLike = 1; consoleLike.log(1)"],
     ["a logger", 'import { log } from "../log"; log.info("x", {})'],
     ["process.env", "const v = process.env.NODE_ENV"],
+    [
+      "an imported process used for its environment",
+      'import process from "node:process"; const v = process.env.X',
+    ],
+    [
+      "a namespace import used for its environment",
+      'import * as p from "node:process"; const v = p.env.X; p.exit(1)',
+    ],
+    ["a named non-stream import", 'import { env, exit } from "node:process"'],
+    ["a dynamic import of another module", 'await import("node:fs")'],
+    ["a stream name on another object", "const v = other.stdout"],
     ["process.exit", "process.exit(1)"],
     [
       "a stream-like name elsewhere",
@@ -236,6 +335,8 @@ describe("findOutputCalls (the scanner)", () => {
 /** Files allowed to write to the console, each with the reason. */
 export const EXCEPTIONS: Record<string, string> = {
   "src/server/log.ts": "the sink: the one place a redacted line is written",
+  "src/lib/learning/terminal.ts":
+    "the terminal of the `npm run learn:sort` script (Node only, run by hand): its default sink is the operator's own console, and every line is passed through redactText first. The app never imports it",
   "src/client/scan/submitScan.ts":
     "runs only in the browser, after the user presses submit; prints the server's public error detail to that user's own devtools console, never to a server log",
 };

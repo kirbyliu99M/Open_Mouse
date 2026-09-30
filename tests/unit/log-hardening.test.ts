@@ -59,15 +59,15 @@ describe("scrubbing a long string is bounded", () => {
     // A secret that straddles the cut is not printed as a fragment. The text
     // before it is one long token, so what is left after scrubbing is short and
     // the fragment would show if the half-word were kept.
-    const straddle = "a".repeat(1990) + " kirby.liu@example.org and more";
+    const straddle = "a".repeat(500) + " kirby.liu@example.org and more";
     const cutOut = scrubString(straddle);
     expect(cutOut).not.toContain("kirby");
     expect(cutOut).toBe("[redacted-token] …");
   });
 
-  it("does not print a secret that begins inside the first 2000 characters and ends after them", () => {
+  it("does not print a secret that begins inside the first 512 characters and ends after them", () => {
     const secret = "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q";
-    const input = "q ".repeat(990) + secret + " tail";
+    const input = "q ".repeat(240) + secret + " tail";
     expect(scrubString(input)).not.toContain("AIza");
   });
 });
