@@ -32,8 +32,12 @@ const DISABLED_RULES: Record<string, Record<string, string>> = {};
 interface Review {
   /** Why axe cannot decide it. */
   readonly why: string;
-  /** What settles it instead: fails if the claim stops being true. */
-  readonly check: (page: Page) => Promise<void>;
+  /**
+   * What settles it instead: fails if the claim stops being true. It is given
+   * every node axe left open for this rule (its target selectors), so a
+   * review can be a closed list and not just a rule name.
+   */
+  readonly check: (page: Page, targets: readonly string[]) => Promise<void>;
 }
 
 /** The text sits on a translucent pill over a photo; axe cannot see the photo. */
@@ -98,56 +102,100 @@ const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
 };
 
 /**
- * Controls and text laid over the live picture (scan v2): each sits on a
- * translucent dark fill, and axe cannot see the picture under it. The worst
- * case is a white picture, so the fill is laid over white and the text has to
- * keep 4.5:1 there. Every selector that is on the screen is checked, and the
- * ones that must be are required.
+ * What may sit over the live picture (scan v2). Each is white text on a
+ * translucent dark fill, and axe cannot see through the fill to the picture.
+ * This is a CLOSED list: the check is handed every element axe left open for
+ * colour contrast and fails on any that is not on it (or inside one that is),
+ * so nothing else can hide behind the exception. Each is then measured on the
+ * worst case, a white picture, and must keep 4.5:1 there.
+ *
+ * `required` ones are on the live screen whenever the camera is up; the rest
+ * are there only sometimes (the hint while the ring fills, the detector's
+ * progress pill while the model downloads, the "no paper" link behind the
+ * build flag), so they are allowed when present and never demanded.
  */
-const overLivePicture =
-  (required: readonly string[], optional: readonly string[]) =>
-  async (page: Page) => {
-    const found = await page.evaluate(
-      ({ required, optional }) => {
-        const read = (selector: string) => {
-          const el = document.querySelector(selector);
-          if (!el) return null;
-          const style = getComputedStyle(el);
-          return { fg: style.color, bg: style.backgroundColor };
-        };
-        return [...required, ...optional].map((selector) => ({
-          selector,
-          required: required.includes(selector),
-          style: read(selector),
-        }));
-      },
-      { required: [...required], optional: [...optional] },
+const OVER_LIVE_PICTURE: readonly { selector: string; required?: true }[] = [
+  { selector: ".cameraCloseButton", required: true },
+  { selector: ".easyHandChip", required: true },
+  { selector: ".easyPaperToggle", required: true },
+  { selector: ".easyHelpButton" },
+  { selector: ".cameraCue" },
+  { selector: ".easyHint" },
+  { selector: ".easyNoPaperLink" },
+  { selector: ".easyUploadIconButton" },
+  // The download progress pill (white on rgba(0,0,0,.6): 5.74:1 on a white
+  // picture) and the line of text in it, which is how axe names the node.
+  { selector: ".easyDetectorProgress" },
+  { selector: ".easyDetectorText" },
+];
+
+const overLivePicture = async (page: Page, targets: readonly string[]) => {
+  const listed = (target: string) =>
+    OVER_LIVE_PICTURE.some(
+      ({ selector }) =>
+        target === selector ||
+        target.startsWith(`${selector} `) ||
+        target.startsWith(`${selector}>`),
     );
-    for (const { selector, required, style } of found) {
-      if (!style) {
-        expect(required, `${selector} is on the live screen`).toBe(false);
-        continue;
-      }
-      expect(
-        contrast(style.fg, overWhite(style.bg)),
-        `${selector} over a white picture`,
-      ).toBeGreaterThanOrEqual(4.5);
-    }
-  };
+  expect(
+    targets.filter((target) => !listed(target)),
+    "elements axe could not check that are not on the reviewed list",
+  ).toEqual([]);
+
+  const measure = (selectors: readonly string[]) =>
+    page.evaluate((selectors) => {
+      /** The nearest fill at or above the element, the pill it sits on. */
+      const fillOf = (start: Element) => {
+        for (let el: Element | null = start; el; el = el.parentElement) {
+          const color = getComputedStyle(el).backgroundColor;
+          const parts = color.match(/[\d.]+/g);
+          if (parts && (parts[3] === undefined || Number(parts[3]) > 0))
+            return color;
+        }
+        return null;
+      };
+      return selectors.map((selector) => {
+        const el = document.querySelector(selector);
+        return el
+          ? { selector, fg: getComputedStyle(el).color, bg: fillOf(el) }
+          : { selector, fg: null, bg: null };
+      });
+    }, selectors);
+
+  // Everything axe left open, and every required element being on screen.
+  const wanted = [
+    ...new Set([
+      ...targets,
+      ...OVER_LIVE_PICTURE.filter((item) => item.required).map(
+        (item) => item.selector,
+      ),
+    ]),
+  ];
+  const required = new Set(
+    OVER_LIVE_PICTURE.filter((item) => item.required).map(
+      (item) => item.selector,
+    ),
+  );
+  for (const { selector, fg, bg } of await measure(wanted)) {
+    // A listed element that axe saw and that is gone by now (the detector's
+    // pill once the model has downloaded) can no longer be measured; only the
+    // required ones must be there.
+    if (fg === null && !required.has(selector)) continue;
+    expect(fg, `${selector} is on the live screen`).not.toBeNull();
+    expect(bg, `${selector} sits on a fill`).not.toBeNull();
+    const ratio = contrast(fg!, overWhite(bg!));
+    console.log(`over a white picture: ${selector} ${ratio.toFixed(2)}:1`);
+    expect(
+      ratio,
+      `${selector} over a white picture (${ratio.toFixed(2)}:1)`,
+    ).toBeGreaterThanOrEqual(4.5);
+  }
+};
 
 const LIVE_CAMERA_REVIEW: Record<string, Review> = {
   "color-contrast": {
-    why: "The close, hand and paper buttons, the cue and the hint are white text on a 60% black pill laid over the live picture: axe cannot see the picture.",
-    check: overLivePicture(
-      [".cameraCloseButton", ".easyHandChip", ".easyPaperToggle"],
-      [
-        ".easyHelpButton",
-        ".cameraCue:not(.perfect)",
-        ".easyHint",
-        ".easyNoPaperLink",
-        ".easyUploadIconButton",
-      ],
-    ),
+    why: "The controls, the cue, the hint and the detector's progress pill are white text on a translucent black fill laid over the live picture: axe cannot see the picture. A closed list (OVER_LIVE_PICTURE), each measured on a white picture.",
+    check: overLivePicture,
   },
   "video-caption": {
     why: "axe asks for captions on every <video>. This one is the live camera preview: muted, no audio track, nothing spoken to caption.",
@@ -216,7 +264,12 @@ async function audit(page: Page, info: TestInfo, state: string) {
     open.map((item) => item.rule).sort(),
     `needs review in "${state}" (add it to NEEDS_REVIEW, with why and a check, once looked at): ${JSON.stringify(open, null, 1)}`,
   ).toEqual(Object.keys(reviews).sort());
-  for (const review of Object.values(reviews)) await review.check(page);
+  for (const [rule, review] of Object.entries(reviews)) {
+    const targets = incomplete
+      .filter((item) => item.id === rule)
+      .flatMap((item) => item.nodes.map((n) => n.target.join(" ")));
+    await review.check(page, targets);
+  }
 }
 
 const SCHEMES = ["light", "dark"] as const;
@@ -468,5 +521,34 @@ for (const colorScheme of SCHEMES) {
       return { color: style.color, background: style.backgroundColor };
     });
     expect(contrast(probe.color, probe.background)).toBeGreaterThanOrEqual(4.5);
+  });
+}
+
+// The hint under the viewfinder appears only while the ring fills or the
+// picture is soft, so the axe runs above see it only by chance. It is measured
+// here, on a copy laid into the live screen.
+for (const colorScheme of SCHEMES) {
+  test(`phone: the hint line of the live camera keeps 4.5:1 text contrast over a white picture in ${colorScheme} mode`, async ({
+    page,
+  }, info) => {
+    test.skip(
+      info.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake camera project.",
+    );
+    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+    await page.goto("/scan/easy");
+    await dismissTip(page);
+    await expect(page.locator(".easyBottomDock")).toBeVisible();
+    const probe = await page.evaluate(() => {
+      const hint = document.createElement("p");
+      hint.className = "easyHint";
+      hint.textContent = "Hold still — taking the photo";
+      document.querySelector(".easyBottomDock")!.prepend(hint);
+      const style = getComputedStyle(hint);
+      return { color: style.color, background: style.backgroundColor };
+    });
+    expect(
+      contrast(probe.color, overWhite(probe.background)),
+    ).toBeGreaterThanOrEqual(4.5);
   });
 }
