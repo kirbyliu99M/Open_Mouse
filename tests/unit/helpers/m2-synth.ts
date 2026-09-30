@@ -66,8 +66,6 @@ export function identityPlane(
   };
 }
 
-const okGate: GateRecord = { ok: true, errorCodes: [], warningCodes: [] };
-
 export interface SyntheticPhoto {
   readonly participant: string;
   readonly hand: "left" | "right";
