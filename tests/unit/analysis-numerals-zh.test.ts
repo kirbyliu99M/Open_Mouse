@@ -242,7 +242,9 @@ describe("percentages", () => {
 
   it("百分之百 is 100 percent", () => {
     expect(unknown("百分之百")).toBe(100);
-    expect(unknown("百分之百", [1])).toBeNull();
+    // 100 percent is the number 100 (or 1.0 % of nothing): not the rank 1.
+    expect(unknown("百分之百", [1])).toBe(100);
+    expect(unknown("百分之百", [100])).toBeNull();
   });
 
   it("百分之三十五點五", () => {
@@ -278,7 +280,8 @@ describe("percentages", () => {
     expect(unknown("有七成把握")).toBe(70);
     expect(unknown("有七成把握", [0.7])).toBeNull();
     expect(unknown("有七成把握", [70])).toBeNull();
-    expect(unknown("十成", [1])).toBeNull();
+    expect(unknown("十成", [1])).toBe(100);
+    expect(unknown("十成", [100])).toBeNull();
   });
 
   it("一成 is 10 percent", () => {
@@ -476,13 +479,23 @@ describe("words that contain a numeral character without being a quantity", () =
     "技俩",
     "百分比",
     "百分率",
-    "前半",
-    "後半",
-    "后半",
-    "上半",
-    "下半",
-    "左半",
-    "右半",
+    "前半段",
+    "後半部",
+    "后半部",
+    "上半身",
+    "下半部",
+    "左半邊",
+    "右半邊",
+    "半徑",
+    "半径",
+    "半圓",
+    "半圆",
+    "四平八穩",
+    "四平八稳",
+    "三指",
+    "四指",
+    "五指",
+    "十指",
   ];
 
   it.each(lexicon)("%s is not a number", (word) => {
@@ -543,8 +556,9 @@ describe("萬分 / 万分: 'extremely' unless 之 follows", () => {
   });
 
   it("the fraction is accepted when its value is in the input", () => {
-    expect(unknown("萬分之一", [1, 1e-4])).toBeNull();
-    expect(unknown("万分之三", [3e-4])).toBeNull();
+    // 1e-4 and both numbers written (1 and 10000) are in the input.
+    expect(unknown("萬分之一", [1, 1e-4, 10000])).toBeNull();
+    expect(unknown("万分之三", [3e-4, 3, 10000])).toBeNull();
   });
 
   it("千分之N and 百分之N were never hidden by a list entry", () => {
@@ -619,7 +633,7 @@ describe("十分: 'very', or ten (points, minutes, tenths)", () => {
 
   it("十分 next to another numeral is part of that number", () => {
     expect(unknown("二十分", [1])).toBe(20);
-    expect(unknown("十分五", [1])).toBe(10);
+    expect(unknown("十分五", [1])).not.toBeNull();
   });
 });
 
@@ -794,6 +808,9 @@ describe("every character of the numeral tables reads as its value", () => {
     貳: 2,
     貮: 2,
     贰: 2,
+    弌: 1,
+    弍: 2,
+    弎: 3,
     叁: 3,
     肆: 4,
     伍: 5,
@@ -868,6 +885,225 @@ describe("every character of the numeral tables reads as its value", () => {
   it.each(Object.entries(shorthandValues))("shorthand %s is %s", (c, value) => {
     expect(unknown(c)).toBe(value);
     expect(unknown(c, [value])).toBeNull();
+  });
+});
+
+describe("十分 before an approximation, and after a word for getting a score", () => {
+  it.each([
+    ["十分左右", 10],
+    ["十分上下", 10],
+    ["十分以上", 10],
+    ["十分以下", 10],
+    ["十分以內", 10],
+    ["十分以内", 10],
+    ["十分以外", 10],
+    ["約十分左右", 10],
+    ["獲得十分好評", 10],
+    ["获得十分好评", 10],
+    ["得到十分優異的結果", 10],
+  ] as const)("%s is the number %s", (text, value) => {
+    expect(unknown(text, [1, 2])).toBe(value);
+    expect(unknown(text, [1, 2, value])).toBeNull();
+  });
+
+  it("but 十分 followed by a plain word is still 'very'", () => {
+    expect(unknown("十分好用", [1])).toBeNull();
+  });
+});
+
+describe("前半 / 後半 / 上半 ... are positions only before a position noun", () => {
+  it.each([
+    "使用後半小時",
+    "飯後半小時",
+    "睡前半小時",
+    "練習前半小時",
+    "隨後半小時內",
+    "而後半小時",
+    "然後半個手掌",
+    "前半年",
+    "上半年",
+    "上半小時",
+    "下半年",
+    "後半個月",
+    "前半。",
+    "後半",
+  ])("%s has a half in it", (text) => {
+    expect(unknown(text, [1])).toBe(0.5);
+    expect(unknown(text, [1, 0.5])).toBeNull();
+  });
+
+  it.each([
+    "前半部",
+    "後半段",
+    "后半段",
+    "上半身",
+    "下半場",
+    "下半场",
+    "左半邊",
+    "左半边",
+    "右半側",
+    "右半侧",
+    "前半截",
+    "後半端",
+    "上半面",
+    "下半區",
+    "下半区",
+    "後半部隆起",
+    "前半段的曲線比較平緩",
+  ])("%s is a position", (text) => {
+    expect(unknown(text, [1])).toBeNull();
+  });
+});
+
+describe("words a numeral character sits in without counting", () => {
+  it.each([
+    "半徑較大",
+    "半径较大",
+    "半圓形",
+    "半圆形",
+    "四平八穩",
+    "四平八稳",
+    "三指捏握",
+    "四指抓握",
+    "五指全握",
+    "十指靈活",
+  ])("%s is not a number", (text) => {
+    expect(unknown(text, [1])).toBeNull();
+  });
+
+  it.each([
+    ["一兩個", 12],
+    ["兩三個", 23],
+    ["兩指", 2],
+    ["六指", 6],
+    ["半個半徑", 0.5],
+  ] as const)("%s is still a number", (text, value) => {
+    expect(unknown(text, [1])).toBe(value);
+  });
+});
+
+describe("a lone 肆 / 陸 / 伍 / 拾 / 參 before a unit is a number", () => {
+  it.each([
+    ["陸毫米", 6],
+    ["陆毫米", 6],
+    ["伍個", 5],
+    ["伍个", 5],
+    ["肆倍", 4],
+    ["拾個", 10],
+    ["拾克", 10],
+    ["參毫米", 3],
+    ["参毫米", 3],
+    ["陸公分", 6],
+    ["伍公克", 5],
+    ["肆度", 4],
+    ["陸%", 6],
+    ["拾分", 10],
+  ] as const)("%s is %s", (text, value) => {
+    expect(unknown(text, [1, 2])).toBe(value);
+    expect(unknown(text, [1, 2, value])).toBeNull();
+  });
+
+  it("伍成 is 50 percent", () => {
+    expect(unknown("伍成", [1])).toBe(50);
+  });
+
+  it.each([
+    "隊伍成員",
+    "队伍成员",
+    "大陸分公司",
+    "大陆分公司",
+    "大陸個人用戶",
+    "入伍個月",
+    "登陸個人帳號",
+    "收拾個",
+    "隊伍分成",
+    "大陸度假",
+    "參考尺寸",
+    "參數",
+    "参加",
+    "大陸",
+    "隊伍",
+    "拾起",
+    "肆意",
+    "陸續",
+  ])("%s stays an ordinary word", (text) => {
+    expect(unknown(text, [1])).toBeNull();
+  });
+
+  it("the variant forms 弌 弍 弎 are always numbers", () => {
+    expect(unknown("弌", [2])).toBe(1);
+    expect(unknown("弍", [1])).toBe(2);
+    expect(unknown("弎", [1])).toBe(3);
+    expect(unknown("長度弎毫米", [1])).toBe(3);
+  });
+});
+
+describe("Chinese fractions are checked by their quotient and both numbers", () => {
+  const ranks = [1, 2, 3];
+
+  it.each(["五分之五", "十分之十", "六分之二", "五份之五", "五分五"])(
+    "%s does not hide behind a quotient of 1, 2 or 3",
+    (text) => {
+      expect(unknown(text, ranks)).not.toBeNull();
+    },
+  );
+
+  it("names the first number that is not in the input", () => {
+    expect(unknown("五分之五", ranks)).toBe(5);
+    expect(unknown("十分之十", ranks)).toBe(10);
+  });
+
+  it("passes when the quotient and both numbers are in the input", () => {
+    expect(unknown("三分之三", ranks)).toBeNull();
+    expect(unknown("三分之一", [1, 3, 1 / 3])).toBeNull();
+    expect(unknown("三份之一", [1, 3, 1 / 3])).toBeNull();
+    expect(unknown("三分一", [1, 3, 1 / 3])).toBeNull();
+  });
+
+  it("份之 and 分一 are read like 分之", () => {
+    expect(unknown("三份之一", [1, 3])).toBeCloseTo(1 / 3, 9);
+    expect(unknown("三分一", [1, 3])).toBeCloseTo(1 / 3, 9);
+    expect(unknown("四分三", [3, 4])).toBeCloseTo(0.75, 9);
+    expect(unknown("3份之1", [1, 3])).toBeCloseTo(1 / 3, 9);
+  });
+
+  it("百分之N is still a percentage, not two numbers", () => {
+    expect(unknown("百分之三十", [0.3])).toBeNull();
+    expect(unknown("百分之三十", [30])).toBeNull();
+  });
+});
+
+describe("a slash with a Chinese number on one side is a fraction", () => {
+  it.each(["一/三", "1/三", "一/3", "一／三", "1∕三", "一 / 三", "一÷三"])(
+    "%s is 1/3",
+    (text) => {
+      expect(unknown(text, [1, 3])).toBeCloseTo(1 / 3, 9);
+      expect(unknown(text, [1, 3, 1 / 3])).toBeNull();
+    },
+  );
+
+  it("its numbers are checked too", () => {
+    expect(unknown("六/二", [1, 2, 3])).toBe(6);
+    expect(unknown("五/五", [1, 2, 3])).toBe(5);
+    expect(unknown("十/五", [1, 2, 3])).not.toBeNull();
+  });
+
+  it("a slash between Arabic digits only is left to the digit path", () => {
+    expect(unknown("1/3", [1, 3, 1 / 3])).toBeNull();
+  });
+});
+
+describe("a unit glued to an Arabic denominator multiplies it", () => {
+  it("1萬分之1 is one in ten thousand, not 1/1", () => {
+    expect(unknown("1萬分之1", [1])).toBeCloseTo(1e-4, 9);
+    expect(unknown("1万分之1", [1])).toBeCloseTo(1e-4, 9);
+    expect(unknown("1萬分之1", [1, 1e-4, 10000])).toBeNull();
+    expect(unknown("2千分之1", [1, 2])).toBeCloseTo(1 / 2000, 9);
+    expect(unknown("1億分之3", [1, 3])).toBeCloseTo(3e-8, 12);
+  });
+
+  it("the unit on the numerator side multiplies it too", () => {
+    expect(unknown("3分之1萬", [1, 3])).toBeCloseTo(10000 / 3, 6);
   });
 });
 
@@ -955,6 +1191,22 @@ describe("analyse — Chinese numbers in the model's answer", () => {
     const { source } = await analyse(input(), client);
     expect(client.calls).toHaveLength(2);
     expect(client.calls[1]!.prompt).toContain("the number 7");
+    expect(source).toBe("model");
+  });
+
+  it("retries a numeral symbol no path reads, without naming a value for it", async () => {
+    const client = new FakeTextModel({
+      answer: (_args, i) =>
+        answer(
+          i === 0
+            ? "它長❺毫米，很接近你的理想長度。"
+            : "它的長度很接近你的理想長度。",
+        ),
+    });
+    const { source } = await analyse(input(), client);
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[1]!.prompt).toContain("a numeral symbol");
+    expect(client.calls[1]!.prompt).not.toContain("NaN");
     expect(source).toBe("model");
   });
 

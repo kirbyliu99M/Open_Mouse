@@ -74,6 +74,10 @@ export const DIGITS: ReadonlyMap<string, number> = new Map([
   ["貳", 2],
   ["貮", 2],
   ["贰", 2],
+  // Rare variants of 壹貳叁, used in old financial writing.
+  ["弌", 1],
+  ["弍", 2],
+  ["弎", 3],
   ["叁", 3],
   ["肆", 4],
   ["伍", 5],
@@ -143,6 +147,68 @@ const CONTEXTUAL_NUMERALS: ReadonlyMap<string, string> = new Map([
  */
 const EVERYDAY_FINANCIAL_DIGITS = new Set("肆陸陆伍");
 const EVERYDAY_FINANCIAL = new Set([...EVERYDAY_FINANCIAL_DIGITS, "拾"]);
+
+/**
+ * A lone 肆 / 陸 / 伍 / 拾 / 參 followed by one of these is a quantity, not the
+ * everyday word: 陸毫米, 伍個, 肆倍, 拾個, 參毫米.
+ */
+const MEASURE_WORDS: readonly string[] = [
+  "毫米",
+  "公分",
+  "公克",
+  "公斤",
+  "公里",
+  "公尺",
+  "厘米",
+  "釐米",
+  "毫克",
+  "克",
+  "個",
+  "个",
+  "倍",
+  "成",
+  "分",
+  "度",
+  "%",
+];
+
+/**
+ * Nouns in which the everyday financial character sits, so that what follows
+ * it is not its measure word: 隊伍成員 (not 伍成), 大陸分公司 (not 陸分).
+ */
+const EVERYDAY_FINANCIAL_NOUNS: readonly string[] = [
+  "隊伍",
+  "队伍",
+  "入伍",
+  "退伍",
+  "落伍",
+  "行伍",
+  "軍伍",
+  "军伍",
+  "為伍",
+  "为伍",
+  "大陸",
+  "大陆",
+  "登陸",
+  "登陆",
+  "上陸",
+  "上陆",
+  "著陸",
+  "着陆",
+  "內陸",
+  "内陆",
+  "收拾",
+  "撿拾",
+  "捡拾",
+  "放肆",
+];
+
+const startsWithMeasure = (rest: string) =>
+  MEASURE_WORDS.some((measure) => rest.startsWith(measure));
+
+/** True when the character at `at` is the end of one of the nouns above. */
+const endsEverydayNoun = (text: string, at: number) =>
+  at > 0 && EVERYDAY_FINANCIAL_NOUNS.includes(text.slice(at - 1, at + 1));
 
 const DECIMAL_POINTS = new Set(["點", "点"]);
 
@@ -250,6 +316,21 @@ export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   // 半 as "mostly".
   "多半",
   "大半",
+  // 半 in a geometry or shape word, not a half of something.
+  "半徑",
+  "半径",
+  "半圓",
+  "半圆",
+  // 四 in a set phrase for "steady".
+  "四平八穩",
+  "四平八稳",
+  // Finger counts for a grip (三指捏握, 五指全握, 十指). Naming the fingers is
+  // anatomy, not a calculation, so these are not quantities. 一兩個, 兩三個 and
+  // 兩指 are still numbers.
+  "三指",
+  "四指",
+  "五指",
+  "十指",
   // 百, 千, 萬 in ordinary words and set phrases.
   "百搭",
   "百般",
@@ -315,6 +396,9 @@ const SCORE_CONTEXT_WORDS: readonly string[] = [
   "扣了",
   "拿了",
   "拿到",
+  "獲得",
+  "获得",
+  "得到",
   "只有",
   "超出",
   "超過",
@@ -349,8 +433,24 @@ function followsScoreContext(before: string): boolean {
   );
 }
 
-/** 十分 followed by these is a number: 十分之三, 十分鐘, the ten-point scale. */
-const SHIFEN_NUMBER_FOLLOWERS = "之鐘钟鍾制";
+/**
+ * 十分 followed by one of these is a number: 十分之三, 十分鐘, the ten-point
+ * scale (十分制), an approximation (十分左右, 十分以上, 十分以內).
+ */
+const SHIFEN_NUMBER_FOLLOWERS: readonly string[] = [
+  "之",
+  "鐘",
+  "钟",
+  "鍾",
+  "制",
+  "左右",
+  "上下",
+  "以上",
+  "以下",
+  "以內",
+  "以内",
+  "以外",
+];
 
 /** 千萬 is "by all means" only in front of these (千萬不要, 千萬別, 千萬小心). */
 const QIANWAN_ADVERB_FOLLOWERS: readonly string[] = [
@@ -368,9 +468,10 @@ const QIANWAN_ADVERB_FOLLOWERS: readonly string[] = [
 ];
 
 /**
- * 前半 / 後半 / 上半 ...: a position ("後半部隆起"), not 0.5. Two contexts turn
- * it back into a number: 半個 right after it, and 然 / 之 / 以 in front (然後半
- * 小時 = "then half an hour", where 後 belongs to the previous word).
+ * 前半 / 後半 / 上半 ...: a position ("後半部隆起"), not 0.5, but only when a
+ * position noun follows (POSITION_NOUNS). In every other context the 半 is half
+ * of something: 使用後半小時, 飯後半小時, 睡前半小時, 隨後半小時內, 前半年,
+ * 上半年, 上半小時, 然後半個手掌. Those are 0.5.
  */
 const POSITION_HALF_WORDS: readonly string[] = [
   "前半",
@@ -382,8 +483,26 @@ const POSITION_HALF_WORDS: readonly string[] = [
   "右半",
 ];
 
-const isPositionHalf = ({ before, after }: WordContext) =>
-  !/^[個个]/u.test(after) && !/[然之以晚早]$/u.test(before);
+/** What may follow 前半 / 後半 ... for it to be a position. */
+const POSITION_NOUNS: readonly string[] = [
+  "部",
+  "段",
+  "邊",
+  "边",
+  "側",
+  "侧",
+  "面",
+  "區",
+  "区",
+  "身",
+  "場",
+  "场",
+  "截",
+  "端",
+];
+
+const isPositionHalf = ({ after }: WordContext) =>
+  POSITION_NOUNS.some((noun) => after.startsWith(noun));
 
 /**
  * Words that are non-quantities only in some contexts. `isNonQuantity` says
@@ -403,7 +522,8 @@ const isPositionHalf = ({ before, after }: WordContext) =>
  *   注意 / 得. Anywhere else (千萬像素) it is ten million.
  * - 一點 / 一点 means "a little" unless a digit follows (一點五 = 1.5): the
  *   digit is a numeral character, which already stops the match.
- * - 前半 / 後半 / 上半 / 下半 / 左半 / 右半 are positions; see POSITION_HALF_WORDS.
+ * - 前半 / 後半 / 上半 / 下半 / 左半 / 右半 are positions only in front of a
+ *   position noun; see POSITION_HALF_WORDS.
  */
 export const CONDITIONAL_COMPOUNDS: readonly {
   word: string;
@@ -413,7 +533,7 @@ export const CONDITIONAL_COMPOUNDS: readonly {
     word: "十分",
     isNonQuantity: ({ before, after }) =>
       continuesWithWord(after) &&
-      !SHIFEN_NUMBER_FOLLOWERS.includes(after[0]!) &&
+      !SHIFEN_NUMBER_FOLLOWERS.some((next) => after.startsWith(next)) &&
       !followsScoreContext(before),
   },
   {
@@ -516,7 +636,12 @@ function foldContextualNumerals(text: string): string {
       if (isNumeralChar(chars[end]!)) touchesNumeral = true;
       end++;
     }
-    if (touchesNumeral) {
+    // A lone 參 with a measure word after it is a 3 too (參毫米), not 參考.
+    const beforeMeasure =
+      end - i === 1 &&
+      (chars[i] === "參" || chars[i] === "参") &&
+      startsWithMeasure(chars.slice(end, end + 2).join(""));
+    if (touchesNumeral || beforeMeasure) {
       for (let k = i; k < end; k++) {
         chars[k] = CONTEXTUAL_NUMERALS.get(chars[k]!) ?? chars[k]!;
       }
@@ -719,7 +844,12 @@ function toAtoms(text: string): Atom[] {
       const end = readRunEnd(text, i);
       const run = text.slice(i, end);
       const lone = [...run].length === 1;
-      if (!(lone && EVERYDAY_FINANCIAL.has(run))) {
+      // A lone 陸 is the noun (大陸), unless a measure word follows (陸毫米).
+      const everyday =
+        lone &&
+        EVERYDAY_FINANCIAL.has(run) &&
+        (endsEverydayNoun(text, i) || !startsWithMeasure(text.slice(end)));
+      if (!everyday) {
         atoms.push({
           start: i,
           end,
@@ -764,6 +894,67 @@ function mixedDecimals(text: string): NumeralToken[] {
 
 const PERCENT_SUFFIX = /^\s*(?:%|(?:個|个)?百分[點点]|趴)/;
 
+/** A slash between two numbers: / ／ ⁄ ∕ ⧸ ╱ ÷ (the last is a division sign). */
+const SLASH_GAP = /^\s*[/／⁄∕⧸╱÷]\s*/u;
+
+/** What an atom reads as; 1萬 is 10000, not 1. */
+const valuesOf = (atom: Atom): number[] =>
+  atom.arabic && atom.unit !== undefined
+    ? atom.values.map((value) => value * atom.unit!)
+    : atom.values;
+
+interface Fraction {
+  numerators: number[];
+  denominators: number[];
+  /** Written a/b: the number in front is the numerator. */
+  slash: boolean;
+  /** 百分之M: a percentage, not two operands to check. */
+  percent: boolean;
+}
+
+/**
+ * A fraction between atom `k` and the atom after it, or undefined:
+ * N分之M and N份之M (N is the denominator), N分M (三分一 = 1/3), and N/M with
+ * at least one side in Chinese (一/三, 1/三; Arabic on both sides was already
+ * folded by `normalizeUnicodeDigits`).
+ */
+function readFraction(
+  text: string,
+  atoms: readonly Atom[],
+  k: number,
+): Fraction | undefined {
+  const atom = atoms[k]!;
+  const next = atoms[k + 1];
+  if (next === undefined) return undefined;
+  const after = text.slice(atom.end);
+
+  for (const marker of ["分之", "份之", "分"]) {
+    if (after.startsWith(marker) && next.start === atom.end + marker.length) {
+      const denominators = valuesOf(atom);
+      return {
+        numerators: valuesOf(next),
+        denominators,
+        slash: false,
+        percent: denominators.length === 1 && denominators[0] === 100,
+      };
+    }
+  }
+  const gap = SLASH_GAP.exec(after);
+  if (
+    gap !== null &&
+    next.start === atom.end + gap[0].length &&
+    !(atom.arabic && next.arabic)
+  ) {
+    return {
+      numerators: valuesOf(atom),
+      denominators: valuesOf(next),
+      slash: true,
+      percent: false,
+    };
+  }
+  return undefined;
+}
+
 /**
  * Numeral tokens for the Chinese numbers in `normalized`, which must already
  * be `normalizeUnicodeDigits` output. Bare Arabic digits are not returned.
@@ -777,19 +968,27 @@ export function readChineseNumerals(normalized: string): NumeralToken[] {
     const atom = atoms[k]!;
     const after = text.slice(atom.end);
 
-    // N分之M: a fraction; 百分之M is M percent.
-    const numerator = atoms[k + 1];
-    if (
-      after.startsWith("分之") &&
-      numerator !== undefined &&
-      numerator.start === atom.end + 2
-    ) {
-      for (const denominator of atom.values) {
-        for (const n of numerator.values) {
-          if (denominator === 100) tokens.push({ value: n, percent: true });
-          else if (denominator !== 0) {
+    // N分之M, N份之M, N分M, N/M: a fraction; 百分之M is M percent.
+    const fraction = readFraction(text, atoms, k);
+    if (fraction !== undefined) {
+      for (const denominator of fraction.denominators) {
+        for (const n of fraction.numerators) {
+          if (denominator === 100 && !fraction.slash) {
+            tokens.push({ value: n, percent: true });
+          } else if (denominator !== 0) {
             tokens.push({ value: n / denominator, percent: false });
           }
+        }
+      }
+      // The quotient alone let 五分之五 and 6/2 through as the ranks 1 and 3:
+      // both numbers written have to be in the input as well. (百分之M is a
+      // percentage, and M is what is checked.)
+      if (!fraction.percent) {
+        for (const value of [
+          ...fraction.denominators,
+          ...fraction.numerators,
+        ]) {
+          if (value !== 0) tokens.push({ value, percent: false });
         }
       }
       k++;
