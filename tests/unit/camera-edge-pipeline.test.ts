@@ -20,6 +20,7 @@ import {
   advanceCorner,
   advanceCorners,
   cornerDrawPoint,
+  cornerDrawPoints,
   type CornerStates,
 } from "../../src/client/camera/cornerSmoother";
 import { placeEdges } from "../../src/client/camera/edgeGeometry";
@@ -119,9 +120,7 @@ function renderedAngles(samples: readonly Sample[]): number[][] {
   let previous: (number | null)[] = [null, null, null, null];
   return samples.map((sample) => {
     states = advanceCorners(states, sample.corners, 125);
-    const points = states.map((state, i) =>
-      cornerDrawPoint(state, NO_GUIDE[i]),
-    );
+    const points = cornerDrawPoints(states, NO_GUIDE);
     const { angles } = placeEdges(points, previous);
     previous = angles;
     return angles;
@@ -221,9 +220,7 @@ describe("the outline through the real detector, paper rotated 0 to 360 degrees"
     let previous: (number | null)[] = [null, null, null, null];
     for (const sample of samples) {
       states = advanceCorners(states, sample.corners, 125);
-      const points = states.map((state, i) =>
-        cornerDrawPoint(state, NO_GUIDE[i]),
-      );
+      const points = cornerDrawPoints(states, NO_GUIDE);
       const { placements, angles } = placeEdges(points, previous);
       previous = angles;
       placements.forEach((edge, e) => {

@@ -6,10 +6,11 @@ import {
   placeEdges,
   unwrapAngle,
 } from "../../src/client/camera/edgeGeometry";
+import type { Four } from "../../src/client/camera/labelShift";
 import type { Point } from "../../src/client/camera/quad";
 
 /** An upright sheet as the dots see it: TL, TR, BR, BL. */
-const SHEET: readonly Point[] = [
+const SHEET: Four<Point> = [
   { x: 30, y: 166 },
   { x: 362, y: 166 },
   { x: 362, y: 640 },
@@ -140,7 +141,8 @@ describe("placeEdge: the same segment whichever corner is which", () => {
     for (const reversed of [false, true]) {
       for (let shift = 0; shift < 4; shift++) {
         const order = [0, 1, 2, 3].map((i) => (reversed ? 3 - i : i));
-        const labelled = order.map((i) => SHEET[(i + shift) % 4]);
+        const at = (i: number) => SHEET[(order[i] + shift) % 4];
+        const labelled: Four<Point> = [at(0), at(1), at(2), at(3)];
         const { placements } = placeEdges(labelled, [null, null, null, null]);
         const drawn = placements
           .map((edge) => {
@@ -211,5 +213,54 @@ describe("edgeTransform", () => {
     expect(
       edgeTransform(placeEdge({ x: 0, y: 0 }, { x: 30, y: 40 }, null)),
     ).toContain("scaleX(50)");
+  });
+});
+
+describe("a bad previous angle does not poison the outline", () => {
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["-Infinity", Number.NEGATIVE_INFINITY],
+  ])("%s as the previous angle counts as none", (_name, previous) => {
+    for (const raw of [-3, -1, 0, 0.4, 1.7, 3]) {
+      const angle = unwrapAngle(raw, previous);
+      expect(Number.isFinite(angle)).toBe(true);
+      expect(angle).toBeCloseTo(unwrapAngle(raw, null), 12);
+    }
+  });
+
+  it("an edge that came out NaN once is back the next sample (the NaN is not carried)", () => {
+    const bad = placeEdge({ x: 0, y: 0 }, { x: Number.NaN, y: 10 }, 0.3);
+    expect(Number.isNaN(bad.angle)).toBe(true);
+    const next = placeEdge({ x: 0, y: 0 }, { x: 10, y: 10 }, bad.angle);
+    expect(next.angle).toBeCloseTo(Math.PI / 4, 12);
+  });
+
+  it("the four edges of a whole quad recover, through placeEdges, after one sample of NaN angles", () => {
+    const { angles } = placeEdges(SHEET, [
+      Number.NaN,
+      Number.NaN,
+      Number.NaN,
+      Number.NaN,
+    ]);
+    expect(angles.every((angle) => Number.isFinite(angle))).toBe(true);
+  });
+});
+
+describe("placeEdges takes exactly four points", () => {
+  it("throws on any other number, not an edge drawn to undefined", () => {
+    const three = SHEET.slice(0, 3) as unknown as Four<Point>;
+    const five = [...SHEET, SHEET[0]] as unknown as Four<Point>;
+    const none = [] as unknown as Four<Point>;
+    for (const points of [three, five, none])
+      expect(() => placeEdges(points, [null, null, null, null])).toThrow(
+        /exactly four points/,
+      );
+  });
+
+  it("four is accepted", () => {
+    expect(placeEdges(SHEET, [null, null, null, null]).placements).toHaveLength(
+      4,
+    );
   });
 });

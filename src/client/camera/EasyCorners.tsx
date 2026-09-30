@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import {
-  cornerDrawPoint,
+  cornerDrawPoints,
   isCornerReturning,
   type CornerStates,
 } from "./cornerSmoother";
@@ -35,7 +35,7 @@ export function EasyCorners({
   /** Fades the whole layer out (once the measured overlay draws its own). */
   readonly hidden: boolean;
 }) {
-  const points = states.map((state, i) => cornerDrawPoint(state, guide[i]));
+  const points = cornerDrawPoints(states, guide);
   const allFound = states.every((state) => state.found);
   // Each edge keeps its last angle, so a new one is taken as the equivalent
   // nearest to it and a rotation never sweeps more than a quarter turn (see

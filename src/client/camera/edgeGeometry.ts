@@ -14,6 +14,7 @@
  * before it. A rotation transition then never sweeps more than π/2, however
  * the corners are labelled or wherever the angle crosses ±π.
  */
+import type { Four } from "./labelShift";
 import type { Point } from "./quad";
 
 /**
@@ -30,9 +31,13 @@ export const EDGES: readonly (readonly [number, number])[] = [
 /**
  * The angle equivalent to `angle` modulo π that lies nearest to `previous`
  * (within π/2 of it). With no previous angle, the one in (-π/2, π/2].
+ * A previous angle that is not a finite number (`null`, or a NaN or Infinity
+ * that came from a bad sample) counts as none: carried on, it would make every
+ * angle after it NaN as well and the outline would never come back.
  */
 export function unwrapAngle(angle: number, previous: number | null): number {
-  const reference = previous ?? 0;
+  const reference =
+    typeof previous === "number" && Number.isFinite(previous) ? previous : 0;
   // Half a turn either way is a tie; going round the lower way keeps the
   // result in (-pi/2, pi/2] when there is no previous angle.
   return angle - Math.PI * Math.ceil((angle - reference) / Math.PI - 0.5);
@@ -61,14 +66,20 @@ export function placeEdge(
 }
 
 /**
- * All four sides of the quad drawn through `points`. `previousAngles` is the
- * state (one angle per edge, `null` before the first sample); `angles` is the
- * state to pass in next time.
+ * All four sides of the quad drawn through `points`: exactly four (a quad), in
+ * label order. `previousAngles` is the state (one angle per edge, `null` before
+ * the first sample); `angles` is the state to pass in next time.
  */
 export function placeEdges(
-  points: readonly Point[],
+  points: Four<Point>,
   previousAngles: readonly (number | null)[],
 ): { placements: EdgePlacement[]; angles: number[] } {
+  // The type says four; a caller that got round it (a cast, an untyped
+  // array) would otherwise get an edge drawn to `undefined`.
+  if (points.length !== 4)
+    throw new RangeError(
+      `placeEdges needs exactly four points, got ${points.length}`,
+    );
   const placements = EDGES.map(([from, to], i) =>
     placeEdge(points[from], points[to], previousAngles[i] ?? null),
   );

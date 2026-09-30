@@ -90,6 +90,19 @@ export function cornerDrawPoint(state: CornerState, guide: Point): Point {
   return state.point ?? guide;
 }
 
+/** Where each of the four dots is drawn, in the order of the states. */
+export function cornerDrawPoints(
+  states: CornerStates,
+  guide: Four<Point>,
+): Four<Point> {
+  return [
+    cornerDrawPoint(states[0], guide[0]),
+    cornerDrawPoint(states[1], guide[1]),
+    cornerDrawPoint(states[2], guide[2]),
+    cornerDrawPoint(states[3], guide[3]),
+  ];
+}
+
 /** True once a lost corner is on its way back to the guide (its dot uses the slower ease). */
 export function isCornerReturning(
   state: CornerState,
