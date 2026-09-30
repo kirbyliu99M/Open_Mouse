@@ -796,3 +796,66 @@ test.describe("fix round 1: the sheet growing after it opened", () => {
     expect(after.lowest).toBeLessThanOrEqual(top);
   });
 });
+
+test.describe("fix round 1: a retake starts clean", () => {
+  test("while the camera reopens, the last run's full ring, green cue and hint are gone", async ({
+    page,
+  }) => {
+    // The second camera request is held for 2.5 s, so the screen can be read
+    // in the moment between "Try again" and the first picture.
+    await page.addInitScript(() => {
+      const w = window as Window & { __delayNextCamera?: boolean };
+      const media = navigator.mediaDevices;
+      const real = media.getUserMedia.bind(media);
+      media.getUserMedia = async (...args) => {
+        if (w.__delayNextCamera) {
+          w.__delayNextCamera = false;
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+        }
+        return real(...args);
+      };
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    const sheet = page.getByRole("dialog", { name: "Retake needed" });
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+
+    await page.evaluate(() => {
+      (window as Window & { __delayNextCamera?: boolean }).__delayNextCamera =
+        true;
+    });
+    await sheet.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "none",
+    );
+    await page.waitForTimeout(400);
+
+    const screen = await page.evaluate(() => {
+      const circle = document.querySelector(".cameraShutterRing circle");
+      return {
+        cue: document.querySelector("[data-testid=camera-cue]")?.textContent,
+        cueIsGreen: Boolean(document.querySelector(".cameraCue.perfect")),
+        hints: document.querySelectorAll(".easyHint").length,
+        ringDashoffset: Number(circle?.getAttribute("stroke-dashoffset")),
+        videoHasStream:
+          (document.querySelector("video.cameraVideo") as HTMLVideoElement)
+            ?.srcObject !== null,
+      };
+    });
+    // The camera has not answered yet: nothing of the last run is on screen.
+    expect(screen.videoHasStream).toBe(false);
+    expect(screen.cue).toBe("Point the camera at the paper");
+    expect(screen.cueIsGreen).toBe(false);
+    expect(screen.hints).toBe(0);
+    // An empty ring: the whole circumference is still to fill.
+    expect(screen.ringDashoffset).toBeCloseTo(2 * Math.PI * 40, 3);
+
+    // ...and it works again once the camera does.
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      /processing|gateFailure/,
+      { timeout: 20_000 },
+    );
+  });
+});

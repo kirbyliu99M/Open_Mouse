@@ -74,7 +74,6 @@ import {
   INITIAL_AUTO_CAPTURE_STATE,
   advanceAutoCapture,
   autoCaptureRingFraction,
-  resetAutoCapture,
   type AutoCaptureState,
 } from "./autoCapture";
 import {
@@ -678,9 +677,28 @@ export default function EasyScanCamera({
     };
   }, [stopStream]);
 
+  // Everything the loop carries from sample to sample, and what the screen
+  // shows of it (the ring, the cue, the hint under it), back to the start.
+  // Used when a loop begins and whenever the camera is asked for again: a
+  // camera reopened after a retake must not show the last run's full ring and
+  // green "Got it" while it warms up.
+  const resetLoopState = useCallback(() => {
+    const fresh = freshLiveLoopSampling();
+    lastSampleTimeRef.current = fresh.lastSampleAtMs;
+    prevSampleQuadRef.current = fresh.prevQuad;
+    autoCaptureRef.current = fresh.autoCapture;
+    cornerStatesRef.current = INITIAL_CORNER_STATES;
+    cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
+    lastCueCodeRef.current = null;
+    setCornerStates(INITIAL_CORNER_STATES);
+    setRingFraction(0);
+    setCue(null);
+  }, []);
+
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     camKindRef.current = "requesting";
+    resetLoopState();
     setCamState({ kind: "requesting" });
     try {
       const stream = await requestCameraStream(
@@ -715,13 +733,8 @@ export default function EasyScanCamera({
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) setUpFocus(videoTrack);
       setVideoReady(false);
-      autoCaptureRef.current = resetAutoCapture();
+      resetLoopState();
       lastDetectionAtRef.current = performance.now();
-      prevSampleQuadRef.current = null;
-      lastCueCodeRef.current = null;
-      cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
-      cornerStatesRef.current = INITIAL_CORNER_STATES;
-      setCornerStates(INITIAL_CORNER_STATES);
       setCamState({ kind: "live" });
     } catch (err) {
       const name = err instanceof DOMException ? err.name : undefined;
@@ -736,7 +749,7 @@ export default function EasyScanCamera({
       )
         setCamState({ kind: "cameraError", message });
     }
-  }, [stopStream, setUpFocus]);
+  }, [stopStream, setUpFocus, resetLoopState]);
 
   // No setup page: open the camera the moment this device can plausibly
   // use one — go straight to the upload path otherwise (no error styling).
@@ -1012,18 +1025,6 @@ export default function EasyScanCamera({
       void runPipeline(fileRef.current, resultRef.current.previewUrl);
     }
   }, [runPipeline]);
-
-  const resetLoopState = useCallback(() => {
-    const fresh = freshLiveLoopSampling();
-    lastSampleTimeRef.current = fresh.lastSampleAtMs;
-    prevSampleQuadRef.current = fresh.prevQuad;
-    autoCaptureRef.current = fresh.autoCapture;
-    cornerStatesRef.current = INITIAL_CORNER_STATES;
-    cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
-    lastCueCodeRef.current = null;
-    setCornerStates(INITIAL_CORNER_STATES);
-    setRingFraction(0);
-  }, []);
 
   // The live loop — identical shape to CameraCapture's, minus the hand
   // ghost and the redundant status-chips row (screen 14 shows only the
