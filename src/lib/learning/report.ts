@@ -9,9 +9,18 @@
  *
  * Field by field: see docs/learning/README.md ("Run log, format 2").
  */
-import type { Homography, Point2 } from "../../client/geometry/homography";
+import {
+  applyHomography,
+  type Homography,
+  type Point2,
+} from "../../client/geometry/homography";
+import { runPaperEdgeHandGates } from "../../client/photo/gates";
 import type { DetectedMarker } from "../../client/photo/markers";
-import type { HandMeasurements, PaperSize } from "../contracts/measurement";
+import {
+  PAPER_SIZES_MM,
+  type HandMeasurements,
+  type PaperSize,
+} from "../contracts/measurement";
 import { NO_EXIF, pickExifWhitelist, type ExifWhitelist } from "./exif";
 import {
   evaluateLearningPhoto,
@@ -20,6 +29,45 @@ import {
 } from "./checks";
 import { LEARNING_KIT_VERSION, type KitCode } from "./kit";
 import { buildPlane, type PlaneCalibration, type PlaneMethod } from "./plane";
+
+/** What the paper detector saw, kept even when it could not find all four corners. */
+export interface PaperDetectionRecord {
+  /** A plausible sheet-sized region was located at all. */
+  readonly regionFound: boolean;
+  /** Smallest fraction of any side's length that was actually seen, 0 to 1 (the wrist usually hides part of one). */
+  readonly minSideCoverage: number;
+  /** The worst fitted side's mean distance to its line, in frame px. */
+  readonly edgeFitResidualPx: number;
+  /** Which side that was (0 top, 1 right, 2 bottom, 3 left); `null` when no side was fitted. */
+  readonly worstSideIndex: number | null;
+  /** Top-left, top-right, bottom-right, bottom-left: was the corner found from two fitted sides. */
+  readonly cornersFound: readonly boolean[];
+}
+
+/** The outcome of one group of the product's gates, as codes (`GateFailureCode`). */
+export interface GateRecord {
+  readonly ok: boolean;
+  readonly errorCodes: readonly string[];
+  readonly warningCodes: readonly string[];
+}
+
+/**
+ * Would the product's blank-paper flow take this photo, and if not, why.
+ * Worked out with the product's own gate functions from the values recorded
+ * next to it, so it can be checked from the record alone.
+ */
+export interface ProductGatesRecord {
+  /** Paper found, four corners seen, enough of each edge, sheet not curled (`checkPaperEdgeGatesOnly`). */
+  readonly paper: GateRecord;
+  /**
+   * Hand detected, its label agrees with the page's hand, confident, inside the
+   * sheet, sharp (`runPaperEdgeHandGates`). `null` when the product would not
+   * have got this far because there is no paper homography.
+   */
+  readonly hand: GateRecord | null;
+  /** `paper.ok` and `hand.ok`. */
+  readonly accepted: boolean;
+}
 
 export interface LearningPhotoReport {
   /** The kit version of the code that analysed the photo. The page's own version is `code.version`. */
@@ -37,12 +85,17 @@ export interface LearningPhotoReport {
   readonly paperSize: PaperSize;
   /** The white-listed EXIF values; see `src/lib/learning/exif.ts`. */
   readonly exif: ExifWhitelist;
+  /** The QR text, only when it parsed as a kit code (`code`); any other QR code in the photo is not kept. */
   readonly qrText: string | null;
   readonly code: KitCode | null;
   readonly markers: readonly DetectedMarker[];
   readonly reprojectionErrorMm: number | null;
   readonly paperCorners: readonly Point2[] | null;
   readonly paperCornersSeen: number;
+  /** The paper detector's diagnostics; `null` where paper detection did not run (side pages, cards). */
+  readonly paperEdge: PaperDetectionRecord | null;
+  /** The product's verdict on the paper and the hand; `null` where paper detection did not run. */
+  readonly productGates: ProductGatesRecord | null;
   readonly laplacianVariance: number;
   readonly hand: {
     readonly landmarksPx: readonly Point2[];
@@ -61,6 +114,8 @@ export interface LearningPhotoReport {
   readonly checks: readonly LearningCheck[];
   readonly verdict: LearningVerdict;
   readonly error?: string;
+  /** For a photo that could not be analysed: the error's class name (never its message). */
+  readonly errorKind?: string;
 }
 
 export interface ReportFindings {
@@ -89,6 +144,9 @@ export interface ReportFindings {
     readonly cornersSeen: number;
     readonly homography: Homography | null;
     readonly edgeFitResidualMm: number | null;
+    readonly detection: PaperDetectionRecord;
+    /** The product's paper gates for this quad (`evaluatePaperEdgeCalibration`). */
+    readonly gates: GateRecord;
   } | null;
   readonly hand: NonNullable<LearningPhotoReport["hand"]> | null;
 }
@@ -98,6 +156,7 @@ export function assembleFailedReport(
   file: string,
   paperSize: PaperSize,
   message: string,
+  errorKind?: string,
 ): LearningPhotoReport {
   return {
     kitVersion: LEARNING_KIT_VERSION,
@@ -114,6 +173,8 @@ export function assembleFailedReport(
     reprojectionErrorMm: null,
     paperCorners: null,
     paperCornersSeen: 0,
+    paperEdge: null,
+    productGates: null,
     laplacianVariance: 0,
     hand: null,
     markerPlane: null,
@@ -123,6 +184,59 @@ export function assembleFailedReport(
     checks: [{ id: "qr", tone: "bad", message }],
     verdict: "unidentified",
     error: message,
+    ...(errorKind === undefined ? {} : { errorKind }),
+  };
+}
+
+/**
+ * The product's gates for this photo: its paper gates (already decided by
+ * `paperFindings`) and its hand gates, run here on the values recorded in the
+ * report. The hand gates get what `runPaperEdgePipeline` gives them: the
+ * landmarks projected flat through the paper homography, the sheet's four
+ * corners in mm, and the page's hand as the hand the user "stated".
+ */
+function productGates(
+  f: ReportFindings,
+  paper: ReportFindings["paper"],
+  hand: ReportFindings["hand"],
+): ProductGatesRecord | null {
+  if (!paper) return null;
+  const gates: GateRecord = paper.gates;
+  const homography = paper.homography;
+  let handRecord: GateRecord | null = null;
+  if (homography) {
+    try {
+      const { width, height } = PAPER_SIZES_MM[f.paperSize];
+      const result = runPaperEdgeHandGates({
+        paperFound: paper.detection.regionFound,
+        landmarkCount: hand?.landmarksPx.length ?? 0,
+        handedness: hand?.handedness ?? null,
+        handStated: f.code?.kind === "gesture" ? f.code.hand : undefined,
+        landmarkConfidence: hand?.confidence ?? 0,
+        landmarksMm: (hand?.landmarksPx ?? []).map((p) =>
+          applyHomography(homography, p),
+        ),
+        paperCornersMm: [
+          { x: 0, y: 0 },
+          { x: width, y: 0 },
+          { x: width, y: height },
+          { x: 0, y: height },
+        ],
+        laplacianVariance: f.laplacianVariance,
+      });
+      handRecord = {
+        ok: result.ok,
+        errorCodes: result.errors.map((e) => e.code),
+        warningCodes: result.warnings.map((w) => w.code),
+      };
+    } catch {
+      handRecord = null;
+    }
+  }
+  return {
+    paper: gates,
+    hand: handRecord,
+    accepted: gates.ok && handRecord?.ok === true,
   };
 }
 
@@ -189,12 +303,16 @@ export function assembleLearningReport(
     height: f.height,
     paperSize: f.paperSize,
     exif: pickExifWhitelist(f.exif),
-    qrText: f.qrText,
+    // Only a kit code is kept. The text of any other QR code in the photo
+    // is someone else's and says nothing about the page.
+    qrText: f.code ? f.qrText : null,
     code: f.code,
     markers: f.markers,
     reprojectionErrorMm: card ? null : (reference?.reprojectionErrorMm ?? null),
     paperCorners: paper?.corners ?? null,
     paperCornersSeen: paper?.cornersSeen ?? 0,
+    paperEdge: paper?.detection ?? null,
+    productGates: productGates(f, paper, hand),
     laplacianVariance: f.laplacianVariance,
     hand,
     markerPlane: marker?.plane ?? null,

@@ -79,20 +79,34 @@ export function stripReference(
 /**
  * The paper-edge plane for a detected quad and the sheet size the page is
  * printed on. The same chain the product's blank-paper path runs
- * (`evaluatePaperEdgeCalibration`), with the size passed in.
+ * (`evaluatePaperEdgeCalibration`), with the size passed in. It also keeps what
+ * the detector saw and what the product's paper gates decided, so a saved
+ * record can say why the product would refuse a sheet, not only where its
+ * corners were.
  */
 export function paperFindings(
   quad: SheetQuadDetection | null,
   paperSize: PaperSize,
 ): ReportFindings["paper"] {
   if (!quad) return null;
-  const geometry = quad.corners
-    ? evaluatePaperEdgeCalibration(quad, paperSize, false).geometry
-    : null;
+  const evaluation = evaluatePaperEdgeCalibration(quad, paperSize, false);
+  const geometry = evaluation.geometry;
   return {
     corners: quad.corners,
     cornersSeen: quad.cornersSeen,
     homography: geometry?.homography ?? null,
     edgeFitResidualMm: geometry?.edgeFitResidualMm ?? null,
+    detection: {
+      regionFound: quad.paperRegionFound,
+      minSideCoverage: quad.minSideCoverage,
+      edgeFitResidualPx: quad.edgeFitResidualPx,
+      worstSideIndex: quad.worstSideIndex,
+      cornersFound: [...quad.cornersFound],
+    },
+    gates: {
+      ok: evaluation.ok,
+      errorCodes: evaluation.errors.map((e) => e.code),
+      warningCodes: [],
+    },
   };
 }

@@ -6,6 +6,7 @@ import {
   type LearningPhotoReport,
 } from "@/client/learning/analyse";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
+import { analyseBatch } from "@/lib/learning/batch";
 import { compareFileNames, type CheckTone } from "@/lib/learning/checks";
 import { kitCodeToken } from "@/lib/learning/kit";
 import { NO_PROVENANCE, buildRunLog, sortReports } from "@/lib/learning/runlog";
@@ -87,13 +88,23 @@ export function CheckClient({
     setReports([]);
     setRanWith(size);
     setProgress({ done: 0, total: images.length });
-    const out: LearningPhotoReport[] = [];
-    for (const file of images) {
-      out.push(await analyseLearningPhoto(file, { paperSize: size }));
-      setReports([...out]);
-      setProgress({ done: out.length, total: images.length });
+    try {
+      // One report per photo, in order; a photo that cannot be analysed gets a
+      // failed report and the rest go on.
+      await analyseBatch(
+        images,
+        (file) => analyseLearningPhoto(file, { paperSize: size }),
+        {
+          paperSize: size,
+          onProgress: (done) => {
+            setReports([...done]);
+            setProgress({ done: done.length, total: images.length });
+          },
+        },
+      );
+    } finally {
+      setProgress(null);
     }
-    setProgress(null);
   }, []);
 
   const sort = useMemo(() => sortReports(reports), [reports]);

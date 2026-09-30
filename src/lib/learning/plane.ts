@@ -255,6 +255,9 @@ export function recomputePlane(
   } else {
     points = landmarksPx.map((pt) => applyHomography(homography, pt));
   }
+  // A strip plane (no parallax record) has no measurements, as `buildPlane`
+  // and the README say: the hand stands in front of the strip, not on it.
+  if (!p) return { points, measurements: null };
   try {
     return { points, measurements: measurementsFromSheetMm(points) };
   } catch {

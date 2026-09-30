@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Point2 } from "../../src/client/geometry/homography";
 import type { DetectedMarker } from "../../src/client/photo/markers";
+import type { SheetQuadDetection } from "../../src/client/paper/detect";
+import {
+  checkPaperEdgeGatesOnly,
+  runPaperEdgeHandGates,
+} from "../../src/client/photo/gates";
+import { LANDMARK_HEIGHTS_MM } from "../../src/client/geometry/parallax";
+import { PAPER_SIZES_MM } from "../../src/lib/contracts/measurement";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
 import { readExifWhitelist } from "../../src/lib/learning/exif";
 import {
@@ -21,6 +28,7 @@ import {
 import { sortReports } from "../../src/lib/learning/runlog";
 import { buildExifJpeg, phoneSpec, PRIVATE } from "./helpers/exif-jpeg";
 import {
+  HAND_MM,
   INDEPENDENT_SCENE,
   TRUE_HAND_LENGTH_MM,
   TRUE_PALM_WIDTH_MM,
@@ -68,6 +76,29 @@ const HAND = {
   landmarksPx: shot.landmarksPx,
   handedness: "right" as const,
   confidence: 0.93,
+};
+
+/** A detection that found the sheet but only two of its corners (the wrist hides the rest). */
+const TWO_CORNERS: SheetQuadDetection = {
+  corners: null,
+  cornersSeen: 2,
+  cornersFound: [true, true, false, false],
+  partialCorners: [shot.quad.corners![0], shot.quad.corners![1], null, null],
+  minSideCoverage: 0.3,
+  edgeFitResidualPx: 1,
+  worstSideIndex: 0,
+  paperRegionFound: true,
+};
+/** No sheet-sized region at all. */
+const NO_SHEET: SheetQuadDetection = {
+  corners: null,
+  cornersSeen: 0,
+  cornersFound: [false, false, false, false],
+  partialCorners: [null, null, null, null],
+  minSideCoverage: 0,
+  edgeFitResidualPx: 0,
+  worstSideIndex: null,
+  paperRegionFound: false,
 };
 
 function findings(over: Partial<ReportFindings> = {}): ReportFindings {
@@ -380,14 +411,7 @@ describe("other kinds of photo", () => {
 
   it("a photo whose paper was not found has no paper plane but keeps the marker plane", () => {
     const report = assembleLearningReport(
-      findings({
-        paper: {
-          corners: null,
-          cornersSeen: 2,
-          homography: null,
-          edgeFitResidualMm: null,
-        },
-      }),
+      findings({ paper: paperFindings(TWO_CORNERS, "a4") }),
     );
     expect(report.paperPlane).toBeNull();
     expect(report.paperMm).toBeNull();
@@ -417,5 +441,191 @@ describe("stampProvenance", () => {
     const stamped = stampProvenance(report, { gitSha: sha, gitDirty: true });
     expect(stamped).toEqual({ ...report, gitSha: sha, gitDirty: true });
     expect(report.gitSha).toBeNull();
+  });
+});
+
+describe("qrText is a kit code or nothing", () => {
+  it("keeps the text of a QR code that parsed as a kit code", () => {
+    const out = assembleLearningReport(findings());
+    expect(out.qrText).toBe("https://open-mouse.vercel.app/l/v1/G01R");
+    expect(out.code).toEqual(G01R);
+  });
+
+  it("drops the text of any other QR code: it says nothing about the page", () => {
+    for (const qrText of [
+      "https://example.com/shop/mouse?id=1234567890",
+      "WIFI:T:WPA;S:home;P:hunter2;;",
+      "",
+    ]) {
+      const out = assembleLearningReport(findings({ qrText, code: null }));
+      expect(out.qrText).toBeNull();
+      expect(out.code).toBeNull();
+      expect(JSON.stringify(out)).not.toContain("hunter2");
+      expect(JSON.stringify(out)).not.toContain("example.com");
+    }
+  });
+});
+
+describe("the paper detection and the product's gates, recorded", () => {
+  const good = assembleLearningReport(findings());
+
+  it("keeps what the detector saw, including the two values the gates use", () => {
+    expect(good.paperEdge).toEqual({
+      regionFound: true,
+      minSideCoverage: shot.quad.minSideCoverage,
+      edgeFitResidualPx: shot.quad.edgeFitResidualPx,
+      worstSideIndex: shot.quad.worstSideIndex,
+      cornersFound: [true, true, true, true],
+    });
+    expect(good.paperEdge!.minSideCoverage).toBeGreaterThan(0.4);
+  });
+
+  it("says the product would take a good photo, and that is the product's own answer", () => {
+    expect(good.productGates).toEqual({
+      paper: { ok: true, errorCodes: [], warningCodes: [] },
+      hand: { ok: true, errorCodes: [], warningCodes: [] },
+      accepted: true,
+    });
+  });
+
+  it("can be re-derived from the record alone with the product's gate functions", () => {
+    const saved = JSON.parse(JSON.stringify(good)) as LearningPhotoReport;
+    const paper = checkPaperEdgeGatesOnly({
+      paperRegionFound: saved.paperEdge!.regionFound,
+      cornersSeen: saved.paperCornersSeen as 0 | 1 | 2 | 3 | 4,
+      minSideCoverage: saved.paperEdge!.minSideCoverage,
+      edgeFitResidualMm: saved.paperPlane!.fit.edgeFitResidualMm!,
+    });
+    expect(paper.errors.map((e) => e.code)).toEqual(
+      saved.productGates!.paper.errorCodes,
+    );
+    // The hand gates from the recorded hand and homography.
+    const { width, height } = PAPER_SIZES_MM[saved.paperSize];
+    const flatMm = saved.hand!.landmarksPx.map((p) => {
+      const h = saved.paperPlane!.homography;
+      const w = h[2]![0]! * p.x + h[2]![1]! * p.y + h[2]![2]!;
+      return {
+        x: (h[0]![0]! * p.x + h[0]![1]! * p.y + h[0]![2]!) / w,
+        y: (h[1]![0]! * p.x + h[1]![1]! * p.y + h[1]![2]!) / w,
+      };
+    });
+    const hand = runPaperEdgeHandGates({
+      paperFound: saved.paperEdge!.regionFound,
+      landmarkCount: saved.hand!.landmarksPx.length,
+      handedness: saved.hand!.handedness,
+      handStated: saved.code?.kind === "gesture" ? saved.code.hand : undefined,
+      landmarkConfidence: saved.hand!.confidence,
+      landmarksMm: flatMm,
+      paperCornersMm: [
+        { x: 0, y: 0 },
+        { x: width, y: 0 },
+        { x: width, y: height },
+        { x: 0, y: height },
+      ],
+      laplacianVariance: saved.laplacianVariance,
+    });
+    expect(hand.errors.map((e) => e.code)).toEqual(
+      saved.productGates!.hand!.errorCodes,
+    );
+    expect(hand.ok).toBe(saved.productGates!.hand!.ok);
+  });
+
+  it("records why a partly hidden sheet is refused, and that the hand gates were never reached", () => {
+    const r = assembleLearningReport(
+      findings({ paper: paperFindings(TWO_CORNERS, "a4") }),
+    );
+    expect(r.paperEdge).toMatchObject({
+      regionFound: true,
+      minSideCoverage: 0.3,
+      cornersFound: [true, true, false, false],
+    });
+    expect(r.productGates!.paper.ok).toBe(false);
+    expect(r.productGates!.paper.errorCodes).toEqual(
+      expect.arrayContaining(["PAPER_CORNER_HIDDEN", "PAPER_EDGE_HIDDEN"]),
+    );
+    expect(r.productGates!.hand).toBeNull();
+    expect(r.productGates!.accepted).toBe(false);
+  });
+
+  it("records no sheet at all", () => {
+    const r = assembleLearningReport(
+      findings({ paper: paperFindings(NO_SHEET, "a4") }),
+    );
+    expect(r.paperEdge!.regionFound).toBe(false);
+    expect(r.productGates!.paper.errorCodes).toEqual(["PAPER_NOT_FOUND"]);
+    expect(r.productGates!.accepted).toBe(false);
+  });
+
+  it("records a curled sheet", () => {
+    const curled = { ...shot.quad, edgeFitResidualPx: 60 };
+    const r = assembleLearningReport(
+      findings({ paper: paperFindings(curled, "a4") }),
+    );
+    expect(r.productGates!.paper.errorCodes).toContain("PAPER_CURLED");
+    expect(r.productGates!.accepted).toBe(false);
+    // The sheet is still measurable, and the record keeps the residual.
+    expect(r.paperPlane).not.toBeNull();
+    expect(r.paperEdge!.edgeFitResidualPx).toBe(60);
+  });
+
+  it("records each hand refusal by code: wrong hand, unsure, outside the sheet, missing", () => {
+    const codes = (over: Partial<ReportFindings>) =>
+      assembleLearningReport(findings(over)).productGates!.hand!.errorCodes;
+    expect(codes({ hand: { ...HAND, handedness: "left" } })).toEqual([
+      "HANDEDNESS_MISMATCH",
+    ]);
+    expect(codes({ hand: { ...HAND, confidence: 0.2 } })).toEqual([
+      "LOW_LANDMARK_CONFIDENCE",
+    ]);
+    expect(codes({ hand: null })).toEqual(["HAND_NOT_DETECTED"]);
+    const cx = shot.scene.paperWidthMm / 2;
+    const cy = shot.scene.paperHeightMm / 2;
+    const far = HAND_MM.map((mm, i) =>
+      camera.project(mm.x + cx + 450, mm.y + cy, LANDMARK_HEIGHTS_MM[i]!),
+    );
+    expect(codes({ hand: { ...HAND, landmarksPx: far } })).toEqual([
+      "HAND_OUT_OF_BOUNDS",
+    ]);
+    // An unlabelled hand is refused the way the product refuses it.
+    expect(codes({ hand: { ...HAND, handedness: null } })).toEqual([
+      "LOW_LANDMARK_CONFIDENCE",
+    ]);
+  });
+
+  it("a blurry photo is a warning to the product, not a refusal", () => {
+    const r = assembleLearningReport(findings({ laplacianVariance: 5 }));
+    expect(r.productGates!.hand).toEqual({
+      ok: true,
+      errorCodes: [],
+      warningCodes: ["LOW_SHARPNESS"],
+    });
+    expect(r.productGates!.accepted).toBe(true);
+  });
+
+  it("is recorded only where paper detection ran: not on cards, side pages or failed photos", () => {
+    const card = assembleLearningReport(findings({ code: SLATE }));
+    const side = assembleLearningReport(
+      findings({
+        code: { kind: "gesture", version: 1, gesture: "G06", hand: "right" },
+        reference: stripReference(stripMarkers),
+        paper: null,
+      }),
+    );
+    for (const r of [card, side, assembleFailedReport("x.jpg", "a4", "no")]) {
+      expect(r.paperEdge).toBeNull();
+      expect(r.productGates).toBeNull();
+    }
+  });
+
+  it("uses the sheet size of the page (Letter is not A4)", () => {
+    // The same hand, told the sheet is Letter, is checked against a Letter sheet.
+    const r = assembleLearningReport(
+      findings({
+        paperSize: "letter",
+        paper: paperFindings(shot.quad, "letter"),
+      }),
+    );
+    expect(r.paperSize).toBe("letter");
+    expect(r.productGates!.paper.ok).toBe(true);
   });
 });

@@ -12,20 +12,20 @@
  * never mixed by accident.
  */
 import { z } from "zod";
+import { handMeasurementsSchema } from "../contracts/measurement";
 
 export const TRUTH_FORMAT = "open-mouse-learning-truth/2" as const;
 
 /** The protocol the README describes today. Bump it when that text changes in substance. */
 export const TRUTH_PROTOCOL = "candidate-v1" as const;
 
-// Same limits as `handMeasurementsSchema`, so a typo (185 written as 1850)
-// is caught here rather than in an analysis a week later.
-const handLength = z.number().finite().min(100).max(280);
-const palmWidth = z.number().finite().min(50).max(150);
-
+// The limits come from `handMeasurementsSchema` itself (imported, never
+// copied), so a ruler value is held to the same range as the landmark
+// measurement it is compared with, and a typo (185 written as 1850) is caught
+// here rather than in an analysis a week later.
 const handTruthSchema = z.strictObject({
-  handLengthMm: handLength.nullable(),
-  palmWidthMm: palmWidth.nullable(),
+  handLengthMm: handMeasurementsSchema.shape.handLengthMm.nullable(),
+  palmWidthMm: handMeasurementsSchema.shape.palmWidthMm.nullable(),
 });
 
 export const truthSchema = z.strictObject({
