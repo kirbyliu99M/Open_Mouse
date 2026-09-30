@@ -314,6 +314,7 @@ const SCORE_CONTEXT_WORDS: readonly string[] = [
   "减了",
   "扣了",
   "拿了",
+  "拿到",
   "只有",
   "超出",
   "超過",
