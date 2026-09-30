@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-30 · by: Claude (#82 and #89 merged; Kirby's copy, deletion and G9 decisions)_
+_Last updated: 2026-09-30 · by: Claude (#95, #76 and #93 merged)_
 
 ---
 
@@ -27,9 +27,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `3a585a3` (#82). The latest deploy is `9cf0612` (#89), which adds data that no product code reads yet.
+**Production:** behaves as of `5193f27` (#76: the learning-kit pages return 404 in production). The latest deploy is `63a7656` (#93), which adds a local evaluation script and no product behaviour.
 
-- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each 2026-09-30 merge. The latest run passed against `9cf0612`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 13.3 s. In production `/results/demo` and every dev-only demo route return 404.
+- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each 2026-09-30 merge. The latest run passed against `63a7656`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 13.3 s. In production `/results/demo` and every dev-only demo route return 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
 - **Kirby's phone test** of #77 (right and left hand) is still pending.
 
@@ -63,6 +63,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#82 (G2):** the home page now says mice are scored on "length, grip width and height" (weight is scored only when a weight preference is sent, and the results page always sends none), and `/results/demo` returns 404 in production. A demo-route test is now opt-out: every `page.tsx` outside a pinned product list must call the production guard first. The AI-source disclosure was dropped for now (Kirby: add it later).
 - **#89 (G9a):** first-party facts (hand compatibility, shape, form factor) for the 38 Logitech mice, as data only; nothing reads it until G9b. M750's shape is `symmetrical`, following M550 (Kirby). Kirby spot-checks the ⚠ models before G9b.
+- **#95:** Vercel builds previews only for ready PRs (`vercel.json` `ignoreCommand`); drafts and branches without a PR are skipped, `main` always builds (checked after the merge). A preview for a ready PR is started by hand with `npx vercel deploy`; see AGENTS.md. 327 old preview, failed and cancelled deployments were deleted the same day.
+- **#76 (G3):** the learning kit with data format v2: paper-edge gate inputs and the product's gate verdicts in every report, kit-only QR reads, a failing photo no longer stops the batch, and `learn:sort` hardened (whole dev-server tree stopped, TCP port probe, signals, every worktree refused as output, no absolute paths or account name in its output). Kirby collects the learning photos in person, so every kit page returns 404 in production. Its first Linux CI run passed, POSIX-only tests included.
+- **#93 (G8):** `npm run m2:evaluate`, the M2 evaluator: it recomputes millimetres from the v2 run log alone, splits "product would accept" from "all", matches truth by the page's hand, and reports bias, MAE, max error, SD and 95 % limits of agreement plus repeatability. Its thresholds are candidates until the W7 protocol; the held-out set is evaluated once, by Claude. The old `m2-gate-replay` script is removed.
 
 #77 was reviewed by the `pr-review` workflow; its test-coverage follow-ups moved to S2 (#74).
 
@@ -72,14 +75,11 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
 - **#86 (G4)** — scoring and copy logic: Chinese numerals in the no-new-numerals check, a Chinese provisional check, Chinese medical terms, the `weight_in_range` parameters and `thumb_rest_missing`. Draft, through four review rounds with adversarial probing. It waits for Kirby's review of three results-page strings. Remaining Chinese false positives and negatives become G4b, measured on a labelled corpus before i18n PR3.
 - **#84 (G6)** — NOTICE, README, CONTRIBUTING, issue and PR templates, MediaPipe caching headers, non-SIMD fallback (adds ≈ 11.3 MB of static files to the repo and to each build). Verified; it waits for Kirby's copy approval and for private vulnerability reporting to be switched on.
-- **#76** — learning kit with data format v2 (G3). Draft, in final verification. Kirby collects the learning photos in person, so every kit page returns 404 in production and runs only on the local dev server that `npm run learn:sort` starts.
-- **#93 (G8)** — M2 evaluator (`npm run m2:evaluate`), stacked on #76. Review fixes in progress.
-- **#92 (S3)** — audit P1 fixes: detector download progress and a visible load-failure notice, landmarks and titles, dark-mode analysis card, axe on the main pages and phone states. It also carries the no-time deletion wording. Draft in verification; new copy awaits Kirby.
-- **#94 (G5a)** — error and 404 pages, `GET /api/health`, structured server logs with redaction. Draft in review; error-page copy awaits Kirby.
-- **#95** — makes Vercel build previews only for ready PRs (`ignoreCommand`; until it merges, drafts still get previews), after 406 deployments in 9 days nearly filled the account's deployment storage. The same day, 327 old preview, failed and cancelled deployments were deleted. The current production deployment, earlier production deployments and each open PR's latest preview were kept.
+- **#92 (S3)** — audit P1 fixes: detector download progress and a visible load-failure notice, landmarks and titles, dark-mode analysis card, axe on the main pages and phone states. It also carries the no-time deletion wording. Verified (three rounds); it waits for Kirby's copy approval.
+- **#94 (G5a)** — error and 404 pages, `GET /api/health`, structured server logs with redaction. Verified; small logging hardening in progress; error-page copy awaits Kirby.
 - **#75** — UI/UX audit (draft). The corrections to findings 3 and 5 are pushed (`cda0957`).
 - **3D assets** — #26 → #73 → `m4a-study-fidelity` (no PR yet), merged in that order after #26 is re-reviewed. Codex is back 2026-10-04 13:10.
-  - Those branches, and #76, carry STATUS edits; Claude keeps `main`'s STATUS when merging them.
+  - Those branches carry STATUS edits; Claude keeps `main`'s STATUS when merging them.
   - #26 also edits `ci.yml`: its `blender-python` job moves into its own workflow first.
 
 **3D study fidelity — closed (Kirby, in the 2026-09-30 session; `tools/blender/STUDY-FIDELITY.md` still words both items as proposals).**
@@ -337,7 +337,7 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-30 | **The AI-source disclosure is dropped for now**; the home page's "weight" claim is corrected to "height"                                                                                                                                       | Kirby: add the disclosure later; weight was never scored                                                                                                                                                                                                                                                          |
 | 2026-09-30 | **G9: left-hand exclusion unchanged; ambidextrous ⇒ symmetrical not inferred (pending verification); M750 shape = symmetrical like M550**; #89 merges before Kirby's spot check                                                                | Kirby's answers on #89; the data is inert until G9b                                                                                                                                                                                                                                                               |
 | 2026-09-30 | **The learning kit pages are not served in production**                                                                                                                                                                                        | Kirby collects the learning photos in person; the pages run on the local dev server only                                                                                                                                                                                                                          |
-| 2026-09-30 | **Vercel is to build previews only for ready PRs** (implemented in #95, not yet merged; drafts still get previews until then); 327 old preview, failed and cancelled deployments deleted                                                       | 406 deployments in 9 days nearly filled the account's deployment storage (Kirby)                                                                                                                                                                                                                                  |
+| 2026-09-30 | **Vercel builds previews only for ready PRs** (#95, merged 2026-09-30); 327 old preview, failed and cancelled deployments deleted                                                                                                              | 406 deployments in 9 days nearly filled the account's deployment storage (Kirby)                                                                                                                                                                                                                                  |
 
 ---
 
