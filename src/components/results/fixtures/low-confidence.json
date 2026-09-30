@@ -1,6 +1,7 @@
 {
   "scanId": "b2c3d4e5-2222-4b3c-9d4e-0a1b2c3d4e5f",
   "engineVersion": "fit-v0-provisional",
+  "hand": "right",
   "gripStyle": { "stated": null, "predicted": "palm", "used": "palm" },
   "targets": { "lengthMm": 115, "gripWidthMm": 60, "heightMm": 36 },
   "excluded": [],

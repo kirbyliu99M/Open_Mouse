@@ -8,6 +8,7 @@
 import {
   printedSheetEvidenceSchema,
   paperEdgeEvidenceSchema,
+  userLengthEvidenceSchema,
   scanSubmissionSchema,
   MEASUREMENT_MODEL_VERSION,
   type ScanSubmission,
@@ -15,6 +16,7 @@ import {
   type PrintedSheetEvidence,
   type PaperEdgeEvidence,
   type PaperSize,
+  type UserLengthEvidence,
 } from "../../lib/contracts/measurement";
 
 export interface AssembleScanSubmissionInput {
@@ -106,4 +108,43 @@ export function assemblePaperEdgeSubmission(
     ...parsed,
     calibration: paperEdgeEvidenceSchema.parse(parsed.calibration),
   };
+}
+
+export function assembleUserLengthSubmission(input: {
+  readonly hand: "left" | "right";
+  readonly gripStyleStated?: "palm" | "claw" | "fingertip";
+  readonly measurements: HandMeasurements;
+  readonly handLengthMm: number;
+}): ScanSubmission & { calibration: UserLengthEvidence } {
+  const calibration: UserLengthEvidence = {
+    method: "user-length",
+    referenceMeasurement: "handLengthMm",
+    referenceMm: input.handLengthMm,
+    parallaxCorrected: false,
+  };
+  const parsed = scanSubmissionSchema.parse({
+    hand: input.hand,
+    measurements: input.measurements,
+    calibration,
+    measurementModelVersion: MEASUREMENT_MODEL_VERSION,
+    ...(input.gripStyleStated !== undefined
+      ? { gripStyleStated: input.gripStyleStated }
+      : {}),
+  });
+  return {
+    ...parsed,
+    calibration: userLengthEvidenceSchema.parse(parsed.calibration),
+  };
+}
+
+/**
+ * The hand a scan is submitted as. When the stated hand was only a default
+ * the user never chose (easy scan's "· auto" chip), the detected hand wins;
+ * a hand the user chose is always kept. Pure.
+ */
+export function submittedHand(
+  input: { readonly hand: "left" | "right"; readonly handIsAuto?: boolean },
+  detected: "left" | "right" | null,
+): "left" | "right" {
+  return input.handIsAuto && detected ? detected : input.hand;
 }
