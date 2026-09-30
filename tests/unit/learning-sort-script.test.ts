@@ -3,7 +3,7 @@
  * tested by running the real script: it must stop before it starts a server
  * or opens a browser. Nothing here needs photos, Chromium or a network.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import {
   createServer as createNetServer,
@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { parseWorktreeList } from "../../src/lib/learning/paths";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
@@ -112,6 +113,38 @@ describe("learn-sort refuses to run where it must not", () => {
       expect(result.stderr).toMatch(REFUSED);
       // It stopped at the check: no server, no browser.
       expect(result.stdout).not.toMatch(/Starting dev server/);
+    },
+    60_000,
+  );
+
+  // Needs a second worktree of this repository, which a developer's machine
+  // usually has and a CI checkout does not; the rule itself is tested against a
+  // real throwaway repository in learning-sorter-paths.test.ts.
+  const otherWorktree = (() => {
+    try {
+      const listed = execFileSync("git", ["worktree", "list", "--porcelain"], {
+        cwd: REPO,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      return parseWorktreeList(listed).find(
+        (root) => resolve(root).toLowerCase() !== REPO.toLowerCase(),
+      );
+    } catch {
+      return undefined;
+    }
+  })();
+  it.skipIf(!otherWorktree)(
+    "--out inside another git worktree of this repository",
+    () => {
+      const result = sorter([
+        "--in",
+        emptyInput,
+        "--out",
+        join(otherWorktree!, "Fixtures", "learning"),
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(REFUSED);
     },
     60_000,
   );

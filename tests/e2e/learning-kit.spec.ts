@@ -13,6 +13,12 @@ function countPdfPageObjects(pdf: Buffer): number {
   return matches ? matches.length : 0;
 }
 
+/** A valid 1x1 white PNG: it decodes, but nothing can be found in it. */
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 /**
  * A printed page (0 = G01R, 5 = G06R, ... in print order for the right hand)
  * rendered at about 8 px/mm, used as the "photo".
@@ -346,7 +352,7 @@ test.describe("learning kit", () => {
     expect(uploads).toEqual([]);
   });
 
-  test("one photo that cannot be read does not stop the others", async ({
+  test("a photo that cannot be read, and one a detector chokes on, do not stop the others", async ({
     page,
   }, testInfo) => {
     onlyInChromium(testInfo);
@@ -355,12 +361,15 @@ test.describe("learning kit", () => {
 
     await page.goto("/learn/check");
     await page.getByTestId("learning-check-input").setInputFiles([
+      // Not an image at all: the decoder refuses it.
       {
         name: "IMG_0006.jpg",
         mimeType: "image/jpeg",
         buffer: Buffer.from("this is not a jpeg at all"),
       },
-      { name: "IMG_0007.jpg", mimeType: "image/jpeg", buffer: good },
+      // A valid 1x1 image: it decodes, and then a detector throws on it.
+      { name: "IMG_0007.png", mimeType: "image/png", buffer: TINY_PNG },
+      { name: "IMG_0008.jpg", mimeType: "image/jpeg", buffer: good },
     ]);
     const json = page.getByTestId("learning-check-json");
     await expect(json).not.toBeEmpty({ timeout: 90_000 });
@@ -368,14 +377,22 @@ test.describe("learning kit", () => {
 
     expect(reports.map((r: { file: string }) => r.file)).toEqual([
       "IMG_0006.jpg",
-      "IMG_0007.jpg",
+      "IMG_0007.png",
+      "IMG_0008.jpg",
     ]);
-    expect(reports[0].verdict).toBe("unidentified");
-    expect(reports[0].error).toEqual(expect.any(String));
-    expect(reports[0].errorKind).toEqual(expect.any(String));
-    // The second photo was analysed as usual.
-    expect(reports[1].code).toMatchObject({ gesture: "G01", hand: "right" });
-    expect(reports[1].markerPlane.method).toBe("markers");
+    for (const failed of [reports[0], reports[1]]) {
+      expect(failed.verdict).toBe("unidentified");
+      expect(failed.error).toEqual(expect.any(String));
+      expect(failed.errorKind).toEqual(expect.any(String));
+    }
+    // The detector failure says what kind of error it was, and nothing it said.
+    expect(reports[1].error).toBe(
+      "This photo couldn't be analysed. Retake it, and check the others as usual.",
+    );
+    expect(reports[1].errorKind).toBe("RangeError");
+    // The photo after them was analysed as usual.
+    expect(reports[2].code).toMatchObject({ gesture: "G01", hand: "right" });
+    expect(reports[2].markerPlane.method).toBe("markers");
     expect(uploads).toEqual([]);
   });
 });

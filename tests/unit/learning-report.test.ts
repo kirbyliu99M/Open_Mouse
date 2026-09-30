@@ -569,8 +569,13 @@ describe("the paper detection and the product's gates, recorded", () => {
   });
 
   it("records each hand refusal by code: wrong hand, unsure, outside the sheet, missing", () => {
-    const codes = (over: Partial<ReportFindings>) =>
-      assembleLearningReport(findings(over)).productGates!.hand!.errorCodes;
+    const codes = (over: Partial<ReportFindings>) => {
+      const gates = assembleLearningReport(findings(over)).productGates!;
+      // A hand refusal alone is enough to refuse the photo.
+      expect(gates.paper.ok).toBe(true);
+      expect(gates.accepted).toBe(false);
+      return gates.hand!.errorCodes;
+    };
     expect(codes({ hand: { ...HAND, handedness: "left" } })).toEqual([
       "HANDEDNESS_MISMATCH",
     ]);
