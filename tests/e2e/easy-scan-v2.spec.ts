@@ -645,8 +645,12 @@ test.describe("the measured and retake layouts", () => {
     const all = [...parts.checks, ...parts.labels, ...parts.lines];
     const lowest = Math.max(...all.map((r) => r.bottom));
     const highest = Math.min(...all.map((r) => r.top));
+    const layer = await page.locator(".easyStageContent").evaluate((el) => {
+      const m = new DOMMatrix(getComputedStyle(el).transform);
+      return { scale: m.a, translateY: m.f };
+    });
     console.log(
-      `measured layout: lowest drawn part ${lowest.toFixed(0)} px, sheet top ${sheetTop.toFixed(0)} px, highest ${highest.toFixed(0)} px`,
+      `measured layout: photo scale ${layer.scale.toFixed(3)}, moved ${layer.translateY.toFixed(0)} px, lowest drawn part ${lowest.toFixed(0)} px, sheet top ${sheetTop.toFixed(0)} px, highest ${highest.toFixed(0)} px`,
     );
     expect(lowest).toBeLessThanOrEqual(sheetTop);
     expect(highest).toBeGreaterThanOrEqual(0);
@@ -703,5 +707,39 @@ test.describe("the measured and retake layouts", () => {
     ).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("svg.easyFrozenSvg")).toBeVisible();
     await expect(page.locator(".easyProblem")).toHaveCount(0);
+  });
+});
+
+test.describe("AC6: the debug panel once a sheet is open", () => {
+  test("the numbers of the capture are still reachable and copyable from the bottom sheet", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await holdPipeline(page);
+    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 20_000 },
+    );
+    await release(page);
+    const sheet = page.getByRole("dialog", { name: "Hand measured" });
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    // Only one panel at a time: the page's is behind the modal sheet.
+    await expect(page.getByTestId("scan-debug-panel")).toHaveCount(1);
+    await expect(page.getByTestId("scan-debug-panel")).toBeHidden();
+    await sheet.getByText("Debug", { exact: true }).click();
+    const panel = sheet.getByTestId("scan-debug-panel");
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: "Copy JSON" }).click();
+    await expect(panel.getByRole("status")).toHaveText("Copied");
+    const json = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    expect(["takePhoto", "canvas"]).toContain(json.capture.method);
+    expect(json.capture.stillWidth).toBeGreaterThan(0);
+    expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
+    expect(json.track.videoWidth).toBeGreaterThan(0);
   });
 });

@@ -1375,3 +1375,20 @@ main.easyScanShell {
     box-shadow: 0 0 0 2px #0a64e0;
   }
 }
+
+/* The debug numbers inside a bottom sheet (?debug=1 only). */
+.easyDebugDetails {
+  margin-top: 1rem;
+}
+.easyDebugDetails summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+.easySheet .easyDebug {
+  position: static;
+  max-height: 40vh;
+  margin-top: 0.5rem;
+}

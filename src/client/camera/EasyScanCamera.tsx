@@ -2091,6 +2091,14 @@ export default function EasyScanCamera({
                 )}
             </>
           )}
+          {/* A modal sheet makes the rest of the page inert, so the debug
+              numbers (and their copy button) are also reachable from here. */}
+          {debugOn && debugSnapshot && (
+            <details className="easyDebugDetails">
+              <summary>Debug</summary>
+              <ScanDebugPanel snapshot={debugSnapshot} />
+            </details>
+          )}
         </dialog>
       )}
 
@@ -2175,7 +2183,12 @@ export default function EasyScanCamera({
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </dialog>
-      {debugOn && debugSnapshot && <ScanDebugPanel snapshot={debugSnapshot} />}
+      {debugOn &&
+        debugSnapshot &&
+        result.kind !== "measured" &&
+        result.kind !== "gateFailure" && (
+          <ScanDebugPanel snapshot={debugSnapshot} />
+        )}
     </main>
   );
 }
