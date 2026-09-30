@@ -15,9 +15,13 @@
  * - Cardinals: 五, 十二, 二十五, 一百二十五, 一百二 (= 120), 一百零五, 兩千,
  *   三萬五千, 三萬五 (= 35000), 一億二千萬, shorthand 廿 / 卅 / 卌, and bare
  *   digit strings (二〇二四, 一二五). Ordinary and financial digits and units
- *   (壹貳叁肆伍陸柒捌玖拾佰仟), 兩/两, 萬/万, 億/亿, Suzhou numerals (〡〢〣...).
+ *   (壹貳叁肆伍陸柒捌玖拾佰仟), 兩/两, 萬/万, 億/亿, Suzhou numerals (〡〢〣...),
+ *   and the colloquial 仨 (= 3) and 倆/俩 (= 2).
+ * - Two characters that are digits only beside another numeral character: ○
+ *   (U+25CB, 一○○ = 100) and 參/参 (financial 3, 參拾伍 = 35).
  * - Decimals: 三點五 (= 3.5), 零點九, 十二點五.
- * - 半 (= 0.5), and 一半 as 0.5 alone; 雙 / 双 (= 2, like "double").
+ * - 半 (= 0.5), and 一半 as 0.5 alone; 雙 / 双 (= 2, like "double"). 半 in a
+ *   position word (前半 後半 上半 下半 左半 右半, as in 後半部) is not 0.5.
  * - Percentages: 百分之三十, 百分之百, `三十%`, 三十個百分點, 三十趴, and
  *   N成 (tenths: 七成 = 70 percent).
  * - Fractions: 三分之一 (= 1/3), 十分之三 (= 0.3); 百分之N is the percent form.
@@ -26,8 +30,11 @@
  *   needs a rank 3 in the input. A ranking always has rank 1, so 第一名 is fine.
  *
  * What is not a number: a numeral character inside a listed non-quantity
- * compound (一些 一樣 一定 十分適合 萬一 零件 ...; see `NON_QUANTITY_COMPOUNDS`),
- * and a financial character on its own (大陸, 參考, 隊伍, 拾起).
+ * compound (一些 一樣 一定 十分適合 萬一 零件 ...; see `NON_QUANTITY_COMPOUNDS`
+ * and `CONDITIONAL_COMPOUNDS`), a placeholder ○ (○○滑鼠), and a financial
+ * character that has an everyday meaning, on its own: 肆意, 大陸, 隊伍, 拾起,
+ * 參考. The other financial characters (壹貳叁柒捌玖佰仟) have no such use, so
+ * they are numbers even alone.
  *
  * Direction of every choice below: hard rule 2 is asymmetric. A false alarm
  * costs one retry (or the fallback answer); a miss puts an invented number in
@@ -39,16 +46,22 @@
  *
  * A list entry only counts when no numeral character is glued to either side:
  * 萬一 inside 一萬一千 is the number 11000, not the word "in case".
+ * The one exception: a lone 肆 / 陸 / 伍 in front of a word that starts with 一
+ * is a noun (大陸一直, 隊伍一起), not the start of a number.
  */
 import type { NumeralToken } from "./numerals";
 
-const DIGITS: ReadonlyMap<string, number> = new Map([
+export const DIGITS: ReadonlyMap<string, number> = new Map([
   ["〇", 0],
   ["零", 0],
   ["一", 1],
   ["二", 2],
   ["兩", 2],
   ["两", 2],
+  // Colloquial: 仨 = 三個, 倆 / 俩 = 兩個 (伎倆 is a word, see the list below).
+  ["仨", 3],
+  ["倆", 2],
+  ["俩", 2],
   ["三", 3],
   ["四", 4],
   ["五", 5],
@@ -81,7 +94,7 @@ const DIGITS: ReadonlyMap<string, number> = new Map([
   ["〩", 9],
 ]);
 
-const UNITS: ReadonlyMap<string, number> = new Map([
+export const UNITS: ReadonlyMap<string, number> = new Map([
   ["十", 10],
   ["拾", 10],
   ["〸", 10],
@@ -95,9 +108,15 @@ const UNITS: ReadonlyMap<string, number> = new Map([
   ["亿", 100_000_000],
 ]);
 
-/** One character standing for a whole number, expanded before parsing. */
-const SHORTHAND: ReadonlyMap<string, string> = new Map([
+/**
+ * One character standing for a whole number, expanded before parsing. 〹 and 〺
+ * (Hangzhou 20 and 30) are listed for completeness, but NFKC has already
+ * turned them into 卄 (U+5344) and 卅 by the time text gets here, so 卄 must be
+ * listed as well or 〹 would slip through.
+ */
+export const SHORTHAND: ReadonlyMap<string, string> = new Map([
   ["廿", "二十"],
+  ["卄", "二十"],
   ["卅", "三十"],
   ["卌", "四十"],
   ["〹", "二十"],
@@ -105,10 +124,25 @@ const SHORTHAND: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * Characters that are also everyday words (隊伍, 大陸, 拾起, 肆意...). On their
- * own they are not numbers; a run of two or more (壹佰貳拾伍) is.
+ * Characters that are a digit only when they touch another numeral character,
+ * mapped to the digit they stand for there. Alone they are ordinary text: ○ is
+ * a placeholder or a bullet (○○滑鼠), 參 / 参 is 參考 / 參數 / 參加.
  */
-const FINANCIAL = new Set("壹貳貮贰叁肆伍陸陆柒捌玖拾佰仟");
+const CONTEXTUAL_NUMERALS: ReadonlyMap<string, string> = new Map([
+  ["○", "〇"],
+  ["參", "叁"],
+  ["参", "叁"],
+]);
+
+/**
+ * Financial characters that are also everyday words: 肆意, 大陸 / 陸續, 隊伍,
+ * 拾起. On their own they are not numbers; a run of two or more (拾伍) is. Only
+ * characters with such a use belong here. 壹貳貮贰叁柒捌玖佰仟 have none, so a
+ * single one of them is a number (長度柒毫米). 參 is handled separately: see
+ * CONTEXTUAL_NUMERALS.
+ */
+const EVERYDAY_FINANCIAL_DIGITS = new Set("肆陸陆伍");
+const EVERYDAY_FINANCIAL = new Set([...EVERYDAY_FINANCIAL_DIGITS, "拾"]);
 
 const DECIMAL_POINTS = new Set(["點", "点"]);
 
@@ -120,10 +154,12 @@ const isQuantityChar = (c: string) =>
   /[0-9]/.test(c) || isNumeralChar(c) || c === "半" || c === "雙" || c === "双";
 
 /**
- * Words in which a numeral character is not a quantity. A candidate list:
+ * Words in which a numeral character is never a quantity. A candidate list:
  * anything not here is read as a number and flagged unless it is in the input.
  * (In a real run 1 is always in the input as a rank, so the 一- words cost
  * nothing there; the words with 十, 千, 萬, 零, 二, 四 are the ones that matter.)
+ * Only add a word whose numeral character is never a count. A word that is
+ * sometimes an adverb and sometimes a number belongs in CONDITIONAL_COMPOUNDS.
  */
 export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   // 一 as an adverb, pronoun or part of a fixed phrase.
@@ -179,8 +215,6 @@ export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   "十字",
   "萬一",
   "万一",
-  "千萬",
-  "千万",
   "萬能",
   "万能",
   "萬用",
@@ -196,9 +230,23 @@ export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   "零用",
   "零碎",
   "二手",
+  // 四周 = "all around". This is a trade-off, not a fact: in Taiwan the four
+  // weeks are written 四週, and 四周 is the surroundings (滑鼠四周), so the
+  // list follows Taiwan usage. Simplified writing uses 周 for both, so a
+  // mainland "用了四周" (four weeks) is let through. Revisit if the answers
+  // are ever asked for in Simplified. 四週 is not in the list and is flagged.
   "四周",
   "四處",
   "四处",
+  // 倆 in a name for a trick, not a count. 伎倆 / 技倆 = a (petty) trick, the
+  // only everyday word in which 倆 is not "two".
+  "伎倆",
+  "伎俩",
+  "技倆",
+  "技俩",
+  // A percentage as a concept ("信心百分比"), as opposed to 百分之三十.
+  "百分比",
+  "百分率",
   // 半 as "mostly".
   "多半",
   "大半",
@@ -211,8 +259,6 @@ export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   "百姓",
   "千篇一律",
   "千里",
-  "萬分",
-  "万分",
   "萬事",
   "万事",
   "萬物",
@@ -226,24 +272,193 @@ const LEXICON = [...NON_QUANTITY_COMPOUNDS].sort((a, b) => b.length - a.length);
 
 const MASK = "\u0001";
 
+/** What surrounds a word being tested, for the context-dependent list below. */
+interface WordContext {
+  /** Everything before the word. Words masked earlier show up as MASK. */
+  before: string;
+  /** Everything after the word; empty at the end of the text. */
+  after: string;
+}
+
+/** True when the text goes on with a Chinese word (a masked word counts). */
+const continuesWithWord = (after: string) =>
+  /^[\p{Script=Han}\u0001]/u.test(after);
+
+/** Punctuation and spaces: the start of a clause. */
+const CLAUSE_BOUNDARY = /[\s\p{P}]/u;
+
 /**
- * Words that are non-quantities only in some contexts:
- * - 十分 means "very" unless it is 十分之N (a fraction) or 十分鐘 (ten minutes).
- * - 一點 / 一点 means "a little" unless a digit follows (一點五 = 1.5).
+ * Words before 十分 that make it a score or a difference (滿分十分, 高出十分):
+ * matched anywhere in the last few characters of the clause.
  */
-const CONDITIONAL_COMPOUNDS: readonly {
-  word: string;
-  applies: (next: string | undefined) => boolean;
-}[] = [
-  { word: "十分", applies: (n) => n === undefined || !"之鐘钟".includes(n) },
-  { word: "一點", applies: () => true },
-  { word: "一点", applies: () => true },
+const SCORE_CONTEXT_WORDS: readonly string[] = [
+  "滿分",
+  "满分",
+  "得分",
+  "扣分",
+  "加分",
+  "減分",
+  "减分",
+  "高出",
+  "高了",
+  "低了",
+  "低出",
+  "差了",
+  "相差",
+  "多了",
+  "少了",
+  "多出",
+  "少出",
+  "加了",
+  "減了",
+  "减了",
+  "扣了",
+  "拿了",
+  "只有",
+  "超出",
+  "超過",
+  "超过",
+  "領先",
+  "领先",
+  "落後",
+  "落后",
 ];
+
+/** Comparison and arithmetic words that directly precede a quantity. */
+const SCORE_CONTEXT_ENDINGS: readonly string[] = [
+  "高",
+  "低",
+  "多",
+  "少",
+  "差",
+  "增",
+  "降",
+  "加",
+  "減",
+  "减",
+  "扣",
+];
+
+function followsScoreContext(before: string): boolean {
+  const clause = before.split(CLAUSE_BOUNDARY).pop() ?? "";
+  const nearby = clause.slice(-6);
+  return (
+    SCORE_CONTEXT_WORDS.some((word) => nearby.includes(word)) ||
+    SCORE_CONTEXT_ENDINGS.some((word) => clause.endsWith(word))
+  );
+}
+
+/** 十分 followed by these is a number: 十分之三, 十分鐘, the ten-point scale. */
+const SHIFEN_NUMBER_FOLLOWERS = "之鐘钟鍾制";
+
+/** 千萬 is "by all means" only in front of these (千萬不要, 千萬別, 千萬小心). */
+const QIANWAN_ADVERB_FOLLOWERS: readonly string[] = [
+  "不",
+  "別",
+  "别",
+  "要",
+  "記",
+  "记",
+  "勿",
+  "莫",
+  "小心",
+  "注意",
+  "得",
+];
+
+/**
+ * 前半 / 後半 / 上半 ...: a position ("後半部隆起"), not 0.5. Two contexts turn
+ * it back into a number: 半個 right after it, and 然 / 之 / 以 in front (然後半
+ * 小時 = "then half an hour", where 後 belongs to the previous word).
+ */
+const POSITION_HALF_WORDS: readonly string[] = [
+  "前半",
+  "後半",
+  "后半",
+  "上半",
+  "下半",
+  "左半",
+  "右半",
+];
+
+const isPositionHalf = ({ before, after }: WordContext) =>
+  !/^[個个]/u.test(after) && !/[然之以晚早]$/u.test(before);
+
+/**
+ * Words that are non-quantities only in some contexts. `isNonQuantity` says
+ * whether the word is masked here; when it is not, the numeral characters in it
+ * are read as a number. Every rule leans to "number" when the context is not
+ * clearly the adverb: a false alarm costs a retry, a miss breaks hard rule 2.
+ *
+ * - 十分 is the adverb "very" (十分貼合) only when a Chinese word follows and
+ *   nothing before it makes it a score. It is a number in 十分之三, 十分鐘,
+ *   十分制, at the end of a clause (高出十分。) and after a score or
+ *   comparison word (滿分十分, 得分十分, 比第二名高出十分).
+ * - 萬分 is "extremely" (萬分感謝, 感激萬分) unless 之 follows: 萬分之一 is
+ *   1/10000. 千萬分之一 is caught earlier: a numeral character glued to the
+ *   left keeps 萬分 a number. (千分 and 百分 are not in any list, so 千分之一
+ *   and 百分之三 already fall through to the fraction path.)
+ * - 千萬 is "by all means" only before 不 / 別 / 要 / 記 / 勿 / 莫 / 小心 /
+ *   注意 / 得. Anywhere else (千萬像素) it is ten million.
+ * - 一點 / 一点 means "a little" unless a digit follows (一點五 = 1.5): the
+ *   digit is a numeral character, which already stops the match.
+ * - 前半 / 後半 / 上半 / 下半 / 左半 / 右半 are positions; see POSITION_HALF_WORDS.
+ */
+export const CONDITIONAL_COMPOUNDS: readonly {
+  word: string;
+  isNonQuantity: (context: WordContext) => boolean;
+}[] = [
+  {
+    word: "十分",
+    isNonQuantity: ({ before, after }) =>
+      continuesWithWord(after) &&
+      !SHIFEN_NUMBER_FOLLOWERS.includes(after[0]!) &&
+      !followsScoreContext(before),
+  },
+  {
+    word: "萬分",
+    isNonQuantity: ({ after }) => !after.startsWith("之"),
+  },
+  {
+    word: "万分",
+    isNonQuantity: ({ after }) => !after.startsWith("之"),
+  },
+  {
+    word: "千萬",
+    isNonQuantity: ({ after }) =>
+      QIANWAN_ADVERB_FOLLOWERS.some((next) => after.startsWith(next)),
+  },
+  {
+    word: "千万",
+    isNonQuantity: ({ after }) =>
+      QIANWAN_ADVERB_FOLLOWERS.some((next) => after.startsWith(next)),
+  },
+  { word: "一點", isNonQuantity: () => true },
+  { word: "一点", isNonQuantity: () => true },
+  ...POSITION_HALF_WORDS.map((word) => ({
+    word,
+    isNonQuantity: isPositionHalf,
+  })),
+];
+
+/**
+ * 大陸一直, 隊伍一起: a lone everyday financial digit in front of a word that
+ * starts with 一 is a noun followed by that word, not the start of 51 or 61.
+ * Financial figures are written with 壹, not 一, so 伍一 is not a number; and a
+ * lone 伍 is already read as the noun (see EVERYDAY_FINANCIAL). Only these four
+ * digits and only 一-words: 拾一 is 11, and 伍萬用戶 is 50000 users.
+ */
+function isNounBeforeOne(text: string, at: number, word: string): boolean {
+  if (!word.startsWith("一") || !EVERYDAY_FINANCIAL_DIGITS.has(text[at - 1]!)) {
+    return false;
+  }
+  return at < 2 || !isQuantityChar(text[at - 2]!);
+}
 
 function maskWord(
   text: string,
   word: string,
-  applies: (next: string | undefined) => boolean,
+  isNonQuantity: (context: WordContext) => boolean,
 ): string {
   let out = text;
   let from = 0;
@@ -254,9 +469,14 @@ function maskWord(
     const before = at > 0 ? out[at - 1] : undefined;
     const next = end < out.length ? out[end] : undefined;
     const glued =
-      (before !== undefined && isQuantityChar(before)) ||
+      (before !== undefined &&
+        isQuantityChar(before) &&
+        !isNounBeforeOne(out, at, word)) ||
       (next !== undefined && isQuantityChar(next));
-    if (!glued && applies(next)) {
+    if (
+      !glued &&
+      isNonQuantity({ before: out.slice(0, at), after: out.slice(end) })
+    ) {
       out = out.slice(0, at) + MASK.repeat(word.length) + out.slice(end);
     }
     from = at + 1;
@@ -266,10 +486,43 @@ function maskWord(
 function maskNonQuantityCompounds(text: string): string {
   let out = text;
   for (const word of LEXICON) out = maskWord(out, word, () => true);
-  for (const { word, applies } of CONDITIONAL_COMPOUNDS) {
-    out = maskWord(out, word, applies);
+  for (const { word, isNonQuantity } of CONDITIONAL_COMPOUNDS) {
+    out = maskWord(out, word, isNonQuantity);
   }
   return out;
+}
+
+/**
+ * ○ and 參 / 参 read as a digit only when they touch another numeral
+ * character; the run they belong to is then folded to the plain digit form
+ * (一○○ -> 一〇〇, 參拾伍 -> 叁拾伍). A run made only of these characters, or
+ * one that has none of them, is left alone, so ○○滑鼠 and 參考 are not numbers.
+ * Touching an everyday financial character (大陸參加) counts as touching: a run
+ * of two numeral characters is a number everywhere else in this file too.
+ */
+function foldContextualNumerals(text: string): string {
+  const chars = [...text];
+  const inRun = (c: string) => isNumeralChar(c) || CONTEXTUAL_NUMERALS.has(c);
+  let i = 0;
+  while (i < chars.length) {
+    if (!inRun(chars[i]!)) {
+      i++;
+      continue;
+    }
+    let end = i;
+    let touchesNumeral = false;
+    while (end < chars.length && inRun(chars[end]!)) {
+      if (isNumeralChar(chars[end]!)) touchesNumeral = true;
+      end++;
+    }
+    if (touchesNumeral) {
+      for (let k = i; k < end; k++) {
+        chars[k] = CONTEXTUAL_NUMERALS.get(chars[k]!) ?? chars[k]!;
+      }
+    }
+    i = end;
+  }
+  return chars.join("");
 }
 
 /** A reading of a run of digit and unit characters, possibly ambiguous. */
@@ -465,7 +718,7 @@ function toAtoms(text: string): Atom[] {
       const end = readRunEnd(text, i);
       const run = text.slice(i, end);
       const lone = [...run].length === 1;
-      if (!(lone && FINANCIAL.has(run))) {
+      if (!(lone && EVERYDAY_FINANCIAL.has(run))) {
         atoms.push({
           start: i,
           end,
@@ -515,7 +768,7 @@ const PERCENT_SUFFIX = /^\s*(?:%|(?:個|个)?百分[點点]|趴)/;
  * be `normalizeUnicodeDigits` output. Bare Arabic digits are not returned.
  */
 export function readChineseNumerals(normalized: string): NumeralToken[] {
-  const text = maskNonQuantityCompounds(normalized);
+  const text = maskNonQuantityCompounds(foldContextualNumerals(normalized));
   const atoms = toAtoms(text);
   const tokens: NumeralToken[] = mixedDecimals(text);
 
