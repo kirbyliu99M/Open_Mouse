@@ -127,9 +127,11 @@ describe("learn-sort refuses to run where it must not", () => {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
       });
-      return parseWorktreeList(listed).find(
-        (root) => resolve(root).toLowerCase() !== REPO.toLowerCase(),
-      );
+      // Not the main checkout (listed first) and not this one: the rule that
+      // covers those two alone would pass without asking git about the rest.
+      return parseWorktreeList(listed)
+        .slice(1)
+        .find((root) => resolve(root).toLowerCase() !== REPO.toLowerCase());
     } catch {
       return undefined;
     }
