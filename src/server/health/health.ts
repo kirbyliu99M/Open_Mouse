@@ -81,10 +81,9 @@ async function withTimeout<T>(
   ms: number,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // If the timeout wins, the work may still reject later. That is not an
+  // unhandled rejection: Promise.race keeps listening to it (a test pins this).
   const work = Promise.resolve().then(start);
-  // If the timeout wins, the work may still reject later: that must not
-  // surface as an unhandled rejection.
-  work.catch(() => {});
   try {
     return await Promise.race([
       work,

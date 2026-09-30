@@ -644,6 +644,10 @@ describe("handleAnalysisRequest — the cache never fails a request", () => {
     expect(logged).toContain("23502");
     expect(logged).not.toContain("125 mm");
     expect(logged).not.toContain("null value");
+    // The wrapper error's own message quotes the query and its parameters,
+    // which here are prose about the hand: none of it may be logged either.
+    expect(logged).not.toContain("ideal range");
+    expect(logged).not.toContain("insert into");
     errors.mockRestore();
   });
 });
