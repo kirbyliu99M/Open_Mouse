@@ -15,7 +15,7 @@ import { findUnknownNumeral } from "../../src/server/analysis/numerals";
 
 /** What a real run allows: ranks 1 to 3, a few scores, sizes and weights. */
 const ALLOWED: ReadonlySet<number> = new Set([
-  1, 2, 3, 5, 38, 40, 60, 63.5, 64, 91, 92, 120, 125,
+  1, 2, 3, 5, 38, 40, 60, 63.5, 64, 91, 92, 120, 125, 1600,
 ]);
 
 const SENTENCES: readonly string[] = [
@@ -40,6 +40,19 @@ const SENTENCES: readonly string[] = [
   "重量偏輕，單手操作十分輕鬆，萬分推薦給喜歡快速移動的人。",
   "曲線舒緩的背部剛好托住掌心，手指的位置也很自然。",
   "長度 125 毫米，比你的理想長度 120 毫米長 5 毫米，前端略寬一些。",
+  // Round 3: grip words, geometry words, grouped numbers and mild wording.
+  "握法偏向三指捏握，五指全握也可以，前端半徑不大。",
+  "側面的半圓弧度舒緩，造型四平八穩，不容易晃動。",
+  "靈敏度最高 1,600 DPI，日常使用綽綽有餘。",
+  "第一名的 fit 分數是 91/100，第二名也只差一點點。",
+  "有助於握持，也有助於手指抓握。",
+  "減少握持時的滑動，也避免誤觸側鍵，並預留空間給拇指。",
+  "上半部有防滑塗層，下半部有橡膠側裙，左半邊比右半邊略寬。",
+  "後半部隆起，前半段偏平，掌心剛好托住。",
+  "手腕位置自然，線條舒緩，握起來很放鬆。",
+  "它十分輕巧，重量約 60 克，比第二名輕一點。",
+  "尺寸和你的手很接近，千萬不要為了重量而選太小的款式。",
+  "整個隊伍統一使用同一款，四周邊緣都很圓潤。",
 ];
 
 describe("ordinary Chinese mouse descriptions are not flagged", () => {
@@ -63,6 +76,12 @@ describe("the same sentences with one invented number are flagged", () => {
     ["第一名的重量為 60 克，第四名稍重一點。", 4],
     ["參考尺寸約 1/3 個手掌長。", 1 / 3],
     ["前半段的曲線比較平緩，然後半小時就習慣了。", 0.5],
+    ["第一名的 fit 分數是 7/7，非常接近。", 7],
+    ["兩款相差 6/2 個等級。", 6],
+    ["信心是 100%，可以放心。", 100],
+    ["最高 1,700 DPI，日常使用綽綽有餘。", 1700],
+    ["前半年就能習慣這款滑鼠。", 0.5],
+    ["靈敏度最高 16K，日常使用綽綽有餘。", 16000],
   ] as const)("%s", (sentence, value) => {
     expect(findUnknownNumeral(sentence, ALLOWED)).toBeCloseTo(value, 9);
   });
