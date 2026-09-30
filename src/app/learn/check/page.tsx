@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { CheckClient } from "./CheckClient";
 import "../learn.css";
@@ -22,6 +23,7 @@ export default async function LearnCheckPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  guardDemoRouteFromProduction();
   const paper = paperFrom((await searchParams).paper);
   return (
     <main className="learn">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
 import { KitPageSvg } from "@/components/learning/KitSvg";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import {
   GESTURES,
   LEARNING_KIT_VERSION,
@@ -27,6 +28,7 @@ export default async function LearnPrintPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  guardDemoRouteFromProduction();
   const hands = handsFrom((await searchParams).hands);
   const pages = hands.flatMap((hand) =>
     GESTURES.map((gesture) => ({ hand, gesture })),

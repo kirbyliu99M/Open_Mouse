@@ -10,21 +10,14 @@
  * file path, an account name or pixel values, and the run log must hold none
  * of them.
  */
+import { failureKind } from "./errorkind";
 import { assembleFailedReport, type LearningPhotoReport } from "./report";
 import type { PaperSize } from "../contracts/measurement";
 
+export { failureKind };
+
 export const ANALYSIS_FAILED_MESSAGE =
   "This photo couldn't be analysed. Retake it, and check the others as usual.";
-
-/** The error's type, and nothing it says: a plain identifier, or "Error". */
-export function failureKind(err: unknown): string {
-  if (!(err instanceof Error)) return "NonError";
-  const name =
-    err.name && err.name !== "Error"
-      ? err.name
-      : (err.constructor?.name ?? "Error");
-  return /^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(name) ? name : "Error";
-}
 
 /** Run one photo's analysis; if it throws, return that photo's failed report instead. */
 export async function analyseSafely(

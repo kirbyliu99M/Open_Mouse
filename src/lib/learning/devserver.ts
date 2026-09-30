@@ -149,6 +149,12 @@ export interface WaitOptions {
   readonly exited?: Promise<ExitInfo>;
   /** The tail of the server's stderr, for the failure message. */
   readonly stderrTail?: () => string;
+  /**
+   * Applied to the whole failure message, the server's last words included,
+   * before it is thrown: a server quotes absolute paths (its own folder, the
+   * account's home) that a terminal or a log must not carry.
+   */
+  readonly redact?: (text: string) => string;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -161,13 +167,14 @@ export async function waitForServer(
   const timeoutMs = options.timeoutMs ?? 90_000;
   const fetchTimeoutMs = options.fetchTimeoutMs ?? 2000;
   const pollMs = options.pollMs ?? 500;
+  const redact = options.redact ?? ((text: string) => text);
   let early: ExitInfo | null = null;
   void options.exited?.then((info) => {
     early = info;
   });
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (early) throw earlyExit(early, options.stderrTail?.() ?? "");
+    if (early) throw earlyExit(early, options.stderrTail?.() ?? "", redact);
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(fetchTimeoutMs),
@@ -178,16 +185,20 @@ export async function waitForServer(
     }
     await sleep(pollMs);
   }
-  if (early) throw earlyExit(early, options.stderrTail?.() ?? "");
-  throw new Error(`Server at ${url} did not become ready in time.`);
+  if (early) throw earlyExit(early, options.stderrTail?.() ?? "", redact);
+  throw new Error(redact(`Server at ${url} did not become ready in time.`));
 }
 
-function earlyExit(info: ExitInfo, tail: string): Error {
+function earlyExit(
+  info: ExitInfo,
+  tail: string,
+  redact: (text: string) => string,
+): Error {
   const how = info.error
     ? `could not start (${info.error.message})`
     : `exited before it was ready (${info.signal ?? `code ${info.code}`})`;
   return new Error(
-    `The dev server ${how}.${tail ? ` Its last output:\n${tail}` : ""}`,
+    redact(`The dev server ${how}.${tail ? ` Its last output:\n${tail}` : ""}`),
   );
 }
 
@@ -250,6 +261,8 @@ export interface DevServerOptions {
   readonly readyTimeoutMs?: number;
   readonly fetchTimeoutMs?: number;
   readonly pollMs?: number;
+  /** Applied to a start-up failure's message before it is thrown (see `WaitOptions.redact`). */
+  readonly redact?: (text: string) => string;
 }
 
 export interface DevServerDeps {
@@ -303,6 +316,7 @@ export async function withDevServer<T>(
       pollMs: options.pollMs,
       exited,
       stderrTail: () => tail.trim(),
+      redact: options.redact,
     });
     return await fn();
   } finally {

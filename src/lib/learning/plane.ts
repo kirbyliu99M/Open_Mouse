@@ -38,6 +38,7 @@ import {
   type ResolvedFocal,
 } from "../../client/geometry/parallax";
 import type { HandMeasurements } from "../contracts/measurement";
+import { failureKind } from "./errorkind";
 
 export type PlaneMethod = "markers" | "paper-edge" | "strip-markers";
 
@@ -58,7 +59,10 @@ export interface ParallaxRecord {
   readonly imageSize: { readonly width: number; readonly height: number };
   readonly heightsVersion: string;
   readonly heightsMm: readonly number[];
-  /** Why the plane could not be turned into mm, when it could not. */
+  /**
+   * Why the plane could not be turned into mm, when it could not: the error's
+   * class name (`RangeError`, ...), never its message, which can quote values.
+   */
   readonly error: string | null;
 }
 
@@ -118,10 +122,6 @@ export function rowsToHomography(
   return rows.map((row) => [...row]) as unknown as Homography;
 }
 
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /**
  * Build a plane record and the measurements it gives. Returns `null` only
  * when the homography itself is not a finite 3x3 matrix (a log cannot hold
@@ -159,7 +159,7 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
       resolved = resolveFocalPx({ exifFocalPx, homography, principalPoint });
     } catch (err) {
       // A degenerate homography: no focal length, and no points either.
-      error = messageOf(err);
+      error = failureKind(err);
     }
     let corrected = false;
     if (landmarksPx && error === null) {
@@ -181,7 +181,7 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
         }
       } catch (err) {
         points = null;
-        error = messageOf(err);
+        error = failureKind(err);
       }
     }
     parallax = {
