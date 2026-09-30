@@ -1,10 +1,26 @@
 /** Nouns for the shape of a surface: a gentle 弧度 is a shape fact. */
 const SHAPE_NOUNS =
-  "(?:弧度|曲線|曲线|線條|线条|坡度|斜度|起伏|弧面|曲面|弧形|造型|輪廓|轮廓)";
+  "(?:弧度|弧線|弧线|曲度|曲線|曲线|線條|线条|坡度|斜度|斜坡|起伏|隆起|凹陷|弧面|曲面|弧形|造型|輪廓|轮廓|背脊|尾端|側裙|侧裙|側面|侧面)";
+
+/**
+ * Adverbs that may sit between a shape noun and 舒緩 (弧度很舒緩, 曲線比較舒緩,
+ * 弧度相當舒緩, 弧度是舒緩的): at most two of them, three characters or fewer.
+ * Any other word there (弧度有助舒緩, 弧度會舒緩) is not a description of the
+ * shape any more.
+ */
+const SHAPE_ADVERBS =
+  "(?:很|太|更|最|較|较|挺|頗|颇|蠻|蛮|偏|略|稍|是|也|都|還|还|夠|够|真|好|相當|相当|比較|比较|非常|十分|特別|特别|格外|稍微|略微|相對|相对|較為|较为|更加)";
 
 /** Body parts, for the claims about what a mouse does to them. */
-const BODY_PARTS =
-  "(?:手腕|腕部|手部|手掌|手指|手臂|前臂|關節|关节|肌肉|肌腱|肩頸|肩颈|肩膀|頸部|颈部|背部|身體|身体|掌心)";
+const BODY_PARTS_EXCEPT_BACK =
+  "手腕|腕部|手部|手掌|手指|手臂|前臂|關節|关节|肌肉|肌腱|肩頸|肩颈|肩膀|頸部|颈部|身體|身体|掌心";
+const BODY_PARTS = `(?:${BODY_PARTS_EXCEPT_BACK}|背部)`;
+
+/**
+ * What a relief claim is about: a body part or a health noun. 背部 is left out
+ * on purpose: 曲線舒緩的背部 is the back of the mouse.
+ */
+const RELIEF_OBJECTS = `(?:${BODY_PARTS_EXCEPT_BACK}|壓力|压力|疼痛|痠痛|酸痛|不適|不适|疲勞|疲劳|疲憊|疲惫|症狀|症状|緊繃|紧绷|緊張|紧张|負擔|负担|負荷|负荷|壓迫|压迫)`;
 
 /**
  * Candidate list (未拍板) of medical or health claims to reject in model prose.
@@ -195,12 +211,23 @@ export const MEDICAL_CLAIM_TERMS: readonly (
     pattern:
       /舒[緩缓](?:壓力|压力|疼痛|痠痛|酸痛|不適|不适|疲勞|疲劳|症狀|症状|緊繃|紧绷)/u,
   },
-  // 舒緩 / 舒缓 is refused unless it describes a shape: 弧度舒緩, 曲線舒緩的
-  // 背部 (a shape noun in front) or 舒緩的曲面 (a shape noun after 的). Any
-  // other object (舒緩手腕, 有助舒緩, 舒緩負擔, 舒緩你的手) is a relief claim.
+  // 舒緩 / 舒缓 followed within eight characters by a body part or a health
+  // noun is a relief claim, whatever stands in front of it: 弧度舒緩手腕,
+  // 弧度舒緩了手腕的壓力, 曲線舒緩的手腕, 弧度舒緩，讓手腕更放鬆, 造型舒緩肌肉.
+  {
+    label: "舒緩/舒缓 + 身體部位或健康名詞 (within eight characters)",
+    pattern: new RegExp(`舒[緩缓][\\s\\S]{0,6}${RELIEF_OBJECTS}`, "u"),
+  },
+  // 舒緩 / 舒缓 is refused unless it describes a shape: a shape noun in front,
+  // with at most a couple of adverbs between (弧度舒緩, 弧度很舒緩, 曲線比較舒緩,
+  // 弧度相當舒緩, 弧度是舒緩的), or 舒緩的曲面 (a shape noun after 的). Any
+  // other case (舒緩手腕, 有助舒緩, 弧度有助舒緩, 舒緩你的手) is a relief claim.
   {
     label: "舒緩/舒缓 outside a shape description",
-    pattern: new RegExp(`(?<!${SHAPE_NOUNS})舒[緩缓](?!的${SHAPE_NOUNS})`, "u"),
+    pattern: new RegExp(
+      `(?<!${SHAPE_NOUNS}${SHAPE_ADVERBS}{0,2})舒[緩缓](?!的${SHAPE_NOUNS})`,
+      "u",
+    ),
   },
   // The same words in their variant spellings, always a relief claim.
   "紓緩",

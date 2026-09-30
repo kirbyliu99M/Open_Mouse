@@ -492,10 +492,10 @@ describe("words that contain a numeral character without being a quantity", () =
     "半圆",
     "四平八穩",
     "四平八稳",
-    "三指",
-    "四指",
-    "五指",
-    "十指",
+    "三指捏握",
+    "四指抓握",
+    "五指張開",
+    "十指。",
   ];
 
   it.each(lexicon)("%s is not a number", (word) => {
@@ -966,7 +966,7 @@ describe("words a numeral character sits in without counting", () => {
     "三指捏握",
     "四指抓握",
     "五指全握",
-    "十指靈活",
+    "十指張開",
   ])("%s is not a number", (text) => {
     expect(unknown(text, [1])).toBeNull();
   });
@@ -1105,6 +1105,88 @@ describe("a unit glued to an Arabic denominator multiplies it", () => {
   it("the unit on the numerator side multiplies it too", () => {
     expect(unknown("3分之1萬", [1, 3])).toBeCloseTo(10000 / 3, 6);
   });
+});
+
+describe("三指 / 四指 / 五指 / 十指 are a grip only before a grip word", () => {
+  it.each([
+    ["四指寬", 4],
+    ["三指寬", 3],
+    ["五指標", 5],
+    ["十指標", 10],
+    ["五指數", 5],
+    ["四指針", 4],
+    ["四指以上", 4],
+    ["五指以內", 5],
+    ["四指並排", 4],
+    ["十指靈活", 10],
+  ] as const)("%s hides nothing: it is the number %s", (text, value) => {
+    // Only the count is written: it has to be in the input.
+    expect(unknown(text, [1])).toBe(value);
+    expect(unknown(text, [1, value])).toBeNull();
+  });
+
+  it.each([
+    "五指張開",
+    "四指握持",
+    "三指抓握",
+    "三指捏握",
+    "五指全握",
+    "十指展開",
+    "四指併攏",
+    "四指并拢",
+    "五指张开",
+    "握法是五指。",
+    "常見的是三指，也有人用四指",
+    "用三指",
+    "五指",
+  ])("%s is a grip, not a quantity", (text) => {
+    expect(unknown(text, [1])).toBeNull();
+  });
+
+  it("a finger count next to another numeral is still one number", () => {
+    expect(unknown("十三指", [1])).toBe(13);
+    expect(unknown("兩指", [1])).toBe(2);
+  });
+});
+
+describe("為伍 is a phrase, 為伍毫米 is a length", () => {
+  it.each([
+    ["長度為伍毫米", 5],
+    ["寬度為伍公分", 5],
+    ["為伍個", 5],
+    ["共為伍項", 5],
+    ["共為伍项", 5],
+    ["高度為伍公克", 5],
+  ] as const)("%s is the number %s", (text, value) => {
+    expect(unknown(text, [1])).toBe(value);
+    expect(unknown(text, [1, value])).toBeNull();
+  });
+
+  it.each(["與滑鼠為伍", "与滑鼠为伍", "與孤獨為伍。", "為伍"])(
+    "%s has no measure word and stays a phrase",
+    (text) => {
+      expect(unknown(text, [1])).toBeNull();
+    },
+  );
+
+  it.each([
+    ["陸種", 6],
+    ["肆款", 4],
+    ["伍次", 5],
+    ["拾秒", 10],
+    ["陸條", 6],
+    ["伍張", 5],
+    ["陆项", 6],
+  ] as const)("a lone financial digit before a counter: %s", (text, value) => {
+    expect(unknown(text, [1])).toBe(value);
+  });
+
+  it.each(["隊伍成員", "大陸款式", "登陸次數"])(
+    "%s keeps the noun a noun",
+    (text) => {
+      expect(unknown(text, [1])).toBeNull();
+    },
+  );
 });
 
 describe("Unicode forms of Chinese numerals", () => {

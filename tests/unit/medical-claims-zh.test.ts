@@ -162,6 +162,24 @@ const MUST_FLAG: readonly (readonly [category: string, text: string])[] = [
   ["relieve (variant)", "纾解"],
   ["relieve (variant)", "抒解壓力"],
   ["relieve (variant)", "舒解疲勞"],
+  // A relief claim stays one after a shape noun: what follows 舒緩 counts.
+  ["relieve after a shape noun", "弧度舒緩手腕"],
+  ["relieve after a shape noun", "弧度舒緩了手腕的壓力"],
+  ["relieve after a shape noun", "曲線舒緩的手腕"],
+  ["relieve after a shape noun", "弧度舒緩，讓手腕更放鬆"],
+  ["relieve after a shape noun", "造型舒緩肌肉"],
+  ["relieve after a shape noun", "輪廓舒緩掌心"],
+  ["relieve after a shape noun", "弧度舒緩了手部負擔"],
+  ["relieve after a shape noun", "弧度很舒緩手腕"],
+  ["relieve after a shape noun", "曲线舒缓手腕"],
+  ["relieve after a shape noun", "弧度舒緩，減輕疲勞"],
+  ["relieve after a shape noun", "側面舒緩肩頸"],
+  ["relieve after a shape noun", "隆起舒緩不適"],
+  // ...and a word that is not an adverb between the noun and 舒緩 is no
+  // description of the shape.
+  ["relieve after a verb", "弧度有助舒緩"],
+  ["relieve after a verb", "弧度會舒緩"],
+  ["relieve after a verb", "弧度能舒緩"],
   ["relieve (TW)", "緩解"],
   ["relieve (CN)", "缓解"],
   ["reduce stress (TW)", "減輕手腕壓力"],
@@ -290,6 +308,31 @@ const MUST_PASS: readonly string[] = [
   "伤脑筋",
   "健身",
   "安全的購買",
+  // A gentle curve with an adverb in between (up to two, three characters).
+  "弧度很舒緩",
+  "曲線比較舒緩",
+  "弧度相當舒緩",
+  "弧度是舒緩的",
+  "弧度都很舒緩",
+  "側面弧度非常舒緩",
+  "曲线比较舒缓",
+  "弧度十分舒緩",
+  "弧度稍微舒緩一些",
+  // More shape nouns.
+  "弧線舒緩",
+  "曲度舒緩",
+  "背脊舒緩",
+  "尾端舒緩",
+  "側裙舒緩",
+  "斜坡舒緩",
+  "隆起舒緩",
+  "凹陷舒緩",
+  "側面舒緩",
+  // The back of the mouse is not a body part: the body-part words are only
+  // looked for in the eight characters after 舒緩.
+  "曲線舒緩的背部剛好托住掌心，手指的位置也很自然",
+  "弧度舒緩，拇指放起來很自然",
+  "弧度舒緩ABCDEFG手腕",
   // A gentle curve: 舒緩 with a shape noun in front, or 的 and a shape noun
   // after it. Nothing else may follow 舒緩.
   "側面弧度舒緩",

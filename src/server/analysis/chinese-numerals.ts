@@ -175,11 +175,24 @@ const MEASURE_WORDS: readonly string[] = [
   "分",
   "度",
   "%",
+  "項",
+  "项",
+  "種",
+  "种",
+  "款",
+  "次",
+  "秒",
+  "條",
+  "条",
+  "張",
+  "张",
 ];
 
 /**
  * Nouns in which the everyday financial character sits, so that what follows
  * it is not its measure word: 隊伍成員 (not 伍成), 大陸分公司 (not 陸分).
+ * 為伍 ("keep company with") is not one of them: 長度為伍毫米, 共為伍項 and
+ * 為伍個 are quantities, and 與滑鼠為伍 has no measure word to trip over.
  */
 const EVERYDAY_FINANCIAL_NOUNS: readonly string[] = [
   "隊伍",
@@ -190,8 +203,6 @@ const EVERYDAY_FINANCIAL_NOUNS: readonly string[] = [
   "行伍",
   "軍伍",
   "军伍",
-  "為伍",
-  "为伍",
   "大陸",
   "大陆",
   "登陸",
@@ -329,13 +340,6 @@ export const NON_QUANTITY_COMPOUNDS: readonly string[] = [
   // 四 in a set phrase for "steady".
   "四平八穩",
   "四平八稳",
-  // Finger counts for a grip (三指捏握, 五指全握, 十指). Naming the fingers is
-  // anatomy, not a calculation, so these are not quantities. 一兩個, 兩三個 and
-  // 兩指 are still numbers.
-  "三指",
-  "四指",
-  "五指",
-  "十指",
   // 百, 千, 萬 in ordinary words and set phrases.
   "百搭",
   "百般",
@@ -510,6 +514,34 @@ const isPositionHalf = ({ after }: WordContext) =>
   POSITION_NOUNS.some((noun) => after.startsWith(noun));
 
 /**
+ * Finger counts for a grip: 三指捏握, 四指抓握, 五指張開, 五指全握. Naming the
+ * fingers of a grip is anatomy, not a calculation, so there they are not
+ * quantities. Anywhere else the count is a number: 四指寬 (four fingers wide),
+ * 四指以上, 五指以內, 四指並排, and the words that only start with these
+ * (五指標, 十指標, 五指數, 四指針). 一兩個, 兩三個 and 兩指 are numbers as well.
+ */
+const FINGER_COUNT_WORDS: readonly string[] = ["三指", "四指", "五指", "十指"];
+
+/** What follows a finger count when it is a grip: 握 捏 抓 張開 展開 併攏 全握. */
+const GRIP_WORDS: readonly string[] = [
+  "握",
+  "捏",
+  "抓",
+  "張",
+  "张",
+  "展",
+  "併攏",
+  "并拢",
+  "全握",
+];
+
+/** Also a finger count when the word ends here: 用三指, 五指。 */
+const isFingerGrip = ({ after }: WordContext) =>
+  after === "" ||
+  /^[\s\p{P}]/u.test(after) ||
+  GRIP_WORDS.some((word) => after.startsWith(word));
+
+/**
  * Words that are non-quantities only in some contexts. `isNonQuantity` says
  * whether the word is masked here; when it is not, the numeral characters in it
  * are read as a number. Every rule leans to "number" when the context is not
@@ -529,6 +561,9 @@ const isPositionHalf = ({ after }: WordContext) =>
  *   digit is a numeral character, which already stops the match.
  * - 前半 / 後半 / 上半 / 下半 / 左半 / 右半 are positions only in front of a
  *   position noun; see POSITION_HALF_WORDS.
+ * - 三指 / 四指 / 五指 / 十指 are a grip only in front of a grip word (握, 捏,
+ *   抓, 張, 展, 併攏, 全握) or at the end of a clause; see FINGER_COUNT_WORDS.
+ *   四指寬, 五指標 and 十指標 hide nothing.
  */
 export const CONDITIONAL_COMPOUNDS: readonly {
   word: string;
@@ -564,6 +599,10 @@ export const CONDITIONAL_COMPOUNDS: readonly {
   ...POSITION_HALF_WORDS.map((word) => ({
     word,
     isNonQuantity: isPositionHalf,
+  })),
+  ...FINGER_COUNT_WORDS.map((word) => ({
+    word,
+    isNonQuantity: isFingerGrip,
   })),
 ];
 

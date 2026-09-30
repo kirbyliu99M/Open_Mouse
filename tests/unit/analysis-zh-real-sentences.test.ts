@@ -53,6 +53,10 @@ const SENTENCES: readonly string[] = [
   "它十分輕巧，重量約 60 克，比第二名輕一點。",
   "尺寸和你的手很接近，千萬不要為了重量而選太小的款式。",
   "整個隊伍統一使用同一款，四周邊緣都很圓潤。",
+  // Round 4: adverbs before 舒緩, and finger counts in a grip.
+  "側面弧度非常舒緩，握起來很自然。",
+  "曲線比較舒緩，五指張開也很順手。",
+  "弧度相當舒緩，四指握持時食指位置自然。",
 ];
 
 describe("ordinary Chinese mouse descriptions are not flagged", () => {
@@ -82,6 +86,8 @@ describe("the same sentences with one invented number are flagged", () => {
     ["最高 1,700 DPI，日常使用綽綽有餘。", 1700],
     ["前半年就能習慣這款滑鼠。", 0.5],
     ["靈敏度最高 16K，日常使用綽綽有餘。", 16000],
+    ["四指寬的握持面剛好托住手掌。", 4],
+    ["長度為陸毫米，非常小巧。", 6],
   ] as const)("%s", (sentence, value) => {
     expect(findUnknownNumeral(sentence, ALLOWED)).toBeCloseTo(value, 9);
   });
