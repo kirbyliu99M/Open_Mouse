@@ -29,6 +29,10 @@
  * 不 or 無 but are not a negation never match, because only the connecting
  * words may follow the negator: 不過 / 不过 ("but", "merely"), 不管, 不論 / 不论,
  * 不少, 不錯 / 不错, 不但, 不僅 / 不仅, 不只. So "不過這仍是暫定排名" is a caveat.
+ * The linking words also cover 沒有任何暫定成分, 不含暫定資料, 不存在暫定的部分,
+ * 不帶有暫定性質, 非屬暫定, 不屬暫定, 不能算是暫定, 已不再有暫定的成分,
+ * 不應視為暫定. A ranking that has moved on is not provisional either:
+ * 已由暫定轉為正式排名, 從暫定改為正式.
  *
  * For whoever writes the Chinese prompt: ask for 暫定 (or 暂定) by name, and
  * keep the Chinese `rankingStatus` sentence free of every marker above.
@@ -42,10 +46,10 @@ const ENGLISH_NEGATION =
 
 /** Words that may sit between a Chinese negator and the marker. */
 const CHINESE_LINK =
-  "(?:是|算|會|会|再|屬於|属于|為|为|全|完全|純粹|纯粹|一個|一个|一份|一種|一种|一項|一项)";
+  "(?:是|算|會|会|再|屬於|属于|屬|属|為|为|全|完全|純粹|纯粹|一個|一个|一份|一種|一种|一項|一项|任何|任一|一切|包含|包括|含有|含|具有|具備|具备|有|存在|帶有|带有|能|應|应|視為|视为)";
 /** A negator, then up to three connecting words, then the end of the window. */
 const CHINESE_NEGATION = new RegExp(
-  "(?:不是|不再|不算|不會|不会|不屬於|不属于|並非|并非|並不|并不|絕非|绝非|沒有|没有|不|非|無|无)" +
+  "(?:不是|不再|不算|不會|不会|不屬於|不属于|不含|不存在|非屬|非属|不屬|不属|並非|并非|並不|并不|絕非|绝非|沒有|没有|不|非|無|无)" +
     CHINESE_LINK +
     "{0,3}$",
   "u",
@@ -53,17 +57,28 @@ const CHINESE_NEGATION = new RegExp(
 
 const NEGATION_WINDOW = 16;
 
+/**
+ * 由暫定轉為正式排名 / 從暫定改為正式: the ranking is no longer provisional, so
+ * the mention says the opposite of a caveat. Tested on the text around the
+ * marker.
+ */
+const CHINESE_TRANSITION_BEFORE = /(?:由|從|从)$/u;
+const CHINESE_TRANSITION_AFTER =
+  /^(?:轉為|转为|轉成|转成|改為|改为|改成|轉變為|转变为|變為|变为|升級為|升级为|過渡到|过渡到)/u;
+
 function hasUnnegatedMatch(
   text: string,
   marker: RegExp,
   negation: RegExp,
+  isLeftBehind: (before: string, after: string) => boolean = () => false,
 ): boolean {
   for (const match of text.matchAll(marker)) {
     const before = text.slice(
       Math.max(0, match.index - NEGATION_WINDOW),
       match.index,
     );
-    if (!negation.test(before)) return true;
+    const after = text.slice(match.index + match[0].length);
+    if (!negation.test(before) && !isLeftBehind(before, after)) return true;
   }
   return false;
 }
@@ -73,6 +88,13 @@ export function mentionsProvisional(text: string): boolean {
   const normalized = text.normalize("NFKC");
   return (
     hasUnnegatedMatch(normalized, ENGLISH_MARKER, ENGLISH_NEGATION) ||
-    hasUnnegatedMatch(normalized, CHINESE_MARKER, CHINESE_NEGATION)
+    hasUnnegatedMatch(
+      normalized,
+      CHINESE_MARKER,
+      CHINESE_NEGATION,
+      (before, after) =>
+        CHINESE_TRANSITION_BEFORE.test(before) &&
+        CHINESE_TRANSITION_AFTER.test(after),
+    )
   );
 }

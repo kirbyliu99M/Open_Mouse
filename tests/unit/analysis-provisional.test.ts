@@ -133,6 +133,63 @@ describe("mentionsProvisional", () => {
     expect(mentionsProvisional(text)).toBe(true);
   });
 
+  it.each([
+    // Denied with a verb of having, containing or belonging.
+    "此排名沒有任何暫定成分。",
+    "此排名没有任何暂定成分。",
+    "此排名不含暫定資料。",
+    "此排名不含暂定数据。",
+    "此排名不存在暫定的部分。",
+    "此排名不帶有暫定性質。",
+    "此排名不带有暂定性质。",
+    "此排名非屬暫定。",
+    "此排名非属暂定。",
+    "此排名不屬暫定。",
+    "此排名不能算是暫定。",
+    "此排名已不再有暫定的成分。",
+    "此排名不應視為暫定。",
+    "此排名不应视为暂定。",
+    "這份排名不包含暫定資料。",
+    "此排名並不具有暫定性質。",
+    "排名無任何初步結果的成分。",
+    "此排名不存在初步性質。",
+    "此排名不再屬於暫定。",
+    // The ranking has moved on: it used to be provisional.
+    "此排名已由暫定轉為正式排名。",
+    "此排名已由暂定转为正式排名。",
+    "排名已從暫定改為正式。",
+    "此排名已由初步轉成正式結果。",
+    "已由暫定變為正式的排名。",
+  ])("rejects a caveat that denies it with a verb or a change: %s", (text) => {
+    expect(mentionsProvisional(text)).toBe(false);
+  });
+
+  it.each([
+    "不過這仍是暫定排名。",
+    "不少結果仍屬暫定。",
+    "不少排名有暫定的成分。",
+    "並非最終，而是暫定。",
+    "並非最終而是暫定。",
+    "沒有正式排名，只有暫定結果。",
+    "沒有正式排名只有暫定結果。",
+    "此排名有暫定的成分。",
+    "此排名含有暫定資料。",
+    "此排名屬於暫定。",
+    "此排名包含暫定資料。",
+    "此排名由暫定結果推算而來。",
+    "此排名從初步結果開始估計。",
+    "此排名仍是暫定，尚未轉為正式。",
+    "不含最新資料，因此為暫定。",
+  ])("still counts a mention that only sits near a denial: %s", (text) => {
+    expect(mentionsProvisional(text)).toBe(true);
+  });
+
+  it("counts a later mention after one that has moved on", () => {
+    expect(
+      mentionsProvisional("此排名已由暫定轉為正式，但部分結果仍是暫定。"),
+    ).toBe(true);
+  });
+
   it("counts a later, un-negated mention even if an earlier one is negated", () => {
     expect(
       mentionsProvisional(
