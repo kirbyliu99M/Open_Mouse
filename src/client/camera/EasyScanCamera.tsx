@@ -679,7 +679,11 @@ export default function EasyScanCamera({
             // comes from takePhoto(), at the sensor's full size.
             width: { ideal: CAMERA_CONSTANTS.focus.previewIdealWidth },
             height: { ideal: CAMERA_CONSTANTS.focus.previewIdealHeight },
-          },
+            // Prefer the camera's own frame sizes over a browser crop-and-
+            // scale to the requested shape: a crop would quietly narrow the
+            // field of view and could cut the paper's corners off.
+            resizeMode: { ideal: "none" },
+          } as MediaTrackConstraints & { resizeMode: { ideal: string } },
           audio: false,
         },
         () =>
@@ -1484,7 +1488,9 @@ export default function EasyScanCamera({
             layout: frozenLayout,
             overlayToStill,
             overlay: resultOverlay,
-            labelAllowancePx: 40,
+            // The labels sit inside the paper; without a paper they hang off
+            // the hand, which needs more room.
+            labelAllowancePx: resultOverlay?.paperCorners?.length ? 20 : 48,
           }),
           sheetTop: stageSize.height - sheetHeight,
         })
@@ -1834,91 +1840,93 @@ export default function EasyScanCamera({
             <p className="visuallyHiddenLive" aria-live="polite">
               {announced}
             </p>
-            {hintText && (
-              <p className="easyHint" data-testid="easy-hint">
-                {hintText}
-              </p>
-            )}
+            <div className="easyBottomDock">
+              {hintText && (
+                <p className="easyHint" data-testid="easy-hint">
+                  {hintText}
+                </p>
+              )}
 
-            <div className="easyBottomRow">
-              {userLengthMm === null ? (
+              <div className="easyBottomRow">
+                {userLengthMm === null ? (
+                  <button
+                    type="button"
+                    className="easyPaperToggle"
+                    onClick={() =>
+                      changePaperSize(paperSize === "a4" ? "letter" : "a4")
+                    }
+                  >
+                    {PAPER_SIZE_LABELS[paperSize]}
+                  </button>
+                ) : (
+                  <span className="easyLengthChip">
+                    {userLengthMm} mm entered
+                  </span>
+                )}
                 <button
                   type="button"
-                  className="easyPaperToggle"
-                  onClick={() =>
-                    changePaperSize(paperSize === "a4" ? "letter" : "a4")
-                  }
+                  className="cameraShutter"
+                  aria-label="Take photo"
+                  onClick={() => void captureNow()}
                 >
-                  {PAPER_SIZE_LABELS[paperSize]}
+                  <div className="cameraShutterInner" />
+                  {userLengthMm === null && (
+                    <svg className="cameraShutterRing" viewBox="0 0 96 96">
+                      <circle
+                        cx="48"
+                        cy="48"
+                        r={40}
+                        strokeDasharray={2 * Math.PI * 40}
+                        strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
+                      />
+                    </svg>
+                  )}
                 </button>
-              ) : (
-                <span className="easyLengthChip">
-                  {userLengthMm} mm entered
-                </span>
-              )}
-              <button
-                type="button"
-                className="cameraShutter"
-                aria-label="Take photo"
-                onClick={() => void captureNow()}
-              >
-                <div className="cameraShutterInner" />
-                {userLengthMm === null && (
-                  <svg className="cameraShutterRing" viewBox="0 0 96 96">
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r={40}
-                      strokeDasharray={2 * Math.PI * 40}
-                      strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
+                <label
+                  className="easyUploadIconButton"
+                  htmlFor="easy-scan-upload"
+                >
+                  <span className="visuallyHidden">Upload a photo instead</span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="22"
+                    height="22"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
                   </svg>
-                )}
-              </button>
-              <label
-                className="easyUploadIconButton"
-                htmlFor="easy-scan-upload"
-              >
-                <span className="visuallyHidden">Upload a photo instead</span>
-                <svg
-                  viewBox="0 0 24 24"
-                  width="22"
-                  height="22"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path
-                    d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </label>
-            </div>
-            {noPaperLabel && (
-              <div className="easyNoPaperRow">
-                <button
-                  type="button"
-                  className="easyNoPaperLink"
-                  ref={noPaperEntryRef}
-                  onClick={startLengthStep}
-                >
-                  {noPaperLabel}
-                </button>
-                {noPaperMode && (
+                </label>
+              </div>
+              {noPaperLabel && (
+                <div className="easyNoPaperRow">
                   <button
                     type="button"
                     className="easyNoPaperLink"
-                    onClick={switchToPaper}
+                    ref={noPaperEntryRef}
+                    onClick={startLengthStep}
                   >
-                    Use paper instead
+                    {noPaperLabel}
                   </button>
-                )}
-              </div>
-            )}
+                  {noPaperMode && (
+                    <button
+                      type="button"
+                      className="easyNoPaperLink"
+                      onClick={switchToPaper}
+                    >
+                      Use paper instead
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -1948,7 +1956,7 @@ export default function EasyScanCamera({
       {(result.kind === "measured" || result.kind === "gateFailure") && (
         <dialog
           ref={sheetDialogRef}
-          className="easySheet"
+          className="easySheet easyResultSheet"
           aria-label={
             result.kind === "measured" ? "Hand measured" : "Retake needed"
           }

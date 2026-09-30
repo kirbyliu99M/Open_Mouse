@@ -242,6 +242,14 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
   await page.goto("/scan/easy");
   await page.getByRole("button", { name: "Got it" }).click();
   await expect(page.locator(".cameraFrame")).toBeVisible();
+  // This test is about the focus ring, not the shutter. The ring now fills as
+  // soon as the sheet is found (one noisy sample no longer restarts it), so
+  // the auto-shutter fires under a slow keyboard; hold the loop where it is,
+  // as the axe live-camera tests do.
+  await expect(page.locator(".cameraCue")).toBeVisible();
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
   await tabToUpload(page);
   const ring = await focusRing(page);
   expect(ring.focusVisible).toBe(true);

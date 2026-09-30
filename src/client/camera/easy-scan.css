@@ -107,22 +107,12 @@
   text-align: center;
 }
 
-/* The frozen captured photo — same frame treatment as the live video. */
-.easyFrozenFrame {
-  background: #050607;
-}
-.easyFrozenImg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* The frozen captured photo: one SVG holding the picture and its drawing,
+   placed and sized by inline style so it lands exactly where the live frame
+   was (photoLayout.ts). */
 .easyFrozenSvg {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  display: block;
 }
 .easyCornerCheck circle {
   fill: #2f9e5c;
@@ -191,6 +181,9 @@
   background: var(--scan-bg, #f4f4f6);
   color: var(--scan-fg, #1c1c1e);
   box-shadow: 0 -8px 32px rgb(0 0 0 / 20%);
+  /* Above the chrome laid over the camera: a dialog is in the top layer, but
+     axe orders elements by z-index and would think that chrome overlaps it. */
+  z-index: 10;
   animation: easySheetSlideIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 /* The measured/gate-failure sheet is a non-blocking panel over the user's
@@ -778,4 +771,603 @@ main.easyScanShell {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* ══ Scan v2 (docs/design/scan-v2-2026-09-30/README.md) ═════════════════════
+   The stage is the whole screen and never changes size; everything else is
+   drawn over it. Motion budget: only `transform` and `opacity` animate (the
+   one exception is the shutter ring's stroke-dashoffset in camera.css, kept
+   as it was), and nothing sits behind a backdrop-filter over the live video.
+   Springs are CSS `linear()` samples of a damped spring (response and bounce
+   from the design's motion table); browsers without `linear()` keep the
+   cubic-bezier written first. Every colour a control sits on is at least 60%
+   black, so white text keeps 4.5:1 over even a white picture. */
+
+.easyScanStaged .easyStage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: auto;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  touch-action: manipulation;
+}
+.easyStageContent {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+/* The measured photo scales down and moves up (a transform, nothing else). */
+.easyStageContent.moved {
+  will-change: transform;
+  transition: transform 550ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.easyStage .cameraVideo {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.easyStage .cameraVideo.ready {
+  opacity: 1;
+}
+
+/* ── Chrome over the picture ─────────────────────────────────────────── */
+.easyScanStaged .cameraTopBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  padding-top: max(0.875rem, env(safe-area-inset-top));
+}
+.easyScanStaged .cameraCloseButton {
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+}
+.easyScanStaged .easyHelpButton,
+.easyScanStaged .easyHandChip:not(.easyHandChipInSheet),
+.easyScanStaged .easyPaperToggle,
+.easyScanStaged .easyUploadIconButton {
+  background: rgba(0, 0, 0, 0.6);
+}
+.easyScanStaged .cameraCueWrap {
+  position: absolute;
+  top: calc(max(0.875rem, env(safe-area-inset-top)) + 3.25rem);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.easyScanStaged .cameraCue:not(.perfect) {
+  background: rgba(0, 0, 0, 0.62);
+}
+.easyScanStaged .cameraCue {
+  max-width: 100%;
+  border-radius: 1.25rem;
+}
+.easyScanStaged .easyProcessingPill {
+  top: calc(max(0.875rem, env(safe-area-inset-top)) + 3.25rem);
+  z-index: 4;
+}
+.easyScanStaged .easyDetectorProgress {
+  top: calc(max(0.875rem, env(safe-area-inset-top)) + 7.5rem);
+}
+.easyBottomDock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Over the live picture a bare link would have nothing under it. */
+.easyBottomDock .easyNoPaperLink {
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.easyBottomDock .easyBottomRow {
+  align-self: stretch;
+  padding-bottom: calc(1.75rem + env(safe-area-inset-bottom));
+}
+.easyHint {
+  margin: 0;
+  max-width: calc(100% - 2rem);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: none;
+  animation: easyFadeIn 160ms linear backwards;
+}
+
+/* ── Corner dots ─────────────────────────────────────────────────────── */
+.easyCorners {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+.easyCorners.hidden {
+  opacity: 0;
+}
+.easyCorner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  transition: transform 140ms linear;
+}
+/* A corner that has been lost a while eases back to the guide. */
+.easyCorner.returning {
+  transition: transform 300ms ease-out;
+}
+.easyCornerRing {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+.easyCornerFill {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #2f9e5c;
+  opacity: 0;
+  transition: opacity 160ms linear;
+  animation: easyCornerPop 450ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.easyCornerFill.found {
+  opacity: 1;
+}
+.easyCornerFill svg {
+  width: 100%;
+  height: 100%;
+}
+.easyCornerFill path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes easyCornerPop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* One pulse ring for a corner found for the first time. */
+.easyCornerPulse {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #2f9e5c;
+  opacity: 0;
+  animation: easyCornerPulse 350ms ease-out both;
+}
+@keyframes easyCornerPulse {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+/* The green outline joins the four dots once all are found. */
+.easyEdge {
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 1px;
+  height: 2px;
+  background: #2f9e5c;
+  transform-origin: 0 50%;
+  opacity: 0;
+  transition:
+    transform 140ms linear,
+    opacity 160ms linear;
+}
+.easyEdge.on {
+  opacity: 0.9;
+}
+
+/* ── Focus reticle (screen 3): 88 px, drafting blue, 2 px, 12 px radius ── */
+.easyReticle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 88px;
+  height: 88px;
+  z-index: 3;
+  pointer-events: none;
+}
+.easyReticleBox {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 2px solid #0a64e0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  animation: easyReticle 1500ms ease-out both;
+}
+.easyReticleBox::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #0a64e0;
+}
+@keyframes easyReticle {
+  0% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+  10% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* ── Capture: flash, dim, one scan line ──────────────────────────────── */
+.easyFlash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  animation: easyFlash 120ms ease-out;
+}
+@keyframes easyFlash {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.easyStageDim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #000;
+  opacity: 0.25;
+  pointer-events: none;
+  animation: easyDimIn 120ms linear backwards;
+}
+@keyframes easyDimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.25;
+  }
+}
+.easyScanLine {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  animation: easyScanLine 600ms linear both;
+}
+/* The line, with a trailing glow above it. */
+.easyScanLine::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 96px;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 100, 224, 0),
+    rgba(10, 100, 224, 0.4)
+  );
+}
+.easyScanLine::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #0a64e0;
+  box-shadow: 0 0 12px 2px rgba(10, 100, 224, 0.7);
+}
+@keyframes easyScanLine {
+  from {
+    transform: translateY(-100%);
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+
+/* ── The measured drawing: lines draw in order, then their labels ────── */
+@keyframes easyFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes easyDimGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.easyDimGrow {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: easyDimGrow 350ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--dim-index, 0) * 350ms + 300ms);
+}
+.easyDimFade,
+.easyDimLabel {
+  animation: easyFadeIn 200ms linear both;
+  animation-delay: calc(var(--dim-index, 0) * 350ms + 300ms);
+}
+.easyCornerCheck {
+  animation: easyFadeIn 200ms linear both;
+}
+/* The area that needs another look (screen 7). */
+.easyProblem {
+  fill: none;
+  stroke: #f0b23a;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  animation: easyFadeIn 200ms linear 150ms both;
+}
+
+/* ── The result sheet rises with a spring (response 0.4 s, no bounce) ── */
+.easySheet.easyResultSheet {
+  animation: easySheetSlideIn 550ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  .easyCornerFill {
+    /* spring(response 0.3, bounce 0.2) */
+    animation-timing-function: linear(
+      0,
+      0.103,
+      0.311,
+      0.526,
+      0.705,
+      0.836,
+      0.922,
+      0.974,
+      1.001,
+      1.012,
+      1.015,
+      1.014,
+      1.01,
+      1.007,
+      1.004,
+      1.002,
+      1.001,
+      1,
+      1
+    );
+  }
+  .easySheet.easyResultSheet {
+    /* spring(response 0.4, bounce 0) */
+    animation-timing-function: linear(
+      0,
+      0.103,
+      0.294,
+      0.481,
+      0.636,
+      0.751,
+      0.834,
+      0.891,
+      0.929,
+      0.955,
+      0.971,
+      0.982,
+      0.989,
+      0.993,
+      0.996,
+      0.997,
+      1
+    );
+  }
+  .easyStageContent.moved {
+    transition-timing-function: linear(
+      0,
+      0.103,
+      0.294,
+      0.481,
+      0.636,
+      0.751,
+      0.834,
+      0.891,
+      0.929,
+      0.955,
+      0.971,
+      0.982,
+      0.989,
+      0.993,
+      0.996,
+      0.997,
+      1
+    );
+  }
+}
+
+/* ── Debug panel (/scan/easy?debug=1): numbers only ──────────────────── */
+.easyDebug {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: calc(10rem + env(safe-area-inset-bottom));
+  z-index: 6;
+  max-height: 45vh;
+  overflow: auto;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font:
+    11px/1.35 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.easyDebug dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 1px 0.75rem;
+  margin: 0 0 0.5rem;
+}
+.easyDebug dt {
+  color: #9fc4ff;
+}
+.easyDebug dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.easyDebugCopy {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #12161c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.easyDebugState {
+  margin-left: 0.75rem;
+}
+.easyDebugJson {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  background: #000;
+  color: #fff;
+  border: 1px solid #fff;
+  font: inherit;
+}
+
+/* ── Reduced motion: no pulse, flash, scan line or springs; 120 ms fades ─ */
+@media (prefers-reduced-motion: reduce) {
+  .easyCorner,
+  .easyCorner.returning,
+  .easyEdge,
+  .easyCorners {
+    transition: none;
+  }
+  .easyCornerFill {
+    animation: easyFadeIn 120ms linear backwards;
+  }
+  .easyCornerPulse {
+    display: none;
+  }
+  .easyStage .cameraVideo {
+    transition-duration: 120ms;
+  }
+  .easyStageContent.moved {
+    transition: none;
+    animation: easyFadeIn 120ms linear both;
+  }
+  .easySheet.easyResultSheet {
+    animation: easyFadeIn 120ms linear both;
+  }
+  .easyReticleBox {
+    animation: easyReticleFade 1500ms linear both;
+  }
+  .easyDimGrow {
+    animation: easyFadeIn 120ms linear both;
+    animation-delay: 0s;
+  }
+  .easyDimFade,
+  .easyDimLabel {
+    animation-duration: 120ms;
+    animation-delay: 0s;
+  }
+  .easyCornerCheck,
+  .easyProblem {
+    animation-duration: 120ms;
+    animation-delay: 0s;
+  }
+}
+@keyframes easyReticleFade {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Reduced transparency: solid surfaces ────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  .easyScanStaged .easyHelpButton,
+  .easyScanStaged .easyHandChip:not(.easyHandChipInSheet),
+  .easyScanStaged .easyPaperToggle,
+  .easyScanStaged .easyUploadIconButton,
+  .easyBottomDock .easyNoPaperLink,
+  .easyScanStaged .cameraCloseButton,
+  .easyScanStaged .cameraCue:not(.perfect),
+  .easyHint,
+  .easyDebug {
+    background: #000;
+  }
+}
+
+/* ── Increased contrast: defined borders ─────────────────────────────── */
+@media (prefers-contrast: more) {
+  .easyHint {
+    border: 2px solid #fff;
+  }
+  .easyCornerRing {
+    border: 2px solid #fff;
+  }
+  .easyReticleBox {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px #0a64e0;
+  }
 }

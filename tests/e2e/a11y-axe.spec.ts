@@ -97,7 +97,58 @@ const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
   },
 };
 
+/**
+ * Controls and text laid over the live picture (scan v2): each sits on a
+ * translucent dark fill, and axe cannot see the picture under it. The worst
+ * case is a white picture, so the fill is laid over white and the text has to
+ * keep 4.5:1 there. Every selector that is on the screen is checked, and the
+ * ones that must be are required.
+ */
+const overLivePicture =
+  (required: readonly string[], optional: readonly string[]) =>
+  async (page: Page) => {
+    const found = await page.evaluate(
+      ({ required, optional }) => {
+        const read = (selector: string) => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          const style = getComputedStyle(el);
+          return { fg: style.color, bg: style.backgroundColor };
+        };
+        return [...required, ...optional].map((selector) => ({
+          selector,
+          required: required.includes(selector),
+          style: read(selector),
+        }));
+      },
+      { required: [...required], optional: [...optional] },
+    );
+    for (const { selector, required, style } of found) {
+      if (!style) {
+        expect(required, `${selector} is on the live screen`).toBe(false);
+        continue;
+      }
+      expect(
+        contrast(style.fg, overWhite(style.bg)),
+        `${selector} over a white picture`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  };
+
 const LIVE_CAMERA_REVIEW: Record<string, Review> = {
+  "color-contrast": {
+    why: "The close, hand and paper buttons, the cue and the hint are white text on a 60% black pill laid over the live picture: axe cannot see the picture.",
+    check: overLivePicture(
+      [".cameraCloseButton", ".easyHandChip", ".easyPaperToggle"],
+      [
+        ".easyHelpButton",
+        ".cameraCue:not(.perfect)",
+        ".easyHint",
+        ".easyNoPaperLink",
+        ".easyUploadIconButton",
+      ],
+    ),
+  },
   "video-caption": {
     why: "axe asks for captions on every <video>. This one is the live camera preview: muted, no audio track, nothing spoken to caption.",
     check: async (page) => {

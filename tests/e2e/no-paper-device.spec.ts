@@ -138,7 +138,7 @@ test("typed-length flow reaches hand detection gate with no requests after camer
   await expect(page.getByTestId("camera-cue")).toContainText(
     "Hand flat, fingers together, phone straight above",
   );
-  await expect(page.locator(".cameraCornerDot")).toHaveCount(0);
+  await expect(page.locator(".easyCorner")).toHaveCount(0);
   if (process.env.SCREENSHOTS === "1")
     await page.screenshot({ path: `${output}/no-paper-camera.png` });
   await page.waitForTimeout(1200);
