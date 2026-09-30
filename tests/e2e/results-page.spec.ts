@@ -43,9 +43,8 @@ const READY_ANALYSIS_MODEL = {
   cached: false,
 };
 
-/** Under model-written text (AnalysisSlot's ANALYSIS_AI_DISCLOSURE). */
-const AI_DISCLOSURE =
-  "Written by Google's AI service from your measurements and scores. Your photo is never sent.";
+/** The one source line there is: under template-written text (AnalysisSlot). */
+const TEMPLATE_LINE = "Generated automatically from your scores above.";
 
 const READY_ANALYSIS_FALLBACK = {
   ...READY_ANALYSIS_MODEL,
@@ -394,16 +393,16 @@ test.describe("/results/[scanId] — real results page", () => {
       page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
 
-    // Template-written text must not claim an AI wrote it.
-    await expect(page.getByText(AI_DISCLOSURE)).toHaveCount(0);
-
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
       expect(bodyText).not.toContain(forbidden);
     }
   });
 
-  test("source disclosure: model-written analysis says Google's AI service wrote it from the measurements and scores and that the photo is never sent, without internal vocabulary", async ({
+  // Kirby, 2026-09-30: no line about who wrote model text yet (an AI source
+  // line comes later). Until then only a template-written analysis carries a
+  // source line; a model-written one, fresh or cached, carries none.
+  test("a model-written analysis shows no source line yet, and no internal vocabulary", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -413,14 +412,9 @@ test.describe("/results/[scanId] — real results page", () => {
 
     await page.goto(`/results/${SCAN_ID}`);
 
-    const analysis = page.locator(".results-analysis-ready");
-    await expect(analysis).toBeVisible();
-    // Under the analysis text, after the lists it ends with.
-    await expect(analysis.getByText(AI_DISCLOSURE)).toBeVisible();
-    // Model-written text is not labelled as template-written.
-    await expect(
-      page.getByText("Generated automatically from your scores above."),
-    ).toHaveCount(0);
+    await expect(page.locator(".results-analysis-ready")).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
@@ -428,7 +422,22 @@ test.describe("/results/[scanId] — real results page", () => {
     }
   });
 
-  test("source disclosure: the error state of the analysis slot makes no claim about who wrote it", async ({
+  test("a cached model-written analysis shows no source line either", async ({
+    page,
+  }) => {
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, { ...READY_ANALYSIS_MODEL, cached: true }),
+    );
+
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(page.locator(".results-analysis-ready")).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+  });
+
+  test("the error state of the analysis slot shows no source line", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -441,41 +450,25 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("alert").filter({ hasText: "Written analysis" }),
     ).toBeVisible();
-    await expect(page.getByText(AI_DISCLOSURE)).toHaveCount(0);
+    await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
+    await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
   });
 
-  test("source disclosure: a cached model-written analysis carries the same line (the text was still written by Google's AI service)", async ({
-    page,
-  }) => {
-    await stubHappyFit(page);
-    await page.route(ANALYSIS_URL, (route) =>
-      fulfillJson(route, 200, { ...READY_ANALYSIS_MODEL, cached: true }),
-    );
-
-    await page.goto(`/results/${SCAN_ID}`);
-
-    await expect(
-      page.locator(".results-analysis-ready").getByText(AI_DISCLOSURE),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Generated automatically from your scores above."),
-    ).toHaveCount(0);
-  });
-
-  // The 14px icon has to sit on the first line of the note. Its offset comes
-  // from the line height, so it must hold when the browser's root font size is
-  // larger than 16px (a phone's "larger text" setting), where a fixed offset
-  // drifts up.
+  // The template sentence already wraps on a phone (and on a larger text
+  // size), so its 14px icon has to sit on the FIRST line. The offset comes
+  // from the line height, so it must hold when the browser's root font size
+  // is larger than 16px, where a fixed offset drifts up.
   for (const rootPx of [16, 20, 24]) {
-    test(`source disclosure: the icon is centred on the first line at a ${rootPx}px root font size`, async ({
+    test(`the template line's icon is centred on its first line at a ${rootPx}px root font size (390px wide)`, async ({
       page,
     }) => {
       await stubHappyFit(page);
       await page.route(ANALYSIS_URL, (route) =>
-        fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+        fulfillJson(route, 200, READY_ANALYSIS_FALLBACK),
       );
+      await page.setViewportSize({ width: 390, height: 900 });
       await page.goto(`/results/${SCAN_ID}`);
-      await expect(page.getByText(AI_DISCLOSURE)).toBeVisible();
+      await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
       await page.addStyleTag({ content: `html { font-size: ${rootPx}px; }` });
 
       const { iconCentre, firstLineCentre } = await page.evaluate(() => {
@@ -491,17 +484,18 @@ test.describe("/results/[scanId] — real results page", () => {
     });
   }
 
-  // On a phone the sentence takes three lines. `text-wrap: pretty` keeps the
-  // last one from being a lone word ("sent."); Chromium implements it.
-  test("source disclosure: on a phone the last line is never a single word (320 to 412 px wide)", async ({
+  // On a phone the template sentence wraps to two lines, and without
+  // `text-wrap: pretty` the second can be a lone word ("above.", measured at
+  // 360 and 390px wide). Chromium implements `pretty`.
+  test("the template line never ends on a lone word on a phone (320 to 412 px wide)", async ({
     page,
   }) => {
     await stubHappyFit(page);
     await page.route(ANALYSIS_URL, (route) =>
-      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+      fulfillJson(route, 200, READY_ANALYSIS_FALLBACK),
     );
     await page.goto(`/results/${SCAN_ID}`);
-    await expect(page.getByText(AI_DISCLOSURE)).toBeVisible();
+    await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
 
     for (const width of [320, 360, 390, 412]) {
       await page.setViewportSize({ width, height: 900 });
@@ -525,10 +519,13 @@ test.describe("/results/[scanId] — real results page", () => {
         }
         return lines;
       });
-      expect(
-        wordsPerLine.at(-1),
-        `at ${width}px: ${wordsPerLine}`,
-      ).toBeGreaterThan(1);
+      // On one line there is no last line to orphan.
+      if (wordsPerLine.length > 1) {
+        expect(
+          wordsPerLine.at(-1),
+          `at ${width}px: ${wordsPerLine}`,
+        ).toBeGreaterThan(1);
+      }
     }
   });
 });

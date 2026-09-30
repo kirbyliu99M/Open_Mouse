@@ -499,24 +499,24 @@
   font-size: 1.125rem;
 }
 
-/* Source note under the written analysis. Two sentences use it, one at a time:
-   "Generated automatically from your scores above." when a template wrote the
-   text (issue #30, source "fallback"), and the Google-AI-service disclosure
-   when a model did (source "model"). Neutral, not alarming: it's a fact about
-   the text, not a problem. Plain text with an icon (no box), placed after the
-   body per docs/design/journey-2026-09-23/04-results.png. */
+/* Honest-provenance note: shown only when the text was written from the
+   scores by a template rather than a model (issue #30). Neutral, not
+   alarming — it's a fact about the text, not a problem. Plain text with an
+   icon (no box), placed after the body per
+   docs/design/journey-2026-09-23/04-results.png. */
 .results-analysis-provenance {
   display: flex;
-  /* Top-aligned, not centred: the disclosure wraps to up to three lines on a
-     phone (320-412 px), and a centred icon then floats beside the gap between
-     them. */
+  /* Top-aligned, not centred: on a phone, or with a larger text size, the
+     sentence wraps to two or more lines, and a centred icon then floats beside
+     the gap between them. */
   align-items: flex-start;
   gap: 0.375rem;
   font-size: 0.8125rem;
   color: #55555d;
   margin: 0.75rem 0 0;
-  /* On a phone the disclosure takes three lines; without this the last one can
-     be a lone word ("sent."). Browsers without `pretty` wrap as they always did. */
+  /* On a phone the sentence wraps to two lines, and the second can be a lone
+     word ("above." at 360 and 390px wide). Browsers without `pretty` wrap as
+     they always did. */
   text-wrap: pretty;
 }
 .results-analysis-provenance svg {
