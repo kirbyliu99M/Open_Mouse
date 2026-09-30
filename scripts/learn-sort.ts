@@ -16,9 +16,12 @@
  * running server instead), --dry-run (report only, copy nothing).
  *
  * NEVER runs in CI: it reads real people's hand photos (docs/PLAN.md §M2,
- * AGENTS hard rules 1 and 5). It refuses an output folder inside the repo or
- * inside the main checkout that owns this worktree. Files are copied, never
- * moved; an existing destination is never overwritten.
+ * AGENTS hard rules 1 and 5). It refuses an output folder inside the repo,
+ * inside the main checkout, or inside any other git worktree. Files are copied,
+ * never moved; an existing destination is never overwritten.
+ *
+ * The dev server is started and stopped by `withDevServer`
+ * (src/lib/learning/devserver.ts): it is always stopped, also on Ctrl+C.
  */
 import {
   copyFileSync,
@@ -29,7 +32,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,14 +42,21 @@ import {
 } from "../src/lib/contracts/measurement";
 import { compareFileNames } from "../src/lib/learning/checks";
 import {
+  DEV_SERVER_HOST,
+  PortBusyError,
+  devServerSpec,
+  waitForServer,
+  withDevServer,
+} from "../src/lib/learning/devserver";
+import {
+  buildSorterRunLog,
   containingRoot,
   mainCheckoutOf,
-  relativeInputPath,
+  refusalRoots,
 } from "../src/lib/learning/paths";
 import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
   NO_PROVENANCE,
-  buildRunLog,
   readGitProvenance,
   sortReports,
   type LearningRunLog,
@@ -60,19 +70,17 @@ if (process.env.CI) {
 
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The checkout that owns this one when it is a git worktree; otherwise this checkout. */
-function mainCheckoutRoot(): string {
-  let common: string | null = null;
+/** Run git in this checkout; `null` when git is missing or this is not a repository. */
+function git(args: readonly string[]): string | null {
   try {
-    common = execFileSync("git", ["rev-parse", "--git-common-dir"], {
+    return execFileSync("git", [...args], {
       cwd: scriptRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    });
   } catch {
-    // no git: this checkout is the only one we know
+    return null;
   }
-  return mainCheckoutOf(scriptRoot, common || null);
 }
 
 /** `realpath`, also for a folder that does not exist yet (its nearest existing parent is resolved). */
@@ -92,14 +100,23 @@ const arg = (flag: string) => {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
-const mainRoot = mainCheckoutRoot();
+const gitCommonDir = git(["rev-parse", "--git-common-dir"])?.trim() || null;
+// Every checkout an output folder must stay out of: this one, the main one and
+// every other worktree git lists.
+const roots = refusalRoots(
+  scriptRoot,
+  gitCommonDir,
+  git(["worktree", "list", "--porcelain"]) ?? "",
+);
+// The default output sits next to the main checkout.
+const mainRoot = mainCheckoutOf(scriptRoot, gitCommonDir);
 const inDir = arg("--in");
 const outDir = resolve(
   arg("--out") ?? resolve(mainRoot, "..", "Fixtures", "learning"),
 );
 const port = Number(arg("--port") ?? 3401);
 const externalBase = arg("--base");
-const baseUrl = externalBase ?? `http://127.0.0.1:${port}`;
+const baseUrl = externalBase ?? `http://${DEV_SERVER_HOST}:${port}`;
 const dryRun = process.argv.includes("--dry-run");
 const paperArg = arg("--paper") ?? "a4";
 
@@ -120,56 +137,20 @@ const paperSize = paperArg as PaperSize;
 const input = resolve(inDir);
 if (!existsSync(input) || !statSync(input).isDirectory())
   fail(`Not a folder: ${input}`);
-const insideRoot = containingRoot(realpathLoose(outDir), [
-  realpathLoose(scriptRoot),
-  realpathLoose(mainRoot),
-]);
+const insideRoot = containingRoot(
+  realpathLoose(outDir),
+  roots.map(realpathLoose),
+);
 if (insideRoot) {
-  fail(`--out must be outside the repo (hard rule 1): ${outDir}`);
+  fail(
+    `--out must be outside the repo and every git worktree (hard rule 1): ${outDir}`,
+  );
 }
 
 const photos = readdirSync(input)
   .filter((name) => /\.(jpe?g|png)$/i.test(name))
   .sort(compareFileNames);
 if (photos.length === 0) fail(`No .jpg or .png photos in ${input}.`);
-
-async function answers(url: string): Promise<boolean> {
-  try {
-    return (await fetch(url, { signal: AbortSignal.timeout(2000) })).ok;
-  } catch {
-    return false;
-  }
-}
-
-/** End the dev server and everything it started (Next forks a worker), so no server is left on the port. */
-function stopServer(child: ChildProcess) {
-  if (child.pid === undefined) return;
-  try {
-    if (process.platform === "win32") {
-      execFileSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
-        stdio: "ignore",
-      });
-    } else {
-      process.kill(-child.pid, "SIGTERM");
-    }
-  } catch {
-    child.kill();
-  }
-}
-
-async function waitForServer(url: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch {
-      // not up yet
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(`Server at ${url} did not become ready in time.`);
-}
 
 async function checkAll(): Promise<LearningPhotoReport[]> {
   // Loaded here, not at the top, so argument checks (and their tests) do not
@@ -203,13 +184,11 @@ async function checkAll(): Promise<LearningPhotoReport[]> {
 /** The commit of the checkout that serves the checker; unknown for an external server. */
 function provenance() {
   if (externalBase) return NO_PROVENANCE;
-  return readGitProvenance((args) =>
-    execFileSync("git", [...args], {
-      cwd: scriptRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }),
-  );
+  return readGitProvenance((args) => {
+    const out = git(args);
+    if (out === null) throw new Error("git failed");
+    return out;
+  });
 }
 
 function osUsername(): string | null {
@@ -220,146 +199,133 @@ function osUsername(): string | null {
   }
 }
 
-async function main() {
-  let server: ChildProcess | null = null;
-  if (!externalBase) {
-    console.log(`Starting dev server on ${baseUrl} …`);
-    // A server already answering here would be a stale one (an earlier run's,
-    // or another branch's) and the run log's git commit would not describe it.
-    if (await answers(`${baseUrl}/learn/check`))
-      fail(
-        `Something already answers on ${baseUrl}. Stop it, choose another --port, or pass --base to use it on purpose.`,
-      );
-    // Node runs Next directly (no shell), in its own process group where the
-    // platform has them, so `stopServer` can end the whole tree.
-    server = spawn(
-      process.execPath,
-      [
-        join(scriptRoot, "node_modules", "next", "dist", "bin", "next"),
-        "dev",
-        "--hostname",
-        "127.0.0.1",
-        "--port",
-        String(port),
-      ],
-      {
-        cwd: scriptRoot,
-        stdio: "ignore",
-        detached: process.platform !== "win32",
-      },
-    );
-  }
-  try {
-    await waitForServer(`${baseUrl}/learn/check`, 90_000);
+/** Check the photos on a dev server this run starts (and always stops), or on `--base`. */
+async function reportsFromServer(): Promise<LearningPhotoReport[]> {
+  const readyUrl = `${baseUrl}/learn/check`;
+  if (externalBase) {
+    await waitForServer(readyUrl);
     console.log(`Checking ${photos.length} photos from ${input} …`);
-    const reports = await checkAll();
+    return checkAll();
+  }
+  return withDevServer(
+    {
+      spec: devServerSpec(scriptRoot, port),
+      port,
+      readyUrl,
+      log: (message) => console.log(message),
+    },
+    async () => {
+      console.log(`Checking ${photos.length} photos from ${input} …`);
+      return checkAll();
+    },
+  );
+}
 
-    const sort = sortReports(reports);
+async function main() {
+  const reports = await reportsFromServer();
 
-    let copied = 0;
-    let skipped = 0;
-    if (!dryRun) {
-      for (const p of sort.photos) {
-        if (!p.destination) continue;
-        const target = join(outDir, p.destination);
-        if (existsSync(target)) {
-          skipped++;
-          continue;
-        }
-        mkdirSync(dirname(target), { recursive: true });
-        copyFileSync(join(input, p.file), target);
-        copied++;
+  const sort = sortReports(reports);
+
+  let copied = 0;
+  let skipped = 0;
+  if (!dryRun) {
+    for (const p of sort.photos) {
+      if (!p.destination) continue;
+      const target = join(outDir, p.destination);
+      if (existsSync(target)) {
+        skipped++;
+        continue;
       }
-      for (const participant of new Set(
-        sort.photos.map((p) => p.participant).filter(Boolean),
-      )) {
-        const truth = join(outDir, participant!, "truth.json");
-        if (!existsSync(truth)) {
-          writeFileSync(
-            truth,
-            JSON.stringify(emptyTruth(participant!), null, 2) + "\n",
-          );
-        }
-      }
-      const runs = join(outDir, "runs");
-      mkdirSync(runs, { recursive: true });
-      const now = new Date();
-      const stamp = now.toISOString().replace(/[:.]/g, "-");
-      const log = buildRunLog({
-        reports,
-        sort,
-        paperSize,
-        // Relative to where the command ran, so the log carries no account name.
-        input: relativeInputPath(input, process.cwd(), {
-          username: osUsername(),
-        }),
-        provenance: provenance(),
-        now,
-      });
-      writeFileSync(
-        join(runs, `${stamp}.json`),
-        JSON.stringify(log, null, 2) + "\n",
-      );
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(join(input, p.file), target);
+      copied++;
     }
-
-    const count = (s: string) =>
-      sort.photos.filter((p) => p.status === s).length;
-    console.log(
-      `\n${photos.length} photos: ${count("slate")} cards, ${count("ok")} filed, ` +
-        `${count("hand-mismatch")} filed with a hand that differs from the page, ` +
-        `${count("no-code")} without a readable kit code or to retake, ` +
-        `${count("no-participant")} before any card, ${count("version-mismatch")} from another kit version.`,
-    );
-    if (!dryRun)
-      console.log(
-        `Copied ${copied} to ${outDir}${skipped ? ` (${skipped} already there, left as is)` : ""}.`,
-      );
-    if (externalBase)
-      console.log(
-        "The code version of an external --base server is unknown, so the run log has no git commit.",
-      );
-
-    const mismatched = sort.photos.filter((p) => p.status === "hand-mismatch");
-    if (mismatched.length) {
-      console.log(
-        "\nHand differs from the page (check the right page was used):",
-      );
-      for (const p of mismatched) console.log(`  ${p.file} → ${p.destination}`);
-    }
-    const retakes = reports.filter(
-      (r) => r.verdict === "retake" || r.verdict === "unidentified",
-    );
-    if (retakes.length) {
-      console.log("\nRetake or check:");
-      for (const r of retakes) {
-        const reasons = r.checks
-          .filter((c) => c.tone === "bad")
-          .map((c) => c.message);
-        console.log(`  ${r.file}: ${reasons.join(" ")}`);
-      }
-    }
-    const short = sort.coverage.filter((c) => c.got < c.expected);
-    if (short.length) {
-      console.log("\nShort of photos:");
-      for (const c of short) {
-        console.log(
-          `  ${c.participant} ${c.gesture}${c.hand === "right" ? "R" : "L"}: ${c.got} of ${c.expected}`,
+    for (const participant of new Set(
+      sort.photos.map((p) => p.participant).filter(Boolean),
+    )) {
+      const truth = join(outDir, participant!, "truth.json");
+      if (!existsSync(truth)) {
+        writeFileSync(
+          truth,
+          JSON.stringify(emptyTruth(participant!), null, 2) + "\n",
         );
       }
     }
-    const unfiled = sort.photos.filter((p) => p.status === "no-participant");
-    if (unfiled.length) {
+    const runs = join(outDir, "runs");
+    mkdirSync(runs, { recursive: true });
+    const now = new Date();
+    const stamp = now.toISOString().replace(/[:.]/g, "-");
+    const log = buildSorterRunLog({
+      reports,
+      sort,
+      paperSize,
+      input,
+      cwd: process.cwd(),
+      username: osUsername(),
+      provenance: provenance(),
+      now,
+    });
+    writeFileSync(
+      join(runs, `${stamp}.json`),
+      JSON.stringify(log, null, 2) + "\n",
+    );
+  }
+
+  const count = (s: string) => sort.photos.filter((p) => p.status === s).length;
+  console.log(
+    `\n${photos.length} photos: ${count("slate")} cards, ${count("ok")} filed, ` +
+      `${count("hand-mismatch")} filed with a hand that differs from the page, ` +
+      `${count("no-code")} without a readable kit code or to retake, ` +
+      `${count("no-participant")} before any card, ${count("version-mismatch")} from another kit version.`,
+  );
+  if (!dryRun)
+    console.log(
+      `Copied ${copied} to ${outDir}${skipped ? ` (${skipped} already there, left as is)` : ""}.`,
+    );
+  if (externalBase)
+    console.log(
+      "The code version of an external --base server is unknown, so the run log has no git commit.",
+    );
+
+  const mismatched = sort.photos.filter((p) => p.status === "hand-mismatch");
+  if (mismatched.length) {
+    console.log(
+      "\nHand differs from the page (check the right page was used):",
+    );
+    for (const p of mismatched) console.log(`  ${p.file} → ${p.destination}`);
+  }
+  const retakes = reports.filter(
+    (r) => r.verdict === "retake" || r.verdict === "unidentified",
+  );
+  if (retakes.length) {
+    console.log("\nRetake or check:");
+    for (const r of retakes) {
+      const reasons = r.checks
+        .filter((c) => c.tone === "bad")
+        .map((c) => c.message);
+      console.log(`  ${r.file}: ${reasons.join(" ")}`);
+    }
+  }
+  const short = sort.coverage.filter((c) => c.got < c.expected);
+  if (short.length) {
+    console.log("\nShort of photos:");
+    for (const c of short) {
       console.log(
-        `\n${unfiled.length} photos came before any participant card and were not filed.`,
+        `  ${c.participant} ${c.gesture}${c.hand === "right" ? "R" : "L"}: ${c.got} of ${c.expected}`,
       );
     }
-    if (reports.length === 0) console.log("No reports returned.");
-  } finally {
-    if (server) stopServer(server);
   }
+  const unfiled = sort.photos.filter((p) => p.status === "no-participant");
+  if (unfiled.length) {
+    console.log(
+      `\n${unfiled.length} photos came before any participant card and were not filed.`,
+    );
+  }
+  if (reports.length === 0) console.log("No reports returned.");
 }
 
 main().catch((err) => {
-  console.error(err);
+  if (err instanceof PortBusyError) console.error(err.message);
+  else console.error(err);
   process.exit(1);
 });

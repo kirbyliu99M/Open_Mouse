@@ -4,6 +4,10 @@
  * in, which lets the tests check Windows rules on any machine.
  */
 import path, { type PlatformPath } from "node:path";
+import type { PaperSize } from "../contracts/measurement";
+import type { SortResult } from "./kit";
+import type { LearningPhotoReport, Provenance } from "./report";
+import { buildRunLog, type LearningRunLog } from "./runlog";
 
 export type PathApi = Pick<
   PlatformPath,
@@ -44,6 +48,38 @@ export function mainCheckoutOf(
   return api.dirname(api.resolve(scriptRoot, gitCommonDir));
 }
 
+/**
+ * The worktree paths in the output of `git worktree list --porcelain`: one
+ * `worktree <path>` line per worktree, the main checkout first. Every one of
+ * them is somewhere the sorter must not write photos, since another
+ * worktree's folder can be committed from there.
+ */
+export function parseWorktreeList(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => line.slice("worktree ".length).trim())
+    .filter((entry) => entry.length > 0);
+}
+
+/**
+ * Every checkout an output folder must stay out of: this one, the main
+ * checkout, and every other worktree git knows about.
+ */
+export function refusalRoots(
+  scriptRoot: string,
+  gitCommonDir: string | null,
+  worktreeList: string,
+  api: PathApi = path,
+): string[] {
+  const roots = [
+    scriptRoot,
+    mainCheckoutOf(scriptRoot, gitCommonDir, api),
+    ...parseWorktreeList(worktreeList),
+  ];
+  return [...new Set(roots.map((root) => api.resolve(root)))];
+}
+
 /** The first of `roots` that contains `candidate`, or `null`. */
 export function containingRoot(
   candidate: string,
@@ -82,4 +118,35 @@ export function relativeInputPath(
       })
       .join("/") || "."
   );
+}
+
+/**
+ * The run log `learn:sort` writes. The photo folder is named relative to where
+ * the command ran and with the account name removed (`relativeInputPath`); an
+ * absolute path never reaches the file.
+ */
+export function buildSorterRunLog(args: {
+  readonly reports: readonly LearningPhotoReport[];
+  readonly sort: SortResult;
+  readonly paperSize: PaperSize;
+  /** The photo folder as given (absolute or not). */
+  readonly input: string;
+  /** Where the command ran. */
+  readonly cwd: string;
+  readonly username: string | null;
+  readonly provenance: Provenance;
+  readonly now: Date;
+  readonly api?: PathApi;
+}): LearningRunLog {
+  return buildRunLog({
+    reports: args.reports,
+    sort: args.sort,
+    paperSize: args.paperSize,
+    input: relativeInputPath(args.input, args.cwd, {
+      api: args.api,
+      username: args.username,
+    }),
+    provenance: args.provenance,
+    now: args.now,
+  });
 }
