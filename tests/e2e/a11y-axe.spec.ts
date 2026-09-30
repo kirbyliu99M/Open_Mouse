@@ -144,9 +144,19 @@ const overLivePicture = async (page: Page, targets: readonly string[]) => {
 
   const measure = (selectors: readonly string[]) =>
     page.evaluate((selectors) => {
-      /** The nearest fill at or above the element, the pill it sits on. */
+      /**
+       * The element's own fill: the element's, or the nearest ancestor's INSIDE
+       * the camera screen, which is the pill it sits on. The walk stops before
+       * the screen itself (`.cameraViewfinder`, the page's dark backing): that
+       * is not behind the element in any way that matters, the live picture is.
+       * `null` = no fill of its own, so the picture is directly behind the text.
+       */
       const fillOf = (start: Element) => {
-        for (let el: Element | null = start; el; el = el.parentElement) {
+        for (
+          let el: Element | null = start;
+          el && !el.classList.contains("cameraViewfinder");
+          el = el.parentElement
+        ) {
           const color = getComputedStyle(el).backgroundColor;
           const parts = color.match(/[\d.]+/g);
           if (parts && (parts[3] === undefined || Number(parts[3]) > 0))
@@ -182,9 +192,15 @@ const overLivePicture = async (page: Page, targets: readonly string[]) => {
     // required ones must be there.
     if (fg === null && !required.has(selector)) continue;
     expect(fg, `${selector} is on the live screen`).not.toBeNull();
-    expect(bg, `${selector} sits on a fill`).not.toBeNull();
-    const ratio = contrast(fg!, overWhite(bg!));
-    console.log(`over a white picture: ${selector} ${ratio.toFixed(2)}:1`);
+    // With no fill of its own the text is measured against plain white: the
+    // worst picture there is.
+    const ratio = contrast(
+      fg!,
+      bg === null ? "rgb(255, 255, 255)" : overWhite(bg),
+    );
+    console.log(
+      `over a white picture: ${selector} ${ratio.toFixed(2)}:1${bg === null ? " (no fill of its own)" : ""}`,
+    );
     expect(
       ratio,
       `${selector} over a white picture (${ratio.toFixed(2)}:1)`,
