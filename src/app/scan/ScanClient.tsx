@@ -20,6 +20,7 @@ import {
 } from "@/client/photo/pipeline";
 import {
   getHandLandmarker,
+  DETECTOR_LOAD_FAILED_MESSAGE,
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
@@ -585,7 +586,7 @@ export default function ScanClient({
                 ? "detector_load_failed"
                 : "processing_failed",
               message: isLoadFailure
-                ? "We couldn't load the hand detector. Check your connection and try again."
+                ? DETECTOR_LOAD_FAILED_MESSAGE
                 : "Something went wrong while processing that photo. Try again.",
             } as PipelineIssue,
           ],

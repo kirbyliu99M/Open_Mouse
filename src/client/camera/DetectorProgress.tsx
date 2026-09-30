@@ -1,8 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import {
+  DETECTOR_LOAD_FAILED_MESSAGE,
   getDetectorLoadState,
+  getHandLandmarker,
   subscribeDetectorLoadState,
   type DetectorLoadState,
 } from "../photo/landmarks";
@@ -17,21 +19,63 @@ const IDLE: DetectorLoadState = { stage: "idle" };
  * before it starts), and a second visit in the same session never shows it:
  * the detector is loaded once.
  *
+ * If the detector could not be loaded at all, it says so and offers a retry:
+ * without this the failure was invisible until a photo was taken.
+ *
  * Assistive technology gets a `progressbar` whose value moves in 10% steps
  * (not once per chunk); the visible megabyte count is hidden from it as a
- * duplicate.
+ * duplicate. `inert` takes it out while a full-screen step covers the shell.
  */
-export function DetectorProgress() {
+export function DetectorProgress({ inert = false }: { inert?: boolean }) {
   const state = useSyncExternalStore(
     subscribeDetectorLoadState,
     getDetectorLoadState,
     () => IDLE,
   );
+  // The same element stays mounted from "failed" through the retry, so focus
+  // has somewhere to stay when the retry button goes away.
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  if (state.stage === "failed") {
+    return (
+      <div
+        ref={rootRef}
+        className="easyDetectorProgress easyDetectorFailed"
+        data-testid="detector-progress"
+        data-state="failed"
+        role="alert"
+        tabIndex={-1}
+        inert={inert}
+      >
+        <p className="easyDetectorText">{DETECTOR_LOAD_FAILED_MESSAGE}</p>
+        <button
+          type="button"
+          className="easyDetectorRetry"
+          onClick={() => {
+            rootRef.current?.focus();
+            void getHandLandmarker().catch(() => {
+              // The store says "failed" again, and the notice comes back.
+            });
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   const view = describeDetectorLoad(state);
   if (!view.visible) return null;
   const determinate = view.announced !== null;
   return (
-    <div className="easyDetectorProgress" data-testid="detector-progress">
+    <div
+      ref={rootRef}
+      className="easyDetectorProgress"
+      data-testid="detector-progress"
+      data-state="loading"
+      tabIndex={-1}
+      inert={inert}
+    >
       <div
         className="easyDetectorBar"
         role="progressbar"
@@ -47,7 +91,13 @@ export function DetectorProgress() {
       >
         <span
           className={`easyDetectorFill${determinate ? "" : " indeterminate"}`}
-          style={determinate ? { width: `${view.percent}%` } : undefined}
+          // A transform, not a width: the bar moves on the compositor and the
+          // layout does not change on every chunk.
+          style={
+            determinate
+              ? { transform: `scaleX(${(view.percent ?? 0) / 100})` }
+              : undefined
+          }
         />
       </div>
       <p className="easyDetectorText" aria-hidden="true">

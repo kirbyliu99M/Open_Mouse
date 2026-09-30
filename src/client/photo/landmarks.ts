@@ -58,6 +58,14 @@ export function subscribeDetectorLoadState(listener: () => void): () => void {
 }
 
 /**
+ * What a person is told when the hand detector could not be loaded (the app's
+ * own download and MediaPipe's fetch by path both failed). Shared by every
+ * screen that says so, so the wording cannot drift.
+ */
+export const DETECTOR_LOAD_FAILED_MESSAGE =
+  "We couldn't load the hand detector. Check your connection and try again.";
+
+/**
  * Thrown by `getHandLandmarker()` when the model/WASM fetch or
  * initialization itself fails — as opposed to any other error that might
  * escape `runPhotoPipeline` (a bug, an implausible-measurement throw, an

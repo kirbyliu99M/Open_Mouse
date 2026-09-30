@@ -38,7 +38,11 @@ import {
 } from "../../lib/contracts/measurement";
 import { computeDownscaleSize } from "../photo/decode";
 import { rgbaToGrayscale, computeLaplacianVariance } from "../photo/sharpness";
-import { getHandLandmarker } from "../photo/landmarks";
+import {
+  DETECTOR_LOAD_FAILED_MESSAGE,
+  getHandLandmarker,
+  HandLandmarkerLoadError,
+} from "../photo/landmarks";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
@@ -104,7 +108,10 @@ import {
 } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import { DetectorProgress } from "./DetectorProgress";
-import { UNVERIFIED_MEASUREMENT_NOTE } from "../photo/unverified-note";
+import {
+  measuredNumbersText,
+  UNVERIFIED_MEASUREMENT_NOTE,
+} from "../photo/unverified-note";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -514,7 +521,9 @@ export default function EasyScanCamera({
   // except the single submit).
   useEffect(() => {
     void getHandLandmarker().catch(() => {
-      // The measured/gate-failure sheet's own error state owns recovery.
+      // Not swallowed: the load state goes to "failed", and DetectorProgress
+      // tells the person and offers a retry. A photo taken meanwhile gets the
+      // same message from the sheet below.
     });
   }, []);
 
@@ -765,18 +774,26 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         }
-      } catch {
+      } catch (error) {
         if (runId !== runIdRef.current) return;
+        // Only a genuine detector load failure says so; anything else keeps
+        // the message that does not claim a cause it does not know.
+        const detectorFailed = error instanceof HandLandmarkerLoadError;
         setResult({
           kind: "gateFailure",
           previewUrl,
           overlay: null,
           errors: [
-            {
-              code: "PROCESSING_FAILED",
-              message:
-                "Something went wrong while measuring that photo. Try again.",
-            },
+            detectorFailed
+              ? {
+                  code: "DETECTOR_LOAD_FAILED",
+                  message: DETECTOR_LOAD_FAILED_MESSAGE,
+                }
+              : {
+                  code: "PROCESSING_FAILED",
+                  message:
+                    "Something went wrong while measuring that photo. Try again.",
+                },
           ],
           imageWidth: 0,
           imageHeight: 0,
@@ -1188,7 +1205,6 @@ export default function EasyScanCamera({
           <span key={modeAnnouncement.n}>{modeAnnouncement.text}</span>
         )}
       </p>
-      <DetectorProgress />
       <div className="cameraTopBar" inert={lengthStep}>
         <button
           type="button"
@@ -1215,6 +1231,9 @@ export default function EasyScanCamera({
           />
         </div>
       </div>
+      {/* After the top bar, so where a card is laid out in flow (refused or
+          no camera) the notice joins that flow above it. */}
+      <DetectorProgress inert={lengthStep} />
 
       {lengthStep && (
         <section className="easyLengthStep" aria-labelledby="easy-length-title">
@@ -1656,6 +1675,19 @@ export default function EasyScanCamera({
             <>
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> Hand measured
+              </p>
+              <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
+                {measuredNumbersText({
+                  handLengthMm: result.measurements.handLengthMm,
+                  palmWidthMm: result.measurements.palmWidthMm,
+                  ...("method" in result.submission.calibration &&
+                  result.submission.calibration.method === "user-length"
+                    ? {
+                        enteredLengthMm:
+                          result.submission.calibration.referenceMm,
+                      }
+                    : {}),
+                })}
               </p>
               <p className="easySheetNote">{UNVERIFIED_MEASUREMENT_NOTE}</p>
               {"method" in result.submission.calibration &&
