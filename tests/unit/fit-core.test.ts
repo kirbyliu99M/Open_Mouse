@@ -134,6 +134,63 @@ describe("loadOwnedFit — a successful fit", () => {
     expect(result.measurements).toEqual(sampleOwnedScan.measurements);
   });
 
+  it.each(["left", "right"] as const)(
+    "reports the hand the scan measured: a %s-hand OwnedScan gives fit.hand === %s",
+    async (hand) => {
+      const scanRepo = createFakeScanRepo(
+        vi.fn(async () => ({ ...sampleOwnedScan, hand })),
+      );
+      const { repo: fitRepo } = createFakeFitRepo();
+
+      const result = await loadOwnedFit(
+        SCAN_ID,
+        { userId: null, cookieSessionId: "session-1" },
+        NO_PREFS,
+        { scanRepo, fitRepo, now: NOW },
+      );
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("unreachable");
+      expect(result.fit.hand).toBe(hand);
+      // ...and it survives the contract the route re-validates with.
+      expect(fitResponseSchema.parse(result.fit).hand).toBe(hand);
+    },
+  );
+
+  it("scores the left hand as left: a right-handed ergonomic mouse is excluded as wrong_hand, and a right scan keeps it", async () => {
+    const rightErgo = {
+      ...sampleCatalogue[0],
+      id: "mouse-3",
+      slug: "right-ergo",
+      handCompatibility: "right" as const,
+      shape: "ergonomic" as const,
+    };
+    const catalogue = [...sampleCatalogue, rightErgo];
+    const run = async (hand: "left" | "right") => {
+      const scanRepo = createFakeScanRepo(
+        vi.fn(async () => ({ ...sampleOwnedScan, hand })),
+      );
+      const { repo: fitRepo } = createFakeFitRepo(catalogue);
+      const result = await loadOwnedFit(
+        SCAN_ID,
+        { userId: null, cookieSessionId: "session-1" },
+        NO_PREFS,
+        { scanRepo, fitRepo, now: NOW },
+      );
+      if (result.status !== "ok") throw new Error("unreachable");
+      return result.fit;
+    };
+
+    const left = await run("left");
+    expect(left.hand).toBe("left");
+    expect(left.excluded).toContainEqual(
+      expect.objectContaining({ slug: "right-ergo", reason: "wrong_hand" }),
+    );
+    const right = await run("right");
+    expect(right.hand).toBe("right");
+    expect(right.excluded.map((e) => e.slug)).not.toContain("right-ergo");
+  });
+
   it("uses the scan's stated grip for empty preferences and honors an override", async () => {
     const scanRepo = createFakeScanRepo(
       vi.fn(async () => ({

@@ -16,20 +16,18 @@ export function ResultsView({
   response,
   analysisState = { status: "idle" },
   onRetryAnalysis,
-  scanHand = null,
   enteredLengthMm = null,
 }: {
   response: FitResponse;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
-  scanHand?: "left" | "right" | null;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLengthMm?: number | null;
 }) {
   return (
     <div className="results-view">
       <TopBar
-        backHref="/scan"
+        backHref="/scan/easy"
         backLabel="Scan again"
         stepLabel="Your matches"
       />
@@ -47,7 +45,9 @@ export function ResultsView({
           without paper — less precise than a scan on A4.
         </p>
       )}
-      {scanHand === "left" && (
+      {/* The hand comes from the fit response (#62), not from browser
+          storage, so the note follows a results link to any device. */}
+      {response.hand === "left" && (
         <p className="results-handNotice">
           Left-hand fit isn&apos;t rated yet — check each mouse&apos;s shape
           before you buy.
