@@ -335,3 +335,19 @@ export function computeResultFocusRect(input: {
   }
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
+
+/**
+ * Overlay units per on-screen pixel for a drawn photo: the size in the
+ * pipeline's own pixels of one screen pixel, once the layer is at
+ * `layerScale`. Fixed-size parts of the drawing (label text, corner checks)
+ * are multiplied by it so they look the same whatever the photo's resolution.
+ */
+export function overlayUnitsPerPx(
+  layout: FrozenPhotoLayout,
+  overlayToStill: number,
+  layerScale: number,
+): number {
+  return (
+    1 / (overlayToStill * (layout.box.width / layout.crop.width) * layerScale)
+  );
+}

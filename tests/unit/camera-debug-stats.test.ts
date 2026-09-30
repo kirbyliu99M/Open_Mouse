@@ -79,7 +79,13 @@ describe("shortUserAgent", () => {
 describe("debugSnapshotJson", () => {
   const snapshot: ScanDebugSnapshot = {
     userAgent: "Android 14; Pixel 8 · Chrome/128",
-    track: { width: 1080, height: 1920, frameRate: 30 },
+    track: {
+      width: 1080,
+      height: 1920,
+      frameRate: 30,
+      videoWidth: 1080,
+      videoHeight: 1920,
+    },
     capabilities: {
       focusMode: ["manual", "single-shot", "continuous"],
       pointsOfInterest: {

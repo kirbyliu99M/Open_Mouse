@@ -78,6 +78,9 @@ export interface ScanDebugSnapshot {
     readonly width: number | null;
     readonly height: number | null;
     readonly frameRate: number | null;
+    /** The <video> element's own frame size (what object-fit: cover crops). */
+    readonly videoWidth: number | null;
+    readonly videoHeight: number | null;
   } | null;
   readonly capabilities: {
     readonly focusMode: readonly string[];

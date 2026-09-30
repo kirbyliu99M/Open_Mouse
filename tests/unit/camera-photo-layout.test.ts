@@ -8,6 +8,7 @@ import {
   computeGuideRect,
   computeMeasuredTransform,
   computeResultFocusRect,
+  overlayUnitsPerPx,
   computeStillCrop,
   padRect,
   paperAspect,
@@ -467,5 +468,22 @@ describe("computeResultFocusRect — what has to stay above the sheet", () => {
         labelAllowancePx: 0,
       }),
     ).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+  });
+});
+
+describe("overlayUnitsPerPx", () => {
+  const layout = {
+    box: { x: 0, y: 0, width: 400, height: 800 },
+    crop: { x: 0, y: 0, width: 2000, height: 4000 },
+  };
+
+  it("is how many overlay pixels one screen pixel spans", () => {
+    // 2000 still px over 400 screen px: 5 still px per screen px.
+    expect(overlayUnitsPerPx(layout, 1, 1)).toBeCloseTo(5, 9);
+  });
+
+  it("is smaller when the overlay is in coarser units, larger when the layer is shrunk", () => {
+    expect(overlayUnitsPerPx(layout, 2, 1)).toBeCloseTo(2.5, 9);
+    expect(overlayUnitsPerPx(layout, 1, 0.9)).toBeCloseTo(5 / 0.9, 9);
   });
 });

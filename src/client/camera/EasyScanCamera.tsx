@@ -23,9 +23,9 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
 import type {
@@ -52,7 +52,14 @@ import {
 } from "../photo/pipeline";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { CAMERA_CONSTANTS, PAPER_SIZE_LABELS } from "./constants";
-import { pickCue, type Cue } from "./cues";
+import {
+  cueFromCode,
+  easyCueText,
+  easyHintText,
+  pickCue,
+  type Cue,
+  type CueCode,
+} from "./cues";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import { requestCameraStream } from "./requestStream";
 import {
@@ -62,7 +69,7 @@ import {
   type Quad,
 } from "./quad";
 import { computeMeanLuma, computeClippedFraction } from "./light";
-import { isSteady } from "./steadiness";
+import { computeMaxCornerMovement, isSteady } from "./steadiness";
 import {
   INITIAL_AUTO_CAPTURE_STATE,
   advanceAutoCapture,
@@ -70,6 +77,49 @@ import {
   resetAutoCapture,
   type AutoCaptureState,
 } from "./autoCapture";
+import {
+  INITIAL_CUE_DEBOUNCE_STATE,
+  advanceCueDebounce,
+  type CueDebounceState,
+} from "./cueDebounce";
+import {
+  INITIAL_CORNER_STATES,
+  advanceCorners,
+  type CornerStates,
+} from "./cornerSmoother";
+import {
+  NO_FOCUS_SUPPORT,
+  applyContinuousFocus,
+  applyTapFocus,
+  readFocusSupport,
+  tapToVideoPoint,
+  type FocusApplyResult,
+  type FocusSupport,
+  type FocusTrackLike,
+} from "./focus";
+import {
+  computeFrozenPhotoLayout,
+  computeGuideRect,
+  computeMeasuredTransform,
+  computeResultFocusRect,
+  overlayUnitsPerPx,
+  paperAspect,
+  rectCorners,
+  type Size,
+} from "./photoLayout";
+import { problemAreaFor } from "./problemArea";
+import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
+import { EasyCorners } from "./EasyCorners";
+import { ScanDebugPanel } from "./ScanDebugPanel";
+import { usePrefersReducedMotion } from "./useReducedMotion";
+import {
+  mean,
+  percentile,
+  pushWindow,
+  samplesPerSecond,
+  shortUserAgent,
+  type ScanDebugSnapshot,
+} from "./debugStats";
 import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
 import {
   INITIAL_HAND_CHIP_STATE,
@@ -87,11 +137,6 @@ import {
   readFirstRunTipSeen,
   markFirstRunTipSeen,
 } from "./easyScanPreferences";
-import {
-  computeDimensionLine,
-  separateLabelBoxes,
-  type Box,
-} from "../geometry/handSilhouette";
 import ScanSubmitPanel from "../../app/scan/ScanSubmitPanel";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
@@ -116,8 +161,72 @@ import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
 
-type CornerTuple<T> = readonly [T, T, T, T];
 type GripStyle = "palm" | "claw" | "fingertip";
+
+/** What the frozen photo needs to be drawn where the live frame was. */
+interface PhotoInfo {
+  /** The object URL this belongs to. */
+  readonly url: string;
+  /** The still's own size, EXIF orientation applied. */
+  readonly still: Size;
+  /** What the live frame's size was, or `null` for an uploaded photo. */
+  readonly stream: Size | null;
+}
+
+/** The track as the focus code sees it (see focus.ts). */
+function asFocusTrack(track: MediaStreamTrack): FocusTrackLike {
+  return {
+    getCapabilities: () => track.getCapabilities?.() ?? {},
+    getSettings: () => track.getSettings?.() ?? {},
+    applyConstraints: (constraints) =>
+      track.applyConstraints(constraints as MediaTrackConstraints),
+  };
+}
+
+/** The stream's frame size: the <video>'s own (what `object-fit: cover` cropped), else the track's settings. */
+function readStreamSize(
+  video: HTMLVideoElement | null,
+  stream: MediaStream | null,
+): Size | null {
+  if (video && video.videoWidth > 0 && video.videoHeight > 0)
+    return { width: video.videoWidth, height: video.videoHeight };
+  const settings = stream?.getVideoTracks()[0]?.getSettings?.();
+  return settings?.width && settings.height
+    ? { width: settings.width, height: settings.height }
+    : null;
+}
+
+/** A photo's natural size (EXIF orientation applied), decoding it once so the browser has it ready. `null` if it will not decode. */
+async function loadStillSize(url: string): Promise<Size | null> {
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    return image.naturalWidth > 0 && image.naturalHeight > 0
+      ? { width: image.naturalWidth, height: image.naturalHeight }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Live numbers for the debug panel (`?debug=1`): written by the loop, read by a timer. */
+interface DebugLive {
+  sampleTimes: number[];
+  detectMs: number[];
+  laplacian: number | null;
+  steady: boolean | null;
+  movement: number | null;
+  cornersSeen: number | null;
+  cueCode: CueCode | null;
+}
+interface DebugCapture {
+  method: "takePhoto" | "canvas" | "upload" | null;
+  stillWidth: number | null;
+  stillHeight: number | null;
+  stillKb: number | null;
+  ringCompleteToFrozenMs: number | null;
+}
 
 interface ImageCaptureLike {
   takePhoto(): Promise<Blob>;
@@ -161,23 +270,6 @@ type ResultState =
       imageHeight: number;
     };
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function idealCorners(containerWidth: number, containerHeight: number): Quad {
-  const insetX = containerWidth * 0.12;
-  const insetY = containerHeight * 0.12;
-  return {
-    topLeft: { x: insetX, y: insetY },
-    topRight: { x: containerWidth - insetX, y: insetY },
-    bottomRight: { x: containerWidth - insetX, y: containerHeight - insetY },
-    bottomLeft: { x: insetX, y: containerHeight - insetY },
-  };
-}
-function quadToTuple(quad: Quad): CornerTuple<Point> {
-  return [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
-}
 function quadBoundingBox(quad: Quad) {
   const xs = [
     quad.topLeft.x,
@@ -218,131 +310,6 @@ function sampleLuma(
   }
   return out;
 }
-function dotStyle(p: { x: number; y: number }): CSSProperties {
-  return { left: p.x, top: p.y };
-}
-
-function CornerDot({ point, found }: { point: Point; found: boolean }) {
-  return (
-    <div
-      className={`cameraCornerDot${found ? " found" : ""}`}
-      style={dotStyle(point)}
-      aria-hidden="true"
-    >
-      {found && (
-        <svg viewBox="0 0 20 20">
-          <path d="M5 10.3 L8.4 13.7 L15 6.3" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-interface DimensionSpec {
-  readonly a: Point;
-  readonly b: Point;
-  readonly label: string;
-  readonly side: 1 | -1;
-}
-
-/** The measured sheet's two dimension lines (hand length, palm width) — a
- * simpler cousin of ScanClient's DimensionLinesOverlay (no skeleton dots,
- * matching screen 16's plain white lines), built on the same tested pure
- * geometry (computeDimensionLine, separateLabelBoxes). */
-function DimensionLinesOverlay({
-  specs,
-  scale,
-}: {
-  specs: readonly DimensionSpec[];
-  /** User-space units per on-screen pixel (imageWidth / the frame's actual
-   * rendered CSS width) — an SVG `viewBox` spanning a multi-thousand-pixel
-   * photo makes any FIXED user-unit font-size/offset render at wildly
-   * different on-screen sizes depending on the photo's own resolution and
-   * how big the frame is drawn; `vector-effect: non-scaling-stroke` solves
-   * this for line widths but has no text equivalent, so every screen-space
-   * size below is converted through this measured scale instead. */
-  scale: number;
-}) {
-  const offsetPx = 22 * scale;
-  const tickLengthPx = 8 * scale;
-  const labelOffsetPx = 14 * scale;
-  const fontSize = 13 * scale;
-  const paddingX = 8 * scale;
-  const labelHeight = 22 * scale;
-
-  const geometries = specs.map((s) =>
-    computeDimensionLine(
-      s.a,
-      s.b,
-      offsetPx,
-      s.side,
-      tickLengthPx,
-      labelOffsetPx,
-    ),
-  );
-  const rawBoxes: Box[] = geometries.map((g, i) => ({
-    x: g.labelAnchor.x,
-    y: g.labelAnchor.y,
-    width: specs[i].label.length * fontSize * 0.62 + paddingX * 2,
-    height: labelHeight,
-  }));
-  const boxes =
-    rawBoxes.length === 2
-      ? separateLabelBoxes(rawBoxes[0], rawBoxes[1])
-      : rawBoxes;
-
-  return (
-    <>
-      {geometries.map((g, i) => (
-        <g key={i} className="easyDim">
-          <line
-            x1={g.startConnector[0].x}
-            y1={g.startConnector[0].y}
-            x2={g.startConnector[1].x}
-            y2={g.startConnector[1].y}
-            className="easyDimExtension"
-          />
-          <line
-            x1={g.endConnector[0].x}
-            y1={g.endConnector[0].y}
-            x2={g.endConnector[1].x}
-            y2={g.endConnector[1].y}
-            className="easyDimExtension"
-          />
-          <line
-            x1={g.offsetStart.x}
-            y1={g.offsetStart.y}
-            x2={g.offsetEnd.x}
-            y2={g.offsetEnd.y}
-            className="easyDimLine"
-          />
-        </g>
-      ))}
-      {boxes.map((box, i) => (
-        <g key={i} transform={`translate(${box.x} ${box.y})`}>
-          <rect
-            x={-box.width / 2}
-            y={-box.height / 2}
-            width={box.width}
-            height={box.height}
-            rx={box.height / 2}
-            className="easyDimLabelBg"
-          />
-          <text
-            x={0}
-            y={fontSize * 0.32}
-            textAnchor="middle"
-            fontSize={fontSize}
-            className="easyDimLabelText"
-          >
-            {specs[i].label}
-          </text>
-        </g>
-      ))}
-    </>
-  );
-}
-
 const GRIP_OPTIONS: readonly { value: GripStyle | undefined; label: string }[] =
   [
     { value: "palm", label: "Palm" },
@@ -447,26 +414,46 @@ export default function EasyScanCamera({
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(undefined);
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
-  const [displayCorners, setDisplayCorners] =
-    useState<CornerTuple<Point> | null>(null);
-  const [foundPerCorner, setFoundPerCorner] = useState<CornerTuple<boolean>>([
-    false,
-    false,
-    false,
-    false,
-  ]);
+  const [cornerStates, setCornerStates] = useState<CornerStates>(
+    INITIAL_CORNER_STATES,
+  );
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
-  const [frameAspect, setFrameAspect] = useState(210 / 297);
-  // The frozen photo's actual on-screen width — measured so the overlay
-  // drawn on top of it (corner checks, dimension lines/labels) can convert
-  // fixed screen-pixel sizes into the SVG's image-pixel viewBox units. See
-  // DimensionLinesOverlay's own comment on why this can't be a constant.
-  const [frozenFrameWidthPx, setFrozenFrameWidthPx] = useState(0);
+  // The stage is the whole screen and never changes shape (scan v2): its
+  // size is measured only to place the guide and the frozen photo.
+  const [stageSize, setStageSize] = useState<Size | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+  const [focusSupport, setFocusSupport] =
+    useState<FocusSupport>(NO_FOCUS_SUPPORT);
+  const [reticle, setReticle] = useState<{
+    x: number;
+    y: number;
+    n: number;
+  } | null>(null);
+  // What the frozen photo needs to sit where the live frame was. The demo
+  // route hands over a finished photo, so it starts with one.
+  const [photoInfo, setPhotoInfo] = useState<PhotoInfo | null>(
+    demoMeasured
+      ? {
+          url: demoMeasured.previewUrl,
+          still: {
+            width: demoMeasured.imageWidth,
+            height: demoMeasured.imageHeight,
+          },
+          stream: null,
+        }
+      : null,
+  );
+  // How tall the bottom sheet is once open, so the photo can clear it.
+  const [sheetHeight, setSheetHeight] = useState<number | null>(null);
+  const [debugOn, setDebugOn] = useState(false);
+  const [debugSnapshot, setDebugSnapshot] = useState<ScanDebugSnapshot | null>(
+    null,
+  );
+  const reducedMotion = usePrefersReducedMotion();
 
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const frozenFrameRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
@@ -475,10 +462,43 @@ export default function EasyScanCamera({
   const autoCaptureRef = useRef<AutoCaptureState>(INITIAL_AUTO_CAPTURE_STATE);
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
-  const lastCueChangeAtRef = useRef(0);
+  const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
+  const cueDebounceRef = useRef<CueDebounceState>(INITIAL_CUE_DEBOUNCE_STATE);
   const lastCueCodeRef = useRef<Cue["code"] | null>(null);
   const capturingRef = useRef(false);
-  const reducedMotionRef = useRef(false);
+  const reducedMotionRef = useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
+  const focusTrackRef = useRef<FocusTrackLike | null>(null);
+  const focusSupportRef = useRef<FocusSupport>(NO_FOCUS_SUPPORT);
+  const refocusTimerRef = useRef<number | null>(null);
+  const reticleTimerRef = useRef<number | null>(null);
+  const reticleCountRef = useRef(0);
+  const debugOnRef = useRef(false);
+  const debugLiveRef = useRef<DebugLive>({
+    sampleTimes: [],
+    detectMs: [],
+    laplacian: null,
+    steady: null,
+    movement: null,
+    cornersSeen: null,
+    cueCode: null,
+  });
+  const debugCaptureRef = useRef<DebugCapture>({
+    method: null,
+    stillWidth: null,
+    stillHeight: null,
+    stillKb: null,
+    ringCompleteToFrozenMs: null,
+  });
+  const debugTrackRef = useRef<{
+    width: number | null;
+    height: number | null;
+    frameRate: number | null;
+  } | null>(null);
+  const debugFocusRef = useRef<{
+    continuous: FocusApplyResult | null;
+    lastTap: FocusApplyResult | null;
+  }>({ continuous: null, lastTap: null });
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -527,22 +547,6 @@ export default function EasyScanCamera({
     });
   }, []);
 
-  // Measures the frozen photo's rendered width whenever it's showing, so
-  // the overlay drawn on it can convert fixed screen-pixel sizes into the
-  // photo's own (often much larger) pixel space.
-  useEffect(() => {
-    if (result.kind !== "measured" && result.kind !== "gateFailure") return;
-    const el = frozenFrameRef.current;
-    if (!el) return;
-    setFrozenFrameWidthPx(el.getBoundingClientRect().width);
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width;
-      if (width) setFrozenFrameWidthPx(width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [result.kind]);
-
   useEffect(() => {
     if (tipOpen && deviceFit === "phone" && !lengthStep) {
       tipDialogRef.current?.showModal();
@@ -576,12 +580,18 @@ export default function EasyScanCamera({
   // showModal() default) — for the measured sheet that would otherwise be
   // the "Palm" grip chip, misleadingly outlined even though "Not sure" is
   // the one actually selected.
-  useEffect(() => {
+  //
+  // A layout effect, so the sheet's height is known before the first paint
+  // and the photo starts moving clear of it in the same frame the sheet opens.
+  useLayoutEffect(() => {
     if (result.kind === "measured" || result.kind === "gateFailure") {
-      sheetDialogRef.current?.showModal();
+      const dialog = sheetDialogRef.current;
+      dialog?.showModal();
       sheetTitleRef.current?.focus();
+      setSheetHeight(dialog ? dialog.offsetHeight : null);
     } else {
       sheetDialogRef.current?.close();
+      setSheetHeight(null);
     }
   }, [result.kind]);
 
@@ -599,17 +609,51 @@ export default function EasyScanCamera({
 
   const openTip = useCallback(() => setTipOpen(true), []);
 
-  useEffect(() => {
-    reducedMotionRef.current =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const clearFocusTimers = useCallback(() => {
+    if (refocusTimerRef.current !== null)
+      window.clearTimeout(refocusTimerRef.current);
+    if (reticleTimerRef.current !== null)
+      window.clearTimeout(reticleTimerRef.current);
+    refocusTimerRef.current = null;
+    reticleTimerRef.current = null;
   }, []);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
+    clearFocusTimers();
+    focusTrackRef.current = null;
+    setReticle(null);
+  }, [clearFocusTimers]);
+
+  // Reads what the camera says about focus, and puts it in continuous focus
+  // where it offers that (Android Chrome). Anything the browser refuses is
+  // reported to the debug panel and otherwise ignored.
+  const setUpFocus = useCallback((track: MediaStreamTrack) => {
+    const focusTrack = asFocusTrack(track);
+    let supported: object | undefined;
+    try {
+      supported = navigator.mediaDevices.getSupportedConstraints?.();
+    } catch {
+      supported = undefined;
+    }
+    const support = readFocusSupport(focusTrack, supported);
+    const settings = track.getSettings?.();
+    debugTrackRef.current = {
+      width: settings?.width ?? null,
+      height: settings?.height ?? null,
+      frameRate: settings?.frameRate ?? null,
+    };
+    focusTrackRef.current = focusTrack;
+    focusSupportRef.current = support;
+    setFocusSupport(support);
+    debugFocusRef.current = { continuous: null, lastTap: null };
+    void applyContinuousFocus(focusTrack, support).then((applied) => {
+      debugFocusRef.current.continuous = applied;
+    });
   }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -631,8 +675,10 @@ export default function EasyScanCamera({
         {
           video: {
             facingMode: "environment",
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
+            // The preview only needs to be smooth to analyse; the photo itself
+            // comes from takePhoto(), at the sensor's full size.
+            width: { ideal: CAMERA_CONSTANTS.focus.previewIdealWidth },
+            height: { ideal: CAMERA_CONSTANTS.focus.previewIdealHeight },
           },
           audio: false,
         },
@@ -648,16 +694,17 @@ export default function EasyScanCamera({
           stopStream();
           setCamState({ kind: "streamEnded" });
         });
-        const settings = track.getSettings?.();
-        if (settings?.width && settings.height) {
-          setFrameAspect(settings.width / settings.height);
-        }
       });
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) setUpFocus(videoTrack);
+      setVideoReady(false);
       autoCaptureRef.current = resetAutoCapture();
       lastDetectionAtRef.current = performance.now();
       prevSampleQuadRef.current = null;
       lastCueCodeRef.current = null;
-      lastCueChangeAtRef.current = 0;
+      cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
+      cornerStatesRef.current = INITIAL_CORNER_STATES;
+      setCornerStates(INITIAL_CORNER_STATES);
       setCamState({ kind: "live" });
     } catch (err) {
       const name = err instanceof DOMException ? err.name : undefined;
@@ -672,7 +719,7 @@ export default function EasyScanCamera({
       )
         setCamState({ kind: "cameraError", message });
     }
-  }, [stopStream]);
+  }, [stopStream, setUpFocus]);
 
   // No setup page: open the camera the moment this device can plausibly
   // use one — go straight to the upload path otherwise (no error styling).
@@ -806,9 +853,14 @@ export default function EasyScanCamera({
   const captureNow = useCallback(async () => {
     if (capturingRef.current) return;
     capturingRef.current = true;
+    const firedAt = performance.now();
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     const video = videoRef.current;
+    // What the live frame was, read before the stream stops: the photo is
+    // drawn with the same crop.
+    const streamSize = readStreamSize(video, streamRef.current);
     let file: File;
+    let method: "takePhoto" | "canvas" = "takePhoto";
     try {
       const track = streamRef.current?.getVideoTracks()[0];
       const ImageCaptureCtor = getImageCaptureCtor();
@@ -819,6 +871,7 @@ export default function EasyScanCamera({
         type: blob.type || "image/jpeg",
       });
     } catch {
+      method = "canvas";
       if (!video || video.videoWidth === 0) {
         capturingRef.current = false;
         return;
@@ -844,6 +897,10 @@ export default function EasyScanCamera({
       });
     }
 
+    const previewUrl = URL.createObjectURL(file);
+    // The camera keeps running while the photo is decoded, so the swap from
+    // live picture to frozen picture happens in one step, under the flash.
+    const still = await loadStillSize(previewUrl);
     stopStream();
     if (typeof navigator.vibrate === "function") {
       navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
@@ -851,9 +908,23 @@ export default function EasyScanCamera({
     if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
     setAnnounced("Photo taken");
     fileRef.current = file;
-    const previewUrl = URL.createObjectURL(file);
+    setPhotoInfo(still ? { url: previewUrl, still, stream: streamSize } : null);
+    debugCaptureRef.current = {
+      method,
+      stillWidth: still?.width ?? null,
+      stillHeight: still?.height ?? null,
+      stillKb: file.size / 1024,
+      ringCompleteToFrozenMs: null,
+    };
     capturingRef.current = false;
     void runPipeline(file, previewUrl);
+    // Two frames on, the frozen picture has been painted.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        debugCaptureRef.current.ringCompleteToFrozenMs =
+          performance.now() - firedAt;
+      }),
+    );
   }, [stopStream, runPipeline]);
 
   const onFilePicked = useCallback(
@@ -864,6 +935,17 @@ export default function EasyScanCamera({
       stopStream();
       fileRef.current = file;
       const previewUrl = URL.createObjectURL(file);
+      setPhotoInfo(null);
+      debugCaptureRef.current = {
+        method: "upload",
+        stillWidth: null,
+        stillHeight: null,
+        stillKb: file.size / 1024,
+        ringCompleteToFrozenMs: null,
+      };
+      void loadStillSize(previewUrl).then((still) => {
+        if (still) setPhotoInfo({ url: previewUrl, still, stream: null });
+      });
       void runPipeline(file, previewUrl);
     },
     [stopStream, runPipeline],
@@ -872,6 +954,7 @@ export default function EasyScanCamera({
   const retake = useCallback(() => {
     if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
     setResult({ kind: "none" });
+    setPhotoInfo(null);
     const canUseCamera =
       typeof window !== "undefined" &&
       window.isSecureContext &&
@@ -918,6 +1001,10 @@ export default function EasyScanCamera({
     lastSampleTimeRef.current = fresh.lastSampleAtMs;
     prevSampleQuadRef.current = fresh.prevQuad;
     autoCaptureRef.current = fresh.autoCapture;
+    cornerStatesRef.current = INITIAL_CORNER_STATES;
+    cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
+    lastCueCodeRef.current = null;
+    setCornerStates(INITIAL_CORNER_STATES);
     setRingFraction(0);
   }, []);
 
@@ -949,11 +1036,7 @@ export default function EasyScanCamera({
         video.videoWidth,
         video.videoHeight,
       );
-      return {
-        coverRect,
-        containerWidth: box.width,
-        containerHeight: box.height,
-      };
+      return { coverRect };
     }
 
     function tick(now: number) {
@@ -989,13 +1072,13 @@ export default function EasyScanCamera({
       const imageData = ctx.getImageData(0, 0, width, height);
 
       if (userLengthRef.current !== null) {
-        setDisplayCorners(null);
         setCue(null);
         setAnnounced("Hand flat, fingers together, phone straight above");
         return;
       }
 
       let detection;
+      const detectStartedAt = performance.now();
       try {
         detection = quadSourceRef.current(imageData, paperSizeRef.current);
       } catch {
@@ -1008,6 +1091,7 @@ export default function EasyScanCamera({
           edgeFitResidualPx: 0,
         };
       }
+      const detectMs = performance.now() - detectStartedAt;
       const sampleQuad: Quad | null = detection.corners
         ? {
             topLeft: detection.corners[0],
@@ -1051,46 +1135,66 @@ export default function EasyScanCamera({
         msSinceLastDetection,
       });
 
+      // The ring reads the raw sample: one or two failures pause it, the
+      // third in a row empties it (autoCapture.ts).
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
         nextCue.allPass,
         dtMs,
       );
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
+
+      if (debugOnRef.current) {
+        const live = debugLiveRef.current;
+        live.sampleTimes = pushWindow(live.sampleTimes, now);
+        live.detectMs = pushWindow(live.detectMs, detectMs);
+        live.laplacian = laplacianVariance;
+        live.steady = sampleQuad ? steady : null;
+        live.movement =
+          sampleQuad && prevSampleQuadRef.current
+            ? computeMaxCornerMovement(prevSampleQuadRef.current, sampleQuad) /
+              frameDiagonal
+            : null;
+        live.cornersSeen = detection.cornersSeen;
+        live.cueCode = nextCue.code;
+      }
       prevSampleQuadRef.current = sampleQuad;
 
+      // The dots: each corner filtered on its own, in stage pixels. One that
+      // was not found keeps its last position (cornerSmoother.ts).
       if (stageInfo) {
-        const { coverRect, containerWidth, containerHeight } = stageInfo;
-        const ideal = quadToTuple(
-          idealCorners(containerWidth, containerHeight),
+        const { coverRect } = stageInfo;
+        const observe = (i: 0 | 1 | 2 | 3): Point | null => {
+          const p = detection.partialCorners[i];
+          return p && detection.cornersFound[i]
+            ? mapMediaPointToContainer(p, coverRect, width, height)
+            : null;
+        };
+        cornerStatesRef.current = advanceCorners(
+          cornerStatesRef.current,
+          [observe(0), observe(1), observe(2), observe(3)],
+          dtMs,
         );
-        const mapPartial = (p: Point | null): Point | null =>
-          p ? mapMediaPointToContainer(p, coverRect, width, height) : null;
-        const mappedPartial: CornerTuple<Point | null> = [
-          mapPartial(detection.partialCorners[0]),
-          mapPartial(detection.partialCorners[1]),
-          mapPartial(detection.partialCorners[2]),
-          mapPartial(detection.partialCorners[3]),
-        ];
-        setDisplayCorners([
-          mappedPartial[0] ?? ideal[0],
-          mappedPartial[1] ?? ideal[1],
-          mappedPartial[2] ?? ideal[2],
-          mappedPartial[3] ?? ideal[3],
-        ]);
-        setFoundPerCorner(detection.cornersFound);
+        setCornerStates(cornerStatesRef.current);
       }
 
-      if (
-        now - lastCueChangeAtRef.current >= CAMERA_CONSTANTS.cueThrottleMs ||
-        lastCueCodeRef.current === null ||
-        nextCue.code !== lastCueCodeRef.current
-      ) {
-        lastCueChangeAtRef.current = now;
-        lastCueCodeRef.current = nextCue.code;
-        setCue(nextCue);
+      // The words are debounced (cueDebounce.ts): the cue on screen changes
+      // only when the debounce says so.
+      cueDebounceRef.current = advanceCueDebounce(
+        cueDebounceRef.current,
+        nextCue.code,
+        now,
+      );
+      const shownCode = cueDebounceRef.current.shown;
+      if (shownCode !== null && shownCode !== lastCueCodeRef.current) {
+        lastCueCodeRef.current = shownCode;
+        const shownCue =
+          shownCode === nextCue.code ? nextCue : cueFromCode(shownCode);
+        setCue(shownCue);
         setAnnounced(
-          nextCue.code === "perfect" ? "Got it — hold still" : nextCue.message,
+          easyCueText(shownCue, {
+            tapToFocus: focusSupportRef.current.tapToFocus,
+          }),
         );
       }
 
@@ -1103,6 +1207,144 @@ export default function EasyScanCamera({
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
   }, [camState.kind, captureNow, tipOpen, resetLoopState]);
+
+  // The stage exists on the phone's camera screen and behind the bottom
+  // sheet; it is never resized (scan v2), only measured.
+  const showStage =
+    (deviceFit !== null || Boolean(demoMeasured)) &&
+    (result.kind !== "none" ||
+      (!lengthStep &&
+        (camState.kind === "live" || camState.kind === "requesting")));
+  useLayoutEffect(() => {
+    if (!showStage) return;
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => {
+      const box = el.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return;
+      setStageSize((prev) =>
+        prev && prev.width === box.width && prev.height === box.height
+          ? prev
+          : { width: box.width, height: box.height },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [showStage]);
+
+  // Tap to focus (Android Chrome and others that report it; nowhere else does
+  // a tap do anything): single-shot focus at the tapped point, the reticle
+  // there, and continuous focus again shortly after.
+  const onStageTap = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const support = focusSupportRef.current;
+      const focusTrack = focusTrackRef.current;
+      const video = videoRef.current;
+      if (
+        !support.tapToFocus ||
+        !focusTrack ||
+        !video ||
+        resultRef.current.kind !== "none" ||
+        camKindRef.current !== "live"
+      )
+        return;
+      const box = e.currentTarget.getBoundingClientRect();
+      const tap = { x: e.clientX - box.left, y: e.clientY - box.top };
+      const point = tapToVideoPoint(tap, box, {
+        width: video.videoWidth,
+        height: video.videoHeight,
+      });
+      if (!point) return;
+      clearFocusTimers();
+      reticleCountRef.current += 1;
+      setReticle({ ...tap, n: reticleCountRef.current });
+      reticleTimerRef.current = window.setTimeout(
+        () => setReticle(null),
+        CAMERA_CONSTANTS.focus.tapRefocusMs + 300,
+      );
+      void applyTapFocus(focusTrack, support, point).then((applied) => {
+        debugFocusRef.current.lastTap = applied;
+      });
+      refocusTimerRef.current = window.setTimeout(() => {
+        void applyContinuousFocus(focusTrack, support).then((applied) => {
+          debugFocusRef.current.continuous = applied;
+        });
+      }, CAMERA_CONSTANTS.focus.tapRefocusMs);
+    },
+    [clearFocusTimers],
+  );
+
+  // The debug panel (`/scan/easy?debug=1`): numbers only, kept in refs by the
+  // loop and copied to state four times a second while the panel is shown.
+  const buildDebugSnapshot = useCallback((): ScanDebugSnapshot => {
+    const live = debugLiveRef.current;
+    const capture = debugCaptureRef.current;
+    const support = focusSupportRef.current;
+    const video = videoRef.current;
+    const trackInfo = debugTrackRef.current;
+    return {
+      userAgent: shortUserAgent(navigator.userAgent),
+      track: trackInfo
+        ? {
+            ...trackInfo,
+            videoWidth: video?.videoWidth || null,
+            videoHeight: video?.videoHeight || null,
+          }
+        : null,
+      capabilities: trackInfo
+        ? {
+            focusMode: support.focusModes,
+            pointsOfInterest: {
+              inCapabilities: support.pointsOfInterestIn.capabilities,
+              inSettings: support.pointsOfInterestIn.settings,
+              inSupportedConstraints:
+                support.pointsOfInterestIn.supportedConstraints,
+            },
+            zoom: support.zoom,
+            tapToFocus: support.tapToFocus,
+          }
+        : null,
+      focusApplied: {
+        continuous: debugFocusRef.current.continuous,
+        lastTap: debugFocusRef.current.lastTap,
+      },
+      live: {
+        samplesPerSecond: samplesPerSecond(live.sampleTimes),
+        detectionMsAverage: mean(live.detectMs),
+        detectionMsP95: percentile(live.detectMs, 95),
+        laplacianVariance: live.laplacian,
+        laplacianFloor: CAMERA_CONSTANTS.steadiness.minLiveLaplacianVariance,
+        steady: live.steady,
+        maxCornerMovementFractionOfDiagonal: live.movement,
+        cornersSeen: live.cornersSeen,
+        cueCode: live.cueCode,
+        cueShown: cueDebounceRef.current.shown,
+        ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
+        consecutiveFailures: autoCaptureRef.current.failStreak,
+      },
+      capture: {
+        method: capture.method,
+        stillWidth: capture.stillWidth,
+        stillHeight: capture.stillHeight,
+        stillKb: capture.stillKb,
+        ringCompleteToFrozenMs: capture.ringCompleteToFrozenMs,
+      },
+    };
+  }, []);
+  useEffect(() => {
+    const on = new URLSearchParams(window.location.search).get("debug") === "1";
+    debugOnRef.current = on;
+    setDebugOn(on);
+    if (!on) return;
+    setDebugSnapshot(buildDebugSnapshot());
+    const timer = window.setInterval(
+      () => setDebugSnapshot(buildDebugSnapshot()),
+      400,
+    );
+    return () => window.clearInterval(timer);
+  }, [buildDebugSnapshot]);
 
   const exitToHome = useCallback(() => {
     stopStream();
@@ -1159,10 +1401,17 @@ export default function EasyScanCamera({
     startLengthStep();
   };
 
-  const cueLabel =
-    cue?.code === "perfect"
-      ? "Got it — hold still"
-      : (cue?.message ?? "Point the camera at the paper");
+  const cueLabel = cue
+    ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus })
+    : "Point the camera at the paper";
+  const hintText =
+    userLengthMm !== null
+      ? ""
+      : easyHintText({
+          cueCode: cue?.code ?? null,
+          ringFraction,
+          tapToFocus: focusSupport.tapToFocus,
+        });
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
@@ -1192,8 +1441,97 @@ export default function EasyScanCamera({
       <DeviceEntry kind={deviceFit} url={pageUrl} onFilePicked={onFilePicked} />
     );
 
+  // Derived values for the frozen photo: where it is drawn, and where it goes once measured.
+  const photoForResult =
+    result.kind !== "none" && photoInfo?.url === result.previewUrl
+      ? photoInfo
+      : null;
+  const stillSize: Size | null =
+    photoForResult?.still ??
+    (result.kind !== "none" &&
+    result.kind !== "processing" &&
+    result.imageWidth > 0 &&
+    result.imageHeight > 0
+      ? { width: result.imageWidth, height: result.imageHeight }
+      : null);
+  const frozenLayout =
+    result.kind !== "none" && stillSize && stageSize
+      ? computeFrozenPhotoLayout({
+          stage: stageSize,
+          stream: photoForResult?.stream ?? null,
+          still: stillSize,
+        })
+      : null;
+  const resultOverlay =
+    result.kind === "measured" || result.kind === "gateFailure"
+      ? result.overlay
+      : null;
+  const overlayToStill =
+    resultOverlay && resultOverlay.imageWidth > 0 && stillSize
+      ? stillSize.width / resultOverlay.imageWidth
+      : 1;
+  // Once measured (or failed) the photo scales down and moves up, by a
+  // transform, until nothing is under the bottom sheet.
+  const measuredTransform =
+    (result.kind === "measured" || result.kind === "gateFailure") &&
+    frozenLayout &&
+    stageSize &&
+    sheetHeight !== null
+      ? computeMeasuredTransform({
+          stage: stageSize,
+          focus: computeResultFocusRect({
+            stage: stageSize,
+            layout: frozenLayout,
+            overlayToStill,
+            overlay: resultOverlay,
+            labelAllowancePx: 40,
+          }),
+          sheetTop: stageSize.height - sheetHeight,
+        })
+      : null;
+  const layerScale = measuredTransform?.scale ?? 1;
+  const unitsPerPx = frozenLayout
+    ? overlayUnitsPerPx(frozenLayout, overlayToStill, layerScale)
+    : 1;
+  const dimensions: readonly DimensionSpec[] | null =
+    result.kind === "measured" && result.overlay.landmarksPx
+      ? [
+          {
+            a: result.overlay.landmarksPx[0],
+            b: result.overlay.landmarksPx[LANDMARK.middle[3]],
+            label:
+              "method" in result.submission.calibration &&
+              result.submission.calibration.method === "user-length"
+                ? `Entered ${result.submission.calibration.referenceMm} mm`
+                : `Hand ${result.measurements.handLengthMm.toFixed(0)} mm`,
+            side: 1,
+          },
+          {
+            a: result.overlay.landmarksPx[LANDMARK.index[0]],
+            b: result.overlay.landmarksPx[LANDMARK.pinky[0]],
+            label: `Palm ${result.measurements.palmWidthMm.toFixed(0)} mm`,
+            side: 1,
+          },
+        ]
+      : null;
+  const problem =
+    result.kind === "gateFailure"
+      ? problemAreaFor(result.errors[0]?.code, result.overlay, 18 * unitsPerPx)
+      : null;
+  const guide = stageSize
+    ? rectCorners(computeGuideRect(stageSize, paperAspect(paperSize)))
+    : null;
+  // The dots stay through processing on a camera photo (the paper is where
+  // they are); an uploaded photo never had them.
+  const showCorners =
+    userLengthMm === null &&
+    stageSize !== null &&
+    (result.kind === "none" || photoForResult?.stream != null);
+
   return (
-    <main className="cameraViewfinder easyScanShell">
+    <main
+      className={`cameraViewfinder easyScanShell${showStage ? " easyScanStaged" : ""}`}
+    >
       <h1 className="visuallyHidden">Scan your hand</h1>
       <p
         className="visuallyHiddenLive"
@@ -1205,6 +1543,91 @@ export default function EasyScanCamera({
           <span key={modeAnnouncement.n}>{modeAnnouncement.text}</span>
         )}
       </p>
+      {showStage && (
+        <div
+          className="cameraFrame easyStage"
+          ref={stageRef}
+          data-phase={result.kind}
+          onClick={onStageTap}
+        >
+          <div
+            className={`easyStageContent${measuredTransform ? " moved" : ""}`}
+            style={
+              measuredTransform
+                ? {
+                    transform: `translateY(${measuredTransform.translateY}px) scale(${measuredTransform.scale})`,
+                  }
+                : undefined
+            }
+          >
+            {result.kind === "none" ? (
+              <video
+                ref={videoRef}
+                className={`cameraVideo${videoReady ? " ready" : ""}`}
+                muted
+                playsInline
+                autoPlay
+                onPlaying={() => setVideoReady(true)}
+              />
+            ) : (
+              frozenLayout &&
+              stillSize && (
+                <FrozenPhoto
+                  previewUrl={result.previewUrl}
+                  still={stillSize}
+                  layout={frozenLayout}
+                  phase={result.kind}
+                  overlay={resultOverlay}
+                  overlayToStill={overlayToStill}
+                  layerScale={layerScale}
+                  dimensions={dimensions}
+                  problem={problem}
+                  ariaLabel={
+                    noPaperMode
+                      ? "Your photo with, once measured, the hand-length and palm-width lines"
+                      : "Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
+                  }
+                />
+              )
+            )}
+            {showCorners && guide && (
+              <div className="cameraOverlay">
+                <EasyCorners
+                  states={cornerStates}
+                  guide={guide}
+                  hidden={
+                    result.kind === "measured" || result.kind === "gateFailure"
+                  }
+                />
+              </div>
+            )}
+          </div>
+          {result.kind === "processing" && <div className="easyStageDim" />}
+          {result.kind === "processing" && !reducedMotion && (
+            <div className="easyScanLine" data-testid="easy-scan-line" />
+          )}
+          {flashKey > 0 && !reducedMotion && (
+            <div
+              key={flashKey}
+              className="easyFlash"
+              data-testid="easy-flash"
+            />
+          )}
+          {reticle && (
+            <div
+              key={reticle.n}
+              className="easyReticle"
+              data-testid="focus-reticle"
+              aria-hidden="true"
+              style={{
+                transform: `translate3d(${reticle.x - 44}px, ${reticle.y - 44}px, 0)`,
+              }}
+            >
+              <span className="easyReticleBox" />
+            </div>
+          )}
+        </div>
+      )}
       <div className="cameraTopBar" inert={lengthStep}>
         <button
           type="button"
@@ -1391,45 +1814,6 @@ export default function EasyScanCamera({
         (camState.kind === "live" || camState.kind === "requesting") &&
         result.kind === "none" && (
           <>
-            <div className="cameraFrameWrap">
-              <div
-                className="cameraFrame"
-                ref={stageRef}
-                style={{ aspectRatio: frameAspect }}
-              >
-                <video
-                  ref={videoRef}
-                  className="cameraVideo"
-                  muted
-                  playsInline
-                  autoPlay
-                />
-                <div className="cameraOverlay">
-                  {userLengthMm === null && displayCorners && (
-                    <>
-                      <CornerDot
-                        point={displayCorners[0]}
-                        found={foundPerCorner[0]}
-                      />
-                      <CornerDot
-                        point={displayCorners[1]}
-                        found={foundPerCorner[1]}
-                      />
-                      <CornerDot
-                        point={displayCorners[2]}
-                        found={foundPerCorner[2]}
-                      />
-                      <CornerDot
-                        point={displayCorners[3]}
-                        found={foundPerCorner[3]}
-                      />
-                    </>
-                  )}
-                </div>
-                {flashKey > 0 && <div key={flashKey} className="cameraFlash" />}
-              </div>
-            </div>
-
             <div className="cameraCueWrap">
               <div
                 className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
@@ -1450,6 +1834,11 @@ export default function EasyScanCamera({
             <p className="visuallyHiddenLive" aria-live="polite">
               {announced}
             </p>
+            {hintText && (
+              <p className="easyHint" data-testid="easy-hint">
+                {hintText}
+              </p>
+            )}
 
             <div className="easyBottomRow">
               {userLengthMm === null ? (
@@ -1550,113 +1939,10 @@ export default function EasyScanCamera({
         }
       />
 
-      {(result.kind === "processing" ||
-        result.kind === "measured" ||
-        result.kind === "gateFailure") && (
-        <div className="cameraFrameWrap">
-          <div
-            ref={frozenFrameRef}
-            className="cameraFrame easyFrozenFrame"
-            style={{
-              aspectRatio:
-                result.kind === "processing"
-                  ? frameAspect
-                  : (result.imageWidth || 1) / (result.imageHeight || 1),
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
-            <img src={result.previewUrl} alt="" className="easyFrozenImg" />
-            {result.kind !== "processing" && (
-              <svg
-                className="easyFrozenSvg"
-                viewBox={`0 0 ${result.imageWidth || 1} ${result.imageHeight || 1}`}
-                preserveAspectRatio="xMidYMid slice"
-                role="img"
-                aria-label={
-                  noPaperMode
-                    ? "Your photo with, once measured, the hand-length and palm-width lines"
-                    : "Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
-                }
-              >
-                {(() => {
-                  // User-units per on-screen pixel — see
-                  // DimensionLinesOverlay's own comment. Falls back to a
-                  // typical mobile content width before the first
-                  // ResizeObserver measurement lands.
-                  const scale =
-                    result.imageWidth /
-                    (frozenFrameWidthPx || Math.min(result.imageWidth, 350));
-                  const cornerRadius = 11 * scale;
-                  return (
-                    <>
-                      {result.overlay?.paperCorners?.map((p, i) => {
-                        const cx = clamp(
-                          p.x,
-                          cornerRadius,
-                          result.imageWidth - cornerRadius,
-                        );
-                        const cy = clamp(
-                          p.y,
-                          cornerRadius,
-                          result.imageHeight - cornerRadius,
-                        );
-                        return (
-                          <g
-                            key={i}
-                            className="easyCornerCheck"
-                            transform={`translate(${cx} ${cy})`}
-                          >
-                            <circle r={cornerRadius} />
-                            <path
-                              d="M-6 0 L-1.5 5 L7 -6"
-                              transform={`scale(${cornerRadius / 14})`}
-                            />
-                          </g>
-                        );
-                      })}
-                      {result.kind === "measured" &&
-                        result.overlay.landmarksPx && (
-                          <DimensionLinesOverlay
-                            scale={scale}
-                            specs={[
-                              {
-                                a: result.overlay.landmarksPx[0],
-                                b: result.overlay.landmarksPx[
-                                  LANDMARK.middle[3]
-                                ],
-                                label:
-                                  "method" in result.submission.calibration &&
-                                  result.submission.calibration.method ===
-                                    "user-length"
-                                    ? `Entered ${result.submission.calibration.referenceMm} mm`
-                                    : `Hand ${result.measurements.handLengthMm.toFixed(0)} mm`,
-                                side: 1,
-                              },
-                              {
-                                a: result.overlay.landmarksPx[
-                                  LANDMARK.index[0]
-                                ],
-                                b: result.overlay.landmarksPx[
-                                  LANDMARK.pinky[0]
-                                ],
-                                label: `Palm ${result.measurements.palmWidthMm.toFixed(0)} mm`,
-                                side: 1,
-                              },
-                            ]}
-                          />
-                        )}
-                    </>
-                  );
-                })()}
-              </svg>
-            )}
-            {result.kind === "processing" && (
-              <p className="easyProcessingPill" aria-live="polite">
-                Measuring your hand…
-              </p>
-            )}
-          </div>
-        </div>
+      {result.kind === "processing" && (
+        <p className="easyProcessingPill" aria-live="polite">
+          Measuring your hand…
+        </p>
       )}
 
       {(result.kind === "measured" || result.kind === "gateFailure") && (
@@ -1872,6 +2158,7 @@ export default function EasyScanCamera({
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </dialog>
+      {debugOn && debugSnapshot && <ScanDebugPanel snapshot={debugSnapshot} />}
     </main>
   );
 }
