@@ -205,10 +205,12 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     await page.getByRole("button", { name: "Got it" }).click();
     const chip = page.locator(".cameraTopBar .easyHandChip");
     await expect(chip).toHaveText(/right hand · auto/i);
-    await expect(chip).toHaveAttribute("aria-pressed", "false");
+    // A button whose label changes is not a toggle: no aria-pressed at all
+    // (the next test pins its accessible name).
+    await expect(chip).not.toHaveAttribute("aria-pressed");
     await chip.click();
     await expect(chip).toHaveText("Left hand");
-    await expect(chip).toHaveAttribute("aria-pressed", "true");
+    await expect(chip).not.toHaveAttribute("aria-pressed");
     await chip.click();
     await expect(chip).toHaveText("Right hand");
   });
