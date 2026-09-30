@@ -7,6 +7,7 @@ import {
   computeFrozenPhotoLayout,
   computeGuideRect,
   computeMeasuredTransform,
+  computeResultFocusRect,
   computeStillCrop,
   padRect,
   paperAspect,
@@ -374,5 +375,97 @@ describe("computeMeasuredTransform — nothing under the sheet", () => {
     );
     expect(left.x).toBeGreaterThan(paper.x);
     expect(right.x).toBeLessThan(paper.x + paper.width);
+  });
+});
+
+describe("computeResultFocusRect — what has to stay above the sheet", () => {
+  const stage = { width: 390, height: 844 };
+  const layout = {
+    box: { x: 0, y: 0, width: 390, height: 844 },
+    crop: { x: 0, y: 0, width: 1000, height: (1000 * 844) / 390 },
+  };
+
+  it("wraps the paper's corners and the hand, with room for the labels", () => {
+    const rect = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: 1,
+      overlay: {
+        paperCorners: [
+          { x: 100, y: 300 },
+          { x: 900, y: 300 },
+          { x: 900, y: 1700 },
+          { x: 100, y: 1700 },
+        ],
+        landmarksPx: [
+          { x: 500, y: 800 },
+          { x: 520, y: 1500 },
+        ],
+      },
+      labelAllowancePx: 20,
+    });
+    const scale = 390 / 1000;
+    expect(rect.x).toBeCloseTo(100 * scale - 20, 6);
+    expect(rect.y).toBeCloseTo(300 * scale - 20, 6);
+    expect(rect.width).toBeCloseTo(800 * scale + 40, 6);
+    expect(rect.height).toBeCloseTo(1400 * scale + 40, 6);
+  });
+
+  it("maps overlay pixels through the pipeline's scale-down", () => {
+    // The pipeline analysed a photo half the size of the still.
+    const rect = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: 2,
+      overlay: {
+        paperCorners: null,
+        landmarksPx: [
+          { x: 50, y: 100 },
+          { x: 250, y: 400 },
+        ],
+      },
+      labelAllowancePx: 0,
+    });
+    expect(rect.x).toBeCloseTo(100 * 0.39, 6);
+    expect(rect.width).toBeCloseTo(400 * 0.39, 6);
+  });
+
+  it("follows the crop: points outside it fall outside the stage", () => {
+    const cropped = {
+      box: { x: -50, y: 0, width: 490, height: 844 },
+      crop: { x: 100, y: 0, width: 800, height: 1378 },
+    };
+    const rect = computeResultFocusRect({
+      stage,
+      layout: cropped,
+      overlayToStill: 1,
+      overlay: { landmarksPx: [{ x: 100, y: 0 }], paperCorners: null },
+      labelAllowancePx: 0,
+    });
+    expect(rect.x).toBeCloseTo(-50, 6);
+  });
+
+  it("with nothing located, the visible part of the photo", () => {
+    expect(
+      computeResultFocusRect({
+        stage,
+        layout: { ...layout, box: { x: -60, y: 20, width: 500, height: 900 } },
+        overlayToStill: 1,
+        overlay: null,
+        labelAllowancePx: 10,
+      }),
+    ).toEqual({ x: 0, y: 20, width: 390, height: 824 });
+  });
+
+  it("with a photo box that misses the stage, the whole stage", () => {
+    expect(
+      computeResultFocusRect({
+        stage,
+        layout: { ...layout, box: { x: 0, y: 2000, width: 10, height: 10 } },
+        overlayToStill: 1,
+        overlay: null,
+        labelAllowancePx: 0,
+      }),
+    ).toEqual({ x: 0, y: 0, width: 390, height: 844 });
   });
 });

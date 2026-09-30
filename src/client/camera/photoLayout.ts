@@ -294,3 +294,44 @@ export function applyMeasuredTransform(
     y: cy + transform.translateY + transform.scale * (point.y - cy),
   };
 }
+
+/**
+ * What must stay clear of the bottom sheet once a photo has been measured
+ * (or has failed): the paper's corners and the hand's landmarks, with room
+ * around them for the dimension lines and their labels, in untransformed
+ * stage pixels. With neither, the visible part of the photo itself.
+ */
+export function computeResultFocusRect(input: {
+  readonly stage: Size;
+  readonly layout: FrozenPhotoLayout;
+  /** Still pixels per overlay pixel (the pipeline may have scaled the photo down). */
+  readonly overlayToStill: number;
+  readonly overlay: {
+    readonly landmarksPx: readonly Point[] | null;
+    readonly paperCorners?: readonly Point[] | null;
+  } | null;
+  /** Room for the labels around the points, in stage pixels. */
+  readonly labelAllowancePx: number;
+}): Rect {
+  const { stage, layout, overlayToStill, overlay } = input;
+  const overlayPoints = [
+    ...(overlay?.paperCorners ?? []),
+    ...(overlay?.landmarksPx ?? []),
+  ];
+  const stagePoints = overlayPoints.map((p) =>
+    photoPointToStage(
+      { x: p.x * overlayToStill, y: p.y * overlayToStill },
+      layout,
+    ),
+  );
+  const around = boundingRect(stagePoints);
+  if (around) return padRect(around, input.labelAllowancePx);
+  const left = Math.max(0, layout.box.x);
+  const top = Math.max(0, layout.box.y);
+  const right = Math.min(stage.width, layout.box.x + layout.box.width);
+  const bottom = Math.min(stage.height, layout.box.y + layout.box.height);
+  if (right <= left || bottom <= top) {
+    return { x: 0, y: 0, width: stage.width, height: stage.height };
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
