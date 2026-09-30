@@ -16,12 +16,13 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir, userInfo } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { homedir, tmpdir, userInfo } from "node:os";
+import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseWorktreeList } from "../../src/lib/learning/paths";
 import { runLogOf, truthOf } from "./helpers/m2-synth";
+import { expectNoLeak } from "./helpers/no-absolute-paths";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
@@ -109,9 +110,10 @@ describe("m2-evaluate script", () => {
       result.stderr,
       readFileSync(out, "utf8"),
     ].join("\n");
-    expect(everything).not.toContain(scratch);
-    expect(everything).not.toContain(tmpdir());
-    expect(everything.toLowerCase()).not.toContain(account.toLowerCase());
+    expectNoLeak(everything, {
+      folders: [scratch, REPO, tmpdir(), homedir()],
+      username: account,
+    });
     expect(everything).not.toMatch(/IMG_|session-1|Photos\//);
     expect(everything).not.toMatch(/landmarks/i);
   });
@@ -145,33 +147,22 @@ describe("m2-evaluate script", () => {
     // ...without the stack that would have listed where the script lives.
     expect(result.stderr).not.toMatch(/^\s+at /m);
     expect(result.stderr).not.toMatch(/scripts[\\/]m2-evaluate|node_modules/);
-    // No absolute path of either kind (a drive letter, or a POSIX root folder).
-    // The account name is masked wherever it is, so on a machine where the
-    // scratch folder sits under the profile the checks below could pass just
-    // because the name was cut out; this one cannot.
-    expect(result.stderr).not.toMatch(/[A-Za-z]:[\\/]/);
-    expect(result.stderr).not.toMatch(
-      /(^|[\s'"(])\/(tmp|home|var|Users|private|mnt)\//,
-    );
-    const lower = result.stderr.toLowerCase();
-    for (const secret of [scratch, REPO, tmpdir()])
-      expect(lower).not.toContain(secret.toLowerCase());
-    if (account.length >= 3) expect(lower).not.toContain(account.toLowerCase());
+    // No absolute path (of any kind), no repo or scratch folder as an absolute
+    // path, no account name. A relative path is fine although, on Linux, it
+    // holds "/tmp/m2-evaluate-test-...": the scratch folder is under /tmp.
+    expectNoLeak(result.stderr, {
+      folders: [scratch, REPO, tmpdir(), homedir()],
+      username: account,
+    });
   });
 
   // Other ways the file system can say no, at the places the script touches it.
   describe("other file system failures print the redacted message only", () => {
     function expectQuiet(stderr: string) {
-      expect(stderr).not.toMatch(/^\s+at /m);
-      expect(stderr).not.toMatch(/[A-Za-z]:[\\/]/);
-      expect(stderr).not.toMatch(
-        /(^|[\s'"(])\/(tmp|home|var|Users|private|mnt)\//,
-      );
-      const lower = stderr.toLowerCase();
-      for (const secret of [scratch, REPO, tmpdir()])
-        expect(lower).not.toContain(secret.toLowerCase());
-      if (account.length >= 3)
-        expect(lower).not.toContain(account.toLowerCase());
+      expectNoLeak(stderr, {
+        folders: [scratch, REPO, tmpdir(), homedir()],
+        username: account,
+      });
     }
 
     // A folder that exists and is a folder but cannot be listed. Windows: an
@@ -289,6 +280,48 @@ describe("m2-evaluate script", () => {
       expect(result.stderr).toMatch(/Usage: npm run m2:evaluate/);
       // Not a run over everyone with the flag ignored.
       expect(result.stdout).toBe("");
+    });
+
+    // "/c/Users/me" is how Git Bash spells C:\Users\me; Node on Windows reads
+    // it as a folder named "c" and --out would create it: a stray C:\c tree.
+    it.skipIf(process.platform !== "win32")(
+      "a Git Bash style path is refused on Windows, and no folder is made",
+      () => {
+        const unique = `m2-msys-${process.pid}-${Date.now()}`;
+        const stray = join(parse(scratch).root, "c", unique);
+        const cases: [string, string[]][] = [
+          [
+            "--out",
+            ["--log", runs, "--truth", truth, "--out", `/c/${unique}/r.json`],
+          ],
+          ["--log", ["--log", `/c/${unique}/runs`, "--truth", truth]],
+          ["--truth", ["--log", runs, "--truth", `/c/${unique}/t`]],
+        ];
+        for (const [flag, args] of cases) {
+          const result = evaluator(args);
+          expect(result.status).toBe(1);
+          expect(result.stderr).toContain(`${flag} looks like a Git Bash path`);
+          expect(result.stderr).not.toContain(unique);
+          expect(result.stdout).toBe("");
+        }
+        expect(existsSync(stray)).toBe(false);
+      },
+    );
+
+    it("an unknown option that is a path is not repeated", () => {
+      const result = evaluator([
+        "--log",
+        runs,
+        "--truth",
+        truth,
+        `--${join(scratch, "x")}`,
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/An unrecognised option was given\./);
+      expectNoLeak(result.stderr, {
+        folders: [scratch, REPO, tmpdir(), homedir()],
+        username: account,
+      });
     });
 
     it("never echoes the path in a misspelt flag", () => {

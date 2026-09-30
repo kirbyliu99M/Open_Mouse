@@ -199,4 +199,68 @@ describe("m2:evaluate arguments: what is an error", () => {
       expect(message(argv)).not.toMatch(/kirby|Users|Photos|C:/i);
     }
   });
+
+  // A path typed with two dashes in front of it (or glued to a flag) must not
+  // come back in the error.
+  it.each([
+    ["a Windows path after two dashes", "--C:\\Users\\kirby\\x"],
+    ["a POSIX path after two dashes", "--/home/kirby/x"],
+    ["a name with a dot", "--kirby.photos"],
+    ["a very long name", `--${"a".repeat(80)}`],
+    ["an empty name", "--"],
+    ["a name with a space", "--my photos"],
+    ["a name with non-ASCII letters", "--照片"],
+  ])("an unknown option that is %s is not repeated", (_label, token) => {
+    const text = message([...base, token]);
+    expect(text).toBe("An unrecognised option was given.");
+    const glued = message([...base, `${token}=value`]);
+    expect(glued).toBe("An unrecognised option was given.");
+  });
+
+  it("a plain option name is shown, up to the equals sign, and no further", () => {
+    expect(message([...base, "--partcipants=P001"])).toBe(
+      'Unknown option "--partcipants".',
+    );
+    expect(message([...base, "--dry-run"])).toBe('Unknown option "--dry-run".');
+    expect(message([...base, `--${"a".repeat(30)}`])).toContain(
+      `--${"a".repeat(30)}`,
+    );
+    expect(message([...base, `--${"a".repeat(31)}`])).toBe(
+      "An unrecognised option was given.",
+    );
+  });
+});
+
+describe("m2:evaluate arguments: Git Bash paths on Windows", () => {
+  const win = "win32";
+  const parse = (argv: string[], platform: NodeJS.Platform = win) =>
+    parseM2Args(argv, platform);
+
+  it.each([
+    ["--log", ["--log", "/c/Users/me/runs", "--truth", "t"]],
+    ["--truth", ["--log", "r", "--truth", "/d/data/learning"]],
+    ["--thresholds", [...base, "--thresholds", "/c/limits.json"]],
+    ["--out", [...base, "--out", "/c/Users/me/report.json"]],
+    ["a repeated --log", ["--log", "ok", "--log", "/e/runs", "--truth", "t"]],
+  ])(
+    "%s in Git Bash spelling is refused, without repeating it",
+    (flag, argv) => {
+      const result = parse(argv);
+      expect(result.ok).toBe(false);
+      const text = (result as { message: string }).message;
+      expect(text).toMatch(/looks like a Git Bash path/);
+      expect(text).not.toMatch(/Users|\/c\/|\/d\/|\/e\//);
+      if (flag.startsWith("--")) expect(text).toContain(flag);
+    },
+  );
+
+  it("is an ordinary path elsewhere, and a Windows path is fine on Windows", () => {
+    expect(parse([...base, "--out", "/c/tmp/r.json"], "linux").ok).toBe(true);
+    expect(parse([...base, "--out", "/c/tmp/r.json"], "darwin").ok).toBe(true);
+    expect(
+      parse(["--log", "C:\\runs", "--truth", "D:\\t", "--out", "E:\\r.json"])
+        .ok,
+    ).toBe(true);
+    expect(parse(["--log", "runs", "--truth", "/cx/t"]).ok).toBe(true);
+  });
 });

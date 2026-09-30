@@ -26,17 +26,20 @@ export interface RgbaImage {
   readonly height: number;
 }
 
-function crop(
+export function crop(
   image: RgbaImage,
   x0: number,
   y0: number,
   w: number,
   h: number,
 ): RgbaImage | null {
+  // The part of the box that lies inside the image. (A box that starts left of
+  // or above the image must lose that part, not slide over to make up its size:
+  // that would read a region the box never covered.)
   const x = Math.max(0, Math.floor(x0));
   const y = Math.max(0, Math.floor(y0));
-  const cw = Math.min(image.width - x, Math.ceil(w));
-  const ch = Math.min(image.height - y, Math.ceil(h));
+  const cw = Math.min(image.width, Math.ceil(x0 + w)) - x;
+  const ch = Math.min(image.height, Math.ceil(y0 + h)) - y;
   if (cw < 40 || ch < 40) return null;
   const data = new Uint8ClampedArray(cw * ch * 4);
   for (let row = 0; row < ch; row++) {

@@ -3,7 +3,7 @@
  * nothing that runs in the browser imports it. The `path` module is passed
  * in, which lets the tests check Windows rules on any machine.
  */
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 import path, { type PlatformPath } from "node:path";
 import type { PaperSize } from "../contracts/measurement";
 import type { SortResult } from "./kit";
@@ -100,17 +100,38 @@ export function gitRefusalRoots(
   };
 }
 
-/** `realpath`, also for a path that does not exist yet (its nearest existing parent is resolved). */
+/**
+ * `realpath`, also for a path that does not exist yet: the nearest existing
+ * parent is resolved (links and junctions in it followed) and the rest is
+ * appended as written. A LINK that points at nothing (a dangling symlink or
+ * junction) is followed too, by reading it: `existsSync` says false for it, but
+ * a write through it lands where it points, and that may be inside a checkout.
+ * A loop of links gives up and returns the plain resolved path.
+ */
 export function realpathLoose(target: string): string {
   let current = path.resolve(target);
   const tail: string[] = [];
-  while (!existsSync(current)) {
+  let hops = 0;
+  for (;;) {
+    if (existsSync(current)) {
+      return path.join(realpathSync.native(current), ...tail);
+    }
+    let isLink = false;
+    try {
+      isLink = lstatSync(current).isSymbolicLink();
+    } catch {
+      // not there at all
+    }
+    if (isLink) {
+      if (++hops > 40) return path.resolve(target);
+      current = path.resolve(path.dirname(current), readlinkSync(current));
+      continue;
+    }
     const parent = path.dirname(current);
     if (parent === current) return path.resolve(target);
     tail.unshift(path.basename(current));
     current = parent;
   }
-  return path.join(realpathSync.native(current), ...tail);
 }
 
 /**
@@ -200,10 +221,59 @@ const escapeRegExp = (text: string) =>
 export interface RedactOptions {
   readonly username?: string | null;
   readonly paths?: readonly { readonly from: string; readonly to: string }[];
+  /**
+   * After the known paths: any other absolute path (a drive letter, or a
+   * POSIX system root such as /home, /Users, /tmp) becomes `<path>`. For
+   * text from tools that name their own folders (Playwright's "Executable
+   * doesn't exist at C:\Users\...", a server's crash report).
+   */
+  readonly hideOtherPaths?: boolean;
+  /** Lines that are stack frames ("    at f (file:1:1)") are replaced by one note. */
+  readonly dropStackFrames?: boolean;
+}
+
+// A path runs to the next quote, angle bracket, pipe or line end; a space is
+// part of it (folders have spaces), and so is a balanced (parenthesis), as in
+// "Program Files (x86)". A "(" that opens a stack frame's location ends the
+// path at the ")" that closes it.
+const PATH_BODY = "(?:[^'\"`<>|()\\r\\n]|\\([^()\\r\\n]*\\))*";
+const WINDOWS_PATH = new RegExp(
+  `(?<![A-Za-z0-9])[A-Za-z]:[\\\\/]${PATH_BODY}`,
+  "g",
+);
+const POSIX_ROOTS =
+  "home|Users|root|tmp|var|private|mnt|opt|usr|etc|srv|media|Volumes|run|proc|snap|nix";
+const POSIX_PATH = new RegExp(
+  `(?<![A-Za-z0-9_.~/:-])/(?:${POSIX_ROOTS})(?![A-Za-z0-9_~-])(?:/${PATH_BODY})?`,
+  "g",
+);
+
+/** `<path>` for a matched path, keeping the sentence punctuation that followed it. */
+function hidePath(match: string): string {
+  const tail = /[\s.,;:!?]+$/.exec(match)?.[0] ?? "";
+  return `<path>${tail}`;
+}
+
+function dropFrames(text: string): string {
+  const lines = text.split(/(\r?\n)/);
+  const out: string[] = [];
+  let inFrames = false;
+  for (let i = 0; i < lines.length; i += 2) {
+    const line = lines[i]!;
+    const eol = lines[i + 1] ?? "";
+    if (/^[ \t]+at\s/.test(line)) {
+      if (!inFrames) out.push("    (stack frames omitted)" + eol);
+      inFrames = true;
+      continue;
+    }
+    inFrames = false;
+    out.push(line + eol);
+  }
+  return out.join("");
 }
 
 export function redactText(text: string, options: RedactOptions = {}): string {
-  let out = text;
+  let out = options.dropStackFrames ? dropFrames(text) : text;
   const paths = [...(options.paths ?? [])]
     .filter((p) => p.from.length > 0)
     .sort((a, b) => b.from.length - a.from.length);
@@ -217,6 +287,9 @@ export function redactText(text: string, options: RedactOptions = {}): string {
     for (const form of forms) {
       out = out.replace(new RegExp(escapeRegExp(form), "gi"), () => to);
     }
+  }
+  if (options.hideOtherPaths) {
+    out = out.replace(WINDOWS_PATH, hidePath).replace(POSIX_PATH, hidePath);
   }
   const user = options.username;
   if (user && user.length >= 3) {
@@ -243,7 +316,7 @@ export function terminalRedaction(args: {
   readonly outDir?: string;
   readonly username?: string | null;
   readonly api?: PathApi;
-}): { username: string | null; paths: { from: string; to: string }[] } {
+}): Required<RedactOptions> {
   const api = args.api ?? path;
   const username = args.username ?? null;
   const shown = (p: string) =>
@@ -262,7 +335,8 @@ export function terminalRedaction(args: {
     paths.push({ from: api.resolve(args.input), to: shown(args.input) });
   if (args.outDir)
     paths.push({ from: api.resolve(args.outDir), to: shown(args.outDir) });
-  return { username, paths };
+  // A terminal also hides paths it was not told about, and stack frames.
+  return { username, paths, hideOtherPaths: true, dropStackFrames: true };
 }
 
 /**
@@ -294,4 +368,17 @@ export function buildSorterRunLog(args: {
     provenance: args.provenance,
     now: args.now,
   });
+}
+
+/**
+ * Is this command-line path a Git Bash (MSYS) spelling such as `/c/Users/me`?
+ * On Windows, Node reads it as the folder "\c\Users\me" on the current drive
+ * and will create it: a stray `C:\c` tree. There it is refused (the user
+ * passes `C:\Users\me`). Elsewhere `/c/...` is an ordinary path.
+ */
+export function looksLikeMsysPath(
+  value: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return platform === "win32" && /^\/[a-zA-Z](\/|$)/.test(value);
 }

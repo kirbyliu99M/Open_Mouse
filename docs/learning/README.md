@@ -322,6 +322,20 @@ bad input or failure; 2 nothing could be evaluated, and the message says why
 (no reports, everything of another pose or participant, or which reasons kept
 the photos from being measured).
 
+An unknown option is echoed by name only when it is a plain option name
+(`--partcipants`); anything else, such as a path with two dashes in front of it,
+is reported as "an unrecognised option". Any other absolute path a tool prints
+is shown as `<path>`, as in `learn:sort`. `--log`, `--truth`, `--thresholds` and
+`--out` given in Git Bash spelling (`/c/Users/me/...`) are refused on Windows
+(Node would read `/c/...` as a folder named `c` on the current drive, and
+`--out` would create it): use `C:\Users\me\...`.
+
+**Not covered: npm's own lines.** Run as `npm run m2:evaluate -- ...`, npm itself
+prints the whole command line, your paths included, to stderr (`npm notice run
+tsx scripts/m2-evaluate.ts --log C:\Users\...`) before the script starts. That is
+npm's output, outside the script's control. `npm run --silent m2:evaluate -- ...`
+hides it; use that when the output is going to be pasted somewhere.
+
 ### What it does
 
 1. **Pairs** each report with its place in the session (participant, pose, hand,
@@ -433,11 +447,36 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
   after `Users` or `home`, is replaced by `~`. (An account name shorter than
   three characters is only matched as a whole segment, since it would match
   half of every path.) Photo `file` values are file names, not paths.
-- **The terminal holds no absolute path or stack either.** When something
-  fails, `learn:sort` prints the message only, never the stack. Anything it
-  prints, including the last words of the dev server, has the working folder
-  and the sorter's own folders shown as `.`, the photo and output folders
-  relative to where the command ran, and the account name as `~`.
+- **The terminal holds no absolute path, stack or account name.** Everything
+  `learn:sort` prints goes through one filter (`src/lib/learning/terminal.ts`):
+  - A failure is its **message only**, never the stack. That covers a folder
+    that cannot be listed or read, as well as errors from the dev server, from
+    Playwright and from anything that escapes uncaught (the last line of
+    defence is a filter too).
+  - Folders the sorter knows are shown short: the working folder and the
+    sorter's own checkout as `.`, other checkouts as `<checkout>`, the photo
+    and output folders relative to where the command ran, and any path segment
+    holding the account name as `~`.
+  - **Any other absolute path** (a drive letter such as `C:\...`, or a POSIX
+    path under `/home`, `/Users`, `/tmp` and the like), which comes from tools
+    that name their own folders (for example Playwright's "Executable doesn't
+    exist at ..."), becomes `<path>`. A path runs to the next quote or line
+    end and may contain spaces, so words after an unquoted path on the same
+    line go with it: better to hide too much than to leave a folder name.
+  - In the dev server's last words, stack frames (`    at f (file:1:1)`) are
+    replaced by one `(stack frames omitted)` line.
+  - The account name is masked wherever else it appears in text, in any letter
+    case (names of one or two characters are not, as they would match half of
+    every message).
+  - **Not covered: npm's own lines.** Run as `npm run learn:sort -- ...`, npm
+    itself prints the whole command line, your paths included, to stderr
+    (`npm notice run tsx scripts/learn-sort.ts --in C:\Users\...`) before the
+    script starts. That is npm's output, outside the script's control. `npm run
+--silent learn:sort -- ...` hides it (checked); use that when the output is
+    going to be pasted somewhere.
+  - `--in` and `--out` given in Git Bash spelling (`/c/Users/me/...`) are
+    refused on Windows: Node would read that as a folder named `c` on the
+    current drive and create it. Use the Windows form (`C:\Users\me\...`).
 - **Only white-listed EXIF in the run log** (above): no GPS, time or device
   serial number. Two things it does not cover:
   - **File names.** Phone cameras often put the time of the shot in the file

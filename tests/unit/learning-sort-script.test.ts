@@ -11,6 +11,7 @@ import {
   type Server as NetServer,
 } from "node:net";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -20,18 +21,23 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir, userInfo } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseWorktreeList } from "../../src/lib/learning/paths";
+import { expectNoLeak } from "./helpers/no-absolute-paths";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = join(REPO, "scripts", "learn-sort.ts");
 
-function sorter(args: readonly string[], env: Record<string, string> = {}) {
+function sorter(
+  args: readonly string[],
+  env: Record<string, string> = {},
+  cwd: string = REPO,
+) {
   const result = spawnSync(process.execPath, [TSX, SCRIPT, ...args], {
-    cwd: REPO,
+    cwd,
     encoding: "utf8",
     timeout: 60_000,
     env: { ...process.env, CI: "", ...env },
@@ -47,11 +53,12 @@ function sorter(args: readonly string[], env: Record<string, string> = {}) {
 function sorterAsync(
   args: readonly string[],
   env: Record<string, string> = {},
+  cwd: string = REPO,
 ) {
   return new Promise<{ status: number | null; stdout: string; stderr: string }>(
     (done) => {
       const child = spawn(process.execPath, [TSX, SCRIPT, ...args], {
-        cwd: REPO,
+        cwd,
         env: { ...process.env, CI: "", ...env },
       });
       let stdout = "";
@@ -272,19 +279,92 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     rmSync(scratch, { recursive: true, force: true });
   });
 
-  /** Nothing in `text` may name where the repo, the scratch folder or the home folder are, or the account. */
+  /**
+   * Nothing in `text` may name the repo, the scratch folder, the temp or home
+   * folder as an ABSOLUTE path, or any other absolute path, or the account. (A
+   * relative path such as ../../tmp/x is fine although it holds "/tmp/x": on
+   * Linux the scratch folder is under /tmp.)
+   */
   function expectClean(text: string) {
-    const lower = text.toLowerCase();
-    // (A home folder such as "/" would match everything: not a secret to look for.)
-    for (const secret of [REPO, scratch, homedir()].filter(
-      (folder) => folder.length > 3,
-    )) {
-      for (const form of [secret, secret.replaceAll("\\", "/")])
-        expect(lower).not.toContain(form.toLowerCase());
-    }
-    if (nameable) expect(lower).not.toContain(username.toLowerCase());
-    expect(text).not.toMatch(/^\s+at /m);
+    expectNoLeak(text, {
+      folders: [REPO, scratch, tmpdir(), homedir()],
+      username: nameable ? username : null,
+    });
   }
+
+  // A folder that exists and is a folder but cannot be listed. Windows: an ACL
+  // entry that denies listing; elsewhere: mode 000 (which root ignores).
+  function withUnlistable<T>(dir: string, run: () => T): T | "unsupported" {
+    if (process.platform === "win32") {
+      try {
+        execFileSync("icacls", [dir, "/deny", `${username}:(RD)`], {
+          stdio: "ignore",
+        });
+      } catch {
+        return "unsupported";
+      }
+      try {
+        return run();
+      } finally {
+        execFileSync("icacls", [dir, "/remove:d", username], {
+          stdio: "ignore",
+        });
+      }
+    }
+    if (process.getuid?.() === 0) return "unsupported";
+    chmodSync(dir, 0o000);
+    try {
+      return run();
+    } finally {
+      chmodSync(dir, 0o755);
+    }
+  }
+
+  it("a photo folder that cannot be listed: a redacted message, not a raw stack (EPERM/EACCES)", () => {
+    const locked = join(scratch, nameable ? `${username}-locked` : "locked");
+    mkdirSync(locked, { recursive: true });
+    const result = withUnlistable(locked, () =>
+      sorter(["--in", locked, "--out", join(scratch, "out")]),
+    );
+    if (result === "unsupported") return;
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/EPERM|EACCES/);
+    expect(result.stderr).toMatch(/scandir|readdir|permission/i);
+    expectClean(result.stderr);
+    expectClean(result.stdout);
+    // Nothing was started.
+    expect(result.stdout).not.toMatch(/Starting dev server/);
+  }, 60_000);
+
+  // "/c/Users/me" is how Git Bash spells C:\Users\me. Node on Windows reads it
+  // as the folder \c\Users\me and makes it: a stray C:\c tree.
+  it.skipIf(process.platform !== "win32")(
+    "a Git Bash style path is refused on Windows, and no folder is made",
+    () => {
+      const unique = `learn-sort-msys-${process.pid}-${Date.now()}`;
+      const strayRoot = join(parse(scratch).root, "c");
+      for (const flag of ["--in", "--out"]) {
+        const args =
+          flag === "--in"
+            ? ["--in", `/c/${unique}/photos`]
+            : ["--in", scratch, "--out", `/c/${unique}/out`];
+        const result = sorter(args);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(
+          new RegExp(`${flag} looks like a Git Bash path`),
+        );
+        expect(result.stderr).not.toContain(unique);
+        expect(result.stdout).toBe("");
+      }
+      expect(existsSync(join(strayRoot, unique))).toBe(false);
+    },
+    60_000,
+  );
+
+  it("elsewhere, and for a Windows path, the same words are an ordinary path (no Git Bash refusal)", () => {
+    const result = sorter(["--in", scratch, "--out", join(scratch, "o")]);
+    expect(result.stderr).not.toMatch(/Git Bash/);
+  }, 60_000);
 
   it("the --out refusal names the folder relative to where the command ran", () => {
     const input = join(scratch, "photos");
@@ -339,7 +419,13 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
         String(port),
         "--dry-run",
       ],
-      { NODE_OPTIONS: `--import ${pathToFileURL(preload).href}` },
+      {
+        NODE_OPTIONS: `--import ${pathToFileURL(preload).href}`,
+        // The command runs from the scratch folder, NOT the checkout, and the
+        // server also quotes that folder: both must come out as ".".
+        DIE_IF_NEXT_QUOTES: scratch,
+      },
+      scratch,
     );
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(
@@ -347,6 +433,18 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     );
     expect(result.stderr).toMatch(
       /Cannot find module '\.[\\/]node_modules[\\/]next[\\/]dist[\\/]server[\\/]next\.js'/,
+    );
+    // The working folder (the scratch folder) is "." ...
+    expect(result.stderr).toMatch(/started from '\.[\\/]session\.txt'/);
+    // ...and so is the checkout, though it is a different folder.
+    expect(result.stderr).toMatch(/Cannot find module '\.[\\/]node_modules/);
+    // A path nobody told the sorter about is <path>, whoever printed it.
+    expect(result.stderr).toMatch(/settings are in '<path>'/);
+    expect(result.stderr).toMatch(/Executable doesn't exist at <path>/);
+    // Stack frames are not shown.
+    expect(result.stderr).toMatch(/\(stack frames omitted\)/);
+    expect(result.stderr).not.toMatch(
+      /Module\._resolveFilename|Object\.<anonymous>/,
     );
     expect(result.stderr).not.toMatch(/devserver\.ts|learn-sort\.ts|tsx/);
     expectClean(result.stderr);

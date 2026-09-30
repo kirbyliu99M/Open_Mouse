@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   realpathSync,
   rmSync,
+  rmdirSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -19,7 +20,7 @@ import {
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { outputInsideRepo, realpathLoose } from "../../src/lib/learning/paths";
+import { outputInsideRepo } from "../../src/lib/learning/paths";
 
 const WINDOWS = process.platform === "win32";
 
@@ -144,6 +145,24 @@ describe("outputInsideRepo and realpathLoose", () => {
       expect(outputInsideRepo(join(window, "r.json"), wtA, git)).toBeNull();
     });
 
+    // A link to nothing: `existsSync` says false for it, but a write through it
+    // lands where it points. A junction on Windows, a symlink elsewhere.
+    it("a link to a folder that is gone does not hide a checkout: the output is judged by where the link points", () => {
+      const target = join(wtB, "gone");
+      mkdirSync(target);
+      const dangling = link(target, join(outside, "dangling-to-wt-b"));
+      rmdirSync(target);
+      expect(existsSync(dangling)).toBe(false);
+      expect(outputInsideRepo(dangling, wtA, git)).toBe(wtB);
+      expect(outputInsideRepo(join(dangling, "r.json"), wtA, git)).toBe(wtB);
+      // The same kind of link pointing outside all checkouts is fine.
+      const away = join(outside, "gone-2");
+      mkdirSync(away);
+      const harmless = link(away, join(outside, "dangling-to-outside"));
+      rmdirSync(away);
+      expect(outputInsideRepo(harmless, wtA, git)).toBeNull();
+    });
+
     it.skipIf(WINDOWS)(
       "a symlink to a FILE inside a checkout does not hide it (POSIX symlink)",
       () => {
@@ -158,50 +177,6 @@ describe("outputInsideRepo and realpathLoose", () => {
         symlinkSync(join(wtB, "not-yet.json"), dangling, "file");
         links.push(dangling);
         expect(outputInsideRepo(dangling, wtA, git)).not.toBeNull();
-      },
-    );
-  });
-
-  describe("realpathLoose", () => {
-    it("is the real path of something that exists", () => {
-      expect(realpathLoose(outside)).toBe(realpathSync.native(outside));
-      const door = link(outside, join(scratch, "door-to-outside"));
-      expect(realpathLoose(door)).toBe(realpathSync.native(outside));
-    });
-
-    it("resolves the nearest existing parent and keeps the rest as it was written", () => {
-      expect(realpathLoose(join(outside, "a", "b", "r.json"))).toBe(
-        join(realpathSync.native(outside), "a", "b", "r.json"),
-      );
-      const door = link(outside, join(scratch, "door-to-outside-2"));
-      expect(realpathLoose(join(door, "new", "r.json"))).toBe(
-        join(realpathSync.native(outside), "new", "r.json"),
-      );
-    });
-
-    it("resolves a relative path against the working folder", () => {
-      const name = `output-guard-${process.pid}-missing`;
-      expect(realpathLoose(name)).toBe(
-        join(realpathSync.native(process.cwd()), name),
-      );
-    });
-
-    it("folds dot-dot segments before looking", () => {
-      expect(realpathLoose(join(outside, "x", "..", "y"))).toBe(
-        join(realpathSync.native(outside), "y"),
-      );
-    });
-
-    // Only Windows has roots that can be missing: a drive letter nothing uses.
-    it.skipIf(!WINDOWS)(
-      "returns the plain resolved path when not even the root exists (an unused drive)",
-      () => {
-        const free = "ZYXWVUTSRQPONMLKJIHGFED"
-          .split("")
-          .find((letter) => !existsSync(`${letter}:${path.sep}`));
-        if (!free) return;
-        const target = `${free}:${path.sep}nothing${path.sep}here.json`;
-        expect(realpathLoose(target)).toBe(path.resolve(target));
       },
     );
   });

@@ -8,6 +8,7 @@
  * could be a path with an account name in it.
  */
 import { GESTURES } from "../learning/kit";
+import { looksLikeMsysPath } from "../learning/paths";
 
 export type PathChoice = "markers" | "paper-edge" | "both";
 
@@ -63,7 +64,19 @@ function codeList(
   return { codes };
 }
 
-export function parseM2Args(argv: readonly string[]): ParsedArgs {
+/**
+ * An option name that is safe to show back: plain letters, digits and hyphens,
+ * not long. Anything else (a path someone typed with two dashes in front, say)
+ * is not repeated.
+ */
+const SAFE_OPTION = /^--[A-Za-z0-9-]{1,30}$/;
+
+const PATH_FLAGS = ["--log", "--truth", "--thresholds", "--out"] as const;
+
+export function parseM2Args(
+  argv: readonly string[],
+  platform: NodeJS.Platform = process.platform,
+): ParsedArgs {
   const repeated: Record<string, string[]> = { "--log": [], "--truth": [] };
   const single = new Map<string, string>();
   for (let i = 0; i < argv.length; i++) {
@@ -74,8 +87,15 @@ export function parseM2Args(argv: readonly string[]): ParsedArgs {
       );
     }
     if (!KNOWN.includes(token)) {
-      // Only the flag's name is echoed: `--log=C:\...` would carry a path.
-      return bad(`Unknown option ${JSON.stringify(token.split("=")[0])}.`);
+      // Only a plain option name is echoed (`--partcipants=...` shows
+      // "--partcipants"); a token that is anything else, such as a path with
+      // two dashes in front of it, is not repeated.
+      const name = token.split("=")[0]!;
+      return bad(
+        SAFE_OPTION.test(name)
+          ? `Unknown option "${name}".`
+          : "An unrecognised option was given.",
+      );
     }
     const value = argv[i + 1];
     if (value === undefined || value.startsWith("--")) {
@@ -88,6 +108,20 @@ export function parseM2Args(argv: readonly string[]): ParsedArgs {
     } else {
       if (single.has(token)) return bad(`${token} was given more than once.`);
       single.set(token, value);
+    }
+  }
+  // "/c/Users/me" is Git Bash's spelling; Windows Node would read it as a
+  // folder named "c" on the current drive, and --out would create it.
+  for (const flag of PATH_FLAGS) {
+    const values =
+      flag === "--log" || flag === "--truth" ? repeated[flag]! : [];
+    const one = single.get(flag);
+    for (const value of one === undefined ? values : [one]) {
+      if (looksLikeMsysPath(value, platform)) {
+        return bad(
+          `${flag} looks like a Git Bash path (a slash, one letter, a slash), which Windows reads as a folder on the current drive. Give the Windows form instead: the drive letter, a colon, then the folders with backslashes.`,
+        );
+      }
     }
   }
   if (repeated["--log"]!.length === 0) return bad("--log is required.");
