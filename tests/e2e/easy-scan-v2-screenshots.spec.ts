@@ -123,11 +123,6 @@ async function installCamera(
   );
 }
 
-const setScene = (page: Page, scene: Scene) =>
-  page.evaluate((scene) => {
-    (window as Window & { __scene?: string }).__scene = scene;
-  }, scene);
-
 async function start(page: Page, url = "/scan/easy") {
   await page.goto(url);
   // The typed-length entry is off in production (src/lib/flags.ts) and on in
