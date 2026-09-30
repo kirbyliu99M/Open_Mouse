@@ -352,3 +352,39 @@ describe("an independent synthetic scene, rendered to pixels", () => {
     expect(flat.handLengthMm - TRUE_HAND_LENGTH_MM).toBeGreaterThan(1.5);
   });
 });
+
+describe("recomputePlane: the two branches that used to be untested", () => {
+  const shot = syntheticShot();
+
+  it("a strip plane (no parallax record) recomputes its points and gives no measurements, like buildPlane", () => {
+    const built = buildPlane(
+      input(shot, { method: "strip-markers", parallax: false }),
+    )!;
+    expect(built.measurements).toBeNull();
+    const again = recomputePlane(shot.landmarksPx, roundTrip(built.plane));
+    expect(again.points).toEqual(built.plane.landmarksSheetMm);
+    // A full, plausible hand in this plane would measure fine; the plane says it must not.
+    expect(again.measurements).toBeNull();
+  });
+
+  it("a pose outside the contract's ranges keeps its points and gives no measurements (the catch branch)", () => {
+    const wrist = shot.landmarksPx[0]!;
+    const fist = shot.landmarksPx.map((p) => ({
+      x: wrist.x + (p.x - wrist.x) * 0.4,
+      y: wrist.y + (p.y - wrist.y) * 0.4,
+    }));
+    const built = buildPlane(input(shot, { landmarksPx: fist }))!;
+    expect(built.measurements).toBeNull();
+    const again = recomputePlane(fist, roundTrip(built.plane));
+    expect(again.points).toHaveLength(21);
+    expect(again.points).toEqual(built.plane.landmarksSheetMm);
+    expect(again.measurements).toBeNull();
+  });
+
+  it("a recorded plane whose landmarks are fine still measures (so the null above is the plane's doing)", () => {
+    const built = buildPlane(input(shot))!;
+    expect(
+      recomputePlane(shot.landmarksPx, roundTrip(built.plane)).measurements,
+    ).not.toBeNull();
+  });
+});

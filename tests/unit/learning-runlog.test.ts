@@ -1,5 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { handMeasurementsSchema } from "../../src/lib/contracts/measurement";
 import { LEARNING_KIT_VERSION } from "../../src/lib/learning/kit";
 import {
   containingRoot,
@@ -404,5 +405,56 @@ describe("truth.json", () => {
     for (const [label, value] of invalid) {
       expect(truthSchema.safeParse(value).success, label).toBe(false);
     }
+  });
+});
+
+describe("truth.json limits", () => {
+  const base = emptyTruth("P007");
+  const accepts = (right: object) =>
+    truthSchema.safeParse({ ...base, right: { ...base.right, ...right } })
+      .success;
+
+  it("hand length: 99.9 and 280.1 are refused, 100 and 280 are taken", () => {
+    expect(accepts({ handLengthMm: 99.9 })).toBe(false);
+    expect(accepts({ handLengthMm: 100 })).toBe(true);
+    expect(accepts({ handLengthMm: 280 })).toBe(true);
+    expect(accepts({ handLengthMm: 280.1 })).toBe(false);
+  });
+
+  it("palm width: 49.9 and 150.1 are refused, 50 and 150 are taken", () => {
+    expect(accepts({ palmWidthMm: 49.9 })).toBe(false);
+    expect(accepts({ palmWidthMm: 50 })).toBe(true);
+    expect(accepts({ palmWidthMm: 150 })).toBe(true);
+    expect(accepts({ palmWidthMm: 150.1 })).toBe(false);
+  });
+
+  it("the limits are the contract's own: for every value, the truth file agrees with handMeasurementsSchema", () => {
+    for (const v of [
+      0, 20, 49.9, 50, 80, 99.9, 100, 150, 150.1, 200, 279.9, 280, 280.1, 300,
+    ]) {
+      expect(accepts({ handLengthMm: v }), `hand length ${v}`).toBe(
+        handMeasurementsSchema.shape.handLengthMm.safeParse(v).success,
+      );
+      expect(accepts({ palmWidthMm: v }), `palm width ${v}`).toBe(
+        handMeasurementsSchema.shape.palmWidthMm.safeParse(v).success,
+      );
+    }
+  });
+
+  it("the left hand has the same limits as the right", () => {
+    const left = (l: object) =>
+      truthSchema.safeParse({ ...base, left: { ...base.left, ...l } }).success;
+    expect(left({ handLengthMm: 99.9 })).toBe(false);
+    expect(left({ handLengthMm: 100 })).toBe(true);
+    expect(left({ palmWidthMm: 150.1 })).toBe(false);
+  });
+
+  it("an empty protocol is refused, so a file always says how it was measured", () => {
+    expect(truthSchema.safeParse({ ...base, protocol: "" }).success).toBe(
+      false,
+    );
+    expect(
+      truthSchema.safeParse({ ...base, protocol: "candidate-v1" }).success,
+    ).toBe(true);
   });
 });
