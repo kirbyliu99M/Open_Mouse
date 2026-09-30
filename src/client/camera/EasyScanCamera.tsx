@@ -455,6 +455,10 @@ export default function EasyScanCamera({
   );
   // How tall the bottom sheet is once open, so the photo can clear it.
   const [sheetHeight, setSheetHeight] = useState<number | null>(null);
+  // Where the top bar's controls end (they grow with the text size), so the
+  // photo is kept clear of them too.
+  const [barBottom, setBarBottom] = useState<number | null>(null);
+  const topBarRef = useRef<HTMLDivElement | null>(null);
   const [debugOn, setDebugOn] = useState(false);
   const [debugSnapshot, setDebugSnapshot] = useState<ScanDebugSnapshot | null>(
     null,
@@ -603,18 +607,29 @@ export default function EasyScanCamera({
       const dialog = sheetDialogRef.current;
       dialog?.showModal();
       sheetTitleRef.current?.focus();
+      const measureBar = () => {
+        const bottoms = [
+          ...(topBarRef.current?.querySelectorAll("button") ?? []),
+        ].map((button) => button.getBoundingClientRect().bottom);
+        const bottom = bottoms.length ? Math.max(...bottoms) : null;
+        setBarBottom((prev) => (prev === bottom ? prev : bottom));
+      };
       setSheetHeight(dialog ? dialog.offsetHeight : null);
+      measureBar();
       if (!dialog) return;
-      const observer = new ResizeObserver(() =>
+      const observer = new ResizeObserver(() => {
         setSheetHeight((prev) =>
           prev === dialog.offsetHeight ? prev : dialog.offsetHeight,
-        ),
-      );
+        );
+        measureBar();
+      });
       observer.observe(dialog);
+      if (topBarRef.current) observer.observe(topBarRef.current);
       return () => observer.disconnect();
     }
     sheetDialogRef.current?.close();
     setSheetHeight(null);
+    setBarBottom(null);
   }, [result.kind]);
 
   const dismissTip = useCallback(() => {
@@ -1531,6 +1546,7 @@ export default function EasyScanCamera({
             labelAllowancePx: resultOverlay?.paperCorners?.length ? 20 : 48,
           }),
           sheetTop: stageSize.height - sheetHeight,
+          barBottom: barBottom ?? undefined,
         })
       : null;
   const layerScale = measuredTransform?.scale ?? 1;
@@ -1698,7 +1714,7 @@ export default function EasyScanCamera({
           )}
         </div>
       )}
-      <div className="cameraTopBar" inert={lengthStep}>
+      <div className="cameraTopBar" ref={topBarRef} inert={lengthStep}>
         <button
           type="button"
           className="cameraCloseButton"

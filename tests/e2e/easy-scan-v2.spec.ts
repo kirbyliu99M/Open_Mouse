@@ -1117,7 +1117,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
 });
 
 test.describe("fix round 1: a very tall sheet does not shrink the photo to a thumbnail", () => {
-  test("the sheet stops at 62vh and scrolls inside; the photo stays at 0.6 or more", async ({
+  test("the sheet stops at 52vh and scrolls inside; the photo stays at 0.4 or more", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1133,7 +1133,7 @@ test.describe("fix round 1: a very tall sheet does not shrink the photo to a thu
       .poll(
         async () =>
           (await sheet.evaluate((el) => el.getBoundingClientRect().height)) <=
-          0.62 * 844 + 1,
+          0.52 * 844 + 1,
         { timeout: 3_000 },
       )
       .toBe(true);
@@ -1146,11 +1146,11 @@ test.describe("fix round 1: a very tall sheet does not shrink the photo to a thu
       .locator(".easyStageContent.moved")
       .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
     console.log(
-      `tall sheet: ${measured.height.toFixed(0)} px of ${(0.62 * 844).toFixed(0)} px allowed, scrolls inside: ${measured.scrolls}, photo scale ${scale.toFixed(3)}`,
+      `tall sheet: ${measured.height.toFixed(0)} px of ${(0.52 * 844).toFixed(0)} px allowed, scrolls inside: ${measured.scrolls}, photo scale ${scale.toFixed(3)}`,
     );
-    expect(measured.height).toBeLessThanOrEqual(0.62 * 844 + 1);
+    expect(measured.height).toBeLessThanOrEqual(0.52 * 844 + 1);
     expect(measured.scrolls).toBe(true);
-    expect(scale).toBeGreaterThanOrEqual(0.6 - 1e-6);
+    expect(scale).toBeGreaterThanOrEqual(0.4 - 1e-6);
     expect(scale).toBeLessThanOrEqual(0.9 + 1e-6);
   });
 });
@@ -1250,4 +1250,69 @@ test.describe("fix round 2: the outline is drawn as centred segments", () => {
     }
     await release(page);
   });
+});
+
+test.describe("fix round 2: large text", () => {
+  for (const percent of [100, 150, 200]) {
+    test(`at ${percent}% text size nothing drawn is under the sheet or under the top bar`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await holdPipeline(page);
+      await openLive(page);
+      await page.evaluate((percent) => {
+        document.documentElement.style.fontSize = `${percent}%`;
+      }, percent);
+      await expect(page.locator(".easyStage")).toHaveAttribute(
+        "data-phase",
+        "processing",
+        { timeout: 20_000 },
+      );
+      await release(page);
+      const sheet = page.getByRole("dialog", { name: "Hand measured" });
+      await expect(sheet).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator(".easyStageContent.moved")).toBeAttached();
+      await page.waitForTimeout(700); // the sheet settles, the lines are drawn
+      const layout = await page.evaluate(() => {
+        const rect = (el: Element) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+        };
+        const parts = (selector: string) =>
+          [...document.querySelectorAll(selector)].map(rect);
+        const bar = document.querySelector(".cameraTopBar")!;
+        // The top bar's own controls, not its empty middle.
+        const controls = [...bar.querySelectorAll("button")].map(rect);
+        return {
+          sheet: rect(document.querySelector("dialog.easyResultSheet")!),
+          barBottom: Math.max(...controls.map((c) => c.bottom)),
+          checks: parts(".easyCornerCheck circle"),
+          lines: parts(".easyDimLine"),
+          labels: parts(".easyDimLabelBg"),
+          scale: new DOMMatrix(
+            getComputedStyle(document.querySelector(".easyStageContent.moved")!)
+              .transform,
+          ).a,
+        };
+      });
+      const drawn = [...layout.checks, ...layout.lines, ...layout.labels];
+      expect(layout.checks).toHaveLength(4);
+      expect(layout.lines).toHaveLength(2);
+      expect(layout.labels).toHaveLength(2);
+      const lowest = Math.max(...drawn.map((r) => r.bottom));
+      const highest = Math.min(...drawn.map((r) => r.top));
+      console.log(
+        `text ${percent}%: photo scale ${layout.scale.toFixed(3)}, top bar ends ${layout.barBottom.toFixed(0)} px, highest drawn part ${highest.toFixed(0)} px, lowest ${lowest.toFixed(0)} px, sheet top ${layout.sheet.top.toFixed(0)} px (sheet ${(layout.sheet.bottom - layout.sheet.top).toFixed(0)} px tall)`,
+      );
+      // Not under the sheet...
+      expect(lowest).toBeLessThanOrEqual(layout.sheet.top);
+      // ...nor under the top bar's buttons...
+      expect(highest).toBeGreaterThanOrEqual(layout.barBottom);
+      // ...and on the screen.
+      for (const r of drawn) {
+        expect(r.left).toBeGreaterThanOrEqual(0);
+        expect(r.right).toBeLessThanOrEqual(390);
+      }
+    });
+  }
 });

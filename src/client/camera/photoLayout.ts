@@ -240,11 +240,18 @@ export const MEASURED_LAYOUT = {
   /**
    * ...and never smaller than this, however tall the sheet gets (a large
    * system font): below it the photo is a thumbnail. The sheet is capped
-   * (62vh in the CSS) and scrolls inside, so the band never gets smaller than
-   * this needs.
+   * (52vh in the CSS) and scrolls inside. On a 390x844 screen at 200% text
+   * that leaves a band the paper fits at about 0.46, so 0.4 is never reached
+   * there; it is reached only on a shorter screen, where the band cannot hold
+   * the paper at any useful scale and something has to give (the floor keeps
+   * the photo readable, and the drawing can then reach under the sheet).
    */
-  minScale: 0.6,
-  /** The photo's content stays below this line (the close and hand buttons). */
+  minScale: 0.4,
+  /**
+   * The photo's content stays below this line (the close and hand buttons).
+   * At larger text the bar is taller: `computeMeasuredTransform` takes the
+   * measured bottom of the bar as well and uses whichever is lower.
+   */
   topInsetPx: 88,
   /** ...and this far above the bottom sheet. */
   sheetGapPx: 24,
@@ -263,17 +270,24 @@ export interface MeasuredTransform {
  * pixels) sits centred in the band between the top inset and the sheet.
  * The scale is `photoScale`, or smaller when `focus` would not fit the band
  * at that scale, but not below `minScale`. The CSS is `translateY(ty) scale(s)`.
+ * `barBottom` is where the top bar's controls end, when they are taller than
+ * the inset allows (large text): the band starts 8 px below that.
  */
 export function computeMeasuredTransform(input: {
   readonly stage: Size;
   readonly focus: Rect;
   /** Distance from the stage top to the sheet's top edge. */
   readonly sheetTop: number;
+  /** Where the top bar's controls end, measured; `undefined` if not known. */
+  readonly barBottom?: number;
   readonly layout?: typeof MEASURED_LAYOUT;
 }): MeasuredTransform {
   const { stage, focus, sheetTop } = input;
   const layout = input.layout ?? MEASURED_LAYOUT;
-  const bandTop = layout.topInsetPx;
+  const bandTop = Math.max(
+    layout.topInsetPx,
+    input.barBottom !== undefined ? input.barBottom + 8 : 0,
+  );
   const bandBottom = Math.max(bandTop + 1, sheetTop - layout.sheetGapPx);
   const bandHeight = bandBottom - bandTop;
   const fitted =

@@ -331,8 +331,8 @@ describe("computeMeasuredTransform — nothing under the sheet", () => {
     );
   });
 
-  it("never goes below 0.6 however tall the sheet: no thumbnail", () => {
-    expect(MEASURED_LAYOUT.minScale).toBe(0.6);
+  it("never goes below 0.4 however tall the sheet: no thumbnail", () => {
+    expect(MEASURED_LAYOUT.minScale).toBe(0.4);
     const tall = { x: 0, y: 0, width: 390, height: 844 };
     // A sheet reaching well up the screen (a large system font).
     for (const top of [604, 500, 400, 300, 200, 100, 10]) {
@@ -341,14 +341,74 @@ describe("computeMeasuredTransform — nothing under the sheet", () => {
         focus: tall,
         sheetTop: top,
       });
-      expect(t.scale, `sheet top ${top}`).toBeGreaterThanOrEqual(0.6);
+      expect(t.scale, `sheet top ${top}`).toBeGreaterThanOrEqual(0.4);
       expect(t.scale, `sheet top ${top}`).toBeLessThanOrEqual(0.9);
     }
-    // ...and 0.6 exactly where the content cannot fit at all.
+    // ...and 0.4 exactly where the content cannot fit at all.
     expect(
       computeMeasuredTransform({ stage: STAGE, focus: tall, sheetTop: 300 })
         .scale,
-    ).toBe(0.6);
+    ).toBe(0.4);
+  });
+
+  describe("large text on a 390x844 screen (sheet capped at 52vh = 439 px, so its top is at 405)", () => {
+    // The paper and its checks as the layout sees them: a guide-sized sheet.
+    const paper = { x: 30, y: 146, width: 332, height: 514 };
+    const sheetTop = 844 - 439;
+
+    it("at 100% text the top bar ends at 58 px and the inset of 88 px stands", () => {
+      const t = computeMeasuredTransform({
+        stage: STAGE,
+        focus: paper,
+        sheetTop: 511,
+        barBottom: 58,
+      });
+      const same = computeMeasuredTransform({
+        stage: STAGE,
+        focus: paper,
+        sheetTop: 511,
+      });
+      expect(t).toEqual(same);
+    });
+
+    it("at 200% text the band starts 8 px below a bar that ends at 139 px, and the paper still fits it above the sheet at about 0.46", () => {
+      const t = computeMeasuredTransform({
+        stage: STAGE,
+        focus: paper,
+        sheetTop,
+        barBottom: 139,
+      });
+      expect(t.scale).toBeGreaterThan(MEASURED_LAYOUT.minScale);
+      expect(t.scale).toBeCloseTo(
+        (sheetTop - MEASURED_LAYOUT.sheetGapPx - 147) / 514,
+        6,
+      );
+      const top = applyMeasuredTransform({ x: 0, y: paper.y }, STAGE, t).y;
+      const bottom = applyMeasuredTransform(
+        { x: 0, y: paper.y + paper.height },
+        STAGE,
+        t,
+      ).y;
+      expect(top).toBeGreaterThanOrEqual(147 - 1e-9);
+      expect(bottom).toBeLessThanOrEqual(
+        sheetTop - MEASURED_LAYOUT.sheetGapPx + 1e-9,
+      );
+    });
+
+    it("a bar higher than the inset moves the band down; a lower one never moves it up", () => {
+      const a = computeMeasuredTransform({
+        stage: STAGE,
+        focus: paper,
+        sheetTop,
+        barBottom: 20,
+      });
+      const b = computeMeasuredTransform({
+        stage: STAGE,
+        focus: paper,
+        sheetTop,
+      });
+      expect(a).toEqual(b);
+    });
   });
 
   it("at the clamp the content is centred in the band, even if it does not fit it", () => {

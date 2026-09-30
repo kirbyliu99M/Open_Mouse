@@ -159,11 +159,13 @@ criterion; each item is a decision the build had to make or a thing it could not
 - **Hint lines on screens 1 and 2 are not built.** The storyboard shows "Takes the photo by
   itself — or tap" there. It is not one of the three approved strings, so the hint line is empty in
   those states. Pending Kirby: add it, and with what words?
-- **The photo scales to 90% or less, never below 0.6.** #92's sheet is taller than the storyboard's
+- **The photo scales to 90% or less, never below 0.4.** #92's sheet is taller than the storyboard's
   (numbers, the "Not yet verified" note), and at 90% the paper would sit under it, so the scale
-  shrinks to fit (0.783 with today's sheet). The lower bound is 0.6, and the result sheet is
-  capped at 62vh and scrolls inside above that, so a large system font cannot shrink the photo
-  to a thumbnail.
+  shrinks to fit: 0.783 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
+  390x844 screen). The result sheet is capped at 52vh and scrolls inside above that, and the photo
+  keeps clear of the top bar as well, which grows with the text. The floor of 0.4 is reached only
+  on a shorter screen, where the band cannot hold the paper at a useful size; there the drawing
+  can reach under the sheet.
 - **`resizeMode: { ideal: "none" }`** is asked for next to 1920x1080 ideal, so the browser prefers
   the camera's own frame sizes over a software crop-and-scale that would narrow the field of view.
   Not verified on a phone.
