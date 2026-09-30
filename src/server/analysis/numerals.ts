@@ -69,7 +69,8 @@
  *
  * Out of scope, deliberately: Roman numerals written with Latin letters
  * ("III"; the character "Ⅲ" NFKC-decomposes to exactly that). Closing this
- * reliably would require telling a genuine Roman numeral apart from an ordinary English word made entirely of the letters
+ * reliably would require telling a genuine Roman numeral apart from an
+ * ordinary English word made entirely of the letters
  * I/V/X/L/C/D/M — and some common words pass the standard strict Roman
  * numeral grammar outright (e.g. "mix" parses as M + IX = 1009). Adding
  * Roman numeral parsing would trade a rare, low-severity gap for a much

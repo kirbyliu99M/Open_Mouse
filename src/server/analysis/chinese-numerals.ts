@@ -15,8 +15,8 @@
  * - Cardinals: 五, 十二, 二十五, 一百二十五, 一百二 (= 120), 一百零五, 兩千,
  *   三萬五千, 三萬五 (= 35000), 一億二千萬, shorthand 廿 / 卅 / 卌, and bare
  *   digit strings (二〇二四, 一二五). Ordinary and financial digits and units
- *   (壹貳叁肆伍陸柒捌玖拾佰仟), 兩/两, 萬/万, 億/亿, Suzhou numerals (〡〢〣...),
- *   and the colloquial 仨 (= 3) and 倆/俩 (= 2).
+ *   (壹貳叁肆伍陸柒捌玖拾佰仟 and the variants 弌弍弎), 兩/两, 萬/万, 億/亿,
+ *   Suzhou numerals (〡〢〣...), and the colloquial 仨 (= 3) and 倆/俩 (= 2).
  * - Two characters that are digits only beside another numeral character: ○
  *   (U+25CB, 一○○ = 100) and 參/参 (financial 3, 參拾伍 = 35).
  * - Decimals: 三點五 (= 3.5), 零點九, 十二點五.
@@ -24,7 +24,10 @@
  *   position word (前半 後半 上半 下半 左半 右半, as in 後半部) is not 0.5.
  * - Percentages: 百分之三十, 百分之百, `三十%`, 三十個百分點, 三十趴, and
  *   N成 (tenths: 七成 = 70 percent).
- * - Fractions: 三分之一 (= 1/3), 十分之三 (= 0.3); 百分之N is the percent form.
+ * - Fractions: 三分之一 (= 1/3), 三份之一, 三分一, 十分之三 (= 0.3), and a
+ *   slash with a Chinese number on either side (一/三, 1/三); 百分之N is the
+ *   percent form. The quotient AND both numbers written are checked, so
+ *   五分之五 is not the rank 1. 1萬分之1 has 10000 as its denominator.
  * - Arabic digits followed by a unit: 3萬 = 30000, 1.5萬, 2千, 5億.
  * - Ordinals (第三名) are read as the number they name, so "the third pick"
  *   needs a rank 3 in the input. A ranking always has rank 1, so 第一名 is fine.
@@ -34,7 +37,9 @@
  * and `CONDITIONAL_COMPOUNDS`), a placeholder ○ (○○滑鼠), and a financial
  * character that has an everyday meaning, on its own: 肆意, 大陸, 隊伍, 拾起,
  * 參考. The other financial characters (壹貳叁柒捌玖佰仟) have no such use, so
- * they are numbers even alone.
+ * they are numbers even alone. The everyday ones are numbers too when a measure
+ * word follows (陸毫米, 伍個, 拾個, 參毫米), except inside a noun (隊伍成員,
+ * 大陸分公司).
  *
  * Direction of every choice below: hard rule 2 is asymmetric. A false alarm
  * costs one retry (or the fallback answer); a miss puts an invented number in
