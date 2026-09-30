@@ -722,6 +722,9 @@ export default function EasyScanCamera({
     setCornerStates(INITIAL_CORNER_STATES);
     setRingFraction(0);
     setCue(null);
+    // What a screen reader was last told ("Photo taken", the last cue) is not
+    // true of a camera that is starting again.
+    setAnnounced("");
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -1014,6 +1017,8 @@ export default function EasyScanCamera({
     if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
     setResult({ kind: "none" });
     setPhotoInfo(null);
+    // Also where no camera starts again (an upload-only screen).
+    setAnnounced("");
     const canUseCamera =
       typeof window !== "undefined" &&
       window.isSecureContext &&

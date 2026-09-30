@@ -850,6 +850,10 @@ test.describe("fix round 1: a retake starts clean", () => {
         cue: document.querySelector("[data-testid=camera-cue]")?.textContent,
         cueIsGreen: Boolean(document.querySelector(".cameraCue.perfect")),
         hints: document.querySelectorAll(".easyHint").length,
+        // What the polite live region under the cue would read out.
+        announced: document.querySelector(
+          ".cameraCueWrap + .visuallyHiddenLive",
+        )?.textContent,
         ringDashoffset: Number(circle?.getAttribute("stroke-dashoffset")),
         videoHasStream:
           (document.querySelector("video.cameraVideo") as HTMLVideoElement)
@@ -861,6 +865,8 @@ test.describe("fix round 1: a retake starts clean", () => {
     expect(screen.cue).toBe("Point the camera at the paper");
     expect(screen.cueIsGreen).toBe(false);
     expect(screen.hints).toBe(0);
+    // ...and a screen reader is not told "Photo taken" again.
+    expect(screen.announced).toBe("");
     // An empty ring: the whole circumference is still to fill.
     expect(screen.ringDashoffset).toBeCloseTo(2 * Math.PI * 40, 3);
 
