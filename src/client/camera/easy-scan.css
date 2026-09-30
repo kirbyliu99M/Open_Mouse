@@ -835,6 +835,11 @@ main.easyScanShell {
   padding-top: max(0.875rem, env(safe-area-inset-top));
 }
 .easyScanStaged .cameraCloseButton {
+  /* A circle needs a square: min-width and min-height alone left it as wide
+     as the default button padding made it, an oval. */
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.6);
 }

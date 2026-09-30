@@ -1153,3 +1153,43 @@ test.describe("fix round 1: a browser whose getSettings throws", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("fix round 1: the close button is a circle", () => {
+  const closeBox = async (page: Page) => {
+    const box = await page
+      .getByRole("button", { name: "Close camera, back to Home" })
+      .boundingBox();
+    const radius = await page
+      .getByRole("button", { name: "Close camera, back to Home" })
+      .evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
+    return { width: box!.width, height: box!.height, radius };
+  };
+
+  test("44 x 44 with a 50% radius (a true circle): live, with increased contrast, and behind the measured sheet", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await openLive(page);
+    const live = await closeBox(page);
+    await page.emulateMedia({ contrast: "more" });
+    const contrastMore = await closeBox(page);
+    await page.emulateMedia({ contrast: "no-preference" });
+    await release(page);
+    await expect(
+      page.getByRole("dialog", { name: "Hand measured" }),
+    ).toBeVisible({ timeout: 20_000 });
+    const measured = await closeBox(page);
+    console.log(
+      `close button: ${JSON.stringify({ live, contrastMore, measured })}`,
+    );
+    for (const [name, box] of Object.entries({
+      live,
+      contrastMore,
+      measured,
+    })) {
+      expect(box.width, `${name} width`).toBeCloseTo(44, 1);
+      expect(box.height, `${name} height`).toBeCloseTo(44, 1);
+      expect(box.radius, `${name} radius`).toBe("50%");
+    }
+  });
+});
