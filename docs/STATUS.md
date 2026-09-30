@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-30 · by: Claude (launch sequence approved; #77 merged)_
+_Last updated: 2026-09-30 · by: Claude (#80, #69, #90 and #74 merged)_
 
 ---
 
@@ -27,9 +27,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `a238428` (#77). The latest deploy is `87386ce`, which is the #78 merge: CI and comment changes only, with no behaviour change.
+**Production:** behaves as of `85ebc3d` (#74).
 
-- **Anonymous flow:** operational. The unmocked live e2e (reload included) passed against `a238428` on 2026-09-30. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 14.3 s.
+- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each 2026-09-30 merge. The latest run passed against `85ebc3d`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 16.1 s. In production the new `/scan/hand-explicit-demo` returns 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
 - **Kirby's phone test** of #77 (right and left hand) is still pending.
 
@@ -48,6 +48,18 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#77:** palm-down photos no longer read as the other hand, and an "auto" hand chip no longer fails the scan.
 - **#78:** CI now runs only on pushes to `main` and on non-draft PRs. A docs-only PR skips the heavy steps. A push to `main` always runs the lightweight gate (≈ 90 s), and a ready PR runs the full gate with e2e. `SECURITY.md` and Dependabot security-only config are added.
+- **#80 (C1):** contracts for the `trackball_form_factor` exclusion reason, per-descriptor label maps, the `thumb_rest_missing` reason, and `hand` in the fit response (#62).
+- **#69:** no-paper scan and device routing (desktop QR hand-off, in-app browser notice).
+  - The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY` (off) until W7 measures its thresholds.
+  - Its input range, 135–265 mm, is derived from schema limits and is a candidate.
+  - Merged before Kirby confirmed its new wording, which is marked candidate in the PR: the desktop privacy line "Your photo never leaves this device. Only measurements are sent." and the device-routing strings listed there. They are on Kirby's copy list below.
+- **#90 (G1b):** tests only. They pin #78's CI rules. The PR reports 28 mutants, all killed by the new tests. An independent verifier ran 26 mutants against the PR head `17c45a5` and all were killed (reported to Claude on 2026-09-30, not on GitHub). It left two low-severity follow-ups. Extra keys on the migration step (`shell:`, `working-directory:`) still pass the tests, so the step's keys should be pinned. The link-cleanup helper should also confirm a link is gone before the recursive delete.
+- **#74 (S2):** one hand decision for all three pipelines (`handExplicit`; only a hand the user chose can trigger a mismatch).
+  - The results page's left-hand note reads the fit response's `hand`. Old browser-storage hand keys are swept.
+  - Every re-scan link goes to `/scan/easy`, and raw server errors reach the console only.
+  - Dark-mode contrast is fixed on the retake sheet's hand chip and on the selected grip chip. The hand chip has an accessible name instead of `aria-pressed`.
+  - The `/scan/easy` placeholder now takes its colour from a server-side user-agent hint, so it no longer flashes. As a result `/scan/easy` is rendered per request and no longer cached by the CDN.
+  - Merged before Kirby approved two strings it adds: the "…or tap the hand button below." hint and the hand-chip accessible names. Both are on Kirby's copy list below.
 
 #77 was reviewed by the `pr-review` workflow; its test-coverage follow-ups moved to S2 (#74).
 
@@ -55,14 +67,10 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#85 (C2)** — contracts for accepted measurement-model versions, plus calibration evidence stored with each scan (#63). Migration 0006 must run in production before the code deploys.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
-- **#80 (C1)** — contracts: new exclusion reasons (incl. trackball), per-descriptor labels, `thumb_rest_missing`, and `hand` in the fit response (#62).
-- **#81** — this STATUS/AGENTS sync.
-- **#69** — no-paper scan and device routing (draft, base `main`).
-  - The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY` (off) until W7 measures its thresholds.
-  - Input range is 135–265 mm, derived from schema limits — a candidate.
-- **#74** — behaviour fixes (draft, stacked on #69); the hand API is unified on `handExplicit`.
+- **#86 (G4)** — scoring and copy logic: Chinese numerals in the no-new-numerals check, a Chinese provisional check, Chinese medical terms, the `weight_in_range` parameters and `thumb_rest_missing`. Draft. The first review's gap, 萬分之N slipping past the numeral check, is fixed on the branch. An adversarial re-check then found three new gaps: integer slash fractions, open-ended 舒緩, and 前半/後半 before a duration. A third round is in progress.
+- **#89 (G9a)** — first-party facts (hand compatibility, shape, form factor) for the 38 Logitech mice, as data only. Draft; in review, then Kirby spot-checks it.
 - **#82 (G2)** and **#84 (G6)** — honest home copy, AI-source disclosure, `/results/demo` guard; NOTICE, README, CONTRIBUTING, MediaPipe caching, non-SIMD fallback. Both are drafts; their copy awaits Kirby.
-- **#76** — learning kit (draft). It gets data format v2 before merge (G3).
+- **#76** — learning kit (draft). Data format v2 (G3) is in progress on it.
 - **#75** — UI/UX audit (draft). Findings 3 and 5 are corrected before merge.
   - Finding 5: only `/results/demo` is public in production.
   - Finding 3: an Early preview notice already exists, but not next to the numbers.
@@ -108,6 +116,17 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 - Keep or remove the legacy `/scan` flow
 - GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection; private vulnerability reporting (all off as of 2026-09-30)
 - Phone test of #77 (right and left hand)
+- Run migration 0006 on production before #85 merges (`DATABASE_URL_UNPOOLED` pointing at the Neon production branch, then `npm run db:migrate`)
+- Copy approval for #82 and #84, after their review
+- Copy approval, after the fact, for strings merged unapproved:
+  - #69: the desktop privacy line "Your photo never leaves this device. Only measurements are sent." and the device-routing strings its PR lists as candidate
+  - #74: the "…or tap the hand button below." hint and the hand-chip accessible names (for example "Right hand · auto, set automatically. Change hand")
+- Copy approval for #86 (G4): the `weight_in_range` sentence with the user's range and the two `thumb_rest_missing` sentences
+- #89: spot-check the facts, and three questions for G9b:
+  - Should left-handers exclude every mouse whose page says right-handed? M705, M720 and M850L are not excluded today, because their shape is null.
+  - Should the rubric rule ambidextrous ⇒ symmetrical be applied?
+  - Should `formFactor` "standard" stay null?
+  - Separately, M750 vs M550: the same FAQ sentence gives M550 `symmetrical` and M750 null.
 - The typed-length input range, 135–265 mm (candidate)
 - M325s / M550 acceptance
 
@@ -118,6 +137,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Queued:**
 
 - #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
+- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82); already on `main`. Queued for S3, Builder 1's next UI fix pack.
 - M1 rubric revision (the gate failed; see Gate results).
 - `security-review` workflow, after U1 and G6.
 - Re-review of #26.
