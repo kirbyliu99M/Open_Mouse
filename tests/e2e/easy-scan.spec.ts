@@ -1,5 +1,136 @@
 import { expect, test } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 import { checkHandDetected } from "../../src/client/photo/gates";
+
+test("the in-sheet hand toggle reruns the same photo with an explicit hand and updates the sheet", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    if (!media?.getUserMedia) return;
+    const original = media.getUserMedia.bind(media);
+    let calls = 0;
+    Object.defineProperty(window, "__cameraStartCount", {
+      get: () => calls,
+    });
+    media.getUserMedia = (...args) => {
+      calls += 1;
+      return original(...args);
+    };
+  });
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  await expect(sheet).toContainText("Tap the hand button below.");
+  const before = await page.evaluate(
+    () =>
+      (window as Window & { __cameraStartCount?: number }).__cameraStartCount ??
+      0,
+  );
+  await sheet.locator(".easyHandChipInSheet").click();
+  await expect(sheet).toContainText("Hand choice updated.");
+  await expect(sheet).not.toContainText("Tap the hand button below.");
+  expect(
+    await page.evaluate(() => {
+      const calls = (
+        window as Window & {
+          __easyScanMismatchCalls?: Array<{
+            file: File;
+            hand: string;
+            handExplicit?: boolean;
+            handednessFixInstruction?: string;
+          }>;
+        }
+      ).__easyScanMismatchCalls;
+      return {
+        count: calls?.length,
+        sameFile: calls?.[0]?.file === calls?.[1]?.file,
+        firstExplicit: calls?.[0]?.handExplicit,
+        secondExplicit: calls?.[1]?.handExplicit,
+        secondHand: calls?.[1]?.hand,
+        instruction: calls?.[0]?.handednessFixInstruction,
+      };
+    }),
+  ).toEqual({
+    count: 2,
+    sameFile: true,
+    firstExplicit: false,
+    secondExplicit: true,
+    secondHand: "left",
+    instruction: "tap the hand button below",
+  });
+  await expect(sheet.getByRole("button", { name: "Try again" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __cameraStartCount?: number })
+          .__cameraStartCount ?? 0,
+    ),
+  ).toBe(before);
+});
+
+test("the hand chip is disabled while a photo is processing, and drops 'auto' once the user has chosen", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+
+  await page.addInitScript(() => {
+    const demoWindow = window as Window & {
+      __easyScanMismatchHold?: Promise<void>;
+      __releaseEasyScanMismatch?: () => void;
+    };
+    demoWindow.__easyScanMismatchHold = new Promise<void>((resolve) => {
+      demoWindow.__releaseEasyScanMismatch = resolve;
+    });
+  });
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  const chip = page.locator(".easyScanTopRight .easyHandChip");
+  await expect(chip).toHaveText(/right hand · auto/i);
+
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  // Processing: the pipeline already read the hand, so the chip must not
+  // change it underneath the running scan.
+  await expect(chip).toBeDisabled();
+  await chip.click({ force: true });
+  await expect(chip).toHaveText(/right hand · auto/i);
+
+  await page.evaluate(() =>
+    (
+      window as Window & { __releaseEasyScanMismatch?: () => void }
+    ).__releaseEasyScanMismatch?.(),
+  );
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  await expect(sheet).toContainText("Tap the hand button below.");
+  await expect(chip).toBeEnabled();
+
+  await sheet.locator(".easyHandChipInSheet").click();
+  await expect(sheet).toContainText("Hand choice updated.");
+  // Chosen by the user now: no "· auto" on the chip.
+  await expect(chip).toHaveText(/^\s*left hand\s*$/i);
+  // The in-sheet toggle is only offered for a hand mismatch, which is fixed.
+  await expect(sheet.locator(".easyHandChipInSheet")).toHaveCount(0);
+  // The tap during processing started no extra run: 1 upload + 1 re-check.
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __easyScanMismatchCalls?: unknown[] })
+          .__easyScanMismatchCalls?.length,
+    ),
+  ).toBe(2);
+});
 
 test.describe("/scan/easy — no setup page, hand chip and first-run tip", () => {
   test("the tip and hand chip render immediately — no primer, no 'Turn on camera' click needed", async ({
@@ -11,8 +142,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     // they're deterministic, same reasoning as camera-capture.spec.ts's
     // permission-denied test.
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the initial UI stays stable.",
     );
     await page.goto("/scan/easy");
 
@@ -31,8 +162,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     page,
   }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the first-run tip stays stable.",
     );
     await page.goto("/scan/easy");
     const tip = page.getByRole("dialog", {
@@ -53,8 +184,8 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
 
   test("Escape dismisses the first-run tip", async ({ page }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so Escape targets the tip.",
     );
     await page.goto("/scan/easy");
     const tip = page.getByRole("dialog", {
@@ -67,17 +198,21 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
 
   test("the hand chip flips on tap", async ({ page }, testInfo) => {
     test.skip(
-      testInfo.project.name !== "chromium",
-      "Camera-independent — runs once, under plain chromium.",
+      testInfo.project.name !== "mobile",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the hand chip stays visible.",
     );
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
-    const chip = page.getByRole("button", { name: /hand · auto/i });
+    const chip = page.locator(".cameraTopBar .easyHandChip");
     await expect(chip).toHaveText(/right hand · auto/i);
+    // A button whose label changes is not a toggle: no aria-pressed at all
+    // (the next test pins its accessible name).
+    await expect(chip).not.toHaveAttribute("aria-pressed");
     await chip.click();
-    await expect(chip).toHaveText(/left hand · auto/i);
+    await expect(chip).toHaveText("Left hand");
+    await expect(chip).not.toHaveAttribute("aria-pressed");
     await chip.click();
-    await expect(chip).toHaveText(/right hand · auto/i);
+    await expect(chip).toHaveText("Right hand");
   });
 });
 
@@ -99,6 +234,7 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
     await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: "Got it" }).click();
 
     const requestedUrls: string[] = [];
     page.on("request", (req) => {
@@ -137,4 +273,68 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
 
     expect(requestedUrls).toEqual([]);
   });
+});
+
+test("the hand chip inside the retake sheet is readable in light and dark", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  const chip = sheet.locator(".easyHandChipInSheet");
+  await expect(chip).toBeVisible();
+  for (const scheme of ["light", "dark"] as const) {
+    // No transitions: a computed colour read mid-fade is neither theme's.
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    const style = await chip.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        color: computed.color,
+        background: computed.backgroundColor,
+        icon: getComputedStyle(el.querySelector("svg")!).stroke,
+      };
+    });
+    // The white text on the dark theme's near-white chip was 1.09:1.
+    expect(
+      contrast(style.color, style.background),
+      `${scheme} text`,
+    ).toBeGreaterThan(4.5);
+    // The icon draws in the text colour, so it is as readable as the text.
+    expect(style.icon, `${scheme} icon`).toBe(style.color);
+  }
+});
+
+test("the hand chip is a plain button named for what it does, not a toggle", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Runs in the mobile project.");
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Got it" }).click();
+  const chip = page.locator(".easyScanTopRight .easyHandChip");
+  // aria-pressed would stay "true" after the first tap while the label keeps
+  // changing; a button whose label changes is not a toggle.
+  await expect(chip).not.toHaveAttribute("aria-pressed");
+  await expect(
+    page.getByRole("button", {
+      name: "Right hand · auto, set automatically. Change hand",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await chip.click();
+  await expect(chip).not.toHaveAttribute("aria-pressed");
+  await expect(
+    page.getByRole("button", {
+      name: "Left hand, set by you. Change hand",
+      exact: true,
+    }),
+  ).toBeVisible();
+  // The visible text is still the start of the name (label in name).
+  await expect(chip).toHaveText(/^\s*Left hand\s*$/);
 });

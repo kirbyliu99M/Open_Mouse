@@ -231,3 +231,26 @@ describe("scoreFit aggregation", () => {
     expect(parsed.success).toBe(true);
   });
 });
+
+// #62: the results page will read the hand from the fit response. A hand that
+// is hard-coded or swapped here would silently treat left-handed users as
+// right-handed, so pin it for both hands.
+describe("scoreFit hand", () => {
+  it.each(["left", "right"] as const)(
+    "returns the %s hand it was given, in a schema-valid response",
+    (hand) => {
+      const r = scoreFit(
+        measurements,
+        [fullyClassified, unclassified],
+        { includeVertical: false },
+        hand,
+      );
+      expect(r.hand).toBe(hand);
+      const parsed = fitResponseSchema.safeParse({
+        scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f",
+        ...r,
+      });
+      expect(parsed.success).toBe(true);
+    },
+  );
+});

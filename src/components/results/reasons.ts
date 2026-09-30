@@ -91,6 +91,8 @@ const TEMPLATES: Record<ReasonCode, (params: Params) => string> = {
     "The front flares inward and may crowd your fingertips.",
   thumb_rest_supports: () => "The thumb rest supports how you grip.",
   thumb_neutral: () => "There's no thumb rest, which suits your grip fine.",
+  thumb_rest_missing: () =>
+    "There's no thumb rest, and a palm grip usually rests the thumb on one.",
   thumb_rest_unneeded: () =>
     "There's a thumb rest, but your grip doesn't need one.",
   weight_in_range: (p) => {

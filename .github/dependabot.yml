@@ -1,0 +1,25 @@
+# Security updates only. No routine version-update pull requests.
+#
+# - `open-pull-requests-limit: 0` turns version updates off for this ecosystem.
+#   GitHub's docs: "If you only require security updates and want to exclude
+#   version updates, you can set open-pull-requests-limit to 0", and security
+#   update PRs "are not subject to this limit and do not count toward it".
+# - The `groups` entry with `applies-to: security-updates` merges the security
+#   fixes for the npm ecosystem into one pull request instead of one per package.
+# - The "Dependabot security updates" switch in the repository settings is what
+#   actually turns security updates on; this file only shapes them.
+#
+# GitHub Actions versions in .github/workflows are deliberately not listed here
+# (no `github-actions` ecosystem), so they are bumped by hand.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"

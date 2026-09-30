@@ -813,3 +813,9 @@
   color: #55555d;
   line-height: 1.5;
 }
+@media (prefers-color-scheme: dark) {
+  .results-fitNotice,
+  .results-handNotice {
+    color: #b5b5bd;
+  }
+}

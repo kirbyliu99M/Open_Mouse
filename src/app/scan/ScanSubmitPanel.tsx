@@ -30,13 +30,13 @@ import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { submitScan } from "@/client/scan/submitScan";
-import { resultHandKey } from "@/components/results/handDisclosure";
+import { resultLengthKey } from "@/components/results/userLengthDisclosure";
 
 type SubmitState =
   | { kind: "idle" }
   | { kind: "submitting" }
   | { kind: "success" }
-  | { kind: "error"; message: string; detail?: string };
+  | { kind: "error"; message: string };
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
@@ -56,12 +56,18 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     void submitScan(submission).then((outcome) => {
       if (outcome.status === "success") {
         try {
-          sessionStorage.setItem(
-            resultHandKey(outcome.scanId),
-            submission.hand,
-          );
+          if (
+            "method" in submission.calibration &&
+            submission.calibration.method === "user-length"
+          ) {
+            localStorage.setItem(
+              resultLengthKey(outcome.scanId),
+              String(submission.calibration.referenceMm),
+            );
+          }
         } catch {
-          // Storage may be disabled; results remain available without a hand disclosure.
+          // Storage may be disabled; results remain available without the
+          // no-paper disclosure.
         }
         setState({ kind: "success" });
         router.push(resultsPagePath(outcome.scanId));
@@ -72,7 +78,6 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
       setState({
         kind: "error",
         message: outcome.message,
-        detail: outcome.detail,
       });
     });
   }, [submission, router]);
@@ -110,7 +115,6 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
       {state.kind === "error" && (
         <div className="feedback feedback-error" role="alert">
           <p className="feedbackTitle">{state.message}</p>
-          {state.detail && <p className="feedbackDetail">{state.detail}</p>}
         </div>
       )}
     </div>

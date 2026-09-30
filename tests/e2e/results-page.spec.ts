@@ -27,6 +27,8 @@ const highConfidenceFixture: unknown = JSON.parse(
 const SCAN_ID = "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d";
 const FIT_URL = `**/api/scans/${SCAN_ID}/fit`;
 const ANALYSIS_URL = `**/api/scans/${SCAN_ID}/analysis`;
+const HAND_KEY = `openMouse.resultHand.${SCAN_ID}`;
+const LENGTH_KEY = `open-mouse:user-length:${SCAN_ID}`;
 
 const READY_ANALYSIS_MODEL = {
   output: {
@@ -60,6 +62,119 @@ async function stubHappyFit(page: Page) {
   );
 }
 
+/** What the fit route returns for a left-hand scan: the hand is part of the
+ * response (#62), so nothing needs to be in browser storage. */
+async function stubLeftHandFit(page: Page) {
+  await page.route(FIT_URL, (route) =>
+    fulfillJson(route, 200, {
+      ...(highConfidenceFixture as object),
+      hand: "left",
+    }),
+  );
+}
+
+test("a new tab shows the typed-length note from storage and the left-hand note from the fit response, then deletion clears the stored keys", async ({
+  page,
+  context,
+}) => {
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  await page.goto(`/results/${SCAN_ID}`);
+  // Only the typed length lives in storage; the hand is not stored at all.
+  await page.evaluate(
+    ([lengthKey]) => localStorage.setItem(lengthKey, "190"),
+    [LENGTH_KEY],
+  );
+
+  const newTab = await context.newPage();
+  await stubLeftHandFit(newTab);
+  await newTab.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  await newTab.route(`**${scanPath(SCAN_ID)}`, (route) =>
+    route.fulfill({ status: 204 }),
+  );
+  await newTab.goto(`/results/${SCAN_ID}`);
+  await expect(
+    newTab.getByText(/Based on the hand length you entered \(190 mm\)/),
+  ).toBeVisible();
+  await expect(newTab.getByText(/Left-hand fit isn't rated yet/)).toBeVisible();
+  // The no-paper disclosure sits right after the top pick, styled like the
+  // left-hand notice, not in the page-bottom footnote.
+  await expect(
+    newTab.locator(".results-handNotice", {
+      hasText: "Based on the hand length you entered (190 mm)",
+    }),
+  ).toHaveCount(1);
+  await expect(
+    newTab.locator(".results-previewNotice", { hasText: "Based on the hand" }),
+  ).toHaveCount(0);
+  expect(
+    await newTab.evaluate(() => {
+      const follows = (a: Element, b: Element) =>
+        Boolean(
+          a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      const [disclosure, leftHand] = [
+        ...document.querySelectorAll(".results-handNotice"),
+      ];
+      const analysis = document.querySelector(".results-analysis");
+      return {
+        beforeLeftHandNotice: follows(disclosure, leftHand),
+        beforeAnalysis: analysis ? follows(disclosure, analysis) : false,
+      };
+    }),
+  ).toEqual({ beforeLeftHandNotice: true, beforeAnalysis: true });
+  await newTab.getByRole("button", { name: "Delete this scan now" }).click();
+  await newTab.getByRole("button", { name: "Delete scan" }).click();
+  await expect(
+    newTab.getByRole("heading", { name: "This scan has been deleted" }),
+  ).toBeVisible();
+  expect(
+    await newTab.evaluate(
+      ([handKey, lengthKey]) => [
+        localStorage.getItem(handKey),
+        localStorage.getItem(lengthKey),
+      ],
+      [HAND_KEY, LENGTH_KEY],
+    ),
+  ).toEqual([null, null]);
+  await newTab.close();
+});
+
+test("a typed length stored under an earlier, wider range still gets its note; an implausible one gets none", async ({
+  page,
+}) => {
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  for (const [stored, shown] of [
+    ["120", true], // below today's input range, inside the schema's
+    ["280", true],
+    ["50", false],
+    ["abc", false],
+  ] as const) {
+    await page.addInitScript(
+      ([key, value]) => localStorage.setItem(key, value),
+      [LENGTH_KEY, stored],
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(
+      page.getByRole("heading", { name: "Your best match" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Based on the hand length you entered/),
+    ).toHaveCount(shown ? 1 : 0);
+    if (shown)
+      await expect(
+        page.getByText(`(${stored} mm)`, { exact: false }),
+      ).toBeVisible();
+  }
+});
+
 test.describe("/results/[scanId] — real results page", () => {
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({
     page,
@@ -68,11 +183,10 @@ test.describe("/results/[scanId] — real results page", () => {
       results: { total: number }[];
     };
     fixture.results[0].total = 49;
-    await page.addInitScript(
-      ([key]) => sessionStorage.setItem(key, "left"),
-      [`openMouse.resultHand.${SCAN_ID}`],
+    // A left-hand scan says so in the response, with nothing in storage.
+    await page.route(FIT_URL, (route) =>
+      fulfillJson(route, 200, { ...fixture, hand: "left" }),
     );
-    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
     await page.route(ANALYSIS_URL, (route) =>
       fulfillJson(route, 500, { error: "Unavailable" }),
     );
@@ -99,9 +213,11 @@ test.describe("/results/[scanId] — real results page", () => {
       results: { total: number }[];
     };
     fixture.results[0].total = 50;
+    // A leftover key from a build that stored the hand must not decide the
+    // note: the response says right, so there is none, and the key is dropped.
     await page.addInitScript(
-      ([key]) => sessionStorage.setItem(key, "right"),
-      [`openMouse.resultHand.${SCAN_ID}`],
+      ([key]) => localStorage.setItem(key, "left"),
+      [HAND_KEY],
     );
     await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
     await page.route(ANALYSIS_URL, (route) =>
@@ -119,6 +235,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.getByText(/Left-hand fit isn't rated yet/)).toHaveCount(
       0,
     );
+    await expect
+      .poll(() => page.evaluate((key) => localStorage.getItem(key), HAND_KEY))
+      .toBeNull();
   });
   test("renders the ranking as soon as the fit route resolves, then the written analysis once it resolves too", async ({
     page,
@@ -184,7 +303,7 @@ test.describe("/results/[scanId] — real results page", () => {
       .locator(".results-page-error")
       .getByRole("link", { name: "Scan again", exact: true });
     await expect(scanAgain).toBeVisible();
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // Never shows the numeric ranking for a 404.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
   });
@@ -358,7 +477,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     await expect(heading).toBeFocused();
     await expect(page.getByText("permanently removed")).toBeVisible();
     const scanAgain = page.getByRole("link", { name: "Scan again" });
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // The ranking is gone — deleted really replaces the page, not just a toast.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
 
@@ -384,4 +503,48 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     // Still open, and the ranking underneath is untouched.
     await expect(page.getByRole("alertdialog")).toBeVisible();
   });
+});
+
+test("a results page sweeps every leftover hand key, not just its own scan's", async ({
+  page,
+}) => {
+  const OTHER = "openMouse.resultHand.7c1d2e3f-0000-4a2b-8c3d-9e0f1a2b3c4d";
+  const THIRD = "openMouse.resultHand.11111111-2222-4333-8444-555555555555";
+  const KEEP_LENGTH =
+    "open-mouse:user-length:11111111-2222-4333-8444-555555555555";
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  await page.addInitScript(
+    ([keys, keep]) => {
+      for (const key of keys) localStorage.setItem(key, "left");
+      localStorage.setItem(keep, "186");
+      localStorage.setItem("unrelated", "x");
+    },
+    [[HAND_KEY, OTHER, THIRD], KEEP_LENGTH] as const,
+  );
+  await page.goto(`/results/${SCAN_ID}`);
+  await expect(
+    page.getByRole("heading", { name: "Your best match" }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("openMouse.resultHand."),
+        ),
+      ),
+    )
+    .toEqual([]);
+  // Only the hand keys go: another scan's typed length and unrelated data stay.
+  expect(
+    await page.evaluate(
+      ([keep]) => [
+        localStorage.getItem(keep),
+        localStorage.getItem("unrelated"),
+      ],
+      [KEEP_LENGTH],
+    ),
+  ).toEqual(["186", "x"]);
 });

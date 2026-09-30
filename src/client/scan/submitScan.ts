@@ -12,7 +12,7 @@
  * impossible to construct here in the first place.
  *
  * Never trust the response body's shape: every non-2xx path is re-validated
- * with `errorResponseSchema` before its `error` string is surfaced, and a
+ * with `errorResponseSchema` before its `error` string is logged, and a
  * body that fails that parse (or isn't JSON at all — an infra error page,
  * say) falls back to this module's own copy instead. Same for a 201 whose
  * body doesn't match `scanSubmitResponseSchema`.
@@ -34,12 +34,6 @@ export type SubmitScanOutcome =
       readonly kind: SubmitScanErrorKind;
       /** Actionable, user-facing sentence — one instruction, per kind. */
       readonly message: string;
-      /**
-       * Supplementary detail from a response body that DID parse as
-       * `errorResponseSchema` — shown alongside `message`, never in place
-       * of it.
-       */
-      readonly detail?: string;
     };
 
 /** One distinct, actionable sentence per error kind (design-guidelines.md). */
@@ -119,12 +113,12 @@ export async function submitScan(
   }
 
   const detail = await readErrorDetail(response);
+  if (detail) console.error("Scan submission failed:", detail);
   if (response.status === 400) {
     return {
       status: "error",
       kind: "invalid",
       message: SUBMIT_ERROR_MESSAGES.invalid,
-      detail,
     };
   }
   if (response.status === 413) {
@@ -132,7 +126,6 @@ export async function submitScan(
       status: "error",
       kind: "tooLarge",
       message: SUBMIT_ERROR_MESSAGES.tooLarge,
-      detail,
     };
   }
   if (response.status === 429) {
@@ -140,13 +133,11 @@ export async function submitScan(
       status: "error",
       kind: "rateLimited",
       message: SUBMIT_ERROR_MESSAGES.rateLimited,
-      detail,
     };
   }
   return {
     status: "error",
     kind: "server",
     message: SUBMIT_ERROR_MESSAGES.server,
-    detail,
   };
 }

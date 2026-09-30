@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   sweep:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 3 attempts * 30s --max-time, plus 10s + 30s of backoff between them,
     # is well under this even in the worst case.
     timeout-minutes: 4
