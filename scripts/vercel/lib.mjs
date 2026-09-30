@@ -31,7 +31,7 @@
 export const DEFAULT_OWNER = "kirbyliu99M";
 export const DEFAULT_REPO = "Open_Mouse";
 export const GITHUB_TIMEOUT_MS = 5000;
-const NAME = /^[A-Za-z0-9_.-]+$/;
+const NAME = /^(?!\.+$)[A-Za-z0-9_.-]+$/;
 
 /**
  * @param {Record<string, string | undefined>} env

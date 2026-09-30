@@ -147,6 +147,8 @@ describe("readPullRequest", () => {
       { VERCEL_GIT_REPO_OWNER: "a/b" },
       { VERCEL_GIT_REPO_SLUG: "r?x=1" },
       { VERCEL_GIT_REPO_OWNER: ".. " },
+      { VERCEL_GIT_REPO_OWNER: ".." },
+      { VERCEL_GIT_REPO_SLUG: "." },
     ]) {
       const fetchImpl = reply(200, { draft: false, state: "open" });
       await expect(
@@ -228,6 +230,31 @@ describe("ignoreBuildMain: Vercel's inverted exit code", () => {
     expect(log).toHaveBeenCalledWith(
       "vercel ignoreCommand: build (ignore script failed (RangeError))",
     );
+  });
+
+  it("by default sets process.exitCode instead of calling process.exit()", async () => {
+    const before = process.exitCode;
+    const exitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    try {
+      await ignoreBuildMain({
+        env: PREVIEW,
+        fetchImpl: reply(200, {}),
+        log: () => {},
+      });
+      expect(process.exitCode).toBe(0);
+      await ignoreBuildMain({
+        env: { VERCEL_ENV: "production" },
+        fetchImpl: reply(200, {}),
+        log: () => {},
+      });
+      expect(process.exitCode).toBe(1);
+      expect(exitSpy).not.toHaveBeenCalled();
+    } finally {
+      exitSpy.mockRestore();
+      process.exitCode = before;
+    }
   });
 
   it("logs one line naming the decision", async () => {
