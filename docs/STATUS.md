@@ -123,6 +123,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Queued:**
 
 - #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
+- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Found by G2 (#82) and already on `main`; fixed in S3.
 - M1 rubric revision (the gate failed; see Gate results).
 - `security-review` workflow, after U1 and G6.
 - Re-review of #26.
