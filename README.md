@@ -78,36 +78,25 @@ photo measurement is validated.
   variable (see `.env.example`); when it is not set, the code falls back to a
   fixed, non-secret salt (the hash can then be reversed by brute force) and logs a
   warning. Whether production sets it is **unconfirmed** (未確認).
-- **Deletion: the 24-hour target is not currently met.** A scan made without an
-  account is _meant_ to be physically deleted within 24 hours of when it was made,
-  but the current setup cannot promise that.
-  - What works: a session expires 20 h 30 min after it is created, and from then
-    on the app treats it as if it did not exist, so its scans can no longer be
-    read.
-  - What lags is the physical deletion. An hourly GitHub Actions job
-    (`.github/workflows/expire-sessions.yml`) is scheduled to call the sweep
-    endpoint, and a daily Vercel cron (03:00 UTC) backs it up. Between 2026-09-23
-    and 2026-09-30 the hourly job was observed to run about 5 times a day, not 24,
-    and the longest gap between two runs was 8.56 hours. So an expired row can
-    stay in the database for more than 24 hours. Fixing that is tracked as G7 in
-    [`docs/STATUS.md`](docs/STATUS.md).
-  - The lazy sweep that also removes expired rows runs only when someone submits a
-    scan (`POST /api/scans`), not on ordinary requests.
-  - `src/server/scans/retention.ts` adds up a design worst case of 23 h 15 min and
-    a unit test checks that sum against the workflow's cron string. The sum assumes
-    GitHub runs the job every hour, which the observed schedule does not.
-  - You can delete a scan at any time with "Delete this scan now" on its results
-    page.
-  - How long Neon's point-in-time restore (PITR) keeps deleted rows has **not been
-    confirmed** (未確認), so a database backup may still hold a scan after it was
-    deleted.
+- **Deletion.** A scan made without an account belongs to a session that
+  expires automatically. Once it has expired, the app treats the session and its
+  scans as if they did not exist, so they can no longer be read. When the expired
+  data is physically removed from the database, and how long database backups
+  keep it, are not stated here: they will be set out in the privacy terms, which
+  are not written yet (未拍板). How long Neon's point-in-time restore (PITR) keeps
+  data has **not been confirmed** (未確認). You can delete a scan at any time with
+  "Delete this scan now" on its results page.
 - **Accounts are optional, and sign-in is off on the production site.** Google
   sign-in exists in the code and stays off unless OAuth credentials are
   configured; it is not enabled in production (see `docs/STATUS.md`). If it is
-  turned on, signing in stores your name, email address and profile image
-  (`users.name`, `email`, `image`) and the OAuth tokens Google returns (the
-  `accounts` table). Google OAuth is a third party in that flow. A signed-in
-  user's scans are kept until that user deletes them.
+  turned on, signing in stores: in the `users` table, your name, email address,
+  whether the email is verified (`emailVerified`) and profile image; in the
+  `accounts` table, your Google account ID (`provider_account_id`) and the OAuth
+  data Google returns (access, refresh and ID tokens, token type, `expires_at`,
+  `scope` and `session_state`); and in `auth_sessions`, a session token with its
+  expiry. The schema also defines `verification_tokens`; whether Google sign-in
+  writes to it was not confirmed. Google OAuth is a third party in that flow. A
+  signed-in user's scans are kept until that user deletes them.
 - **Third parties.** Google's Gemini API receives the derived measurements, the
   grip, and the specifications and scores of the shortlisted mice to write the
   explanation, never a photo (`src/server/analysis/input.ts`). The app is hosted on
@@ -200,6 +189,6 @@ Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和 Logitech
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
 - **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未拍板（未拍板）。目前主要用來對照空白紙流程的量測結果。
 - **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有登入的掃描，目標是在製作後 24 小時內實體刪除，**但目前還做不到這個保證**：session 在 20 小時 30 分後就讀不到（讀取端把它當成不存在），實體刪除卻依賴每小時的 GitHub 排程；2026-09-23 到 09-30 實際觀察約每天只跑 5 次，最長間隔 8.56 小時，所以實體刪除可能超過 24 小時，修正項目是 G7。sweep 也只有在有人送出掃描（`POST /api/scans`）時才會順帶執行，一般請求不會。也可以隨時在結果頁按「Delete this scan now」立即刪除。Neon 時間點還原（PITR）的保留期尚未確認。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email、頭像與 OAuth token。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明（未拍板）。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。

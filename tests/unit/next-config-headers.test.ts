@@ -44,7 +44,16 @@ describe("next.config.ts headers()", () => {
     }
   });
 
-  async function cspDirective(name: string): Promise<string[]> {
+  /**
+   * The sources of one CSP directive. A directive that is absent gives [] when
+   * `optional` is set (script-src-elem is not sent today, but a future one must
+   * still be checked). A repeated directive is ambiguous (browsers use the
+   * first one), so it may appear at most once, and exactly once unless optional.
+   */
+  async function cspDirective(
+    name: string,
+    { optional = false } = {},
+  ): Promise<string[]> {
     const all = (await rules()).find((r) => r.source === "/:path*");
     expect(all).toBeDefined();
     const csp = valueOf(all!, "Content-Security-Policy");
@@ -54,8 +63,7 @@ describe("next.config.ts headers()", () => {
       .split(";")
       .map((directive) => directive.trim().split(/\s+/))
       .filter(([directiveName]) => directiveName === name);
-    // A repeated directive is ambiguous (browsers use the first one), so it
-    // must appear exactly once.
+    if (optional && matching.length === 0) return [];
     expect(matching, `exactly one ${name} directive`).toHaveLength(1);
     return matching[0]!.slice(1);
   }
@@ -67,12 +75,27 @@ describe("next.config.ts headers()", () => {
     expect(await cspDirective("connect-src")).toEqual(["'self'"]);
   });
 
-  it("lets scripts come from no third-party origin: script-src holds only keywords (no host, scheme or wildcard)", async () => {
-    const sources = await cspDirective("script-src");
-    expect(sources).toContain("'self'");
-    // Every source is a quoted keyword ('self', 'unsafe-inline', ...). A host
-    // (https://cdn.example.com), a scheme (https:) or `*` would not start with
-    // a quote.
-    expect(sources.filter((source) => !source.startsWith("'"))).toEqual([]);
-  });
+  // Every directive that decides where code or workers may load from. A source
+  // is a quoted keyword ('self', 'unsafe-inline', ...) or, for worker-src only,
+  // the blob: scheme (see next.config.ts). A host (https://cdn.example.com),
+  // any other scheme (https:, data:) or `*` does not start with a quote, so it
+  // is caught. default-src is the fallback for every fetch directive that is
+  // not listed, so it is held to the same rule.
+  it.each([
+    { name: "default-src", optional: false, extra: [] as string[] },
+    { name: "script-src", optional: false, extra: [] as string[] },
+    { name: "script-src-elem", optional: true, extra: [] as string[] },
+    { name: "worker-src", optional: false, extra: ["blob:"] },
+  ])(
+    "$name lets code load from no third-party origin (no host, wildcard or scheme)",
+    async ({ name, optional, extra }) => {
+      const sources = await cspDirective(name, { optional });
+      if (!optional) expect(sources).toContain("'self'");
+      expect(
+        sources.filter(
+          (source) => !source.startsWith("'") && !extra.includes(source),
+        ),
+      ).toEqual([]);
+    },
+  );
 });

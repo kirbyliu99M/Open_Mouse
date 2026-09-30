@@ -87,9 +87,11 @@ under `drizzle/` (see the Database section of `README.md`). Do not use schema pu
 
 ## Pull requests
 
-CI minutes are limited: CI runs on pushes to `main` and on pull requests that are
-not drafts, and nowhere else. A push to a feature branch or to a draft pull
-request costs nothing.
+CI minutes are limited. `ci.yml` runs on pushes to `main`, on pull requests that
+are not drafts, and when a maintainer starts it by hand (`workflow_dispatch`). The
+manual `live-e2e.yml` and the scheduled `expire-sessions.yml` also use Actions
+minutes. A push to a feature branch or to a draft pull request does not run CI
+and costs nothing.
 
 1. Branch from `main`. Branch names look like `m2-calibration` or `fix-handedness`.
    A branch created before #78 (the CI budget change) must merge `main` in before

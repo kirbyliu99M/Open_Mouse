@@ -130,4 +130,41 @@ describe("NOTICE js-aruco2 paragraph", () => {
     expect(flat).toContain(squash(mit));
     expect(flat).toContain(squash(stackBlur));
   });
+
+  it("reproduces the OpenCV licence text from LICENSE.txt word for word", () => {
+    // From the "License Agreement" line to the next heading (AForge.NET). The
+    // "IMPORTANT: READ BEFORE DOWNLOADING" preamble before it is not copied.
+    const opencv = licence.slice(
+      licence.indexOf("License Agreement"),
+      licence.indexOf("\nAForge.NET\n"),
+    );
+    expect(opencv).toContain("Intel Corporation");
+    expect(opencv).toContain("Willow Garage");
+    expect(squash(notice)).toContain(squash(opencv));
+  });
+
+  it("reproduces the ArUco licence text from the dictionary file's header word for word", () => {
+    // LICENSE.txt has only the heading "BSD License" for ArUco; the text is in
+    // the comment at the top of the dictionary file the six codes came from.
+    const dictionary = readFileSync(
+      join(root, "node_modules/js-aruco2/src/dictionaries/aruco_mip_36h12.js"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+    const start = dictionary.indexOf("/**") + 3;
+    const aruco = dictionary.slice(start, dictionary.indexOf("*/", start));
+    expect(aruco).toContain("Rafael Muñoz Salinas");
+    expect(aruco).toContain("Redistributions in binary form");
+    expect(squash(notice)).toContain(squash(aruco));
+  });
+
+  it("says that LICENSE.txt has only a heading for ArUco (so the wording stays true)", () => {
+    // If a later js-aruco2 puts the ArUco text into LICENSE.txt, NOTICE's
+    // sentence "only a heading ... and no text" becomes false and this fails.
+    const afterHeading = licence.slice(licence.indexOf("\nArUco\n"));
+    const arucoSection = afterHeading.slice(
+      0,
+      afterHeading.indexOf("\nOpenCV\n"),
+    );
+    expect(squash(arucoSection)).toBe("ArUco ==== BSD License");
+  });
 });

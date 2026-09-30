@@ -149,9 +149,11 @@ and package-lock.json.
   (printed-sheet marker detection and the bank-card check). Their headers carry
   an MIT notice with the text below (aruco.js: Damiano Falcioni 2020 and Juan
   Mellado 2011; cv.js: Juan Mellado 2011). The package's LICENSE.txt also
-  reproduces the licences of four other works that js-aruco2 is derived from or
-  refers to: ArUco (BSD), OpenCV (BSD-style), AForge.NET (GNU LGPL v3) and
-  StackBoxBlur (MIT, Copyright (c) 2010 Mario Klingemann). The AForge.NET
+  carries entries for four other works that js-aruco2 is derived from or refers
+  to. For OpenCV (BSD-style), AForge.NET (GNU LGPL v3) and StackBoxBlur (MIT,
+  Copyright (c) 2010 Mario Klingemann) it reproduces the licence text. For ArUco
+  it has only a heading ("BSD License") and no text; the ArUco licence text is
+  the one in section 2.1, taken from the header of the dictionary file. The AForge.NET
   reference sits in src/posit2.js, which Open_Mouse does not import. StackBoxBlur
   is code that runs: CV.adaptiveThreshold in cv.js calls CV.stackBoxBlur, and the
   marker detector in aruco.js calls CV.adaptiveThreshold (cv.js cites "Stack

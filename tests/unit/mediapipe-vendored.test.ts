@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -55,10 +55,19 @@ function readmeRows(): Row[] {
 }
 
 describe("vendored MediaPipe files", () => {
-  it("has exactly the four wasm files the README lists, and no others", () => {
-    expect(readdirSync(vendored("wasm")).sort()).toEqual(
-      [...WASM_FILES].sort(),
-    );
+  it("has exactly the files the README table lists (plus the README and the licence text), and no others anywhere under public/mediapipe", () => {
+    // Recursive, so a stray file in wasm/, models/, a new sub-directory or the
+    // top folder all fail; so does a listed file that is missing.
+    const found = (readdirSync(vendored(""), { recursive: true }) as string[])
+      .map((entry) => entry.replace(/\\/g, "/"))
+      .filter((entry) => statSync(vendored(entry)).isFile())
+      .sort();
+    const expected = [
+      ...readmeRows().map((row) => row.path),
+      "README.md",
+      "LICENSE-mediapipe.txt",
+    ].sort();
+    expect(found).toEqual(expected);
   });
 
   it.each(WASM_FILES)(
