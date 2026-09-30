@@ -237,6 +237,13 @@ export function padRect(rect: Rect, by: number): Rect {
 export const MEASURED_LAYOUT = {
   /** The photo is shown at this scale once it is measured. */
   photoScale: 0.9,
+  /**
+   * ...and never smaller than this, however tall the sheet gets (a large
+   * system font): below it the photo is a thumbnail. The sheet is capped
+   * (62vh in the CSS) and scrolls inside, so the band never gets smaller than
+   * this needs.
+   */
+  minScale: 0.6,
   /** The photo's content stays below this line (the close and hand buttons). */
   topInsetPx: 88,
   /** ...and this far above the bottom sheet. */
@@ -255,7 +262,7 @@ export interface MeasuredTransform {
  * `focus` (the paper, the hand and their labels, in untransformed stage
  * pixels) sits centred in the band between the top inset and the sheet.
  * The scale is `photoScale`, or smaller when `focus` would not fit the band
- * at that scale. The CSS is `translateY(ty) scale(s)`.
+ * at that scale, but not below `minScale`. The CSS is `translateY(ty) scale(s)`.
  */
 export function computeMeasuredTransform(input: {
   readonly stage: Size;
@@ -269,10 +276,11 @@ export function computeMeasuredTransform(input: {
   const bandTop = layout.topInsetPx;
   const bandBottom = Math.max(bandTop + 1, sheetTop - layout.sheetGapPx);
   const bandHeight = bandBottom - bandTop;
-  const scale =
+  const fitted =
     focus.height > 0
       ? Math.min(layout.photoScale, bandHeight / focus.height)
       : layout.photoScale;
+  const scale = Math.max(layout.minScale, fitted);
   const centreY = stage.height / 2;
   const scaledTop = centreY + scale * (focus.y - centreY);
   const scaledBottom = centreY + scale * (focus.y + focus.height - centreY);

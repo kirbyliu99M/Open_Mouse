@@ -1180,6 +1180,10 @@ main.easyScanShell {
 /* ── The result sheet rises with a spring (response 0.4 s, no bounce) ── */
 .easySheet.easyResultSheet {
   animation: easySheetSlideIn 550ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Never so tall (a large system font) that the photo has no room: above
+     this it scrolls inside. The photo's scale stops at 0.6 (photoLayout.ts). */
+  max-height: 62vh;
+  overflow-y: auto;
 }
 
 @supports (animation-timing-function: linear(0, 1)) {

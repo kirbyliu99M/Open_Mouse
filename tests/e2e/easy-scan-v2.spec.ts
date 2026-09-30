@@ -1089,3 +1089,42 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     expect(reticle.shadow).toContain("rgb(0, 0, 0) 0px 0px 0px 3px");
   });
 });
+
+test.describe("fix round 1: a very tall sheet does not shrink the photo to a thumbnail", () => {
+  test("the sheet stops at 62vh and scrolls inside; the photo stays at 0.6 or more", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const { sheet } = await captureAndMeasure(page);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
+    // What a large system font does to the sheet: far more content than fits.
+    await sheet.evaluate((el) => {
+      const extra = document.createElement("div");
+      extra.style.height = "1200px";
+      el.appendChild(extra);
+    });
+    await expect
+      .poll(
+        async () =>
+          (await sheet.evaluate((el) => el.getBoundingClientRect().height)) <=
+          0.62 * 844 + 1,
+        { timeout: 3_000 },
+      )
+      .toBe(true);
+    await page.waitForTimeout(300);
+    const measured = await sheet.evaluate((el) => ({
+      height: el.getBoundingClientRect().height,
+      scrolls: el.scrollHeight > el.clientHeight + 100,
+    }));
+    const scale = await page
+      .locator(".easyStageContent.moved")
+      .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+    console.log(
+      `tall sheet: ${measured.height.toFixed(0)} px of ${(0.62 * 844).toFixed(0)} px allowed, scrolls inside: ${measured.scrolls}, photo scale ${scale.toFixed(3)}`,
+    );
+    expect(measured.height).toBeLessThanOrEqual(0.62 * 844 + 1);
+    expect(measured.scrolls).toBe(true);
+    expect(scale).toBeGreaterThanOrEqual(0.6 - 1e-6);
+    expect(scale).toBeLessThanOrEqual(0.9 + 1e-6);
+  });
+});

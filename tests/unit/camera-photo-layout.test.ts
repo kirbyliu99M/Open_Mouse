@@ -317,15 +317,52 @@ describe("computeMeasuredTransform — nothing under the sheet", () => {
   });
 
   it("shrinks further than 90% when the content would not fit the band", () => {
-    const tall = { x: 0, y: 0, width: 390, height: 844 };
+    // Band: 88 to 580 = 492 px. Content 600 px tall fits at 0.82.
+    const tall = { x: 0, y: 100, width: 390, height: 600 };
     const t = computeMeasuredTransform({ stage: STAGE, focus: tall, sheetTop });
     expect(t.scale).toBeLessThan(0.9);
-    const top = applyMeasuredTransform({ x: 0, y: 0 }, STAGE, t).y;
-    const bottom = applyMeasuredTransform({ x: 0, y: 844 }, STAGE, t).y;
+    expect(t.scale).toBeGreaterThan(MEASURED_LAYOUT.minScale);
+    expect(t.scale).toBeCloseTo(492 / 600, 6);
+    const top = applyMeasuredTransform({ x: 0, y: 100 }, STAGE, t).y;
+    const bottom = applyMeasuredTransform({ x: 0, y: 700 }, STAGE, t).y;
     expect(top).toBeGreaterThanOrEqual(MEASURED_LAYOUT.topInsetPx - 1e-9);
     expect(bottom).toBeLessThanOrEqual(
       sheetTop - MEASURED_LAYOUT.sheetGapPx + 1e-9,
     );
+  });
+
+  it("never goes below 0.6 however tall the sheet: no thumbnail", () => {
+    expect(MEASURED_LAYOUT.minScale).toBe(0.6);
+    const tall = { x: 0, y: 0, width: 390, height: 844 };
+    // A sheet reaching well up the screen (a large system font).
+    for (const top of [604, 500, 400, 300, 200, 100, 10]) {
+      const t = computeMeasuredTransform({
+        stage: STAGE,
+        focus: tall,
+        sheetTop: top,
+      });
+      expect(t.scale, `sheet top ${top}`).toBeGreaterThanOrEqual(0.6);
+      expect(t.scale, `sheet top ${top}`).toBeLessThanOrEqual(0.9);
+    }
+    // ...and 0.6 exactly where the content cannot fit at all.
+    expect(
+      computeMeasuredTransform({ stage: STAGE, focus: tall, sheetTop: 300 })
+        .scale,
+    ).toBe(0.6);
+  });
+
+  it("at the clamp the content is centred in the band, even if it does not fit it", () => {
+    const tall = { x: 0, y: 0, width: 390, height: 844 };
+    const t = computeMeasuredTransform({
+      stage: STAGE,
+      focus: tall,
+      sheetTop: 300,
+    });
+    const top = applyMeasuredTransform({ x: 0, y: 0 }, STAGE, t).y;
+    const bottom = applyMeasuredTransform({ x: 0, y: 844 }, STAGE, t).y;
+    const bandCentre =
+      (MEASURED_LAYOUT.topInsetPx + (300 - MEASURED_LAYOUT.sheetGapPx)) / 2;
+    expect((top + bottom) / 2).toBeCloseTo(bandCentre, 6);
   });
 
   it("with a shorter sheet the photo needs to move less", () => {
