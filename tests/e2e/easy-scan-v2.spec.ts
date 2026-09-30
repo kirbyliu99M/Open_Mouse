@@ -1026,3 +1026,66 @@ test.describe("fix round 1: reduced motion cross-fades, it does not blink", () =
     ).toBe(1);
   });
 });
+
+test.describe("fix round 1: the reticle is the spec's", () => {
+  async function tapAndReadReticle(page: Page) {
+    await fakeFocusSupport(page, true);
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    await freezeLoop(page);
+    await page
+      .locator(".easyStage")
+      .click({ position: { x: 120, y: 320 }, force: true });
+    await expect(page.getByTestId("focus-reticle")).toBeVisible();
+    return page.evaluate(() => {
+      const box = document.querySelector(".easyReticleBox")!;
+      const style = getComputedStyle(box);
+      const dot = getComputedStyle(box, "::after");
+      const rect = document
+        .querySelector("[data-testid=focus-reticle]")!
+        .getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        borderWidth: style.borderTopWidth,
+        borderStyle: style.borderTopStyle,
+        borderColor: style.borderTopColor,
+        radius: style.borderTopLeftRadius,
+        shadow: style.boxShadow,
+        dotColor: dot.backgroundColor,
+        dotSize: [dot.width, dot.height],
+      };
+    });
+  }
+
+  test("88 px, drafting blue #0A64E0, 2 px, 12 px radius, a centre dot, and a thin white halo", async ({
+    page,
+  }) => {
+    const reticle = await tapAndReadReticle(page);
+    expect(reticle.width).toBeCloseTo(88, 0);
+    expect(reticle.height).toBeCloseTo(88, 0);
+    expect(reticle.borderWidth).toBe("2px");
+    expect(reticle.borderStyle).toBe("solid");
+    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.radius).toBe("12px");
+    expect(reticle.dotColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.dotSize).toEqual(["6px", "6px"]);
+    // The halo: white, 1 px, nearly opaque, so the blue does not vanish on a dark picture.
+    expect(reticle.shadow).toContain(
+      "rgba(255, 255, 255, 0.9) 0px 0px 0px 1px",
+    );
+  });
+
+  test("with increased contrast it is still blue, and gets a white then black ring so it shows on a bright picture", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ contrast: "more" });
+    const reticle = await tapAndReadReticle(page);
+    // Not white: a plain white stroke vanishes on a bright picture.
+    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(parseFloat(reticle.borderWidth)).toBeGreaterThanOrEqual(2);
+    expect(reticle.shadow).toContain("rgb(255, 255, 255) 0px 0px 0px 2px");
+    expect(reticle.shadow).toContain("rgb(0, 0, 0) 0px 0px 0px 3px");
+  });
+});

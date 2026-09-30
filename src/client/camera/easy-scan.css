@@ -1016,7 +1016,8 @@ main.easyScanShell {
   box-sizing: border-box;
   border: 2px solid #0a64e0;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  /* A thin white halo, so the blue shows on a dark picture too. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
   animation: easyReticle 1500ms ease-out both;
 }
 .easyReticleBox::after {
@@ -1394,9 +1395,13 @@ main.easyScanShell {
   .easyCornerRing {
     border: 2px solid #fff;
   }
+  /* Still blue (a white stroke vanishes on a bright picture); a white ring
+     and a black edge around it define it on any picture. */
   .easyReticleBox {
-    border-color: #fff;
-    box-shadow: 0 0 0 2px #0a64e0;
+    border-width: 3px;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 3px #000;
   }
 }
 
