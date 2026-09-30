@@ -1380,6 +1380,12 @@ type PinnedLayout = {
   drawn: { top: number; bottom: number; left: number; right: number }[];
   /** How many of them have their middle under a button of the top bar. */
   middleUnderBar: number;
+  /** Things in the sheet whose text does not fit inside their own box (cut off or spilling out). */
+  spilling: string[];
+  /** The dimension labels that are not wholly inside the photo they are drawn on. */
+  labelsOutsidePhoto: number;
+  /** How tall the scrolling part of the sheet is above the pinned row. */
+  contentAboveRow: number;
   main: {
     label: string;
     rect: { top: number; bottom: number; left: number; right: number };
@@ -1465,6 +1471,36 @@ async function pinnedLayout(
       );
       return !!hit?.closest(".cameraTopBar");
     }).length;
+    // Text that does not fit its box: the label of a button that has been
+    // given a fixed height, a chip that cuts its own word short.
+    const spilling = [
+      ...dialog.querySelectorAll<HTMLElement>(
+        ".easyRetakeButton, .easySeeMatches .primaryButton, .easyTryAgainButton, .easyEditLengthButton, .easyGripChip",
+      ),
+    ]
+      .filter(
+        (el) =>
+          el.scrollWidth > el.clientWidth + 1 ||
+          el.scrollHeight > el.clientHeight + 1,
+      )
+      .map(
+        (el) =>
+          `${el.className.split(" ")[0]} "${(el.textContent ?? "").trim()}" (content ${el.scrollWidth}x${el.scrollHeight} in a ${el.clientWidth}x${el.clientHeight} box)`,
+      );
+    const photo = document
+      .querySelector(".easyStageContent.moved .easyFrozenSvg")
+      ?.getBoundingClientRect();
+    const labelsOutsidePhoto = photo
+      ? [...document.querySelectorAll(".easyDimLabelBg")].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            r.left < photo.left - 1 ||
+            r.right > photo.right + 1 ||
+            r.top < photo.top - 1 ||
+            r.bottom > photo.bottom + 1
+          );
+        }).length
+      : -1;
     // To the end of the content: what is above the row must clear it.
     const scrollable = dialog.scrollHeight > dialog.clientHeight + 1;
     dialog.scrollTop = dialog.scrollHeight;
@@ -1495,6 +1531,9 @@ async function pinnedLayout(
       ),
       drawn,
       middleUnderBar,
+      spilling,
+      labelsOutsidePhoto,
+      contentAboveRow: rect(row).top - sheetRect.top,
       main: {
         label: main.textContent ?? "",
         rect: rect(main),
@@ -1548,6 +1587,12 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
             expect(l.retake.bottom).toBeLessThanOrEqual(l.viewport.height);
             expect(l.retake.onTopIsIt).toBe(true);
           }
+          // Its text fits in it: at large text the label wraps and the button
+          // grows, it does not spill out of a fixed height.
+          expect(l.spilling, "text that does not fit its box").toEqual([]);
+          // The row does not eat the sheet: the part that scrolls keeps at
+          // least 100 px above it.
+          expect(l.contentAboveRow).toBeGreaterThanOrEqual(100);
           // The row is what holds it there, and it has the sheet's own
           // (opaque) background, so what scrolls behind it does not show.
           expect(l.row.position).toBe("sticky");
@@ -1591,6 +1636,9 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           expect(highest).toBeGreaterThanOrEqual(l.barBottom);
         }
         expect(l.middleUnderBar).toBe(0);
+        // The labels are fixed-size pills; on a photo at its smallest scale
+        // they are kept inside it, not cut off by its edge.
+        expect(l.labelsOutsidePhoto, "labels not wholly on the photo").toBe(0);
       });
     }
   }

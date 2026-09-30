@@ -617,13 +617,28 @@ export default function EasyScanCamera({
       setSheetHeight(dialog ? dialog.offsetHeight : null);
       measureBar();
       if (!dialog) return;
+      // The pinned row of buttons at the sheet's foot: its height tells the
+      // sheet's scroll how far a focused control must be kept clear of it
+      // (scroll-padding-bottom in easy-scan.css).
+      const actionsRow =
+        dialog.querySelector<HTMLElement>(".easyStickyActions");
+      const measureActions = () => {
+        if (actionsRow)
+          dialog.style.setProperty(
+            "--easy-actions-height",
+            `${actionsRow.offsetHeight}px`,
+          );
+      };
+      measureActions();
       const observer = new ResizeObserver(() => {
         setSheetHeight((prev) =>
           prev === dialog.offsetHeight ? prev : dialog.offsetHeight,
         );
         measureBar();
+        measureActions();
       });
       observer.observe(dialog);
+      if (actionsRow) observer.observe(actionsRow);
       if (topBarRef.current) observer.observe(topBarRef.current);
       return () => observer.disconnect();
     }

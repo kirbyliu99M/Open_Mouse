@@ -254,4 +254,44 @@ test.describe("scan v2 storyboard, built (real motion)", () => {
     await page.waitForTimeout(1500);
     await shot(page, "07b-retake-no-hand-found");
   });
+
+  // Round 3: at large text on a small phone the sheet scrolls inside (52vh)
+  // and its buttons stay at the foot. 360x640 at 200% is the tightest case the
+  // suite checks; the same screen in the dark theme follows.
+  for (const scheme of ["light", "dark"] as const) {
+    test(`08 measured at 200% text on a 360x640 phone, ${scheme}: the buttons stay at the foot of the scrolling sheet`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 640 });
+      await page.emulateMedia({ colorScheme: scheme });
+      await installCamera(page, { scene: "sharp", focusSupported: true });
+      await page.addInitScript(() => {
+        const w = window as Window & {
+          __easyScanLiveHold?: Promise<void>;
+          __release?: () => void;
+        };
+        w.__easyScanLiveHold = new Promise<void>((resolve) => {
+          w.__release = resolve;
+        });
+      });
+      await start(page, "/scan/easy/live-measured-demo");
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "200%";
+      });
+      await expect(page.locator(".easyScanLine")).toBeVisible({
+        timeout: 20_000,
+      });
+      await page.evaluate(() =>
+        (window as Window & { __release?: () => void }).__release?.(),
+      );
+      await expect(
+        page.getByRole("dialog", { name: "Hand measured" }),
+      ).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(1800);
+      await shot(
+        page,
+        scheme === "light" ? "08-large-text-200" : "08b-large-text-200-dark",
+      );
+    });
+  }
 });

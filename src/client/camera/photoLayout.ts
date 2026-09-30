@@ -373,3 +373,20 @@ export function overlayUnitsPerPx(
     1 / (overlayToStill * (layout.box.width / layout.crop.width) * layerScale)
   );
 }
+
+/**
+ * The centre of a box `size` wide, moved (if need be) so that the box lies
+ * inside [start, start + extent]. A box larger than the extent is centred on it.
+ */
+export function clampInto(
+  centre: number,
+  size: number,
+  start: number,
+  extent: number,
+): number {
+  if (size >= extent) return start + extent / 2;
+  return Math.min(
+    Math.max(centre, start + size / 2),
+    start + extent - size / 2,
+  );
+}

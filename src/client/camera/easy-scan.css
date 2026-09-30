@@ -259,7 +259,9 @@
 
 .easyGripChips {
   display: flex;
-  flex-wrap: nowrap;
+  /* One row while the four fit (390px at normal text); wrapping onto more
+     rows at large text, where a chip would otherwise cut its own word. */
+  flex-wrap: wrap;
   gap: 0.375rem;
   margin-bottom: 1.25rem;
 }
@@ -268,7 +270,7 @@
    doesn't conflict with fitting the row. */
 .easyGripChip {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: max-content;
   min-height: 44px;
   padding: 0 0.5rem;
   border-radius: 999px;
@@ -300,8 +302,14 @@
    own natural min-heights — 3.25rem retake vs .primaryButton's 44px). */
 .easyRetakeButton {
   flex: 0 0 auto;
+  /* Pixels, not the global 2.75rem: an icon does not need to grow with the text. */
+  min-width: 44px;
+  min-height: 44px;
   width: 54px;
   height: 54px;
+  /* The global button padding (1.1rem a side) is 70px at 200% text, more than
+     the button is wide: it squeezed the icon out. */
+  padding: 0;
   border-radius: 0.85rem;
   border: 1px solid var(--scan-border, #d5d5dc);
   background: transparent;
@@ -316,10 +324,22 @@
 }
 .easySeeMatches .submitPanel {
   margin: 0;
+  /* The status line keeps one line of room under the button, so the sheet
+     does not grow (and the photo above it move) when it has something to say;
+     in pixels, not rem, so that room does not double at 200% text. */
+  gap: min(0.5rem, 8px);
+}
+.easySeeMatches .submitStatus {
+  min-height: min(1.25rem, 20px);
 }
 .easySeeMatches .primaryButton {
   width: 100%;
-  height: 54px;
+  /* 54px tall like the retake button, but it grows with its label: at large
+     text the label wraps, and a fixed height let it spill out of the button
+     (white text on the sheet). */
+  min-height: 54px;
+  padding: 0.5rem 0.75rem;
+  line-height: 1.25;
 }
 
 .easySheetErrorMessage {
@@ -1196,8 +1216,12 @@ main.easyScanShell {
      pinned at the foot with the padding under it. */
   padding-bottom: 0;
   /* Something focused by keyboard is scrolled clear of the pinned row, not
-     left under it: the row's height (54px button, padding). */
-  scroll-padding-bottom: calc(54px + 2.25rem + env(safe-area-inset-bottom));
+     left under it: the row's measured height (EasyScanCamera sets the
+     variable), or an estimate before it has been. */
+  scroll-padding-bottom: var(
+    --easy-actions-height,
+    calc(54px + 2.25rem + env(safe-area-inset-bottom))
+  );
 }
 
 /* The buttons that finish the sheet (Retake and See my matches; Try again)
@@ -1211,7 +1235,8 @@ main.easyScanShell {
   position: sticky;
   bottom: 0;
   z-index: 1;
-  padding: 0.75rem 0 calc(1.5rem + env(safe-area-inset-bottom));
+  padding: min(0.75rem, 12px) 0
+    calc(min(1.5rem, 24px) + env(safe-area-inset-bottom));
   background: var(--scan-bg, #f4f4f6);
 }
 /* Content scrolling up behind the row fades out over a few px, so its last

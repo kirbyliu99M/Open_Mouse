@@ -1,28 +1,19 @@
 "use client";
 
 import type { PhotoOverlay } from "../photo/pipeline";
-import {
-  computeDimensionLine,
-  separateLabelBoxes,
-  type Box,
-} from "../geometry/handSilhouette";
+import { layoutDimensions, type DimensionSpec } from "./dimensionLayout";
 import {
   overlayUnitsPerPx,
   type FrozenPhotoLayout,
   type Size,
 } from "./photoLayout";
-import type { Point, Rect } from "./quad";
+import type { Rect } from "./quad";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export interface DimensionSpec {
-  readonly a: Point;
-  readonly b: Point;
-  readonly label: string;
-  readonly side: 1 | -1;
-}
+export type { DimensionSpec };
 
 /**
  * The measured photo's two dimension lines (hand length, then palm width): a
@@ -39,8 +30,16 @@ export interface DimensionSpec {
 export function DimensionLinesOverlay({
   specs,
   scale,
+  visible,
 }: {
   specs: readonly DimensionSpec[];
+  /**
+   * The part of the overlay that is on screen (the live frame's crop, in
+   * overlay units), if it is known. The labels are kept inside it: they are a
+   * fixed size on screen, so on a photo shrunk to its smallest scale one would
+   * otherwise hang over the photo's edge and be cut off by it.
+   */
+  visible?: Rect;
   /** User-space units per on-screen pixel — an SVG `viewBox` spanning a
    * multi-thousand-pixel photo makes any FIXED user-unit font-size/offset
    * render at wildly different on-screen sizes depending on the photo's own
@@ -50,33 +49,11 @@ export function DimensionLinesOverlay({
    * scale instead. */
   scale: number;
 }) {
-  const offsetPx = 22 * scale;
-  const tickLengthPx = 8 * scale;
-  const labelOffsetPx = 14 * scale;
-  const fontSize = 13 * scale;
-  const paddingX = 8 * scale;
-  const labelHeight = 22 * scale;
-
-  const geometries = specs.map((s) =>
-    computeDimensionLine(
-      s.a,
-      s.b,
-      offsetPx,
-      s.side,
-      tickLengthPx,
-      labelOffsetPx,
-    ),
+  const { geometries, boxes, fontSize } = layoutDimensions(
+    specs,
+    scale,
+    visible,
   );
-  const rawBoxes: Box[] = geometries.map((g, i) => ({
-    x: g.labelAnchor.x,
-    y: g.labelAnchor.y,
-    width: specs[i].label.length * fontSize * 0.62 + paddingX * 2,
-    height: labelHeight,
-  }));
-  const boxes =
-    rawBoxes.length === 2
-      ? separateLabelBoxes(rawBoxes[0], rawBoxes[1])
-      : rawBoxes;
 
   return (
     <>
@@ -284,7 +261,16 @@ export function FrozenPhoto({
             );
           })}
           {phase === "measured" && dimensions && (
-            <DimensionLinesOverlay scale={scale} specs={dimensions} />
+            <DimensionLinesOverlay
+              scale={scale}
+              specs={dimensions}
+              visible={{
+                x: crop.x / overlayToStill,
+                y: crop.y / overlayToStill,
+                width: crop.width / overlayToStill,
+                height: crop.height / overlayToStill,
+              }}
+            />
           )}
         </g>
       )}

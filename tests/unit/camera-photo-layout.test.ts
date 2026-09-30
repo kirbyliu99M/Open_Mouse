@@ -4,6 +4,7 @@ import {
   MEASURED_LAYOUT,
   applyMeasuredTransform,
   boundingRect,
+  clampInto,
   computeFrozenPhotoLayout,
   computeGuideRect,
   computeMeasuredTransform,
@@ -582,5 +583,32 @@ describe("overlayUnitsPerPx", () => {
   it("is smaller when the overlay is in coarser units, larger when the layer is shrunk", () => {
     expect(overlayUnitsPerPx(layout, 2, 1)).toBeCloseTo(2.5, 9);
     expect(overlayUnitsPerPx(layout, 1, 0.9)).toBeCloseTo(5 / 0.9, 9);
+  });
+});
+
+describe("clampInto: a label kept inside the visible photo", () => {
+  it("leaves a box that is already inside where it is", () => {
+    expect(clampInto(100, 40, 0, 300)).toBe(100);
+    // touching either edge is inside
+    expect(clampInto(20, 40, 0, 300)).toBe(20);
+    expect(clampInto(280, 40, 0, 300)).toBe(280);
+  });
+
+  it("moves a box that hangs over the far edge back so it ends at the edge", () => {
+    expect(clampInto(290, 40, 0, 300)).toBe(280);
+  });
+
+  it("moves a box that hangs over the near edge back so it starts at the edge", () => {
+    expect(clampInto(5, 40, 10, 300)).toBe(30);
+  });
+
+  it("works from a start that is not 0 (a crop that begins part-way into the photo)", () => {
+    expect(clampInto(500, 60, 100, 200)).toBe(270);
+    expect(clampInto(100, 60, 100, 200)).toBe(130);
+  });
+
+  it("a box as wide as the space, or wider, is centred on it", () => {
+    expect(clampInto(10, 200, 100, 200)).toBe(200);
+    expect(clampInto(10, 300, 100, 200)).toBe(200);
   });
 });
