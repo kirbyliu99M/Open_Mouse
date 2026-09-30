@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
+import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { CheckClient } from "./CheckClient";
 import "../learn.css";
 
@@ -8,7 +9,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function LearnCheckPage() {
+/** `?paper=letter` presets the sheet size (the folder sorter uses it); anything else is A4. */
+function paperFrom(value: string | string[] | undefined): PaperSize {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v !== undefined && Object.hasOwn(PAPER_SIZES_MM, v)
+    ? (v as PaperSize)
+    : "a4";
+}
+
+export default async function LearnCheckPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const paper = paperFrom((await searchParams).paper);
   return (
     <main className="learn">
       <TopBar
@@ -22,7 +36,7 @@ export default function LearnCheckPage() {
         nothing is uploaded. Keep the camera&apos;s file names: they set the
         capture order.
       </p>
-      <CheckClient />
+      <CheckClient initialPaperSize={paper} />
     </main>
   );
 }

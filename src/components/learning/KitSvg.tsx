@@ -288,6 +288,11 @@ const SLATE_W = 88;
 const SLATE_H = 60;
 const SLATE_GAP = 4;
 const SLATE_QR = 34;
+/** Where the Right and Left write-in columns sit inside a card (mm from its left edge). */
+const SLATE_HANDS = [
+  { label: "Right", x0: 27, x1: 54 },
+  { label: "Left", x0: 58, x1: 85 },
+] as const;
 
 /** One A4 page of participant slates: cut out, write the ruler values, photograph first. */
 export function SlatePageSvg({
@@ -343,38 +348,48 @@ export function SlatePageSvg({
               text={url}
               box={{ x: x + 3, y: y + 3, w: SLATE_QR, h: SLATE_QR }}
             />
-            <text
-              x={x + 3 + SLATE_QR / 2}
-              y={y + SLATE_QR + 9}
-              fontSize={9}
-              fontWeight={700}
-              textAnchor="middle"
-            >
+            <text x={tx} y={y + 15} fontSize={10} fontWeight={700}>
               {id}
             </text>
-            <text x={tx} y={y + 10} fontSize={3.2} fontWeight={600}>
+            <text x={tx} y={y + 29} fontSize={2.6} fill={GUIDE}>
+              No names.
+            </text>
+            <text x={tx} y={y + 33} fontSize={2.6} fill={GUIDE}>
+              Photograph this card first.
+            </text>
+            {/* Ruler values, one set per hand (docs/learning/README.md, "Ruler protocol"). */}
+            <text x={x + 3} y={y + 41} fontSize={3.2} fontWeight={600}>
               Ruler, in mm
             </text>
-            {["Hand length", "Palm width", "Hands: R / L / both"].map(
-              (label, k) => (
-                <g key={label}>
-                  <text x={tx} y={y + 19 + k * 9} fontSize={3.2}>
-                    {label}
-                  </text>
+            {SLATE_HANDS.map((hand) => (
+              <text
+                key={hand.label}
+                x={x + hand.x0}
+                y={y + 41}
+                fontSize={3.2}
+                fontWeight={600}
+              >
+                {hand.label}
+              </text>
+            ))}
+            {["Hand length", "Palm width"].map((label, k) => (
+              <g key={label}>
+                <text x={x + 3} y={y + 49 + k * 8} fontSize={3.2}>
+                  {label}
+                </text>
+                {SLATE_HANDS.map((hand) => (
                   <line
-                    x1={tx}
-                    y1={y + 22 + k * 9}
-                    x2={x + SLATE_W - 3}
-                    y2={y + 22 + k * 9}
+                    key={hand.label}
+                    x1={x + hand.x0}
+                    y1={y + 50 + k * 8}
+                    x2={x + hand.x1}
+                    y2={y + 50 + k * 8}
                     stroke={GUIDE}
                     strokeWidth={0.25}
                   />
-                </g>
-              ),
-            )}
-            <text x={tx} y={y + SLATE_H - 5} fontSize={2.6} fill={GUIDE}>
-              No names. Photograph this card first.
-            </text>
+                ))}
+              </g>
+            ))}
           </g>
         );
       })}

@@ -99,6 +99,28 @@
   font-size: 0.95rem;
 }
 
+.learn-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 0 0.25rem;
+}
+
+.learn-field label {
+  font-weight: 600;
+}
+
+.learn-select {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  font: inherit;
+  color: var(--learn-ink);
+  background: var(--learn-surface);
+  border: 1px solid var(--learn-rule);
+  border-radius: 0.5rem;
+}
+
 .learn code {
   font-size: 0.9em;
   background: var(--learn-accent-soft);

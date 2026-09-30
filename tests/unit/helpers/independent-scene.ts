@@ -130,7 +130,8 @@ function insideCapsuleDistance(
   return radius - Math.hypot(p.x - closest.x, p.y - closest.y);
 }
 
-function buildPaperToImage(scene: IndependentScene): Mat9 {
+/** The scene's pinhole camera: shared by the renderer and by `independentSceneCamera`. */
+function sceneCamera(scene: IndependentScene) {
   const { frameWidth: W, frameHeight: H } = scene;
   const focalPx = 0.8 * Math.max(W, H);
   const fill = scene.fillFraction ?? 0.7;
@@ -141,6 +142,18 @@ function buildPaperToImage(scene: IndependentScene): Mat9 {
   const rotationRad = ((scene.rotationDeg ?? 0) * Math.PI) / 180;
   const tiltXRad = ((scene.tiltXDeg ?? 0) * Math.PI) / 180;
   const tiltYRad = ((scene.tiltYDeg ?? 0) * Math.PI) / 180;
+  const cX = Math.cos(tiltXRad);
+  const sX = Math.sin(tiltXRad);
+  const cY = Math.cos(tiltYRad);
+  const sY = Math.sin(tiltYRad);
+  const tiltX: Mat9 = [1, 0, 0, 0, cX, -sX, 0, sX, cX];
+  const tiltY: Mat9 = [cY, 0, sY, 0, 1, 0, -sY, 0, cY];
+  const tilt = matMul(tiltY, tiltX);
+  return { W, H, focalPx, distanceMm, rotationRad, tilt };
+}
+
+function buildPaperToImage(scene: IndependentScene): Mat9 {
+  const { W, H, focalPx, distanceMm, rotationRad, tilt } = sceneCamera(scene);
 
   const centre: Mat9 = [
     1,
@@ -164,13 +177,6 @@ function buildPaperToImage(scene: IndependentScene): Mat9 {
     0,
     1,
   ];
-  const cX = Math.cos(tiltXRad);
-  const sX = Math.sin(tiltXRad);
-  const cY = Math.cos(tiltYRad);
-  const sY = Math.sin(tiltYRad);
-  const tiltX: Mat9 = [1, 0, 0, 0, cX, -sX, 0, sX, cX];
-  const tiltY: Mat9 = [cY, 0, sY, 0, 1, 0, -sY, 0, cY];
-  const tilt = matMul(tiltY, tiltX);
   const worldToImage: Mat9 = [
     tilt[0],
     tilt[1],
@@ -184,6 +190,36 @@ function buildPaperToImage(scene: IndependentScene): Mat9 {
   ];
   const intrinsics: Mat9 = [focalPx, 0, W / 2, 0, focalPx, H / 2, 0, 0, 1];
   return matMul(intrinsics, matMul(worldToImage, matMul(spin, centre)));
+}
+
+/**
+ * The same camera as a full 3D projection, for placing points ABOVE the
+ * paper (a hand's joints stand 6-20 mm above it). `project(x, y, heightMm)`
+ * takes paper mm (x across the short side, y down the long side, the frame
+ * `paperToImage` uses) and a height toward the camera, and returns image px.
+ * At height 0 it equals `paperToImage`; a test checks that.
+ */
+export function independentSceneCamera(scene: IndependentScene): {
+  readonly focalPx: number;
+  readonly project: (xMm: number, yMm: number, heightMm: number) => Point2;
+} {
+  const { W, H, focalPx, distanceMm, rotationRad, tilt } = sceneCamera(scene);
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+  return {
+    focalPx,
+    project(xMm, yMm, heightMm) {
+      const cx = xMm - scene.paperWidthMm / 2;
+      const cy = yMm - scene.paperHeightMm / 2;
+      const u = cos * cx - sin * cy;
+      const v = sin * cx + cos * cy;
+      const w = -heightMm; // toward the camera is nearer, so smaller depth
+      const x = tilt[0] * u + tilt[1] * v + tilt[2] * w;
+      const y = tilt[3] * u + tilt[4] * v + tilt[5] * w;
+      const z = tilt[6] * u + tilt[7] * v + tilt[8] * w + distanceMm;
+      return { x: (focalPx * x) / z + W / 2, y: (focalPx * y) / z + H / 2 };
+    },
+  };
 }
 
 export function renderIndependentScene(

@@ -5,8 +5,10 @@ import {
   analyseLearningPhoto,
   type LearningPhotoReport,
 } from "@/client/learning/analyse";
+import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { compareFileNames, type CheckTone } from "@/lib/learning/checks";
-import { kitCodeToken, sortPhotos, type SortResult } from "@/lib/learning/kit";
+import { kitCodeToken } from "@/lib/learning/kit";
+import { NO_PROVENANCE, buildRunLog, sortReports } from "@/lib/learning/runlog";
 
 function ToneIcon({ tone }: { tone: CheckTone }) {
   const common = {
@@ -53,23 +55,20 @@ const VERDICT: Record<
 
 const mm = (v: number | undefined) => (v === undefined ? "–" : v.toFixed(1));
 
-function buildSort(reports: readonly LearningPhotoReport[]): SortResult {
-  const ordered = [...reports].sort((a, b) => compareFileNames(a.file, b.file));
-  return sortPhotos(
-    ordered.map((r, i) => ({
-      file: r.file,
-      takenAt: i,
-      // A photo to retake is not filed, even if its QR code was read.
-      code: r.verdict === "retake" ? null : r.code,
-      // See analyse.ts: detected handedness is not trusted until audit
-      // finding 0 (inverted for palm-down photos) is fixed.
-      detectedHand: null,
-    })),
-  );
-}
+const PAPER_LABEL: Record<PaperSize, string> = {
+  a4: "A4",
+  letter: "US Letter",
+};
 
-export function CheckClient() {
+export function CheckClient({
+  initialPaperSize = "a4",
+}: {
+  initialPaperSize?: PaperSize;
+}) {
   const [reports, setReports] = useState<LearningPhotoReport[]>([]);
+  // The size chosen for the next run, and the size the shown results used.
+  const [paperSize, setPaperSize] = useState<PaperSize>(initialPaperSize);
+  const [ranWith, setRanWith] = useState<PaperSize>(initialPaperSize);
   const [progress, setProgress] = useState<{
     done: number;
     total: number;
@@ -77,7 +76,7 @@ export function CheckClient() {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const run = useCallback(async (files: File[]) => {
+  const run = useCallback(async (files: File[], size: PaperSize) => {
     const images = files
       .filter(
         (f) =>
@@ -86,26 +85,41 @@ export function CheckClient() {
       .sort((a, b) => compareFileNames(a.name, b.name));
     if (images.length === 0) return;
     setReports([]);
+    setRanWith(size);
     setProgress({ done: 0, total: images.length });
     const out: LearningPhotoReport[] = [];
     for (const file of images) {
-      out.push(await analyseLearningPhoto(file));
+      out.push(await analyseLearningPhoto(file, { paperSize: size }));
       setReports([...out]);
       setProgress({ done: out.length, total: images.length });
     }
     setProgress(null);
   }, []);
 
-  const sort = useMemo(() => buildSort(reports), [reports]);
+  const sort = useMemo(() => sortReports(reports), [reports]);
   const counts = useMemo(() => {
     const c = { ready: 0, slate: 0, retake: 0, unidentified: 0 };
     for (const r of reports) c[r.verdict]++;
     return c;
   }, [reports]);
 
+  // The download is the same run log `learn:sort` writes, without the
+  // folder name and the commit (a page cannot know either).
   const manifest = useMemo(
-    () => JSON.stringify({ kitVersion: 1, reports, sort }, null, 2),
-    [reports, sort],
+    () =>
+      JSON.stringify(
+        buildRunLog({
+          reports,
+          sort,
+          paperSize: ranWith,
+          input: null,
+          provenance: NO_PROVENANCE,
+          now: new Date(),
+        }),
+        null,
+        2,
+      ),
+    [reports, sort, ranWith],
   );
 
   const download = () => {
@@ -132,7 +146,7 @@ export function CheckClient() {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          void run([...e.dataTransfer.files]);
+          void run([...e.dataTransfer.files], paperSize);
         }}
       >
         <button
@@ -153,11 +167,32 @@ export function CheckClient() {
           aria-label="Photos to check"
           data-testid="learning-check-input"
           onChange={(e) => {
-            void run([...(e.target.files ?? [])]);
+            void run([...(e.target.files ?? [])], paperSize);
             e.target.value = "";
           }}
         />
       </div>
+
+      <div className="learn-field">
+        <label htmlFor="learn-paper-size">Sheet size of the pages</label>
+        <select
+          id="learn-paper-size"
+          className="learn-select"
+          value={paperSize}
+          onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+          disabled={progress !== null}
+          data-testid="learning-check-paper"
+        >
+          {(Object.keys(PAPER_SIZES_MM) as PaperSize[]).map((size) => (
+            <option key={size} value={size}>
+              {PAPER_LABEL[size]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="learn-note">
+        Applies to the photos you choose next. The kit is designed for A4.
+      </p>
 
       <p className="learn-note" role="status" aria-live="polite">
         {progress
