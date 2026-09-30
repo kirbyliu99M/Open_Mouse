@@ -27,7 +27,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "m2:gate-replay": "tsx scripts/m2-gate-replay.ts",
     "paper:bench": "tsx scripts/paper-quad-bench.ts",
-    "classify:descriptors": "tsx scripts/classify-descriptors.ts"
+    "classify:descriptors": "tsx scripts/classify-descriptors.ts",
+    "learn:sort": "tsx scripts/learn-sort.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
@@ -37,6 +38,7 @@
     "@next/env": "15.5.25",
     "drizzle-orm": "0.45.2",
     "js-aruco2": "2.0.0",
+    "jsqr": "1.4.0",
     "next": "15.5.25",
     "next-auth": "^5.0.0-beta.32",
     "qrcode": "1.5.4",

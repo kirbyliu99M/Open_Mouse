@@ -11,6 +11,10 @@ import { notFound } from "next/navigation";
  * no place in the product (and its own page title says "mock data"), so it is
  * guarded too.
  *
+ * The learning kit (`/learn/**`, `/l/**`) is guarded the same way: Kirby
+ * collects the learning data by hand, on his own machine (decision 2026-09-30),
+ * so those pages are not served in production.
+ *
  * Only a real production deployment (`VERCEL_ENV === "production"`) answers
  * 404. `next dev`, which the e2e suite runs, and Vercel previews are
  * unaffected.

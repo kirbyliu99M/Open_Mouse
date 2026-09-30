@@ -50,6 +50,10 @@ Thumbs.db
 # Ground-truth hand photos (personal data) - kept outside the repo; belt and braces
 /Fixtures/
 tests/fixtures/hands/
+# learn:sort output wherever it lands, e.g. next to another worktree. Not a bare
+# "Fixtures/": on a case-insensitive checkout (Windows, macOS) that would also
+# hide tests/e2e/fixtures/.
+**/Fixtures/learning/
 
 .vercel
 .env*
