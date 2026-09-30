@@ -30,3 +30,43 @@ export function overWhite(color: string, extraOpacity = 1): string {
     .map((v) => Math.round(v * alpha + 255 * (1 - alpha)));
   return `rgb(${r}, ${g}, ${b})`;
 }
+
+/** A computed style colour as [r, g, b, a] (0-255, alpha 0-1). */
+export type Rgba = readonly [number, number, number, number];
+
+/**
+ * What a glyph pixel and the pixel next to it look like when an element is laid
+ * over a WHITE picture (the worst case under light text): the element's own
+ * text colour with its alpha, its own fill with its alpha (`null` = no fill of
+ * its own), and its opacity (its own times its ancestors' inside the screen)
+ * that fades the element as a whole.
+ *
+ * The element is drawn into a group first (fill, then the glyph over it) and
+ * the group is then faded over the picture, which is how `opacity` works:
+ *
+ *   group coverage   A = at + ab * (1 - at)
+ *   group colour    C*A = text * at + fill * ab * (1 - at)
+ *   on the picture  white * (1 - o * A) + o * C*A
+ *
+ * Returned as opaque "rgb(r, g, b)" strings for `contrast`.
+ */
+export function glyphAndBackOverWhite(
+  text: Rgba,
+  fill: Rgba | null,
+  opacity: number,
+): { glyph: string; back: string } {
+  const at = text[3];
+  const ab = fill ? fill[3] : 0;
+  const coverage = at + ab * (1 - at);
+  const rgb = (channels: number[]) =>
+    `rgb(${channels.map((v) => Math.round(v)).join(", ")})`;
+  const glyph = [0, 1, 2].map(
+    (i) =>
+      255 * (1 - opacity * coverage) +
+      opacity * (text[i] * at + (fill ? fill[i] * ab : 0) * (1 - at)),
+  );
+  const back = [0, 1, 2].map(
+    (i) => 255 * (1 - opacity * ab) + opacity * (fill ? fill[i] * ab : 0),
+  );
+  return { glyph: rgb(glyph), back: rgb(back) };
+}

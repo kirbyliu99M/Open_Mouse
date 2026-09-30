@@ -1,6 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { contrast, overWhite } from "./fixtures/contrast";
+import {
+  contrast,
+  glyphAndBackOverWhite,
+  overWhite,
+} from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 import {
   LOAD_FAILED,
@@ -116,32 +120,48 @@ const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
 /**
  * What may sit over the live picture (scan v2). Each is white text on a
  * translucent dark fill, and axe cannot see through the fill to the picture.
- * This is a CLOSED list: the check is handed every element axe left open for
- * colour contrast and fails on any that is not on it (or inside one that is),
- * so nothing else can hide behind the exception. Each is then measured on the
- * worst case, a white picture, and must keep 4.5:1 there.
  *
- * `required` ones are on the live screen whenever the camera is up; the rest
- * are there only sometimes (the hint while the ring fills, the detector's
- * progress pill while the model downloads, the "no paper" link behind the
- * build flag), so they are allowed when present and never demanded.
+ * This is a CLOSED list, and two things hold for it:
+ *
+ * 1. Axe's side (`overLivePicture`): every element axe leaves open for colour
+ *    contrast must be on it (or inside one that is), so nothing else can hide
+ *    behind the exception.
+ * 2. Ours (`measureOverLivePicture`): every element on it that is on screen is
+ *    measured directly on every audit of the live camera, whether or not axe
+ *    named it. The measure is the worst picture there is, a white one: the
+ *    element's own text colour with its alpha, its own fill with its alpha, and
+ *    its opacity (its own times its ancestors' inside the screen) all laid over
+ *    white; it must keep 4.5:1. Dropping a fill, fading the text or fading the
+ *    element fails it.
+ *
+ * `required` ones are on the live screen whenever the camera is up, so they
+ * must be found; the rest are there only with some configurations (the "no
+ * paper" link behind the build flag, the detector's pill while the model
+ * downloads), so they are measured when present and never demanded.
+ *
+ * Only what occurs in the audited live states is listed: each entry below was
+ * seen on screen in them (the tally is in the round 3 notes of the PR). The
+ * hint line (.easyHint) is on the list because the freeze can land after the
+ * ring has started to fill; it is also measured on its own, on a copy, by the
+ * test below, because the audits only see it by chance.
  */
 const OVER_LIVE_PICTURE: readonly { selector: string; required?: true }[] = [
   { selector: ".cameraCloseButton", required: true },
+  { selector: ".easyHelpButton", required: true },
+  { selector: ".cameraCue", required: true },
   { selector: ".easyHandChip", required: true },
   { selector: ".easyPaperToggle", required: true },
-  { selector: ".easyHelpButton" },
-  { selector: ".cameraCue" },
-  { selector: ".easyHint" },
+  { selector: ".easyUploadIconButton", required: true },
   { selector: ".easyNoPaperLink" },
-  { selector: ".easyUploadIconButton" },
+  { selector: ".easyHint" },
   // The download progress pill (white on rgba(0,0,0,.6): 5.74:1 on a white
-  // picture) and the line of text in it, which is how axe names the node.
+  // picture): axe names its line of text, and the pill itself carries the fill.
   { selector: ".easyDetectorProgress" },
   { selector: ".easyDetectorText" },
 ];
 
-const overLivePicture = async (page: Page, targets: readonly string[]) => {
+/** Axe's side: what it left open must be on the closed list. */
+const overLivePicture = async (_page: Page, targets: readonly string[]) => {
   const listed = (target: string) =>
     OVER_LIVE_PICTURE.some(
       ({ selector }) =>
@@ -153,69 +173,90 @@ const overLivePicture = async (page: Page, targets: readonly string[]) => {
     targets.filter((target) => !listed(target)),
     "elements axe could not check that are not on the reviewed list",
   ).toEqual([]);
+};
 
-  const measure = (selectors: readonly string[]) =>
-    page.evaluate((selectors) => {
-      /**
-       * The element's own fill: the element's, or the nearest ancestor's INSIDE
-       * the camera screen, which is the pill it sits on. The walk stops before
-       * the screen itself (`.cameraViewfinder`, the page's dark backing): that
-       * is not behind the element in any way that matters, the live picture is.
-       * `null` = no fill of its own, so the picture is directly behind the text.
-       */
-      const fillOf = (start: Element) => {
-        for (
-          let el: Element | null = start;
-          el && !el.classList.contains("cameraViewfinder");
-          el = el.parentElement
-        ) {
-          const color = getComputedStyle(el).backgroundColor;
-          const parts = color.match(/[\d.]+/g);
-          if (parts && (parts[3] === undefined || Number(parts[3]) > 0))
-            return color;
-        }
-        return null;
+/**
+ * Our side: measure every listed element that is on screen, over white, with
+ * its text alpha, fill alpha and opacity. Runs on every live-camera audit.
+ */
+const measureOverLivePicture = async (page: Page) => {
+  const found = await page.evaluate(
+    (selectors) => {
+      const channels = (color: string): [number, number, number, number] => {
+        const inside = color.match(/^rgba?\((.+)\)$/)?.[1];
+        if (!inside)
+          throw new Error(`a colour this test cannot read: ${color}`);
+        const parts = inside.split(/[\s,/]+/).filter(Boolean);
+        const number = (text: string, scale: number) =>
+          text.endsWith("%")
+            ? (parseFloat(text) / 100) * scale
+            : parseFloat(text);
+        return [
+          number(parts[0], 255),
+          number(parts[1], 255),
+          number(parts[2], 255),
+          parts[3] === undefined ? 1 : number(parts[3], 1),
+        ];
       };
-      return selectors.map((selector) => {
-        const el = document.querySelector(selector);
-        return el
-          ? { selector, fg: getComputedStyle(el).color, bg: fillOf(el) }
-          : { selector, fg: null, bg: null };
-      });
-    }, selectors);
-
-  // Everything axe left open, and every required element being on screen.
-  const wanted = [
-    ...new Set([
-      ...targets,
-      ...OVER_LIVE_PICTURE.filter((item) => item.required).map(
-        (item) => item.selector,
-      ),
-    ]),
-  ];
-  const required = new Set(
-    OVER_LIVE_PICTURE.filter((item) => item.required).map(
-      (item) => item.selector,
-    ),
+      const inScreen = (el: Element | null): el is Element =>
+        el !== null && !el.classList.contains("cameraViewfinder");
+      return selectors.flatMap((selector) =>
+        [...document.querySelectorAll(selector)]
+          .filter((el) => {
+            const style = getComputedStyle(el);
+            return (
+              el.getClientRects().length > 0 &&
+              style.visibility !== "hidden" &&
+              style.display !== "none"
+            );
+          })
+          .map((el) => {
+            // The element's own fill, or the nearest ancestor's INSIDE the camera
+            // screen (the pill it sits on). The walk stops before the screen
+            // itself (`.cameraViewfinder`, the page's dark backing): that is not
+            // behind the element in any way that matters, the live picture is.
+            // `null`: no fill of its own, the picture is directly behind the text.
+            let fill: [number, number, number, number] | null = null;
+            let opacity = 1;
+            let node: Element | null = el;
+            while (inScreen(node)) {
+              const style = getComputedStyle(node);
+              opacity *= Number(style.opacity);
+              if (fill === null) {
+                const color = channels(style.backgroundColor);
+                if (color[3] > 0) fill = color;
+              }
+              node = node.parentElement;
+            }
+            return {
+              selector,
+              text: channels(getComputedStyle(el).color),
+              fill,
+              opacity,
+            };
+          }),
+      );
+    },
+    OVER_LIVE_PICTURE.map((item) => item.selector),
   );
-  for (const { selector, fg, bg } of await measure(wanted)) {
-    // A listed element that axe saw and that is gone by now (the detector's
-    // pill once the model has downloaded) can no longer be measured; only the
-    // required ones must be there.
-    if (fg === null && !required.has(selector)) continue;
-    expect(fg, `${selector} is on the live screen`).not.toBeNull();
-    // With no fill of its own the text is measured against plain white: the
-    // worst picture there is.
-    const ratio = contrast(
-      fg!,
-      bg === null ? "rgb(255, 255, 255)" : overWhite(bg),
+
+  const seen = new Set(found.map((item) => item.selector));
+  for (const { selector } of OVER_LIVE_PICTURE.filter((item) => item.required))
+    expect(seen.has(selector), `${selector} is on the live screen`).toBe(true);
+
+  for (const item of found) {
+    const { glyph, back } = glyphAndBackOverWhite(
+      item.text,
+      item.fill,
+      item.opacity,
     );
+    const ratio = contrast(glyph, back);
     console.log(
-      `over a white picture: ${selector} ${ratio.toFixed(2)}:1${bg === null ? " (no fill of its own)" : ""}`,
+      `over a white picture: ${item.selector} ${ratio.toFixed(2)}:1 (text alpha ${item.text[3]}, fill ${item.fill ? item.fill[3] : "none"}, opacity ${item.opacity})`,
     );
     expect(
       ratio,
-      `${selector} over a white picture (${ratio.toFixed(2)}:1)`,
+      `${item.selector} over a white picture (${ratio.toFixed(2)}:1; text alpha ${item.text[3]}, fill alpha ${item.fill ? item.fill[3] : "none"}, opacity ${item.opacity})`,
     ).toBeGreaterThanOrEqual(4.5);
   }
 };
@@ -223,7 +264,7 @@ const overLivePicture = async (page: Page, targets: readonly string[]) => {
 const LIVE_CAMERA_REVIEW: Record<string, Review> = {
   "color-contrast": {
     mayResolve: true,
-    why: "The controls, the cue, the hint and the detector's progress pill are white text on a translucent black fill laid over the live picture: axe cannot see the picture. A closed list (OVER_LIVE_PICTURE), each measured on a white picture.",
+    why: "The controls, the cue and the detector's progress pill are white text on a translucent black fill laid over the live picture: axe cannot see the picture. A closed list (OVER_LIVE_PICTURE): whatever axe leaves open must be on it, and every element on it that is on screen is measured directly, over a white picture, on every live-camera audit.",
     check: overLivePicture,
   },
   "video-caption": {
@@ -261,7 +302,13 @@ async function settleAnimations(page: Page) {
   );
 }
 
-async function audit(page: Page, info: TestInfo, state: string) {
+async function audit(
+  page: Page,
+  info: TestInfo,
+  state: string,
+  /** Checks that run whatever axe decided, after its own. */
+  always: readonly ((page: Page) => Promise<void>)[] = [],
+) {
   await settleAnimations(page);
   const builder = new AxeBuilder({ page }).withTags(WCAG_TAGS);
   const disabled = Object.keys(DISABLED_RULES[state] ?? {});
@@ -315,6 +362,7 @@ async function audit(page: Page, info: TestInfo, state: string) {
       .flatMap((item) => item.nodes.map((n) => n.target.join(" ")));
     await review.check(page, targets);
   }
+  for (const check of always) await check(page);
 }
 
 const SCHEMES = ["light", "dark"] as const;
@@ -543,7 +591,7 @@ for (const colorScheme of SCHEMES) {
       expect(stream.state).toBeGreaterThanOrEqual(2); // HAVE_CURRENT_DATA: a frame to show
       if (loading) await expect(pill(page)).toBeVisible();
       await expect(page.locator(".cameraCue")).toBeVisible();
-      await audit(page, info, state);
+      await audit(page, info, state, [measureOverLivePicture]);
     });
   }
 }
