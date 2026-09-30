@@ -181,6 +181,7 @@ describe("m2:evaluate arguments: what is an error", () => {
       ["--participants", "P01"],
       ["--participant", "P001"],
       ["--participants="],
+      ["--participants=P001"],
     ]) {
       expect(parseM2Args([...base, ...bad]).ok).toBe(false);
     }
@@ -217,6 +218,36 @@ describe("m2:evaluate arguments: what is an error", () => {
     expect(glued).toBe("An unrecognised option was given.");
   });
 
+  // "--participants=P001" is how other tools take a value; here it is a space.
+  it.each([
+    "--log",
+    "--truth",
+    "--path",
+    "--gesture",
+    "--participants",
+    "--thresholds",
+    "--out",
+  ])(
+    "%s=<value> says to use a space, names the option, and never repeats the value",
+    (flag) => {
+      for (const value of ["P001", "C:/Users/kirby/x", "", "a=b"]) {
+        const text = message([...base, `${flag}=${value}`]);
+        expect(text).toBe(
+          `${flag} takes its value after a space, not after "=": write ${flag} <value>.`,
+        );
+      }
+    },
+  );
+
+  it("a misspelt option with = is still unknown, not 'use a space'", () => {
+    expect(message([...base, "--participant=P001"])).toBe(
+      'Unknown option "--participant".',
+    );
+    expect(message([...base, "--=x"])).toBe(
+      "An unrecognised option was given.",
+    );
+  });
+
   it("a plain option name is shown, up to the equals sign, and no further", () => {
     expect(message([...base, "--partcipants=P001"])).toBe(
       'Unknown option "--partcipants".',
@@ -235,6 +266,25 @@ describe("m2:evaluate arguments: Git Bash paths on Windows", () => {
   const win = "win32";
   const parse = (argv: string[], platform: NodeJS.Platform = win) =>
     parseM2Args(argv, platform);
+
+  it("Cygwin and WSL spellings are refused too", () => {
+    for (const bad of [
+      ["--log", "/cygdrive/c/Users/me/runs", "--truth", "t"],
+      ["--log", "r", "--truth", "/mnt/c/Users/me/learning"],
+      ["--log", "r", "--truth", "t", "--out", "/mnt/d/report.json"],
+    ]) {
+      const result = parse(bad);
+      expect(result.ok).toBe(false);
+      expect((result as { message: string }).message).toMatch(
+        /looks like a Git Bash path/,
+      );
+    }
+    // Not a drive: an ordinary folder on Windows, and everything elsewhere.
+    expect(parse(["--log", "r", "--truth", "/mnt/data/t"]).ok).toBe(true);
+    expect(parse(["--log", "/mnt/c/runs", "--truth", "t"], "linux").ok).toBe(
+      true,
+    );
+  });
 
   it.each([
     ["--log", ["--log", "/c/Users/me/runs", "--truth", "t"]],

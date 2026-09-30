@@ -193,27 +193,36 @@ describe("m2-evaluate script", () => {
       }
     }
 
-    it.each([
-      ["--log", "runs-locked", "logs"],
-      ["--truth", "truth-locked", "truths"],
-    ])("a %s folder that cannot be listed", (flag, name) => {
-      const locked = join(
-        scratch,
-        name,
-        account.length >= 3 ? `${account}-x` : "x",
-      );
-      mkdirSync(locked, { recursive: true });
-      const other = flag === "--log" ? truth : runs;
-      const otherFlag = flag === "--log" ? "--truth" : "--log";
-      const result = withUnlistable(locked, () =>
-        evaluator([flag, locked, otherFlag, other]),
-      );
-      if (result === "unsupported") return;
-      expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/EPERM|EACCES/);
-      expectQuiet(result.stderr);
-      expect(result.stdout).toBe("");
-    });
+    // Where the folder cannot be made unlistable (no icacls; running as root)
+    // the test is SKIPPED, so the count shows it, not silently passed.
+    for (const [flag, name] of [
+      ["--log", "runs-locked"],
+      ["--truth", "truth-locked"],
+    ] as const) {
+      it(`a ${flag} folder that cannot be listed`, ({ skip }) => {
+        const locked = join(
+          scratch,
+          name,
+          account.length >= 3 ? `${account}-x` : "x",
+        );
+        mkdirSync(locked, { recursive: true });
+        const other = flag === "--log" ? truth : runs;
+        const otherFlag = flag === "--log" ? "--truth" : "--log";
+        const result = withUnlistable(locked, () =>
+          evaluator([flag, locked, otherFlag, other]),
+        );
+        if (result === "unsupported") {
+          skip(
+            "this machine cannot make a folder unlistable (no icacls, or root)",
+          );
+          return;
+        }
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/EPERM|EACCES/);
+        expectQuiet(result.stderr);
+        expect(result.stdout).toBe("");
+      });
+    }
 
     // A file already sitting where the report goes, that the up-front check
     // cannot see: a link to nothing. Writing with "wx" then fails.
@@ -324,7 +333,7 @@ describe("m2-evaluate script", () => {
       });
     });
 
-    it("never echoes the path in a misspelt flag", () => {
+    it("--out=<path>: says to use a space, and never echoes the path", () => {
       const result = evaluator([
         "--log",
         runs,
@@ -333,8 +342,12 @@ describe("m2-evaluate script", () => {
         `--out=${join(scratch, "x.json")}`,
       ]);
       expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/Unknown option "--out"/);
+      // A real option with its value glued on: named, with what to do; the value is not repeated.
+      expect(result.stderr).toMatch(
+        /--out takes its value after a space, not after "="/,
+      );
       expect(result.stderr).not.toContain(scratch);
+      expect(result.stderr).not.toContain("x.json");
     });
   });
 

@@ -86,6 +86,15 @@ export function parseM2Args(
         `Unexpected argument at position ${i + 1} (a value must follow its flag).`,
       );
     }
+    // "--participants=P001": a real option written the way other tools take
+    // values. Say so, by the option's name; the value is never repeated.
+    const equals = token.indexOf("=");
+    if (equals > 0 && KNOWN.includes(token.slice(0, equals))) {
+      const name = token.slice(0, equals);
+      return bad(
+        `${name} takes its value after a space, not after "=": write ${name} <value>.`,
+      );
+    }
     if (!KNOWN.includes(token)) {
       // Only a plain option name is echoed (`--partcipants=...` shows
       // "--partcipants"); a token that is anything else, such as a path with

@@ -324,11 +324,15 @@ the photos from being measured).
 
 An unknown option is echoed by name only when it is a plain option name
 (`--partcipants`); anything else, such as a path with two dashes in front of it,
-is reported as "an unrecognised option". Any other absolute path a tool prints
-is shown as `<path>`, as in `learn:sort`. `--log`, `--truth`, `--thresholds` and
-`--out` given in Git Bash spelling (`/c/Users/me/...`) are refused on Windows
-(Node would read `/c/...` as a folder named `c` on the current drive, and
-`--out` would create it): use `C:\Users\me\...`.
+is reported as "an unrecognised option". A real option written with `=`
+(`--participants=P001`) is answered by its name: "takes its value after a
+space, not after `=`". Any other absolute path a tool prints is shown as
+`<path>`, and stack frames are left out, exactly as in `learn:sort` (same
+filter, `src/lib/m2/terminal.ts`). `--log`, `--truth`, `--thresholds` and
+`--out` given in Git Bash, Cygwin or WSL spelling (`/c/Users/me/...`,
+`/cygdrive/c/...`, `/mnt/c/...`) are refused on Windows (Node would read them
+as a folder tree on the current drive, and `--out` would create it): use
+`C:\Users\me\...`.
 
 **Not covered: npm's own lines.** Run as `npm run m2:evaluate -- ...`, npm itself
 prints the whole command line, your paths included, to stderr (`npm notice run
@@ -457,12 +461,22 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
     sorter's own checkout as `.`, other checkouts as `<checkout>`, the photo
     and output folders relative to where the command ran, and any path segment
     holding the account name as `~`.
-  - **Any other absolute path** (a drive letter such as `C:\...`, or a POSIX
-    path under `/home`, `/Users`, `/tmp` and the like), which comes from tools
-    that name their own folders (for example Playwright's "Executable doesn't
-    exist at ..."), becomes `<path>`. A path runs to the next quote or line
-    end and may contain spaces, so words after an unquoted path on the same
-    line go with it: better to hide too much than to leave a folder name.
+  - **Any other absolute path**, which comes from tools that name their own
+    folders (for example Playwright's "Executable doesn't exist at ..."),
+    becomes `<path>`: a drive path (`C:\...`), a UNC path (`\\server\share\...`),
+    a `file://` URL, and a POSIX path of two or more segments whatever its
+    first folder is (`/home/...`, `/data/...`, `/workspace/...`). A POSIX path
+    is recognised after the start of the text, white space, a quote, a
+    backtick, `(`, `[`, `{`, `<`, `,`, `;`, `:` or `=`; it is not one after a
+    letter, digit, `.`, `~`, `/`, `-`, `>` or a closing bracket, so URLs
+    (`http://127.0.0.1:3401/learn/check`), relative paths (`../x/y`,
+    `~/x/y`, `<path>/x`), fractions (`3/4`) and dates (`2026/09/30`) stay.
+    A route in prose (`open /learn/print`) looks like a path and is hidden.
+    A path under a system root (`/home`, `/Users`, `/tmp`, `/Applications`,
+    `/Library`, ...) and a Windows or UNC path run to the next quote or line
+    end and may contain spaces, so words after such a path on the same line go
+    with it: better to hide too much than to leave a folder name. Other POSIX
+    paths end at white space.
   - In the dev server's last words, stack frames (`    at f (file:1:1)`) are
     replaced by one `(stack frames omitted)` line.
   - The account name is masked wherever else it appears in text, in any letter
@@ -474,9 +488,10 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
     script starts. That is npm's output, outside the script's control. `npm run
 --silent learn:sort -- ...` hides it (checked); use that when the output is
     going to be pasted somewhere.
-  - `--in` and `--out` given in Git Bash spelling (`/c/Users/me/...`) are
-    refused on Windows: Node would read that as a folder named `c` on the
-    current drive and create it. Use the Windows form (`C:\Users\me\...`).
+  - `--in` and `--out` given in Git Bash, Cygwin or WSL spelling
+    (`/c/Users/me/...`, `/cygdrive/c/...`, `/mnt/c/...`) are refused on
+    Windows: Node would read that as a folder tree on the current drive and
+    create it. Use the Windows form (`C:\Users\me\...`).
 - **Only white-listed EXIF in the run log** (above): no GPS, time or device
   serial number. Two things it does not cover:
   - **File names.** Phone cameras often put the time of the shot in the file

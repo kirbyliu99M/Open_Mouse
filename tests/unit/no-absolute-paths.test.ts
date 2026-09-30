@@ -83,10 +83,9 @@ describe("expectNoLeak on Linux-shaped output", () => {
     expect(() => expectNoLeak(text, { folders, username: "runner" })).toThrow();
   });
 
-  it("does not take a URL, a page route or a relative path for an absolute one", () => {
+  it("does not take a URL or a relative path for an absolute one", () => {
     for (const text of [
       "Starting dev server on http://127.0.0.1:3401 …",
-      "open /learn/check in the browser",
       "../../../../../tmp/x/y",
       "./node_modules/next",
     ]) {
@@ -103,5 +102,90 @@ describe("expectNoLeak on Linux-shaped output", () => {
     );
     expect(namesAbsolutePath("../../tmp/x", "/tmp/x")).toBe(false);
     expect(namesAbsolutePath("x /tmp/x", "/tmp/x")).toBe(true);
+  });
+});
+
+// Whatever stands before a POSIX path, and whatever its first folder is.
+const PREFIXES: [string, string][] = [
+  ["the start of the text", ""],
+  ["a colon", "path:"],
+  ["a colon and a space", "cwd: "],
+  ["a bracket", "["],
+  ["a brace", "{"],
+  ["a comma", "a,"],
+  ["a semicolon", "a;"],
+  ["a backtick", "`"],
+  ["an angle bracket", "<"],
+  ["a single quote", "'"],
+  ["a double quote", '"'],
+  ["a parenthesis", "("],
+  ["an equals sign", "root="],
+  ["white space", "see "],
+];
+const ROOTS_UNDER_TEST = ["/home/bob", "/data", "/workspace", "/Applications"];
+
+describe("hasAnyAbsolutePath: prefixes and roots", () => {
+  it.each(PREFIXES)("finds a POSIX path after %s", (_label, prefix) => {
+    for (const root of ROOTS_UNDER_TEST) {
+      expect(hasAnyAbsolutePath(`${prefix}${root}/x/y.mjs`)).toBe(true);
+    }
+  });
+
+  it("finds file URLs, UNC paths and drive paths", () => {
+    for (const text of [
+      "file:///home/bob/x/y.mjs",
+      "at file:///C:/Users/bob/x.mjs:3:1",
+      "\\\\srv\\share\\photos\\a.jpg",
+      "'\\\\NAS\\My Share\\a.jpg'",
+      "open C:\\Users\\bob\\a.txt",
+      "open d:/photos",
+      "\\\\?\\C:\\Users\\bob",
+    ]) {
+      expect(hasAnyAbsolutePath(text), text).toBe(true);
+    }
+  });
+
+  it("finds a system root on its own, and nothing that only looks like one", () => {
+    expect(hasAnyAbsolutePath("in /tmp now")).toBe(true);
+    expect(hasAnyAbsolutePath("the /tmpfile idea")).toBe(false);
+  });
+
+  it("does not take URLs, fractions, dates or relative paths for absolute paths", () => {
+    for (const text of [
+      "http://127.0.0.1:3401/learn/check",
+      "https://open-mouse.vercel.app/l/v1/G03R",
+      "3/4 and 10/12",
+      "2026/09/30",
+      "../../home/bob/x",
+      "./data/x/y",
+      "~/data/x",
+      "<path>/x/y",
+      "P001/G01R/3",
+      "a / b",
+    ]) {
+      expect(hasAnyAbsolutePath(text), text).toBe(false);
+    }
+  });
+
+  // The helper is written on its own, so it can catch what the redactor
+  // misses: everything it calls a leak, the redactor must hide.
+  it.each(PREFIXES)(
+    "and the terminal redaction hides every one of them: %s",
+    (_label, prefix) => {
+      for (const root of ROOTS_UNDER_TEST) {
+        const text = `${prefix}${root}/x/y.mjs`;
+        expect(hasAnyAbsolutePath(text)).toBe(true);
+        expect(hasAnyAbsolutePath(show(text))).toBe(false);
+      }
+    },
+  );
+
+  it("... and file URLs and UNC paths as well", () => {
+    for (const text of [
+      "at file:///home/bob/x/y.mjs:3:1",
+      "cannot open \\\\srv\\share\\photos\\a.jpg",
+    ]) {
+      expect(hasAnyAbsolutePath(show(text)), text).toBe(false);
+    }
   });
 });

@@ -45,12 +45,7 @@ import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  outputInsideRepo,
-  relativeInputPath,
-  terminalRedaction,
-} from "../src/lib/learning/paths";
-import { makeTerminal } from "../src/lib/learning/terminal";
+import { outputInsideRepo } from "../src/lib/learning/paths";
 import { parseM2Args } from "../src/lib/m2/cli";
 import {
   ALL_PATHS,
@@ -60,6 +55,7 @@ import {
 } from "../src/lib/m2/evaluate";
 import { EvaluationInputError } from "../src/lib/m2/inputs";
 import { nothingEvaluatedReason, renderMarkdown } from "../src/lib/m2/markdown";
+import { m2Terminal } from "../src/lib/m2/terminal";
 import { parseThresholds } from "../src/lib/m2/thresholds";
 
 if (process.env.CI) {
@@ -99,7 +95,7 @@ const cwd = process.cwd();
  * relative paths the run log uses, this checkout and the working folder as
  * ".", the account name as "~". Widened once the arguments are known.
  */
-let terminal = makeTerminal(terminalRedaction({ cwd, scriptRoot, username }));
+let terminal = m2Terminal({ cwd, scriptRoot, username });
 
 function fail(message: string): never {
   terminal.warn(message);
@@ -151,17 +147,7 @@ try {
   // A file the sorter wrote sits below its folder; the folder is enough to
   // show any path inside it relative.
   const shownPaths = [...named, ...(out ? [out, dirname(out)] : [])];
-  const base = terminalRedaction({ cwd, scriptRoot, username });
-  terminal = makeTerminal({
-    username,
-    paths: [
-      ...base.paths,
-      ...shownPaths.map((from) => ({
-        from,
-        to: relativeInputPath(from, cwd, { username }),
-      })),
-    ],
-  });
+  terminal = m2Terminal({ cwd, scriptRoot, username, named: shownPaths });
 
   const logs = args.logs.flatMap((t) => logFiles(resolve(t)));
   const truths = args.truths.flatMap((t) => truthFiles(resolve(t)));
