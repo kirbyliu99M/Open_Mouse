@@ -1,4 +1,5 @@
 import { devices, expect, test } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 
 // ── Page titles: each page names itself; the template adds the site ────────
 
@@ -160,6 +161,95 @@ test("when the camera is refused, the visible label and the input's name agree",
     expect(name!.toLowerCase()).toContain(label.text.toLowerCase());
 });
 
+// ── The hidden file input's keyboard focus shows on the label you can see ──
+// (WCAG 2.4.7). The input is visually hidden and comes after its labels, so
+// the ring has to be drawn on the label.
+
+async function tabToUpload(page: import("@playwright/test").Page) {
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press("Tab");
+    if (
+      await page.evaluate(
+        () => document.activeElement?.id === "easy-scan-upload",
+      )
+    )
+      return;
+  }
+  throw new Error("Tab never reached the upload input");
+}
+
+async function focusRing(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const input =
+      document.querySelector<HTMLInputElement>("#easy-scan-upload")!;
+    const label = document.querySelector<HTMLLabelElement>(
+      "label[for=easy-scan-upload]",
+    )!;
+    const style = getComputedStyle(label);
+    return {
+      focusVisible: input.matches(":focus-visible"),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: parseFloat(style.outlineWidth),
+      outlineColor: style.outlineColor,
+      shell: getComputedStyle(document.querySelector("main.easyScanShell")!)
+        .backgroundColor,
+    };
+  });
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`Tab to the upload input shows a ring on the visible "Upload a photo instead" label (camera refused, ${colorScheme})`, async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
+    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".cameraErrorCard")).toBeVisible();
+    await tabToUpload(page);
+    const ring = await focusRing(page);
+    expect(ring.focusVisible).toBe(true);
+    expect(ring.outlineStyle).toBe("solid");
+    expect(ring.outlineWidth).toBeGreaterThanOrEqual(2);
+    // Non-text contrast (WCAG 1.4.11): the ring against the screen behind it.
+    expect(contrast(ring.outlineColor, ring.shell)).toBeGreaterThanOrEqual(3);
+  });
+
+  test(`Tab to the upload input shows a ring on the "Upload a photo" label when there is no camera (${colorScheme})`, async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
+    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "mediaDevices", { value: undefined });
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyScanNoCamera")).toBeVisible();
+    await tabToUpload(page);
+    const ring = await focusRing(page);
+    expect(ring.focusVisible).toBe(true);
+    expect(ring.outlineStyle).toBe("solid");
+    expect(ring.outlineWidth).toBeGreaterThanOrEqual(2);
+    expect(contrast(ring.outlineColor, ring.shell)).toBeGreaterThanOrEqual(3);
+  });
+}
+
+test("Tab to the upload input shows a ring on the upload icon next to a live camera", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await expect(page.locator(".cameraFrame")).toBeVisible();
+  await tabToUpload(page);
+  const ring = await focusRing(page);
+  expect(ring.focusVisible).toBe(true);
+  expect(ring.outlineStyle).toBe("solid");
+  expect(ring.outlineWidth).toBeGreaterThanOrEqual(2);
+  expect(contrast(ring.outlineColor, ring.shell)).toBeGreaterThanOrEqual(3);
+});
+
 // ── The measured numbers say they are not verified yet ────────────────────
 
 test("the easy-scan measured sheet says the numbers are not yet verified, next to them", async ({
@@ -171,9 +261,24 @@ test("the easy-scan measured sheet says the numbers are not yet verified, next t
   await expect(sheet.locator(".easySheetNote")).toHaveText(
     "Not yet verified against a ruler.",
   );
-  // The numbers are unchanged.
+  // The drawing on the photo shows the numbers, but it is an image to a screen
+  // reader, so the sheet says them in text too, and the note is the very next
+  // thing after them.
   await expect(page.getByText("Hand 190 mm")).toBeVisible();
   await expect(page.getByText("Palm 84 mm")).toBeVisible();
+  const numbers = sheet.getByTestId("easy-sheet-numbers");
+  await expect(numbers).toHaveText("Hand length 190 mm · Palm width 84 mm");
+  expect(await numbers.evaluate((el) => el.nextElementSibling?.className)).toBe(
+    "easySheetNote",
+  );
+  // The words the drawing shows are in what the sheet says.
+  const drawn = await page.evaluate(() =>
+    [...document.querySelectorAll(".easyDimLabelText, .easyFrozenSvg text")]
+      .map((t) => t.textContent ?? "")
+      .filter(Boolean),
+  );
+  expect(drawn.join(" ")).toMatch(/190/);
+  expect(drawn.join(" ")).toMatch(/84/);
 });
 
 test("the printed-sheet scan page says it too, between the numbers and their caption", async ({
@@ -195,4 +300,23 @@ test("the printed-sheet scan page says it too, between the numbers and their cap
     };
   });
   expect(order).toEqual({ afterNumbers: true, beforeCaption: true });
+  // Their own margins apply: `.feedback p` used to win over both classes.
+  const margins = await page.evaluate(() => {
+    const top = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!).marginTop;
+    const bottom = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!).marginBottom;
+    return {
+      noteTop: top("[data-testid=scan-unverified-note]"),
+      noteBottom: bottom("[data-testid=scan-unverified-note]"),
+      captionTop: top(".feedbackCaption"),
+      captionBottom: bottom(".feedbackCaption"),
+    };
+  });
+  expect(margins).toEqual({
+    noteTop: "8px",
+    noteBottom: "0px",
+    captionTop: "12px",
+    captionBottom: "0px",
+  });
 });

@@ -7,6 +7,30 @@
 export const UNVERIFIED_MEASUREMENT_NOTE = "Not yet verified against a ruler.";
 
 /**
+ * The sheet's line for a scan result: the two numbers, and, when the hand
+ * length was typed (`calibration.method === "user-length"`), that number as
+ * the entered one. `calibration` is a `ScanSubmission`'s, whose variants do not
+ * all carry a `method`.
+ */
+export function measuredSheetNumbers(
+  measurements: { readonly handLengthMm: number; readonly palmWidthMm: number },
+  calibration: object,
+): string {
+  const entered =
+    "method" in calibration &&
+    calibration.method === "user-length" &&
+    "referenceMm" in calibration &&
+    typeof calibration.referenceMm === "number"
+      ? calibration.referenceMm
+      : undefined;
+  return measuredNumbersText({
+    handLengthMm: measurements.handLengthMm,
+    palmWidthMm: measurements.palmWidthMm,
+    ...(entered === undefined ? {} : { enteredLengthMm: entered }),
+  });
+}
+
+/**
  * The two numbers, as text a screen reader reads (the drawing on the photo
  * shows them too, but it is an image). `enteredLengthMm` is set when the
  * hand length was typed rather than measured: it is then the reference the

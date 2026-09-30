@@ -25,11 +25,13 @@ export interface HandDecision {
  * photo is caught by the handedness gate through `stated`.
  *
  * `detected` can be null, and the pipelines do call this with null: each
- * decides the hand right after detection, before its gates run. The result
- * is then never used, because the gates stop a photo with no handedness label
- * (LOW_LANDMARK_CONFIDENCE, tests/unit/gates.test.ts) before any submission is
- * assembled. The fallback to `selected` is here so this pure function never
- * has to throw for a value its type allows, not because a submission can
+ * decides the hand right after detection, before its gates run. Then
+ * `stated` is passed on to the gates like any other, and ignored there: the
+ * handedness gate only compares a label that exists, and a photo with no label
+ * is stopped by LOW_LANDMARK_CONFIDENCE (tests/unit/gates.test.ts). Only
+ * `submitted` is never read, because no submission is assembled for a photo
+ * the gates stopped. The fallback to `selected` is here so this pure function
+ * never has to throw for a value its type allows, not because a submission can
  * carry it.
  */
 export function resolvePipelineHand(input: {

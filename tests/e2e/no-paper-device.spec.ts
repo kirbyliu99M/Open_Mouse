@@ -952,7 +952,7 @@ test("a tablet asking for the desktop site gets the camera's dark from the first
   }
 });
 
-test("/scan/easy is rendered per request and keeps the security headers a page that is not rendered per request has", async ({
+test("/scan/easy carries the same security headers as a page that is not rendered per request", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
@@ -963,10 +963,11 @@ test("/scan/easy is rendered per request and keeps the security headers a page t
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   expect(headers["permissions-policy"]).toContain("camera=(self)");
-  // Reading the user agent makes the route dynamic, so it is not the static,
-  // shared-cache response the prerendered pages are. In the dev server that
-  // is `no-store`; in production, `private, no-cache, no-store`.
-  expect(headers["cache-control"]).toMatch(/no-store|no-cache/);
+  // Cache-Control is deliberately not asserted: the dev server sends
+  // `no-store` for every route, so it would pass whatever the page does. That
+  // the page is rendered per request is checked where it can be:
+  // tests/unit/scan-easy-page.test.ts (the page reads the request headers) and
+  // the `next build` route table (`ƒ`, dynamic).
 
   // The security headers do not come from the page, so a page that does not
   // read the user agent carries the same ones.

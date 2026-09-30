@@ -109,7 +109,7 @@ import {
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import { DetectorProgress } from "./DetectorProgress";
 import {
-  measuredNumbersText,
+  measuredSheetNumbers,
   UNVERIFIED_MEASUREMENT_NOTE,
 } from "../photo/unverified-note";
 import "../../app/scan/scan.css";
@@ -1677,17 +1677,10 @@ export default function EasyScanCamera({
                 <CheckIcon width={20} height={20} /> Hand measured
               </p>
               <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
-                {measuredNumbersText({
-                  handLengthMm: result.measurements.handLengthMm,
-                  palmWidthMm: result.measurements.palmWidthMm,
-                  ...("method" in result.submission.calibration &&
-                  result.submission.calibration.method === "user-length"
-                    ? {
-                        enteredLengthMm:
-                          result.submission.calibration.referenceMm,
-                      }
-                    : {}),
-                })}
+                {measuredSheetNumbers(
+                  result.measurements,
+                  result.submission.calibration,
+                )}
               </p>
               <p className="easySheetNote">{UNVERIFIED_MEASUREMENT_NOTE}</p>
               {"method" in result.submission.calibration &&
