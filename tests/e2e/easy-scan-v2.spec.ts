@@ -103,6 +103,16 @@ test.describe("AC1: the stage never changes shape", () => {
   }) => {
     await holdPipeline(page);
     await openLive(page);
+    // The video element is on screen before its first frame: read its size once
+    // it is playing (this read 0 x 0 once in a full run).
+    await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLVideoElement>("video.cameraVideo")!
+          .videoWidth > 0,
+    );
     const video = await page.evaluate(() => {
       const v = document.querySelector<HTMLVideoElement>("video.cameraVideo")!;
       return { width: v.videoWidth, height: v.videoHeight };
