@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
+import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -531,7 +532,7 @@ const constraintsSeen = (page: Page) =>
  * marked found (fixtures/freeze-loop.ts: a wrapped requestAnimationFrame and a
  * MutationObserver). It used to be polled for from here and stubbed afterwards,
  * and on a busy machine the gap was long enough for the ring to fill and the
- * auto-shutter to replace the viewfinder: 13 of 60 runs failed that way under
+ * auto-shutter to replace the viewfinder: 11 of 60 runs failed that way under
  * load. The fixture's four corners found means the loop has SAMPLED; the cue
  * line is on screen from the start, long before, and holding then would leave
  * a screen with no camera behind it.
@@ -1677,5 +1678,42 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
     expect(l.row.background).toBe("rgb(22, 22, 23)");
     expect(l.main.onTopIsIt).toBe(true);
     expect(l.main.rect.bottom).toBeLessThanOrEqual(l.viewport.height);
+  });
+});
+
+test.describe("fix round 3: a retake on the upload path starts clean", () => {
+  test("a photo is picked, the camera cannot be reopened, and the polite live region is empty after the retake", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    // The loop is held where it is: no auto-shutter, and it cannot start again
+    // after the retake and announce something new.
+    await armLoopFreeze(page);
+    await openLive(page);
+    await freezeLoop(page);
+    const live = page.locator(".cameraCueWrap + .visuallyHiddenLive");
+    // The loop has told a screen reader something by now (so the check below
+    // is not vacuous).
+    await expect(live).not.toHaveText("");
+    const told = await live.textContent();
+
+    // The upload path: pick a file, reach the result.
+    await uploadGreyPhoto(page);
+    await release(page);
+    const sheet = page.getByRole("dialog", { name: "Hand measured" });
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+
+    // The camera cannot be opened again (revoked, unplugged: what an
+    // upload-only screen is for), so `startCamera` and the `resetLoopState`
+    // inside it never run and `retake()` has to clear the announcement itself.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+        value: undefined,
+        configurable: true,
+      });
+    });
+    await page.getByRole("button", { name: "Retake photo" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(live, `it still said "${told}"`).toHaveText("");
   });
 });
