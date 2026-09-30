@@ -723,3 +723,8 @@ main.easyScanShell {
     border: 1px solid #fff;
   }
 }
+/* The progress pill sits under the top bar, where the refused-camera card
+   starts too: the card steps down until the pill is gone. */
+.easyScanShell:has(.easyDetectorProgress) .cameraErrorCard {
+  margin-top: 4.5rem;
+}

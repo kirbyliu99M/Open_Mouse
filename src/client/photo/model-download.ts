@@ -3,15 +3,19 @@
  *
  * `hand_landmarker.task` is 7.8 MB, and MediaPipe's own `modelAssetPath`
  * fetch reports nothing while it runs, so on a slow connection the first scan
- * sat behind an unexplained wait. This module fetches the same same-origin
- * file itself, as a stream, counts the bytes and hands them back as a
- * `Uint8Array` (MediaPipe's `modelAssetBuffer`). Everything here is plain
- * functions over injectable pieces (`fetch`, a `Response`), so it is
- * unit-tested without a browser.
+ * sat behind an unexplained wait. This module gives MediaPipe the same
+ * same-origin file as a stream it can read (`baseOptions.modelAssetBuffer`
+ * accepts a `ReadableStreamDefaultReader`), counting the bytes as they pass.
  *
- * The rule for every failure is the same: never make the scan worse than it
- * was. Anything this module cannot do returns `null`, and the caller then
- * lets MediaPipe fetch the file by path, as it did before.
+ * The stream is lazy on purpose: nothing is fetched until MediaPipe first
+ * reads from it, and MediaPipe does that only after its WASM runtime has
+ * loaded, exactly when its own path fetch would have started. So the order of
+ * requests, and when they happen, is what it was before this counted bytes.
+ *
+ * Everything here is plain functions over injectable pieces (`fetch`, a
+ * `Response`), so it is unit-tested without a browser. Every failure makes the
+ * stream error rather than hand over less than the whole file, and the
+ * caller then lets MediaPipe fetch the file by path, as it did before.
  */
 
 import type { DetectorLoadState } from "./landmarks";
@@ -119,69 +123,79 @@ export function progressChanged(
   );
 }
 
-function concatChunks(chunks: readonly Uint8Array[], length: number) {
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return bytes;
-}
-
 /**
- * Fetches `url` and returns its bytes, reporting progress along the way.
- * Returns null on anything that went wrong (a network error, a non-2xx
- * response, a stream that failed midway, an empty body) so the caller can fall
- * back to letting MediaPipe load the model by path. A response with no
- * readable stream (`body` missing or without `getReader`) is read whole with
- * `arrayBuffer()` instead: one request, no progress until it is done.
+ * A reader over the model file that fetches nothing until it is first read
+ * from (`highWaterMark: 0`: a chunk is pulled only for a pending `read()`),
+ * then streams the response, reporting progress as chunks pass. It errors,
+ * instead of ending early, on anything short of the whole file: a network
+ * error, a non-2xx response, an empty body, a read failure midway, or a
+ * total that is known and not reached (a truncated model must not reach
+ * MediaPipe as if it were complete). A response with no readable stream is
+ * read whole with `arrayBuffer()` and delivered as one chunk.
  */
-export async function downloadWithProgress(
+export function createModelReader(
   fetchImpl: typeof fetch,
   url: string,
   onProgress: (progress: DownloadProgress) => void,
-): Promise<Uint8Array | null> {
-  try {
-    const response = await fetchImpl(url);
-    if (!response.ok) return null;
-    const totalBytes = expectedTotalBytes(response.headers);
-    let last: DownloadProgress | null = null;
-    const report = (loadedBytes: number, force = false) => {
-      const next = { loadedBytes, totalBytes };
-      if (force || progressChanged(last, next)) {
-        last = next;
-        onProgress(next);
-      }
-    };
-    report(0, true);
-
-    const reader = response.body?.getReader?.();
-    if (!reader) {
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.length === 0) return null;
-      report(bytes.length, true);
-      return bytes;
+): ReadableStreamDefaultReader<Uint8Array> {
+  let source: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let totalBytes: number | null = null;
+  let loaded = 0;
+  let last: DownloadProgress | null = null;
+  const report = (force = false) => {
+    const next = { loadedBytes: loaded, totalBytes };
+    if (force || progressChanged(last, next)) {
+      last = next;
+      onProgress(next);
     }
-
-    const chunks: Uint8Array[] = [];
-    let loaded = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.length;
-      report(loaded);
-    }
-    if (loaded === 0) return null;
-    // A known total the stream did not reach means it was cut short: do not
-    // hand a truncated model to MediaPipe.
-    if (totalBytes !== null && loaded !== totalBytes) return null;
-    report(loaded, true);
-    return concatChunks(chunks, loaded);
-  } catch {
-    return null;
-  }
+  };
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          if (source === null) {
+            const response = await fetchImpl(url);
+            if (!response.ok)
+              throw new Error(`The model request failed (${response.status}).`);
+            totalBytes = expectedTotalBytes(response.headers);
+            report(true);
+            const reader = response.body?.getReader?.();
+            if (!reader) {
+              const bytes = new Uint8Array(await response.arrayBuffer());
+              if (bytes.length === 0) throw new Error("The model was empty.");
+              if (totalBytes !== null && bytes.length !== totalBytes)
+                throw new Error("The model download was cut short.");
+              loaded = bytes.length;
+              report(true);
+              controller.enqueue(bytes);
+              controller.close();
+              return;
+            }
+            source = reader;
+          }
+          const { done, value } = await source.read();
+          if (done) {
+            if (loaded === 0) throw new Error("The model was empty.");
+            if (totalBytes !== null && loaded !== totalBytes)
+              throw new Error("The model download was cut short.");
+            report(true);
+            controller.close();
+            return;
+          }
+          loaded += value.length;
+          report();
+          controller.enqueue(value);
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+      cancel(reason) {
+        return source?.cancel(reason);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return stream.getReader();
 }
 
 /**

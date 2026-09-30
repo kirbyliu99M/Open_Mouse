@@ -14,7 +14,7 @@ import {
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 import type { Point2 } from "../geometry/homography";
-import { downloadWithProgress } from "./model-download";
+import { createModelReader } from "./model-download";
 
 const WASM_BASE_PATH = "/mediapipe/wasm";
 const MODEL_ASSET_PATH = "/mediapipe/models/hand_landmarker.task";
@@ -22,9 +22,9 @@ const MODEL_ASSET_PATH = "/mediapipe/models/hand_landmarker.task";
 let landmarkerPromise: Promise<HandLandmarker> | null = null;
 
 /**
- * Where the detector is in loading, for a progress display. The model is read
- * with a byte count (determinate); the WASM runtime is fetched and started by
- * MediaPipe itself, which reports nothing, so that stage is indeterminate.
+ * Where the detector is in loading, for a progress display. MediaPipe loads
+ * its WASM runtime first and reports nothing while it does, so that stage is
+ * indeterminate; it then reads the model, which is counted (determinate).
  */
 export type DetectorLoadState =
   | { readonly stage: "idle" }
@@ -83,30 +83,42 @@ export class HandLandmarkerLoadError extends Error {
  */
 export function getHandLandmarker(): Promise<HandLandmarker> {
   landmarkerPromise ??= (async () => {
-    setLoadState({ stage: "model", loadedBytes: 0, totalBytes: null });
-    // The model is read here, as a stream with a byte count, and handed over
-    // as bytes. If that cannot be done for any reason (no stream, a network
-    // or read error, a truncated file), `modelBytes` is null and MediaPipe
-    // fetches the same file by path exactly as it did before this counted.
-    const [fileset, modelBytes] = await Promise.all([
-      FilesetResolver.forVisionTasks(WASM_BASE_PATH),
-      downloadWithProgress(
-        (input, init) => globalThis.fetch(input, init),
-        MODEL_ASSET_PATH,
-        (progress) => setLoadState({ stage: "model", ...progress }),
-      ),
-    ]);
+    // MediaPipe loads its WASM runtime first (nothing to count there), and
+    // only then reads the model. The model goes in as a reader that counts
+    // the bytes and fetches nothing until MediaPipe first reads from it, so
+    // the request order and timing stay MediaPipe's own.
     setLoadState({ stage: "runtime" });
-    const landmarker = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        ...(modelBytes
-          ? { modelAssetBuffer: modelBytes }
-          : { modelAssetPath: MODEL_ASSET_PATH }),
-        delegate: "CPU", // GPU delegate isn't consistently available/deterministic across devices for a one-shot still-photo scan.
-      },
-      runningMode: "IMAGE",
-      numHands: 1,
-    });
+    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
+    const create = (
+      model:
+        | { modelAssetBuffer: ReadableStreamDefaultReader<Uint8Array> }
+        | { modelAssetPath: string },
+    ) =>
+      HandLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          ...model,
+          delegate: "CPU", // GPU delegate isn't consistently available/deterministic across devices for a one-shot still-photo scan.
+        },
+        runningMode: "IMAGE",
+        numHands: 1,
+      });
+    let landmarker: HandLandmarker;
+    try {
+      landmarker = await create({
+        modelAssetBuffer: createModelReader(
+          (input, init) => globalThis.fetch(input, init),
+          MODEL_ASSET_PATH,
+          (progress) => setLoadState({ stage: "model", ...progress }),
+        ),
+      });
+    } catch {
+      // The counted download failed (no stream, a network or read error, a
+      // truncated file): let MediaPipe fetch the same file by path, exactly as
+      // it did before this counted bytes. If that fails too, the error below
+      // is the one the caller sees.
+      setLoadState({ stage: "runtime" });
+      landmarker = await create({ modelAssetPath: MODEL_ASSET_PATH });
+    }
     setLoadState({ stage: "ready" });
     return landmarker;
   })().catch((error: unknown) => {

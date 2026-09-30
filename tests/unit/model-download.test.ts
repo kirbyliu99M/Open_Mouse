@@ -3,7 +3,7 @@ import {
   announcedPercent,
   describeDetectorLoad,
   describeDownload,
-  downloadWithProgress,
+  createModelReader,
   expectedTotalBytes,
   formatMegabytes,
   progressChanged,
@@ -177,22 +177,57 @@ function responseOf(
 const bytes = (length: number, fill: number) =>
   new Uint8Array(length).fill(fill);
 
-describe("downloadWithProgress", () => {
+/** Reads a reader to its end the way MediaPipe does: chunk by chunk, joined. */
+async function readAll(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const joined = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return joined;
+}
+
+describe("createModelReader", () => {
   const url = "/mediapipe/models/hand_landmarker.task";
 
-  it("streams the file, counts the bytes and returns them in order", async () => {
+  it("fetches nothing until it is first read, so the request keeps MediaPipe's own timing", async () => {
+    let calls = 0;
+    const reader = createModelReader(
+      async () => {
+        calls += 1;
+        return responseOf([bytes(4, 1)], {
+          headers: { "content-length": "4" },
+        });
+      },
+      url,
+      () => {},
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toBe(0);
+    await readAll(reader);
+    expect(calls).toBe(1);
+  });
+
+  it("streams the file, counts the bytes and yields them in order", async () => {
     const chunks = [bytes(40, 1), bytes(35, 2), bytes(25, 3)];
     const seen: DownloadProgress[] = [];
-    const result = await downloadWithProgress(
+    const reader = createModelReader(
       async () => responseOf(chunks, { headers: { "content-length": "100" } }),
       url,
       (progress) => seen.push(progress),
     );
-    expect(result).not.toBeNull();
-    expect(result!.length).toBe(100);
-    expect([...result!.slice(0, 40)].every((v) => v === 1)).toBe(true);
-    expect([...result!.slice(40, 75)].every((v) => v === 2)).toBe(true);
-    expect([...result!.slice(75)].every((v) => v === 3)).toBe(true);
+    const result = await readAll(reader);
+    expect(result.length).toBe(100);
+    expect([...result.slice(0, 40)].every((v) => v === 1)).toBe(true);
+    expect([...result.slice(40, 75)].every((v) => v === 2)).toBe(true);
+    expect([...result.slice(75)].every((v) => v === 3)).toBe(true);
     // From 0, never backwards, and ends exactly at the total.
     expect(seen[0]).toEqual({ loadedBytes: 0, totalBytes: 100 });
     expect(seen.map((s) => s.loadedBytes)).toEqual(
@@ -205,7 +240,7 @@ describe("downloadWithProgress", () => {
     const total = 1_000_000;
     const chunks = Array.from({ length: 1000 }, () => bytes(1000, 7));
     let reports = 0;
-    const result = await downloadWithProgress(
+    const reader = createModelReader(
       async () =>
         responseOf(chunks, { headers: { "content-length": String(total) } }),
       url,
@@ -213,26 +248,26 @@ describe("downloadWithProgress", () => {
         reports += 1;
       },
     );
-    expect(result!.length).toBe(total);
+    expect((await readAll(reader)).length).toBe(total);
     // 0..100 percent plus the first reading and the final one.
     expect(reports).toBeLessThanOrEqual(103);
   });
 
-  it("with no Content-Length still returns the bytes, and reports an unknown total", async () => {
+  it("with no Content-Length still yields the bytes, and reports an unknown total", async () => {
     const seen: DownloadProgress[] = [];
-    const result = await downloadWithProgress(
+    const reader = createModelReader(
       async () => responseOf([bytes(10, 9), bytes(10, 9)]),
       url,
       (progress) => seen.push(progress),
     );
-    expect(result!.length).toBe(20);
+    expect((await readAll(reader)).length).toBe(20);
     expect(seen.every((s) => s.totalBytes === null)).toBe(true);
     expect(seen.at(-1)!.loadedBytes).toBe(20);
   });
 
   it("with a content-encoded body, does not measure against the encoded length", async () => {
     const seen: DownloadProgress[] = [];
-    const result = await downloadWithProgress(
+    const reader = createModelReader(
       async () =>
         responseOf([bytes(300, 1)], {
           headers: { "content-length": "100", "content-encoding": "gzip" },
@@ -240,7 +275,7 @@ describe("downloadWithProgress", () => {
       url,
       (progress) => seen.push(progress),
     );
-    expect(result!.length).toBe(300);
+    expect((await readAll(reader)).length).toBe(300);
     expect(seen.every((s) => s.totalBytes === null)).toBe(true);
   });
 
@@ -252,7 +287,7 @@ describe("downloadWithProgress", () => {
       body: null,
       arrayBuffer: async () => bytes(6, 4).buffer,
     } as unknown as Response;
-    const result = await downloadWithProgress(
+    const reader = createModelReader(
       async () => {
         calls += 1;
         return fake;
@@ -260,7 +295,7 @@ describe("downloadWithProgress", () => {
       url,
       () => {},
     );
-    expect(result!.length).toBe(6);
+    expect((await readAll(reader)).length).toBe(6);
     expect(calls).toBe(1);
   });
 
@@ -278,14 +313,14 @@ describe("downloadWithProgress", () => {
         responseOf([bytes(10, 1)], { headers: { "content-length": "25" } }),
     ],
   ])(
-    "returns null on %s, so the caller falls back to MediaPipe's own load",
+    "errors on %s instead of ending early, so MediaPipe never gets half a model",
     async (_name, fetchImpl) => {
-      const result = await downloadWithProgress(
+      const reader = createModelReader(
         fetchImpl as unknown as typeof fetch,
         url,
         () => {},
       );
-      expect(result).toBeNull();
+      await expect(readAll(reader)).rejects.toThrow();
     },
   );
 });
