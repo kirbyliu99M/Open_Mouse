@@ -150,3 +150,39 @@ outside the three approved strings; changes to `docs/STATUS.md`.
 Kirby: design and copy decisions, real-phone tests, final acceptance. Claude: orchestration,
 brief, review adjudication, merge, `docs/STATUS.md`. Builder 1 (Sonnet subagent): implementation
 in its own worktree. `pr-review` workflow: independent review. Codex: not involved.
+
+## Build notes (S4, PR #97)
+
+What the built version does differently from the text above. None of it changes an acceptance
+criterion; each item is a decision the build had to make or a thing it could not settle.
+
+- **Hint lines on screens 1 and 2 are not built.** The storyboard shows "Takes the photo by
+  itself — or tap" there. It is not one of the three approved strings, so the hint line is empty in
+  those states. Pending Kirby: add it, and with what words?
+- **The photo scales to 90% or less, never below 0.6.** #92's sheet is taller than the storyboard's
+  (numbers, the "Not yet verified" note), and at 90% the paper would sit under it, so the scale
+  shrinks to fit (0.783 with today's sheet). The lower bound is 0.6, and the result sheet is
+  capped at 62vh and scrolls inside above that, so a large system font cannot shrink the photo
+  to a thumbnail.
+- **`resizeMode: { ideal: "none" }`** is asked for next to 1920x1080 ideal, so the browser prefers
+  the camera's own frame sizes over a software crop-and-scale that would narrow the field of view.
+  Not verified on a phone.
+- **Tap-to-focus support is inferred, not observed.** `pointsOfInterest` counts if it shows in the
+  track's capabilities, its settings or `getSupportedConstraints()` (Chrome documents it outside
+  `getCapabilities()`), together with `single-shot` in `focusMode`. The debug JSON records each
+  source; the first Android Chrome run settles it, as does whether the point is read in the rotated
+  frame.
+- **The frozen photo's crop uses the `<video>` element's own frame size**, falling back to
+  `getSettings()`, because the video element is what `object-fit: cover` actually cropped.
+- **The legacy printed-sheet camera (`/scan`) changed too.** It shares `pickCue` and
+  `advanceAutoCapture`: its ring empties after 3 consecutive failed samples, blur is the
+  "Waiting for a sharp picture" cue, and its "Steady" chip is shake only. See the note in
+  `camera-capture-2026-09-25/README.md`.
+- **Amber outline only where the pipeline located the problem.** "We couldn't find a hand" has no
+  location, so nothing is drawn (screen 07b). The white measurement lines and the amber outline
+  each sit on a dark halo so they read on white paper.
+- **Reduced motion cross-fades**: the moved picture fades in over the unmoved one, which stays
+  opaque until it is covered, so the picture is never see-through.
+- **Not built (nice to have):** dragging the sheet to dismiss it; rounded photo corners.
+- **Motion budget.** Only `transform` and `opacity` animate, except the shutter ring's
+  `stroke-dashoffset` (existing, unchanged).
