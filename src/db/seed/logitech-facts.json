@@ -1,0 +1,689 @@
+{
+  "logitech-g-pro-x-superlight-2": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g-pro-x-superlight-2-dex": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-dex",
+      "excerpt": "ergonomic, asymmetrical form crafted for total right-hand control",
+      "location": "page text",
+      "reason": "The page says the form is crafted for right-hand control."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-dex",
+      "excerpt": "ergonomic, asymmetrical form",
+      "location": "page text",
+      "reason": "The page calls the shape ergonomic and asymmetrical."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g-pro-x-superlight-2c": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g-pro-x-superlight-2-se": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g-pro-2-lightspeed": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitechg.com/en-us/shop/p/pro-2-lightspeed",
+      "excerpt": "The PRO 2 LIGHTSPEED is fully ambidextrous",
+      "location": "page text",
+      "reason": "The page says the mouse is fully ambidextrous."
+    },
+    "shape": {
+      "value": "symmetrical",
+      "source": "https://www.logitechg.com/en-us/shop/p/pro-2-lightspeed",
+      "excerpt": "with a symmetric shape",
+      "location": "page text",
+      "reason": "The page says the shape is symmetric."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g502-x": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g502-x-lightspeed": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "source": "https://www.logitechg.com/en-us/shop/p/g502-x-wireless-lightforce",
+      "excerpt": "ICONIC SHAPE, ERGONOMIC COMFORT",
+      "location": "page data: key feature",
+      "reason": "The headline pairs 'ergonomic' with comfort, not with the shape class; the page does not call the shape ergonomic, symmetrical or asymmetrical. Not inferred."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g502-x-plus": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "source": "https://www.logitechg.com/en-us/shop/p/g502-x-plus-wireless-lightforce",
+      "excerpt": "ICONIC SHAPE, ERGONOMIC COMFORT",
+      "location": "page data: key feature",
+      "reason": "The headline pairs 'ergonomic' with comfort, not with the shape class; the page does not call the shape ergonomic, symmetrical or asymmetrical. Not inferred."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g502-hero": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g309": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g305-lightspeed": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g203-lightsync": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g403-hero": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "source": "https://www.logitechg.com/en-us/shop/p/g403-hero-gaming-mouse",
+      "excerpt": "contoured with rubber grips",
+      "location": "page text",
+      "reason": "'Contoured' is not one of symmetrical, ergonomic or hybrid, and the page says nothing about handedness. Not inferred."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g703-lightspeed": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-g903-hero": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+      "excerpt": "Ambidextrous design.",
+      "location": "page text",
+      "reason": "The page says 'Ambidextrous design'; its spec list also carries 'Right- or left-handed ambidextrous design: Yes'."
+    },
+    "shape": {
+      "value": null,
+      "source": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+      "excerpt": "Ambidextrous design.",
+      "location": "page text",
+      "reason": "The page says ambidextrous but does not use the word symmetric or symmetrical. shape-rubric section 2 would imply symmetrical; that is a derived value, not a page statement, so it is left for the owner to decide."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mx-master-4": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mx-master-3s": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-master-3s",
+      "excerpt": "ergonomic silhouette crafted to support your palm and fingers",
+      "location": "page data: key feature",
+      "reason": "The page calls the silhouette (the shape) ergonomic."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mx-anywhere-3s": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mx-vertical": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+      "excerpt": "MX Vertical is an advanced ergonomic mouse",
+      "location": "page text",
+      "reason": "The page calls the mouse an ergonomic mouse; the product name is 'Vertical Ergonomic Wireless Mouse'."
+    },
+    "formFactor": {
+      "value": "vertical",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+      "excerpt": "Logitech MX Vertical Ergonomic Wireless Mouse",
+      "location": "page title",
+      "reason": "The product name says it is a vertical mouse."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-lift-vertical": {
+    "handCompatibility": {
+      "value": null,
+      "source": "https://www.logitech.com/en-us/shop/p/lift-vertical-ergonomic-mouse",
+      "excerpt": "Yes, the Logitech Lift has a dedicated left-handed model available.",
+      "location": "page data: FAQ answer",
+      "reason": "The page sells a left-handed model as well and does not say which hand this listing (the seed's dimensions) is for. Not inferred."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/lift-vertical-ergonomic-mouse",
+      "excerpt": "Lift Vertical Ergonomic Mouse",
+      "location": "page title",
+      "reason": "The product name calls it an ergonomic mouse."
+    },
+    "formFactor": {
+      "value": "vertical",
+      "source": "https://www.logitech.com/en-us/shop/p/lift-vertical-ergonomic-mouse",
+      "excerpt": "Lift Vertical Ergonomic Mouse",
+      "location": "page title",
+      "reason": "The product name says it is a vertical mouse."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-ergo-m575": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/m575-ergo-wireless-trackball",
+      "excerpt": "a wireless trackball with a sculpted ergonomic shape",
+      "location": "page text",
+      "reason": "The page calls the shape sculpted and ergonomic."
+    },
+    "formFactor": {
+      "value": "trackball",
+      "source": "https://www.logitech.com/en-us/shop/p/m575-ergo-wireless-trackball",
+      "excerpt": "Logitech ERGO M575 Wireless Trackball",
+      "location": "page title",
+      "reason": "The product name says it is a trackball."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-pop-mouse": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-pebble-2-m350s": {
+    "handCompatibility": {
+      "value": null,
+      "reason": "The product page does not say which hand the mouse is for."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m196": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m196-bluetooth-mouse",
+      "excerpt": "the ambidextrous design guides either hand into a natural position",
+      "location": "page text",
+      "reason": "The page says the design is ambidextrous and guides either hand."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m240": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m240-silent-bluetooth-mouse",
+      "excerpt": "M240 Silent is designed to be equally comfortable for both left- and right-handed users.",
+      "location": "page text",
+      "reason": "The page says it is designed for both left- and right-handed users; it does not use the word 'ambidextrous'."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m650": {
+    "handCompatibility": {
+      "value": null,
+      "source": "https://www.logitech.com/en-us/shop/p/m650-signature-wireless-mouse",
+      "excerpt": "M650 L Left for left-handed users",
+      "location": "page text",
+      "reason": "The page sells a dedicated left-handed version, which implies this listing is not the left-handed one, but it never states that the M650 is right-handed. Not inferred."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m720-triathlon": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/m720-triathlon",
+      "excerpt": "This right-handed design also features soft rubber coating",
+      "location": "page text",
+      "reason": "The page calls it a right-handed design."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m550": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m550-signature-wireless-mouse",
+      "excerpt": "Because the M550 lacks side thumb buttons, its physical shape is perfectly symmetrical and ambidextrous.",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says the shape is symmetrical and ambidextrous, and a series overview on the page calls the M550 'a button-free ambidextrous mouse'. Flagged: the same page's description says 'contoured shape, soft thumb area'."
+    },
+    "shape": {
+      "value": "symmetrical",
+      "source": "https://www.logitech.com/en-us/shop/p/m550-signature-wireless-mouse",
+      "excerpt": "its physical shape is perfectly symmetrical",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says the physical shape is perfectly symmetrical. Flagged with the hand value."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m705-marathon": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/m705-wireless-mouse",
+      "excerpt": "A right-handed design also features rubber side-grips",
+      "location": "page text",
+      "reason": "The page calls it a right-handed design."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m190": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m190-wireless-mouse",
+      "excerpt": "Optimal comfort for your right or left hand",
+      "location": "page text",
+      "reason": "The page says it is comfortable for the right or the left hand; its meta description says 'full size ambidextrous curve design'."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m100": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m100-usb-mouse",
+      "excerpt": "M100 Corded the full-size, ambidextrous mouse",
+      "location": "page text",
+      "reason": "The page calls it an ambidextrous mouse."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m750": {
+    "handCompatibility": {
+      "value": null,
+      "source": "https://www.logitech.com/en-us/shop/p/m750-signature-plus-wireless-mouse",
+      "excerpt": "Yes, as its physical shape is perfectly symmetrical and ambidextrous. However, for the better fit, we recommend using left-handed dedicated version",
+      "location": "page data: FAQ answer",
+      "reason": "Disputed by the page itself: the FAQ calls the shape symmetrical and ambidextrous, then recommends the dedicated left-handed version for a better fit. Not filled; owner to decide. Kirby, 2026-09-30: the shape is recorded as symmetrical (see the shape field) but the hand stays null, because the FAQ itself recommends the left-handed dedicated version for left-handed users, so the hand value is in doubt."
+    },
+    "shape": {
+      "value": "symmetrical",
+      "source": "https://www.logitech.com/en-us/shop/p/m750-signature-plus-wireless-mouse",
+      "excerpt": "as its physical shape is perfectly symmetrical",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says the physical shape is perfectly symmetrical (the same sentence as its hand answer, quoted there in full). The same FAQ sentence is recorded as symmetrical for the M550, and Kirby decided on 2026-09-30 to record the M750 the same way. The hand value stays null: that answer goes on to recommend the left-handed dedicated version."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-m325s": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/m325s-wireless-mouse",
+      "excerpt": "It’s also designed for both right- and left-handed users",
+      "location": "page text",
+      "reason": "The page says it is designed for both right- and left-handed users. Flagged: the sentence goes on to describe swapping the click buttons in software."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mobi-fold": {
+    "handCompatibility": {
+      "value": "ambidextrous",
+      "source": "https://www.logitech.com/en-us/shop/p/mobi-fold-mouse",
+      "excerpt": "It's also ambidextrous, and can be used whether you are left or right handed.",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says it is ambidextrous and can be used left- or right-handed; the visible text says 'Plus, it’s ambidextrous'."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-signature-comfort-plus-m850l": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/signature-comfort-plus-m850l",
+      "excerpt": "sculpted right-hand shape and rubber side grips",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ calls it a sculpted right-hand shape."
+    },
+    "shape": {
+      "value": null,
+      "reason": "The product page does not describe the shape as symmetrical, ergonomic or asymmetrical in words."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-signature-comfort-m840l": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/signature-comfort-m840l",
+      "excerpt": "Shaped for right hands",
+      "location": "page text",
+      "reason": "The page says it is shaped for right hands."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/signature-comfort-m840l",
+      "excerpt": "wireless mouse with ergonomic design",
+      "location": "meta description",
+      "reason": "The page's meta description calls it a wireless mouse with ergonomic design. Flagged: meta description only; the visible text says 'sculpted shape'."
+    },
+    "formFactor": {
+      "value": null,
+      "reason": "The product page does not name a form factor (vertical, trackball or standard); 'standard' is not inferred from the absence of the other two."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-mx-ergo-s": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+      "excerpt": "No, the MX Ergo S is currently only manufactured in a right-handed configuration.",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says it is only manufactured in a right-handed configuration."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+      "excerpt": "sculpted ergonomic design",
+      "location": "page text",
+      "reason": "The page calls the design sculpted and ergonomic."
+    },
+    "formFactor": {
+      "value": "trackball",
+      "source": "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+      "excerpt": "MX Ergo S - Wireless Trackball Mouse",
+      "location": "page title",
+      "reason": "The product name says it is a trackball."
+    },
+    "retrievedAt": "2026-09-30"
+  },
+  "logitech-ergo-m575s": {
+    "handCompatibility": {
+      "value": "right",
+      "source": "https://www.logitech.com/en-us/shop/p/ergo-m575s-wireless-trackball",
+      "excerpt": "No, the ERGO M575 S is exclusively designed for right-handed users.",
+      "location": "page data: FAQ answer",
+      "reason": "The page's FAQ says it is exclusively designed for right-handed users."
+    },
+    "shape": {
+      "value": "ergonomic",
+      "source": "https://www.logitech.com/en-us/shop/p/ergo-m575s-wireless-trackball",
+      "excerpt": "sculpted ergonomic design of ERGO M575S",
+      "location": "page text",
+      "reason": "The page calls the design sculpted and ergonomic."
+    },
+    "formFactor": {
+      "value": "trackball",
+      "source": "https://www.logitech.com/en-us/shop/p/ergo-m575s-wireless-trackball",
+      "excerpt": "ERGO M575S - Wireless Trackball Mouse",
+      "location": "page title",
+      "reason": "The product name says it is a trackball."
+    },
+    "retrievedAt": "2026-09-30"
+  }
+}
