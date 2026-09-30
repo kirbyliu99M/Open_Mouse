@@ -244,8 +244,12 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
   await expect(page.locator(".cameraFrame")).toBeVisible();
   // This test is about the focus ring, not the shutter. The ring now fills as
   // soon as the sheet is found (one noisy sample no longer restarts it), so
-  // the auto-shutter fires under a slow keyboard; hold the loop where it is,
-  // as the axe live-camera tests do.
+  // the auto-shutter fires about a second after the tip closes. Run with the
+  // loop alive, this test passed 13 of 13 times on a warm dev server, but failed
+  // once on a cold one (slow keyboard, 10.7 s run: the shutter had already
+  // fired and the upload icon was gone). A race like that would be worse on a
+  // small CI runner, so the loop is held where it is, as the axe live-camera
+  // tests do.
   await expect(page.locator(".cameraCue")).toBeVisible();
   await page.evaluate(() => {
     window.requestAnimationFrame = () => 0;

@@ -209,3 +209,35 @@ export function tapToVideoPoint(
     y: clamp01((tapInStage.y - cover.y) / cover.height),
   };
 }
+
+export interface TapFocusHooks {
+  /** Called with the outcome of the single-shot request. */
+  readonly onTap?: (result: FocusApplyResult) => void;
+  /** Called with the outcome of the continuous request that follows. */
+  readonly onContinuous?: (result: FocusApplyResult) => void;
+}
+
+/**
+ * A tap on the paper: focus once at `point`, then, `refocusMs` later (about
+ * 1.2 s), go back to continuous focus, so the camera keeps following the
+ * scene and does not stay locked on the tapped spot. `cancel()` drops the
+ * return to continuous (a new tap, the stream ending). Nothing here throws;
+ * a refused single-shot still gets its continuous request.
+ */
+export function focusOnceThenContinuous(
+  track: FocusTrackLike,
+  support: FocusSupport,
+  point: Point,
+  refocusMs: number,
+  hooks: TapFocusHooks = {},
+): { cancel(): void } {
+  void applyTapFocus(track, support, point).then((result) =>
+    hooks.onTap?.(result),
+  );
+  const timer = setTimeout(() => {
+    void applyContinuousFocus(track, support).then((result) =>
+      hooks.onContinuous?.(result),
+    );
+  }, refocusMs);
+  return { cancel: () => clearTimeout(timer) };
+}

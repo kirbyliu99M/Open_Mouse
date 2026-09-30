@@ -1128,3 +1128,28 @@ test.describe("fix round 1: a very tall sheet does not shrink the photo to a thu
     expect(scale).toBeLessThanOrEqual(0.9 + 1e-6);
   });
 });
+
+test.describe("fix round 1: a browser whose getSettings throws", () => {
+  test("the camera still opens, focus is skipped, the scan still runs, and the debug panel shows no track", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      MediaStreamTrack.prototype.getSettings = () => {
+        throw new DOMException("no settings", "InvalidStateError");
+      };
+    });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    await page.goto("/scan/easy?debug=1");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    await expect(page.getByTestId("scan-debug-panel")).toBeVisible();
+    // The scan carries on to a result.
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      /processing|gateFailure/,
+      { timeout: 20_000 },
+    );
+    expect(errors).toEqual([]);
+  });
+});

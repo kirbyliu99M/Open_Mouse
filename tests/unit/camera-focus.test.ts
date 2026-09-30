@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   NO_FOCUS_SUPPORT,
   applyContinuousFocus,
   applyTapFocus,
+  focusOnceThenContinuous,
   readFocusSupport,
   tapToVideoPoint,
+  type FocusApplyResult,
   type FocusConstraints,
   type FocusTrackLike,
 } from "../../src/client/camera/focus";
@@ -308,5 +310,99 @@ describe("tapToVideoPoint", () => {
     expect(
       tapToVideoPoint({ x: 1, y: 1 }, stage, { width: 0, height: 0 }),
     ).toBeNull();
+  });
+});
+
+describe("focusOnceThenContinuous (a tap on the paper)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const calls = (applied: FocusConstraints[]) =>
+    applied.map((c) => c.advanced[0].focusMode);
+
+  it("asks for single-shot at once and returns to continuous after 1200 ms, not before", async () => {
+    vi.useFakeTimers();
+    const { track, applied } = fakeTrack(ANDROID_CHROME);
+    const support = readFocusSupport(track);
+    const results: FocusApplyResult[] = [];
+    focusOnceThenContinuous(
+      track,
+      support,
+      { x: 0.4, y: 0.6 },
+      CAMERA_CONSTANTS.focus.tapRefocusMs,
+      { onContinuous: (r) => results.push(r) },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls(applied)).toEqual(["single-shot"]);
+    await vi.advanceTimersByTimeAsync(1199);
+    expect(calls(applied)).toEqual(["single-shot"]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls(applied)).toEqual(["single-shot", "continuous"]);
+    expect(results).toEqual([{ applied: true }]);
+    // ...and once only.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls(applied)).toEqual(["single-shot", "continuous"]);
+  });
+
+  it("uses the shipped delay of 1200 ms", () => {
+    expect(CAMERA_CONSTANTS.focus.tapRefocusMs).toBe(1200);
+  });
+
+  it("cancel() drops the return to continuous", async () => {
+    vi.useFakeTimers();
+    const { track, applied } = fakeTrack(ANDROID_CHROME);
+    const handle = focusOnceThenContinuous(
+      track,
+      readFocusSupport(track),
+      { x: 0.5, y: 0.5 },
+      1200,
+    );
+    await vi.advanceTimersByTimeAsync(600);
+    handle.cancel();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(calls(applied)).toEqual(["single-shot"]);
+  });
+
+  it("a refused single-shot still returns to continuous, and reports the refusal", async () => {
+    vi.useFakeTimers();
+    const taps: FocusApplyResult[] = [];
+    const applied: FocusConstraints[] = [];
+    const track: FocusTrackLike = {
+      getCapabilities: () => ({ focusMode: ["single-shot", "continuous"] }),
+      getSettings: () => ({ pointsOfInterest: [] }),
+      applyConstraints: async (constraints) => {
+        applied.push(constraints);
+        if (constraints.advanced[0].focusMode === "single-shot")
+          throw Object.assign(new Error("no"), { name: "NotSupportedError" });
+      },
+    };
+    focusOnceThenContinuous(
+      track,
+      readFocusSupport(track),
+      { x: 0.5, y: 0.5 },
+      1200,
+      {
+        onTap: (r) => taps.push(r),
+      },
+    );
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(taps).toEqual([{ applied: false, reason: "NotSupportedError" }]);
+    expect(calls(applied)).toEqual(["single-shot", "continuous"]);
+  });
+
+  it("where a tap cannot set the focus it asks for nothing single-shot, and continuous only if offered", async () => {
+    vi.useFakeTimers();
+    const { track, applied } = fakeTrack({
+      capabilities: { focusMode: ["continuous"] },
+    });
+    focusOnceThenContinuous(
+      track,
+      readFocusSupport(track),
+      { x: 0.5, y: 0.5 },
+      1200,
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(calls(applied)).toEqual(["continuous"]);
   });
 });

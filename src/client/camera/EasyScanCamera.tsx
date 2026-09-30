@@ -93,7 +93,7 @@ import {
 import {
   NO_FOCUS_SUPPORT,
   applyContinuousFocus,
-  applyTapFocus,
+  focusOnceThenContinuous,
   readFocusSupport,
   tapToVideoPoint,
   type FocusApplyResult,
@@ -193,7 +193,12 @@ function readStreamSize(
 ): Size | null {
   if (video && video.videoWidth > 0 && video.videoHeight > 0)
     return { width: video.videoWidth, height: video.videoHeight };
-  const settings = stream?.getVideoTracks()[0]?.getSettings?.();
+  let settings: MediaTrackSettings | undefined;
+  try {
+    settings = stream?.getVideoTracks()[0]?.getSettings?.();
+  } catch {
+    settings = undefined;
+  }
   return settings?.width && settings.height
     ? { width: settings.width, height: settings.height }
     : null;
@@ -473,7 +478,8 @@ export default function EasyScanCamera({
   reducedMotionRef.current = reducedMotion;
   const focusTrackRef = useRef<FocusTrackLike | null>(null);
   const focusSupportRef = useRef<FocusSupport>(NO_FOCUS_SUPPORT);
-  const refocusTimerRef = useRef<number | null>(null);
+  // The pending return to continuous focus after a tap (focus.ts).
+  const tapFocusRef = useRef<{ cancel(): void } | null>(null);
   const reticleTimerRef = useRef<number | null>(null);
   const reticleCountRef = useRef(0);
   const debugOnRef = useRef(false);
@@ -626,11 +632,10 @@ export default function EasyScanCamera({
   const openTip = useCallback(() => setTipOpen(true), []);
 
   const clearFocusTimers = useCallback(() => {
-    if (refocusTimerRef.current !== null)
-      window.clearTimeout(refocusTimerRef.current);
+    tapFocusRef.current?.cancel();
+    tapFocusRef.current = null;
     if (reticleTimerRef.current !== null)
       window.clearTimeout(reticleTimerRef.current);
-    refocusTimerRef.current = null;
     reticleTimerRef.current = null;
   }, []);
 
@@ -655,7 +660,12 @@ export default function EasyScanCamera({
       supported = undefined;
     }
     const support = readFocusSupport(focusTrack, supported);
-    const settings = track.getSettings?.();
+    let settings: MediaTrackSettings | undefined;
+    try {
+      settings = track.getSettings?.();
+    } catch {
+      settings = undefined;
+    }
     debugTrackRef.current = {
       width: settings?.width ?? null,
       height: settings?.height ?? null,
@@ -1290,14 +1300,20 @@ export default function EasyScanCamera({
         () => setReticle(null),
         CAMERA_CONSTANTS.focus.tapRefocusMs + 300,
       );
-      void applyTapFocus(focusTrack, support, point).then((applied) => {
-        debugFocusRef.current.lastTap = applied;
-      });
-      refocusTimerRef.current = window.setTimeout(() => {
-        void applyContinuousFocus(focusTrack, support).then((applied) => {
-          debugFocusRef.current.continuous = applied;
-        });
-      }, CAMERA_CONSTANTS.focus.tapRefocusMs);
+      tapFocusRef.current = focusOnceThenContinuous(
+        focusTrack,
+        support,
+        point,
+        CAMERA_CONSTANTS.focus.tapRefocusMs,
+        {
+          onTap: (applied) => {
+            debugFocusRef.current.lastTap = applied;
+          },
+          onContinuous: (applied) => {
+            debugFocusRef.current.continuous = applied;
+          },
+        },
+      );
     },
     [clearFocusTimers],
   );
