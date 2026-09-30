@@ -234,3 +234,230 @@ test.describe("AC6: the debug panel", () => {
     expect(JSON.parse(text).live.laplacianFloor).toBe(15);
   });
 });
+
+/** Remembers, for the test to read, when a flash or a scan line is ever added. */
+async function watchForMotionElements(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as Window & { __seen?: Record<string, number> };
+    w.__seen = {};
+    const selectors = [".easyFlash", ".easyScanLine"];
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          for (const selector of selectors)
+            if (node.matches(selector) || node.querySelector(selector))
+              w.__seen![selector] = (w.__seen![selector] ?? 0) + 1;
+        }
+    }).observe(document, { subtree: true, childList: true });
+  });
+}
+const seen = (page: Page) =>
+  page.evaluate(
+    () => (window as Window & { __seen?: Record<string, number> }).__seen ?? {},
+  );
+
+/** Runs the capture through to the opened measured sheet, holding on "processing". */
+async function captureAndMeasure(page: Page) {
+  await holdPipeline(page);
+  await openLive(page);
+  await expect(page.locator(".easyStage")).toHaveAttribute(
+    "data-phase",
+    "processing",
+    { timeout: 20_000 },
+  );
+  await page.waitForTimeout(150);
+  const whileProcessing = {
+    flash: await page.locator(".easyFlash").count(),
+    scanLine: await page.locator(".easyScanLine").count(),
+  };
+  await release(page);
+  const sheet = page.getByRole("dialog", { name: "Hand measured" });
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  return { whileProcessing, sheet };
+}
+
+const computed = (page: Page, selector: string, props: string[]) =>
+  page
+    .locator(selector)
+    .first()
+    .evaluate((el, props) => {
+      const style = getComputedStyle(el);
+      return Object.fromEntries(
+        props.map((p) => [p, style.getPropertyValue(p)]),
+      );
+    }, props);
+
+test.describe("AC7: reduced motion", () => {
+  test("no flash, no scan line, no pulse, no spring: a 120 ms fade instead", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await watchForMotionElements(page);
+    const { whileProcessing, sheet } = await captureAndMeasure(page);
+
+    // Not hidden: never rendered at all, not even for one frame.
+    expect(whileProcessing).toEqual({ flash: 0, scanLine: 0 });
+    expect(await seen(page)).toEqual({});
+    await expect(page.locator(".easyFlash, .easyScanLine")).toHaveCount(0);
+    // The pulse ring is not drawn.
+    expect(
+      await page
+        .locator(".easyCornerPulse")
+        .evaluateAll((els) => els.map((el) => getComputedStyle(el).display)),
+    ).toEqual(["none", "none", "none", "none"]);
+    // The dots do not glide between samples.
+    expect(
+      await computed(page, ".easyCorner", ["transition-duration"]),
+    ).toEqual({ "transition-duration": "0s" });
+    // The sheet fades in for 120 ms instead of springing up.
+    expect(
+      await sheet.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.animationName, style.animationDuration];
+      }),
+    ).toEqual(["easyFadeIn", "0.12s"]);
+    // The photo still ends up clear of the sheet, without a spring: no
+    // transition, a fade.
+    expect(
+      await computed(page, ".easyStageContent", [
+        "transition-duration",
+        "animation-name",
+        "animation-duration",
+      ]),
+    ).toEqual({
+      "transition-duration": "0s",
+      "animation-name": "easyFadeIn",
+      "animation-duration": "0.12s",
+    });
+    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    const transform = await page
+      .locator(".easyStageContent")
+      .evaluate((el) => getComputedStyle(el).transform);
+    expect(transform).not.toBe("none");
+    // The lines appear together in a fade, not one after the other.
+    expect(
+      await page
+        .locator(".easyDimGrow")
+        .first()
+        .evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.animationName, style.animationDelay];
+        }),
+    ).toEqual(["easyFadeIn", "0s"]);
+  });
+
+  test("control: with motion allowed the same flow does flash, scan and spring", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await watchForMotionElements(page);
+    const { whileProcessing, sheet } = await captureAndMeasure(page);
+    expect(whileProcessing.scanLine).toBe(1);
+    expect((await seen(page))[".easyFlash"]).toBeGreaterThanOrEqual(1);
+    expect((await seen(page))[".easyScanLine"]).toBe(1);
+    expect(
+      await sheet.evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("easySheetSlideIn");
+    expect(
+      await computed(page, ".easyStageContent", ["transition-duration"]),
+    ).toEqual({ "transition-duration": "0.55s" });
+    expect(
+      await page
+        .locator(".easyCornerPulse")
+        .first()
+        .evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.display, style.animationDuration];
+        }),
+    ).toEqual(["block", "0.35s"]);
+  });
+});
+
+test.describe("AC5: only transform and opacity move", () => {
+  test("every property the scan flow animates or transitions is one of those two (one named exception)", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as Window & { __animated?: string[] };
+      w.__animated = [];
+      addEventListener(
+        "transitionrun",
+        (event) => {
+          w.__animated!.push(
+            `transition:${(event as TransitionEvent).propertyName}`,
+          );
+        },
+        true,
+      );
+      addEventListener(
+        "animationstart",
+        (event) => {
+          const name = (event as AnimationEvent).animationName;
+          const animation = document
+            .getAnimations()
+            .find((a) => (a as CSSAnimation).animationName === name);
+          const frames = (animation?.effect as KeyframeEffect | null)
+            ?.getKeyframes()
+            .flatMap((frame) => Object.keys(frame))
+            .filter(
+              (key) =>
+                !["offset", "easing", "composite", "computedOffset"].includes(
+                  key,
+                ),
+            );
+          for (const key of new Set(frames ?? []))
+            w.__animated!.push(`animation:${name}:${key}`);
+        },
+        true,
+      );
+    });
+    const { sheet } = await captureAndMeasure(page);
+    await expect(sheet).toBeVisible();
+    await page.waitForTimeout(1500); // the lines draw, the labels fade in
+    const animated = await page.evaluate(
+      () => (window as Window & { __animated?: string[] }).__animated ?? [],
+    );
+    const properties = [
+      ...new Set(animated.map((entry) => entry.split(":").pop()!)),
+    ].sort();
+    console.log(`AC5 animated properties: ${JSON.stringify(properties)}`);
+    console.log(
+      `AC5 animated entries: ${JSON.stringify([...new Set(animated)])}`,
+    );
+    // The one deliberate exception: the shutter ring's fill, a 96 px SVG circle
+    // (camera.css, unchanged from before this slice).
+    const allowed = new Set(["transform", "opacity", "stroke-dashoffset"]);
+    expect(properties.filter((p) => !allowed.has(p))).toEqual([]);
+    expect(properties).toContain("transform");
+    expect(properties).toContain("opacity");
+    expect(properties).not.toContain("left");
+    expect(properties).not.toContain("top");
+  });
+
+  test("the dots are placed by transform: left and top are 0 and only transform is transitioned", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await openLive(page);
+    const dots = await page.locator(".easyCorner").evaluateAll((els) =>
+      els.map((el) => {
+        const style = getComputedStyle(el);
+        return {
+          left: style.left,
+          top: style.top,
+          transitionProperty: style.transitionProperty,
+          transform: style.transform,
+        };
+      }),
+    );
+    expect(dots).toHaveLength(4);
+    for (const dot of dots) {
+      expect(dot.left).toBe("0px");
+      expect(dot.top).toBe("0px");
+      expect(dot.transitionProperty).toBe("transform");
+      expect(dot.transform).not.toBe("none");
+    }
+    await release(page);
+  });
+});
