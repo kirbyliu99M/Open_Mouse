@@ -1324,9 +1324,15 @@ main.easyScanShell {
   .easyStage .cameraVideo {
     transition-duration: 120ms;
   }
+  /* The moved picture fades in over the unmoved one (which the script keeps
+     rendered as .leaving): the unmoved one stays fully opaque until the last
+     instant, so the picture is never transparent. */
   .easyStageContent.moved {
     transition: none;
     animation: easyFadeIn 120ms linear both;
+  }
+  .easyStageContent.leaving {
+    animation: easyLeave 120ms linear both;
   }
   .easySheet.easyResultSheet {
     animation: easyFadeIn 120ms linear both;
@@ -1409,4 +1415,14 @@ main.easyScanShell {
   position: static;
   max-height: 40vh;
   margin-top: 0.5rem;
+}
+
+@keyframes easyLeave {
+  from,
+  99% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }

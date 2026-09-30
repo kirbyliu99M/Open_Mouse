@@ -84,7 +84,7 @@ test.describe("AC1: the stage never changes shape", () => {
     // The moment the sheet opens: the photo has not finished moving yet.
     const opening = await box(page, ".easyStage");
     // ...and once it has.
-    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
     await page.waitForTimeout(700);
     const settled = await box(page, ".easyStage");
 
@@ -321,7 +321,7 @@ test.describe("AC7: reduced motion", () => {
     // The photo still ends up clear of the sheet, without a spring: no
     // transition, a fade.
     expect(
-      await computed(page, ".easyStageContent", [
+      await computed(page, ".easyStageContent.moved", [
         "transition-duration",
         "animation-name",
         "animation-duration",
@@ -331,9 +331,9 @@ test.describe("AC7: reduced motion", () => {
       "animation-name": "easyFadeIn",
       "animation-duration": "0.12s",
     });
-    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
     const transform = await page
-      .locator(".easyStageContent")
+      .locator(".easyStageContent.moved")
       .evaluate((el) => getComputedStyle(el).transform);
     expect(transform).not.toBe("none");
     // The lines appear together in a fade, not one after the other.
@@ -361,7 +361,7 @@ test.describe("AC7: reduced motion", () => {
       await sheet.evaluate((el) => getComputedStyle(el).animationName),
     ).toBe("easySheetSlideIn");
     expect(
-      await computed(page, ".easyStageContent", ["transition-duration"]),
+      await computed(page, ".easyStageContent.moved", ["transition-duration"]),
     ).toEqual({ "transition-duration": "0.55s" });
     expect(
       await page
@@ -625,7 +625,7 @@ test.describe("the measured and retake layouts", () => {
     page,
   }) => {
     const { sheet } = await captureAndMeasure(page);
-    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
     await page.waitForTimeout(1600); // the spring settles, the lines are drawn
     const sheetTop = (await sheet.boundingBox())!.y;
     const parts = await page.evaluate(() => {
@@ -646,10 +646,12 @@ test.describe("the measured and retake layouts", () => {
     const all = [...parts.checks, ...parts.labels, ...parts.lines];
     const lowest = Math.max(...all.map((r) => r.bottom));
     const highest = Math.min(...all.map((r) => r.top));
-    const layer = await page.locator(".easyStageContent").evaluate((el) => {
-      const m = new DOMMatrix(getComputedStyle(el).transform);
-      return { scale: m.a, translateY: m.f };
-    });
+    const layer = await page
+      .locator(".easyStageContent.moved")
+      .evaluate((el) => {
+        const m = new DOMMatrix(getComputedStyle(el).transform);
+        return { scale: m.a, translateY: m.f };
+      });
     console.log(
       `measured layout: photo scale ${layer.scale.toFixed(3)}, moved ${layer.translateY.toFixed(0)} px, lowest drawn part ${lowest.toFixed(0)} px, sheet top ${sheetTop.toFixed(0)} px, highest ${highest.toFixed(0)} px`,
     );
@@ -686,7 +688,7 @@ test.describe("the measured and retake layouts", () => {
     await release(page);
     const sheet = page.getByRole("dialog", { name: "Retake needed" });
     await expect(sheet).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
     await page.waitForTimeout(1200);
     const outline = page.locator(".easyProblem");
     await expect(outline).toHaveCount(1);
@@ -751,11 +753,11 @@ test.describe("fix round 1: the sheet growing after it opened", () => {
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const { sheet } = await captureAndMeasure(page);
-    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await expect(page.locator(".easyStageContent.moved")).toBeAttached();
     await page.waitForTimeout(400);
     const layerTransform = () =>
       page
-        .locator(".easyStageContent")
+        .locator(".easyStageContent.moved")
         .evaluate((el) => getComputedStyle(el).transform);
     const drawn = () =>
       page.evaluate(() => {
@@ -943,5 +945,84 @@ test.describe("fix round 1: the drawing reads on white paper", () => {
     expect(amberOnPaperAlone).toBeLessThan(3); // why the halo is there
     expect(amberOnHalo).toBeGreaterThanOrEqual(3);
     expect(haloOnPaper).toBeGreaterThanOrEqual(3);
+  });
+});
+
+test.describe("fix round 1: reduced motion cross-fades, it does not blink", () => {
+  test("the picture is never transparent while the measured layer fades in", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await holdPipeline(page);
+    await openLive(page);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 20_000 },
+    );
+    // Freeze every animation at 0 ms the moment the measured layer appears, so
+    // the cross-fade can be read at chosen instants instead of raced.
+    await page.evaluate(() => {
+      const w = window as Window & { __release?: () => void };
+      new MutationObserver((records, observer) => {
+        if (!document.querySelector(".easyStageContent.moved")) return;
+        for (const a of document.getAnimations()) {
+          a.pause();
+          a.currentTime = 0;
+        }
+        observer.disconnect();
+        (window as Window & { __frozen?: boolean }).__frozen = true;
+      }).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+      });
+      w.__release?.();
+    });
+    await page.waitForFunction(
+      () => (window as Window & { __frozen?: boolean }).__frozen === true,
+    );
+
+    const at = (ms: number) =>
+      page.evaluate((ms) => {
+        for (const a of document.getAnimations()) a.currentTime = ms;
+        const opacity = (selector: string) => {
+          const el = document.querySelector(selector);
+          return el ? Number(getComputedStyle(el).opacity) : null;
+        };
+        return {
+          leaving: opacity(".easyStageContent.leaving"),
+          moved: opacity(".easyStageContent.moved"),
+        };
+      }, ms);
+
+    const samples = [0, 30, 60, 90, 110, 119, 121, 200];
+    const seen: Record<
+      number,
+      { leaving: number | null; moved: number | null }
+    > = {};
+    for (const ms of samples) seen[ms] = await at(ms);
+    console.log(`reduced-motion cross-fade: ${JSON.stringify(seen)}`);
+    // The unmoved picture stays fully opaque while the moved one fades in over it...
+    for (const ms of [0, 30, 60, 90, 110]) {
+      expect(seen[ms].leaving, `unmoved at ${ms} ms`).toBe(1);
+      expect(seen[ms].moved, `moved at ${ms} ms`).toBeCloseTo(ms / 120, 2);
+    }
+    // At every instant, the two together cover the stage: the picture is
+    // never see-through (1 - (1 - a)(1 - b) is what stacking them leaves).
+    for (const ms of samples) {
+      const { leaving, moved } = seen[ms];
+      const covered = 1 - (1 - (leaving ?? 0)) * (1 - (moved ?? 0));
+      expect(covered, `covered at ${ms} ms`).toBeGreaterThanOrEqual(0.99);
+    }
+    // ...and only when it is fully covered does it let go.
+    expect(seen[121].leaving).toBe(0);
+    expect(seen[121].moved).toBe(1);
+    expect(seen[200].moved).toBe(1);
+    // Only one of them is ever exposed to a screen reader.
+    expect(await page.locator("svg.easyFrozenSvg[role=img]").count()).toBe(1);
+    expect(
+      await page.locator("svg.easyFrozenSvg[aria-hidden=true]").count(),
+    ).toBe(1);
   });
 });

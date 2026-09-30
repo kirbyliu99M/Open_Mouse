@@ -1556,6 +1556,44 @@ export default function EasyScanCamera({
     stageSize !== null &&
     (result.kind === "none" || photoForResult?.stream != null);
 
+  // Under reduced motion the photo does not slide: the moved picture fades in
+  // over the unmoved one, which stays fully visible until it is covered, so
+  // there is never a moment with the picture transparent.
+  const crossFade =
+    reducedMotion &&
+    measuredTransform !== null &&
+    (result.kind === "measured" || result.kind === "gateFailure");
+  const moveStyle =
+    measuredTransform && stageSize
+      ? {
+          // Scale about the middle of the stage (the layer itself has no
+          // height: see .easyStageContent in the CSS).
+          transformOrigin: `50% ${stageSize.height / 2}px`,
+          transform: `translateY(${measuredTransform.translateY}px) scale(${measuredTransform.scale})`,
+        }
+      : undefined;
+  // `measuredView` false draws the photo as it was while processing (nothing
+  // drawn on it yet, at full size): the layer the moved one fades in over.
+  const renderPhoto = (measuredView: boolean) =>
+    result.kind !== "none" && frozenLayout && stillSize ? (
+      <FrozenPhoto
+        previewUrl={result.previewUrl}
+        still={stillSize}
+        layout={frozenLayout}
+        phase={measuredView ? result.kind : "processing"}
+        overlay={measuredView ? resultOverlay : null}
+        overlayToStill={overlayToStill}
+        layerScale={measuredView ? layerScale : 1}
+        dimensions={measuredView ? dimensions : null}
+        problem={measuredView ? problem : null}
+        ariaLabel={
+          noPaperMode
+            ? "Your photo with, once measured, the hand-length and palm-width lines"
+            : "Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
+        }
+      />
+    ) : null;
+
   return (
     <main
       className={`cameraViewfinder easyScanShell${showStage ? " easyScanStaged" : ""}`}
@@ -1579,17 +1617,9 @@ export default function EasyScanCamera({
           onClick={onStageTap}
         >
           <div
-            className={`easyStageContent${measuredTransform ? " moved" : ""}`}
-            style={
-              measuredTransform && stageSize
-                ? {
-                    // Scale about the middle of the stage (the layer itself
-                    // has no height: see .easyStageContent in the CSS).
-                    transformOrigin: `50% ${stageSize.height / 2}px`,
-                    transform: `translateY(${measuredTransform.translateY}px) scale(${measuredTransform.scale})`,
-                  }
-                : undefined
-            }
+            key="base"
+            className={`easyStageContent${crossFade ? " leaving" : measuredTransform ? " moved" : ""}`}
+            style={crossFade ? undefined : moveStyle}
           >
             {result.kind === "none" ? (
               <video
@@ -1601,25 +1631,7 @@ export default function EasyScanCamera({
                 onPlaying={() => setVideoReady(true)}
               />
             ) : (
-              frozenLayout &&
-              stillSize && (
-                <FrozenPhoto
-                  previewUrl={result.previewUrl}
-                  still={stillSize}
-                  layout={frozenLayout}
-                  phase={result.kind}
-                  overlay={resultOverlay}
-                  overlayToStill={overlayToStill}
-                  layerScale={layerScale}
-                  dimensions={dimensions}
-                  problem={problem}
-                  ariaLabel={
-                    noPaperMode
-                      ? "Your photo with, once measured, the hand-length and palm-width lines"
-                      : "Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
-                  }
-                />
-              )
+              renderPhoto(!crossFade)
             )}
             {showCorners && guide && (
               <div className="cameraOverlay">
@@ -1627,12 +1639,23 @@ export default function EasyScanCamera({
                   states={cornerStates}
                   guide={guide}
                   hidden={
-                    result.kind === "measured" || result.kind === "gateFailure"
+                    (result.kind === "measured" ||
+                      result.kind === "gateFailure") &&
+                    !crossFade
                   }
                 />
               </div>
             )}
           </div>
+          {crossFade && (
+            <div
+              key="moved"
+              className="easyStageContent moved"
+              style={moveStyle}
+            >
+              {renderPhoto(true)}
+            </div>
+          )}
           {result.kind === "processing" && <div className="easyStageDim" />}
           {result.kind === "processing" && !reducedMotion && (
             <div className="easyScanLine" data-testid="easy-scan-line" />
