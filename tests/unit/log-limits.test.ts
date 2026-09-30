@@ -191,3 +191,23 @@ describe("errors are charged against the text budget too", () => {
     ).toBeGreaterThan(20);
   });
 });
+
+describe("key names and error codes are charged against the text budget too", () => {
+  it("replaces key names once the line has spent its text", () => {
+    const fields = Object.fromEntries(
+      Array.from({ length: 40 }, (_, i) => ["k".repeat(512) + i, 1]),
+    );
+    // 40 names of 512 characters, budget for 32.
+    expect(text(fields)).toContain('"[text budget exhausted]');
+  });
+
+  it("replaces the code of an error once the line has spent its text", () => {
+    const coded = () =>
+      Object.assign(new Error("x"), { code: "a".repeat(512) });
+    const errors = Array.from({ length: 20 }, coded);
+    const printed = text({ first: errors, second: errors, third: errors });
+    expect(
+      (printed.match(/"code":"\[text budget exhausted\]"/g) ?? []).length,
+    ).toBeGreaterThan(20);
+  });
+});
