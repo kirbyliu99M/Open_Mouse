@@ -488,6 +488,11 @@ const MOBILE_STATES: readonly (readonly [
       await slowModel(page, "gated");
       await page.goto("/scan/easy");
       await dismissTip(page);
+      // The camera is asked for when the tip closes and refused a moment
+      // later (this project has no camera). Until then the <video> of the
+      // request is in the page and axe asks about its captions: one full run
+      // audited in that moment. Audit after the answer, as the state intends.
+      await expect(page.locator(".cameraErrorCard")).toBeVisible();
       await expect(pill(page)).toBeVisible();
     },
   ],
@@ -499,6 +504,7 @@ const MOBILE_STATES: readonly (readonly [
       );
       await page.goto("/scan/easy");
       await dismissTip(page);
+      await expect(page.locator(".cameraErrorCard")).toBeVisible();
       await expect(pill(page)).toHaveAttribute("data-state", "failed", {
         timeout: 30_000,
       });

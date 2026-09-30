@@ -165,7 +165,7 @@ criterion; each item is a decision the build had to make or a thing it could not
   not wanted, so the hint line is empty in those states. Nothing is pending on it.
 - **The photo scales to 90% or less, never below 0.4.** #92's sheet is taller than the storyboard's
   (numbers, the "Not yet verified" note), and at 90% the paper would sit under it, so the scale
-  shrinks to fit: 0.783 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
+  shrinks to fit: 0.760 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
   390x844 screen). The result sheet is capped at 52vh and scrolls inside above that, and the photo
   keeps clear of the top bar as well, which grows with the text. The floor of 0.4 is reached only
   on a shorter screen, where the band cannot hold the paper at a useful size; there the drawing
@@ -195,8 +195,12 @@ criterion; each item is a decision the build had to make or a thing it could not
   `position: sticky; bottom: 0` with the sheet's own background (light and dark) and the padding
   the sheet had below it, so content scrolls behind it and, scrolled to the end, nothing is under
   it. The DOM order is unchanged, so the focus order is the reading order; `scroll-padding-bottom`
-  keeps a focused control clear of the row. The sheet's real height is still what the photo
-  layout measures.
+  keeps a focused control clear of the row (the row's measured height). The sheet's real height is
+  still what the photo layout measures. At large text the text must still fit: the main button
+  grows with its label instead of a fixed 54px, the retake icon has no padding, the grip chips wrap
+  instead of cutting a word, and the dimension labels are kept wholly inside the visible photo
+  (`dimensionLayout.ts`), which matters at the 0.4 scale floor where a fixed-size label is large
+  against a small photo.
 - **Dots and the steadiness check follow corners, not labels.** `detectPaperQuad` relabels its
   corners (a cyclic shift) when the paper is held sideways, at about 134 and 314 degrees of
   rotation in the synthetic sweep. Before smoothing, the new observation is matched to the dots by

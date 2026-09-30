@@ -1238,25 +1238,15 @@ main.easyScanShell {
   padding: min(0.75rem, 12px) 0
     calc(min(1.5rem, 24px) + env(safe-area-inset-bottom));
   background: var(--scan-bg, #f4f4f6);
-}
-/* Content scrolling up behind the row fades out over a few px, so its last
-   line is not cut in half. Over the sheet's own background it cannot be seen. */
-.easyStickyActions::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 0.75rem;
-  background: linear-gradient(to bottom, transparent, var(--scan-bg, #f4f4f6));
-  pointer-events: none;
+  /* Content scrolling up behind the row fades out over a few px instead of
+     being cut in half. A shadow in the sheet's own colour, not a pseudo-element:
+     axe cannot work out a button's background with one in its stack. Over the
+     sheet's own background it cannot be seen. */
+  box-shadow: 0 -0.75rem 0.5rem var(--scan-bg, #f4f4f6);
 }
 @media (prefers-contrast: more) {
   .easyStickyActions {
     border-top: 1px solid currentColor;
-  }
-  .easyStickyActions::before {
-    display: none;
   }
 }
 /* (?debug=1 only) the debug numbers follow the row, so they need their own foot. */
