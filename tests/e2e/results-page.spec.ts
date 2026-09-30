@@ -1,3 +1,4 @@
+import { timePromises } from "./fixtures/time-promise";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
@@ -371,6 +372,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.locator(".results-page-error")).toContainText(
       "It may have expired, or the link isn't yours. Scans without an account expire automatically.",
     );
+    expect(
+      timePromises(await page.locator(".results-page-error").innerText()),
+    ).toEqual([]);
     // Scoped to the error panel's own action — the TopBar above it also has
     // a "Scan again" link (its accessible name is "Back to Scan again"),
     // and an unscoped query matches both.

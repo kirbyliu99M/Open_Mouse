@@ -149,10 +149,14 @@ test("Try again on the notice loads the detector once the connection is back", a
 
   // Still offline: the retry fails again and the notice comes back.
   await notice.getByRole("button", { name: "Try again" }).click();
+  // The button goes away while it retries; focus stays on the notice (the same
+  // element) instead of falling to the page.
+  await expect(pill(page)).toBeFocused();
   await expect(notice).toBeVisible({ timeout: 30_000 });
 
   await page.unroute(`**${MODEL_URL}`);
   await notice.getByRole("button", { name: "Try again" }).click();
+  await expect(pill(page)).toBeFocused();
   await expect(pill(page)).toHaveCount(0, { timeout: 30_000 });
   await uploadGreyPhoto(page);
   const sheet = page.getByRole("dialog", { name: "Retake needed" });

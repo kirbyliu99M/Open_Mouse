@@ -281,6 +281,21 @@ test("the easy-scan measured sheet says the numbers are not yet verified, next t
   expect(drawn.join(" ")).toMatch(/84/);
 });
 
+test("a typed hand length is said to be entered, in the sheet's text and on the drawing", async ({
+  page,
+}) => {
+  await page.goto("/scan/easy/measured-length-demo");
+  const sheet = page.getByRole("dialog", { name: "Hand measured" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId("easy-sheet-numbers")).toHaveText(
+    "Hand length 186 mm (entered) · Palm width 80 mm",
+  );
+  await expect(sheet.locator(".easySheetNote")).toHaveText(
+    "Not yet verified against a ruler.",
+  );
+  await expect(page.getByText("Entered 186 mm")).toBeVisible();
+});
+
 test("the printed-sheet scan page says it too, between the numbers and their caption", async ({
   page,
 }, info) => {

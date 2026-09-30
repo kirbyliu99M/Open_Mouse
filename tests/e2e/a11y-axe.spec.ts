@@ -256,6 +256,18 @@ const MOBILE_STATES: readonly (readonly [
     },
   ],
   [
+    "measured sheet, typed hand length",
+    async (page) => {
+      await page.goto("/scan/easy/measured-length-demo");
+      await expect(
+        page.getByRole("dialog", { name: "Hand measured" }),
+      ).toBeVisible();
+      await expect(page.getByTestId("easy-sheet-numbers")).toContainText(
+        "(entered)",
+      );
+    },
+  ],
+  [
     "detector loading (progress notice)",
     async (page) => {
       await slowModel(page, "gated");
