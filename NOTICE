@@ -116,11 +116,15 @@ Last checked: 2026-09-30.
 ===========================================
 
 Installed with npm (not vendored) and shipped in the server and/or browser
-bundle. Licences are the "license" field in package-lock.json; each package
-carries its own licence text in node_modules/<name>/. Transitive dependencies
-are listed, with licences, in package-lock.json. Development-only tools
-(TypeScript, ESLint, Playwright, Vitest, Prettier, drizzle-kit, ...) are not
-redistributed.
+bundle. Licences are the "license" field in package-lock.json. Most of these
+packages carry a licence file in node_modules/<name>/, but four do not:
+@mediapipe/tasks-vision, @next/env, drizzle-orm and server-only. For those four
+the "license" field is the only evidence (checked 2026-09-30 by listing each
+package folder). Transitive dependencies are listed, with licences, in
+package-lock.json. Development-only tools (TypeScript, ESLint, Playwright,
+Vitest, Prettier, drizzle-kit, ...) are not redistributed.
+tests/unit/notice-packages.test.ts keeps this table in step with package.json
+and package-lock.json.
 
   Package                     Version          Licence
   --------------------------  ---------------  ----------
@@ -133,6 +137,7 @@ redistributed.
   js-aruco2                   2.0.0            MIT
   next                        15.5.25          MIT
   next-auth                   5.0.0-beta.32    ISC
+  qrcode                      1.5.4            MIT
   react                       19.3.0           MIT
   react-dom                   19.3.0           MIT
   server-only                 0.0.1            MIT
@@ -144,11 +149,15 @@ redistributed.
   (printed-sheet marker detection and the bank-card check). Their headers carry
   an MIT notice with the text below (aruco.js: Damiano Falcioni 2020 and Juan
   Mellado 2011; cv.js: Juan Mellado 2011). The package's LICENSE.txt also
-  reproduces the licences of works js-aruco2 is derived from or refers to:
-  ArUco (BSD), OpenCV (BSD-style) and AForge.NET (GNU LGPL v3). The AForge.NET
-  reference sits in src/posit2.js, which Open_Mouse does not import. Which
-  parts of aruco.js and cv.js derive from ArUco or OpenCV was not confirmed, so
-  the OpenCV notice is reproduced here as well.
+  reproduces the licences of four other works that js-aruco2 is derived from or
+  refers to: ArUco (BSD), OpenCV (BSD-style), AForge.NET (GNU LGPL v3) and
+  StackBoxBlur (MIT, Copyright (c) 2010 Mario Klingemann). The AForge.NET
+  reference sits in src/posit2.js, which Open_Mouse does not import. StackBoxBlur
+  is code that runs: CV.adaptiveThreshold in cv.js calls CV.stackBoxBlur, and the
+  marker detector in aruco.js calls CV.adaptiveThreshold (cv.js cites "Stack
+  Blur: Fast But Goodlooking" as its reference). Which parts of aruco.js and
+  cv.js derive from ArUco or OpenCV was not confirmed, so the OpenCV notice is
+  reproduced here as well, and the StackBoxBlur notice follows it.
 
   MIT (js-aruco2, from the package's LICENSE.txt):
 
@@ -206,6 +215,31 @@ redistributed.
     or tort (including negligence or otherwise) arising in any way out of
     the use of this software, even if advised of the possibility of such damage.
 
+  StackBoxBlur (from the package's LICENSE.txt):
+
+    Copyright (c) 2010 Mario Klingemann
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation
+    files (the "Software"), to deal in the Software without
+    restriction, including without limitation the rights to use,
+    copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following
+    conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+    OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+    WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+    OTHER DEALINGS IN THE SOFTWARE.
+
 
 4. Images: public/images/
 =========================
@@ -215,8 +249,11 @@ redistributed.
                           The tool used and its terms are not recorded:
                           Unconfirmed.
   hand-on-a4-camera.png   Origin not recorded: Unconfirmed.
-  g-pro-sketch.svg        A line sketch of a Logitech mouse. Author and source
-                          not recorded: Unconfirmed.
+  g-pro-sketch.svg        A line sketch of a Logitech mouse (G Pro X Superlight
+                          2 style). docs/design/easy-scan-shell-2026-09-25/
+                          README.md records that it was generated on pen.dev
+                          (regenerated as "v2" on 2026-09-26). pen.dev's terms
+                          for generated output were not checked: Unconfirmed.
 
 
 5. Trademarks

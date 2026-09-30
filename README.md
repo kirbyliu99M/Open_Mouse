@@ -3,9 +3,10 @@
 Measure your hand with a phone photo. See which mice fit it.
 
 Open_Mouse compares a measurement of your hand with the published dimensions of
-each mouse in a catalogue of Logitech models, scores every mouse on six aspects
-of fit, and explains the ranking in plain language. The question behind it: can
-a measured hand beat "large hands, buy a large mouse"?
+each mouse in a catalogue of Logitech models, scores every mouse that isn't
+excluded (wrong hand, vertical) on six aspects of fit, and explains the ranking
+in plain language. The question behind it: can a measured hand beat "large
+hands, buy a large mouse"?
 
 It gives a fit estimate to help a buying decision. It is not a medical or health
 tool and does not diagnose, treat or prevent anything.
@@ -38,47 +39,75 @@ locked. The paper's known size is the ruler.
 - Only derived numbers are sent to the server: which hand, the grip you chose,
   the millimetre measurements and a few numbers describing how the paper was
   found.
-- The server scores every mouse on length, grip width, height and hump, front
-  flare, thumb rest and weight. The weight score applies only when a weight
-  preference is given, and the app does not currently ask for one.
+- The server scores every mouse that isn't excluded (wrong hand, vertical) on
+  length, grip width, height and hump, front flare, thumb rest and weight. The
+  weight score applies only when a weight preference is given, and the app does
+  not currently ask for one.
 - The results page shows the ranking with a reason for each score, and a short
   written explanation. Google's Gemini API writes that text from the finished
   numbers; a deterministic template is used when the service is unavailable or
   its daily cap is reached. The language model never does the arithmetic.
 
 **Printed-sheet flow** (`/sheet`, then `/scan`). The earlier calibration: print a
-sheet carrying four ArUco markers (identical on A4 and Letter) and photograph your
-hand with the sheet in frame. It still works and is kept as a reference, mainly for checking
-the blank-paper measurement against ground truth (a learning kit for that is in
-development).
+sheet carrying six ArUco markers (four flat on the sheet, two on a flap you fold
+up for the side shot; identical on A4 and Letter) and photograph your hand with
+the sheet in frame. It is still available; whether to keep it is pending
+(未拍板). Until that is decided it is mainly used for checking the blank-paper
+measurement against ground truth (a learning kit for that is in development).
 
 **No paper: type your hand length.** A "No paper? Use a ruler instead" entry lets
-you type a measured hand length instead of taking a photo. It is behind a
-build-time flag, `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY=1`, and is **off by default**
-while the photo measurement is validated.
+you measure your hand length with a ruler (wrist crease to middle fingertip) and
+type it in. You still take the photo: the typed length replaces the paper as the
+scale, so this mode has no perspective correction and every other measurement
+inherits your ruler error. It is behind a build-time flag,
+`NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY=1`, and is **off by default** while the
+photo measurement is validated.
 
 ## Privacy
 
 - **Photos never leave your browser.** No endpoint accepts an image. The submit
-  route takes numbers only and rejects any field it does not expect.
+  route takes numbers only and rejects any field it does not expect. In the
+  no-paper mode the calibration that is sent is `user-length`, which includes
+  `referenceMm`: the hand length you typed (the same number is then stored as your
+  hand length).
 - **What the server keeps for a scan:** which hand, the stated grip, the
   millimetre measurements, the ranking with its scores and reasons, and the cached
   explanation text. A random session id lives in an httpOnly cookie. Rate limits
-  count requests per caller using a keyed hash (HMAC-SHA256) of the IP address, not
-  the address itself (a secret must be configured; see `.env.example`).
-- **Deletion.** A scan made without an account is designed to be physically
-  deleted **within 24 hours of when it was made**. A session expires after
-  20 h 30 min; an hourly GitHub Actions job (`.github/workflows/expire-sessions.yml`)
-  calls the sweep endpoint; a daily Vercel cron and a sweep on ordinary requests
-  back it up. `src/server/scans/retention.ts` adds up the worst case (23 h 15 min)
-  and a unit test checks that sum against 24 hours and against the workflow's real
-  cron string. It is a bound by design, not a guarantee: two consecutive failed
-  sweeps, or GitHub's scheduler being down, can exceed it (`retention.ts` says so).
-  You can also delete a scan at any time with "Delete this scan now" on its results
-  page.
-- **Accounts are optional.** Google sign-in exists in the code and is off unless
-  OAuth credentials are configured. A signed-in user's scans are kept until that
-  user deletes them.
+  count requests per caller using a keyed hash (HMAC-SHA256) of the IP address,
+  not the address itself. The key is the `RATE_LIMIT_KEY_SECRET` environment
+  variable (see `.env.example`); when it is not set, the code falls back to a
+  fixed, non-secret salt (the hash can then be reversed by brute force) and logs a
+  warning. Whether production sets it is **unconfirmed** (未確認).
+- **Deletion: the 24-hour target is not currently met.** A scan made without an
+  account is _meant_ to be physically deleted within 24 hours of when it was made,
+  but the current setup cannot promise that.
+  - What works: a session expires 20 h 30 min after it is created, and from then
+    on the app treats it as if it did not exist, so its scans can no longer be
+    read.
+  - What lags is the physical deletion. An hourly GitHub Actions job
+    (`.github/workflows/expire-sessions.yml`) is scheduled to call the sweep
+    endpoint, and a daily Vercel cron (03:00 UTC) backs it up. Between 2026-09-23
+    and 2026-09-30 the hourly job was observed to run about 5 times a day, not 24,
+    and the longest gap between two runs was 8.56 hours. So an expired row can
+    stay in the database for more than 24 hours. Fixing that is tracked as G7 in
+    [`docs/STATUS.md`](docs/STATUS.md).
+  - The lazy sweep that also removes expired rows runs only when someone submits a
+    scan (`POST /api/scans`), not on ordinary requests.
+  - `src/server/scans/retention.ts` adds up a design worst case of 23 h 15 min and
+    a unit test checks that sum against the workflow's cron string. The sum assumes
+    GitHub runs the job every hour, which the observed schedule does not.
+  - You can delete a scan at any time with "Delete this scan now" on its results
+    page.
+  - How long Neon's point-in-time restore (PITR) keeps deleted rows has **not been
+    confirmed** (未確認), so a database backup may still hold a scan after it was
+    deleted.
+- **Accounts are optional, and sign-in is off on the production site.** Google
+  sign-in exists in the code and stays off unless OAuth credentials are
+  configured; it is not enabled in production (see `docs/STATUS.md`). If it is
+  turned on, signing in stores your name, email address and profile image
+  (`users.name`, `email`, `image`) and the OAuth tokens Google returns (the
+  `accounts` table). Google OAuth is a third party in that flow. A signed-in
+  user's scans are kept until that user deletes them.
 - **Third parties.** Google's Gemini API receives the derived measurements, the
   grip, and the specifications and scores of the shortlisted mice to write the
   explanation, never a photo (`src/server/analysis/input.ts`). The app is hosted on
@@ -87,7 +116,8 @@ while the photo measurement is validated.
   notice says so); the app's Content-Security-Policy blocks that request, see
   [`public/mediapipe/README.md`](public/mediapipe/README.md).
 - The app loads no analytics or advertising scripts. Its Content-Security-Policy
-  allows same-origin scripts and connections only.
+  allows no third-party origins for scripts or connections (it does allow inline
+  scripts, which Next.js needs; see `next.config.ts`).
 
 ## Stack
 
@@ -168,8 +198,8 @@ Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和 Logitech
 
 - **狀態：早期預覽，尚未公開。** 網站已部署，但標了 `noindex`，沒有對外宣傳。手部量測還沒通過對照尺的準確度檢查（目標是手長誤差在 ±2 mm 內），適合度權重也是暫定值，請不要當成已驗證的結果。
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
-- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`），保留作為對照與學習套件用。
-- **無紙輸入手長：** 有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有登入的掃描，設計上會在製作後 24 小時內實體刪除（最壞情況依 `retention.ts` 推算為 23 小時 15 分，但若 GitHub 排程連續失敗或停擺就可能超過，不是保證）；也可以隨時在結果頁按「Delete this scan now」立即刪除。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未拍板（未拍板）。目前主要用來對照空白紙流程的量測結果。
+- **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
+- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有登入的掃描，目標是在製作後 24 小時內實體刪除，**但目前還做不到這個保證**：session 在 20 小時 30 分後就讀不到（讀取端把它當成不存在），實體刪除卻依賴每小時的 GitHub 排程；2026-09-23 到 09-30 實際觀察約每天只跑 5 次，最長間隔 8.56 小時，所以實體刪除可能超過 24 小時，修正項目是 G7。sweep 也只有在有人送出掃描（`POST /api/scans`）時才會順帶執行，一般請求不會。也可以隨時在結果頁按「Delete this scan now」立即刪除。Neon 時間點還原（PITR）的保留期尚未確認。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email、頭像與 OAuth token。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。

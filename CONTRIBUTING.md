@@ -65,9 +65,10 @@ between checkouts or worktrees: every install reconciles the folder against its 
 branch's lockfile, so a shared folder is silently rewritten by whichever checkout
 installs last.
 
-## Checks to run before you push
+## Checks to run before you ask for review
 
-All of these must pass locally:
+CI runs the whole gate (`.github/workflows/ci.yml`) once, when a maintainer marks
+the pull request ready. Run the same checks locally first; all of them must pass:
 
 ```sh
 npm run typecheck
@@ -76,7 +77,9 @@ npm run format:check
 npm run test
 npm run db:check
 npm run db:generate && git status --porcelain -- drizzle   # must print nothing
-npm run test:e2e
+npm audit --omit=dev
+npm run test:e2e             # every Playwright project
+npm run vercel-build         # outside a Vercel preview it skips the database steps, then runs `next build`
 ```
 
 If you touched `src/db/schema.ts`, commit the generated migration and metadata
@@ -84,18 +87,22 @@ under `drizzle/` (see the Database section of `README.md`). Do not use schema pu
 
 ## Pull requests
 
-CI minutes are limited, so the flow is built to run CI as few times as possible.
+CI minutes are limited: CI runs on pushes to `main` and on pull requests that are
+not drafts, and nowhere else. A push to a feature branch or to a draft pull
+request costs nothing.
 
 1. Branch from `main`. Branch names look like `m2-calibration` or `fix-handedness`.
-2. **Open the pull request as a draft.** Keep it a draft while you work.
-3. **Push only when the checks above are green on your machine.** Do not push work
-   in progress to trigger CI: a push to a ready pull request runs the checks
-   again, and a wasted run costs budget.
-4. Fill in the pull request template: acceptance criteria, evidence as numbers, the
-   hard-rules checklist and every user-visible sentence you added or changed.
-5. Mark it ready when it is complete. A reviewer who did not write the change
-   checks it against its acceptance criteria and the hard rules, and it is merged
-   after that with CI green.
+   A branch created before #78 (the CI budget change) must merge `main` in before
+   its first push: a push runs the `ci.yml` of the pushed commit.
+2. **Open the pull request as a draft**, and keep it a draft. You can push work in
+   progress to it at any time; commit and push after each meaningful step.
+3. Fill in the pull request template: acceptance criteria, evidence as numbers, the
+   hard-rules checklist and every user-visible sentence you added or changed. Run
+   the checks above before you ask for review.
+4. **A maintainer marks the pull request ready, after review; you do not mark it
+   ready yourself.** A reviewer who did not write the change checks it against its
+   acceptance criteria and the hard rules. Marking it ready runs CI once, and the
+   pull request is merged only with that run green and the Vercel preview live.
 
 Keep a pull request to one milestone and one side of the frontend/backend seam. Do
 not edit `src/lib/contracts/` in a feature pull request: changes to the shared

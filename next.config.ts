@@ -45,6 +45,14 @@ import type { NextConfig } from "next";
  * model files above (loaded via `fetch`, not `<script src>`, so `script-src`
  * alone would not cover them).
  *
+ * WARNING: do not widen `connect-src`. MediaPipe's bundle tries to POST usage
+ * metrics to https://odml.pa.googleapis.com/v1/log every 60 seconds, and this
+ * directive is the only thing that stops that request. Adding any origin (or
+ * `*`) would let the metrics leave the browser. The source list is pinned to
+ * exactly `'self'` by `tests/unit/next-config-headers.test.ts`; changing it
+ * means deciding what to do about the metrics first (see
+ * `public/mediapipe/README.md`).
+ *
  * `style-src 'self' 'unsafe-inline'`: Next's built-in error page
  * (`/_not-found` and friends) renders an inline `<style>` tag with no nonce
  * (also confirmed against a real build); nothing in this app's own code

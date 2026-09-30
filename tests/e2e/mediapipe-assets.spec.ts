@@ -56,7 +56,7 @@ test.describe("vendored MediaPipe assets", () => {
     for (const path of NOSIMD_FILES) expect(requested).not.toContain(path);
   });
 
-  test("a browser without WebAssembly SIMD falls back to the vendored _nosimd build and still detects", async ({
+  test("a browser without WebAssembly SIMD falls back to the vendored _nosimd build, then loads and runs detection to the end on a synthetic photo with no hand", async ({
     page,
   }) => {
     // MediaPipe decides by instantiating a tiny module that uses a SIMD
@@ -87,7 +87,8 @@ test.describe("vendored MediaPipe assets", () => {
       mimeType: "image/png",
       buffer: png,
     });
-    // Reaching the hand gate means the detector really loaded and ran.
+    // The photo has no hand, so the expected end state is the "no hand found"
+    // gate: reaching it means the detector really loaded and ran to the end.
     await expect(page.locator("[data-testid='scan-status']")).toHaveText(
       checkHandDetected(0)!.message,
       { timeout: 30_000 },

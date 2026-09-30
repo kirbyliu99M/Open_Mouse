@@ -1,6 +1,7 @@
 <!--
-Open it as a DRAFT. Push when the checks below are green on your machine, not
-before: CI minutes are limited. Mark it ready when it is complete.
+Open it as a DRAFT. You can push work in progress to it: CI does not run on
+draft pull requests. Run the checks below on your machine before you ask for
+review. A maintainer marks it ready after review; do not mark it ready yourself.
 -->
 
 ## What and why
@@ -24,6 +25,8 @@ before: CI minutes are limited. Mark it ready when it is complete.
 | `npm run test`                                               | files passed / tests passed     |
 | `npm run test:e2e` (all Playwright projects)                 | passed / skipped / failed       |
 | `npm run db:check`, and no drift after `npm run db:generate` |                                 |
+| `npm audit --omit=dev`                                       | vulnerabilities found           |
+| `npm run vercel-build`                                       | passed / failed                 |
 | Gate evidence (only if this PR is gated by `docs/PLAN.md`)   | measured value against the gate |
 
 ## Hard rules
@@ -40,7 +43,7 @@ before: CI minutes are limited. Mark it ready when it is complete.
 - [ ] `src/lib/contracts/` is not touched (contract changes get a PR of their own).
 - [ ] Migrations are additive and seeds idempotent (or there is no schema change).
 - [ ] No secrets or credentials in the diff. No photos or personal data in the description, screenshots or fixtures.
-- [ ] `docs/STATUS.md` is left to the orchestrator after merge (see `AGENTS.md`) unless this PR is assigned to update it.
+- [ ] `docs/STATUS.md` is not edited in this PR: the orchestrator updates it after the merge (see `AGENTS.md`). Put anything it should record in this description.
 
 ## User interface changes (delete this section if there are none)
 

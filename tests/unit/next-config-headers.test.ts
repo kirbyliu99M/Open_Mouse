@@ -44,11 +44,35 @@ describe("next.config.ts headers()", () => {
     }
   });
 
-  it("still sends the CSP with connect-src 'self' on every route (it also stops MediaPipe's own usage metrics from leaving the browser)", async () => {
+  async function cspDirective(name: string): Promise<string[]> {
     const all = (await rules()).find((r) => r.source === "/:path*");
     expect(all).toBeDefined();
-    expect(valueOf(all!, "Content-Security-Policy")).toContain(
-      "connect-src 'self'",
-    );
+    const csp = valueOf(all!, "Content-Security-Policy");
+    expect(csp).toBeDefined();
+    // Directives are separated by ";", the name comes first, then the sources.
+    const matching = csp!
+      .split(";")
+      .map((directive) => directive.trim().split(/\s+/))
+      .filter(([directiveName]) => directiveName === name);
+    // A repeated directive is ambiguous (browsers use the first one), so it
+    // must appear exactly once.
+    expect(matching, `exactly one ${name} directive`).toHaveLength(1);
+    return matching[0]!.slice(1);
+  }
+
+  it("sends the CSP on every route with connect-src allowing exactly 'self' (this is what stops MediaPipe's own usage metrics from leaving the browser)", async () => {
+    // toEqual on the whole list, not toContain: adding a third-party origin or
+    // `*` after 'self' would still contain "connect-src 'self'" but would let
+    // MediaPipe's POST to odml.pa.googleapis.com through.
+    expect(await cspDirective("connect-src")).toEqual(["'self'"]);
+  });
+
+  it("lets scripts come from no third-party origin: script-src holds only keywords (no host, scheme or wildcard)", async () => {
+    const sources = await cspDirective("script-src");
+    expect(sources).toContain("'self'");
+    // Every source is a quoted keyword ('self', 'unsafe-inline', ...). A host
+    // (https://cdn.example.com), a scheme (https:) or `*` would not start with
+    // a quote.
+    expect(sources.filter((source) => !source.startsWith("'"))).toEqual([]);
   });
 });

@@ -35,8 +35,9 @@ files add up to 11.3 MB.
 
 `tests/e2e/mediapipe-assets.spec.ts` covers this: a normal browser must request
 the SIMD pair and not the fallback; with the SIMD probe made to fail, it must
-request the `_nosimd` pair and still reach the "no hand found" gate on a
-synthetic photo. That test fails if the fallback files are missing.
+request the `_nosimd` pair, then load the detector and run detection to the end
+on a synthetic photo that has no hand in it (which stops at the "no hand found"
+gate). That test fails if the fallback files are missing.
 
 The `_module` (worker) build, which `forVisionTasks(path, true)` would select, is
 not vendored: nothing here asks for it.
