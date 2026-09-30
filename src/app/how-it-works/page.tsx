@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import logitechCatalogue from "@/db/seed/logitech.json";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import "../home.css";
+
+export const metadata: Metadata = { title: "How it works" };
 
 /** The original introduction, moved to its own route (screen 18). */
 export default function HowItWorksPage() {

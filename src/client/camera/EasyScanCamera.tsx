@@ -103,6 +103,8 @@ import {
   noPaperEntryLabel,
 } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
+import { DetectorProgress } from "./DetectorProgress";
+import { UNVERIFIED_MEASUREMENT_NOTE } from "../photo/unverified-note";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -1160,6 +1162,7 @@ export default function EasyScanCamera({
         data-device-hint={deviceHint}
         aria-busy="true"
       >
+        <h1 className="visuallyHidden">Scan your hand</h1>
         <p className="visuallyHidden">Loading the scanner…</p>
       </main>
     );
@@ -1173,7 +1176,8 @@ export default function EasyScanCamera({
     );
 
   return (
-    <div className="cameraViewfinder easyScanShell">
+    <main className="cameraViewfinder easyScanShell">
+      <h1 className="visuallyHidden">Scan your hand</h1>
       <p
         className="visuallyHiddenLive"
         role="status"
@@ -1184,6 +1188,7 @@ export default function EasyScanCamera({
           <span key={modeAnnouncement.n}>{modeAnnouncement.text}</span>
         )}
       </p>
+      <DetectorProgress />
       <div className="cameraTopBar" inert={lengthStep}>
         <button
           type="button"
@@ -1241,9 +1246,9 @@ export default function EasyScanCamera({
               strokeWidth="2"
             />
           </svg>
-          <h1 id="easy-length-title" ref={lengthHeadingRef} tabIndex={-1}>
+          <h2 id="easy-length-title" ref={lengthHeadingRef} tabIndex={-1}>
             Hand length
-          </h1>
+          </h2>
           <p>Wrist crease to the tip of your middle finger</p>
           <form
             className="easyLengthForm"
@@ -1465,8 +1470,8 @@ export default function EasyScanCamera({
               <label
                 className="easyUploadIconButton"
                 htmlFor="easy-scan-upload"
-                aria-label="Upload a photo instead"
               >
+                <span className="visuallyHidden">Upload a photo instead</span>
                 <svg
                   viewBox="0 0 24 24"
                   width="22"
@@ -1516,6 +1521,14 @@ export default function EasyScanCamera({
         onChange={onFilePicked}
         className="visuallyHidden"
         inert={lengthStep}
+        // Matches the visible label of whichever upload control is on screen
+        // ("Upload a photo" on the no-camera screen, "Upload a photo instead"
+        // beside a camera), and stays right in the states with none.
+        aria-label={
+          camState.kind === "noCamera"
+            ? "Upload a photo"
+            : "Upload a photo instead"
+        }
       />
 
       {(result.kind === "processing" ||
@@ -1644,6 +1657,7 @@ export default function EasyScanCamera({
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> Hand measured
               </p>
+              <p className="easySheetNote">{UNVERIFIED_MEASUREMENT_NOTE}</p>
               {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
@@ -1833,6 +1847,6 @@ export default function EasyScanCamera({
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </dialog>
-    </div>
+    </main>
   );
 }

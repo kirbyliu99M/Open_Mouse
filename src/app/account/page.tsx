@@ -5,8 +5,11 @@ import { AccountView } from "./AccountView";
 import { AuthButton } from "./AuthButton";
 import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
 import { TopBar } from "@/components/nav/TopBar";
+import type { Metadata } from "next";
 import Link from "next/link";
 import "./account.css";
+
+export const metadata: Metadata = { title: "Account" };
 
 export const dynamic = "force-dynamic";
 

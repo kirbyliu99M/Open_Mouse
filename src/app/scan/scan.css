@@ -394,6 +394,12 @@ h1 {
   color: var(--scan-muted);
   font-size: 0.875rem;
 }
+/* Sits between the measured numbers and the caption under them. */
+.measureNote {
+  margin: 0.5rem 0 0;
+  color: var(--scan-muted);
+  font-size: 0.875rem;
+}
 
 .checkIcon {
   flex-shrink: 0;

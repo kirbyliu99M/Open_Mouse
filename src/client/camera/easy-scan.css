@@ -236,6 +236,12 @@
   color: var(--scan-error-fg, #a5251b);
 }
 
+.easySheetNote {
+  margin: -0.5rem 0 1rem;
+  color: var(--scan-muted, #55555d);
+  font-size: 0.875rem;
+}
+
 .easySheetGripLabel {
   margin: 0 0 0.6rem;
   color: var(--scan-muted, #55555d);
@@ -441,7 +447,7 @@
   color: var(--scan-fg, #1c1c1e);
   text-align: center;
 }
-.easyLengthStep h1:focus {
+.easyLengthStep h2:focus {
   outline: none;
 }
 .easyLengthForm {
@@ -457,7 +463,7 @@
   outline: 2px solid var(--scan-accent, #0a64e0);
   outline-offset: 2px;
 }
-.easyLengthStep h1 {
+.easyLengthStep h2 {
   font-size: 2rem;
   letter-spacing: -0.02em;
   line-height: 1.05;
@@ -526,6 +532,13 @@
 }
 .easyLengthDisclosure p {
   margin: 0.2rem 0;
+}
+/* The camera screen is the page's <main>: undo the global main rules
+   (18vh margin, 44rem cap, side padding) on the full-screen shell too. */
+main.easyScanShell {
+  margin: 0;
+  max-width: none;
+  padding: 0;
 }
 .easyDeviceEntry,
 .easyDevicePlaceholder {
@@ -637,4 +650,76 @@
   align-self: flex-start;
   margin: -0.35rem 0 0;
   font-size: 0.875rem;
+}
+
+/* Hand-detector download progress (DetectorProgress.tsx): a pill under the top
+   bar while the 7.8 MB model loads. */
+.easyDetectorProgress {
+  position: absolute;
+  top: 4.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: min(17rem, calc(100% - 2rem));
+  padding: 0.55rem 0.9rem 0.65rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+.easyDetectorBar {
+  width: 100%;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+}
+.easyDetectorFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+}
+.easyDetectorFill.indeterminate {
+  width: 40%;
+  animation: easyDetectorSlide 1.2s ease-in-out infinite;
+}
+.easyDetectorProgress .easyDetectorText {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes easyDetectorSlide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .easyDetectorFill:not(.indeterminate) {
+    transition: width 120ms linear;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .easyDetectorFill.indeterminate {
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .easyDetectorProgress {
+    background: #000;
+  }
+}
+@media (prefers-contrast: more) {
+  .easyDetectorProgress {
+    border: 1px solid #fff;
+  }
 }

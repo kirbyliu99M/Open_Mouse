@@ -11,7 +11,7 @@ import { computeSheetLayout, type MarkerLayout } from "@/client/sheet/layout";
 import "./sheet.css";
 
 export const metadata: Metadata = {
-  title: "Calibration sheet — Open_Mouse",
+  title: "Calibration sheet",
   description:
     "Printable ArUco calibration sheet for measuring your hand from a photo.",
 };
