@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
+import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -102,21 +103,35 @@ test.describe("AC1: the stage never changes shape", () => {
     page,
   }) => {
     await holdPipeline(page);
-    await openLive(page);
-    // The video element is on screen before its first frame: read its size once
-    // it is playing (this read 0 x 0 once in a full run).
-    await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
-      timeout: 20_000,
+    // The video element is on screen before its first frame, and it is gone
+    // again once the auto-shutter has fired, which on a busy machine can be
+    // before a test gets to look (this read 0 x 0 once in a full run and
+    // null under load). So its size is taken by a listener in the page, at the
+    // moment the stream is playing.
+    await page.addInitScript(() => {
+      document.addEventListener(
+        "playing",
+        (event) => {
+          const v = event.target as HTMLVideoElement;
+          (window as Window & { __liveVideoSize?: unknown }).__liveVideoSize = {
+            width: v.videoWidth,
+            height: v.videoHeight,
+          };
+        },
+        true,
+      );
     });
+    await openLive(page);
     await page.waitForFunction(
       () =>
-        document.querySelector<HTMLVideoElement>("video.cameraVideo")!
-          .videoWidth > 0,
+        (window as Window & { __liveVideoSize?: { width: number } })
+          .__liveVideoSize?.width,
+      undefined,
+      { polling: 100, timeout: 20_000 },
     );
-    const video = await page.evaluate(() => {
-      const v = document.querySelector<HTMLVideoElement>("video.cameraVideo")!;
-      return { width: v.videoWidth, height: v.videoHeight };
-    });
+    const video = (await page.evaluate(
+      () => (window as Window & { __liveVideoSize?: unknown }).__liveVideoSize,
+    )) as { width: number; height: number };
     expect(video.width).toBeGreaterThan(0);
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
@@ -508,21 +523,29 @@ const constraintsSeen = (page: Page) =>
   );
 
 /**
- * Holds the live loop where it is, so the auto-shutter cannot fire mid-test.
- * It first waits for the camera to be RUNNING and the loop to have SAMPLED (the
- * fixture's four corners found): the cue line is on screen from the start, long
- * before either, and freezing then leaves a screen with no camera behind it.
+ * Holds the live loop where it is, so the auto-shutter cannot fire mid-test:
+ * `armLoopFreeze` BEFORE the page loads, `freezeLoop` after it to wait for the
+ * hold.
+ *
+ * The loop is stopped in the page, in the same tick as the fourth corner is
+ * marked found (fixtures/freeze-loop.ts: a wrapped requestAnimationFrame and a
+ * MutationObserver). It used to be polled for from here and stubbed afterwards,
+ * and on a busy machine the gap was long enough for the ring to fill and the
+ * auto-shutter to replace the viewfinder: 13 of 60 runs failed that way under
+ * load. The fixture's four corners found means the loop has SAMPLED; the cue
+ * line is on screen from the start, long before, and holding then would leave
+ * a screen with no camera behind it.
  */
+const armLoopFreeze = (page: Page) =>
+  installLoopFreeze(page, {
+    selector: ".easyCorner[data-found=true]",
+    count: 4,
+  });
 async function freezeLoop(page: Page) {
   await expect(page.locator(".easyStage video.cameraVideo.ready")).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.locator(".easyCorner[data-found=true]")).toHaveCount(4, {
-    timeout: 20_000,
-  });
-  await page.evaluate(() => {
-    window.requestAnimationFrame = () => 0;
-  });
+  await loopFrozen(page);
 }
 
 test.describe("AC3 and AC4: focus", () => {
@@ -530,6 +553,7 @@ test.describe("AC3 and AC4: focus", () => {
     page,
   }) => {
     await fakeFocusSupport(page, true);
+    await armLoopFreeze(page);
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
@@ -593,6 +617,7 @@ test.describe("AC3 and AC4: focus", () => {
     page,
   }) => {
     await fakeFocusSupport(page, false);
+    await armLoopFreeze(page);
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
@@ -1056,6 +1081,7 @@ test.describe("fix round 1: reduced motion cross-fades, it does not blink", () =
 test.describe("fix round 1: the reticle is the spec's", () => {
   async function tapAndReadReticle(page: Page) {
     await fakeFocusSupport(page, true);
+    await armLoopFreeze(page);
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
