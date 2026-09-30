@@ -86,6 +86,53 @@ describe("mentionsProvisional", () => {
     expect(mentionsProvisional(text)).toBe(false);
   });
 
+  it.each([
+    // A short linking phrase between the negator and the marker.
+    "此排名不再是暫定。",
+    "這個排名不是一個暫定的排名。",
+    "這並非一份初步報告。",
+    "此排名不算是暫定。",
+    "此排名不會是暫定。",
+    "此排名不会是暂定。",
+    "這不是一種初步的判斷。",
+    "此排名並不是暫定。",
+    "此排名并不是暂定。",
+    "此排名並不屬於暫定。",
+    "此排名絕非暫定。",
+    "此排名绝非暂定。",
+    "此排名不再算是初步結果。",
+    // The bare negators, which the tests above never used.
+    "此排名不暫定。",
+    "這是非暫定的排名。",
+    "此排名无暂定成分。",
+  ])("rejects a caveat whose negation is a few words away: %s", (text) => {
+    expect(mentionsProvisional(text)).toBe(false);
+  });
+
+  it.each([
+    "目前結果是初步的。",
+    "不過這仍是暫定排名。",
+    "不过这仍是暂定排名。",
+    // Words that start with 不 / 無 but are not a negation.
+    "不過是暫定結果。",
+    "不管怎樣，這都是暫定排名。",
+    "不管是暫定還是最終，請留意誤差。",
+    "不論如何這是暫定排名。",
+    "不论如何这是暂定排名。",
+    "不少結果屬於暫定。",
+    "不少是暫定的排名。",
+    "這是不錯的初步結果。",
+    "这是不错的初步结果。",
+    "不但是暫定，也很粗略。",
+    "不僅是暫定，也很粗略。",
+    "不仅是暂定，也很粗略。",
+    "無論如何這都是暫定排名。",
+    "非常初步的結果。",
+    "這不只是暫定結果。",
+  ])("still counts a mention with no real negation: %s", (text) => {
+    expect(mentionsProvisional(text)).toBe(true);
+  });
+
   it("counts a later, un-negated mention even if an earlier one is negated", () => {
     expect(
       mentionsProvisional(
@@ -163,12 +210,20 @@ describe("analyse — provisional caveat in the model's own language", () => {
     expect(source).toBe("fallback");
   });
 
-  it("does not accept the prompt's own rankingStatus sentence, in English or Chinese", async () => {
+  it("does not accept the prompt's own rankingStatus sentence, in English or Chinese", () => {
     const input = lowConfidenceInput();
     const shown = JSON.parse(buildPrompt(input).split("Data:\n")[1]!) as {
       rankingStatus: string;
     };
     expect(mentionsProvisional(shown.rankingStatus)).toBe(false);
+    // The prompt is English today. These are the Traditional and Simplified
+    // renderings of that same sentence, which a Chinese prompt would show.
+    for (const chinese of [
+      "配適設定尚未依使用者評分驗證。",
+      "配适设定尚未依使用者评分验证。",
+    ]) {
+      expect(mentionsProvisional(chinese), chinese).toBe(false);
+    }
   });
 
   it("does not ask for a caveat at high confidence, whatever language the answer is in", async () => {
