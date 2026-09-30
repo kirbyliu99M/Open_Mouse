@@ -615,12 +615,18 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
     },
     {
       status: 503,
-      body: {},
+      body: { error: "Internal server failure." },
       expectedSubstring: "went wrong on our end",
       label: "5xx server error",
     },
+    {
+      status: 429,
+      body: { error: "Too many scan submissions." },
+      expectedSubstring: "Too many tries in a short time",
+      label: "429 rate limit",
+    },
   ] as const) {
-    test(`${c.label} — names the problem, the one action that fixes it, and re-enables the button to retry`, async ({
+    test(`${c.label} shows user-facing copy without server text and permits retry`, async ({
       page,
     }) => {
       await page.route("**/api/scans", async (route) => {
@@ -637,6 +643,9 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
 
       await expect(page.locator(".feedback-error")).toContainText(
         c.expectedSubstring,
+      );
+      await expect(page.locator(".feedback-error")).not.toContainText(
+        c.body.error,
       );
       await expect(button).toBeEnabled();
     });
@@ -657,5 +666,62 @@ test.describe("/scan/submit-demo — submit phase (issue #29)", () => {
       "No connection",
     );
     await expect(button).toBeEnabled();
+  });
+});
+
+// The picker starts on "Right hand", but that is only where it starts. Until
+// the user taps it the hand is not theirs to contradict, so a left-handed user
+// who never touched it must not be told "you selected right".
+// `/scan/hand-explicit-demo` swaps in a fake pipeline that always detects a
+// left hand and records what it was told (no synthetic photo gets MediaPipe
+// to detect a hand, see the describe block above).
+test.describe("/scan/hand-explicit-demo — the hand picker", () => {
+  test("an untouched picker is not sent as the user's choice; tapping it is", async ({
+    page,
+  }) => {
+    await page.goto("/scan/hand-explicit-demo");
+    const right = page.getByRole("button", { name: "Right hand", exact: true });
+    const left = page.getByRole("button", { name: "Left hand", exact: true });
+    await expect(right).toHaveAttribute("aria-pressed", "true");
+
+    await page.setInputFiles(FILE_INPUT, {
+      name: "irrelevant.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("not a real photo"),
+    });
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+      { timeout: 5_000 },
+    );
+    // Detected left, never chosen: no complaint, and the picker follows it.
+    await expect(page.getByText(/you selected/i)).toHaveCount(0);
+    await expect(left).toHaveAttribute("aria-pressed", "true");
+    await expect(right).toHaveAttribute("aria-pressed", "false");
+
+    // Now the user chooses Right against a photo of a left hand: that is a
+    // contradiction and is reported.
+    await right.click();
+    await expect(page.getByText(/you selected right/i).first()).toBeVisible({
+      timeout: 5_000,
+    });
+    await left.click();
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+      { timeout: 5_000 },
+    );
+
+    const calls = await page.evaluate(
+      () =>
+        (
+          window as Window & {
+            __scanHandCalls?: { hand: string; handExplicit?: boolean }[];
+          }
+        ).__scanHandCalls,
+    );
+    expect(calls).toEqual([
+      { hand: "right", handExplicit: false },
+      { hand: "right", handExplicit: true },
+      { hand: "left", handExplicit: true },
+    ]);
   });
 });

@@ -31,6 +31,7 @@ export function clearScanDisclosures(
 ): void {
   for (const scanId of scanIds) {
     storage.removeItem(resultLengthKey(scanId));
+    // Legacy key, no longer written (see handDisclosure.ts).
     storage.removeItem(resultHandKey(scanId));
   }
 }

@@ -93,13 +93,17 @@ describe("every no-paper entry in EasyScanCamera goes through the flag", () => {
   });
 
   it("renders every startLengthStep button only inside a noPaperLabel guard", () => {
-    const openers = [...source.matchAll(/onClick=\{startLengthStep\}/g)];
+    const openers = [
+      ...source.matchAll(
+        /onClick=\{(?:startLengthStep|editLengthFromFailure)\}/g,
+      ),
+    ];
     expect(openers.length).toBeGreaterThan(0);
     for (const opener of openers) {
       // The nearest guard above this onClick must still be open here: a line
       // that is just `)}` between them would have closed it.
       const before = source.slice(0, opener.index);
-      const guardAt = before.lastIndexOf("{noPaperLabel && (");
+      const guardAt = before.lastIndexOf("{noPaperLabel &&");
       expect(guardAt, `guard above offset ${opener.index}`).toBeGreaterThan(-1);
       expect(
         before.slice(guardAt),
@@ -143,8 +147,8 @@ describe("failureOffersLengthEdit", () => {
 
   it("is what the failure sheet checks", () => {
     const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
-    expect(source).toContain(
-      "failureOffersLengthEdit(noPaperMode, result.errors[0]?.code)",
+    expect(source).toMatch(
+      /failureOffersLengthEdit\(\s*noPaperMode,\s*result\.errors\[0\]\?\.code,?\s*\)/,
     );
   });
 });

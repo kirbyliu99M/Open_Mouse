@@ -66,7 +66,18 @@ async function stubHappyFit(page: Page) {
   );
 }
 
-test("a new tab retains typed-length and hand disclosures, then deletion clears both keys", async ({
+/** What the fit route returns for a left-hand scan: the hand is part of the
+ * response (#62), so nothing needs to be in browser storage. */
+async function stubLeftHandFit(page: Page) {
+  await page.route(FIT_URL, (route) =>
+    fulfillJson(route, 200, {
+      ...(highConfidenceFixture as object),
+      hand: "left",
+    }),
+  );
+}
+
+test("a new tab shows the typed-length note from storage and the left-hand note from the fit response, then deletion clears the stored keys", async ({
   page,
   context,
 }) => {
@@ -75,16 +86,14 @@ test("a new tab retains typed-length and hand disclosures, then deletion clears 
     fulfillJson(route, 200, READY_ANALYSIS_MODEL),
   );
   await page.goto(`/results/${SCAN_ID}`);
+  // Only the typed length lives in storage; the hand is not stored at all.
   await page.evaluate(
-    ([handKey, lengthKey]) => {
-      localStorage.setItem(handKey, "left");
-      localStorage.setItem(lengthKey, "190");
-    },
-    [HAND_KEY, LENGTH_KEY],
+    ([lengthKey]) => localStorage.setItem(lengthKey, "190"),
+    [LENGTH_KEY],
   );
 
   const newTab = await context.newPage();
-  await stubHappyFit(newTab);
+  await stubLeftHandFit(newTab);
   await newTab.route(ANALYSIS_URL, (route) =>
     fulfillJson(route, 200, READY_ANALYSIS_MODEL),
   );
@@ -178,11 +187,10 @@ test.describe("/results/[scanId] — real results page", () => {
       results: { total: number }[];
     };
     fixture.results[0].total = 49;
-    await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "left"),
-      [`openMouse.resultHand.${SCAN_ID}`],
+    // A left-hand scan says so in the response, with nothing in storage.
+    await page.route(FIT_URL, (route) =>
+      fulfillJson(route, 200, { ...fixture, hand: "left" }),
     );
-    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
     await page.route(ANALYSIS_URL, (route) =>
       fulfillJson(route, 500, { error: "Unavailable" }),
     );
@@ -209,9 +217,11 @@ test.describe("/results/[scanId] — real results page", () => {
       results: { total: number }[];
     };
     fixture.results[0].total = 50;
+    // A leftover key from a build that stored the hand must not decide the
+    // note: the response says right, so there is none, and the key is dropped.
     await page.addInitScript(
-      ([key]) => localStorage.setItem(key, "right"),
-      [`openMouse.resultHand.${SCAN_ID}`],
+      ([key]) => localStorage.setItem(key, "left"),
+      [HAND_KEY],
     );
     await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
     await page.route(ANALYSIS_URL, (route) =>
@@ -229,6 +239,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.getByText(/Left-hand fit isn't rated yet/)).toHaveCount(
       0,
     );
+    await expect
+      .poll(() => page.evaluate((key) => localStorage.getItem(key), HAND_KEY))
+      .toBeNull();
   });
   test("renders the ranking as soon as the fit route resolves, then the written analysis once it resolves too", async ({
     page,
@@ -294,7 +307,7 @@ test.describe("/results/[scanId] — real results page", () => {
       .locator(".results-page-error")
       .getByRole("link", { name: "Scan again", exact: true });
     await expect(scanAgain).toBeVisible();
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // Never shows the numeric ranking for a 404.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
   });
@@ -600,7 +613,7 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     await expect(heading).toBeFocused();
     await expect(page.getByText("permanently removed")).toBeVisible();
     const scanAgain = page.getByRole("link", { name: "Scan again" });
-    await expect(scanAgain).toHaveAttribute("href", "/scan");
+    await expect(scanAgain).toHaveAttribute("href", "/scan/easy");
     // The ranking is gone — deleted really replaces the page, not just a toast.
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
 
@@ -626,4 +639,48 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     // Still open, and the ranking underneath is untouched.
     await expect(page.getByRole("alertdialog")).toBeVisible();
   });
+});
+
+test("a results page sweeps every leftover hand key, not just its own scan's", async ({
+  page,
+}) => {
+  const OTHER = "openMouse.resultHand.7c1d2e3f-0000-4a2b-8c3d-9e0f1a2b3c4d";
+  const THIRD = "openMouse.resultHand.11111111-2222-4333-8444-555555555555";
+  const KEEP_LENGTH =
+    "open-mouse:user-length:11111111-2222-4333-8444-555555555555";
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  await page.addInitScript(
+    ([keys, keep]) => {
+      for (const key of keys) localStorage.setItem(key, "left");
+      localStorage.setItem(keep, "186");
+      localStorage.setItem("unrelated", "x");
+    },
+    [[HAND_KEY, OTHER, THIRD], KEEP_LENGTH] as const,
+  );
+  await page.goto(`/results/${SCAN_ID}`);
+  await expect(
+    page.getByRole("heading", { name: "Your best match" }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("openMouse.resultHand."),
+        ),
+      ),
+    )
+    .toEqual([]);
+  // Only the hand keys go: another scan's typed length and unrelated data stay.
+  expect(
+    await page.evaluate(
+      ([keep]) => [
+        localStorage.getItem(keep),
+        localStorage.getItem("unrelated"),
+      ],
+      [KEEP_LENGTH],
+    ),
+  ).toEqual(["186", "x"]);
 });

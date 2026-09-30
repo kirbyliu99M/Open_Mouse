@@ -434,6 +434,11 @@ export default function ScanClient({
   calibrationMode?: "printed-sheet" | "paper-edge";
 } = {}) {
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
+  // "Right hand" is only where the picker starts. Until the user taps it, the
+  // hand is not theirs to contradict: the detected hand is used and nothing
+  // is compared (same meaning as easy scan's "· auto" chip). A demo that
+  // hands in a hand has chosen it.
+  const handChosenRef = useRef(Boolean(demoMeasured));
   const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(
     demoMeasured?.gripStyle,
   );
@@ -525,6 +530,7 @@ export default function ScanClient({
       corners: CardCorners | undefined,
       selectedHand = hand,
       selectedGrip = gripStyle,
+      handExplicit = handChosenRef.current,
     ) => {
       const runId = ++runIdRef.current;
       const cardSource: "auto" | "manual" = corners ? "manual" : "auto";
@@ -533,6 +539,7 @@ export default function ScanClient({
         const result = await runPhotoPipelineImpl({
           file,
           hand: selectedHand,
+          handExplicit,
           gripStyleStated: selectedGrip,
           manualCardCorners: corners,
           calibration:
@@ -542,6 +549,8 @@ export default function ScanClient({
         });
         if (runId !== runIdRef.current) return;
         if (result.status === "ok") {
+          // Not chosen: show the hand the scan was submitted as.
+          if (!handExplicit) setHand(result.submission.hand);
           setState({
             kind: "ok",
             measurements: result.measurements,
@@ -633,6 +642,7 @@ export default function ScanClient({
 
   const changeHand = useCallback(
     (next: Hand) => {
+      handChosenRef.current = true;
       setHand(next);
       // Unlike grip, the stated hand feeds a real gate (checkHandedness
       // against MediaPipe's own detected handedness) — a change here can
@@ -640,7 +650,13 @@ export default function ScanClient({
       // the photo still in memory rather than only patching the
       // submission.
       if (fileRef.current) {
-        void runPipeline(fileRef.current, manualCorners ?? undefined, next);
+        void runPipeline(
+          fileRef.current,
+          manualCorners ?? undefined,
+          next,
+          undefined,
+          true,
+        );
         return;
       }
       // No photo in memory: only possible on /scan/measured-demo (a real

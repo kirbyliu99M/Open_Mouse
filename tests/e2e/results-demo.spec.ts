@@ -7,7 +7,7 @@ test.describe("/results/demo", () => {
     await page.goto("/results/demo?presentation=1");
     await expect(
       page.getByRole("link", { name: /scan again/i }),
-    ).toHaveAttribute("href", "/scan");
+    ).toHaveAttribute("href", "/scan/easy");
     await expect(page.getByText("Your matches")).toBeVisible();
     const scores = page.locator(".results-topPick .results-subscoreBar");
     await expect(scores).toHaveCount(6);
