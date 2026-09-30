@@ -1,7 +1,8 @@
 /**
  * LOCAL-ONLY: runs `detectPaperQuad` on Kirby's real ground-truth hand
- * photos and prints corner results, mirroring `scripts/m2-gate-replay.ts`'s
- * privacy pattern exactly — the photos live OUTSIDE the repo
+ * photos and prints corner results, following the privacy pattern the
+ * removed `scripts/m2-gate-replay.ts` set (kept by `scripts/learn-sort.ts`
+ * and `scripts/m2-evaluate.ts`) — the photos live OUTSIDE the repo
  * (`../Fixtures/hands/`, gitignored belt-and-braces too), this file never
  * reads them into anything that gets committed, and the whole describe
  * block is skipped in CI and whenever the folder is absent (it may well be
@@ -9,8 +10,8 @@
  * that the detector runs and prints something sensible).
  *
  * `findFixturesDir` walks a few levels up from `process.cwd()` looking for
- * `Fixtures/hands`: `scripts/m2-gate-replay.ts`'s own convention
- * (`resolve(process.cwd(), "..", "Fixtures", "hands")`) assumes vitest runs
+ * `Fixtures/hands`: the removed `scripts/m2-gate-replay.ts` used the
+ * convention (`resolve(process.cwd(), "..", "Fixtures", "hands")`), which assumes vitest runs
  * from the checked-out repo's root one level under the photos' actual
  * location. This worktree instead lives several directories deeper
  * (`.claude/worktrees/m2-paper-edge`), so a plain `".."` wouldn't find

@@ -253,6 +253,111 @@ in a real browser. The focal length in px that the parallax correction used is
 derived from the 35 mm value and recorded as a plain number
 (`parallax.exifFocalPx`).
 
+## Evaluation (`npm run m2:evaluate`)
+
+The M2 gate tool. It judges a measurement model from the v2 run logs and the
+`truth.json` files alone, and never opens a photo. It is not machine learning:
+it recomputes, compares and counts.
+
+```
+npm run m2:evaluate -- \
+  --log ../Fixtures/learning/runs \
+  --truth ../Fixtures/learning \
+  --out ../Fixtures/evaluations/baseline.json
+```
+
+| Option                   | Meaning                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--log <file or folder>` | A run log, or a folder of `*.json` run logs. Repeat freely                                                                                       |
+| `--truth <file or dir>`  | A `truth.json`, or a folder that holds `<participant>/truth.json`                                                                                |
+| `--path`                 | `markers`, `paper-edge` or `both` (default): which calibration plane to judge                                                                    |
+| `--gesture G01[,G02]`    | Poses to judge. Default `G01`, the pose the M2 gate is defined on (grips fold the fingers, so their hand length is not a ruler hand length)      |
+| `--participants P1,P2`   | Only these participants: a cross-validation fold, or the held-out set                                                                            |
+| `--thresholds <file>`    | JSON limits, for example `{"accuracyMm":{"handLengthMm":2}}`. Default: the candidates below                                                      |
+| `--out <file>`           | Write the JSON report here. Never overwritten, never inside the repo or any git worktree (the same rule as `learn:sort`). Summary goes to stdout |
+
+It never runs in CI. The code is `src/lib/m2/` (pure) and `scripts/m2-evaluate.ts`.
+
+### What it does
+
+1. **Pairs** each report with its place in the session (participant, pose, hand,
+   shot) through the run log's own `sort`. Participant cards are not counted.
+2. **Recomputes** the millimetre values with `recomputePlane`, from the recorded
+   landmarks, homography and parallax settings only. The recorded `markerMm` and
+   `paperMm` are not read, so a log stays evaluable after the product's
+   constants change, and a model correction can be applied on top.
+3. **Asks the recorded `productGates`** whether the blank-paper flow would take
+   the photo, and reports two groups side by side: the photos the product
+   accepts, and all measured photos. Every photo the product refuses is listed
+   with its reason codes (`paper:PAPER_CORNER_HIDDEN`, `hand:HANDEDNESS_MISMATCH`, ...).
+4. **Compares** each measurement with the ruler value of the **same hand of the
+   same participant**. The page's hand decides which one, so a left-hand photo is
+   never compared with the right-hand value, even if the hand detector
+   disagreed with the page.
+5. **Counts** accuracy and repeatability per path.
+
+A photo that cannot be measured or compared is listed under `excluded` with a
+reason and a stage; nothing is ever counted as zero:
+
+| Stage         | Reasons                                                                                                                                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `measurement` | `NOT_FILED:<status>` (retake, no code, no card before it), `NOT_IN_SORT`, `AMBIGUOUS_FILE_NAME`, `DUPLICATE_DESTINATION` (`learn:sort` never overwrites, so the first copy counts), `NO_HAND`, `NO_PLANE`, `RECOMPUTE_FAILED`, `NO_MEASUREMENT` (a folded grip can fall outside the contract's ranges) |
+| `truth`       | `NO_TRUTH_FILE`, `NO_TRUTH_VALUE:<hand>`. The photo still counts for repeatability, which needs no ruler value                                                                                                                                                                                         |
+| `product`     | The product's gate codes, `NO_PRODUCT_GATES` when the record has none                                                                                                                                                                                                                                  |
+
+### Statistics (candidate definitions, 待 W7 前置協議拍板)
+
+With `e = measured - ruler value` for one photo:
+
+| Statistic               | Definition                                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| n                       | Photos compared with a ruler value                                                                                                                                                                                                                                 |
+| bias                    | mean(e)                                                                                                                                                                                                                                                            |
+| MAE                     | mean(\|e\|)                                                                                                                                                                                                                                                        |
+| largest \|error\|       | max(\|e\|)                                                                                                                                                                                                                                                         |
+| SD                      | sample SD of e, divided by (n - 1); none for n < 2                                                                                                                                                                                                                 |
+| 95% limits of agreement | Bland-Altman: bias +/- 1.96 x SD; none for n < 2                                                                                                                                                                                                                   |
+| repeatability           | One row per participant, hand and pose with at least two photos: range = max - min, SD (n - 1), largest deviation from the group mean. Summary over the rows: mean and worst range, mean and pooled SD (sqrt of the (n-1)-weighted mean variance), worst deviation |
+
+Each is computed once per path and per measurement: `handLengthMm` and
+`palmWidthMm` (the values a `truth.json` holds).
+
+### Limits are candidates, and no reading is chosen
+
+`docs/PLAN.md` says "accuracy <= +/-2 mm on hand length vs. ruler" and
+"repeatability <= +/-1.5 mm across 5 photos", but not which statistic decides
+it. That is **未拍板 (candidate)** until the W7 pre-agreement. The evaluator
+reads the limits from configuration (defaults: hand length 2 mm and 1.5 mm) and
+reports **every reading**, so the agreement can pick one without a re-run:
+
+- accuracy: MAE within the limit; largest |error| within the limit; 95% limits of agreement within +/- the limit;
+- repeatability, for the worst group: range within the limit; half-range (range / 2) within the limit, i.e. +/- the limit; deviation from the group mean within the limit.
+
+The three readings can disagree, and the report does not say which one is the verdict.
+
+### The report
+
+A JSON report (`open-mouse-m2-evaluation/1`) and a Markdown summary. They hold
+totals, the anonymous participant codes (`P007`), and photo ids like
+`P007/G01R/3` (participant, pose and hand as printed, shot). They hold **no file
+name, folder, account name, EXIF or landmark**; a test searches both for them.
+The model judged is named (`landmark-raw-v1` for the baseline); a correction
+such as the frozen `calibrated-v1` plugs in as `calibration` in
+`EvaluateOptions` and is applied after the recompute, so both models are judged
+by the same code.
+
+### Held-out participants are evaluated once
+
+The plan is to tune on some participants, freeze the model as `calibrated-v1`,
+and evaluate the held-out participants **once**. So:
+
+- **Claude runs the held-out evaluation, once, on the frozen model.** It is not in a workflow, and not re-run after looking at the result (a second look would make the held-out set a tuning set).
+- Cross-validation folds use `--participants`; the held-out set is the participants no fold ever contained.
+- `--out` refuses to overwrite, so a report cannot be quietly replaced.
+
+`scripts/m2-gate-replay.ts` (the old replay through `/scan`) is gone: it failed
+on blank-paper photos and had no parallax correction. This tool replaces it.
+
 ## Privacy and rules
 
 - **Photos never leave the device** (hard rule 5). The checker decodes,
@@ -298,19 +403,20 @@ Reprint the cards before a session so each hand gets its own values.
 
 ## Files
 
-| Path                                                              | What                                                               |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)     |
-| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                  |
-| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                     |
-| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                   |
-| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)   |
-| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                  |
-| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema            |
-| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe    |
-| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch      |
-| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF    |
-| `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                           |
-| `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (all `noindex`) |
-| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                        |
-| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                              |
+| Path                                                              | What                                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)            |
+| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                         |
+| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                            |
+| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                          |
+| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)          |
+| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                         |
+| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                   |
+| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe           |
+| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch             |
+| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI |
+| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF           |
+| `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                                  |
+| `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (all `noindex`)        |
+| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                               |
+| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                     |

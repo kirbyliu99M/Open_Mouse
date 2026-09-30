@@ -3,6 +3,7 @@
  * nothing that runs in the browser imports it. The `path` module is passed
  * in, which lets the tests check Windows rules on any machine.
  */
+import { existsSync, realpathSync } from "node:fs";
 import path, { type PlatformPath } from "node:path";
 import type { PaperSize } from "../contracts/measurement";
 import type { SortResult } from "./kit";
@@ -97,6 +98,34 @@ export function gitRefusalRoots(
     mainRoot: mainCheckoutOf(scriptRoot, common, api),
     roots: refusalRoots(scriptRoot, common, list, api),
   };
+}
+
+/** `realpath`, also for a path that does not exist yet (its nearest existing parent is resolved). */
+export function realpathLoose(target: string): string {
+  let current = path.resolve(target);
+  const tail: string[] = [];
+  while (!existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return path.resolve(target);
+    tail.unshift(path.basename(current));
+    current = parent;
+  }
+  return path.join(realpathSync.native(current), ...tail);
+}
+
+/**
+ * The checkout an output path would land inside (this one, the main one or any
+ * other worktree), or `null` when it is outside all of them. Photos, truth
+ * files and evaluation reports are personal data and must not be written where
+ * they could be committed. Symlinks and junctions are resolved first.
+ */
+export function outputInsideRepo(
+  outPath: string,
+  scriptRoot: string,
+  git: (args: readonly string[]) => string | null,
+): string | null {
+  const { roots } = gitRefusalRoots(scriptRoot, git);
+  return containingRoot(realpathLoose(outPath), roots.map(realpathLoose));
 }
 
 /** The first of `roots` that contains `candidate`, or `null`. */

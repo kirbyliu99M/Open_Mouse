@@ -28,13 +28,12 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
-  realpathSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PAPER_SIZES_MM,
@@ -52,6 +51,7 @@ import {
   buildSorterRunLog,
   containingRoot,
   gitRefusalRoots,
+  realpathLoose,
 } from "../src/lib/learning/paths";
 import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
@@ -80,19 +80,6 @@ function git(args: readonly string[]): string | null {
   } catch {
     return null;
   }
-}
-
-/** `realpath`, also for a folder that does not exist yet (its nearest existing parent is resolved). */
-function realpathLoose(path: string): string {
-  let current = resolve(path);
-  const tail: string[] = [];
-  while (!existsSync(current)) {
-    const parent = dirname(current);
-    if (parent === current) return resolve(path);
-    tail.unshift(basename(current));
-    current = parent;
-  }
-  return join(realpathSync.native(current), ...tail);
 }
 
 const arg = (flag: string) => {
