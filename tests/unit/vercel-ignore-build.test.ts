@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
+  GITHUB_TIMEOUT_MS,
   decide,
   ignoreBuildMain,
   prNumber,
@@ -68,18 +69,12 @@ describe("decide", () => {
     expect(decide(WITH_PR, null).action).toBe("build");
   });
 
-  it("builds whenever OPEN_MOUSE_FORCE_PREVIEW=1, even for a draft", () => {
+  it("ignores the removed OPEN_MOUSE_FORCE_PREVIEW flag", () => {
     expect(
       decide(
         { ...WITH_PR, OPEN_MOUSE_FORCE_PREVIEW: "1" },
         { draft: true, state: "open" },
       ).action,
-    ).toBe("build");
-    expect(
-      decide({ ...PREVIEW, OPEN_MOUSE_FORCE_PREVIEW: "1" }, null).action,
-    ).toBe("build");
-    expect(
-      decide({ ...PREVIEW, OPEN_MOUSE_FORCE_PREVIEW: "true" }, null).action,
     ).toBe("skip");
   });
 });
@@ -133,6 +128,66 @@ describe("readPullRequest", () => {
     await expect(readPullRequest(WITH_PR, notJson)).resolves.toBeNull();
   });
 
+  it("treats a 200 reply that is not a PR as unreadable (null, so build)", async () => {
+    for (const body of [
+      {},
+      [],
+      { state: "open" },
+      { state: "open", draft: "false" },
+      { draft: false },
+    ]) {
+      await expect(
+        readPullRequest(WITH_PR, reply(200, body)),
+      ).resolves.toBeNull();
+    }
+  });
+
+  it("refuses an odd owner or slug without calling GitHub", async () => {
+    for (const bad of [
+      { VERCEL_GIT_REPO_OWNER: "a/b" },
+      { VERCEL_GIT_REPO_SLUG: "r?x=1" },
+      { VERCEL_GIT_REPO_OWNER: ".. " },
+    ]) {
+      const fetchImpl = reply(200, { draft: false, state: "open" });
+      await expect(
+        readPullRequest({ ...WITH_PR, ...bad }, fetchImpl),
+      ).resolves.toBeNull();
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  });
+
+  it("sends GitHub's required headers and a timeout signal", async () => {
+    const fetchImpl = reply(200, { draft: false, state: "open" });
+    await readPullRequest(WITH_PR, fetchImpl);
+    const init = vi.mocked(fetchImpl).mock.calls[0][1] as RequestInit;
+    expect(init.headers).toEqual({
+      accept: "application/vnd.github+json",
+      "user-agent": "open-mouse-vercel-ignore",
+    });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(GITHUB_TIMEOUT_MS).toBe(5000);
+  });
+
+  it("returns null when the request times out", async () => {
+    const timedOut = vi.fn(async () => {
+      throw new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      );
+    }) as unknown as typeof fetch;
+    await expect(readPullRequest(WITH_PR, timedOut)).resolves.toBeNull();
+  });
+
+  it("drains the body of a failed reply", async () => {
+    const cancel = vi.fn(async () => {});
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      body: { cancel },
+    })) as unknown as typeof fetch;
+    await expect(readPullRequest(WITH_PR, fetchImpl)).resolves.toBeNull();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("does not call GitHub without a PR number", async () => {
     const fetchImpl = reply(200, {});
     await expect(readPullRequest(PREVIEW, fetchImpl)).resolves.toBeNull();
@@ -155,6 +210,24 @@ describe("ignoreBuildMain: Vercel's inverted exit code", () => {
       1,
     );
     expect((await run(WITH_PR, reply(500, {}))).code).toBe(1);
+  });
+
+  it("builds (exit 1) when the script itself fails", async () => {
+    const log = vi.fn();
+    const exit = vi.fn();
+    await ignoreBuildMain({
+      env: WITH_PR,
+      fetchImpl: reply(200, { draft: true, state: "open" }),
+      log,
+      exit,
+      decideImpl: () => {
+        throw new RangeError("bug");
+      },
+    });
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(log).toHaveBeenCalledWith(
+      "vercel ignoreCommand: build (ignore script failed (RangeError))",
+    );
   });
 
   it("logs one line naming the decision", async () => {
@@ -191,5 +264,21 @@ describe("wiring", () => {
       encoding: "utf8",
     });
     expect(build.status).toBe(1);
+    // The fail-open path, through the real exit code (process.exitCode),
+    // without the network: an odd owner name is refused before any request.
+    const failOpen = spawnSync(process.execPath, [script], {
+      env: {
+        ...base,
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "feature",
+        VERCEL_GIT_PULL_REQUEST_ID: "7",
+        VERCEL_GIT_REPO_OWNER: "not/valid",
+      },
+      encoding: "utf8",
+    });
+    expect(failOpen.status).toBe(1);
+    expect(failOpen.stdout).toContain(
+      "build (could not read the pull request from GitHub)",
+    );
   });
 });

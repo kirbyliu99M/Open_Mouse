@@ -10,6 +10,7 @@ export interface Decision {
 
 export const DEFAULT_OWNER: string;
 export const DEFAULT_REPO: string;
+export const GITHUB_TIMEOUT_MS: number;
 
 export function decide(
   env: Env,
@@ -28,4 +29,5 @@ export function ignoreBuildMain(io?: {
   fetchImpl?: typeof fetch;
   log?: (line: string) => void;
   exit?: (code: number) => void;
+  decideImpl?: typeof decide;
 }): Promise<void>;
