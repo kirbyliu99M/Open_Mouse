@@ -42,7 +42,7 @@ export function ScanDebugPanel({
         <dt>Track</dt>
         <dd>
           {track
-            ? `${track.width ?? "?"}×${track.height ?? "?"} @ ${track.frameRate ?? "?"} fps`
+            ? `${track.width ?? "?"}×${track.height ?? "?"} @ ${track.frameRate ?? "?"} fps · video ${track.videoWidth ?? "?"}×${track.videoHeight ?? "?"}`
             : "–"}
         </dd>
         <dt>Focus modes</dt>
