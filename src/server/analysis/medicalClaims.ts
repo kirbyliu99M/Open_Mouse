@@ -180,8 +180,13 @@ export const MEDICAL_CLAIM_TERMS: readonly (
     pattern:
       /(?:預防|预防|防止|避免|防範|防范|防護|防护).{0,3}(?:受傷|受伤|傷害|伤害|損傷|损伤|勞損|劳损|拉傷|拉伤|扭傷|扭伤|疾病|病|症|痛|痠|發炎|发炎|腕隧道|腕管|肌腱|關節炎|关节炎|滑鼠手|鼠标手)/u,
   },
-  "舒緩",
-  "舒缓",
+  // 舒緩 / 舒缓 alone is also a shape word (弧度舒緩, 曲線舒緩: a gentle curve),
+  // so it only counts in front of a health noun.
+  {
+    label: "舒緩/舒缓 pressure, pain or discomfort",
+    pattern:
+      /舒[緩缓](?:壓力|压力|疼痛|痠痛|酸痛|不適|不适|疲勞|疲劳|症狀|症状|緊繃|紧绷)/u,
+  },
   {
     label: "減輕/降低 wrist or hand stress",
     pattern:
