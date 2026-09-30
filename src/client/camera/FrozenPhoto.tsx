@@ -92,6 +92,22 @@ export function DimensionLinesOverlay({
             style={{ "--dim-index": i } as React.CSSProperties}
           >
             <g className="easyDimFade">
+              {/* A dark halo under each white line, so it reads on white
+                  paper as well as on skin. */}
+              <line
+                x1={g.startConnector[0].x}
+                y1={g.startConnector[0].y}
+                x2={g.startConnector[1].x}
+                y2={g.startConnector[1].y}
+                className="easyDimHalo easyDimExtensionHalo"
+              />
+              <line
+                x1={g.endConnector[0].x}
+                y1={g.endConnector[0].y}
+                x2={g.endConnector[1].x}
+                y2={g.endConnector[1].y}
+                className="easyDimHalo easyDimExtensionHalo"
+              />
               <line
                 x1={g.startConnector[0].x}
                 y1={g.startConnector[0].y}
@@ -111,6 +127,13 @@ export function DimensionLinesOverlay({
               transform={`translate(${g.offsetStart.x} ${g.offsetStart.y}) rotate(${angle})`}
             >
               <g className="easyDimGrow">
+                <line
+                  x1={0}
+                  y1={0}
+                  x2={length}
+                  y2={0}
+                  className="easyDimHalo"
+                />
                 <line
                   x1={0}
                   y1={0}
@@ -226,14 +249,24 @@ export function FrozenPhoto({
       {overlay && phase !== "processing" && (
         <g transform={`scale(${overlayToStill})`}>
           {problem && (
-            <rect
-              className="easyProblem"
-              x={problem.x}
-              y={problem.y}
-              width={problem.width}
-              height={problem.height}
-              rx={14 * scale}
-            />
+            <>
+              <rect
+                className="easyProblemHalo"
+                x={problem.x}
+                y={problem.y}
+                width={problem.width}
+                height={problem.height}
+                rx={14 * scale}
+              />
+              <rect
+                className="easyProblem"
+                x={problem.x}
+                y={problem.y}
+                width={problem.width}
+                height={problem.height}
+                rx={14 * scale}
+              />
+            </>
           )}
           {overlay.paperCorners?.map((p, i) => {
             const cx = clamp(p.x, cornerRadius, overlayWidth - cornerRadius);

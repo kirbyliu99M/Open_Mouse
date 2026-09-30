@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { contrast, overWhite } from "./fixtures/contrast";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -857,5 +858,90 @@ test.describe("fix round 1: a retake starts clean", () => {
       /processing|gateFailure/,
       { timeout: 20_000 },
     );
+  });
+});
+
+test.describe("fix round 1: the drawing reads on white paper", () => {
+  test("each white measurement line has a dark halo under it, and both contrast enough", async ({
+    page,
+  }) => {
+    await captureAndMeasure(page);
+    await page.waitForTimeout(1600);
+    const drawn = await page.evaluate(() => {
+      const style = (el: Element) => getComputedStyle(el);
+      const lines = [...document.querySelectorAll(".easyDimLine")];
+      return lines.map((line) => {
+        const halo = line.previousElementSibling!;
+        return {
+          haloClass: halo.getAttribute("class"),
+          haloStroke: style(halo).stroke,
+          haloWidth: parseFloat(style(halo).strokeWidth),
+          haloCap: style(halo).strokeLinecap,
+          lineStroke: style(line).stroke,
+          lineWidth: parseFloat(style(line).strokeWidth),
+          // Same path: the halo and the line share their end points.
+          samePath: ["x1", "y1", "x2", "y2"].every(
+            (a) => halo.getAttribute(a) === line.getAttribute(a),
+          ),
+        };
+      });
+    });
+    expect(drawn).toHaveLength(2);
+    for (const line of drawn) {
+      expect(line.haloClass).toBe("easyDimHalo");
+      expect(line.samePath).toBe(true);
+      expect(line.haloStroke).toBe("rgba(0, 0, 0, 0.55)");
+      expect(line.haloWidth).toBeCloseTo(4.5, 1);
+      expect(line.haloCap).toBe("round");
+      expect(line.lineStroke).toBe("rgb(255, 255, 255)");
+      const halo = overWhite(line.haloStroke);
+      const whiteOnHalo = contrast(line.lineStroke, halo);
+      const haloOnPaper = contrast(halo, "rgb(255, 255, 255)");
+      console.log(
+        `measurement line: white on its halo ${whiteOnHalo.toFixed(2)}:1, halo on white paper ${haloOnPaper.toFixed(2)}:1 (white on the paper alone was ${contrast(line.lineStroke, "rgb(246, 246, 242)").toFixed(2)}:1)`,
+      );
+      expect(whiteOnHalo).toBeGreaterThanOrEqual(4.5);
+      expect(haloOnPaper).toBeGreaterThanOrEqual(3);
+    }
+    // The extension lines have one too.
+    expect(await page.locator(".easyDimExtensionHalo").count()).toBe(4);
+  });
+
+  test("the amber outline sits on a dark halo and reaches 3:1 on white paper", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await openLive(page, `${LIVE_DEMO}?result=retake`);
+    await release(page);
+    await expect(
+      page.getByRole("dialog", { name: "Retake needed" }),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.waitForTimeout(1200);
+    const stroke = await page.evaluate(() => {
+      const outline = document.querySelector(".easyProblem")!;
+      const halo = document.querySelector(".easyProblemHalo")!;
+      return {
+        amber: getComputedStyle(outline).stroke,
+        halo: getComputedStyle(halo).stroke,
+        haloWidth: parseFloat(getComputedStyle(halo).strokeWidth),
+        amberWidth: parseFloat(getComputedStyle(outline).strokeWidth),
+        haloFirst: Boolean(
+          halo.compareDocumentPosition(outline) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      };
+    });
+    expect(stroke.haloFirst).toBe(true);
+    expect(stroke.haloWidth).toBeGreaterThan(stroke.amberWidth);
+    const halo = overWhite(stroke.halo);
+    const amberOnHalo = contrast(stroke.amber, halo);
+    const haloOnPaper = contrast(halo, "rgb(255, 255, 255)");
+    const amberOnPaperAlone = contrast(stroke.amber, "rgb(255, 255, 255)");
+    console.log(
+      `amber outline: alone on white ${amberOnPaperAlone.toFixed(2)}:1; on its halo ${amberOnHalo.toFixed(2)}:1; halo on white ${haloOnPaper.toFixed(2)}:1`,
+    );
+    expect(amberOnPaperAlone).toBeLessThan(3); // why the halo is there
+    expect(amberOnHalo).toBeGreaterThanOrEqual(3);
+    expect(haloOnPaper).toBeGreaterThanOrEqual(3);
   });
 });

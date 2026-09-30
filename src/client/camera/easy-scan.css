@@ -151,8 +151,18 @@
   stroke: #ffffff;
   stroke-width: 2.5;
   vector-effect: non-scaling-stroke;
-  paint-order: stroke;
   stroke-linecap: round;
+}
+/* The dark halo drawn first, on the same path: white on white paper was
+   1.06:1; white on this halo is 4.7:1 and the halo on paper 4.4:1. */
+.easyDimHalo {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 4.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.easyDimExtensionHalo {
+  stroke-width: 3;
 }
 .easyDimLabelBg {
   fill: rgba(0, 0, 0, 0.72);
@@ -1151,12 +1161,19 @@ main.easyScanShell {
   animation: easyFadeIn 200ms linear both;
 }
 /* The area that needs another look (screen 7). */
-.easyProblem {
+.easyProblem,
+.easyProblemHalo {
   fill: none;
   stroke: #f0b23a;
   stroke-width: 2.5;
   vector-effect: non-scaling-stroke;
   animation: easyFadeIn 200ms linear 150ms both;
+}
+/* Amber alone on white paper is 1.9:1. Under a dark halo it is 5.5:1 against
+   the halo, and the halo 10:1 against the paper. */
+.easyProblemHalo {
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 6.5;
 }
 
 /* ── The result sheet rises with a spring (response 0.4 s, no bounce) ── */
@@ -1327,7 +1344,8 @@ main.easyScanShell {
     animation-delay: 0s;
   }
   .easyCornerCheck,
-  .easyProblem {
+  .easyProblem,
+  .easyProblemHalo {
     animation-duration: 120ms;
     animation-delay: 0s;
   }
