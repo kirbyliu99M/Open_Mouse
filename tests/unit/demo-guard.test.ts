@@ -59,9 +59,11 @@ const PRODUCT_ROUTE_PREFIXES = ["/learn", "/l"];
 /** Dev and demo pages: 404 in production. Pinned in full. */
 const DEMO_ROUTES = [
   "/results/demo",
+  "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
   "/scan/easy/measured-demo",
   "/scan/grip-race-demo",
+  "/scan/hand-explicit-demo",
   "/scan/measured-demo",
   "/scan/paper-edge-measured-demo",
   "/scan/paper-edge-preview",
