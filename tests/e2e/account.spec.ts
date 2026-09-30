@@ -76,3 +76,33 @@ test("the home page links to /account", async ({ page }) => {
   await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/account$/);
 });
+
+test("the account page sweeps the hand keys older builds left in storage", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium");
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "openMouse.resultHand.aaaaaaaa-0000-4000-8000-000000000001",
+      "left",
+    );
+    localStorage.setItem(
+      "openMouse.resultHand.aaaaaaaa-0000-4000-8000-000000000002",
+      "right",
+    );
+    localStorage.setItem("unrelated", "x");
+  });
+  await page.goto("/account", { timeout: 60_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("openMouse.resultHand."),
+        ),
+      ),
+    )
+    .toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe(
+    "x",
+  );
+});

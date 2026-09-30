@@ -19,11 +19,16 @@ export interface HandDecision {
 /**
  * Pure. `selected` is the hand button / picker value. `explicit` is true only
  * when the user chose it (easy scan: the hand button was tapped; the printed
- * sheet page: always). While it is false, `selected` is only a default, so
- * the detected hand is submitted (falling back to `selected` when no hand
- * label came back) and it is never compared. A hand the user chose is always
- * submitted as chosen, and a disagreeing photo is caught by the handedness
- * gate through `stated`.
+ * sheet page: the hand picker was tapped). While it is false, `selected` is
+ * only a default, so the detected hand is submitted and it is never compared.
+ * A hand the user chose is always submitted as chosen, and a disagreeing
+ * photo is caught by the handedness gate through `stated`.
+ *
+ * `detected` can be null in the type, and the function stays total for it
+ * (falling back to `selected`), but no pipeline reaches that: the hand gates
+ * stop a photo with no handedness label before a submission is assembled
+ * (LOW_LANDMARK_CONFIDENCE, tests/unit/gates.test.ts). The fallback is here
+ * so this pure function never has to throw for a value its type allows.
  */
 export function resolvePipelineHand(input: {
   readonly selected: Hand;

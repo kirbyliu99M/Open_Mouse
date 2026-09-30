@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 import { checkHandDetected } from "../../src/client/photo/gates";
 
 test("the in-sheet hand toggle reruns the same photo with an explicit hand and updates the sheet", async ({
@@ -270,4 +271,68 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
 
     expect(requestedUrls).toEqual([]);
   });
+});
+
+test("the hand chip inside the retake sheet is readable in light and dark", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  const sheet = page.getByRole("dialog", { name: "Retake needed" });
+  const chip = sheet.locator(".easyHandChipInSheet");
+  await expect(chip).toBeVisible();
+  for (const scheme of ["light", "dark"] as const) {
+    // No transitions: a computed colour read mid-fade is neither theme's.
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    const style = await chip.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        color: computed.color,
+        background: computed.backgroundColor,
+        icon: getComputedStyle(el.querySelector("svg")!).stroke,
+      };
+    });
+    // The white text on the dark theme's near-white chip was 1.09:1.
+    expect(
+      contrast(style.color, style.background),
+      `${scheme} text`,
+    ).toBeGreaterThan(4.5);
+    // The icon draws in the text colour, so it is as readable as the text.
+    expect(style.icon, `${scheme} icon`).toBe(style.color);
+  }
+});
+
+test("the hand chip is a plain button named for what it does, not a toggle", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Runs in the mobile project.");
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Got it" }).click();
+  const chip = page.locator(".easyScanTopRight .easyHandChip");
+  // aria-pressed would stay "true" after the first tap while the label keeps
+  // changing; a button whose label changes is not a toggle.
+  await expect(chip).not.toHaveAttribute("aria-pressed");
+  await expect(
+    page.getByRole("button", {
+      name: "Right hand · auto, set automatically. Change hand",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await chip.click();
+  await expect(chip).not.toHaveAttribute("aria-pressed");
+  await expect(
+    page.getByRole("button", {
+      name: "Left hand, set by you. Change hand",
+      exact: true,
+    }),
+  ).toBeVisible();
+  // The visible text is still the start of the name (label in name).
+  await expect(chip).toHaveText(/^\s*Left hand\s*$/);
 });

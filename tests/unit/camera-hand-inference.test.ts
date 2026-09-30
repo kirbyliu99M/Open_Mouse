@@ -3,6 +3,7 @@ import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
   canToggleHandChip,
+  handChipAccessibleName,
   handChipLabel,
   toggleHandChip,
   type HandChipState,
@@ -154,5 +155,26 @@ describe("easy-scan hand chip state", () => {
     for (const kind of ["none", "measured", "gateFailure"]) {
       expect(canToggleHandChip(kind)).toBe(true);
     }
+  });
+
+  it("names the chip for what it does: it starts with the visible text, then says where the hand came from and that a tap changes it", () => {
+    for (const state of [
+      { hand: "right", locked: false },
+      { hand: "left", locked: false },
+      { hand: "right", locked: true },
+      { hand: "left", locked: true },
+    ] as const) {
+      // Label in name: the visible text is the start of the accessible name.
+      expect(
+        handChipAccessibleName(state).startsWith(handChipLabel(state)),
+      ).toBe(true);
+      expect(handChipAccessibleName(state)).toMatch(/\. Change hand$/);
+    }
+    expect(handChipAccessibleName(INITIAL_HAND_CHIP_STATE)).toBe(
+      "Right hand · auto, set automatically. Change hand",
+    );
+    expect(
+      handChipAccessibleName(toggleHandChip(INITIAL_HAND_CHIP_STATE)),
+    ).toBe("Left hand, set by you. Change hand");
   });
 });

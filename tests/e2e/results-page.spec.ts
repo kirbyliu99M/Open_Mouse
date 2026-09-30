@@ -504,3 +504,47 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     await expect(page.getByRole("alertdialog")).toBeVisible();
   });
 });
+
+test("a results page sweeps every leftover hand key, not just its own scan's", async ({
+  page,
+}) => {
+  const OTHER = "openMouse.resultHand.7c1d2e3f-0000-4a2b-8c3d-9e0f1a2b3c4d";
+  const THIRD = "openMouse.resultHand.11111111-2222-4333-8444-555555555555";
+  const KEEP_LENGTH =
+    "open-mouse:user-length:11111111-2222-4333-8444-555555555555";
+  await stubHappyFit(page);
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+  );
+  await page.addInitScript(
+    ([keys, keep]) => {
+      for (const key of keys) localStorage.setItem(key, "left");
+      localStorage.setItem(keep, "186");
+      localStorage.setItem("unrelated", "x");
+    },
+    [[HAND_KEY, OTHER, THIRD], KEEP_LENGTH] as const,
+  );
+  await page.goto(`/results/${SCAN_ID}`);
+  await expect(
+    page.getByRole("heading", { name: "Your best match" }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("openMouse.resultHand."),
+        ),
+      ),
+    )
+    .toEqual([]);
+  // Only the hand keys go: another scan's typed length and unrelated data stay.
+  expect(
+    await page.evaluate(
+      ([keep]) => [
+        localStorage.getItem(keep),
+        localStorage.getItem("unrelated"),
+      ],
+      [KEEP_LENGTH],
+    ),
+  ).toEqual(["186", "x"]);
+});

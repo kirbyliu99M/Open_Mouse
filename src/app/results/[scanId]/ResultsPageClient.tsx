@@ -14,7 +14,7 @@ import {
   parseStoredUserLength,
   resultLengthKey,
 } from "@/components/results/userLengthDisclosure";
-import { resultHandKey } from "@/components/results/handDisclosure";
+import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
@@ -76,8 +76,8 @@ export function ResultsPageClient({
         parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
       );
       // The hand is read from the fit response now. Builds before that
-      // stored it here; drop a leftover so it is not kept for nothing.
-      localStorage.removeItem(resultHandKey(scanId));
+      // stored it here; drop every leftover, not just this scan's.
+      sweepLegacyHandKeys(localStorage);
     } catch {
       setEnteredLength(null);
     }

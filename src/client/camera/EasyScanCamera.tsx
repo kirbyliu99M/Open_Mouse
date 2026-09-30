@@ -71,6 +71,7 @@ import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
   canToggleHandChip,
+  handChipAccessibleName,
   handChipLabel,
   toggleHandChip,
   type HandChipState,
@@ -356,7 +357,7 @@ function HandToggle({
     <button
       type="button"
       className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
-      aria-pressed={state.locked}
+      aria-label={handChipAccessibleName(state)}
       disabled={disabled}
       onClick={onClick}
     >
@@ -382,6 +383,12 @@ export interface EasyScanCameraProps {
     readonly imageWidth: number;
     readonly imageHeight: number;
   };
+  /**
+   * What the server took this device for, from its user agent alone
+   * (`detectDeviceFit`, the same function the client uses): only used to give
+   * the pre-mount placeholder the colour of the screen that will replace it.
+   */
+  readonly deviceHint?: DeviceFit;
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
@@ -390,6 +397,7 @@ export interface EasyScanCameraProps {
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
   demoMeasured,
+  deviceHint,
   forceTipOpen,
 }: EasyScanCameraProps) {
   const router = useRouter();
@@ -1147,7 +1155,11 @@ export default function EasyScanCamera({
   // see flash before its own entry screen replaces it.
   if (deviceFit === null && !demoMeasured)
     return (
-      <main className="easyDevicePlaceholder" aria-busy="true">
+      <main
+        className="easyDevicePlaceholder"
+        data-device-hint={deviceHint}
+        aria-busy="true"
+      >
         <p className="visuallyHidden">Loading the scanner…</p>
       </main>
     );

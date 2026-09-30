@@ -56,6 +56,20 @@ export function handChipLabel(state: HandChipState): string {
 }
 
 /**
+ * The chip's accessible name. Its visible text changes with the hand and
+ * with whether the user has chosen it, so it is a plain button (a button
+ * whose label changes is not a toggle, and `aria-pressed` would misreport
+ * it: it stays "pressed" after the first tap). The name starts with the
+ * visible text, as it must, then says where the hand came from and what a
+ * tap does.
+ */
+export function handChipAccessibleName(state: HandChipState): string {
+  return `${handChipLabel(state)}, ${
+    state.locked ? "set by you" : "set automatically"
+  }. Change hand`;
+}
+
+/**
  * A tap while a photo is still being processed would change the hand after
  * the running pipeline already read it, so the result on screen would answer
  * a different question than the chip shows. The chip is disabled instead

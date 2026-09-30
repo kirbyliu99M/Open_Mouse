@@ -43,7 +43,11 @@
 }
 .easyHandChipInSheet {
   margin-bottom: 1.25rem;
+  /* Inverted against the sheet: text and icon take the sheet's background
+     colour. The chip's own white text was 1.09:1 on the dark theme's
+     near-white --scan-fg. */
   background: var(--scan-fg, #1c1c1e);
+  color: var(--scan-bg, #f4f4f6);
 }
 
 .easyBottomRow {
@@ -372,7 +376,7 @@
     background: #000;
   }
   .easyHelpButton,
-  .easyHandChip,
+  .easyHandChip:not(.easyHandChipInSheet),
   .easyPaperToggle,
   .easyUploadIconButton,
   .easyProcessingPill {
@@ -533,18 +537,24 @@
 .easyDevicePlaceholder {
   min-height: 100dvh;
   padding: 0;
-  /* What replaces this depends on the device, and the device is only known
-     after mount, so the colour follows the input type (a media query works in
-     the server-rendered first paint): a desktop or mouse device gets the page
-     background its entry screen uses, in either theme, and a touch device
-     gets the camera shell's own dark (.cameraViewfinder in camera.css).
-     Neither flashes, and neither shows any control. */
+  /* What replaces this depends on the device, and the client only knows it
+     after mount. The server classifies the user agent with the same function
+     (data-device-hint, see app/scan/easy/page.tsx): a phone gets the camera
+     shell's own dark (.cameraViewfinder in camera.css) whatever its pointer,
+     an in-app browser gets the entry screen's page background even on touch
+     (the UA test comes first on the client too), and a device the server
+     takes for a desktop gets the page background unless its primary pointer
+     is coarse (a tablet asking for the desktop site), where the client will
+     show the camera. Neither case flashes and none shows a control. */
   background: var(--scan-bg, #f4f4f6);
 }
 @media (pointer: coarse) {
-  .easyDevicePlaceholder {
+  .easyDevicePlaceholder:not([data-device-hint="in-app"]) {
     background: #12161c;
   }
+}
+.easyDevicePlaceholder[data-device-hint="phone"] {
+  background: #12161c;
 }
 .easyDeviceEntry {
   min-height: 100dvh;
