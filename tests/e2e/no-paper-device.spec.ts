@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 import {
   PHOTO_PRIVACY_COPY,
   PHOTO_PRIVACY_COPY_THIS_DEVICE,
@@ -156,18 +157,6 @@ test("typed-length flow reaches hand detection gate with no requests after camer
 });
 
 // ── Device entry: layout, theme, accessibility, privacy promise ────────────
-
-function contrast(fg: string, bg: string): number {
-  const rgb = (c: string) =>
-    (c.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => Number(v) / 255);
-  const lum = ([r, g, b]: number[]) => {
-    const f = (v: number) =>
-      v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-  };
-  const [a, b] = [lum(rgb(fg)), lum(rgb(bg))].sort((x, y) => y - x);
-  return (a + 0.05) / (b + 0.05);
-}
 
 test("desktop entry fills the screen with no extra scroll, and shows the device-neutral privacy promise", async ({
   page,
@@ -667,28 +656,105 @@ test("without the Clipboard API, copy link still says what to do", async ({
   await expect(page.getByRole("status")).toContainText("Couldn't copy");
 });
 
-test("the placeholder shown before the device is known is the camera shell's own dark, with no controls", async ({
+const PAGE_BG = { light: "rgb(244, 244, 246)", dark: "rgb(22, 22, 23)" };
+
+test("on a desktop the placeholder is the entry screen's own background in both themes, with no controls", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
   for (const colorScheme of ["light", "dark"] as const) {
-    const context = await browser.newContext({
+    // Scripts off: only the server-rendered first paint exists.
+    const bare = await browser.newContext({
       javaScriptEnabled: false,
       colorScheme,
     });
-    const page = await context.newPage();
-    await page.goto("/scan/easy");
-    const placeholder = page.locator(".easyDevicePlaceholder");
+    const first = await bare.newPage();
+    await first.goto("/scan/easy");
+    const placeholder = first.locator(".easyDevicePlaceholder");
     await expect(placeholder).toHaveCount(1);
-    expect(
-      await placeholder.evaluate((el) => getComputedStyle(el).backgroundColor),
+    const before = await placeholder.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    await expect(
+      first.locator("button, a, input, select, textarea"),
+    ).toHaveCount(0);
+    await bare.close();
+
+    // Scripts on: what replaces it.
+    const full = await browser.newContext({ colorScheme });
+    const second = await full.newPage();
+    await second.goto("/scan/easy");
+    const after = await second
+      .locator(".easyDeviceEntry")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    await full.close();
+
+    expect(before, `${colorScheme} placeholder`).toBe(PAGE_BG[colorScheme]);
+    expect(after, `${colorScheme} entry`).toBe(before);
+  }
+});
+
+test("on a touch device the placeholder is the camera shell's own dark in both themes, and the shell that replaces it is the same dark", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const bare = await browser.newContext({
+      ...devices["Pixel 7"],
+      javaScriptEnabled: false,
       colorScheme,
+    });
+    const first = await bare.newPage();
+    await first.goto("/scan/easy");
+    expect(
+      await first
+        .locator(".easyDevicePlaceholder")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      `${colorScheme} placeholder`,
     ).toBe(CAMERA_SHELL_BG);
     await expect(
-      page.locator("button, a, input, select, textarea"),
+      first.locator("button, a, input, select, textarea"),
     ).toHaveCount(0);
-    await context.close();
+    await bare.close();
+
+    const full = await browser.newContext({
+      ...devices["Pixel 7"],
+      colorScheme,
+    });
+    const second = await full.newPage();
+    await second.goto("/scan/easy");
+    await expect(second.locator(".cameraViewfinder")).toBeVisible();
+    expect(
+      await second
+        .locator(".cameraViewfinder")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      `${colorScheme} shell`,
+    ).toBe(CAMERA_SHELL_BG);
+    await full.close();
   }
+});
+
+test("a mode announcement that repeats word for word is announced again", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  await openLengthStepFromTip(page);
+  await page.getByLabel("Hand length (mm)").fill("186");
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  const announcements = page.locator("[data-testid=mode-announcement]");
+  await expect(announcements).toContainText("186 mm");
+  const first = await announcements.locator("span").elementHandle();
+  const text = await announcements.innerText();
+
+  // Same length entered again: the same words, so only a fresh node makes a
+  // screen reader say them once more.
+  await page.getByRole("button", { name: "Edit hand length" }).click();
+  await page.getByLabel("Hand length (mm)").press("Enter");
+  await expect(page.getByTestId("camera-cue")).toBeVisible();
+  await expect
+    .poll(() => first!.evaluate((node) => node.isConnected))
+    .toBe(false);
+  await expect(announcements).toHaveText(text);
 });
 
 test("the camera shell the placeholder hands over to is the same dark", async ({
@@ -773,4 +839,129 @@ test("other no-paper failures offer only Try again", async ({ page }, info) => {
   await expect(
     sheet.getByRole("button", { name: "Edit hand length" }),
   ).toHaveCount(0);
+});
+
+// ── The first paint follows the device, not just the pointer ──────────────
+
+const LINE_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Line/14.0";
+const TABLET_DESKTOP_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+
+/** What the page shows before scripts run, and what replaces it. */
+async function firstPaintThenScreen(
+  browser: import("@playwright/test").Browser,
+  options: import("@playwright/test").BrowserContextOptions,
+  screen: ".easyDeviceEntry" | ".cameraViewfinder",
+) {
+  const bare = await browser.newContext({
+    ...options,
+    javaScriptEnabled: false,
+  });
+  const first = await bare.newPage();
+  await first.goto("/scan/easy");
+  const placeholder = first.locator(".easyDevicePlaceholder");
+  const hint = await placeholder.getAttribute("data-device-hint");
+  const before = await placeholder.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  await bare.close();
+
+  const full = await browser.newContext(options);
+  const second = await full.newPage();
+  await second.goto("/scan/easy");
+  await expect(second.locator(screen)).toBeVisible();
+  const after = await second
+    .locator(screen)
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const fine = await second.evaluate(
+    () => window.matchMedia("(pointer: fine)").matches,
+  );
+  await full.close();
+  return { hint, before, after, fine };
+}
+
+test("an in-app browser on a touch screen keeps the entry screen's background from the first paint, in both themes", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const paint = await firstPaintThenScreen(
+      browser,
+      {
+        userAgent: LINE_UA,
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        colorScheme,
+      },
+      ".easyDeviceEntry",
+    );
+    // The client tests the in-app user agent before the pointer, so the entry
+    // screen replaces this; the pointer alone would have said "phone, dark".
+    expect(paint.hint, colorScheme).toBe("in-app");
+    expect(paint.before, `${colorScheme} first paint`).toBe(
+      PAGE_BG[colorScheme],
+    );
+    expect(paint.after, `${colorScheme} entry`).toBe(paint.before);
+  }
+});
+
+test("an Android phone with a mouse attached still gets the camera's dark from the first paint", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const paint = await firstPaintThenScreen(
+      browser,
+      {
+        ...devices["Pixel 7"],
+        hasTouch: false,
+        isMobile: false,
+        colorScheme,
+      },
+      ".cameraViewfinder",
+    );
+    expect(paint.fine, "the primary pointer is fine").toBe(true);
+    expect(paint.hint, colorScheme).toBe("phone");
+    expect(paint.before, `${colorScheme} first paint`).toBe(CAMERA_SHELL_BG);
+    expect(paint.after, `${colorScheme} shell`).toBe(paint.before);
+  }
+});
+
+test("a tablet asking for the desktop site gets the camera's dark from the first paint", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  for (const colorScheme of ["light", "dark"] as const) {
+    const paint = await firstPaintThenScreen(
+      browser,
+      {
+        userAgent: TABLET_DESKTOP_UA,
+        viewport: { width: 1024, height: 768 },
+        hasTouch: true,
+        colorScheme,
+      },
+      ".cameraViewfinder",
+    );
+    // The server can only read the user agent, which says desktop; the coarse
+    // pointer is what the client goes by.
+    expect(paint.hint, colorScheme).toBe("desktop");
+    expect(paint.before, `${colorScheme} first paint`).toBe(CAMERA_SHELL_BG);
+    expect(paint.after, `${colorScheme} shell`).toBe(paint.before);
+  }
+});
+
+test("a desktop user agent is classified for the first paint and keeps every security header", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  const response = await page.goto("/scan/easy");
+  const headers = response!.headers();
+  // Rendering per request (the route reads the user agent) changes no header:
+  // they come from next.config.ts, not from the page.
+  expect(headers["content-security-policy"]).toContain("default-src 'self'");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["permissions-policy"]).toContain("camera=(self)");
+  await expect(page.locator(".easyDeviceEntry")).toBeVisible();
 });

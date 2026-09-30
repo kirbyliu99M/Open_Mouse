@@ -14,7 +14,7 @@ import {
   parseStoredUserLength,
   resultLengthKey,
 } from "@/components/results/userLengthDisclosure";
-import { resultHandKey } from "@/components/results/handDisclosure";
+import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
@@ -69,17 +69,16 @@ export function ResultsPageClient({
   });
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
-  const [scanHand, setScanHand] = useState<"left" | "right" | null>(null);
 
   useEffect(() => {
     try {
       setEnteredLength(
         parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
       );
-      const hand = localStorage.getItem(resultHandKey(scanId));
-      setScanHand(hand === "left" || hand === "right" ? hand : null);
+      // The hand is read from the fit response now. Builds before that
+      // stored it here; drop every leftover, not just this scan's.
+      sweepLegacyHandKeys(localStorage);
     } catch {
-      setScanHand(null);
       setEnteredLength(null);
     }
   }, [scanId]);
@@ -129,7 +128,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -144,7 +143,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -155,7 +154,7 @@ export function ResultsPageClient({
             It may have expired, or the link isn&apos;t yours. Scans without an
             account are only kept for 24 hours.
           </p>
-          <Link href="/scan" className="results-page-action">
+          <Link href="/scan/easy" className="results-page-action">
             Scan again
           </Link>
         </div>
@@ -172,7 +171,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -192,7 +191,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -212,7 +211,7 @@ export function ResultsPageClient({
     return (
       <main className="resultsMain">
         <TopBar
-          backHref="/scan"
+          backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
         />
@@ -241,7 +240,7 @@ export function ResultsPageClient({
             This scan has been deleted
           </h1>
           <p>Its measurements have been permanently removed.</p>
-          <Link href="/scan" className="results-page-action">
+          <Link href="/scan/easy" className="results-page-action">
             Scan again
           </Link>
         </div>
@@ -252,7 +251,6 @@ export function ResultsPageClient({
   return (
     <main className="resultsMain">
       <ResultsView
-        scanHand={scanHand}
         enteredLengthMm={enteredLength}
         response={pageState.response}
         analysisState={analysisState}
