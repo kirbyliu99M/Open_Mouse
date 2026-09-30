@@ -3,7 +3,8 @@
  * Images never leave the device; these millimetres are all the server sees.
  *
  * Frontend builders compute these; backend builders validate and store them.
- * Change this file only in a PR of its own.
+ * Change this file only in a contract PR of its own, carrying no more than the
+ * minimal consumer updates (storage included) that keep `main` green.
  */
 import { z } from "zod";
 
@@ -106,9 +107,11 @@ export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v1";
  * Every measurement model the server accepts. Clients send the one they
  * measured with (`MEASUREMENT_MODEL_VERSION` today). A calibrated model (W7)
  * is appended here, so clients still on the old one keep working through a
- * deploy instead of getting a 400.
+ * deploy instead of getting a 400. Written as literals, not derived from
+ * `MEASUREMENT_MODEL_VERSION`: bumping the current version must never
+ * silently drop an old one from this list.
  */
-export const MEASUREMENT_MODEL_VERSIONS = [MEASUREMENT_MODEL_VERSION] as const;
+export const MEASUREMENT_MODEL_VERSIONS = ["landmark-raw-v1"] as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
 

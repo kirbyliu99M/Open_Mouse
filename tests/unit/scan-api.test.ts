@@ -198,6 +198,40 @@ describe("POST /api/scans — valid submission", () => {
     );
   });
 
+  it("stores a user-length scan as user-length, finger lengths included", async () => {
+    const { repo } = createFakeRepo();
+    const res = await handleScanSubmission(
+      scanRequest({
+        ...validSubmission,
+        measurements: {
+          handLengthMm: 186,
+          palmLengthMm: 106,
+          palmWidthMm: 82,
+          thumbLengthMm: 60,
+          indexLengthMm: 75,
+          middleLengthMm: 82,
+          ringLengthMm: 77,
+          pinkyLengthMm: 60,
+        },
+        calibration: {
+          method: "user-length",
+          referenceMeasurement: "handLengthMm",
+          referenceMm: 186,
+          parallaxCorrected: false,
+        },
+      }),
+      { repo },
+    );
+    expect(res.status).toBe(201);
+    expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scaleCheckRatio: null,
+        calibrationMethod: "user-length",
+        calibrationEvidence: expect.objectContaining({ referenceMm: 186 }),
+      }),
+    );
+  });
+
   it("creates a session cookie on first call and reuses it afterwards", async () => {
     const { repo } = createFakeRepo();
 

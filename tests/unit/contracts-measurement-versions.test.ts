@@ -42,9 +42,17 @@ const submission = {
 describe("measurement model versions", () => {
   // Pinned literally: a calibrated model is appended in W7, never swapped in,
   // so clients still sending the old version keep working through a deploy.
-  it("accepts exactly the listed versions, the current one included", () => {
-    expect(MEASUREMENT_MODEL_VERSIONS).toEqual(["landmark-raw-v1"]);
+  it("keeps landmark-raw-v1 and the current version in the accepted list", () => {
+    // Literal on purpose: a W7 change that replaces instead of appends fails.
+    expect(MEASUREMENT_MODEL_VERSIONS).toContain("landmark-raw-v1");
     expect(MEASUREMENT_MODEL_VERSIONS).toContain(MEASUREMENT_MODEL_VERSION);
+  });
+
+  it("builds the submission field from the list, not a single literal", () => {
+    const field = scanSubmissionSchema.shape.measurementModelVersion as {
+      options?: readonly string[];
+    };
+    expect(field.options).toEqual([...MEASUREMENT_MODEL_VERSIONS]);
   });
 
   it.each(MEASUREMENT_MODEL_VERSIONS)("accepts a %s submission", (version) => {
@@ -104,6 +112,36 @@ describe("finger lengths are shorter than the hand", () => {
     if (!r.success) {
       expect(r.error.issues.map((i) => i.path.join("."))).toContain(key);
     }
+  });
+
+  it.each([
+    "thumbLengthMm",
+    "indexLengthMm",
+    "middleLengthMm",
+    "ringLengthMm",
+    "pinkyLengthMm",
+  ])("accepts %s just under handLengthMm", (key) => {
+    expect(
+      handMeasurementsSchema.safeParse({
+        ...measurements,
+        handLengthMm: 110,
+        palmLengthMm: 70,
+        [key]: 109.9,
+      }).success,
+    ).toBe(true);
+  });
+
+  // A real middle-finger chain can be longer than the palm; only the whole
+  // hand bounds it.
+  it("accepts a finger longer than the palm but shorter than the hand", () => {
+    expect(
+      handMeasurementsSchema.safeParse({
+        handLengthMm: 190,
+        palmLengthMm: 100,
+        palmWidthMm: 82,
+        middleLengthMm: 110,
+      }).success,
+    ).toBe(true);
   });
 
   it("accepts ordinary finger lengths", () => {
