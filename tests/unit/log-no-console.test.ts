@@ -123,6 +123,14 @@ export function findOutputCalls(source: string, name = "file.tsx"): string[] {
     ) {
       at(node, "requires the console module");
     }
+    // import { writeSync } from "node:fs": a write straight to a descriptor,
+    // whatever it is called afterwards (no source file needs it).
+    if (
+      ts.isImportSpecifier(node) &&
+      (node.propertyName ?? node.name).text === "writeSync"
+    ) {
+      at(node, "imports writeSync");
+    }
     // fs.writeSync(1 | 2, ...): a write straight to stdout or stderr
     if (
       ts.isCallExpression(node) &&
@@ -172,6 +180,11 @@ describe("findOutputCalls (the scanner)", () => {
     ["importing console (no prefix)", 'import { Console } from "console"'],
     ["requiring the console module", 'const c = require("node:console")'],
     ["fs.writeSync to stderr", 'fs.writeSync(2, "x")'],
+    [
+      "an aliased writeSync import",
+      'import { writeSync as w } from "node:fs"; w(2, "x")',
+    ],
+    ["a renamed writeSync import", 'import { writeSync } from "fs"'],
     ["writeSync imported by name", 'writeSync(1, "x")'],
     [
       "after a // inside a string",

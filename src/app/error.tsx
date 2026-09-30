@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useTransition } from "react";
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
 import { RetryButton } from "@/components/errors/RetryButton";
 import { ACTIONS, ERROR_COPY, RETRYING } from "@/components/errors/copy";
@@ -14,10 +14,10 @@ import { retry } from "@/components/errors/retry";
  * or `error.stack`: in development they can carry internal detail, and this
  * screen is what a user sees.
  *
- * "Try again" stays focusable while it works (aria-disabled, not disabled),
- * announces "Trying again…", and when a retry ends on this same screen, moves
- * focus back to the heading, so keyboard and screen-reader users are never
- * left on the page body.
+ * "Try again" stays focusable while it works (aria-disabled, not disabled) and
+ * announces "Trying again…". Because the button keeps focus, and the heading
+ * takes it when the screen is first shown or is mounted again by the boundary,
+ * keyboard and screen-reader users are never left on the page body.
  */
 export default function ErrorPage({
   error,
@@ -29,14 +29,6 @@ export default function ErrorPage({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  // Count the retries that have finished; the screen moves focus on each.
-  const wasPending = useRef(false);
-  const [settled, setSettled] = useState(0);
-  useEffect(() => {
-    if (wasPending.current && !pending) setSettled((count) => count + 1);
-    wasPending.current = pending;
-  }, [pending]);
-
   return (
     <ErrorScreen
       eyebrow={ERROR_COPY.eyebrow}
@@ -44,7 +36,6 @@ export default function ErrorPage({
       message={ERROR_COPY.message}
       reference={error.digest}
       focusHeading
-      focusKey={settled}
       status={pending ? RETRYING : undefined}
     >
       <RetryButton

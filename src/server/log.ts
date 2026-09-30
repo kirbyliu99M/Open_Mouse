@@ -253,7 +253,7 @@ export const STRING_RULES: readonly StringRule[] = [
     // The name is kept, the value goes.
     name: "secret-assignment",
     pattern:
-      /(?<![A-Za-z0-9])(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
+      /(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
     replace: (match) => `${/^[A-Za-z_-]+/.exec(match)![0]}=[redacted]`,
   },
   {

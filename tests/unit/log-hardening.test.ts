@@ -56,9 +56,13 @@ describe("scrubbing a long string is bounded", () => {
     const out = scrubString(words);
     expect(out.endsWith("…")).toBe(true);
     expect(out.length).toBeLessThanOrEqual(301);
-    // A secret that straddles the cut is not printed as a fragment.
-    const straddle = "x ".repeat(998) + "kirby.liu@example.o" + " z".repeat(50);
-    expect(scrubString(straddle)).not.toContain("kirby");
+    // A secret that straddles the cut is not printed as a fragment. The text
+    // before it is one long token, so what is left after scrubbing is short and
+    // the fragment would show if the half-word were kept.
+    const straddle = "a".repeat(1990) + " kirby.liu@example.org and more";
+    const cutOut = scrubString(straddle);
+    expect(cutOut).not.toContain("kirby");
+    expect(cutOut).toBe("[redacted-token] …");
   });
 
   it("does not print a secret that begins inside the first 2000 characters and ends after them", () => {
@@ -312,6 +316,8 @@ describe("key=value pairs inside a string", () => {
     ["single quoted", "token='abc def'", "abc def"],
     ["upper case", "PASSWORD=Hunter2", "Hunter2"],
     ["prefixed name", "my_token=zzz111", "zzz111"],
+    ["name glued to a word", "authtoken=zzz111", "zzz111"],
+    ["password inside a longer name", "dbpassword=zzz111", "zzz111"],
   ])("%s", (_name, input, mustNotSurvive) => {
     expect(scrubString(input)).not.toContain(mustNotSurvive);
     expect(text({ note: input, deep: { list: [input] } })).not.toContain(
@@ -341,17 +347,15 @@ describe("key=value pairs inside a string", () => {
 });
 
 describe("millimetres written with a decimal comma", () => {
+  // The whole figure goes, not just the digits after the comma.
   it.each([
-    ["187,4 mm", "187,4"],
-    ["187,4mm", "187,4"],
-    ["hand is 96,05 mm wide", "96,05"],
-    ["187.4 mm", "187.4"],
-    ["187 mm", "187"],
-  ])("%s", (input, digits) => {
-    const out = scrubString(input);
-    expect(out).not.toContain(digits);
-    expect(out).not.toMatch(/\bmm\b/);
-    expect(out).toContain("[redacted-measurement]");
+    ["187,4 mm", "[redacted-measurement]"],
+    ["187,4mm", "[redacted-measurement]"],
+    ["hand is 96,05 mm wide", "hand is [redacted-measurement] wide"],
+    ["187.4 mm", "[redacted-measurement]"],
+    ["187 mm", "[redacted-measurement]"],
+  ])("%s", (input, expected) => {
+    expect(scrubString(input)).toBe(expected);
   });
 
   it("does not eat the comma of a list", () => {
