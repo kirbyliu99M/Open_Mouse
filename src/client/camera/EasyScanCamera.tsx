@@ -585,16 +585,27 @@ export default function EasyScanCamera({
   //
   // A layout effect, so the sheet's height is known before the first paint
   // and the photo starts moving clear of it in the same frame the sheet opens.
+  //
+  // The height is watched from then on: the sheet grows after it opens (the
+  // submit status line, a larger system font, the phone turned), and the photo
+  // has to move clear of it again each time.
   useLayoutEffect(() => {
     if (result.kind === "measured" || result.kind === "gateFailure") {
       const dialog = sheetDialogRef.current;
       dialog?.showModal();
       sheetTitleRef.current?.focus();
       setSheetHeight(dialog ? dialog.offsetHeight : null);
-    } else {
-      sheetDialogRef.current?.close();
-      setSheetHeight(null);
+      if (!dialog) return;
+      const observer = new ResizeObserver(() =>
+        setSheetHeight((prev) =>
+          prev === dialog.offsetHeight ? prev : dialog.offsetHeight,
+        ),
+      );
+      observer.observe(dialog);
+      return () => observer.disconnect();
     }
+    sheetDialogRef.current?.close();
+    setSheetHeight(null);
   }, [result.kind]);
 
   const dismissTip = useCallback(() => {

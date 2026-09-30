@@ -743,3 +743,56 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
     expect(json.track.videoWidth).toBeGreaterThan(0);
   });
 });
+
+test.describe("fix round 1: the sheet growing after it opened", () => {
+  test("when the sheet grows the photo moves clear of it again", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const { sheet } = await captureAndMeasure(page);
+    await expect(page.locator(".easyStageContent")).toHaveClass(/moved/);
+    await page.waitForTimeout(400);
+    const layerTransform = () =>
+      page
+        .locator(".easyStageContent")
+        .evaluate((el) => getComputedStyle(el).transform);
+    const drawn = () =>
+      page.evaluate(() => {
+        const rects = [
+          ...document.querySelectorAll(
+            ".easyCornerCheck circle, .easyDimLabelBg, .easyDimLine",
+          ),
+        ].map((el) => el.getBoundingClientRect());
+        return {
+          lowest: Math.max(...rects.map((r) => r.bottom)),
+          count: rects.length,
+        };
+      });
+    const before = { transform: await layerTransform(), ...(await drawn()) };
+    const topBefore = (await sheet.boundingBox())!.y;
+    expect(before.lowest).toBeLessThanOrEqual(topBefore);
+
+    // What happens in the app when a status line or an error block is added,
+    // or the text is made larger: the sheet gets taller.
+    await sheet.evaluate((el) => {
+      const extra = document.createElement("div");
+      extra.id = "grown";
+      extra.style.height = "120px";
+      el.appendChild(extra);
+    });
+    await expect
+      .poll(async () => (await sheet.boundingBox())!.y, { timeout: 3_000 })
+      .toBeLessThan(topBefore - 100);
+    await expect
+      .poll(layerTransform, { timeout: 3_000 })
+      .not.toBe(before.transform);
+    await page.waitForTimeout(300);
+    const after = await drawn();
+    const top = (await sheet.boundingBox())!.y;
+    console.log(
+      `sheet grew: top ${topBefore.toFixed(0)} -> ${top.toFixed(0)} px, lowest drawn part ${before.lowest.toFixed(0)} -> ${after.lowest.toFixed(0)} px`,
+    );
+    expect(after.count).toBe(before.count);
+    expect(after.lowest).toBeLessThanOrEqual(top);
+  });
+});
