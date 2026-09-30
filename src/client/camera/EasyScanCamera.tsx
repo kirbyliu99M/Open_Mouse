@@ -1559,8 +1559,11 @@ export default function EasyScanCamera({
           <div
             className={`easyStageContent${measuredTransform ? " moved" : ""}`}
             style={
-              measuredTransform
+              measuredTransform && stageSize
                 ? {
+                    // Scale about the middle of the stage (the layer itself
+                    // has no height: see .easyStageContent in the CSS).
+                    transformOrigin: `50% ${stageSize.height / 2}px`,
                     transform: `translateY(${measuredTransform.translateY}px) scale(${measuredTransform.scale})`,
                   }
                 : undefined

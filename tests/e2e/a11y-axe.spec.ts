@@ -167,7 +167,25 @@ const LIVE_CAMERA_REVIEW: Record<string, Review> = {
 NEEDS_REVIEW["live camera"] = LIVE_CAMERA_REVIEW;
 NEEDS_REVIEW["live camera, detector still loading"] = LIVE_CAMERA_REVIEW;
 
+/**
+ * Reduced motion still cross-fades for 120 ms (scan v2), and axe cannot decide
+ * a colour under a half-faded surface. Let every finite animation end before
+ * auditing, so what is measured is the settled screen. (Endless ones, such as
+ * the detector bar's slow pulse, are left running.)
+ */
+async function settleAnimations(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 async function audit(page: Page, info: TestInfo, state: string) {
+  await settleAnimations(page);
   const builder = new AxeBuilder({ page }).withTags(WCAG_TAGS);
   const disabled = Object.keys(DISABLED_RULES[state] ?? {});
   if (disabled.length) builder.disableRules(disabled);

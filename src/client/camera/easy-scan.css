@@ -793,14 +793,18 @@ main.easyScanShell {
   box-shadow: none;
   touch-action: manipulation;
 }
+/* The layer that scales and moves (a transform) once measured. It has no
+   height of its own on purpose: everything in it is placed absolutely against
+   the stage (or, once transformed, against this box, which sits at the same
+   corner), and its transform origin is set in pixels from the script. A
+   full-screen box here would end somewhere behind the bottom sheet, and a
+   box that ends part-way through a line of the sheet's text makes a contrast
+   checker (axe) unable to tell what that text sits on. */
 .easyStageContent {
-  position: absolute;
-  inset: 0;
-  transform-origin: 50% 50%;
+  height: 0;
 }
 /* The measured photo scales down and moves up (a transform, nothing else). */
 .easyStageContent.moved {
-  will-change: transform;
   transition: transform 550ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .easyStage .cameraVideo {
