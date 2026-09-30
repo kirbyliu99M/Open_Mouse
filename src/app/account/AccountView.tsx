@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AccountScan } from "../../server/account/repo";
+import { clearScanDisclosures } from "../../components/results/userLengthDisclosure";
 
 type Status = "idle" | "working" | "done" | "error";
 
@@ -75,6 +76,14 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
     try {
       const res = await fetch("/api/account/scans", { method: "DELETE" });
       if (!res.ok) throw new Error("delete failed");
+      try {
+        clearScanDisclosures(
+          localStorage,
+          visibleScans.map((scan) => scan.scanId),
+        );
+      } catch {
+        // Browser storage may be unavailable; server deletion succeeded.
+      }
       setVisibleScans([]);
       setDeleteStatus("done");
       setConfirmOpen(false);
