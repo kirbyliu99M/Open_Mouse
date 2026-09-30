@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { ResultsDemoClient } from "@/components/results/ResultsDemoClient";
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export default async function ResultsDemoPage({
 }: {
   searchParams: Promise<{ presentation?: string }>;
 }) {
+  guardDemoRouteFromProduction();
   const { presentation } = await searchParams;
   return <ResultsDemoClient presentation={presentation === "1"} />;
 }
