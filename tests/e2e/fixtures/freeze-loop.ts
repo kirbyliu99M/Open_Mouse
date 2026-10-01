@@ -15,8 +15,11 @@ import type { Page } from "@playwright/test";
  * every frame callback that the app had queued is dropped and no new one is
  * accepted, so the loop stops where it is and cannot start again.
  *
- * Only for tests that measure a held state and do not click afterwards: it
- * stops every frame callback of the page, not just the camera's.
+ * It stops every frame callback of the page, not just the camera's, so it is
+ * for tests that hold a state and then read it, tap it (`click({ force: true })`
+ * on the stage, as the focus tests do) and wait with `expect` or `loopFrozen`
+ * (polled on a timer): nothing after it may depend on the page's own frames
+ * (JS-driven animation, `requestAnimationFrame` waits).
  */
 export async function installLoopFreeze(
   page: Page,

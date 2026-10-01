@@ -5,6 +5,7 @@ import {
   advanceCorner,
   advanceCorners,
   cornerDrawPoint,
+  cornerDrawPoints,
   isCornerReturning,
   type CornerState,
 } from "../../src/client/camera/cornerSmoother";
@@ -182,5 +183,65 @@ describe("advanceCorners", () => {
     // The top right keeps where it was while it is lost.
     expect(states[1].point).toEqual({ x: 362, y: 166 });
     expect(states[2].foundCount).toBe(1);
+  });
+});
+
+describe("cornerDrawPoints: where the four dots are drawn", () => {
+  const GUIDE_POINTS = [
+    { x: 30, y: 166 },
+    { x: 362, y: 166 },
+    { x: 362, y: 640 },
+    { x: 30, y: 640 },
+  ] as const;
+  const SEEN = [
+    { x: 100, y: 200 },
+    { x: 300, y: 210 },
+    { x: 310, y: 600 },
+    { x: 90, y: 590 },
+  ] as const;
+
+  it("every dot, the FIRST included, is drawn where its corner was seen, not at its guide", () => {
+    const states = advanceCorners(INITIAL_CORNER_STATES, SEEN, STEP);
+    const drawn = cornerDrawPoints(states, GUIDE_POINTS);
+    expect(drawn).toEqual([...SEEN]);
+    for (let i = 0; i < 4; i++) expect(drawn[i]).not.toEqual(GUIDE_POINTS[i]);
+  });
+
+  it("a dot with no position yet is drawn at its own guide point, and only that one", () => {
+    const states = advanceCorners(
+      INITIAL_CORNER_STATES,
+      [null, SEEN[1], null, SEEN[3]],
+      STEP,
+    );
+    expect(cornerDrawPoints(states, GUIDE_POINTS)).toEqual([
+      GUIDE_POINTS[0],
+      SEEN[1],
+      GUIDE_POINTS[2],
+      SEEN[3],
+    ]);
+  });
+
+  it("the order is kept: result[i] belongs to states[i] and guide[i]", () => {
+    const states = advanceCorners(
+      INITIAL_CORNER_STATES,
+      [SEEN[0], null, null, null],
+      STEP,
+    );
+    const drawn = cornerDrawPoints(states, GUIDE_POINTS);
+    expect(drawn[0]).toEqual(SEEN[0]);
+    expect(drawn[1]).toEqual(GUIDE_POINTS[1]);
+    expect(drawn[2]).toEqual(GUIDE_POINTS[2]);
+    expect(drawn[3]).toEqual(GUIDE_POINTS[3]);
+  });
+
+  it("it agrees with cornerDrawPoint, dot by dot", () => {
+    const states = advanceCorners(
+      advanceCorners(INITIAL_CORNER_STATES, SEEN, STEP),
+      [SEEN[0], null, { x: 305, y: 590 }, null],
+      STEP,
+    );
+    const drawn = cornerDrawPoints(states, GUIDE_POINTS);
+    for (let i = 0; i < 4; i++)
+      expect(drawn[i]).toEqual(cornerDrawPoint(states[i], GUIDE_POINTS[i]));
   });
 });
