@@ -2,10 +2,14 @@ import sys
 from pathlib import Path
 import unittest
 import tempfile
+import json
+import runpy
 from copy import deepcopy
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_catalogues import NO_SHELL, check, check_manifest, check_no_shell_assets
+from check_catalogues import ROOT, NO_SHELL, check, check_manifest, check_no_shell_assets
 
 
 class CatalogueTests(unittest.TestCase):
@@ -23,6 +27,16 @@ class CatalogueTests(unittest.TestCase):
     def test_duplicate_slug(self):
         with self.assertRaisesRegex(ValueError, "Duplicate"):
             check([self.row, dict(self.row)], [self.row], aliases={}, no_shell={})
+
+    def test_reference_extra_with_seed_fully_covered(self):
+        with self.assertRaisesRegex(ValueError, "extra=.*logitech-extra"):
+            check([self.row], [self.row, {**self.row, "model": "Extra"}], aliases={}, no_shell={})
+
+    def test_no_shell_assets_reject_duplicate_declaration(self):
+        manifest = {"shells": [], "noShell": [{"slug": k, "reason": v} for k, v in NO_SHELL.items()]}
+        manifest["noShell"].append(dict(manifest["noShell"][0]))
+        with tempfile.TemporaryDirectory() as folder, self.assertRaisesRegex(ValueError, "noShell"):
+            check_no_shell_assets(manifest, Path(folder))
 
     def test_only_documented_no_shell_products_may_be_missing(self):
         exempt = [
@@ -164,16 +178,83 @@ class ManifestTests(unittest.TestCase):
 
     def test_hand_is_separate_from_seeded_mouse_partition(self):
         (self.models / "hand.glb").touch()
-        self.manifest["hand"] = {"path": "hand.glb"}
+        # Match the delivered hand metadata; it deliberately has no path field.
+        self.manifest["hand"] = json.loads((ROOT / "public/models/manifest.json").read_text(encoding="utf-8"))["hand"]
+        self.manifest["hand"]["bytes"] = 0
         self.check()
         (self.models / "hand.glb").unlink()
         with self.assertRaisesRegex(ValueError, "files mismatch"):
             self.check()
 
-    def test_path_cannot_escape_models_directory(self):
-        self.entry["path"] = "../example.glb"
-        with self.assertRaisesRegex(ValueError, "Invalid shell path"):
+    def test_hand_bytes_must_match_file(self):
+        (self.models / "hand.glb").write_bytes(b"hand")
+        self.manifest["hand"] = {"bytes": 5}
+        with self.assertRaisesRegex(ValueError, "Hand size mismatch"):
             self.check()
+
+    def test_shared_path_without_alias_of(self):
+        self.seed.append({**self.seed[0], "model": "Other"})
+        self.manifest["shells"].append({**self.entry, "slug": "logitech-other"})
+        with self.assertRaisesRegex(ValueError, "Undocumented shared shell"):
+            self.check()
+
+    def test_alias_path_dimensions_and_bytes_must_equal_source(self):
+        self.seed.append({**self.seed[0], "model": "Alias"})
+        alias = {**self.entry, "slug": "logitech-alias", "aliasOf": "logitech-example"}
+        self.manifest["shells"].append(alias)
+        mapping = {"logitech-alias": "logitech-example"}
+        for field, value in (("path", "other.glb"), ("dimensionsXYZmm", [60.1, 100, 40]), ("bytes", 8)):
+            with self.subTest(field=field):
+                original = alias[field]
+                alias[field] = value
+                if field == "path":
+                    (self.models / value).write_bytes(b"fixture")
+                # Isolate alias equality from the earlier file-size check.
+                # A shared physical file cannot otherwise pass that check with two sizes.
+                if field == "bytes":
+                    with patch.object(Path, "is_file", return_value=True), patch.object(
+                        Path, "stat", side_effect=[SimpleNamespace(st_size=7), SimpleNamespace(st_size=8)]
+                    ), self.assertRaisesRegex(ValueError, "Invalid manifest alias"):
+                        self.check(aliases=mapping)
+                else:
+                    with self.assertRaisesRegex(ValueError, "Invalid manifest alias"):
+                        self.check(aliases=mapping)
+                alias[field] = original
+                if field == "path":
+                    (self.models / value).unlink()
+
+    def test_dimensions_must_have_exactly_three_axes(self):
+        for dims in ([60, 100], [60, 100, 40, 1]):
+            self.entry["dimensionsXYZmm"] = dims
+            with self.subTest(dims=dims), self.assertRaisesRegex(ValueError, "Manifest dimensions"):
+                self.check()
+
+    def test_path_cannot_escape_models_directory(self):
+        (self.models / "nested").mkdir()
+        for path in (str(self.models / "example.glb"), "nested/../example.glb"):
+            self.entry["path"] = path
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "Invalid shell path"):
+                self.check()
+
+
+class MainTests(unittest.TestCase):
+    def test_main_checks_real_repo_data(self):
+        runpy.run_path(str(ROOT / "tools/blender/check_catalogues.py"), run_name="__main__")
+
+    def test_main_rejects_manifest_drift(self):
+        read_text = Path.read_text
+        manifest_path = ROOT / "public/models/manifest.json"
+
+        def drift(path, *args, **kwargs):
+            text = read_text(path, *args, **kwargs)
+            if path == manifest_path:
+                manifest = json.loads(text)
+                manifest["shells"][0]["bytes"] += 1
+                return json.dumps(manifest)
+            return text
+
+        with patch.object(Path, "read_text", drift), self.assertRaisesRegex(ValueError, "Shell size mismatch"):
+            runpy.run_path(str(ROOT / "tools/blender/check_catalogues.py"), run_name="__main__")
 
 
 if __name__ == "__main__":

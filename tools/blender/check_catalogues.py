@@ -121,6 +121,8 @@ def check_manifest(seed: list[dict], manifest: dict, models: Path,
     if actual_paths != expected_paths:
         raise ValueError(f"Manifest files mismatch: missing={sorted(expected_paths - actual_paths)}, "
                          f"extra={sorted(actual_paths - expected_paths)}")
+    if manifest.get("hand") is not None and manifest["hand"]["bytes"] != (models / "hand.glb").stat().st_size:
+        raise ValueError("Hand size mismatch")
 
 
 if __name__ == "__main__":

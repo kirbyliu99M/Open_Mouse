@@ -22,7 +22,10 @@ assets.
    L/W/H identical. If a top or usable side reference is missing, add its slug
    and specific reason to `NO_SHELL` in `check_catalogues.py` instead. The
    catalogue retains the product for fit scoring without publishing a shell.
-   Run `python tools/blender/check_catalogues.py`: any unlisted missing shell
+   After installing the shell and manifest entry in steps 4–5 (or adding the
+   catalogue-only entry to the manifest's `noShell` list), run
+   `python tools/blender/check_catalogues.py`. It is expected to fail until
+   that route is installed: any unlisted missing shell
    row, stale exception, or dimension mismatch fails. Each seeded mouse must
    appear exactly once across manifest shells, studies and `noShell`. Reference
    dimensions equal the seed exactly; delivered XYZ bounds use the existing
