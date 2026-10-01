@@ -203,7 +203,37 @@ Catalogue, payload, optimisation, typecheck, lint and repository-wide Prettier
 passed. Parameter export passed outside the sandbox after a Windows user-info
 lookup failure. Full asset checks and the unrestricted Vitest rerun are pending;
 the first Vitest run hit the same user-info/process sandbox restrictions.
-Final size/scan results follow after the remaining local gates.
+Blender 5.2.2 reran all 12 skipped tests successfully. The full asset gate
+passed 20 fixtures and 35 reimport routes (34 mice including the alias, plus
+the hand); minimum support margin is 11.361876 mm, and maximum reimport versus
+manifest bbox error is 0 mm. The unrestricted application suite passed
+2,651 tests with eight skips (127 files passed / one skipped); the separate
+Blender TypeScript suite passed nine tests. Drizzle check and schema-drift
+generation passed with no migration changes; production dependency audit found
+zero vulnerabilities. All-project Playwright remains in progress.
+
+`public/models/` contains 36 files totalling **8,894,672 bytes (8.483 MiB)**.
+Its 34 GLBs total **8,641,792 bytes**, with 93 embedded JPEG maps. Five largest:
+
+| File under `public/models/`     |  Bytes |
+| ------------------------------- | -----: |
+| `shells/logitech-g309.glb`      | 397556 |
+| `shells/logitech-g903-hero.glb` | 393920 |
+| `shells/logitech-g502-x.glb`    | 346700 |
+| `shells/logitech-m650.glb`      | 331176 |
+| `shells/logitech-m750.glb`      | 331092 |
+
+No final PR addition/change exceeds 5,000,000 bytes. No output directory,
+Blender scene/backup, virtual environment or cache is tracked. Licensed-data
+scan: zero hits outside ignore rules in final PR-changed files and in the
+PR's patch history. The whole tracked tree has 17 existing hit lines in seven
+unchanged main files (policy/reference text and one incidental vendored WASM
+byte match); every hit is recorded in ignored
+`out/f9/licensed-scan-all-tracked.txt`. No private fixture was read or added.
+
+Drafts for Claude and Kirby: ignored `out/f9/pr-26-description.md` and the
+rights paragraph in `README.md`, explicitly marked pending Kirby approval.
+Neither is approved copy. Every public file remains byte-identical to fidelity.
 
 ### D1 — study geometry refinement
 
@@ -2154,7 +2184,11 @@ bridging.**
   checks and nine unit tests added. Python 159 passed / 12 Blender skips;
   catalogue, payload, optimisation, typecheck, lint and Prettier passed.
   Added the rights paragraph explicitly as a draft pending Kirby approval.
-  Remaining gates and final report are in progress. No push or PR mutation.
+  Blender reimport gate and all 12 Blender-only tests passed; app Vitest
+  2,651 passed / eight skipped; Blender TS nine passed. Drizzle and production
+  audit passed. Size/exclusion/licensed-data scans completed and PR-description
+  draft saved under ignored `out/f9/`. Playwright is in progress. No push or
+  PR mutation; no published geometry or texture changed.
 
 - 2026-09-30 Claude: **D6 done; nothing delivered, one audit finding corrected.**
   - **D6a** (height-only hybrid, fitted at 1440 px, frozen evaluator unmodified): M705 fitted mean
