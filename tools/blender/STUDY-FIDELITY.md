@@ -201,8 +201,8 @@ dimension, file coverage and alias checks with nine new regression tests.
 Python 3.13 discovery: 171 tests, 159 passed / 12 Blender-only skips.
 Catalogue, payload, optimisation, typecheck, lint and repository-wide Prettier
 passed. Parameter export passed outside the sandbox after a Windows user-info
-lookup failure. Full asset checks and the unrestricted Vitest rerun are pending;
-the first Vitest run hit the same user-info/process sandbox restrictions.
+lookup failure. The first Vitest run hit the same user-info/process sandbox
+restrictions; the unrestricted rerun passed without changing source or tests.
 Blender 5.2.2 reran all 12 skipped tests successfully. The full asset gate
 passed 20 fixtures and 35 reimport routes (34 mice including the alias, plus
 the hand); minimum support margin is 11.361876 mm, and maximum reimport versus
@@ -210,7 +210,10 @@ manifest bbox error is 0 mm. The unrestricted application suite passed
 2,651 tests with eight skips (127 files passed / one skipped); the separate
 Blender TypeScript suite passed nine tests. Drizzle check and schema-drift
 generation passed with no migration changes; production dependency audit found
-zero vulnerabilities. All-project Playwright remains in progress.
+zero vulnerabilities. All-project Playwright passed: **199 passed / 157 skipped**
+in 9.3 minutes across all five configured projects. The local production build
+passed. Maximum manifest-to-seed bbox error is **0.000018930435 mm**,
+within the unchanged 0.5 mm tolerance.
 
 `public/models/` contains 36 files totalling **8,894,672 bytes (8.483 MiB)**.
 Its 34 GLBs total **8,641,792 bytes**, with 93 embedded JPEG maps. Five largest:
@@ -234,6 +237,10 @@ byte match); every hit is recorded in ignored
 Drafts for Claude and Kirby: ignored `out/f9/pr-26-description.md` and the
 rights paragraph in `README.md`, explicitly marked pending Kirby approval.
 Neither is approved copy. Every public file remains byte-identical to fidelity.
+Local integration is complete. Claude still owns pushing to #26, independent
+review, live CI/preview verification and superseding #73. Kirby's pending
+visual acceptance and draft-copy approvals remain open. Production migration
+and seeding were not run; this integration changes no schema.
 
 ### D1 — study geometry refinement
 
@@ -2187,8 +2194,11 @@ bridging.**
   Blender reimport gate and all 12 Blender-only tests passed; app Vitest
   2,651 passed / eight skipped; Blender TS nine passed. Drizzle and production
   audit passed. Size/exclusion/licensed-data scans completed and PR-description
-  draft saved under ignored `out/f9/`. Playwright is in progress. No push or
-  PR mutation; no published geometry or texture changed.
+  draft saved under ignored `out/f9/`. Playwright passed 199 tests with 157
+  configured skips across all five projects. Local production build passed.
+  All requested local work is complete; live CI/preview, independent review and
+  approvals remain open. No push or PR mutation; no published geometry or
+  texture changed.
 
 - 2026-09-30 Claude: **D6 done; nothing delivered, one audit finding corrected.**
   - **D6a** (height-only hybrid, fitted at 1440 px, frozen evaluator unmodified): M705 fitted mean
