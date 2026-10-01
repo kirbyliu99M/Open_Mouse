@@ -165,7 +165,7 @@ criterion; each item is a decision the build had to make or a thing it could not
   not wanted, so the hint line is empty in those states. Nothing is pending on it.
 - **The photo scales to 90% or less, never below 0.4.** #92's sheet is taller than the storyboard's
   (numbers, the "Not yet verified" note), and at 90% the paper would sit under it, so the scale
-  shrinks to fit: 0.760 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
+  shrinks to fit: 0.783 with today's sheet at 100% text, 0.575 at 150%, 0.459 at 200% (all on a
   390x844 screen). The result sheet is capped at 52vh and scrolls inside above that, and the photo
   keeps clear of the top bar as well, which grows with the text. The floor of 0.4 is reached only
   on a shorter screen, where the band cannot hold the paper at a useful size; there the drawing
@@ -194,19 +194,34 @@ criterion; each item is a decision the build had to make or a thing it could not
   (on the failure sheet: Try again, and Edit hand length when it is offered) is
   `position: sticky; bottom: 0` with the sheet's own background (light and dark) and the padding
   the sheet had below it, so content scrolls behind it and, scrolled to the end, nothing is under
-  it. The DOM order is unchanged, so the focus order is the reading order; `scroll-padding-bottom`
-  keeps a focused control clear of the row (the row's measured height). The sheet's real height is
-  still what the photo layout measures. At large text the text must still fit: the main button
-  grows with its label instead of a fixed 54px, the retake icon has no padding, the grip chips wrap
-  instead of cutting a word, and the dimension labels are kept wholly inside the visible photo
-  (`dimensionLayout.ts`), which matters at the 0.4 scale floor where a fixed-size label is large
-  against a small photo.
+  it. The row has no top padding of its own, so the sheet is no taller than before it (333 px at
+  100% text on 390x844, 360x780 and 360x640); content that scrolls up behind it fades out over
+  1rem (a `box-shadow` in the sheet's colour; a pseudo-element made axe unable to read the
+  buttons' background). The DOM order is unchanged, so the focus order is the reading order.
+  `scroll-padding-bottom` keeps a focused control clear of the row's measured height, the fade and
+  the focus ring (1.25rem more), so Tab never leaves an option under the fade. The dialog has
+  `tabindex="-1"`, so a scrolling sheet is not a stop of its own (Tab after the last button used
+  to land on the dialog; the same stop appears on a sheet with the base commit's 80vh cap once it
+  scrolls at large text, simulated on this branch, not run on the base). The sheet's real height is
+  still what the photo layout measures.
+- **At large text the text must still fit.** The main button grows with its label instead of a
+  fixed 54px, the retake icon has no padding, the status line keeps one line of room in pixels, and
+  the dimension labels are kept wholly inside the visible photo and never over each other
+  (`dimensionLayout.ts`: each is kept inside first, then the pair is pushed apart, kept inside
+  again and re-checked; what is left is spread exactly along the axis that has room), which
+  matters at the 0.4 scale floor where a fixed-size label is large against a small photo.
+- **The four grip options are always the same width.** A grid that follows the width of the sheet in
+  rem (a container query): four columns from 17.25rem, otherwise a clean 2 x 2, never 3 + 1, and no
+  word cut short. 390 px wide at normal text is four columns of 81 px, as it was.
 - **Dots and the steadiness check follow corners, not labels.** `detectPaperQuad` relabels its
   corners (a cyclic shift) when the paper is held sideways, at about 134 and 314 degrees of
-  rotation in the synthetic sweep. Before smoothing, the new observation is matched to the dots by
-  the cyclic shift (0 to 3) that puts it nearest in total (`labelShift.ts`), only when all four
-  corners are seen on both sides. `computeMaxCornerMovement` matches the same way; before, a
-  relabel counted as a movement of the paper's own size and reset the steadiness ring.
+  rotation in the synthetic sweep. The new observation is matched to the dots by the cyclic shift
+  (0 to 3) that puts it nearest (`labelShift.ts`), using the pairs where both the observation and
+  the dot have a position and needing at least two, because the detector reports 0, 2 or 4 corners
+  (one hidden edge hides two); the shift is applied to the whole observation. With one pair or none
+  there is nothing safe to match on and the observation is left as it came. `computeMaxCornerMovement`
+  matches the same way on complete quads (it only ever gets those); before, a relabel counted as a
+  movement of the paper's own size and reset the steadiness ring.
 - **Accepted limits (measured on the fake-camera phone sizes).**
   - 360x640 at 200% text: the top bar is 139 px tall and the band for the paper is about 6 px
     short of clearing it, so one check mark overlaps the hand chip by about 6 px (measured 6.2 px).
@@ -218,12 +233,29 @@ criterion; each item is a decision the build had to make or a thing it could not
     the sheet is still clear (272 px against 273 px); at 320x480 the drawing reaches about 11 px
     under the sheet (241 px against 230 px) and about 27 px under the top bar. The buttons were
     still fully on screen and in front on all of them.
+  - Phones held in landscape (844x390, 640x360) work, but the sheet covers the lower part of the
+    photo and shows little more than its title: at 844x390 the sheet is 203 px tall, its row is the
+    lower 106 px, and the drawing reaches about 71 px under the sheet (49 px at 640x360); the
+    photo is at the 0.4 floor. The buttons are reachable.
+  - The upload path's clear of the announcement in `retake()` guards a screen that is hard to reach
+    in production (a photo picked, then no way to open the camera again); it is pinned by an e2e
+    that makes `getUserMedia` disappear.
+  - A mutation of `bestCyclicShift` that uses x alone in one place is equivalent: no test can tell
+    it from the real thing. Accepted, not fixed.
 - **The axe comparison for the live camera is relaxed in one direction.** An open rule nobody has
   reviewed still fails. A review that axe no longer needs also still fails, except colour
   contrast over the live picture, which axe may decide by itself on a run where it sees no picture
-  behind the controls; that counts as a pass and is attached to the report. Every listed element
-  is now also measured directly on every live-camera audit (text colour and alpha, fill alpha and
-  opacity, over white), whether or not axe named it.
+  behind the controls; that counts as a pass and is attached to the report.
+- **Contrast over the live picture is measured directly and fails closed**
+  (`tests/e2e/fixtures/live-picture.ts`), whatever axe reports: every listed element and every
+  visible descendant that carries text (a nested span, an svg icon's shapes, `::before` and
+  `::after`) is measured with its text colour and alpha and the fill and opacity of it and each
+  ancestor inside the screen, over white, drawn as the browser does (each element is a group faded
+  by its opacity). A `filter`, `backdrop-filter`, `mix-blend-mode`, `background-image` or
+  text fill that is not the colour fails with the feature named, unless it is on an explicit allow
+  list with a reason (empty). A walk of everything visible in the camera screen that carries text
+  or a fill fails on anything that is neither listed, inside a listed element, nor decoration with
+  no text of its own. The hint line and the green cue are measured by the same path on probes.
 - **Not built (nice to have):** dragging the sheet to dismiss it; rounded photo corners.
 - **Motion budget.** Only `transform` and `opacity` animate, except the shutter ring's
   `stroke-dashoffset` (existing, unchanged).
