@@ -43,6 +43,7 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+*.blend
 *.blend1
 tools/blender/.venv/
 tools/blender/out/

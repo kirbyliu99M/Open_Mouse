@@ -62,6 +62,9 @@ jobs:
       # The parameter export runs through tsx, which comes from package.json.
       - run: npm ci
       - run: node --import tsx tools/blender/export-parameters.ts
+      # shellParameters' unit tests. The root vitest config only collects
+      # tests/unit/**, so without this step they never ran in CI.
+      - run: node node_modules/vitest/vitest.mjs run --config tools/blender/vitest.config.ts
       # opencv-python-headless: tools/blender/reconstruct_views.py and the photo
       # camera-fit tests (tests/test_photo_camera_fit.py on the study branches)
       # import cv2; without it those tests failed on every run.
