@@ -47,3 +47,43 @@ export function shiftFour<T>(items: Four<T>, shift: number): Four<T> {
     items[(shift + 3) % 4],
   ];
 }
+
+/**
+ * The cyclic shift that best matches two sets of corners when some are
+ * missing. The real detector reports 0, 2 or 4 corners (one hidden edge hides
+ * two), so a relabel can arrive with only two corners visible.
+ *
+ * Only pairs where BOTH sides have a point count. A shift needs at least
+ * `minPairs` such pairs to be a candidate (one pair cannot tell the labellings
+ * apart: any corner is near some corner), and shifts are compared by the MEAN
+ * distance over their pairs, which is the total when every shift has the same
+ * number of pairs (the usual case) and keeps a shift with fewer pairs from
+ * winning just for having fewer terms when it does not. Ties keep the smaller
+ * shift. `null` when no shift has enough pairs: nothing safe to match on.
+ */
+export function bestPartialShift(
+  reference: Four<Point | null>,
+  candidate: Four<Point | null>,
+  minPairs = 2,
+): number | null {
+  let best: number | null = null;
+  let bestCost = Infinity;
+  for (let shift = 0; shift < 4; shift++) {
+    let total = 0;
+    let pairs = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = reference[i];
+      const b = candidate[(i + shift) % 4];
+      if (!a || !b) continue;
+      total += Math.hypot(a.x - b.x, a.y - b.y);
+      pairs += 1;
+    }
+    if (pairs < minPairs) continue;
+    const cost = total / pairs;
+    if (cost < bestCost - 1e-9) {
+      best = shift;
+      bestCost = cost;
+    }
+  }
+  return best;
+}

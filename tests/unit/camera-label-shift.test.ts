@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bestCyclicShift,
+  bestPartialShift,
   shiftFour,
   type Four,
 } from "../../src/client/camera/labelShift";
@@ -107,25 +108,101 @@ describe("alignObservation: the dots follow the corners, not the labels", () => 
     },
   );
 
-  it("does nothing when a corner is missing: it cannot tell which labelling this is", () => {
-    const partial: Observed = [null, SHEET[1], SHEET[2], SHEET[3]];
-    expect(alignObservation(tracking(), partial)).toBe(partial);
-    const turned: Observed = [
-      null,
-      ...shiftFour(SHEET, 2).slice(1),
-    ] as unknown as Observed;
-    expect(alignObservation(tracking(), turned)).toBe(turned);
+  // The real detector reports 0, 2 or 4 corners: one hidden edge hides two.
+  it.each([
+    ["the two upper corners", [0, 1]],
+    ["the two right corners", [1, 2]],
+    ["the two lower corners", [2, 3]],
+    ["the two left corners", [3, 0]],
+  ] as const)(
+    "only %s visible, and the labels turned by 2: the visible pair is put back where the dots are",
+    (_name, visible) => {
+      const turned = relabelled(2);
+      // The corners that are not visible are null; the labels of the visible
+      // ones are the ones the paper's corners arrived under after the turn.
+      const observed = turned.map((p, label) =>
+        visible.some((corner) => (corner + 2) % 4 === label) ? p : null,
+      ) as unknown as Observed;
+      const aligned = alignObservation(tracking(), observed);
+      for (const corner of visible)
+        expect(aligned[corner]).toEqual(SHEET[corner]);
+      for (let i = 0; i < 4; i++)
+        if (!visible.some((corner) => corner === i))
+          expect(aligned[i]).toBeNull();
+    },
+  );
+
+  it.each([1, 2, 3])(
+    "two adjacent corners visible, labels turned by %i: followed, not read at face value",
+    (shift) => {
+      // Corners 0 and 1 of the sheet, arriving under the labels the turn gave them.
+      const turned = relabelled(shift);
+      const observed: Observed = [null, null, null, null];
+      const arranged = [...observed] as (Point | null)[];
+      for (const corner of [0, 1]) {
+        const label = (corner - shift + 4) % 4;
+        arranged[label] = turned[label];
+      }
+      const aligned = alignObservation(
+        tracking(),
+        arranged as unknown as Observed,
+      );
+      expect(aligned[0]).toEqual(SHEET[0]);
+      expect(aligned[1]).toEqual(SHEET[1]);
+      expect(aligned[2]).toBeNull();
+      expect(aligned[3]).toBeNull();
+    },
+  );
+
+  it("two opposite corners visible, labels turned by 1: followed", () => {
+    const turned = relabelled(1);
+    // Sheet corners 0 and 2 arrive under labels 3 and 1.
+    const observed: Observed = [null, turned[1], null, turned[3]];
+    const aligned = alignObservation(tracking(), observed);
+    expect(aligned[0]).toEqual(SHEET[0]);
+    expect(aligned[2]).toEqual(SHEET[2]);
+    expect(aligned[1]).toBeNull();
+    expect(aligned[3]).toBeNull();
   });
 
-  it("does nothing while a dot has no position yet (the first sightings)", () => {
-    const observed = relabelled(2);
-    expect(alignObservation(INITIAL_CORNER_STATES, observed)).toBe(observed);
-    const oneUnknown = advanceCorners(
+  it("one visible corner is nothing to match on: the observation is left as it came", () => {
+    for (let label = 0; label < 4; label++) {
+      const observed: Observed = [null, null, null, null];
+      const one = [...observed] as (Point | null)[];
+      one[label] = SHEET[(label + 2) % 4];
+      const alone = one as unknown as Observed;
+      expect(alignObservation(tracking(), alone)).toBe(alone);
+    }
+  });
+
+  it("nothing visible is left as it came", () => {
+    const none: Observed = [null, null, null, null];
+    expect(alignObservation(tracking(), none)).toBe(none);
+  });
+
+  it("all four visible: unchanged behaviour, every shift put back", () => {
+    for (const shift of [0, 1, 2, 3])
+      expect(alignObservation(tracking(), relabelled(shift))).toEqual(SHEET);
+  });
+
+  it("the dots that have a position are enough: two of four followed, four observed and turned", () => {
+    const firstSightings = advanceCorners(
       INITIAL_CORNER_STATES,
-      [SHEET[0], SHEET[1], SHEET[2], null],
+      [SHEET[0], SHEET[1], null, null],
       125,
     );
-    expect(alignObservation(oneUnknown, observed)).toBe(observed);
+    expect(alignObservation(firstSightings, relabelled(2))).toEqual(SHEET);
+  });
+
+  it("with no dot followed yet, or only one, there is nothing to match on", () => {
+    const observed = relabelled(2);
+    expect(alignObservation(INITIAL_CORNER_STATES, observed)).toBe(observed);
+    const oneKnown = advanceCorners(
+      INITIAL_CORNER_STATES,
+      [SHEET[0], null, null, null],
+      125,
+    );
+    expect(alignObservation(oneKnown, observed)).toBe(observed);
   });
 
   it("a tie leaves the observation as it came", () => {
@@ -183,6 +260,50 @@ describe("advanceCorners across a relabel", () => {
     );
     expect(width).toBeCloseTo(332, 3);
     expect(height).toBeCloseTo(474, 3);
+  });
+});
+
+describe("bestPartialShift", () => {
+  const maybe = (items: readonly (Point | null)[]) =>
+    items as unknown as Four<Point | null>;
+
+  it("with every point present it agrees with bestCyclicShift", () => {
+    for (let s = 0; s < 4; s++) {
+      const candidate = shiftFour(SHEET, s);
+      expect(bestPartialShift(SHEET, candidate)).toBe(
+        bestCyclicShift(SHEET, candidate),
+      );
+    }
+  });
+
+  it("needs two pairs: one, or none, gives null", () => {
+    expect(
+      bestPartialShift(SHEET, maybe([SHEET[0], null, null, null])),
+    ).toBeNull();
+    expect(bestPartialShift(SHEET, maybe([null, null, null, null]))).toBeNull();
+    expect(
+      bestPartialShift(maybe([SHEET[0], null, null, null]), SHEET),
+    ).toBeNull();
+  });
+
+  it("a shift is compared by its mean distance: one with fewer pairs does not win for having fewer terms", () => {
+    // Three known corners on each side, the candidate 10 px to the right of the
+    // reference: shift 0 pairs all three (10 px each: total 30, mean 10). Shifts
+    // 1 and 3 have only two pairs (11.7 px each: total 23.3, mean 11.7). By total
+    // one of them would win; by mean shift 0 does, and it is the right one.
+    const reference = maybe([
+      { x: 0, y: 0 },
+      { x: 0, y: 6 },
+      { x: 0, y: 12 },
+      null,
+    ]);
+    const candidate = maybe([
+      { x: 10, y: 0 },
+      { x: 10, y: 6 },
+      { x: 10, y: 12 },
+      null,
+    ]);
+    expect(bestPartialShift(reference, candidate)).toBe(0);
   });
 });
 

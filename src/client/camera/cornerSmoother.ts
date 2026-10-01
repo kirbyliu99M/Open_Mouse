@@ -18,7 +18,7 @@
  * Pure: positions are in the stage's own pixels, time steps are passed in.
  */
 import { CAMERA_CONSTANTS } from "./constants";
-import { bestCyclicShift, shiftFour, type Four } from "./labelShift";
+import { bestPartialShift, shiftFour, type Four } from "./labelShift";
 import type { Point } from "./quad";
 
 export interface CornerState {
@@ -132,28 +132,28 @@ export type Observed = Four<Point | null>;
  * relabels its corners (a cyclic shift) when the paper is held sideways, so
  * the corner that arrives as "top-left" may be the one that was "bottom-right".
  * Taken at face value every dot would then glide across the paper to the
- * opposite corner. So, when all four corners are observed and all four are
- * being followed, the observation is shifted by whichever of the four cyclic
- * shifts puts it closest to where the dots are (labelShift.ts). A corner's
+ * opposite corner. So the observation is shifted by whichever of the four
+ * cyclic shifts puts it closest to where the dots are (labelShift.ts). The
+ * match uses the pairs where the observation AND the dot both have a position,
+ * and needs at least two: the detector reports 0, 2 or 4 corners (one hidden
+ * edge hides two), and a relabel with only two visible must still be followed.
+ * One pair, or none, is nothing safe to match on, and the observation is left
+ * as it is. The shift is applied to the whole observation: a corner's
  * found/lost flag travels with its position, because a lost corner is simply
- * a null entry in the same array. Fewer than four observed, or a dot with no
- * position yet: there is nothing safe to match on, and it is left as it is.
+ * a null entry in the same array.
  */
 export function alignObservation(
   states: CornerStates,
   observed: Observed,
 ): Observed {
-  const tracked = states.map((state) => state.point);
-  if (
-    tracked.some((point) => point === null) ||
-    observed.some((point) => point === null)
-  )
-    return observed;
-  const shift = bestCyclicShift(
-    tracked as unknown as Four<Point>,
-    observed as unknown as Four<Point>,
-  );
-  return shift === 0 ? observed : shiftFour(observed, shift);
+  const tracked: Four<Point | null> = [
+    states[0].point,
+    states[1].point,
+    states[2].point,
+    states[3].point,
+  ];
+  const shift = bestPartialShift(tracked, observed);
+  return shift === null || shift === 0 ? observed : shiftFour(observed, shift);
 }
 
 /** Advance all four corners (TL, TR, BR, BL) by one sample. */

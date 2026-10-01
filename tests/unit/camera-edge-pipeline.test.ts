@@ -19,9 +19,11 @@ import {
   INITIAL_CORNER_STATES,
   advanceCorner,
   advanceCorners,
+  alignObservation,
   cornerDrawPoint,
   cornerDrawPoints,
   type CornerStates,
+  type Observed,
 } from "../../src/client/camera/cornerSmoother";
 import { placeEdges } from "../../src/client/camera/edgeGeometry";
 import type { Point, Quad } from "../../src/client/camera/quad";
@@ -385,5 +387,136 @@ describe("the dots and the steadiness check across the detector's relabels", () 
     expect(fixed).toBeLessThan(limit);
     // The old reading did call the relabel movement: a jump of the paper's own size.
     expect(old).toBeGreaterThan(limit * 5);
+  });
+});
+
+describe("one edge hidden near the relabels (the detector reports 0, 2 or 4 corners)", () => {
+  // One hidden edge hides two adjacent corners. The paper's bottom edge (true
+  // corners 2 and 3) is hidden for five degrees round each relabel, so the
+  // relabel arrives with only two corners visible, and the frames either side
+  // have four again.
+  const WINDOWS: readonly (readonly [number, number])[] = [
+    [133, 137],
+    [313, 317],
+  ];
+  const HIDDEN_TRUE_CORNERS = [2, 3];
+  /** Frames to look at: the windows and two degrees either side of them. */
+  const LOOKED_AT = WINDOWS.map(([from, to]) => [from - 2, to + 2] as const);
+  const inside = (
+    deg: number,
+    ranges: readonly (readonly [number, number])[],
+  ) => ranges.some(([from, to]) => deg >= from && deg <= to);
+
+  /** The observations the screen would get: label i holds true corner (i + shift) % 4. */
+  function observations(samples: readonly Sample[]): Observed[] {
+    return samples.map((sample) =>
+      sample.corners.map((point, label) =>
+        inside(sample.deg, WINDOWS) &&
+        HIDDEN_TRUE_CORNERS.includes((label + sample.shift) % 4)
+          ? null
+          : point,
+      ),
+    ) as unknown as Observed[];
+  }
+
+  /** What the old rule did: a relabel was followed only when all four were seen. */
+  const ALL_OR_NOTHING = (
+    states: CornerStates,
+    observed: Observed,
+  ): Observed =>
+    observed.some((point) => point === null)
+      ? observed
+      : alignObservation(states, observed);
+
+  function run(
+    samples: readonly Sample[],
+    align: (states: CornerStates, observed: Observed) => Observed,
+  ) {
+    const seen = observations(samples);
+    let states: CornerStates = INITIAL_CORNER_STATES;
+    const dots: Point[][] = [];
+    samples.forEach((_, i) => {
+      const matched = align(states, seen[i]);
+      states = [
+        advanceCorner(states[0], matched[0], 125),
+        advanceCorner(states[1], matched[1], 125),
+        advanceCorner(states[2], matched[2], 125),
+        advanceCorner(states[3], matched[3], 125),
+      ];
+      dots.push(states.map((state, d) => cornerDrawPoint(state, NO_GUIDE[d])));
+    });
+    let largestStep = 0;
+    let shortestSide = Infinity;
+    let bowTies = 0;
+    for (let i = 1; i < samples.length; i++) {
+      if (!inside(samples[i].deg, LOOKED_AT)) continue;
+      if (samples[i].deg === samples[i - 1].deg + 1)
+        for (let d = 0; d < 4; d++)
+          largestStep = Math.max(
+            largestStep,
+            Math.hypot(
+              dots[i][d].x - dots[i - 1][d].x,
+              dots[i][d].y - dots[i - 1][d].y,
+            ),
+          );
+      const quad = dots[i];
+      for (let d = 0; d < 4; d++)
+        shortestSide = Math.min(
+          shortestSide,
+          Math.hypot(
+            quad[(d + 1) % 4].x - quad[d].x,
+            quad[(d + 1) % 4].y - quad[d].y,
+          ),
+        );
+      // A bow-tie: opposite sides cross. The sign of the cross product of
+      // consecutive edges must be the same all the way round.
+      const signs = [0, 1, 2, 3].map((d) => {
+        const a = quad[d];
+        const b = quad[(d + 1) % 4];
+        const c = quad[(d + 2) % 4];
+        return Math.sign((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x));
+      });
+      if (!signs.every((s) => s === signs[0])) bowTies += 1;
+    }
+    return { largestStep, shortestSide, bowTies };
+  }
+
+  it("the hidden edge is really hidden: two corners are missing in the frames inside the windows", () => {
+    const { samples } = sweep();
+    const seen = observations(samples);
+    const inWindow = samples
+      .map((sample, i) => ({ sample, i }))
+      .filter(({ sample }) => inside(sample.deg, WINDOWS));
+    expect(inWindow.length).toBeGreaterThanOrEqual(8);
+    for (const { i } of inWindow)
+      expect(seen[i].filter((point) => point === null)).toHaveLength(2);
+    // ...and a relabel happens inside them (134 and 314 degrees).
+    const shifts = new Set(inWindow.map(({ sample }) => sample.shift));
+    expect(shifts.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("with two corners visible the dots still follow their corners: small steps, an outline that keeps its size, no bow-tie", () => {
+    const { samples } = sweep();
+    const { largestStep, shortestSide, bowTies } = run(
+      samples,
+      alignObservation,
+    );
+    console.log(
+      `hidden edge: largest dot step ${largestStep.toFixed(2)} px, shortest side ${shortestSide.toFixed(1)} px, bow-tie frames ${bowTies}`,
+    );
+    expect(largestStep).toBeLessThan(10);
+    expect(shortestSide).toBeGreaterThan(100);
+    expect(bowTies).toBe(0);
+  });
+
+  it("control: following a relabel only when all four are seen lets the visible pair glide to the wrong dots", () => {
+    const { samples } = sweep();
+    const { largestStep, shortestSide, bowTies } = run(samples, ALL_OR_NOTHING);
+    console.log(
+      `hidden edge, old rule: largest dot step ${largestStep.toFixed(1)} px, shortest side ${shortestSide.toFixed(1)} px, bow-tie frames ${bowTies}`,
+    );
+    expect(largestStep).toBeGreaterThan(60);
+    expect(shortestSide).toBeLessThan(40);
+    expect(bowTies).toBeGreaterThan(0);
   });
 });
