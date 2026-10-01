@@ -2182,6 +2182,143 @@ bridging.**
 
 ## Progress log
 
+### F9-2 review fixes (2026-10-01)
+
+Codex addressed all six confirmed findings on #26, starting at `726786f`.
+Only checks, tests and documentation changed. Commits: `e89c218` (catalogue,
+hand and main-path coverage; README sequence) and `f04d6a4` (accessor bounds,
+payload checks and mutation harness). No push. All 36 public model files,
+including GLBs, textures embedded in them, manifest and validation, are
+byte-identical to the starting commit. No geometry generation ran.
+`docs/STATUS.md`, `.github/` and `.gitignore` are untouched.
+
+1. **Catalogue/manifest coverage:** tests now isolate shared paths without
+   `aliasOf`, each alias equality field (path, dimensions, bytes), short and
+   long dimension arrays, absolute and parent-relative paths, extra reference
+   rows with complete seed coverage, and duplicate `noShell` declarations in
+   both check functions. For alias bytes only, file stat is mocked to reach the
+   alias guard independently of the earlier physical-size guard. Mutations
+   `shared-path` through `manifest-no-shell-duplicate`: all caught.
+2. **Real bounds without bpy:** `glb_bounds.py` reads the GLB JSON chunk and
+   combines every primitive's POSITION min/max in its scene node's world frame.
+   It composes parent translation and scale, including negative scale. The
+   pipeline uses `export_yup=True`: glTF axis extents X/Z/Y become manifest
+   width/length/height, multiplied by 1000. Rotation, matrix, animation, skin or
+   morph cases are reported explicitly instead of treating a conservative box
+   as exact geometry. Every delivered mouse node has identity transforms;
+   **39/39 mouse primitives across 33 unique GLBs** have Draco extensions and
+   POSITION min/max (34 mouse routes including M575S). The hand accessor also
+   has min/max; the hand is skinned and is checked for bytes, not shell bounds.
+   `check_glb_bounds` enforces **0.5 mm separately against manifest and seed**.
+   Synthetic tests cover axis mapping, units, multiple primitives and nodes,
+   hierarchy composition, reflection, invalid metadata, unsupported transforms
+   and both sides of the inclusive tolerance. Real-data main-path tests run it.
+3. **Hand:** manifest `hand.bytes` must equal the delivered file size. The
+   partition fixture copies the real hand metadata shape, with no `path` key;
+   it retains the missing-hand-file case. Both hand tests pass; deleting the
+   byte guard is caught.
+4. **Main wiring:** `MainTests.test_main_checks_real_repo_data` uses `runpy` on
+   the actual repository seed, reference, manifest and GLBs. Separate main-path
+   tests inject a manifest-size drift in memory and incorrect accessor bounds;
+   deleting either main check is caught. No real input file is modified.
+5. **Payload gates:** eight synthetic tests cover valid counts/read-only checks,
+   bad header and declared length, missing Draco, bad texture MIME, leftover
+   PNG and byte mismatch. Audit and bounds share the tested GLB JSON reader.
+   Optimizer byte validation now raises `ValueError` explicitly. Its successful
+   and failing `--check` cases run in subprocesses both normally and under
+   `python -O`; restoring the old assert is caught specifically under `-O`.
+6. **README:** step 1 now says the catalogue command is expected to fail until
+   the shell/manifest route is installed in steps 4?5, or a `noShell` entry is
+   installed. The `<!-- DRAFT: pending Kirby approval -->` marker and rights
+   paragraph are unchanged. This is documentation, with no guard mutation.
+
+Real-file maximum absolute accessor-bound difference from the manifest, top
+five unique shells (ties sorted by slug):
+
+| Shell                               | Maximum error (mm) |
+| ----------------------------------- | -----------------: |
+| `logitech-ergo-m575`                |     0.000014901161 |
+| `logitech-g-pro-2-lightspeed`       |     0.000014901161 |
+| `logitech-g-pro-x-superlight-2`     |     0.000014901161 |
+| `logitech-g-pro-x-superlight-2-dex` |     0.000014901161 |
+| `logitech-g-pro-x-superlight-2-se`  |     0.000014901161 |
+
+Overall maximum: **0.000014901161 mm**. Maximum accessor-to-seed error:
+**0.000004768372 mm**. No tolerance change or real-data failure. All 34 route
+measurements are saved in ignored `out/f9/f9-2-bounds.json` and printed by
+`check_catalogues.py`.
+
+Local gates (Python 3.13.13, completed 2026-10-02 Asia/Taipei):
+
+- `python -m unittest discover -s tools/blender/tests -p 'test_*.py'`:
+  **200 tests, 188 passed / 12 explicit Blender-only skips**.
+- `python tools/blender/check_catalogues.py`: passed, including real bounds.
+- `python tools/blender/audit_payloads.py`: passed; 34 delivered GLBs.
+- `python tools/blender/optimize_glbs.py --check`: passed.
+- `node node_modules/vitest/vitest.mjs run --config tools/blender/vitest.config.ts`:
+  **9 passed**.
+- `npx.cmd prettier --check .`: passed (Windows launcher for the requested npx command).
+
+Mutation reproduction: `python tools/blender/tests/run_f9_mutations.py` copies
+only the needed code and public fixtures under ignored `out/f9/mutation/repo`,
+runs each focused test green, changes one guard or calculation, then requires
+a red test. Production source and assets are never mutated. Optional positional
+arguments select mutation labels. Results and individual failure logs are in
+`out/f9/mutation/`. An initially surviving reflection mutation exposed masking
+by a second node; the isolated reflection test now catches it. Final results:
+**44/44 caught**. Each row below records a separately executed mutation.
+
+| Mutation                      | Focused test                                                                           | Result       |
+| ----------------------------- | -------------------------------------------------------------------------------------- | ------------ |
+| `shared-path`                 | `test_catalogues.ManifestTests.test_shared_path_without_alias_of`                      | Red (caught) |
+| `alias-path`                  | `test_catalogues.ManifestTests.test_alias_path_dimensions_and_bytes_must_equal_source` | Red (caught) |
+| `alias-dimensionsXYZmm`       | `test_catalogues.ManifestTests.test_alias_path_dimensions_and_bytes_must_equal_source` | Red (caught) |
+| `alias-bytes`                 | `test_catalogues.ManifestTests.test_alias_path_dimensions_and_bytes_must_equal_source` | Red (caught) |
+| `dimension-count`             | `test_catalogues.ManifestTests.test_dimensions_must_have_exactly_three_axes`           | Red (caught) |
+| `absolute-path`               | `test_catalogues.ManifestTests.test_path_cannot_escape_models_directory`               | Red (caught) |
+| `parent-path`                 | `test_catalogues.ManifestTests.test_path_cannot_escape_models_directory`               | Red (caught) |
+| `reference-extra`             | `test_catalogues.CatalogueTests.test_reference_extra_with_seed_fully_covered`          | Red (caught) |
+| `no-shell-duplicate`          | `test_catalogues.CatalogueTests.test_no_shell_assets_reject_duplicate_declaration`     | Red (caught) |
+| `manifest-no-shell-duplicate` | `test_catalogues.ManifestTests.test_explicit_no_shell_and_duplicate_no_shell`          | Red (caught) |
+| `hand-bytes`                  | `test_catalogues.ManifestTests.test_hand_bytes_must_match_file`                        | Red (caught) |
+| `main-manifest-call`          | `test_catalogues.MainTests.test_main_rejects_manifest_drift`                           | Red (caught) |
+| `main-bounds-call`            | `test_catalogues.MainTests.test_main_runs_accessor_bounds_check`                       | Red (caught) |
+| `bounds-manifest-tolerance`   | `test_glb_bounds.BoundsTests.test_half_mm_manifest_and_seed_bounds_guards`             | Red (caught) |
+| `bounds-seed-tolerance`       | `test_glb_bounds.BoundsTests.test_half_mm_manifest_and_seed_bounds_guards`             | Red (caught) |
+| `bounds-axis-mm`              | `test_glb_bounds.BoundsTests.test_draco_accessor_bounds_axis_mapping_and_mm`           | Red (caught) |
+| `bounds-metres`               | `test_glb_bounds.BoundsTests.test_draco_accessor_bounds_axis_mapping_and_mm`           | Red (caught) |
+| `bounds-all-primitives`       | `test_glb_bounds.BoundsTests.test_every_primitive_and_node_in_world_frame`             | Red (caught) |
+| `bounds-parent-transform`     | `test_glb_bounds.BoundsTests.test_every_primitive_and_node_in_world_frame`             | Red (caught) |
+| `bounds-parent-scale`         | `test_glb_bounds.BoundsTests.test_every_primitive_and_node_in_world_frame`             | Red (caught) |
+| `bounds-reflection`           | `test_glb_bounds.BoundsTests.test_reflected_node_bounds`                               | Red (caught) |
+| `bounds-animations`           | `test_glb_bounds.BoundsTests.test_animation_and_morph_are_reported`                    | Red (caught) |
+| `bounds-hierarchy`            | `test_glb_bounds.BoundsTests.test_cycles_and_multiple_parents_are_rejected`            | Red (caught) |
+| `bounds-matrix`               | `test_glb_bounds.BoundsTests.test_unsupported_node_transforms_and_skin_are_reported`   | Red (caught) |
+| `bounds-rotation`             | `test_glb_bounds.BoundsTests.test_unsupported_node_transforms_and_skin_are_reported`   | Red (caught) |
+| `bounds-skin`                 | `test_glb_bounds.BoundsTests.test_unsupported_node_transforms_and_skin_are_reported`   | Red (caught) |
+| `bounds-morph`                | `test_glb_bounds.BoundsTests.test_animation_and_morph_are_reported`                    | Red (caught) |
+| `bounds-accessor-metadata`    | `test_glb_bounds.BoundsTests.test_missing_position_bounds_or_wrong_type`               | Red (caught) |
+| `bounds-vector-length`        | `test_glb_bounds.BoundsTests.test_bounds_and_transforms_need_three_finite_components`  | Red (caught) |
+| `bounds-finite`               | `test_glb_bounds.BoundsTests.test_bounds_and_transforms_need_three_finite_components`  | Red (caught) |
+| `bounds-inverted`             | `test_glb_bounds.BoundsTests.test_inverted_bounds_are_rejected`                        | Red (caught) |
+| `bounds-default-scene`        | `test_glb_bounds.BoundsTests.test_empty_and_ambiguous_scene_are_rejected`              | Red (caught) |
+| `bounds-empty-scene`          | `test_glb_bounds.BoundsTests.test_empty_and_ambiguous_scene_are_rejected`              | Red (caught) |
+| `glb-header`                  | `test_glb_bounds.BoundsTests.test_invalid_glb_envelope`                                | Red (caught) |
+| `glb-length`                  | `test_glb_bounds.BoundsTests.test_invalid_glb_envelope`                                | Red (caught) |
+| `glb-json-type`               | `test_glb_bounds.BoundsTests.test_invalid_glb_envelope`                                | Red (caught) |
+| `glb-json-length`             | `test_glb_bounds.BoundsTests.test_invalid_glb_envelope`                                | Red (caught) |
+| `audit-header`                | `test_payload_checks.PayloadTests.test_bad_header`                                     | Red (caught) |
+| `audit-length`                | `test_payload_checks.PayloadTests.test_bad_length`                                     | Red (caught) |
+| `audit-draco`                 | `test_payload_checks.PayloadTests.test_missing_draco_extension`                        | Red (caught) |
+| `audit-mime`                  | `test_payload_checks.PayloadTests.test_bad_texture_mime`                               | Red (caught) |
+| `optimizer-png`               | `test_payload_checks.PayloadTests.test_optimizer_rejects_leftover_png`                 | Red (caught) |
+| `optimizer-bytes`             | `test_payload_checks.PayloadTests.test_optimizer_rejects_bytes_mismatch_even_under_O`  | Red (caught) |
+| `optimizer-assert-under-O`    | `test_payload_checks.PayloadTests.test_optimizer_rejects_bytes_mismatch_even_under_O`  | Red (caught) |
+
+All requested F9-2 work is complete. The 12 bpy-only tests were not run in
+Blender for this checks-only task; they remain explicit discovery skips.
+Live CI and pushing remain Claude's work.
+
 ### F9-1 integration (2026-10-01)
 
 - Codex: fetched origin, committed both merges (`4ecbddd`, `45eac44`), and
