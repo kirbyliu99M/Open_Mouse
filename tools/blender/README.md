@@ -7,6 +7,13 @@ It extends the [source-based rebuild](REFERENCE-REBUILD.md), with
 downloaded per-model references, image-derived geometry and comparison overlays.
 The commands and evidence below describe the superseded prototype only.
 
+<!-- DRAFT: pending Kirby approval -->
+
+The shells are derived from Logitech's official AR 360 sources and product
+photos. Product names and trademarks belong to their respective owners. These
+models are approximate study geometry for fit comparison, not official Logitech
+assets.
+
 ## Add a mouse to the current catalogue
 
 1. Add its manufacturer dimensions and source URLs to `src/db/seed/logitech.json`.
@@ -16,7 +23,11 @@ The commands and evidence below describe the superseded prototype only.
    and specific reason to `NO_SHELL` in `check_catalogues.py` instead. The
    catalogue retains the product for fit scoring without publishing a shell.
    Run `python tools/blender/check_catalogues.py`: any unlisted missing shell
-   row, stale exception, or dimension mismatch fails.
+   row, stale exception, or dimension mismatch fails. Each seeded mouse must
+   appear exactly once across manifest shells, studies and `noShell`. Reference
+   dimensions equal the seed exactly; delivered XYZ bounds use the existing
+   0.5 mm tolerance. The check also requires exact GLB file coverage and rejects
+   shared paths unless they are a documented alias.
 2. Capture its reference source in the ignored `out/reference-library/`.
    For an AR source, run `render_reference_views.py`, `reconstruct_views.py`,
    `finish_reconstruction.py`, and `compare_reconstruction.py`. For a limited

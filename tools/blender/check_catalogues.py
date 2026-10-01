@@ -1,6 +1,7 @@
 """Ensure the Blender reference catalogue matches the database seed dimensions."""
 
 import json
+import math
 from pathlib import Path
 
 
@@ -16,12 +17,13 @@ NO_SHELL = {
     "logitech-mx-ergo-s": "only front-oblique side photos; study was not recognisable",
 }
 ALIASES = {"logitech-ergo-m575s": "logitech-ergo-m575"}
+BBOX_TOLERANCE_MM = 0.5
 
 
 def check_no_shell_assets(manifest: dict, models: Path, validation: dict | None = None) -> None:
     """Reject stale publication routes and files for catalogue-only products."""
     declared = {entry["slug"]: entry["reason"] for entry in manifest["noShell"]}
-    if declared != NO_SHELL:
+    if len(declared) != len(manifest["noShell"]) or declared != NO_SHELL:
         raise ValueError("Manifest noShell differs from catalogue routing")
     delivered = manifest["shells"] + manifest.get("studies", [])
     if validation is not None:
@@ -65,9 +67,68 @@ def check(seed: list[dict], reference: list[dict], aliases: dict[str, str] = ALI
             raise ValueError(f"Invalid alias dimensions or seed entry: {alias} -> {source}")
 
 
+def check_manifest(seed: list[dict], manifest: dict, models: Path,
+                   aliases: dict[str, str] = ALIASES,
+                   no_shell: dict[str, str] = NO_SHELL) -> None:
+    """Require one route per seeded mouse and exactly the delivered GLB files."""
+    seeded = entries(seed)
+    delivered = manifest["shells"] + manifest.get("studies", [])
+    routes = delivered + manifest["noShell"]
+    slugs = [entry["slug"] for entry in routes]
+    if len(slugs) != len(set(slugs)):
+        raise ValueError("Duplicate manifest slug")
+    if set(slugs) != seeded.keys():
+        raise ValueError(f"Manifest coverage mismatch: missing={sorted(seeded.keys() - set(slugs))}, "
+                         f"extra={sorted(set(slugs) - seeded.keys())}")
+    declared = {entry["slug"]: entry["reason"] for entry in manifest["noShell"]}
+    if declared != no_shell or any(not reason.strip() for reason in declared.values()):
+        raise ValueError("Manifest noShell differs from catalogue routing")
+    by_slug = {entry["slug"]: entry for entry in delivered}
+    expected_paths = set()
+    canonical_paths = set()
+    for entry in delivered:
+        key = entry["slug"]
+        length, width, height = seeded[key]
+        dims = entry["dimensionsXYZmm"]
+        if len(dims) != 3 or any(
+            not isinstance(value, (int, float)) or not math.isfinite(value)
+            or abs(value - target) > BBOX_TOLERANCE_MM
+            for value, target in zip(dims, (width, length, height))
+        ):
+            raise ValueError(f"Manifest dimensions differ from seed: {key}")
+        relative = Path(entry["path"])
+        path = models / relative
+        if relative.is_absolute() or ".." in relative.parts or path.suffix != ".glb":
+            raise ValueError(f"Invalid shell path: {key}")
+        if not path.is_file():
+            raise ValueError(f"Missing shell file: {key}: {relative}")
+        if entry["bytes"] != path.stat().st_size:
+            raise ValueError(f"Shell size mismatch: {key}")
+        expected_paths.add(relative.as_posix())
+        if key in aliases:
+            source = by_slug.get(aliases[key])
+            if entry.get("aliasOf") != aliases[key] or source is None or any(
+                entry[field] != source[field] for field in ("path", "dimensionsXYZmm", "bytes")
+            ) or seeded[key] != seeded[aliases[key]]:
+                raise ValueError(f"Invalid manifest alias: {key}")
+        elif "aliasOf" in entry or relative.as_posix() in canonical_paths:
+            raise ValueError(f"Undocumented shared shell: {key}")
+        else:
+            canonical_paths.add(relative.as_posix())
+    if manifest.get("hand") is not None:
+        expected_paths.add("hand.glb")
+    actual_paths = {path.relative_to(models).as_posix() for path in models.rglob("*.glb")}
+    if actual_paths != expected_paths:
+        raise ValueError(f"Manifest files mismatch: missing={sorted(expected_paths - actual_paths)}, "
+                         f"extra={sorted(actual_paths - expected_paths)}")
+
+
 if __name__ == "__main__":
-    check(json.loads(SEED.read_text(encoding="utf-8-sig")), json.loads(REFERENCE.read_text(encoding="utf-8-sig")))
+    seed = json.loads(SEED.read_text(encoding="utf-8-sig"))
+    check(seed, json.loads(REFERENCE.read_text(encoding="utf-8-sig")))
     models = ROOT / "public/models"
-    check_no_shell_assets(json.loads((models / "manifest.json").read_text(encoding="utf-8")), models,
+    manifest = json.loads((models / "manifest.json").read_text(encoding="utf-8"))
+    check_manifest(seed, manifest, models)
+    check_no_shell_assets(manifest, models,
                           json.loads((models / "validation.json").read_text(encoding="utf-8")))
     print("CATALOGUES_MATCH")

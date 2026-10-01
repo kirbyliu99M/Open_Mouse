@@ -171,6 +171,40 @@ calibrated bbox; support margin ≥ 5 mm; and all existing gates.
 
 ## Results
 
+### F9-1 integration (2026-10-01)
+
+Kirby closed Phase D on 2026-09-30: wheel work is closed, M705 and M850L
+remain as delivered, and all delivered 3D work is included. Integration resumed
+2026-10-01 in `f9-integrate`; no geometry or texture generation is authorised.
+
+Merged `origin/main` (`497bdc8`) as `4ecbddd`, then
+`origin/m4a-study-fidelity` (`05b0ac8`) as `45eac44`. The first merge had no
+textual conflicts; the second conflicted only in `docs/STATUS.md`, resolved
+with main. Main-owned paths match main, except the explicitly retained split
+`.github/workflows/blender-python.yml` from `cb29bea`.
+
+Discarded fidelity changes (including changes Git resolved automatically):
+
+- `docs/STATUS.md`: old 3D progress, asset-size, rights and phase-decision
+  updates; retained main's live project board in full.
+- `docs/PLAN.md`: historical 30-model payload note (6.70 MiB and 100 KiB
+  estimate discussion); retained main's plan.
+- `.github/workflows/ci.yml`: old embedded Blender Python job and its older
+  action/dependency setup; retained main's CI and the separate Blender workflow.
+
+Immediately after the merges, every file under `tools/blender/` and
+`public/models/` matched fidelity. Its reference catalogue already has 34 rows
+matching the seed's dimensions and four explicit `NO_SHELL` routes: M100,
+Mobi Fold, MX Ergo S and Signature Comfort M840L. M575S aliases M575. No
+catalogue or manifest data repair is needed. Added strict manifest partition,
+dimension, file coverage and alias checks with nine new regression tests.
+Python 3.13 discovery: 171 tests, 159 passed / 12 Blender-only skips.
+Catalogue, payload, optimisation, typecheck, lint and repository-wide Prettier
+passed. Parameter export passed outside the sandbox after a Windows user-info
+lookup failure. Full asset checks and the unrestricted Vitest rerun are pending;
+the first Vitest run hit the same user-info/process sandbox restrictions.
+Final size/scan results follow after the remaining local gates.
+
 ### D1 — study geometry refinement
 
 **D1b resumed 2026-09-29 after H1 at `f61740c`. M325s delivered; M705 and M850L pending.**
@@ -2110,6 +2144,17 @@ bridging.**
 | 2026-09-30 | **D6b measurement correction (not a gate change):** D0's inside sign counts gap bridging as missing material. The corrected test (outward ray meets outward-facing outer skin within 1.5 mm of the measured depth) puts real missing material at 0.005–0.075% per shell; with no depth test, at most 0.65% (G903). The tight test under-counts features taller than about 3.5 mm. Proposed: close the wheel-area item. **Kirby decides**                                                                                                            | Claude         |
 
 ## Progress log
+
+### F9-1 integration (2026-10-01)
+
+- Codex: fetched origin, committed both merges (`4ecbddd`, `45eac44`), and
+  preserved main-owned files and the split workflow. Fidelity geometry and
+  textures are unchanged. `npm.cmd ci` completed in this worktree. The existing
+  four-product `noShell` mechanism covers the 38-entry seed; strict manifest
+  checks and nine unit tests added. Python 159 passed / 12 Blender skips;
+  catalogue, payload, optimisation, typecheck, lint and Prettier passed.
+  Added the rights paragraph explicitly as a draft pending Kirby approval.
+  Remaining gates and final report are in progress. No push or PR mutation.
 
 - 2026-09-30 Claude: **D6 done; nothing delivered, one audit finding corrected.**
   - **D6a** (height-only hybrid, fitted at 1440 px, frozen evaluator unmodified): M705 fitted mean
