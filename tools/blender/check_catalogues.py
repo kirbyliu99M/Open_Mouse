@@ -3,6 +3,7 @@
 import json
 import math
 from pathlib import Path
+from glb_bounds import glb_dimensions_mm
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -125,12 +126,29 @@ def check_manifest(seed: list[dict], manifest: dict, models: Path,
         raise ValueError("Hand size mismatch")
 
 
+def check_glb_bounds(seed: list[dict], manifest: dict, models: Path) -> dict[str, float]:
+    """Require delivered accessor bounds to match both manifest and seed, in mm."""
+    seeded = entries(seed)
+    errors = {}
+    for entry in manifest["shells"] + manifest.get("studies", []):
+        actual = glb_dimensions_mm(models / entry["path"])
+        length, width, height = seeded[entry["slug"]]
+        error = max(abs(a - b) for a, b in zip(actual, entry["dimensionsXYZmm"]))
+        seed_error = max(abs(a - b) for a, b in zip(actual, (width, length, height)))
+        if error > BBOX_TOLERANCE_MM or seed_error > BBOX_TOLERANCE_MM:
+            raise ValueError(f"GLB bounds mismatch: {entry['slug']}: manifest={error:.9f} mm, seed={seed_error:.9f} mm")
+        errors[entry["slug"]] = error
+    return errors
+
+
 if __name__ == "__main__":
     seed = json.loads(SEED.read_text(encoding="utf-8-sig"))
     check(seed, json.loads(REFERENCE.read_text(encoding="utf-8-sig")))
     models = ROOT / "public/models"
     manifest = json.loads((models / "manifest.json").read_text(encoding="utf-8"))
     check_manifest(seed, manifest, models)
+    errors = check_glb_bounds(seed, manifest, models)
     check_no_shell_assets(manifest, models,
                           json.loads((models / "validation.json").read_text(encoding="utf-8")))
     print("CATALOGUES_MATCH")
+    print("ACCESSOR_BOUNDS_MAX_ERROR_MM " + json.dumps(errors, sort_keys=True))

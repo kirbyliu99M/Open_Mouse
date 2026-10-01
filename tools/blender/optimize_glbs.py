@@ -83,7 +83,8 @@ def main():
             count = sum(data.count(x) for x in (b'image/png',))
             if count:
                 raise RuntimeError(f'Uncompressed PNG maps remain: {path}')
-            assert path.stat().st_size == entry['bytes'], path
+            if path.stat().st_size != entry['bytes']:
+                raise ValueError(f'GLB size mismatch: {path}')
         else:
             source_path = Path(__file__).resolve().parent / 'out/polished' / entry['slug'] / (entry['slug'] + '.glb')
             before, after, maps, normal_sizes = optimize(path, source_path)

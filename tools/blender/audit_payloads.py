@@ -1,6 +1,7 @@
 """Read-only size and format audit of the published mouse GLBs."""
 
 from check_catalogues import check_no_shell_assets
+from glb_bounds import read_glb_json
 import argparse
 import io
 import json
@@ -14,14 +15,8 @@ MODELS = ROOT / "public" / "models"
 
 def inspect_glb(path: Path, estimate_1024: bool = False) -> dict:
     data = path.read_bytes()
-    if len(data) < 20 or data[:4] != b"glTF" or struct.unpack_from("<I", data, 4)[0] != 2:
-        raise ValueError(f"Invalid GLB header: {path}")
-    if struct.unpack_from("<I", data, 8)[0] != len(data):
-        raise ValueError(f"GLB length mismatch: {path}")
-    json_length, json_type = struct.unpack_from("<I4s", data, 12)
-    if json_type != b"JSON":
-        raise ValueError(f"Missing GLB JSON chunk: {path}")
-    document = json.loads(data[20 : 20 + json_length])
+    document = read_glb_json(path)
+    json_length = struct.unpack_from("<I", data, 12)[0]
     views = document.get("bufferViews", [])
     images = document.get("images", [])
     image_bytes = sum(views[image["bufferView"]]["byteLength"] for image in images)

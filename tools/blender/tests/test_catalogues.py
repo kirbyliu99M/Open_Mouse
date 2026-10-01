@@ -241,6 +241,10 @@ class MainTests(unittest.TestCase):
     def test_main_checks_real_repo_data(self):
         runpy.run_path(str(ROOT / "tools/blender/check_catalogues.py"), run_name="__main__")
 
+    def test_main_runs_accessor_bounds_check(self):
+        with patch("glb_bounds.glb_dimensions_mm", return_value=[0, 0, 0]), self.assertRaisesRegex(ValueError, "GLB bounds mismatch"):
+            runpy.run_path(str(ROOT / "tools/blender/check_catalogues.py"), run_name="__main__")
+
     def test_main_rejects_manifest_drift(self):
         read_text = Path.read_text
         manifest_path = ROOT / "public/models/manifest.json"
