@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { deleteScan } from "./fetchResults";
+import { clearScanDisclosures } from "./userLengthDisclosure";
 
 type Status = "idle" | "confirming" | "deleting" | "error";
 
@@ -64,6 +65,11 @@ export function DeleteScanAction({
     // A 404 means the scan is already gone; the honest end state is the
     // same "deleted" screen, not a "check your connection" retry loop.
     if (outcome === "deleted" || outcome === "notFound") {
+      try {
+        clearScanDisclosures(localStorage, [scanId]);
+      } catch {
+        // Storage may be blocked; deletion on the server still succeeded.
+      }
       onDeleted();
       return;
     }

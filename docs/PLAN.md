@@ -29,7 +29,7 @@ Decisions locked: printed calibration sheet · 3D parametric mesh · session-sco
 Owns the plan, per-milestone specs with acceptance criteria, the shape rubric, fit-engine scoring design, Gemini prompt design, PR review, and gate adjudication. Runs `/code-review` on each PR and `/security-review` before any public launch. **Writes no feature code** — that boundary is the point of the split.
 
 ### Codex — Implementation & Test
-Owns all feature code, tests, Blender generation scripts, and docs, working **one milestone spec at a time**. Branches `m<N>-<slug>`, opens a PR referencing the milestone issue, drives CI green and the Vercel preview live *before* requesting review. Does not merge its own PRs.
+Owns all feature code, tests, Blender generation scripts, and docs, working **one milestone spec at a time**. Branches `m<N>-<slug>`, opens a PR referencing the milestone issue, drives CI green *before* requesting review (Vercel previews are built only for ready PRs since 2026-09-30; see AGENTS.md). Does not merge its own PRs.
 
 **Two standing constraints for Codex:** never commit or move `Dataset/` (it is gitignored from the first commit), and never let the LLM do arithmetic — all numbers originate in tested TypeScript.
 
@@ -82,7 +82,6 @@ RUNTIME — Browser (photos never leave the device)
 - **Subdivision surfaces** — a genuinely mouse-like shell instead of a faceted loft.
 - **Boolean ops** — thumb scoops, button splits, scroll cutouts as real geometry.
 - **Decimate + Draco** — clean, web-sized meshes (~100 KB each; 76 models ≈ 8 MB total, small enough to commit and review).
-  The shipped 30-model catalogue (512 px JPEG; normal maps q90 4:4:4) measures 6.70 MiB: 74.5 to 384.2 KiB per mouse, with 4/30 at or below 100 KiB. Draco geometry alone is ~100 KiB per mouse, so the target cannot be met with textures kept. The original estimate remains a target, not measured performance.
 - **Reviewable artifacts** — I can look at a rendered contact sheet and judge whether a G Pro X Superlight actually looks like one. That's the M4 gate.
 
 **The cost is a build step**, and the honest risk is a slow iteration loop. Mitigation: the Blender script is the **single source of truth** — no second runtime implementation to drift — plus a fast preview CLI (`npm run shell:preview -- --model "G Pro X Superlight 2"` renders a PNG in seconds) so rubric tuning stays tight.
@@ -212,7 +211,7 @@ M1's one-time rubric classification (76 renders) costs pennies at any of these t
 
 ### M6 — Sessions, auth, privacy
 - **Anonymous:** `scan_sessions` keyed by an httpOnly **session cookie with no Max-Age** (dies on browser close). Row carries `expires_at = now + 24h`; the hourly GitHub Actions sweep plus the daily Vercel Cron backstop enforce physical deletion independently of the browser (`src/server/scans/retention.ts`). `/results/[scanId]` also offers an explicit, anonymous-only "Delete this scan now" action that calls the same session-delete route on request.
-  *UI copy must be honest:* the server cannot observe a browser closing, so the promise is stated as it actually works — deleted within 24 hours of when the scan was made, or sooner if the user deletes it themselves. Never claim deletion is triggered by closing the browser or the tab.
+  *UI copy must be honest:* the server cannot observe a browser closing. Since 2026-09-30 (Kirby) the copy is to state no deletion time until the privacy policy (U1) sets one (implemented in #92, not yet merged; its wording awaits Kirby): scans without an account expire automatically, and the user can delete a scan at any time. Never claim deletion is triggered by closing the browser or the tab.
   *(Removed 2026-09-23, issue #42): an automatic `navigator.sendBeacon` call to the session-delete route on `pagehide`. `pagehide` fires on reload and back/forward navigation as well as tab close, so it silently deleted a still-in-use anonymous session the first time the results page was reloaded. It backed no promise this section didn't already keep another way, so removing it changes no guarantee.*
 - **Logged in:** Auth.js v5 + Google. Rows gain `user_id`, lose `expires_at`. `/account` offers export and delete-everything.
 - Consent copy at upload time; state the "photos never leave your device" claim where it's true.

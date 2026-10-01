@@ -1,15 +1,19 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   afterAll,
@@ -394,6 +398,27 @@ describe("parseNulList", () => {
   });
 });
 
+/**
+ * Removes a symlink or junction WITHOUT touching what it points to. A junction
+ * to the repository's own scripts/ inside a directory that is later deleted
+ * recursively is how a test deletes real files, so a link is always taken down
+ * first: `rmdir` on Windows (it refuses to remove a real, non-empty directory,
+ * and on a junction removes only the junction), `unlink` elsewhere.
+ */
+function removeLink(link: string): void {
+  if (process.platform === "win32") {
+    spawnSync("cmd.exe", ["/d", "/c", "rmdir", link.replace(/\//g, "\\")], {
+      stdio: "ignore",
+    });
+  } else {
+    try {
+      unlinkSync(link);
+    } catch {
+      // already gone
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 2. classify-changes.mjs CLI against a real git repository
 // ---------------------------------------------------------------------------
@@ -772,15 +797,20 @@ describe(
     it("still publishes its outputs when started through a symlink or junction", () => {
       const link = join(root, "linked-scripts");
       symlinkSync(dirname(SCRIPT), link, "junction");
-      commitOnBase({ write: { "src/app.ts": "export const y = 2;\n" } });
-      const run = runCli(
-        { EVENT_NAME: "pull_request", PR_BASE_SHA: baseSha },
-        join(link, "classify-changes.mjs"),
-      );
-      expect(run.status).toBe(0);
-      expect(run.outputs.heavy).toBe("true");
-      expect(run.outputs.e2e).toBe("true");
-      expect(run.changed).toEqual(["src/app.ts"]);
+      try {
+        commitOnBase({ write: { "src/app.ts": "export const y = 2;\n" } });
+        const run = runCli(
+          { EVENT_NAME: "pull_request", PR_BASE_SHA: baseSha },
+          join(link, "classify-changes.mjs"),
+        );
+        expect(run.status).toBe(0);
+        expect(run.outputs.heavy).toBe("true");
+        expect(run.outputs.e2e).toBe("true");
+        expect(run.changed).toEqual(["src/app.ts"]);
+      } finally {
+        // Before `root` is deleted recursively: see removeLink.
+        removeLink(link);
+      }
     });
   },
 );
@@ -1038,6 +1068,167 @@ describe("prettier-changed-docs", { timeout: 60_000 }, () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toMatch(/Only deletions/);
     });
+
+    // classify-changes.mjs has this test; this entry point did not. An "am I
+    // the main module?" guard (argv[1] against import.meta.url) compares a link
+    // path with the real path, so through a symlink or junction the script
+    // would do nothing and exit 0: a docs-only PR would get no Prettier check
+    // and go green. So: through a link it must still fail closed without a
+    // list, and still read the list when there is one.
+    it("still does its job when started through a symlink or junction", () => {
+      const link = join(dir, "linked-ci-scripts");
+      symlinkSync(dirname(PRETTIER_SCRIPT), link, "junction");
+      try {
+        const viaLink = join(link, "prettier-changed-docs.mjs");
+        const run = (env: Record<string, string>) =>
+          spawnSync(process.execPath, [viaLink], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...cleanEnv(), ...env },
+          });
+
+        const withoutList = run({});
+        expect(withoutList.status).toBe(1);
+        expect(withoutList.stderr).toMatch(/CHANGED_FILE/);
+
+        const onlyDeletions = run({ CHANGED_FILE: listFile("docs/gone.md") });
+        expect(onlyDeletions.status).toBe(0);
+        expect(onlyDeletions.stdout).toMatch(/Only deletions/);
+      } finally {
+        // Before `dir` is deleted recursively: see removeLink.
+        removeLink(link);
+      }
+    });
+  });
+
+  // The default runner (`runInherit`, used when prettierMain is called without
+  // an injected `run`) was never executed by any test: every other test here
+  // hands prettierMain a fake `run`. These start the real script with a fake
+  // `npx` in front of everything else, and check what the script does with
+  // what the fake does.
+  //
+  // On Linux (CI) the script runs `npx` from PATH. On Windows it runs
+  // `node <dir of node.exe>/node_modules/npm/bin/npx-cli.js`, so the script is
+  // started with a copy of node.exe whose directory holds a fake npx-cli.js.
+  describe("the default runner, with a fake npx", () => {
+    const IS_WINDOWS = process.platform === "win32";
+    const FAKE_NPX = [
+      'const mode = process.env.FAKE_NPX_MODE || "exit:0";',
+      'console.log("FAKE-NPX " + JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }));',
+      'if (mode === "signal") process.kill(process.pid, "SIGKILL");',
+      'process.exit(Number(mode.split(":")[1] ?? 0));',
+      "",
+    ].join("\n");
+
+    let project: string;
+    let emptyBin: string;
+    let fakeBin: string;
+    let scriptNode: string;
+    let fakeCli: string;
+    let list: string;
+
+    beforeAll(() => {
+      project = join(dir, "fake-npx-project");
+      emptyBin = join(dir, "fake-npx-empty-bin");
+      fakeBin = join(dir, "fake-npx-bin");
+      for (const path of [project, emptyBin, fakeBin]) mkdirSync(path);
+      writeFileSync(
+        join(project, "package.json"),
+        JSON.stringify({ devDependencies: { prettier: "9.9.9" } }),
+      );
+      writeFileSync(join(project, "README.md"), GOOD);
+      list = join(dir, "fake-npx-list.bin");
+      writeFileSync(list, "README.md\0");
+      if (IS_WINDOWS) {
+        const nodeDir = join(dir, "fake-npx-node");
+        fakeCli = join(nodeDir, "node_modules", "npm", "bin", "npx-cli.js");
+        mkdirSync(dirname(fakeCli), { recursive: true });
+        scriptNode = join(nodeDir, "node.exe");
+        copyFileSync(process.execPath, scriptNode);
+        writeFileSync(fakeCli, FAKE_NPX);
+      } else {
+        scriptNode = process.execPath;
+        fakeCli = join(fakeBin, "npx");
+        writeFileSync(fakeCli, `#!${process.execPath}\n${FAKE_NPX}`);
+        chmodSync(fakeCli, 0o755);
+      }
+    });
+
+    function run(mode: string, { withFake = true } = {}) {
+      // One PATH only: on Windows the inherited key is "Path", and two spellings
+      // of the same variable make the child's environment ambiguous.
+      const env = cleanEnv();
+      for (const key of Object.keys(env)) {
+        if (/^path$/i.test(key)) delete env[key];
+      }
+      return spawnSync(scriptNode, [PRETTIER_SCRIPT], {
+        cwd: project,
+        encoding: "utf8",
+        env: {
+          ...env,
+          // Fake first; the rest of PATH stays so nothing else breaks.
+          PATH: withFake
+            ? `${fakeBin}${delimiter}${process.env.PATH ?? ""}`
+            : emptyBin,
+          CHANGED_FILE: list,
+          FAKE_NPX_MODE: mode,
+        },
+      });
+    }
+
+    const fakeCall = (stdout: string) =>
+      JSON.parse(
+        stdout
+          .split("\n")
+          .find((line) => line.startsWith("FAKE-NPX "))!
+          .slice("FAKE-NPX ".length),
+      ) as { cwd: string; args: string[] };
+
+    it.each([0, 1, 2])(
+      "npx's exit status %i is the script's exit status",
+      (status) => {
+        const result = run(`exit:${status}`);
+        expect(result.status).toBe(status);
+      },
+    );
+
+    it("passes npx the pinned Prettier, the file, and the project directory, with output inherited", () => {
+      const result = run("exit:0");
+      // stdout only shows up here if the child's stdio is inherited.
+      expect(result.stdout).toContain("FAKE-NPX ");
+      const call = fakeCall(result.stdout);
+      expect(call.args).toEqual([
+        "--yes",
+        "prettier@9.9.9",
+        "--check",
+        "--ignore-unknown",
+        "README.md",
+      ]);
+      expect(realpathSync.native(call.cwd)).toBe(realpathSync.native(project));
+    });
+
+    it("cannot start npx: exits 1 and says so, never 0", () => {
+      // Windows: without the fake npx-cli.js the script falls back to `npx`,
+      // which cannot be found on an empty PATH; elsewhere the fake is not on it.
+      if (IS_WINDOWS) unlinkSync(fakeCli);
+      try {
+        const result = run("exit:0", { withFake: false });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/could not run npx/);
+        expect(result.stdout).not.toContain("FAKE-NPX");
+      } finally {
+        if (IS_WINDOWS) writeFileSync(fakeCli, FAKE_NPX);
+      }
+    });
+
+    // A child killed by a signal has status null and no error. Windows has no
+    // signals to send (a process that kills itself just exits 1), so this one
+    // runs on Linux (CI); the same branch is pinned on every OS in
+    // ci-prettier-runner.test.ts with spawnSync stubbed.
+    it.skipIf(IS_WINDOWS)("npx killed by a signal: exits 1, never 0", () => {
+      const result = run("signal");
+      expect(result.status).toBe(1);
+    });
   });
 
   describe("helpers", () => {
@@ -1220,6 +1411,45 @@ describe(".github/workflows/ci.yml shape", () => {
   it("draft PRs skip the job", () => {
     const ifLine = checks.find((line) => /^ {4}if:/.test(line));
     expect(ifLine).toMatch(/github\.event\.pull_request\.draft == false/);
+  });
+
+  // The test above only looks for the `draft == false` part. A job `if:` that
+  // began `github.event_name == 'pull_request' && ...` would still contain it
+  // and would silently stop the job on every push and manual run. So the whole
+  // expression is pinned: false only for a draft pull request, true otherwise.
+  it("the job's `if:` is exactly the draft rule (push and workflow_dispatch must still run)", () => {
+    const ifLines = checks.filter((line) => /^ {4}if:/.test(line));
+    expect(ifLines).toEqual([
+      "    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false",
+    ]);
+  });
+
+  // Any step or the job with `continue-on-error: true` turns a red lint,
+  // Prettier, test or build green. The file has no need for it, so it must not
+  // appear at all (a comment mentioning it would be a reason to look, too).
+  it("nothing in the workflow uses continue-on-error", () => {
+    expect(raw).not.toMatch(/continue-on-error/i);
+  });
+
+  // The drift check is the last line of a three-line script. Dropping it,
+  // inverting `test -z`, or pointing it elsewhere keeps every other test here
+  // green, so the exact script is pinned.
+  it("the migration step runs db:check, db:generate, then fails if drizzle/ changed", () => {
+    const step = steps.find((candidate) =>
+      /^ {10}npm run db:check\s*$/m.test(candidate.text),
+    );
+    expect(step).toBeDefined();
+    const stepLines = (step as Step).text.split("\n");
+    const runAt = stepLines.findIndex((line) => /^ {8}run: \|\s*$/.test(line));
+    expect(runAt).toBeGreaterThanOrEqual(0);
+    const script = stepLines
+      .slice(runAt + 1)
+      .filter((line) => line.trim() !== "");
+    expect(script).toEqual([
+      "          npm run db:check",
+      "          npm run db:generate",
+      '          test -z "$(git status --porcelain -- drizzle)"',
+    ]);
   });
 
   it("push never diffs: the workflow does not hand the classifier a `before` sha", () => {

@@ -3,6 +3,7 @@ import { createDrizzleAccountRepo } from "../../server/account/drizzle-repo";
 import { isAuthConfigured } from "../../server/auth/config";
 import { AccountView } from "./AccountView";
 import { AuthButton } from "./AuthButton";
+import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
 import { TopBar } from "@/components/nav/TopBar";
 import Link from "next/link";
 import "./account.css";
@@ -16,6 +17,7 @@ export default async function AccountPage() {
     const configured = isAuthConfigured();
     return (
       <main className="account">
+        <LegacyHandKeySweep />
         <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
         <span className="account-hero-icon" aria-hidden="true">
           <PersonIcon />
@@ -91,6 +93,7 @@ export default async function AccountPage() {
 
   return (
     <main className="account">
+      <LegacyHandKeySweep />
       <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
       <div className="account-header">
         <div>

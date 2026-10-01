@@ -41,7 +41,12 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
     page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);
   await page.getByRole("link", { name: "Scan my hand" }).click();
-  await expect(page).toHaveURL(/\/scan\/easy$/);
+  // This is the first visit to /scan/easy when the dev server is cold, and the
+  // dev server compiles that page (the camera, MediaPipe glue and the QR code
+  // library) before navigating: about 5-10 s here, over the default 5 s
+  // expect timeout. Only this assertion waits longer; it passes as soon as the
+  // URL changes, so warm runs are not slower.
+  await expect(page).toHaveURL(/\/scan\/easy$/, { timeout: 30_000 });
   expect(errors).toEqual([]);
 });
 
@@ -70,4 +75,34 @@ test("the home page links to /account", async ({ page }) => {
   await gotoWarm(page, "/");
   await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/account$/);
+});
+
+test("the account page sweeps the hand keys older builds left in storage", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium");
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "openMouse.resultHand.aaaaaaaa-0000-4000-8000-000000000001",
+      "left",
+    );
+    localStorage.setItem(
+      "openMouse.resultHand.aaaaaaaa-0000-4000-8000-000000000002",
+      "right",
+    );
+    localStorage.setItem("unrelated", "x");
+  });
+  await page.goto("/account", { timeout: 60_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("openMouse.resultHand."),
+        ),
+      ),
+    )
+    .toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe(
+    "x",
+  );
 });

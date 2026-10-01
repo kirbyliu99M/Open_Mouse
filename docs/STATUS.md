@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-09-30 · by: Claude (launch sequence approved; #77 merged)_
+_Last updated: 2026-09-30 · by: Claude (#95, #76 and #93 merged)_
 
 ---
 
@@ -27,9 +27,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `a238428` (#77). The latest deploy is `87386ce`, which is the #78 merge: CI and comment changes only, with no behaviour change.
+**Production:** behaves as of `5193f27` (#76: the learning-kit pages return 404 in production). The latest deploy is `63a7656` (#93), which adds a local evaluation script and no product behaviour.
 
-- **Anonymous flow:** operational. The unmocked live e2e (reload included) passed against `a238428` on 2026-09-30. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 14.3 s.
+- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each 2026-09-30 merge. The latest run passed against `63a7656`. Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. Result: `[mobile] reload-keeps-results.spec.ts`, 1 passed in 20.7 s. In production `/results/demo` and every dev-only demo route return 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
 - **Kirby's phone test** of #77 (right and left hand) is still pending.
 
@@ -48,6 +48,24 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#77:** palm-down photos no longer read as the other hand, and an "auto" hand chip no longer fails the scan.
 - **#78:** CI now runs only on pushes to `main` and on non-draft PRs. A docs-only PR skips the heavy steps. A push to `main` always runs the lightweight gate (≈ 90 s), and a ready PR runs the full gate with e2e. `SECURITY.md` and Dependabot security-only config are added.
+- **#80 (C1):** contracts for the `trackball_form_factor` exclusion reason, per-descriptor label maps, the `thumb_rest_missing` reason, and `hand` in the fit response (#62).
+- **#69:** no-paper scan and device routing (desktop QR hand-off, in-app browser notice).
+  - The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY` (off) until W7 measures its thresholds.
+  - Its input range, 135–265 mm, is derived from schema limits and is a candidate.
+  - Merged before Kirby confirmed its new wording, which is marked candidate in the PR: the desktop privacy line "Your photo never leaves this device. Only measurements are sent." and the device-routing strings listed there. They are on Kirby's copy list below.
+- **#90 (G1b):** tests only. They pin #78's CI rules. The PR reports 28 mutants, all killed by the new tests. An independent verifier ran 26 mutants against the PR head `17c45a5` and all were killed (reported to Claude on 2026-09-30, not on GitHub). It left two low-severity follow-ups. Extra keys on the migration step (`shell:`, `working-directory:`) still pass the tests, so the step's keys should be pinned. The link-cleanup helper should also confirm a link is gone before the recursive delete.
+- **#74 (S2):** one hand decision for all three pipelines (`handExplicit`; only a hand the user chose can trigger a mismatch).
+  - The results page's left-hand note reads the fit response's `hand`. Old browser-storage hand keys are swept.
+  - Every re-scan link goes to `/scan/easy`, and raw server errors reach the console only.
+  - Dark-mode contrast is fixed on the retake sheet's hand chip and on the selected grip chip. The hand chip has an accessible name instead of `aria-pressed`.
+  - The `/scan/easy` placeholder now takes its colour from a server-side user-agent hint, so it no longer flashes. As a result `/scan/easy` is rendered per request and no longer cached by the CDN.
+  - Merged before Kirby approved two strings it adds: the "…or tap the hand button below." hint and the hand-chip accessible names. Both are on Kirby's copy list below.
+
+- **#82 (G2):** the home page now says mice are scored on "length, grip width and height" (weight is scored only when a weight preference is sent, and the results page always sends none), and `/results/demo` returns 404 in production. A demo-route test is now opt-out: every `page.tsx` outside a pinned product list must call the production guard first. The AI-source disclosure was dropped for now (Kirby: add it later).
+- **#89 (G9a):** first-party facts (hand compatibility, shape, form factor) for the 38 Logitech mice, as data only; nothing reads it until G9b. M750's shape is `symmetrical`, following M550 (Kirby). Kirby spot-checks the ⚠ models before G9b.
+- **#95:** Vercel builds previews only for ready PRs (`vercel.json` `ignoreCommand`); drafts and branches without a PR are skipped, `main` always builds (checked after the merge). Marking a PR ready does not deploy: its next push builds a preview, or, when the PR adds a migration or Kirby tests it on a phone, Claude starts one with `npx vercel deploy` (AGENTS.md). The same day Claude deleted 327 old preview, failed and cancelled deployments through the Vercel API.
+- **#76 (G3):** the learning kit with data format v2: paper-edge gate inputs and the product's gate verdicts in every top-down photo's report (null for side pages, cards and failed photos), kit-only QR reads, a failing photo no longer stops the batch, and `learn:sort` hardened (whole dev-server tree stopped, TCP port probe, signals, every worktree refused as output, no absolute paths or account name in its own output; npm's echo of the command line under `npm run` is not covered). Kirby collects the learning photos in person, so every kit page returns 404 in production. Its ready-state CI run on Linux (run `36704617738`) passed; that is where the POSIX-only tests first ran.
+- **#93 (G8):** `npm run m2:evaluate`, the M2 evaluator: it recomputes millimetres from the v2 run log alone and compares them with `truth.json`, splits "product would accept" from "all", matches truth by the page's hand, and reports bias, MAE, max error, SD and 95 % limits of agreement plus repeatability. Its thresholds are candidates until the W7 protocol; the held-out set is evaluated once, by Claude. The old `m2-gate-replay` script is removed.
 
 #77 was reviewed by the `pr-review` workflow; its test-coverage follow-ups moved to S2 (#74).
 
@@ -55,19 +73,13 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 - **#85 (C2)** — contracts for accepted measurement-model versions, plus calibration evidence stored with each scan (#63). Migration 0006 must run in production before the code deploys.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
-- **#80 (C1)** — contracts: new exclusion reasons (incl. trackball), per-descriptor labels, `thumb_rest_missing`, and `hand` in the fit response (#62).
-- **#81** — this STATUS/AGENTS sync.
-- **#69** — no-paper scan and device routing (draft, base `main`).
-  - The typed-length entry sits behind `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY` (off) until W7 measures its thresholds.
-  - Input range is 135–265 mm, derived from schema limits — a candidate.
-- **#74** — behaviour fixes (draft, stacked on #69); the hand API is unified on `handExplicit`.
-- **#82 (G2)** and **#84 (G6)** — honest home copy, AI-source disclosure, `/results/demo` guard; NOTICE, README, CONTRIBUTING, MediaPipe caching, non-SIMD fallback. Both are drafts; their copy awaits Kirby.
-- **#76** — learning kit (draft). It gets data format v2 before merge (G3).
-- **#75** — UI/UX audit (draft). Findings 3 and 5 are corrected before merge.
-  - Finding 5: only `/results/demo` is public in production.
-  - Finding 3: an Early preview notice already exists, but not next to the numbers.
+- **#86 (G4)** — scoring and copy logic: Chinese numerals in the no-new-numerals check, a Chinese provisional check, Chinese medical terms, the `weight_in_range` parameters and `thumb_rest_missing`. Draft, through four review rounds with adversarial probing. It waits for Kirby's review of three results-page strings. Remaining Chinese false positives and negatives become G4b, measured on a labelled corpus before i18n PR3.
+- **#84 (G6)** — NOTICE, README, CONTRIBUTING, issue and PR templates, MediaPipe caching headers, non-SIMD fallback (adds ≈ 11.3 MB of static files to the repo and to each build). Verified; it waits for Kirby's copy approval and for private vulnerability reporting to be switched on.
+- **#92 (S3)** — audit P1 fixes: detector download progress and a visible load-failure notice, landmarks and titles, dark-mode analysis card, axe on the main pages and phone states. It also carries the no-time deletion wording. An independent agent verified round 2 (reported to Claude on 2026-09-30, not on GitHub); round 3 (`4b88fea`, tests and a demo route only) is not re-verified. It waits for Kirby's copy approval.
+- **#94 (G5a)** — error and 404 pages, `GET /api/health`, structured server logs with redaction. An independent agent verified review round 1 (`dca844d`; reported to Claude, not on GitHub). The logging hardening after it (head `41441dc`, section 10 of the PR description) is not re-verified. Error-page copy awaits Kirby.
+- **#75** — UI/UX audit (draft). The corrections to findings 3 and 5 are pushed (`cda0957`).
 - **3D assets** — #26 → #73 → `m4a-study-fidelity` (no PR yet), merged in that order after #26 is re-reviewed. Codex is back 2026-10-04 13:10.
-  - Those branches, and #76, carry STATUS edits; Claude keeps `main`'s STATUS when merging them.
+  - Those branches carry STATUS edits; Claude keeps `main`'s STATUS when merging them.
   - #26 also edits `ci.yml`: its `blender-python` job moves into its own workflow first.
 
 **3D study fidelity — closed (Kirby, in the 2026-09-30 session; `tools/blender/STUDY-FIDELITY.md` still words both items as proposals).**
@@ -88,11 +100,11 @@ The reasons for each call are in the 2026-09-30 decisions below.
 
 On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have failed". Jobs were running again by 15:56Z (scheduled sweep) and 18:34Z (CI).
 
-**Deletion-promise risk (found 2026-09-30).** The hourly GitHub schedule actually ran about 5 times a day: 33 runs between 09-23 and 09-29, with a longest gap of 8.56 h. Physical deletion can therefore land later than 24 h.
+**Deletion promise (Kirby, 2026-09-30): no stated deletion time for now.** The hourly GitHub schedule actually ran about 5 times a day (longest gap 8.56 h), so physical deletion can land later than the "24 hours" the product still says.
 
-- Expired data is still unreadable, because reads treat expired rows as gone.
-- The fix is G7: run the sweep from the fit and analysis routes, and add a backup scheduler (Kirby's decision: which scheduler).
-- `expire-sessions.yml` stays until the backup scheduler exists.
+- Expired data is unreadable, because reads treat expired rows as gone.
+- Kirby's decision: product copy and README state no deletion time. The timing and the backup scheduler wait for the privacy policy (U1). #92 (UI) and #84 (README) carry the no-time drafts.
+- `expire-sessions.yml` stays until a backup scheduler exists.
 
 **Blocked on Kirby (decision packet, 2026-09-30):**
 
@@ -103,11 +115,18 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 - Camera primer
 - Catalogue brands
 - Analytics tool
-- Backup scheduler
+- Backup scheduler (deferred with the privacy policy)
 - Neon PITR retention
 - Keep or remove the legacy `/scan` flow
-- GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection; private vulnerability reporting (all off as of 2026-09-30)
+- GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection; private vulnerability reporting (all off as of 2026-09-30; the last one is required before #84 merges)
 - Phone test of #77 (right and left hand)
+- Run migration 0006 on production before #85 merges (`DATABASE_URL_UNPOOLED` pointing at the Neon production branch, then `npm run db:migrate`)
+- Copy approval for #84 (README, NOTICE, CONTRIBUTING), #92 (see its two copy tables: no-time deletion lines, detector progress and failure notice, sheet numbers and "Not yet verified against a ruler.", titles, hidden h1, screen-reader labels) and #94 (error pages)
+- Copy approval, after the fact, for strings merged unapproved:
+  - #69: the desktop privacy line "Your photo never leaves this device. Only measurements are sent." and the device-routing strings its PR lists as candidate
+  - #74: the "…or tap the hand button below." hint and the hand-chip accessible names (for example "Right hand · auto, set automatically. Change hand")
+- Copy approval for #86 (G4): the `weight_in_range` sentence with the user's range and the two `thumb_rest_missing` sentences
+- #89: spot-check the ⚠ models before G9b; and whether `formFactor` "standard" stays null (33 models) or G9b derives it
 - The typed-length input range, 135–265 mm (candidate)
 - M325s / M550 acceptance
 
@@ -118,6 +137,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Queued:**
 
 - #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
+- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82); already on `main`. The fix is in #92 (S3, draft, not merged).
 - M1 rubric revision (the gate failed; see Gate results).
 - `security-review` workflow, after U1 and G6.
 - Re-review of #26.
@@ -143,7 +163,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 
 ### Not required for the first deployment — _candidate_
 
-- **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged (textures optimised 2026-09-27: 30 mice 6.70 MiB). It needs three.js `DRACOLoader` plus decoder files — the GLBs list `KHR_draco_mesh_compression` as required.
+- **M4b 3D viewer.** Ranking and analysis stand on their own; the viewer follows once #26 is merged and its textures are optimised.
 - **M1 descriptor gate.** First live run (2026-09-23, 30 models, gemini-3.8-flash) **failed** on flare and curvature, so its output was kept out of the seed (saved outside the repo in `../Fixtures/m1-run-2026-09-23/`). Hump, flare and curvature stay unclassified and those sub-scores use a neutral prior (`UNKNOWN_PRIOR_SCORE = 75`), so rankings lean on dimensions. Deployable but weaker: either ship saying so, or wait for the key.
 - **M3 coefficients** stay provisional (`fit-v0-provisional`) until tuned against mice Kirby owns. The analysis already states this.
 
@@ -313,6 +333,11 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-09-30 | **#69's typed-length entry ships behind a build-time flag, set to off**                                                                                                                                                                        | Claude, under the plan Kirby approved. Its thresholds and input range are candidates and must be measured on M2 photos before users see the path                                                                                                                                                                  |
 | 2026-09-30 | **Codex tasks that Claude dispatches never push, and never edit STATUS or `.github/`**; Claude runs git                                                                                                                                        | Claude, under the plan Kirby approved; follows the 2026-09-23 rule that a Codex task needing push is launched by Kirby, not Claude                                                                                                                                                                                |
 | 2026-09-30 | #77 merged; its wiring-test gap moved to S2 (#74)                                                                                                                                                                                              | S2 replaces `handIsAuto` with `handExplicit`, so the tests belong with the code that stays                                                                                                                                                                                                                        |
+| 2026-09-30 | **No stated deletion time in product copy or README** until the privacy policy (U1) sets it; the backup scheduler waits with it                                                                                                                | The schedule ran about 5 times a day, so "24 hours" was not reliably true; Kirby chose to state no time rather than a weaker one                                                                                                                                                                                  |
+| 2026-09-30 | **The AI-source disclosure is dropped for now**; the home page's "weight" claim is corrected to "height"                                                                                                                                       | Kirby: add the disclosure later; weight was never scored                                                                                                                                                                                                                                                          |
+| 2026-09-30 | **G9: left-hand exclusion unchanged; ambidextrous ⇒ symmetrical not inferred (pending verification); M750 shape = symmetrical like M550**; #89 merges before Kirby's spot check                                                                | Kirby's answers on #89; the data is inert until G9b                                                                                                                                                                                                                                                               |
+| 2026-09-30 | **The learning kit pages are not served in production**                                                                                                                                                                                        | Kirby collects the learning photos in person; the pages run on the local dev server only                                                                                                                                                                                                                          |
+| 2026-09-30 | **Vercel builds previews only for ready PRs** (#95, merged 2026-09-30); 327 old preview, failed and cancelled deployments deleted                                                                                                              | 406 deployments in 9 days nearly filled the account's deployment storage (Kirby)                                                                                                                                                                                                                                  |
 
 ---
 
@@ -326,7 +351,7 @@ Append; don't rewrite. Each entry: what, why, when.
 
 ~~**Credential redaction leaks quoted secrets (P1, open since 2026-09-21).**~~ **Resolved 2026-09-23 (#31):** every leaking form is redacted on `main`; two accepted limitations remain (above).
 
-**Shell textures are derived from product photos.** Before 2026-09-27, 98% of the 118 MB of GLBs in #26 (115 MB) was embedded PNG textures; the optimised build is 6.86 MiB of 512 px JPEG-textured GLBs, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`. Kirby decided R8 on 2026-09-27: publish (open-source project); the rights caveat above stands. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
+**Shell textures are derived from product photos.** _R8 decided 2026-09-27: publish; the rights caveat stands._ 98% of the 118 MB of GLBs in #26 (115 MB) is embedded PNG textures, reconstructed from product images. The 2026-09-21 decision to seed from Logitech's published specs covers _dimensions_ — facts — not images. Merging #26 serves them publicly from `/models/`, which R8 allows. Dropping the textures would also remove ~98% of the download, which M7's phone budget needs anyway.
 
 **M1 is the riskiest gate in the project.** Analysis of the validation fixture
 shows `Hump placement` and `Front flare` have **no numeric proxy**: height/length

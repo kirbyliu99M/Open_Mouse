@@ -105,7 +105,7 @@ export default function HomePage() {
             <h2>Ranked for your hand, not the hype.</h2>
             <p>
               {logitechCatalogue.length} Logitech mice scored on length, grip
-              width and weight.
+              width and height.
             </p>
           </div>
         </div>
