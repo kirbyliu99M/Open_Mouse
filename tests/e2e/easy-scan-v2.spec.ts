@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
+import { averageColour, decodePng } from "./fixtures/png";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
@@ -1643,73 +1644,189 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
     }
   }
 
-  test("the keyboard reaches every control in the sheet in reading order, each one visible and ringed, none under the pinned row", async ({
-    page,
-  }) => {
-    await pinnedLayout(page, { width: 360, height: 640 }, 200, "measured");
-    // The sheet focuses its heading when it opens; Tab goes on from there.
-    const stops = [] as {
-      name: string;
-      inRow: boolean;
-      visible: boolean;
-      ring: string;
-      ringWidth: number;
-    }[];
-    for (let press = 0; press < 12; press++) {
-      await page.keyboard.press("Tab");
-      const stop = await page.evaluate(() => {
-        const el = document.activeElement as HTMLElement | null;
-        const dialog = document.querySelector<HTMLElement>(
-          "dialog.easyResultSheet",
-        )!;
-        if (!el || !dialog.contains(el)) return null;
-        const row = dialog.querySelector(".easyStickyActions")!;
-        const r = el.getBoundingClientRect();
-        const d = dialog.getBoundingClientRect();
-        const hit = document.elementFromPoint(
-          r.left + r.width / 2,
-          r.top + r.height / 2,
+  const KEYBOARD_SCREENS = [
+    { width: 360, height: 640, percent: 200 },
+    { width: 390, height: 844, percent: 150 },
+    { width: 390, height: 844, percent: 200 },
+    { width: 360, height: 568, percent: 100 },
+    { width: 360, height: 568, percent: 200 },
+  ] as const;
+  for (const screen of KEYBOARD_SCREENS) {
+    test(`${screen.width}x${screen.height} at ${screen.percent}% text: the keyboard reaches every control in reading order, each one visible, its lowest pixels and its focus ring too, none under the pinned row or its fade`, async ({
+      page,
+    }) => {
+      await pinnedLayout(page, screen, screen.percent, "measured");
+      // The sheet focuses its heading when it opens; Tab goes on from there.
+      const stops = [] as {
+        name: string;
+        inRow: boolean;
+        visible: boolean;
+        lowestVisible: boolean;
+        ring: string;
+        ringWidth: number;
+        /** How far the fade above the pinned row reaches, and how far clear of it the ring's lowest edge is. */
+        fadeReach: number;
+        clearOfFade: number;
+        ringBottom: { x: number; y: number; width: number; height: number };
+        ringColour: string;
+        dpr: number;
+      }[];
+      const seen = [] as string[];
+      for (let press = 0; press < 12; press++) {
+        await page.keyboard.press("Tab");
+        const stop = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          const dialog = document.querySelector<HTMLElement>(
+            "dialog.easyResultSheet",
+          )!;
+          if (!el || !dialog.contains(el) || el === dialog) return null;
+          const row = dialog.querySelector(".easyStickyActions")!;
+          const r = el.getBoundingClientRect();
+          const d = dialog.getBoundingClientRect();
+          const onTopAt = (x: number, y: number) => {
+            const hit = document.elementFromPoint(x, y);
+            return hit === el || el.contains(hit);
+          };
+          const style = getComputedStyle(el);
+          const ringWidth = parseFloat(style.outlineWidth);
+          const ringOffset = parseFloat(style.outlineOffset);
+          // The fade is the row's box-shadow: its reach above the row is the
+          // vertical offset (upwards) plus the blur.
+          const shadow = getComputedStyle(row).boxShadow.match(
+            /(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px/,
+          );
+          const fadeReach = shadow
+            ? Math.max(0, -parseFloat(shadow[2])) + parseFloat(shadow[3])
+            : 0;
+          const rowTop = row.getBoundingClientRect().top;
+          const ringLowest = r.bottom + ringOffset + ringWidth;
+          const inRow = row.contains(el);
+          return {
+            name:
+              el.getAttribute("aria-label") ??
+              (el.textContent ?? "").trim().slice(0, 30),
+            inRow,
+            // Inside the sheet's box, and the thing on top at its middle...
+            visible:
+              r.top >= d.top - 0.5 &&
+              r.bottom <= d.bottom + 0.5 &&
+              onTopAt(r.left + r.width / 2, r.top + r.height / 2),
+            // ...and at its lowest pixels, not only the middle.
+            lowestVisible:
+              onTopAt(r.left + r.width * 0.4, r.bottom - 2) &&
+              onTopAt(r.left + r.width * 0.5, r.bottom - 2) &&
+              onTopAt(r.left + r.width * 0.6, r.bottom - 2),
+            ring: style.outlineStyle,
+            ringWidth,
+            fadeReach,
+            clearOfFade: inRow ? Infinity : rowTop - ringLowest,
+            // Where the ring's lowest edge is painted, to look at its pixels.
+            // The middle of the ring's lowest edge, in the middle sixth of the
+            // control's width (a round button is only that low there).
+            ringBottom: {
+              x: r.left + r.width * 0.425,
+              y: r.bottom + ringOffset + ringWidth * 0.25,
+              width: r.width * 0.15,
+              height: ringWidth * 0.5,
+            },
+            ringColour: style.outlineColor,
+            dpr: window.devicePixelRatio,
+          };
+        });
+        if (!stop) break;
+        seen.push(stop.name);
+        if (stops.some((s) => s.name === stop.name)) break;
+        // Let the scroll that the focus caused settle before looking.
+        await page.waitForTimeout(120);
+        stops.push(stop);
+        const png = decodePng(
+          await page.screenshot({ clip: stop.ringBottom, type: "png" }),
         );
-        const style = getComputedStyle(el);
-        return {
-          name:
-            el.getAttribute("aria-label") ??
-            (el.textContent ?? "").trim().slice(0, 30),
-          inRow: row.contains(el),
-          // Inside the sheet's box, and the thing on top at its middle.
-          visible:
-            r.top >= d.top - 0.5 &&
-            r.bottom <= d.bottom + 0.5 &&
-            (hit === el || el.contains(hit)),
-          ring: style.outlineStyle,
-          ringWidth: parseFloat(style.outlineWidth),
-        };
-      });
-      if (!stop || stops.some((s) => s.name === stop.name)) break;
-      stops.push(stop);
-    }
-    console.log(
-      `focus order: ${stops.map((s) => `${s.name}${s.inRow ? " [row]" : ""}`).join(" > ")}`,
-    );
-    const names = stops.map((s) => s.name);
-    // Grip chips, then Retake photo, then See my matches: the DOM's order.
-    expect(names.slice(0, 4)).toEqual([
-      "Palm",
-      "Claw",
-      "Fingertip",
-      "Not sure",
-    ]);
-    expect(names[4]).toBe("Retake photo");
-    expect(stops.length).toBeGreaterThanOrEqual(6);
-    expect(stops[5].inRow).toBe(true);
-    for (const stop of stops) {
-      expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
-        true,
+        const [r, g, b] = averageColour(png);
+        const want = (stop.ringColour.match(/[\d.]+/g) ?? []).map(Number);
+        const off = Math.max(
+          Math.abs(r - want[0]),
+          Math.abs(g - want[1]),
+          Math.abs(b - want[2]),
+        );
+        (stop as typeof stop & { ringPixelOff: number }).ringPixelOff = off;
+      }
+      console.log(
+        `${screen.width}x${screen.height} ${screen.percent}%: focus order ${stops.map((s) => `${s.name}${s.inRow ? " [row]" : ""}`).join(" > ")}; fade reaches ${stops[0]?.fadeReach.toFixed(0)} px; ring clear of it by ${stops
+          .filter((s) => s.clearOfFade !== Infinity)
+          .map((s) => s.clearOfFade.toFixed(1))
+          .join(", ")} px`,
       );
-      expect(stop.ring, `${stop.name} has a focus ring`).toBe("solid");
-      expect(stop.ringWidth).toBeGreaterThanOrEqual(2);
-    }
-  });
+      const names = stops.map((s) => s.name);
+      // Grip chips, then Retake photo, then See my matches: the DOM's order.
+      expect(names.slice(0, 4)).toEqual([
+        "Palm",
+        "Claw",
+        "Fingertip",
+        "Not sure",
+      ]);
+      expect(names[4]).toBe("Retake photo");
+      expect(stops.length).toBeGreaterThanOrEqual(6);
+      expect(stops[5].inRow).toBe(true);
+      for (const stop of stops as ((typeof stops)[number] & {
+        ringPixelOff: number;
+      })[]) {
+        expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
+          true,
+        );
+        expect(
+          stop.lowestVisible,
+          `${stop.name} is on top at its lowest pixels`,
+        ).toBe(true);
+        expect(stop.ring, `${stop.name} has a focus ring`).toBe("solid");
+        expect(stop.ringWidth).toBeGreaterThanOrEqual(2);
+        // The ring clears the pinned row and the whole reach of its fade...
+        expect(
+          stop.clearOfFade,
+          `${stop.name}: the ring's lowest edge is clear of the fade`,
+        ).toBeGreaterThanOrEqual(stop.fadeReach - 1); // a device pixel of rounding
+        // ...and what was painted at the ring's lowest edge is the ring's
+        // colour, not the sheet's background laid over it.
+        expect(
+          stop.ringPixelOff,
+          `${stop.name}: the pixels at the ring's lowest edge are the ring colour (largest channel difference)`,
+        ).toBeLessThanOrEqual(40);
+      }
+    });
+  }
+
+  for (const percent of [100, 200]) {
+    test(`at ${percent}% text, after the last button Tab never lands on the dialog itself, and comes round to the first option`, async ({
+      page,
+    }) => {
+      await pinnedLayout(
+        page,
+        { width: 390, height: 844 },
+        percent,
+        "measured",
+      );
+      const walked = [] as string[];
+      for (let press = 0; press < 12; press++) {
+        await page.keyboard.press("Tab");
+        walked.push(
+          await page.evaluate(() => {
+            const el = document.activeElement as HTMLElement | null;
+            if (!el) return "none";
+            return `${el.tagName} ${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 20)}`;
+          }),
+        );
+      }
+      console.log(`${percent}%: ${walked.join(" > ")}`);
+      expect(
+        walked.filter((stop) => stop.startsWith("DIALOG")),
+        "the walk never stops on the dialog",
+      ).toEqual([]);
+      // Round the end and back to the first option.
+      const last = walked.indexOf("BUTTON See my matches");
+      expect(last).toBeGreaterThan(-1);
+      expect(walked.slice(last + 1)).toContain("BUTTON Palm");
+    });
+  }
 
   test("dark mode: the pinned row wears the dark sheet's background, not the light one", async ({
     page,
@@ -1764,4 +1881,88 @@ test.describe("fix round 3: a retake on the upload path starts clean", () => {
     await expect(sheet).toBeHidden();
     await expect(live, `it still said "${told}"`).toHaveText("");
   });
+});
+
+test.describe("fix round 4: the sheet's grip options and height", () => {
+  const WIDTHS = [360, 390] as const;
+  const PERCENTS = [100, 115, 130, 150, 200] as const;
+  for (const width of WIDTHS) {
+    for (const percent of PERCENTS) {
+      test(`${width} px wide at ${percent}% text: the four grip options are the same width, in one row or two by two, none cut short`, async ({
+        page,
+      }) => {
+        await pinnedLayout(page, { width, height: 844 }, percent, "measured");
+        const chips = await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>(".easyGripChip")].map(
+            (el) => {
+              const r = el.getBoundingClientRect();
+              return {
+                text: (el.textContent ?? "").trim(),
+                left: r.left,
+                top: r.top,
+                width: r.width,
+                cut: el.scrollWidth > el.clientWidth + 1,
+              };
+            },
+          ),
+        );
+        expect(chips.map((c) => c.text)).toEqual([
+          "Palm",
+          "Claw",
+          "Fingertip",
+          "Not sure",
+        ]);
+        const widths = chips.map((c) => c.width);
+        const rows = [...new Set(chips.map((c) => Math.round(c.top)))];
+        console.log(
+          `${width} px, ${percent}%: widths ${widths.map((w) => w.toFixed(1)).join(" / ")}, ${rows.length === 1 ? "one row of four" : `${rows.length} rows`}`,
+        );
+        // Equal width, always.
+        expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(
+          1,
+        );
+        // Four in a row, or two and two: never three and one.
+        expect(rows.length === 1 || rows.length === 2).toBe(true);
+        if (rows.length === 2)
+          for (const row of rows)
+            expect(chips.filter((c) => Math.round(c.top) === row)).toHaveLength(
+              2,
+            );
+        // No word cut short ("Fingertip" is the long one).
+        expect(chips.filter((c) => c.cut).map((c) => c.text)).toEqual([]);
+        // The layout on a 390 px screen at normal text is the one it always was.
+        if (width === 390 && percent === 100) {
+          expect(rows).toHaveLength(1);
+          for (const w of widths) expect(w).toBeCloseTo(81, 0);
+        }
+      });
+    }
+  }
+
+  for (const [width, height] of [
+    [390, 844],
+    [360, 780],
+    [360, 640],
+  ] as const) {
+    test(`${width}x${height} at 100% text: the sheet is no taller than before the pinned row (333 px) and does not need to scroll`, async ({
+      page,
+    }) => {
+      await pinnedLayout(page, { width, height }, 100, "measured");
+      const m = await page.evaluate(() => {
+        const d = document.querySelector<HTMLElement>(
+          "dialog.easyResultSheet",
+        )!;
+        return {
+          height: d.offsetHeight,
+          scrollHeight: d.scrollHeight,
+          clientHeight: d.clientHeight,
+        };
+      });
+      console.log(
+        `${width}x${height} 100%: sheet ${m.height} px (content ${m.scrollHeight} px)`,
+      );
+      expect(m.height).toBeLessThanOrEqual(333);
+      expect(m.scrollHeight).toBeLessThanOrEqual(m.clientHeight + 1);
+    });
+  }
 });

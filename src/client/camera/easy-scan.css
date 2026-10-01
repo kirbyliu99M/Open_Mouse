@@ -257,22 +257,30 @@
   font-size: 0.9375rem;
 }
 
+/* The four options are always the same width: four in a row where they fit
+   (390px at normal text), otherwise a clean two by two, never three and one,
+   and never a word cut short. Whether four fit follows the width of the
+   sheet in rem, so it follows the text size: "Fingertip" is 3.6rem of text
+   and a column about 3.7rem with its border, so four with their gaps need
+   16rem; 17.25rem leaves each column about 8% over that. */
 .easyGripChips {
-  display: flex;
-  /* One row while the four fit (390px at normal text); wrapping onto more
-     rows at large text, where a chip would otherwise cut its own word. */
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.375rem;
   margin-bottom: 1.25rem;
 }
-/* Tight enough that all four (Palm/Claw/Fingertip/Not sure) fit one row at
-   a 390px viewport — 44px is height, not width, so the touch-target rule
-   doesn't conflict with fitting the row. */
+@container (min-width: 17.25rem) {
+  .easyGripChips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+/* 44px is height, not width, so the touch-target rule doesn't conflict with
+   fitting the row. */
 .easyGripChip {
-  flex: 1 1 0;
-  min-width: max-content;
+  min-width: 0;
   min-height: 44px;
-  padding: 0 0.5rem;
+  /* None to the sides: the column is as wide as the text needs and no more. */
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--scan-border, #d5d5dc);
   background: transparent;
@@ -1215,12 +1223,21 @@ main.easyScanShell {
   /* The actions row carries the bottom padding (below), so that it can stay
      pinned at the foot with the padding under it. */
   padding-bottom: 0;
-  /* Something focused by keyboard is scrolled clear of the pinned row, not
-     left under it: the row's measured height (EasyScanCamera sets the
-     variable), or an estimate before it has been. */
-  scroll-padding-bottom: var(
-    --easy-actions-height,
-    calc(54px + 2.25rem + env(safe-area-inset-bottom))
+  /* The options in the sheet are laid out by the width of the sheet itself. */
+  container-type: inline-size;
+  /* The fade reaches 1rem above the row (0.5rem offset + 0.5rem blur); a focus
+     ring hangs another 0.25rem below its control. */
+  --easy-fade-reach: 1.25rem;
+  /* Something focused by keyboard is scrolled clear of the pinned row AND of
+     its fade, not left under either: the row's measured height (EasyScanCamera
+     sets the variable), or an estimate before it has been, plus how far the
+     fade reaches above it. */
+  scroll-padding-bottom: calc(
+    var(
+        --easy-actions-height,
+        calc(54px + 1.5rem + env(safe-area-inset-bottom))
+      ) +
+      var(--easy-fade-reach)
   );
 }
 
@@ -1235,14 +1252,16 @@ main.easyScanShell {
   position: sticky;
   bottom: 0;
   z-index: 1;
-  padding: min(0.75rem, 12px) 0
-    calc(min(1.5rem, 24px) + env(safe-area-inset-bottom));
+  /* No top padding: the sheet was 12px taller than it used to be with one.
+     The gutter above the buttons is the fade below. */
+  padding: 0 0 calc(min(1.5rem, 24px) + env(safe-area-inset-bottom));
   background: var(--scan-bg, #f4f4f6);
-  /* Content scrolling up behind the row fades out over a few px instead of
-     being cut in half. A shadow in the sheet's own colour, not a pseudo-element:
-     axe cannot work out a button's background with one in its stack. Over the
-     sheet's own background it cannot be seen. */
-  box-shadow: 0 -0.75rem 0.5rem var(--scan-bg, #f4f4f6);
+  /* Content scrolling up behind the row fades out instead of being cut in
+     half, and keeps a few px clear of the buttons. A shadow in the sheet's own
+     colour, not a pseudo-element: axe cannot work out a button's background
+     with one in its stack. Over the sheet's own background it cannot be seen.
+     It reaches --easy-fade-reach above the row (the offset plus the blur). */
+  box-shadow: 0 -0.5rem 0.5rem var(--scan-bg, #f4f4f6);
 }
 @media (prefers-contrast: more) {
   .easyStickyActions {

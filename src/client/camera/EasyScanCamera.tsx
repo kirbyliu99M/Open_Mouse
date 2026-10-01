@@ -2057,6 +2057,9 @@ export default function EasyScanCamera({
         <dialog
           ref={sheetDialogRef}
           className="easySheet easyResultSheet"
+          // Not a stop of its own: a scrolling dialog is otherwise a focusable
+          // scroller, and Tab after the last button landed on the dialog.
+          tabIndex={-1}
           aria-label={
             result.kind === "measured" ? "Hand measured" : "Retake needed"
           }
@@ -2198,6 +2201,7 @@ export default function EasyScanCamera({
       <dialog
         ref={tipDialogRef}
         className="easySheet easyTipSheet"
+        tabIndex={-1}
         aria-label={
           noPaperMode
             ? "Your hand length is the ruler"
