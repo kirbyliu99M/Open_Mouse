@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   contrast,
   glyphAndBackOverWhite,
+  glyphAndBackOverWhiteLayers,
   type Rgba,
 } from "../e2e/fixtures/contrast";
 
@@ -64,5 +65,107 @@ describe("glyphAndBackOverWhite", () => {
     );
     expect(glyph).toBe("rgb(148, 148, 148)");
     expect(back).toBe("rgb(102, 102, 102)");
+  });
+});
+
+describe("glyphAndBackOverWhite with a fill that is not black (the text-under term)", () => {
+  it("50% blue text over a 50% red fill, over white: by hand", () => {
+    // fill premultiplied (127.5, 0, 0), a .5; text premultiplied (0, 0, 127.5), a .5.
+    // glyph pixel: text over fill = (63.75, 0, 127.5) at a .75; over white
+    // 255 * .25 = 63.75 added: (127.5, 63.75, 191.25).
+    // beside it: the fill alone, over white: (255, 127.5, 127.5).
+    const { glyph, back } = glyphAndBackOverWhite(
+      [0, 0, 255, 0.5],
+      [255, 0, 0, 0.5],
+      1,
+    );
+    expect(glyph).toBe("rgb(128, 64, 191)");
+    expect(back).toBe("rgb(255, 128, 128)");
+  });
+
+  it("the text's own alpha lets the fill show through it: without the (1 - at) term the answer would be different", () => {
+    // Half-transparent blue text over an opaque red fill lets half the red
+    // through the text: (0, 0, 127.5) + (255, 0, 0) * (1 - 0.5) = (127.5, 0,
+    // 127.5). Without the (1 - at) term the red would count in full, and the
+    // glyph would come out (255, 0, 127.5).
+    const { glyph } = glyphAndBackOverWhite(
+      [0, 0, 255, 0.5],
+      [255, 0, 0, 1],
+      1,
+    );
+    // text over an opaque red fill: (0, 0, 127.5) + (255, 0, 0) * .5 = (127.5, 0, 127.5)
+    expect(glyph).toBe("rgb(128, 0, 128)");
+  });
+});
+
+describe("glyphAndBackOverWhiteLayers: the chain of elements between the screen and the text", () => {
+  it("one layer is the single-element answer", () => {
+    for (const opacity of [1, 0.7, 0.4])
+      for (const fillAlpha of [0.2, 0.6, 1])
+        expect(
+          glyphAndBackOverWhiteLayers(
+            [255, 255, 255, 0.8],
+            [{ fill: [10, 20, 30, fillAlpha], opacity }],
+          ),
+        ).toEqual(
+          glyphAndBackOverWhite(
+            [255, 255, 255, 0.8],
+            [10, 20, 30, fillAlpha],
+            opacity,
+          ),
+        );
+  });
+
+  it("a parent at opacity .5 holding a 60% black fill, and a child with no fill at opacity .5, by hand", () => {
+    // Text (white, a 1) in the child: faded .5 -> (127.5, a .5). Over the
+    // parent's fill (black a .6): (127.5, a .5 + .6 * .5 = .8); faded .5 ->
+    // (63.75, a .4). Over white: 255 * .6 + 63.75 = 216.75.
+    // Beside the text: child nothing; parent fill (0, a .6) faded .5 -> a .3;
+    // over white: 255 * .7 = 178.5.
+    const { glyph, back } = glyphAndBackOverWhiteLayers(
+      [255, 255, 255, 1],
+      [
+        { fill: [0, 0, 0, 0.6], opacity: 0.5 },
+        { fill: null, opacity: 0.5 },
+      ],
+    );
+    expect(glyph).toBe("rgb(217, 217, 217)");
+    expect(back).toBe("rgb(179, 179, 179)");
+  });
+
+  it("a light child fill over a dark parent pill is blended over it, not measured against white alone", () => {
+    // Parent: black a .6. Child: white a .5 fill, text white. The child's fill
+    // lightens the pill: text white over it must read worse than over the pill.
+    const pillOnly = glyphAndBackOverWhiteLayers(
+      [255, 255, 255, 1],
+      [{ fill: [0, 0, 0, 0.6], opacity: 1 }],
+    );
+    const withLightChild = glyphAndBackOverWhiteLayers(
+      [255, 255, 255, 1],
+      [
+        { fill: [0, 0, 0, 0.6], opacity: 1 },
+        { fill: [255, 255, 255, 0.5], opacity: 1 },
+      ],
+    );
+    expect(contrast(withLightChild.glyph, withLightChild.back)).toBeLessThan(
+      contrast(pillOnly.glyph, pillOnly.back),
+    );
+    // by hand: the pill over white is 102; 50% white over it is 178.5 -> 179.
+    expect(withLightChild.back).toBe("rgb(179, 179, 179)");
+  });
+
+  it("transparent text is unreadable: contrast 1", () => {
+    const { glyph, back } = glyphAndBackOverWhiteLayers(
+      [255, 255, 255, 0],
+      [{ fill: [0, 0, 0, 0.6], opacity: 1 }],
+    );
+    expect(contrast(glyph, back)).toBeCloseTo(1, 5);
+  });
+
+  it("no layers: the text over plain white", () => {
+    expect(glyphAndBackOverWhiteLayers([0, 0, 0, 1], [])).toEqual({
+      glyph: "rgb(0, 0, 0)",
+      back: "rgb(255, 255, 255)",
+    });
   });
 });
