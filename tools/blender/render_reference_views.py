@@ -3,6 +3,7 @@
 Uses only a separate background Blender process. Source meshes are not exported
 as project geometry; the reconstruction stage consumes these images and cameras.
 """
+from check_catalogues import NO_SHELL
 import argparse
 import itertools
 import json
@@ -161,6 +162,7 @@ def main():
     parser.add_argument("--resolution",type=int,default=512)
     args = parser.parse_args(sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else [])
     for path in sorted(ROOT.glob("*/sources.json")):
+        if path.parent.name in NO_SHELL:continue
         record = json.loads(path.read_text(encoding="utf-8"))
         if record["arModels"] and (not args.model or record["slug"]==args.model):
             capture(record,args.resolution)

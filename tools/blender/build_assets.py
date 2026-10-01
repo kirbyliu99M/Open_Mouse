@@ -7,6 +7,7 @@ import bpy
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from asset_utils import dimensions_mm, export_glb, validate_mesh, validate_assembly
+from check_catalogues import NO_SHELL
 from gen_shell import generate_shell
 from gen_hand import generate_hand
 from pretty_json import write_pretty_json
@@ -23,8 +24,10 @@ def main():
     scene = bpy.data.scenes.new("Open_Mouse_Assets")
     bpy.context.window.scene = scene
     report = {"status": "provisional-authoring", "blender": bpy.app.version_string,
-              "shells": [], "note": "Authored proxies; M1 classification and Kirby silhouette review pending."}
+              "shells": [], "noShell": [{"slug": k, "reason": v} for k, v in NO_SHELL.items()], "note": "Authored proxies; M1 classification and Kirby silhouette review pending."}
     for params in definitions:
+        if params["id"] in NO_SHELL:
+            continue
         objects = generate_shell(params)
         bpy.context.view_layer.update()
         stats = {obj.name: validate_mesh(obj) for obj in objects}

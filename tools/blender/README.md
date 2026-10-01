@@ -9,10 +9,14 @@ The commands and evidence below describe the superseded prototype only.
 
 ## Add a mouse to the current catalogue
 
-1. Add its manufacturer dimensions and source URLs to
-   `params/reference-catalogue.json` **and** `src/db/seed/logitech.json`.
-   Keep the brand/model-derived slug and L/W/H identical; run
-   `python tools/blender/check_catalogues.py` to verify both catalogues.
+1. Add its manufacturer dimensions and source URLs to `src/db/seed/logitech.json`.
+   If the photos support a shell, add the same row to
+   `params/reference-catalogue.json`; keep the brand/model-derived slug and
+   L/W/H identical. If a top or usable side reference is missing, add its slug
+   and specific reason to `NO_SHELL` in `check_catalogues.py` instead. The
+   catalogue retains the product for fit scoring without publishing a shell.
+   Run `python tools/blender/check_catalogues.py`: any unlisted missing shell
+   row, stale exception, or dimension mismatch fails.
 2. Capture its reference source in the ignored `out/reference-library/`.
    For an AR source, run `render_reference_views.py`, `reconstruct_views.py`,
    `finish_reconstruction.py`, and `compare_reconstruction.py`. For a limited
@@ -21,10 +25,11 @@ The commands and evidence below describe the superseded prototype only.
 3. Check orientation in `polish_reconstruction.py`: its `REVERSE` set rotates
    named models 180 degrees; Lift Vertical and MX Vertical use the `axis_fix`
    width/height correction. Add a new model to either rule when its reference
-   views require it. The four limited-view studies also have explicit lists in
+   views require it. The limited-view studies also have explicit lists in
    `reconstruct_gallery.py` (`CHOICES`), `polish_reconstruction.py` (gallery
    reflection and side colours), `color_reconstruction.py` (palettes), and
-   `prepare_gallery_texture.py` (crop exception and palettes). Update all
+   `prepare_gallery_texture.py` (crop exception, palettes, and optional side
+   photo projections). Update all
    relevant lists together for another gallery study.
 4. Run `polish_reconstruction.py -- --model <slug>`, then
    `package_reconstruction.py -- --polished`. Packaging checks catalogue slugs
@@ -37,6 +42,108 @@ The commands and evidence below describe the superseded prototype only.
 JPEG is a core glTF image format handled by three.js GLTFLoader without a
 texture decoder extension. These files still use Draco geometry, which needs
 its own decoder in the viewer.
+
+The retained studies added 2026-09-27 use official Logitech CDN gallery photos.
+G903 Hero and M750 medium now use official AR sources through the full
+reconstruction and material-bake pipeline. Their per-axis source calibration
+to catalogue dimensions was approved by Kirby on 2026-09-28. M325s uses its patterned `extra-4.png`
+only for the side silhouette; its charcoal top photo supplies texture. M100
+was removed by Kirby on 2026-09-28: the limited-view study was not accepted,
+and no official AR source was found. It remains a catalogue-only product.
+M325s and M850L have
+their oblique-photo base contours flattened to Z=0 along the length before
+L/W/H calibration. Mobi Fold, M840L, and MX Ergo S have verified dimensions
+in the app seed but intentionally have no shell. MX Ergo S has only front-oblique
+side photos and its study was not recognisable. `NO_SHELL` is the authoritative list.
+ERGO M575S is a documented alias of the source-derived ERGO M575 shell. Its
+manifest entry points to `shells/logitech-ergo-m575.glb`; it does not duplicate
+the file. Both products publish the same 134 × 100 × 48 mm dimensions, but
+shape identity is a candidate assumption. All gallery studies have
+uncalibrated local perspective in their side photos; contour cropping and
+dimension scaling fix framing and global scale, while local hump and nose
+shapes remain estimates. The
+limitations are also recorded per study in the manifest. Raw photos remain
+outside the repository; only their baked GLBs are published under Kirby's
+2026-09-27 R8 decision.
+
+## SE sibling-shell recolour (B2)
+
+G Pro X Superlight 2 SE is an AR-derived sibling shell, approved by Kirby on
+2026-09-28. It uses Superlight 2's exact delivered geometry, UVs and PBR detail
+maps, with red SE photo colour. It is excluded from gallery-study generators.
+Its direct-reference inventory still correctly has no SE AR download; provenance
+names the Superlight 2 AR source and each red SE photograph separately.
+
+Reproduction (all intermediate evidence stays under ignored `out/`):
+
+1. Preserve the prior study as `out/study-fidelity/b2/old-se.glb` for the comparison.
+2. Blender background: `bake_se_regions.py` (2048 px component/UV region bake).
+3. Python: `recolour_se.py`, then `fit_se_photos.py`.
+4. Use `optimize_glbs.optimize` on the lossless SE GLB to
+   `out/study-fidelity/b2/logitech-g-pro-x-superlight-2-se-delivered.glb`.
+5. Python: `check_se_delivery.py`; Blender background: `check_se_geometry.py`
+   and `render_se_comparison.py`; Python: `assemble_se_sheet.py`.
+6. Python: `package_se.py` installs only SE and records its evidence; regenerate
+   `write_payload_audit.py` and run the catalogue, asset and formatting gates.
+
+See [B2 evidence](STUDY-FIDELITY.md#b2--se), including small-feature colour
+errors after JPEG delivery. The region map follows source mesh connectivity,
+with explicit UV print boxes. No RGB threshold chooses a physical region.
+Photos have no colour chart, so de-shading uses a documented relative exposure
+gauge; colour measurements are not calibrated physical reflectance.
+
+## M550 multi-view photo bake (B3)
+
+This prototype keeps the committed study geometry. Top, left, bottom and front
+photos texture the shell; the rear photograph is held out. Camera fitting and
+photo drivers are M550-specific. See [B3 evidence](STUDY-FIDELITY.md#b3--m550-photo-bake-prototype).
+
+Reproduction, with intermediate files under ignored `out/study-fidelity/b3/`:
+
+1. Blender background: `prepare_m550_photo_bake.py`; Python:
+   `fit_m550_photos.py`, then `m550_photo_evidence.py` to record camera roles.
+2. Blender background: `m550_atlas.py`; Python: `bake_m550_photos.py`.
+3. Blender background: `export_m550_photo_bake.py`; use
+   `optimize_glbs.optimize(candidate, lossless)` to create the delivered candidate.
+4. Blender background: `check_m550_photo_bake.py`; Python:
+   `package_m550_photo_bake.py` installs only the verified candidate.
+5. Blender background: `render_m550_comparison.py`; Python:
+   `assemble_m550_sheet.py` creates the four-view comparison.
+6. Run `python tools/blender/write_payload_audit.py` after packaging. Repeat
+   this step after any Phase C delivery changes sizes. Run Python unit tests,
+   Blender tests and `tests/check_assets.py`, `check_catalogues.py`,
+   `audit_payloads.py`, `optimize_glbs.py --check`, and `npx.cmd prettier --check`
+   on changed Markdown and generated JSON.
+
+## D1 study geometry refinement
+
+Only M325s, M705 Marathon and M850L use this route. M550 is an AR-derived shell
+after D2 and is excluded. Evidence lives in `out/study-fidelity/d1/<slug>/`.
+Preserve the committed baseline, inventory, masks and frozen camera files before
+fitting; `study_geometry_preflight.py` would overwrite the baseline if rerun.
+
+1. `refine_study_geometry.py --directory <evidence-dir> --basis asymmetric`
+   fits 24 smooth fields using fitting-role photos only. `--basis symmetric`
+   retains the original 12-field method used for M325s. Both bound coefficients
+   to +/-5 mm and recalibrate catalogue XYZ. Neither reads held-out cameras.
+2. `evaluate_study_geometry.py --directory <evidence-dir>` independently checks
+   all views at 1440 px, including the held-out photo. Exit 2 is a per-study
+   rejection: preserve the public asset and continue to the next study, without
+   tuning against that held-out result.
+3. Blender background: `inspect_study_candidate.py -- --directory <evidence-dir>`
+   checks topology, ground and stability and renders top/side/front/hero views.
+   `assemble_study_geometry_sheet.py --directory <evidence-dir>` adds references.
+4. For a passing candidate, Blender background:
+   `export_study_geometry.py -- --directory <evidence-dir>`. This preserves
+   material JSON and embedded texture bytes and verifies per-corner UVs and
+   triangle positions through a position/UV-lossless Draco round trip.
+5. `evaluate_study_geometry.py --directory <evidence-dir> --round-trip` measures
+   every view again on the exported GLB's decoded mesh. Only after it passes,
+   `package_study_geometry.py --directory <evidence-dir>` installs that study
+   and updates only its manifest/validation entries using hash-bound evidence.
+6. Regenerate the payload audit and run the gates in the D1 brief. The original
+   loft generators and `out/polished` files predate D1: regenerating from them
+   requires reapplying this refinement route before delivery.
 
 ## Superseded prototype
 

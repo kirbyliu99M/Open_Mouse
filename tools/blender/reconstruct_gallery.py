@@ -1,9 +1,10 @@
 """Limited-view studies: trace each model's actual top/side image boundaries.
 
 Transverse curvature is interpolated, explicitly unverified where views lack it.
-These four studies are not labelled complete 360 reconstructions.
+These studies are not labelled complete 360 reconstructions.
 """
 import json
+from check_catalogues import NO_SHELL
 import argparse
 import math
 from pathlib import Path
@@ -13,11 +14,21 @@ from scipy import ndimage
 HERE=Path(__file__).resolve().parent
 ROOT=HERE/'out/reference-library'
 CHOICES={
- 'logitech-g-pro-x-superlight-2-se':('pro-x-superlight-2-se-red-top-angle-gallery-1.png','pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png'),
- 'logitech-m100':('m100-charcoal-gallery-1.png','m100-charcoal-gallery-4.png'),
  'logitech-m550':('m550-medium-graphite-top-angle-gallery-1.png','m550-medium-graphite-profile-angle-gallery-4.png'),
  'logitech-m705-marathon':('m705-gallery-1.png','m705-gallery-4.png'),
+ 'logitech-m325s':('top.png','extra-4.png'),
+ 'logitech-signature-comfort-plus-m850l':('top.png','left.png'),
 }
+TRUE_SIDE_STUDIES = {
+ 'logitech-m550', 'logitech-m705-marathon',
+}
+LEVELLED_STUDIES = set()
+FLAT_BASE_STUDIES = set(CHOICES) - TRUE_SIDE_STUDIES - LEVELLED_STUDIES
+
+
+def study_base_profile(slug, projected_low):
+    """Use a desk-flat base unless the reference is a true side view."""
+    return projected_low if slug in TRUE_SIDE_STUDIES else np.zeros_like(projected_low)
 
 
 def body_mask(path):
@@ -29,9 +40,9 @@ def body_mask(path):
     mask=ndimage.binary_fill_holes(labels==sizes.argmax())
     yy,xx=np.where(mask)
     result=mask[yy.min():yy.max()+1,xx.min():xx.max()+1]
-    if 'm100' in path.name:
+    if path.parent.name=='logitech-m100':
         from compare_reconstruction import remove_thin_lead
-        result=remove_thin_lead(result.T).T if 'gallery-4' in path.name else remove_thin_lead(result)
+        result=remove_thin_lead(result.T).T if path.name=='m100-charcoal-gallery-4.png' else remove_thin_lead(result)
     return result
 
 
@@ -44,6 +55,20 @@ def contour(mask,axis):
         low.append(indices[0] if len(indices) else mask.shape[1]/2)
         high.append(indices[-1] if len(indices) else mask.shape[1]/2)
     return np.array(low,dtype=float),np.array(high,dtype=float)
+
+
+def level_base(u,upper,lower,span=(.2,.8)):
+    """Shear a side contour so its base is level.
+
+    Gallery "profile" shots are three-quarter views, so the underside edge
+    rises toward one end (M100: 5.9 mm over the mid-length). Mice sit on a flat
+    base, so the tilt of a line fitted to the mid-length underside is removed
+    from both edges. Returns the tilt in image rows per unit length.
+    """
+    mask=(u>span[0])&(u<span[1])
+    slope=np.polyfit(u[mask],lower[mask],1)[0]
+    shear=slope*(u-.5)
+    return upper-shear,lower-shear,float(slope)
 
 
 def cameras(target):
@@ -63,6 +88,7 @@ def cameras(target):
 
 
 def reconstruct(slug,files):
+    if slug in NO_SHELL:raise ValueError(NO_SHELL[slug])
     record=json.loads((ROOT/slug/'sources.json').read_text())
     top,side=[body_mask(ROOT/slug/name) for name in files]
     l,r=contour(top,0)
@@ -74,12 +100,20 @@ def reconstruct(slug,files):
     upper[interval]=np.interp(u[interval],u[~interval],upper[~interval])
     upper=ndimage.gaussian_filter1d(upper,len(upper)*.008)
     lower=ndimage.gaussian_filter1d(lower,len(lower)*.008)
+    base_tilt=None
+    if slug in LEVELLED_STUDIES:upper,lower,base_tilt=level_base(u,upper,lower)
     target=np.array([record['widthMm'],record['lengthMm'],record['heightMm']])/1000
     samples=np.linspace(0,1,129)
     left=np.interp(samples,np.linspace(0,1,len(l)),l/top.shape[1]-.5)*target[0]
     right=np.interp(samples,np.linspace(0,1,len(r)),r/top.shape[1]-.5)*target[0]
     high=np.interp(samples,u,1-upper/side.shape[0])*target[2]
     low=np.interp(samples,u,1-lower/side.shape[0])*target[2]
+    if slug in FLAT_BASE_STUDIES:
+        # Oblique product photos expose the underside as a rising silhouette.
+        # That projection is not a physical base profile. The loft's underside
+        # must touch the desk along the length; finish_reconstruction then
+        # calibrates its complete bounding box to the published L/W/H.
+        low=study_base_profile(slug,low)
     vertices=[];faces=[];segments=80
     vertices.append(((left[0]+right[0])/2,-target[1]/2,(high[0]+low[0])/2))
     for i in range(1,128):
@@ -110,7 +144,13 @@ def reconstruct(slug,files):
         'source':[next(image for image in record['images'] if Path(image['file']).name==name) for name in files],
         'cameraFile':str((folder/'cameras.json').relative_to(HERE)),'dimensionsXYZ':target.tolist(),
         'rawVertices':len(vertices),'rawTriangles':len(faces),'status':'Limited-view silhouette study; transverse shape and details unverified',
-        'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Side image perspective has not been camera-calibrated','Wheel and button details are not reconstructed']}
+        'limitations':['No working official 360 asset found','Cross-sections interpolated between traced outlines','Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography','Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed']}
+    if slug=='logitech-m100':report['limitations'].append('The cord is excluded from both contours')
+    if slug=='logitech-m325s':report['limitations'].append('Patterned side colourway provides silhouette only; charcoal top photo provides upper texture')
+    if slug in FLAT_BASE_STUDIES:report['limitations'].append('Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified')
+    if slug in LEVELLED_STUDIES:
+        report['baseLevelling']={'method':'Mid-length underside line fit removed by shear','removedRiseMmOverMidLength':base_tilt*.6/side.shape[0]*record['heightMm']}
+        report['limitations'].append('Side trace sheared level from a mid-length underside line fit; the three-quarter view perspective is not calibrated')
     (folder/'reconstruction.json').write_text(json.dumps(report,indent=2)+'\n')
     print('TRACED',slug,flush=True)
 
@@ -118,4 +158,4 @@ def reconstruct(slug,files):
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()
     for slug,files in CHOICES.items():
-        if not args.model or args.model==slug:reconstruct(slug,files)
+        if not args.model or slug in args.model.split(','):reconstruct(slug,files)

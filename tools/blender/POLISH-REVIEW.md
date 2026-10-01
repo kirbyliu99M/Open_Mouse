@@ -38,6 +38,29 @@ visible, but the photograph contains lighting and the projected details are
 not independently reconstructed 3D components. They remain explicitly limited
 studies, not full-detail replicas.
 
+Source layers with blended alpha (MX Master 4's clear left/right button
+covers; small windows on M720, MX Vertical and Pebble 2) are baked in two
+ways. Base colour keeps the blended composite, which is what the reference
+shows. Roughness, normal and metallic come from the outer surface with the
+sources made opaque. Baked through Cycles transparency, roughness read near 0
+and left mirror-like "sticker" patches on MX Master 4's buttons: 17.1% of used
+texels had roughness below 0.05, now 0.03%. Only MX Master 4 was re-baked; the
+other three changed by 0.3% of texels or less in a diagnostic bake, so they
+were left as published. Bakes run at 2048 px and are downsampled for delivery.
+Baking directly at 512 px left visible UV seams.
+
+M100's side trace is levelled as a whole before lofting (`level_base`,
+`LEVELLED_STUDIES` in `reconstruct_gallery.py`; Kirby's choice on 2026-09-28
+over zeroing only the underside). Its "profile" photograph is a three-quarter
+view, so the underside edge rose 5.9 mm over the mid-length. The shell touched
+the desk only at the nose, with its centre of mass 24 mm behind the contact
+footprint. Shearing the whole trace also removes that tilt from the roof, so
+the hump is not pushed toward the rear. The support margin is now 24.4 mm. The
+removed rise is recorded in the study's report. Levelling assumes a flat base,
+as iFixit's M100 underside photo shows. It does not calibrate the side view's
+perspective. The other oblique-photo studies keep the desk-flat underside
+(`FLAT_BASE_STUDIES`); SE, M550 and M705 use their traced side views unchanged.
+
 The rebuilt topology is retained. No original manufacturer's mesh is exported.
 Some sealed recesses and tiny details still differ from the reference; texture
 baking improves their appearance without claiming to replace missing physical
@@ -50,7 +73,11 @@ correction, ground placement, preserved dimensions and outward normals after
 the gallery-coordinate reflection. All three tests passed in Blender 5.2.2 /
 Python 3.13. The final compressed GLBs are re-imported and checked for topology,
 dimension tolerance, ground placement, UVs and embedded texture availability
-by `package_reconstruction.py --polished`. Measured results are written to
+by `package_reconstruction.py --polished`. Packaging and `tests/check_assets.py`
+also require each shell to rest on its base: its centre of mass, projected onto
+the desk, must lie at least 5 mm inside the footprint of vertices within 0.5 mm
+of the ground (`stability.py`, `supportMarginMm`; lowest now M705 at 11.4 mm).
+This check fails the previous M100 at −24.1 mm. Measured results are written to
 `public/models/validation.json`; source and texture provenance are included in
 `public/models/manifest.json`.
 
@@ -61,7 +88,7 @@ evidence of physical dimensional accuracy.
 Top, side and bottom contact sheets were visually inspected for all 30 models.
 The published set now uses 512 px JPEG maps: 30 mice total **6.70 MiB**,
 plus the 158.5 KiB hand (**6.86 MiB** overall). Mouse files range from
-74.5 to 384.2 KiB; 4 of 30 meet the original 100 KiB target. All mouse
+74.6 to 384.2 KiB; 4 of 30 meet the original 100 KiB target. All mouse
 meshes remain at 13,998–14,000 triangles. This is a payload measurement,
 not a mobile loading or texture-quality acceptance test.
 

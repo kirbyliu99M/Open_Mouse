@@ -349,14 +349,62 @@
   },
   {
     "brand": "Logitech",
-    "model": "M100",
-    "lengthMm": 113,
-    "widthMm": 62,
-    "heightMm": 38,
-    "weightG": 90,
+    "model": "G903 Hero",
+    "lengthMm": 130,
+    "widthMm": 67,
+    "heightMm": 40,
+    "weightG": 110,
     "warnings": [],
-    "connectivity": "wired",
-    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m100-usb-mouse",
-    "retrievedAt": "2026-09-21T13:11:58.690Z"
+    "connectivity": "wireless",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+    "retrievedAt": "2026-09-27T10:06:40.898Z"
+  },
+  {
+    "brand": "Logitech",
+    "model": "M750",
+    "lengthMm": 107.19,
+    "widthMm": 61.8,
+    "heightMm": 37.8,
+    "weightG": 101.2,
+    "warnings": [],
+    "connectivity": "wireless",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m750-signature-plus-wireless-mouse",
+    "retrievedAt": "2026-09-27T10:06:40.898Z"
+  },
+  {
+    "brand": "Logitech",
+    "model": "M325s",
+    "lengthMm": 94.7,
+    "widthMm": 57,
+    "heightMm": 39.1,
+    "weightG": 93,
+    "warnings": [],
+    "connectivity": "wireless",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m325s-wireless-mouse",
+    "retrievedAt": "2026-09-27T10:06:40.898Z"
+  },
+  {
+    "brand": "Logitech",
+    "model": "Signature Comfort Plus M850L",
+    "lengthMm": 121.8,
+    "widthMm": 74.3,
+    "heightMm": 44.2,
+    "weightG": 107.9,
+    "warnings": [],
+    "connectivity": "wireless",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/signature-comfort-plus-m850l",
+    "retrievedAt": "2026-09-27T10:06:40.898Z"
+  },
+  {
+    "brand": "Logitech",
+    "model": "ERGO M575S",
+    "lengthMm": 134,
+    "widthMm": 100,
+    "heightMm": 48,
+    "weightG": 145,
+    "warnings": [],
+    "connectivity": "wireless",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/ergo-m575s-wireless-trackball",
+    "retrievedAt": "2026-09-27T10:06:40.898Z"
   }
 ]

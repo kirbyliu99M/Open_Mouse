@@ -4,6 +4,7 @@ This stage reads no manufacturer mesh: it carves a voxel grid against the
 captured silhouettes and visible surface depths, then extracts a new isosurface.
 Outputs are review assets, with provenance; they are not independent scans.
 """
+from check_catalogues import NO_SHELL
 import argparse
 import json
 import os
@@ -16,6 +17,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 from skimage.measure import marching_cubes
+from source_calibration import source_calibration
 
 
 def reconstruct(path, spacing=.00045, closing=1):
@@ -68,6 +70,11 @@ def reconstruct(path, spacing=.00045, closing=1):
         "dimensionsXYZ":target.tolist(),"gridShape":shape.tolist(),"occupiedVoxels":int(volume.sum()),
         "rawVertices":len(vertices),"rawTriangles":len(faces),"componentsBeforeCleanup":int(count),"closingIterations":closing,
         "status":"reference-derived review mesh; silhouette and detail review pending"}
+    # This source calibration precedes carving. finish_reconstruction records
+    # its separate, post-smoothing dimensionCalibrationScale as before.
+    report['sourceCalibration'] = source_calibration(
+        calibration['referenceOriginalDimensions'],calibration['sourceAxisPermutation'],
+        target.tolist(),calibration.get('cableTrim'))
     (destination/"reconstruction.json").write_text(json.dumps(report,indent=2)+"\n")
     print("RECONSTRUCTED",calibration["slug"],len(vertices),len(faces),flush=True)
 
@@ -78,5 +85,6 @@ if __name__ == "__main__":
     parser.add_argument("--closing",type=int,default=1)
     args = parser.parse_args()
     for path in sorted((HERE/"out/reference-library").glob("*/views/cameras.json")):
+        if path.parent.parent.name in NO_SHELL:continue
         if not args.model or path.parent.parent.name in args.model.split(','):
             reconstruct(path,closing=args.closing)

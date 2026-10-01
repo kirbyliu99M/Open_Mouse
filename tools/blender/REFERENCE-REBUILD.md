@@ -37,6 +37,9 @@ images, source pages and EXR files remain in ignored `out/reference-library/`.
 
 Four models lack a working official AR reference after checking colour entries
 and regional pages: **G Pro X Superlight 2 SE, M100, M550 and M705 Marathon**.
+This is the historical direct-source inventory. SE now uses the Kirby-approved
+Superlight 2 AR-derived sibling shell with its own photo recolour (B2), and is
+no longer classified or generated as a limited-view study.
 Their own top and side gallery silhouettes were traced into explicitly labelled
 limited-view studies. Their transverse curves are interpolated; missing views,
 button/wheel details and unseen surfaces remain unverified. They belong in

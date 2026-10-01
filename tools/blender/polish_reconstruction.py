@@ -11,14 +11,20 @@ from mathutils import Matrix,Vector
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 from color_reconstruction import LIB,REBUILT
+from check_catalogues import NO_SHELL
 from asset_utils import export_glb,validate_mesh,dimensions_mm,material
 OUT=HERE/'out/polished'
-REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','g-pro-x-superlight-2-se','m100','m550','m705-marathon'}
+REVERSE={'ergo-m575','g-pro-2-lightspeed','g-pro-x-superlight-2-dex','g309','g403-hero','g502-hero','g502-x','g502-x-lightspeed','g502-x-plus','g703-lightspeed','m190','m196','m650','m720-triathlon','mx-anywhere-3s','pop-mouse','m550','m705-marathon','g903-hero','m750'}
+GALLERY_STUDIES={'logitech-m550','logitech-m705-marathon',
+                 'logitech-m325s','logitech-signature-comfort-plus-m850l'}
+GALLERY_COLOURS={'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
+                 'logitech-m325s':(.045,.05,.055),
+                 'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
 
 def orient(mesh,slug,dimensions):
     rotation=Matrix.Rotation(math.pi if slug.removeprefix('logitech-') in REVERSE else 0,4,'Z')
     if slug=='logitech-mx-vertical':rotation=Matrix.Rotation(math.pi,4,'Z')
-    if slug in {'logitech-g-pro-x-superlight-2-se','logitech-m100','logitech-m550','logitech-m705-marathon'}:
+    if slug in GALLERY_STUDIES:
         rotation=Matrix.Diagonal((1,-1,1,1))
         bm=bmesh.new();bm.from_mesh(mesh.data);bmesh.ops.reverse_faces(bm,faces=list(bm.faces));bm.to_mesh(mesh.data);bm.free()
     axis_fix=slug in {'logitech-lift-vertical','logitech-mx-vertical'}
@@ -45,7 +51,7 @@ def render(scene,folder,dimensions):
         obj=bpy.data.objects.new('Softbox',light);scene.collection.objects.link(obj);obj.location=pos
         obj.rotation_euler=(center-obj.location).to_track_quat('-Z','Y').to_euler()
     (folder/'renders').mkdir(exist_ok=True)
-    for name,pos in [('top',(0,0,.6)),('hero',(.25,-.35,.32)),('side',(.5,0,.04)),('bottom',(0,0,-.6))]:
+    for name,pos in [('top',(0,0,.6)),('hero',(.25,-.35,.32)),('side',(.5,0,.04)),('left',(-.5,0,.04)),('right',(.5,0,.04)),('bottom',(0,0,-.6))]:
         cam.location=center+Vector(pos)
         cam.rotation_euler=(center-cam.location).to_track_quat('-Z','Y').to_euler()
         if name=='top':cam.rotation_euler=(0,0,0)
@@ -53,6 +59,9 @@ def render(scene,folder,dimensions):
         scene.render.filepath=str(folder/'renders'/(name+'.png'));bpy.ops.render.render(write_still=True)
 
 def polish(slug):
+    if slug in NO_SHELL:raise ValueError(NO_SHELL[slug])
+    if slug=='logitech-g-pro-x-superlight-2-se':
+        raise ValueError('SE uses bake_se_regions.py and recolour_se.py on the sibling atlas')
     record=json.loads((LIB/slug/'sources.json').read_text());report=json.loads((REBUILT/slug/'reconstruction.json').read_text())
     scene=bpy.data.scenes.new('Polished_'+slug);bpy.context.window.scene=scene
     prior=REBUILT/slug/(slug+'.blend')
@@ -72,14 +81,14 @@ def polish(slug):
         mat.node_tree.links.new(texture.outputs['Color'],shader.inputs['Base Color'])
         mesh.data.materials.append(mat)
         base=material('Matte underside',(.012,.014,.016),.7);mesh.data.materials.append(base)
-        colours={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074)}
-        side=material('Matched matte side',colours[slug],.58);mesh.data.materials.append(side)
+        side=material('Matched matte side',GALLERY_COLOURS[slug],.58);mesh.data.materials.append(side)
         uv=mesh.data.uv_layers.new(name='GalleryProjection')
         for polygon in mesh.data.polygons:
             polygon.material_index=1 if polygon.normal.z<-.35 else (2 if polygon.normal.z<.5 else 0)
             for loop,idx in zip(polygon.loop_indices,polygon.vertices):
-                co=mesh.data.vertices[idx].co;uv.data[loop].uv=(co.x/width+.5,.5-co.y/length)
-        report['textureRefinement']={'method':'Model-specific top-gallery image projected onto upper shell; matched matte sides and underside','approximate':True,'source':report['source'][0],'limitation':'Top photograph includes lighting; side detail and raised wheel remain approximate'}
+                co=mesh.data.vertices[idx].co
+                uv.data[loop].uv=(co.x/width+.5,.5-co.y/length)
+        report['textureRefinement']={'method':'Model-specific top-gallery image projected onto upper shell; matched matte sides and underside','approximate':True,'source':report['source'][0],'limitation':'Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry'}
     dims=np.array([record['widthMm'],record['lengthMm'],record['heightMm']])/1000
     report['orientation']=orient(mesh,slug,dims)
     mesh['orientation']='Base on Z=0; buttons up; nose +Y; glTF maps up to +Y and nose to -Z'
@@ -97,4 +106,7 @@ if __name__=='__main__':
     if not bpy.app.background:raise RuntimeError('Background only')
     parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     for path in sorted(REBUILT.glob('*/reconstruction.json')):
+        if path.parent.name in NO_SHELL:continue
+        if path.parent.name=='logitech-g-pro-x-superlight-2-se' and not args.model:continue
+        if path.parent.name in {'logitech-mx-ergo-s','logitech-ergo-m575s'}:continue
         if not args.model or path.parent.name in args.model.split(','):polish(path.parent.name)

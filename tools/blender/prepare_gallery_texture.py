@@ -1,12 +1,18 @@
 """Crop each limited-view study's own top photograph for labelled appearance projection."""
 import json
+import argparse
 from pathlib import Path
 import numpy as np
 from PIL import Image
 from scipy import ndimage
 from reconstruct_gallery import CHOICES
 HERE=Path(__file__).resolve().parent
+PALETTES={'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074),
+          'logitech-m325s':(.045,.05,.055),
+          'logitech-signature-comfort-plus-m850l':(.06,.065,.07)}
+parser=argparse.ArgumentParser();parser.add_argument('--model');args=parser.parse_args()
 for slug,files in CHOICES.items():
+    if args.model and slug not in args.model.split(','):continue
     path=HERE/'out/reference-library'/slug/files[0]
     image=np.array(Image.open(path).convert('RGBA'));mask=image[:,:,3]>180
     mask=ndimage.binary_opening(mask,iterations=max(mask.shape)//200)
@@ -21,13 +27,12 @@ for slug,files in CHOICES.items():
     # Extend boundary pixels; transparent source borders must not turn into white seams.
     indices=ndimage.distance_transform_edt(~alpha,return_distances=False,return_indices=True)
     crop[~alpha]=crop[tuple(indices[:,~alpha])]
-    palettes={'logitech-g-pro-x-superlight-2-se':(.515,.014,.024),'logitech-m100':(.033,.036,.041),'logitech-m550':(.06,.063,.067),'logitech-m705-marathon':(.065,.068,.074)}
     distance=ndimage.distance_transform_edt(np.pad(alpha,1))[1:-1,1:-1]
     weight=np.clip(distance/(crop.shape[1]*.28),0,1)
     weight=weight*weight*(3-2*weight)
     rgb=crop.astype(float)/255
     linear=np.where(rgb<=.04045,rgb/12.92,((rgb+.055)/1.055)**2.4)
-    linear=linear*weight[:,:,None]+np.array(palettes[slug])*(1-weight[:,:,None])
+    linear=linear*weight[:,:,None]+np.array(PALETTES[slug])*(1-weight[:,:,None])
     rgb=np.where(linear<=.0031308,linear*12.92,1.055*linear**(1/2.4)-.055)
     crop=np.uint8(np.clip(rgb*255,0,255))
     folder=HERE/'out/polished'/slug/'textures';folder.mkdir(parents=True,exist_ok=True)

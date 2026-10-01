@@ -1,4 +1,5 @@
 """Measure and show same-camera reference/reconstruction silhouette agreement."""
+import argparse
 import json
 from pathlib import Path
 import numpy as np
@@ -46,6 +47,8 @@ def gallery_check(record,folder):
     candidates=[i for i in record['images'] if 'top-angle' in i['file'] and 'lifestyle' not in i['file']]
     if record['slug'] in ['logitech-m650','logitech-m550']:
         candidates=[i for i in candidates if 'medium' in i['file']]
+    if record['slug'] in {'logitech-g903-hero','logitech-m750'}:
+        candidates=[i for i in record['images'] if Path(i['file']).name=='top.png']
     if not candidates:
         return {'status':'No unambiguous top-angle gallery image selected'}
     image=candidates[0]
@@ -65,11 +68,12 @@ def gallery_check(record,folder):
         'image':image['file'],'sourceUrl':image['url'],'silhouetteIoU':iou,'rotationDegrees':turns*90,'aspectRatioError':ratio_error}
 
 
-def run():
+def run(models=None):
     reports=[]
     font=ImageFont.truetype('C:/Windows/Fonts/arial.ttf',20)
     small=ImageFont.truetype('C:/Windows/Fonts/arial.ttf',15)
     for folder in sorted(OUT.glob('*')):
+        if models and folder.name not in models:continue
         metadata=folder/'reconstruction.json'
         if not metadata.exists():continue
         report=json.loads(metadata.read_text())
@@ -121,4 +125,8 @@ def run():
         sheet.save(OUT/f'catalogue-review-{start//10+1}.jpg')
 
 
-if __name__=='__main__':run()
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--model',help='Comma-separated model slugs; omit for the full catalogue')
+    args=parser.parse_args()
+    run(set(args.model.split(',')) if args.model else None)

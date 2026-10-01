@@ -34,9 +34,22 @@ class OrientationTests(unittest.TestCase):
         self.assertAlmostEqual(obj.data.vertices[index].co.z,0,places=6)
         validate_mesh(obj)
 
+    def test_b1_ar_rotation_preserves_handedness(self):
+        # Both AR sources point toward -Y. A Z half-turn must also swap X;
+        # the old gallery Y reflection would mirror their side details.
+        for slug in ('logitech-g903-hero','logitech-m750'):
+            with self.subTest(slug=slug):
+                obj=self.cube()
+                index=next(v.index for v in obj.data.vertices if v.co.y<0 and v.co.x>0)
+                result=orient(obj,slug,np.array([.06,.12,.04]))
+                self.assertGreater(obj.data.vertices[index].co.y,0)
+                self.assertLess(obj.data.vertices[index].co.x,0)
+                self.assertGreater(np.linalg.det(np.array(result['rotationMatrix'])[:3,:3]),0)
+                self.assertGreater(validate_mesh(obj)['volumeMm3'],0)
+
     def test_gallery_reflection_preserves_outward_normals(self):
         obj=self.cube();index=next(v.index for v in obj.data.vertices if v.co.y<0)
-        orient(obj,'logitech-m100',np.array([.062,.113,.038]))
+        orient(obj,'logitech-m550',np.array([.066,.108,.042]))
         self.assertGreater(obj.data.vertices[index].co.y,0)
         self.assertGreater(validate_mesh(obj)['volumeMm3'],0)
 
