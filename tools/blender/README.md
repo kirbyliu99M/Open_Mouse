@@ -7,8 +7,6 @@ It extends the [source-based rebuild](REFERENCE-REBUILD.md), with
 downloaded per-model references, image-derived geometry and comparison overlays.
 The commands and evidence below describe the superseded prototype only.
 
-<!-- DRAFT: pending Kirby approval -->
-
 The shells are derived from Logitech's official AR 360 sources and product
 photos. Product names and trademarks belong to their respective owners. These
 models are approximate study geometry for fit comparison, not official Logitech

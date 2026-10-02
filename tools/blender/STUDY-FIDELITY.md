@@ -2228,7 +2228,7 @@ byte-identical to the starting commit. No geometry generation ran.
    and failing `--check` cases run in subprocesses both normally and under
    `python -O`; restoring the old assert is caught specifically under `-O`.
 6. **README:** step 1 now says the catalogue command is expected to fail until
-   the shell/manifest route is installed in steps 4?5, or a `noShell` entry is
+   the shell/manifest route is installed in steps 4–5, or a `noShell` entry is
    installed. The `<!-- DRAFT: pending Kirby approval -->` marker and rights
    paragraph are unchanged. This is documentation, with no guard mutation.
 
