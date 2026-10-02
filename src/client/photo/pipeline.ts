@@ -50,8 +50,8 @@ import {
   assembleScanSubmission,
   assemblePaperEdgeSubmission,
   assembleUserLengthSubmission,
-  submittedHand,
 } from "./submission";
+import { resolvePipelineHand, type HandDecision } from "./hand";
 import {
   measureWithUserLength,
   userLengthRetakeMessage,
@@ -134,17 +134,34 @@ export interface RunPhotoPipelineInput {
   readonly file: File;
   readonly hand: "left" | "right";
   /**
-   * `true` when `hand` is only a default the user never chose (easy scan's
-   * "· auto" chip). The detected hand is then used instead, and a
-   * disagreement is not a retake: there is nothing the user said to
-   * contradict. Defaults to `false`: a stated hand is checked.
+   * `true` when `hand` is the user's own choice. `false` means it is only a
+   * default (easy scan until its hand button is tapped): the detected hand is
+   * submitted instead and a disagreement is not a retake. Defaults to `true`,
+   * so a caller that never says (the printed-sheet page) has its hand checked.
    */
-  readonly handIsAuto?: boolean;
+  readonly handExplicit?: boolean;
+  /** Wording for the mismatch fix available in this caller's UI. */
+  readonly handednessFixInstruction?: string;
   readonly gripStyleStated?: "palm" | "claw" | "fingertip";
   /** A user-dragged correction/override for the card's 4 corners. Printed-sheet only. */
   readonly manualCardCorners?: CardCorners;
   /** Defaults to `{ method: "printed-sheet" }` — every existing caller keeps working unchanged. */
   readonly calibration?: CalibrationInput;
+}
+
+/**
+ * Every pipeline decides the hand exactly once, through here, right after the
+ * hand was detected. It is the only place `input.hand` is read.
+ */
+function decideHand(
+  input: RunPhotoPipelineInput,
+  detected: "left" | "right" | null,
+): HandDecision {
+  return resolvePipelineHand({
+    selected: input.hand,
+    detected,
+    explicit: input.handExplicit !== false,
+  });
 }
 
 function emptyOverlay(width: number, height: number): PhotoOverlay {
@@ -269,6 +286,8 @@ export async function runPhotoPipeline(
     };
   }
 
+  const handDecision = decideHand(input, hand.handedness);
+
   const landmarksMm = hand.landmarksPx.map((p) =>
     applyHomography(homography, p),
   );
@@ -283,7 +302,8 @@ export async function runPhotoPipeline(
     detectedMarkerIds: detected.map((m) => m.id),
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: input.handIsAuto ? undefined : input.hand,
+    handStated: handDecision.stated,
+    handednessFixInstruction: input.handednessFixInstruction,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     flatMarkerCornersMm,
@@ -326,7 +346,7 @@ export async function runPhotoPipeline(
   }
 
   const submission = assembleScanSubmission({
-    hand: submittedHand(input, hand.handedness),
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements,
     markerIds: detected.map((m) => m.id),
@@ -422,6 +442,8 @@ async function runPaperEdgePipeline(
     };
   }
 
+  const handDecision = decideHand(input, hand.handedness);
+
   const landmarksMm = hand.landmarksPx.map((p) =>
     applyHomography(homography, p),
   );
@@ -443,7 +465,8 @@ async function runPaperEdgePipeline(
     paperFound: quad.paperRegionFound,
     landmarkCount: hand.landmarksPx.length,
     handedness: hand.handedness,
-    handStated: input.handIsAuto ? undefined : input.hand,
+    handStated: handDecision.stated,
+    handednessFixInstruction: input.handednessFixInstruction,
     landmarkConfidence: hand.confidence,
     landmarksMm,
     paperCornersMm,
@@ -520,7 +543,7 @@ async function runPaperEdgePipeline(
     };
   }
   const submission = assemblePaperEdgeSubmission({
-    hand: submittedHand(input, hand.handedness),
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements: corrected.measurements,
     paperSize: calibration.paperSize,
@@ -568,6 +591,7 @@ async function runUserLengthPipeline(
       ],
       overlay: { ...overlayBase, landmarksPx: null },
     };
+  const handDecision = decideHand(input, hand.handedness);
   const overlay = {
     ...overlayBase,
     landmarksPx: hand.landmarksPx,
@@ -578,11 +602,12 @@ async function runUserLengthPipeline(
       ? [
           checkHandedness(
             hand.handedness,
-            input.handIsAuto ? undefined : input.hand,
+            handDecision.stated,
+            input.handednessFixInstruction,
           ),
         ]
-      : []),
-    checkLandmarkConfidence(hand.confidence),
+      : [checkLandmarkConfidence(0)]),
+    ...(hand.handedness ? [checkLandmarkConfidence(hand.confidence)] : []),
   ].filter(
     (failure): failure is NonNullable<typeof failure> => failure !== null,
   );
@@ -614,7 +639,7 @@ async function runUserLengthPipeline(
     computeLaplacianVariance(gray, width, height),
   );
   const submission = assembleUserLengthSubmission({
-    hand: submittedHand(input, hand.handedness),
+    hand: handDecision.submitted,
     gripStyleStated: input.gripStyleStated,
     measurements,
     handLengthMm,

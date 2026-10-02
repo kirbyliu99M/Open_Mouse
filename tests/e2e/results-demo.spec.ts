@@ -7,7 +7,7 @@ test.describe("/results/demo", () => {
     await page.goto("/results/demo?presentation=1");
     await expect(
       page.getByRole("link", { name: /scan again/i }),
-    ).toHaveAttribute("href", "/scan");
+    ).toHaveAttribute("href", "/scan/easy");
     await expect(page.getByText("Your matches")).toBeVisible();
     const scores = page.locator(".results-topPick .results-subscoreBar");
     await expect(scores).toHaveCount(6);
@@ -173,6 +173,10 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("A close match for your palm grip"),
     ).toBeVisible();
+    // "Ready" previews model-written text, which carries no source line yet.
+    await expect(
+      page.getByText("Generated automatically from your scores above."),
+    ).toHaveCount(0);
   });
 
   test("'Why this one' sits between the top pick and 'Show the other ranked mice' (item 5), with a card surface", async ({
