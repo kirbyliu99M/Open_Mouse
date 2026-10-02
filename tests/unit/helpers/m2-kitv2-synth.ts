@@ -111,7 +111,10 @@ function reportOf(photo: KitV2SynthPhoto, file: string): LearningPhotoReport {
   const paperPlane =
     paperMm === null
       ? null
-      : { ...identityPlane("paper-edge"), homography: scaled(paperMm)!.homography };
+      : {
+          ...identityPlane("paper-edge"),
+          homography: scaled(paperMm)!.homography,
+        };
   const detected =
     photo.detectedHand === undefined ? handSide : photo.detectedHand;
   return {
