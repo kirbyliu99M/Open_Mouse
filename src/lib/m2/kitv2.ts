@@ -71,6 +71,7 @@ import {
 } from "./heldout";
 import {
   EvaluationInputError,
+  cleanSessionText,
   type KitV2LogPhoto,
   type KitV2RunLog,
 } from "./inputs";
@@ -171,6 +172,8 @@ export interface KitV2Photo {
   readonly gesture: string;
   readonly hand: Hand | null;
   readonly phone: string | null;
+  /** The session's `light`, as typed (cleaned): coverage by light. */
+  readonly light: string | null;
   readonly sheet: string | null;
   readonly extraShot: boolean;
   /** The product's own gates would take it. */
@@ -240,6 +243,8 @@ export interface KitV2Section {
     readonly handLengthBins: readonly HandLengthBin[];
     readonly peopleWithHandLength: number;
     readonly byPhone: readonly CountRow[];
+    /** By the session's `light`, as typed. */
+    readonly byLight: readonly CountRow[];
     readonly bySheet: readonly CountRow[];
     readonly byMouseHand: readonly CountRow[];
   };
@@ -531,6 +536,7 @@ export function buildKitV2Section(
       handLengthBins: histogram(meansOfLength),
       peopleWithHandLength: meansOfLength.length,
       byPhone: items((p) => labelOf(p.photos.map((x) => x.phone))),
+      byLight: items((p) => labelOf(p.photos.map((x) => x.light))),
       bySheet: items((p) => labelOf(p.photos.map((x) => x.sheet))),
       byMouseHand: items(handLabel),
     },
@@ -554,13 +560,20 @@ const handLetter = (hand: Hand | null) =>
 function sessionOf(
   log: KitV2RunLog,
   sessions: ReadonlyMap<string, SessionRecord>,
-): { id: string | null; phone: string | null; sheet: string | null } {
+): {
+  id: string | null;
+  phone: string | null;
+  light: string | null;
+  sheet: string | null;
+} {
   const record =
     log.sessionId === null ? undefined : sessions.get(log.sessionId);
-  const phone = (log.embeddedPhone ?? record?.phone ?? "").trim();
+  const phone = cleanSessionText(log.embeddedPhone ?? record?.phone ?? "");
+  const light = cleanSessionText(log.embeddedLight ?? record?.light ?? "");
   return {
     id: log.sessionId,
     phone: phone === "" ? null : phone,
+    light: light === "" ? null : light,
     sheet: log.sheet ?? record?.sheet ?? null,
   };
 }
@@ -768,6 +781,7 @@ export function evaluateKitV2(
           gesture,
           hand,
           phone: session.phone,
+          light: session.light,
           sheet: session.sheet,
           extraShot: a.extraShot,
           accepted: gateCodes.length === 0,

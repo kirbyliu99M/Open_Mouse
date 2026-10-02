@@ -268,7 +268,7 @@ export function participantRecordOf(
 
 export function sessionRecordOf(
   session: string,
-  fields: Partial<Pick<SessionRecord, "phone" | "sheet">> = {},
+  fields: Partial<Pick<SessionRecord, "phone" | "sheet" | "light">> = {},
 ): SessionRecord {
   return {
     format: "open-mouse-learning-session/1",
@@ -277,7 +277,7 @@ export function sessionRecordOf(
     date: "2026-10-05",
     timeBlock: "afternoon",
     venue: "club room",
-    light: "ceiling LED",
+    light: fields.light ?? "ceiling LED",
     phone: fields.phone ?? "Phone A, main 1x",
     holding: "handheld",
     sheet: fields.sheet ?? "A",

@@ -226,6 +226,12 @@ try {
   if (!agreed && truths.length === 0) {
     fail("No truth.json was found under --truth.");
   }
+  if (agreed && args.truths.length > 0 && truths.length === 0) {
+    // A truth file would be refused; a --truth that holds none changes nothing.
+    terminal.warn(
+      "--truth holds no truth.json and agreed-v2 has no ruler truth, so the flag is ignored.",
+    );
+  }
   const recordPaths = (args.records ?? []).flatMap((t) =>
     recordFiles(resolve(t), "participant.json", "--records"),
   );

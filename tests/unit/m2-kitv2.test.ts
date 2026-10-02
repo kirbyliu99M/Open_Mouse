@@ -292,7 +292,7 @@ describe("agreed-v2 evaluation: the default run is the calibration set", () => {
     expect(r.kitV2.gate.extraShots).toBe(0);
   });
 
-  it("coverage: 10 mm bins of each person's mean hand length, and counts by phone, sheet and mouse hand", () => {
+  it("coverage: 10 mm bins of each person's mean hand length, and counts by phone, light, sheet and mouse hand", () => {
     const cov = r.kitV2.coverage;
     expect(cov.people).toBe(3);
     expect(cov.photos).toBe(13);
@@ -306,6 +306,9 @@ describe("agreed-v2 evaluation: the default run is the calibration set", () => {
       { value: "Phone A, main 1x", people: 3, photos: 13 },
     ]);
     expect(cov.bySheet).toEqual([{ value: "A", people: 3, photos: 13 }]);
+    expect(cov.byLight).toEqual([
+      { value: "ceiling LED", people: 3, photos: 13 },
+    ]);
     expect(cov.byMouseHand).toEqual([
       { value: "right", people: 3, photos: 13 },
     ]);
@@ -608,6 +611,54 @@ describe("where a photo's identity comes from", () => {
     expect(r.kitV2.gate.poses[0]!.photos).toBe(1);
   });
 
+  it("--gesture naming another pose gets that pose into the field tables only: never into judgement or the per-person statistics, which are G02 and G04", () => {
+    const photos = [
+      g02("P901", 190),
+      g02("P901", 191),
+      g02("P901", 189),
+      g02("P901", 200),
+      g02("P901", 201),
+    ];
+    const log = kitV2LogOf(photos) as {
+      sort: { photos: Record<string, unknown>[] };
+    };
+    // The last two photos are of another pose, G03, in the sorter's own entries.
+    log.sort.photos[3]!.gesture = "G03";
+    log.sort.photos[3]!.destination = "P901/G03/1.jpg";
+    log.sort.photos[4]!.gesture = "G03";
+    log.sort.photos[4]!.destination = "P901/G03/2.jpg";
+    const all = [
+      "P901/G02/1.jpg",
+      "P901/G02/2.jpg",
+      "P901/G02/3.jpg",
+      "P901/G03/1.jpg",
+      "P901/G03/2.jpg",
+    ].map((file) => ({ file, label: "good" as const }));
+    const r = evaluateKitV2(
+      {
+        logs: [parseKitV2RunLog(log, "run log 1")],
+        labels: [labelsRecordOf("S001", true, all)],
+      },
+      { selection: "s0", gestures: ["G03"] },
+    );
+    // The field tables show the G03 photos, and only those.
+    expect(r.groups.all.markers!.photos).toBe(2);
+    expect(r.counts.measured).toBe(5);
+    // Everything protocol-defined stays on G02 and G04.
+    expect(r.kitV2.repeatability.photos).toBe(3);
+    expect(r.kitV2.gate.poses.map((p) => [p.gesture, p.photos])).toEqual([
+      ["G02", 3],
+      ["G04", 0],
+    ]);
+    expect(r.kitV2.coverage.photos).toBe(3);
+    expect(r.kitV2.pathAgreement.photoLevel!.n).toBe(3);
+    expect(r.kitV2.judgement.coverage.photos).toBe(3);
+    expect(r.kitV2.judgement.headline!.photos).toBe(3);
+    expect(r.kitV2.judgement.coverage.labelled).toBe(3);
+    // The G03 labels name photos that exist, so they are not "labels with no photo".
+    expect(r.kitV2.judgement.coverage.labelsWithNoPhoto).toBe(0);
+  });
+
   it("a status in a sort entry, as a sorter might add, is allowed through and not read", () => {
     const r = runS0([
       g02("P901", 190, 190, { status: "ok" }),
@@ -792,6 +843,45 @@ describe("coverage by phone and sheet", () => {
       ["S002", "A"],
       [null, null],
     ]);
+  });
+
+  it("counts people and photos by the session's light, as typed but cleaned: folded spaces, no control characters, not long", () => {
+    const logA = kitV2LogOf(
+      [g02("P001", 190), g02("P001", 191), g02("P002", 180)],
+      {
+        session: sessionRecordOf("S001", { light: "window,   diffuse\u0007" }),
+      },
+    );
+    const logB = kitV2LogOf([g02("P003", 170)], {
+      session: sessionRecordOf("S002", { light: "x".repeat(200) }),
+      firstFile: 100,
+    });
+    const logC = kitV2LogOf([g02("P004", 160)], {
+      session: null,
+      sheet: null,
+      firstFile: 200,
+    });
+    const r = evaluateKitV2(
+      {
+        logs: [
+          parseKitV2RunLog(logA, "run log 1"),
+          parseKitV2RunLog(logB, "run log 2"),
+          parseKitV2RunLog(logC, "run log 3"),
+        ],
+      },
+      { selection: "calibration" },
+    );
+    // P004 is held out: P001-P003 are evaluated.
+    expect(r.kitV2.coverage.byLight).toEqual([
+      { value: "window, diffuse", people: 2, photos: 3 },
+      { value: "x".repeat(60), people: 1, photos: 1 },
+    ]);
+    // No session record at all: "unknown".
+    const unknown = evaluateKitV2(
+      { logs: [parseKitV2RunLog(logC, "run log 3")] },
+      { selection: "s0" },
+    );
+    expect(unknown.kitV2.coverage.byLight).toEqual([]);
   });
 
   it("a person whose photos come from two phones is '(several)'", () => {

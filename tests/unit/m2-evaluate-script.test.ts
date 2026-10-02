@@ -463,6 +463,24 @@ describe("m2-evaluate script", () => {
       expect(result.status).toBe(0);
       expect(result.stderr).toMatch(/Nothing was evaluated for P002/);
     });
+
+    it("with --aggregate-only the participants named but not evaluated are counted on stderr, never named", () => {
+      const result = evaluator([
+        "--log",
+        two.a,
+        "--truth",
+        two.truths,
+        "--participants",
+        "P001,P002,P003",
+        "--aggregate-only",
+      ]);
+      expect(result.status).toBe(0);
+      expect(result.stderr).toMatch(
+        /^Nothing was evaluated for 2 of the participants named: no measured photo in the logs\.$/m,
+      );
+      expect(result.stderr).not.toMatch(/P\d{3}/);
+      expect(result.stdout).not.toMatch(/P\d{3}/);
+    });
   });
 
   it("takes a single run log file and a single truth file, and the options", () => {

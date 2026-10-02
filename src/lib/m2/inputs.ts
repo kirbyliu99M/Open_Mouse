@@ -194,9 +194,64 @@ const reportV3 = report.extend({ code: z.unknown() });
 // `session` is the whole `session.json` record the sorter was given (the
 // contract's pinned form), or `null` (a download from the checker page). A bare
 // session id is accepted as well, though no producer writes one.
-// The record is checked by the contract's own schema, so a session on sheet B
-// or on Letter paper is refused here as it is by the sorter.
-const sessionField = z.union([z.string(), sessionRecordSchema]).nullish();
+// The record is checked by the contract's own schema (see `checkSessionRecord`,
+// which names the field), so a session on sheet B or on Letter paper is
+// refused here as it is by the sorter.
+const sessionField = z
+  .union([z.string(), z.record(z.string(), z.unknown())])
+  .nullish();
+
+/** A word that is safe to show back: plain letters, digits and hyphens, not long. */
+const plainWord = (value: unknown): string | null =>
+  typeof value === "string" && /^[A-Za-z0-9-]{1,20}$/.test(value)
+    ? value
+    : null;
+
+/**
+ * The embedded session record, checked against the contract's schema, with an
+ * error that says which field is wrong and why: "session.sheet: sheet B is
+ * not used (sheet A only)". Values are shown only when they are plain words.
+ */
+function checkSessionRecord(record: unknown, label: string): void {
+  const parsed = sessionRecordSchema.safeParse(record);
+  if (parsed.success) return;
+  const given = record as Record<string, unknown>;
+  const issues = parsed.error.issues.slice(0, 3).flatMap((issue) => {
+    if (issue.code === "unrecognized_keys") {
+      return issue.keys.map((key) =>
+        plainWord(key)
+          ? `session.${key}: not a field of a session record`
+          : "session: a field that is not part of a session record",
+      );
+    }
+    const field = issue.path.join(".");
+    if (field === "sheet") {
+      const sheet = plainWord(given.sheet);
+      return [
+        `session.sheet: ${sheet ? `sheet ${sheet}` : "this sheet"} is not used (sheet A only)`,
+      ];
+    }
+    if (field === "paperSize") {
+      const size = plainWord(given.paperSize);
+      return [
+        `session.paperSize: ${size ? `paper size ${size}` : "this paper size"} is not used (A4 only)`,
+      ];
+    }
+    return [`session${field ? `.${field}` : ""}: ${issue.message}`];
+  });
+  throw new EvaluationInputError(
+    `${label} does not fit the format: ${issues.join("; ")}`,
+  );
+}
+
+/** Words for a free-text session field in a count: whitespace folded, control characters dropped, not long. */
+export function cleanSessionText(text: string): string {
+  const noControls = Array.from(text, (ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 32 || code === 127 ? " " : ch;
+  }).join("");
+  return noControls.replace(/\s+/g, " ").trim().slice(0, 60);
+}
 
 // The sorter's per-participant rows: only a participant in review matters here.
 const sortParticipant = z.looseObject({
@@ -232,6 +287,8 @@ export interface KitV2RunLog {
   readonly sessionId: string | null;
   /** The phone, when the log embeds the whole session record; otherwise it comes from a `session.json`. */
   readonly embeddedPhone: string | null;
+  /** The light, from the embedded session record; otherwise from a `session.json`. */
+  readonly embeddedLight: string | null;
   readonly sheet: KitV2Sheet | null;
   readonly kitVersion: number;
   readonly gitSha: string | null;
@@ -263,6 +320,7 @@ export function parseKitV2RunLog(json: unknown, label: string): KitV2RunLog {
   }
   const d = parsed.data;
   const embedded = typeof d.session === "object" && d.session !== null;
+  if (embedded) checkSessionRecord(d.session, label);
   return {
     format: d.format,
     protocol: d.protocol,
@@ -274,6 +332,9 @@ export function parseKitV2RunLog(json: unknown, label: string): KitV2RunLog {
           : null,
     embeddedPhone: embedded
       ? ((d.session as { phone?: string }).phone ?? null)
+      : null,
+    embeddedLight: embedded
+      ? ((d.session as { light?: string }).light ?? null)
       : null,
     sheet:
       d.sheet ??

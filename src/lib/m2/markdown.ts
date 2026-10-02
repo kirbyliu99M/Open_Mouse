@@ -10,6 +10,7 @@ import type {
   ExclusionSummaryRow,
   FieldResult,
 } from "./evaluate";
+import { GRIP_PREDICTION } from "../../server/fit/coefficients";
 import type { JudgementSection, JudgementStats } from "./judgement";
 import type { KitV2Report } from "./kitv2";
 import type { AnyEvaluationReport } from "./run";
@@ -509,6 +510,7 @@ function kitV2Sections(report: KitV2Report): string[] {
         )),
     "",
     ...countTable("phone", cov.byPhone),
+    ...countTable("light", cov.byLight),
     ...countTable("sheet", cov.bySheet),
     ...countTable("mouse hand", cov.byMouseHand),
   );
@@ -618,8 +620,8 @@ function renderKitV2Markdown(report: KitV2Report): string {
     "- path agreement = paper-edge minus marker hand length per G02 photo; averaged within each person; then bias and SD (n - 1) over people. The photo-level line treats photos as independent and is for the record",
     "- curl ratio = G04 wrist-to-middle-fingertip length on the marker plane / the same person's mean G02 hand length; report only",
     "- accepted rate = photos the product's gates take / all photos of the pose",
-    "- coverage = people by 10 mm bin of their mean G02 hand length, and counts by phone, sheet and mouse hand",
-    "- grip calibration = palm length / hand length per person (mean over G02) against the reported grip; palm at r >= 0.58, claw at r >= 0.54 are the product's thresholds today",
+    "- coverage = people by 10 mm bin of their mean G02 hand length, and counts by phone, light, sheet and mouse hand",
+    `- grip calibration = palm length / hand length per person (mean over G02) against the reported grip; palm at r >= ${thr(GRIP_PREDICTION.palmAtOrAbove)}, claw at r >= ${thr(GRIP_PREDICTION.clawAtOrAbove)} are the product's thresholds today`,
     "",
   );
   return lines.join("\n");

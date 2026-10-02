@@ -134,17 +134,45 @@ describe("reading a format-3 run log", () => {
 
   it("an embedded session on sheet B or on Letter paper is refused, as the contract's own schema refuses it", () => {
     const base = sessionRecordOf("S007", { phone: "Phone C" });
-    for (const [field, value] of [
-      ["sheet", "B"],
-      ["paperSize", "letter"],
+    // The error names the field and says why, not just "session: Invalid input".
+    for (const [field, value, message] of [
+      ["sheet", "B", "session.sheet: sheet B is not used (sheet A only)"],
+      [
+        "paperSize",
+        "letter",
+        "session.paperSize: paper size letter is not used (A4 only)",
+      ],
+      ["name", "someone", "session.name: not a field of a session record"],
     ] as const) {
       const log = kitV2LogOf([g02("P001", 190)], {
         session: { ...base, [field]: value } as never,
       });
       expect(() => parseKitV2RunLog(log, "run log 1")).toThrow(
-        new RegExp(`^run log 1 does not fit the format: session`),
+        `run log 1 does not fit the format: ${message}`,
       );
     }
+    // A value that is not a plain word is not repeated.
+    const odd = kitV2LogOf([g02("P001", 190)], {
+      session: { ...base, sheet: "C:\\Users\\me", extra: 1 } as never,
+    });
+    try {
+      parseKitV2RunLog(odd, "run log 1");
+      expect.unreachable();
+    } catch (err) {
+      const text = (err as Error).message;
+      expect(text).toContain(
+        "session.sheet: this sheet is not used (sheet A only)",
+      );
+      expect(text).toContain("session.extra: not a field of a session record");
+      expect(text).not.toMatch(/Users/);
+    }
+    // And a field of the wrong kind says which.
+    const typed = kitV2LogOf([g02("P001", 190)], {
+      session: { ...base, printCheckMm: "100" } as never,
+    });
+    expect(() => parseKitV2RunLog(typed, "run log 1")).toThrow(
+      /session\.printCheckMm: /,
+    );
     // The top-level sheet is sheet A only too.
     const log = kitV2LogOf([g02("P001", 190)]) as Record<string, unknown>;
     log.sheet = "B";
@@ -454,6 +482,13 @@ describe("evaluateRunJson: one door for both", () => {
     const v2 = runLogOf([{ participant: "P001", hand: "right", paperMm: 190 }]);
     expect(() =>
       evaluateRunJson({ logs: [v2], truths: [], records: RECORDS }),
+    ).toThrow(/belong to agreed-v2/);
+    // Sessions and labels the same way.
+    expect(() =>
+      evaluateRunJson({ logs: [v2], truths: [], sessions: [{}] }),
+    ).toThrow(/belong to agreed-v2/);
+    expect(() =>
+      evaluateRunJson({ logs: [v2], truths: [], labels: [{}] }),
     ).toThrow(/belong to agreed-v2/);
   });
 
