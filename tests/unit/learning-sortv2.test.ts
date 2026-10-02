@@ -51,6 +51,20 @@ function run(
 
 const PLANNED: Pred[] = ["G02", "G02", "G02", "G04", "G04"];
 
+/** The fields of KitV2PhotoAssignment, sorted: an entry has these and nothing else. */
+const CONTRACT_KEYS = [
+  "destination",
+  "extraShot",
+  "file",
+  "gesture",
+  "hand",
+  "participant",
+  "poseCheck",
+  "poseSource",
+  "shot",
+  "status",
+];
+
 describe("the plan the sorter follows", () => {
   it("is the agreed-v2 sequence: G02 x3 then G04 x2, one extra shot", () => {
     expect(AGREED_V2_SEQUENCE).toEqual([
@@ -76,21 +90,10 @@ describe("a participant's five planned photos", () => {
     ]);
   });
 
-  it("carry every field the evaluator reads (KitV2PhotoAssignment), and the v1 ones", () => {
+  it("carry every field the evaluator reads, and no other (KitV2PhotoAssignment)", () => {
     for (const p of sort.photos) {
       const assignment: KitV2PhotoAssignment = p;
-      expect(Object.keys(assignment).sort()).toEqual(
-        expect.arrayContaining([
-          "extraShot",
-          "file",
-          "gesture",
-          "hand",
-          "participant",
-          "poseCheck",
-          "poseSource",
-          "shot",
-        ]),
-      );
+      expect(Object.keys(assignment).sort()).toEqual(CONTRACT_KEYS);
       expect(p).toMatchObject({
         status: "ok",
         participant: "P007",
@@ -134,6 +137,50 @@ describe("a participant's five planned photos", () => {
         predictedPoses: PLANNED,
       },
     ]);
+  });
+});
+
+describe("every entry satisfies the contract, whatever its status", () => {
+  it("ok, pose-mismatch, hand-mismatch, needs-review, no-code and version-mismatch alike", () => {
+    const sort = sortPhotosV2(
+      [
+        // ok, pose-mismatch and hand-mismatch
+        ...run("P070", 1, ["G04", "G02", "G02", "G04", "G04"], "right"),
+        // needs-review
+        ...run("P071", 10, [null, null, null, null, null, null]),
+        // no-code, version-mismatch
+        photo("nocard.jpg", 20, null),
+        photo("old.jpg", 21, card("P072", 1)),
+      ],
+      { mouseHands: { P070: "left" } },
+    );
+    const entries = sort.photos satisfies readonly KitV2PhotoAssignment[];
+    expect(new Set(entries.map((e) => e.status))).toEqual(
+      new Set([
+        "pose-mismatch",
+        "hand-mismatch",
+        "needs-review",
+        "no-code",
+        "version-mismatch",
+      ]),
+    );
+    for (const e of entries) {
+      expect(Object.keys(e).sort()).toEqual(CONTRACT_KEYS);
+      expect(e.poseSource).toBe("order");
+      expect(typeof e.extraShot).toBe("boolean");
+      expect(
+        e.destination === null ||
+          /^P\d{3}\/G0[24]\/\d+\.jpg$/.test(e.destination),
+      ).toBe(true);
+    }
+    // A filed photo has a destination with forward slashes; the others have none.
+    expect(
+      entries.every(
+        (e) =>
+          (e.destination !== null) ===
+          ["pose-mismatch", "hand-mismatch", "ok"].includes(e.status),
+      ),
+    ).toBe(true);
   });
 });
 

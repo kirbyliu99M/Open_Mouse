@@ -34,8 +34,8 @@ import {
   type HandSide,
   type CoverageRow,
   type KitCode,
-  type SortedPhoto,
   type SortResult,
+  type SortStatus,
 } from "./kit";
 import { poseAgrees, type PoseGuess } from "./posecheck";
 import {
@@ -87,11 +87,15 @@ export const REVIEW_REASON_TEXT: Readonly<Record<ReviewReason, string>> = {
 };
 
 /**
- * One `sort.photos[]` entry of a kit v2 run log: the v1 fields (`status`,
- * `destination`, ...) and the contract's (`poseSource`, `extraShot`,
- * `poseCheck`).
+ * One `sort.photos[]` entry of a kit v2 run log: exactly the contract's
+ * `KitV2PhotoAssignment` (`file`, `status`, `destination`, `participant`,
+ * `gesture`, `hand`, `shot`, `poseSource`, `extraShot`, `poseCheck`), which also
+ * has every field of kit v1's `SortedPhoto`.
  */
-export interface SortedPhotoV2 extends SortedPhoto, KitV2PhotoAssignment {}
+export interface SortedPhotoV2 extends KitV2PhotoAssignment {
+  /** One of kit v2's statuses (`SortStatus`); the contract only says `string`. */
+  readonly status: SortStatus;
+}
 
 export interface ParticipantSortRow {
   readonly participant: string;
