@@ -31,16 +31,16 @@ export default function LearnPage() {
         The collection protocol <code>agreed-v2</code> (2026-10-02): one A4
         sheet for both hands, a participant card in its slot, G02 ×3 then G04 ×2
         per person. The pose comes from the shooting order; the card&apos;s QR
-        code names the participant. Sheet A keeps the product sheet&apos;s four
-        markers; sheet B puts six markers on the outer ring and leaves the hand
-        area blank. The S0 pilot picks one.
+        code names the participant. Only sheet A is used (Kirby, 2026-10-02): it
+        keeps the product sheet&apos;s four markers. Sheet B (six markers on the
+        outer ring, a blank hand area) is built but not used for now.
       </p>
       <div className="learn-actions">
         <Link className="learn-button" href="/learn/print?sheet=A">
           Print sheet A
         </Link>
-        <Link className="learn-button" href="/learn/print?sheet=B">
-          Print sheet B
+        <Link className="learn-button-secondary" href="/learn/print?sheet=B">
+          Sheet B (not used, Kirby 2026-10-02)
         </Link>
         <Link
           className="learn-button-secondary"
@@ -144,7 +144,7 @@ export default function LearnPage() {
 
       <h2>Check and sort</h2>
       <div className="learn-actions">
-        <Link className="learn-button" href="/learn/check">
+        <Link className="learn-button" href="/learn/check?sheet=v1">
           Check photos
         </Link>
       </div>

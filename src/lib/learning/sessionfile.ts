@@ -32,9 +32,14 @@ function check<T>(
 ): Parsed<T> {
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    // Windows editors (Notepad, PowerShell's Out-File) save a hand-edited file
+    // with a UTF-8 byte-order mark in front, which JSON.parse refuses.
+    json = JSON.parse(text.replace(/^﻿/, ""));
   } catch {
-    return { ok: false, message: `${label} is not valid JSON.` };
+    return {
+      ok: false,
+      message: `${label} is not valid JSON (check for a missing comma or quote; a UTF-8 byte-order mark is accepted).`,
+    };
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -52,6 +57,32 @@ function check<T>(
 
 /** `session.json`, from its text. */
 export function parseSessionFile(text: string): Parsed<SessionRecord> {
+  // Sheet B is built but not used for now, and Letter is not used (Kirby,
+  // 2026-10-02): the contract refuses both. Say so plainly before the generic check.
+  try {
+    const raw = JSON.parse(text.replace(/^﻿/, "")) as Record<
+      string,
+      unknown
+    > | null;
+    if (raw && typeof raw === "object") {
+      if (raw.sheet === "B") {
+        return {
+          ok: false,
+          message:
+            "session.json says sheet B, which is built but not used for now (Kirby, 2026-10-02). Use sheet A.",
+        };
+      }
+      if (raw.paperSize === "letter") {
+        return {
+          ok: false,
+          message:
+            "session.json says paperSize letter, which is not used (kit v2 is A4 only). Use a4.",
+        };
+      }
+    }
+  } catch {
+    // Not JSON: the check below says so.
+  }
   return check(text, sessionRecordSchema, "session.json");
 }
 

@@ -11,10 +11,14 @@
  *
  *  - APP1 (Exif, XMP, anything else), APP13 (Photoshop/IPTC), and every
  *    comment (COM): dropped.
- *  - APP0 (JFIF), APP2 carrying an ICC colour profile, APP14 (Adobe colour
- *    transform): kept, byte for byte. Every other APPn (maker notes, the
- *    multi-picture index, ...) is dropped: nothing but these three is needed
- *    to decode the picture, so private-by-default is the safer rule.
+ *  - Three application segments may stay, each by its CONTENT and not its
+ *    name, byte for byte: APP0 only as a plain 18-byte JFIF header with no
+ *    thumbnail (a JFXX extension, or any JFIF that embeds a thumbnail, is
+ *    dropped); APP2 only when it begins `ICC_PROFILE\0`; APP14 only as the
+ *    12-byte Adobe colour-transform header. Every other APPn (maker notes, the
+ *    multi-picture index, ...) is dropped, and so is every JPGn extension
+ *    marker (0xF0 to 0xFD) and any reserved marker: nothing but these three is
+ *    needed to decode the picture, so private-by-default is the safer rule.
  *  - Everything that makes the picture (quantisation and Huffman tables, the
  *    frame header, every scan) is copied byte for byte.
  *  - Anything after the end-of-image marker is dropped. Phones append whole
@@ -152,24 +156,62 @@ function walk(bytes: Uint8Array): Walk {
   }
 }
 
-/** What a segment is, for the keep-or-drop rule. */
+const JFIF_ID = [0x4a, 0x46, 0x49, 0x46, 0x00]; // "JFIF\0"
+const ADOBE_ID = [0x41, 0x64, 0x6f, 0x62, 0x65]; // "Adobe"
+/** A plain JFIF header is marker (2) + length (2) + 14 payload bytes. */
+const JFIF_SEGMENT_BYTES = 18;
+/** The Adobe colour-transform header is marker (2) + length (2) + 12 payload bytes. */
+const ADOBE_SEGMENT_BYTES = 16;
+
+/** APP0 as a plain JFIF header: the right size, and a 0 x 0 thumbnail (so no embedded picture). */
+function isPlainJfif(bytes: Uint8Array, s: Segment): boolean {
+  if (s.end - s.start !== JFIF_SEGMENT_BYTES) return false;
+  const payload = s.start + 4;
+  // After "JFIF\0": version (2), units (1), X and Y density (4), X and Y thumbnail size (2).
+  return (
+    startsWith(bytes, payload, JFIF_ID) &&
+    bytes[payload + 12] === 0 &&
+    bytes[payload + 13] === 0
+  );
+}
+
+function isAdobe(bytes: Uint8Array, s: Segment): boolean {
+  return (
+    s.end - s.start === ADOBE_SEGMENT_BYTES &&
+    startsWith(bytes, s.start + 4, ADOBE_ID)
+  );
+}
+
+/** Markers that make up the picture itself: tables, frame headers, scan headers, restart interval. */
+function isImageMarker(marker: number): boolean {
+  return (
+    marker === 0xdb || // DQT
+    marker === 0xc4 || // DHT
+    marker === 0xcc || // DAC
+    marker === SOS ||
+    marker === 0xdd || // DRI
+    marker === 0xdc || // DNL
+    marker === 0xdf || // EXP
+    (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc8) // SOFn
+  );
+}
+
+/** What a segment is, for the keep-or-drop rule. Decided by content, not only by marker. */
 function classify(bytes: Uint8Array, s: Segment): "exif" | "keep" | "drop" {
   const payload = s.start + 4;
   switch (s.marker) {
     case APP1:
       return startsWith(bytes, payload, EXIF_ID) ? "exif" : "drop";
     case APP0:
+      return isPlainJfif(bytes, s) ? "keep" : "drop";
     case APP14:
-      return "keep";
+      return isAdobe(bytes, s) ? "keep" : "drop";
     case APP2:
       return startsWith(bytes, payload, ICC_ID) ? "keep" : "drop";
-    case APP13:
-    case COM:
-      return "drop";
     default:
-      // Any other application segment (APP3 to APP12, APP15) is dropped.
-      if (s.marker >= 0xe0 && s.marker <= 0xef) return "drop";
-      return "keep";
+      // The picture's own segments stay. Anything else is dropped: the other
+      // APPn, COM, the JPGn extensions (0xF0 to 0xFD) and reserved markers.
+      return isImageMarker(s.marker) ? "keep" : "drop";
   }
 }
 
@@ -185,7 +227,10 @@ function orientationOf(bytes: Uint8Array, s: Segment): number | null {
     if (view.getUint16(base + 2, little) !== 42) return null;
     const ifd = base + view.getUint32(base + 4, little);
     if (ifd < base || ifd + 2 > s.end) return null;
-    const count = Math.min(view.getUint16(ifd, little), 512);
+    const count = view.getUint16(ifd, little);
+    // A well-formed IFD0 lies inside the segment: its entries and the offset of
+    // the next IFD. A count that claims more is damage, not an Exif to trust.
+    if (ifd + 2 + count * 12 + 4 > s.end) return null;
     for (let k = 0; k < count; k++) {
       const entry = ifd + 2 + k * 12;
       if (entry + 12 > s.end) return null;
@@ -346,8 +391,13 @@ export interface MetadataInventory {
 
 function nameOf(bytes: Uint8Array, s: Segment): string | null {
   if (s.marker === COM) return "COM";
-  if (s.marker < 0xe0 || s.marker > 0xef) return null;
+  if (s.marker >= 0xf0 && s.marker <= 0xfd) return `JPG${s.marker - 0xf0}`;
+  if (s.marker < 0xe0 || s.marker > 0xef) {
+    return isImageMarker(s.marker) ? null : `marker 0x${s.marker.toString(16)}`;
+  }
   const base = `APP${s.marker - 0xe0}`;
+  if (s.marker === APP0) return isPlainJfif(bytes, s) ? base : `${base}:other`;
+  if (s.marker === APP14) return isAdobe(bytes, s) ? base : `${base}:other`;
   if (s.marker === APP1) {
     return startsWith(bytes, s.start + 4, EXIF_ID) ? `${base}:exif` : base;
   }
@@ -382,38 +432,42 @@ export function inventoryJpegMetadata(bytes: Uint8Array): MetadataInventory {
 }
 
 /**
- * Is this a clean filed copy: no segment but the three that may stay, and an
- * Exif block, if any, that is exactly the minimal Orientation-only one? Returns
- * the reasons it is not, empty when it is.
+ * Is this a clean filed copy? Every segment is checked by its CONTENT: the
+ * header segments that may stay must be exactly a plain JFIF header, an ICC
+ * profile or an Adobe header; any other application, comment, extension or
+ * reserved segment is a problem; an Exif block must be byte for byte one of
+ * the eight minimal Orientation-only ones (so an IFD that claims more entries
+ * fails); and nothing may follow the end-of-image marker. Returns the
+ * reasons it is not clean, empty when it is.
  */
 export function problemsInFiledCopy(bytes: Uint8Array): string[] {
-  let inventory: MetadataInventory;
+  let w: Walk;
   try {
-    inventory = inventoryJpegMetadata(bytes);
+    w = walk(bytes);
   } catch {
     return ["not a complete JPEG"];
   }
   const problems: string[] = [];
-  const allowed = new Set(["APP0", "APP2:icc", "APP14", "APP1:exif"]);
-  for (const name of inventory.segments) {
-    if (!allowed.has(name)) problems.push(`${name} segment present`);
-  }
-  if (inventory.segments.filter((n) => n === "APP1:exif").length > 1) {
-    problems.push("more than one Exif segment");
-  }
-  if (inventory.exif) {
-    const orientation = [1, 2, 3, 4, 5, 6, 7, 8].find((o) => {
-      const minimal = orientationOnlyExifSegment(o);
-      return (
-        minimal.length === inventory.exif!.length &&
-        minimal.every((b, i) => b === inventory.exif![i])
-      );
-    });
-    if (orientation === undefined) {
-      problems.push("Exif holds more than the Orientation tag");
+  let exifCount = 0;
+  for (const s of w.segments) {
+    const kind = classify(bytes, s);
+    if (kind === "drop") {
+      problems.push(`${nameOf(bytes, s) ?? "unknown"} segment present`);
+    } else if (kind === "exif") {
+      exifCount++;
+      const exif = bytes.subarray(s.start, s.end);
+      const minimal = [1, 2, 3, 4, 5, 6, 7, 8].some((o) => {
+        const expected = orientationOnlyExifSegment(o);
+        return (
+          expected.length === exif.length &&
+          expected.every((b, i) => b === exif[i])
+        );
+      });
+      if (!minimal) problems.push("Exif holds more than the Orientation tag");
     }
   }
-  if (inventory.trailerBytes > 0) problems.push("bytes after the end of image");
+  if (exifCount > 1) problems.push("more than one Exif segment");
+  if (bytes.length > w.eoiEnd) problems.push("bytes after the end of image");
   return problems;
 }
 

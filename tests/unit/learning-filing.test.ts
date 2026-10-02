@@ -10,12 +10,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { NO_EXIF, readExifWhitelist } from "../../src/lib/learning/exif";
 import { inventoryJpegMetadata } from "../../src/lib/learning/exifstrip";
 import {
   fileStrippedCopies,
-  readMouseHands,
+  findUnfileable,
+  readParticipantRecords,
   writeParticipantTemplates,
 } from "../../src/lib/learning/filing";
 import type { KitCode } from "../../src/lib/learning/kit";
@@ -108,6 +109,26 @@ describe("parseSessionFile", () => {
     expect(parsed).toEqual({ ok: true, value: SESSION });
   });
 
+  it("refuses sheet B and paper size letter with a plain message (built, not used for now)", () => {
+    const b = parseSessionFile(text({ sheet: "B" }));
+    expect(b.ok).toBe(false);
+    if (!b.ok)
+      expect(b.message).toMatch(/sheet B.*not used for now.*Use sheet A/);
+    const l = parseSessionFile(text({ paperSize: "letter" }));
+    expect(l.ok).toBe(false);
+    if (!l.ok) expect(l.message).toMatch(/letter.*A4 only/);
+  });
+
+  it("reads a file with a UTF-8 byte-order mark in front (Windows editors add one)", () => {
+    expect(parseSessionFile("\uFEFF" + text())).toEqual({
+      ok: true,
+      value: SESSION,
+    });
+    const bad = parseSessionFile("\uFEFF{ nope");
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.message).toMatch(/not valid JSON/);
+  });
+
   it("says what is wrong, naming the field and never the value", () => {
     const secret = "SECRET-VALUE-9931";
     const bad = parseSessionFile(text({ sheet: secret, date: secret }));
@@ -157,7 +178,7 @@ describe("filing a run", () => {
   let out: string;
   const originals: Record<string, Uint8Array> = {};
 
-  beforeAll(() => {
+  beforeEach(() => {
     scratch = mkdtempSync(join(tmpdir(), "learn-filing-"));
     input = join(scratch, "photos");
     out = join(scratch, "out");
@@ -174,7 +195,7 @@ describe("filing a run", () => {
       writeFileSync(join(input, name), originals[name]!);
     }
   });
-  afterAll(() => {
+  afterEach(() => {
     rmSync(scratch, { recursive: true, force: true });
   });
 
@@ -254,6 +275,11 @@ describe("filing a run", () => {
   });
 
   it("run again, leaves what is there alone", () => {
+    fileStrippedCopies({
+      photos: sorted().photos,
+      inputDir: input,
+      outDir: out,
+    });
     const target = join(out, "P007", "G02", "2.jpg");
     const stamp = statSync(target).mtimeMs;
     const content = readFileSync(target);
@@ -270,13 +296,15 @@ describe("filing a run", () => {
 
   it("never overwrites an existing destination, whatever it holds", () => {
     const target = join(out, "P007", "G02", "3.jpg");
+    mkdirSync(join(out, "P007", "G02"), { recursive: true });
     writeFileSync(target, "someone's edit");
     const result = fileStrippedCopies({
       photos: sorted().photos,
       inputDir: input,
       outDir: out,
     });
-    expect(result.copied).toEqual([]);
+    expect(result.copied).toHaveLength(4);
+    expect(result.existing).toEqual(["P007/G02/3.jpg"]);
     expect(readFileSync(target, "utf8")).toBe("someone's edit");
   });
 
@@ -294,6 +322,7 @@ describe("filing a run", () => {
         code: participantCard("P099"),
         predictedPose: null,
       })),
+      { shotCounts: { P099: { G02: 2, G04: 0 } } },
     ).photos;
     const result = fileStrippedCopies({ photos, inputDir: input, outDir: out });
     expect(result.copied).toEqual([]);
@@ -322,10 +351,10 @@ describe("filing a run", () => {
 
 describe("participant.json", () => {
   let scratch: string;
-  beforeAll(() => {
+  beforeEach(() => {
     scratch = mkdtempSync(join(tmpdir(), "learn-participants-"));
   });
-  afterAll(() => {
+  afterEach(() => {
     rmSync(scratch, { recursive: true, force: true });
   });
 
@@ -385,7 +414,7 @@ describe("participant.json", () => {
     put("P002", JSON.stringify(emptyParticipantRecord("P002", "S001")));
     put("P004", "{ broken");
     put("P005", JSON.stringify(emptyParticipantRecord("P006", "S001")));
-    const read = readMouseHands({
+    const read = readParticipantRecords({
       participants: ["P001", "P002", "P003", "P004", "P005"],
       outDir: dir,
     });
@@ -396,8 +425,105 @@ describe("participant.json", () => {
       P004: null,
       P005: null,
     });
+    expect(read.shotCounts).toEqual({
+      P001: null,
+      P002: null,
+      P003: null,
+      P004: null,
+      P005: null,
+    });
     expect(read.missing).toEqual(["P003"]);
     expect(read.problems.map((p) => p.participant)).toEqual(["P004", "P005"]);
     for (const p of read.problems) expect(p.message).not.toContain(dir);
+  });
+
+  it("reads shotCounts as Kirby wrote them, and refuses a malformed one", () => {
+    const dir = mkdtempSync(join(scratch, "counts-"));
+    const put = (id: string, shotCounts: unknown) => {
+      mkdirSync(join(dir, id), { recursive: true });
+      writeFileSync(
+        join(dir, id, "participant.json"),
+        JSON.stringify({ ...emptyParticipantRecord(id, "S001"), shotCounts }),
+      );
+    };
+    put("P001", { G02: 4, G04: 2 });
+    put("P002", null);
+    put("P003", { G02: 4 }); // G04 missing
+    put("P004", { G02: -1, G04: 2 });
+    const read = readParticipantRecords({
+      participants: ["P001", "P002", "P003", "P004"],
+      outDir: dir,
+    });
+    expect(read.shotCounts).toEqual({
+      P001: { G02: 4, G04: 2 },
+      P002: null,
+      P003: null,
+      P004: null,
+    });
+    expect(read.problems.map((p) => p.participant)).toEqual(["P003", "P004"]);
+  });
+
+  it("reads a file saved by a Windows editor with a UTF-8 byte-order mark in front", () => {
+    const dir = mkdtempSync(join(scratch, "bom-"));
+    mkdirSync(join(dir, "P001"));
+    writeFileSync(
+      join(dir, "P001", "participant.json"),
+      "\uFEFF" +
+        JSON.stringify({
+          ...emptyParticipantRecord("P001", "S001"),
+          mouseHand: "left",
+        }),
+    );
+    const read = readParticipantRecords({
+      participants: ["P001"],
+      outDir: dir,
+    });
+    expect(read.hands).toEqual({ P001: "left" });
+    expect(read.problems).toEqual([]);
+  });
+});
+
+describe("findUnfileable", () => {
+  let scratch: string;
+  beforeEach(() => {
+    scratch = mkdtempSync(join(tmpdir(), "learn-unfileable-"));
+  });
+  afterEach(() => {
+    rmSync(scratch, { recursive: true, force: true });
+  });
+
+  it("names every file whose stripped copy cannot be made, and why, reading only", () => {
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13,
+    ]);
+    const heic = concat(
+      new Uint8Array([0, 0, 0, 24]),
+      enc("ftypheic"),
+      new Uint8Array(12),
+    );
+    writeFileSync(join(scratch, "ok.jpg"), phoneJpeg(5));
+    writeFileSync(join(scratch, "shot.png"), png);
+    writeFileSync(join(scratch, "shot.heic"), heic);
+    writeFileSync(join(scratch, "cut.jpg"), phoneJpeg(5).subarray(0, 100));
+    const before = readFileSync(join(scratch, "ok.jpg"));
+    const result = findUnfileable({
+      inputDir: scratch,
+      files: ["ok.jpg", "shot.png", "shot.heic", "cut.jpg", "gone.jpg"],
+    });
+    expect(result).toEqual({
+      "shot.png": "not-a-jpeg",
+      "shot.heic": "not-a-jpeg",
+      "cut.jpg": "damaged-jpeg",
+      "gone.jpg": "damaged-jpeg",
+    });
+    expect(Buffer.compare(readFileSync(join(scratch, "ok.jpg")), before)).toBe(
+      0,
+    );
+    expect(readdirSync(scratch).sort()).toEqual([
+      "cut.jpg",
+      "ok.jpg",
+      "shot.heic",
+      "shot.png",
+    ]);
   });
 });

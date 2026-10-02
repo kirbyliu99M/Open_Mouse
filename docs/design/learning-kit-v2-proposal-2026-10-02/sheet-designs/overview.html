@@ -129,7 +129,7 @@
   </head>
   <body>
     <main>
-      <h1>A4 標籤頁參考設計（三案）</h1>
+      <h1>A4 標籤頁參考設計（三案；2026-10-02 決定只用 A 版）</h1>
       <p class="mut">
         2026-10-02 · 草案 · 全部以 210×297 mm、100% 列印為準。標記是專案實際的
         ARUCO_MIP_36h12（25 mm，id 0–5）；QR 為示意，不可掃描。B、C 沒有 100 mm
@@ -151,7 +151,7 @@
           <tr>
             <th></th>
             <th>A 相容版</th>
-            <th>B 空白中心版 <span class="tag rec">建議</span></th>
+            <th>B 空白中心版（未採用）</th>
             <th>C 刻度外框版</th>
           </tr>
         </thead>
@@ -252,7 +252,10 @@
           </tr>
         </tbody>
       </table>
-      <h2>S0 要驗證的（會直接決定選哪案）</h2>
+      <h2>
+        S0 要驗證的（2026-10-02 已決定只用 A 版；這些檢查若不過，才考慮改用 B
+        並另存預先登記）
+      </h2>
       <p>
         ① 張開的手遮住標記的比例（A 的主要風險）② 手長最長的幾位會不會碰到卡槽 ③
         對齊只靠目測的重複性 ④ 六個標記實際被偵測到的數量。
@@ -270,7 +273,7 @@
       };
       const items = [
         ["sheet-A-compat.svg", "A 相容版"],
-        ["sheet-B-blank-centre.svg", "B 空白中心版（建議）"],
+        ["sheet-B-blank-centre.svg", "B 空白中心版（未採用）"],
         ["sheet-C-ruler-frame.svg", "C 刻度外框版"],
       ];
       // assumed envelope per sheet: wrist y, wrist x-range

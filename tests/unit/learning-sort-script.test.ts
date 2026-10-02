@@ -207,7 +207,7 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside]);
     expect(result.status).toBe(1);
     expect(result.stderr).not.toMatch(REFUSED);
-    expect(result.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(result.stderr).toMatch(/No photos \(\.jpg/);
     expect(result.stdout).not.toMatch(/Starting dev server/);
   }, 60_000);
 
@@ -261,7 +261,7 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside], { CI: "1" });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/must never run in CI/);
-    expect(result.stderr).not.toMatch(/No \.jpg/);
+    expect(result.stderr).not.toMatch(/No photos/);
   }, 60_000);
 
   it("needs --in, and checks --paper", () => {
@@ -269,7 +269,7 @@ describe("learn-sort refuses to run where it must not", () => {
     expect(sorter([]).stderr).toMatch(/--session/);
     const bad = sorter(["--in", emptyInput, "--out", outside, "--paper", "a5"]);
     expect(bad.status).toBe(1);
-    expect(bad.stderr).toMatch(/--paper must be one of a4, letter/);
+    expect(bad.stderr).toMatch(/--paper must be a4 \(kit v2 is A4 only\)/);
     const proto = sorter([
       "--in",
       emptyInput,
@@ -279,7 +279,7 @@ describe("learn-sort refuses to run where it must not", () => {
       "toString",
     ]);
     expect(proto.status).toBe(1);
-    expect(proto.stderr).toMatch(/--paper must be one of/);
+    expect(proto.stderr).toMatch(/--paper must be a4/);
     const ok = sorter([
       "--in",
       emptyInput,
@@ -288,7 +288,10 @@ describe("learn-sort refuses to run where it must not", () => {
       "--paper",
       "letter",
     ]);
-    expect(ok.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(ok.status).toBe(1);
+    expect(ok.stderr).toMatch(/--paper must be a4/);
+    const a4 = sorter(["--in", emptyInput, "--out", outside, "--paper", "a4"]);
+    expect(a4.stderr).toMatch(/No photos \(\.jpg/);
   }, 60_000);
 });
 
@@ -363,6 +366,16 @@ describe("learn-sort refuses to run without a valid session.json", () => {
       /does not fit the format/,
     ],
     ["an empty file", "", /not valid JSON/],
+    [
+      "sheet B",
+      SESSION_JSON.replace('"sheet":"A"', '"sheet":"B"'),
+      /sheet B, which is built but not used for now/,
+    ],
+    [
+      "paper size letter",
+      SESSION_JSON.replace('"paperSize":"a4"', '"paperSize":"letter"'),
+      /paperSize letter, which is not used/,
+    ],
   ])("a session.json that is %s", (_name, body, message) => {
     const dir = join(scratch, `bad-${_name.replace(/\W+/g, "-")}`);
     const file = writeSession(dir, body);
@@ -379,7 +392,7 @@ describe("learn-sort refuses to run without a valid session.json", () => {
     expect(result.stderr).not.toContain("25N");
   });
 
-  it("--paper must agree with the session's paperSize", () => {
+  it("--paper takes a4 only: Letter is refused before the session is read", () => {
     const file = writeSession(join(scratch, "ok"));
     expectRefused(
       sorter([
@@ -392,7 +405,7 @@ describe("learn-sort refuses to run without a valid session.json", () => {
         "--paper",
         "letter",
       ]),
-      /--paper letter disagrees with the session's paperSize \(a4\)/,
+      /--paper must be a4 \(kit v2 is A4 only\), not "letter"/,
     );
   });
 
@@ -541,7 +554,7 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     mkdirSync(input, { recursive: true });
     const empty = sorter(["--in", input, "--out", join(scratch, "out")]);
     expect(empty.status).toBe(1);
-    expect(empty.stderr).toMatch(/No \.jpg or \.png photos in \S+\/~?\S*\./);
+    expect(empty.stderr).toMatch(/No photos \([^)]*\) in \S+\/~?\S*\./);
     expectClean(empty.stderr);
     const missing = sorter(["--in", join(input, "nope"), "--out", scratch]);
     expect(missing.status).toBe(1);

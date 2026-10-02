@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { KitCode } from "../../src/lib/learning/kit";
 import {
   REVIEW_REASON_TEXT,
-  placeByOrder,
   sortPhotosV2,
   type IdentifiedPhotoV2,
 } from "../../src/lib/learning/sortv2";
@@ -50,6 +49,7 @@ function run(
 }
 
 const PLANNED: Pred[] = ["G02", "G02", "G02", "G04", "G04"];
+const NO_CALLS = (n: number): Pred[] => Array(n).fill(null);
 
 /** The fields of KitV2PhotoAssignment, sorted: an entry has these and nothing else. */
 const CONTRACT_KEYS = [
@@ -134,6 +134,7 @@ describe("a participant's five planned photos", () => {
         status: "ok",
         reason: null,
         hand: null,
+        unfiled: 0,
         predictedPoses: PLANNED,
       },
     ]);
@@ -144,10 +145,10 @@ describe("every entry satisfies the contract, whatever its status", () => {
   it("ok, pose-mismatch, hand-mismatch, needs-review, no-code and version-mismatch alike", () => {
     const sort = sortPhotosV2(
       [
-        // ok, pose-mismatch and hand-mismatch
+        // pose-mismatch and hand-mismatch (and ok)
         ...run("P070", 1, ["G04", "G02", "G02", "G04", "G04"], "right"),
         // needs-review
-        ...run("P071", 10, [null, null, null, null, null, null]),
+        ...run("P071", 10, NO_CALLS(6)),
         // no-code, version-mismatch
         photo("nocard.jpg", 20, null),
         photo("old.jpg", 21, card("P072", 1)),
@@ -241,11 +242,12 @@ describe("participants and capture order", () => {
   });
 
   it("keeps the file's extension in lower case, and .jpg when there is none", () => {
-    const sort = sortPhotosV2([
-      photo("IMG_1.JPEG", 1, card("P005")),
-      photo("IMG_2", 2, card("P005")),
-    ]);
-    expect(sort.photos.map((p) => p.destination)).toEqual([
+    const sort = sortPhotosV2(
+      ["IMG_1.JPEG", "IMG_2", "IMG_3.jpg", "IMG_4.jpg", "IMG_5.jpg"].map(
+        (f, i) => photo(f, i, card("P005")),
+      ),
+    );
+    expect(sort.photos.slice(0, 2).map((p) => p.destination)).toEqual([
       "P005/G02/1.jpeg",
       "P005/G02/2.jpg",
     ]);
@@ -253,11 +255,16 @@ describe("participants and capture order", () => {
 
   it("never reads the pose from the folder or the file name", () => {
     // Names that look like poses mean nothing: only the order does.
-    const sort = sortPhotosV2([
-      photo("G04_flat.jpg", 1, card("P006")),
-      photo("claw.jpg", 2, card("P006")),
+    const sort = sortPhotosV2(
+      ["G04_flat.jpg", "claw.jpg", "x.jpg", "y.jpg", "z.jpg"].map((f, i) =>
+        photo(f, i, card("P006")),
+      ),
+    );
+    expect(sort.photos.slice(0, 3).map((p) => p.gesture)).toEqual([
+      "G02",
+      "G02",
+      "G02",
     ]);
-    expect(sort.photos.map((p) => p.gesture)).toEqual(["G02", "G02"]);
   });
 });
 
@@ -297,18 +304,32 @@ describe("the hand comes from participant.json; MediaPipe only checks it", () =>
     }
   });
 
-  it("does not take a hand from an inherited property of the lookup", () => {
-    const sort = sortPhotosV2(run("toString", 1, PLANNED), {
-      mouseHands: {},
+  it("takes no hand from the lookup's inherited properties: a participant named like one gets none", () => {
+    // Object.prototype has toString, constructor, __proto__ ...; none is a record.
+    for (const name of [
+      "toString",
+      "constructor",
+      "__proto__",
+      "hasOwnProperty",
+    ]) {
+      const sort = sortPhotosV2(run(name, 1, PLANNED, "right"), {
+        mouseHands: {},
+        shotCounts: {},
+      });
+      expect(sort.photos).toHaveLength(5);
+      expect(sort.photos.every((p) => p.hand === null)).toBe(true);
+      expect(sort.photos.every((p) => p.status === "ok")).toBe(true);
+      expect(sort.participants[0]!.hand).toBeNull();
+    }
+    // And an own entry still works beside them.
+    const own = sortPhotosV2(run("P013", 1, PLANNED), {
+      mouseHands: { P013: "right" },
     });
-    // "toString" is not a participant; nothing is read from Object.prototype.
-    expect(sort.photos).toHaveLength(5);
-    const real = sortPhotosV2(run("P013", 1, PLANNED), { mouseHands: {} });
-    expect(real.photos.every((p) => p.hand === null)).toBe(true);
+    expect(own.photos.every((p) => p.hand === "right")).toBe(true);
   });
 });
 
-describe("the pose check is a flag: it never moves a photo", () => {
+describe("the pose check is a flag: it never places or moves a photo", () => {
   it("flags a photo whose call disagrees, and leaves it in the pose the order gave it", () => {
     // The third G02 shot looks like a claw; the second G04 shot looks flat.
     const sort = sortPhotosV2(
@@ -323,7 +344,6 @@ describe("the pose check is a flag: it never moves a photo", () => {
       ["G04", 1, "ok", { predicted: "G04", agrees: true }],
       ["G04", 2, "pose-mismatch", { predicted: "G02", agrees: false }],
     ]);
-    // The destinations are the order's.
     expect(sort.photos.map((p) => p.destination)).toEqual([
       "P020/G02/1.jpg",
       "P020/G02/2.jpg",
@@ -357,10 +377,50 @@ describe("the pose check is a flag: it never moves a photo", () => {
   });
 });
 
-describe("one extra shot: the pose check says where it goes", () => {
-  it("an extra G02 (the fourth photo looks flat): G02 shots 1 to 4, the last one the extra", () => {
+describe("any count but five needs Kirby's shotCounts: the pose check does not place an extra photo", () => {
+  it("six photos without shotCounts go to review, even when every pose-check call is clear and agrees on one arrangement", () => {
+    // Four flat then two claws, each called: the old rule would have placed the extra by this.
     const sort = sortPhotosV2(
       run("P030", 1, ["G02", "G02", "G02", "G02", "G04", "G04"]),
+    );
+    expect(sort.photos.every((p) => p.status === "needs-review")).toBe(true);
+    expect(sort.photos.every((p) => p.destination === null)).toBe(true);
+    expect(
+      sort.photos.every((p) => p.gesture === null && p.shot === null),
+    ).toBe(true);
+    expect(sort.participants[0]).toMatchObject({
+      status: "needs-review",
+      reason: "photo-count-not-planned",
+      photos: 6,
+    });
+    expect(sort.coverage).toEqual([]);
+  });
+
+  it.each([1, 2, 3, 4, 7])(
+    "%i photos without shotCounts go to review too: fewer than five is not guessed either",
+    (n) => {
+      const sort = sortPhotosV2(run("P031", 1, NO_CALLS(n)));
+      expect(sort.photos.every((p) => p.status === "needs-review")).toBe(true);
+      expect(sort.participants[0]!.reason).toBe("photo-count-not-planned");
+    },
+  );
+
+  it("a review message tells Kirby to fill shotCounts and run again", () => {
+    for (const reason of [
+      "photo-count-not-planned",
+      "shot-counts-do-not-match",
+      "unreadable-photo-in-run",
+    ] as const) {
+      expect(REVIEW_REASON_TEXT[reason]).toMatch(/shotCounts/);
+      expect(REVIEW_REASON_TEXT[reason]).toMatch(/run the sorter again/);
+    }
+  });
+
+  it("with shotCounts {G02: 4, G04: 2} the fourth photo is an extra G02, whatever the pose check says", () => {
+    // The calls say the fourth photo is a claw; the counts decide, the check only flags.
+    const sort = sortPhotosV2(
+      run("P032", 1, ["G02", "G02", "G02", "G04", "G04", "G04"]),
+      { shotCounts: { P032: { G02: 4, G04: 2 } } },
     );
     expect(
       sort.photos.map((p) => [p.gesture, p.shot, p.extraShot, p.status]),
@@ -368,7 +428,7 @@ describe("one extra shot: the pose check says where it goes", () => {
       ["G02", 1, false, "ok"],
       ["G02", 2, false, "ok"],
       ["G02", 3, false, "ok"],
-      ["G02", 4, true, "ok"],
+      ["G02", 4, true, "pose-mismatch"],
       ["G04", 1, false, "ok"],
       ["G04", 2, false, "ok"],
     ]);
@@ -378,137 +438,30 @@ describe("one extra shot: the pose check says where it goes", () => {
     ]);
   });
 
-  it("an extra G04 (the fourth photo looks like a claw): G04 shots 1 to 3, the last one the extra", () => {
-    const sort = sortPhotosV2(
-      run("P031", 1, ["G02", "G02", "G02", "G04", "G04", "G04"]),
-    );
+  it("with {G02: 3, G04: 3} the extra is the third G04 shot", () => {
+    const sort = sortPhotosV2(run("P033", 1, NO_CALLS(6)), {
+      shotCounts: { P033: { G02: 3, G04: 3 } },
+    });
     expect(
       sort.photos.map((p) => [p.gesture, p.shot, p.extraShot, p.destination]),
     ).toEqual([
-      ["G02", 1, false, "P031/G02/1.jpg"],
-      ["G02", 2, false, "P031/G02/2.jpg"],
-      ["G02", 3, false, "P031/G02/3.jpg"],
-      ["G04", 1, false, "P031/G04/1.jpg"],
-      ["G04", 2, false, "P031/G04/2.jpg"],
-      ["G04", 3, true, "P031/G04/3.jpg"],
-    ]);
-    expect(sort.coverage).toMatchObject([
-      { gesture: "G02", expected: 3, got: 3, extra: 0 },
-      { gesture: "G04", expected: 2, got: 3, extra: 1 },
+      ["G02", 1, false, "P033/G02/1.jpg"],
+      ["G02", 2, false, "P033/G02/2.jpg"],
+      ["G02", 3, false, "P033/G02/3.jpg"],
+      ["G04", 1, false, "P033/G04/1.jpg"],
+      ["G04", 2, false, "P033/G04/2.jpg"],
+      ["G04", 3, true, "P033/G04/3.jpg"],
     ]);
   });
 
-  it("decides on the photo that tells the two apart, even when the other calls abstain", () => {
-    const flat = sortPhotosV2(
-      run("P032", 1, [null, null, null, "G02", null, null]),
-    );
-    expect(flat.photos.map((p) => p.gesture)).toEqual([
-      "G02",
-      "G02",
-      "G02",
-      "G02",
-      "G04",
-      "G04",
-    ]);
-    const claw = sortPhotosV2(
-      run("P032", 1, [null, null, null, "G04", null, null]),
-    );
-    expect(claw.photos.map((p) => p.gesture)).toEqual([
-      "G02",
-      "G02",
-      "G02",
-      "G04",
-      "G04",
-      "G04",
-    ]);
-  });
-
-  it("is ambiguous, so the participant goes to review, when that photo's call abstains: none of their photos is filed", () => {
-    const sort = sortPhotosV2([
-      ...run("P033", 1, ["G02", "G02", "G02", null, "G04", "G04"]),
-      ...run("P034", 10, PLANNED),
-    ]);
-    const p33 = sort.photos.filter((p) => p.participant === "P033");
-    expect(p33).toHaveLength(6);
-    for (const p of p33) {
-      expect(p).toMatchObject({
-        status: "needs-review",
-        gesture: null,
-        shot: null,
-        destination: null,
-        extraShot: false,
-        poseSource: "order",
-        poseCheck: null,
-      });
-    }
-    expect(sort.participants.find((r) => r.participant === "P033")).toEqual({
-      participant: "P033",
-      photos: 6,
-      status: "needs-review",
-      reason: "extra-shot-placement-unclear",
-      hand: null,
-      predictedPoses: ["G02", "G02", "G02", null, "G04", "G04"],
+  it("with shotCounts for a short run ({G02: 3, G04: 1}) the four photos are filed in those slots", () => {
+    const sort = sortPhotosV2(run("P034", 1, NO_CALLS(4)), {
+      shotCounts: { P034: { G02: 3, G04: 1 } },
     });
-    // No coverage rows for a participant in review; the others are untouched.
-    expect(sort.coverage.map((r) => r.participant)).toEqual(["P034", "P034"]);
-    expect(
-      sort.photos
-        .filter((p) => p.participant === "P034")
-        .every((p) => p.status === "ok" && p.destination !== null),
-    ).toBe(true);
-  });
-
-  it("is ambiguous when every call abstains or there is no hand", () => {
-    for (const calls of [
-      [null, null, null, null, null, null],
-      [undefined, undefined, undefined, undefined, undefined, undefined],
-    ] as Pred[][]) {
-      const sort = sortPhotosV2(run("P035", 1, calls));
-      expect(sort.photos.every((p) => p.status === "needs-review")).toBe(true);
-    }
-  });
-
-  it("a hand-mismatch is not hidden by review: a participant in review keeps their recorded hand", () => {
-    const sort = sortPhotosV2(
-      run("P036", 1, [null, null, null, null, null, null], "right"),
-      {
-        mouseHands: { P036: "left" },
-      },
-    );
-    expect(sort.photos.every((p) => p.hand === "left")).toBe(true);
-    expect(sort.photos.every((p) => p.status === "needs-review")).toBe(true);
-  });
-
-  it("more photos than the plan and one extra is review too, never guessed", () => {
-    const sort = sortPhotosV2(
-      run("P037", 1, ["G02", "G02", "G02", "G02", "G02", "G04", "G04"]),
-    );
-    expect(sort.photos.every((p) => p.status === "needs-review")).toBe(true);
-    expect(sort.participants[0]).toMatchObject({
-      status: "needs-review",
-      reason: "too-many-photos",
-      photos: 7,
-    });
-  });
-
-  it("every review reason has text for a person", () => {
-    for (const reason of [
-      "too-many-photos",
-      "extra-shot-placement-unclear",
-      "unreadable-photo-in-run",
-    ] as const) {
-      expect(REVIEW_REASON_TEXT[reason].length).toBeGreaterThan(10);
-    }
-  });
-});
-
-describe("fewer photos than planned", () => {
-  it("files them in order and reports the shortfall; the pose check still only flags", () => {
-    const sort = sortPhotosV2(run("P040", 1, ["G02", "G02", "G04", "G04"]));
     expect(sort.photos.map((p) => [p.gesture, p.shot, p.status])).toEqual([
       ["G02", 1, "ok"],
       ["G02", 2, "ok"],
-      ["G02", 3, "pose-mismatch"],
+      ["G02", 3, "ok"],
       ["G04", 1, "ok"],
     ]);
     expect(sort.coverage).toMatchObject([
@@ -517,9 +470,48 @@ describe("fewer photos than planned", () => {
     ]);
   });
 
-  it("a single photo is the first G02 shot", () => {
-    const sort = sortPhotosV2(run("P041", 1, ["G02"]));
-    expect(sort.photos[0]).toMatchObject({ gesture: "G02", shot: 1 });
+  it("shotCounts that do not add up to the photos, or allow two extras, go to review", () => {
+    const wrongTotal = sortPhotosV2(run("P035", 1, NO_CALLS(6)), {
+      shotCounts: { P035: { G02: 3, G04: 2 } },
+    });
+    expect(wrongTotal.participants[0]).toMatchObject({
+      status: "needs-review",
+      reason: "shot-counts-do-not-match",
+    });
+    const twoExtras = sortPhotosV2(run("P036", 1, NO_CALLS(7)), {
+      shotCounts: { P036: { G02: 4, G04: 3 } },
+    });
+    expect(twoExtras.participants[0]!.reason).toBe("shot-counts-do-not-match");
+    expect(twoExtras.photos.every((p) => p.destination === null)).toBe(true);
+  });
+
+  it("shotCounts null means as planned: five photos are placed, any other count is review", () => {
+    const five = sortPhotosV2(run("P037", 1, NO_CALLS(5)), {
+      shotCounts: { P037: null },
+    });
+    expect(five.photos.every((p) => p.status === "ok")).toBe(true);
+    const six = sortPhotosV2(run("P037", 1, NO_CALLS(6)), {
+      shotCounts: { P037: null },
+    });
+    expect(six.participants[0]!.reason).toBe("photo-count-not-planned");
+  });
+
+  it("a review keeps the recorded hand and leaves other participants alone", () => {
+    const sort = sortPhotosV2(
+      [...run("P038", 1, NO_CALLS(6), "right"), ...run("P039", 10, PLANNED)],
+      { mouseHands: { P038: "left" } },
+    );
+    expect(
+      sort.photos
+        .filter((p) => p.participant === "P038")
+        .every((p) => p.hand === "left"),
+    ).toBe(true);
+    expect(
+      sort.photos
+        .filter((p) => p.participant === "P039")
+        .every((p) => p.status === "ok"),
+    ).toBe(true);
+    expect(sort.coverage.map((r) => r.participant)).toEqual(["P039", "P039"]);
   });
 });
 
@@ -527,10 +519,12 @@ describe("photos with no readable card", () => {
   const stray = (file: string, takenAt: number) => photo(file, takenAt, null);
 
   it("are not filed and name no participant", () => {
-    const sort = sortPhotosV2([
-      stray("blur.jpg", 1),
-      ...run("P050", 2, PLANNED),
-    ]);
+    const sort = sortPhotosV2(
+      [stray("blur.jpg", 1), ...run("P050", 2, PLANNED)],
+      {
+        shotCounts: { P050: { G02: 3, G04: 2 } },
+      },
+    );
     expect(sort.photos[0]).toMatchObject({
       file: "blur.jpg",
       status: "no-code",
@@ -545,59 +539,69 @@ describe("photos with no readable card", () => {
     });
   });
 
-  it("inside a participant's run, when it is short of photos: the participant goes to review (the stray may be theirs)", () => {
-    const sort = sortPhotosV2([
+  it("beside a participant's run they send it to review: the stray may be theirs", () => {
+    const inside = sortPhotosV2([
       ...run("P051", 1, ["G02", "G02"]),
       stray("no-card.jpg", 3),
-      ...run("P051", 4, ["G02", "G04"]),
+      ...run("P051", 4, ["G02", "G04", "G04"]),
     ]);
-    expect(sort.participants[0]).toMatchObject({
-      participant: "P051",
+    // Five identified photos, but one with no card in the middle: not guessed.
+    expect(inside.participants[0]).toMatchObject({
       status: "needs-review",
       reason: "unreadable-photo-in-run",
     });
     expect(
-      sort.photos.filter((p) => p.participant === "P051").map((p) => p.status),
-    ).toEqual(Array(4).fill("needs-review"));
+      inside.photos
+        .filter((p) => p.participant === "P051")
+        .map((p) => p.status),
+    ).toEqual(Array(5).fill("needs-review"));
   });
 
-  it("but not when the participant has all their photos: the stray is an extra or a test shot", () => {
-    const sort = sortPhotosV2([
-      ...run("P052", 1, ["G02", "G02"]),
-      stray("no-card.jpg", 3),
-      ...run("P052", 4, ["G02", "G04", "G04"]),
-    ]);
+  it("unless Kirby has written shotCounts for them: then the counts decide", () => {
+    const sort = sortPhotosV2(
+      [
+        ...run("P052", 1, ["G02", "G02"]),
+        stray("no-card.jpg", 3),
+        ...run("P052", 4, ["G02", "G04", "G04"]),
+      ],
+      { shotCounts: { P052: { G02: 3, G04: 2 } } },
+    );
     expect(sort.participants[0]!.status).toBe("ok");
     expect(
       sort.photos.filter((p) => p.participant === "P052").map((p) => p.gesture),
     ).toEqual(["G02", "G02", "G02", "G04", "G04"]);
   });
 
-  it("between two runs, flags the short one only", () => {
-    const sort = sortPhotosV2([
-      ...run("P053", 1, ["G02", "G02", "G02", "G04"]),
-      stray("between.jpg", 5),
-      ...run("P054", 6, PLANNED),
+  it("between two runs both are suspect; before the first or after the last, the run it touches", () => {
+    const between = sortPhotosV2([
+      ...run("P053", 1, PLANNED),
+      stray("between.jpg", 6),
+      ...run("P054", 7, PLANNED),
     ]);
-    const status = (id: string) =>
-      sort.participants.find((r) => r.participant === id)!.status;
-    expect(status("P053")).toBe("needs-review");
-    expect(status("P054")).toBe("ok");
-  });
-
-  it("before the first run or after the last, flags only the run it touches", () => {
-    const before = sortPhotosV2([
+    expect(between.participants.map((r) => r.status)).toEqual([
+      "needs-review",
+      "needs-review",
+    ]);
+    const edges = sortPhotosV2([
       stray("first.jpg", 0),
-      ...run("P055", 1, ["G02", "G02", "G02"]),
-    ]);
-    expect(before.participants[0]!.status).toBe("needs-review");
-    const after = sortPhotosV2([
-      ...run("P056", 1, PLANNED),
-      stray("last.jpg", 9),
-      ...run("P057", 10, PLANNED),
+      ...run("P055", 1, PLANNED),
+      ...run("P056", 6, PLANNED),
       stray("end.jpg", 99),
     ]);
-    expect(after.participants.map((r) => r.status)).toEqual(["ok", "ok"]);
+    expect(edges.participants.map((r) => r.status)).toEqual([
+      "needs-review",
+      "needs-review",
+    ]);
+    // A stray in the middle of nowhere, between runs far apart, touches only its neighbours.
+    const apart = sortPhotosV2([
+      ...run("P057", 1, PLANNED),
+      ...run("P058", 6, PLANNED),
+      stray("end.jpg", 99),
+    ]);
+    expect(apart.participants.map((r) => r.status)).toEqual([
+      "ok",
+      "needs-review",
+    ]);
   });
 });
 
@@ -635,89 +639,59 @@ describe("photos of another kit version", () => {
       gesture: null,
     });
   });
-
-  it("an unreadable v1 photo inside a short run still sends the run to review", () => {
-    const sort = sortPhotosV2([
-      ...run("P062", 1, ["G02", "G02"]),
-      photo("old.jpg", 3, card("P062", 1)),
-      ...run("P062", 4, ["G02"]),
-    ]);
-    expect(sort.participants[0]!.status).toBe("needs-review");
-  });
 });
 
-describe("placeByOrder", () => {
-  const gestures = (p: ReturnType<typeof placeByOrder>) =>
-    p.ok
-      ? p.placements.map((x) => `${x.gesture}${x.shot}${x.extra ? "+" : ""}`)
-      : p.reason;
-
-  it("places the planned photos, and fewer, by position alone", () => {
-    expect(gestures(placeByOrder([]))).toEqual([]);
-    expect(gestures(placeByOrder([null]))).toEqual(["G021"]);
-    expect(gestures(placeByOrder([null, null, null, null, null]))).toEqual([
-      "G021",
-      "G022",
-      "G023",
-      "G041",
-      "G042",
+describe("a photo whose copy cannot be made keeps its slot but is not filed", () => {
+  it("the photos after it do not shift pose; it has no destination and a status naming why", () => {
+    const sort = sortPhotosV2(run("P080", 1, NO_CALLS(5)), {
+      unfileable: {
+        "IMG_0002.jpg": "not-a-jpeg",
+        "IMG_0004.jpg": "damaged-jpeg",
+      },
+    });
+    expect(
+      sort.photos.map((p) => [p.gesture, p.shot, p.status, p.destination]),
+    ).toEqual([
+      ["G02", 1, "ok", "P080/G02/1.jpg"],
+      ["G02", 2, "not-a-jpeg", null],
+      ["G02", 3, "ok", "P080/G02/3.jpg"],
+      ["G04", 1, "damaged-jpeg", null],
+      ["G04", 2, "ok", "P080/G04/2.jpg"],
     ]);
-  });
-
-  it("with an extra, takes the way that contradicts the fewest calls, and only if it is the only best", () => {
-    const four = ["G02", "G02", "G02", "G02", "G04", "G04"] as const;
-    expect(gestures(placeByOrder(four))).toEqual([
-      "G021",
-      "G022",
-      "G023",
-      "G024+",
-      "G041",
-      "G042",
+    // Coverage and the participant row count what is actually filed.
+    expect(sort.coverage).toMatchObject([
+      { gesture: "G02", expected: 3, got: 2 },
+      { gesture: "G04", expected: 2, got: 1 },
     ]);
-    // All six look like claws: the way with the fewest contradictions wins (3 against 4).
-    expect(
-      gestures(placeByOrder(["G04", "G04", "G04", "G04", "G04", "G04"])),
-    ).toEqual(["G021", "G022", "G023", "G041", "G042", "G043+"]);
-    // Nothing to go on.
-    expect(gestures(placeByOrder(Array(6).fill(null)))).toBe(
-      "extra-shot-placement-unclear",
-    );
+    expect(sort.participants[0]).toMatchObject({
+      status: "ok",
+      photos: 5,
+      unfiled: 2,
+    });
   });
 
-  it("refuses more photos than the plan plus the allowed extra shots", () => {
-    expect(gestures(placeByOrder(Array(7).fill("G02")))).toBe(
-      "too-many-photos",
-    );
-    expect(
-      gestures(placeByOrder(Array(6).fill("G02"), AGREED_V2_SEQUENCE, 0)),
-    ).toBe("too-many-photos");
+  it("still carries the whole contract entry", () => {
+    const sort = sortPhotosV2(run("P081", 1, NO_CALLS(5)), {
+      unfileable: { "IMG_0001.jpg": "copy-failed" },
+    });
+    const e = sort.photos[0]! satisfies KitV2PhotoAssignment;
+    expect(Object.keys(e).sort()).toEqual(CONTRACT_KEYS);
+    expect(e).toMatchObject({
+      status: "copy-failed",
+      destination: null,
+      gesture: "G02",
+      shot: 1,
+    });
   });
 
-  it("follows another plan, as when S0 forces G02 x2 and G04 x2 (a new prereg)", () => {
-    const short = [
-      { gesture: "G02", shots: 2 },
-      { gesture: "G04", shots: 2 },
-    ] as const;
-    expect(gestures(placeByOrder([null, null, null, null], short))).toEqual([
-      "G021",
-      "G022",
-      "G041",
-      "G042",
-    ]);
-    expect(
-      gestures(placeByOrder(["G02", "G02", "G02", "G04", "G04"], short)),
-    ).toEqual(["G021", "G022", "G023+", "G041", "G042"]);
-  });
-
-  it("can spread two extra shots over the poses when it is allowed two", () => {
-    expect(
-      gestures(
-        placeByOrder(
-          ["G02", "G02", "G02", "G02", "G04", "G04", "G04"],
-          AGREED_V2_SEQUENCE,
-          2,
-        ),
-      ),
-    ).toEqual(["G021", "G022", "G023", "G024+", "G041", "G042", "G043+"]);
+  it("does not turn a participant's file into a refusal of another's, and ignores inherited names", () => {
+    const sort = sortPhotosV2(run("P082", 1, NO_CALLS(5)), {
+      unfileable: { "other.jpg": "not-a-jpeg" },
+    });
+    expect(sort.photos.every((p) => p.destination !== null)).toBe(true);
+    const proto = sortPhotosV2([photo("toString", 1, card("P083"))], {
+      unfileable: {},
+    });
+    expect(proto.photos[0]!.status).toBe("needs-review");
   });
 });

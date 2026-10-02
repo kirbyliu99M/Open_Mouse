@@ -68,7 +68,7 @@ export default async function KitCodePage({
           >
             Start with {first.code}R, {first.name.toLowerCase()}
           </Link>
-          <Link className="learn-button-secondary" href="/learn/check">
+          <Link className="learn-button-secondary" href="/learn/check?sheet=v1">
             Check photos
           </Link>
         </div>
@@ -139,7 +139,7 @@ export default async function KitCodePage({
             <p>
               That was the last pose. Check the photos before the person leaves.
             </p>
-            <Link className="learn-button" href="/learn/check">
+            <Link className="learn-button" href="/learn/check?sheet=v1">
               Check photos
             </Link>
           </>

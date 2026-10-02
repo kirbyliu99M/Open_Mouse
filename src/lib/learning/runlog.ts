@@ -21,7 +21,11 @@ import {
   type KitV2Sheet,
   type SessionRecord,
 } from "./session";
-import { sortPhotosV2, type KitV2SortResult } from "./sortv2";
+import {
+  sortPhotosV2,
+  type KitV2SortResult,
+  type SortV2Options,
+} from "./sortv2";
 import {
   stampProvenance,
   type LearningPhotoReport,
@@ -147,6 +151,10 @@ export function sortReportsV2(
   options: {
     /** Participant id to the hand they use a mouse with (`participant.json`). */
     readonly mouseHands?: Readonly<Record<string, HandSide | null | undefined>>;
+    /** Participant id to `shotCounts` from `participant.json`. */
+    readonly shotCounts?: SortV2Options["shotCounts"];
+    /** Input files whose copy cannot be made. */
+    readonly unfileable?: SortV2Options["unfileable"];
   } = {},
 ): KitV2SortResult {
   const ordered = [...reports].sort((a, b) => compareFileNames(a.file, b.file));
@@ -158,6 +166,10 @@ export function sortReportsV2(
       detectedHand: r.hand?.handedness ?? null,
       predictedPose: classifyPose(r.hand?.landmarksPx).predicted,
     })),
-    { mouseHands: options.mouseHands },
+    {
+      mouseHands: options.mouseHands,
+      shotCounts: options.shotCounts,
+      unfileable: options.unfileable,
+    },
   );
 }
