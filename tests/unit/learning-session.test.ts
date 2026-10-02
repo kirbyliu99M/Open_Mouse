@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AGREED_V2_SEQUENCE,
+  emptyLabelsRecord,
   emptyParticipantRecord,
   isS0Participant,
+  labelsRecordSchema,
   participantRecordSchema,
   sessionRecordSchema,
 } from "@/lib/learning/session";
@@ -61,6 +63,53 @@ describe("kit v2 session contract", () => {
     ).toThrow();
     expect(() =>
       participantRecordSchema.parse({ ...t, gripSelf: "mixed" }),
+    ).toThrow();
+  });
+
+  it("writes an unlabelled, blind labels template that parses", () => {
+    const t = emptyLabelsRecord("S001", ["P901/G02/1.jpg", "P901/G04/1.jpg"]);
+    expect(labelsRecordSchema.parse(t)).toEqual(t);
+    expect(t.blind).toBe(true);
+    expect(t.labels.map((l) => l.label)).toEqual([null, null]);
+  });
+
+  it("allows reasons only on a bad photo, and 'other' only with a note", () => {
+    const base = emptyLabelsRecord("S001", ["a.jpg"]);
+    const withLabel = (label: object) => ({ ...base, labels: [label] });
+    expect(() =>
+      labelsRecordSchema.parse(
+        withLabel({ file: "a.jpg", label: "bad", reasons: ["blur"], note: "" }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      labelsRecordSchema.parse(
+        withLabel({
+          file: "a.jpg",
+          label: "good",
+          reasons: ["blur"],
+          note: "",
+        }),
+      ),
+    ).toThrow();
+    expect(() =>
+      labelsRecordSchema.parse(
+        withLabel({
+          file: "a.jpg",
+          label: "bad",
+          reasons: ["other"],
+          note: " ",
+        }),
+      ),
+    ).toThrow();
+    expect(() =>
+      labelsRecordSchema.parse(
+        withLabel({
+          file: "a.jpg",
+          label: "bad",
+          reasons: ["injury"],
+          note: "",
+        }),
+      ),
     ).toThrow();
   });
 
