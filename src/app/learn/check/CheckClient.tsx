@@ -9,7 +9,14 @@ import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { analyseBatch } from "@/lib/learning/batch";
 import { compareFileNames, type CheckTone } from "@/lib/learning/checks";
 import { kitCodeToken } from "@/lib/learning/kit";
-import { NO_PROVENANCE, buildRunLog, sortReports } from "@/lib/learning/runlog";
+import {
+  NO_PROVENANCE,
+  buildRunLog,
+  sortReports,
+  sortReportsV2,
+} from "@/lib/learning/runlog";
+import { KIT_V2_SHEETS, type KitV2Sheet } from "@/lib/learning/session";
+import { REVIEW_REASON_TEXT } from "@/lib/learning/sortv2";
 
 function ToneIcon({ tone }: { tone: CheckTone }) {
   const common = {
@@ -63,13 +70,19 @@ const PAPER_LABEL: Record<PaperSize, string> = {
 
 export function CheckClient({
   initialPaperSize = "a4",
+  initialSheet = null,
 }: {
   initialPaperSize?: PaperSize;
+  /** A kit v2 sheet to analyse the photos as; `null` is kit v1 (a pose page with its own QR code). */
+  initialSheet?: KitV2Sheet | null;
 }) {
   const [reports, setReports] = useState<LearningPhotoReport[]>([]);
   // The size chosen for the next run, and the size the shown results used.
   const [paperSize, setPaperSize] = useState<PaperSize>(initialPaperSize);
   const [ranWith, setRanWith] = useState<PaperSize>(initialPaperSize);
+  // The same for the kit: v1 (null) or a v2 sheet.
+  const [sheet, setSheet] = useState<KitV2Sheet | null>(initialSheet);
+  const [ranSheet, setRanSheet] = useState<KitV2Sheet | null>(initialSheet);
   const [progress, setProgress] = useState<{
     done: number;
     total: number;
@@ -77,37 +90,54 @@ export function CheckClient({
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const run = useCallback(async (files: File[], size: PaperSize) => {
-    const images = files
-      .filter(
-        (f) =>
-          f.type.startsWith("image/") || /\.(jpe?g|png|heic)$/i.test(f.name),
-      )
-      .sort((a, b) => compareFileNames(a.name, b.name));
-    if (images.length === 0) return;
-    setReports([]);
-    setRanWith(size);
-    setProgress({ done: 0, total: images.length });
-    try {
-      // One report per photo, in order; a photo that cannot be analysed gets a
-      // failed report and the rest go on.
-      await analyseBatch(
-        images,
-        (file) => analyseLearningPhoto(file, { paperSize: size }),
-        {
-          paperSize: size,
-          onProgress: (done) => {
-            setReports([...done]);
-            setProgress({ done: done.length, total: images.length });
+  const run = useCallback(
+    async (files: File[], size: PaperSize, kit: KitV2Sheet | null) => {
+      const images = files
+        .filter(
+          (f) =>
+            f.type.startsWith("image/") || /\.(jpe?g|png|heic)$/i.test(f.name),
+        )
+        .sort((a, b) => compareFileNames(a.name, b.name));
+      if (images.length === 0) return;
+      setReports([]);
+      setRanWith(size);
+      setRanSheet(kit);
+      setProgress({ done: 0, total: images.length });
+      try {
+        // One report per photo, in order; a photo that cannot be analysed gets a
+        // failed report and the rest go on.
+        await analyseBatch(
+          images,
+          (file) =>
+            analyseLearningPhoto(file, {
+              paperSize: size,
+              ...(kit ? { sheet: kit } : {}),
+            }),
+          {
+            paperSize: size,
+            onProgress: (done) => {
+              setReports([...done]);
+              setProgress({ done: done.length, total: images.length });
+            },
           },
-        },
-      );
-    } finally {
-      setProgress(null);
-    }
-  }, []);
+        );
+      } finally {
+        setProgress(null);
+      }
+    },
+    [],
+  );
 
-  const sort = useMemo(() => sortReports(reports), [reports]);
+  // Kit v1 files by each page's own QR code; kit v2 by the participant card
+  // and the shooting order.
+  const sort = useMemo(
+    () => (ranSheet ? sortReportsV2(reports) : sortReports(reports)),
+    [reports, ranSheet],
+  );
+  const v2 = useMemo(
+    () => (ranSheet ? sortReportsV2(reports) : null),
+    [reports, ranSheet],
+  );
   const counts = useMemo(() => {
     const c = { ready: 0, slate: 0, retake: 0, unidentified: 0 };
     for (const r of reports) c[r.verdict]++;
@@ -126,11 +156,12 @@ export function CheckClient({
           input: null,
           provenance: NO_PROVENANCE,
           now: new Date(),
+          ...(ranSheet ? { kitV2: { session: null, sheet: ranSheet } } : {}),
         }),
         null,
         2,
       ),
-    [reports, sort, ranWith],
+    [reports, sort, ranWith, ranSheet],
   );
 
   const download = () => {
@@ -157,7 +188,7 @@ export function CheckClient({
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          void run([...e.dataTransfer.files], paperSize);
+          void run([...e.dataTransfer.files], paperSize, sheet);
         }}
       >
         <button
@@ -178,7 +209,7 @@ export function CheckClient({
           aria-label="Photos to check"
           data-testid="learning-check-input"
           onChange={(e) => {
-            void run([...(e.target.files ?? [])], paperSize);
+            void run([...(e.target.files ?? [])], paperSize, sheet);
             e.target.value = "";
           }}
         />
@@ -204,6 +235,36 @@ export function CheckClient({
       <p className="learn-note">
         Applies to the photos you choose next. The kit is designed for A4.
       </p>
+
+      <div className="learn-field">
+        <label htmlFor="learn-kit">Kit</label>
+        <select
+          id="learn-kit"
+          className="learn-select"
+          value={sheet ?? "v1"}
+          onChange={(e) =>
+            setSheet(KIT_V2_SHEETS.find((s) => s === e.target.value) ?? null)
+          }
+          disabled={progress !== null}
+          data-testid="learning-check-sheet"
+        >
+          <option value="v1">Kit v1: pose pages with their own QR code</option>
+          {KIT_V2_SHEETS.map((s) => (
+            <option key={s} value={s}>
+              Kit v2: sheet {s}, participant card in the slot
+            </option>
+          ))}
+        </select>
+      </div>
+      {sheet && (
+        <p className="learn-note">
+          Kit v2 files by the participant card and the shooting order, and keeps
+          every photo that names a participant. The verdicts below are the
+          product&apos;s own: do not look at them before you have labelled the
+          session&apos;s photos good or bad (docs/learning/README.md, &ldquo;Kit
+          v2&rdquo;).
+        </p>
+      )}
 
       <p className="learn-note" role="status" aria-live="polite">
         {progress
@@ -239,10 +300,11 @@ export function CheckClient({
                       <td>{row.participant}</td>
                       <td>
                         {row.gesture}
-                        {row.hand === "right" ? "R" : "L"}
+                        {v2 ? "" : row.hand === "right" ? "R" : "L"}
                       </td>
                       <td data-short={row.got < row.expected}>
                         {row.got} of {row.expected}
+                        {v2 && row.got > row.expected ? " (extra shot)" : ""}
                       </td>
                     </tr>
                   ))}
@@ -251,11 +313,32 @@ export function CheckClient({
             </>
           )}
 
+          {v2 && v2.participants.some((p) => p.status === "needs-review") && (
+            <>
+              <h2>Needs review</h2>
+              <ul className="learn-checks">
+                {v2.participants
+                  .filter((p) => p.status === "needs-review")
+                  .map((p) => (
+                    <li key={p.participant}>
+                      <ToneIcon tone="warn" />
+                      <span>
+                        {p.participant}, {p.photos} photos:{" "}
+                        {p.reason ? REVIEW_REASON_TEXT[p.reason] : ""}. None of
+                        them is filed.
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </>
+          )}
+
           <h2>Photos</h2>
           <ul className="learn-results">
             {reports.map((r) => {
               const v = VERDICT[r.verdict];
               const filed = sort.photos.find((p) => p.file === r.file);
+              const filedV2 = v2?.photos.find((p) => p.file === r.file);
               return (
                 <li key={r.file} className="learn-result">
                   <div className="learn-result-head">
@@ -267,6 +350,11 @@ export function CheckClient({
                   <p className="learn-file">
                     {r.file}
                     {filed?.destination ? ` → ${filed.destination}` : ""}
+                    {filedV2?.gesture
+                      ? ` (${filedV2.gesture}, shot ${filedV2.shot}${
+                          filedV2.extraShot ? ", extra" : ""
+                        })`
+                      : ""}
                   </p>
                   <ul className="learn-checks">
                     {r.checks.map((c) => (

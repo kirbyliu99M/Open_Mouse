@@ -17,8 +17,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { HandSide, SortedPhoto } from "./kit";
 import { prepareFiledCopy, type StripRefusal } from "./exifstrip";
-import { parseParticipantFile } from "./sessionfile";
-import { emptyParticipantRecord } from "./session";
+import { isInsideDirectory } from "./paths";
+import { emptyLabelsRecord, emptyParticipantRecord } from "./session";
+import {
+  parseLabelsFile,
+  parseParticipantFile,
+  photosMissingLabels,
+} from "./sessionfile";
 
 export interface FiledCopies {
   /** Destinations written, relative to the output folder. */
@@ -150,4 +155,70 @@ export function writeParticipantTemplates(args: {
     else existing.push(participant);
   }
   return { created, existing };
+}
+
+export interface LabelsOutcome {
+  /**
+   * `created`: a blank `labels.json` was written. `exists`: there was one,
+   * left as it is. `refused`: nothing was written, see `problem`.
+   */
+  readonly status: "created" | "exists" | "refused";
+  /** Filed photos an existing `labels.json` has no entry for; always `[]` when it was just created. */
+  readonly missing: readonly string[];
+  /** Why nothing was written, or what is wrong with the file that is there; `null` when all is well. */
+  readonly problem: string | null;
+}
+
+/**
+ * Write `labels.json` next to `session.json` (`dir`): one blank entry per
+ * filed photo, in shooting order. Kirby fills it in blind (prereg v2, 2.1):
+ * the template holds no product verdict and no millimetre value, only the
+ * photos' relative destinations (`emptyLabelsRecord`), and it is never put
+ * where the run logs are, since those hold the product's verdict for every
+ * photo. An existing `labels.json` is never overwritten, filled in or not; if
+ * it is there, the filed photos it lacks are reported instead (a photo
+ * filed later, say, after a participant was reviewed by hand).
+ */
+export function writeLabelsTemplate(args: {
+  /** The folder `session.json` is in. */
+  readonly dir: string;
+  /** The folder the run logs go in (`<out>/runs`). */
+  readonly runsDir: string;
+  readonly session: string;
+  /** The filed photos' relative destinations, in shooting order. */
+  readonly files: readonly string[];
+}): LabelsOutcome {
+  if (isInsideDirectory(args.dir, args.runsDir)) {
+    return {
+      status: "refused",
+      missing: [],
+      problem:
+        "labels.json would sit next to the run logs, which hold the product's verdict for every photo, and the labels must be made blind. Keep session.json outside the runs folder.",
+    };
+  }
+  const target = join(args.dir, "labels.json");
+  if (!existsSync(target)) {
+    const text =
+      JSON.stringify(emptyLabelsRecord(args.session, args.files), null, 2) +
+      "\n";
+    if (writeNew(target, text)) {
+      return { status: "created", missing: [], problem: null };
+    }
+  }
+  const parsed = parseLabelsFile(readFileSync(target, "utf8"));
+  if (!parsed.ok) {
+    return { status: "exists", missing: [], problem: parsed.message };
+  }
+  if (parsed.value.session !== args.session) {
+    return {
+      status: "exists",
+      missing: [],
+      problem: `labels.json next to this session.json is for session ${parsed.value.session}, not ${args.session}. Keep each session's session.json in a folder of its own.`,
+    };
+  }
+  return {
+    status: "exists",
+    missing: photosMissingLabels(parsed.value, args.files),
+    problem: null,
+  };
 }

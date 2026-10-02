@@ -9,8 +9,10 @@
  */
 import type { z } from "zod";
 import {
+  labelsRecordSchema,
   participantRecordSchema,
   sessionRecordSchema,
+  type LabelsRecord,
   type ParticipantRecord,
   type SessionRecord,
 } from "./session";
@@ -74,4 +76,22 @@ export function parseParticipantFile(
     };
   }
   return parsed;
+}
+
+/** `labels.json`, from its text. */
+export function parseLabelsFile(text: string): Parsed<LabelsRecord> {
+  return check(text, labelsRecordSchema, "labels.json");
+}
+
+/**
+ * The filed photos a labels file has no entry for, in the order given. A
+ * photo is covered by an entry with its relative destination (`P007/G02/1.jpg`)
+ * as `file`, labelled or not.
+ */
+export function photosMissingLabels(
+  labels: LabelsRecord,
+  files: readonly string[],
+): string[] {
+  const have = new Set(labels.labels.map((l) => l.file));
+  return files.filter((f) => !have.has(f));
 }
