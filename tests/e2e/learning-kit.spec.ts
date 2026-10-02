@@ -138,7 +138,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0001.jpg",
       mimeType: "image/jpeg",
@@ -208,7 +208,7 @@ test.describe("learning kit", () => {
     ]);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0002.jpg",
       mimeType: "image/jpeg",
@@ -264,7 +264,7 @@ test.describe("learning kit", () => {
     await expect(select).toHaveValue("a4");
 
     const photo = await renderKitPagePhoto(page);
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await select.selectOption("letter");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0003.jpg",
@@ -287,7 +287,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page, 5);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0004.jpg",
       mimeType: "image/jpeg",
@@ -314,7 +314,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0005.jpg",
       mimeType: "image/jpeg",
@@ -362,7 +362,7 @@ test.describe("learning kit", () => {
     const good = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles([
       // Not an image at all: the decoder refuses it.
       {

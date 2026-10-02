@@ -150,19 +150,24 @@ test.describe("kit v2 checker", () => {
     expect(uploads).toEqual([]);
   });
 
-  test("the kit selector: v1 by default, a sheet from ?sheet=, anything else is v1", async ({
+  test("the kit selector: sheet A by default, ?sheet=v1 for the earlier kit, B reachable, anything else is A", async ({
     page,
   }, testInfo) => {
     onlyInChromium(testInfo);
     const select = page.getByTestId("learning-check-sheet");
     await page.goto("/learn/check");
+    await expect(select).toHaveValue("A");
+    await page.goto("/learn/check?sheet=v1");
     await expect(select).toHaveValue("v1");
     await page.goto("/learn/check?sheet=B");
     await expect(select).toHaveValue("B");
     await page.goto("/learn/check?sheet=C");
-    await expect(select).toHaveValue("v1");
+    await expect(select).toHaveValue("A");
     await page.goto("/learn/check?sheet=toString");
-    await expect(select).toHaveValue("v1");
+    await expect(select).toHaveValue("A");
+    // Sheet B stays reachable, and says it is not used.
+    await page.goto("/learn/check?sheet=B");
+    await expect(select.locator("option:checked")).toContainText("not used");
   });
 
   test("an EXIF-stripped copy that keeps only Orientation decodes upright, like its original", async ({

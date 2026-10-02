@@ -34,7 +34,7 @@ function sheetFrom(value: string | string[] | undefined): KitV2Sheet | null {
 
 const SHEET_NAME: Record<KitV2Sheet, string> = {
   A: "Sheet A: the product sheet's four markers, centre line, wrist line and a 100 mm ruler",
-  B: "Sheet B (built, not used for now): six markers on the outer ring and a blank hand area",
+  B: "Sheet B (not used, Kirby 2026-10-02): six markers on the outer ring and a blank hand area",
 };
 
 export default async function LearnPrintPage({
@@ -54,7 +54,10 @@ export default async function LearnPrintPage({
             backLabel="Learning kit"
             stepLabel="Print"
           />
-          <h1>Print kit v2, sheet {sheet}</h1>
+          <h1>
+            Print kit v2, sheet {sheet}
+            {sheet === "B" ? " (not used, Kirby 2026-10-02)" : ""}
+          </h1>
           <p className="learn-lead">
             {SHEET_NAME[sheet]}. One A4 page for both hands. In the print dialog
             choose A4, 100% / Actual size, and turn off &ldquo;Fit to
@@ -69,7 +72,7 @@ export default async function LearnPrintPage({
           <p className="learn-note">
             Other sheet:{" "}
             <Link href={`/learn/print?sheet=${sheet === "A" ? "B" : "A"}`}>
-              sheet {sheet === "A" ? "B" : "A"}
+              sheet {sheet === "A" ? "B (not used)" : "A"}
             </Link>
             .
           </p>

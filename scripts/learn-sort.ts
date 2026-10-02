@@ -22,8 +22,8 @@
  *
  * Options: --in <folder of photos>, --session <session.json> (required: the
  * sorter refuses to run without a valid one), --out <dir> (default: next to the
- * main checkout, in Fixtures/learning), --paper a4|letter (must agree with the
- * session's paperSize if given), --port <n> (default 3401; a dev server is
+ * main checkout, in Fixtures/learning), --paper a4 (optional: kit v2 is A4 only,
+ * and a session's paperSize is always a4), --port <n> (default 3401; a dev server is
  * started), --base <url> (use a running server instead), --dry-run (report
  * only, write nothing), --show-checks (print the pose-check calls and hand
  * flags too, after the "label first" line).
@@ -65,10 +65,7 @@ import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  PAPER_SIZES_MM,
-  type PaperSize,
-} from "../src/lib/contracts/measurement";
+import type { PaperSize } from "../src/lib/contracts/measurement";
 import { compareFileNames } from "../src/lib/learning/checks";
 import {
   DEV_SERVER_HOST,
@@ -147,7 +144,7 @@ function fail(message: string): never {
 installLastResort(failure, (code) => process.exit(code));
 
 const USAGE =
-  'Usage: npm run learn:sort -- --in "<folder of photos>" --session "<session.json>" [--out <dir>] [--paper a4|letter] [--dry-run] [--show-checks]';
+  'Usage: npm run learn:sort -- --in "<folder of photos>" --session "<session.json>" [--out <dir>] [--paper a4] [--dry-run] [--show-checks]';
 
 async function run(): Promise<void> {
   const arg = (flag: string) => {
@@ -198,10 +195,9 @@ async function run(): Promise<void> {
   }
 
   if (!inDir) fail(USAGE);
-  if (paperArg !== undefined && !Object.hasOwn(PAPER_SIZES_MM, paperArg))
-    fail(
-      `--paper must be one of ${Object.keys(PAPER_SIZES_MM).join(", ")}, not "${paperArg}".`,
-    );
+  // Kit v2 is A4 only (Kirby, 2026-10-02): `--paper a4` is accepted, nothing else.
+  if (paperArg !== undefined && paperArg !== "a4")
+    fail(`--paper must be a4 (kit v2 is A4 only), not "${paperArg}".`);
   const input = resolve(inDir);
   if (!existsSync(input) || !statSync(input).isDirectory())
     fail(`Not a folder: ${input}`);
@@ -237,11 +233,6 @@ async function run(): Promise<void> {
   const parsedSession = parseSessionFile(readFileSync(sessionPath, "utf8"));
   if (!parsedSession.ok) fail(parsedSession.message);
   const session = parsedSession.value;
-  if (paperArg !== undefined && paperArg !== session.paperSize) {
-    fail(
-      `--paper ${paperArg} disagrees with the session's paperSize (${session.paperSize}). Leave --paper out: the session decides.`,
-    );
-  }
   const paperSize: PaperSize = session.paperSize;
   const sessionDir = dirname(sessionPath);
 

@@ -40,7 +40,7 @@ export default function LearnPage() {
           Print sheet A
         </Link>
         <Link className="learn-button-secondary" href="/learn/print?sheet=B">
-          Sheet B (not used)
+          Sheet B (not used, Kirby 2026-10-02)
         </Link>
         <Link
           className="learn-button-secondary"
@@ -144,7 +144,7 @@ export default function LearnPage() {
 
       <h2>Check and sort</h2>
       <div className="learn-actions">
-        <Link className="learn-button" href="/learn/check">
+        <Link className="learn-button" href="/learn/check?sheet=v1">
           Check photos
         </Link>
       </div>

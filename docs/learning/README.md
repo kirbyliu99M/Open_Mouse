@@ -128,8 +128,8 @@ and the pages are not served in production. There is no `/l/v2/...` page.
    The sorter **refuses to run without a valid `session.json`**. It starts its
    own dev server (see "A session (kit v1)": `--port`, `--base`, `--dry-run`
    and `--out` are as before) and checks the photos as kit v2 on
-   `/learn/check?paper=<size>&sheet=<sheet>`. `--paper` is optional; if given it
-   must agree with the session's `paperSize`.
+   `/learn/check?paper=<size>&sheet=<sheet>`. `--paper a4` is optional (kit v2 is A4 only; any other
+   value is refused, and so is a session whose `paperSize` is not `a4`).
    `--show-checks` adds the pose-check and hand flags to the summary, after a
    line saying to label first; by default the summary shows counts and file names
    only (blind labelling, below).
@@ -355,8 +355,9 @@ relative `/`-separated path.
 
 ### Checking photos on the page
 
-`/learn/check` has a **Kit** selector (`?sheet=A` or `?sheet=B` presets it; B is not used; the
-sorter uses that). With a sheet chosen the page analyses the photos as kit v2 and
+`/learn/check` has a **Kit** selector. It starts on sheet A (`?sheet=v1` selects the earlier
+kit's pose pages, `?sheet=B` the unused sheet B; the
+sorter opens it with `?sheet=A`). With a sheet chosen the page analyses the photos as kit v2 and
 files them by participant and order, lists any participant in review, and its
 download is a format 3 log with `session: null`. Its per-photo verdicts are the
 product's: see the labelling rule above.
@@ -487,8 +488,9 @@ still checks v1 photos._
 
 Keep the camera's file names: natural file-name order is capture order.
 
-**Pages printed on US Letter.** The kit is designed for A4. If a session uses
-Letter paper, pass `--paper letter` to `learn:sort` (the checker page has a
+**Pages printed on US Letter (kit v1 only).** The kit is designed for A4. Kit v2 is A4
+only: `learn:sort` takes no Letter and refuses a Letter session. For kit v1, on
+Letter paper, `--paper letter` was passed to `learn:sort` (the checker page has a
 "Sheet size of the pages" setting, and `/learn/check?paper=letter` presets it)
 so the paper-edge plane assumes the right sheet size. Print at 100%: the marker
 layout stays the A4 layout, and the run log records the size used.
@@ -580,7 +582,7 @@ format name did not change.
 | `createdAt`          | When the run happened (not when a photo was taken)                                                                                |
 | `kitVersion`         | 1 (kit v1) or 2 (kit v2): the kit the run was made as                                                                             |
 | `gitSha`, `gitDirty` | The commit of the checkout that served the checker, and whether it had uncommitted changes. `null` with `--base` (unknown server) |
-| `paperSize`          | `a4` or `letter`: the sheet the pages are printed on, from `--paper` (default `a4`)                                               |
+| `paperSize`          | `a4` or `letter`: the sheet the pages are printed on (kit v2: always `a4`, from the session; kit v1 logs: from `--paper`)         |
 | `input`              | The photo folder, relative to where the command ran, with `/` separators (see Privacy)                                            |
 | `sort`               | The sorter's result: where each photo was filed, and coverage (kit v2: see "Kit v2")                                              |
 | `reports[]`          | One record per photo, below                                                                                                       |

@@ -250,10 +250,13 @@ export function CheckClient({
           disabled={progress !== null}
           data-testid="learning-check-sheet"
         >
-          <option value="v1">Kit v1: pose pages with their own QR code</option>
+          <option value="v1">
+            Kit v1: pose pages with their own QR code (earlier kit)
+          </option>
           {KIT_V2_SHEETS.map((s) => (
             <option key={s} value={s}>
               Kit v2: sheet {s}, participant card in the slot
+              {s === "A" ? "" : " (not used, Kirby 2026-10-02)"}
             </option>
           ))}
         </select>

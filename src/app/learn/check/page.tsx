@@ -19,10 +19,14 @@ function paperFrom(value: string | string[] | undefined): PaperSize {
     : "a4";
 }
 
-/** `?sheet=A` or `?sheet=B` presets a kit v2 sheet (the folder sorter uses it); anything else is kit v1. */
+/**
+ * The kit the page starts in: sheet A unless `?sheet=B` (built, not used) or
+ * `?sheet=v1` (the earlier kit's pose pages) says otherwise. Anything else is A.
+ */
 function sheetFrom(value: string | string[] | undefined): KitV2Sheet | null {
   const v = Array.isArray(value) ? value[0] : value;
-  return KIT_V2_SHEETS.find((s) => s === v) ?? null;
+  if (v === "v1") return null;
+  return KIT_V2_SHEETS.find((s) => s === v) ?? "A";
 }
 
 export default async function LearnCheckPage({

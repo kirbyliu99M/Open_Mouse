@@ -269,7 +269,7 @@ describe("learn-sort refuses to run where it must not", () => {
     expect(sorter([]).stderr).toMatch(/--session/);
     const bad = sorter(["--in", emptyInput, "--out", outside, "--paper", "a5"]);
     expect(bad.status).toBe(1);
-    expect(bad.stderr).toMatch(/--paper must be one of a4, letter/);
+    expect(bad.stderr).toMatch(/--paper must be a4 \(kit v2 is A4 only\)/);
     const proto = sorter([
       "--in",
       emptyInput,
@@ -279,7 +279,7 @@ describe("learn-sort refuses to run where it must not", () => {
       "toString",
     ]);
     expect(proto.status).toBe(1);
-    expect(proto.stderr).toMatch(/--paper must be one of/);
+    expect(proto.stderr).toMatch(/--paper must be a4/);
     const ok = sorter([
       "--in",
       emptyInput,
@@ -288,7 +288,10 @@ describe("learn-sort refuses to run where it must not", () => {
       "--paper",
       "letter",
     ]);
-    expect(ok.stderr).toMatch(/No photos \(\.jpg/);
+    expect(ok.status).toBe(1);
+    expect(ok.stderr).toMatch(/--paper must be a4/);
+    const a4 = sorter(["--in", emptyInput, "--out", outside, "--paper", "a4"]);
+    expect(a4.stderr).toMatch(/No photos \(\.jpg/);
   }, 60_000);
 });
 
@@ -389,7 +392,7 @@ describe("learn-sort refuses to run without a valid session.json", () => {
     expect(result.stderr).not.toContain("25N");
   });
 
-  it("--paper must agree with the session's paperSize", () => {
+  it("--paper takes a4 only: Letter is refused before the session is read", () => {
     const file = writeSession(join(scratch, "ok"));
     expectRefused(
       sorter([
@@ -402,7 +405,7 @@ describe("learn-sort refuses to run without a valid session.json", () => {
         "--paper",
         "letter",
       ]),
-      /--paper letter disagrees with the session's paperSize \(a4\)/,
+      /--paper must be a4 \(kit v2 is A4 only\), not "letter"/,
     );
   });
 
