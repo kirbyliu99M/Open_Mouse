@@ -7,6 +7,8 @@ import {
   GEOMETRY_CLASSIFIED_AT,
   GEOMETRY_DESCRIPTOR_MODEL,
   LOWER_CONFIDENCE_NOTE,
+  NOT_IN_VALIDATION_SAMPLE,
+  NOT_IN_VALIDATION_SAMPLE_NOTE,
 } from "../../src/server/catalogue/geometry-descriptors";
 import {
   type DescriptorRecord,
@@ -20,7 +22,7 @@ import {
  * from the GD-1 predictions (hump placement only; see
  * src/server/catalogue/geometry-descriptors.ts). The predictions file lives
  * outside the repo, so this checks the committed result: that it lines up with
- * the seeded catalogue, and that it sets nothing the M1 gate did not clear.
+ * the seeded catalogue, and that it sets nothing that did not pass its M1 criteria.
  */
 const records = descriptors as unknown as DescriptorRecord[];
 const specs = seed as unknown as SpecRecord[];
@@ -39,6 +41,48 @@ const LOWER_CONFIDENCE = [
 ] as const;
 const TRACKBALL = ["ERGO M575", "ERGO M575S"] as const;
 const VERTICAL = ["Lift Vertical", "MX Vertical"] as const;
+
+/**
+ * Every model's hump, copied by hand from the pre-registered GD-1 table
+ * (tools/blender/DESCRIPTOR-GEOMETRY.md on geo-descriptors, "Our predictions"),
+ * not from the JSON under test. Swap two records and this fails.
+ */
+const EXPECTED_HUMP: Readonly<Record<string, string>> = {
+  "ERGO M575": "center",
+  "ERGO M575S": "center",
+  "G Pro 2 Lightspeed": "center",
+  "G Pro X Superlight 2": "center",
+  "G Pro X Superlight 2 DEX": "center",
+  "G Pro X Superlight 2 SE": "center",
+  "G Pro X Superlight 2c": "center",
+  "G203 Lightsync": "back_minimal",
+  "G305 Lightspeed": "back_moderate",
+  G309: "back_minimal",
+  "G403 Hero": "center",
+  "G502 Hero": "center",
+  "G502 X": "center",
+  "G502 X Lightspeed": "center",
+  "G502 X Plus": "center",
+  "G703 Lightspeed": "center",
+  "G903 Hero": "back_minimal",
+  "Lift Vertical": "back_moderate",
+  M190: "back_moderate",
+  M196: "back_moderate",
+  M240: "back_minimal",
+  M550: "back_minimal",
+  M650: "back_minimal",
+  "M720 Triathlon": "back_minimal",
+  M750: "back_minimal",
+  "MX Anywhere 3S": "back_minimal",
+  "MX Master 3S": "back_minimal",
+  "MX Master 4": "back_moderate",
+  "MX Vertical": "back_minimal",
+  "Pebble 2 M350s": "back_aggressive",
+  "POP Mouse": "back_aggressive",
+  M325s: "back_moderate",
+  "M705 Marathon": "center",
+  "Signature Comfort Plus M850L": "back_minimal",
+};
 
 const byModel = (model: string) => {
   const record = records.find((r) => r.model === model);
@@ -99,13 +143,11 @@ describe("checked-in Logitech descriptors", () => {
     });
   });
 
-  it.each([
-    ["ERGO M575", "center"],
-    ["G203 Lightsync", "back_minimal"],
-    ["G305 Lightspeed", "back_moderate"],
-    ["Pebble 2 M350s", "back_aggressive"],
-  ])("%s has hump %s, as in the pre-registered GD-1 table", (model, hump) => {
-    expect(byModel(model).humpPlacement).toBe(hump);
+  it("gives every one of the 34 models the hump the pre-registered GD-1 table gives it", () => {
+    expect(Object.keys(EXPECTED_HUMP)).toHaveLength(34);
+    expect(
+      Object.fromEntries(records.map((r) => [r.model, r.humpPlacement])),
+    ).toEqual(EXPECTED_HUMP);
   });
 
   it("copies the hump of the M575 onto the M575S alias", () => {
@@ -127,7 +169,7 @@ describe("checked-in Logitech descriptors", () => {
   });
 
   describe("only the hump is set", () => {
-    // Front flare and side curvature failed the M1 gate in GD-1 run 1 (coarse
+    // Front flare and side curvature failed their M1 criteria in GD-1 run 1 (coarse
     // 67.9 % and 14.3 % against 85 %); thumb and ring-finger rest are not
     // measured from geometry at all. These stay null for good.
     it.each([
@@ -189,13 +231,42 @@ describe("checked-in Logitech descriptors", () => {
       expect(byModel(model).notes).toContain(FORM_FACTOR_NOTES.vertical);
     });
 
-    it("is on those seven models and no other", () => {
+    it("marks the five models with no row in the validation sample, and only them", () => {
+      // 34 records less these five is the n = 29 the M1 numbers were measured on.
+      expect([...NOT_IN_VALIDATION_SAMPLE].sort()).toEqual(
+        [
+          "ERGO M575S",
+          "G903 Hero",
+          "M750",
+          "M325s",
+          "Signature Comfort Plus M850L",
+        ].sort(),
+      );
+      expect(
+        records
+          .filter((r) => r.notes?.includes(NOT_IN_VALIDATION_SAMPLE_NOTE))
+          .map((r) => r.model)
+          .sort(),
+      ).toEqual([...NOT_IN_VALIDATION_SAMPLE].sort());
+      expect(records.length - NOT_IN_VALIDATION_SAMPLE.length).toBe(29);
+    });
+
+    it("is on those nine models and no other", () => {
       expect(
         records
           .filter((r) => r.notes !== undefined)
           .map((r) => r.model)
           .sort(),
-      ).toEqual([...LOWER_CONFIDENCE, ...TRACKBALL, ...VERTICAL].sort());
+      ).toEqual(
+        [
+          ...new Set([
+            ...LOWER_CONFIDENCE,
+            ...TRACKBALL,
+            ...VERTICAL,
+            ...NOT_IN_VALIDATION_SAMPLE,
+          ]),
+        ].sort(),
+      );
     });
   });
 });

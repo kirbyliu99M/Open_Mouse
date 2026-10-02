@@ -31,6 +31,7 @@
     "needsReview": false,
     "notes": [
       "Alias of ERGO M575: its hump is copied from that shell, not an independent geometry observation.",
+      "Not in the M1 validation sample (n = 29).",
       "Unusual form factor (trackball): its shell is not shaped like a standard mouse, so read the hump with care."
     ]
   },
@@ -242,7 +243,8 @@
     "sourceImageUrls": [],
     "descriptorModel": "geometry-gd1@06cc13d",
     "classifiedAt": "2026-10-02",
-    "needsReview": false
+    "needsReview": false,
+    "notes": ["Not in the M1 validation sample (n = 29)."]
   },
   {
     "model": "Lift Vertical",
@@ -357,7 +359,8 @@
     "sourceImageUrls": [],
     "descriptorModel": "geometry-gd1@06cc13d",
     "classifiedAt": "2026-10-02",
-    "needsReview": false
+    "needsReview": false,
+    "notes": ["Not in the M1 validation sample (n = 29)."]
   },
   {
     "model": "MX Anywhere 3S",
@@ -460,6 +463,7 @@
     "classifiedAt": "2026-10-02",
     "needsReview": false,
     "notes": [
+      "Not in the M1 validation sample (n = 29).",
       "Limited-view study geometry (lower confidence): the shell was interpolated from limited photographs, so its hump position is less certain."
     ]
   },
@@ -494,6 +498,7 @@
     "classifiedAt": "2026-10-02",
     "needsReview": false,
     "notes": [
+      "Not in the M1 validation sample (n = 29).",
       "Limited-view study geometry (lower confidence): the shell was interpolated from limited photographs, so its hump position is less certain."
     ]
   }

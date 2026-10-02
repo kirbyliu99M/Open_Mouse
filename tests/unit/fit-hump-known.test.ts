@@ -115,19 +115,16 @@ describe("a mouse with a known hump and unknown flare, curvature and thumb", () 
     ).toBe(3);
   });
 
-  it("leaves flare and thumb unrated, so the results page still says some shape scores are not rated", () => {
+  it("leaves flare and thumb unrated, and the height-and-hump subscore rated", () => {
+    // What the results page then shows is checked in a browser, on this same
+    // engine output: tests/e2e/results-page.spec.ts, "hump rated, flare and
+    // thumb unrated".
     const { entry } = score(humpOnly());
     for (const key of ["frontFlare", "thumb"] as const) {
       expect(entry.subscores[key].score).toBeNull();
       expect(entry.subscores[key].reason.code).toBe("descriptor_unknown");
     }
-    // TopPick.tsx shows "Some shape scores aren't rated yet ... leans on its
-    // size" when any of these three is null. With only the hump known it must
-    // still show: if flare or thumb ever get rated, that copy needs another look.
-    const shapeUnrated = (["heightHump", "frontFlare", "thumb"] as const).some(
-      (key) => entry.subscores[key].score === null,
-    );
-    expect(shapeUnrated).toBe(true);
+    expect(entry.subscores.heightHump.score).not.toBeNull();
   });
 
   it("does not raise confidence: heightHump already counted as real input without a hump", () => {

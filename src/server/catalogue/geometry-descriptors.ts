@@ -7,13 +7,14 @@
  * Provenance. GD-1 measured descriptors from the delivered 3D shells. The
  * mapping was pre-registered in commit 06cc13d on origin/geo-descriptors
  * (tools/blender/DESCRIPTOR-GEOMETRY.md there). Run 1, on 2026-10-02 against the
- * Logitech M1 gate (coarse >= 85 % and within-one >= 90 %), gave:
+ * Logitech M1 criteria (coarse >= 85 % and within-one >= 90 %), gave:
  *
  *   hump        n=29  exact 75.9 %  within-one 93.1 %  coarse 93.1 %  pass
  *   front flare n=28  exact 46.4 %  within-one 75.0 %  coarse 67.9 %  FAIL
  *   curvature   n=28  exact 14.3 %  within-one 67.9 %  coarse 14.3 %  FAIL
  *
- * So only hump placement is applied. Front flare and side curvature stay null
+ * So only hump placement, which passed its M1 criteria, is applied. M1 as a
+ * whole still stands as failed, because flare and curvature failed. Front flare and side curvature stay null
  * whatever the predictions file says, and `convertGeometryPredictions` refuses
  * to be asked for them. The predictions file lives outside the repo (it is our
  * own derived data, but large); its SHA-256 is pinned below so the seed file can
@@ -49,11 +50,25 @@ export const GEOMETRY_CLASSIFIED_AT = "2026-10-02";
 export const GEOMETRY_PREDICTIONS_SHA256 =
   "21e7ffcf3e6af66bb492f1bcdffe704a6f672f84c50f7015c54ed25badc5dc37";
 
-/** The one descriptor geometry may set: it passed the M1 gate. */
+/** The one descriptor geometry may set: it passed its M1 criteria (coarse and within-one). */
 export const GEOMETRY_APPLIED_FIELDS = ["humpPlacement"] as const;
 
 export const LOWER_CONFIDENCE_NOTE =
   "Limited-view study geometry (lower confidence): the shell was interpolated from limited photographs, so its hump position is less certain.";
+/**
+ * The M1 validation sample was the 29 Logitech models with a row in the private
+ * fixture. Of the 34 records, these five have none (GD-1 run 1 listed them as
+ * unmatched), so their hump was never compared with a validation label.
+ */
+export const NOT_IN_VALIDATION_SAMPLE = [
+  "ERGO M575S",
+  "G903 Hero",
+  "M750",
+  "M325s",
+  "Signature Comfort Plus M850L",
+] as const;
+export const NOT_IN_VALIDATION_SAMPLE_NOTE =
+  "Not in the M1 validation sample (n = 29).";
 export const FORM_FACTOR_NOTES = {
   trackball:
     "Unusual form factor (trackball): its shell is not shaped like a standard mouse, so read the hump with care.",
@@ -98,12 +113,12 @@ function assertApplicable(apply: readonly string[]): void {
   for (const field of apply) {
     if (field === "frontFlare" || field === "sideCurvature") {
       throw new GeometryConversionError(
-        `Refusing to apply ${field}: it failed the M1 gate in GD-1 run 1, so it stays null.`,
+        `Refusing to apply ${field}: it failed its M1 criteria in GD-1 run 1, so it stays null.`,
       );
     }
     if (!(GEOMETRY_APPLIED_FIELDS as readonly string[]).includes(field)) {
       throw new GeometryConversionError(
-        `Refusing to apply ${field}: only humpPlacement passed the M1 gate for geometry.`,
+        `Refusing to apply ${field}: only humpPlacement passed its M1 criteria for geometry.`,
       );
     }
   }
@@ -128,6 +143,33 @@ export function assertOnlyHumpSet(records: readonly DescriptorRecord[]): void {
       }
     }
   }
+}
+
+type Entry = Record<string, unknown> & { model: string; slug: string };
+
+/**
+ * The record an alias copies, or null when `entry` is no alias. An alias is
+ * only an alias if its source is in the file and carries the same hump (null
+ * included): otherwise the note "copied from that shell" would be false.
+ */
+function checkedAlias(
+  entry: Entry,
+  bySlug: ReadonlyMap<string, Entry>,
+): Entry | null {
+  if (entry.aliasOf === undefined) return null;
+  const source =
+    typeof entry.aliasOf === "string" ? bySlug.get(entry.aliasOf) : undefined;
+  if (source === undefined) {
+    throw new GeometryConversionError(
+      `${entry.model}: aliasOf ${JSON.stringify(entry.aliasOf)} is not a model in the predictions.`,
+    );
+  }
+  if (source.humpPlacement !== entry.humpPlacement) {
+    throw new GeometryConversionError(
+      `${entry.model}: an alias of ${source.model} must have its hump (${JSON.stringify(source.humpPlacement)}), got ${JSON.stringify(entry.humpPlacement)}.`,
+    );
+  }
+  return source;
 }
 
 /**
@@ -161,10 +203,10 @@ export function convertGeometryPredictions(
         `${entry.model}: slug "${entry.slug}" does not match the model name.`,
       );
     }
-    return entry as Record<string, unknown> & { model: string; slug: string };
+    return entry as Entry;
   });
 
-  const modelBySlug = new Map(entries.map((e) => [e.slug, e.model] as const));
+  const bySlug = new Map(entries.map((e) => [e.slug, e] as const));
   const seen = new Set<string>();
   const records: DescriptorRecord[] = [];
   const skipped: string[] = [];
@@ -176,7 +218,14 @@ export function convertGeometryPredictions(
     }
     seen.add(model);
 
+    const alias = checkedAlias(entry, bySlug);
+
     if (entry.humpPlacement === null) {
+      if (entry.confidence !== "none") {
+        throw new GeometryConversionError(
+          `${model}: no hump needs confidence "none", got ${JSON.stringify(entry.confidence)}.`,
+        );
+      }
       skipped.push(model);
       continue;
     }
@@ -191,19 +240,13 @@ export function convertGeometryPredictions(
     }
 
     const notes: string[] = [];
-    if (entry.aliasOf !== undefined) {
-      const source =
-        typeof entry.aliasOf === "string"
-          ? modelBySlug.get(entry.aliasOf)
-          : undefined;
-      if (source === undefined) {
-        throw new GeometryConversionError(
-          `${model}: aliasOf ${JSON.stringify(entry.aliasOf)} is not a model in the predictions.`,
-        );
-      }
+    if (alias !== null) {
       notes.push(
-        `Alias of ${source}: its hump is copied from that shell, not an independent geometry observation.`,
+        `Alias of ${alias.model}: its hump is copied from that shell, not an independent geometry observation.`,
       );
+    }
+    if ((NOT_IN_VALIDATION_SAMPLE as readonly string[]).includes(model)) {
+      notes.push(NOT_IN_VALIDATION_SAMPLE_NOTE);
     }
     if (
       !(CONFIDENCES as readonly unknown[]).includes(entry.confidence) ||
