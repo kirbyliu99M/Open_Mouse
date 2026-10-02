@@ -261,3 +261,238 @@ M575S reuses M575; `lower` marks the three limited-view studies.
 
 Predictions SHA-256: `21e7ffcf3e6af66bb492f1bcdffe704a6f672f84c50f7015c54ed25badc5dc37`.
 Manifest SHA-256: `d9900d75821346a562f4d27c54ec7854d1cb1b6e2454f5466b5e1d4d9a05bc4d`.
+
+## GD-2 diagnosis
+
+2026-10-02, after Run 1 and before any Run 2 validation. Kirby authorized one
+redesign of flare and curvature. The historical Run 1 stop above is superseded
+only by this authorization; **hump is done and stays untouched**. No private
+fixture, model-associated fixture label, or model miss list was accessed. The
+aggregate counts already recorded above are known, so this is not a blind study.
+
+`diagnose_descriptors_gd2.py` decodes all 33 unique delivered meshes, without
+reading the catalogue or validation output. It saves six section-plot sheets
+(`out/descriptors/gd2/diagnosis-1.png` through `diagnosis-6.png`) and their numeric
+samples (`diagnosis-sections.json`) in the ignored output directory. Each model
+has transverse sections at t=0.4, 0.5 and 0.6, the old 20/50/80% samples and
+chords, and its top-projected width profile from t=0.10 to 0.75. All six sheets
+were inspected. The named examples below describe our geometry, **not which
+models missed the fixture**.
+
+**Curvature interpretation and sign.** Rubric section 6 explicitly means the
+cross-section between deck and base, judged from front/rear; it is not the
+longitudinal outline seen from above. The old sign is correct: left outward is
+-X, right outward is +X. Reversing signs would exchange a real bulge and channel.
+A straight inclined wall has zero chord bow; neither linear vertical taper nor
+longitudinal taper alone explains the positive bias.
+
+**Endpoint contamination is visible.** On the G Pro 2/Superlight sections in
+sheet 1, the lower wall is close to straight, but the 80% endpoint sits on the
+inward-turning deck shoulder. Its chord falls inside the wall at 50%, creating
+positive bow. G203/G305 in sheet 2 also show basal taper and chamfer, so the 20%
+endpoint can participate in that effect. The GD-1 claim that 20/80% excludes
+rounding was too strong. These percentages describe total section height, not
+the boundaries of the actual finger-contact wall. A synthetic straight wall
+with a rounded deck and base chamfer reproduces a non-flat GD-1 bow; the GD-2
+test verifies that the central wall itself has zero bow.
+
+**Shelves, grip zone and averaging.** G502, M720 and MX Master sections show low
+extensions, uneven shoulders and asymmetric walls. The exterior envelope does
+not identify semantic components. A shelf intersecting a low endpoint can
+create a spurious chord concavity; a rounded opposite shoulder can dilute or
+reverse it when the two signed bows are averaged. The t=0.4–0.6 interval is a
+reasonable central grip region, but its median cannot remove contamination
+that persists throughout that region. Retain this longitudinal interval, move
+the vertical measurement below the deck shoulder and above the low chamfer,
+and retain separate wall results before combining them.
+
+**Flare references.** Rubric section 5 combines “forward of the widest point”
+with the more specific instruction to compare the front third and waist. A
+single slice exactly at t=1/3 is the back boundary of the front third, not a
+summary of the button region. Sheets 2, 4 and 5 show narrowing farther forward
+that this slice can miss. A rounded nose tip is also not the button width.
+The central waist remains a better operational reference than the maximum rear
+palm width, but a raw minimum can be set by a single notch or a changing shelf.
+The M550/M650/M750 profiles show a central trough; the shelf-bearing shells
+show why the full projected outline may not be the main body width at all.
+Use a front band, exclude low shelves from both widths, and smooth the waist
+before selecting its minimum. This does not uniquely resolve the rubric's
+“widest point” versus “waist” wording; the chosen waist interpretation is
+explicitly a hypothesis.
+
+## GD-2 pre-registration (Run 2)
+
+**Run 2 reason:** test a geometry-motivated replacement for the two failed
+measures after the diagnosis above. Run 1's 17 flat-to-outward curvature errors
+prompted the specific investigation of shoulder/chamfer contamination; the
+bidirectional flare errors prompted investigation of both reference widths.
+Thus the choice to redesign, and the diagnostic priorities, were influenced by
+Run 1. Sampling bands and mapping boundaries below were selected from the
+rubric's views/definitions and inspection of our geometry, **not optimized
+against those counts**. No model labels, error identities, threshold search,
+target prediction distribution, or validation feedback were used. There is one
+GD-2 candidate; its constants were fixed before generating its predictions.
+
+**Run 2 on the same 28 rows is in-sample and exploratory. Any pass must be
+recorded as “passed in-sample after redesign”, never as a clean gate pass.** The
+gate remains coarse **≥85%** and within-one **≥90%**, independently for each
+descriptor. No held-out or leave-one-out performance is claimed. This document
+does not authorize a third run. Claude must commit this pre-registration, push
+it, then run Run 2 and record its result. **Codex stops before the validator.**
+
+### Fixed redesigned measures
+
+Use the same delivered triangles, millimetres, frame, aliases, null products,
+study-confidence flags and form-factor cautions as GD-1. All measurement maths
+is pure NumPy in `descriptor_geometry_gd2.py`. No public asset or rubric changes.
+Let H and z0 be each transverse section's local height and minimum Z.
+
+**Flare:** W(t) is the exact X extent of the section segments after clipping to
+z0+[0.30,0.70]H. This central body projection removes low shelves/chamfers and
+the high deck/wheel, while preserving any extrema inside the band. It is an
+operational approximation to a top-view main-body outline, not a semantic
+button segmentation. Take the median W over 15 equally spaced stations from
+t=0.20 through 1/3. This samples the front third while excluding the rounded
+leading cap. For the waist, retain 21 stations from t=0.40 through 0.60; compute
+five-station running medians at the 17 interior centers t=0.42 through 0.58,
+then take their minimum. The smoothing spans 4% of shell length and rejects
+isolated notches without replacing the waist with the widest palm section.
+The signed measure is front-band median / smoothed waist - 1.
+
+**Curvature:** at the same 21 grip stations, sample each exterior wall at 13
+equally spaced heights from z0+0.25H through z0+0.55H. These bounds isolate the
+lower central wall visible in the diagnostic sheets, below the usual shoulder
+and above low chamfers/shelves; they are not a claim of universal anatomical
+landmarks. Write its outward coordinate as -X on the left and +X on the right.
+Fit x(q)=a q²+b q+c by least squares for normalized band height q in [0,1].
+The fitted mid-chord bow is -a/4; divide by the measured band's height 0.30H.
+This averages height samples rather than tessellation density and removes
+linear inclination from the bow. A real convex profile is positive; a concave
+channel is negative. Take the median over grip stations **separately per wall**.
+Use the larger absolute wall median, so one gently concave side is not diluted
+by a flat opposite side. If the walls have opposing signs and both exceed the
+flat boundary, output flat with `opposingWallConflict=true`, preserving both
+values. This is an explicit conservative ambiguity policy, not evidence of
+vertical walls; it follows the rubric's anti-tail instruction. Record the
+per-station slope and quadratic residual as diagnostics, with no hidden veto
+or classification threshold based on them.
+
+### Fixed mapping and reasoning
+
+| Descriptor | Absolute measure | Level (sign supplies inward/outward) |
+| ---------- | ---------------- | ------------------------------------ |
+| Flare      | ≤0.025           | flat                                 |
+| Flare      | (0.025,0.075]    | slight                               |
+| Flare      | (0.075,0.15]     | moderate                             |
+| Flare      | >0.15            | aggressive                           |
+| Curvature  | ≤0.025           | flat                                 |
+| Curvature  | (0.025,0.10]     | inward/outward                       |
+| Curvature  | >0.10            | inward_aggressive/outward_aggressive |
+
+Flare boundaries are deliberately unchanged from GD-1: at a 60 mm waist they
+mean 1.5, 4.5 and 9 mm of full-width change. The redesign changes what is
+measured, not the existing interpretation of essentially parallel, visible and
+pronounced width differences. Curvature now normalizes to the actual 30%-height
+wall band instead of full shell height, so its numbers are not interchangeable
+with GD-1. At H=40 mm, the 12 mm band has flat tolerance 0.30 mm and aggressive
+boundary 1.20 mm of bow. For a symmetric quadratic these correspond to endpoint
+tangent departures from its chord of arctan(4×0.025)≈5.7° and
+arctan(4×0.10)≈21.8°. Small departures count as near-straight, while a pronounced
+channel/bulge requires substantially more bending. These are operational
+hypotheses, not numeric boundaries supplied by the rubric. No prior percentage
+from the rubric or Run 1 is imposed as a required output distribution.
+
+**Hump preservation:** `measure_descriptors_gd2.py` requires the original
+`predictions.json` SHA-256 to equal
+`21e7ffcf3e6af66bb492f1bcdffe704a6f672f84c50f7015c54ed25badc5dc37`.
+It copies each hump level, peak fraction, peak span and lateral peak diagnostic
+verbatim, and checks equality before writing. It also verifies every source
+asset hash against Run 1. It never calls the hump measure or mapping. Both
+GD-1 Python files and their tests stay unchanged. Its inputs are our Run 1
+predictions, manifest and delivered assets; it does not read the seed.
+
+### Declared limitations
+
+- Fixed height bands are not semantic segmentation. A tall shelf, low deck,
+  broad rounding or raised feature inside a band can still contaminate it;
+  real channels above 55% height can be missed. The retained vertical/trackball
+  cautions are especially relevant. No exclusions or per-model masks are added.
+- The flare body projection differs from a literal all-height top silhouette.
+  A button overhang above 70% height can be lost. The front-band median can miss
+  a very localized splay, and the waist filter can suppress a narrow true waist.
+  A monotone central profile can still choose an interval endpoint as waist.
+- A quadratic summarizes only broad bending. Multiple bends, grooves and
+  reconstruction artifacts may not be captured faithfully. Sloping straight
+  walls still map flat although the rubric says near-vertical; slopes are
+  reported rather than being mislabeled concave/convex.
+- Selecting the stronger wall can select reconstruction error. Conflicting
+  non-flat walls map flat by policy, which can understate genuine asymmetric
+  shaping; the conflict flag must not be interpreted as a physical flatness
+  finding. There is no hand-specific side selection.
+- The same 33 reconstructed geometries, three lower-confidence studies,
+  one alias and four noShell records remain. No agreement with real-world
+  channels, fixture labels or unchanged M1 thresholds is assumed.
+- No fixture or validator has been accessed during GD-2. Only Claude's later
+  run can supply agreement metrics; these predictions are not a miss list.
+
+### Reproduction and frozen artifact
+
+With the existing ignored Python 3.13 environment and the descriptor/reference
+requirements installed:
+
+```powershell
+python tools/blender/diagnose_descriptors_gd2.py
+python tools/blender/measure_descriptors_gd2.py
+```
+
+The second command writes `out/descriptors/predictions-gd2.json` and its
+`.provenance.json` sidecar. Neither command invokes validation. The original
+Run 1 artifacts are retained. Prediction hash, distributions and required
+local checks are recorded below after generation, without changing constants.
+
+**Frozen predictions SHA-256:**
+`603a850e7801be6a0fe0fa3edf14ed9be65a1333b5be13356da1e55a5f6e0848`.
+Run 1's file retains its original hash. All 38 hump labels and all 34 non-null
+sets of hump measurements were copied unchanged. Counts below cover the whole
+38-product catalogue, including the alias and four nulls; they are not the
+28-row validation subset.
+
+| Descriptor       | Predicted level distribution                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Hump (unchanged) | center 14; back_minimal 12; back_moderate 6; back_aggressive 2; null 4                                                               |
+| Flare            | inward_aggressive 2; inward_moderate 2; inward_slight 14; flat 5; outward_slight 7; outward_moderate 4; outward_aggressive 0; null 4 |
+| Curvature        | inward_aggressive 1; inward 5; flat 17; outward 9; outward_aggressive 2; null 4                                                      |
+
+Five of the 17 curvature-flat predictions have opposing-wall conflict flags;
+they are ambiguous under the declared combination policy. Eleven outward
+predictions remain. No constants were changed to reduce that count or to match
+the rubric's class priors.
+
+For concrete geometry-only checks, the G Pro 2's old bow/H is 0.069297; its new
+left/right bow/band-height values are -0.011555/-0.013171, consistent with the
+near-straight lower wall seen in sheet 1. G305's flare changes from 0.001101 to
+-0.040943 when the front band replaces the single slice; M650's central trough
+retains a similar flare (0.086014 to 0.087107). MX Master 3S's separate new wall
+values are -0.098473/-0.008703, exposing the asymmetry hidden by its old averaged
+0.031526 bow/H. The old and new curvature normalizations differ. None of these
+observations establishes agreement with a fixture label.
+
+### GD-2 local gates
+
+| Check                                                               | Result                                                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `python -m unittest discover -s tools/blender/tests -p "test_*.py"` | PASS: 225 tests, 213 passed, 12 existing bpy-only skips; includes 15 GD-2 tests  |
+| `python tools/blender/check_catalogues.py`                          | PASS: CATALOGUES_MATCH; maximum accessor-bounds error 0.000014901161193847656 mm |
+| `python tools/blender/audit_payloads.py`                            | PASS: 34 GLBs, 8,641,792 bytes                                                   |
+| `python tools/blender/optimize_glbs.py --check`                     | PASS: exit 0                                                                     |
+| `npx prettier --check .`                                            | PASS: all matched files use Prettier code style                                  |
+
+Python checks used the existing worktree-local Python 3.13.13 executable at
+`out/descriptors/venv/Scripts/python.exe`. Discovery and payload-audit output are
+saved under `out/descriptors/gd2/`. PowerShell wraps unittest's stderr progress
+as `NativeCommandError` in the redirected log; the process exit is 0 and its
+summary is `OK (skipped=12)`. No tests failed or were newly skipped.
+
+Run 2 validation invocations by Codex: **zero**. Agreement metrics and gate
+outcome for GD-2 remain **not measured**. Claude's commit/push/run ordering is
+still required.
