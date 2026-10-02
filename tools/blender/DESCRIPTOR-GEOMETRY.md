@@ -95,9 +95,52 @@ Full stdout/stderr from every invocation will be preserved locally under ignored
 lines will be copied here, with exit status and the command. No fixture rows or
 model-associated fixture values will enter this document.
 
-No validation run yet.
+### Run 1 — 2026-10-02 (the only run; stop here)
+
+- **Pre-registration commit:** `06cc13d` (2026-10-02T13:14:15+08:00), pushed to
+  `origin/geo-descriptors` before this run. Claude made the commit because the
+  sandbox blocked Codex's (see the next section).
+- **Predictions:** `tools/blender/out/descriptors/predictions.json`, SHA-256
+  `21e7ffcf3e6af66bb492f1bcdffe704a6f672f84c50f7015c54ed25badc5dc37`, unchanged
+  since measurement.
+- **Command** (run by Claude from the main checkout, so that `../Dataset/`
+  resolves; the script is this branch's): `tsx scripts/validate-rubric.ts
+--predictions tools/blender/out/descriptors/predictions.json --brand Logitech`.
+  Exit status 0. Full output is kept locally in ignored
+  `tools/blender/out/descriptors/validation-run1.txt`.
+- **Printed metrics** (aggregate only, as the script prints them):
+
+| Descriptor     | n   | Exact | Within-one | Coarse   | Gate (coarse ≥ 85 % and within-one ≥ 90 %) |
+| -------------- | --- | ----- | ---------- | -------- | ------------------------------------------ |
+| Hump           | 29  | 75.9% | 93.1% ✅   | 93.1% ✅ | **pass**                                   |
+| Front flare    | 28  | 46.4% | 75.0% ❌   | 67.9% ❌ | **fail**                                   |
+| Side curvature | 28  | 14.3% | 67.9% ❌   | 14.3% ❌ | **fail**                                   |
+
+Aggregate confusion lines printed (fixture level → predicted level, counts):
+
+- Hump: back_moderate→back_minimal ×5, back_moderate→center ×2.
+- Front flare: inward_moderate→flat ×3, inward_moderate→inward_slight ×2,
+  outward_moderate→outward_slight ×2, flat→inward_slight ×1,
+  flat→inward_moderate ×2, inward_aggressive→inward_slight ×2,
+  inward_slight→flat ×3.
+- Side curvature: flat→outward ×14, flat→outward_aggressive ×3,
+  inward→outward ×4, inward→flat ×1, outward_aggressive→inward ×2.
+
+Eight models have no fixture row (unmatched): ERGO M575S, G903 Hero, M750,
+M325s, Signature Comfort Plus M850L, Mobi Fold, Signature Comfort M840L, MX Ergo S.
+The computed-Size line the script also prints is unchanged by GD-1.
+
+**Reading.** Hump placement passes the unchanged gate on its single
+pre-registered run. Front flare and side curvature fail it; per hard rule 4 the
+measure or the rubric gets revised, never the gate. The curvature misses lean
+one way (17 of 28 labelled flat were predicted outward), which points at the
+measure itself, not only its thresholds. Any redesign is now informed by these
+counts, so a further run on the same 28 rows is in-sample and must be reported
+as such.
 
 ## Local execution record (validation blocked)
+
+_Historical: written before Claude committed the pre-registration as `06cc13d` and ran Run 1 above._
 
 The initial `git add` and requested pre-registration `git commit` were both
 blocked by the sandbox: `Open_Mouse/.git/worktrees/geo-descriptors/index.lock`
