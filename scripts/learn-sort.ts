@@ -509,7 +509,7 @@ async function run(): Promise<void> {
       }
     }
     say(
-      "\nLabel the photos good or bad in labels.json BEFORE you open the run log or /learn/check: both show the product's verdict, and the labels must be made blind.",
+      "\nLabel the photos good or bad in labels.json BEFORE you open the run log or the checker page: both show the product's verdict, and the labels must be made blind.",
     );
     if (reports.length === 0) say("No reports returned.");
   }
