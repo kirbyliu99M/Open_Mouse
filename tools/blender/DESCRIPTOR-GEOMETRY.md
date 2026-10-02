@@ -84,18 +84,19 @@ do not supply per-model measures/labels for refitting thresholds out of sample.
 If thresholds are ever changed, these aggregate counts alone cannot honestly
 produce leave-one-out performance for the tuned procedure.
 
-The validator prints metric lines, aggregate off-diagonal confusion counts and
-unmatched names, but **does not identify which matched models missed**. A true
-model miss list cannot be reconstructed from these aggregates. Do not infer it,
-probe individual models with extra runs, or read the fixture. Report our complete
-prediction list separately, clearly labelled as predictions, not misses.
+The validator prints metric lines, off-diagonal confusion counts and the names
+of unmatched models. **Only the metric lines are recorded here.** The confusion
+counts and unmatched names are not: next to the per-model prediction table below,
+confusion counts can reveal individual fixture labels by arithmetic (found by the
+#102 review, 2026-10-02; Kirby: remove the EloShapes labels). Do not infer
+labels, probe individual models with extra runs, or read the fixture.
 
 Full stdout/stderr from every invocation will be preserved locally under ignored
-`tools/blender/out/descriptors/`. Only printed metrics and aggregate confusion
-lines will be copied here, with exit status and the command. No fixture rows or
-model-associated fixture values will enter this document.
+`tools/blender/out/descriptors/`. Only the printed metric lines are copied here,
+with exit status and the command. No fixture rows, fixture labels or confusion
+counts enter this document.
 
-### Run 1 — 2026-10-02 (the only run; stop here)
+### Run 1 — 2026-10-02 (pre-registered)
 
 - **Pre-registration commit:** `06cc13d` (2026-10-02T13:14:15+08:00), pushed to
   `origin/geo-descriptors` before this run. Claude made the commit because the
@@ -116,25 +117,13 @@ model-associated fixture values will enter this document.
 | Front flare    | 28  | 46.4% | 75.0% ❌   | 67.9% ❌ | **fail**                                   |
 | Side curvature | 28  | 14.3% | 67.9% ❌   | 14.3% ❌ | **fail**                                   |
 
-Aggregate confusion lines printed (fixture level → predicted level, counts):
-
-- Hump: back_moderate→back_minimal ×5, back_moderate→center ×2.
-- Front flare: inward_moderate→flat ×3, inward_moderate→inward_slight ×2,
-  outward_moderate→outward_slight ×2, flat→inward_slight ×1,
-  flat→inward_moderate ×2, inward_aggressive→inward_slight ×2,
-  inward_slight→flat ×3.
-- Side curvature: flat→outward ×14, flat→outward_aggressive ×3,
-  inward→outward ×4, inward→flat ×1, outward_aggressive→inward ×2.
-
-Eight models have no fixture row (unmatched): ERGO M575S, G903 Hero, M750,
-M325s, Signature Comfort Plus M850L, Mobi Fold, Signature Comfort M840L, MX Ergo S.
-The computed-Size line the script also prints is unchanged by GD-1.
+Eight seeded models have no fixture row. The computed-Size line the script also
+prints is unchanged by GD-1.
 
 **Reading.** Hump placement passes the unchanged gate on its single
 pre-registered run. Front flare and side curvature fail it; per hard rule 4 the
 measure or the rubric gets revised, never the gate. The curvature misses lean
-one way (17 of 28 labelled flat were predicted outward), which points at the
-measure itself, not only its thresholds. Any redesign is now informed by these
+mostly one way, which points at the measure itself, not only its thresholds. Any redesign is now informed by these
 counts, so a further run on the same 28 rows is in-sample and must be reported
 as such.
 
@@ -268,7 +257,7 @@ Manifest SHA-256: `d9900d75821346a562f4d27c54ec7854d1cb1b6e2454f5466b5e1d4d9a05b
 redesign of flare and curvature. The historical Run 1 stop above is superseded
 only by this authorization; **hump is done and stays untouched**. No private
 fixture, model-associated fixture label, or model miss list was accessed. The
-aggregate counts already recorded above are known, so this is not a blind study.
+aggregate counts Run 1 printed are known, so this is not a blind study.
 
 `diagnose_descriptors_gd2.py` decodes all 33 unique delivered meshes, without
 reading the catalogue or validation output. It saves six section-plot sheets
@@ -519,18 +508,8 @@ tools/blender/out/descriptors/predictions-gd2.json --brand Logitech`. Exit
 | Front flare    | 28  | 50.0% | 92.9% ✅   | 75.0% ❌ | **fail**                                   |
 | Side curvature | 28  | 53.6% | 89.3% ❌   | 60.7% ❌ | **fail**                                   |
 
-Aggregate confusion lines printed (fixture level → predicted level, counts):
-
-- Front flare: outward_slight→flat ×1, inward_moderate→inward_slight ×5,
-  outward_moderate→outward_slight ×2, flat→inward_slight ×3,
-  flat→inward_moderate ×2, inward_slight→flat ×1.
-- Side curvature: flat→outward ×6, flat→inward ×1, flat→inward_aggressive ×1,
-  flat→outward_aggressive ×2, inward→flat ×1, outward_aggressive→outward ×2.
-
 **Reading.** Both measures improved from Run 1 (flare coarse 67.9 % → 75.0 %,
 within-one 75.0 % → 92.9 %; curvature coarse 14.3 % → 60.7 %, within-one 67.9 %
-→ 89.3 %), and both still fail the unchanged gate. Flare's remaining misses are
-mostly magnitude (moderate read as slight) and flat-vs-inward at the boundary.
-Curvature still reads some flat sides as outward. One authorised run is left,
+→ 89.3 %), and both still fail the unchanged gate. One authorised run is left,
 but a third redesign on the same 28 rows would be tuned further to them; front
 flare and side curvature stay unclassified unless Kirby decides otherwise.
