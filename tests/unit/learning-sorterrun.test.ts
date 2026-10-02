@@ -42,7 +42,6 @@ import {
 } from "./helpers/exif-jpeg";
 import { syntheticHand } from "./helpers/synthetic-hand";
 
-const enc = (t: string) => new TextEncoder().encode(t);
 const concat = (...c: Uint8Array[]) => {
   const out = new Uint8Array(c.reduce((n, x) => n + x.length, 0));
   let at = 0;
@@ -381,6 +380,16 @@ describe("runSorterWithReports", () => {
     expect(record.labels.every((l) => l.file.startsWith("P901/"))).toBe(true);
     const said = result.lines.map((l) => l.text).join("\n");
     expect(said).toMatch(/P902, 6 photos:.*shotCounts/);
+  });
+
+  it("writes no labels.json when nothing was filed", () => {
+    const result = runSorterWithReports(
+      args(setup([{ id: "P902", photos: 6 }])),
+    );
+    expect(readdirSync(sessionDir)).toEqual([]);
+    expect(result.lines.map((l) => l.text).join("\n")).toMatch(
+      /No photo was filed, so labels\.json was not written/,
+    );
   });
 
   it("a dry run writes nothing at all", () => {

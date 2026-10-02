@@ -34,7 +34,7 @@ function sheetFrom(value: string | string[] | undefined): KitV2Sheet | null {
 
 const SHEET_NAME: Record<KitV2Sheet, string> = {
   A: "Sheet A: the product sheet's four markers, centre line, wrist line and a 100 mm ruler",
-  B: "Sheet B: six markers on the outer ring and a blank hand area",
+  B: "Sheet B (built, not used for now): six markers on the outer ring and a blank hand area",
 };
 
 export default async function LearnPrintPage({

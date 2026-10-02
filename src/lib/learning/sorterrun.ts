@@ -139,12 +139,16 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
       session: session.session,
       outDir,
     }).created;
-    labels = writeLabelsTemplate({
-      dir: args.sessionDir,
-      runsDir: join(outDir, "runs"),
-      session: session.session,
-      files: filedFiles,
-    });
+    // Nothing filed, nothing to label: no empty file to mistake for a finished one.
+    labels =
+      filedFiles.length > 0
+        ? writeLabelsTemplate({
+            dir: args.sessionDir,
+            runsDir: join(outDir, "runs"),
+            session: session.session,
+            files: filedFiles,
+          })
+        : null;
     const runs = join(outDir, "runs");
     mkdirSync(runs, { recursive: true });
     runLogFile = `${args.now.toISOString().replace(/[:.]/g, "-")}.json`;
@@ -256,6 +260,9 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
         `labels.json has no entry for ${labels.missing.length} filed photo${labels.missing.length === 1 ? "" : "s"}: ${labels.missing.join(" ")}`,
       );
     }
+  }
+  if (!args.dryRun && !labels) {
+    say("No photo was filed, so labels.json was not written.");
   }
   say(`\n${LABEL_FIRST_LINE}`);
 

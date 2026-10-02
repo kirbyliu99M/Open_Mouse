@@ -109,6 +109,16 @@ describe("parseSessionFile", () => {
     expect(parsed).toEqual({ ok: true, value: SESSION });
   });
 
+  it("refuses sheet B and paper size letter with a plain message (built, not used for now)", () => {
+    const b = parseSessionFile(text({ sheet: "B" }));
+    expect(b.ok).toBe(false);
+    if (!b.ok)
+      expect(b.message).toMatch(/sheet B.*not used for now.*Use sheet A/);
+    const l = parseSessionFile(text({ paperSize: "letter" }));
+    expect(l.ok).toBe(false);
+    if (!l.ok) expect(l.message).toMatch(/letter.*A4 only/);
+  });
+
   it("reads a file with a UTF-8 byte-order mark in front (Windows editors add one)", () => {
     expect(parseSessionFile("\uFEFF" + text())).toEqual({
       ok: true,

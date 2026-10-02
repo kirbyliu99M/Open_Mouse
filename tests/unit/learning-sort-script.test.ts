@@ -363,6 +363,16 @@ describe("learn-sort refuses to run without a valid session.json", () => {
       /does not fit the format/,
     ],
     ["an empty file", "", /not valid JSON/],
+    [
+      "sheet B",
+      SESSION_JSON.replace('"sheet":"A"', '"sheet":"B"'),
+      /sheet B, which is built but not used for now/,
+    ],
+    [
+      "paper size letter",
+      SESSION_JSON.replace('"paperSize":"a4"', '"paperSize":"letter"'),
+      /paperSize letter, which is not used/,
+    ],
   ])("a session.json that is %s", (_name, body, message) => {
     const dir = join(scratch, `bad-${_name.replace(/\W+/g, "-")}`);
     const file = writeSession(dir, body);
