@@ -54,6 +54,9 @@ export default function LearnPage() {
         >
           Cards P001 to P048
         </Link>
+        <Link className="learn-button-secondary" href="/learn/check?sheet=A">
+          Check photos (sheet A)
+        </Link>
       </div>
       <p className="learn-note">
         After a session:{" "}
@@ -142,17 +145,22 @@ export default function LearnPage() {
         Lift the hand and place it again between photos, even within a pose.
       </p>
 
-      <h2>Check and sort</h2>
+      <h2>Check and sort (kit v1)</h2>
       <div className="learn-actions">
         <Link className="learn-button" href="/learn/check?sheet=v1">
-          Check photos
+          Check kit v1 photos
         </Link>
       </div>
       <p>
         The checker reads each photo&apos;s QR code, finds the printed markers
         and the paper edges, and says which photos to retake. To file a whole
-        folder by participant and pose, run{" "}
-        <code>npm run learn:sort -- --in &lt;folder&gt;</code>. It writes to{" "}
+        folder, kit v2 only since 2026-10-02, by participant and shooting order,
+        run{" "}
+        <code>
+          npm run learn:sort -- --in &lt;folder&gt; --session
+          &lt;session.json&gt;
+        </code>
+        . It cannot file kit v1 photos. It writes to{" "}
         <code>../Fixtures/learning/</code>, outside the repo.
       </p>
 

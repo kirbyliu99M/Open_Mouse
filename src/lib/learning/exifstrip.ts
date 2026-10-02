@@ -488,12 +488,18 @@ export type FiledCopy =
 /**
  * The bytes to write as a filed copy. Reads the EXIF white-list from the
  * original first, strips, then checks the result (`problemsInFiledCopy`): a
- * copy that is not clean is refused, never written.
+ * copy that is not clean is refused, never written. The check is defence in
+ * depth: `stripJpegMetadata` should never produce a copy that fails it, and
+ * the test feeds it a deliberately broken stripper to show the check works.
  */
-export function prepareFiledCopy(original: Uint8Array): FiledCopy {
+export function prepareFiledCopy(
+  original: Uint8Array,
+  /** The stripper; only a test passes another, to prove the check below catches a bad one. */
+  strip: (bytes: Uint8Array) => StripResult = stripJpegMetadata,
+): FiledCopy {
   // Before stripping: the white-list needs the very tags stripping removes.
   const whitelist = readExifWhitelist(original);
-  const stripped = stripJpegMetadata(original);
+  const stripped = strip(original);
   if (!stripped.ok) return stripped;
   if (problemsInFiledCopy(stripped.bytes).length > 0) {
     return { ok: false, reason: "verification-failed" };

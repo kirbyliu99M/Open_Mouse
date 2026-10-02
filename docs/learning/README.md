@@ -125,7 +125,9 @@ and the pages are not served in production. There is no `/l/v2/...` page.
    npm run learn:sort -- --in "<folder of photos>" --session "<folder>\session.json"
    ```
 
-   The sorter **refuses to run without a valid `session.json`**. It starts its
+   The sorter **refuses to run without a valid `session.json`**, and refuses one
+   that sits inside the repo or any git worktree (`labels.json` is written next
+   to it, so that folder gets the same rule as `--out`). It starts its
    own dev server (see "A session (kit v1)": `--port`, `--base`, `--dry-run`
    and `--out` are as before) and checks the photos as kit v2 on
    `/learn/check?paper=<size>&sheet=<sheet>`. `--paper a4` is optional (kit v2 is A4 only; any other
@@ -180,7 +182,7 @@ Kit v2 sorting is `sortPhotosV2` in `src/lib/learning/sortv2.ts` (kit v1's
    and, when it disagrees with the order for a photo, the `pose-mismatch` flag;
    that photo stays where the order put it.
 6. **A photo that cannot be filed keeps its slot.** Every image-like file in the
-   folder (`.jpg`, `.jpeg`, `.png`, `.heic`, `.heif`, any case) is analysed in
+   folder (`.jpg`, `.jpeg`, `.jfif`, `.png`, `.heic`, `.heif`, any case) is analysed in
    file-name order. If a photo that names a participant cannot be copied (a PNG, a
    damaged JPEG), it keeps its place in the order, so the photos after it do not
    shift pose, but it has no `destination`, a status naming why (`not-a-jpeg`,
@@ -235,6 +237,20 @@ the status.
 <folder of session.json>/labels.json   blank labels; never overwritten
 ```
 
+**Re-running after a correction.** The sorter never overwrites a copy. When a
+re-run files a photo to a destination that already holds other bytes (corrected
+`shotCounts` moved it), that is a **conflict**: the summary says CONFLICT, names
+the files and how to resolve it (move that participant's folder in the output
+folder aside, look at it, then run the sorter again), and the run log's `filing`
+field lists them, so the files on disk are known not to match the log. Copies
+left over from the earlier placement, which this run does not file (an old
+`G02/4.jpg`, or every copy of a participant now in review), are **orphans**,
+listed the same way and never deleted. Same bytes at the same destination is
+simply "already there".
+
+Files in the photo folder that are not photos (a `.webp`, a video) are named in
+the summary ("Skipped N files that are not photos"). A `.jfif` is read as a JPEG.
+
 No `truth.json` is written. The copies are named by pose and shot, so the
 camera's file name (which can hold the time of the shot) is not in the folder;
 it stays in the run log's `file`.
@@ -273,14 +289,15 @@ listed as above.
 
 ### Run log, format 3
 
-Format 3 is format 2 (below) plus three top-level fields, which are `null` in a
-kit v1 log:
+Format 3 is format 2 (below) plus the top-level fields below (`protocol`, `session` and `sheet` are `null` in a
+kit v1 log):
 
-| Field      | Meaning                                                                                                                             |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `protocol` | `agreed-v2` for a kit v2 run; `null` for kit v1 (its values are `candidate-v1`, never mixed with these)                             |
-| `session`  | The whole `session.json` record, read by the sorter. `null` in a kit v1 log and in a download from the checker page, which has none |
-| `sheet`    | `A` (or `B`, not used for now), the sheet the photos were taken on; `null` for kit v1                                               |
+| Field      | Meaning                                                                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocol` | `agreed-v2` for a kit v2 run; `null` for kit v1 (its values are `candidate-v1`, never mixed with these)                                                           |
+| `session`  | The whole `session.json` record, read by the sorter. `null` in a kit v1 log and in a download from the checker page, which has none                               |
+| `filing`   | Kit v2 sorter only: `{ conflicts, orphans }`, the destinations that exist with other bytes than this run files, and the copies this run does not file (see above) |
+| `sheet`    | `A` (or `B`, not used for now), the sheet the photos were taken on; `null` for kit v1                                                                             |
 
 Other fields, in a kit v2 log: `kitVersion` is 2 (each report's too, and each
 `code.version`); `paperSize` is the session's. A report has a participant
@@ -355,7 +372,7 @@ relative `/`-separated path.
 
 ### Checking photos on the page
 
-`/learn/check` has a **Kit** selector. It starts on sheet A (`?sheet=v1` selects the earlier
+`/learn/check` has a **Kit** selector. With a sheet chosen the page is A4 only (a `?paper=letter` is ignored and the size menu is locked); Letter is offered only for kit v1. It starts on sheet A (`?sheet=v1` selects the earlier
 kit's pose pages, `?sheet=B` the unused sheet B; the
 sorter opens it with `?sheet=A`). With a sheet chosen the page analyses the photos as kit v2 and
 files them by participant and order, lists any participant in review, and its

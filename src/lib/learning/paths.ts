@@ -8,7 +8,12 @@ import path, { type PlatformPath } from "node:path";
 import type { PaperSize } from "../contracts/measurement";
 import type { SortResult } from "./kit";
 import type { LearningPhotoReport, Provenance } from "./report";
-import { buildRunLog, type KitV2RunInfo, type LearningRunLog } from "./runlog";
+import {
+  buildRunLog,
+  type KitV2Filing,
+  type KitV2RunInfo,
+  type LearningRunLog,
+} from "./runlog";
 
 export type PathApi = Pick<
   PlatformPath,
@@ -398,6 +403,7 @@ export function buildSorterRunLog(args: {
   readonly now: Date;
   /** Set for a kit v2 run: its session record and sheet go into the log. */
   readonly kitV2?: KitV2RunInfo;
+  readonly filing?: KitV2Filing;
   readonly api?: PathApi;
 }): LearningRunLog {
   return buildRunLog({
@@ -411,6 +417,7 @@ export function buildSorterRunLog(args: {
     provenance: args.provenance,
     now: args.now,
     kitV2: args.kitV2,
+    filing: args.filing,
   });
 }
 

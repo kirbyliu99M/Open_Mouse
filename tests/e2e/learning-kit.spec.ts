@@ -253,14 +253,14 @@ test.describe("learning kit", () => {
   }, testInfo) => {
     onlyInChromium(testInfo);
     const uploads = watchUploads(page);
-    await page.goto("/learn/check?paper=letter");
+    await page.goto("/learn/check?sheet=v1&paper=letter");
     const select = page.getByTestId("learning-check-paper");
     await expect(select).toHaveValue("letter");
 
     // Anything that is not a known size falls back to A4.
-    await page.goto("/learn/check?paper=toString");
+    await page.goto("/learn/check?sheet=v1&paper=toString");
     await expect(select).toHaveValue("a4");
-    await page.goto("/learn/check?paper=nonsense");
+    await page.goto("/learn/check?sheet=v1&paper=nonsense");
     await expect(select).toHaveValue("a4");
 
     const photo = await renderKitPagePhoto(page);
