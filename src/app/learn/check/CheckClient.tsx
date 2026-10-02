@@ -90,13 +90,16 @@ export function CheckClient({
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Kit v2 is A4 only: with a sheet chosen the size is forced, whatever was asked for.
+  const shownPaper: PaperSize = sheet ? "a4" : paperSize;
+
   const run = useCallback(
     async (files: File[], size: PaperSize, kit: KitV2Sheet | null) => {
       const images = files
         .filter(
           (f) =>
             f.type.startsWith("image/") ||
-            /\.(jpe?g|png|heic|heif)$/i.test(f.name),
+            /\.(jpe?g|jfif|png|heic|heif)$/i.test(f.name),
         )
         .sort((a, b) => compareFileNames(a.name, b.name));
       if (images.length === 0) return;
@@ -190,7 +193,7 @@ export function CheckClient({
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          void run([...e.dataTransfer.files], paperSize, sheet);
+          void run([...e.dataTransfer.files], shownPaper, sheet);
         }}
       >
         <button
@@ -211,7 +214,7 @@ export function CheckClient({
           aria-label="Photos to check"
           data-testid="learning-check-input"
           onChange={(e) => {
-            void run([...(e.target.files ?? [])], paperSize, sheet);
+            void run([...(e.target.files ?? [])], shownPaper, sheet);
             e.target.value = "";
           }}
         />
@@ -222,12 +225,15 @@ export function CheckClient({
         <select
           id="learn-paper-size"
           className="learn-select"
-          value={paperSize}
+          value={shownPaper}
           onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-          disabled={progress !== null}
+          disabled={progress !== null || sheet !== null}
           data-testid="learning-check-paper"
         >
-          {(Object.keys(PAPER_SIZES_MM) as PaperSize[]).map((size) => (
+          {(sheet
+            ? (["a4"] as PaperSize[])
+            : (Object.keys(PAPER_SIZES_MM) as PaperSize[])
+          ).map((size) => (
             <option key={size} value={size}>
               {PAPER_LABEL[size]}
             </option>
@@ -235,7 +241,9 @@ export function CheckClient({
         </select>
       </div>
       <p className="learn-note">
-        Applies to the photos you choose next. The kit is designed for A4.
+        {sheet
+          ? "Kit v2 is A4 only."
+          : "Applies to the photos you choose next. The kit is designed for A4."}
       </p>
 
       <div className="learn-field">

@@ -28,7 +28,7 @@
  * only, write nothing), --show-checks (print the pose-check calls and hand
  * flags too, after the "label first" line).
  *
- * Every image-like file in the folder (.jpg, .jpeg, .png, .heic, .heif) is
+ * Every image-like file in the folder (.jpg, .jpeg, .jfif, .png, .heic, .heif) is
  * analysed in file-name order. A file whose copy cannot be made (a PNG, a
  * HEIC the browser cannot read, a damaged JPEG) keeps its place in the order,
  * so the photos after it do not shift pose, but it is not filed.
@@ -66,13 +66,13 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PaperSize } from "../src/lib/contracts/measurement";
-import { compareFileNames } from "../src/lib/learning/checks";
 import {
   DEV_SERVER_HOST,
   devServerSpec,
   waitForServer,
   withDevServer,
 } from "../src/lib/learning/devserver";
+import { listPhotoFiles } from "../src/lib/learning/inputfiles";
 import { fileTimeInversions } from "../src/lib/learning/order";
 import {
   containingRoot,
@@ -214,11 +214,13 @@ async function run(): Promise<void> {
   // Every image-like file counts, in camera order, so a file that cannot be
   // filed (a HEIC the browser cannot read, a PNG) keeps its place and the
   // photos after it do not shift pose.
-  const photos = readdirSync(input)
-    .filter((name) => /\.(jpe?g|png|heic|heif)$/i.test(name))
-    .sort(compareFileNames);
+  const { photos, skipped } = listPhotoFiles(
+    readdirSync(input, { withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => e.name),
+  );
   if (photos.length === 0)
-    fail(`No photos (.jpg, .jpeg, .png, .heic, .heif) in ${input}.`);
+    fail(`No photos (.jpg, .jpeg, .jfif, .png, .heic, .heif) in ${input}.`);
 
   // The session record: the sorter does not run without a valid one.
   if (!sessionArg) {
@@ -229,6 +231,19 @@ async function run(): Promise<void> {
   const sessionPath = resolve(sessionArg);
   if (!existsSync(sessionPath) || !statSync(sessionPath).isFile()) {
     fail("--session is not a file.");
+  }
+  // labels.json (and nothing else of ours) is written next to session.json, so
+  // that folder gets the same refusal as --out: never inside the repo or any
+  // git worktree.
+  if (
+    containingRoot(
+      realpathLoose(dirname(sessionPath)),
+      roots.map(realpathLoose),
+    )
+  ) {
+    fail(
+      "--session must be in a folder outside the repo and every git worktree (labels.json is written next to it; hard rule 1).",
+    );
   }
   const parsedSession = parseSessionFile(readFileSync(sessionPath, "utf8"));
   if (!parsedSession.ok) fail(parsedSession.message);
@@ -327,6 +342,7 @@ async function run(): Promise<void> {
       dryRun,
       showChecks,
       externalServer: externalBase !== undefined,
+      skippedFiles: skipped,
     });
     for (const line of result.lines) {
       if (line.kind === "warn") warn(line.text);

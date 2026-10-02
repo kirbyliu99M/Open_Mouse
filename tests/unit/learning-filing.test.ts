@@ -15,6 +15,7 @@ import { NO_EXIF, readExifWhitelist } from "../../src/lib/learning/exif";
 import { inventoryJpegMetadata } from "../../src/lib/learning/exifstrip";
 import {
   fileStrippedCopies,
+  findOrphans,
   findUnfileable,
   readParticipantRecords,
   writeParticipantTemplates,
@@ -303,9 +304,88 @@ describe("filing a run", () => {
       inputDir: input,
       outDir: out,
     });
+    // It is not the new copy's bytes: a conflict, reported and left alone.
     expect(result.copied).toHaveLength(4);
-    expect(result.existing).toEqual(["P007/G02/3.jpg"]);
+    expect(result.existing).toEqual([]);
+    expect(result.conflicts).toEqual(["P007/G02/3.jpg"]);
     expect(readFileSync(target, "utf8")).toBe("someone's edit");
+  });
+
+  it("a destination with the same bytes as the new copy is existing, with other bytes a conflict, and nothing is overwritten", () => {
+    // A first run files five photos.
+    fileStrippedCopies({
+      photos: sorted().photos,
+      inputDir: input,
+      outDir: out,
+    });
+    // Corrected shotCounts re-file the same five with the extra G02 first: photo 4
+    // now belongs at G02/4.jpg and photo 5 at G04/1.jpg, while G04/2.jpg is left over.
+    const refiled = sortPhotosV2(
+      [1, 2, 3, 4, 5].map((n) => ({
+        file: `IMG_000${n}.jpg`,
+        takenAt: n,
+        code: participantCard("P007"),
+        predictedPose: null,
+      })),
+      { shotCounts: { P007: { G02: 4, G04: 1 } } },
+    ).photos;
+    const before = readFileSync(join(out, "P007", "G04", "1.jpg"));
+    const result = fileStrippedCopies({
+      photos: refiled,
+      inputDir: input,
+      outDir: out,
+    });
+    expect(result.existing).toEqual([
+      "P007/G02/1.jpg",
+      "P007/G02/2.jpg",
+      "P007/G02/3.jpg",
+    ]);
+    // G04/1.jpg on disk is the old photo 4; the new one is photo 5: a conflict.
+    expect(result.conflicts).toEqual(["P007/G04/1.jpg"]);
+    expect(result.copied).toEqual(["P007/G02/4.jpg"]);
+    expect(
+      Buffer.compare(readFileSync(join(out, "P007", "G04", "1.jpg")), before),
+    ).toBe(0);
+  });
+
+  it("a dry run reports the same and writes nothing", () => {
+    const result = fileStrippedCopies({
+      photos: sorted().photos,
+      inputDir: input,
+      outDir: out,
+      dryRun: true,
+    });
+    expect(result.copied).toHaveLength(5);
+    expect(existsSync(join(out, "P007"))).toBe(false);
+  });
+
+  it("findOrphans lists the copies this run does not file, for the participants it names, and deletes nothing", () => {
+    fileStrippedCopies({
+      photos: sorted().photos,
+      inputDir: input,
+      outDir: out,
+    });
+    // Left from an earlier placement: an old fourth G02, and a participant now in review.
+    mkdirSync(join(out, "P007", "G02"), { recursive: true });
+    writeFileSync(join(out, "P007", "G02", "4.jpg"), "old");
+    mkdirSync(join(out, "P008", "G04"), { recursive: true });
+    writeFileSync(join(out, "P008", "G04", "1.jpg"), "old");
+    mkdirSync(join(out, "P009", "G02"), { recursive: true });
+    writeFileSync(join(out, "P009", "G02", "1.jpg"), "not in this run");
+    const destinations = sorted().photos.flatMap((p) =>
+      p.destination ? [p.destination] : [],
+    );
+    const orphans = findOrphans({
+      outDir: out,
+      participants: ["P007", "P008"],
+      destinations,
+    });
+    expect(orphans).toEqual(["P007/G02/4.jpg", "P008/G04/1.jpg"]);
+    expect(existsSync(join(out, "P007", "G02", "4.jpg"))).toBe(true);
+    // A participant the run does not name is not looked at; nothing exists, nothing is listed.
+    expect(
+      findOrphans({ outDir: out, participants: ["P099"], destinations }),
+    ).toEqual([]);
   });
 
   it("refuses a PNG and a damaged JPEG: no copy is made, and the file names come back", () => {
@@ -344,7 +424,12 @@ describe("filing a run", () => {
       inputDir: input,
       outDir: join(scratch, "nowhere"),
     });
-    expect(result).toEqual({ copied: [], existing: [], refused: [] });
+    expect(result).toEqual({
+      copied: [],
+      existing: [],
+      conflicts: [],
+      refused: [],
+    });
     expect(existsSync(join(scratch, "nowhere"))).toBe(false);
   });
 });

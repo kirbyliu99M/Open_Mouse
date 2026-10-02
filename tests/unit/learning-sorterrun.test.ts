@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KitCode } from "../../src/lib/learning/kit";
 import {
+  assembleFailedReport,
   assembleLearningReport,
   type LearningPhotoReport,
   type ReportFindings,
@@ -380,6 +381,107 @@ describe("runSorterWithReports", () => {
     expect(record.labels.every((l) => l.file.startsWith("P901/"))).toBe(true);
     const said = result.lines.map((l) => l.text).join("\n");
     expect(said).toMatch(/P902, 6 photos:.*shotCounts/);
+  });
+
+  it("a re-run with corrected shotCounts reports a conflict and orphans, in the summary and in the run log, and overwrites nothing", () => {
+    const reports = setup([{ id: "P901", photos: 5 }]);
+    runSorterWithReports(args(reports));
+    const old = readFileSync(join(out, "P901", "G04", "1.jpg"));
+    // Kirby corrects the counts: the fourth photo is an extra G02, the fifth the only G04.
+    mkdirSync(join(out, "P901"), { recursive: true });
+    writeFileSync(
+      join(out, "P901", "participant.json"),
+      JSON.stringify({
+        ...emptyParticipantRecord("P901", "S001"),
+        shotCounts: { G02: 4, G04: 1 },
+      }),
+    );
+    const again = runSorterWithReports(
+      args(reports, { now: new Date("2026-10-03T02:00:00.000Z") }),
+    );
+    const said = again.lines.map((l) => l.text).join("\n");
+    // G04/1.jpg on disk is the old fourth photo; the new one is the fifth.
+    expect(said).toMatch(/CONFLICT: 1 copy/);
+    expect(said).toMatch(/\n {2}P901\/G04\/1\.jpg/);
+    expect(said).toMatch(
+      /move that participant's folder in the output folder aside/,
+    );
+    expect(
+      Buffer.compare(readFileSync(join(out, "P901", "G04", "1.jpg")), old),
+    ).toBe(0);
+    // The old second G04 is an orphan: this run does not file it.
+    expect(said).toMatch(/1 copy on disk that this run does not file/);
+    expect(said).toMatch(/\n {2}P901\/G04\/2\.jpg/);
+    const log = JSON.parse(
+      readFileSync(join(out, "runs", again.runLogFile!), "utf8"),
+    );
+    expect(log.filing).toEqual({
+      conflicts: ["P901/G04/1.jpg"],
+      orphans: ["P901/G04/2.jpg"],
+    });
+    // A run that finds nothing on disk disagreeing says so with empty lists.
+    const clean = runSorterWithReports(
+      args(setup([{ id: "P905", photos: 5 }])),
+    );
+    expect(clean.log.filing).toEqual({ conflicts: [], orphans: [] });
+  });
+
+  it("a participant who is now in review has all earlier copies listed as orphans", () => {
+    const reports = setup([{ id: "P901", photos: 5 }]);
+    runSorterWithReports(args(reports));
+    // A sixth photo arrives and there are no shotCounts yet.
+    writeFileSync(join(input, "IMG_0006.jpg"), jpeg(77));
+    const more = [...reports, report("IMG_0006.jpg", card("P901"))];
+    const result = runSorterWithReports(
+      args(more, { now: new Date("2026-10-03T03:00:00.000Z") }),
+    );
+    expect(result.sort.participants[0]!.status).toBe("needs-review");
+    expect(result.log.filing!.orphans).toHaveLength(5);
+    expect(result.log.filing!.conflicts).toEqual([]);
+  });
+
+  it("a HEIC whose card cannot be read keeps its place in the order: the participant is not silently shifted, and shotCounts settles it", () => {
+    const reports = setup([{ id: "P901", photos: 5 }]);
+    // IMG_0003 is a HEIC the browser could not read: a failed report, no card.
+    writeFileSync(join(input, "IMG_0003.heic"), "heic bytes");
+    const heic = assembleFailedReport(
+      "IMG_0003.heic",
+      "a4",
+      "export as JPEG",
+      "X",
+      2,
+    );
+    const withHeic = [
+      reports[0]!,
+      reports[1]!,
+      heic,
+      reports[2]!,
+      reports[3]!,
+      reports[4]!,
+    ];
+    const held = runSorterWithReports(args(withHeic));
+    expect(
+      held.sort.photos.find((p) => p.file === "IMG_0003.heic"),
+    ).toMatchObject({
+      status: "no-code",
+      destination: null,
+    });
+    expect(held.sort.participants[0]).toMatchObject({
+      status: "needs-review",
+      reason: "unreadable-photo-in-run",
+    });
+    expect(existsSync(join(out, "P901", "G02"))).toBe(false);
+  });
+
+  it("names the files it skipped in the summary", () => {
+    const result = runSorterWithReports(
+      args(setup([{ id: "P901", photos: 5 }]), {
+        skippedFiles: ["clip.mov", "pic.webp"],
+      }),
+    );
+    expect(result.lines.map((l) => l.text).join("\n")).toMatch(
+      /Skipped 2 files that are not photos .*: clip\.mov, pic\.webp\./,
+    );
   });
 
   it("writes no labels.json when nothing was filed", () => {

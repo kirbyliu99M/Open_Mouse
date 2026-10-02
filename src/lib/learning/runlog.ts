@@ -49,6 +49,14 @@ export interface LearningRunLog {
   readonly session: SessionRecord | null;
   /** The sheet the photos were taken on (`"A"` or `"B"`); `null` for kit v1. */
   readonly sheet: KitV2Sheet | null;
+  /**
+   * Kit v2 only: what this run found already on disk that disagrees with it.
+   * `conflicts`: destinations that exist with other bytes than the copy this
+   * run would write (never overwritten); `orphans`: copies of a participant
+   * that this run does not file (for example an old `G02/4.jpg`). Absent in a
+   * kit v1 log and in a download from the checker page.
+   */
+  readonly filing?: KitV2Filing;
   readonly gitSha: string | null;
   readonly gitDirty: boolean | null;
   readonly paperSize: PaperSize;
@@ -61,6 +69,11 @@ export interface LearningRunLog {
 }
 
 export const NO_PROVENANCE: Provenance = { gitSha: null, gitDirty: null };
+
+export interface KitV2Filing {
+  readonly conflicts: readonly string[];
+  readonly orphans: readonly string[];
+}
 
 /** What turns a run log into a kit v2 one. */
 export interface KitV2RunInfo {
@@ -79,6 +92,8 @@ export function buildRunLog(args: {
   readonly now: Date;
   /** Set for a kit v2 run. Without it the log is a kit v1 one, exactly as before. */
   readonly kitV2?: KitV2RunInfo;
+  /** Kit v2 filing findings (`sorter` only). */
+  readonly filing?: KitV2Filing;
 }): LearningRunLog {
   const v2 = args.kitV2;
   return {
@@ -88,6 +103,7 @@ export function buildRunLog(args: {
     protocol: v2 ? PROTOCOL_AGREED_V2 : null,
     session: v2?.session ?? null,
     sheet: v2?.sheet ?? null,
+    ...(args.filing ? { filing: args.filing } : {}),
     gitSha: args.provenance.gitSha,
     gitDirty: args.provenance.gitDirty,
     paperSize: args.paperSize,

@@ -553,6 +553,42 @@ describe("what it refuses", () => {
   });
 });
 
+describe("prepareFiledCopy, the check after stripping", () => {
+  it("refuses a result that still holds metadata, whatever stripper made it", () => {
+    const original = jpeg(phoneExif());
+    const leaky = (bytes: Uint8Array) => ({
+      ok: true as const,
+      // "Stripping" that forgot the comment and the Exif.
+      bytes: jpeg(COMMENT, phoneExif()),
+      orientation: null,
+      summary: strip(bytes).summary,
+    });
+    expect(prepareFiledCopy(original, leaky)).toEqual({
+      ok: false,
+      reason: "verification-failed",
+    });
+    const trailing = (bytes: Uint8Array) => ({
+      ...leaky(bytes),
+      bytes: concat(jpeg(), enc("GPS tail")),
+    });
+    expect(prepareFiledCopy(original, trailing)).toEqual({
+      ok: false,
+      reason: "verification-failed",
+    });
+    // The real stripper passes the same check.
+    expect(prepareFiledCopy(original).ok).toBe(true);
+  });
+
+  it("passes on a refusal from the stripper untouched", () => {
+    expect(
+      prepareFiledCopy(enc("not a jpeg"), () => ({
+        ok: false,
+        reason: "malformed",
+      })),
+    ).toEqual({ ok: false, reason: "malformed" });
+  });
+});
+
 describe("prepareFiledCopy", () => {
   const original = jpeg(JFIF_SEGMENT, phoneExif(), XMP_SEGMENT);
 

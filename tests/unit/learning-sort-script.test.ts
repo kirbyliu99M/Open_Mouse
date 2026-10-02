@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -390,6 +391,47 @@ describe("learn-sort refuses to run without a valid session.json", () => {
     expectRefused(result, message);
     // It names the field, not what was typed in it.
     expect(result.stderr).not.toContain("25N");
+  });
+
+  it("--session inside the repo is refused (labels.json is written next to it)", () => {
+    const inside = join(REPO, `learn-session-test-${process.pid}`);
+    try {
+      const file = writeSession(inside);
+      const result = sorter([
+        "--in",
+        photos,
+        "--out",
+        outside,
+        "--session",
+        file,
+      ]);
+      expectRefused(
+        result,
+        /--session must be in a folder outside the repo and every git worktree/,
+      );
+      // Nothing was written next to it.
+      expect(readdirSync(inside)).toEqual(["session.json"]);
+    } finally {
+      rmSync(inside, { recursive: true, force: true });
+    }
+  });
+
+  it("a folder holding only a .heic is not 'no photos': it goes on to ask for the session", () => {
+    const heicOnly = join(scratch, "heic-only");
+    mkdirSync(heicOnly);
+    writeFileSync(join(heicOnly, "IMG_0001.heic"), "not decodable here");
+    const result = sorter(["--in", heicOnly, "--out", outside]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toMatch(/No photos/);
+    expect(result.stderr).toMatch(/--session is required/);
+    // And a folder with nothing that is a photo still says so.
+    const none = join(scratch, "no-photos");
+    mkdirSync(none);
+    writeFileSync(join(none, "a.webp"), "x");
+    const empty = sorter(["--in", none, "--out", outside]);
+    expect(empty.stderr).toMatch(
+      /No photos \(\.jpg, \.jpeg, \.jfif, \.png, \.heic, \.heif\)/,
+    );
   });
 
   it("--paper takes a4 only: Letter is refused before the session is read", () => {

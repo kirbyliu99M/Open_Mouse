@@ -17,6 +17,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  findOrphans,
   findUnfileable,
   fileStrippedCopies,
   readParticipantRecords,
@@ -24,6 +25,7 @@ import {
   writeParticipantTemplates,
 } from "./filing";
 import { EXIF_STRIP_MODE } from "./exifstrip";
+import { skippedFilesLine } from "./inputfiles";
 import { LEARNING_KIT_VERSION } from "./kit";
 import { buildSorterRunLog } from "./paths";
 import type { LearningPhotoReport, Provenance } from "./report";
@@ -54,6 +56,8 @@ export interface SorterRunArgs {
   readonly showChecks: boolean;
   /** `--base` was given: the code version of that server is unknown. */
   readonly externalServer: boolean;
+  /** Files in the photo folder that are not photos, to be named in the summary. */
+  readonly skippedFiles?: readonly string[];
 }
 
 export interface SorterRunResult {
@@ -108,12 +112,28 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
     p.destination ? [p.destination] : [],
   );
 
-  let copied = 0;
-  let existing = 0;
   let created: readonly string[] = [];
   let labels: ReturnType<typeof writeLabelsTemplate> | null = null;
   let runLogFile: string | null = null;
-  const copyFailures: string[] = [];
+
+  // Copies first (on a dry run, only looked at): what is already on disk may
+  // disagree with this run, and the run log has to say so.
+  const filed = fileStrippedCopies({
+    photos: sort.photos,
+    inputDir: args.inputDir,
+    outDir,
+    dryRun: args.dryRun,
+  });
+  const orphans = findOrphans({
+    outDir,
+    participants: sort.participants.map((p) => p.participant),
+    destinations: filedFiles,
+  });
+  const filing = { conflicts: [...filed.conflicts], orphans };
+  const copied = filed.copied.length;
+  const existing = filed.existing.length;
+  const copyFailures = filed.refused.map((r) => r.file);
+
   const log = buildSorterRunLog({
     reports,
     sort,
@@ -124,16 +144,9 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
     provenance: args.provenance,
     now: args.now,
     kitV2: { session, sheet: session.sheet },
+    filing,
   });
   if (!args.dryRun) {
-    const filed = fileStrippedCopies({
-      photos: sort.photos,
-      inputDir: args.inputDir,
-      outDir,
-    });
-    copied = filed.copied.length;
-    existing = filed.existing.length;
-    for (const r of filed.refused) copyFailures.push(r.file);
     created = writeParticipantTemplates({
       participants: sort.participants.map((p) => p.participant),
       session: session.session,
@@ -183,6 +196,8 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
     say(
       "The code version of an external --base server is unknown, so the run log has no git commit.",
     );
+  const skippedLine = skippedFilesLine(args.skippedFiles ?? []);
+  if (skippedLine) warn(`\n${skippedLine}`);
   if (refusedPhotos.length) {
     warn(
       `\n${refusedPhotos.length} photo${refusedPhotos.length === 1 ? " is" : "s are"} placed in the shooting order but NOT filed, because a copy cannot be made without its EXIF (only a complete JPEG can be stripped); export HEIC to JPEG and run again:`,
@@ -191,6 +206,24 @@ export function runSorterWithReports(args: SorterRunArgs): SorterRunResult {
     const who = [...new Set(refusedPhotos.map((p) => p.participant))];
     warn(
       `Participants with a photo missing from their filed sequence: ${who.join(" ")}. Their other photos are filed in the right slots; their labels and coverage are short by these.`,
+    );
+  }
+  if (filing.conflicts.length) {
+    warn(
+      `\nCONFLICT: ${filing.conflicts.length} copy${filing.conflicts.length === 1 ? "" : "ies"} already on disk differ${filing.conflicts.length === 1 ? "s" : ""} from what this run files, and ${filing.conflicts.length === 1 ? "was" : "were"} NOT overwritten, so the file on disk is not the photo the run log says (an earlier run placed the photos differently):`,
+    );
+    for (const c of filing.conflicts) say(`  ${c}`);
+    warn(
+      "To resolve it: move that participant's folder in the output folder aside (do not delete it until you have looked), and run the sorter again.",
+    );
+  }
+  if (filing.orphans.length) {
+    warn(
+      `\n${filing.orphans.length} copy${filing.orphans.length === 1 ? "" : "ies"} on disk that this run does not file (left over from an earlier placement, or a participant now in review); they are not in the run log's sort or in labels.json:`,
+    );
+    for (const o of filing.orphans) say(`  ${o}`);
+    warn(
+      "Move the participant's folder aside and run the sorter again to get a folder that matches the run log.",
     );
   }
   for (const file of copyFailures) {

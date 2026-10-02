@@ -150,6 +150,28 @@ test.describe("kit v2 checker", () => {
     expect(uploads).toEqual([]);
   });
 
+  test("with a sheet chosen the checker is A4 only: Letter cannot be asked for", async ({
+    page,
+  }, testInfo) => {
+    onlyInChromium(testInfo);
+    const paper = page.getByTestId("learning-check-paper");
+    for (const url of [
+      "/learn/check?paper=letter",
+      "/learn/check?sheet=A&paper=letter",
+      "/learn/check?sheet=B&paper=letter",
+    ]) {
+      await page.goto(url);
+      await expect(paper).toHaveValue("a4");
+      await expect(paper).toBeDisabled();
+      await expect(paper.locator("option")).toHaveCount(1);
+    }
+    // The earlier kit still offers both.
+    await page.goto("/learn/check?sheet=v1&paper=letter");
+    await expect(paper).toHaveValue("letter");
+    await expect(paper).toBeEnabled();
+    await expect(paper.locator("option")).toHaveCount(2);
+  });
+
   test("the kit selector: sheet A by default, ?sheet=v1 for the earlier kit, B reachable, anything else is A", async ({
     page,
   }, testInfo) => {

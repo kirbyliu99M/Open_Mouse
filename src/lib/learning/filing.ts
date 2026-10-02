@@ -13,13 +13,20 @@
  *    (the files are created with the exclusive flag).
  *  - No `truth.json` is written: kit v2 has no ruler truth.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { HandSide, SortedPhoto } from "./kit";
 import { prepareFiledCopy, type StripRefusal } from "./exifstrip";
 import type { UnfiledReason } from "./sortv2";
 import { isInsideDirectory } from "./paths";
 import {
+  AGREED_V2_SEQUENCE,
   emptyLabelsRecord,
   emptyParticipantRecord,
   type ParticipantRecord,
@@ -31,10 +38,17 @@ import {
 } from "./sessionfile";
 
 export interface FiledCopies {
-  /** Destinations written, relative to the output folder. */
+  /** Destinations written (on a dry run, that would be), relative to the output folder. */
   readonly copied: readonly string[];
-  /** Destinations that already existed and were left as they were. */
+  /** Destinations that already existed with exactly the bytes of the new copy: nothing to do. */
   readonly existing: readonly string[];
+  /**
+   * Destinations that already exist with DIFFERENT bytes from the new copy,
+   * typically from an earlier run that placed the photo elsewhere in the
+   * order. They are never overwritten, so the file on disk is not the photo
+   * the run log says.
+   */
+  readonly conflicts: readonly string[];
   /** Photos that were not copied, and why. The file name only, never a path. */
   readonly refused: readonly {
     readonly file: string;
@@ -57,15 +71,20 @@ function writeNew(target: string, bytes: Uint8Array | string): boolean {
 
 /**
  * Write the stripped copy of every filed photo (those with a `destination`).
- * `inputDir` is read from only.
+ * `inputDir` is read from only. A destination that exists is never
+ * overwritten: with the same bytes as the new copy it is `existing`, with other
+ * bytes a `conflict`. With `dryRun` nothing is written, and the lists say what
+ * would happen.
  */
 export function fileStrippedCopies(args: {
   readonly photos: readonly SortedPhoto[];
   readonly inputDir: string;
   readonly outDir: string;
+  readonly dryRun?: boolean;
 }): FiledCopies {
   const copied: string[] = [];
   const existing: string[] = [];
+  const conflicts: string[] = [];
   const refused: {
     file: string;
     reason: StripRefusal | "verification-failed";
@@ -73,10 +92,6 @@ export function fileStrippedCopies(args: {
   for (const p of args.photos) {
     if (!p.destination) continue;
     const target = join(args.outDir, p.destination);
-    if (existsSync(target)) {
-      existing.push(p.destination);
-      continue;
-    }
     const original = readFileSync(join(args.inputDir, p.file));
     const prepared = prepareFiledCopy(
       new Uint8Array(original.buffer, original.byteOffset, original.byteLength),
@@ -85,10 +100,54 @@ export function fileStrippedCopies(args: {
       refused.push({ file: p.file, reason: prepared.reason });
       continue;
     }
-    if (writeNew(target, prepared.bytes)) copied.push(p.destination);
-    else existing.push(p.destination);
+    if (existsSync(target)) {
+      const there = readFileSync(target);
+      if (
+        there.length === prepared.bytes.length &&
+        there.every((b, k) => b === prepared.bytes[k])
+      ) {
+        existing.push(p.destination);
+      } else {
+        conflicts.push(p.destination);
+      }
+      continue;
+    }
+    if (args.dryRun) {
+      copied.push(p.destination);
+    } else if (writeNew(target, prepared.bytes)) {
+      copied.push(p.destination);
+    } else {
+      // Appeared between the check and the write: look again.
+      conflicts.push(p.destination);
+    }
   }
-  return { copied, existing, refused };
+  return { copied, existing, conflicts, refused };
+}
+
+/**
+ * Copies on disk that this run does not file: a participant's `G02`/`G04`
+ * files whose names are not among this run's destinations (an old `G02/4.jpg`
+ * after the counts were corrected, or every copy of a participant who is now
+ * in review). Reads only; never deletes. Relative, `/`-separated, sorted.
+ */
+export function findOrphans(args: {
+  readonly outDir: string;
+  readonly participants: readonly string[];
+  readonly destinations: readonly string[];
+}): string[] {
+  const kept = new Set(args.destinations);
+  const orphans: string[] = [];
+  for (const participant of args.participants) {
+    for (const gesture of AGREED_V2_SEQUENCE.map((b) => b.gesture)) {
+      const dir = join(args.outDir, participant, gesture);
+      if (!existsSync(dir)) continue;
+      for (const name of readdirSync(dir)) {
+        const rel = `${participant}/${gesture}/${name}`;
+        if (!kept.has(rel)) orphans.push(rel);
+      }
+    }
+  }
+  return orphans.sort();
 }
 
 const UNFILED: Readonly<
