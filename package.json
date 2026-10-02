@@ -28,6 +28,7 @@
     "m2:evaluate": "tsx scripts/m2-evaluate.ts",
     "paper:bench": "tsx scripts/paper-quad-bench.ts",
     "classify:descriptors": "tsx scripts/classify-descriptors.ts",
+    "descriptors:from-geometry": "tsx scripts/descriptors-from-geometry.ts",
     "learn:sort": "tsx scripts/learn-sort.ts"
   },
   "dependencies": {

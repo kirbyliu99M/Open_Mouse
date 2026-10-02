@@ -13,6 +13,13 @@
  * Two separate upserts implement that split; see
  * src/server/catalogue/seed-rows.ts `partitionByDescriptors`.
  *
+ * G9b: the file is now written by scripts/descriptors-from-geometry.ts and
+ * lists 34 models with hump placement set and shape and handCompatibility
+ * null. Because it is authoritative, those nulls would overwrite the
+ * first-party facts in src/db/seed/logitech-facts.json. G9b must merge its
+ * facts into that file, or change this precedence, before it ships. Details:
+ * src/server/catalogue/geometry-descriptors.ts.
+ *
  *   npm run db:seed            (explicit, e.g. production)
  *   tsx scripts/seed.ts --preview   (Vercel preview builds, after migrate)
  */
