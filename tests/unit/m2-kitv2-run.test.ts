@@ -379,6 +379,10 @@ describe("evaluateRunJson: one door for both", () => {
       /^run log 1 is not a run log of format 2 \(candidate-v1\) or format 3 \(agreed-v2\)\.$/,
     );
     expect(() => evaluateRunJson({ logs: [] })).toThrow(/at least one run log/);
+    // No `format` at all goes to the format-2 reader, which says what is wrong as it always did.
+    expect(() =>
+      evaluateRunJson({ logs: [{ kitVersion: 1, reports: [] }], truths: [] }),
+    ).toThrow(/^run log 1 does not fit the format/);
   });
 });
 

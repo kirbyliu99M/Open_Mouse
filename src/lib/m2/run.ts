@@ -7,6 +7,7 @@
  *  - format-3 run logs + participant records (+ session records): agreed-v2,
  *    `evaluateKitV2` (kitv2.ts). No truth.
  */
+import { RUN_LOG_FORMAT } from "../learning/runlog";
 import {
   evaluate,
   type EvaluateOptions,
@@ -53,7 +54,10 @@ export function protocolOfRun(
   if (logs.length === 0) {
     throw new EvaluationInputError("Give at least one run log.");
   }
-  const formats = logs.map(runLogFormatOf);
+  // A log with no `format` at all is handed to the format-2 reader, which says
+  // exactly what is wrong with it (as it always has); a log that names some
+  // other format is refused here.
+  const formats = logs.map((json) => runLogFormatOf(json) ?? RUN_LOG_FORMAT);
   formats.forEach((format, i) => {
     if (protocolOfLogFormat(format) === null) {
       throw new EvaluationInputError(

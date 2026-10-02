@@ -1,0 +1,412 @@
+/**
+ * `npm run m2:evaluate` on kit v2 inputs (format-3 run logs, participant
+ * records, no truth): the real script on synthetic files in a throwaway
+ * folder, like m2-evaluate-script.test.ts does for candidate-v1.
+ */
+import { spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir, userInfo } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  kitV2LogOf,
+  participantRecordOf,
+  sessionRecordOf,
+  type KitV2SynthPhoto,
+} from "./helpers/m2-kitv2-synth";
+import { runLogOf, truthOf } from "./helpers/m2-synth";
+import { expectNoLeak } from "./helpers/no-absolute-paths";
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
+const SCRIPT = join(REPO, "scripts", "m2-evaluate.ts");
+
+function evaluator(args: readonly string[], env: Record<string, string> = {}) {
+  const result = spawnSync(process.execPath, [TSX, SCRIPT, ...args], {
+    cwd: REPO,
+    encoding: "utf8",
+    timeout: 60_000,
+    env: { ...process.env, CI: "", ...env },
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+  };
+}
+
+const g02 = (
+  participant: string,
+  markersMm: number,
+  paperMm: number = markersMm,
+  extra: Partial<KitV2SynthPhoto> = {},
+): KitV2SynthPhoto => ({
+  participant,
+  gesture: "G02",
+  markersMm,
+  paperMm,
+  ...extra,
+});
+const g04 = (participant: string, markersMm: number): KitV2SynthPhoto => ({
+  participant,
+  gesture: "G04",
+  markersMm,
+});
+
+// Block P001-P004 is complete (P004 is held out); P901 is S0.
+const PHOTOS: KitV2SynthPhoto[] = [
+  g02("P001", 190, 191),
+  g02("P001", 191, 192),
+  g02("P001", 189, 190),
+  g04("P001", 152),
+  g04("P001", 133),
+  g02("P002", 180, 179, { palmRatio: 0.6 }),
+  g02("P002", 182, 182, { palmRatio: 0.6 }),
+  g02("P002", 181, 180, { palmRatio: 0.6 }),
+  g04("P002", 145),
+  g02("P003", 170),
+  g02("P003", 170.5),
+  g04("P003", 140),
+  g02("P004", 200),
+  g02("P004", 205),
+  g02("P004", 195),
+  g04("P004", 160),
+  g02("P901", 185),
+  g02("P901", 185),
+];
+
+describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
+  let scratch: string;
+  let runs: string;
+  let records: string;
+  let sessions: string;
+  let truth: string;
+  let v2runs: string;
+  const account = userInfo().username;
+
+  beforeAll(() => {
+    scratch = mkdtempSync(join(tmpdir(), "m2-kitv2-script-"));
+    runs = join(scratch, "runs");
+    records = join(scratch, "learning");
+    sessions = join(scratch, "sessions");
+    truth = join(scratch, "truth");
+    v2runs = join(scratch, "v2runs");
+    for (const dir of [runs, sessions, truth, v2runs]) mkdirSync(dir);
+    writeFileSync(
+      join(runs, "2026-10-05.json"),
+      JSON.stringify(kitV2LogOf(PHOTOS)),
+    );
+    for (const [id, grip] of [
+      ["P001", "claw"],
+      ["P002", "palm"],
+      ["P003", "fingertip"],
+      ["P004", "claw"],
+      ["P901", "palm"],
+    ] as const) {
+      mkdirSync(join(records, id), { recursive: true });
+      writeFileSync(
+        join(records, id, "participant.json"),
+        JSON.stringify(participantRecordOf(id, { gripSelf: grip })),
+      );
+    }
+    writeFileSync(
+      join(sessions, "session.json"),
+      JSON.stringify(sessionRecordOf("S001", { phone: "Phone A" })),
+    );
+    // A candidate-v1 truth file and a format-2 run log, to prove they are not mixed.
+    mkdirSync(join(truth, "P001"), { recursive: true });
+    writeFileSync(
+      join(truth, "P001", "truth.json"),
+      JSON.stringify(truthOf("P001", { handLengthMm: 190, palmWidthMm: 80 })),
+    );
+    writeFileSync(
+      join(v2runs, "2026-10-02.json"),
+      JSON.stringify(
+        runLogOf(
+          [188, 190, 191].map((paperMm) => ({
+            participant: "P001",
+            hand: "right" as const,
+            paperMm,
+          })),
+        ),
+      ),
+    );
+  });
+  afterAll(() => {
+    rmSync(scratch, { recursive: true, force: true });
+  });
+
+  it("evaluates the calibration set with no truth: the summary, the JSON, and what was left out", () => {
+    const out = join(scratch, "reports", "calibration.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--session",
+      sessions,
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(
+      /^# M2 evaluation \(agreed-v2\): landmark-raw-v1/,
+    );
+    expect(result.stdout).toMatch(/Dormant: no ruler truth/);
+    expect(result.stdout).toMatch(/Poses \(field tables\): G02\./);
+    // P001 190 191 189, P002 180 182 181, P003 170 170.5: pooled 0.91 mm, within.
+    expect(result.stdout).toMatch(
+      /\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \| at most 1\.00 mm \| \*\*within\*\* \|/,
+    );
+    expect(result.stdout).toMatch(/\| held-out \| 1 \| 4 \|/);
+    expect(result.stdout).toMatch(/\| S0 pilot \| 1 \| 2 \|/);
+    expect(result.stdout).toMatch(/\| Phone A \| 3 \| 12 \|/);
+    // What was left out is said on stderr too, by count.
+    expect(result.stderr).toMatch(
+      /agreed-v2: the calibration set\. Left out: 1 held-out, 1 S0 and 0 pending/,
+    );
+    expect(result.stderr).toMatch(/^JSON report written\.$/m);
+    expect(result.stderr).not.toMatch(/calibration\.json/);
+
+    const report = JSON.parse(readFileSync(out, "utf8"));
+    expect(report.format).toBe("open-mouse-m2-evaluation/2");
+    expect(report.protocol).toBe("agreed-v2");
+    expect(report.accuracy).toEqual({
+      status: "dormant",
+      reason: "no ruler truth",
+    });
+    expect(report.kitV2.repeatability.people).toBe(3);
+    expect(report.options.gestures).toEqual(["G02"]);
+  });
+
+  it("--gesture still works: it changes the poses of the field tables, not the per-person statistics", () => {
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--gesture",
+      "G04",
+    ]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/Poses \(field tables\): G04\./);
+    expect(result.stdout).toMatch(/\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \|/);
+  });
+
+  it("--held-out evaluates the held-out set only, with the loud notice on stderr and at the top of the summary", () => {
+    const out = join(scratch, "reports", "held-out.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--held-out",
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toMatch(
+      /\*\*\* HELD-OUT EVALUATION: this is meant to be run ONCE, by Claude, after the model is frozen\./,
+    );
+    expect(result.stderr).toMatch(/not again after the result has been seen/);
+    expect(result.stdout).toMatch(
+      /> \*\*HELD-OUT EVALUATION: this is meant to be run ONCE/,
+    );
+    // P004: 200 205 195, SD 5 mm.
+    expect(result.stdout).toMatch(
+      /\| 1 \| 3 \| 0 \| 2 \| 5\.00 mm \| at most 1\.00 mm \| \*\*OUTSIDE\*\* \|/,
+    );
+    const report = JSON.parse(readFileSync(out, "utf8"));
+    expect(report.notices).toHaveLength(1);
+    expect(report.options.selection).toBe("held-out");
+    expect(report.inputs.participants).toEqual(["P004"]);
+  });
+
+  it("--s0 evaluates the pilot on its own", () => {
+    const result = evaluator(["--log", runs, "--records", records, "--s0"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/the S0 pilot only/);
+    expect(result.stdout).not.toMatch(/HELD-OUT EVALUATION/);
+    expect(result.stderr).not.toMatch(/HELD-OUT EVALUATION/);
+  });
+
+  it("--aggregate-only leaves no participant code in the summary, the JSON or the messages", () => {
+    const out = join(scratch, "reports", "aggregate.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--participants",
+      "P001,P004",
+      "--aggregate-only",
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+    const json = readFileSync(out, "utf8");
+    for (const text of [result.stdout, result.stderr, json]) {
+      expect(text).not.toMatch(/P\d{3}/);
+    }
+    expect(result.stdout).toMatch(/not included \(--aggregate-only\)/);
+    // The unnamed participant outside the set is counted, not named.
+    expect(result.stderr).toMatch(
+      /1 participants named with --participants are not in this run's set \(calibration\) and were not evaluated\./,
+    );
+    const report = JSON.parse(json);
+    expect(report.aggregateOnly).toBe(true);
+    expect(report.kitV2.people).toEqual([]);
+    expect(report.kitV2.repeatability.rows).toEqual([]);
+    expect(report.kitV2.repeatability.pooledSdMm).toBeGreaterThan(0);
+    expect(report.excluded).toEqual([]);
+  });
+
+  it("without --aggregate-only the summary has the per-person rows", () => {
+    const result = evaluator(["--log", runs, "--records", records]);
+    expect(result.stdout).toMatch(/## Per-person rows/);
+    expect(result.stdout).toMatch(/\| P001 \| right \| 3 \|/);
+  });
+
+  it("puts no path, account name or file name in the summary, the report or the messages", () => {
+    const out = join(scratch, "reports", "clean.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--session",
+      sessions,
+      "--out",
+      out,
+    ]);
+    const everything = [
+      result.stdout,
+      result.stderr,
+      readFileSync(out, "utf8"),
+    ].join("\n");
+    expectNoLeak(everything, {
+      folders: [scratch, REPO, tmpdir(), homedir()],
+      username: account,
+    });
+    expect(everything).not.toMatch(/IMG_|\.jpg/);
+    expect(everything).not.toMatch(/landmarks/i);
+    expect(everything).not.toMatch(/accurate/i);
+  });
+
+  describe("the two protocols are never mixed", () => {
+    it("format-3 logs with a candidate-v1 truth file: refused, nothing evaluated", () => {
+      const result = evaluator(["--log", runs, "--truth", truth]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(
+        /Truth file 1 is a candidate-v1 file but the run logs are agreed-v2: candidate-v1 values are never mixed with agreed-v2/,
+      );
+      expect(result.stdout).toBe("");
+      expectNoLeak(result.stderr, {
+        folders: [scratch, REPO],
+        username: account,
+      });
+    });
+
+    it("a format-2 log under --protocol agreed-v2: refused", () => {
+      const result = evaluator(["--log", v2runs, "--protocol", "agreed-v2"]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(
+        /run logs are format 2 \(candidate-v1\) but the protocol asked for is agreed-v2/,
+      );
+      expect(result.stdout).toBe("");
+    });
+
+    it("a format-3 log under --protocol candidate-v1: refused", () => {
+      const result = evaluator([
+        "--log",
+        runs,
+        "--truth",
+        truth,
+        "--protocol",
+        "candidate-v1",
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(
+        /run logs are format 3 \(agreed-v2\) but the protocol asked for is candidate-v1/,
+      );
+    });
+
+    it("format-2 and format-3 logs together: refused", () => {
+      const result = evaluator(["--log", runs, "--log", v2runs]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/cannot be evaluated together/);
+    });
+
+    it("a format-2 run still needs --truth, and still runs as before with it", () => {
+      const missing = evaluator(["--log", v2runs]);
+      expect(missing.status).toBe(1);
+      expect(missing.stderr).toMatch(/--truth is required/);
+      expect(missing.stderr).toMatch(/Usage: npm run m2:evaluate/);
+      expect(missing.stdout).toBe("");
+      const ok = evaluator(["--log", v2runs, "--truth", truth]);
+      expect(ok.status).toBe(0);
+      expect(ok.stdout).toMatch(/^# M2 evaluation: landmark-raw-v1/);
+    });
+
+    it("--held-out on format-2 logs: refused (the held-out rule belongs to agreed-v2)", () => {
+      const result = evaluator([
+        "--log",
+        v2runs,
+        "--truth",
+        truth,
+        "--held-out",
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/belong to agreed-v2/);
+      expect(result.stdout).toBe("");
+    });
+  });
+
+  it("a participant outside the set is named on stderr, and when nobody is left it exits 2 with the reason", () => {
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--participants",
+      "P004",
+    ]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(
+      /Not in this run's set \(calibration\), so not evaluated: P004\./,
+    );
+    expect(result.stderr).toMatch(/No photo could be evaluated/);
+    expect(result.stdout).toMatch(/# M2 evaluation \(agreed-v2\)/);
+  });
+
+  it("bad records or sessions are errors that name the input by position, not by path", () => {
+    const bad = join(scratch, "bad-records");
+    mkdirSync(join(bad, "P001"), { recursive: true });
+    writeFileSync(
+      join(bad, "P001", "participant.json"),
+      JSON.stringify({ ...participantRecordOf("P001"), name: "someone" }),
+    );
+    const result = evaluator(["--log", runs, "--records", bad]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(
+      /participant record 1 is not a valid participant record/,
+    );
+    expect(result.stderr).not.toContain(scratch);
+    const missing = evaluator([
+      "--log",
+      runs,
+      "--records",
+      join(scratch, "nope"),
+    ]);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/A --records path does not exist\./);
+    expect(missing.stderr).not.toContain(scratch);
+  });
+});
