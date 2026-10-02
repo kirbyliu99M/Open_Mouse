@@ -8,18 +8,20 @@ reviewed against this file.
 The feeling to aim for: **precise, with impact.** _Revised 2026-10-03 (Kirby):
 the reference is now the premium, high-impact feel of Apple's and ASUS ROG's
 product pages; it replaces "calm confidence"._ Someone is measuring their own
-hand, so the product must still feel precise and private: impact comes from
+hand, so the product must still feel precise and private. Impact comes from
 one orchestrated moment per page, never from scattered effects. The visual
 motif that is ours is **the measurement**: rulers, end ticks and landmark
-points. Use it before reaching for glow.
+points. Use it before reaching for glow. _These last two rules come from
+Claude's 2026-10-03 UI audit, which Kirby approved as a whole ("全修")._
 
 ## Theme
 
 The whole site is dark (Kirby, 2026-10-03), with one theme and
 `color-scheme: dark`. The tokens and their contrast values live in
 `docs/design/home-v3-2026-10-03/README.md#dark-theme-tokens`. Small text never
-goes below `#8A8A8F` on the page background (5.9:1). White button labels need
-a fill at least as dark as `#1F6BF0` (4.75:1).
+goes below `#8A8A8F` on the page background (5.9:1), and never sits on glow
+above 15 %. White button labels need a fill at least as dark as `#1F6BF0`
+(4.75:1). Pressed states darken the fill; they never lower the opacity.
 
 ---
 
@@ -79,15 +81,17 @@ motion can be grabbed mid-flight.
   `projected = current + (v/1000)·d/(1−d)`, `d ≈ 0.998`.
 - **Spatial consistency:** things leave the way they came; popovers and sheets
   grow from the control that opened them (`transform-origin`).
-- Animate only `transform` and `opacity`.
+- Animate only `transform` and `opacity`. The one exception is the home
+  page's canvas particle stage below, which redraws its own pixels.
 - **Signature motion (home page):** the particle stage in
   `docs/design/home-v3-2026-10-03/README.md`. Its rules:
   - it is driven by native scroll, with no snapping or scroll hijacking, and
     is reversible at any point;
-  - the canvas is `aria-hidden` and every meaningful step has its text in the
+  - the canvas is `aria-hidden`, and any text a step needs is real text in the
     DOM;
+  - motion that starts on its own ends within 3 s (WCAG 2.2.2);
   - it pauses off-screen;
-  - reduced motion shows static end states.
+  - reduced motion and no-JS show static end states.
 
   Other sections get no extra entrance animations (no per-section fade or
   slide-up).
@@ -110,7 +114,8 @@ motion can be grabbed mid-flight.
 - Tracking is size-specific: display text `letter-spacing: -0.02em` with
   `line-height ~1.05`; body text near `0` with `line-height ~1.5`.
 - Spacing in `rem`, so the layout scales with the user's text size.
-- **zh-TW (the default language):**
+- **zh-TW (the default language)**, applied with `:lang(zh-TW)` once the i18n
+  PR sets `<html lang>`:
   - `system-ui` (PingFang TC, Microsoft JhengHei);
   - `letter-spacing: 0`, because negative display tracking is for Latin only;
   - headline line height about 1.2, body text about 1.6;
@@ -137,4 +142,5 @@ tabular-nums`) so digits don't jitter as values update.
 - [ ] Wayfinding: the user knows where they are and how to leave
 - [ ] No internal vocabulary in user-facing text
 - [ ] Contrast checked against the dark tokens (small text ≥ 4.5:1)
-- [ ] Checked in zh-TW as well as English, at 375×667 and 390×844
+- [ ] Checked at 320×568, 375×667 and 390×844, and at 200 % text zoom; once the
+      i18n framework lands, in zh-TW as well as English
