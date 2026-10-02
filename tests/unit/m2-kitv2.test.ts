@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanSessionText,
   parseKitV2RunLog,
   EvaluationInputError,
 } from "../../src/lib/m2/inputs";
@@ -31,6 +32,7 @@ import {
 } from "./helpers/m2-kitv2-synth";
 import { toAggregateOnly } from "../../src/lib/m2/aggregate";
 import { renderMarkdown } from "../../src/lib/m2/markdown";
+import { GRIP_PREDICTION } from "../../src/server/fit/coefficients";
 
 // Every expected number is worked out by hand from the lengths below. The
 // synthetic planes map pixels to millimetres 1:1 (scaled for the marker
@@ -845,7 +847,7 @@ describe("coverage by phone and sheet", () => {
     ]);
   });
 
-  it("counts people and photos by the session's light, as typed but cleaned: folded spaces, no control characters, not long", () => {
+  it("counts people and photos by the session's light, tidied: folded spaces, no control characters; text that is too long is '(other)'", () => {
     const logA = kitV2LogOf(
       [g02("P001", 190), g02("P001", 191), g02("P002", 180)],
       {
@@ -873,8 +875,8 @@ describe("coverage by phone and sheet", () => {
     );
     // P004 is held out: P001-P003 are evaluated.
     expect(r.kitV2.coverage.byLight).toEqual([
+      { value: "(other)", people: 1, photos: 1 },
       { value: "window, diffuse", people: 2, photos: 3 },
-      { value: "x".repeat(60), people: 1, photos: 1 },
     ]);
     // No session record at all: "unknown".
     const unknown = evaluateKitV2(
@@ -1371,5 +1373,120 @@ describe("judgement correctness from the blind labels", () => {
     expect(renderMarkdown(run())).toMatch(
       /No labels file was given \(--labels\)/,
     );
+  });
+});
+
+describe("the coverage tables and the definitions in the summary", () => {
+  it("shows the light table with its header and the session's value", () => {
+    const md = renderMarkdown(run());
+    expect(md).toContain("| light | people | photos |");
+    expect(md).toContain("| ceiling LED | 3 | 13 |");
+    // Next to the other count tables, in this order.
+    const order = [
+      "| phone | people | photos |",
+      "| light | people | photos |",
+      "| sheet | people | photos |",
+      "| mouse hand | people | photos |",
+    ].map((header) => md.indexOf(header));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it("a light no one wrote down is 'unknown', and the table is still there", () => {
+    const log = kitV2LogOf([g02("P901", 190), g02("P901", 191)], {
+      session: sessionRecordOf("S001", { light: "" }),
+    });
+    const md = renderMarkdown(
+      evaluateKitV2(
+        { logs: [parseKitV2RunLog(log, "run log 1")] },
+        { selection: "s0" },
+      ),
+    );
+    expect(md).toContain("| light | people | photos |");
+    expect(md).toContain("| unknown | 1 | 2 |");
+  });
+
+  it("the definitions name the product's grip thresholds as GRIP_PREDICTION has them, to four decimals like the rest of the report", () => {
+    const md = renderMarkdown(run());
+    const palm = GRIP_PREDICTION.palmAtOrAbove.toFixed(4);
+    const claw = GRIP_PREDICTION.clawAtOrAbove.toFixed(4);
+    expect(md).toContain(
+      `palm at r >= ${palm}, claw at r >= ${claw} are the product's thresholds today`,
+    );
+    // The same numbers as the calibration section prints for "current".
+    expect(md).toContain(palm);
+    expect(md).toContain(claw);
+  });
+});
+
+describe("session text (light, phone) is shown only when it is plain words", () => {
+  it("a short plain description passes through, tidied", () => {
+    expect(cleanSessionText("ceiling LED")).toBe("ceiling LED");
+    expect(cleanSessionText("  window,\t diffuse\u0007 ")).toBe(
+      "window, diffuse",
+    );
+    expect(cleanSessionText("Phone A, main 1x")).toBe("Phone A, main 1x");
+    expect(
+      cleanSessionText("iPhone 15 Pro (2x) + lamp 5.5 - 6 / 2 \u00d7 3"),
+    ).toBe("iPhone 15 Pro (2x) + lamp 5.5 - 6 / 2 \u00d7 3");
+    expect(cleanSessionText("")).toBe("");
+    expect(cleanSessionText("   ")).toBe("");
+  });
+
+  it.each([
+    ["a Windows path", "C:\Users\someone\Desktop\IMG_0001.jpg"],
+    ["a Windows path with forward slashes", "C:/Users/someone/photos"],
+    ["a posix path", "/home/someone/photos"],
+    ["a relative path", "../Dataset/session-1"],
+    ["a leading slash", "/photos"],
+    ["one step up", "../photos"],
+    ["a doubled slash", "lamp//photos"],
+    ["a path without a drive", "Users/someone/Desktop"],
+    ["a table separator", "lamp | P"],
+    ["a participant code", "lamp P901"],
+    ["a participant code in lower case", "window p012 side"],
+    ["a name in Chinese", "\u5ba4\u5167\u71c8\u5149"],
+    ["a name with an accent", "L\u00e9a's lamp"],
+    ["a link", "https://example.org/x"],
+    ["a line break and a quote", 'lamp\n"x"'],
+    ["text that is too long", "x".repeat(61)],
+  ])("%s becomes '(other)'", (_name, text) => {
+    expect(cleanSessionText(text)).toBe("(other)");
+  });
+
+  it("the longest text allowed is 60 characters", () => {
+    expect(cleanSessionText("x".repeat(60))).toBe("x".repeat(60));
+  });
+
+  it("in the report: counted as '(other)', never copied into the summary, the JSON or --aggregate-only", () => {
+    const secret = "C:\Users\someone\IMG_0001.jpg | P905";
+    const log = kitV2LogOf([g02("P901", 190), g02("P902", 180)], {
+      session: sessionRecordOf("S001", {
+        light: secret,
+        phone: "室內燈光",
+      }),
+    });
+    const full = evaluateKitV2(
+      { logs: [parseKitV2RunLog(log, "run log 1")] },
+      { selection: "s0" },
+    );
+    const other = [{ value: "(other)", people: 2, photos: 2 }];
+    expect(full.kitV2.coverage.byLight).toEqual(other);
+    expect(full.kitV2.coverage.byPhone).toEqual(other);
+    const md = renderMarkdown(full);
+    expect(md).toContain("| (other) | 2 | 2 |");
+    const aggregate = toAggregateOnly(full);
+    const aggregateMd = renderMarkdown(aggregate);
+    for (const text of [
+      md,
+      JSON.stringify(full),
+      aggregateMd,
+      JSON.stringify(aggregate),
+    ]) {
+      expect(text).not.toMatch(/Users|someone|IMG_|P905|室/);
+    }
+    for (const text of [aggregateMd, JSON.stringify(aggregate)]) {
+      expect(text).not.toMatch(/P\d{3}/);
+    }
   });
 });

@@ -244,13 +244,38 @@ function checkSessionRecord(record: unknown, label: string): void {
   );
 }
 
-/** Words for a free-text session field in a count: whitespace folded, control characters dropped, not long. */
+/** What a free-text session field is shown as when it is not plain words. */
+export const SESSION_TEXT_OTHER = "(other)";
+
+// Plain Latin words, digits and a little punctuation, short.
+const PLAIN_SESSION_TEXT = /^[A-Za-z0-9 ,.()+\-/×]{1,60}$/;
+
+/**
+ * A free-text session field (phone, light) as it may appear in a count: only
+ * plain words are shown. The text is typed by a person, so it can hold
+ * anything: a participant code, a path, a table separator, a name. Control
+ * characters and runs of white space are folded first. Anything that is not
+ * short plain Latin words, or that looks like a participant code or a path,
+ * is shown as "(other)"; nothing typed is copied into the report otherwise.
+ * An empty field stays empty (the caller calls that "unknown").
+ */
 export function cleanSessionText(text: string): string {
-  const noControls = Array.from(text, (ch) => {
+  const folded = Array.from(text, (ch) => {
     const code = ch.charCodeAt(0);
     return code < 32 || code === 127 ? " " : ch;
-  }).join("");
-  return noControls.replace(/\s+/g, " ").trim().slice(0, 60);
+  })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (folded === "") return "";
+  if (!PLAIN_SESSION_TEXT.test(folded)) return SESSION_TEXT_OTHER;
+  // A participant code, a path (a leading or doubled slash, "..", or two
+  // or more slashes) or anything shaped like one is not a description.
+  if (/P\d{3}/i.test(folded)) return SESSION_TEXT_OTHER;
+  if (/^\/|\/\/|\.\./.test(folded) || (folded.match(/\//g) ?? []).length > 1) {
+    return SESSION_TEXT_OTHER;
+  }
+  return folded;
 }
 
 // The sorter's per-participant rows: only a participant in review matters here.
