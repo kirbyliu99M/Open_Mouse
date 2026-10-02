@@ -49,20 +49,34 @@ Still **not decided (未拍板, candidate)**:
 ## Delivery: two PRs
 
 1. **PR A: dark foundation and home layout, without particles.**
-   - Make the site dark. 9 of the 11 CSS files in `src` already have a
-     `@media (prefers-color-scheme: dark)` block. The other two,
-     `src/client/camera/camera.css` and `easy-scan.css`, have none, so check
-     them by eye. Promote those blocks to the default, drop the light
-     defaults, then align the values with the tokens below. The whole site
-     then turns dark in one PR, and no page is left half-light.
+   - **Make the site dark.**
+     - 9 of the 11 CSS files in `src` already have a
+       `@media (prefers-color-scheme: dark)` block. Promote those blocks to the
+       default and drop the light defaults.
+     - `src/client/camera/camera.css` and `easy-scan.css` have no block of
+       their own. They read `--scan-*` variables (dark values in
+       `src/app/scan/scan.css`), so check their hex fallbacks.
+     - The whole site then turns dark in one PR, and no page is left
+       half-light.
+   - **Map the old variables onto the new tokens**, so the site has one primary
+     button:
+     - `--scan-bg` becomes `--bg`;
+     - `--scan-accent` becomes `--accent`;
+     - `--scan-on-accent` becomes `--on-accent`. Today's dark scan button is a
+       light blue `#79adff` with a dark label. It becomes `#1F6BF0` with a
+       white label.
+   - **Print stays light.** Keep the `@media print` rules in `sheet.css` and
+     `learn.css` on a white page with dark ink.
    - Set `color-scheme: dark`.
-   - Lay out the home page as in the screens, with **static** images in place
-     of the particle stage: the logo, the hand on A4 with lines, the three
-     mice.
-   - Update the e2e tests listed in [Tests to update](#tests-to-update).
-2. **PR B: the particle stage.** It replaces the static images with the
-   canvas, and the static images stay as the reduced-motion and no-JS
-   fallback.
+   - **Lay out the home page** as in the screens, with **static** SVGs where
+     the particles will go (see [Static images](#static-images-pr-a)).
+   - **Write the target generator** (see
+     [Targets](#targets-precomputed-pure-and-tested)) with its unit tests. The
+     static SVGs are rendered from the same point lists, so the static and
+     animated versions match.
+   - Update the tests listed in [Tests to update](#tests-to-update).
+2. **PR B: the particle stage.** It adds the canvas on top of PR A's layout.
+   PR A's static SVGs stay as the reduced-motion and no-JS fallback.
 
 ## Screens
 
@@ -70,7 +84,7 @@ Still **not decided (未拍板, candidate)**:
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `screens/01-mobile-zh-tw.png`                  | Mobile 390 wide, zh-TW, end state of every animation                                                     |
 | `screens/02-mobile-iphone-se-first-screen.png` | 375×667, first screen only: both buttons and the Early preview note fit                                  |
-| `screens/03-mobile-en.png`                     | Mobile 390 wide, English                                                                                 |
+| `screens/03-mobile-en.png`                     | Mobile 390 wide, English (also the static PR A layout)                                                   |
 | `screens/04-desktop-en.png`                    | Desktop 1440 wide, English, 1200 px content container                                                    |
 | `screens/story-1 … story-6`                    | The particle story, one frame per state (mobile scale). Storyboard only: the mouse captions are left out |
 | `screens/logo-placeholder-vector.png`          | The placeholder mark as plain lines, only to make the shape legible                                      |
@@ -78,7 +92,8 @@ Still **not decided (未拍板, candidate)**:
 The screens show particles at full design density. The implementation
 resamples every target to the particle budget (see
 [Rendering and performance](#rendering-and-performance-targets-未拍板-until-measured)),
-so it will look a little sparser.
+so it will look a little sparser. The screens are 1× design exports; don't
+ship them as images.
 
 ## Page structure
 
@@ -86,40 +101,82 @@ DOM order:
 
 1. `nav`: the wordmark, then "Sign in" and the existing `NavMenu`. Each
    control has a hit area of at least 44 × 44 px.
-2. Hero: an empty, `aria-hidden` logo slot (it reserves the space the logo is
-   drawn in), then the `h1`, the subhead, the two buttons and the Early
-   preview note.
-3. Story section: a tall wrapper (about 300 svh, to be tuned). It contains the
-   hand step and the three mice with their captions as real text.
-4. Final section: both buttons again, the Early preview note again, and the
+2. Story section `<section class="story">`. It contains, in order:
+   1. the hero: the logo (a static `<img>`, decorative, empty alt), then the
+      `h1`, the subhead, the two buttons and the Early preview note;
+   2. the hand (a static SVG);
+   3. the three mice (static SVGs), each with its caption as real text;
+   4. the `<canvas>` (PR B only, `aria-hidden="true"`).
+3. Final section: both buttons again, the Early preview note again, and the
    privacy line (see the undecided item above).
-5. Footer disclaimer: left-aligned on mobile, centred on desktop.
+4. Footer disclaimer: left-aligned on mobile, centred on desktop.
 
-Rendering (PR B):
+**Static layout** (PR A, and in PR B under reduced motion or without JS): the
+story section is an ordinary block, and its parts stack in flow, as in
+`screens/03-mobile-en.png`. It has no extra height and no empty gaps.
 
-- One `<canvas>` with `position: fixed`, `inset: 0`, `pointer-events: none`,
-  `aria-hidden="true"`, behind the content.
-- It draws the logo into the hero's logo slot (read with
-  `getBoundingClientRect`), then the story states as the story wrapper
-  scrolls.
-- When the story wrapper has scrolled past, the canvas stops drawing and
-  hides.
-- The text stays in normal flow, so the reading order is the DOM order above.
-  No CSS `order` tricks are needed.
+**Animated layout** (PR B, only when JS runs and motion is allowed). JS adds
+`story--animated` to the section. Then:
+
+- The section gets a tall height (about 400 svh, to be tuned). Inside it, one
+  panel is `position: sticky; top: 0; height: 100svh`. The hero, the captions
+  and the canvas all live in that panel, so the canvas, the logo and the mouse
+  captions stay aligned with each other.
+- **Progress:** `p` is 0 when the panel first pins and 1 when the section's
+  bottom reaches the panel's bottom. p = 0 is the hero exactly as on first
+  load, so Story 2 starts from a visible logo.
+- **Logo handoff:** the canvas draws the logo at the static `<img>`'s rect
+  (`getBoundingClientRect`). Once the first frame is drawn it hides the `<img>`
+  (`visibility: hidden`), so there is never a double logo.
+- **Hero text:** from p = 0 to 0.10 the hero text fades and moves up
+  (opacity and transform only). Below opacity 0.05 it gets
+  `pointer-events: none` and `inert`, so hidden buttons can't be tabbed to.
+  Scrolling back reverses this.
+- **Static hand and mice:** their static SVGs are hidden; the canvas draws
+  those states. The three captions are absolutely positioned in the panel at
+  the mice's target rects, and fade in during Story 6.
+- **Exit:** at p = 1 the sticky panel releases. The three mice and their
+  captions scroll up together with the panel, and the final section follows.
+  Nothing disappears abruptly. The canvas stops drawing once the panel is off
+  screen.
 
 Buttons:
 
-- "Scan my hand" is the filled primary. On mobile it fills the remaining width;
-  on desktop it is about 14rem.
-- "How it works" is the outline secondary: about 8rem on mobile, 10.5rem on
-  desktop.
-- Use `min-height: 3.125rem` and `min-width` in `rem`, not fixed px, so text
-  zoom and longer strings still fit. Fully rounded, 0.75–0.875rem gap.
+- "Scan my hand" is the filled primary; "How it works" is the outline
+  secondary.
+- Lay them out with `display: flex; flex-wrap: wrap; gap: 0.75rem`. Use
+  `min-height: 3.125rem`, with `flex: 1 1 12rem` for the primary and
+  `flex: 0 1 8rem` for the secondary (wider on desktop: about 14rem and
+  10.5rem).
+- When the row is too narrow (320 px, or large text zoom) they wrap: each
+  button takes the full width, primary on top.
+- Fully rounded.
 - Pressed state: darken the fill to `--accent-pressed`. Never drop opacity:
   `opacity: 0.85` on the button would take the white label to 4.33:1.
 
-Hero logo slot height: `clamp(18rem, 40svh, 24rem)` on mobile, so both buttons
-stay on the first screen of a 375×667 phone.
+Hero logo height:
+
+- mobile: `clamp(18rem, 40svh, 24rem)`, so both buttons stay on the first
+  screen of a 375×667 phone;
+- desktop: about 29rem (the 1440 frame uses 470 px).
+
+### Static images (PR A)
+
+- **Logo:** `public/images/logo-placeholder.svg`, the same geometry as the
+  canvas placeholder, in a 220 × 196 box with centre (90, 98):
+  - the outline of a mouse seen from above: `x = cx + 58·(0.86 − 0.14·cos t)·sin t`,
+    `y = cy − 88·cos t`;
+  - a button split from `cy − 88` to `cy − 22`;
+  - a wheel ellipse at `(cx, cy − 56)`, rx 4.5, ry 9;
+  - a ruler at `x = cx + 84` from `cy − 88` to `cy + 88`, with 5 px end ticks.
+
+  Stroke colour `--sketch-line`.
+
+- **Hand on A4:** an SVG rendered by the target generator from the template
+  hand. It has the dots, the 21 landmarks, the skeleton lines, the two
+  measurement lines with end ticks, and the A4 outline. **No numbers.**
+- **Three mice:** `g-pro-sketch.svg` three times, recoloured with
+  `--sketch-line`, until more sketches exist.
 
 ## Copy
 
@@ -222,11 +279,11 @@ Everything else follows scroll.
     `g-pro-sketch.svg` there). Sample the primary strokes about every 2.6 px
     and the detail strokes about every 4.2 px at a 340 px stage width, and tag
     each point bright or dim.
-  - Sketch source rule, unchanged from
-    `docs/design/easy-scan-shell-2026-09-25/README.md`:
-    - each sketch is drawn as a line drawing in pen.dev;
-    - no Logitech logo, wordmark or trade dress beyond the shape;
-    - never traced from licensed data (hard rule 1).
+  - Sketch source rule:
+    - each sketch is drawn as a line drawing in pen.dev, with no Logitech
+      logo, wordmark or trade dress beyond the shape (as in
+      `docs/design/easy-scan-shell-2026-09-25/README.md`);
+    - never traced from licensed data (AGENTS.md hard rule 1).
   - The template hand: a fixed, stylised set of the 21 MediaPipe landmark
     positions, filled as capsules along the fingers plus a palm polygon. It is
     an illustration, **not** a user's hand or measurement.
@@ -275,25 +332,41 @@ With `prefers-reduced-motion: reduce`, or without JS:
 
 ## Tests to update
 
-These assertions pin the current home page and change in PR A. Rewrite them;
-don't delete them.
+These assertions pin today's home page or today's light/dark split, and
+change in PR A. Rewrite them; don't delete them silently.
 
 - **`tests/e2e/home.spec.ts`**
   - The h1 name, which becomes "Find the mouse that fits."
   - The sketch `img` and `.landing-dimension` / `.landing-annotation` leave
     the hero. Assert the three mouse captions instead.
   - The catalogue-count sentence is removed.
+  - `.landing-points > div > span` `toHaveCount(0)` becomes meaningless once
+    the block is gone. Replace it with a check that the taglines are absent.
   - The privacy sentence stays until Kirby decides (see above).
-- **Duplicate links.** "Scan my hand" and "How it works" now appear twice
-  (hero and final section). Scope each locator to its region, for example
-  `page.getByRole("main").locator("section").first()`, or use a test id, so
-  Playwright strict mode doesn't hit two links.
+- **Duplicates.** "Scan my hand", "How it works" and the Early preview note
+  (`.landing-preview-note`) now appear twice: once in the hero, once in the
+  final section. Scope each locator to its region, for example with a test
+  id, so Playwright strict mode doesn't hit two elements.
 - **`tests/e2e/easy-scan-screenshots.spec.ts`** (the `landing` capture): it
   waits for the old h1 text and emulates `colorScheme: "light"`. Update the h1
-  name; the light emulation no longer changes anything once the site is
-  dark.
+  name. The light emulation no longer changes anything.
+- **Exact background colours and light/dark loops.** These pin `--scan-bg`
+  values (`rgb(244, 244, 246)` light, `rgb(22, 22, 23)` dark) and run every
+  check once per colour scheme:
+  - `tests/e2e/no-paper-device.spec.ts`: the background assertion near line
+    234, `PAGE_BG` near line 659 and the loops near lines 452, 568, 665 and
+    701;
+  - `tests/e2e/easy-scan.spec.ts` near line 294;
+  - `tests/e2e/easy-scan-measured.spec.ts` near line 103.
 
-## Accessibility checklist for the PR
+  After PR A there is one theme. Assert `--bg` (`rgb(6, 7, 9)`) once, and
+  drop the light iteration.
+
+- **`tests/unit/privacy-copy.test.ts`** asserts that `src/app/page.tsx` uses
+  `PHOTO_PRIVACY_COPY`. It stays true under the interim rule. If Kirby later
+  removes the line from the home page, this test changes with it.
+
+## Accessibility checklist for PR A and PR B
 
 - [ ] Home-page text uses only the token colours; no `#6E6E73` text.
 - [ ] Every control has a hit area of at least 44 × 44 px; the focus ring is
@@ -307,7 +380,7 @@ don't delete them.
 - [ ] No horizontal scroll: checked at 320×568, 375×667, 390×844 and 1440,
       and at 200 % text zoom.
 
-## Out of scope for this PR
+## Out of scope for PR A and PR B
 
 - The final logo.
 - More mouse sketches, and choosing which three mice to show.
