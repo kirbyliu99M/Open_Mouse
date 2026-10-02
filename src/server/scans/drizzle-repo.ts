@@ -104,6 +104,9 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           gripApertureMm: m.gripApertureMm,
           thumbAngleDeg: m.thumbAngleDeg,
           scaleCheckRatio: input.scaleCheckRatio,
+          measurementModelVersion: input.measurementModelVersion,
+          calibrationMethod: input.calibrationMethod,
+          calibrationEvidence: input.calibrationEvidence,
         }),
       ]);
       return { scanId };

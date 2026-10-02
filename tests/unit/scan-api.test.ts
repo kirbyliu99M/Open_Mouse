@@ -161,6 +161,10 @@ describe("POST /api/scans — valid submission", () => {
         gripStyleStated: "palm",
         scaleCheckRatio: validSubmission.calibration.cardScaleRatio,
         measurements: expect.objectContaining({ handLengthMm: 180 }),
+        // #63: the model and the calibration evidence are kept with the scan.
+        measurementModelVersion: validSubmission.measurementModelVersion,
+        calibrationMethod: "printed-sheet",
+        calibrationEvidence: validSubmission.calibration,
       }),
     );
   });
@@ -182,7 +186,49 @@ describe("POST /api/scans — valid submission", () => {
     );
     expect(res.status).toBe(201);
     expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
-      expect.objectContaining({ scaleCheckRatio: null }),
+      expect.objectContaining({
+        scaleCheckRatio: null,
+        calibrationMethod: "paper-edge",
+        calibrationEvidence: expect.objectContaining({
+          method: "paper-edge",
+          paperSize: "a4",
+          edgeFitResidualMm: 0.6,
+        }),
+      }),
+    );
+  });
+
+  it("stores a user-length scan as user-length, finger lengths included", async () => {
+    const { repo } = createFakeRepo();
+    const res = await handleScanSubmission(
+      scanRequest({
+        ...validSubmission,
+        measurements: {
+          handLengthMm: 186,
+          palmLengthMm: 106,
+          palmWidthMm: 82,
+          thumbLengthMm: 60,
+          indexLengthMm: 75,
+          middleLengthMm: 82,
+          ringLengthMm: 77,
+          pinkyLengthMm: 60,
+        },
+        calibration: {
+          method: "user-length",
+          referenceMeasurement: "handLengthMm",
+          referenceMm: 186,
+          parallaxCorrected: false,
+        },
+      }),
+      { repo },
+    );
+    expect(res.status).toBe(201);
+    expect(repo.insertScanWithMeasurements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scaleCheckRatio: null,
+        calibrationMethod: "user-length",
+        calibrationEvidence: expect.objectContaining({ referenceMm: 186 }),
+      }),
     );
   });
 
