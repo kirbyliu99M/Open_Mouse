@@ -5,6 +5,7 @@ import {
   emptyParticipantRecord,
   isS0Participant,
   labelsRecordSchema,
+  planShots,
   participantRecordSchema,
   sessionRecordSchema,
 } from "@/lib/learning/session";
@@ -110,6 +111,49 @@ describe("kit v2 session contract", () => {
           note: "",
         }),
       ),
+    ).toThrow();
+  });
+
+  it("plans the poses only from the order or Kirby's counts, never by guessing", () => {
+    expect(planShots(5, null)).toEqual(["G02", "G02", "G02", "G04", "G04"]);
+    expect(planShots(6, null)).toBeNull();
+    expect(planShots(4, null)).toBeNull();
+    expect(planShots(6, { G02: 4, G04: 2 })).toEqual([
+      "G02",
+      "G02",
+      "G02",
+      "G02",
+      "G04",
+      "G04",
+    ]);
+    expect(planShots(4, { G02: 2, G04: 2 })).toEqual([
+      "G02",
+      "G02",
+      "G04",
+      "G04",
+    ]);
+    expect(planShots(5, { G02: 2, G04: 3 })).toEqual([
+      "G02",
+      "G02",
+      "G04",
+      "G04",
+      "G04",
+    ]);
+    expect(planShots(6, { G02: 4, G04: 1 })).toBeNull();
+    expect(planShots(7, { G02: 4, G04: 3 })).toBeNull();
+  });
+
+  it("accepts shotCounts in participant.json and rejects a malformed one", () => {
+    const t = emptyParticipantRecord("P007", "S001");
+    expect(t.shotCounts).toBeNull();
+    expect(() =>
+      participantRecordSchema.parse({ ...t, shotCounts: { G02: 4, G04: 2 } }),
+    ).not.toThrow();
+    expect(() =>
+      participantRecordSchema.parse({ ...t, shotCounts: { G02: 4 } }),
+    ).toThrow();
+    expect(() =>
+      participantRecordSchema.parse({ ...t, shotCounts: { G02: -1, G04: 2 } }),
     ).toThrow();
   });
 
