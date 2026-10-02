@@ -157,3 +157,67 @@ export interface KitV2PhotoAssignment {
   readonly extraShot: boolean;
   readonly poseCheck: PoseCheck | null;
 }
+
+// ── Kirby's photo labels (2026-10-02) ───────────────────────────────────────
+
+export const LABELS_FORMAT = "open-mouse-learning-labels/1" as const;
+
+/**
+ * Why a photo is unusable, in Kirby's judgement. "other" needs a note.
+ * These describe the photo, never the person: no health or injury reason.
+ */
+export const PHOTO_LABEL_REASONS = [
+  "hand-off-sheet",
+  "corner-hidden",
+  "blur",
+  "wrong-pose",
+  "fingers-not-per-protocol",
+  "lighting",
+  "other",
+] as const;
+
+const photoLabelSchema = z
+  .strictObject({
+    file: z.string().min(1),
+    /** Would Kirby keep this photo for measuring? `null` until labelled. */
+    label: z.enum(["good", "bad"]).nullable(),
+    reasons: z.array(z.enum(PHOTO_LABEL_REASONS)),
+    note: z.string(),
+  })
+  .refine((l) => l.label === "bad" || l.reasons.length === 0, {
+    message: "only a bad photo has reasons",
+  })
+  .refine((l) => !l.reasons.includes("other") || l.note.trim() !== "", {
+    message: "reason 'other' needs a note",
+  });
+
+/**
+ * `labels.json`, one per session: Kirby's own good/bad call on every photo.
+ * The precision target (Kirby, 2026-10-02: no pass/fail threshold, aim for
+ * 95 %) is how often the product's accept/retake verdict agrees with these
+ * labels. So the labels must be made **blind**: without seeing the product's
+ * verdict, the checker page or any mm value for that photo. `blind` records
+ * that this was so; a labels file with `blind: false` is reported apart.
+ */
+export const labelsRecordSchema = z.strictObject({
+  format: z.literal(LABELS_FORMAT),
+  session: sessionId,
+  protocol: z.literal(PROTOCOL_AGREED_V2),
+  blind: z.boolean(),
+  labels: z.array(photoLabelSchema),
+});
+export type LabelsRecord = z.infer<typeof labelsRecordSchema>;
+
+/** The template the sorter writes: every filed photo, unlabelled, and no product verdict in sight. */
+export function emptyLabelsRecord(
+  session: string,
+  files: readonly string[],
+): LabelsRecord {
+  return {
+    format: LABELS_FORMAT,
+    session,
+    protocol: PROTOCOL_AGREED_V2,
+    blind: true,
+    labels: files.map((file) => ({ file, label: null, reasons: [], note: "" })),
+  };
+}
