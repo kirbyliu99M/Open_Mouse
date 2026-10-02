@@ -11,7 +11,7 @@ Written by Claude on 2026-10-01/02 at Kirby's request, as a design of **how hand
 | `protocol-v4-draft.md`         | The collection protocol (one sheet, one photographer, 30 seconds per person), what it can and cannot support, S0 pilot, needs for the code owners (section 9)                                                                |
 | `prereg-2026-10-02.frozen.txt` | Criteria and held-out rule, written before any participant. **Byte-exact; do not edit or reformat.** SHA-256 `9e512612de4c8aeb2ef6faaeabec8079e629c4f0216c66b777e64a75deb3ce75`. A change is a new dated file, never an edit |
 | `sheet-designs/`               | Three reference designs for the labelled A4 sheet (A, B, C), print-ready SVG at 100% with the real `ARUCO_MIP_36h12` ids 0–5, plus `overview.html` with a comparison table                                                   |
-| `s0-log-template.csv`          | Stopwatch log for the S0 pilot                                                                                                                                                                                               |
+| `s0-log-template.tsv`          | Stopwatch log for the S0 pilot (tab-separated; `.gitignore` blocks `*.csv` to keep licensed data out)                                                                                                                        |
 
 ## Fixed by Kirby (not for the owner agent to reopen)
 
