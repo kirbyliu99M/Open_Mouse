@@ -32,8 +32,10 @@
  * A label names its photo by `file`, and the contract pins that name: it is the
  * photo's `destination` in the run log's sort (the filed copy's relative path,
  * `P901/G02/1.jpg`), verbatim. A label belongs to the photos of its own
- * session. A photo that was not filed has no destination and cannot be
- * labelled.
+ * session. A photo that was not filed (the sorter's `needs-review`,
+ * `not-a-jpeg`, `damaged-jpeg`, `copy-failed`) has no destination and cannot be
+ * labelled: it is left out of judgement correctness like an unlabelled photo, and
+ * counted by status.
  */
 import { PHOTO_LABEL_REASONS, type LabelsRecord } from "../learning/session";
 import { EvaluationInputError } from "./inputs";
@@ -177,13 +179,30 @@ export interface JudgementSection {
       /** The run log names no session, so no labels file can be its own. */
       readonly noSession: number;
       readonly noLabelsFile: number;
-      /** The session has a labels file that does not mention the photo (or the photo was not filed, so it has no name to be labelled by). */
+      /** The session has a labels file that does not mention the photo. */
       readonly noLabel: number;
+      /** The photo was placed in the shooting order but not filed (no destination), so it has no name to be labelled by. */
+      readonly notFiled: number;
       /** The label is still `null`. */
       readonly notLabelledYet: number;
     };
     /** Good/bad labels that name no photo of any participant in the run logs: a naming mismatch shows up here. */
     readonly labelsWithNoPhoto: number;
+    /**
+     * Every photo of an evaluated participant that the sorter did not file
+     * (no destination), by the sorter's status: `needs-review`, `not-a-jpeg`,
+     * `damaged-jpeg`, `copy-failed`... None of them can be labelled, and none is
+     * in the judgement.
+     */
+    readonly notFiled: {
+      readonly total: number;
+      readonly byStatus: Readonly<Record<string, number>>;
+    };
+    /** Evaluated participants the sorter put in review (nothing of theirs is filed), by its reason. */
+    readonly participantsInReview: {
+      readonly total: number;
+      readonly byReason: Readonly<Record<string, number>>;
+    };
   };
   readonly sessions: {
     /** Sessions the evaluated photos come from. */
@@ -273,8 +292,14 @@ export function judge(args: {
   readonly known: readonly KnownPhoto[];
   readonly labels: LabelIndex;
   readonly poses: readonly string[];
+  /** Photos of evaluated participants with no destination, by the sorter's status. */
+  readonly notFiledByStatus?: Readonly<Record<string, number>>;
+  /** Evaluated participants in review, by the sorter's reason. */
+  readonly reviewByReason?: Readonly<Record<string, number>>;
 }): JudgementSection {
   const { photos, known, labels, poses } = args;
+  const sum = (r: Readonly<Record<string, number>>) =>
+    Object.values(r).reduce((a, b) => a + b, 0);
 
   // The names the logs give photos, by session: what a label may legitimately name.
   const named = new Set<string>();
@@ -290,6 +315,7 @@ export function judge(args: {
     noSession: 0,
     noLabelsFile: 0,
     noLabel: 0,
+    notFiled: 0,
     notLabelledYet: 0,
   };
   const sessionsOf = new Map<string, { total: number; labelled: number }>();
@@ -298,6 +324,10 @@ export function judge(args: {
       const s = sessionsOf.get(photo.session) ?? { total: 0, labelled: 0 };
       s.total += 1;
       sessionsOf.set(photo.session, s);
+    }
+    if (photo.destination === null) {
+      unlabelledBy.notFiled++;
+      continue;
     }
     if (photo.session === null) {
       unlabelledBy.noSession++;
@@ -308,10 +338,7 @@ export function judge(args: {
       unlabelledBy.noLabelsFile++;
       continue;
     }
-    const entry =
-      photo.destination === null
-        ? undefined
-        : session.entries.get(photo.destination);
+    const entry = session.entries.get(photo.destination);
     if (entry === undefined) {
       unlabelledBy.noLabel++;
       continue;
@@ -359,6 +386,14 @@ export function judge(args: {
       unlabelled: photos.length - labelled.length,
       unlabelledBy,
       labelsWithNoPhoto,
+      notFiled: {
+        total: sum(args.notFiledByStatus ?? {}),
+        byStatus: { ...(args.notFiledByStatus ?? {}) },
+      },
+      participantsInReview: {
+        total: sum(args.reviewByReason ?? {}),
+        byReason: { ...(args.reviewByReason ?? {}) },
+      },
     },
     sessions: {
       withPhotos: sessionIds.length,

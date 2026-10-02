@@ -753,7 +753,7 @@ describe("coverage by phone and sheet", () => {
       [g02("P001", 190), g02("P001", 191), g02("P002", 180)],
       { session: "S001", sheet: "A" },
     );
-    const embedded = sessionRecordOf("S002", { phone: "Phone B", sheet: "B" });
+    const embedded = sessionRecordOf("S002", { phone: "Phone B", sheet: "A" });
     const logB = kitV2LogOf(
       [g02("P003", 170), g02("P003", 171), g02("P004", 160)],
       {
@@ -783,13 +783,13 @@ describe("coverage by phone and sheet", () => {
       { value: "Phone A, main 1x", people: 2, photos: 3 },
       { value: "Phone B", people: 1, photos: 2 },
     ]);
+    // Sheet A only: the embedded record's own sheet is used when the top level has none.
     expect(r.kitV2.coverage.bySheet).toEqual([
-      { value: "A", people: 2, photos: 3 },
-      { value: "B", people: 1, photos: 2 },
+      { value: "A", people: 3, photos: 5 },
     ]);
     expect(r.inputs.runLogs.map((l) => [l.session, l.sheet])).toEqual([
       ["S001", "A"],
-      ["S002", "B"],
+      ["S002", "A"],
       [null, null],
     ]);
   });
@@ -1101,6 +1101,7 @@ describe("judgement correctness from the blind labels", () => {
     expect(c.coverage.unlabelledBy).toEqual({
       noLabel: 1,
       notLabelledYet: 1,
+      notFiled: 0,
       noLabelsFile: 0,
       noSession: 0,
     });

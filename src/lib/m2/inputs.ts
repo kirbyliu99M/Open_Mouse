@@ -16,7 +16,6 @@ import {
 } from "../learning/runlog";
 import type { LearningPhotoReport } from "../learning/report";
 import {
-  KIT_V2_SHEETS,
   PROTOCOL_AGREED_V2,
   labelsRecordSchema,
   participantRecordSchema,
@@ -195,28 +194,31 @@ const reportV3 = report.extend({ code: z.unknown() });
 // `session` is the whole `session.json` record the sorter was given (the
 // contract's pinned form), or `null` (a download from the checker page). A bare
 // session id is accepted as well, though no producer writes one.
-const sessionField = z
-  .union([
-    z.string(),
-    z.looseObject({
-      session: z.string(),
-      phone: z.string().optional(),
-      sheet: z.enum(KIT_V2_SHEETS).optional(),
-    }),
-  ])
-  .nullish();
+// The record is checked by the contract's own schema, so a session on sheet B
+// or on Letter paper is refused here as it is by the sorter.
+const sessionField = z.union([z.string(), sessionRecordSchema]).nullish();
+
+// The sorter's per-participant rows: only a participant in review matters here.
+const sortParticipant = z.looseObject({
+  participant: z.string(),
+  status: z.string(),
+  reason: z.string().nullable().optional(),
+});
 
 const runLogV3 = z.looseObject({
   format: z.literal(RUN_LOG_FORMAT_V3),
   protocol: z.literal(PROTOCOL_AGREED_V2),
   session: sessionField,
-  sheet: z.enum(KIT_V2_SHEETS).nullish(),
+  sheet: sessionRecordSchema.shape.sheet.nullish(),
   kitVersion: finite,
   gitSha: z.string().nullable(),
   gitDirty: z.boolean().nullable(),
   paperSize: z.string(),
   reports: z.array(reportV3),
-  sort: z.looseObject({ photos: z.array(assignment) }),
+  sort: z.looseObject({
+    photos: z.array(assignment),
+    participants: z.array(sortParticipant).optional(),
+  }),
 });
 
 /** A `sort.photos[]` entry, as the contract defines it. */
@@ -236,7 +238,15 @@ export interface KitV2RunLog {
   readonly gitDirty: boolean | null;
   readonly paperSize: string;
   readonly reports: readonly LearningPhotoReport[];
-  readonly sort: { readonly photos: readonly KitV2LogPhoto[] };
+  readonly sort: {
+    readonly photos: readonly KitV2LogPhoto[];
+    /** One row per participant the sorter saw: `needs-review` has a `reason`. */
+    readonly participants: readonly {
+      readonly participant: string;
+      readonly status: string;
+      readonly reason: string | null;
+    }[];
+  };
 }
 
 /** A format-3 run log from parsed JSON. `label` names it in errors ("run log 2"). */
@@ -273,7 +283,14 @@ export function parseKitV2RunLog(json: unknown, label: string): KitV2RunLog {
     gitDirty: d.gitDirty,
     paperSize: d.paperSize,
     reports: d.reports as unknown as LearningPhotoReport[],
-    sort: { photos: d.sort.photos as unknown as KitV2LogPhoto[] },
+    sort: {
+      photos: d.sort.photos as unknown as KitV2LogPhoto[],
+      participants: (d.sort.participants ?? []).map((p) => ({
+        participant: p.participant,
+        status: p.status,
+        reason: p.reason ?? null,
+      })),
+    },
   };
 }
 

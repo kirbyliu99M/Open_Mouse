@@ -6,25 +6,27 @@
  *  1. Synthetic reports (`assembleLearningReport`, sheet A) of five
  *     participants: a hand of known shape on a camera of known pose, with the
  *     product's paper and hand gates worked out by the real gate code.
- *  2. The sorter's flow: `sortReportsV2` (pass 1, no hands known), the
- *     `participant.json` templates (`writeParticipantTemplates`) which a person
- *     fills in, `readMouseHands`, `sortReportsV2` again (pass 2), the blank
- *     `labels.json` (`writeLabelsTemplate`, blind: no verdict in it), which a
- *     person fills in, and `buildSorterRunLog` with the session record.
+ *  2. The sorter's own main path, `runSorterWithReports`, run twice on a
+ *     temporary folder of synthetic JPEGs: the first run writes the
+ *     `participant.json` templates, the stripped copies and a blank
+ *     `labels.json` (blind: no verdict in it); a person fills both in; the
+ *     second run knows the mouse hands and writes the run log that is evaluated.
+ *     Two things the sorter does not file are in the scenario: a file that is not
+ *     a JPEG, and a participant with seven photos and no `shotCounts`
+ *     (`needs-review`).
  *  3. The evaluator: `evaluateRunJson` on the run log, the participant records
  *     and the filled labels, and the real `m2:evaluate` script on the same files.
  *
  * Every expected number is worked out here with plain arithmetic from the
  * scenario table and from the values the producer RECORDED (the millimetre
  * landmarks and measurements in the reports), never from the evaluator.
- * (`fileStrippedCopies` is the one filing step not run: it copies real JPEGs.)
  */
 import { spawnSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -34,23 +36,14 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Point2 } from "../../src/client/geometry/homography";
 import type { DetectedMarker } from "../../src/client/photo/markers";
-import {
-  readMouseHands,
-  writeLabelsTemplate,
-  writeParticipantTemplates,
-} from "../../src/lib/learning/filing";
 import { paperFindings, sheetReference } from "../../src/lib/learning/findings";
 import { sheetAMarkers } from "../../src/lib/learning/layoutv2";
-import { buildSorterRunLog } from "../../src/lib/learning/paths";
 import {
   assembleLearningReport,
   type LearningPhotoReport,
 } from "../../src/lib/learning/report";
-import {
-  NO_PROVENANCE,
-  RUN_LOG_FORMAT,
-  sortReportsV2,
-} from "../../src/lib/learning/runlog";
+import { NO_PROVENANCE, RUN_LOG_FORMAT } from "../../src/lib/learning/runlog";
+import { runSorterWithReports } from "../../src/lib/learning/sorterrun";
 import {
   PHOTO_LABEL_REASONS,
   PROTOCOL_AGREED_V2,
@@ -75,7 +68,40 @@ import {
   buildSyntheticCamera,
   projectSheetMm,
 } from "./helpers/synthetic-camera";
+import { JFIF_SEGMENT, exifSegment, phoneSpec } from "./helpers/exif-jpeg";
 import { syntheticHand } from "./helpers/synthetic-hand";
+
+/** A small complete JPEG with phone-like EXIF, for the sorter to strip and copy. */
+const concat = (...c: Uint8Array[]) => {
+  const out = new Uint8Array(c.reduce((n, x) => n + x.length, 0));
+  let at = 0;
+  for (const x of c) {
+    out.set(x, at);
+    at += x.length;
+  }
+  return out;
+};
+const segment = (marker: number, payload: Uint8Array) =>
+  concat(
+    new Uint8Array([
+      0xff,
+      marker,
+      ((payload.length + 2) >> 8) & 0xff,
+      (payload.length + 2) & 0xff,
+    ]),
+    payload,
+  );
+const jpeg = (seed: number) =>
+  concat(
+    new Uint8Array([0xff, 0xd8]),
+    JFIF_SEGMENT,
+    exifSegment(phoneSpec()),
+    segment(0xdb, new Uint8Array(65).fill(seed)),
+    segment(0xc0, new Uint8Array([8, 0, 16, 0, 16, 1, 1, 0x11, 0])),
+    segment(0xda, new Uint8Array([1, 1, 0, 0, 63, 0])),
+    new Uint8Array([seed, 0xff, 0x00, seed + 1]),
+    new Uint8Array([0xff, 0xd9]),
+  );
 
 // The script is started through tsx, which is slow while the whole suite runs.
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
@@ -99,12 +125,17 @@ interface Person {
   readonly grip: GripSelfReport;
 }
 
-// Block P001-P004 is complete (P004 is its held-out member); P901 is S0.
+// Blocks P001-P004 and P005-P008 are complete (P004 and P006 are their
+// held-out members); P901 is S0. P008 is the participant the sorter puts in review.
 const PEOPLE: readonly Person[] = [
   { id: "P001", size: 1.0, fingers: 1.0, mouseHand: "right", grip: "claw" },
   { id: "P002", size: 0.95, fingers: 0.8, mouseHand: "right", grip: "palm" },
   { id: "P003", size: 1.08, fingers: 1.25, mouseHand: "left", grip: "claw" },
   { id: "P004", size: 1.02, fingers: 1.0, mouseHand: "right", grip: "claw" },
+  { id: "P005", size: 0.98, fingers: 1.0, mouseHand: "right", grip: "claw" },
+  { id: "P006", size: 1.0, fingers: 1.0, mouseHand: "right", grip: "claw" },
+  { id: "P007", size: 1.05, fingers: 0.85, mouseHand: "right", grip: "palm" },
+  { id: "P008", size: 1.0, fingers: 1.0, mouseHand: "right", grip: "claw" },
   { id: "P901", size: 1.0, fingers: 1.0, mouseHand: "right", grip: "palm" },
 ];
 
@@ -125,6 +156,8 @@ interface Shot {
   readonly lowConfidence?: boolean;
   /** MediaPipe's hand label, when it is not the participant's mouse hand. */
   readonly seenAs?: "left" | "right";
+  /** The file on disk is not a JPEG: the sorter cannot file a copy of it. */
+  readonly notAJpeg?: boolean;
   readonly call: Call;
 }
 
@@ -169,8 +202,8 @@ const SHOTS: Readonly<Record<string, readonly Shot[]>> = {
     shot("G02", 1.005, 2, 2, GOOD),
     shot("G02", 0.995, -2, -2, GOOD),
     shot("G04", 1.0, 1, 0, GOOD),
-    // Not labelled yet: left out and counted.
-    shot("G04", 1.002, -1, 1, { label: null }),
+    // Not a JPEG: placed in the shooting order, but not filed and so not labelled.
+    shot("G04", 1.002, -1, 1, { label: null }, { notAJpeg: true }),
   ],
   P004: [
     shot("G02", 1.0, 0, 0, GOOD),
@@ -178,6 +211,37 @@ const SHOTS: Readonly<Record<string, readonly Shot[]>> = {
     shot("G02", 0.99, -2, 0, { label: "bad", reasons: ["blur"] }),
     shot("G04", 1.0, 0, 1, GOOD),
     shot("G04", 1.0, 0, -1, GOOD),
+  ],
+  P005: [
+    shot("G02", 1.0, 0, 0, GOOD),
+    shot("G02", 1.003, 1, 1, GOOD),
+    shot("G02", 0.997, -1, -1, GOOD),
+    shot("G04", 1.0, 0, 1, GOOD),
+    shot("G04", 1.0, 1, 0, GOOD),
+  ],
+  P006: [
+    shot("G02", 1.0, 0, 0, GOOD),
+    shot("G02", 1.004, 2, 1, GOOD),
+    shot("G02", 0.996, -2, -1, GOOD),
+    shot("G04", 1.0, 0, 1, GOOD),
+    shot("G04", 1.0, 1, 0, GOOD),
+  ],
+  P007: [
+    shot("G02", 1.0, 0, 0, GOOD),
+    shot("G02", 1.005, 2, 2, GOOD),
+    shot("G02", 0.995, -2, -2, GOOD),
+    shot("G04", 1.0, 1, 1, GOOD),
+    shot("G04", 1.0, -1, 0, GOOD),
+  ],
+  // Seven photos and no shotCounts: not the planned 3 + 2. The sorter files none of them.
+  P008: [
+    shot("G02", 1.0, 0, 0, { label: null }),
+    shot("G02", 1.0, 0, 0, { label: null }),
+    shot("G02", 1.0, 0, 0, { label: null }),
+    shot("G02", 1.0, 0, 0, { label: null }),
+    shot("G04", 1.0, 0, 0, { label: null }),
+    shot("G04", 1.0, 0, 0, { label: null }),
+    shot("G04", 1.0, 0, 0, { label: null }),
   ],
   P901: [
     shot("G02", 1.0, 0, 0, GOOD),
@@ -296,15 +360,18 @@ const dist = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.y - b.y);
 
 describe("kit v2, end to end: the sorter's own output through the evaluator", () => {
   let scratch: string;
+  let input: string;
   let outDir: string;
   let runsDir: string;
   let sessionDir: string;
+  let runLogPath: string;
   /** Reports in file order, with who they belong to and the plan for the shot. */
   const photos: {
     report: LearningPhotoReport;
     person: Person;
     shot: Shot;
-    destination: string;
+    destination: string | null;
+    status: string;
   }[] = [];
   let log: Record<string, unknown>;
   let records: ParticipantRecord[];
@@ -315,24 +382,41 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     photos
       .filter((p) => p.person.id === id && (pose ? p.shot.pose === pose : true))
       .map((p) => p.report);
+  /** Recorded marker-plane hand lengths of the G02 photos of these people. */
+  const g02Lengths = (id: string) =>
+    reportsOf(id, "G02").map((r) => r.markerMm!.handLengthMm);
+
+  const CALIBRATION = ["P001", "P002", "P003", "P005", "P007"] as const;
 
   beforeAll(() => {
     scratch = mkdtempSync(join(tmpdir(), "m2-kitv2-e2e-"));
+    input = join(scratch, "Photos");
     outDir = join(scratch, "out");
     runsDir = join(outDir, "runs");
     sessionDir = join(scratch, "session");
-    mkdirSync(runsDir, { recursive: true });
+    mkdirSync(input, { recursive: true });
     mkdirSync(sessionDir, { recursive: true });
 
-    // 1. The reports, in file (shooting) order, participant by participant.
+    // 1. The reports, in file (shooting) order, participant by participant,
+    //    and the photo files they are of. One file is not a JPEG at all.
     const reports: LearningPhotoReport[] = [];
     let n = 0;
     for (const person of PEOPLE) {
       for (const s of SHOTS[person.id]!) {
         const file = `IMG_${String(++n).padStart(4, "0")}.jpg`;
+        writeFileSync(
+          join(input, file),
+          s.notAJpeg ? new Uint8Array([1, 2, 3, 4]) : jpeg(10 + n),
+        );
         const r = reportOf(file, person, s);
         reports.push(r);
-        photos.push({ report: r, person, shot: s, destination: "" });
+        photos.push({
+          report: r,
+          person,
+          shot: s,
+          destination: null,
+          status: "",
+        });
       }
     }
 
@@ -346,14 +430,28 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     );
     if (!session.ok) throw new Error(session.message);
 
-    // 3. The sorter, pass 1: no mouse hand is known yet. It names the participants.
-    const pass1 = sortReportsV2(reports);
-    const named = pass1.participants.map((p) => p.participant);
-    writeParticipantTemplates({
-      participants: named,
-      session: session.value.session,
-      outDir,
-    });
+    const run = (now: string) =>
+      runSorterWithReports({
+        reports,
+        inputDir: input,
+        outDir,
+        sessionDir,
+        session: session.value,
+        cwd: scratch,
+        username: null,
+        provenance: NO_PROVENANCE,
+        now: new Date(now),
+        dryRun: false,
+        showChecks: false,
+        externalServer: false,
+      });
+
+    // 3. The sorter, first run: no participant.json yet. It writes the
+    //    templates, the stripped copies and a blank labels.json.
+    const first = run("2026-10-05T11:00:00Z");
+    expect(first.sort.participants.map((p) => p.participant)).toEqual(
+      PEOPLE.map((p) => p.id),
+    );
 
     // A person fills in each participant.json from the consent flow.
     for (const person of PEOPLE) {
@@ -364,6 +462,7 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
       );
       if (!template.ok) throw new Error(template.message);
       expect(template.value.mouseHand).toBeNull();
+      expect(template.value.shotCounts).toBeNull();
       writeFileSync(
         file,
         JSON.stringify(
@@ -378,33 +477,26 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
       );
     }
 
-    // 4. Pass 2: the hands are known now.
-    const known = readMouseHands({ participants: named, outDir });
-    expect(known.problems).toEqual([]);
-    expect(known.missing).toEqual([]);
-    const sort = sortReportsV2(reports, { mouseHands: known.hands });
-    sort.photos.forEach((p, i) => {
-      photos[i]!.destination = p.destination ?? "";
+    // 4. The sorter again: now the hands are known. This run's log is the one evaluated.
+    const second = run("2026-10-05T12:00:00Z");
+    runLogPath = join(runsDir, second.runLogFile!);
+    second.sort.photos.forEach((p, i) => {
+      photos[i]!.destination = p.destination;
+      photos[i]!.status = p.status;
     });
 
-    // 5. The blank labels.json: one entry per filed photo, no verdict in it.
-    const filed = sort.photos.flatMap((p) =>
-      p.destination ? [p.destination] : [],
-    );
-    const outcome = writeLabelsTemplate({
-      dir: sessionDir,
-      runsDir,
-      session: session.value.session,
-      files: filed,
-    });
-    expect(outcome.status).toBe("created");
+    // 5. labels.json, written by the first run: one blank entry per FILED
+    //    photo, no verdict in it. Kirby labels them, blind.
     const blank = parseLabelsFile(
       readFileSync(join(sessionDir, "labels.json"), "utf8"),
     );
     if (!blank.ok) throw new Error(blank.message);
     expect(blank.value.blind).toBe(true);
     expect(blank.value.labels.every((l) => l.label === null)).toBe(true);
-    // Kirby labels every photo, blind (here: from the scenario table).
+    const filed = second.sort.photos.flatMap((p) =>
+      p.destination ? [p.destination] : [],
+    );
+    expect(blank.value.labels.map((l) => l.file)).toEqual(filed);
     const byDestination = new Map(
       photos.map((p) => [p.destination, p.shot.call] as const),
     );
@@ -432,27 +524,11 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     if (!filledLabels.ok) throw new Error(filledLabels.message);
     expect(photosMissingLabels(filledLabels.value, filed)).toEqual([]);
 
-    // 6. The run log, as `learn:sort` writes it.
-    const runLog = buildSorterRunLog({
-      reports,
-      sort,
-      paperSize: "a4",
-      input: join(scratch, "Photos", "session-1"),
-      cwd: scratch,
-      username: null,
-      provenance: NO_PROVENANCE,
-      now: new Date("2026-10-05T12:00:00Z"),
-      kitV2: { session: session.value, sheet: session.value.sheet },
-    });
-    writeFileSync(
-      join(runsDir, "2026-10-05T12-00-00-000Z.json"),
-      JSON.stringify(runLog, null, 2) + "\n",
-    );
-
-    // 7. Everything the evaluator is given comes off disk.
-    log = JSON.parse(
-      readFileSync(join(runsDir, readdirSync(runsDir)[0]!), "utf8"),
-    ) as Record<string, unknown>;
+    // 6. Everything the evaluator is given comes off disk.
+    log = JSON.parse(readFileSync(runLogPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
     records = PEOPLE.map(
       (p) =>
         JSON.parse(
@@ -481,7 +557,7 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     expect(log.session).toEqual(SESSION);
     expect(log.sheet).toBe("A");
     const sort = (log.sort as { photos: Record<string, unknown>[] }).photos;
-    expect(sort).toHaveLength(25);
+    expect(sort).toHaveLength(47);
     expect(sort[0]).toMatchObject({
       status: "ok",
       destination: "P001/G02/1.jpg",
@@ -499,6 +575,39 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     });
     // P003 uses the mouse with the left hand, from participant.json.
     expect(sort[10]).toMatchObject({ participant: "P003", hand: "left" });
+  });
+
+  it("the sorter leaves two kinds of photo unfiled: a file that is not a JPEG, and a participant in review", () => {
+    const sort = (log.sort as { photos: Record<string, unknown>[] }).photos;
+    // P003's last photo: placed in the shooting order, but no copy can be made.
+    expect(sort[14]).toMatchObject({
+      participant: "P003",
+      gesture: "G04",
+      shot: 2,
+      status: "not-a-jpeg",
+      destination: null,
+    });
+    // P008 has seven photos and no shotCounts: all seven are in review.
+    const p008 = sort.filter((p) => p.participant === "P008");
+    expect(p008).toHaveLength(7);
+    expect(p008.every((p) => p.status === "needs-review")).toBe(true);
+    expect(
+      p008.every((p) => p.destination === null && p.gesture === null),
+    ).toBe(true);
+    const rows = (
+      log.sort as {
+        participants: { participant: string; reason: string | null }[];
+      }
+    ).participants;
+    expect(rows.find((p) => p.participant === "P008")).toMatchObject({
+      status: "needs-review",
+      reason: "photo-count-not-planned",
+    });
+    // Neither is on the labels list, and neither has a filed copy.
+    expect(labels.labels).toHaveLength(35 + 5 - 1);
+    expect(existsSync(join(outDir, "P008"))).toBe(true); // only participant.json
+    expect(existsSync(join(outDir, "P008", "G02"))).toBe(false);
+    expect(existsSync(join(outDir, "P003", "G04", "2.jpg"))).toBe(false);
   });
 
   it("the real gates give the intended verdicts (the scenario is what it says it is)", () => {
@@ -519,62 +628,66 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
 
   // ── The evaluator's side ───────────────────────────────────────────────────
 
-  it("reads the log as kit v2: agreed-v2, accuracy dormant, the calibration set (P001-P003)", () => {
+  it("reads the log as kit v2: agreed-v2, accuracy dormant, the calibration set", () => {
     expect(report.protocol).toBe("agreed-v2");
     expect(report.accuracy).toEqual({
       status: "dormant",
       reason: "no ruler truth",
     });
-    expect(report.inputs.participants).toEqual(["P001", "P002", "P003"]);
+    expect(report.inputs.participants).toEqual([...CALIBRATION]);
     expect(report.inputs.labelsFiles).toBe(1);
     expect(report.inputs.runLogs[0]).toMatchObject({
       session: "S001",
       sheet: "A",
     });
     expect(report.counts).toMatchObject({
-      reports: 25,
-      outOfScope: 10, // P004 and P901
-      notMeasured: 0,
-      measured: 15,
+      reports: 47,
+      outOfScope: 15, // P004, P006 (held out) and P901 (S0)
+      notMeasured: 7, // P008, in review: no pose, nothing to measure
+      measured: 25, // the not-a-jpeg photo is measured all the same
     });
+    expect(
+      report.excluded.filter(
+        (e) => e.reasons[0] === "NOT_ASSIGNED:needs-review",
+      ),
+    ).toHaveLength(7);
     expect(report.selection).toMatchObject({
       mode: "calibration",
-      known: 5,
-      inSet: 3,
-      roles: { calibration: 3, "held-out": 1, s0: 1, pending: 0 },
-      leftOutPhotos: { "held-out": 5, s0: 5 },
+      known: 9,
+      inSet: 6,
+      roles: { calibration: 6, "held-out": 2, s0: 1, pending: 0 },
+      leftOutPhotos: { "held-out": 10, s0: 5 },
     });
   });
 
-  it("judgement correctness: 14 labelled, 12 agree (85.7 %), 1 false accept, 1 false reject, by pose and reason", () => {
+  it("judgement correctness: 24 labelled, 22 agree (91.7 %), 1 false accept, 1 false reject, by pose and reason", () => {
     // Product (photo-quality gates) against the label, from the scenario table:
-    // P001: five agree. P002: #1 FALSE REJECT, #4 FALSE ACCEPT, three agree.
-    // P003: four agree, #5 not labelled yet.
+    // P002: #1 FALSE REJECT, #4 FALSE ACCEPT. Every other labelled photo agrees.
     const j = report.kitV2.judgement;
     const h = j.headline!;
-    expect(h.photos).toBe(14);
-    expect(h.agree).toBe(12);
-    expect(h.agreementRate).toBeCloseTo(12 / 14, 12);
+    expect(h.photos).toBe(24);
+    expect(h.agree).toBe(22);
+    expect(h.agreementRate).toBeCloseTo(22 / 24, 12);
     expect(h.falseAccepts).toBe(1);
     expect(h.falseRejects).toBe(1);
-    expect(h.labelGood).toBe(12);
+    expect(h.labelGood).toBe(22);
     expect(h.labelBad).toBe(2);
-    expect(h.productAccepted).toBe(12);
+    expect(h.productAccepted).toBe(22);
     expect(h.productRetake).toBe(2);
     expect(h.falseAcceptShareOfBad).toBeCloseTo(1 / 2, 12);
-    expect(h.falseRejectShareOfGood).toBeCloseTo(1 / 12, 12);
+    expect(h.falseRejectShareOfGood).toBeCloseTo(1 / 22, 12);
     expect(j.target).toBe(0.95);
     expect(j.notBlind).toBeNull();
     expect(h.byPose[0]).toMatchObject({
       gesture: "G02",
-      photos: 9,
-      agree: 8,
+      photos: 15,
+      agree: 14,
       falseRejects: 1,
     });
     expect(h.byPose[1]).toMatchObject({
       gesture: "G04",
-      photos: 5,
-      agree: 4,
+      photos: 9,
+      agree: 8,
       falseAccepts: 1,
     });
     const by = Object.fromEntries(h.byReason.map((r) => [r.reason, r]));
@@ -588,13 +701,6 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
       retake: 0,
       accepted: 1,
     });
-    expect(j.coverage).toMatchObject({
-      photos: 15,
-      labelled: 14,
-      unlabelled: 1,
-      labelsWithNoPhoto: 0, // labels name the sorter's destinations, verbatim
-    });
-    expect(j.coverage.unlabelledBy.notLabelledYet).toBe(1);
     expect(j.sessions).toMatchObject({
       withPhotos: 1,
       withLabelsFile: 1,
@@ -602,19 +708,48 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     });
   });
 
-  it("G02 repeatability: the pooled within-person SD of the recorded marker hand lengths, 3 people, 9 photos, reference 1.0 mm", () => {
-    const lengths = (id: string) =>
-      reportsOf(id, "G02").map((r) => r.markerMm!.handLengthMm);
-    const groups = ["P001", "P002", "P003"].map(lengths);
+  it("the unfiled photos and the participant in review are counted by status and reason, and are not in the judgement", () => {
+    const c = report.kitV2.judgement.coverage;
+    // 25 photos of evaluated participants have a pose; 24 of them were filed and labelled.
+    expect(c).toMatchObject({
+      photos: 25,
+      labelled: 24,
+      unlabelled: 1,
+      labelsWithNoPhoto: 0, // labels name the sorter's destinations, verbatim
+    });
+    expect(c.unlabelledBy).toEqual({
+      noSession: 0,
+      noLabelsFile: 0,
+      noLabel: 0,
+      notFiled: 1, // P003's not-a-jpeg
+      notLabelledYet: 0,
+    });
+    // Everything unfiled, by the sorter's status: P008's seven and P003's one.
+    expect(c.notFiled).toEqual({
+      total: 8,
+      byStatus: { "needs-review": 7, "not-a-jpeg": 1 },
+    });
+    expect(c.participantsInReview).toEqual({
+      total: 1,
+      byReason: { "photo-count-not-planned": 1 },
+    });
+    const md = renderMarkdown(report);
+    expect(md).toMatch(
+      /Photos the sorter did not file, so none can be labelled and none is in the judgement: 8 \(needs-review x7, not-a-jpeg x1\)\. Participants in review \(nothing of theirs is filed\): 1 \(photo-count-not-planned x1\)\./,
+    );
+  });
+
+  it("G02 repeatability: the pooled within-person SD of the recorded marker hand lengths, 5 people, 15 photos, reference 1.0 mm", () => {
+    const groups = CALIBRATION.map(g02Lengths);
     const pooled = Math.sqrt(
       groups.reduce((sum, g) => sum + (g.length - 1) * sd(g) ** 2, 0) /
         groups.reduce((sum, g) => sum + (g.length - 1), 0),
     );
     const rep = report.kitV2.repeatability;
     expect(rep.pooledSdMm).toBeCloseTo(pooled, 6);
-    expect(rep.people).toBe(3);
-    expect(rep.photos).toBe(9);
-    expect(rep.degreesOfFreedom).toBe(6);
+    expect(rep.people).toBe(5);
+    expect(rep.photos).toBe(15);
+    expect(rep.degreesOfFreedom).toBe(10);
     expect(rep.referenceMm).toBe(1.0);
     expect(rep).not.toHaveProperty("withinLimit");
   });
@@ -624,13 +759,13 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
       reportsOf(id, "G02").map(
         (r) => r.paperMm!.handLengthMm - r.markerMm!.handLengthMm,
       );
-    const means = ["P001", "P002", "P003"].map((id) => mean(diffs(id)));
+    const means = CALIBRATION.map((id) => mean(diffs(id)));
     const a = report.kitV2.pathAgreement;
-    expect(a.personLevel!.n).toBe(3);
+    expect(a.personLevel!.n).toBe(5);
     expect(a.personLevel!.biasMm).toBeCloseTo(mean(means), 6);
     expect(a.personLevel!.sdMm).toBeCloseTo(sd(means), 6);
-    const all = ["P001", "P002", "P003"].flatMap(diffs);
-    expect(a.photoLevel!.n).toBe(9);
+    const all = CALIBRATION.flatMap(diffs);
+    expect(a.photoLevel!.n).toBe(15);
     expect(a.photoLevel!.biasMm).toBeCloseTo(mean(all), 6);
   });
 
@@ -644,9 +779,9 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
       return reportsOf(id, "G04").map((r) => projected(r) / g02);
     };
     const c = report.kitV2.curl;
-    expect(c.people).toBe(3);
-    expect(c.photos).toBe(6);
-    const personMeans = ["P001", "P002", "P003"].map((id) => mean(ratios(id)));
+    expect(c.people).toBe(5);
+    expect(c.photos).toBe(10); // P003's unfiled claw is one of them
+    const personMeans = CALIBRATION.map((id) => mean(ratios(id)));
     expect(c.distribution!.mean).toBeCloseTo(mean(personMeans), 6);
     expect(c.distribution!.min).toBeCloseTo(Math.min(...personMeans), 6);
     expect(c.distribution!.max).toBeCloseTo(Math.max(...personMeans), 6);
@@ -662,26 +797,24 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     // P001#3 and P002#1 are refused; every G04 photo is accepted.
     expect(g02).toMatchObject({
       gesture: "G02",
-      photos: 9,
-      accepted: 7,
-      handDetected: 9,
-      handLabelChecked: 9,
-      handLabelAgrees: 9,
+      photos: 15,
+      accepted: 13,
+      handDetected: 15,
+      handLabelChecked: 15,
+      handLabelAgrees: 15,
     });
     expect(g04).toMatchObject({
       gesture: "G04",
-      photos: 6,
-      accepted: 6,
-      handDetected: 6,
-      handLabelChecked: 6,
-      handLabelAgrees: 5,
+      photos: 10,
+      accepted: 10,
+      handDetected: 10,
+      handLabelChecked: 10,
+      handLabelAgrees: 9,
     });
   });
 
   it("coverage: 10 mm bins of each person's mean recorded hand length, phone and sheet from the embedded session, the left-handed participant", () => {
-    const means = ["P001", "P002", "P003"].map((id) =>
-      mean(reportsOf(id, "G02").map((r) => r.markerMm!.handLengthMm)),
-    );
+    const means = CALIBRATION.map((id) => mean(g02Lengths(id)));
     const cov = report.kitV2.coverage;
     const bins = new Map<number, number>();
     for (const m of means) {
@@ -691,16 +824,17 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     for (const b of cov.handLengthBins) {
       expect(b.people).toBe(bins.get(b.fromMm) ?? 0);
     }
-    expect(cov.handLengthBins.reduce((s, b) => s + b.people, 0)).toBe(3);
-    expect(cov.people).toBe(3);
-    expect(cov.photos).toBe(15);
+    expect(cov.handLengthBins.reduce((s, b) => s + b.people, 0)).toBe(5);
+    // P008 is in review: no measured photo, so not a person of this run's coverage.
+    expect(cov.people).toBe(5);
+    expect(cov.photos).toBe(25);
     expect(cov.byPhone).toEqual([
-      { value: "Phone X, main 1x", people: 3, photos: 15 },
+      { value: "Phone X, main 1x", people: 5, photos: 25 },
     ]);
-    expect(cov.bySheet).toEqual([{ value: "A", people: 3, photos: 15 }]);
+    expect(cov.bySheet).toEqual([{ value: "A", people: 5, photos: 25 }]);
     expect(cov.byMouseHand).toEqual([
       { value: "left", people: 1, photos: 5 },
-      { value: "right", people: 2, photos: 10 },
+      { value: "right", people: 4, photos: 20 },
     ]);
   });
 
@@ -717,32 +851,38 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
         : ratio >= GRIP_PREDICTION.clawAtOrAbove
           ? "claw"
           : "fingertip";
-    // By construction: P001 r = 0.55 (claw), P002 r = 0.61 (palm), P003 r = 0.50 (fingertip).
-    expect(predicted(r("P001"))).toBe("claw");
-    expect(predicted(r("P002"))).toBe("palm");
-    expect(predicted(r("P003"))).toBe("fingertip");
+    // By construction: r = 0.55 (claw), 0.61 (palm), 0.50 (fingertip), 0.55 (claw), 0.59 (palm).
+    expect(CALIBRATION.map((id) => predicted(r(id)))).toEqual([
+      "claw",
+      "palm",
+      "fingertip",
+      "claw",
+      "palm",
+    ]);
     const g = report.kitV2.grip;
-    expect(g.people).toBe(3);
+    expect(g.people).toBe(5);
+    // P008 (in review) has no photo with a pose, so it is not a person of this run at all.
+    expect(g.skipped).toMatchObject({ noG02: 0, noRecord: 0 });
     const cal = g.calibration!;
     expect(cal.current.thresholds).toEqual({
       palmAtOrAbove: GRIP_PREDICTION.palmAtOrAbove,
       clawAtOrAbove: GRIP_PREDICTION.clawAtOrAbove,
     });
-    // P001 says claw, predicted claw; P002 says palm, predicted palm; P003 says claw, predicted fingertip.
+    // P003 says claw but is predicted fingertip; the other four agree.
     expect(cal.current.matrix).toEqual({
-      palm: { palm: 1, claw: 0, fingertip: 0 },
-      claw: { palm: 0, claw: 1, fingertip: 1 },
+      palm: { palm: 2, claw: 0, fingertip: 0 },
+      claw: { palm: 0, claw: 2, fingertip: 1 },
       fingertip: { palm: 0, claw: 0, fingertip: 0 },
     });
-    expect(cal.current.agree).toBe(2);
-    // One pair puts all three right: claw from just below P003's r up to between P001's and P002's.
-    expect(cal.best.agreement.agree).toBe(3);
+    expect(cal.current.agree).toBe(4);
+    // One pair puts all five right: claw from just below P003's r, palm between the claws' r and P007's.
+    expect(cal.best.agreement.agree).toBe(5);
     expect(cal.best.tiedPairs).toBe(1);
     expect(cal.best.agreement.thresholds.clawAtOrAbove).toBeLessThan(r("P003"));
     expect(cal.best.agreement.thresholds.palmAtOrAbove).toBeGreaterThan(
-      r("P001"),
+      Math.max(r("P001"), r("P005")),
     );
-    expect(cal.best.agreement.thresholds.palmAtOrAbove).toBeLessThan(r("P002"));
+    expect(cal.best.agreement.thresholds.palmAtOrAbove).toBeLessThan(r("P007"));
   });
 
   it("held-out and S0 are left out by default, and each can be evaluated alone", () => {
@@ -752,22 +892,27 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
         options,
       ) as KitV2Report;
     const held = run({ selection: "held-out" });
-    expect(held.inputs.participants).toEqual(["P004"]);
+    expect(held.inputs.participants).toEqual(["P004", "P006"]);
     expect(held.notices).toEqual([HELD_OUT_NOTICE]);
-    // P004: G02 SD from the recorded lengths, and its labels (one bad, blur, accepted: a false accept).
-    const p4 = reportsOf("P004", "G02").map((r) => r.markerMm!.handLengthMm);
-    expect(held.kitV2.repeatability.pooledSdMm).toBeCloseTo(sd(p4), 6);
+    // Their G02 SD from the recorded lengths; P004's labels have one bad (blur, accepted: a false accept).
+    const groups = ["P004", "P006"].map(g02Lengths);
+    const pooled = Math.sqrt(
+      groups.reduce((sum, g) => sum + (g.length - 1) * sd(g) ** 2, 0) /
+        groups.reduce((sum, g) => sum + (g.length - 1), 0),
+    );
+    expect(held.kitV2.repeatability.pooledSdMm).toBeCloseTo(pooled, 6);
     expect(held.kitV2.judgement.headline).toMatchObject({
-      photos: 5,
+      photos: 10,
       falseAccepts: 1,
-      agree: 4,
+      agree: 9,
     });
+    expect(held.kitV2.judgement.coverage.participantsInReview.total).toBe(0);
     const s0 = run({ selection: "s0" });
     expect(s0.inputs.participants).toEqual(["P901"]);
     expect(s0.notices).toEqual([]);
     expect(s0.kitV2.judgement.headline).toMatchObject({ photos: 5, agree: 5 });
-    // Neither shows in the default run's numbers: it has 15 photos, not 25 or 20.
-    expect(report.kitV2.coverage.photos).toBe(15);
+    // Neither shows in the default run's numbers: it has 25 photos, not 35 or 30.
+    expect(report.kitV2.coverage.photos).toBe(25);
   });
 
   it("--aggregate-only on the real log leaves no participant code, file name or destination", () => {
@@ -787,7 +932,7 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
         TSX,
         SCRIPT,
         "--log",
-        runsDir,
+        runLogPath,
         "--records",
         outDir,
         "--session",
@@ -807,11 +952,12 @@ describe("kit v2, end to end: the sorter's own output through the evaluator", ()
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/^# M2 evaluation \(agreed-v2\)/);
     expect(result.stdout).toMatch(
-      /Labelled photos: 14 \(labels: 12 good, 2 bad; product: 12 accepted, 2 retake\)\./,
+      /Labelled photos: 24 \(labels: 22 good, 2 bad; product: 22 accepted, 2 retake\)\./,
     );
     expect(result.stdout).toMatch(
-      /\| agreement \(accepted and good, or retake and bad\) \| 12 \| 85\.7% \|/,
+      /\| agreement \(accepted and good, or retake and bad\) \| 22 \| 91\.7% \|/,
     );
+    expect(result.stdout).toMatch(/needs-review x7, not-a-jpeg x1/);
     const fromScript = JSON.parse(readFileSync(out, "utf8")) as KitV2Report;
     // The same report as the in-process run (only the clock differs).
     expect(fromScript.kitV2).toEqual(JSON.parse(JSON.stringify(report.kitV2)));

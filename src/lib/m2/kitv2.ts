@@ -638,6 +638,12 @@ export function evaluateKitV2(
   // G02 and G04, and every photo the logs assign (the ones a label may name).
   const judged: JudgedPhoto[] = [];
   const knownPhotos: KnownPhoto[] = [];
+  // Photos the sorter did not file (no destination) and participants it put in
+  // review, for evaluated participants: counted by its status and reason.
+  const notFiledByStatus: Record<string, number> = {};
+  const reviewOf = new Map<string, string>();
+  const plainWord = (word: string | null) =>
+    word !== null && /^[a-z-]{1,40}$/.test(word) ? word : "other";
   const measuredParticipants = new Set<string>();
   const assignedTo = new Set<string>();
   let reportCount = 0;
@@ -647,6 +653,11 @@ export function evaluateKitV2(
 
   input.logs.forEach((log, logIndex) => {
     const session = sessionOf(log, sessions);
+    for (const p of log.sort.participants) {
+      if (p.status === "needs-review" && evaluated(p.participant)) {
+        reviewOf.set(p.participant, plainWord(p.reason));
+      }
+    }
     const byFile = new Map<string, KitV2LogPhoto[]>();
     for (const p of log.sort.photos) {
       byFile.set(p.file, [...(byFile.get(p.file) ?? []), p]);
@@ -686,6 +697,10 @@ export function evaluateKitV2(
         else leftOutPhotos.notRequested++;
         outOfScope++;
         return;
+      }
+      if (a.participant !== null && a.destination === null) {
+        const status = plainWord(a.status);
+        notFiledByStatus[status] = (notFiledByStatus[status] ?? 0) + 1;
       }
       if (a.gesture !== null && !poseScope.has(a.gesture)) {
         outOfScope++;
@@ -861,6 +876,11 @@ export function evaluateKitV2(
       known: knownPhotos,
       labels: labelIndex,
       poses: KIT_V2_POSES,
+      notFiledByStatus,
+      reviewByReason: [...reviewOf.values()].reduce<Record<string, number>>(
+        (acc, reason) => ({ ...acc, [reason]: (acc[reason] ?? 0) + 1 }),
+        {},
+      ),
     }),
   };
   excluded.push(...personRows);

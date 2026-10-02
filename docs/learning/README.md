@@ -980,6 +980,20 @@ marker-sheet reference and retake repeatability; the output never says
 - A photo with no participant or pose (the sorter's `needs-review`, `no-code`) is
   listed as `NOT_ASSIGNED:<status>`. The same participant, pose and shot seen twice
   (a folder sorted twice) counts once.
+- **Photos the sorter does not file** (no `destination`): `needs-review` (the
+  participant's photo count is not the planned 3 + 2 and `participant.json` has no
+  matching `shotCounts`; `sort.participants[].reason` is `photo-count-not-planned`,
+  `shot-counts-do-not-match` or `unreadable-photo-in-run`), and the photos placed in
+  the shooting order whose copy cannot be made (`not-a-jpeg`, `damaged-jpeg`,
+  `copy-failed`). They cannot be labelled, so they are **left out of judgement
+  correctness like an unlabelled photo** and counted: the summary and the JSON give the
+  unfiled photos of the evaluated participants by status, and the participants in
+  review by reason. A `needs-review` photo has no pose, so it is also listed as
+  `NOT_ASSIGNED:needs-review` and measured for nothing; a photo that is placed but not
+  filed is still measured for the other statistics.
+- **The embedded session** is checked by the contract's own `sessionRecordSchema`:
+  a session on sheet B or on Letter paper is refused, and so is a top-level `sheet`
+  other than A.
 - **A label names its photo by its `destination`, verbatim** (`P901/G02/1.jpg`):
   the contract pins that, and it is how the sorter writes the labels template.
   The photo's own file name and a name worked out from the participant, pose and
@@ -1019,195 +1033,6 @@ and evaluate the held-out participants **once**. So:
 
 `scripts/m2-gate-replay.ts` (the old replay through `/scan`) is gone: it failed
 on blank-paper photos and had no parallax correction. This tool replaces it.
-
-## Privacy and rules
-
-- **Photos never leave the device** (hard rule 5). The checker decodes,
-  detects and measures in the browser. The e2e tests assert that no
-  non-GET request is sent while it runs (the page and its scripts are GETs;
-  nothing is POSTed, PUT or otherwise sent).
-- **Photos and `truth.json` stay outside the repo** (`../Fixtures/learning/`,
-  next to the main checkout). The sorter refuses an output folder inside the
-  repo, inside the main checkout, or inside **any other git worktree** (it asks
-  `git worktree list`), also through a symlink or junction, and refuses to run
-  in CI. `.gitignore` also ignores `Fixtures/learning/` wherever it lands, as a
-  second line of defence. Tests run the real script to check the refusals.
-- **The run log holds no account name.** `input` is the photo folder relative
-  to where the command ran; on another drive only the folder's own name is
-  kept. Any path segment that contains the account name, in any letter case
-  (`Kirby Photos`, `kirby-DCIM`, `C--Users-kirby-Desktop-...`), and the segment
-  after `Users` or `home`, is replaced by `~`. (An account name shorter than
-  three characters is only matched as a whole segment, since it would match
-  half of every path.) Photo `file` values are file names, not paths.
-- **The terminal holds no absolute path, stack or account name.** Everything
-  `learn:sort` prints goes through one filter (`src/lib/learning/terminal.ts`):
-  - A failure is its **message only**, never the stack. That covers a folder
-    that cannot be listed or read, as well as errors from the dev server, from
-    Playwright and from anything that escapes uncaught (the last line of
-    defence is a filter too).
-  - Folders the sorter knows are shown short: the working folder and the
-    sorter's own checkout as `.`, other checkouts as `<checkout>`, the photo
-    and output folders relative to where the command ran, and any path segment
-    holding the account name as `~`.
-  - **Any other absolute path**, which comes from tools that name their own
-    folders (for example Playwright's "Executable doesn't exist at ..."),
-    becomes `<path>`: a drive path (`C:\...`), a UNC path (`\\server\share\...`),
-    a `file://` URL, and a POSIX path of two or more segments whatever its
-    first folder is (`/home/...`, `/data/...`, `/workspace/...`). A POSIX path
-    is recognised after the start of the text, white space, a quote, a
-    backtick, `(`, `[`, `{`, `<`, `,`, `;`, `:` or `=`; it is not one after a
-    letter, digit, `.`, `~`, `/`, `-`, `>` or a closing bracket, so URLs
-    (`http://127.0.0.1:3401/learn/check`), relative paths (`../x/y`,
-    `~/x/y`, `<path>/x`), fractions (`3/4`) and dates (`2026/09/30`) stay.
-    A route in prose (`open /learn/print`) looks like a path and is hidden.
-    A path under a system root (`/home`, `/Users`, `/tmp`, `/Applications`,
-    `/Library`, ...) and a Windows or UNC path run to the next quote or line
-    end and may contain spaces, so words after such a path on the same line go
-    with it: better to hide too much than to leave a folder name. Other POSIX
-    paths end at white space.
-  - In the dev server's last words, stack frames (`    at f (file:1:1)`) are
-    replaced by one `(stack frames omitted)` line.
-  - The account name is masked wherever else it appears in text, in any letter
-    case (names of one or two characters are not, as they would match half of
-    every message).
-  - **Not covered: npm's own lines.** Run as `npm run learn:sort -- ...`, npm
-    itself prints the whole command line, your paths included, to stderr
-    (`npm notice run tsx scripts/learn-sort.ts --in C:\Users\...`) before the
-    script starts. That is npm's output, outside the script's control. `npm run
---silent learn:sort -- ...` hides it (checked); use that when the output is
-    going to be pasted somewhere.
-  - `--in`, `--out` and `--session` given in Git Bash, Cygwin or WSL spelling
-    (`/c/Users/me/...`, `/cygdrive/c/...`, `/mnt/c/...`) are refused on
-    Windows: Node would read that as a folder tree on the current drive and
-    create it. Use the Windows form (`C:\Users\me\...`).
-- **Only white-listed EXIF in the run log** (above): no GPS, time or device
-  serial number. Two things it does not cover:
-  - **File names.** Phone cameras often put the time of the shot in the file
-    name (`IMG_20260930_101530.jpg`). `file` in the run log, and the file
-    names of the copies `learn:sort` files, keep it.
-  - **The filed photos themselves.** Kit v1's `learn:sort` copied each original
-    unchanged, so kit v1 copies under `Fixtures/learning/` still carry their full
-    EXIF: GPS position, time, the device's serial number. Think before sharing,
-    zipping or uploading them. Kit v2's copies are EXIF-stripped (see "Kit v2"):
-    only Orientation stays.
-- **Participant numbers, never names.**
-- **No medical claims.** G06 and G07 collect posture data for research into
-  mouse fit and hand and wrist angles. The pages say so, and nothing
-  diagnoses or advises.
-
-## Changing the kit
-
-A printed QR code is permanent. To change a pose, its page or the code
-format, raise `LEARNING_KIT_VERSION` (2 since kit v2; `KIT_V1_VERSION` is the
-first kit's). Keep `/l/v1/[token]` answering (locally) for pages already printed.
-Kit v2 has no `/l/v2/...` page: its cards are read from the photo, not opened.
-The sorter files only the current version, so mixed-version photos are reported
-(`version-mismatch`) rather than mixed.
-
-The participant card's layout changed on 2026-09-30: it now has a Right and a
-Left column for the ruler values. Its QR code did not change, so a card printed
-before that still identifies its participant, but it has one set of fields.
-Reprint the cards before a session so each hand gets its own values.
-
-## M2 evaluator for kit v2
-
-`npm run m2:evaluate` judges kit v2 runs (protocol `agreed-v2`, frozen prereg
-version 2, 2026-10-02) as well as kit v1 runs. The two are told apart by the
-run logs and are **never mixed**. This section is the agreed-v2 side; the
-"Evaluation" section above stays true for candidate-v1.
-
-| Run logs                                             | Protocol       | Needs                                            | Reference                                    |
-| ---------------------------------------------------- | -------------- | ------------------------------------------------ | -------------------------------------------- |
-| format 2, or format 3 with `protocol: null` (kit v1) | `candidate-v1` | `--truth` (ruler `truth.json`)                   | the ruler                                    |
-| format 3 with `protocol: "agreed-v2"` (kit v2)       | `agreed-v2`    | nothing; `--records` and `--labels` add the rest | the marker plane of the same sheet, no ruler |
-
-```
-npm run m2:evaluate -- \
-  --log ../Fixtures/learning-v2/runs \
-  --records ../Fixtures/learning-v2 \
-  --labels ../Fixtures/learning-v2/S001 \
-  --out ../Fixtures/evaluations/v2-calibration.json
-```
-
-| Option             | Meaning                                                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--protocol`       | `agreed-v2` or `candidate-v1`: the protocol the run logs must be of. Default: theirs. A mismatch is an error                                                                         |
-| `--records <path>` | A `participant.json`, or a folder holding `participant.json` or `<P###>/participant.json`: the grip a person reports and the hand they use. Repeat freely                            |
-| `--session <path>` | A `session.json` (or a folder holding one), for the phone when the run log does not embed its session. Repeat freely                                                                 |
-| `--labels <path>`  | A `labels.json` (or a folder holding `labels.json` or `<session>/labels.json`): the blind good/bad calls. Repeat freely. Without it the headline is not computed, and nothing errors |
-| `--gesture`        | The poses of the field-by-field tables. Default **G02** (candidate-v1: G01). The per-person statistics always use G02 and G04                                                        |
-| `--held-out`       | Only the held-out participants. **Meant to be run once, by Claude, after the model is frozen**; the run prints a loud notice, on stderr and at the top of the summary                |
-| `--s0`             | Only the S0 pilot (P901-P912)                                                                                                                                                        |
-| `--aggregate-only` | Drop every per-person and per-photo row from the JSON and the summary, for text pasted into a pull request                                                                           |
-| `--participants`   | Narrows the chosen set (a fold). Not with `--held-out`                                                                                                                               |
-
-`--truth` is refused with agreed-v2 logs (a candidate-v1 truth file is the
-forbidden mix; any other is simply not read), `--thresholds` too (the criteria
-are frozen in the prereg), and `--held-out`, `--s0`, `--records`, `--session` and
-`--labels` are refused with candidate-v1.
-
-### Who is evaluated
-
-By the prereg's held-out rule (`src/lib/m2/heldout.ts`): participants come in
-blocks of four (P001-P004, P005-P008, ...); in each **complete** block the
-participant whose lowercase hex SHA-256 of `bec9449f79d85ac5:<P###>` is smallest
-is held out. A test reproduces the 50 ids the prereg lists for P001-P200.
-
-- **Default:** the calibration set. Held-out and S0 participants are left out, and
-  so are participants in a block that is not complete yet (their block could still
-  turn out to give them the smallest hash). The summary and stderr say how many were left out and why.
-- `--held-out`: only the held-out set. `--s0`: only the S0 pilot.
-- A block is complete when all four ids appear in the inputs (a run log's sort, or a participant record).
-
-### What is reported (all report-only except the target)
-
-| Statistic                  | Definition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Judgement correctness**  | The headline. For each labelled photo, the product's accept/retake verdict against the label (good/bad). **The verdict is the product's photo-quality gates (the recorded paper and hand gates) with the handedness gate left out**: a kit v2 report computes it with no stated hand, because the mouse hand comes from `participant.json` only after the browser analysis. Agreement rate, false accepts and false rejects (counts, share of all labelled, share of bad or good), by pose, and by reason. **Target 95 %, shown as a target and never as pass or fail.** Unlabelled photos are left out and counted. Labels from sessions with `blind: false` are reported apart and are not in the headline |
-| G02 retake repeatability   | Pooled within-person SD of hand length on the marker path: `sqrt(sum((n-1) SD^2) / sum(n-1))` over people with 2+ G02 photos, with the people and photos behind it. 1.0 mm is shown as a **reference value**, not a verdict (prereg v2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Path agreement             | Paper-edge minus marker hand length per G02 photo, averaged **within each person first**, then bias and SD across people. The photo-level numbers are shown too, labelled photo-level                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Curl ratio                 | A G04 photo's wrist-to-middle-fingertip length on the marker plane (from the recomputed sheet-mm landmarks, so it exists even when a claw's measurements fall outside the contract's ranges) divided by the same person's mean G02 hand length. Per-person mean, retake SD, overall distribution                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Product-gate acceptance    | Accepted / all, per pose, by the recorded gates as they are. Also the hand-detection rate and how often MediaPipe's hand label agrees with the participant record (the S0 checks): **hand-label agreement is reported on its own and is not part of judgement correctness**                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Coverage                   | People by 10 mm bin of their mean G02 hand length; people and photos by phone, sheet and mouse hand                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Grip-threshold calibration | Each person's r = palm length / hand length (mean over G02, marker plane; the landmarks of `MEASUREMENT_DEFINITIONS`) against the grip they reported (palm, claw, fingertip; `unsure` and blank are skipped and counted). The confusion matrix and agreement with the product's **current** thresholds (palm at r >= 0.58, claw at r >= 0.54, read from `GRIP_PREDICTION`), and the threshold pair that agrees most on these people, with the counts and how many pairs tie. Chosen and scored on the same people, so optimistic. **It never changes `src/server/fit/**`**                                                                                                                                   |
-| Accuracy                   | **Dormant: no ruler truth.** Nothing is computed, nothing errors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-
-Person-level means come before any statistic across people: photos are never
-treated as independent people. Everything is worded as agreement with the
-marker-sheet reference and retake repeatability; the output never says
-"accurate".
-
-### What the evaluator reads from the logs, and how a label finds its photo
-
-- **From a format-3 log:** `protocol`, `session` (the session id, or the whole
-  `session.json` embedded, which gives the phone), `sheet`, `reports[]`, and
-  `sort.photos[]` entries matched to a report by `file`: `participant`,
-  `gesture`, `hand`, `shot`, `extraShot`, and (when present) `status` and
-  `destination`. The pose, hand and shot always come from the sort, **never from
-  the QR code** on the photo (it is the participant's card).
-- A photo with no participant or pose (the sorter's `needs-review`, `no-code`) is
-  listed as `NOT_ASSIGNED:<status>`. The same participant, pose and shot seen twice
-  (a folder sorted twice) counts once.
-- **A label** names its photo by `file`. The labels template is written with the
-  filed copy's path (`P901/G02/1.jpg`), so that is tried first (`destination`),
-  then the photo's own file name, then the path worked out from participant,
-  pose and shot (with and without the hand letter). Names are compared
-  case-insensitively with `/` as the separator. A label is tied to a photo of
-  the same **session**. A label that two photos claim is left out as ambiguous;
-  a label that names no photo is counted (a naming mismatch shows up there).
-- A photo with no recorded product verdict counts as not accepted, and the count is printed.
-- The product's verdict here is its gates (`productGates.accepted`), not the kit
-  checker's `retake` verdict. A photo the checker says to retake still counts for
-  the statistics and is out of the field tables' "accepted" group, as in candidate-v1.
-
-### The report
-
-`open-mouse-m2-evaluation/2`, with the same totals-only privacy as before: anonymous
-participant codes and photo ids like `P007/G02R/3`, no file name, path, EXIF or
-landmark (a test searches for them). `--aggregate-only` empties the participant
-lists, the per-person rows and the excluded-photo rows, keeps their counts by
-reason, and a test checks that no participant code remains. The Markdown summary
-renders the same report.
 
 ## Files
 

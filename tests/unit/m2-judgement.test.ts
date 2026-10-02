@@ -276,8 +276,11 @@ describe("judgement correctness, worked out by hand", () => {
       noSession: 1, // the photo whose log names no session
       noLabelsFile: 3, // S003
       noLabel: 1, // #12
+      notFiled: 0,
       notLabelledYet: 1, // #13
     });
+    expect(c.notFiled).toEqual({ total: 0, byStatus: {} });
+    expect(c.participantsInReview).toEqual({ total: 0, byReason: {} });
     expect(c.labelled + c.unlabelled).toBe(c.photos);
   });
 
@@ -351,7 +354,34 @@ describe("matching a label to its photo: by destination, verbatim", () => {
       poses: ["G02"],
     });
     expect(r.headline).toBeNull();
-    expect(r.coverage.unlabelledBy.noLabel).toBe(1);
+    // Counted on its own, not as a label the file failed to mention.
+    expect(r.coverage.unlabelledBy.notFiled).toBe(1);
+    expect(r.coverage.unlabelledBy.noLabel).toBe(0);
+    // And the label, which names nothing, shows as a label with no photo.
+    expect(r.coverage.labelsWithNoPhoto).toBe(1);
+  });
+
+  it("the photos the sorter did not file, and the participants it put in review, are counted by status and reason", () => {
+    const r = judge({
+      photos: [],
+      known: [],
+      labels: buildLabelIndex([]),
+      poses: ["G02"],
+      notFiledByStatus: {
+        "needs-review": 5,
+        "not-a-jpeg": 1,
+        "damaged-jpeg": 2,
+      },
+      reviewByReason: { "photo-count-not-planned": 1 },
+    });
+    expect(r.coverage.notFiled).toEqual({
+      total: 8,
+      byStatus: { "needs-review": 5, "not-a-jpeg": 1, "damaged-jpeg": 2 },
+    });
+    expect(r.coverage.participantsInReview).toEqual({
+      total: 1,
+      byReason: { "photo-count-not-planned": 1 },
+    });
   });
 
   it("the same destination in another session is another photo", () => {

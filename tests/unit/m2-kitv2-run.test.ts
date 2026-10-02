@@ -120,7 +120,7 @@ describe("reading a format-3 run log", () => {
   });
 
   it("a session record embedded in the log gives the id, the phone and the sheet", () => {
-    const embedded = sessionRecordOf("S007", { phone: "Phone C", sheet: "B" });
+    const embedded = sessionRecordOf("S007", { phone: "Phone C", sheet: "A" });
     const parsed = parseKitV2RunLog(
       kitV2LogOf([g02("P001", 190)], { session: embedded, sheet: null }),
       "run log 1",
@@ -128,8 +128,27 @@ describe("reading a format-3 run log", () => {
     expect(parsed).toMatchObject({
       sessionId: "S007",
       embeddedPhone: "Phone C",
-      sheet: "B",
+      sheet: "A",
     });
+  });
+
+  it("an embedded session on sheet B or on Letter paper is refused, as the contract's own schema refuses it", () => {
+    const base = sessionRecordOf("S007", { phone: "Phone C" });
+    for (const [field, value] of [
+      ["sheet", "B"],
+      ["paperSize", "letter"],
+    ] as const) {
+      const log = kitV2LogOf([g02("P001", 190)], {
+        session: { ...base, [field]: value } as never,
+      });
+      expect(() => parseKitV2RunLog(log, "run log 1")).toThrow(
+        new RegExp(`^run log 1 does not fit the format: session`),
+      );
+    }
+    // The top-level sheet is sheet A only too.
+    const log = kitV2LogOf([g02("P001", 190)]) as Record<string, unknown>;
+    log.sheet = "B";
+    expect(() => parseKitV2RunLog(log, "run log 1")).toThrow(/sheet/);
   });
 
   it("no session and no sheet is fine: coverage will say unknown", () => {

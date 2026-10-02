@@ -165,7 +165,7 @@ function reportOf(photo: KitV2SynthPhoto, file: string): LearningPhotoReport {
 export interface KitV2LogOptions {
   /** `top-level session`: an id, the whole session record, or `null`. Default "S001". */
   readonly session?: string | SessionRecord | null;
-  readonly sheet?: "A" | "B" | null;
+  readonly sheet?: "A" | null;
   /** First file number, so two logs do not share file names. Default 1. */
   readonly firstFile?: number;
 }
@@ -261,6 +261,7 @@ export function participantRecordOf(
     mouseHand: fields.mouseHand === undefined ? "right" : fields.mouseHand,
     gripSelf: fields.gripSelf === undefined ? null : fields.gripSelf,
     ageBand: fields.ageBand === undefined ? null : fields.ageBand,
+    shotCounts: null,
     note: "",
   };
 }

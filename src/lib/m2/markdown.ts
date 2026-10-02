@@ -355,6 +355,14 @@ function judgementStatsLines(stats: JudgementStats): string[] {
   return out;
 }
 
+/** " (a x2, b x1)" from counts, or "" when there are none. */
+function byKey(counts: Readonly<Record<string, number>>): string {
+  const parts = Object.entries(counts)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, n]) => `${key} x${n}`);
+  return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+}
+
 function judgementSection(j: JudgementSection, labelsFiles: number): string[] {
   const c = j.coverage;
   const out: string[] = [
@@ -389,7 +397,9 @@ function judgementSection(j: JudgementSection, labelsFiles: number): string[] {
     );
   }
   out.push(
-    `G02 and G04 photos of the evaluated participants: ${c.photos}. Labelled: ${c.labelled} (blind ${c.labelledBlind}, not blind ${c.labelledNotBlind}). Left out as unlabelled: ${c.unlabelled} (no session in the run log ${c.unlabelledBy.noSession}; no labels file for the session ${c.unlabelledBy.noLabelsFile}; the labels file does not mention the photo ${c.unlabelledBy.noLabel}; not labelled yet ${c.unlabelledBy.notLabelledYet}).`,
+    `G02 and G04 photos of the evaluated participants: ${c.photos}. Labelled: ${c.labelled} (blind ${c.labelledBlind}, not blind ${c.labelledNotBlind}). Left out as unlabelled: ${c.unlabelled} (no session in the run log ${c.unlabelledBy.noSession}; no labels file for the session ${c.unlabelledBy.noLabelsFile}; the labels file does not mention the photo ${c.unlabelledBy.noLabel}; placed but not filed ${c.unlabelledBy.notFiled}; not labelled yet ${c.unlabelledBy.notLabelledYet}).`,
+    "",
+    `Photos the sorter did not file, so none can be labelled and none is in the judgement: ${c.notFiled.total}${byKey(c.notFiled.byStatus)}. Participants in review (nothing of theirs is filed): ${c.participantsInReview.total}${byKey(c.participantsInReview.byReason)}.`,
     "",
     `Labels that name no photo in the run logs: ${c.labelsWithNoPhoto}. Sessions with evaluated photos: ${j.sessions.withPhotos}; with a labels file: ${j.sessions.withLabelsFile}; with every evaluated photo labelled: ${j.sessions.fullyLabelled}; blind: ${j.sessions.blind}; not blind: ${j.sessions.notBlind}.`,
     "",
