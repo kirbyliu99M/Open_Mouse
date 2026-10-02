@@ -149,7 +149,12 @@ export function bestGripThresholds(
 
   let best = -1;
   let tied = 0;
-  let pick: { low: number; high: number; distance: number } | null = null;
+  interface Pick {
+    readonly low: number;
+    readonly high: number;
+    readonly distance: number;
+  }
+  let pick: Pick | null = null;
   for (let a = 0; a < cuts.length; a++) {
     for (let b = a; b < cuts.length; b++) {
       const low = cuts[a]!; // below it: fingertip
@@ -167,7 +172,7 @@ export function bestGripThresholds(
         pick = { low: low.value, high: high.value, distance };
       } else if (agree === best) {
         tied += 1;
-        const p = pick!;
+        const p: Pick = pick!;
         if (
           distance < p.distance ||
           (distance === p.distance &&
