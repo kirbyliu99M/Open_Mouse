@@ -10,7 +10,14 @@ import type { MarkerLayout } from "@/client/sheet/layout";
  * calibration sheet (`/sheet`) and the learning kit (`/learn/print`) so both
  * print byte-identical markers.
  */
-export function MarkerGlyph({ marker }: { marker: MarkerLayout }) {
+export function MarkerGlyph({
+  marker,
+  label = true,
+}: {
+  marker: MarkerLayout;
+  /** Print the small "id N" caption. Kit v2 sheets leave it out: they keep every printed element clear of the hand area. */
+  label?: boolean;
+}) {
   const grid = markerBitGrid(marker.id);
   const moduleSizeMm = marker.sizeMm / ARUCO_MARKER_MODULES;
   const outerTopLeft = marker.corners[0];
@@ -48,15 +55,17 @@ export function MarkerGlyph({ marker }: { marker: MarkerLayout }) {
             ),
         ),
       )}
-      <text
-        x={marker.centre.x}
-        y={labelY}
-        fontSize={3.2}
-        textAnchor="middle"
-        fill="black"
-      >
-        id {marker.id}
-      </text>
+      {label && (
+        <text
+          x={marker.centre.x}
+          y={labelY}
+          fontSize={3.2}
+          textAnchor="middle"
+          fill="black"
+        >
+          id {marker.id}
+        </text>
+      )}
     </g>
   );
 }

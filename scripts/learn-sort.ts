@@ -1,24 +1,56 @@
 /**
- * Learning-kit sorter: checks a folder of session photos with the real
- * `/learn/check` page (headless Chromium, MediaPipe and all), then files each
- * usable photo by participant and pose, outside the repo:
+ * Learning-kit sorter (kit v2, protocol `agreed-v2`): checks a folder of
+ * session photos with the real `/learn/check` page (headless Chromium,
+ * MediaPipe and all), then files each photo by participant and pose, outside
+ * the repo:
  *
- *   npm run learn:sort -- --in "D:/DCIM/Camera"
+ *   npm run learn:sort -- --in "D:/DCIM/Camera" --session "D:/Fixtures/learning/sessions/S001/session.json"
  *
- *   ../Fixtures/learning/P007/slate.jpg
- *   ../Fixtures/learning/P007/G01R/1.jpg … 5.jpg
- *   ../Fixtures/learning/P007/truth.json      (template: ruler values, right and left hand apart)
- *   ../Fixtures/learning/runs/<time>.json     (run log, format 2: every photo's checks, landmarks, planes)
+ *   ../Fixtures/learning/P007/G02/1.jpg … 3.jpg   (EXIF-stripped copies)
+ *   ../Fixtures/learning/P007/G04/1.jpg … 2.jpg
+ *   ../Fixtures/learning/P007/participant.json    (template, filled in from the consent flow; never overwritten)
+ *   ../Fixtures/learning/runs/<time>.json         (run log, format 3)
+ *   <folder of session.json>/labels.json          (blank, for Kirby's blind good/bad labels; never overwritten)
  *
- * Options: --out <dir> (default: next to the main checkout, in
- * Fixtures/learning), --paper a4|letter (size of the printed pages, default
- * a4), --port <n> (default 3401; a dev server is started), --base <url> (use a
- * running server instead), --dry-run (report only, copy nothing).
+ * The participant comes from the QR code of the card in the sheet's slot, on
+ * every photo. The pose comes from the shooting order in file-name order: five
+ * photos are G02 x3 then G04 x2, and any other count is placed only if Kirby
+ * wrote `shotCounts` in the participant's `participant.json`; otherwise the
+ * participant goes to review and none of their photos is filed. The sorter
+ * never guesses a pose. The hand is the one in `participant.json`; MediaPipe's
+ * label is only a check. See docs/learning/README.md, "Kit v2".
+ *
+ * Options: --in <folder of photos>, --session <session.json> (required: the
+ * sorter refuses to run without a valid one), --out <dir> (default: next to the
+ * main checkout, in Fixtures/learning), --paper a4 (optional: kit v2 is A4 only,
+ * and a session's paperSize is always a4), --port <n> (default 3401; a dev server is
+ * started), --base <url> (use a running server instead), --dry-run (report
+ * only, write nothing), --show-checks (print the pose-check calls and hand
+ * flags too, after the "label first" line).
+ *
+ * Every image-like file in the folder (.jpg, .jpeg, .jfif, .png, .heic, .heif) is
+ * analysed in file-name order. A file whose copy cannot be made (a PNG, a
+ * HEIC the browser cannot read, a damaged JPEG) keeps its place in the order,
+ * so the photos after it do not shift pose, but it is not filed.
+ *
+ * EXIF. The filed copies are stripped of EXIF (GPS, time, device, XMP, IPTC,
+ * comments); only the Orientation tag survives, in a rebuilt minimal EXIF, so
+ * a copy stays upright. The originals in the input folder are only read. The
+ * EXIF white-list in the run log (focal length, pixel size) comes from the
+ * checker's analysis of the originals. A file that cannot be stripped is not
+ * copied at all.
+ *
+ * BLIND LABELLING. The run log holds the product's verdict for every photo.
+ * By default the terminal summary shows counts and file names only: no
+ * verdict, no pose-check call, no hand flag, no millimetre value (those need
+ * `--show-checks`, and print after a line saying to label first). Kirby labels
+ * the photos good or bad first (prereg v2, 2.1). Everything after the checker
+ * is `runSorterWithReports` in src/lib/learning/sorterrun.ts.
  *
  * NEVER runs in CI: it reads real people's hand photos (docs/PLAN.md §M2,
  * AGENTS hard rules 1 and 5). It refuses an output folder inside the repo,
- * inside the main checkout, or inside any other git worktree. Files are copied,
- * never moved; an existing destination is never overwritten.
+ * inside the main checkout, or inside any other git worktree. Files are
+ * copied, never moved; an existing destination is never overwritten.
  *
  * The dev server is started and stopped by `withDevServer`
  * (src/lib/learning/devserver.ts): it is always stopped, also on Ctrl+C.
@@ -28,31 +60,21 @@
  * where the command ran, this checkout and the working folder as `.`, the
  * account name as `~`. A failure prints its message only, never a stack.
  */
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  PAPER_SIZES_MM,
-  type PaperSize,
-} from "../src/lib/contracts/measurement";
-import { compareFileNames } from "../src/lib/learning/checks";
+import type { PaperSize } from "../src/lib/contracts/measurement";
 import {
   DEV_SERVER_HOST,
   devServerSpec,
   waitForServer,
   withDevServer,
 } from "../src/lib/learning/devserver";
+import { listPhotoFiles } from "../src/lib/learning/inputfiles";
+import { fileTimeInversions } from "../src/lib/learning/order";
 import {
-  buildSorterRunLog,
   containingRoot,
   gitRefusalRoots,
   looksLikeMsysPath,
@@ -63,11 +85,11 @@ import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
   NO_PROVENANCE,
   readGitProvenance,
-  sortReports,
   type LearningRunLog,
 } from "../src/lib/learning/runlog";
+import { parseSessionFile } from "../src/lib/learning/sessionfile";
+import { runSorterWithReports } from "../src/lib/learning/sorterrun";
 import { installLastResort, makeTerminal } from "../src/lib/learning/terminal";
-import { emptyTruth } from "../src/lib/learning/truth";
 
 if (process.env.CI) {
   console.error("learn-sort reads real hand photos and must never run in CI.");
@@ -121,6 +143,9 @@ function fail(message: string): never {
 // as a redacted message, never a raw stack.
 installLastResort(failure, (code) => process.exit(code));
 
+const USAGE =
+  'Usage: npm run learn:sort -- --in "<folder of photos>" --session "<session.json>" [--out <dir>] [--paper a4] [--dry-run] [--show-checks]';
+
 async function run(): Promise<void> {
   const arg = (flag: string) => {
     const i = process.argv.indexOf(flag);
@@ -131,6 +156,7 @@ async function run(): Promise<void> {
   // main checkout.
   const { mainRoot, roots } = gitRefusalRoots(scriptRoot, git);
   const inDir = arg("--in");
+  const sessionArg = arg("--session");
   const outDir = resolve(
     arg("--out") ?? resolve(mainRoot, "..", "Fixtures", "learning"),
   );
@@ -138,7 +164,8 @@ async function run(): Promise<void> {
   const externalBase = arg("--base");
   const baseUrl = externalBase ?? `http://${DEV_SERVER_HOST}:${port}`;
   const dryRun = process.argv.includes("--dry-run");
-  const paperArg = arg("--paper") ?? "a4";
+  const showChecks = process.argv.includes("--show-checks");
+  const paperArg = arg("--paper");
 
   // The photo folder is resolved here, before it is checked, so that a complaint
   // about it is redacted too.
@@ -158,6 +185,7 @@ async function run(): Promise<void> {
   for (const [flag, value] of [
     ["--in", inDir],
     ["--out", arg("--out")],
+    ["--session", sessionArg],
   ] as const) {
     if (value !== undefined && looksLikeMsysPath(value)) {
       fail(
@@ -166,15 +194,10 @@ async function run(): Promise<void> {
     }
   }
 
-  if (!inDir)
-    fail(
-      'Usage: npm run learn:sort -- --in "<folder of photos>" [--out <dir>] [--paper a4|letter] [--dry-run]',
-    );
-  if (!Object.hasOwn(PAPER_SIZES_MM, paperArg))
-    fail(
-      `--paper must be one of ${Object.keys(PAPER_SIZES_MM).join(", ")}, not "${paperArg}".`,
-    );
-  const paperSize = paperArg as PaperSize;
+  if (!inDir) fail(USAGE);
+  // Kit v2 is A4 only (Kirby, 2026-10-02): `--paper a4` is accepted, nothing else.
+  if (paperArg !== undefined && paperArg !== "a4")
+    fail(`--paper must be a4 (kit v2 is A4 only), not "${paperArg}".`);
   const input = resolve(inDir);
   if (!existsSync(input) || !statSync(input).isDirectory())
     fail(`Not a folder: ${input}`);
@@ -188,10 +211,45 @@ async function run(): Promise<void> {
     );
   }
 
-  const photos = readdirSync(input)
-    .filter((name) => /\.(jpe?g|png)$/i.test(name))
-    .sort(compareFileNames);
-  if (photos.length === 0) fail(`No .jpg or .png photos in ${input}.`);
+  // Every image-like file counts, in camera order, so a file that cannot be
+  // filed (a HEIC the browser cannot read, a PNG) keeps its place and the
+  // photos after it do not shift pose.
+  const { photos, skipped } = listPhotoFiles(
+    readdirSync(input, { withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => e.name),
+  );
+  if (photos.length === 0)
+    fail(`No photos (.jpg, .jpeg, .jfif, .png, .heic, .heif) in ${input}.`);
+
+  // The session record: the sorter does not run without a valid one.
+  if (!sessionArg) {
+    fail(
+      `--session is required: the sorter needs a valid session.json. ${USAGE}`,
+    );
+  }
+  const sessionPath = resolve(sessionArg);
+  if (!existsSync(sessionPath) || !statSync(sessionPath).isFile()) {
+    fail("--session is not a file.");
+  }
+  // labels.json (and nothing else of ours) is written next to session.json, so
+  // that folder gets the same refusal as --out: never inside the repo or any
+  // git worktree.
+  if (
+    containingRoot(
+      realpathLoose(dirname(sessionPath)),
+      roots.map(realpathLoose),
+    )
+  ) {
+    fail(
+      "--session must be in a folder outside the repo and every git worktree (labels.json is written next to it; hard rule 1).",
+    );
+  }
+  const parsedSession = parseSessionFile(readFileSync(sessionPath, "utf8"));
+  if (!parsedSession.ok) fail(parsedSession.message);
+  const session = parsedSession.value;
+  const paperSize: PaperSize = session.paperSize;
+  const sessionDir = dirname(sessionPath);
 
   async function checkAll(): Promise<LearningPhotoReport[]> {
     // Loaded here, not at the top, so argument checks (and their tests) do not
@@ -200,9 +258,10 @@ async function run(): Promise<void> {
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage();
-      await page.goto(`${baseUrl}/learn/check?paper=${paperSize}`, {
-        waitUntil: "networkidle",
-      });
+      await page.goto(
+        `${baseUrl}/learn/check?paper=${paperSize}&sheet=${session.sheet}`,
+        { waitUntil: "networkidle" },
+      );
       await page
         .getByTestId("learning-check-input")
         .setInputFiles(photos.map((p) => join(input, p)));
@@ -256,103 +315,38 @@ async function run(): Promise<void> {
   }
 
   async function main() {
+    const inversions = fileTimeInversions(
+      photos.map((file) => ({
+        file,
+        mtimeMs: statSync(join(input, file)).mtimeMs,
+      })),
+    );
+    if (inversions > 0) {
+      warn(
+        `${inversions} photo${inversions === 1 ? " is" : "s are"} older, by file time, than the one before ${inversions === 1 ? "it" : "them"} in file-name order. The shooting order here follows the file names: check that they run in shooting order (a phone that restarted its numbering, or two cards merged, breaks it).`,
+      );
+    }
+
     const reports = await reportsFromServer();
 
-    const sort = sortReports(reports);
-
-    let copied = 0;
-    let skipped = 0;
-    if (!dryRun) {
-      for (const p of sort.photos) {
-        if (!p.destination) continue;
-        const target = join(outDir, p.destination);
-        if (existsSync(target)) {
-          skipped++;
-          continue;
-        }
-        mkdirSync(dirname(target), { recursive: true });
-        copyFileSync(join(input, p.file), target);
-        copied++;
-      }
-      for (const participant of new Set(
-        sort.photos.map((p) => p.participant).filter(Boolean),
-      )) {
-        const truth = join(outDir, participant!, "truth.json");
-        if (!existsSync(truth)) {
-          writeFileSync(
-            truth,
-            JSON.stringify(emptyTruth(participant!), null, 2) + "\n",
-          );
-        }
-      }
-      const runs = join(outDir, "runs");
-      mkdirSync(runs, { recursive: true });
-      const now = new Date();
-      const stamp = now.toISOString().replace(/[:.]/g, "-");
-      const log = buildSorterRunLog({
-        reports,
-        sort,
-        paperSize,
-        input,
-        cwd: process.cwd(),
-        username: osUsername(),
-        provenance: provenance(),
-        now,
-      });
-      writeFileSync(
-        join(runs, `${stamp}.json`),
-        JSON.stringify(log, null, 2) + "\n",
-      );
-    }
-
-    const count = (s: string) =>
-      sort.photos.filter((p) => p.status === s).length;
-    say(
-      `\n${photos.length} photos: ${count("slate")} cards, ${count("ok")} filed, ` +
-        `${count("hand-mismatch")} filed with a hand that differs from the page, ` +
-        `${count("no-code")} without a readable kit code or to retake, ` +
-        `${count("no-participant")} before any card, ${count("version-mismatch")} from another kit version.`,
-    );
-    if (!dryRun)
-      say(
-        `Copied ${copied} to ${outDir}${skipped ? ` (${skipped} already there, left as is)` : ""}.`,
-      );
-    if (externalBase)
-      say(
-        "The code version of an external --base server is unknown, so the run log has no git commit.",
-      );
-
-    const mismatched = sort.photos.filter((p) => p.status === "hand-mismatch");
-    if (mismatched.length) {
-      say("\nHand differs from the page (check the right page was used):");
-      for (const p of mismatched) say(`  ${p.file} → ${p.destination}`);
-    }
-    const retakes = reports.filter(
-      (r) => r.verdict === "retake" || r.verdict === "unidentified",
-    );
-    if (retakes.length) {
-      say("\nRetake or check:");
-      for (const r of retakes) {
-        const reasons = r.checks
-          .filter((c) => c.tone === "bad")
-          .map((c) => c.message);
-        say(`  ${r.file}: ${reasons.join(" ")}`);
-      }
-    }
-    const short = sort.coverage.filter((c) => c.got < c.expected);
-    if (short.length) {
-      say("\nShort of photos:");
-      for (const c of short) {
-        say(
-          `  ${c.participant} ${c.gesture}${c.hand === "right" ? "R" : "L"}: ${c.got} of ${c.expected}`,
-        );
-      }
-    }
-    const unfiled = sort.photos.filter((p) => p.status === "no-participant");
-    if (unfiled.length) {
-      say(
-        `\n${unfiled.length} photos came before any participant card and were not filed.`,
-      );
+    const result = runSorterWithReports({
+      reports,
+      inputDir: input,
+      outDir,
+      sessionDir,
+      session,
+      cwd: process.cwd(),
+      username: osUsername(),
+      provenance: provenance(),
+      now: new Date(),
+      dryRun,
+      showChecks,
+      externalServer: externalBase !== undefined,
+      skippedFiles: skipped,
+    });
+    for (const line of result.lines) {
+      if (line.kind === "warn") warn(line.text);
+      else say(line.text);
     }
     if (reports.length === 0) say("No reports returned.");
   }

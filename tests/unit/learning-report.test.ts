@@ -15,7 +15,7 @@ import {
   paperFindings,
   stripReference,
 } from "../../src/lib/learning/findings";
-import { LEARNING_KIT_VERSION, type KitCode } from "../../src/lib/learning/kit";
+import { KIT_V1_VERSION, type KitCode } from "../../src/lib/learning/kit";
 import { computeKitLayout } from "../../src/lib/learning/layout";
 import { recomputePlane } from "../../src/lib/learning/plane";
 import {
@@ -147,7 +147,7 @@ describe("a top-down report (format 2)", () => {
   const report = assembleLearningReport(findings());
 
   it("names the code that made it and the sheet it assumed", () => {
-    expect(report.kitVersion).toBe(LEARNING_KIT_VERSION);
+    expect(report.kitVersion).toBe(KIT_V1_VERSION);
     expect(report.paperSize).toBe("a4");
     expect(report.gitSha).toBeNull();
     expect(report.gitDirty).toBeNull();
@@ -379,7 +379,7 @@ describe("other kinds of photo", () => {
     expect(report.paperCorners).toBeNull();
     expect(report.paperCornersSeen).toBe(0);
     expect(report.reprojectionErrorMm).toBeNull();
-    expect(report.kitVersion).toBe(LEARNING_KIT_VERSION);
+    expect(report.kitVersion).toBe(KIT_V1_VERSION);
   });
 
   it("a side page records the strip plane and the flat projection, with no paper plane and no measurements", () => {
@@ -423,7 +423,7 @@ describe("other kinds of photo", () => {
   it("a photo that cannot be decoded says so and has no planes", () => {
     const report = assembleFailedReport("IMG_9.jpg", "letter", "Not an image.");
     expect(report).toMatchObject({
-      kitVersion: LEARNING_KIT_VERSION,
+      kitVersion: KIT_V1_VERSION,
       file: "IMG_9.jpg",
       paperSize: "letter",
       verdict: "unidentified",

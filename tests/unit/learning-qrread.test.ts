@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { crop, decodeKitQr, readKitQr } from "../../src/lib/learning/qrread";
 import { kitCodeUrl } from "../../src/lib/learning/kit";
 import { computeKitLayout, type Rect } from "../../src/lib/learning/layout";
+import {
+  cardSearchRects,
+  computeKitV2Layout,
+} from "../../src/lib/learning/layoutv2";
 import { QR_QUIET_MODULES, qrMatrix } from "../../src/lib/learning/qr";
 import type { Homography } from "../../src/client/geometry/homography";
 import type { DetectedMarker } from "../../src/client/photo/markers";
@@ -272,5 +276,66 @@ describe("readKitQr with the printed position known", () => {
       expect(crop(image, 400, 0, 100, 100)).toBeNull();
       expect(crop(image, 0, 0, 30, 30)).toBeNull();
     });
+  });
+});
+
+describe("readKitQr, kit v2: the card slot", () => {
+  const CARD = kitCodeUrl({
+    kind: "participant",
+    version: 2,
+    participant: "P901",
+  });
+  // The image is 10 px per sheet mm, so the slot (60 x 30 mm at x 15, y 8) is
+  // 600 x 300 px at (150, 80).
+  const sheetToImage: Homography = [
+    [0.1, 0, 0],
+    [0, 0.1, 0],
+    [0, 0, 1],
+  ];
+  const searchRects = cardSearchRects(computeKitV2Layout("A"));
+
+  /**
+   * A photo where a single pass finds only a foreign QR code, and the card's
+   * QR code (330 px tall) is taller than any tile (a third of the 900 px
+   * height), so only the crop of the slot can reach it.
+   */
+  function photoWithCardInSlot() {
+    const image = whiteImage(1300, 900);
+    drawQr(image, OTHER_URL, 900, 600, 3);
+    drawQr(image, CARD, 160, 60, 9);
+    return image;
+  }
+
+  it("reads the card through its slot when the whole photo gives a foreign code and no tile holds the card", () => {
+    const image = photoWithCardInSlot();
+    // The preconditions that make this a test of the slot path.
+    expect(jsQR(image.data, image.width, image.height)?.data).toBe(OTHER_URL);
+    expect(decodeKitQr(image)).toBeNull();
+    const tileHeight = image.height / 3;
+    expect(9 * (qrMatrix(CARD).size + 2 * QR_QUIET_MODULES)).toBeGreaterThan(
+      tileHeight,
+    );
+
+    expect(readKitQr(image, [], sheetToImage, { searchRects })).toBe(CARD);
+  });
+
+  it("does not find it without the slot: the v1 positions and the tiles miss it", () => {
+    const image = photoWithCardInSlot();
+    expect(readKitQr(image, [], sheetToImage)).toBeNull();
+    expect(readKitQr(image, [], null, { searchRects })).toBeNull();
+  });
+
+  it("does not search the v1 positions when it is given the slot", () => {
+    // A kit code at a kit v1 page's QR position (x 15 mm, y 18 mm), outside the
+    // slot and too tall for any tile: a v2 search does not look there.
+    const image = whiteImage(1300, 600);
+    const [v1box] = computeKitLayout("above").qr;
+    drawQr(image, OTHER_URL, 900, 400, 3);
+    // 7 px a module: 259 px, inside the padded v1 crop (320 px) and taller than a tile (200 px).
+    drawQr(image, KIT_CARD, v1box!.x * 10 + 20, v1box!.y * 10 + 20, 7);
+    expect(jsQR(image.data, image.width, image.height)?.data).toBe(OTHER_URL);
+    expect(readKitQr(image, [], sheetToImage, { searchRects })).toBeNull();
+    // Without the slot argument it is the v1 search, and it does find it.
+    expect(readKitQr(image, [], sheetToImage)).toBe(KIT_CARD);
   });
 });

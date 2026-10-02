@@ -1,6 +1,6 @@
 import { MarkerGlyph } from "@/components/sheet/MarkerGlyph";
 import {
-  LEARNING_KIT_VERSION,
+  KIT_V1_VERSION,
   formatParticipantId,
   kitCodeToken,
   kitCodeUrl,
@@ -87,7 +87,7 @@ export function KitPageSvg({
 }) {
   const code: KitCode = {
     kind: "gesture",
-    version: LEARNING_KIT_VERSION,
+    version: KIT_V1_VERSION,
     gesture: gesture.code,
     hand,
   };
@@ -123,15 +123,15 @@ export function KitPageSvg({
             {token} · {gesture.name} · {handWord(hand)} hand · {shots}
           </text>
           <text x={midX} y={title.y + 11.5} fontSize={3} textAnchor="middle">
-            Open Mouse learning kit v{LEARNING_KIT_VERSION}. Print at 100%. Fold
-            along the dashed line and stand the flap up.
+            Open Mouse learning kit v{KIT_V1_VERSION}. Print at 100%. Fold along
+            the dashed line and stand the flap up.
           </text>
         </g>
       ) : (
         <g>
           <text x={midX} y={8} fontSize={3} textAnchor="middle">
-            Open Mouse learning kit v{LEARNING_KIT_VERSION}. Print at 100% /
-            Actual size.
+            Open Mouse learning kit v{KIT_V1_VERSION}. Print at 100% / Actual
+            size.
           </text>
           <text
             x={midX}
@@ -326,7 +326,7 @@ export function SlatePageSvg({
         const url = kitCodeUrl(
           {
             kind: "participant",
-            version: LEARNING_KIT_VERSION,
+            version: KIT_V1_VERSION,
             participant: id,
           },
           baseUrl,

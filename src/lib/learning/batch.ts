@@ -24,6 +24,7 @@ export async function analyseSafely(
   fileName: string,
   paperSize: PaperSize,
   run: () => Promise<LearningPhotoReport>,
+  kitVersion?: number,
 ): Promise<LearningPhotoReport> {
   try {
     return await run();
@@ -33,6 +34,7 @@ export async function analyseSafely(
       paperSize,
       ANALYSIS_FAILED_MESSAGE,
       failureKind(err),
+      kitVersion,
     );
   }
 }
@@ -47,13 +49,20 @@ export async function analyseBatch<F extends { readonly name: string }>(
   analyse: (file: F) => Promise<LearningPhotoReport>,
   options: {
     readonly paperSize: PaperSize;
+    /** The kit the batch is run as, for a failed photo's report. Default kit v1. */
+    readonly kitVersion?: number;
     readonly onProgress?: (done: readonly LearningPhotoReport[]) => void;
   },
 ): Promise<LearningPhotoReport[]> {
   const out: LearningPhotoReport[] = [];
   for (const file of files) {
     out.push(
-      await analyseSafely(file.name, options.paperSize, () => analyse(file)),
+      await analyseSafely(
+        file.name,
+        options.paperSize,
+        () => analyse(file),
+        options.kitVersion,
+      ),
     );
     options.onProgress?.([...out]);
   }

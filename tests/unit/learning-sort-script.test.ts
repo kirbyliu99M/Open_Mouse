@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -70,6 +71,30 @@ function sorterAsync(
   );
 }
 
+/** A valid kit v2 session record (the sorter refuses to run without one). */
+const SESSION_JSON = JSON.stringify({
+  format: "open-mouse-learning-session/1",
+  session: "S001",
+  protocol: "agreed-v2",
+  date: "2026-10-03",
+  timeBlock: "morning",
+  venue: "test room",
+  light: "ceiling",
+  phone: "test phone",
+  holding: "hand-held",
+  sheet: "A",
+  paperSize: "a4",
+  printCheckMm: 100,
+  note: "",
+});
+
+function writeSession(dir: string, body: string = SESSION_JSON): string {
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "session.json");
+  writeFileSync(file, body);
+  return file;
+}
+
 /** Removes a symlink or Windows junction itself, never what it points to. */
 function removeLink(link: string) {
   if (process.platform === "win32") {
@@ -84,9 +109,11 @@ describe("learn-sort refuses to run where it must not", () => {
   let emptyInput: string;
   let outside: string;
   let link: string;
+  let sessionFile: string;
 
   beforeAll(() => {
     scratch = mkdtempSync(join(tmpdir(), "learn-sort-test-"));
+    sessionFile = writeSession(join(scratch, "session-folder"));
     emptyInput = join(scratch, "photos");
     outside = join(scratch, "out");
     link = join(scratch, "link-into-repo");
@@ -181,7 +208,7 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside]);
     expect(result.status).toBe(1);
     expect(result.stderr).not.toMatch(REFUSED);
-    expect(result.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(result.stderr).toMatch(/No photos \(\.jpg/);
     expect(result.stdout).not.toMatch(/Starting dev server/);
   }, 60_000);
 
@@ -212,6 +239,8 @@ describe("learn-sort refuses to run where it must not", () => {
         const result = await sorterAsync([
           "--in",
           photos,
+          "--session",
+          sessionFile,
           "--out",
           outside,
           "--port",
@@ -233,14 +262,15 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside], { CI: "1" });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/must never run in CI/);
-    expect(result.stderr).not.toMatch(/No \.jpg/);
+    expect(result.stderr).not.toMatch(/No photos/);
   }, 60_000);
 
   it("needs --in, and checks --paper", () => {
     expect(sorter([]).stderr).toMatch(/Usage/);
+    expect(sorter([]).stderr).toMatch(/--session/);
     const bad = sorter(["--in", emptyInput, "--out", outside, "--paper", "a5"]);
     expect(bad.status).toBe(1);
-    expect(bad.stderr).toMatch(/--paper must be one of a4, letter/);
+    expect(bad.stderr).toMatch(/--paper must be a4 \(kit v2 is A4 only\)/);
     const proto = sorter([
       "--in",
       emptyInput,
@@ -250,7 +280,7 @@ describe("learn-sort refuses to run where it must not", () => {
       "toString",
     ]);
     expect(proto.status).toBe(1);
-    expect(proto.stderr).toMatch(/--paper must be one of/);
+    expect(proto.stderr).toMatch(/--paper must be a4/);
     const ok = sorter([
       "--in",
       emptyInput,
@@ -259,8 +289,181 @@ describe("learn-sort refuses to run where it must not", () => {
       "--paper",
       "letter",
     ]);
-    expect(ok.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(ok.status).toBe(1);
+    expect(ok.stderr).toMatch(/--paper must be a4/);
+    const a4 = sorter(["--in", emptyInput, "--out", outside, "--paper", "a4"]);
+    expect(a4.stderr).toMatch(/No photos \(\.jpg/);
   }, 60_000);
+});
+
+describe("learn-sort refuses to run without a valid session.json", () => {
+  let scratch: string;
+  let photos: string;
+  let outside: string;
+
+  beforeAll(() => {
+    scratch = mkdtempSync(join(tmpdir(), "learn-sort-session-"));
+    photos = join(scratch, "photos");
+    outside = join(scratch, "out");
+    mkdirSync(photos);
+    writeFileSync(join(photos, "IMG_0001.jpg"), "not really a jpeg");
+  });
+  afterAll(() => {
+    rmSync(scratch, { recursive: true, force: true });
+  });
+
+  /** Stopped at the session check: no server, no browser, nothing written. */
+  function expectRefused(
+    result: { status: number | null; stdout: string; stderr: string },
+    message: RegExp,
+  ) {
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(message);
+    expect(result.stdout).not.toMatch(/Starting dev server/);
+    expect(result.stdout).not.toMatch(/Checking/);
+    expect(existsSync(outside)).toBe(false);
+  }
+
+  it("--session is required", () => {
+    expectRefused(
+      sorter(["--in", photos, "--out", outside]),
+      /--session is required/,
+    );
+  });
+
+  it("--session must name a file", () => {
+    expectRefused(
+      sorter([
+        "--in",
+        photos,
+        "--out",
+        outside,
+        "--session",
+        join(scratch, "nope.json"),
+      ]),
+      /--session is not a file/,
+    );
+    expectRefused(
+      sorter(["--in", photos, "--out", outside, "--session", photos]),
+      /--session is not a file/,
+    );
+  });
+
+  it.each([
+    ["not JSON", "{ nope", /session\.json is not valid JSON/],
+    [
+      "a record of another protocol",
+      SESSION_JSON.replace("agreed-v2", "candidate-v1"),
+      /protocol/,
+    ],
+    [
+      "a sheet that does not exist",
+      SESSION_JSON.replace('"A"', '"C"'),
+      /sheet/,
+    ],
+    [
+      "an unknown extra field",
+      SESSION_JSON.replace("}", ',"gps":"25N"}'),
+      /does not fit the format/,
+    ],
+    ["an empty file", "", /not valid JSON/],
+    [
+      "sheet B",
+      SESSION_JSON.replace('"sheet":"A"', '"sheet":"B"'),
+      /sheet B, which is built but not used for now/,
+    ],
+    [
+      "paper size letter",
+      SESSION_JSON.replace('"paperSize":"a4"', '"paperSize":"letter"'),
+      /paperSize letter, which is not used/,
+    ],
+  ])("a session.json that is %s", (_name, body, message) => {
+    const dir = join(scratch, `bad-${_name.replace(/\W+/g, "-")}`);
+    const file = writeSession(dir, body);
+    const result = sorter([
+      "--in",
+      photos,
+      "--out",
+      outside,
+      "--session",
+      file,
+    ]);
+    expectRefused(result, message);
+    // It names the field, not what was typed in it.
+    expect(result.stderr).not.toContain("25N");
+  });
+
+  it("--session inside the repo is refused (labels.json is written next to it)", () => {
+    const inside = join(REPO, `learn-session-test-${process.pid}`);
+    try {
+      const file = writeSession(inside);
+      const result = sorter([
+        "--in",
+        photos,
+        "--out",
+        outside,
+        "--session",
+        file,
+      ]);
+      expectRefused(
+        result,
+        /--session must be in a folder outside the repo and every git worktree/,
+      );
+      // Nothing was written next to it.
+      expect(readdirSync(inside)).toEqual(["session.json"]);
+    } finally {
+      rmSync(inside, { recursive: true, force: true });
+    }
+  });
+
+  it("a folder holding only a .heic is not 'no photos': it goes on to ask for the session", () => {
+    const heicOnly = join(scratch, "heic-only");
+    mkdirSync(heicOnly);
+    writeFileSync(join(heicOnly, "IMG_0001.heic"), "not decodable here");
+    const result = sorter(["--in", heicOnly, "--out", outside]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toMatch(/No photos/);
+    expect(result.stderr).toMatch(/--session is required/);
+    // And a folder with nothing that is a photo still says so.
+    const none = join(scratch, "no-photos");
+    mkdirSync(none);
+    writeFileSync(join(none, "a.webp"), "x");
+    const empty = sorter(["--in", none, "--out", outside]);
+    expect(empty.stderr).toMatch(
+      /No photos \(\.jpg, \.jpeg, \.jfif, \.png, \.heic, \.heif\)/,
+    );
+  });
+
+  it("--paper takes a4 only: Letter is refused before the session is read", () => {
+    const file = writeSession(join(scratch, "ok"));
+    expectRefused(
+      sorter([
+        "--in",
+        photos,
+        "--out",
+        outside,
+        "--session",
+        file,
+        "--paper",
+        "letter",
+      ]),
+      /--paper must be a4 \(kit v2 is A4 only\), not "letter"/,
+    );
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "a Git Bash style --session is refused on Windows",
+    () => {
+      const result = sorter([
+        "--in",
+        photos,
+        "--session",
+        "/c/some/session.json",
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/--session looks like a Git Bash path/);
+    },
+  );
 });
 
 // What the terminal shows. A run that fails prints the message, not the stack,
@@ -393,7 +596,7 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     mkdirSync(input, { recursive: true });
     const empty = sorter(["--in", input, "--out", join(scratch, "out")]);
     expect(empty.status).toBe(1);
-    expect(empty.stderr).toMatch(/No \.jpg or \.png photos in \S+\/~?\S*\./);
+    expect(empty.stderr).toMatch(/No photos \([^)]*\) in \S+\/~?\S*\./);
     expectClean(empty.stderr);
     const missing = sorter(["--in", join(input, "nope"), "--out", scratch]);
     expect(missing.status).toBe(1);
@@ -409,6 +612,7 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     const photos = join(scratch, "one-photo");
     mkdirSync(photos, { recursive: true });
     writeFileSync(join(photos, "IMG_0001.jpg"), "not really a jpeg");
+    const sessionFile = writeSession(join(scratch, "session-folder"));
     const probe = createNetServer();
     await new Promise<void>((ready) => probe.listen(0, "127.0.0.1", ready));
     const { port } = probe.address() as AddressInfo;
@@ -419,6 +623,8 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
       [
         "--in",
         photos,
+        "--session",
+        sessionFile,
         "--out",
         join(scratch, "out"),
         "--port",
