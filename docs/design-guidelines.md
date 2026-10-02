@@ -5,8 +5,21 @@ design principles (_Designing Fluid Interfaces_, _Principles of Great Design_)
 translated to the web, and applied to **our** screens. Every frontend PR is
 reviewed against this file.
 
-The feeling to aim for: **calm confidence.** Someone is measuring their own
-hand, so the product must feel precise, private and unhurried, never gimmicky.
+The feeling to aim for: **precise, with impact.** _Revised 2026-10-03 (Kirby):
+the reference is now the premium, high-impact feel of Apple's and ASUS ROG's
+product pages; it replaces "calm confidence"._ Someone is measuring their own
+hand, so the product must still feel precise and private: impact comes from
+one orchestrated moment per page, never from scattered effects. The visual
+motif that is ours is **the measurement**: rulers, end ticks and landmark
+points. Use it before reaching for glow.
+
+## Theme
+
+The whole site is dark (Kirby, 2026-10-03), with one theme and
+`color-scheme: dark`. The tokens and their contrast values live in
+`docs/design/home-v3-2026-10-03/README.md#dark-theme-tokens`. Small text never
+goes below `#8A8A8F` on the page background (5.9:1). White button labels need
+a fill at least as dark as `#1F6BF0` (4.75:1).
 
 ---
 
@@ -67,6 +80,18 @@ motion can be grabbed mid-flight.
 - **Spatial consistency:** things leave the way they came; popovers and sheets
   grow from the control that opened them (`transform-origin`).
 - Animate only `transform` and `opacity`.
+- **Signature motion (home page):** the particle stage in
+  `docs/design/home-v3-2026-10-03/README.md`. Its rules:
+  - it is driven by native scroll, with no snapping or scroll hijacking, and
+    is reversible at any point;
+  - the canvas is `aria-hidden` and every meaningful step has its text in the
+    DOM;
+  - it pauses off-screen;
+  - reduced motion shows static end states.
+
+  Other sections get no extra entrance animations (no per-section fade or
+  slide-up).
+
 - Library: `motion` (motion.dev) when springs are needed. Plain CSS
   transitions are fine for non-interactive state changes (e.g. a pressed
   button). Don't add a library for a single fade.
@@ -85,6 +110,11 @@ motion can be grabbed mid-flight.
 - Tracking is size-specific: display text `letter-spacing: -0.02em` with
   `line-height ~1.05`; body text near `0` with `line-height ~1.5`.
 - Spacing in `rem`, so the layout scales with the user's text size.
+- **zh-TW (the default language):**
+  - `system-ui` (PingFang TC, Microsoft JhengHei);
+  - `letter-spacing: 0`, because negative display tracking is for Latin only;
+  - headline line height about 1.2, body text about 1.6;
+  - `text-wrap: balance`, so no single character is left alone on a line.
 - Measurements are shown with tabular numerals (`font-variant-numeric:
 tabular-nums`) so digits don't jitter as values update.
 
@@ -106,3 +136,5 @@ tabular-nums`) so digits don't jitter as values update.
 - [ ] Reduced-motion / transparency / contrast variants present
 - [ ] Wayfinding: the user knows where they are and how to leave
 - [ ] No internal vocabulary in user-facing text
+- [ ] Contrast checked against the dark tokens (small text ≥ 4.5:1)
+- [ ] Checked in zh-TW as well as English, at 375×667 and 390×844
