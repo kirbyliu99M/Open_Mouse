@@ -496,3 +496,41 @@ summary is `OK (skipped=12)`. No tests failed or were newly skipped.
 Run 2 validation invocations by Codex: **zero**. Agreement metrics and gate
 outcome for GD-2 remain **not measured**. Claude's commit/push/run ordering is
 still required.
+
+## Run 2 — 2026-10-02 (in-sample, after redesign)
+
+- **Pre-registration commit:** `0a80b42` (2026-10-02T13:39:01+08:00), pushed to
+  `origin/geo-descriptors` before this run.
+- **Predictions:** `tools/blender/out/descriptors/predictions-gd2.json`, SHA-256
+  `603a850e7801be6a0fe0fa3edf14ed9be65a1333b5be13356da1e55a5f6e0848`, checked
+  just before the run. Hump is copied unchanged from Run 1.
+- **Command** (run by Claude from the main checkout, as for Run 1): `tsx
+scripts/validate-rubric.ts --predictions
+tools/blender/out/descriptors/predictions-gd2.json --brand Logitech`. Exit
+  status 0. Full output is kept locally in ignored
+  `tools/blender/out/descriptors/validation-run2.txt`.
+- **This run is in-sample.** The redesign was informed by Run 1's aggregate
+  counts and is scored on the same 28 rows. A pass here would read "passed
+  in-sample after redesign", never a clean gate pass.
+
+| Descriptor     | n   | Exact | Within-one | Coarse   | Gate (coarse ≥ 85 % and within-one ≥ 90 %) |
+| -------------- | --- | ----- | ---------- | -------- | ------------------------------------------ |
+| Hump           | 29  | 75.9% | 93.1% ✅   | 93.1% ✅ | pass (unchanged from Run 1)                |
+| Front flare    | 28  | 50.0% | 92.9% ✅   | 75.0% ❌ | **fail**                                   |
+| Side curvature | 28  | 53.6% | 89.3% ❌   | 60.7% ❌ | **fail**                                   |
+
+Aggregate confusion lines printed (fixture level → predicted level, counts):
+
+- Front flare: outward_slight→flat ×1, inward_moderate→inward_slight ×5,
+  outward_moderate→outward_slight ×2, flat→inward_slight ×3,
+  flat→inward_moderate ×2, inward_slight→flat ×1.
+- Side curvature: flat→outward ×6, flat→inward ×1, flat→inward_aggressive ×1,
+  flat→outward_aggressive ×2, inward→flat ×1, outward_aggressive→outward ×2.
+
+**Reading.** Both measures improved from Run 1 (flare coarse 67.9 % → 75.0 %,
+within-one 75.0 % → 92.9 %; curvature coarse 14.3 % → 60.7 %, within-one 67.9 %
+→ 89.3 %), and both still fail the unchanged gate. Flare's remaining misses are
+mostly magnitude (moderate read as slight) and flat-vs-inward at the boundary.
+Curvature still reads some flat sides as outward. One authorised run is left,
+but a third redesign on the same 28 rows would be tuned further to them; front
+flare and side curvature stay unclassified unless Kirby decides otherwise.
