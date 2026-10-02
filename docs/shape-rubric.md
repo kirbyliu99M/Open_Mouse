@@ -77,6 +77,8 @@ validation, not suggestions** — a classification that violates one is a bug.
 
 ## 4. Hump placement — *visual*
 
+> **2026-10-02:** hump placement is now measured from the delivered 3D shells' geometry, with the boundaries of this section (pre-registered in `tools/blender/DESCRIPTOR-GEOMETRY.md`, commit `06cc13d`). It passed the M1 criteria (coarse 93.1 %, within-one 93.1 %, n = 29) and is in the seed (#101). Front flare and side curvature were tried the same way and failed; they remain unclassified.
+
 **Definition: the position of peak shell height along the body, as a fraction of
 total length, measured from the front.**
 
