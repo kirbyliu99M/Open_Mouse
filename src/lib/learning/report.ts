@@ -27,7 +27,7 @@ import {
   type LearningCheck,
   type LearningVerdict,
 } from "./checks";
-import { LEARNING_KIT_VERSION, type KitCode } from "./kit";
+import { KIT_V1_VERSION, type KitCode } from "./kit";
 import { buildPlane, type PlaneCalibration, type PlaneMethod } from "./plane";
 
 /** What the paper detector saw, kept even when it could not find all four corners. */
@@ -160,7 +160,7 @@ export function assembleFailedReport(
   errorKind?: string,
 ): LearningPhotoReport {
   return {
-    kitVersion: LEARNING_KIT_VERSION,
+    kitVersion: KIT_V1_VERSION,
     gitSha: null,
     gitDirty: null,
     file,
@@ -296,7 +296,7 @@ export function assembleLearningReport(
   });
 
   return {
-    kitVersion: LEARNING_KIT_VERSION,
+    kitVersion: KIT_V1_VERSION,
     gitSha: null,
     gitDirty: null,
     file: f.file,

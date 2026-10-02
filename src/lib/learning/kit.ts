@@ -14,7 +14,21 @@
  * into hand and wrist posture; nothing here diagnoses or advises.
  */
 
-export const LEARNING_KIT_VERSION = 1 as const;
+/**
+ * The current kit: v2, protocol `agreed-v2` (2026-10-02). One A4 sheet, a
+ * participant card in its slot, and the pose taken from the shooting order
+ * instead of from a QR code on the page (see `session.ts` and
+ * docs/learning/README.md, "Kit v2").
+ */
+export const LEARNING_KIT_VERSION = 2 as const;
+
+/**
+ * Kit v1: seven poses per hand, one QR code per pose, ruler truth. Its pages
+ * (`KitPageSvg`, `SlatePageSvg`), its QR codes (`/l/v1/...`), `sortPhotos` and
+ * `sortReports` keep working for it. A v1 photo seen by a v2 run is a version
+ * mismatch.
+ */
+export const KIT_V1_VERSION = 1 as const;
 
 /** Host the printed QR codes point at. Parsing accepts any host (local dev too). */
 export const LEARNING_QR_BASE_URL = "https://open-mouse.vercel.app";
@@ -218,10 +232,15 @@ export function kitCodeUrl(
   return `${base.replace(/\/+$/, "")}/l/v${code.version}/${kitCodeToken(code)}`;
 }
 
-/** Parse a bare token ("G03R", "P007") at a given kit version. */
+/**
+ * Parse a bare token ("G03R", "P007") at a given kit version. A bare token
+ * names no version; unless the caller says otherwise it is read as kit v1, the
+ * only form that existed before QR codes carried a version. Every code kit v2
+ * prints is a URL with its version in it (`/l/v2/P007`).
+ */
 export function parseKitToken(
   token: string,
-  version: number = LEARNING_KIT_VERSION,
+  version: number = KIT_V1_VERSION,
 ): KitCode | null {
   const t = token.trim().toUpperCase();
   const participant = PARTICIPANT_RE.exec(t);
@@ -320,7 +339,11 @@ export type SortStatus =
   | "hand-mismatch"
   | "no-code"
   | "no-participant"
-  | "version-mismatch";
+  | "version-mismatch"
+  /** Kit v2 only: filed, but the pose check disagrees with the shooting order. */
+  | "pose-mismatch"
+  /** Kit v2 only: the participant's photos cannot be placed by order without guessing; none is filed. */
+  | "needs-review";
 
 export interface SortedPhoto {
   readonly file: string;
@@ -348,17 +371,19 @@ export interface SortResult {
   readonly coverage: readonly CoverageRow[];
 }
 
-function extensionOf(file: string): string {
+/** The file's extension, lower-case with its dot, or ".jpg" when it has none. */
+export function extensionOf(file: string): string {
   const m = /\.([A-Za-z0-9]+)$/.exec(file);
   return m ? `.${(m[1] ?? "jpg").toLowerCase()}` : ".jpg";
 }
 
 /**
- * Assign photos to participants and poses. A participant slate photo starts
- * that participant's block; every later pose photo belongs to it until the
- * next slate (the film-clapperboard pattern). The pose and hand come from the
- * photo's own QR code, never from its position in the folder, so a skipped or
- * repeated photo cannot shift the ones after it.
+ * Kit v1: assign photos to participants and poses. A participant slate photo
+ * starts that participant's block; every later pose photo belongs to it until
+ * the next slate (the film-clapperboard pattern). The pose and hand come from
+ * the photo's own QR code, never from its position in the folder, so a skipped
+ * or repeated photo cannot shift the ones after it. (Kit v2 takes the pose
+ * from the shooting order instead: `sortPhotosV2` in `sortv2.ts`.)
  *
  * A pose photo whose detected hand contradicts its sheet is still filed (the
  * sheet is the ground truth of what was asked) but flagged, because it is the
@@ -366,7 +391,7 @@ function extensionOf(file: string): string {
  */
 export function sortPhotos(
   photos: readonly IdentifiedPhoto[],
-  version: number = LEARNING_KIT_VERSION,
+  version: number = KIT_V1_VERSION,
 ): SortResult {
   const ordered = photos
     .map((p, i) => ({ p, i }))

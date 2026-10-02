@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { handMeasurementsSchema } from "../../src/lib/contracts/measurement";
-import { LEARNING_KIT_VERSION } from "../../src/lib/learning/kit";
+import { KIT_V1_VERSION } from "../../src/lib/learning/kit";
 import {
   carriesAccount,
   containingRoot,
@@ -66,7 +66,7 @@ describe("buildRunLog", () => {
   it("names its format, kit version, time, sheet size and folder", () => {
     expect(log.format).toBe(RUN_LOG_FORMAT);
     expect(log.format).toBe("open-mouse-learning-run/2");
-    expect(log.kitVersion).toBe(LEARNING_KIT_VERSION);
+    expect(log.kitVersion).toBe(KIT_V1_VERSION);
     expect(log.createdAt).toBe("2026-09-30T08:15:30.123Z");
     expect(log.paperSize).toBe("letter");
     expect(log.input).toBe("../../Photos/session-1");
@@ -77,7 +77,7 @@ describe("buildRunLog", () => {
     expect([log.gitSha, log.gitDirty]).toEqual([SHA, true]);
     expect(log.reports).toHaveLength(2);
     for (const r of log.reports) {
-      expect(r.kitVersion).toBe(LEARNING_KIT_VERSION);
+      expect(r.kitVersion).toBe(KIT_V1_VERSION);
       expect(r.gitSha).toBe(SHA);
       expect(r.gitDirty).toBe(true);
     }

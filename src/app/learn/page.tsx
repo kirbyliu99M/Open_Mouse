@@ -2,11 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
-import {
-  GESTURES,
-  LEARNING_KIT_VERSION,
-  shotsPerHand,
-} from "@/lib/learning/kit";
+import { GESTURES, KIT_V1_VERSION, shotsPerHand } from "@/lib/learning/kit";
 import "./learn.css";
 
 export const metadata: Metadata = {
@@ -28,6 +24,52 @@ export default function LearnPage() {
         carries its own QR code, so a photo records which pose it is. Photos
         from many hands, checked against a ruler, set how accurate the
         blank-paper scan can be.
+      </p>
+
+      <h2>Kit v2: one sheet, one card</h2>
+      <p>
+        The collection protocol <code>agreed-v2</code> (2026-10-02): one A4
+        sheet for both hands, a participant card in its slot, G02 ×3 then G04 ×2
+        per person. The pose comes from the shooting order; the card&apos;s QR
+        code names the participant. Sheet A keeps the product sheet&apos;s four
+        markers; sheet B puts six markers on the outer ring and leaves the hand
+        area blank. The S0 pilot picks one.
+      </p>
+      <div className="learn-actions">
+        <Link className="learn-button" href="/learn/print?sheet=A">
+          Print sheet A
+        </Link>
+        <Link className="learn-button" href="/learn/print?sheet=B">
+          Print sheet B
+        </Link>
+        <Link
+          className="learn-button-secondary"
+          href="/learn/slates?kit=2&from=901&count=12"
+        >
+          Cards P901 to P912 (S0)
+        </Link>
+        <Link
+          className="learn-button-secondary"
+          href="/learn/slates?kit=2&from=1&count=48"
+        >
+          Cards P001 to P048
+        </Link>
+      </div>
+      <p className="learn-note">
+        After a session:{" "}
+        <code>
+          npm run learn:sort -- --in &lt;folder&gt; --session
+          &lt;session.json&gt;
+        </code>
+        . It strips EXIF from the filed copies. Details:{" "}
+        <code>docs/learning/README.md</code>, &ldquo;Kit v2&rdquo;.
+      </p>
+
+      <h2>Kit v1: seven poses per hand</h2>
+      <p>
+        The earlier kit, with a QR code on every pose page and a ruler-measured
+        truth. Its pages stay printable below. Its photos are a version mismatch
+        to a v2 run.
       </p>
 
       <h2>You need</h2>
@@ -88,7 +130,7 @@ export default function LearnPage() {
               {g.camera === "above"
                 ? "Camera above, flap flat."
                 : "Camera at table height, flap folded up."}{" "}
-              <Link href={`/l/v${LEARNING_KIT_VERSION}/${g.code}R`}>
+              <Link href={`/l/v${KIT_V1_VERSION}/${g.code}R`}>
                 Instructions
               </Link>
             </span>

@@ -7,7 +7,7 @@
  */
 import type { PaperSize } from "../contracts/measurement";
 import { compareFileNames } from "./checks";
-import { LEARNING_KIT_VERSION, sortPhotos, type SortResult } from "./kit";
+import { KIT_V1_VERSION, sortPhotos, type SortResult } from "./kit";
 import {
   stampProvenance,
   type LearningPhotoReport,
@@ -45,7 +45,7 @@ export function buildRunLog(args: {
   return {
     format: RUN_LOG_FORMAT,
     createdAt: args.now.toISOString(),
-    kitVersion: LEARNING_KIT_VERSION,
+    kitVersion: KIT_V1_VERSION,
     gitSha: args.provenance.gitSha,
     gitDirty: args.provenance.gitDirty,
     paperSize: args.paperSize,
@@ -93,6 +93,6 @@ export function sortReports(
       code: r.verdict === "retake" ? null : r.code,
       detectedHand: r.hand?.handedness ?? null,
     })),
-    LEARNING_KIT_VERSION,
+    KIT_V1_VERSION,
   );
 }
