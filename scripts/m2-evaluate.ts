@@ -1,33 +1,68 @@
 /**
- * M2 evaluator: how accurate and repeatable is a hand-measurement model,
- * judged only from the v2 run logs that `npm run learn:sort` wrote and the
- * `truth.json` files of the participants. It never opens a photo.
+ * M2 evaluator: how well does a hand-measurement model agree with its
+ * reference and repeat across retakes, judged only from the run logs that
+ * `npm run learn:sort` wrote and, depending on the protocol, the `truth.json`
+ * files or the `participant.json` records of the participants. It never opens
+ * a photo.
  *
- *   npm run m2:evaluate -- \
- *     --log ../Fixtures/learning/runs \
- *     --truth ../Fixtures/learning \
- *     --out ../Fixtures/evaluations/baseline.json
+ * Two protocols (src/lib/m2/protocol.ts), told apart by the run logs' format
+ * and never mixed:
  *
- * --log <file|folder>     a run log, or a folder of them (*.json); repeat freely
- * --truth <file|folder>   a truth.json, or a folder holding <participant>/truth.json
- * --path markers|paper-edge|both     which calibration plane to judge (default both)
- * --gesture G01[,G02...]  poses to judge (default G01, the pose the M2 gate is defined on)
- * --participants P001,P002   only these participants (a fold, or the held-out set)
- * --thresholds <file>     JSON limits, e.g. {"accuracyMm":{"handLengthMm":2}}; default: the candidates
- * --out <file>            write the JSON report here (never overwritten; never inside the repo
- *                         or any worktree). The Markdown summary always goes to stdout.
+ *  candidate-v1  format-2 run logs and ruler `truth.json` files:
+ *    npm run m2:evaluate -- \
+ *      --log ../Fixtures/learning/runs \
+ *      --truth ../Fixtures/learning \
+ *      --out ../Fixtures/evaluations/baseline.json
+ *
+ *  agreed-v2  format-3 run logs (kit v2), no ruler truth: the marker plane of
+ *    the same sheet is the reference, accuracy is dormant, and the report is
+ *    agreement with that reference and retake repeatability.
+ *    npm run m2:evaluate -- \
+ *      --log ../Fixtures/learning-v2/runs \
+ *      --records ../Fixtures/learning-v2 \
+ *      --out ../Fixtures/evaluations/v2-calibration.json
+ *
+ * --log <file|folder>       a run log, or a folder of them (*.json); repeat freely
+ * --truth <file|folder>     candidate-v1: a truth.json, or a folder holding <participant>/truth.json.
+ *                           Required for format-2 logs; refused with format-3 logs (agreed-v2 has no truth)
+ * --records <file|folder>   agreed-v2: a participant.json, or a folder holding <participant>/participant.json
+ *                           (the grip a person reports and the hand they use); repeat freely
+ * --session <file|folder>   agreed-v2: a session.json, or a folder holding session.json or <session>/session.json
+ *                           (the phone, when the run log does not embed it); repeat freely
+ * --labels <file|folder>    agreed-v2: a labels.json, or a folder holding labels.json or <session>/labels.json
+ *                           (Kirby's blind good/bad call on each photo of a session). They give the headline,
+ *                           judgement correctness: how often the product's accept or retake verdict agrees
+ *                           with them (target 95 %, a target and not a pass or fail threshold); repeat freely
+ * --protocol agreed-v2|candidate-v1   the protocol the run logs must be of (default: theirs; a mismatch is an error)
+ * --path markers|paper-edge|both     which calibration plane the field tables judge (default both)
+ * --gesture G01[,G02...]    poses of the field tables (default G01 for candidate-v1, G02 for agreed-v2).
+ *                           The agreed-v2 per-person statistics always use G02 and G04
+ * --participants P001,P002  only these participants (a fold)
+ * --held-out                agreed-v2: ONLY the held-out participants of the prereg's rule. Meant to be run
+ *                           once, by Claude, after the model is frozen: not from a workflow, not again after
+ *                           looking at the result
+ * --s0                      agreed-v2: ONLY the S0 pilot participants
+ * --aggregate-only          drop every per-person and per-photo row from the JSON and the Markdown (for text
+ *                           pasted into a pull request)
+ * --thresholds <file>       candidate-v1: JSON limits, e.g. {"accuracyMm":{"handLengthMm":2}}; default: the candidates
+ * --out <file>              write the JSON report here (never overwritten; never inside the repo
+ *                           or any worktree). The Markdown summary always goes to stdout.
+ *
+ * Without --held-out or --s0, an agreed-v2 run evaluates the calibration set:
+ * held-out and S0 participants, and participants in a block of four that is
+ * not complete yet, are left out, and the summary says so.
  *
  * The command line is checked strictly (src/lib/m2/cli.ts): an unknown or
  * misspelt flag, a flag without a value, a single-value flag given twice or a
  * malformed list is an error and exits 1. Nothing falls back to a default.
  *
  * NEVER runs in CI: run logs hold hand landmarks of real people. The report
- * holds totals, anonymous participant codes and photo ids like "P007/G01R/3",
- * and no path, account name, EXIF or landmark. Neither does anything printed:
- * every failure, including a file system error, goes through the same
- * redaction as `learn:sort` (message only, never a stack; the paths given on
- * the command line shown relative; the account name as "~"), and the file name
- * given to --out is not repeated.
+ * holds totals, anonymous participant codes and photo ids like
+ * "P007/G02R/3", and no path, account name, EXIF or landmark. Neither does
+ * anything printed: every failure, including a file system error, goes
+ * through the same redaction as `learn:sort` (message only, never a stack;
+ * the paths given on the command line shown relative; the account name as
+ * "~"), and the file name given to --out is not repeated.
  *
  * The held-out participants are evaluated ONCE, by Claude, on the frozen
  * model: not from a workflow, and not again after looking at the result
@@ -46,15 +81,18 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { outputInsideRepo } from "../src/lib/learning/paths";
+import { toAggregateOnly } from "../src/lib/m2/aggregate";
 import { parseM2Args } from "../src/lib/m2/cli";
 import {
   ALL_PATHS,
-  evaluateJson,
   type EvalPath,
   type EvaluateOptions,
 } from "../src/lib/m2/evaluate";
 import { EvaluationInputError } from "../src/lib/m2/inputs";
+import { HELD_OUT_NOTICE } from "../src/lib/m2/kitv2";
 import { nothingEvaluatedReason, renderMarkdown } from "../src/lib/m2/markdown";
+import { PROTOCOL_AGREED_V2 } from "../src/lib/m2/protocol";
+import { evaluateRunJson, protocolOfRun } from "../src/lib/m2/run";
 import { m2Terminal } from "../src/lib/m2/terminal";
 import { parseThresholds } from "../src/lib/m2/thresholds";
 
@@ -80,7 +118,7 @@ function git(args: readonly string[]): string | null {
 }
 
 const USAGE =
-  "Usage: npm run m2:evaluate -- --log <run log or folder> --truth <truth.json or folder> [--path markers|paper-edge|both] [--gesture G01] [--participants P001,P002] [--thresholds <file>] [--out <report.json>]";
+  "Usage: npm run m2:evaluate -- --log <run log or folder> [--truth <truth.json or folder>] [--records <participant.json or folder>] [--session <session.json or folder>] [--labels <labels.json or folder>] [--protocol agreed-v2|candidate-v1] [--path markers|paper-edge|both] [--gesture G01] [--participants P001,P002] [--held-out | --s0] [--aggregate-only] [--thresholds <file>] [--out <report.json>]";
 
 let username: string | null = null;
 try {
@@ -121,20 +159,31 @@ function logFiles(target: string): string[] {
     .map((n) => join(target, n));
 }
 
-/** Truth files: a file, or <folder>/<participant>/truth.json one level down. */
-function truthFiles(target: string): string[] {
-  if (!existsSync(target)) fail("A --truth path does not exist.");
+/**
+ * Per-participant (or per-session) records: a file, or a folder holding
+ * `<name>` directly and/or `<participant>/<name>` one level down.
+ */
+function recordFiles(target: string, name: string, flag: string): string[] {
+  if (!existsSync(target)) fail(`A ${flag} path does not exist.`);
   if (!statSync(target).isDirectory()) return [target];
-  return readdirSync(target)
-    .sort()
-    .map((n) => join(target, n, "truth.json"))
-    .filter((f) => existsSync(f));
+  const direct = join(target, name);
+  return [
+    ...(existsSync(direct) ? [direct] : []),
+    ...readdirSync(target)
+      .sort()
+      .map((n) => join(target, n, name))
+      .filter((f) => existsSync(f)),
+  ];
 }
 
 // Everything below, file system calls included, runs inside one try, so that
 // no error can reach the terminal as a raw stack.
 try {
-  const parsed = parseM2Args(process.argv.slice(2));
+  // The protocol is the logs' and the logs are not open yet, so whether
+  // --truth is needed is checked below, once they are.
+  const parsed = parseM2Args(process.argv.slice(2), process.platform, {
+    truthOptional: true,
+  });
   if (!parsed.ok) fail(`${parsed.message}\n${USAGE}`);
   const args = parsed.args;
 
@@ -142,6 +191,9 @@ try {
   const named = [
     ...args.logs,
     ...args.truths,
+    ...(args.records ?? []),
+    ...(args.sessions ?? []),
+    ...(args.labels ?? []),
     ...(args.thresholds ? [args.thresholds] : []),
   ].map((p) => resolve(p));
   // A file the sorter wrote sits below its folder; the folder is enough to
@@ -150,9 +202,45 @@ try {
   terminal = m2Terminal({ cwd, scriptRoot, username, named: shownPaths });
 
   const logs = args.logs.flatMap((t) => logFiles(resolve(t)));
-  const truths = args.truths.flatMap((t) => truthFiles(resolve(t)));
   if (logs.length === 0) fail("No run log (*.json) was found under --log.");
-  if (truths.length === 0) fail("No truth.json was found under --truth.");
+  const logsJson = logs.map((f, i) => readJson(f, `Run log ${i + 1}`));
+
+  // Which protocol the logs are of (and a refusal to mix), before anything
+  // else is read: the two protocols want different inputs.
+  const protocol = protocolOfRun(logsJson, args.protocol);
+  const agreed = protocol === PROTOCOL_AGREED_V2;
+
+  const truths = args.truths.flatMap((t) => {
+    if (!existsSync(resolve(t))) fail("A --truth path does not exist.");
+    const target = resolve(t);
+    if (!statSync(target).isDirectory()) return [target];
+    return readdirSync(target)
+      .sort()
+      .map((n) => join(target, n, "truth.json"))
+      .filter((f) => existsSync(f));
+  });
+  if (!agreed && args.truths.length === 0) {
+    // The parser's own check, which does not know the protocol until the logs are read.
+    fail(`--truth is required for format-2 run logs (candidate-v1).\n${USAGE}`);
+  }
+  if (!agreed && truths.length === 0) {
+    fail("No truth.json was found under --truth.");
+  }
+  if (agreed && args.truths.length > 0 && truths.length === 0) {
+    // A truth file would be refused; a --truth that holds none changes nothing.
+    terminal.warn(
+      "--truth holds no truth.json and agreed-v2 has no ruler truth, so the flag is ignored.",
+    );
+  }
+  const recordPaths = (args.records ?? []).flatMap((t) =>
+    recordFiles(resolve(t), "participant.json", "--records"),
+  );
+  const sessionPaths = (args.sessions ?? []).flatMap((t) =>
+    recordFiles(resolve(t), "session.json", "--session"),
+  );
+  const labelPaths = (args.labels ?? []).flatMap((t) =>
+    recordFiles(resolve(t), "labels.json", "--labels"),
+  );
 
   const paths: EvalPath[] = args.path === "both" ? [...ALL_PATHS] : [args.path];
 
@@ -167,21 +255,39 @@ try {
     }
   }
 
+  if (args.heldOut && agreed) {
+    // Loud, and first: before anything is computed.
+    terminal.warn(`*** ${HELD_OUT_NOTICE} ***`);
+  }
+
   const options: EvaluateOptions = {
     paths,
-    gestures: args.gestures,
+    // agreed-v2: the field tables default to G02 (the prereg), not G01.
+    gestures: agreed && args.gesturesGiven !== true ? undefined : args.gestures,
     participants: args.participants,
     thresholds: args.thresholds
       ? parseThresholds(
           readJson(resolve(args.thresholds), "The thresholds file"),
         )
       : undefined,
+    protocol,
+    selection: args.heldOut ? "held-out" : args.s0 ? "s0" : undefined,
   };
-  const report = evaluateJson(
-    logs.map((f, i) => readJson(f, `Run log ${i + 1}`)),
-    truths.map((f, i) => readJson(f, `Truth file ${i + 1}`)),
+  const full = evaluateRunJson(
+    {
+      logs: logsJson,
+      truths: truths.map((f, i) => readJson(f, `Truth file ${i + 1}`)),
+      records: recordPaths.map((f, i) =>
+        readJson(f, `Participant record ${i + 1}`),
+      ),
+      sessions: sessionPaths.map((f, i) =>
+        readJson(f, `Session record ${i + 1}`),
+      ),
+      labels: labelPaths.map((f, i) => readJson(f, `Labels record ${i + 1}`)),
+    },
     options,
   );
+  const report = args.aggregateOnly ? toAggregateOnly(full) : full;
   process.stdout.write(renderMarkdown(report) + "\n");
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
@@ -191,13 +297,29 @@ try {
     // Not the file name: it is the user's own and can say who or when.
     terminal.warn("JSON report written.");
   }
-  if (args.participants) {
-    const unseen = args.participants.filter(
-      (p) => !report.inputs.participants.includes(p),
+  if (full.protocol === PROTOCOL_AGREED_V2) {
+    const s = full.selection;
+    if (s.mode === "calibration") {
+      terminal.warn(
+        `agreed-v2: the calibration set. Left out: ${s.roles["held-out"]} held-out, ${s.roles.s0} S0 and ${s.roles.pending} pending (block not complete) participants.`,
+      );
+    }
+    if (s.requestedOutsideSetCount > 0) {
+      terminal.warn(
+        args.aggregateOnly
+          ? `${s.requestedOutsideSetCount} participants named with --participants are not in this run's set (${s.mode}) and were not evaluated.`
+          : `Not in this run's set (${s.mode}), so not evaluated: ${s.requestedOutsideSet.join(", ")}.`,
+      );
+    }
+  } else if (full.options.participants) {
+    const unseen = full.options.participants.filter(
+      (p) => !full.inputs.participants.includes(p),
     );
     if (unseen.length > 0) {
       terminal.warn(
-        `Nothing was evaluated for ${unseen.join(", ")}: no measured photo in the logs.`,
+        args.aggregateOnly
+          ? `Nothing was evaluated for ${unseen.length} of the participants named: no measured photo in the logs.`
+          : `Nothing was evaluated for ${unseen.join(", ")}: no measured photo in the logs.`,
       );
     }
   }

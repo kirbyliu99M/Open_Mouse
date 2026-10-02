@@ -25,11 +25,17 @@ import {
   MEASUREMENT_MODEL_VERSION,
   type HandMeasurements,
 } from "../contracts/measurement";
+import type { Point2 } from "../../client/geometry/homography";
 import { recomputePlane } from "../learning/plane";
 import type { LearningPhotoReport } from "../learning/report";
 import type { LearningRunLog } from "../learning/runlog";
 import { emptyTruth, type Truth } from "../learning/truth";
 import { EvaluationInputError, parseRunLog, parseTruth } from "./inputs";
+import {
+  PROTOCOL_CANDIDATE_V1,
+  assertProtocolMatches,
+  type Protocol,
+} from "./protocol";
 import {
   accuracyStats,
   repeatabilityRow,
@@ -55,7 +61,10 @@ export const ALL_PATHS: readonly EvalPath[] = ["markers", "paper-edge"];
 /** "accepted": photos the product's own gates take. "all": every photo that was measured. */
 export type EvalGroup = "accepted" | "all";
 
-type Hand = "left" | "right";
+export type Hand = "left" | "right";
+
+/** The participants a kit v2 (agreed-v2) run evaluates; see src/lib/m2/kitv2.ts. */
+export type Selection = "calibration" | "held-out" | "s0";
 
 /**
  * A correction applied to the recomputed measurements. The baseline,
@@ -85,6 +94,14 @@ export interface EvaluateOptions {
   readonly thresholds?: Thresholds;
   readonly calibration?: Calibration;
   readonly now?: Date;
+  /**
+   * The protocol to evaluate under. `evaluate` is candidate-v1 (format-2 run
+   * logs and truth files): asking it for agreed-v2 is an error. Left out, the
+   * protocol is the logs'.
+   */
+  readonly protocol?: Protocol;
+  /** agreed-v2 only (src/lib/m2/kitv2.ts): which participants. Giving it to `evaluate` is an error. */
+  readonly selection?: Selection;
 }
 
 export interface EvaluationInput {
@@ -102,8 +119,11 @@ export interface ExclusionRow {
    *    it is out of the "accepted" group but stays in "all".
    *  - kit: it was measured, and the kit's own checker said to retake it
    *    (`KIT_RETAKE:<check id>`), so it is out of "accepted" and stays in "all".
+   *  - person (agreed-v2 only): the row is a participant, not a photo; the
+   *    per-person statistics leave that person out (`MIXED_HANDS`: photos of
+   *    both hands under one participant).
    */
-  readonly stage: "measurement" | "truth" | "product" | "kit";
+  readonly stage: "measurement" | "truth" | "product" | "kit" | "person";
   readonly path: EvalPath | null;
   readonly field: string | null;
   readonly reasons: readonly string[];
@@ -111,7 +131,8 @@ export interface ExclusionRow {
 
 export interface RepeatabilityRowOut extends RepeatabilityRow {
   readonly participant: string;
-  readonly hand: Hand;
+  /** `null` only under agreed-v2, when the participant record does not say which hand. */
+  readonly hand: Hand | null;
   readonly gesture: string;
 }
 
@@ -134,8 +155,19 @@ export interface PathResult {
   readonly fields: Readonly<Record<string, FieldResult>>;
 }
 
+/** How many photos were left out, by stage, path, field and reason: what remains of `excluded` under `--aggregate-only`. */
+export interface ExclusionSummaryRow {
+  readonly stage: ExclusionRow["stage"];
+  readonly path: EvalPath | null;
+  readonly field: string | null;
+  readonly reason: string;
+  readonly count: number;
+}
+
 export interface EvaluationReport {
   readonly format: typeof EVALUATION_FORMAT;
+  /** Always candidate-v1 here: format-2 run logs and truth files. agreed-v2 has its own report (src/lib/m2/kitv2.ts). */
+  readonly protocol: typeof PROTOCOL_CANDIDATE_V1;
   /** The measurement model judged (`landmark-raw-v1` for the baseline). */
   readonly model: string;
   readonly createdAt: string;
@@ -143,8 +175,10 @@ export interface EvaluationReport {
   readonly options: {
     readonly paths: readonly EvalPath[];
     readonly gestures: readonly string[];
-    /** `null` = everyone in the logs. */
+    /** `null` = everyone in the logs. Emptied by `--aggregate-only` (see `participantCount`). */
     readonly participants: readonly string[] | null;
+    /** How many participants were asked for; `null` = everyone. */
+    readonly participantCount: number | null;
   };
   readonly inputs: {
     readonly runLogs: readonly {
@@ -155,8 +189,9 @@ export interface EvaluationReport {
       readonly reports: number;
     }[];
     readonly truthFiles: number;
-    /** Anonymous codes of the participants that had at least one photo evaluated. */
+    /** Anonymous codes of the participants that had at least one photo evaluated. Emptied by `--aggregate-only`. */
     readonly participants: readonly string[];
+    readonly participantCount: number;
   };
   readonly counts: {
     readonly reports: number;
@@ -172,7 +207,12 @@ export interface EvaluationReport {
   readonly groups: Readonly<
     Record<EvalGroup, Readonly<Partial<Record<EvalPath, PathResult>>>>
   >;
+  /** Per-photo rows. Emptied by `--aggregate-only`, which keeps `excludedSummary` instead. */
   readonly excluded: readonly ExclusionRow[];
+  /** `true` once `--aggregate-only` has dropped every per-person and per-photo row. */
+  readonly aggregateOnly: boolean;
+  /** Present with `aggregateOnly`: the counts the dropped `excluded` rows made up. */
+  readonly excludedSummary?: readonly ExclusionSummaryRow[];
 }
 
 /** The measurements a truth file can hold, from the truth format itself. */
@@ -180,11 +220,13 @@ const FIELDS: readonly string[] = Object.keys(emptyTruth("P000").right);
 
 const handLetter = (hand: Hand) => (hand === "right" ? "R" : "L");
 
-interface Observation {
+/** One measured photo, as the field-by-field tables see it. */
+export interface Observation {
   readonly id: string;
   readonly participant: string;
   readonly gesture: string;
-  readonly hand: Hand;
+  /** `null` only under agreed-v2, when the participant record does not say which hand. */
+  readonly hand: Hand | null;
   readonly accepted: boolean;
   readonly measured: Partial<
     Record<EvalPath, Readonly<Record<string, number>>>
@@ -192,7 +234,7 @@ interface Observation {
 }
 
 /** Why the product's gates refuse a photo, as codes; empty when it accepts. */
-function gateReasons(report: LearningPhotoReport): string[] {
+export function gateReasons(report: LearningPhotoReport): string[] {
   const gates = report.productGates;
   if (!gates) return ["NO_PRODUCT_GATES"];
   if (gates.accepted) return [];
@@ -203,6 +245,33 @@ function gateReasons(report: LearningPhotoReport): string[] {
       : ["hand:NOT_REACHED"]),
   ];
   return reasons.length > 0 ? reasons : ["NOT_ACCEPTED"];
+}
+
+/** The one hand gate left out of judgement correctness; see `photoQualityAccepted`. */
+export const HANDEDNESS_GATE_CODE = "HANDEDNESS_MISMATCH";
+
+/**
+ * Would the product's PHOTO-QUALITY gates take this photo? The recorded paper
+ * and hand gates, with the handedness gate left out. A kit v2 report computes
+ * that gate with no stated hand (the mouse hand comes from `participant.json`
+ * only after the browser analysis), so it says nothing about the photo.
+ * `hasRecord` is false when the record holds no verdict at all; the photo is
+ * then not accepted. A photo whose hand gates were never reached (the paper
+ * was refused) is not accepted either.
+ */
+export function photoQualityAccepted(report: LearningPhotoReport): {
+  readonly accepted: boolean;
+  readonly hasRecord: boolean;
+} {
+  const gates = report.productGates;
+  if (!gates) return { accepted: false, hasRecord: false };
+  const hand = gates.hand;
+  const handOk =
+    hand !== null &&
+    (hand.ok ||
+      (hand.errorCodes.length > 0 &&
+        hand.errorCodes.every((code) => code === HANDEDNESS_GATE_CODE)));
+  return { accepted: gates.paper.ok && handOk, hasRecord: true };
 }
 
 /**
@@ -235,23 +304,47 @@ function retakeOf(
   };
 }
 
-/** Recompute one path's measurements from the record alone. */
-function measure(
+/** Everything one plane of one photo gives, before and after the model's correction. */
+export interface PlaneReading {
+  /** The truth-file fields after the correction; `null` whenever `reason` says why not. */
+  readonly values: Record<string, number> | null;
+  /** The 21 landmarks in this plane's millimetres, whenever the plane could be recomputed (even if no measurement came of them). */
+  readonly points: readonly Point2[] | null;
+  /** The recomputed measurements before any correction; `null` when they fall outside the contract's ranges (a folded grip can) or there are none. */
+  readonly raw: HandMeasurements | null;
+  readonly reason: string | null;
+}
+
+const NO_POINTS = { values: null, points: null, raw: null } as const;
+
+/**
+ * Recompute one path's measurements from the record alone. `hand` is the
+ * hand the page (candidate-v1) or the participant record (agreed-v2) says;
+ * `null` is possible only under agreed-v2, and a correction that needs the
+ * hand (anything but the raw baseline) then refuses the photo.
+ */
+export function measureDetailed(
   report: LearningPhotoReport,
   path: EvalPath,
-  hand: Hand,
+  hand: Hand | null,
   calibration: Calibration,
-): { values: Record<string, number> } | { reason: string } {
+): PlaneReading {
   const plane = path === "markers" ? report.markerPlane : report.paperPlane;
-  if (!plane || plane.method !== path) return { reason: "NO_PLANE" };
-  if (!report.hand) return { reason: "NO_HAND" };
+  if (!plane || plane.method !== path) {
+    return { ...NO_POINTS, reason: "NO_PLANE" };
+  }
+  if (!report.hand) return { ...NO_POINTS, reason: "NO_HAND" };
   let recomputed;
   try {
     recomputed = recomputePlane(report.hand.landmarksPx, plane);
   } catch {
-    return { reason: "RECOMPUTE_FAILED" };
+    return { ...NO_POINTS, reason: "RECOMPUTE_FAILED" };
   }
-  if (!recomputed.measurements) return { reason: "NO_MEASUREMENT" };
+  const points = recomputed.points;
+  if (!recomputed.measurements) {
+    return { values: null, points, raw: null, reason: "NO_MEASUREMENT" };
+  }
+  const raw = recomputed.measurements;
   const finiteFields = (m: unknown): Record<string, number> | null => {
     if (m === null || typeof m !== "object") return null;
     const values: Record<string, number> = {};
@@ -264,25 +357,150 @@ function measure(
   };
   // The recomputed values themselves must be usable before a correction is
   // applied to them; a photo is never measured "partly".
-  if (finiteFields(recomputed.measurements) === null) {
-    return { reason: "NO_MEASUREMENT" };
+  if (finiteFields(raw) === null) {
+    return { values: null, points, raw, reason: "NO_MEASUREMENT" };
+  }
+  if (hand === null && calibration !== RAW_CALIBRATION) {
+    return { values: null, points, raw, reason: "NO_MOUSE_HAND" };
   }
   let calibrated: unknown;
   try {
-    calibrated = calibration.apply(recomputed.measurements, { path, hand });
+    calibrated = hand === null ? raw : calibration.apply(raw, { path, hand });
   } catch {
-    return { reason: "CALIBRATION_INVALID" };
+    return { values: null, points, raw, reason: "CALIBRATION_INVALID" };
   }
   // A correction that returns a missing or non-finite value for any
   // measurement invalidates the photo; it is not quietly left out of a field.
   const values = finiteFields(calibrated);
-  return values === null ? { reason: "CALIBRATION_INVALID" } : { values };
+  return values === null
+    ? { values: null, points, raw, reason: "CALIBRATION_INVALID" }
+    : { values, points, raw, reason: null };
+}
+
+/** Recompute one path's measurements from the record alone. */
+function measure(
+  report: LearningPhotoReport,
+  path: EvalPath,
+  hand: Hand,
+  calibration: Calibration,
+): { values: Record<string, number> } | { reason: string } {
+  const read = measureDetailed(report, path, hand, calibration);
+  return read.values === null
+    ? { reason: read.reason ?? "NO_MEASUREMENT" }
+    : { values: read.values };
+}
+
+/**
+ * The field-by-field tables, per group and path: repeatability rows and, when
+ * there is a ruler truth to compare with (`truthOf` not `null`), accuracy.
+ * With `truthOf = null` (agreed-v2) no accuracy is computed at all.
+ */
+export function buildGroups(args: {
+  readonly observations: readonly Observation[];
+  readonly paths: readonly EvalPath[];
+  readonly thresholds: Thresholds;
+  readonly truthOf: ((o: Observation, field: string) => number | null) | null;
+}): Record<EvalGroup, Partial<Record<EvalPath, PathResult>>> {
+  const { observations, paths, thresholds, truthOf } = args;
+  const groups: Record<EvalGroup, Partial<Record<EvalPath, PathResult>>> = {
+    accepted: {},
+    all: {},
+  };
+  for (const group of ["accepted", "all"] as const) {
+    const members = observations.filter((o) => group === "all" || o.accepted);
+    for (const path of paths) {
+      const measuredHere = members.filter((o) => o.measured[path]);
+      const fields: Record<string, FieldResult> = {};
+      for (const field of FIELDS) {
+        const values = measuredHere
+          .map((o) => ({ o, value: o.measured[path]?.[field] }))
+          .filter(
+            (x): x is { o: Observation; value: number } =>
+              typeof x.value === "number",
+          );
+
+        const errors: number[] = [];
+        if (truthOf !== null) {
+          for (const { o, value } of values) {
+            const truth = truthOf(o, field);
+            if (truth !== null) errors.push(value - truth);
+          }
+        }
+        // No ruler truth (agreed-v2): no accuracy is computed, not even an empty one.
+        const stats = truthOf === null ? null : accuracyStats(errors);
+        const accuracyLimit = thresholds.accuracyMm[field];
+
+        const byGroup = new Map<
+          string,
+          {
+            row: Omit<RepeatabilityRowOut, keyof RepeatabilityRow>;
+            values: number[];
+          }
+        >();
+        for (const { o, value } of values) {
+          const key = `${o.participant}|${o.hand}|${o.gesture}`;
+          const entry = byGroup.get(key) ?? {
+            row: {
+              participant: o.participant,
+              hand: o.hand,
+              gesture: o.gesture,
+            },
+            values: [],
+          };
+          entry.values.push(value);
+          byGroup.set(key, entry);
+        }
+        const rows: RepeatabilityRowOut[] = [];
+        for (const { row, values: vs } of byGroup.values()) {
+          const r = repeatabilityRow(vs);
+          if (r) rows.push({ ...row, ...r });
+        }
+        rows.sort(
+          (a, b) =>
+            a.participant.localeCompare(b.participant) ||
+            (a.hand ?? "").localeCompare(b.hand ?? "") ||
+            a.gesture.localeCompare(b.gesture),
+        );
+        const summary = summariseRepeatability(rows);
+        const repeatLimit = thresholds.repeatabilityMm[field];
+
+        fields[field] = {
+          accuracy: {
+            stats,
+            readings:
+              stats && accuracyLimit !== undefined
+                ? accuracyReadings(stats, accuracyLimit)
+                : [],
+          },
+          repeatability: {
+            rows,
+            summary,
+            readings:
+              summary && repeatLimit !== undefined
+                ? repeatabilityReadings(summary, repeatLimit)
+                : [],
+          },
+        };
+      }
+      groups[group][path] = { photos: measuredHere.length, fields };
+    }
+  }
+  return groups;
 }
 
 export function evaluate(
   input: EvaluationInput,
   options: EvaluateOptions = {},
 ): EvaluationReport {
+  // Format-2 run logs are candidate-v1. Asking for agreed-v2 over them is the
+  // mix the two protocols forbid; so is a kit v2 option (held-out, S0), which
+  // belongs to agreed-v2 and its frozen prereg alone.
+  assertProtocolMatches(PROTOCOL_CANDIDATE_V1, options.protocol);
+  if (options.selection !== undefined) {
+    throw new EvaluationInputError(
+      "Held-out and S0 selection belong to agreed-v2 (format-3 run logs): the held-out rule of the prereg does not apply to candidate-v1.",
+    );
+  }
   const paths = options.paths ?? ALL_PATHS;
   const gestures = options.gestures ?? ["G01"];
   const subset = options.participants ? new Set(options.participants) : null;
@@ -456,7 +674,7 @@ export function evaluate(
   // Truth pairing: the page's hand, with that participant's value for that hand.
   const truthOf = (o: Observation, field: string): number | null => {
     const t = truths.get(o.participant);
-    return t
+    return t && o.hand !== null
       ? ((t[o.hand] as Record<string, number | null>)[field] ?? null)
       : null;
   };
@@ -485,86 +703,7 @@ export function evaluate(
     }
   }
 
-  const groups: Record<EvalGroup, Partial<Record<EvalPath, PathResult>>> = {
-    accepted: {},
-    all: {},
-  };
-  for (const group of ["accepted", "all"] as const) {
-    const members = observations.filter((o) => group === "all" || o.accepted);
-    for (const path of paths) {
-      const measuredHere = members.filter((o) => o.measured[path]);
-      const fields: Record<string, FieldResult> = {};
-      for (const field of FIELDS) {
-        const values = measuredHere
-          .map((o) => ({ o, value: o.measured[path]?.[field] }))
-          .filter(
-            (x): x is { o: Observation; value: number } =>
-              typeof x.value === "number",
-          );
-
-        const errors: number[] = [];
-        for (const { o, value } of values) {
-          const truth = truthOf(o, field);
-          if (truth !== null) errors.push(value - truth);
-        }
-        const stats = accuracyStats(errors);
-        const accuracyLimit = thresholds.accuracyMm[field];
-
-        const byGroup = new Map<
-          string,
-          {
-            row: Omit<RepeatabilityRowOut, keyof RepeatabilityRow>;
-            values: number[];
-          }
-        >();
-        for (const { o, value } of values) {
-          const key = `${o.participant}|${o.hand}|${o.gesture}`;
-          const entry = byGroup.get(key) ?? {
-            row: {
-              participant: o.participant,
-              hand: o.hand,
-              gesture: o.gesture,
-            },
-            values: [],
-          };
-          entry.values.push(value);
-          byGroup.set(key, entry);
-        }
-        const rows: RepeatabilityRowOut[] = [];
-        for (const { row, values: vs } of byGroup.values()) {
-          const r = repeatabilityRow(vs);
-          if (r) rows.push({ ...row, ...r });
-        }
-        rows.sort(
-          (a, b) =>
-            a.participant.localeCompare(b.participant) ||
-            a.hand.localeCompare(b.hand) ||
-            a.gesture.localeCompare(b.gesture),
-        );
-        const summary = summariseRepeatability(rows);
-        const repeatLimit = thresholds.repeatabilityMm[field];
-
-        fields[field] = {
-          accuracy: {
-            stats,
-            readings:
-              stats && accuracyLimit !== undefined
-                ? accuracyReadings(stats, accuracyLimit)
-                : [],
-          },
-          repeatability: {
-            rows,
-            summary,
-            readings:
-              summary && repeatLimit !== undefined
-                ? repeatabilityReadings(summary, repeatLimit)
-                : [],
-          },
-        };
-      }
-      groups[group][path] = { photos: measuredHere.length, fields };
-    }
-  }
+  const groups = buildGroups({ observations, paths, thresholds, truthOf });
 
   excluded.sort(
     (a, b) =>
@@ -574,8 +713,12 @@ export function evaluate(
       (a.field ?? "").localeCompare(b.field ?? ""),
   );
 
+  const participants = [
+    ...new Set(observations.map((o) => o.participant)),
+  ].sort();
   return {
     format: EVALUATION_FORMAT,
+    protocol: PROTOCOL_CANDIDATE_V1,
     model: calibration.name,
     createdAt: (options.now ?? new Date()).toISOString(),
     thresholds,
@@ -583,6 +726,9 @@ export function evaluate(
       paths: [...paths],
       gestures: [...gestures],
       participants: options.participants ? [...options.participants] : null,
+      participantCount: options.participants
+        ? options.participants.length
+        : null,
     },
     inputs: {
       runLogs: input.logs.map((log) => ({
@@ -593,7 +739,8 @@ export function evaluate(
         reports: log.reports.length,
       })),
       truthFiles: input.truths.length,
-      participants: [...new Set(observations.map((o) => o.participant))].sort(),
+      participants,
+      participantCount: participants.length,
     },
     counts: {
       reports: reportCount,
@@ -604,6 +751,7 @@ export function evaluate(
     },
     groups,
     excluded,
+    aggregateOnly: false,
   };
 }
 

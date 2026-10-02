@@ -19,7 +19,7 @@ import {
 import { homedir, tmpdir, userInfo } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseWorktreeList } from "../../src/lib/learning/paths";
 import { runLogOf, truthOf } from "./helpers/m2-synth";
 import { expectNoLeak } from "./helpers/no-absolute-paths";
@@ -27,6 +27,13 @@ import { expectNoLeak } from "./helpers/no-absolute-paths";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = join(REPO, "scripts", "m2-evaluate.ts");
+
+// Every test here starts the real script through `tsx` (a second or two of
+// start-up, more while the whole suite is running in parallel), and the child
+// process has its own 60 s limit. vitest's default of 5 s per test is for
+// code that does not spawn anything: without this the file passes alone and
+// times out in the full run.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 function evaluator(args: readonly string[], env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [TSX, SCRIPT, ...args], {
@@ -455,6 +462,24 @@ describe("m2-evaluate script", () => {
       ]);
       expect(result.status).toBe(0);
       expect(result.stderr).toMatch(/Nothing was evaluated for P002/);
+    });
+
+    it("with --aggregate-only the participants named but not evaluated are counted on stderr, never named", () => {
+      const result = evaluator([
+        "--log",
+        two.a,
+        "--truth",
+        two.truths,
+        "--participants",
+        "P001,P002,P003",
+        "--aggregate-only",
+      ]);
+      expect(result.status).toBe(0);
+      expect(result.stderr).toMatch(
+        /^Nothing was evaluated for 2 of the participants named: no measured photo in the logs\.$/m,
+      );
+      expect(result.stderr).not.toMatch(/P\d{3}/);
+      expect(result.stdout).not.toMatch(/P\d{3}/);
     });
   });
 
