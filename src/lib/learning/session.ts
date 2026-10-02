@@ -87,9 +87,51 @@ export const participantRecordSchema = z.strictObject({
   gripSelf: z.enum(GRIP_SELF_REPORTS).nullable(),
   /** Optional on the consent form. */
   ageBand: z.enum(AGE_BANDS).nullable(),
+  /**
+   * How many photos of each pose were actually taken, in shooting order (all
+   * G02 first, then all G04). Kirby fills it in only when the count is not the
+   * planned 3 + 2: an extra shot, or a missing one. `null` means "as planned".
+   * The sorter never guesses: with any other photo count and no entry here,
+   * the participant goes to review. Added 2026-10-02 after the #104 review.
+   */
+  shotCounts: z
+    .strictObject({
+      G02: z.number().int().min(0),
+      G04: z.number().int().min(0),
+    })
+    .nullable(),
   note: z.string(),
 });
 export type ParticipantRecord = z.infer<typeof participantRecordSchema>;
+
+/**
+ * The pose of each photo, in shooting order, for one participant, or `null`
+ * when it cannot be known and the participant must be reviewed. The pose
+ * check never takes part: it only flags.
+ */
+export function planShots(
+  photoCount: number,
+  shotCounts: ParticipantRecord["shotCounts"],
+): readonly GestureCode[] | null {
+  const planned = AGREED_V2_SEQUENCE.reduce((sum, s) => sum + s.shots, 0);
+  let counts: readonly { gesture: GestureCode; shots: number }[];
+  if (shotCounts === null) {
+    if (photoCount !== planned) return null;
+    counts = AGREED_V2_SEQUENCE;
+  } else {
+    counts = AGREED_V2_SEQUENCE.map((s) => ({
+      gesture: s.gesture,
+      shots: shotCounts[s.gesture as "G02" | "G04"],
+    }));
+    const total = counts.reduce((sum, s) => sum + s.shots, 0);
+    if (total !== photoCount || total > planned + AGREED_V2_MAX_EXTRA_SHOTS) {
+      return null;
+    }
+  }
+  return counts.flatMap((s) =>
+    Array.from({ length: s.shots }, () => s.gesture),
+  );
+}
 
 /**
  * `session.json`, one per session. The phone is typed in by hand because the
@@ -126,7 +168,8 @@ export function emptyParticipantRecord(
     mouseHand: null,
     gripSelf: null,
     ageBand: null,
-    note: "Copy from the consent flow: the mouse hand, the self-reported grip and (optional) age band. No name.",
+    shotCounts: null,
+    note: "Copy from the consent flow: the mouse hand, the self-reported grip and (optional) age band. No name. Fill shotCounts only if the photos were not 3 G02 then 2 G04.",
   };
 }
 
