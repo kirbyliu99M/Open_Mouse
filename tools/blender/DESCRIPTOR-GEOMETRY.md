@@ -127,7 +127,7 @@ mostly one way, which points at the measure itself, not only its thresholds. Any
 counts, so a further run on the same 28 rows is in-sample and must be reported
 as such.
 
-## Local execution record (validation blocked)
+## Historical local execution record (validation was blocked)
 
 _Historical: written before Claude committed the pre-registration as `06cc13d` and ran Run 1 above._
 
@@ -465,6 +465,42 @@ retains a similar flare (0.086014 to 0.087107). MX Master 3S's separate new wall
 values are -0.098473/-0.008703, exposing the asymmetry hidden by its old averaged
 0.031526 bow/H. The old and new curvature normalizations differ. None of these
 observations establishes agreement with a fixture label.
+
+### Frozen bytes and line endings (GD-3 reproducibility note)
+
+The provenance hashes were computed on the Windows working copy. A byte check
+at GD-3 distinguishes source from generated output: all seven frozen Python
+files below have LF endings, both in the working copy and in the Git blobs
+(`git ls-files --eol`: `i/lf w/lf`, `eol=lf`). Their LF hashes therefore equal
+their working-copy hashes; the four source hashes present in the provenance
+files match. The claim that the frozen **code** hashes require CRLF is incorrect.
+No frozen source, existing test, provenance file or recorded number was changed.
+
+| Frozen file                             | SHA-256 of LF bytes (also current working-copy bytes)              |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| `descriptor_geometry.py`                | `62358175506db906b0bdb1e4f8509f5160fdcbd2fee5a043b95c827bc1a7b98c` |
+| `descriptor_geometry_gd2.py`            | `06f078078f8e4bf06f301cda320445a54b6ab975bce0fbf35468953ab304ece1` |
+| `measure_descriptors.py`                | `e0e0fb058ba60ac0315820f9ef43bcd17eb6261b3376ce2b59bb6c8a26ce770c` |
+| `measure_descriptors_gd2.py`            | `0f0e4bee6e90b3c370262d4dba478d6ad6c2f0a27de3d364bdc22de57c321699` |
+| `diagnose_descriptors_gd2.py`           | `c12439faf686c462e7413a72983344ab430e49533ee1a1e10054e4a4da52a5fa` |
+| `tests/test_descriptor_geometry.py`     | `3917569a345c1fbf080e0fcce161383e034dc3a87b5687729d31efa97a4e6bb6` |
+| `tests/test_descriptor_geometry_gd2.py` | `a6fa5f36812084b3bb9ac38c2f8c23a7c1a011913521acdacba7a9130ec59906` |
+
+The generated prediction JSON files, however, have CRLF endings from Windows
+text-mode output. Hashing the same bytes with only CRLF replaced by LF gives:
+
+| Generated artifact     | Recorded Windows CRLF SHA-256                                      | LF-equivalent SHA-256                                              |
+| ---------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `predictions.json`     | `21e7ffcf3e6af66bb492f1bcdffe704a6f672f84c50f7015c54ed25badc5dc37` | `eadaf03c02320737595c16c04bd3179689818abd10722035a52fea53b96b1a9a` |
+| `predictions-gd2.json` | `603a850e7801be6a0fe0fa3edf14ed9be65a1333b5be13356da1e55a5f6e0848` | `b1192378767f9066f8560ec5b7a07e182c40a13fffb47274a98966c034a24415` |
+
+`measure_descriptors_gd2.py` checks the raw Run 1 **prediction** hash and asset
+hashes; it records, but does not enforce, source hashes. A fresh LF checkout
+alone does not trip a source-hash check. Regenerating the prediction file on an
+LF-writing platform does trip its pinned Run 1 hash check, even with identical
+JSON values. Reproduction requires the original CRLF Run 1 artifact. The LF
+hashes above are byte-format diagnostics, not replacement approved hashes; the
+frozen script and its check remain unchanged.
 
 ### GD-2 local gates
 
