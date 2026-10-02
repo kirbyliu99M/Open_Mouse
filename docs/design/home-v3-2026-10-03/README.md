@@ -53,37 +53,57 @@ Still **not decided (未拍板, candidate)**:
      - 9 of the 11 CSS files in `src` already have a
        `@media (prefers-color-scheme: dark)` block. Promote those blocks to the
        default and drop the light defaults.
+     - `sheet.css` writes its block as
+       `@media screen and (prefers-color-scheme: dark)`. Keep it scoped to
+       `screen`, so print is unaffected.
      - `src/client/camera/camera.css` and `easy-scan.css` have no block of
        their own. They read `--scan-*` variables (dark values in
        `src/app/scan/scan.css`), so check their hex fallbacks.
      - The whole site then turns dark in one PR, and no page is left
        half-light.
-   - **Map the old variables onto the new tokens**, so the site has one primary
-     button:
-     - `--scan-bg` becomes `--bg`;
-     - `--scan-accent` becomes `--accent`;
+   - **Map the old variables onto the new tokens.**
+     - `--scan-bg` becomes `--bg`.
+     - `--scan-accent` has two jobs today. Where it fills a button, it becomes
+       `--accent`. Where it colours text, an outline, a focus ring or a
+       selected chip, it becomes `--accent-text`.
+       - `#1F6BF0` is only 4.24:1 on `--bg` and 2.6:1 on the selected-chip
+         fill, so it must never be used for text.
+       - `easy-scan-measured.spec.ts` checks that chip.
      - `--scan-on-accent` becomes `--on-accent`. Today's dark scan button is a
        light blue `#79adff` with a dark label. It becomes `#1F6BF0` with a
        white label.
-   - **Print stays light.** Keep the `@media print` rules in `sheet.css` and
-     `learn.css` on a white page with dark ink.
+     - The other `--scan-*` variables (`fg`, `muted`, `border`,
+       `accent-soft`, `status-*`) keep their current dark values.
+     - Hard-coded `#0a64e0` / `#79adff` accents (today in all 11 CSS files in
+       `src`, including `--learn-accent`) go through the tokens too.
+     - Print-only colours inside `@media print` stay as they are.
+     - **Acceptance:** outside the token definitions and print rules, no
+       hard-coded accent hex is left in `src/**/*.css`, so the site has one
+       primary button.
+   - **Print stays light.** Add an explicit
+     `@media print { :root, body { background: #fff; color: #000; } }`. Today
+     the white comes only from the SVG backgrounds, and the dark root would
+     show at the bottom of an A4 page when background graphics are on.
    - Set `color-scheme: dark`.
    - **Lay out the home page** as in the screens, with **static** SVGs where
      the particles will go (see [Static images](#static-images-pr-a)).
-   - **Write the target generator** (see
-     [Targets](#targets-precomputed-pure-and-tested)) with its unit tests. The
-     static SVGs are rendered from the same point lists, so the static and
-     animated versions match.
+   - **Write the sampling half of the target generator** (see
+     [Targets](#targets-precomputed-pure-and-tested)): path sampling and
+     resampling, with unit tests. The static SVGs are rendered from the same
+     point lists, so the static and animated versions match. Pairing and
+     interpolation come in PR B.
+   - Move `g-pro-sketch.svg` to `public/images/sketches/`.
    - Update the tests listed in [Tests to update](#tests-to-update).
 2. **PR B: the particle stage.** It adds the canvas on top of PR A's layout.
-   PR A's static SVGs stay as the reduced-motion and no-JS fallback.
+   PR A's static SVGs stay as the reduced-motion, no-JS and small-screen
+   fallback.
 
 ## Screens
 
 | File                                           | What it shows                                                                                            |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `screens/01-mobile-zh-tw.png`                  | Mobile 390 wide, zh-TW, end state of every animation                                                     |
-| `screens/02-mobile-iphone-se-first-screen.png` | 375×667, first screen only: both buttons and the Early preview note fit                                  |
+| `screens/02-mobile-iphone-se-first-screen.png` | 375×667, first screen only: both buttons on one line and the Early preview note fit                      |
 | `screens/03-mobile-en.png`                     | Mobile 390 wide, English (also the static PR A layout)                                                   |
 | `screens/04-desktop-en.png`                    | Desktop 1440 wide, English, 1200 px content container                                                    |
 | `screens/story-1 … story-6`                    | The particle story, one frame per state (mobile scale). Storyboard only: the mouse captions are left out |
@@ -101,66 +121,90 @@ DOM order:
 
 1. `nav`: the wordmark, then "Sign in" and the existing `NavMenu`. Each
    control has a hit area of at least 44 × 44 px.
-2. Story section `<section class="story">`. It contains, in order:
+2. Story section `<section class="story">`, with one panel element inside. In
+   order, the panel contains:
    1. the hero: the logo (a static `<img>`, decorative, empty alt), then the
       `h1`, the subhead, the two buttons and the Early preview note;
    2. the hand (a static SVG);
    3. the three mice (static SVGs), each with its caption as real text;
-   4. the `<canvas>` (PR B only, `aria-hidden="true"`).
+   4. the `<canvas>` (PR B only).
 3. Final section: both buttons again, the Early preview note again, and the
    privacy line (see the undecided item above).
 4. Footer disclaimer: left-aligned on mobile, centred on desktop.
 
-**Static layout** (PR A, and in PR B under reduced motion or without JS): the
-story section is an ordinary block, and its parts stack in flow, as in
-`screens/03-mobile-en.png`. It has no extra height and no empty gaps.
+**Static layout.** This is PR A. In PR B it is also used under reduced motion,
+without JS, or when the hero doesn't fit (see below). The section and panel
+are ordinary blocks, and their parts stack in flow, as in
+`screens/03-mobile-en.png`. There is no extra height and no empty gap.
 
-**Animated layout** (PR B, only when JS runs and motion is allowed). JS adds
-`story--animated` to the section. Then:
+**Animated layout** (PR B):
 
-- The section gets a tall height (about 400 svh, to be tuned). Inside it, one
-  panel is `position: sticky; top: 0; height: 100svh`. The hero, the captions
-  and the canvas all live in that panel, so the canvas, the logo and the mouse
-  captions stay aligned with each other.
-- **Progress:** `p` is 0 when the panel first pins and 1 when the section's
-  bottom reaches the panel's bottom. p = 0 is the hero exactly as on first
-  load, so Story 2 starts from a visible logo.
-- **Logo handoff:** the canvas draws the logo at the static `<img>`'s rect
-  (`getBoundingClientRect`). Once the first frame is drawn it hides the `<img>`
-  (`visibility: hidden`), so there is never a double logo.
-- **Hero text:** from p = 0 to 0.10 the hero text fades and moves up
-  (opacity and transform only). Below opacity 0.05 it gets
-  `pointer-events: none` and `inert`, so hidden buttons can't be tabbed to.
-  Scrolling back reverses this.
-- **Static hand and mice:** their static SVGs are hidden; the canvas draws
-  those states. The three captions are absolutely positioned in the panel at
-  the mice's target rects, and fade in during Story 6.
-- **Exit:** at p = 1 the sticky panel releases. The three mice and their
-  captions scroll up together with the panel, and the final section follows.
-  Nothing disappears abruptly. The canvas stops drawing once the panel is off
-  screen.
+- **When to switch.** JS adds `story--animated` only after the particle module
+  has loaded and drawn its first frame, and only when all three hold:
+  - motion is allowed;
+  - the hero's measured height fits in `100svh` (so not at 320×568, in
+    landscape on a phone, or at large text zoom);
+  - the viewport is at least about 600 px tall.
+
+  Otherwise the page stays static. If the module fails to load, nothing
+  changes.
+
+- **The section and the panel.** The hero keeps exactly the same position in
+  both layouts, so switching causes no layout shift. The section grows to
+  about 400 svh (to be tuned). The panel becomes
+  `position: sticky; top: 0; height: 100svh`.
+- **Layers.** The canvas is `aria-hidden="true"` and positioned
+  `absolute; inset: 0; z-index: 0`, with `pointer-events: none`. The hero and
+  the captions sit above it (`position: relative; z-index: 1`), so every
+  button stays clickable.
+- **Progress.** `p` is clamped to [0, 1]. It is 0 when the panel pins (the
+  nav has scrolled away by then) and 1 when the section's bottom reaches the
+  panel's bottom.
+- **Logo handoff.** The canvas draws the logo at the static `<img>`'s rect
+  (`getBoundingClientRect`). Once that frame is drawn, it hides the `<img>`
+  with `visibility: hidden`, so there is never a double logo.
+- **Hero text.** From p = 0 to 0.10 the hero text fades and moves up, using
+  opacity and transform only. Below opacity 0.05 the buttons and links get
+  `inert`, so hidden controls can't be tabbed to; the h1 stays in the
+  accessibility tree. Scrolling back reverses this.
+- **Static hand and mice.** Their SVGs are hidden; the canvas draws those
+  states. The three captions are absolutely positioned in the panel at the
+  mice's target rects, and fade in as the mice settle.
+- **Exit.** At p = 1 the sticky panel releases. The three mice and their
+  captions scroll up with the panel, and the final section follows. Nothing
+  disappears abruptly. The canvas stops drawing once the panel is off screen.
 
 Buttons:
 
 - "Scan my hand" is the filled primary; "How it works" is the outline
   secondary.
-- Lay them out with `display: flex; flex-wrap: wrap; gap: 0.75rem`. Use
-  `min-height: 3.125rem`, with `flex: 1 1 12rem` for the primary and
-  `flex: 0 1 8rem` for the secondary (wider on desktop: about 14rem and
-  10.5rem).
-- When the row is too narrow (320 px, or large text zoom) they wrap: each
-  button takes the full width, primary on top.
+- **Acceptance:**
+  - from 360 px wide up, the two sit on one line, as in screen 02;
+  - when they no longer fit (320 px, or large text zoom), they stack, each at
+    full width, primary on top.
+
+  A workable start is `flex-wrap: wrap; gap: 0.75rem`, with the primary at
+  `flex: 1 1 10rem` and the secondary at `flex: 1 1 8rem`, and
+  `min-height: 3.125rem`. On desktop the primary is about 14rem and the
+  secondary about 10.5rem.
+
 - Fully rounded.
 - Pressed state: darken the fill to `--accent-pressed`. Never drop opacity:
   `opacity: 0.85` on the button would take the white label to 4.33:1.
 
-Hero logo height:
+Hero sizes (the logo slot includes room for the glow; the mark itself is
+about 60 % of the slot's height):
 
-- mobile: `clamp(18rem, 40svh, 24rem)`, so both buttons stay on the first
-  screen of a 375×667 phone;
-- desktop: about 29rem (the 1440 frame uses 470 px).
+| Viewport     | Slot height                  | Logo mark height |
+| ------------ | ---------------------------- | ---------------- |
+| 375×667      | `clamp(18rem, 40svh, 24rem)` | about 9.5rem     |
+| 390 wide     | same                         | about 11rem      |
+| 1440 desktop | about 29rem                  | about 19rem      |
 
 ### Static images (PR A)
+
+`<img>` can't read CSS variables, so these SVGs hard-code the colours. Primary
+strokes are `#CFE0FF`, detail strokes `#6E9BF5`, matching `--sketch-line`.
 
 - **Logo:** `public/images/logo-placeholder.svg`, the same geometry as the
   canvas placeholder, in a 220 × 196 box with centre (90, 98):
@@ -168,15 +212,13 @@ Hero logo height:
     `y = cy − 88·cos t`;
   - a button split from `cy − 88` to `cy − 22`;
   - a wheel ellipse at `(cx, cy − 56)`, rx 4.5, ry 9;
-  - a ruler at `x = cx + 84` from `cy − 88` to `cy + 88`, with 5 px end ticks.
-
-  Stroke colour `--sketch-line`.
-
+  - a ruler at `x = cx + 84` from `cy − 88` to `cy + 88`, with end ticks
+    5 px to each side.
 - **Hand on A4:** an SVG rendered by the target generator from the template
   hand. It has the dots, the 21 landmarks, the skeleton lines, the two
   measurement lines with end ticks, and the A4 outline. **No numbers.**
-- **Three mice:** `g-pro-sketch.svg` three times, recoloured with
-  `--sketch-line`, until more sketches exist.
+- **Three mice:** `sketches/g-pro-sketch.svg` three times, recoloured to the
+  two stroke colours above, until more sketches exist.
 
 ## Copy
 
@@ -247,7 +289,7 @@ CJK typesetting:
 
 ## The particle stage
 
-Scroll progress through the story wrapper, `p` from 0 to 1, drives the state.
+Scroll progress through the story section, `p` from 0 to 1 (see [Page structure](#page-structure)), drives the state.
 Scrolling stays native:
 
 - no scroll snapping;
@@ -256,14 +298,14 @@ Scrolling stays native:
 
 | Story                   | Progress (suggested) | What happens                                                                                                                                | Text in the DOM                   |
 | ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 1 Hero: logo + headline | before the wrapper   | The particle logo (placeholder) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still | `home.title`, `home.subhead`, CTA |
+| 1 Hero: logo + headline | p = 0                | The particle logo (placeholder) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still | `home.title`, `home.subhead`, CTA |
 | 2 Logo scatters         | 0.00–0.15            | The logo's particles break loose and drift outwards                                                                                         | —                                 |
 | 3 Particles → hand      | 0.15–0.38            | The particles gather into a hand on the A4 outline                                                                                          | —                                 |
 | 4 Hand measured         | 0.38–0.55            | The 21 landmark dots light up in order; the skeleton lines draw; the hand-length and palm-width lines extend with end ticks, **no numbers** | —                                 |
 | 5 Hand rearranges       | 0.55–0.72            | The hand's particles loosen and flow apart into three streams                                                                               | —                                 |
-| 6 Three mice            | 0.72–1.00            | The three streams settle into three mouse sketches. Stacked on mobile, side by side on desktop                                              | `home.sketchCaption` × 3          |
+| 6 Three mice            | 0.72–1.00            | The three streams settle into three mouse sketches by p = 0.90 and hold still to 1.00. Stacked on mobile, side by side on desktop           | `home.sketchCaption` × 3          |
 
-After the wrapper comes the final section. Only G Pro exists today, so all
+After the story section comes the final section. Only G Pro exists today, so all
 three mice are G Pro placeholders.
 
 The only motion that starts without the user is the hero shimmer, and it ends
@@ -302,8 +344,8 @@ Everything else follows scroll.
 - **Interpolation.** `pos = a + (b − a)·e(t) + swirl`, where:
   - `e` is `easeInOutQuad`;
   - `swirl = sin(π·e)·A` along a golden-angle direction per particle.
-- **Unit tests.** Path sampling, resampling, pairing and interpolation are
-  pure functions with unit tests. The same seed gives the same points, and the
+- **Unit tests.** Path sampling and resampling (PR A), and pairing and
+  interpolation (PR B), are pure functions with unit tests. The same seed gives the same points, and the
   endpoints equal the targets.
 
 ### Rendering and performance (targets, 未拍板 until measured)
@@ -317,10 +359,11 @@ Everything else follows scroll.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
   stage is off-screen (IntersectionObserver) or the tab is hidden.
 - First paint is the static placeholder logo SVG plus the text. The particle
-  module is a dynamic import after first paint, so it doesn't affect LCP. The
-  h1 is the LCP element.
+  module is a dynamic import after first paint, so it doesn't delay LCP.
+  The LCP element is the logo `<img>` or the h1; both are in the initial
+  HTML, and the logo SVG is small and not lazy-loaded.
 - Main-thread work under about 8 ms per frame on a mid-range phone. Measure
-  this on a real phone and post the number in the PR.
+  this on a real phone and post the number in PR B.
 
 ### Reduced motion and no JS
 
@@ -350,14 +393,20 @@ change in PR A. Rewrite them; don't delete them silently.
 - **`tests/e2e/easy-scan-screenshots.spec.ts`** (the `landing` capture): it
   waits for the old h1 text and emulates `colorScheme: "light"`. Update the h1
   name. The light emulation no longer changes anything.
-- **Exact background colours and light/dark loops.** These pin `--scan-bg`
-  values (`rgb(244, 244, 246)` light, `rgb(22, 22, 23)` dark) and run every
-  check once per colour scheme:
-  - `tests/e2e/no-paper-device.spec.ts`: the background assertion near line
-    234, `PAGE_BG` near line 659 and the loops near lines 452, 568, 665 and
-    701;
-  - `tests/e2e/easy-scan.spec.ts` near line 294;
-  - `tests/e2e/easy-scan-measured.spec.ts` near line 103.
+- **Exact background colours and light/dark loops.**
+  - `tests/e2e/no-paper-device.spec.ts` pins `--scan-bg`
+    (`rgb(244, 244, 246)` light, `rgb(22, 22, 23)` dark) in the background
+    assertion near line 234 and in `PAGE_BG` near line 659. It runs once per
+    colour scheme in the loops near lines 452, 568, 665, 701, 888, 914 and 936;
+    the one near 888 indexes `PAGE_BG[colorScheme]`.
+  - `tests/e2e/easy-scan.spec.ts` near line 294 and
+    `tests/e2e/easy-scan-measured.spec.ts` near line 103 loop over both
+    schemes with contrast assertions.
+  - `tests/e2e/results-demo.spec.ts` near lines 192–195 expects
+    `.results-analysis` to have a white (`rgb(255, 255, 255)`) background.
+
+  Then look for any remaining light/dark loop or hard-coded background with
+  `grep -rn "colorScheme\|rgb(" tests/e2e`.
 
   After PR A there is one theme. Assert `--bg` (`rgb(6, 7, 9)`) once, and
   drop the light iteration.
