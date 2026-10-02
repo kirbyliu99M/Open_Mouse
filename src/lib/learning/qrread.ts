@@ -80,11 +80,17 @@ function rectInImage(sheetToImage: Homography, r: Rect, padMm: number) {
  * finder search, so this also tries the exact printed QR positions (located
  * through the marker homography) and then overlapping tiles. Each attempt has
  * to be a kit code, or the next one is tried.
+ *
+ * Kit v1 pages print their QR codes at `computeKitLayout("above")`'s positions
+ * (and a side page's at its own). A kit v2 sheet has a card slot instead:
+ * `options.searchRects` names those rectangles in sheet mm, and then they, not
+ * the v1 positions, are tried through `flatHomography`.
  */
 export function readKitQr(
   image: RgbaImage,
   markers: readonly DetectedMarker[],
   flatHomography: Homography | null,
+  options: { readonly searchRects?: readonly Rect[] } = {},
 ): string | null {
   const whole = decodeKitQr(image);
   if (whole) return whole;
@@ -93,10 +99,10 @@ export function readKitQr(
   if (flatHomography) {
     located.push({
       h: invert3x3(flatHomography),
-      rects: computeKitLayout("above").qr,
+      rects: options.searchRects ?? computeKitLayout("above").qr,
     });
   }
-  const side = sideHomography(markers);
+  const side = options.searchRects ? null : sideHomography(markers);
   if (side)
     located.push({ h: invert3x3(side), rects: computeKitLayout("side").qr });
   for (const { h, rects } of located) {

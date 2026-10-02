@@ -360,7 +360,8 @@ export interface SortedPhoto {
 export interface CoverageRow {
   readonly participant: string;
   readonly gesture: GestureCode;
-  readonly hand: HandSide;
+  /** Kit v1: the hand the photos were taken with (from the page's QR code). Kit v2: the participant's mouse hand from `participant.json`, `null` until it is filled in. */
+  readonly hand: HandSide | null;
   readonly expected: number;
   readonly got: number;
 }

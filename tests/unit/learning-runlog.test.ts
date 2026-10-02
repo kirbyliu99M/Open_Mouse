@@ -65,8 +65,10 @@ describe("buildRunLog", () => {
 
   it("names its format, kit version, time, sheet size and folder", () => {
     expect(log.format).toBe(RUN_LOG_FORMAT);
-    expect(log.format).toBe("open-mouse-learning-run/2");
+    expect(log.format).toBe("open-mouse-learning-run/3");
     expect(log.kitVersion).toBe(KIT_V1_VERSION);
+    // A kit v1 log has no kit v2 protocol, session or sheet.
+    expect([log.protocol, log.session, log.sheet]).toEqual([null, null, null]);
     expect(log.createdAt).toBe("2026-09-30T08:15:30.123Z");
     expect(log.paperSize).toBe("letter");
     expect(log.input).toBe("../../Photos/session-1");
