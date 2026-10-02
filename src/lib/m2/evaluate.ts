@@ -247,6 +247,33 @@ export function gateReasons(report: LearningPhotoReport): string[] {
   return reasons.length > 0 ? reasons : ["NOT_ACCEPTED"];
 }
 
+/** The one hand gate left out of judgement correctness; see `photoQualityAccepted`. */
+export const HANDEDNESS_GATE_CODE = "HANDEDNESS_MISMATCH";
+
+/**
+ * Would the product's PHOTO-QUALITY gates take this photo? The recorded paper
+ * and hand gates, with the handedness gate left out. A kit v2 report computes
+ * that gate with no stated hand (the mouse hand comes from `participant.json`
+ * only after the browser analysis), so it says nothing about the photo.
+ * `hasRecord` is false when the record holds no verdict at all; the photo is
+ * then not accepted. A photo whose hand gates were never reached (the paper
+ * was refused) is not accepted either.
+ */
+export function photoQualityAccepted(report: LearningPhotoReport): {
+  readonly accepted: boolean;
+  readonly hasRecord: boolean;
+} {
+  const gates = report.productGates;
+  if (!gates) return { accepted: false, hasRecord: false };
+  const hand = gates.hand;
+  const handOk =
+    hand !== null &&
+    (hand.ok ||
+      (hand.errorCodes.length > 0 &&
+        hand.errorCodes.every((code) => code === HANDEDNESS_GATE_CODE)));
+  return { accepted: gates.paper.ok && handOk, hasRecord: true };
+}
+
 /**
  * A photo the checker said to retake, when its record still says which page it
  * was and who it belongs to: the sort files nothing for it (its QR code is

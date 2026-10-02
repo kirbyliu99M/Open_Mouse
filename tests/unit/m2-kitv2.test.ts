@@ -21,6 +21,7 @@ import type { EvaluateOptions } from "../../src/lib/m2/evaluate";
 import { MEASUREMENT_DEFINITIONS } from "../../src/lib/contracts/measurement";
 import { truthOf } from "./helpers/m2-synth";
 import {
+  destinationsOf,
   fileNameOf,
   kitV2LogOf,
   labelsRecordOf,
@@ -510,22 +511,12 @@ describe("where a photo's identity comes from", () => {
     ]);
     expect(r.kitV2.gate.poses[0]!.photos).toBe(2);
     expect(r.kitV2.repeatability.photos).toBe(2);
-    // Without the sorter's own status the reason is the bare code.
-    const bare = runS0(
-      [g02("P901", 190), g02("P901", 189, 189, { assignedTo: null })],
-      {},
-      {},
-    );
-    expect(bare.counts.notMeasured).toBe(1);
-    const log = kitV2LogOf(
-      [g02("P901", 190), g02("P901", 189, 189, { assignedTo: null })],
-      { sorterFields: false },
-    );
-    const plain = evaluateKitV2(
-      { logs: [parseKitV2RunLog(log, "run log 1")] },
-      { selection: "s0" },
-    );
-    expect(plain.excluded[0]!.reasons).toEqual(["NOT_ASSIGNED"]);
+    // A status that is not a plain word is not repeated.
+    const odd = runS0([
+      g02("P901", 190),
+      g02("P901", 189, 189, { assignedTo: null, status: "C:\\Users\\me" }),
+    ]);
+    expect(odd.excluded[0]!.reasons).toEqual(["NOT_ASSIGNED"]);
   });
 
   it("a report that is not in the sort is NOT_IN_SORT; a file name used twice is AMBIGUOUS_FILE_NAME", () => {
@@ -838,16 +829,33 @@ describe("coverage by phone and sheet", () => {
     ]);
   });
 
-  it("a log with no session at all is 'unknown'", () => {
-    const r = runS0(
-      [g02("P901", 190)],
-      {},
+  it("a log with no session record, or a bare session id nobody has a record for, is 'unknown'", () => {
+    const noSession = evaluateKitV2(
       {
-        sessions: [],
+        logs: [
+          parseKitV2RunLog(
+            kitV2LogOf([g02("P901", 190)], { session: null }),
+            "run log 1",
+          ),
+        ],
       },
+      { selection: "s0" },
     );
-    // The default log names S001, but no session record was given for it.
-    expect(r.kitV2.coverage.byPhone).toEqual([
+    expect(noSession.kitV2.coverage.byPhone).toEqual([
+      { value: "unknown", people: 1, photos: 1 },
+    ]);
+    const bareId = evaluateKitV2(
+      {
+        logs: [
+          parseKitV2RunLog(
+            kitV2LogOf([g02("P901", 190)], { session: "S001" }),
+            "run log 1",
+          ),
+        ],
+      },
+      { selection: "s0" },
+    );
+    expect(bareId.kitV2.coverage.byPhone).toEqual([
       { value: "unknown", people: 1, photos: 1 },
     ]);
   });
@@ -934,14 +942,16 @@ describe("people missing a pose", () => {
   });
 });
 
-describe("judgement correctness from Kirby's labels", () => {
-  // The in-scope photos of the default run are PHOTOS[0..12] (P001-P003):
-  //  idx  pose  product            Kirby
+describe("judgement correctness from the blind labels", () => {
+  // The in-scope photos of the default run are PHOTOS[0..12] (P001-P003). The
+  // product's verdict here is its photo-quality gates, WITHOUT the handedness
+  // gate (#4's only refusal is for handedness, so it is accepted).
+  //  idx  pose  product            label
   //   0   G02   accepted           good                  agree
   //   1   G02   accepted           good                  agree
   //   2   G02   accepted           bad [blur]            FALSE ACCEPT
   //   3   G04   accepted           good                  agree
-  //   4   G04   retake (hand)      bad [corner-hidden]   agree
+  //   4   G04   accepted (handedness refusal only)  bad [corner-hidden]  FALSE ACCEPT
   //   5   G02   accepted           good                  agree
   //   6   G02   accepted           good                  agree
   //   7   G02   retake (paper)     good                  FALSE REJECT
@@ -950,7 +960,8 @@ describe("judgement correctness from Kirby's labels", () => {
   //  10   G02   accepted           good                  agree
   //  11   G02   accepted           (not in the labels file)
   //  12   G04   accepted           (label still null)
-  const name = (index: number) => fileNameOf(index + 1);
+  const dest = destinationsOf(PHOTOS);
+  const name = (index: number) => dest[index]!;
   const LABELS = labelsRecordOf("S001", true, [
     { file: name(0), label: "good" },
     { file: name(1), label: "good" },
@@ -967,25 +978,84 @@ describe("judgement correctness from Kirby's labels", () => {
     // A photo of the held-out P004: it names a photo that exists, in this run or not.
     { file: name(13), label: "good" },
     // And one that names nothing.
-    { file: "IMG_0999.jpg", label: "good" },
+    { file: "P999/G02/1.jpg", label: "good" },
   ]);
 
-  it("compares the product's verdict with the label: 11 labelled, 8 agree, 2 false accepts, 1 false reject", () => {
+  it("compares the product's photo-quality verdict with the label: 11 labelled, 7 agree, 3 false accepts, 1 false reject", () => {
     const r = run({}, PHOTOS, { labels: [LABELS] });
     const h = r.kitV2.judgement.headline!;
     expect(h.photos).toBe(11);
-    expect(h.agree).toBe(8);
-    expect(h.agreementRate).toBeCloseTo(8 / 11, 12);
-    expect(h.falseAccepts).toBe(2);
+    expect(h.agree).toBe(7);
+    expect(h.agreementRate).toBeCloseTo(7 / 11, 12);
+    expect(h.falseAccepts).toBe(3);
     expect(h.falseRejects).toBe(1);
     expect(h.labelGood).toBe(7);
     expect(h.labelBad).toBe(4);
-    expect(h.productAccepted).toBe(8);
-    expect(h.productRetake).toBe(3);
-    expect(h.falseAcceptShareOfBad).toBeCloseTo(2 / 4, 12);
+    expect(h.productAccepted).toBe(9);
+    expect(h.productRetake).toBe(2);
+    expect(h.falseAcceptShareOfBad).toBeCloseTo(3 / 4, 12);
     expect(h.falseRejectShareOfGood).toBeCloseTo(1 / 7, 12);
     expect(r.kitV2.judgement.target).toBe(0.95);
     expect(r.inputs.labelsFiles).toBe(1);
+  });
+
+  it("leaves the handedness gate out: a refusal for handedness alone is not a retake here, but still counts against the acceptance rate", () => {
+    const photos = [
+      g02("P901", 190, 190, { refusedBy: { hand: ["HANDEDNESS_MISMATCH"] } }),
+      // Handedness plus a photo-quality refusal: still a retake.
+      g02("P901", 191, 191, {
+        refusedBy: { hand: ["HANDEDNESS_MISMATCH", "LOW_LANDMARK_CONFIDENCE"] },
+      }),
+      g02("P901", 192),
+    ];
+    const d = destinationsOf(photos);
+    const r = run({ selection: "s0" }, photos, {
+      labels: [
+        labelsRecordOf(
+          "S001",
+          true,
+          d.map((file) => ({ file: file!, label: "good" as const })),
+        ),
+      ],
+    });
+    const h = r.kitV2.judgement.headline!;
+    expect(h.productAccepted).toBe(2); // #1 and #3
+    expect(h.productRetake).toBe(1); // #2
+    expect(h.falseRejects).toBe(1);
+    expect(h.agree).toBe(2);
+    // The acceptance rate is the recorded gates as they are: only #3 is accepted.
+    expect(r.kitV2.gate.poses[0]).toMatchObject({ photos: 3, accepted: 1 });
+    expect(r.kitV2.judgement.verdictBasis).toMatch(/handedness gate left out/);
+    // Hand-label agreement stays reported on its own.
+    expect(r.kitV2.gate.poses[0]).toHaveProperty("handLabelAgreementRate");
+  });
+
+  it("a photo whose paper was refused has no hand verdict and is a retake; one with no gate record is a retake and counted", () => {
+    const photos = [
+      g02("P901", 190, 190, { refusedBy: { paper: ["PAPER_CORNER_HIDDEN"] } }),
+      g02("P901", 191),
+    ];
+    const log = kitV2LogOf(photos) as {
+      reports: { productGates: unknown }[];
+    };
+    log.reports[1]!.productGates = null;
+    const d = destinationsOf(photos);
+    const r = evaluateKitV2(
+      {
+        logs: [parseKitV2RunLog(log, "run log 1")],
+        labels: [
+          labelsRecordOf("S001", true, [
+            { file: d[0]!, label: "bad", reasons: ["corner-hidden"] },
+            { file: d[1]!, label: "bad", reasons: ["blur"] },
+          ]),
+        ],
+      },
+      { selection: "s0" },
+    );
+    const h = r.kitV2.judgement.headline!;
+    expect(h.productRetake).toBe(2);
+    expect(h.agree).toBe(2);
+    expect(h.noGateRecord).toBe(1);
   });
 
   it("by pose and by reason", () => {
@@ -1000,16 +1070,16 @@ describe("judgement correctness from Kirby's labels", () => {
     expect(h.byPose[1]).toMatchObject({
       gesture: "G04",
       photos: 4,
-      agree: 3,
-      falseAccepts: 1,
+      agree: 2,
+      falseAccepts: 2,
       falseRejects: 0,
     });
     const by = Object.fromEntries(h.byReason.map((x) => [x.reason, x]));
     expect(by["blur"]).toMatchObject({ badPhotos: 1, retake: 0, accepted: 1 });
     expect(by["corner-hidden"]).toMatchObject({
       badPhotos: 1,
-      retake: 1,
-      accepted: 0,
+      retake: 0,
+      accepted: 1,
     });
     expect(by["wrong-pose"]).toMatchObject({
       badPhotos: 1,
@@ -1028,7 +1098,7 @@ describe("judgement correctness from Kirby's labels", () => {
     expect(c.coverage.photos).toBe(13);
     expect(c.coverage.labelled).toBe(11);
     expect(c.coverage.unlabelled).toBe(2);
-    expect(c.coverage.unlabelledBy).toMatchObject({
+    expect(c.coverage.unlabelledBy).toEqual({
       noLabel: 1,
       notLabelledYet: 1,
       noLabelsFile: 0,
@@ -1080,10 +1150,11 @@ describe("judgement correctness from Kirby's labels", () => {
       g02("P901", 191),
       g04("P901", 150, { refusedBy: { hand: ["HAND_NOT_FOUND"] } }),
     ];
+    const d = destinationsOf(photos);
     const open = labelsRecordOf("S001", false, [
-      { file: fileNameOf(1), label: "good" },
-      { file: fileNameOf(2), label: "bad", reasons: ["lighting"] },
-      { file: fileNameOf(3), label: "bad" },
+      { file: d[0]!, label: "good" },
+      { file: d[1]!, label: "bad", reasons: ["lighting"] },
+      { file: d[2]!, label: "bad" },
     ]);
     const r = run({ selection: "s0" }, photos, { labels: [open] });
     const j = r.kitV2.judgement;
@@ -1105,27 +1176,32 @@ describe("judgement correctness from Kirby's labels", () => {
     expect(blind.kitV2.judgement.notBlind).toBeNull();
   });
 
-  it("a label may name the filed copy instead of the file's own name", () => {
+  it("a label names the photo's destination verbatim: the file's own name, or another spelling, does not label it", () => {
     const photos = [g02("P901", 190), g02("P901", 191)];
     const r = run({ selection: "s0" }, photos, {
       labels: [
         labelsRecordOf("S001", true, [
           { file: "P901/G02/1.jpg", label: "good" },
-          { file: "P901\\G02R\\2.JPG", label: "bad", reasons: ["blur"] },
+          // The log's own file name, and a Windows spelling of the second photo's destination.
+          { file: fileNameOf(2), label: "bad", reasons: ["blur"] },
+          { file: "P901\\G02\\2.jpg", label: "bad", reasons: ["blur"] },
         ]),
       ],
     });
     const h = r.kitV2.judgement.headline!;
-    expect(h.photos).toBe(2);
+    expect(h.photos).toBe(1);
     expect(h.agree).toBe(1);
-    expect(h.falseAccepts).toBe(1);
-    expect(r.kitV2.judgement.coverage.labelsWithNoPhoto).toBe(0);
+    expect(r.kitV2.judgement.coverage.unlabelledBy.noLabel).toBe(1);
+    // The two labels that name nothing are counted: a naming mismatch shows up there.
+    expect(r.kitV2.judgement.coverage.labelsWithNoPhoto).toBe(2);
   });
 
   it("labels are tied to their session: another session's labels do not label this one's photos", () => {
     const r = run({ selection: "s0" }, [g02("P901", 190)], {
       labels: [
-        labelsRecordOf("S002", true, [{ file: fileNameOf(1), label: "good" }]),
+        labelsRecordOf("S002", true, [
+          { file: "P901/G02/1.jpg", label: "good" },
+        ]),
       ],
     });
     expect(r.kitV2.judgement.headline).toBeNull();
@@ -1140,7 +1216,7 @@ describe("judgement correctness from Kirby's labels", () => {
       {
         labels: [
           labelsRecordOf("S001", true, [
-            { file: fileNameOf(1), label: "good" },
+            { file: "P901/G02/1.jpg", label: "good" },
           ]),
         ],
       },
@@ -1157,8 +1233,8 @@ describe("judgement correctness from Kirby's labels", () => {
       run({}, PHOTOS, {
         labels: [
           labelsRecordOf("S001", true, [
-            { file: fileNameOf(1), label: "good" },
-            { file: fileNameOf(1), label: "bad" },
+            { file: "P001/G02/1.jpg", label: "good" },
+            { file: "P001/G02/1.jpg", label: "bad" },
           ]),
         ],
       }),
@@ -1180,14 +1256,15 @@ describe("judgement correctness from Kirby's labels", () => {
     expect(md).toMatch(
       /Target: 95\.0%\. It is a target, not a pass or fail threshold\./,
     );
+    expect(md).toMatch(/handedness gate left out/);
     expect(md).toMatch(
-      /Labelled photos: 11 \(labels: 7 good, 4 bad; product: 8 accepted, 3 retake\)\./,
+      /Labelled photos: 11 \(labels: 7 good, 4 bad; product: 9 accepted, 2 retake\)\./,
     );
     expect(md).toMatch(
-      /\| agreement \(accepted and good, or retake and bad\) \| 8 \| 72\.7% \|/,
+      /\| agreement \(accepted and good, or retake and bad\) \| 7 \| 63\.6% \|/,
     );
     expect(md).toMatch(
-      /\| false accepts \(the product accepted, the label says bad\) \| 2 \| 18\.2% \| 50\.0% of the 4 bad \|/,
+      /\| false accepts \(the product accepted, the label says bad\) \| 3 \| 27\.3% \| 75\.0% of the 4 bad \|/,
     );
     expect(md).toMatch(
       /\| false rejects \(the product asked for a retake, the label says good\) \| 1 \| 9\.1% \| 14\.3% of the 7 good \|/,

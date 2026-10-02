@@ -14,9 +14,9 @@ import {
 import { homedir, tmpdir, userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  fileNameOf,
+  destinationsOf,
   kitV2LogOf,
   labelsRecordOf,
   participantRecordOf,
@@ -30,6 +30,13 @@ import { expectNoLeak } from "./helpers/no-absolute-paths";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = join(REPO, "scripts", "m2-evaluate.ts");
+
+// Every test here starts the real script through `tsx` (a second or two of
+// start-up, more while the whole suite is running in parallel), and the child
+// process has its own 60 s limit. vitest's default of 5 s per test is for
+// code that does not spawn anything: without this the file passes alone and
+// times out in the full run.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 function evaluator(args: readonly string[], env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [TSX, SCRIPT, ...args], {
@@ -125,15 +132,17 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
       join(sessions, "session.json"),
       JSON.stringify(sessionRecordOf("S001", { phone: "Phone A" })),
     );
-    // Kirby's blind labels for the calibration photos (the first twelve of the
-    // log): ten good, one bad (a photo the product accepted), one not labelled.
+    // Blind labels for the calibration photos (the first twelve of the log),
+    // named by destination as the sorter's template names them: ten good, one
+    // bad (a photo the product accepted), one not labelled.
     mkdirSync(join(labels, "S001"), { recursive: true });
+    const destinations = destinationsOf(PHOTOS);
     const calls: SynthLabel[] = [
       ...Array.from({ length: 10 }, (_, i): SynthLabel => ({
-        file: fileNameOf(i + 1),
+        file: destinations[i]!,
         label: "good",
       })),
-      { file: fileNameOf(11), label: "bad", reasons: ["blur"] },
+      { file: destinations[10]!, label: "bad", reasons: ["blur"] },
     ];
     writeFileSync(
       join(labels, "S001", "labels.json"),
@@ -186,7 +195,8 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     );
     expect(result.stdout).toMatch(/\| held-out \| 1 \| 4 \|/);
     expect(result.stdout).toMatch(/\| S0 pilot \| 1 \| 2 \|/);
-    expect(result.stdout).toMatch(/\| Phone A \| 3 \| 12 \|/);
+    // The phone comes from the session record the run log embeds.
+    expect(result.stdout).toMatch(/\| Phone A, main 1x \| 3 \| 12 \|/);
     // What was left out is said on stderr too, by count.
     expect(result.stderr).toMatch(
       /agreed-v2: the calibration set\. Left out: 1 held-out, 1 S0 and 0 pending/,
@@ -316,7 +326,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
       join(bad, "S001", "labels.json"),
       JSON.stringify(
         labelsRecordOf("S001", true, [
-          { file: fileNameOf(1), label: "good", reasons: ["blur"] },
+          { file: "P001/G02/1.jpg", label: "good", reasons: ["blur"] },
         ]),
       ),
     );

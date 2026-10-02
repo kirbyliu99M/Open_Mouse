@@ -19,7 +19,7 @@ import {
 import { homedir, tmpdir, userInfo } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { parseWorktreeList } from "../../src/lib/learning/paths";
 import { runLogOf, truthOf } from "./helpers/m2-synth";
 import { expectNoLeak } from "./helpers/no-absolute-paths";
@@ -27,6 +27,13 @@ import { expectNoLeak } from "./helpers/no-absolute-paths";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSX = join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = join(REPO, "scripts", "m2-evaluate.ts");
+
+// Every test here starts the real script through `tsx` (a second or two of
+// start-up, more while the whole suite is running in parallel), and the child
+// process has its own 60 s limit. vitest's default of 5 s per test is for
+// code that does not spawn anything: without this the file passes alone and
+// times out in the full run.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 function evaluator(args: readonly string[], env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [TSX, SCRIPT, ...args], {

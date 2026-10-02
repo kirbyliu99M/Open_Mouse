@@ -9,7 +9,11 @@
  */
 import { z } from "zod";
 import { GESTURE_CODES } from "../learning/kit";
-import type { LearningRunLog } from "../learning/runlog";
+import {
+  RUN_LOG_FORMAT,
+  RUN_LOG_FORMAT_V2,
+  type LearningRunLog,
+} from "../learning/runlog";
 import type { LearningPhotoReport } from "../learning/report";
 import {
   KIT_V2_SHEETS,
@@ -26,17 +30,17 @@ import {
 import { truthSchema, type Truth } from "../learning/truth";
 
 /**
- * The two run-log formats the evaluator reads. They are spelt here and not
- * taken from `src/lib/learning/runlog.ts` on purpose: that constant is the
- * format the sorter WRITES, and it moved from 2 to 3 when kit v2 came, with
- * kit v1 runs written in format 3 too (`protocol` null). What a log is
+ * The two run-log formats the evaluator reads, from the sorter's own constants
+ * (`src/lib/learning/runlog.ts`): `RUN_LOG_FORMAT` is the format it writes now,
+ * format 3, and `RUN_LOG_FORMAT_V2` the one kit v1 runs were written in before.
+ * Format 3 carries kit v1 runs too (`protocol` null), so what a log is
  * evaluated as is decided by its `format` and its `protocol`:
  *  - format 2: candidate-v1 (kit v1 run, ruler truth);
  *  - format 3, `protocol` null or absent: candidate-v1, a kit v1 run written by the newer sorter;
  *  - format 3, `protocol` "agreed-v2": agreed-v2 (kit v2 run, no ruler truth).
  */
-export const RUN_LOG_FORMAT_V2 = "open-mouse-learning-run/2" as const;
-export const RUN_LOG_FORMAT_V3 = "open-mouse-learning-run/3" as const;
+export { RUN_LOG_FORMAT_V2 };
+export const RUN_LOG_FORMAT_V3 = RUN_LOG_FORMAT;
 
 export class EvaluationInputError extends Error {
   constructor(message: string) {
@@ -161,14 +165,14 @@ const gestureCode = z.enum(GESTURE_CODES);
 const hand = z.enum(["left", "right"]);
 
 // What the contract says a v3 `sort.photos[]` entry holds
-// (`KitV2PhotoAssignment`). The pose, hand and shot come from here, never from
-// a QR code on the photo; any other key an entry has (a `status`, say) is
-// allowed through and not read.
+// (`KitV2PhotoAssignment`), `status` and `destination` included. The pose, hand
+// and shot come from here, never from a QR code on the photo; any other key an
+// entry has is allowed through and not read.
 const assignment = z.looseObject({
   file: z.string(),
-  /** The sorter's own status and the relative path of the filed copy; the contract does not list them, a real log has them. */
-  status: z.string().optional(),
-  destination: z.string().nullable().optional(),
+  /** The sorter's status for the photo, and the relative path of its filed copy (`null` if not filed): the name a label carries. */
+  status: z.string(),
+  destination: z.string().nullable(),
   participant: z.string().nullable(),
   gesture: gestureCode.nullable(),
   hand: hand.nullable(),
@@ -188,7 +192,9 @@ const assignment = z.looseObject({
 // pose), so whatever it holds is let through.
 const reportV3 = report.extend({ code: z.unknown() });
 
-// `session` is the session's id, or the whole `session.json` record embedded.
+// `session` is the whole `session.json` record the sorter was given (the
+// contract's pinned form), or `null` (a download from the checker page). A bare
+// session id is accepted as well, though no producer writes one.
 const sessionField = z
   .union([
     z.string(),
@@ -213,12 +219,8 @@ const runLogV3 = z.looseObject({
   sort: z.looseObject({ photos: z.array(assignment) }),
 });
 
-/** A `sort.photos[]` entry: the contract's fields, and the sorter's `status` and `destination` when the log has them. */
-export interface KitV2LogPhoto extends KitV2PhotoAssignment {
-  readonly status?: string;
-  /** Where the sorter filed the copy, `P901/G02/1.jpg`: the name a label carries. */
-  readonly destination?: string | null;
-}
+/** A `sort.photos[]` entry, as the contract defines it. */
+export type KitV2LogPhoto = KitV2PhotoAssignment;
 
 /** A format-3 run log (protocol agreed-v2), reduced to what the evaluator reads. */
 export interface KitV2RunLog {

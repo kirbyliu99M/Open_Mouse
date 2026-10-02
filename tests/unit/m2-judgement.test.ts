@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { EvaluationInputError } from "../../src/lib/m2/inputs";
 import {
   JUDGEMENT_TARGET,
+  JUDGEMENT_VERDICT_BASIS,
   REASON_KEYS,
   buildLabelIndex,
   judge,
   judgementStats,
-  labelKeysOf,
-  normaliseLabelFile,
   type JudgedPhoto,
   type KnownPhoto,
 } from "../../src/lib/m2/judgement";
@@ -18,7 +17,8 @@ import {
 } from "../../src/lib/learning/session";
 
 // Every expected number is worked out by hand from the photos listed in the
-// scenario, not by running the code under test.
+// scenario, not by running the code under test. A label names its photo by the
+// photo's `destination`, verbatim.
 
 type Reason = (typeof PHOTO_LABEL_REASONS)[number];
 
@@ -39,14 +39,13 @@ function record(
 
 const photo = (
   session: string | null,
-  file: string,
+  destination: string | null,
   gesture: "G02" | "G04",
   accepted: boolean,
   extra: Partial<JudgedPhoto> = {},
 ): JudgedPhoto => ({
   session,
-  keys: [file.toLowerCase()],
-  identity: `${session}/${file}`,
+  destination,
   gesture,
   accepted,
   hasGateRecord: true,
@@ -55,47 +54,7 @@ const photo = (
 
 const asKnown = (p: JudgedPhoto): KnownPhoto => ({
   session: p.session,
-  keys: p.keys,
-  identity: p.identity,
-});
-
-describe("file names in labels", () => {
-  it("are compared case-insensitively, with / as the separator", () => {
-    expect(normaliseLabelFile("P901\\G02\\1.JPG")).toBe("p901/g02/1.jpg");
-    expect(normaliseLabelFile("./P901//G02/1.jpg")).toBe("p901/g02/1.jpg");
-    expect(normaliseLabelFile("  IMG_0001.jpg ")).toBe("img_0001.jpg");
-  });
-
-  it("a photo may be named by its own file name or by its filed copy, with or without the hand letter", () => {
-    expect(
-      labelKeysOf({
-        file: "IMG_0001.JPG",
-        participant: "P901",
-        gesture: "G02",
-        hand: "right",
-        shot: 1,
-      }),
-    ).toEqual(["img_0001.jpg", "p901/g02/1.jpg", "p901/g02r/1.jpg"]);
-    // Without a hand, a shot or a participant there is less to try.
-    expect(
-      labelKeysOf({
-        file: "a.jpg",
-        participant: "P901",
-        gesture: "G04",
-        hand: null,
-        shot: 2,
-      }),
-    ).toEqual(["a.jpg", "p901/g04/2.jpg"]);
-    expect(
-      labelKeysOf({
-        file: "a.jpg",
-        participant: null,
-        gesture: null,
-        hand: null,
-        shot: null,
-      }),
-    ).toEqual(["a.jpg"]);
-  });
+  destination: p.destination,
 });
 
 describe("the label index refuses what would make a count a guess", () => {
@@ -108,12 +67,12 @@ describe("the label index refuses what would make a count a guess", () => {
     ).toThrow(EvaluationInputError);
   });
 
-  it("one photo labelled twice, however the name is spelt", () => {
+  it("one photo labelled twice", () => {
     expect(() =>
       buildLabelIndex([
         record("S001", true, [
           label("P901/G02/1.jpg", "good"),
-          label("p901\\g02\\1.JPG", "bad", ["blur"]),
+          label("P901/G02/1.jpg", "bad", ["blur"]),
         ]),
       ]),
     ).toThrow(/Labels file 1 labels the same photo twice/);
@@ -122,7 +81,7 @@ describe("the label index refuses what would make a count a guess", () => {
 
 describe("judgement correctness, worked out by hand", () => {
   // Session S001, blind. Thirteen photos of the evaluated participants:
-  //  #  pose  product   Kirby
+  //  #  pose  product   label
   //  1  G02   accepted   good                        agree
   //  2  G02   accepted   good                        agree
   //  3  G02   accepted   bad  [corner-hidden]        FALSE ACCEPT
@@ -191,16 +150,23 @@ describe("judgement correctness, worked out by hand", () => {
   ]);
   const known: KnownPhoto[] = [
     ...photos.map(asKnown),
-    { session: "S001", keys: ["held-out-photo.jpg"], identity: "S001/held" },
+    { session: "S001", destination: "held-out-photo.jpg" },
   ];
   const j = judge({ photos, known, labels, poses: ["G02", "G04"] });
 
   it("the target is 95 %, carried as a target: nothing says met or not met", () => {
     expect(JUDGEMENT_TARGET).toBe(0.95);
     expect(j.target).toBe(0.95);
-    const text = JSON.stringify(j);
+    // The words of the verdict basis are not a verdict on the target either.
+    const text = JSON.stringify({ ...j, verdictBasis: "" });
     expect(text).not.toMatch(/\b(pass|fail|met|within|outside)\b/i);
     expect(Object.keys(j.headline!)).not.toContain("met");
+  });
+
+  it("says what the product's verdict is made of: photo-quality gates, the handedness gate left out", () => {
+    expect(j.verdictBasis).toBe(JUDGEMENT_VERDICT_BASIS);
+    expect(JUDGEMENT_VERDICT_BASIS).toMatch(/photo-quality gates/);
+    expect(JUDGEMENT_VERDICT_BASIS).toMatch(/handedness gate left out/);
   });
 
   it("the headline counts blind labels only: 11 photos, 7 agree (63.6 %)", () => {
@@ -250,7 +216,7 @@ describe("judgement correctness, worked out by hand", () => {
     expect(g04!.agreementRate).toBeCloseTo(3 / 5, 12);
   });
 
-  it("by Kirby's reason: a bad photo with two reasons is in two rows; one with none is 'none-given'", () => {
+  it("by the label's reason: a bad photo with two reasons is in two rows; one with none is 'none-given'", () => {
     const by = Object.fromEntries(
       j.headline!.byReason.map((r) => [r.reason, r]),
     );
@@ -311,7 +277,6 @@ describe("judgement correctness, worked out by hand", () => {
       noLabelsFile: 3, // S003
       noLabel: 1, // #12
       notLabelledYet: 1, // #13
-      ambiguous: 0,
     });
     expect(c.labelled + c.unlabelled).toBe(c.photos);
   });
@@ -332,21 +297,11 @@ describe("judgement correctness, worked out by hand", () => {
   });
 });
 
-describe("matching a label to its photo", () => {
-  const keysOf = (file: string, participant: string, shot: number) =>
-    labelKeysOf({ file, participant, gesture: "G02", hand: "right", shot });
-
-  it("by the filed copy's path when the labels carry that instead of the file's own name", () => {
-    const p: JudgedPhoto = {
-      session: "S001",
-      keys: keysOf("IMG_0007.jpg", "P901", 2),
-      identity: "P901/G02/2",
-      gesture: "G02",
-      accepted: true,
-      hasGateRecord: true,
-    };
+describe("matching a label to its photo: by destination, verbatim", () => {
+  it("a label names the photo's destination", () => {
+    const p = photo("S001", "P901/G02/2.jpg", "G02", true);
     const labels = buildLabelIndex([
-      record("S001", true, [label("P901\\G02\\2.JPG", "good")]),
+      record("S001", true, [label("P901/G02/2.jpg", "good")]),
     ]);
     const r = judge({
       photos: [p],
@@ -359,65 +314,52 @@ describe("matching a label to its photo", () => {
     expect(r.coverage.labelsWithNoPhoto).toBe(0);
   });
 
-  it("with the hand letter too", () => {
-    const p: JudgedPhoto = {
-      session: "S001",
-      keys: keysOf("IMG_0007.jpg", "P901", 2),
-      identity: "P901/G02/2",
-      gesture: "G02",
-      accepted: false,
-      hasGateRecord: true,
-    };
+  it("verbatim means verbatim: another case, another separator or another spelling does not match", () => {
+    const p = photo("S001", "P901/G02/2.jpg", "G02", true);
+    for (const spelling of [
+      "p901/g02/2.jpg",
+      "P901\\G02\\2.jpg",
+      "./P901/G02/2.jpg",
+      "P901/G02R/2.jpg",
+      "IMG_0007.jpg",
+    ]) {
+      const labels = buildLabelIndex([
+        record("S001", true, [label(spelling, "good")]),
+      ]);
+      const r = judge({
+        photos: [p],
+        known: [asKnown(p)],
+        labels,
+        poses: ["G02"],
+      });
+      expect(r.headline).toBeNull();
+      expect(r.coverage.unlabelledBy.noLabel).toBe(1);
+      // And the label that matched nothing is counted, so the mismatch shows.
+      expect(r.coverage.labelsWithNoPhoto).toBe(1);
+    }
+  });
+
+  it("a photo that was not filed has no destination and cannot be labelled", () => {
+    const p = photo("S001", null, "G02", true);
     const labels = buildLabelIndex([
-      record("S001", true, [label("P901/G02R/2.jpg", "bad", ["blur"])]),
+      record("S001", true, [label("P901/G02/1.jpg", "good")]),
     ]);
     const r = judge({
       photos: [p],
       known: [asKnown(p)],
-      labels,
-      poses: ["G02"],
-    });
-    expect(r.headline!.agree).toBe(1);
-  });
-
-  it("two different photos claiming one label are both left out as ambiguous", () => {
-    const a = photo("S001", "x.jpg", "G02", true, { identity: "run1" });
-    const b = photo("S001", "x.jpg", "G02", false, { identity: "run2" });
-    const labels = buildLabelIndex([
-      record("S001", true, [label("x.jpg", "good")]),
-    ]);
-    const r = judge({
-      photos: [a, b],
-      known: [asKnown(a), asKnown(b)],
       labels,
       poses: ["G02"],
     });
     expect(r.headline).toBeNull();
-    expect(r.coverage.unlabelledBy.ambiguous).toBe(2);
-    expect(r.coverage.labelsWithNoPhoto).toBe(0);
+    expect(r.coverage.unlabelledBy.noLabel).toBe(1);
   });
 
-  it("the same photo seen twice (a folder sorted twice) is one photo, not an ambiguity", () => {
-    const a = photo("S001", "x.jpg", "G02", true, { identity: "P901/G02/1" });
+  it("the same destination in another session is another photo", () => {
+    const a = photo("S001", "P901/G02/1.jpg", "G02", true);
+    const b = photo("S002", "P901/G02/1.jpg", "G02", true);
     const labels = buildLabelIndex([
-      record("S001", true, [label("x.jpg", "good")]),
-    ]);
-    const r = judge({
-      photos: [a],
-      known: [asKnown(a), asKnown(a)],
-      labels,
-      poses: ["G02"],
-    });
-    expect(r.headline!.photos).toBe(1);
-    expect(r.coverage.unlabelledBy.ambiguous).toBe(0);
-  });
-
-  it("the same file name in another session is another photo", () => {
-    const a = photo("S001", "x.jpg", "G02", true);
-    const b = photo("S002", "x.jpg", "G02", true);
-    const labels = buildLabelIndex([
-      record("S001", true, [label("x.jpg", "good")]),
-      record("S002", true, [label("x.jpg", "bad", ["blur"])]),
+      record("S001", true, [label("P901/G02/1.jpg", "good")]),
+      record("S002", true, [label("P901/G02/1.jpg", "bad", ["blur"])]),
     ]);
     const r = judge({
       photos: [a, b],

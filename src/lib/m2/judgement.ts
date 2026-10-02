@@ -7,10 +7,14 @@
  * threshold: nothing here says "met" or "not met".
  *
  * Definitions:
- *  - The product's verdict is its own gates on the photo
- *    (`productGates.accepted`, the same record "accepted" is judged by
- *    everywhere in the evaluator). A photo with no gate record is counted as
- *    not accepted, and how many there were is reported.
+ *  - The product's verdict is its photo-quality gates on the photo: the paper
+ *    gates and the hand gates recorded in `productGates`, WITH THE HANDEDNESS
+ *    GATE LEFT OUT (`photoQualityAccepted`). A kit v2 report computes that
+ *    gate with no stated hand, because the mouse hand comes from
+ *    `participant.json` only after the browser analysis; how often MediaPipe's
+ *    label agrees with the recorded hand is reported on its own. A photo with
+ *    no gate record is counted as not accepted, and how many there were is
+ *    reported.
  *  - Kirby's label is "good" (he would keep the photo for measuring) or "bad".
  *    A bad photo may carry reasons that describe the photo, never the person.
  *  - Agreement: accepted and good, or retake and bad.
@@ -21,22 +25,28 @@
  *    share of the photos Kirby called bad, or good.
  *  - Only blind labels make the headline. A labels file with `blind: false`
  *    is reported apart.
- *  - A photo with no label (no labels file for its session, a label file that
- *    does not mention it, a label still `null`, or a label that two photos
- *    claim) is left out and counted; nothing is counted as good or bad by
- *    default.
+ *  - A photo with no label (no labels file for its session, a labels file that
+ *    does not mention it, or a label still `null`) is left out and counted;
+ *    nothing is counted as good or bad by default.
  *
- * A label names its photo by `file`. The contract does not say whether that is
- * the file's own name (what the run log holds) or the filed copy's relative
- * path (`P901/G02/1.jpg`), so both are tried: the file's own name, then the
- * filed copy's path with and without the hand letter. Names are compared
- * case-insensitively with `/` as the separator.
+ * A label names its photo by `file`, and the contract pins that name: it is the
+ * photo's `destination` in the run log's sort (the filed copy's relative path,
+ * `P901/G02/1.jpg`), verbatim. A label belongs to the photos of its own
+ * session. A photo that was not filed has no destination and cannot be
+ * labelled.
  */
 import { PHOTO_LABEL_REASONS, type LabelsRecord } from "../learning/session";
 import { EvaluationInputError } from "./inputs";
 
 /** Kirby, 2026-10-02: aim for 95 %; not a pass/fail threshold. */
 export const JUDGEMENT_TARGET = 0.95 as const;
+
+/**
+ * What the product's verdict is made of here, in words, for the output: the
+ * photo-quality gates, without the handedness gate.
+ */
+export const JUDGEMENT_VERDICT_BASIS =
+  "the product's photo-quality gates (paper and hand gates), with the handedness gate left out: a kit v2 report computes it with no stated hand, since the mouse hand comes from the participant record only after the browser analysis" as const;
 
 export type PhotoLabelReason = (typeof PHOTO_LABEL_REASONS)[number];
 export type LabelValue = "good" | "bad";
@@ -48,52 +58,6 @@ export const REASON_KEYS: readonly ReasonKey[] = [
   "none-given",
 ];
 
-/** A file name as labels and run logs may spell it, made comparable. */
-export function normaliseLabelFile(file: string): string {
-  return file
-    .trim()
-    .replaceAll("\\", "/")
-    .replace(/^(\.\/)+/, "")
-    .replace(/\/{2,}/g, "/")
-    .toLowerCase();
-}
-
-/**
- * The names a label may use for a photo, in the order they are tried: the
- * filed copy's path as the sorter recorded it (`destination`, the name the
- * labels template is written with, `P901/G02/1.jpg`); the file's own name;
- * the filed copy's path worked out from the participant, pose and shot; and
- * that with the hand letter (`P901/G02R/1.jpg`).
- */
-export function labelKeysOf(photo: {
-  readonly file: string;
-  readonly destination?: string | null;
-  readonly participant: string | null;
-  readonly gesture: string | null;
-  readonly hand: "left" | "right" | null;
-  readonly shot: number | null;
-}): string[] {
-  const keys: string[] = [];
-  if (photo.destination) keys.push(normaliseLabelFile(photo.destination));
-  keys.push(normaliseLabelFile(photo.file));
-  if (
-    photo.participant !== null &&
-    photo.gesture !== null &&
-    photo.shot !== null
-  ) {
-    const extension = /\.[A-Za-z0-9]+$/.exec(photo.file)?.[0] ?? ".jpg";
-    const copy = (pose: string) =>
-      normaliseLabelFile(
-        `${photo.participant}/${pose}/${photo.shot}${extension}`,
-      );
-    keys.push(copy(photo.gesture));
-    if (photo.hand !== null) {
-      keys.push(copy(`${photo.gesture}${photo.hand === "right" ? "R" : "L"}`));
-    }
-  }
-  return keys;
-}
-
 interface LabelEntry {
   readonly label: LabelValue | null;
   readonly reasons: readonly PhotoLabelReason[];
@@ -101,10 +65,11 @@ interface LabelEntry {
 
 interface SessionLabels {
   readonly blind: boolean;
+  /** By the label's `file`, verbatim: the photo's `destination`. */
   readonly entries: ReadonlyMap<string, LabelEntry>;
 }
 
-/** Labels by session, then by normalised file name. A session or a file given twice is an error: labels are written once, never edited. */
+/** Labels by session, then by `file`. A session or a photo given twice is an error: labels are written once, never edited. */
 export type LabelIndex = ReadonlyMap<string, SessionLabels>;
 
 export function buildLabelIndex(records: readonly LabelsRecord[]): LabelIndex {
@@ -117,13 +82,12 @@ export function buildLabelIndex(records: readonly LabelsRecord[]): LabelIndex {
     }
     const entries = new Map<string, LabelEntry>();
     for (const l of record.labels) {
-      const key = normaliseLabelFile(l.file);
-      if (entries.has(key)) {
+      if (entries.has(l.file)) {
         throw new EvaluationInputError(
           `Labels file ${i + 1} labels the same photo twice.`,
         );
       }
-      entries.set(key, { label: l.label, reasons: l.reasons });
+      entries.set(l.file, { label: l.label, reasons: l.reasons });
     }
     sessions.set(record.session, { blind: record.blind, entries });
   });
@@ -134,11 +98,10 @@ export function buildLabelIndex(records: readonly LabelsRecord[]): LabelIndex {
 export interface JudgedPhoto {
   /** The run log's session id; `null` when the log names none. */
   readonly session: string | null;
-  readonly keys: readonly string[];
-  /** Which photo this is, so that the same photo seen twice (a folder sorted twice) is one claimant of its label. */
-  readonly identity: string;
+  /** The photo's `destination`, which a label names it by; `null` if it was not filed. */
+  readonly destination: string | null;
   readonly gesture: string;
-  /** The product's gates take the photo. */
+  /** The product's photo-quality gates take the photo. */
   readonly accepted: boolean;
   /** The record holds a verdict at all. */
   readonly hasGateRecord: boolean;
@@ -147,8 +110,7 @@ export interface JudgedPhoto {
 /** Every photo the logs assign, whatever its participant: the ones a label may legitimately name. */
 export interface KnownPhoto {
   readonly session: string | null;
-  readonly keys: readonly string[];
-  readonly identity: string;
+  readonly destination: string | null;
 }
 
 export interface PoseJudgement {
@@ -198,6 +160,8 @@ export interface JudgementStats {
 
 export interface JudgementSection {
   readonly target: typeof JUDGEMENT_TARGET;
+  /** What the product's verdict is made of (the handedness gate is not part of it). */
+  readonly verdictBasis: typeof JUDGEMENT_VERDICT_BASIS;
   /** Blind labels only. `null` when no photo has one. */
   readonly headline: JudgementStats | null;
   /** Labels from sessions marked `blind: false`, apart from the headline. */
@@ -213,14 +177,12 @@ export interface JudgementSection {
       /** The run log names no session, so no labels file can be its own. */
       readonly noSession: number;
       readonly noLabelsFile: number;
-      /** The session has a labels file that does not mention the photo. */
+      /** The session has a labels file that does not mention the photo (or the photo was not filed, so it has no name to be labelled by). */
       readonly noLabel: number;
       /** The label is still `null`. */
       readonly notLabelledYet: number;
-      /** Two photos claim the same label. */
-      readonly ambiguous: number;
     };
-    /** Good/bad labels that name no photo of any participant in the run logs: a file naming mismatch shows up here. */
+    /** Good/bad labels that name no photo of any participant in the run logs: a naming mismatch shows up here. */
     readonly labelsWithNoPhoto: number;
   };
   readonly sessions: {
@@ -314,22 +276,12 @@ export function judge(args: {
 }): JudgementSection {
   const { photos, known, labels, poses } = args;
 
-  // Who claims each label: the distinct photos (any participant) that name it.
-  const claimants = new Map<string, Set<string>>();
-  const firstEntry = (session: string | null, keys: readonly string[]) => {
-    if (session === null) return null;
-    const entries = labels.get(session)?.entries;
-    if (!entries) return null;
-    for (const key of keys) if (entries.has(key)) return key;
-    return null;
-  };
+  // The names the logs give photos, by session: what a label may legitimately name.
+  const named = new Set<string>();
   for (const k of known) {
-    const key = firstEntry(k.session, k.keys);
-    if (key === null) continue;
-    const id = `${k.session}\u0000${key}`;
-    const set = claimants.get(id) ?? new Set<string>();
-    set.add(k.identity);
-    claimants.set(id, set);
+    if (k.session !== null && k.destination !== null) {
+      named.add(`${k.session}\u0000${k.destination}`);
+    }
   }
 
   const labelled: { photo: JudgedPhoto; entry: LabelEntry; blind: boolean }[] =
@@ -339,7 +291,6 @@ export function judge(args: {
     noLabelsFile: 0,
     noLabel: 0,
     notLabelledYet: 0,
-    ambiguous: 0,
   };
   const sessionsOf = new Map<string, { total: number; labelled: number }>();
   for (const photo of photos) {
@@ -357,16 +308,14 @@ export function judge(args: {
       unlabelledBy.noLabelsFile++;
       continue;
     }
-    const key = firstEntry(photo.session, photo.keys);
-    if (key === null) {
+    const entry =
+      photo.destination === null
+        ? undefined
+        : session.entries.get(photo.destination);
+    if (entry === undefined) {
       unlabelledBy.noLabel++;
       continue;
     }
-    if ((claimants.get(`${photo.session}\u0000${key}`)?.size ?? 0) > 1) {
-      unlabelledBy.ambiguous++;
-      continue;
-    }
-    const entry = session.entries.get(key)!;
     if (entry.label === null) {
       unlabelledBy.notLabelledYet++;
       continue;
@@ -386,11 +335,11 @@ export function judge(args: {
   const blindRows = labelled.filter((r) => r.blind);
   const openRows = labelled.filter((r) => !r.blind);
 
-  // Labels (good or bad) that no photo of any participant claims.
+  // Labels (good or bad) that no photo of any participant is named by.
   let labelsWithNoPhoto = 0;
   for (const [session, record] of labels) {
-    for (const [key, entry] of record.entries) {
-      if (entry.label !== null && !claimants.has(`${session}\u0000${key}`)) {
+    for (const [file, entry] of record.entries) {
+      if (entry.label !== null && !named.has(`${session}\u0000${file}`)) {
         labelsWithNoPhoto++;
       }
     }
@@ -399,6 +348,7 @@ export function judge(args: {
   const sessionIds = [...sessionsOf.keys()];
   return {
     target: JUDGEMENT_TARGET,
+    verdictBasis: JUDGEMENT_VERDICT_BASIS,
     headline: judgementStats(asLabelled(blindRows), poses),
     notBlind: judgementStats(asLabelled(openRows), poses),
     coverage: {

@@ -362,6 +362,8 @@ function judgementSection(j: JudgementSection, labelsFiles: number): string[] {
     "",
     `How often the product's accept or retake verdict on a photo agrees with the labeller's own blind good or bad label of it. Target: ${pct(j.target)}. It is a target, not a pass or fail threshold.`,
     "",
+    `The product's verdict is ${j.verdictBasis}. Hand-label agreement is reported separately, under the product gates.`,
+    "",
   ];
   if (labelsFiles === 0) {
     out.push(
@@ -387,7 +389,7 @@ function judgementSection(j: JudgementSection, labelsFiles: number): string[] {
     );
   }
   out.push(
-    `G02 and G04 photos of the evaluated participants: ${c.photos}. Labelled: ${c.labelled} (blind ${c.labelledBlind}, not blind ${c.labelledNotBlind}). Left out as unlabelled: ${c.unlabelled} (no session in the run log ${c.unlabelledBy.noSession}; no labels file for the session ${c.unlabelledBy.noLabelsFile}; the labels file does not mention the photo ${c.unlabelledBy.noLabel}; not labelled yet ${c.unlabelledBy.notLabelledYet}; two photos claim one label ${c.unlabelledBy.ambiguous}).`,
+    `G02 and G04 photos of the evaluated participants: ${c.photos}. Labelled: ${c.labelled} (blind ${c.labelledBlind}, not blind ${c.labelledNotBlind}). Left out as unlabelled: ${c.unlabelled} (no session in the run log ${c.unlabelledBy.noSession}; no labels file for the session ${c.unlabelledBy.noLabelsFile}; the labels file does not mention the photo ${c.unlabelledBy.noLabel}; not labelled yet ${c.unlabelledBy.notLabelledYet}).`,
     "",
     `Labels that name no photo in the run logs: ${c.labelsWithNoPhoto}. Sessions with evaluated photos: ${j.sessions.withPhotos}; with a labels file: ${j.sessions.withLabelsFile}; with every evaluated photo labelled: ${j.sessions.fullyLabelled}; blind: ${j.sessions.blind}; not blind: ${j.sessions.notBlind}.`,
     "",
@@ -601,7 +603,7 @@ function renderKitV2Markdown(report: KitV2Report): string {
     "## Definitions (agreed-v2, frozen prereg version 2 of 2026-10-02)",
     "",
     "- reference = the marker plane of the same sheet; there is no ruler truth, so nothing here is an accuracy",
-    "- judgement correctness = labelled photos where the product's verdict (its own gates: accepted or retake) agrees with the labeller's blind label (good or bad) / all labelled photos; false accepts and false rejects are counted separately; target 95%, not a pass or fail threshold; labels from sessions that were not blind are reported apart",
+    "- judgement correctness = labelled photos where the product's verdict (its photo-quality gates, handedness gate left out: accepted or retake) agrees with the labeller's blind label (good or bad) / all labelled photos; false accepts and false rejects are counted separately; target 95%, not a pass or fail threshold; labels from sessions that were not blind are reported apart",
     "- retake repeatability = pooled within-person SD of G02 hand length on the marker path: sqrt(sum((n - 1) x SD^2) / sum(n - 1)) over people with two or more photos; report only, with 1.0 mm as a reference value",
     "- path agreement = paper-edge minus marker hand length per G02 photo; averaged within each person; then bias and SD (n - 1) over people. The photo-level line treats photos as independent and is for the record",
     "- curl ratio = G04 wrist-to-middle-fingertip length on the marker plane / the same person's mean G02 hand length; report only",

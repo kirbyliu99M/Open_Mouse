@@ -45,6 +45,7 @@ import {
   buildGroups,
   gateReasons,
   measureDetailed,
+  photoQualityAccepted,
   type EvalGroup,
   type EvalPath,
   type EvaluateOptions,
@@ -76,7 +77,6 @@ import {
 import {
   buildLabelIndex,
   judge,
-  labelKeysOf,
   type JudgedPhoto,
   type JudgementSection,
   type KnownPhoto,
@@ -677,14 +677,8 @@ export function evaluateKitV2(
       // Participant, pose, hand and shot come from the assignment, never from
       // the photo's QR code (it is the participant's card, not a pose).
       const a = matches[0]!;
-      // A label may name this photo, whoever it belongs to. The same photo
-      // seen twice (a folder sorted twice) is one photo.
-      const labelKeys = labelKeysOf(a);
-      const identity =
-        a.participant !== null && a.gesture !== null && a.shot !== null
-          ? `${a.participant}/${a.gesture}/${a.shot}`
-          : anonymous;
-      knownPhotos.push({ session: log.sessionId, keys: labelKeys, identity });
+      // A label may name this photo (by its `destination`), whoever it belongs to.
+      knownPhotos.push({ session: log.sessionId, destination: a.destination });
 
       // Scope: participants this run evaluates, then poses.
       if (a.participant !== null && !evaluated(a.participant)) {
@@ -706,7 +700,7 @@ export function evaluateKitV2(
           field: null,
           // The sorter's own status (`needs-review`, `no-code`...) says why, when it is a plain word.
           reasons: [
-            a.status !== undefined && /^[a-z-]{1,30}$/.test(a.status)
+            /^[a-z-]{1,30}$/.test(a.status)
               ? `NOT_ASSIGNED:${a.status}`
               : "NOT_ASSIGNED",
           ],
@@ -742,13 +736,15 @@ export function evaluateKitV2(
       const retake = report.verdict === "retake";
 
       if (KIT_V2_POSES.includes(gesture)) {
+        // Judgement correctness takes the photo-quality gates only: the
+        // handedness gate is left out (see `photoQualityAccepted`).
+        const quality = photoQualityAccepted(report);
         judged.push({
           session: log.sessionId,
-          keys: labelKeys,
-          identity,
+          destination: a.destination,
           gesture,
-          accepted: gateCodes.length === 0,
-          hasGateRecord: report.productGates != null,
+          accepted: quality.accepted,
+          hasGateRecord: quality.hasRecord,
         });
         const detected = report.hand?.handedness ?? null;
         const markerPoints = read.markers.points;

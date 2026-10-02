@@ -168,8 +168,37 @@ export interface KitV2LogOptions {
   readonly sheet?: "A" | "B" | null;
   /** First file number, so two logs do not share file names. Default 1. */
   readonly firstFile?: number;
-  /** Leave out the sorter's own `status` and `destination` (the contract's fields only). Default: they are there, as in a real log. */
-  readonly sorterFields?: boolean;
+}
+
+/** The shooting-order counters of a list of photos, as the sorter numbers shots: per participant and pose, from 1. */
+function placements(photos: readonly KitV2SynthPhoto[]) {
+  const counts = new Map<string, number>();
+  return photos.map((photo) => {
+    const key = `${photo.participant}/${photo.gesture}`;
+    const next = (counts.get(key) ?? 0) + 1;
+    counts.set(key, next);
+    const participant =
+      photo.assignedTo === undefined ? photo.participant : photo.assignedTo;
+    // A photo the sorter could not place has no pose, shot or filed copy.
+    const placed = participant !== null;
+    const shot = !placed ? null : photo.shot === undefined ? next : photo.shot;
+    return {
+      participant,
+      placed,
+      shot,
+      destination:
+        participant === null || shot === null
+          ? null
+          : `${participant}/${photo.gesture}/${shot}.jpg`,
+    };
+  });
+}
+
+/** The `destination` the log gives each photo (`null` for one the sorter could not place): the name a label carries. */
+export function destinationsOf(
+  photos: readonly KitV2SynthPhoto[],
+): (string | null)[] {
+  return placements(photos).map((p) => p.destination);
 }
 
 /** A format-3 run log (as parsed JSON), photos in the order given. */
@@ -177,51 +206,35 @@ export function kitV2LogOf(
   photos: readonly KitV2SynthPhoto[],
   options: KitV2LogOptions = {},
 ): Record<string, unknown> {
-  const counts = new Map<string, number>();
   let n = (options.firstFile ?? 1) - 1;
   const reports: LearningPhotoReport[] = [];
   const assignments: Record<string, unknown>[] = [];
-  for (const photo of photos) {
+  const placed = placements(photos);
+  photos.forEach((photo, i) => {
     const file = `IMG_${String(++n).padStart(4, "0")}.jpg`;
     reports.push(reportOf(photo, file));
-    const key = `${photo.participant}/${photo.gesture}`;
-    const next = (counts.get(key) ?? 0) + 1;
-    counts.set(key, next);
     const hand = photo.hand === undefined ? "right" : photo.hand;
-    const participant =
-      photo.assignedTo === undefined ? photo.participant : photo.assignedTo;
-    // A photo the sorter could not place has no pose, shot or filed copy.
-    const placed = participant !== null;
-    const shot = !placed ? null : photo.shot === undefined ? next : photo.shot;
+    const p = placed[i]!;
     assignments.push({
       file,
-      participant,
-      gesture: placed ? photo.gesture : null,
-      hand: placed ? hand : null,
-      shot,
+      // The contract's KitV2PhotoAssignment, status and destination included.
+      status: photo.status ?? (p.placed ? "ok" : "no-code"),
+      destination: p.destination,
+      participant: p.participant,
+      gesture: p.placed ? photo.gesture : null,
+      hand: p.placed ? hand : null,
+      shot: p.shot,
       poseSource: "order",
       extraShot: photo.extraShot ?? false,
       poseCheck: photo.poseCheck ?? null,
-      // What the sorter also writes, beyond the contract: its status, and the
-      // relative path of the filed copy (the name a labels file carries).
-      ...(options.sorterFields === false
-        ? {}
-        : {
-            status: photo.status ?? (placed ? "ok" : "no-code"),
-            destination:
-              participant === null || shot === null
-                ? null
-                : `${participant}/${photo.gesture}/${shot}.jpg`,
-          }),
-      ...(photo.status === undefined || options.sorterFields !== false
-        ? {}
-        : { status: photo.status }),
     });
-  }
+  });
   return {
     format: "open-mouse-learning-run/3",
     protocol: "agreed-v2",
-    session: options.session === undefined ? "S001" : options.session,
+    // The whole session record, as the sorter writes it.
+    session:
+      options.session === undefined ? sessionRecordOf("S001") : options.session,
     sheet: options.sheet === undefined ? "A" : options.sheet,
     createdAt: "2026-10-05T00:00:00.000Z",
     kitVersion: 2,

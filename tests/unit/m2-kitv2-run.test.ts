@@ -103,9 +103,12 @@ describe("reading a format-3 run log", () => {
     expect(parsed.protocol).toBe("agreed-v2");
     expect(parsed.sessionId).toBe("S001");
     expect(parsed.sheet).toBe("A");
-    expect(parsed.embeddedPhone).toBeNull();
+    // The real shape: the whole session record, so the phone comes with the log.
+    expect(parsed.embeddedPhone).toBe("Phone A, main 1x");
     expect(parsed.reports).toHaveLength(PHOTOS.length);
     expect(parsed.sort.photos[0]).toMatchObject({
+      status: "ok",
+      destination: "P001/G02/1.jpg",
       participant: "P001",
       gesture: "G02",
       hand: "right",
@@ -156,6 +159,16 @@ describe("reading a format-3 run log", () => {
     };
     delete noExtra.sort.photos[0]!.extraShot;
     expect(() => parseKitV2RunLog(noExtra, "run log 1")).toThrow(/extraShot/);
+    // The contract requires the sorter's status and the filed copy's destination too.
+    for (const field of ["status", "destination"]) {
+      const bare = kitV2LogOf([g02("P001", 190)]) as {
+        sort: { photos: Record<string, unknown>[] };
+      };
+      delete bare.sort.photos[0]![field];
+      expect(() => parseKitV2RunLog(bare, "run log 1")).toThrow(
+        new RegExp(`sort\\.photos\\.0\\.${field}`),
+      );
+    }
   });
 
   it("names the log by its label, never by a path", () => {
