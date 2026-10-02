@@ -63,20 +63,27 @@ describe("the held-out rule of the frozen prereg", () => {
     );
   });
 
-  it("agrees with the list in the frozen prereg file itself", () => {
+  // Version 1 and version 2 of the prereg both carry the rule and the list:
+  // version 2 (Kirby, 2026-10-02) left them unchanged.
+  it.each([
+    ["version 1", "prereg-2026-10-02.frozen.txt"],
+    ["version 2", "prereg-2026-10-02-v2.frozen.txt"],
+  ])("agrees with the list in the frozen prereg file, %s", (_version, name) => {
     const here = dirname(fileURLToPath(import.meta.url));
     const file = join(
       resolve(here, "..", ".."),
       "docs",
       "design",
       "learning-kit-v2-proposal-2026-10-02",
-      "prereg-2026-10-02.frozen.txt",
+      name,
     );
     const text = readFileSync(file, "utf8");
     // The line after "(50 位)：" holds the list.
     const after = text.split(/50 位）：/)[1] ?? "";
     const line = after.split("\n").find((l) => /P\d{3}/.test(l)) ?? "";
     expect(line.match(/P\d{3}/g)).toEqual(PREREG_HELD_OUT);
+    // The seed is the one in the code.
+    expect(text).toContain(HELD_OUT_SEED);
   });
 
   it("each block has exactly one held-out member, and it is the smallest hash of the four", () => {

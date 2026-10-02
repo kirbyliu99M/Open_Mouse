@@ -38,6 +38,8 @@ export interface M2Args {
   readonly records?: readonly string[];
   /** `--session`: session.json files or folders (agreed-v2). */
   readonly sessions?: readonly string[];
+  /** `--labels`: labels.json files or folders (agreed-v2): Kirby's blind good/bad calls. */
+  readonly labels?: readonly string[];
   /** `--held-out`: only the held-out participants (agreed-v2), once, by Claude, on the frozen model. */
   readonly heldOut?: true;
   /** `--s0`: only the S0 pilot (agreed-v2). */
@@ -55,7 +57,13 @@ export interface ParseOptions {
   readonly truthOptional?: boolean;
 }
 
-const REPEATABLE = ["--log", "--truth", "--records", "--session"] as const;
+const REPEATABLE = [
+  "--log",
+  "--truth",
+  "--records",
+  "--session",
+  "--labels",
+] as const;
 const SINGLE = [
   "--path",
   "--gesture",
@@ -107,6 +115,7 @@ const PATH_FLAGS = [
   "--truth",
   "--records",
   "--session",
+  "--labels",
   "--thresholds",
   "--out",
 ] as const;
@@ -121,6 +130,7 @@ export function parseM2Args(
     "--truth": [],
     "--records": [],
     "--session": [],
+    "--labels": [],
   };
   const single = new Map<string, string>();
   const flags = new Set<string>();
@@ -219,6 +229,7 @@ export function parseM2Args(
       [s0, "--s0"],
       [repeated["--records"]!.length > 0, "--records"],
       [repeated["--session"]!.length > 0, "--session"],
+      [repeated["--labels"]!.length > 0, "--labels"],
     ] as const) {
       if (given) return bad(`${name} belongs to agreed-v2, not candidate-v1.`);
     }
@@ -279,6 +290,9 @@ export function parseM2Args(
         : {}),
       ...(repeated["--session"]!.length > 0
         ? { sessions: repeated["--session"]! }
+        : {}),
+      ...(repeated["--labels"]!.length > 0
+        ? { labels: repeated["--labels"]! }
         : {}),
       ...(heldOut ? { heldOut: true as const } : {}),
       ...(s0 ? { s0: true as const } : {}),

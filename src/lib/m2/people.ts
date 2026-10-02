@@ -12,11 +12,13 @@
  * "retake repeatability". No ruler exists under agreed-v2, so nothing here is
  * an accuracy.
  *
- * Definitions (frozen prereg 2026-10-02, section 2):
+ * Definitions (frozen prereg version 2, 2026-10-02, section 2):
  *  - G02 repeatability  pooled within-person SD of hand length, marker path:
  *                       sqrt(sum((n_i - 1) * SD_i^2) / sum(n_i - 1)) over the
- *                       people with at least two G02 photos. Criterion: at
- *                       most 1.0 mm.
+ *                       people with at least two G02 photos. Report only:
+ *                       1.0 mm is a reference value, not a pass/fail
+ *                       threshold (version 1 made it a criterion; Kirby
+ *                       dropped that on 2026-10-02).
  *  - path agreement     paper-edge hand length minus marker hand length, per
  *                       G02 photo; averaged within each person; then the bias
  *                       and SD across people. Report only.
@@ -34,8 +36,13 @@ import {
   summariseRepeatability,
 } from "./stats";
 
-/** The pooled-SD criterion for G02 hand length, mm. From the frozen prereg (section 2); not from the literature. */
-export const G02_REPEATABILITY_LIMIT_MM = 1.0 as const;
+/**
+ * The reference value for the pooled SD of G02 hand length, mm. From the
+ * frozen prereg (version 2, section 2); it is shown next to the number and
+ * never turned into a verdict. It was derived from the PLAN's +/-1.5 mm over
+ * 5 photos, not from the literature.
+ */
+export const G02_REPEATABILITY_REFERENCE_MM = 1.0 as const;
 
 /** Bin width of the coverage histogram, mm. */
 export const HAND_LENGTH_BIN_MM = 10 as const;
@@ -133,12 +140,11 @@ export interface G02Repeatability {
   /** sum(n - 1) over those people. */
   readonly degreesOfFreedom: number;
   readonly pooledSdMm: number | null;
-  /** Mean of the people's own SDs (not the criterion; shown next to it). */
+  /** Mean of the people's own SDs (not the pooled SD; shown next to it). */
   readonly meanSdMm: number | null;
   readonly worstRangeMm: number | null;
-  readonly limitMm: typeof G02_REPEATABILITY_LIMIT_MM;
-  /** `pooledSdMm <= limitMm`; `null` when no person has two photos. */
-  readonly withinLimit: boolean | null;
+  /** The prereg's reference value for the pooled SD, mm. Report only: no verdict is drawn from it. */
+  readonly referenceMm: typeof G02_REPEATABILITY_REFERENCE_MM;
   readonly rows: readonly PersonRepeat[];
 }
 
@@ -173,11 +179,7 @@ export function g02Repeatability(
     pooledSdMm: pooled.pooledSd,
     meanSdMm: pooled.meanSd,
     worstRangeMm: worst,
-    limitMm: G02_REPEATABILITY_LIMIT_MM,
-    withinLimit:
-      pooled.pooledSd === null
-        ? null
-        : pooled.pooledSd <= G02_REPEATABILITY_LIMIT_MM,
+    referenceMm: G02_REPEATABILITY_REFERENCE_MM,
     rows,
   };
 }

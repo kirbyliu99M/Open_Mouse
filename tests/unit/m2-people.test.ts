@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  G02_REPEATABILITY_LIMIT_MM,
+  G02_REPEATABILITY_REFERENCE_MM,
   countByLabel,
   curlRatios,
   distributionOf,
@@ -66,10 +66,12 @@ describe("G02 repeatability: pooled within-person SD of hand length", () => {
     expect(r.photosBehindSd).toBe(8);
   });
 
-  it("holds the criterion from the prereg, 1.0 mm, and reads against it", () => {
-    expect(G02_REPEATABILITY_LIMIT_MM).toBe(1.0);
-    expect(r.limitMm).toBe(1.0);
-    expect(r.withinLimit).toBe(true);
+  it("shows the prereg's 1.0 mm as a reference value only: no verdict is drawn from it", () => {
+    expect(G02_REPEATABILITY_REFERENCE_MM).toBe(1.0);
+    expect(r.referenceMm).toBe(1.0);
+    // Prereg version 2 dropped the criterion: nothing in the result says pass or fail.
+    expect(Object.keys(r)).not.toContain("withinLimit");
+    expect(Object.keys(r)).not.toContain("limitMm");
     // Not the same thing as the mean of the people's SDs.
     expect(r.meanSdMm).toBeCloseTo((1 + 1 + Math.sqrt(0.125)) / 3, 10);
     expect(r.worstRangeMm).toBeCloseTo(2, 10);
@@ -96,30 +98,26 @@ describe("G02 repeatability: pooled within-person SD of hand length", () => {
     });
   });
 
-  it("is exactly at the limit when the pooled SD is 1.0: within (at most 1.0)", () => {
+  it("a pooled SD of exactly 1.0 and one of 2.4 are reported the same way: as numbers", () => {
     const edge = g02Repeatability([
       { participant: "P001", values: [190, 191, 189] },
     ]);
     expect(edge.pooledSdMm).toBeCloseTo(1, 12);
-    expect(edge.withinLimit).toBe(true);
-  });
-
-  it("is outside the limit above 1.0", () => {
     // 190, 192.4, 187.6: deviations 0, 2.4, -2.4; SD = sqrt(11.52 / 2) = 2.4.
-    const bad = g02Repeatability([
+    const wide = g02Repeatability([
       { participant: "P001", values: [190, 192.4, 187.6] },
     ]);
-    expect(bad.pooledSdMm).toBeCloseTo(2.4, 10);
-    expect(bad.withinLimit).toBe(false);
+    expect(wide.pooledSdMm).toBeCloseTo(2.4, 10);
+    expect(Object.keys(wide).sort()).toEqual(Object.keys(edge).sort());
+    expect(wide.referenceMm).toBe(edge.referenceMm);
   });
 
-  it("has no value, and no verdict, when nobody has two photos", () => {
+  it("has no value when nobody has two photos", () => {
     const none = g02Repeatability([
       { participant: "P001", values: [190] },
       { participant: "P002", values: [] },
     ]);
     expect(none.pooledSdMm).toBeNull();
-    expect(none.withinLimit).toBeNull();
     expect(none.people).toBe(0);
     expect(none.peopleWithPhotos).toBe(1);
     expect(g02Repeatability([]).photos).toBe(0);

@@ -16,10 +16,13 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  fileNameOf,
   kitV2LogOf,
+  labelsRecordOf,
   participantRecordOf,
   sessionRecordOf,
   type KitV2SynthPhoto,
+  type SynthLabel,
 } from "./helpers/m2-kitv2-synth";
 import { runLogOf, truthOf } from "./helpers/m2-synth";
 import { expectNoLeak } from "./helpers/no-absolute-paths";
@@ -87,6 +90,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
   let runs: string;
   let records: string;
   let sessions: string;
+  let labels: string;
   let truth: string;
   let v2runs: string;
   const account = userInfo().username;
@@ -96,6 +100,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     runs = join(scratch, "runs");
     records = join(scratch, "learning");
     sessions = join(scratch, "sessions");
+    labels = join(scratch, "labels");
     truth = join(scratch, "truth");
     v2runs = join(scratch, "v2runs");
     for (const dir of [runs, sessions, truth, v2runs]) mkdirSync(dir);
@@ -119,6 +124,20 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     writeFileSync(
       join(sessions, "session.json"),
       JSON.stringify(sessionRecordOf("S001", { phone: "Phone A" })),
+    );
+    // Kirby's blind labels for the calibration photos (the first twelve of the
+    // log): ten good, one bad (a photo the product accepted), one not labelled.
+    mkdirSync(join(labels, "S001"), { recursive: true });
+    const calls: SynthLabel[] = [
+      ...Array.from({ length: 10 }, (_, i): SynthLabel => ({
+        file: fileNameOf(i + 1),
+        label: "good",
+      })),
+      { file: fileNameOf(11), label: "bad", reasons: ["blur"] },
+    ];
+    writeFileSync(
+      join(labels, "S001", "labels.json"),
+      JSON.stringify(labelsRecordOf("S001", true, calls)),
     );
     // A candidate-v1 truth file and a format-2 run log, to prove they are not mixed.
     mkdirSync(join(truth, "P001"), { recursive: true });
@@ -161,9 +180,9 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     );
     expect(result.stdout).toMatch(/Dormant: no ruler truth/);
     expect(result.stdout).toMatch(/Poses \(field tables\): G02\./);
-    // P001 190 191 189, P002 180 182 181, P003 170 170.5: pooled 0.91 mm, within.
+    // P001 190 191 189, P002 180 182 181, P003 170 170.5: pooled 0.91 mm, next to its 1.00 mm reference.
     expect(result.stdout).toMatch(
-      /\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \| at most 1\.00 mm \| \*\*within\*\* \|/,
+      /\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \| 1\.00 mm \|/,
     );
     expect(result.stdout).toMatch(/\| held-out \| 1 \| 4 \|/);
     expect(result.stdout).toMatch(/\| S0 pilot \| 1 \| 2 \|/);
@@ -221,12 +240,122 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     );
     // P004: 200 205 195, SD 5 mm.
     expect(result.stdout).toMatch(
-      /\| 1 \| 3 \| 0 \| 2 \| 5\.00 mm \| at most 1\.00 mm \| \*\*OUTSIDE\*\* \|/,
+      /\| 1 \| 3 \| 0 \| 2 \| 5\.00 mm \| 1\.00 mm \|/,
     );
     const report = JSON.parse(readFileSync(out, "utf8"));
     expect(report.notices).toHaveLength(1);
     expect(report.options.selection).toBe("held-out");
     expect(report.inputs.participants).toEqual(["P004"]);
+  });
+
+  it("--labels gives the headline: the product's verdict against Kirby's blind labels, with the target shown as a target", () => {
+    const out = join(scratch, "reports", "judgement.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--labels",
+      labels,
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/## Judgement correctness \(headline\)/);
+    expect(result.stdout).toMatch(
+      /Target: 95\.0%\. It is a target, not a pass or fail threshold\./,
+    );
+    expect(result.stdout).toMatch(
+      /Labelled photos: 11 \(labels: 10 good, 1 bad; product: 11 accepted, 0 retake\)\./,
+    );
+    expect(result.stdout).toMatch(
+      /\| agreement \(accepted and good, or retake and bad\) \| 10 \| 90\.9% \|/,
+    );
+    expect(result.stdout).toMatch(/Left out as unlabelled: 1 \(/);
+    expect(result.stdout).not.toMatch(
+      /target (was )?(met|reached|missed|not met)/i,
+    );
+    const report = JSON.parse(readFileSync(out, "utf8"));
+    expect(report.inputs.labelsFiles).toBe(1);
+    expect(report.kitV2.judgement.headline.photos).toBe(11);
+    expect(report.kitV2.judgement.headline.falseAccepts).toBe(1);
+    expect(report.kitV2.judgement.target).toBe(0.95);
+  });
+
+  it("without --labels it says no labels were given, and nothing errors", () => {
+    const result = evaluator(["--log", runs, "--records", records]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/No labels file was given \(--labels\)/);
+  });
+
+  it("--aggregate-only keeps the judgement numbers and no photo or participant name", () => {
+    const out = join(scratch, "reports", "judgement-aggregate.json");
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--labels",
+      labels,
+      "--aggregate-only",
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+    const json = readFileSync(out, "utf8");
+    for (const text of [result.stdout, result.stderr, json]) {
+      expect(text).not.toMatch(/P\d{3}|IMG_/);
+    }
+    expect(result.stdout).toMatch(/Labelled photos: 11 /);
+  });
+
+  it("a labels file that breaks the contract is an error that names it by position", () => {
+    const bad = join(scratch, "bad-labels");
+    mkdirSync(join(bad, "S001"), { recursive: true });
+    writeFileSync(
+      join(bad, "S001", "labels.json"),
+      JSON.stringify(
+        labelsRecordOf("S001", true, [
+          { file: fileNameOf(1), label: "good", reasons: ["blur"] },
+        ]),
+      ),
+    );
+    const result = evaluator([
+      "--log",
+      runs,
+      "--records",
+      records,
+      "--labels",
+      bad,
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(
+      /labels record 1 is not a valid labels record/,
+    );
+    expect(result.stderr).toMatch(/only a bad photo has reasons/);
+    expect(result.stderr).not.toContain(scratch);
+    const missing = evaluator([
+      "--log",
+      runs,
+      "--labels",
+      join(scratch, "nope"),
+    ]);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/A --labels path does not exist\./);
+  });
+
+  it("--labels with format-2 logs: refused, like the other agreed-v2 inputs", () => {
+    const result = evaluator([
+      "--log",
+      v2runs,
+      "--truth",
+      truth,
+      "--labels",
+      labels,
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/belong to agreed-v2/);
+    expect(result.stdout).toBe("");
   });
 
   it("--s0 evaluates the pilot on its own", () => {

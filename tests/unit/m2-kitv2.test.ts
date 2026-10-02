@@ -21,11 +21,15 @@ import type { EvaluateOptions } from "../../src/lib/m2/evaluate";
 import { MEASUREMENT_DEFINITIONS } from "../../src/lib/contracts/measurement";
 import { truthOf } from "./helpers/m2-synth";
 import {
+  fileNameOf,
   kitV2LogOf,
+  labelsRecordOf,
   participantRecordOf,
   sessionRecordOf,
   type KitV2SynthPhoto,
 } from "./helpers/m2-kitv2-synth";
+import { toAggregateOnly } from "../../src/lib/m2/aggregate";
+import { renderMarkdown } from "../../src/lib/m2/markdown";
 
 // Every expected number is worked out by hand from the lengths below. The
 // synthetic planes map pixels to millimetres 1:1 (scaled for the marker
@@ -208,11 +212,12 @@ describe("agreed-v2 evaluation: the default run is the calibration set", () => {
     });
   });
 
-  it("G02 repeatability: pooled within-person SD sqrt(4.125 / 5) = 0.908, criterion 1.0 mm, 3 people, 8 photos", () => {
+  it("G02 repeatability: pooled within-person SD sqrt(4.125 / 5) = 0.908, reference value 1.0 mm (report only), 3 people, 8 photos", () => {
     const rep = r.kitV2.repeatability;
     expect(rep.pooledSdMm).toBeCloseTo(Math.sqrt(4.125 / 5), 9);
-    expect(rep.limitMm).toBe(1.0);
-    expect(rep.withinLimit).toBe(true);
+    // Report only: 1.0 mm is a reference value, and no verdict is attached to it.
+    expect(rep.referenceMm).toBe(1.0);
+    expect(rep).not.toHaveProperty("withinLimit");
     expect(rep.people).toBe(3);
     expect(rep.photosBehindSd).toBe(8);
     expect(rep.peopleWithPhotos).toBe(3);
@@ -424,7 +429,7 @@ describe("--held-out and --s0 pick the other sets", () => {
     });
     // P004: 200 205 195, SD 5 mm, over the 1.0 criterion.
     expect(r.kitV2.repeatability.pooledSdMm).toBeCloseTo(5, 9);
-    expect(r.kitV2.repeatability.withinLimit).toBe(false);
+    expect(r.kitV2.repeatability.referenceMm).toBe(1.0);
     expect(r.kitV2.repeatability.people).toBe(1);
     expect(r.kitV2.curl.rows[0]!.meanRatio).toBeCloseTo(0.8, 9);
   });
@@ -433,7 +438,6 @@ describe("--held-out and --s0 pick the other sets", () => {
     const r = run({ selection: "s0" });
     expect(r.inputs.participants).toEqual(["P901"]);
     expect(r.kitV2.repeatability.pooledSdMm).toBeCloseTo(0, 9);
-    expect(r.kitV2.repeatability.withinLimit).toBe(true);
     expect(r.notices).toEqual([]);
     expect(r.selection.leftOutPhotos.calibration).toBe(13);
   });
@@ -888,5 +892,277 @@ describe("people missing a pose", () => {
     expect(r.kitV2.curl.skipped.noG02).toBe(1); // P002
     expect(r.kitV2.curl.skipped.noG04).toBe(2); // P001 and P003
     expect(r.kitV2.curl.distribution).toBeNull();
+  });
+});
+
+describe("judgement correctness from Kirby's labels", () => {
+  // The in-scope photos of the default run are PHOTOS[0..12] (P001-P003):
+  //  idx  pose  product            Kirby
+  //   0   G02   accepted           good                  agree
+  //   1   G02   accepted           good                  agree
+  //   2   G02   accepted           bad [blur]            FALSE ACCEPT
+  //   3   G04   accepted           good                  agree
+  //   4   G04   retake (hand)      bad [corner-hidden]   agree
+  //   5   G02   accepted           good                  agree
+  //   6   G02   accepted           good                  agree
+  //   7   G02   retake (paper)     good                  FALSE REJECT
+  //   8   G04   accepted           bad [wrong-pose]      FALSE ACCEPT
+  //   9   G04   retake (no hand)   bad [hand-off-sheet]  agree
+  //  10   G02   accepted           good                  agree
+  //  11   G02   accepted           (not in the labels file)
+  //  12   G04   accepted           (label still null)
+  const name = (index: number) => fileNameOf(index + 1);
+  const LABELS = labelsRecordOf("S001", true, [
+    { file: name(0), label: "good" },
+    { file: name(1), label: "good" },
+    { file: name(2), label: "bad", reasons: ["blur"] },
+    { file: name(3), label: "good" },
+    { file: name(4), label: "bad", reasons: ["corner-hidden"] },
+    { file: name(5), label: "good" },
+    { file: name(6), label: "good" },
+    { file: name(7), label: "good" },
+    { file: name(8), label: "bad", reasons: ["wrong-pose"] },
+    { file: name(9), label: "bad", reasons: ["hand-off-sheet"] },
+    { file: name(10), label: "good" },
+    { file: name(12), label: null },
+    // A photo of the held-out P004: it names a photo that exists, in this run or not.
+    { file: name(13), label: "good" },
+    // And one that names nothing.
+    { file: "IMG_0999.jpg", label: "good" },
+  ]);
+
+  it("compares the product's verdict with the label: 11 labelled, 8 agree, 2 false accepts, 1 false reject", () => {
+    const r = run({}, PHOTOS, { labels: [LABELS] });
+    const h = r.kitV2.judgement.headline!;
+    expect(h.photos).toBe(11);
+    expect(h.agree).toBe(8);
+    expect(h.agreementRate).toBeCloseTo(8 / 11, 12);
+    expect(h.falseAccepts).toBe(2);
+    expect(h.falseRejects).toBe(1);
+    expect(h.labelGood).toBe(7);
+    expect(h.labelBad).toBe(4);
+    expect(h.productAccepted).toBe(8);
+    expect(h.productRetake).toBe(3);
+    expect(h.falseAcceptShareOfBad).toBeCloseTo(2 / 4, 12);
+    expect(h.falseRejectShareOfGood).toBeCloseTo(1 / 7, 12);
+    expect(r.kitV2.judgement.target).toBe(0.95);
+    expect(r.inputs.labelsFiles).toBe(1);
+  });
+
+  it("by pose and by reason", () => {
+    const h = run({}, PHOTOS, { labels: [LABELS] }).kitV2.judgement.headline!;
+    expect(h.byPose[0]).toMatchObject({
+      gesture: "G02",
+      photos: 7,
+      agree: 5,
+      falseAccepts: 1,
+      falseRejects: 1,
+    });
+    expect(h.byPose[1]).toMatchObject({
+      gesture: "G04",
+      photos: 4,
+      agree: 3,
+      falseAccepts: 1,
+      falseRejects: 0,
+    });
+    const by = Object.fromEntries(h.byReason.map((x) => [x.reason, x]));
+    expect(by["blur"]).toMatchObject({ badPhotos: 1, retake: 0, accepted: 1 });
+    expect(by["corner-hidden"]).toMatchObject({
+      badPhotos: 1,
+      retake: 1,
+      accepted: 0,
+    });
+    expect(by["wrong-pose"]).toMatchObject({
+      badPhotos: 1,
+      retake: 0,
+      accepted: 1,
+    });
+    expect(by["hand-off-sheet"]).toMatchObject({
+      badPhotos: 1,
+      retake: 1,
+      accepted: 0,
+    });
+  });
+
+  it("leaves unlabelled photos out and says how many, and by why", () => {
+    const c = run({}, PHOTOS, { labels: [LABELS] }).kitV2.judgement;
+    expect(c.coverage.photos).toBe(13);
+    expect(c.coverage.labelled).toBe(11);
+    expect(c.coverage.unlabelled).toBe(2);
+    expect(c.coverage.unlabelledBy).toMatchObject({
+      noLabel: 1,
+      notLabelledYet: 1,
+      noLabelsFile: 0,
+      noSession: 0,
+    });
+    // One label names nothing; the held-out photo's label names a photo that exists.
+    expect(c.coverage.labelsWithNoPhoto).toBe(1);
+    expect(c.sessions).toEqual({
+      withPhotos: 1,
+      withLabelsFile: 1,
+      fullyLabelled: 0,
+      blind: 1,
+      notBlind: 0,
+    });
+  });
+
+  it("respects the held-out and S0 exclusions exactly as the other statistics do", () => {
+    // Held-out run: only P004. Its one label counts; the P001-P003 labels are not its photos.
+    const held = run({ selection: "held-out" }, PHOTOS, { labels: [LABELS] });
+    const jh = held.kitV2.judgement;
+    expect(jh.coverage.photos).toBe(5); // P004: 3 G02, 2 G04
+    expect(jh.coverage.labelled).toBe(1);
+    expect(jh.headline!.photos).toBe(1);
+    expect(jh.headline!.agree).toBe(1);
+    expect(jh.coverage.unlabelledBy.noLabel).toBe(4);
+    expect(jh.coverage.labelsWithNoPhoto).toBe(1);
+    // S0 run: nobody there is labelled.
+    const s0 = run({ selection: "s0" }, PHOTOS, { labels: [LABELS] });
+    expect(s0.kitV2.judgement.headline).toBeNull();
+    expect(s0.kitV2.judgement.coverage.photos).toBe(3);
+    expect(s0.kitV2.judgement.coverage.unlabelledBy.noLabel).toBe(3);
+    // A fold narrows the photos too.
+    const fold = run({ participants: ["P001"] }, PHOTOS, { labels: [LABELS] });
+    expect(fold.kitV2.judgement.coverage.photos).toBe(5);
+    expect(fold.kitV2.judgement.headline!.photos).toBe(5);
+  });
+
+  it("no labels file: no headline, and the photos are all counted as unlabelled; nothing errors", () => {
+    const r = run();
+    expect(r.kitV2.judgement.headline).toBeNull();
+    expect(r.kitV2.judgement.coverage.unlabelled).toBe(13);
+    expect(r.kitV2.judgement.coverage.unlabelledBy.noLabelsFile).toBe(13);
+    expect(r.inputs.labelsFiles).toBe(0);
+  });
+
+  it("a session marked not blind is reported apart from the headline", () => {
+    const photos = [
+      g02("P901", 190),
+      g02("P901", 191),
+      g04("P901", 150, { refusedBy: { hand: ["HAND_NOT_FOUND"] } }),
+    ];
+    const open = labelsRecordOf("S001", false, [
+      { file: fileNameOf(1), label: "good" },
+      { file: fileNameOf(2), label: "bad", reasons: ["lighting"] },
+      { file: fileNameOf(3), label: "bad" },
+    ]);
+    const r = run({ selection: "s0" }, photos, { labels: [open] });
+    const j = r.kitV2.judgement;
+    expect(j.headline).toBeNull();
+    expect(j.notBlind!.photos).toBe(3);
+    expect(j.notBlind!.agree).toBe(2); // #1 accepted good, #3 retake bad
+    expect(j.notBlind!.falseAccepts).toBe(1); // #2
+    expect(j.coverage).toMatchObject({
+      labelled: 3,
+      labelledBlind: 0,
+      labelledNotBlind: 3,
+    });
+    expect(j.sessions).toMatchObject({ blind: 0, notBlind: 1 });
+    // The same labels, blind, are the headline.
+    const blind = run({ selection: "s0" }, photos, {
+      labels: [labelsRecordOf("S001", true, open.labels)],
+    });
+    expect(blind.kitV2.judgement.headline!.photos).toBe(3);
+    expect(blind.kitV2.judgement.notBlind).toBeNull();
+  });
+
+  it("a label may name the filed copy instead of the file's own name", () => {
+    const photos = [g02("P901", 190), g02("P901", 191)];
+    const r = run({ selection: "s0" }, photos, {
+      labels: [
+        labelsRecordOf("S001", true, [
+          { file: "P901/G02/1.jpg", label: "good" },
+          { file: "P901\\G02R\\2.JPG", label: "bad", reasons: ["blur"] },
+        ]),
+      ],
+    });
+    const h = r.kitV2.judgement.headline!;
+    expect(h.photos).toBe(2);
+    expect(h.agree).toBe(1);
+    expect(h.falseAccepts).toBe(1);
+    expect(r.kitV2.judgement.coverage.labelsWithNoPhoto).toBe(0);
+  });
+
+  it("labels are tied to their session: another session's labels do not label this one's photos", () => {
+    const r = run({ selection: "s0" }, [g02("P901", 190)], {
+      labels: [
+        labelsRecordOf("S002", true, [{ file: fileNameOf(1), label: "good" }]),
+      ],
+    });
+    expect(r.kitV2.judgement.headline).toBeNull();
+    expect(r.kitV2.judgement.coverage.unlabelledBy.noLabelsFile).toBe(1);
+    expect(r.kitV2.judgement.coverage.labelsWithNoPhoto).toBe(1);
+  });
+
+  it("the product's verdict is its own gates, not the kit's retake: a photo the kit checker flagged but the product accepts counts as accepted", () => {
+    const r = run(
+      { selection: "s0" },
+      [g02("P901", 190, 190, { retake: true })],
+      {
+        labels: [
+          labelsRecordOf("S001", true, [
+            { file: fileNameOf(1), label: "good" },
+          ]),
+        ],
+      },
+    );
+    expect(r.kitV2.judgement.headline!.productAccepted).toBe(1);
+    expect(r.kitV2.judgement.headline!.agree).toBe(1);
+  });
+
+  it("two labels files for one session, or a photo labelled twice: refused", () => {
+    expect(() => run({}, PHOTOS, { labels: [LABELS, LABELS] })).toThrow(
+      /Two labels files are for session S001/,
+    );
+    expect(() =>
+      run({}, PHOTOS, {
+        labels: [
+          labelsRecordOf("S001", true, [
+            { file: fileNameOf(1), label: "good" },
+            { file: fileNameOf(1), label: "bad" },
+          ]),
+        ],
+      }),
+    ).toThrow(/labels the same photo twice/);
+  });
+
+  it("is not touched by --aggregate-only: it has no per-photo row", () => {
+    const full = run({}, PHOTOS, { labels: [LABELS] });
+    const aggregate = toAggregateOnly(full) as KitV2Report;
+    expect(aggregate.kitV2.judgement).toEqual(full.kitV2.judgement);
+    expect(JSON.stringify(aggregate.kitV2.judgement)).not.toMatch(
+      /IMG_|P\d{3}/,
+    );
+  });
+
+  it("the summary shows the target as a target, the numbers behind it, and no verdict", () => {
+    const md = renderMarkdown(run({}, PHOTOS, { labels: [LABELS] }));
+    expect(md).toContain("## Judgement correctness (headline)");
+    expect(md).toMatch(
+      /Target: 95\.0%\. It is a target, not a pass or fail threshold\./,
+    );
+    expect(md).toMatch(
+      /Labelled photos: 11 \(labels: 7 good, 4 bad; product: 8 accepted, 3 retake\)\./,
+    );
+    expect(md).toMatch(
+      /\| agreement \(accepted and good, or retake and bad\) \| 8 \| 72\.7% \|/,
+    );
+    expect(md).toMatch(
+      /\| false accepts \(the product accepted, the label says bad\) \| 2 \| 18\.2% \| 50\.0% of the 4 bad \|/,
+    );
+    expect(md).toMatch(
+      /\| false rejects \(the product asked for a retake, the label says good\) \| 1 \| 9\.1% \| 14\.3% of the 7 good \|/,
+    );
+    expect(md).toMatch(/\| G02 \| 7 \| 5 \(71\.4%\) \| 1 \| 1 \|/);
+    expect(md).toMatch(/\| blur \| 1 \| 0 \| 1 \|/);
+    expect(md).toMatch(/Left out as unlabelled: 2 \(/);
+    expect(md).toMatch(/Labels that name no photo in the run logs: 1\./);
+    // Never a verdict on the target.
+    expect(md).not.toMatch(/target (was )?(met|reached|missed|not met)/i);
+    expect(md).not.toMatch(/accurate/i);
+    // And with no labels it says so.
+    expect(renderMarkdown(run())).toMatch(
+      /No labels file was given \(--labels\)/,
+    );
   });
 });

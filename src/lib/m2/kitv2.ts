@@ -13,8 +13,11 @@
  *     alone on request; S0 alone on request.
  *  3. Recomputes the millimetre values from the recorded landmarks, homography
  *     and parallax settings, on both planes (`measureDetailed`).
- *  4. Reports the prereg's per-person statistics (src/lib/m2/people.ts), the
- *     grip-threshold calibration (src/lib/m2/gripcal.ts), and the same
+ *  4. Reports the headline, judgement correctness: how often the product's
+ *     accept/retake verdict agrees with Kirby's blind good/bad labels
+ *     (src/lib/m2/judgement.ts; target 95 %, a target and not a threshold);
+ *     the prereg's per-person statistics (src/lib/m2/people.ts); the
+ *     grip-threshold calibration (src/lib/m2/gripcal.ts); and the same
  *     field-by-field tables as candidate-v1, with accuracy absent.
  *
  * There is no ruler under agreed-v2, so the accuracy section is dormant:
@@ -32,6 +35,7 @@ import {
   AGREED_V2_SEQUENCE,
   PROTOCOL_AGREED_V2,
   type KitV2PhotoAssignment,
+  type LabelsRecord,
   type ParticipantRecord,
   type SessionRecord,
 } from "../learning/session";
@@ -66,6 +70,14 @@ import {
   type ParticipantRole,
 } from "./heldout";
 import { EvaluationInputError, type KitV2RunLog } from "./inputs";
+import {
+  buildLabelIndex,
+  judge,
+  labelKeysOf,
+  type JudgedPhoto,
+  type JudgementSection,
+  type KnownPhoto,
+} from "./judgement";
 import {
   countByLabel,
   curlRatios,
@@ -146,6 +158,8 @@ export interface KitV2Input {
   readonly records?: readonly ParticipantRecord[];
   /** `session.json` records, for the phone (a log may embed it instead). */
   readonly sessions?: readonly SessionRecord[];
+  /** `labels.json` records: Kirby's blind good/bad call on each photo of a session. */
+  readonly labels?: readonly LabelsRecord[];
 }
 
 /** One photo of G02 or G04, as the per-person statistics see it. */
@@ -197,6 +211,12 @@ export interface PersonRow {
 }
 
 export interface KitV2Section {
+  /**
+   * The headline (frozen prereg version 2): how often the product's
+   * accept/retake verdict agrees with Kirby's blind good/bad label. The target
+   * is 95 %, shown as a target and never as a pass or fail.
+   */
+  readonly judgement: JudgementSection;
   readonly poses: readonly string[];
   /** The reference: the marker plane of the same sheet. Not a ruler. */
   readonly reference: "marker plane";
@@ -289,6 +309,7 @@ export interface KitV2Report {
     }[];
     readonly participantRecords: number;
     readonly sessionRecords: number;
+    readonly labelsFiles: number;
     /** Codes of the participants with at least one measured photo. Emptied by `--aggregate-only`. */
     readonly participants: readonly string[];
     readonly participantCount: number;
@@ -337,7 +358,7 @@ function labelOf(values: readonly (string | null)[]): string {
 export function buildKitV2Section(
   photos: readonly KitV2Photo[],
   records: ReadonlyMap<string, ParticipantRecord>,
-): { section: KitV2Section; excluded: ExclusionRow[] } {
+): { section: Omit<KitV2Section, "judgement">; excluded: ExclusionRow[] } {
   const excluded: ExclusionRow[] = [];
   const byPerson = new Map<string, KitV2Photo[]>();
   for (const p of photos) {
@@ -491,7 +512,7 @@ export function buildKitV2Section(
     return lengths.length === 0 ? [] : [mean(lengths)];
   });
 
-  const section: KitV2Section = {
+  const section: Omit<KitV2Section, "judgement"> = {
     poses: KIT_V2_POSES,
     reference: "marker plane",
     repeatability,
@@ -580,6 +601,9 @@ export function evaluateKitV2(
     sessions.set(s.session, s);
   }
 
+  // Kirby's labels, by session (a session or a photo labelled twice is an error).
+  const labelIndex = buildLabelIndex(input.labels ?? []);
+
   // Who is in the inputs, and what the held-out rule makes of each.
   const known = new Set<string>(records.keys());
   for (const log of input.logs) {
@@ -607,6 +631,10 @@ export function evaluateKitV2(
   const excluded: ExclusionRow[] = [];
   const observations: Observation[] = [];
   const photos: KitV2Photo[] = [];
+  // For judgement correctness: the photos of the evaluated participants in
+  // G02 and G04, and every photo the logs assign (the ones a label may name).
+  const judged: JudgedPhoto[] = [];
+  const knownPhotos: KnownPhoto[] = [];
   const measuredParticipants = new Set<string>();
   const assignedTo = new Set<string>();
   let reportCount = 0;
@@ -646,6 +674,14 @@ export function evaluateKitV2(
       // Participant, pose, hand and shot come from the assignment, never from
       // the photo's QR code (it is the participant's card, not a pose).
       const a = matches[0]!;
+      // A label may name this photo, whoever it belongs to. The same photo
+      // seen twice (a folder sorted twice) is one photo.
+      const labelKeys = labelKeysOf(a);
+      const identity =
+        a.participant !== null && a.gesture !== null && a.shot !== null
+          ? `${a.participant}/${a.gesture}/${a.shot}`
+          : anonymous;
+      knownPhotos.push({ session: log.sessionId, keys: labelKeys, identity });
 
       // Scope: participants this run evaluates, then poses.
       if (a.participant !== null && !evaluated(a.participant)) {
@@ -698,6 +734,14 @@ export function evaluateKitV2(
       const retake = report.verdict === "retake";
 
       if (KIT_V2_POSES.includes(gesture)) {
+        judged.push({
+          session: log.sessionId,
+          keys: labelKeys,
+          identity,
+          gesture,
+          accepted: gateCodes.length === 0,
+          hasGateRecord: report.productGates != null,
+        });
         const detected = report.hand?.handedness ?? null;
         const markerPoints = read.markers.points;
         photos.push({
@@ -802,7 +846,19 @@ export function evaluateKitV2(
     });
   });
 
-  const { section, excluded: personRows } = buildKitV2Section(photos, records);
+  const { section: people, excluded: personRows } = buildKitV2Section(
+    photos,
+    records,
+  );
+  const section: KitV2Section = {
+    ...people,
+    judgement: judge({
+      photos: judged,
+      known: knownPhotos,
+      labels: labelIndex,
+      poses: KIT_V2_POSES,
+    }),
+  };
   excluded.push(...personRows);
   excluded.sort(
     (a, b) =>
@@ -870,6 +926,7 @@ export function evaluateKitV2(
       })),
       participantRecords: records.size,
       sessionRecords: sessions.size,
+      labelsFiles: labelIndex.size,
       participants,
       participantCount: participants.length,
     },

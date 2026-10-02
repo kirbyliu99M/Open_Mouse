@@ -16,6 +16,7 @@ import {
 import {
   EvaluationInputError,
   parseKitV2RunLog,
+  parseLabelsRecord,
   parseParticipantRecord,
   parseRunLog,
   parseSessionRecord,
@@ -37,6 +38,8 @@ export interface RunJson {
   readonly truths?: readonly unknown[];
   readonly records?: readonly unknown[];
   readonly sessions?: readonly unknown[];
+  /** labels.json files (agreed-v2): Kirby's good/bad calls. */
+  readonly labels?: readonly unknown[];
 }
 
 /** The format as it may be shown in a message: a short plain token, or nothing. */
@@ -77,6 +80,7 @@ export function evaluateRunJson(
   const truthsJson = run.truths ?? [];
   const recordsJson = run.records ?? [];
   const sessionsJson = run.sessions ?? [];
+  const labelsJson = run.labels ?? [];
   const opts: EvaluateOptions = { ...options, protocol };
 
   if (protocol === PROTOCOL_AGREED_V2) {
@@ -94,14 +98,21 @@ export function evaluateRunJson(
         sessions: sessionsJson.map((j, i) =>
           parseSessionRecord(j, `session record ${i + 1}`),
         ),
+        labels: labelsJson.map((j, i) =>
+          parseLabelsRecord(j, `labels record ${i + 1}`),
+        ),
       },
       opts,
     );
   }
 
-  if (recordsJson.length > 0 || sessionsJson.length > 0) {
+  if (
+    recordsJson.length > 0 ||
+    sessionsJson.length > 0 ||
+    labelsJson.length > 0
+  ) {
     throw new EvaluationInputError(
-      "Participant and session records belong to agreed-v2 (format-3 run logs); candidate-v1 reads truth files.",
+      "Participant, session and labels records belong to agreed-v2 (format-3 run logs); candidate-v1 reads truth files.",
     );
   }
   return evaluate(

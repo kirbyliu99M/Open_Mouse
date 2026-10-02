@@ -10,6 +10,7 @@ import type {
   ExclusionSummaryRow,
   FieldResult,
 } from "./evaluate";
+import type { JudgementSection, JudgementStats } from "./judgement";
 import type { KitV2Report } from "./kitv2";
 import type { AnyEvaluationReport } from "./run";
 import type { Reading } from "./thresholds";
@@ -317,26 +318,100 @@ function selectionSection(report: KitV2Report): string[] {
   return out;
 }
 
+function judgementStatsLines(stats: JudgementStats): string[] {
+  const of = (part: number, whole: number) =>
+    whole === 0 ? "n/a" : pct(part / whole);
+  const out = [
+    `Labelled photos: ${stats.photos} (labels: ${stats.labelGood} good, ${stats.labelBad} bad; product: ${stats.productAccepted} accepted, ${stats.productRetake} retake).`,
+    "",
+    "| measure | photos | share of labelled photos | share of its own group |",
+    "| --- | --- | --- | --- |",
+    `| agreement (accepted and good, or retake and bad) | ${stats.agree} | ${pct(stats.agreementRate)} |  |`,
+    `| false accepts (the product accepted, the label says bad) | ${stats.falseAccepts} | ${pct(stats.falseAcceptRate)} | ${of(stats.falseAccepts, stats.labelBad)} of the ${stats.labelBad} bad |`,
+    `| false rejects (the product asked for a retake, the label says good) | ${stats.falseRejects} | ${pct(stats.falseRejectRate)} | ${of(stats.falseRejects, stats.labelGood)} of the ${stats.labelGood} good |`,
+    "",
+  ];
+  if (stats.noGateRecord > 0) {
+    out.push(
+      `${stats.noGateRecord} of these photos have no recorded product verdict and are counted as not accepted.`,
+      "",
+    );
+  }
+  out.push(
+    "| pose | labelled | agreement | false accepts | false rejects |",
+    "| --- | --- | --- | --- | --- |",
+    ...stats.byPose.map(
+      (p) =>
+        `| ${p.gesture} | ${p.photos} | ${p.agree} (${pct(p.agreementRate)}) | ${p.falseAccepts} | ${p.falseRejects} |`,
+    ),
+    "",
+    "| reason on the label (a bad photo may have several) | bad photos | the product asked for a retake | the product accepted (false accepts) |",
+    "| --- | --- | --- | --- |",
+    ...stats.byReason.map(
+      (x) => `| ${x.reason} | ${x.badPhotos} | ${x.retake} | ${x.accepted} |`,
+    ),
+    "",
+  );
+  return out;
+}
+
+function judgementSection(j: JudgementSection, labelsFiles: number): string[] {
+  const c = j.coverage;
+  const out: string[] = [
+    "## Judgement correctness (headline)",
+    "",
+    `How often the product's accept or retake verdict on a photo agrees with the labeller's own blind good or bad label of it. Target: ${pct(j.target)}. It is a target, not a pass or fail threshold.`,
+    "",
+  ];
+  if (labelsFiles === 0) {
+    out.push(
+      `No labels file was given (--labels), so judgement correctness is not computed. All ${c.photos} G02 and G04 photos of the evaluated participants are unlabelled.`,
+      "",
+    );
+    return out;
+  }
+  if (j.headline) {
+    out.push(
+      `Blind labels (the headline), target ${pct(j.target)}:`,
+      "",
+      ...judgementStatsLines(j.headline),
+    );
+  } else {
+    out.push("No photo has a blind label, so there is no headline number.", "");
+  }
+  if (j.notBlind) {
+    out.push(
+      "Labels from sessions marked not blind, reported apart and left out of the headline:",
+      "",
+      ...judgementStatsLines(j.notBlind),
+    );
+  }
+  out.push(
+    `G02 and G04 photos of the evaluated participants: ${c.photos}. Labelled: ${c.labelled} (blind ${c.labelledBlind}, not blind ${c.labelledNotBlind}). Left out as unlabelled: ${c.unlabelled} (no session in the run log ${c.unlabelledBy.noSession}; no labels file for the session ${c.unlabelledBy.noLabelsFile}; the labels file does not mention the photo ${c.unlabelledBy.noLabel}; not labelled yet ${c.unlabelledBy.notLabelledYet}; two photos claim one label ${c.unlabelledBy.ambiguous}).`,
+    "",
+    `Labels that name no photo in the run logs: ${c.labelsWithNoPhoto}. Sessions with evaluated photos: ${j.sessions.withPhotos}; with a labels file: ${j.sessions.withLabelsFile}; with every evaluated photo labelled: ${j.sessions.fullyLabelled}; blind: ${j.sessions.blind}; not blind: ${j.sessions.notBlind}.`,
+    "",
+  );
+  return out;
+}
+
 function kitV2Sections(report: KitV2Report): string[] {
   const k = report.kitV2;
   const out: string[] = [];
 
-  // Repeatability, the one activated criterion.
+  // The headline first: judgement correctness against Kirby's blind labels.
+  out.push(...judgementSection(k.judgement, report.inputs.labelsFiles));
+
+  // Repeatability: report only, with the prereg's 1.0 mm as a reference value.
   const r = k.repeatability;
-  const reading =
-    r.withinLimit === null
-      ? "n/a (no person has two photos)"
-      : r.withinLimit
-        ? "**within**"
-        : "**OUTSIDE**";
   out.push(
     "## G02 retake repeatability (marker path, hand length)",
     "",
-    `Criterion from the prereg: the pooled within-person SD of hand length at most ${mm(r.limitMm)} mm. This is retake repeatability, not accuracy.`,
+    `Report only. The prereg (version 2) gives ${mm(r.referenceMm)} mm as a reference value for the pooled within-person SD; it is not a pass or fail threshold, and no verdict is drawn from it. This is retake repeatability, not accuracy.`,
     "",
-    "| people with 2+ photos | photos behind the SD | people with one photo | degrees of freedom | pooled within-person SD | criterion | reading |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
-    `| ${r.people} | ${r.photosBehindSd} | ${r.peopleWithPhotos - r.people} | ${r.degreesOfFreedom} | ${r.pooledSdMm === null ? "n/a" : `${readingValue(r.pooledSdMm, r.limitMm)} mm`} | at most ${mm(r.limitMm)} mm | ${reading} |`,
+    "| people with 2+ photos | photos behind the SD | people with one photo | degrees of freedom | pooled within-person SD | reference value |",
+    "| --- | --- | --- | --- | --- | --- |",
+    `| ${r.people} | ${r.photosBehindSd} | ${r.peopleWithPhotos - r.people} | ${r.degreesOfFreedom} | ${r.pooledSdMm === null ? "n/a" : `${mm(r.pooledSdMm)} mm`} | ${mm(r.referenceMm)} mm |`,
     "",
     `Mean of the people's own SDs: ${mm(r.meanSdMm)} mm. Worst range within one person: ${mm(r.worstRangeMm)} mm. ${r.peopleWithPhotos} people and ${r.photos} G02 photos in all.`,
     "",
@@ -484,7 +559,7 @@ function renderKitV2Markdown(report: KitV2Report): string {
   const lines: string[] = [`# M2 evaluation (agreed-v2): ${report.model}`, ""];
   for (const notice of report.notices) lines.push(`> **${notice}**`, "");
   lines.push(
-    "Protocol agreed-v2, criteria frozen in the prereg of 2026-10-02. The reference is the marker plane of the same sheet: there is no ruler truth. Every number below is agreement with the marker-sheet reference or retake repeatability.",
+    "Protocol agreed-v2, frozen in the prereg (version 2) of 2026-10-02. The reference is the marker plane of the same sheet: there is no ruler truth. Every measurement below is agreement with the marker-sheet reference or retake repeatability; the headline is how often the product's accept or retake verdict agrees with the labeller's blind labels.",
     "",
     `- Paths (field tables): ${report.options.paths.join(", ")}`,
     `- Poses (field tables): ${report.options.gestures.join(", ")}. The per-person statistics always use G02 and G04.`,
@@ -523,10 +598,11 @@ function renderKitV2Markdown(report: KitV2Report): string {
   if (!report.aggregateOnly) lines.push(...personTable(report));
   lines.push(
     ...excludedSection(report),
-    "## Definitions (agreed-v2, frozen prereg of 2026-10-02)",
+    "## Definitions (agreed-v2, frozen prereg version 2 of 2026-10-02)",
     "",
     "- reference = the marker plane of the same sheet; there is no ruler truth, so nothing here is an accuracy",
-    "- retake repeatability = pooled within-person SD of G02 hand length on the marker path: sqrt(sum((n - 1) x SD^2) / sum(n - 1)) over people with two or more photos; criterion at most 1.0 mm",
+    "- judgement correctness = labelled photos where the product's verdict (its own gates: accepted or retake) agrees with the labeller's blind label (good or bad) / all labelled photos; false accepts and false rejects are counted separately; target 95%, not a pass or fail threshold; labels from sessions that were not blind are reported apart",
+    "- retake repeatability = pooled within-person SD of G02 hand length on the marker path: sqrt(sum((n - 1) x SD^2) / sum(n - 1)) over people with two or more photos; report only, with 1.0 mm as a reference value",
     "- path agreement = paper-edge minus marker hand length per G02 photo; averaged within each person; then bias and SD (n - 1) over people. The photo-level line treats photos as independent and is for the record",
     "- curl ratio = G04 wrist-to-middle-fingertip length on the marker plane / the same person's mean G02 hand length; report only",
     "- accepted rate = photos the product's gates take / all photos of the pose",

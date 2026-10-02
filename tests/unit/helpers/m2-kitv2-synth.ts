@@ -17,7 +17,9 @@
 import type { Point2 } from "../../../src/client/geometry/homography";
 import type { LearningPhotoReport } from "../../../src/lib/learning/report";
 import type {
+  LabelsRecord,
   ParticipantRecord,
+  PHOTO_LABEL_REASONS,
   PoseCheck,
   SessionRecord,
 } from "../../../src/lib/learning/session";
@@ -249,6 +251,38 @@ export function sessionRecordOf(
     paperSize: "a4",
     printCheckMm: 100,
     note: "",
+  };
+}
+
+/** The file name `kitV2LogOf` gives the n-th photo of a log (1-based). */
+export const fileNameOf = (n: number, firstFile = 1): string =>
+  `IMG_${String(firstFile + n - 1).padStart(4, "0")}.jpg`;
+
+/** One of Kirby's calls in a `labels.json`. */
+export interface SynthLabel {
+  readonly file: string;
+  readonly label: "good" | "bad" | null;
+  readonly reasons?: readonly (typeof PHOTO_LABEL_REASONS)[number][];
+  readonly note?: string;
+}
+
+/** A `labels.json` (`open-mouse-learning-labels/1`) for a session. */
+export function labelsRecordOf(
+  session: string,
+  blind: boolean,
+  labels: readonly SynthLabel[],
+): LabelsRecord {
+  return {
+    format: "open-mouse-learning-labels/1",
+    session,
+    protocol: "agreed-v2",
+    blind,
+    labels: labels.map((l) => ({
+      file: l.file,
+      label: l.label,
+      reasons: [...(l.reasons ?? [])],
+      note: l.note ?? "",
+    })),
   };
 }
 

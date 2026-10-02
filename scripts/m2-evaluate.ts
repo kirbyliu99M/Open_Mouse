@@ -29,6 +29,10 @@
  *                           (the grip a person reports and the hand they use); repeat freely
  * --session <file|folder>   agreed-v2: a session.json, or a folder holding session.json or <session>/session.json
  *                           (the phone, when the run log does not embed it); repeat freely
+ * --labels <file|folder>    agreed-v2: a labels.json, or a folder holding labels.json or <session>/labels.json
+ *                           (Kirby's blind good/bad call on each photo of a session). They give the headline,
+ *                           judgement correctness: how often the product's accept or retake verdict agrees
+ *                           with them (target 95 %, a target and not a pass or fail threshold); repeat freely
  * --protocol agreed-v2|candidate-v1   the protocol the run logs must be of (default: theirs; a mismatch is an error)
  * --path markers|paper-edge|both     which calibration plane the field tables judge (default both)
  * --gesture G01[,G02...]    poses of the field tables (default G01 for candidate-v1, G02 for agreed-v2).
@@ -114,7 +118,7 @@ function git(args: readonly string[]): string | null {
 }
 
 const USAGE =
-  "Usage: npm run m2:evaluate -- --log <run log or folder> [--truth <truth.json or folder>] [--records <participant.json or folder>] [--session <session.json or folder>] [--protocol agreed-v2|candidate-v1] [--path markers|paper-edge|both] [--gesture G01] [--participants P001,P002] [--held-out | --s0] [--aggregate-only] [--thresholds <file>] [--out <report.json>]";
+  "Usage: npm run m2:evaluate -- --log <run log or folder> [--truth <truth.json or folder>] [--records <participant.json or folder>] [--session <session.json or folder>] [--labels <labels.json or folder>] [--protocol agreed-v2|candidate-v1] [--path markers|paper-edge|both] [--gesture G01] [--participants P001,P002] [--held-out | --s0] [--aggregate-only] [--thresholds <file>] [--out <report.json>]";
 
 let username: string | null = null;
 try {
@@ -189,6 +193,7 @@ try {
     ...args.truths,
     ...(args.records ?? []),
     ...(args.sessions ?? []),
+    ...(args.labels ?? []),
     ...(args.thresholds ? [args.thresholds] : []),
   ].map((p) => resolve(p));
   // A file the sorter wrote sits below its folder; the folder is enough to
@@ -226,6 +231,9 @@ try {
   );
   const sessionPaths = (args.sessions ?? []).flatMap((t) =>
     recordFiles(resolve(t), "session.json", "--session"),
+  );
+  const labelPaths = (args.labels ?? []).flatMap((t) =>
+    recordFiles(resolve(t), "labels.json", "--labels"),
   );
 
   const paths: EvalPath[] = args.path === "both" ? [...ALL_PATHS] : [args.path];
@@ -269,6 +277,7 @@ try {
       sessions: sessionPaths.map((f, i) =>
         readJson(f, `Session record ${i + 1}`),
       ),
+      labels: labelPaths.map((f, i) => readJson(f, `Labels record ${i + 1}`)),
     },
     options,
   );

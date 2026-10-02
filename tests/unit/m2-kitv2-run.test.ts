@@ -556,9 +556,7 @@ describe("the Markdown summary of an agreed-v2 run", () => {
     expect(md).toMatch(
       /## G02 retake repeatability \(marker path, hand length\)/,
     );
-    expect(md).toMatch(
-      /\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \| at most 1\.00 mm \| \*\*within\*\* \|/,
-    );
+    expect(md).toMatch(/\| 3 \| 8 \| 0 \| 5 \| 0\.91 mm \| 1\.00 mm \|/);
   });
 
   it("labels the photo-level agreement as photo-level", () => {

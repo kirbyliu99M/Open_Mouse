@@ -1,8 +1,8 @@
 /**
  * Reading the evaluator's inputs from JSON that came off disk: a run log
  * (format 2, protocol candidate-v1, or format 3, protocol agreed-v2), a
- * `truth.json` (candidate-v1 only), and for agreed-v2 the `participant.json`
- * and `session.json` records. Each is checked before anything is computed,
+ * `truth.json` (candidate-v1 only), and for agreed-v2 the `participant.json`,
+ * `session.json` and `labels.json` records. Each is checked before anything is computed,
  * and a file that does not fit is an error that says where, never a silent
  * zero. Error messages name the file by the label the caller gives it (its
  * position on the command line), not by its path.
@@ -14,10 +14,12 @@ import type { LearningPhotoReport } from "../learning/report";
 import {
   KIT_V2_SHEETS,
   PROTOCOL_AGREED_V2,
+  labelsRecordSchema,
   participantRecordSchema,
   sessionRecordSchema,
   type KitV2PhotoAssignment,
   type KitV2Sheet,
+  type LabelsRecord,
   type ParticipantRecord,
   type SessionRecord,
 } from "../learning/session";
@@ -278,6 +280,21 @@ export function parseSessionRecord(
       .join("; ");
     throw new EvaluationInputError(
       `${label} is not a valid session record: ${issues}`,
+    );
+  }
+  return parsed.data;
+}
+
+/** A `labels.json` (Kirby's good/bad calls on one session's photos) from parsed JSON. */
+export function parseLabelsRecord(json: unknown, label: string): LabelsRecord {
+  const parsed = labelsRecordSchema.safeParse(json);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => `${where(i)}: ${i.message}`)
+      .join("; ");
+    throw new EvaluationInputError(
+      `${label} is not a valid labels record: ${issues}`,
     );
   }
   return parsed.data;

@@ -117,6 +117,42 @@ describe("m2:evaluate arguments for kit v2: what is accepted", () => {
     expect(a.sessions).toEqual(["s"]);
   });
 
+  it("--labels may be repeated, and is absent unless given", () => {
+    expect(ok(base).labels).toBeUndefined();
+    const a = ok([
+      ...v2,
+      "--protocol",
+      "agreed-v2",
+      "--labels",
+      "one",
+      "--labels",
+      "two",
+    ]);
+    expect(a.labels).toEqual(["one", "two"]);
+    expect(message([...v2, "--labels"])).toMatch(/--labels needs a value/);
+    expect(message([...base, "--labels=x"])).toBe(
+      '--labels takes its value after a space, not after "=": write --labels <value>.',
+    );
+    expect(
+      message([
+        ...base,
+        "--protocol",
+        "candidate-v1",
+        "--labels",
+        "labels.json",
+      ]),
+    ).toBe("--labels belongs to agreed-v2, not candidate-v1.");
+    expect(
+      parseM2Args(
+        [...base, "--protocol", "agreed-v2", "--labels", "/c/Users/me/x"],
+        "win32",
+      ),
+    ).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("--labels looks like a Git Bash path"),
+    });
+  });
+
   it("every kit v2 option together", () => {
     const a = ok([
       ...v2,
