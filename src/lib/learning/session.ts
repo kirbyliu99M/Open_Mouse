@@ -96,7 +96,10 @@ const calendarDate = z
  */
 export function looksLikeContactDetails(text: string): boolean {
   if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) return true;
-  return /\d(?:[\s().-]*\d){7,}/.test(text);
+  // A phone number here starts with "+" or a 0 (Taiwan numbers: 09…, 02…,
+  // +886…), optionally in brackets, and runs to at least nine digits. Dates
+  // (2026-10-02), ranges (3000-5000 lux) and counts do not start that way.
+  return /(?:^|[^\d])(?:\+|\(?0)\d?\)?(?:[\s().-]*\d){8,}/.test(text);
 }
 const freeText = z.string().refine((s) => !looksLikeContactDetails(s), {
   message: "free text must not hold an email address or a phone number",

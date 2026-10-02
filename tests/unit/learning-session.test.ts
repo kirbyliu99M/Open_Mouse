@@ -75,6 +75,8 @@ describe("the frozen preregistrations", () => {
     expect(v2).toContain("只用 A 版");
     expect(AGREED_V2_MAX_EXTRA_SHOTS).toBe(1);
     expect(v2).toContain("多拍 1 張");
+    expect(v2).toContain("單頁 A4");
+    expect(v2).toContain("`agreed-v2`");
   });
 });
 
@@ -157,6 +159,15 @@ describe("free text", () => {
     expect(looksLikeContactDetails("a@b.co")).toBe(true);
     expect(looksLikeContactDetails("0912345678")).toBe(true);
     expect(looksLikeContactDetails("(02) 2345-6789")).toBe(true);
+    expect(looksLikeContactDetails("+886 912 345 678")).toBe(true);
+    expect(looksLikeContactDetails("02-2345-6789")).toBe(true);
+    expect(looksLikeContactDetails("2026-10-02")).toBe(false);
+    expect(looksLikeContactDetails("2026.10.02 retook")).toBe(false);
+    expect(looksLikeContactDetails("分會例會 2026-10-05 19:30")).toBe(false);
+    expect(looksLikeContactDetails("3000-5000 lux")).toBe(false);
+    expect(looksLikeContactDetails("lux 4500 5200")).toBe(false);
+    expect(looksLikeContactDetails("retook 1 2 3 4 5 6 7 8")).toBe(false);
+    expect(looksLikeContactDetails("iPhone 15 Pro, Pixel 8a")).toBe(false);
     expect(looksLikeContactDetails("3 G02 then 2 G04")).toBe(false);
     expect(looksLikeContactDetails("Phone A, main 1x")).toBe(false);
     expect(looksLikeContactDetails("afternoon, by the window")).toBe(false);
@@ -204,6 +215,7 @@ describe("planShots", () => {
     ["a lopsided count", 6, { G02: 0, G04: 6 }],
     ["one pose two over its plan", 6, { G02: 2, G04: 4 }],
     ["a negative count", 4, { G02: -1, G04: 5 }],
+    ["a negative count that still adds up", 2, { G02: -1, G04: 3 }],
     ["a fractional count", 5, { G02: 2.5, G04: 2.5 }],
   ])("refuses %s", (_, n, counts) => {
     expect(planShots(n, counts)).toBeNull();
@@ -303,6 +315,14 @@ describe("labels.json", () => {
 
   it("rejects an unknown top-level field", () => {
     const t = { ...emptyLabelsRecord("S001", ["P901/G02/1.jpg"]), extra: 1 };
+    expect(() => labelsRecordSchema.parse(t)).toThrow();
+  });
+
+  it("rejects labels made under another protocol", () => {
+    const t = {
+      ...emptyLabelsRecord("S001", ["P901/G02/1.jpg"]),
+      protocol: "candidate-v1",
+    };
     expect(() => labelsRecordSchema.parse(t)).toThrow();
   });
 });
