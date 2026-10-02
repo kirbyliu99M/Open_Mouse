@@ -1,4 +1,4 @@
-# GD-1: descriptors measured from delivered geometry
+# GD-1 to GD-3: descriptors measured from delivered geometry
 
 Pre-registration, 2026-10-02. This protocol and its implementation are to be
 committed **before any validation invocation**. No private fixture has been
@@ -117,14 +117,12 @@ counts enter this document.
 | Front flare    | 28  | 46.4% | 75.0% ❌   | 67.9% ❌ | **fail**                                   |
 | Side curvature | 28  | 14.3% | 67.9% ❌   | 14.3% ❌ | **fail**                                   |
 
-Eight seeded models have no fixture row. The computed-Size line the script also
-prints is unchanged by GD-1.
+The computed-Size line the script also prints is unchanged by GD-1.
 
 **Reading.** Hump placement passes the unchanged gate on its single
 pre-registered run. Front flare and side curvature fail it; per hard rule 4 the
-measure or the rubric gets revised, never the gate. The curvature misses lean
-mostly one way, which points at the measure itself, not only its thresholds. Any redesign is now informed by these
-counts, so a further run on the same 28 rows is in-sample and must be reported
+measure or the rubric gets revised, never the gate. The curvature result is poor enough to point at the measure itself, not only its
+thresholds. Any redesign is now informed by Run 1's printed output, so a further run on the same 28 rows is in-sample and must be reported
 as such.
 
 ## Historical local execution record (validation was blocked)
@@ -312,9 +310,8 @@ explicitly a hypothesis.
 ## GD-2 pre-registration (Run 2)
 
 **Run 2 reason:** test a geometry-motivated replacement for the two failed
-measures after the diagnosis above. Run 1's 17 flat-to-outward curvature errors
-prompted the specific investigation of shoulder/chamfer contamination; the
-bidirectional flare errors prompted investigation of both reference widths.
+measures after the diagnosis above. Run 1's printed output prompted the investigation of shoulder/chamfer
+contamination in curvature and of both reference widths in flare.
 Thus the choice to redesign, and the diagnostic priorities, were influenced by
 Run 1. Sampling bands and mapping boundaries below were selected from the
 rubric's views/definitions and inspection of our geometry, **not optimized
