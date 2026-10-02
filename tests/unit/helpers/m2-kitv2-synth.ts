@@ -168,6 +168,8 @@ export interface KitV2LogOptions {
   readonly sheet?: "A" | "B" | null;
   /** First file number, so two logs do not share file names. Default 1. */
   readonly firstFile?: number;
+  /** Leave out the sorter's own `status` and `destination` (the contract's fields only). Default: they are there, as in a real log. */
+  readonly sorterFields?: boolean;
 }
 
 /** A format-3 run log (as parsed JSON), photos in the order given. */
@@ -186,17 +188,34 @@ export function kitV2LogOf(
     const next = (counts.get(key) ?? 0) + 1;
     counts.set(key, next);
     const hand = photo.hand === undefined ? "right" : photo.hand;
+    const participant =
+      photo.assignedTo === undefined ? photo.participant : photo.assignedTo;
+    // A photo the sorter could not place has no pose, shot or filed copy.
+    const placed = participant !== null;
+    const shot = !placed ? null : photo.shot === undefined ? next : photo.shot;
     assignments.push({
       file,
-      participant:
-        photo.assignedTo === undefined ? photo.participant : photo.assignedTo,
-      gesture: photo.gesture,
-      hand,
-      shot: photo.shot === undefined ? next : photo.shot,
+      participant,
+      gesture: placed ? photo.gesture : null,
+      hand: placed ? hand : null,
+      shot,
       poseSource: "order",
       extraShot: photo.extraShot ?? false,
       poseCheck: photo.poseCheck ?? null,
-      ...(photo.status === undefined ? {} : { status: photo.status }),
+      // What the sorter also writes, beyond the contract: its status, and the
+      // relative path of the filed copy (the name a labels file carries).
+      ...(options.sorterFields === false
+        ? {}
+        : {
+            status: photo.status ?? (placed ? "ok" : "no-code"),
+            destination:
+              participant === null || shot === null
+                ? null
+                : `${participant}/${photo.gesture}/${shot}.jpg`,
+          }),
+      ...(photo.status === undefined || options.sorterFields !== false
+        ? {}
+        : { status: photo.status }),
     });
   }
   return {

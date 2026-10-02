@@ -60,17 +60,22 @@ export function normaliseLabelFile(file: string): string {
 
 /**
  * The names a label may use for a photo, in the order they are tried: the
- * file's own name; the filed copy's path (`P901/G02/1.jpg`); the same with the
- * hand letter (`P901/G02R/1.jpg`).
+ * filed copy's path as the sorter recorded it (`destination`, the name the
+ * labels template is written with, `P901/G02/1.jpg`); the file's own name;
+ * the filed copy's path worked out from the participant, pose and shot; and
+ * that with the hand letter (`P901/G02R/1.jpg`).
  */
 export function labelKeysOf(photo: {
   readonly file: string;
+  readonly destination?: string | null;
   readonly participant: string | null;
   readonly gesture: string | null;
   readonly hand: "left" | "right" | null;
   readonly shot: number | null;
 }): string[] {
-  const keys = [normaliseLabelFile(photo.file)];
+  const keys: string[] = [];
+  if (photo.destination) keys.push(normaliseLabelFile(photo.destination));
+  keys.push(normaliseLabelFile(photo.file));
   if (
     photo.participant !== null &&
     photo.gesture !== null &&

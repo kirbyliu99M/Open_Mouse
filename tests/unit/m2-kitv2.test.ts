@@ -505,11 +505,27 @@ describe("where a photo's identity comes from", () => {
     expect(r.excluded).toEqual([
       expect.objectContaining({
         stage: "measurement",
-        reasons: ["NOT_ASSIGNED"],
+        reasons: ["NOT_ASSIGNED:no-code"],
       }),
     ]);
     expect(r.kitV2.gate.poses[0]!.photos).toBe(2);
     expect(r.kitV2.repeatability.photos).toBe(2);
+    // Without the sorter's own status the reason is the bare code.
+    const bare = runS0(
+      [g02("P901", 190), g02("P901", 189, 189, { assignedTo: null })],
+      {},
+      {},
+    );
+    expect(bare.counts.notMeasured).toBe(1);
+    const log = kitV2LogOf(
+      [g02("P901", 190), g02("P901", 189, 189, { assignedTo: null })],
+      { sorterFields: false },
+    );
+    const plain = evaluateKitV2(
+      { logs: [parseKitV2RunLog(log, "run log 1")] },
+      { selection: "s0" },
+    );
+    expect(plain.excluded[0]!.reasons).toEqual(["NOT_ASSIGNED"]);
   });
 
   it("a report that is not in the sort is NOT_IN_SORT; a file name used twice is AMBIGUOUS_FILE_NAME", () => {
@@ -576,6 +592,29 @@ describe("where a photo's identity comes from", () => {
     expect(r.kitV2.gate.extraShots).toBe(1);
     expect(r.kitV2.repeatability.photos).toBe(4);
     expect(r.excluded).toEqual([]);
+  });
+
+  it("a photo the sorter could not file (needs-review) is NOT_ASSIGNED with the sorter's status, and is counted nowhere else", () => {
+    const log = kitV2LogOf([g02("P901", 190), g02("P901", 191)]) as {
+      sort: { photos: Record<string, unknown>[] };
+    };
+    // As the sorter writes a participant it cannot place by order: the
+    // participant is named, but there is no pose, shot or filed copy.
+    Object.assign(log.sort.photos[1]!, {
+      status: "needs-review",
+      gesture: null,
+      shot: null,
+      destination: null,
+    });
+    const r = evaluateKitV2(
+      { logs: [parseKitV2RunLog(log, "run log 1")] },
+      { selection: "s0" },
+    );
+    expect(r.counts).toMatchObject({ measured: 1, notMeasured: 1 });
+    expect(r.excluded).toEqual([
+      expect.objectContaining({ reasons: ["NOT_ASSIGNED:needs-review"] }),
+    ]);
+    expect(r.kitV2.gate.poses[0]!.photos).toBe(1);
   });
 
   it("a status in a sort entry, as a sorter might add, is allowed through and not read", () => {
@@ -830,7 +869,7 @@ describe("what agreed-v2 refuses", () => {
 
   it("the other protocol, thresholds, and no path", () => {
     expect(() => run({ protocol: "candidate-v1" })).toThrow(
-      /format 3 \(agreed-v2\) but the protocol asked for is candidate-v1/,
+      /run logs are agreed-v2 \(kit v2: format 3 with protocol agreed-v2\) but the protocol asked for is candidate-v1/,
     );
     expect(() => run({ protocol: "agreed-v2" })).not.toThrow();
     expect(() =>

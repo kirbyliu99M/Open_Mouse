@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { GESTURE_CODES } from "../learning/kit";
-import { RUN_LOG_FORMAT, type LearningRunLog } from "../learning/runlog";
+import type { LearningRunLog } from "../learning/runlog";
 import type { LearningPhotoReport } from "../learning/report";
 import {
   KIT_V2_SHEETS,
@@ -24,6 +24,19 @@ import {
   type SessionRecord,
 } from "../learning/session";
 import { truthSchema, type Truth } from "../learning/truth";
+
+/**
+ * The two run-log formats the evaluator reads. They are spelt here and not
+ * taken from `src/lib/learning/runlog.ts` on purpose: that constant is the
+ * format the sorter WRITES, and it moved from 2 to 3 when kit v2 came, with
+ * kit v1 runs written in format 3 too (`protocol` null). What a log is
+ * evaluated as is decided by its `format` and its `protocol`:
+ *  - format 2: candidate-v1 (kit v1 run, ruler truth);
+ *  - format 3, `protocol` null or absent: candidate-v1, a kit v1 run written by the newer sorter;
+ *  - format 3, `protocol` "agreed-v2": agreed-v2 (kit v2 run, no ruler truth).
+ */
+export const RUN_LOG_FORMAT_V2 = "open-mouse-learning-run/2" as const;
+export const RUN_LOG_FORMAT_V3 = "open-mouse-learning-run/3" as const;
 
 export class EvaluationInputError extends Error {
   constructor(message: string) {
@@ -89,7 +102,7 @@ const sortPhoto = z.looseObject({
   shot: finite.nullable(),
 });
 const runLog = z.looseObject({
-  format: z.literal(RUN_LOG_FORMAT),
+  format: z.enum([RUN_LOG_FORMAT_V2, RUN_LOG_FORMAT_V3]),
   kitVersion: finite,
   gitSha: z.string().nullable(),
   gitDirty: z.boolean().nullable(),
@@ -102,16 +115,31 @@ function where(issue: z.core.$ZodIssue): string {
   return issue.path.length > 0 ? issue.path.join(".") : "(top level)";
 }
 
-/** A v2 run log from parsed JSON. `label` names it in errors ("run log 2"). */
+/**
+ * A candidate-v1 run log from parsed JSON: format 2, or format 3 with no
+ * protocol (a kit v1 run written by the newer sorter). `label` names it in
+ * errors ("run log 2").
+ */
 export function parseRunLog(json: unknown, label: string): LearningRunLog {
   if (
     json !== null &&
     typeof json === "object" &&
     "format" in json &&
-    (json as { format: unknown }).format !== RUN_LOG_FORMAT
+    (json as { format: unknown }).format !== RUN_LOG_FORMAT_V2 &&
+    (json as { format: unknown }).format !== RUN_LOG_FORMAT_V3
   ) {
     throw new EvaluationInputError(
-      `${label} is not a format-2 run log (format is ${JSON.stringify((json as { format: unknown }).format)}, expected ${RUN_LOG_FORMAT}).`,
+      `${label} is not a format-2 run log (format is ${JSON.stringify((json as { format: unknown }).format)}, expected ${RUN_LOG_FORMAT_V2}).`,
+    );
+  }
+  if (
+    json !== null &&
+    typeof json === "object" &&
+    (json as { format?: unknown }).format === RUN_LOG_FORMAT_V3 &&
+    (json as { protocol?: unknown }).protocol != null
+  ) {
+    throw new EvaluationInputError(
+      `${label} is a kit v2 run log (it names a protocol): it is evaluated under agreed-v2, not candidate-v1.`,
     );
   }
   const parsed = runLog.safeParse(json);
@@ -129,9 +157,6 @@ export function parseRunLog(json: unknown, label: string): LearningRunLog {
 
 // ── Format 3 (protocol agreed-v2) ───────────────────────────────────────────
 
-/** The run log of the kit v2 sorter. Its protocol is agreed-v2; format 2 is candidate-v1. */
-export const RUN_LOG_FORMAT_V3 = "open-mouse-learning-run/3" as const;
-
 const gestureCode = z.enum(GESTURE_CODES);
 const hand = z.enum(["left", "right"]);
 
@@ -141,6 +166,9 @@ const hand = z.enum(["left", "right"]);
 // allowed through and not read.
 const assignment = z.looseObject({
   file: z.string(),
+  /** The sorter's own status and the relative path of the filed copy; the contract does not list them, a real log has them. */
+  status: z.string().optional(),
+  destination: z.string().nullable().optional(),
   participant: z.string().nullable(),
   gesture: gestureCode.nullable(),
   hand: hand.nullable(),
@@ -185,6 +213,13 @@ const runLogV3 = z.looseObject({
   sort: z.looseObject({ photos: z.array(assignment) }),
 });
 
+/** A `sort.photos[]` entry: the contract's fields, and the sorter's `status` and `destination` when the log has them. */
+export interface KitV2LogPhoto extends KitV2PhotoAssignment {
+  readonly status?: string;
+  /** Where the sorter filed the copy, `P901/G02/1.jpg`: the name a label carries. */
+  readonly destination?: string | null;
+}
+
 /** A format-3 run log (protocol agreed-v2), reduced to what the evaluator reads. */
 export interface KitV2RunLog {
   readonly format: typeof RUN_LOG_FORMAT_V3;
@@ -199,7 +234,7 @@ export interface KitV2RunLog {
   readonly gitDirty: boolean | null;
   readonly paperSize: string;
   readonly reports: readonly LearningPhotoReport[];
-  readonly sort: { readonly photos: readonly KitV2PhotoAssignment[] };
+  readonly sort: { readonly photos: readonly KitV2LogPhoto[] };
 }
 
 /** A format-3 run log from parsed JSON. `label` names it in errors ("run log 2"). */
@@ -236,8 +271,25 @@ export function parseKitV2RunLog(json: unknown, label: string): KitV2RunLog {
     gitDirty: d.gitDirty,
     paperSize: d.paperSize,
     reports: d.reports as unknown as LearningPhotoReport[],
-    sort: { photos: d.sort.photos as unknown as KitV2PhotoAssignment[] },
+    sort: { photos: d.sort.photos as unknown as KitV2LogPhoto[] },
   };
+}
+
+/**
+ * The protocol a run log's JSON belongs to, from its `format` and `protocol`:
+ * format 2 and format 3 with no protocol are candidate-v1; format 3 with
+ * protocol "agreed-v2" is agreed-v2. `null` for anything else (another
+ * format, or a protocol name that is neither).
+ */
+export function runLogProtocolOf(
+  json: unknown,
+): "candidate-v1" | typeof PROTOCOL_AGREED_V2 | null {
+  const format = runLogFormatOf(json);
+  if (format === RUN_LOG_FORMAT_V2) return "candidate-v1";
+  if (format !== RUN_LOG_FORMAT_V3) return null;
+  const protocol = (json as { protocol?: unknown }).protocol;
+  if (protocol === undefined || protocol === null) return "candidate-v1";
+  return protocol === PROTOCOL_AGREED_V2 ? PROTOCOL_AGREED_V2 : null;
 }
 
 /** The `format` of a run log's JSON, or `null` when it has none (not an object, no such key). */

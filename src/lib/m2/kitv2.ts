@@ -34,7 +34,6 @@ import { MEASUREMENT_DEFINITIONS } from "../contracts/measurement";
 import {
   AGREED_V2_SEQUENCE,
   PROTOCOL_AGREED_V2,
-  type KitV2PhotoAssignment,
   type LabelsRecord,
   type ParticipantRecord,
   type SessionRecord,
@@ -69,7 +68,11 @@ import {
   classifyParticipants,
   type ParticipantRole,
 } from "./heldout";
-import { EvaluationInputError, type KitV2RunLog } from "./inputs";
+import {
+  EvaluationInputError,
+  type KitV2LogPhoto,
+  type KitV2RunLog,
+} from "./inputs";
 import {
   buildLabelIndex,
   judge,
@@ -644,7 +647,7 @@ export function evaluateKitV2(
 
   input.logs.forEach((log, logIndex) => {
     const session = sessionOf(log, sessions);
-    const byFile = new Map<string, KitV2PhotoAssignment[]>();
+    const byFile = new Map<string, KitV2LogPhoto[]>();
     for (const p of log.sort.photos) {
       byFile.set(p.file, [...(byFile.get(p.file) ?? []), p]);
     }
@@ -701,7 +704,12 @@ export function evaluateKitV2(
           stage: "measurement",
           path: null,
           field: null,
-          reasons: ["NOT_ASSIGNED"],
+          // The sorter's own status (`needs-review`, `no-code`...) says why, when it is a plain word.
+          reasons: [
+            a.status !== undefined && /^[a-z-]{1,30}$/.test(a.status)
+              ? `NOT_ASSIGNED:${a.status}`
+              : "NOT_ASSIGNED",
+          ],
         });
         return;
       }

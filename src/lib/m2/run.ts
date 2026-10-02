@@ -3,11 +3,12 @@
  * protocol (and refuse to mix), then evaluate. Labels name inputs by position
  * ("run log 2"), never by path.
  *
- *  - format-2 run logs + truth files: candidate-v1, `evaluate` (evaluate.ts).
- *  - format-3 run logs + participant records (+ session records): agreed-v2,
- *    `evaluateKitV2` (kitv2.ts). No truth.
+ *  - kit v1 run logs (format 2, or format 3 with no protocol) + truth files:
+ *    candidate-v1, `evaluate` (evaluate.ts).
+ *  - kit v2 run logs (format 3 with protocol agreed-v2) + participant records
+ *    (+ session and labels records): agreed-v2, `evaluateKitV2` (kitv2.ts).
+ *    No truth.
  */
-import { RUN_LOG_FORMAT } from "../learning/runlog";
 import {
   evaluate,
   type EvaluateOptions,
@@ -22,12 +23,12 @@ import {
   parseSessionRecord,
   parseTruth,
   runLogFormatOf,
+  runLogProtocolOf,
 } from "./inputs";
 import { evaluateKitV2, type KitV2Report } from "./kitv2";
 import {
   PROTOCOL_AGREED_V2,
   assertNoTruthUnderAgreedV2,
-  protocolOfLogFormat,
   resolveProtocol,
 } from "./protocol";
 
@@ -38,7 +39,7 @@ export interface RunJson {
   readonly truths?: readonly unknown[];
   readonly records?: readonly unknown[];
   readonly sessions?: readonly unknown[];
-  /** labels.json files (agreed-v2): Kirby's good/bad calls. */
+  /** labels.json files (agreed-v2): the blind good/bad calls. */
   readonly labels?: readonly unknown[];
 }
 
@@ -57,18 +58,21 @@ export function protocolOfRun(
   if (logs.length === 0) {
     throw new EvaluationInputError("Give at least one run log.");
   }
-  // A log with no `format` at all is handed to the format-2 reader, which says
-  // exactly what is wrong with it (as it always has); a log that names some
-  // other format is refused here.
-  const formats = logs.map((json) => runLogFormatOf(json) ?? RUN_LOG_FORMAT);
-  formats.forEach((format, i) => {
-    if (protocolOfLogFormat(format) === null) {
+  // A log with no `format` at all is handed to the candidate-v1 reader, which
+  // says exactly what is wrong with it (as it always has); a log that names
+  // some other format or protocol is refused here.
+  const protocols = logs.map((json, i) => {
+    const format = runLogFormatOf(json);
+    if (format === null) return "candidate-v1" as const;
+    const protocol = runLogProtocolOf(json);
+    if (protocol === null) {
       throw new EvaluationInputError(
-        `run log ${i + 1} is not a run log of format 2 (candidate-v1) or format 3 (agreed-v2)${shownFormat(format)}.`,
+        `run log ${i + 1} is not a kit v1 run log (format 2, or format 3 with no protocol) or a kit v2 run log (format 3 with protocol agreed-v2)${shownFormat(format)}.`,
       );
     }
+    return protocol;
   });
-  return resolveProtocol({ logFormats: formats, requested });
+  return resolveProtocol({ protocols, requested });
 }
 
 /** Parse the JSON of the inputs, decide the protocol, evaluate. */

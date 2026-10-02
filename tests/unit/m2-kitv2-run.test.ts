@@ -9,6 +9,7 @@ import {
   RUN_LOG_FORMAT_V3,
   parseKitV2RunLog,
   parseParticipantRecord,
+  parseRunLog,
   parseSessionRecord,
   runLogFormatOf,
 } from "../../src/lib/m2/inputs";
@@ -19,7 +20,7 @@ import {
 } from "../../src/lib/m2/markdown";
 import {
   assertNoTruthUnderAgreedV2,
-  protocolOfLogFormat,
+  protocolOfLog,
   resolveProtocol,
 } from "../../src/lib/m2/protocol";
 import { evaluateRunJson, protocolOfRun } from "../../src/lib/m2/run";
@@ -209,58 +210,69 @@ describe("participant.json and session.json", () => {
 });
 
 describe("the two protocols are never mixed", () => {
-  it("run-log formats name their protocol", () => {
-    expect(protocolOfLogFormat("open-mouse-learning-run/2")).toBe(
+  it("a run log's format and protocol name its protocol: format 2 and format 3 with none are kit v1", () => {
+    const log = (format: string, protocol?: unknown) => ({
+      format,
+      ...(protocol === undefined ? {} : { protocol }),
+    });
+    expect(protocolOfLog(log("open-mouse-learning-run/2"))).toBe(
       "candidate-v1",
     );
-    expect(protocolOfLogFormat("open-mouse-learning-run/3")).toBe("agreed-v2");
-    expect(protocolOfLogFormat("open-mouse-learning-run/1")).toBeNull();
-    expect(protocolOfLogFormat(null)).toBeNull();
+    // A kit v1 run written by the newer sorter: format 3, protocol null (or absent).
+    expect(protocolOfLog(log("open-mouse-learning-run/3", null))).toBe(
+      "candidate-v1",
+    );
+    expect(protocolOfLog(log("open-mouse-learning-run/3"))).toBe(
+      "candidate-v1",
+    );
+    expect(protocolOfLog(log("open-mouse-learning-run/3", "agreed-v2"))).toBe(
+      "agreed-v2",
+    );
+    // Neither: another format, an unknown protocol name, not a log.
+    expect(protocolOfLog(log("open-mouse-learning-run/1"))).toBeNull();
+    expect(
+      protocolOfLog(log("open-mouse-learning-run/3", "agreed-v9")),
+    ).toBeNull();
+    expect(protocolOfLog(log("open-mouse-learning-run/2", "agreed-v2"))).toBe(
+      "candidate-v1",
+    );
+    expect(protocolOfLog(null)).toBeNull();
+    expect(protocolOfLog({})).toBeNull();
   });
 
-  it("logs of both formats together are an error that names both", () => {
+  it("logs of both protocols together are an error that names both", () => {
     expect(() =>
-      resolveProtocol({
-        logFormats: ["open-mouse-learning-run/2", "open-mouse-learning-run/3"],
-      }),
+      resolveProtocol({ protocols: ["candidate-v1", "agreed-v2"] }),
     ).toThrow(
-      /format 2 \(candidate-v1\) and format 3 \(agreed-v2\) cannot be evaluated together.*never mixed.*separately/s,
+      /Run logs of candidate-v1 \(kit v1\) and agreed-v2 \(kit v2\) cannot be evaluated together.*never mixed.*separately/s,
     );
   });
 
   it("asking for the other protocol is an error, either way round", () => {
     expect(() =>
-      resolveProtocol({
-        logFormats: ["open-mouse-learning-run/2"],
-        requested: "agreed-v2",
-      }),
+      resolveProtocol({ protocols: ["candidate-v1"], requested: "agreed-v2" }),
     ).toThrow(
-      /run logs are format 2 \(candidate-v1\) but the protocol asked for is agreed-v2/,
+      /run logs are candidate-v1 \(kit v1: format 2, or format 3 with no protocol\) but the protocol asked for is agreed-v2/,
     );
     expect(() =>
-      resolveProtocol({
-        logFormats: ["open-mouse-learning-run/3"],
-        requested: "candidate-v1",
-      }),
+      resolveProtocol({ protocols: ["agreed-v2"], requested: "candidate-v1" }),
     ).toThrow(
-      /run logs are format 3 \(agreed-v2\) but the protocol asked for is candidate-v1/,
+      /run logs are agreed-v2 \(kit v2: format 3 with protocol agreed-v2\) but the protocol asked for is candidate-v1/,
     );
     expect(
-      resolveProtocol({
-        logFormats: ["open-mouse-learning-run/3"],
-        requested: "agreed-v2",
-      }),
+      resolveProtocol({ protocols: ["agreed-v2"], requested: "agreed-v2" }),
     ).toBe("agreed-v2");
   });
 
   it("the protocol is the logs' when none is asked for", () => {
-    expect(resolveProtocol({ logFormats: ["open-mouse-learning-run/3"] })).toBe(
-      "agreed-v2",
+    expect(resolveProtocol({ protocols: ["agreed-v2"] })).toBe("agreed-v2");
+    expect(
+      resolveProtocol({ protocols: ["candidate-v1", "candidate-v1"] }),
+    ).toBe("candidate-v1");
+    expect(() => resolveProtocol({ protocols: [] })).toThrow(/at least one/);
+    expect(() => resolveProtocol({ protocols: [null] })).toThrow(
+      /neither a kit v1 log \(candidate-v1\) nor a kit v2 log \(agreed-v2\)/,
     );
-    expect(resolveProtocol({ logFormats: ["open-mouse-learning-run/2"] })).toBe(
-      "candidate-v1",
-    );
-    expect(() => resolveProtocol({ logFormats: [] })).toThrow(/at least one/);
   });
 
   it("a v2 log under agreed-v2 is refused by evaluate() itself, and so are the kit v2 options", () => {
@@ -270,7 +282,7 @@ describe("the two protocols are never mixed", () => {
       truths: [truthOf("P001", { handLengthMm: 190, palmWidthMm: 80 })],
     };
     expect(() => evaluate(input, { protocol: "agreed-v2" })).toThrow(
-      /run logs are format 2 \(candidate-v1\) but the protocol asked for is agreed-v2/,
+      /run logs are candidate-v1 \(kit v1: format 2, or format 3 with no protocol\) but the protocol asked for is agreed-v2/,
     );
     expect(() => evaluate(input, { selection: "held-out" })).toThrow(
       /belong to agreed-v2/,
@@ -322,7 +334,7 @@ describe("evaluateRunJson: one door for both", () => {
     expect(() =>
       evaluateRunJson({ logs: [v2], truths: [] }, { protocol: "agreed-v2" }),
     ).toThrow(
-      /run logs are format 2 \(candidate-v1\) but the protocol asked for is agreed-v2/,
+      /run logs are candidate-v1 \(kit v1: format 2, or format 3 with no protocol\) but the protocol asked for is agreed-v2/,
     );
   });
 
@@ -330,7 +342,7 @@ describe("evaluateRunJson: one door for both", () => {
     expect(() =>
       evaluateRunJson({ logs: [LOG] }, { protocol: "candidate-v1" }),
     ).toThrow(
-      /run logs are format 3 \(agreed-v2\) but the protocol asked for is candidate-v1/,
+      /run logs are agreed-v2 \(kit v2: format 3 with protocol agreed-v2\) but the protocol asked for is candidate-v1/,
     );
   });
 
@@ -360,6 +372,52 @@ describe("evaluateRunJson: one door for both", () => {
     expect(viaRun.format).toBe("open-mouse-m2-evaluation/1");
   });
 
+  it("a kit v1 run written by the newer sorter (format 3, protocol null) is candidate-v1, and evaluates as the format-2 log it is", () => {
+    const v2 = runLogOf(
+      [188, 190, 191].map((paperMm) => ({
+        participant: "P001",
+        hand: "right" as const,
+        paperMm,
+      })),
+    );
+    const truth = truthOf("P001", { handLengthMm: 190, palmWidthMm: 80 });
+    const newer = {
+      ...JSON.parse(JSON.stringify(v2)),
+      format: "open-mouse-learning-run/3",
+      protocol: null,
+      session: null,
+      sheet: null,
+    };
+    expect(protocolOfRun([newer])).toBe("candidate-v1");
+    const viaRun = evaluateRunJson(
+      { logs: [newer], truths: [truth] },
+      { now: NOW },
+    );
+    expect(viaRun.protocol).toBe("candidate-v1");
+    expect(viaRun).toEqual(evaluateJson([v2], [truth], { now: NOW }));
+    expect(evaluateJson([newer], [truth], { now: NOW }).counts.measured).toBe(
+      3,
+    );
+    // Both kinds of kit v1 log together are fine; with a kit v2 log they are not.
+    expect(
+      evaluateRunJson({ logs: [newer, v2], truths: [truth] }).protocol,
+    ).toBe("candidate-v1");
+    expect(() => evaluateRunJson({ logs: [newer, LOG] })).toThrow(
+      /cannot be evaluated together/,
+    );
+  });
+
+  it("a kit v2 log is not read as a candidate-v1 one, and an unknown protocol name is refused", () => {
+    expect(() => parseRunLog(LOG, "run log 1")).toThrow(
+      /^run log 1 is a kit v2 run log \(it names a protocol\): it is evaluated under agreed-v2, not candidate-v1\./,
+    );
+    expect(() =>
+      evaluateRunJson({
+        logs: [{ ...JSON.parse(JSON.stringify(LOG)), protocol: "agreed-v9" }],
+      }),
+    ).toThrow(/^run log 1 is not a kit v1 run log/);
+  });
+
   it("records belong to agreed-v2: given with a format-2 log they are refused", () => {
     const v2 = runLogOf([{ participant: "P001", hand: "right", paperMm: 190 }]);
     expect(() =>
@@ -371,12 +429,12 @@ describe("evaluateRunJson: one door for both", () => {
     expect(() =>
       evaluateRunJson({ logs: [LOG, { format: "open-mouse-learning-run/1" }] }),
     ).toThrow(
-      /^run log 2 is not a run log of format 2 \(candidate-v1\) or format 3 \(agreed-v2\) \(format "open-mouse-learning-run\/1"\)/,
+      /^run log 2 is not a kit v1 run log \(format 2, or format 3 with no protocol\) or a kit v2 run log \(format 3 with protocol agreed-v2\) \(format "open-mouse-learning-run\/1"\)\.$/,
     );
     expect(() =>
       evaluateRunJson({ logs: [{ format: "C:\\Users\\me\\x" }] }),
     ).toThrow(
-      /^run log 1 is not a run log of format 2 \(candidate-v1\) or format 3 \(agreed-v2\)\.$/,
+      /^run log 1 is not a kit v1 run log \(format 2, or format 3 with no protocol\) or a kit v2 run log \(format 3 with protocol agreed-v2\)\.$/,
     );
     expect(() => evaluateRunJson({ logs: [] })).toThrow(/at least one run log/);
     // No `format` at all goes to the format-2 reader, which says what is wrong as it always did.

@@ -2,20 +2,20 @@
  * Which protocol a run is evaluated under, and the refusal to mix them.
  *
  * Two protocols exist and their numbers never meet:
- *  - `candidate-v1`: run-log format 2, ruler `truth.json` files (accuracy and
- *    repeatability against a ruler).
- *  - `agreed-v2`: run-log format 3 (protocol written into the log), no ruler
- *    truth at all, the marker plane of the same sheet as the reference. The
- *    frozen prereg of 2026-10-02 defines its criteria.
+ *  - `candidate-v1`: kit v1 runs (run-log format 2, or format 3 with no
+ *    protocol), ruler `truth.json` files (accuracy and repeatability against a
+ *    ruler).
+ *  - `agreed-v2`: kit v2 runs (run-log format 3 with protocol "agreed-v2"), no
+ *    ruler truth, the marker plane of the same sheet as the reference. The
+ *    frozen prereg of 2026-10-02 (version 2) defines its targets.
  *
- * The protocol is read from the run logs' format. It can also be asked for;
- * asking for the other one is an error, as is giving the evaluator both kinds
- * of log, and giving an agreed-v2 run a truth file.
+ * The protocol is read from the run logs (`runLogProtocolOf`). It can also be
+ * asked for; asking for the other one is an error, as is giving the evaluator
+ * logs of both kinds, and giving an agreed-v2 run a truth file.
  */
 import { PROTOCOL_AGREED_V2 } from "../learning/session";
 import { TRUTH_PROTOCOL } from "../learning/truth";
-import { RUN_LOG_FORMAT } from "../learning/runlog";
-import { EvaluationInputError, RUN_LOG_FORMAT_V3 } from "./inputs";
+import { EvaluationInputError, runLogProtocolOf } from "./inputs";
 
 export const PROTOCOL_CANDIDATE_V1 = TRUTH_PROTOCOL;
 export { PROTOCOL_AGREED_V2 };
@@ -27,37 +27,35 @@ export function isProtocol(value: string): value is Protocol {
   return (PROTOCOLS as readonly string[]).includes(value);
 }
 
-/** The protocol a run log's `format` belongs to; `null` for any other format. */
-export function protocolOfLogFormat(format: string | null): Protocol | null {
-  if (format === RUN_LOG_FORMAT) return PROTOCOL_CANDIDATE_V1;
-  if (format === RUN_LOG_FORMAT_V3) return PROTOCOL_AGREED_V2;
-  return null;
+/** The protocol a run log's JSON belongs to; `null` when it is neither (another format, or an unknown protocol name). */
+export function protocolOfLog(json: unknown): Protocol | null {
+  return runLogProtocolOf(json);
 }
 
-const FORMAT_NUMBER: Record<Protocol, string> = {
-  "candidate-v1": "2",
-  "agreed-v2": "3",
+const DESCRIPTION: Record<Protocol, string> = {
+  "candidate-v1":
+    "candidate-v1 (kit v1: format 2, or format 3 with no protocol)",
+  "agreed-v2": "agreed-v2 (kit v2: format 3 with protocol agreed-v2)",
 };
 
 const never = "candidate-v1 values are never mixed with agreed-v2.";
 
 /**
- * The protocol of a set of run logs, given their formats, after the checks
+ * The protocol of a set of run logs, given each log's own, after the checks
  * that keep the two apart. Throws `EvaluationInputError` (a message that
  * names the protocols, never a path) when:
- *  - the logs are of both formats;
+ *  - the logs are of both protocols;
  *  - `requested` is the other protocol than the logs'.
  */
 export function resolveProtocol(args: {
-  readonly logFormats: readonly (string | null)[];
+  readonly protocols: readonly (Protocol | null)[];
   readonly requested?: Protocol | null;
 }): Protocol {
   const found = new Set<Protocol>();
-  for (const format of args.logFormats) {
-    const p = protocolOfLogFormat(format);
+  for (const p of args.protocols) {
     if (p === null) {
       throw new EvaluationInputError(
-        `A run log is not format 2 (candidate-v1) or format 3 (agreed-v2).`,
+        "A run log is neither a kit v1 log (candidate-v1) nor a kit v2 log (agreed-v2).",
       );
     }
     found.add(p);
@@ -67,7 +65,7 @@ export function resolveProtocol(args: {
   }
   if (found.size > 1) {
     throw new EvaluationInputError(
-      `Run logs of format 2 (candidate-v1) and format 3 (agreed-v2) cannot be evaluated together: ${never} Run them separately.`,
+      `Run logs of candidate-v1 (kit v1) and agreed-v2 (kit v2) cannot be evaluated together: ${never} Run them separately.`,
     );
   }
   const logs = [...found][0]!;
@@ -87,7 +85,7 @@ export function assertProtocolMatches(
     return;
   }
   throw new EvaluationInputError(
-    `The run logs are format ${FORMAT_NUMBER[logs]} (${logs}) but the protocol asked for is ${requested}: ${never}`,
+    `The run logs are ${DESCRIPTION[logs]} but the protocol asked for is ${requested}: ${never}`,
   );
 }
 

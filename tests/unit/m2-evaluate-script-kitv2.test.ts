@@ -447,7 +447,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
       const result = evaluator(["--log", v2runs, "--protocol", "agreed-v2"]);
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(
-        /run logs are format 2 \(candidate-v1\) but the protocol asked for is agreed-v2/,
+        /run logs are candidate-v1 \(kit v1: format 2, or format 3 with no protocol\) but the protocol asked for is agreed-v2/,
       );
       expect(result.stdout).toBe("");
     });
@@ -463,7 +463,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
       ]);
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(
-        /run logs are format 3 \(agreed-v2\) but the protocol asked for is candidate-v1/,
+        /run logs are agreed-v2 \(kit v2: format 3 with protocol agreed-v2\) but the protocol asked for is candidate-v1/,
       );
     });
 
