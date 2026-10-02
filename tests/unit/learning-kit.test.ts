@@ -3,7 +3,7 @@ import jsQR from "jsqr";
 import {
   GESTURES,
   GESTURE_CODES,
-  LEARNING_KIT_VERSION,
+  KIT_V1_VERSION,
   buildSequence,
   formatParticipantId,
   kitCodeToken,
@@ -35,13 +35,13 @@ const gestureCode = (
   hand: "right" | "left",
 ): KitCode => ({
   kind: "gesture",
-  version: LEARNING_KIT_VERSION,
+  version: KIT_V1_VERSION,
   gesture,
   hand,
 });
 const participantCode = (participant: string): KitCode => ({
   kind: "participant",
-  version: LEARNING_KIT_VERSION,
+  version: KIT_V1_VERSION,
   participant,
 });
 

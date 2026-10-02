@@ -27,7 +27,8 @@ import {
   type LearningCheck,
   type LearningVerdict,
 } from "./checks";
-import { LEARNING_KIT_VERSION, type KitCode } from "./kit";
+import { KIT_V1_VERSION, LEARNING_KIT_VERSION, type KitCode } from "./kit";
+import type { KitV2Sheet } from "./session";
 import { buildPlane, type PlaneCalibration, type PlaneMethod } from "./plane";
 
 /** What the paper detector saw, kept even when it could not find all four corners. */
@@ -150,6 +151,12 @@ export interface ReportFindings {
     readonly gates: GateRecord;
   } | null;
   readonly hand: NonNullable<LearningPhotoReport["hand"]> | null;
+  /**
+   * Set when the photo was analysed as kit v2 (`protocol` agreed-v2): the sheet
+   * it was taken on. The participant card's QR code then does NOT make it a
+   * card: every v2 photo carries one and is a hand photo. Absent = kit v1.
+   */
+  readonly sheet?: KitV2Sheet;
 }
 
 /** A photo that could not be decoded at all. */
@@ -160,7 +167,7 @@ export function assembleFailedReport(
   errorKind?: string,
 ): LearningPhotoReport {
   return {
-    kitVersion: LEARNING_KIT_VERSION,
+    kitVersion: KIT_V1_VERSION,
     gitSha: null,
     gitDirty: null,
     file,
@@ -245,8 +252,10 @@ export function assembleLearningReport(
   findings: ReportFindings,
 ): LearningPhotoReport {
   const f = findings;
-  // A participant card carries no hand and no measurements.
-  const card = f.code?.kind === "participant";
+  const v2 = f.sheet !== undefined;
+  // A kit v1 participant card carries no hand and no measurements. A kit v2
+  // photo always carries a participant card's code and is a hand photo.
+  const card = !v2 && f.code?.kind === "participant";
   const hand = card ? null : f.hand;
   const paper = card ? null : f.paper;
   const reference = card ? null : f.reference;
@@ -293,10 +302,11 @@ export function assembleLearningReport(
     // only warns: the page's QR code stays the ground truth.
     detectedHand: hand?.handedness ?? null,
     paperCornersSeen: paper?.cornersSeen ?? 0,
+    ...(f.sheet === undefined ? {} : { sheet: f.sheet }),
   });
 
   return {
-    kitVersion: LEARNING_KIT_VERSION,
+    kitVersion: v2 ? LEARNING_KIT_VERSION : KIT_V1_VERSION,
     gitSha: null,
     gitDirty: null,
     file: f.file,

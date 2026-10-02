@@ -18,8 +18,14 @@ import { NO_EXIF, readExifWhitelist } from "../../lib/learning/exif";
 import {
   markerReference,
   paperFindings,
+  sheetReference,
   stripReference,
 } from "../../lib/learning/findings";
+import {
+  cardSearchRects,
+  computeKitV2Layout,
+} from "../../lib/learning/layoutv2";
+import type { KitV2Sheet } from "../../lib/learning/session";
 import {
   ANALYSIS_FAILED_MESSAGE,
   analyseSafely,
@@ -43,6 +49,12 @@ export type { LearningPhotoReport } from "../../lib/learning/report";
 export interface AnalyseOptions {
   /** Size of the sheet the photographed page is printed on; the paper-edge plane assumes it. Default A4, the kit's size. */
   readonly paperSize?: PaperSize;
+  /**
+   * Analyse as kit v2: a photo of this sheet, whose QR code (the participant
+   * card's) names the participant and says nothing of the pose or hand. Absent
+   * = kit v1, a pose page with its own QR code.
+   */
+  readonly sheet?: KitV2Sheet;
 }
 
 function imageDataOf(
@@ -89,7 +101,70 @@ export function analyseLearningPhoto(
   options: AnalyseOptions = {},
 ): Promise<LearningPhotoReport> {
   const paperSize = options.paperSize ?? "a4";
-  return analyseSafely(file.name, paperSize, () => analyse(file, paperSize));
+  const sheet = options.sheet;
+  return analyseSafely(file.name, paperSize, () =>
+    sheet ? analyseV2(file, paperSize, sheet) : analyse(file, paperSize),
+  );
+}
+
+/**
+ * Kit v2: markers (sheet A's four, or any four or more of sheet B's six), the
+ * card's QR code from its slot, paper edges, and the hand. Every photo is a
+ * hand photo: the participant code does not make it a card.
+ */
+async function analyseV2(
+  file: File,
+  paperSize: PaperSize,
+  sheet: KitV2Sheet,
+): Promise<LearningPhotoReport> {
+  let decoded;
+  try {
+    decoded = await decodePhoto(file);
+  } catch (err) {
+    const message =
+      err instanceof PhotoDecodeError ? err.message : ANALYSIS_FAILED_MESSAGE;
+    return assembleFailedReport(
+      file.name,
+      paperSize,
+      message,
+      failureKind(err),
+    );
+  }
+  const { bitmap, width, height } = decoded;
+  const image = imageDataOf(bitmap, width, height);
+  const markers = detectMarkers(image);
+  const gray = rgbaToGrayscale(image.data, width * height);
+  const laplacianVariance = computeLaplacianVariance(gray, width, height);
+  const { exif, exifFocalPx } = await readExif(file, width, height);
+
+  const reference = sheetReference(markers, sheet);
+  const qrText = readKitQr(image, markers, reference?.homography ?? null, {
+    searchRects: cardSearchRects(computeKitV2Layout(sheet)),
+  });
+  const code = qrText ? parseKitCode(qrText) : null;
+  const detected = await detectHandLandmarks(bitmap);
+  return assembleLearningReport({
+    file: file.name,
+    width,
+    height,
+    paperSize,
+    exif,
+    exifFocalPx,
+    qrText,
+    code,
+    markers,
+    laplacianVariance,
+    sheet,
+    reference,
+    paper: paperFindings(detectPaperQuad(image, paperSize), paperSize),
+    hand: detected
+      ? {
+          landmarksPx: detected.landmarksPx,
+          handedness: detected.handedness,
+          confidence: detected.confidence,
+        }
+      : null,
+  });
 }
 
 async function analyse(

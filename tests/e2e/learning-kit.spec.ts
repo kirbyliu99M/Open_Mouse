@@ -148,10 +148,13 @@ test.describe("learning kit", () => {
     await expect(json).not.toBeEmpty({ timeout: 60_000 });
     const log = JSON.parse((await json.textContent()) ?? "{}");
     const { reports } = log;
-    // Run log, format 2.
+    // Run log, format 3 (kit v1: no protocol, session or sheet).
     expect(log).toMatchObject({
-      format: "open-mouse-learning-run/2",
+      format: "open-mouse-learning-run/3",
       kitVersion: 1,
+      protocol: null,
+      session: null,
+      sheet: null,
       paperSize: "a4",
       input: null,
       gitSha: null,
@@ -332,7 +335,7 @@ test.describe("learning kit", () => {
     const log = JSON.parse(text);
 
     expect(log).toMatchObject({
-      format: "open-mouse-learning-run/2",
+      format: "open-mouse-learning-run/3",
       kitVersion: 1,
       paperSize: "a4",
       input: null,
