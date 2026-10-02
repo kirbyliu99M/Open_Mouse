@@ -1,6 +1,6 @@
 # Learning kit v2: data-collection proposal (2026-10-02)
 
-**Status: proposal, for the repo owner agent to decide.** Nothing here changes code, `docs/STATUS.md`, `docs/learning/README.md` or any contract. It is saved on its own local branch (`proposal/data-collection-2026-10-02`, from `origin/main` at `497bdc8`) and has not been pushed.
+**Status: decided and in progress (2026-10-02).** This folder is the proposal Kirby approved, plus the frozen preregistrations. The owner decisions below were made by Claude and Kirby on 2026-10-02; the contract that implements them is `src/lib/learning/session.ts` (PR #99), the sorter is PR #104 and the evaluator PR #103.
 
 Written by Claude on 2026-10-01/02 at Kirby's request, as a design of **how hand photos are collected** for the W7 ML phase. The documents are in Traditional Chinese.
 
@@ -20,7 +20,7 @@ Written by Claude on 2026-10-01/02 at Kirby's request, as a design of **how hand
 2. The mass tier takes only **G02** (flat, fingers spread) and **G04** (claw grip), both top-down. Proposed count: G02 ×3, G04 ×2, to be confirmed by the S0 stopwatch.
 3. **No caliper tier.** There is no ruler truth.
 4. Participant info and consent are not on the measurement sheet. Consent is signed separately.
-5. Photos may be sent to cloud AI. Consent covers this. Strip EXIF before any upload.
+5. Photos may be sent to cloud AI. Consent covers this. Strip EXIF before any upload. This is Kirby's data-collection pipeline, run outside the repo under a separate consent; it is not a product feature. The web product's promise is unchanged: in the product, photos never leave the browser (hard rule 5).
 6. Criteria in the prereg file (version 2 since 2026-10-02). Held-out is one participant per block of four, chosen by SHA-256 with a fixed seed; S0 ids P901–P912 are excluded.
 
 ## What this means for claims
@@ -45,9 +45,9 @@ Without ruler truth, results can be worded only as **agreement with the marker-s
 
 - The 30-second budget and the shot counts are estimates; only the S0 stopwatch settles them.
 - The "assumed hand envelope" on the overview (hand length 160–210 mm, spread width up to 200 mm) is an assumption, not data.
-- Three S0 checks decide A vs B: how often a spread hand covers a marker, whether the longest hands reach the ID slot, and how repeatable eyeball alignment is.
+- Sheet A only (Kirby, 2026-10-02). S0 still checks how often a spread hand covers a marker and whether the longest hands reach the card slot; sheet B stays built in case those checks fail, which would need a new dated prereg.
 - The reference values come from the marker plane; if that plane is biased against real hands, ML will learn the bias and nothing here can detect it. Accepted by Kirby.
 
 ## Not done
 
-No code, no schema, no CI, no `docs/STATUS.md` change, no push, no pull request. The literature review behind the design (`lit-review-hand-flexion-mano-2026-10-01.md`) stays outside the repo.
+Superseded: this folder started as a proposal with no code. It now ships with the contract in PR #99. The literature review behind the design (`lit-review-hand-flexion-mano-2026-10-01.md`) stays outside the repo.

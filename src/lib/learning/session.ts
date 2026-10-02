@@ -12,7 +12,6 @@
  * records; the evaluator (`m2:evaluate`) reads them. Pure; no Node imports.
  */
 import { z } from "zod";
-import { PAPER_SIZES_MM, type PaperSize } from "../contracts/measurement";
 import type { GestureCode, HandSide } from "./kit";
 
 export const PROTOCOL_AGREED_V2 = "agreed-v2" as const;
@@ -46,9 +45,17 @@ export function isS0Participant(participant: string): boolean {
   return n >= S0_PARTICIPANTS.first && n <= S0_PARTICIPANTS.last;
 }
 
-/** The two reference sheets built for S0 (proposal `sheet-designs/`). S0 picks one; B needs a new prereg. */
+/**
+ * The two reference sheets that were built (proposal `sheet-designs/`). Only A
+ * is in use (Kirby, 2026-10-02; prereg v2 §1): a session record accepts
+ * nothing else. Using B would need a new dated prereg and a contract change.
+ */
 export const KIT_V2_SHEETS = ["A", "B"] as const;
 export type KitV2Sheet = (typeof KIT_V2_SHEETS)[number];
+/** The one sheet `agreed-v2` sessions use. */
+export const AGREED_V2_SHEET = "A" as const;
+/** The one paper size `agreed-v2` sessions use (prereg: one A4 sheet). */
+export const AGREED_V2_PAPER = "a4" as const;
 
 export const GRIP_SELF_REPORTS = [
   "palm",
@@ -71,6 +78,29 @@ export const TIME_BLOCKS = ["morning", "afternoon", "evening"] as const;
 
 const participantId = z.string().regex(/^P\d{3}$/);
 const sessionId = z.string().regex(/^S\d{3}$/);
+
+/** A real calendar date, YYYY-MM-DD (2026-13-45 is refused). */
+const calendarDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, "not a real date");
+
+/**
+ * Free text that must not identify a person. A schema cannot catch a name or
+ * a health remark, so the rule stands on its own (no names, no contact
+ * details, nothing about anyone's health); this only refuses what is
+ * mechanically recognisable: an email address or a phone-like run of digits.
+ */
+export function looksLikeContactDetails(text: string): boolean {
+  if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) return true;
+  return /\d(?:[\s().-]*\d){7,}/.test(text);
+}
+const freeText = z.string().refine((s) => !looksLikeContactDetails(s), {
+  message: "free text must not hold an email address or a phone number",
+});
 
 /**
  * `participant.json`, one per participant, filled in from the consent flow
@@ -100,7 +130,8 @@ export const participantRecordSchema = z.strictObject({
       G04: z.number().int().min(0),
     })
     .nullable(),
-  note: z.string(),
+  /** Free text: no name, contact details or health remark. */
+  note: freeText,
 });
 export type ParticipantRecord = z.infer<typeof participantRecordSchema>;
 
@@ -114,6 +145,7 @@ export function planShots(
   shotCounts: ParticipantRecord["shotCounts"],
 ): readonly GestureCode[] | null {
   const planned = AGREED_V2_SEQUENCE.reduce((sum, s) => sum + s.shots, 0);
+  if (!Number.isInteger(photoCount) || photoCount < 0) return null;
   let counts: readonly { gesture: GestureCode; shots: number }[];
   if (shotCounts === null) {
     if (photoCount !== planned) return null;
@@ -123,8 +155,22 @@ export function planShots(
       gesture: s.gesture,
       shots: shotCounts[s.gesture as "G02" | "G04"],
     }));
+    // Each pose holds at most its planned shots plus the one extra, and the
+    // whole set at most the plan plus one: a wildly lopsided count (G02 0,
+    // G04 6) is a mistake to review, not a plan.
+    const sane = counts.every(
+      (c, i) =>
+        Number.isInteger(c.shots) &&
+        c.shots >= 0 &&
+        c.shots <=
+          (AGREED_V2_SEQUENCE[i]?.shots ?? 0) + AGREED_V2_MAX_EXTRA_SHOTS,
+    );
     const total = counts.reduce((sum, s) => sum + s.shots, 0);
-    if (total !== photoCount || total > planned + AGREED_V2_MAX_EXTRA_SHOTS) {
+    if (
+      !sane ||
+      total !== photoCount ||
+      total > planned + AGREED_V2_MAX_EXTRA_SHOTS
+    ) {
       return null;
     }
   }
@@ -141,17 +187,19 @@ export const sessionRecordSchema = z.strictObject({
   format: z.literal(SESSION_FORMAT),
   session: sessionId,
   protocol: z.literal(PROTOCOL_AGREED_V2),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: calendarDate,
   timeBlock: z.enum(TIME_BLOCKS),
-  venue: z.string(),
-  light: z.string(),
-  phone: z.string(),
-  holding: z.string(),
-  sheet: z.enum(KIT_V2_SHEETS),
-  paperSize: z.enum(Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]]),
-  /** The printed 100 mm (A) or 180 mm marker-to-marker (B) check, in mm as measured; `null` if not done. */
+  venue: freeText,
+  light: freeText,
+  phone: freeText,
+  holding: freeText,
+  /** Sheet A only (prereg v2). */
+  sheet: z.literal(AGREED_V2_SHEET),
+  /** One A4 sheet only (prereg). */
+  paperSize: z.literal(AGREED_V2_PAPER),
+  /** Sheet A's printed 100 mm line, in mm as measured with a ruler; `null` if not done. */
   printCheckMm: z.number().positive().nullable(),
-  note: z.string(),
+  note: freeText,
 });
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
 
@@ -228,16 +276,36 @@ export const PHOTO_LABEL_REASONS = [
   "other",
 ] as const;
 
+/** A filed photo's `destination`: relative, `/`-separated, no `..` and no empty segment. */
+const filedPath = z
+  .string()
+  .min(1)
+  .refine(
+    (s) =>
+      !s.startsWith("/") &&
+      !s.includes("\\") &&
+      !/^[A-Za-z]:/.test(s) &&
+      s.split("/").every((seg) => seg !== "" && seg !== "." && seg !== ".."),
+    { message: "file must be a relative filed path such as P901/G02/1.jpg" },
+  );
+
 const photoLabelSchema = z
   .strictObject({
-    file: z.string().min(1),
+    file: filedPath,
     /** Would Kirby keep this photo for measuring? `null` until labelled. */
     label: z.enum(["good", "bad"]).nullable(),
     reasons: z.array(z.enum(PHOTO_LABEL_REASONS)),
-    note: z.string(),
+    /** Free text about the photo: never about the person. */
+    note: freeText,
   })
   .refine((l) => l.label === "bad" || l.reasons.length === 0, {
     message: "only a bad photo has reasons",
+  })
+  .refine((l) => l.label !== "bad" || l.reasons.length > 0, {
+    message: "a bad photo needs at least one reason (prereg v2 §2.1)",
+  })
+  .refine((l) => new Set(l.reasons).size === l.reasons.length, {
+    message: "a reason is listed twice",
   })
   .refine((l) => !l.reasons.includes("other") || l.note.trim() !== "", {
     message: "reason 'other' needs a note",
@@ -256,7 +324,11 @@ export const labelsRecordSchema = z.strictObject({
   session: sessionId,
   protocol: z.literal(PROTOCOL_AGREED_V2),
   blind: z.boolean(),
-  labels: z.array(photoLabelSchema),
+  labels: z
+    .array(photoLabelSchema)
+    .refine((ls) => new Set(ls.map((l) => l.file)).size === ls.length, {
+      message: "each photo is labelled once: a file appears twice",
+    }),
 });
 export type LabelsRecord = z.infer<typeof labelsRecordSchema>;
 
