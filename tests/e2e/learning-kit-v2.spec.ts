@@ -89,13 +89,16 @@ test.describe("kit v2 checker", () => {
 
     await page.goto("/learn/check?sheet=A");
     await expect(page.getByTestId("learning-check-sheet")).toHaveValue("A");
-    await page.getByTestId("learning-check-input").setInputFiles({
-      name: "IMG_0001.jpg",
-      mimeType: "image/jpeg",
-      buffer: photo,
-    });
+    // Five photos: the planned G02 x3, G04 x2 (any other count needs shotCounts).
+    await page.getByTestId("learning-check-input").setInputFiles(
+      [1, 2, 3, 4, 5].map((n) => ({
+        name: `IMG_000${n}.jpg`,
+        mimeType: "image/jpeg",
+        buffer: photo,
+      })),
+    );
     const json = page.getByTestId("learning-check-json");
-    await expect(json).not.toBeEmpty({ timeout: 90_000 });
+    await expect(json).not.toBeEmpty({ timeout: 150_000 });
     const log = JSON.parse((await json.textContent()) ?? "{}");
 
     // Run log, format 3: the kit v2 fields.
@@ -141,7 +144,7 @@ test.describe("kit v2 checker", () => {
       poseCheck: { predicted: null, agrees: null },
     });
     expect(log.sort.participants).toMatchObject([
-      { participant: "P901", photos: 1, status: "ok" },
+      { participant: "P901", photos: 5, status: "ok" },
     ]);
     // Photos never leave the browser (hard rule 5).
     expect(uploads).toEqual([]);

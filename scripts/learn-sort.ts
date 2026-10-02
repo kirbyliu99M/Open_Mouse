@@ -13,29 +13,39 @@
  *   <folder of session.json>/labels.json          (blank, for Kirby's blind good/bad labels; never overwritten)
  *
  * The participant comes from the QR code of the card in the sheet's slot, on
- * every photo. The pose comes from the shooting order (G02 x3 then G04 x2) in
- * file-name order; one extra shot per participant is allowed and is placed by
- * the pose check, or the participant goes to review and none of their photos
- * is filed. The hand is the one in `participant.json`; MediaPipe's label is
- * only a check. See docs/learning/README.md, "Kit v2".
+ * every photo. The pose comes from the shooting order in file-name order: five
+ * photos are G02 x3 then G04 x2, and any other count is placed only if Kirby
+ * wrote `shotCounts` in the participant's `participant.json`; otherwise the
+ * participant goes to review and none of their photos is filed. The sorter
+ * never guesses a pose. The hand is the one in `participant.json`; MediaPipe's
+ * label is only a check. See docs/learning/README.md, "Kit v2".
  *
  * Options: --in <folder of photos>, --session <session.json> (required: the
  * sorter refuses to run without a valid one), --out <dir> (default: next to the
  * main checkout, in Fixtures/learning), --paper a4|letter (must agree with the
  * session's paperSize if given), --port <n> (default 3401; a dev server is
  * started), --base <url> (use a running server instead), --dry-run (report
- * only, write nothing).
+ * only, write nothing), --show-checks (print the pose-check calls and hand
+ * flags too, after the "label first" line).
+ *
+ * Every image-like file in the folder (.jpg, .jpeg, .png, .heic, .heif) is
+ * analysed in file-name order. A file whose copy cannot be made (a PNG, a
+ * HEIC the browser cannot read, a damaged JPEG) keeps its place in the order,
+ * so the photos after it do not shift pose, but it is not filed.
  *
  * EXIF. The filed copies are stripped of EXIF (GPS, time, device, XMP, IPTC,
  * comments); only the Orientation tag survives, in a rebuilt minimal EXIF, so
  * a copy stays upright. The originals in the input folder are only read. The
- * EXIF white-list in the run log (focal length, pixel size) was read from the
- * originals. A file that cannot be stripped (a PNG, a damaged JPEG) is not
+ * EXIF white-list in the run log (focal length, pixel size) comes from the
+ * checker's analysis of the originals. A file that cannot be stripped is not
  * copied at all.
  *
- * BLIND LABELLING. The run log holds the product's verdict for every photo,
- * and the terminal summary below shows none and no millimetre value: Kirby
- * labels the photos good or bad first (prereg v2, 2.1).
+ * BLIND LABELLING. The run log holds the product's verdict for every photo.
+ * By default the terminal summary shows counts and file names only: no
+ * verdict, no pose-check call, no hand flag, no millimetre value (those need
+ * `--show-checks`, and print after a line saying to label first). Kirby labels
+ * the photos good or bad first (prereg v2, 2.1). Everything after the checker
+ * is `runSorterWithReports` in src/lib/learning/sorterrun.ts.
  *
  * NEVER runs in CI: it reads real people's hand photos (docs/PLAN.md §M2,
  * AGENTS hard rules 1 and 5). It refuses an output folder inside the repo,
@@ -50,14 +60,7 @@
  * where the command ran, this checkout and the working folder as `.`, the
  * account name as `~`. A failure prints its message only, never a stack.
  */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -73,17 +76,8 @@ import {
   waitForServer,
   withDevServer,
 } from "../src/lib/learning/devserver";
-import { EXIF_STRIP_MODE } from "../src/lib/learning/exifstrip";
-import {
-  fileStrippedCopies,
-  readMouseHands,
-  writeLabelsTemplate,
-  writeParticipantTemplates,
-} from "../src/lib/learning/filing";
-import { LEARNING_KIT_VERSION } from "../src/lib/learning/kit";
 import { fileTimeInversions } from "../src/lib/learning/order";
 import {
-  buildSorterRunLog,
   containingRoot,
   gitRefusalRoots,
   looksLikeMsysPath,
@@ -94,11 +88,10 @@ import type { LearningPhotoReport } from "../src/lib/learning/report";
 import {
   NO_PROVENANCE,
   readGitProvenance,
-  sortReportsV2,
   type LearningRunLog,
 } from "../src/lib/learning/runlog";
 import { parseSessionFile } from "../src/lib/learning/sessionfile";
-import { REVIEW_REASON_TEXT } from "../src/lib/learning/sortv2";
+import { runSorterWithReports } from "../src/lib/learning/sorterrun";
 import { installLastResort, makeTerminal } from "../src/lib/learning/terminal";
 
 if (process.env.CI) {
@@ -154,7 +147,7 @@ function fail(message: string): never {
 installLastResort(failure, (code) => process.exit(code));
 
 const USAGE =
-  'Usage: npm run learn:sort -- --in "<folder of photos>" --session "<session.json>" [--out <dir>] [--paper a4|letter] [--dry-run]';
+  'Usage: npm run learn:sort -- --in "<folder of photos>" --session "<session.json>" [--out <dir>] [--paper a4|letter] [--dry-run] [--show-checks]';
 
 async function run(): Promise<void> {
   const arg = (flag: string) => {
@@ -174,6 +167,7 @@ async function run(): Promise<void> {
   const externalBase = arg("--base");
   const baseUrl = externalBase ?? `http://${DEV_SERVER_HOST}:${port}`;
   const dryRun = process.argv.includes("--dry-run");
+  const showChecks = process.argv.includes("--show-checks");
   const paperArg = arg("--paper");
 
   // The photo folder is resolved here, before it is checked, so that a complaint
@@ -221,10 +215,14 @@ async function run(): Promise<void> {
     );
   }
 
+  // Every image-like file counts, in camera order, so a file that cannot be
+  // filed (a HEIC the browser cannot read, a PNG) keeps its place and the
+  // photos after it do not shift pose.
   const photos = readdirSync(input)
-    .filter((name) => /\.(jpe?g|png)$/i.test(name))
+    .filter((name) => /\.(jpe?g|png|heic|heif)$/i.test(name))
     .sort(compareFileNames);
-  if (photos.length === 0) fail(`No .jpg or .png photos in ${input}.`);
+  if (photos.length === 0)
+    fail(`No photos (.jpg, .jpeg, .png, .heic, .heif) in ${input}.`);
 
   // The session record: the sorter does not run without a valid one.
   if (!sessionArg) {
@@ -325,192 +323,24 @@ async function run(): Promise<void> {
 
     const reports = await reportsFromServer();
 
-    // Each participant's mouse hand, from the participant.json files already
-    // there (the sorter never writes one over another).
-    const named = [
-      ...new Set(
-        reports.flatMap((r) =>
-          r.code?.kind === "participant" &&
-          r.code.version === LEARNING_KIT_VERSION
-            ? [r.code.participant]
-            : [],
-        ),
-      ),
-    ];
-    const known = readMouseHands({ participants: named, outDir });
-    const sort = sortReportsV2(reports, { mouseHands: known.hands });
-    const filedFiles = sort.photos.flatMap((p) =>
-      p.destination ? [p.destination] : [],
-    );
-
-    let copied = 0;
-    let existing = 0;
-    let refused: { file: string; reason: string }[] = [];
-    let created: readonly string[] = [];
-    let labels: ReturnType<typeof writeLabelsTemplate> | null = null;
-    if (!dryRun) {
-      const filed = fileStrippedCopies({
-        photos: sort.photos,
-        inputDir: input,
-        outDir,
-      });
-      copied = filed.copied.length;
-      existing = filed.existing.length;
-      refused = filed.refused.map((r) => ({ ...r }));
-      created = writeParticipantTemplates({
-        participants: sort.participants.map((p) => p.participant),
-        session: session.session,
-        outDir,
-      }).created;
-      labels = writeLabelsTemplate({
-        dir: sessionDir,
-        runsDir: join(outDir, "runs"),
-        session: session.session,
-        files: filedFiles,
-      });
-      const runs = join(outDir, "runs");
-      mkdirSync(runs, { recursive: true });
-      const now = new Date();
-      const stamp = now.toISOString().replace(/[:.]/g, "-");
-      const log = buildSorterRunLog({
-        reports,
-        sort,
-        paperSize,
-        input,
-        cwd: process.cwd(),
-        username: osUsername(),
-        provenance: provenance(),
-        now,
-        kitV2: { session, sheet: session.sheet },
-      });
-      writeFileSync(
-        join(runs, `${stamp}.json`),
-        JSON.stringify(log, null, 2) + "\n",
-      );
-    }
-
-    // What follows names files and counts. It shows no product verdict (the
-    // retake list of kit v1) and no millimetre value: the photos are labelled
-    // good or bad blind, before anyone sees the product's judgement.
-    const count = (s: string) =>
-      sort.photos.filter((p) => p.status === s).length;
-    const filed = sort.photos.filter((p) => p.destination !== null);
-    say(
-      `\n${photos.length} photos: ${filed.length} filed (session ${session.session}, sheet ${session.sheet}), ` +
-        `${count("needs-review")} in a participant's review, ` +
-        `${count("no-code")} without a readable participant card, ` +
-        `${count("version-mismatch")} from another kit version.`,
-    );
-    say(
-      dryRun
-        ? `EXIF (not run: --dry-run): filed copies would be stripped, mode ${EXIF_STRIP_MODE}.`
-        : `EXIF: filed copies stripped, mode ${EXIF_STRIP_MODE} (only the Orientation tag is kept, in a rebuilt minimal EXIF; GPS, time, device, XMP, IPTC and comments are dropped; originals untouched).`,
-    );
-    if (!dryRun)
-      say(
-        `Copied ${copied} to ${outDir}${existing ? ` (${existing} already there, left as is)` : ""}.`,
-      );
-    if (externalBase)
-      say(
-        "The code version of an external --base server is unknown, so the run log has no git commit.",
-      );
-    if (refused.length) {
-      warn(
-        `\n${refused.length} photo${refused.length === 1 ? " was" : "s were"} not copied, because a copy cannot be made without its EXIF (only a complete JPEG can be stripped):`,
-      );
-      for (const r of refused) say(`  ${r.file}: ${r.reason}`);
-    }
-
-    const review = sort.participants.filter((p) => p.status === "needs-review");
-    if (review.length) {
-      say("\nNeeds review (none of their photos is filed):");
-      for (const p of review) {
-        const calls = p.predictedPoses.map((c) => c ?? "?").join(" ");
-        say(
-          `  ${p.participant}, ${p.photos} photos: ${p.reason ? REVIEW_REASON_TEXT[p.reason] : ""}. Pose check, in order: ${calls}`,
-        );
-      }
-    }
-    const poseOff = sort.photos.filter((p) => p.status === "pose-mismatch");
-    if (poseOff.length) {
-      say(
-        "\nThe pose check disagrees with the shooting order (filed in the order's pose; check these):",
-      );
-      for (const p of poseOff) {
-        say(
-          `  ${p.file} → ${p.destination} (looks like ${p.poseCheck?.predicted})`,
-        );
-      }
-    }
-    const byFile = new Map(reports.map((r) => [r.file, r]));
-    const handOff = sort.photos.filter((p) => {
-      const detected = byFile.get(p.file)?.hand?.handedness ?? null;
-      return p.hand !== null && detected !== null && detected !== p.hand;
+    const result = runSorterWithReports({
+      reports,
+      inputDir: input,
+      outDir,
+      sessionDir,
+      session,
+      cwd: process.cwd(),
+      username: osUsername(),
+      provenance: provenance(),
+      now: new Date(),
+      dryRun,
+      showChecks,
+      externalServer: externalBase !== undefined,
     });
-    if (handOff.length) {
-      say(
-        "\nMediaPipe's hand differs from the mouse hand in participant.json (a check only; filed as the file says):",
-      );
-      for (const p of handOff) say(`  ${p.file} → ${p.destination}`);
+    for (const line of result.lines) {
+      if (line.kind === "warn") warn(line.text);
+      else say(line.text);
     }
-    const short = sort.coverage.filter((c) => c.got < c.expected);
-    if (short.length) {
-      say("\nShort of photos:");
-      for (const c of short) {
-        say(`  ${c.participant} ${c.gesture}: ${c.got} of ${c.expected}`);
-      }
-    }
-    const extras = sort.coverage.filter((c) => c.extra > 0);
-    if (extras.length) {
-      say("\nExtra shot, filed in the pose the pose check chose:");
-      for (const c of extras) say(`  ${c.participant} ${c.gesture}`);
-    }
-    const unread = sort.photos.filter((p) => p.status === "no-code");
-    if (unread.length) {
-      say(
-        `\n${unread.length} photo${unread.length === 1 ? "" : "s"} with no readable participant card (not filed):`,
-      );
-      for (const p of unread) say(`  ${p.file}`);
-    }
-    const other = sort.photos.filter((p) => p.status === "version-mismatch");
-    if (other.length) {
-      say(`\n${other.length} from another kit version (not filed):`);
-      for (const p of other) say(`  ${p.file}`);
-    }
-    if (known.problems.length) {
-      warn("\nA participant.json that could not be used:");
-      for (const p of known.problems) warn(`  ${p.message}`);
-    }
-    const noHand = sort.participants.filter((p) => p.hand === null);
-    if (noHand.length) {
-      say(
-        `\nNo mouse hand yet (fill in participant.json, then run this again to check MediaPipe's hand): ${noHand.map((p) => p.participant).join(" ")}`,
-      );
-    }
-    if (created.length) {
-      say(`participant.json templates written: ${created.join(" ")}`);
-    }
-    if (labels) {
-      if (labels.status === "created") {
-        say(
-          `labels.json written next to session.json: ${filedFiles.length} photos to label.`,
-        );
-      } else if (labels.status === "refused") {
-        warn(`labels.json not written: ${labels.problem}`);
-      } else if (labels.problem) {
-        warn(`labels.json left alone: ${labels.problem}`);
-      } else {
-        say("labels.json already there, left as is.");
-      }
-      if (labels.missing.length) {
-        warn(
-          `labels.json has no entry for ${labels.missing.length} filed photo${labels.missing.length === 1 ? "" : "s"}: ${labels.missing.join(" ")}`,
-        );
-      }
-    }
-    say(
-      "\nLabel the photos good or bad in labels.json BEFORE you open the run log or the checker page: both show the product's verdict, and the labels must be made blind.",
-    );
     if (reports.length === 0) say("No reports returned.");
   }
 

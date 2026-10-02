@@ -4,44 +4,44 @@
  *
  *  - Participant: every kit v2 photo carries its participant card's QR code.
  *    Photos are grouped by that code, wherever they sit in the folder.
- *  - Pose: from the shooting order (`AGREED_V2_SEQUENCE`, G02 x3 then G04 x2),
- *    taking each participant's photos in capture order. Capture order is the
- *    caller's `takenAt` (the checker and `learn:sort` use camera file-name
- *    order, as kit v1 does).
- *  - Extra shot: at most `AGREED_V2_MAX_EXTRA_SHOTS` (one) per participant, for
- *    a hand off the sheet or a covered corner. With one extra photo the order
- *    alone cannot say which pose it belongs to, so the pose check decides (see
- *    `placeByOrder`). If it cannot, the participant is marked `needs-review`
- *    and none of their photos is filed: a guess would put a wrong label on
- *    data.
+ *  - Pose: from the shooting order, taking each participant's photos in
+ *    capture order. The plan is the contract's `planShots(count, shotCounts)`
+ *    and nothing else: five photos are G02 x3 then G04 x2; any other count is
+ *    placed only if Kirby wrote `shotCounts` (how many G02, then how many G04)
+ *    in the participant's `participant.json`. Otherwise the participant is
+ *    `needs-review` and none of their photos is filed: the sorter never
+ *    guesses a pose. Capture order is the caller's `takenAt` (the checker and
+ *    `learn:sort` use camera file-name order, as kit v1 does).
  *  - Hand: from the participant's `participant.json` (`mouseHand`), passed in.
  *    MediaPipe's label is only a check: a mismatch is flagged, never used.
- *  - The pose check never moves a photo. It flags (`pose-mismatch`) a photo it
- *    disagrees with, and it is used for nothing else but the extra shot.
+ *  - The pose check never places or moves a photo. It fills `poseCheck` and
+ *    the `pose-mismatch` flag, nothing else.
  *
- * Every photo that names a participant is filed, whatever its quality: a photo
- * the product would refuse is data, and dropping one would shift the shooting
- * order of the rest. A photo with no readable card cannot be placed, and one
- * sitting inside a participant's run puts that participant in review when
- * their photos are already short.
+ * Every photo that names a participant is placed, whatever its quality, and
+ * keeps its slot in the order even when its copy cannot be made (`unfileable`:
+ * a PNG, a damaged JPEG): the photos after it do not shift pose. Such a photo
+ * has no destination and a status that names why, and its participant is
+ * counted as having an unfiled photo. A photo with no readable card cannot be
+ * placed; one sitting beside a participant's run (it may be theirs) sends that
+ * participant to review unless Kirby has confirmed their `shotCounts`.
  *
  * Pure.
  */
 import {
   LEARNING_KIT_VERSION,
   extensionOf,
-  type GestureCode,
-  type HandSide,
   type CoverageRow,
+  type HandSide,
   type KitCode,
   type SortResult,
   type SortStatus,
 } from "./kit";
 import { poseAgrees, type PoseGuess } from "./posecheck";
 import {
-  AGREED_V2_MAX_EXTRA_SHOTS,
   AGREED_V2_SEQUENCE,
+  planShots,
   type KitV2PhotoAssignment,
+  type ParticipantRecord,
 } from "./session";
 
 export interface IdentifiedPhotoV2 {
@@ -57,33 +57,37 @@ export interface IdentifiedPhotoV2 {
   readonly predictedPose?: PoseGuess | null;
 }
 
+/** Why a photo's copy cannot be made; each is a `SortStatus` of the same name. */
+export type UnfiledReason = "not-a-jpeg" | "damaged-jpeg" | "copy-failed";
+
 export interface SortV2Options {
   /** Participant id to the hand they use a mouse with (`participant.json`); `null` or absent when not known yet. */
   readonly mouseHands?: Readonly<Record<string, HandSide | null | undefined>>;
+  /** Participant id to `shotCounts` from `participant.json`; `null` or absent means "as planned". */
+  readonly shotCounts?: Readonly<
+    Record<string, ParticipantRecord["shotCounts"] | undefined>
+  >;
+  /** Input file names whose copy cannot be made, and why. They keep their slot but are not filed. */
+  readonly unfileable?: Readonly<Record<string, UnfiledReason | undefined>>;
   /** The kit version the codes must carry. Default `LEARNING_KIT_VERSION`. */
   readonly version?: number;
-  readonly sequence?: readonly {
-    readonly gesture: GestureCode;
-    readonly shots: number;
-  }[];
-  readonly maxExtraShots?: number;
 }
 
 export type ReviewReason =
-  /** More photos than the sequence plus the allowed extra shots. */
-  | "too-many-photos"
-  /** One extra photo, and the pose check cannot say which pose it belongs to. */
-  | "extra-shot-placement-unclear"
-  /** Fewer photos than planned, and a photo with no readable card sits next to this run. */
+  /** Not the planned five photos, and no `shotCounts` to say what was taken. */
+  | "photo-count-not-planned"
+  /** `shotCounts` is there but does not add up to the photos (or allows more than one extra). */
+  | "shot-counts-do-not-match"
+  /** A photo with no readable card sits beside this run, and `shotCounts` has not confirmed it is not theirs. */
   | "unreadable-photo-in-run";
 
 export const REVIEW_REASON_TEXT: Readonly<Record<ReviewReason, string>> = {
-  "too-many-photos":
-    "more photos than the shooting order plus one extra shot allows",
-  "extra-shot-placement-unclear":
-    "one photo more than planned, and the pose check cannot tell which pose it belongs to",
+  "photo-count-not-planned":
+    "not the planned 3 + 2 photos: write shotCounts (how many G02, then how many G04) in participant.json and run the sorter again",
+  "shot-counts-do-not-match":
+    "shotCounts in participant.json does not add up to the photos, or allows more than one extra: correct it and run the sorter again",
   "unreadable-photo-in-run":
-    "short of photos, and a photo with no readable card sits next to this run (it may be one of theirs)",
+    "a photo with no readable card sits next to this run and may be theirs: once you know it is not, write shotCounts (G02 3, G04 2 if as planned) in participant.json and run the sorter again",
 };
 
 /**
@@ -106,6 +110,8 @@ export interface ParticipantSortRow {
   readonly reason: ReviewReason | null;
   /** The mouse hand from `participant.json`; `null` when not filled in yet. */
   readonly hand: HandSide | null;
+  /** Photos placed in the order but not filed because their copy cannot be made. */
+  readonly unfiled: number;
   /** The pose check's call on each photo in capture order, for a person looking at a participant in review. */
   readonly predictedPoses: readonly (PoseGuess | null)[];
 }
@@ -124,101 +130,6 @@ export interface KitV2SortResult extends SortResult {
   readonly participants: readonly ParticipantSortRow[];
 }
 
-// ── Placing one participant's photos by order ───────────────────────────────
-
-export interface ShotPlacement {
-  readonly gesture: GestureCode;
-  /** 1-based position within the pose, the extra shot included. */
-  readonly shot: number;
-  readonly extra: boolean;
-}
-
-export type Placement =
-  | { readonly ok: true; readonly placements: readonly ShotPlacement[] }
-  | { readonly ok: false; readonly reason: ReviewReason };
-
-/** Every way of spreading `extras` extra shots over `blocks` poses. */
-function extraVectors(blocks: number, extras: number): number[][] {
-  if (blocks === 1) return [[extras]];
-  const out: number[][] = [];
-  for (let first = 0; first <= extras; first++) {
-    for (const rest of extraVectors(blocks - 1, extras - first)) {
-      out.push([first, ...rest]);
-    }
-  }
-  return out;
-}
-
-function layOut(
-  sequence: NonNullable<SortV2Options["sequence"]>,
-  extras: readonly number[],
-  count: number,
-): ShotPlacement[] {
-  const out: ShotPlacement[] = [];
-  sequence.forEach((block, b) => {
-    const planned = block.shots;
-    const size = planned + (extras[b] ?? 0);
-    for (let k = 1; k <= size && out.length < count; k++) {
-      out.push({ gesture: block.gesture, shot: k, extra: k > planned });
-    }
-  });
-  return out;
-}
-
-/**
- * Place one participant's photos, in capture order, on the shooting order.
- *
- * With the planned number of photos (or fewer), photo i simply takes slot i of
- * the sequence. With extra shots, the order alone cannot say which pose an
- * extra belongs to, so each way of spreading them over the poses is scored by
- * how many photos' pose-check calls (`predicted`, with `null` for an
- * abstention) it contradicts. A single best way wins; a tie, which includes
- * every call abstaining, is not placed (`extra-shot-placement-unclear`). More
- * photos than the plan allows is not placed either (`too-many-photos`).
- *
- * Within the pose that holds the extra, the last photo is the extra shot (the
- * surplus after the planned ones, so shots 1 to N-1 stay the planned ones).
- * The order cannot tell a retake from the photo it replaces; the evaluator
- * should treat a pose's photos as a set.
- */
-export function placeByOrder(
-  predicted: readonly (PoseGuess | null)[],
-  sequence: NonNullable<SortV2Options["sequence"]> = AGREED_V2_SEQUENCE,
-  maxExtraShots: number = AGREED_V2_MAX_EXTRA_SHOTS,
-): Placement {
-  const n = predicted.length;
-  const planned = sequence.reduce((sum, b) => sum + b.shots, 0);
-  if (n > planned + maxExtraShots) {
-    return { ok: false, reason: "too-many-photos" };
-  }
-  if (n <= planned) {
-    return {
-      ok: true,
-      placements: layOut(
-        sequence,
-        sequence.map(() => 0),
-        n,
-      ),
-    };
-  }
-  const candidates = extraVectors(sequence.length, n - planned).map(
-    (extras) => {
-      const placements = layOut(sequence, extras, n);
-      const disagreements = placements.filter((p, i) => {
-        const call = predicted[i] ?? null;
-        return call !== null && poseAgrees(call, p.gesture) === false;
-      }).length;
-      return { placements, disagreements };
-    },
-  );
-  const best = Math.min(...candidates.map((c) => c.disagreements));
-  const winners = candidates.filter((c) => c.disagreements === best);
-  if (winners.length !== 1) {
-    return { ok: false, reason: "extra-shot-placement-unclear" };
-  }
-  return { ok: true, placements: winners[0]!.placements };
-}
-
 // ── Sorting a folder ────────────────────────────────────────────────────────
 
 export function sortPhotosV2(
@@ -226,10 +137,11 @@ export function sortPhotosV2(
   options: SortV2Options = {},
 ): KitV2SortResult {
   const version = options.version ?? LEARNING_KIT_VERSION;
-  const sequence = options.sequence ?? AGREED_V2_SEQUENCE;
-  const maxExtra = options.maxExtraShots ?? AGREED_V2_MAX_EXTRA_SHOTS;
   const mouseHands = options.mouseHands ?? {};
-  const planned = sequence.reduce((sum, b) => sum + b.shots, 0);
+  const shotCounts = options.shotCounts ?? {};
+  const unfileable = options.unfileable ?? {};
+  const own = <T>(table: Readonly<Record<string, T>>, key: string) =>
+    Object.hasOwn(table, key) ? table[key] : undefined;
 
   const ordered = photos
     .map((p, i) => ({ p, i }))
@@ -279,36 +191,41 @@ export function sortPhotosV2(
     }
   });
 
-  // Place each participant.
+  // Plan each participant's poses with the contract's `planShots`, or review.
   type Decision =
-    | { readonly review: ReviewReason }
-    | { readonly placements: readonly ShotPlacement[] };
+    { readonly review: ReviewReason } | { readonly plan: readonly string[] };
   const decisions = new Map<string, Decision>();
   for (const [participant, run] of runs) {
-    const predicted = run.map((i) => ordered[i]!.predictedPose ?? null);
-    if (suspects.has(participant) && run.length < planned) {
+    const counts = own(shotCounts, participant) ?? null;
+    if (suspects.has(participant) && counts === null) {
       decisions.set(participant, { review: "unreadable-photo-in-run" });
       continue;
     }
-    const placement = placeByOrder(predicted, sequence, maxExtra);
+    const plan = planShots(run.length, counts);
     decisions.set(
       participant,
-      placement.ok
-        ? { placements: placement.placements }
-        : { review: placement.reason },
+      plan
+        ? { plan }
+        : {
+            review:
+              counts === null
+                ? "photo-count-not-planned"
+                : "shot-counts-do-not-match",
+          },
     );
   }
 
-  const handOf = (participant: string): HandSide | null => {
-    const h = Object.hasOwn(mouseHands, participant)
-      ? mouseHands[participant]
-      : null;
-    return h ?? null;
-  };
+  const handOf = (participant: string): HandSide | null =>
+    own(mouseHands, participant) ?? null;
 
-  // Each photo's place in its participant's run, to look its placement up.
+  // Each photo's place in its participant's run, to look its pose up.
   const slotOf = new Map<number, number>();
   for (const run of runs.values()) run.forEach((i, k) => slotOf.set(i, k));
+  const plannedShots = new Map<string, number>(
+    AGREED_V2_SEQUENCE.map((b) => [b.gesture, b.shots]),
+  );
+  // Running shot number per participant and pose.
+  const shotNo = new Map<string, number>();
 
   const sorted: SortedPhotoV2[] = ordered.map((photo, i) => {
     const owner = owners[i]!;
@@ -343,28 +260,35 @@ export function sortPhotosV2(
         poseCheck: null,
       };
     }
-    const place = decision.placements[slotOf.get(i)!]!;
+    const gesture = decision.plan[slotOf.get(i)!] as "G02" | "G04";
+    const key = `${participant}/${gesture}`;
+    const shot = (shotNo.get(key) ?? 0) + 1;
+    shotNo.set(key, shot);
     const predicted = photo.predictedPose ?? null;
-    const agrees = poseAgrees(predicted, place.gesture);
+    const agrees = poseAgrees(predicted, gesture);
     const handMismatch =
       hand !== null &&
       photo.detectedHand != null &&
       photo.detectedHand !== hand;
+    const refused = own(unfileable, photo.file) ?? null;
     return {
       file: photo.file,
       status:
-        agrees === false
+        refused ??
+        (agrees === false
           ? "pose-mismatch"
           : handMismatch
             ? "hand-mismatch"
-            : "ok",
+            : "ok"),
       participant,
-      gesture: place.gesture,
+      gesture,
       hand,
-      shot: place.shot,
-      destination: `${participant}/${place.gesture}/${place.shot}${extensionOf(photo.file)}`,
+      shot,
+      destination: refused
+        ? null
+        : `${participant}/${gesture}/${shot}${extensionOf(photo.file)}`,
       poseSource: "order",
-      extraShot: place.extra,
+      extraShot: shot > (plannedShots.get(gesture) ?? 0),
       poseCheck: { predicted, agrees },
     };
   });
@@ -380,12 +304,21 @@ export function sortPhotosV2(
       status: review ? "needs-review" : "ok",
       reason: review,
       hand: handOf(participant),
+      unfiled: sorted.filter(
+        (s) =>
+          s.participant === participant &&
+          s.gesture !== null &&
+          s.destination === null,
+      ).length,
       predictedPoses: run.map((i) => ordered[i]!.predictedPose ?? null),
     });
     if (review) continue;
-    for (const block of sequence) {
+    for (const block of AGREED_V2_SEQUENCE) {
       const filed = sorted.filter(
-        (s) => s.participant === participant && s.gesture === block.gesture,
+        (s) =>
+          s.participant === participant &&
+          s.gesture === block.gesture &&
+          s.destination !== null,
       );
       coverage.push({
         participant,

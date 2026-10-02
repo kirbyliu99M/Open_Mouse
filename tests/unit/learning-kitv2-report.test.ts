@@ -9,8 +9,10 @@ import {
   LEARNING_KIT_VERSION,
   type KitCode,
 } from "../../src/lib/learning/kit";
+import { analyseBatch } from "../../src/lib/learning/batch";
 import { fileTimeInversions } from "../../src/lib/learning/order";
 import {
+  assembleFailedReport,
   assembleLearningReport,
   type LearningPhotoReport,
   type ReportFindings,
@@ -384,15 +386,25 @@ describe("sortReportsV2", () => {
     });
   });
 
-  it("places an extra shot by the pose check: the fourth photo is a claw, so it joins G04", () => {
-    const sort = sortReportsV2(planned("P903", 1, [0, 0, 0, 1, 1, 1]));
-    expect(sort.photos.map((p) => [p.gesture, p.shot, p.extraShot])).toEqual([
-      ["G02", 1, false],
-      ["G02", 2, false],
-      ["G02", 3, false],
-      ["G04", 1, false],
-      ["G04", 2, false],
-      ["G04", 3, true],
+  it("does not place an extra photo by the pose check: six photos need shotCounts, whatever the landmarks look like", () => {
+    // Three flat, three claws: clear calls, but the check only flags.
+    const six = planned("P903", 1, [0, 0, 0, 1, 1, 1]);
+    const review = sortReportsV2(six);
+    expect(review.photos.every((p) => p.status === "needs-review")).toBe(true);
+    expect(review.participants[0]!.reason).toBe("photo-count-not-planned");
+    // With Kirby's counts the extra goes where the counts say: here G02, against the calls.
+    const counted = sortReportsV2(six, {
+      shotCounts: { P903: { G02: 4, G04: 2 } },
+    });
+    expect(
+      counted.photos.map((p) => [p.gesture, p.shot, p.extraShot, p.status]),
+    ).toEqual([
+      ["G02", 1, false, "ok"],
+      ["G02", 2, false, "ok"],
+      ["G02", 3, false, "ok"],
+      ["G02", 4, true, "pose-mismatch"],
+      ["G04", 1, false, "ok"],
+      ["G04", 2, false, "ok"],
     ]);
   });
 
@@ -429,7 +441,10 @@ describe("sortReportsV2", () => {
       shot("IMG_1.jpg", "P905", 0, {}, "right"),
       shot("IMG_2.jpg", "P905", 0, {}, "left"),
     ];
-    const sort = sortReportsV2(reports, { mouseHands: { P905: "right" } });
+    const sort = sortReportsV2(reports, {
+      mouseHands: { P905: "right" },
+      shotCounts: { P905: { G02: 2, G04: 0 } },
+    });
     expect(sort.photos.map((p) => [p.hand, p.status])).toEqual([
       ["right", "ok"],
       ["right", "hand-mismatch"],
@@ -482,5 +497,60 @@ describe("fileTimeInversions", () => {
         f("IMG_9999.jpg", 11),
       ]),
     ).toBe(1);
+  });
+});
+
+describe("a photo that could not be analysed, in a kit v2 log", () => {
+  it("says which kit the run was, and kit v1 by default", () => {
+    expect(
+      assembleFailedReport("IMG_1.jpg", "a4", "boom", "TypeError").kitVersion,
+    ).toBe(KIT_V1_VERSION);
+    expect(
+      assembleFailedReport(
+        "IMG_1.jpg",
+        "a4",
+        "boom",
+        "TypeError",
+        LEARNING_KIT_VERSION,
+      ).kitVersion,
+    ).toBe(LEARNING_KIT_VERSION);
+  });
+
+  it("analyseBatch stamps the failed reports of a kit v2 batch as kit v2, the others as they come", async () => {
+    const files = [{ name: "IMG_1.jpg" }, { name: "IMG_2.jpg" }];
+    const reports = await analyseBatch(
+      files,
+      async (f) => {
+        if (f.name === "IMG_1.jpg") throw new Error("detector crash");
+        return assembleLearningReport(findings({ file: f.name }));
+      },
+      { paperSize: "a4", kitVersion: LEARNING_KIT_VERSION },
+    );
+    expect(reports.map((r) => [r.file, r.kitVersion])).toEqual([
+      ["IMG_1.jpg", 2],
+      ["IMG_2.jpg", 2],
+    ]);
+    // Without the option (kit v1) a failed report stays kit v1.
+    const v1 = await analyseBatch(
+      [{ name: "IMG_1.jpg" }],
+      async () => {
+        throw new Error("x");
+      },
+      { paperSize: "a4" },
+    );
+    expect(v1[0]!.kitVersion).toBe(KIT_V1_VERSION);
+    // And the run log built from a v2 batch has no report claiming v1.
+    const log = buildRunLog({
+      reports,
+      sort: sortReportsV2(reports),
+      paperSize: "a4",
+      input: null,
+      provenance: NO_PROVENANCE,
+      now: new Date(0),
+      kitV2: { session: null, sheet: "A" },
+    });
+    expect(log.reports.every((r) => r.kitVersion === log.kitVersion)).toBe(
+      true,
+    );
   });
 });

@@ -8,7 +8,7 @@ import {
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { analyseBatch } from "@/lib/learning/batch";
 import { compareFileNames, type CheckTone } from "@/lib/learning/checks";
-import { kitCodeToken } from "@/lib/learning/kit";
+import { LEARNING_KIT_VERSION, kitCodeToken } from "@/lib/learning/kit";
 import {
   NO_PROVENANCE,
   buildRunLog,
@@ -95,7 +95,8 @@ export function CheckClient({
       const images = files
         .filter(
           (f) =>
-            f.type.startsWith("image/") || /\.(jpe?g|png|heic)$/i.test(f.name),
+            f.type.startsWith("image/") ||
+            /\.(jpe?g|png|heic|heif)$/i.test(f.name),
         )
         .sort((a, b) => compareFileNames(a.name, b.name));
       if (images.length === 0) return;
@@ -115,6 +116,7 @@ export function CheckClient({
             }),
           {
             paperSize: size,
+            kitVersion: kit ? LEARNING_KIT_VERSION : undefined,
             onProgress: (done) => {
               setReports([...done]);
               setProgress({ done: done.length, total: images.length });

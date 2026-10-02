@@ -207,7 +207,7 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside]);
     expect(result.status).toBe(1);
     expect(result.stderr).not.toMatch(REFUSED);
-    expect(result.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(result.stderr).toMatch(/No photos \(\.jpg/);
     expect(result.stdout).not.toMatch(/Starting dev server/);
   }, 60_000);
 
@@ -261,7 +261,7 @@ describe("learn-sort refuses to run where it must not", () => {
     const result = sorter(["--in", emptyInput, "--out", outside], { CI: "1" });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/must never run in CI/);
-    expect(result.stderr).not.toMatch(/No \.jpg/);
+    expect(result.stderr).not.toMatch(/No photos/);
   }, 60_000);
 
   it("needs --in, and checks --paper", () => {
@@ -288,7 +288,7 @@ describe("learn-sort refuses to run where it must not", () => {
       "--paper",
       "letter",
     ]);
-    expect(ok.stderr).toMatch(/No \.jpg or \.png photos/);
+    expect(ok.stderr).toMatch(/No photos \(\.jpg/);
   }, 60_000);
 });
 
@@ -541,7 +541,7 @@ describe("learn-sort output carries no absolute path, stack or account name", ()
     mkdirSync(input, { recursive: true });
     const empty = sorter(["--in", input, "--out", join(scratch, "out")]);
     expect(empty.status).toBe(1);
-    expect(empty.stderr).toMatch(/No \.jpg or \.png photos in \S+\/~?\S*\./);
+    expect(empty.stderr).toMatch(/No photos \([^)]*\) in \S+\/~?\S*\./);
     expectClean(empty.stderr);
     const missing = sorter(["--in", join(input, "nope"), "--out", scratch]);
     expect(missing.status).toBe(1);

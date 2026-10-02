@@ -78,7 +78,25 @@ const MPF = seg(
 const IPTC = seg(0xed, enc("Photoshop 3.0\0" + "8BIM caption: Taipei"));
 const COMMENT = seg(0xfe, enc("shot at the office, ZP-9000"));
 const MAKER = seg(0xec, enc("Ducky\0exposure 1/120 serial SN-1"));
-const ADOBE = seg(0xee, enc("Adobe\0\x64\x80\x00\x00\x00\x00\x00"));
+// "Adobe", version 100, flags0 0x8000, flags1 0, transform 0: the 12-byte header.
+const ADOBE = seg(
+  0xee,
+  concat(enc("Adobe"), new Uint8Array([0, 100, 0x80, 0, 0, 0, 0])),
+);
+/** A JFIF header whose thumbnail is 2 x 1 pixels (6 bytes of RGB after the header). */
+const JFIF_WITH_THUMBNAIL = seg(
+  0xe0,
+  concat(
+    enc("JFIF\0"),
+    new Uint8Array([1, 1, 0, 0, 1, 0, 1, 2, 1]),
+    new Uint8Array([9, 9, 9, 8, 8, 8]),
+  ),
+);
+/** The JFIF extension segment, which carries a thumbnail in its own right. */
+const JFXX = seg(0xe0, concat(enc("JFXX\0"), new Uint8Array([0x10, 1, 2, 3])));
+/** A JPG13 extension marker, and a reserved one, with text a private reader could use. */
+const JPG4 = seg(0xf4, enc("extension with serial SN-9"));
+const RESERVED = seg(0x7d, enc("reserved with serial SN-8"));
 
 const jpeg = (...headerSegments: Uint8Array[]) =>
   concat(SOI, ...headerSegments, DQT, SOF0, DHT, SOS, SCAN, EOI);
@@ -241,6 +259,85 @@ describe("orientation", () => {
     expect(out.summary.exifSegments).toBe(2);
   });
 
+  it("builds the minimal segment byte for byte as hand-written here (orientation 6)", () => {
+    // Written out from the TIFF and Exif specs, not produced by the code under test:
+    // FF E1, length 34, "Exif\0\0", "MM" 002A, IFD0 at 8, one entry
+    // (tag 0112, SHORT, count 1, value 6, padded), no next IFD.
+    const expected = [
+      0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x4d, 0x4d,
+      0x00, 0x2a, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01, 0x01, 0x12, 0x00, 0x03,
+      0x00, 0x00, 0x00, 0x01, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    expect(Array.from(orientationOnlyExifSegment(6))).toEqual(expected);
+    // Only the value changes with the orientation.
+    for (let o = 1; o <= 8; o++) {
+      const bytes = Array.from(orientationOnlyExifSegment(o));
+      expect(bytes.slice(0, 28)).toEqual(expected.slice(0, 28));
+      expect(bytes.slice(28, 30)).toEqual([0, o]);
+      expect(bytes.slice(30)).toEqual(expected.slice(30));
+    }
+  });
+
+  it("is read back by a separate reader that parses the IFD itself", () => {
+    // An independent minimal TIFF reader, big-endian only, written for this test.
+    const read = (segment: Uint8Array) => {
+      const v = new DataView(
+        segment.buffer,
+        segment.byteOffset,
+        segment.length,
+      );
+      expect(v.getUint16(0)).toBe(0xffe1);
+      expect(v.getUint16(2)).toBe(segment.length - 2);
+      const tiff = 10;
+      expect(v.getUint16(tiff)).toBe(0x4d4d);
+      expect(v.getUint16(tiff + 2)).toBe(42);
+      const ifd = tiff + v.getUint32(tiff + 4);
+      const entries = v.getUint16(ifd);
+      const found: {
+        tag: number;
+        type: number;
+        count: number;
+        value: number;
+      }[] = [];
+      for (let i = 0; i < entries; i++) {
+        const e = ifd + 2 + i * 12;
+        found.push({
+          tag: v.getUint16(e),
+          type: v.getUint16(e + 2),
+          count: v.getUint32(e + 4),
+          value: v.getUint16(e + 8),
+        });
+      }
+      const next = v.getUint32(ifd + 2 + entries * 12);
+      return { found, next, end: ifd + 2 + entries * 12 + 4 };
+    };
+    for (let o = 1; o <= 8; o++) {
+      const segment = orientationOnlyExifSegment(o);
+      const r = read(segment);
+      expect(r.found).toEqual([{ tag: 0x0112, type: 3, count: 1, value: o }]);
+      expect(r.next).toBe(0);
+      expect(r.end).toBe(segment.length); // nothing after the IFD
+    }
+  });
+
+  it("a malformed IFD count fails: more entries claimed than the segment holds gives no orientation and no Exif in the copy", () => {
+    const bad = Uint8Array.from(orientationOnlyExifSegment(6));
+    bad[19] = 0xff; // IFD0 entry count 0x00ff (255) in a segment that holds one
+    const out = strip(jpeg(bad));
+    expect(out.orientation).toBeNull();
+    expect(inventoryJpegMetadata(out.bytes).exif).toBeNull();
+    // As a finished copy it is refused too: it is not the minimal Exif.
+    expect(problemsInFiledCopy(jpeg(bad))).toContain(
+      "Exif holds more than the Orientation tag",
+    );
+    // Two entries where one is written: also not the minimal one.
+    const two = Uint8Array.from(orientationOnlyExifSegment(6));
+    two[19] = 2;
+    expect(problemsInFiledCopy(jpeg(two))).toContain(
+      "Exif holds more than the Orientation tag",
+    );
+  });
+
   it("builds the minimal segment for 1 to 8 only", () => {
     for (const bad of [0, 9, -1, 1.5, Number.NaN]) {
       expect(() => orientationOnlyExifSegment(bad)).toThrow(RangeError);
@@ -318,9 +415,45 @@ describe("what else is dropped", () => {
     });
   });
 
-  it("keeps APP14 (the Adobe colour transform)", () => {
+  it("keeps APP14 only as the 12-byte Adobe colour-transform header", () => {
     const out = strip(jpeg(ADOBE, COMMENT));
     expect(inventoryJpegMetadata(out.bytes).segments).toEqual(["APP14"]);
+    // The same marker with another content, or Adobe with extra bytes, is dropped.
+    const other = seg(0xee, enc("Other\0camera notes with a serial SN-7"));
+    const longer = seg(
+      0xee,
+      concat(enc("Adobe"), new Uint8Array(7), enc("SN-6 hidden")),
+    );
+    for (const odd of [other, longer]) {
+      const dropped = strip(jpeg(odd));
+      expect(inventoryJpegMetadata(dropped.bytes).segments).toEqual([]);
+      expect(contains(dropped.bytes, "SN-")).toBe(false);
+    }
+  });
+
+  it("keeps APP0 only as a plain JFIF header: a JFXX extension and a JFIF with a thumbnail are dropped", () => {
+    const plain = strip(jpeg(JFIF_SEGMENT));
+    expect(inventoryJpegMetadata(plain.bytes).segments).toEqual(["APP0"]);
+    for (const thumb of [JFXX, JFIF_WITH_THUMBNAIL]) {
+      const out = strip(jpeg(thumb));
+      expect(inventoryJpegMetadata(out.bytes).segments).toEqual([]);
+      expect(contains(out.bytes, thumb)).toBe(false);
+    }
+    expect(inventoryJpegMetadata(jpeg(JFXX)).segments).toEqual(["APP0:other"]);
+  });
+
+  it("drops the JPGn extension markers (0xF0 to 0xFD) and reserved markers", () => {
+    const out = strip(jpeg(JPG4, RESERVED, JFIF_SEGMENT));
+    expect(inventoryJpegMetadata(out.bytes).segments).toEqual(["APP0"]);
+    expect(contains(out.bytes, "SN-9")).toBe(false);
+    expect(contains(out.bytes, "SN-8")).toBe(false);
+    for (let marker = 0xf0; marker <= 0xfd; marker++) {
+      const dropped = strip(jpeg(seg(marker, enc("hidden text"))));
+      expect(contains(dropped.bytes, "hidden text")).toBe(false);
+      expect(Array.from(pictureOf(dropped.bytes))).toEqual(
+        Array.from(concat(DQT, SOF0, DHT, SOS, SCAN, EOI)),
+      );
+    }
   });
 
   it("drops whatever follows the end-of-image marker (a gain map or a motion-photo video with its own metadata)", () => {
@@ -456,6 +589,21 @@ describe("problemsInFiledCopy", () => {
       "APP1 segment present",
     );
     expect(problemsInFiledCopy(jpeg(MPF))).toContain("APP2 segment present");
+    // By content, not by segment name: the same markers with the wrong content are problems.
+    expect(problemsInFiledCopy(jpeg(JFXX))).toContain(
+      "APP0:other segment present",
+    );
+    expect(problemsInFiledCopy(jpeg(JFIF_WITH_THUMBNAIL))).toContain(
+      "APP0:other segment present",
+    );
+    expect(problemsInFiledCopy(jpeg(seg(0xee, enc("Other\0notes"))))).toContain(
+      "APP14:other segment present",
+    );
+    expect(problemsInFiledCopy(jpeg(JPG4))).toContain("JPG4 segment present");
+    expect(problemsInFiledCopy(jpeg(RESERVED))).toEqual([
+      "marker 0x7d segment present",
+    ]);
+    expect(problemsInFiledCopy(jpeg(ADOBE, ICC, JFIF_SEGMENT))).toEqual([]);
     expect(
       problemsInFiledCopy(
         jpeg(orientationOnlyExifSegment(1), orientationOnlyExifSegment(1)),

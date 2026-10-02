@@ -32,9 +32,14 @@ function check<T>(
 ): Parsed<T> {
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    // Windows editors (Notepad, PowerShell's Out-File) save a hand-edited file
+    // with a UTF-8 byte-order mark in front, which JSON.parse refuses.
+    json = JSON.parse(text.replace(/^﻿/, ""));
   } catch {
-    return { ok: false, message: `${label} is not valid JSON.` };
+    return {
+      ok: false,
+      message: `${label} is not valid JSON (check for a missing comma or quote; a UTF-8 byte-order mark is accepted).`,
+    };
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) {

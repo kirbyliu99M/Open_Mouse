@@ -17,8 +17,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { HandSide, SortedPhoto } from "./kit";
 import { prepareFiledCopy, type StripRefusal } from "./exifstrip";
+import type { UnfiledReason } from "./sortv2";
 import { isInsideDirectory } from "./paths";
-import { emptyLabelsRecord, emptyParticipantRecord } from "./session";
+import {
+  emptyLabelsRecord,
+  emptyParticipantRecord,
+  type ParticipantRecord,
+} from "./session";
 import {
   parseLabelsFile,
   parseParticipantFile,
@@ -86,10 +91,48 @@ export function fileStrippedCopies(args: {
   return { copied, existing, refused };
 }
 
+const UNFILED: Readonly<
+  Record<StripRefusal | "verification-failed", UnfiledReason>
+> = {
+  "not-a-jpeg": "not-a-jpeg",
+  malformed: "damaged-jpeg",
+  "verification-failed": "copy-failed",
+};
+
+/**
+ * Which of these input files cannot be filed as a stripped copy, and why:
+ * checked before sorting, so the sort, the run log and `labels.json` agree on
+ * what is filed. Reads only. A file that is not there counts as damaged.
+ */
+export function findUnfileable(args: {
+  readonly inputDir: string;
+  readonly files: readonly string[];
+}): Record<string, UnfiledReason> {
+  const out: Record<string, UnfiledReason> = {};
+  for (const file of args.files) {
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(join(args.inputDir, file));
+    } catch {
+      out[file] = "damaged-jpeg";
+      continue;
+    }
+    const prepared = prepareFiledCopy(
+      new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+    );
+    if (!prepared.ok) out[file] = UNFILED[prepared.reason];
+  }
+  return out;
+}
+
 /** What reading the participants' records found. */
-export interface MouseHands {
+export interface ParticipantRecords {
   /** Participant id to their mouse hand; `null` while the record has none. */
   readonly hands: Readonly<Record<string, HandSide | null>>;
+  /** Participant id to `shotCounts` (how many G02, then G04, were taken); `null` = as planned. */
+  readonly shotCounts: Readonly<
+    Record<string, ParticipantRecord["shotCounts"]>
+  >;
   /** Participants with no `participant.json` yet. */
   readonly missing: readonly string[];
   /** Records that exist but could not be used, and why (the message names no value). */
@@ -99,12 +142,13 @@ export interface MouseHands {
   }[];
 }
 
-/** Read each participant's `mouseHand` from `<outDir>/<P###>/participant.json`. Reads only. */
-export function readMouseHands(args: {
+/** Read each participant's `mouseHand` and `shotCounts` from `<outDir>/<P###>/participant.json`. Reads only. */
+export function readParticipantRecords(args: {
   readonly participants: readonly string[];
   readonly outDir: string;
-}): MouseHands {
+}): ParticipantRecords {
   const hands: Record<string, HandSide | null> = {};
+  const shotCounts: Record<string, ParticipantRecord["shotCounts"]> = {};
   const missing: string[] = [];
   const problems: { participant: string; message: string }[] = [];
   for (const participant of args.participants) {
@@ -112,6 +156,7 @@ export function readMouseHands(args: {
     if (!existsSync(file)) {
       missing.push(participant);
       hands[participant] = null;
+      shotCounts[participant] = null;
       continue;
     }
     const parsed = parseParticipantFile(
@@ -121,11 +166,13 @@ export function readMouseHands(args: {
     if (!parsed.ok) {
       problems.push({ participant, message: parsed.message });
       hands[participant] = null;
+      shotCounts[participant] = null;
       continue;
     }
     hands[participant] = parsed.value.mouseHand;
+    shotCounts[participant] = parsed.value.shotCounts;
   }
-  return { hands, missing, problems };
+  return { hands, shotCounts, missing, problems };
 }
 
 /**

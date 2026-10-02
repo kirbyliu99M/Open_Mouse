@@ -55,6 +55,24 @@ function markers(geometry: PdfGeometry) {
   );
 }
 
+/**
+ * The lowest edge of any text in the page's SVG, in sheet mm (user units).
+ * The PDF reader skips text (it is glyphs, not paths), so this asks the
+ * browser for each text element's box instead.
+ */
+async function textBottomMm(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const svg = document.querySelector(".learn-print-page svg");
+    if (!svg) throw new Error("no sheet svg");
+    return Math.max(
+      ...[...svg.querySelectorAll("text")].map((t) => {
+        const b = (t as unknown as SVGGraphicsElement).getBBox();
+        return b.y + b.height;
+      }),
+    );
+  });
+}
+
 /** Everything drawn except the page-sized background. */
 function drawnBottoms(geometry: PdfGeometry): number[] {
   return [
@@ -113,6 +131,8 @@ test.describe("kit v2 printing", () => {
 
     // Nothing is drawn below y = 282 mm.
     expect(Math.max(...drawnBottoms(geometry))).toBeLessThanOrEqual(282.05);
+    // And the text, whose boxes the browser knows.
+    expect(await textBottomMm(page)).toBeLessThanOrEqual(282);
   });
 
   test("sheet B prints as exactly one A4 page, with six markers and a 180 mm marker-to-marker distance", async ({
@@ -157,6 +177,7 @@ test.describe("kit v2 printing", () => {
     expect(bottomRow).toHaveLength(4);
     expect(new Set(bottomRow.map((m) => m.y.toFixed(2))).size).toBe(1);
     expect(Math.max(...drawnBottoms(geometry))).toBeLessThanOrEqual(282.05);
+    expect(await textBottomMm(page)).toBeLessThanOrEqual(282);
   });
 
   test("12 participant cards (P901 to P912) print as one A4 page, 48 (P001 to P048) as two", async ({
@@ -169,6 +190,7 @@ test.describe("kit v2 printing", () => {
       "cards-P901-P912",
     );
     expect(s0.geometry.pageCount).toBe(1);
+    expect(await textBottomMm(page)).toBeLessThanOrEqual(282);
     await expect(page.locator(".learn-print-page svg")).toHaveCount(1);
     expect(Math.max(...drawnBottoms(s0.geometry))).toBeLessThanOrEqual(282.05);
 

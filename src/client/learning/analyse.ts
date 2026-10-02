@@ -13,7 +13,11 @@
  * out again without the photo.
  */
 import type { PaperSize } from "../../lib/contracts/measurement";
-import { parseKitCode, gestureByCode } from "../../lib/learning/kit";
+import {
+  LEARNING_KIT_VERSION,
+  parseKitCode,
+  gestureByCode,
+} from "../../lib/learning/kit";
 import { NO_EXIF, readExifWhitelist } from "../../lib/learning/exif";
 import {
   markerReference,
@@ -102,8 +106,12 @@ export function analyseLearningPhoto(
 ): Promise<LearningPhotoReport> {
   const paperSize = options.paperSize ?? "a4";
   const sheet = options.sheet;
-  return analyseSafely(file.name, paperSize, () =>
-    sheet ? analyseV2(file, paperSize, sheet) : analyse(file, paperSize),
+  return analyseSafely(
+    file.name,
+    paperSize,
+    () =>
+      sheet ? analyseV2(file, paperSize, sheet) : analyse(file, paperSize),
+    sheet ? LEARNING_KIT_VERSION : undefined,
   );
 }
 
@@ -128,6 +136,7 @@ async function analyseV2(
       paperSize,
       message,
       failureKind(err),
+      LEARNING_KIT_VERSION,
     );
   }
   const { bitmap, width, height } = decoded;

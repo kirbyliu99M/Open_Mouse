@@ -343,7 +343,13 @@ export type SortStatus =
   /** Kit v2 only: filed, but the pose check disagrees with the shooting order. */
   | "pose-mismatch"
   /** Kit v2 only: the participant's photos cannot be placed by order without guessing; none is filed. */
-  | "needs-review";
+  | "needs-review"
+  /** Kit v2 only: placed in the order, but its copy cannot be made because it is not a JPEG. */
+  | "not-a-jpeg"
+  /** Kit v2 only: placed in the order, but its copy cannot be made because the JPEG is damaged. */
+  | "damaged-jpeg"
+  /** Kit v2 only: placed in the order, but the stripped copy failed its own check, so none was written. */
+  | "copy-failed";
 
 export interface SortedPhoto {
   readonly file: string;

@@ -159,15 +159,20 @@ export interface ReportFindings {
   readonly sheet?: KitV2Sheet;
 }
 
-/** A photo that could not be decoded at all. */
+/**
+ * A photo that could not be decoded at all. `kitVersion` is the kit the batch
+ * was run as (2 in a kit v2 run, so a failed report in a v2 log does not claim
+ * to be v1).
+ */
 export function assembleFailedReport(
   file: string,
   paperSize: PaperSize,
   message: string,
   errorKind?: string,
+  kitVersion: number = KIT_V1_VERSION,
 ): LearningPhotoReport {
   return {
-    kitVersion: KIT_V1_VERSION,
+    kitVersion,
     gitSha: null,
     gitDirty: null,
     file,
