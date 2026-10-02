@@ -119,8 +119,11 @@ export interface ExclusionRow {
    *    it is out of the "accepted" group but stays in "all".
    *  - kit: it was measured, and the kit's own checker said to retake it
    *    (`KIT_RETAKE:<check id>`), so it is out of "accepted" and stays in "all".
+   *  - person (agreed-v2 only): the row is a participant, not a photo; the
+   *    per-person statistics leave that person out (`MIXED_HANDS`: photos of
+   *    both hands under one participant).
    */
-  readonly stage: "measurement" | "truth" | "product" | "kit";
+  readonly stage: "measurement" | "truth" | "product" | "kit" | "person";
   readonly path: EvalPath | null;
   readonly field: string | null;
   readonly reasons: readonly string[];

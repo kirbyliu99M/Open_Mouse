@@ -7,8 +7,11 @@ import type {
   EvaluationReport,
   EvalGroup,
   ExclusionRow,
+  ExclusionSummaryRow,
   FieldResult,
 } from "./evaluate";
+import type { KitV2Report } from "./kitv2";
+import type { AnyEvaluationReport } from "./run";
 import type { Reading } from "./thresholds";
 
 const mm = (v: number | null): string => (v === null ? "n/a" : v.toFixed(2));
@@ -38,10 +41,31 @@ function readingLine(r: Reading): string {
   return `- ${r.name}: ${readingValue(r.valueMm, r.limitMm)} mm against ${mm(r.limitMm)} mm: **${verdict}**`;
 }
 
-function fieldSection(field: string, result: FieldResult): string[] {
-  const out: string[] = [`#### ${field}`, ""];
+interface FieldView {
+  /** Show the accuracy part. Off under agreed-v2, where accuracy is dormant (no ruler truth). */
+  readonly accuracy: boolean;
+  /** The per-person rows were dropped (`--aggregate-only`). */
+  readonly aggregateOnly: boolean;
+  /** Heading of the field, e.g. "####". */
+  readonly heading: string;
+}
+
+const DEFAULT_VIEW: FieldView = {
+  accuracy: true,
+  aggregateOnly: false,
+  heading: "####",
+};
+
+function fieldSection(
+  field: string,
+  result: FieldResult,
+  view: FieldView = DEFAULT_VIEW,
+): string[] {
+  const out: string[] = [`${view.heading} ${field}`, ""];
   const s = result.accuracy.stats;
-  if (!s) {
+  if (!view.accuracy) {
+    // Dormant: nothing to say here, the accuracy section says it once.
+  } else if (!s) {
     out.push("Accuracy: no photo has a ruler value for this measurement.", "");
   } else {
     out.push(
@@ -78,15 +102,19 @@ function fieldSection(field: string, result: FieldResult): string[] {
         "",
       );
     }
-    out.push(
-      "| participant | hand | pose | n | range | SD | deviation from mean |",
-      "| --- | --- | --- | --- | --- | --- | --- |",
-      ...r.rows.map(
-        (row) =>
-          `| ${row.participant} | ${row.hand} | ${row.gesture} | ${row.n} | ${mm(row.range)} | ${mm(row.sd)} | ${mm(row.maxDeviationFromMean)} |`,
-      ),
-      "",
-    );
+    if (view.aggregateOnly) {
+      out.push("Per-person rows are not included (--aggregate-only).", "");
+    } else {
+      out.push(
+        "| participant | hand | pose | n | range | SD | deviation from mean |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+        ...r.rows.map(
+          (row) =>
+            `| ${row.participant} | ${row.hand ?? "?"} | ${row.gesture} | ${row.n} | ${mm(row.range)} | ${mm(row.sd)} | ${mm(row.maxDeviationFromMean)} |`,
+        ),
+        "",
+      );
+    }
   }
   return out;
 }
@@ -101,7 +129,47 @@ function excludedLine(row: ExclusionRow): string {
   return `- ${row.id} (${where}): ${row.reasons.join(", ")}`;
 }
 
-export function renderMarkdown(report: EvaluationReport): string {
+function excludedSummaryLine(row: ExclusionSummaryRow): string {
+  const where = [row.stage, row.path, row.field].filter(Boolean).join(" / ");
+  return `- ${row.count} x ${row.reason} (${where})`;
+}
+
+/** The excluded section: the rows, or under `--aggregate-only` the counts they made up. */
+function excludedSection(report: {
+  readonly excluded: readonly ExclusionRow[];
+  readonly aggregateOnly: boolean;
+  readonly excludedSummary?: readonly ExclusionSummaryRow[];
+}): string[] {
+  if (report.aggregateOnly) {
+    const summary = report.excludedSummary ?? [];
+    return [
+      "## Excluded photos",
+      "",
+      "Per-photo rows are not included (--aggregate-only); counts by reason:",
+      "",
+      summary.length === 0
+        ? "None."
+        : summary.map(excludedSummaryLine).join("\n"),
+      "",
+    ];
+  }
+  return [
+    "## Excluded photos",
+    "",
+    report.excluded.length === 0
+      ? "None."
+      : report.excluded.map(excludedLine).join("\n"),
+    "",
+  ];
+}
+
+export function renderMarkdown(report: AnyEvaluationReport): string {
+  return report.protocol === "agreed-v2"
+    ? renderKitV2Markdown(report)
+    : renderCandidateV1Markdown(report);
+}
+
+function renderCandidateV1Markdown(report: EvaluationReport): string {
   const lines: string[] = [
     `# M2 evaluation: ${report.model}`,
     "",
@@ -110,8 +178,11 @@ export function renderMarkdown(report: EvaluationReport): string {
     "",
     `- Paths: ${report.options.paths.join(", ")}`,
     `- Poses: ${report.options.gestures.join(", ")}`,
-    `- Participants: ${report.options.participants ? report.options.participants.join(", ") : "all in the logs"} (${report.inputs.participants.length} evaluated)`,
+    `- Participants: ${report.options.participants ? (report.aggregateOnly ? `${report.options.participantCount} asked for` : report.options.participants.join(", ")) : "all in the logs"} (${report.inputs.participantCount} evaluated)`,
     `- Reports: ${report.counts.reports}: ${report.counts.cards} participant cards, ${report.counts.measured} measured, ${report.counts.notMeasured} not measured, ${report.counts.outOfScope} of other poses or participants`,
+    ...(report.aggregateOnly
+      ? ["- Per-person and per-photo rows are not included (--aggregate-only)."]
+      : []),
     "",
   ];
   for (const group of ["accepted", "all"] as const) {
@@ -121,17 +192,17 @@ export function renderMarkdown(report: EvaluationReport): string {
       if (!result) continue;
       lines.push(`### ${path} (${result.photos} photos)`, "");
       for (const [field, fieldResult] of Object.entries(result.fields)) {
-        lines.push(...fieldSection(field, fieldResult));
+        lines.push(
+          ...fieldSection(field, fieldResult, {
+            ...DEFAULT_VIEW,
+            aggregateOnly: report.aggregateOnly,
+          }),
+        );
       }
     }
   }
   lines.push(
-    "## Excluded photos",
-    "",
-    report.excluded.length === 0
-      ? "None."
-      : report.excluded.map(excludedLine).join("\n"),
-    "",
+    ...excludedSection(report),
     "## Definitions (candidate, awaiting the W7 pre-agreement)",
     "",
     "- error = measured - ruler value of the same hand of the same participant",
@@ -148,22 +219,36 @@ export function renderMarkdown(report: EvaluationReport): string {
  * exclusion reasons: the explanation that goes with a non-zero exit. It never
  * points at an "excluded list" that has nothing in it.
  */
-export function nothingEvaluatedReason(report: EvaluationReport): string {
+export function nothingEvaluatedReason(report: AnyEvaluationReport): string {
   const c = report.counts;
   if (c.reports === 0) return "The run logs hold no photo reports at all.";
   const parts: string[] = [];
   if (c.cards > 0) parts.push(`${c.cards} are participant cards`);
   if (c.outOfScope > 0) {
+    const who = report.options.participants
+      ? report.aggregateOnly
+        ? `${report.options.participantCount} asked for`
+        : report.options.participants.join(", ")
+      : "all";
     parts.push(
-      `${c.outOfScope} are of other poses or participants than selected (poses ${report.options.gestures.join(", ")}; participants ${report.options.participants ? report.options.participants.join(", ") : "all"})`,
+      report.protocol === "agreed-v2"
+        ? `${c.outOfScope} are of participants outside this run's set (${report.options.selection}; asked for: ${who}) or of other poses than selected (poses ${report.options.gestures.join(", ")} and the per-person poses)`
+        : `${c.outOfScope} are of other poses or participants than selected (poses ${report.options.gestures.join(", ")}; participants ${who})`,
     );
   }
   if (c.notMeasured > 0) {
     const counts = new Map<string, number>();
-    for (const row of report.excluded) {
-      if (row.stage !== "measurement") continue;
-      for (const reason of row.reasons)
-        counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    if (report.aggregateOnly) {
+      for (const row of report.excludedSummary ?? []) {
+        if (row.stage !== "measurement") continue;
+        counts.set(row.reason, (counts.get(row.reason) ?? 0) + row.count);
+      }
+    } else {
+      for (const row of report.excluded) {
+        if (row.stage !== "measurement") continue;
+        for (const reason of row.reasons)
+          counts.set(reason, (counts.get(reason) ?? 0) + 1);
+      }
     }
     const top = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -175,4 +260,279 @@ export function nothingEvaluatedReason(report: EvaluationReport): string {
     );
   }
   return `No photo could be evaluated: of ${c.reports} reports, ${parts.length > 0 ? parts.join("; ") : "none matched"}.`;
+}
+
+// ── agreed-v2 ───────────────────────────────────────────────────────────────
+
+const pct = (v: number | null): string =>
+  v === null ? "n/a" : `${(v * 100).toFixed(1)}%`;
+const ratio = (v: number | null): string => (v === null ? "n/a" : v.toFixed(3));
+const thr = (v: number): string => v.toFixed(4);
+const mmSigned = (v: number | null): string =>
+  v === null ? "n/a" : (v > 0 ? "+" : "") + v.toFixed(2);
+
+const ROLE_TITLE: Record<string, string> = {
+  calibration: "calibration",
+  "held-out": "held-out",
+  s0: "S0 pilot",
+  pending: "pending (block not complete)",
+  unnumbered: "not numbered",
+};
+
+function selectionSection(report: KitV2Report): string[] {
+  const sel = report.selection;
+  const modeRole = sel.mode === "calibration" ? "calibration" : sel.mode;
+  const rows = (
+    ["calibration", "held-out", "s0", "pending", "unnumbered"] as const
+  ).map(
+    (role) =>
+      `| ${ROLE_TITLE[role]} | ${sel.roles[role]} | ${role === modeRole ? "evaluated here" : sel.leftOutPhotos[role]} |`,
+  );
+  const out = [
+    "## Participants",
+    "",
+    `Held-out rule of the prereg (seed ${sel.seed}): participants in blocks of four; in each complete block the one with the smallest SHA-256 of "<seed>:<participant>" is held-out. The S0 pilot is never calibration and never held-out. A block that is not complete yet is pending: its members are neither.`,
+    "",
+    "| role | participants | photos left out of this run |",
+    "| --- | --- | --- |",
+    ...rows,
+    "",
+    `This run evaluates: ${modeRole === "calibration" ? "the calibration set (held-out, S0 and pending participants are left out)" : modeRole === "held-out" ? "the held-out set only" : "the S0 pilot only"}: ${sel.inSet} participants, ${report.inputs.participantCount} with a measured photo.`,
+    "",
+  ];
+  if (sel.leftOutPhotos.notRequested > 0) {
+    out.push(
+      `${sel.leftOutPhotos.notRequested} photos belong to participants in this set that --participants did not name.`,
+      "",
+    );
+  }
+  if (sel.requestedOutsideSetCount > 0) {
+    out.push(
+      report.aggregateOnly
+        ? `${sel.requestedOutsideSetCount} participants named with --participants are not in this run's set and were not evaluated.`
+        : `Named with --participants but not in this run's set, so not evaluated: ${sel.requestedOutsideSet.join(", ")}.`,
+      "",
+    );
+  }
+  return out;
+}
+
+function kitV2Sections(report: KitV2Report): string[] {
+  const k = report.kitV2;
+  const out: string[] = [];
+
+  // Repeatability, the one activated criterion.
+  const r = k.repeatability;
+  const reading =
+    r.withinLimit === null
+      ? "n/a (no person has two photos)"
+      : r.withinLimit
+        ? "**within**"
+        : "**OUTSIDE**";
+  out.push(
+    "## G02 retake repeatability (marker path, hand length)",
+    "",
+    `Criterion from the prereg: the pooled within-person SD of hand length at most ${mm(r.limitMm)} mm. This is retake repeatability, not accuracy.`,
+    "",
+    "| people with 2+ photos | photos behind the SD | people with one photo | degrees of freedom | pooled within-person SD | criterion | reading |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    `| ${r.people} | ${r.photosBehindSd} | ${r.peopleWithPhotos - r.people} | ${r.degreesOfFreedom} | ${r.pooledSdMm === null ? "n/a" : `${readingValue(r.pooledSdMm, r.limitMm)} mm`} | at most ${mm(r.limitMm)} mm | ${reading} |`,
+    "",
+    `Mean of the people's own SDs: ${mm(r.meanSdMm)} mm. Worst range within one person: ${mm(r.worstRangeMm)} mm. ${r.peopleWithPhotos} people and ${r.photos} G02 photos in all.`,
+    "",
+  );
+
+  // Path agreement.
+  const a = k.pathAgreement;
+  out.push(
+    "## Agreement of the paper-edge path with the marker path (G02 hand length)",
+    "",
+    "Paper-edge minus marker, mm. Report only. Each person's photos are averaged first; the bias and SD are taken over people.",
+    "",
+    "| level | n | bias | SD |",
+    "| --- | --- | --- | --- |",
+    a.personLevel
+      ? `| people (each person's mean first) | ${a.personLevel.n} | ${mmSigned(a.personLevel.biasMm)} | ${mm(a.personLevel.sdMm)} |`
+      : "| people (each person's mean first) | 0 | n/a | n/a |",
+    a.photoLevel
+      ? `| photo-level (photos treated as if independent; for the record) | ${a.photoLevel.n} | ${mmSigned(a.photoLevel.biasMm)} | ${mm(a.photoLevel.sdMm)} |`
+      : "| photo-level (photos treated as if independent; for the record) | 0 | n/a | n/a |",
+    "",
+  );
+
+  // Curl ratio.
+  const c = k.curl;
+  const d = c.distribution;
+  out.push(
+    "## Curl ratio (G04 over G02, marker plane)",
+    "",
+    "A G04 photo's wrist-to-middle-fingertip length projected on the marker plane, divided by the same person's mean G02 hand length. Report only.",
+    "",
+    "| people | G04 photos | mean over people | SD over people | min | Q1 | median | Q3 | max |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    d
+      ? `| ${c.people} | ${c.photos} | ${ratio(d.mean)} | ${ratio(d.sd)} | ${ratio(d.min)} | ${ratio(d.q1)} | ${ratio(d.median)} | ${ratio(d.q3)} | ${ratio(d.max)} |`
+      : `| ${c.people} | ${c.photos} | n/a | n/a | n/a | n/a | n/a | n/a | n/a |`,
+    "",
+    `Retake variation within a person (people with 2+ G04 photos): ${c.withinPerson.people} people, ${c.withinPerson.photos} photos, pooled SD ${ratio(c.withinPerson.pooledSd)}, mean of the SDs ${ratio(c.withinPerson.meanSd)}.`,
+    `Left out: ${c.skipped.noG02} people with no usable G02 photo, ${c.skipped.noG04} with no usable G04 photo.`,
+    "",
+  );
+
+  // Gates.
+  out.push(
+    "## Product gates by pose",
+    "",
+    "Accepted over all photos of the pose, whatever happened to them. Report only. The hand label is MediaPipe's, against the hand the participant record gives.",
+    "",
+    "| pose | photos | accepted | accepted rate | hand found | hand label agrees (of those with both) |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...k.gate.poses.map(
+      (p) =>
+        `| ${p.gesture} | ${p.photos} | ${p.accepted} | ${pct(p.acceptedRate)} | ${p.handDetected} (${pct(p.detectionRate)}) | ${p.handLabelAgrees} of ${p.handLabelChecked} (${pct(p.handLabelAgreementRate)}) |`,
+    ),
+    "",
+    `Extra shots logged: ${k.gate.extraShots}.`,
+    "",
+  );
+
+  // Coverage.
+  const cov = k.coverage;
+  const countTable = (title: string, rows: typeof cov.byPhone) => [
+    `| ${title} | people | photos |`,
+    "| --- | --- | --- |",
+    ...(rows.length === 0
+      ? ["| none | 0 | 0 |"]
+      : rows.map((x) => `| ${x.value} | ${x.people} | ${x.photos} |`)),
+    "",
+  ];
+  out.push(
+    "## Coverage",
+    "",
+    `${cov.people} people and ${cov.photos} G02 and G04 photos. Report only.`,
+    "",
+    `Hand length: each person's mean G02 marker-path hand length, in 10 mm bins (${cov.peopleWithHandLength} people).`,
+    "",
+    "| from (mm) | to (mm) | people |",
+    "| --- | --- | --- |",
+    ...(cov.handLengthBins.length === 0
+      ? ["| none | none | 0 |"]
+      : cov.handLengthBins.map(
+          (b) => `| ${b.fromMm} | ${b.toMm} | ${b.people} |`,
+        )),
+    "",
+    ...countTable("phone", cov.byPhone),
+    ...countTable("sheet", cov.bySheet),
+    ...countTable("mouse hand", cov.byMouseHand),
+  );
+
+  // Grip calibration.
+  const g = k.grip;
+  const cal = g.calibration;
+  out.push(
+    "## Grip-threshold calibration (report only)",
+    "",
+    "r = palm length / hand length, each person's mean over their G02 photos on the marker plane (palm: wrist to the middle finger's base joint; hand: wrist to the middle fingertip; the product's own definitions). It is set against the grip the participant reported. The product's thresholds are not changed here.",
+    "",
+    `People evaluated: ${g.people}. Left out: ${g.skipped.unsure} unsure, ${g.skipped.noAnswer} with no answer, ${g.skipped.noRecord} with no participant record, ${g.skipped.noG02} with no usable G02 photo.`,
+    "",
+  );
+  if (!cal) {
+    out.push("No person has both a reported grip and a G02 ratio.", "");
+  } else {
+    const matrix = (m: typeof cal.current.matrix): string[] => [
+      "| reported (rows) vs predicted (columns) | palm | claw | fingertip |",
+      "| --- | --- | --- | --- |",
+      ...(["palm", "claw", "fingertip"] as const).map(
+        (self) =>
+          `| ${self} | ${m[self].palm} | ${m[self].claw} | ${m[self].fingertip} |`,
+      ),
+      "",
+    ];
+    const cur = cal.current;
+    out.push(
+      `Current thresholds (palm at r >= ${thr(cur.thresholds.palmAtOrAbove)}, claw at r >= ${thr(cur.thresholds.clawAtOrAbove)}, otherwise fingertip): agreement ${cur.agree} of ${cur.people} (${pct(cur.rate)}).`,
+      "",
+      ...matrix(cur.matrix),
+    );
+    const best = cal.best.agreement;
+    out.push(
+      `Threshold pair with the highest agreement on these people: palm at r >= ${thr(best.thresholds.palmAtOrAbove)}, claw at r >= ${thr(best.thresholds.clawAtOrAbove)}: agreement ${best.agree} of ${best.people} (${pct(best.rate)}). ${cal.best.tiedPairs} threshold pairs reach this agreement; the one nearest the current thresholds is shown. It was chosen on the very people it is scored on, so it is optimistic.`,
+      "",
+      ...matrix(best.matrix),
+    );
+  }
+  return out;
+}
+
+function personTable(report: KitV2Report): string[] {
+  const rows = report.kitV2.people;
+  return [
+    "## Per-person rows",
+    "",
+    "| participant | hand | G02 photos | mean hand length (mm) | SD (mm) | paper-edge minus marker (mm) | G04 photos | curl ratio | curl SD | grip reported | r | grip predicted |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows.map(
+      (p) =>
+        `| ${p.participant} | ${p.hand ?? "?"} | ${p.g02.photos} | ${mm(p.g02.meanHandLengthMm)} | ${mm(p.g02.sdMm)} | ${mmSigned(p.pathDifference.meanMm)} | ${p.curl.photos} | ${ratio(p.curl.meanRatio)} | ${ratio(p.curl.sdRatio)} | ${p.gripSelf ?? "no answer"} | ${ratio(p.gripRatio)} | ${p.gripPredicted ?? "n/a"} |`,
+    ),
+    "",
+  ];
+}
+
+function renderKitV2Markdown(report: KitV2Report): string {
+  const lines: string[] = [`# M2 evaluation (agreed-v2): ${report.model}`, ""];
+  for (const notice of report.notices) lines.push(`> **${notice}**`, "");
+  lines.push(
+    "Protocol agreed-v2, criteria frozen in the prereg of 2026-10-02. The reference is the marker plane of the same sheet: there is no ruler truth. Every number below is agreement with the marker-sheet reference or retake repeatability.",
+    "",
+    `- Paths (field tables): ${report.options.paths.join(", ")}`,
+    `- Poses (field tables): ${report.options.gestures.join(", ")}. The per-person statistics always use G02 and G04.`,
+    `- Participants: ${report.options.participants ? (report.aggregateOnly ? `${report.options.participantCount} asked for` : report.options.participants.join(", ")) : "everyone in this run's set"} (${report.inputs.participantCount} evaluated)`,
+    `- Reports: ${report.counts.reports}: ${report.counts.measured} measured, ${report.counts.notMeasured} not measured, ${report.counts.outOfScope} of participants outside this run's set or of other poses`,
+    ...(report.aggregateOnly
+      ? ["- Per-person and per-photo rows are not included (--aggregate-only)."]
+      : []),
+    "",
+    ...selectionSection(report),
+    "## Accuracy",
+    "",
+    `Dormant: ${report.accuracy.reason}. Under agreed-v2 there is no ruler value, so the accuracy criterion is not computed. It starts only when ruler values exist.`,
+    "",
+    ...kitV2Sections(report),
+    `## Field tables (poses ${report.options.gestures.join(", ")}; no accuracy)`,
+    "",
+  );
+  for (const group of ["accepted", "all"] as const) {
+    lines.push(`### ${GROUP_TITLE[group]}`, "");
+    for (const path of report.options.paths) {
+      const result = report.groups[group][path];
+      if (!result) continue;
+      lines.push(`#### ${path} (${result.photos} photos)`, "");
+      for (const [field, fieldResult] of Object.entries(result.fields)) {
+        lines.push(
+          ...fieldSection(field, fieldResult, {
+            accuracy: false,
+            aggregateOnly: report.aggregateOnly,
+            heading: "#####",
+          }),
+        );
+      }
+    }
+  }
+  if (!report.aggregateOnly) lines.push(...personTable(report));
+  lines.push(
+    ...excludedSection(report),
+    "## Definitions (agreed-v2, frozen prereg of 2026-10-02)",
+    "",
+    "- reference = the marker plane of the same sheet; there is no ruler truth, so nothing here is an accuracy",
+    "- retake repeatability = pooled within-person SD of G02 hand length on the marker path: sqrt(sum((n - 1) x SD^2) / sum(n - 1)) over people with two or more photos; criterion at most 1.0 mm",
+    "- path agreement = paper-edge minus marker hand length per G02 photo; averaged within each person; then bias and SD (n - 1) over people. The photo-level line treats photos as independent and is for the record",
+    "- curl ratio = G04 wrist-to-middle-fingertip length on the marker plane / the same person's mean G02 hand length; report only",
+    "- accepted rate = photos the product's gates take / all photos of the pose",
+    "- coverage = people by 10 mm bin of their mean G02 hand length, and counts by phone, sheet and mouse hand",
+    "- grip calibration = palm length / hand length per person (mean over G02) against the reported grip; palm at r >= 0.58, claw at r >= 0.54 are the product's thresholds today",
+    "",
+  );
+  return lines.join("\n");
 }
