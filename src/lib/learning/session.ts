@@ -145,9 +145,18 @@ export interface PoseCheck {
  * What the evaluator reads, per photo, from a kit v2 run log's
  * `sort.photos[]` (matched to a report by `file`). For kit v2 the pose, hand
  * and shot come from here, never from a QR code on the photo.
+ *
+ * Pinned 2026-10-02, after both builder branches existed:
+ * - A v3 run log's top-level `session` is the whole `SessionRecord` that the
+ *   sorter was given (never just its id).
+ * - `labels.json` names each photo by this `destination`, verbatim.
  */
 export interface KitV2PhotoAssignment {
   readonly file: string;
+  /** The sorter's status for this photo (for example "ok", "needs-review", "no-code"). */
+  readonly status: string;
+  /** Relative path the photo was filed to, `/`-separated; `null` if not filed. Labels use it. */
+  readonly destination: string | null;
   readonly participant: string | null;
   readonly gesture: GestureCode | null;
   /** From `participant.json`'s `mouseHand`; MediaPipe's label is only a check. */
