@@ -502,11 +502,14 @@ for (const [width, height] of [
 // 361 and 364 are in the list on purpose: the side padding used to step from
 // 1.5rem to 1rem at 360 px, which left those widths a few pixels short in a wide
 // font (the buttons stacked at 361 to 364 px, though they fit at 360). It ramps
-// now, so every width from 360 px up has at least as much room as 360 px has.
+// now, so every width from 360 px up has at least as much room as 360 px has
+// (the next test pins that, for any font); 370 is where a faster ramp, 0.8 px
+// of padding per px of viewport, left the row narrowest.
 for (const [width, height] of [
   [360, 640],
   [361, 640],
   [364, 640],
+  [370, 667],
   [375, 667],
   [390, 844],
 ] as const) {
@@ -528,6 +531,34 @@ for (const [width, height] of [
     expect(how!.height).toBeLessThan(60);
   });
 }
+
+// The reason those widths fit, stated without a font: the row the buttons live
+// in is never narrower than it is at 360 px, where the two share a line. A step
+// in the side padding at 360 px narrows it (the old one took 16 px more padding
+// for the one pixel more of viewport at 361 px); a ramp that grows by more than
+// half a pixel per pixel of viewport on each side narrows it on the way to the
+// full padding.
+test("from 360 px to 420 px the row the buttons live in is never narrower than at 360 px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.goto("/");
+  const rowWidth = () =>
+    page.evaluate(
+      () =>
+        document
+          .querySelector('[data-testid="home-hero"] .home-actions')!
+          .getBoundingClientRect().width,
+    );
+  const at360 = await rowWidth();
+  const narrower: string[] = [];
+  for (let width = 361; width <= 420; width++) {
+    await page.setViewportSize({ width, height: 640 });
+    const row = await rowWidth();
+    if (row < at360 - 0.01) narrower.push(`${width}: ${row} < ${at360}`);
+  }
+  expect(narrower).toEqual([]);
+});
 
 test("375x667: the first screen holds both buttons and the Early preview note", async ({
   page,

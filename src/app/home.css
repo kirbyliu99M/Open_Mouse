@@ -97,12 +97,15 @@
 .landing-page {
   /* A 1200 px content column once the viewport is wide enough. */
   max-width: 78rem;
-  /* The side padding is 1rem at 360 px and below and 1.5rem from 370 px up,
-     and moves between them as the viewport grows. A step at 360 px left a gap
-     in a wide font (361 to 364 px: the two buttons stacked, though they fit
-     from 360 px); a ramp has none, because the row only ever gets wider than
-     it was at 360 px until the padding has grown to its full size. */
-  padding: 0.75rem clamp(1rem, calc(1rem + (100vw - 360px) * 0.8), 1.5rem)
+  /* The side padding is 1rem at 360 px and below and 1.5rem from 376 px up
+     (at 100 % text), and grows by half a pixel per pixel of viewport between.
+     Both sides together take one pixel for each pixel the viewport gains, so
+     the row the buttons live in is exactly as wide at every width from 360 px
+     to where the padding is full as it is at 360 px, where the two share a
+     line. A step at 360 px left a gap in a wide font (361 to 364 px: the two
+     buttons stacked, though they fit at 360); a ramp that grows faster than
+     0.5 would narrow the row below its 360 px width on the way. */
+  padding: 0.75rem clamp(1rem, calc(1rem + (100vw - 360px) * 0.5), 1.5rem)
     3.5rem;
 }
 .landing-page .home-nav {
