@@ -247,6 +247,12 @@ describe("the filled buttons: white on --accent", () => {
     ["src/client/camera/camera.css", ".cameraResumeButton", null],
     ["src/client/camera/easy-scan.css", ".easyCopyLink", null],
     ["src/client/camera/easy-scan.css", ".easyUploadFallbackButton", null],
+    ["src/client/camera/camera.css", ".cameraPaperToggleButton.selected", null],
+    [
+      "src/components/results/results.css",
+      '.results-demoControls-buttons button[aria-pressed="true"]',
+      null,
+    ],
   ];
 
   it.each(FILLED)(
@@ -284,6 +290,30 @@ describe("the filled buttons: white on --accent", () => {
       }
     },
   );
+
+  it("the selected toggles' pressed state also darkens their border, so the outline does not stay light", () => {
+    for (const [file, selector] of [
+      ["src/client/camera/camera.css", ".cameraPaperToggleButton.selected"],
+      [
+        "src/components/results/results.css",
+        '.results-demoControls-buttons button[aria-pressed="true"]',
+      ],
+    ] as const) {
+      expect(
+        resolve(declared(rulesOf(file), `${selector}:active`, "border-color")!),
+        selector,
+      ).toBe(token("--accent-pressed"));
+    }
+  });
+
+  it("the upload and primary buttons transition their fill, so the pressed colour fades in with the press", () => {
+    const rules = rulesOf("src/app/scan/scan.css");
+    for (const selector of [".uploadButton", ".primaryButton"]) {
+      expect(declared(rules, selector, "transition"), selector).toContain(
+        "background-color",
+      );
+    }
+  });
 
   it("the picker chip's pressed state also darkens its border, so the outline does not stay light", () => {
     const rules = rulesOf("src/app/scan/scan.css");

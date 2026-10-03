@@ -560,6 +560,11 @@
   background: var(--accent);
   border-color: var(--accent);
 }
+/* White on the accent fill: pressing darkens it, never fades it. */
+.results-demoControls-buttons button[aria-pressed="true"]:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
 
 /* Journey styling shared with Home and Sheet. */
 .resultsMain {

@@ -74,6 +74,11 @@
   border-color: var(--accent);
   color: var(--on-accent);
 }
+/* White on the accent fill: pressing darkens it, never fades it. */
+.cameraPaperToggleButton.selected:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
 
 .cameraNotice {
   margin: 0.75rem 0 0;
