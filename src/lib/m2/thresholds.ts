@@ -1,16 +1,29 @@
 /**
- * The M2 gate's limits, read from configuration and labelled CANDIDATE
- * (未拍板). docs/PLAN.md §M2 states them as "repeatability <= +/-1.5 mm across
- * 5 photos; accuracy <= +/-2 mm on hand length vs. ruler", but not which
- * statistic decides them (MAE? the worst photo? the 95% limits of
- * agreement? range or half-range?). That waits for the W7 pre-agreement, so
- * the evaluator reports every reading and chooses none.
+ * The limits the M2 evaluator can compare readings with, read from
+ * configuration and labelled CANDIDATE (未拍板). The numbers are those of the
+ * old M2 gate: "repeatability <= +/-1.5 mm across 5 photos; accuracy <= +/-2 mm
+ * on hand length vs. ruler". docs/PLAN.md §M2 no longer states them: Kirby
+ * changed M2 on 2026-10-02 (prereg v2, docs/STATUS.md R2) to no pass/fail
+ * threshold, a target of judgement correctness >= 95 % against his blind
+ * good/bad labels, repeatability reported and not a threshold, and no accuracy
+ * claim, because there is no ruler truth. So these limits are not the gate and
+ * no document sets them now. They also never said which statistic decides them
+ * (MAE? the worst photo? the 95% limits of agreement? range or half-range?),
+ * so the evaluator reports every reading and chooses none. The values and the
+ * code's behaviour are unchanged; only what they point to was out of date.
  */
 import { z } from "zod";
 import { emptyTruth } from "../learning/truth";
 import { EvaluationInputError } from "./inputs";
 import type { AccuracyStats, RepeatabilitySummary } from "./stats";
 
+/**
+ * The status text printed with the limits. Its words "limits from
+ * docs/PLAN.md" and "awaiting the W7 pre-agreement" date from before prereg v2
+ * (see the header): PLAN.md no longer states these limits. The string is left
+ * as it is, because tests/unit/m2-stats.test.ts pins its wording and reports
+ * print it; changing it is a behaviour change, not a comment.
+ */
 export const THRESHOLD_STATUS =
   "candidate (未拍板): limits from docs/PLAN.md, statistic not agreed yet; awaiting the W7 pre-agreement";
 
@@ -22,7 +35,11 @@ export interface Thresholds {
   readonly repeatabilityMm: Readonly<Record<string, number>>;
 }
 
-/** docs/PLAN.md §M2: hand length +/-2 mm against the ruler; +/-1.5 mm across 5 photos. */
+/**
+ * The old M2 gate's numbers: hand length +/-2 mm against the ruler; +/-1.5 mm
+ * across 5 photos. They were in docs/PLAN.md §M2 until 2026-10-02 and are
+ * superseded by prereg v2 (docs/STATUS.md R2; see the header).
+ */
 export const CANDIDATE_THRESHOLDS: Thresholds = {
   status: THRESHOLD_STATUS,
   accuracyMm: { handLengthMm: 2 },
