@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/kirbyliu99M/Open_Mouse/security/policy
+    about: Do not open a public issue. The security policy says how to report privately.
