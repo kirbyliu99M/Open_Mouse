@@ -165,3 +165,32 @@ test("/results/[scanId] prints dark text on white when the scan is gone", async 
   });
   expect(action).toEqual({ background: "rgba(0, 0, 0, 0)", border: "1px" });
 });
+
+test("/results/[scanId] leaves the open delete confirmation off the printed page", async ({
+  page,
+}) => {
+  await page.route(FIT_URL, (route) =>
+    fulfillJson(route, 200, highConfidenceFixture),
+  );
+  await page.route(ANALYSIS_URL, (route) =>
+    fulfillJson(route, 500, { error: "Unavailable" }),
+  );
+  await page.goto(`/results/${SCAN_ID}`);
+  await page.getByRole("button", { name: "Delete this scan now" }).click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Delete this scan now?",
+  });
+  await expect(dialog).toBeVisible();
+  // On screen it is a light-on-dark modal (#f5f5f7 on #1d1d1f); printed as it
+  // stands, its text would be 1.09:1 on white. A confirmation is a question to
+  // answer on screen, not something to keep on paper, so it is not printed.
+  await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+  const display = await page.evaluate(() => ({
+    backdrop: getComputedStyle(document.querySelector(".dialog-backdrop")!)
+      .display,
+    dialog: getComputedStyle(document.querySelector(".dialog")!).display,
+  }));
+  expect(display).toEqual({ backdrop: "none", dialog: "none" });
+  // The page behind it still prints, dark on white.
+  await expectPrintsDark(page, "ready, with the confirmation open");
+});

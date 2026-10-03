@@ -85,3 +85,34 @@ test("a signed-in account's actions, error line and scan card print dark on whit
   expect(samples.length).toBeGreaterThanOrEqual(7);
   expect(weakSamples(samples)).toEqual([]);
 });
+
+test("a signed-in account's open 'Delete everything?' dialog is left off the printed page", async ({
+  page,
+}) => {
+  await page.goto("/no-such-page-xyz");
+  await page.evaluate((html) => {
+    document.querySelector("main")!.insertAdjacentHTML(
+      "beforeend",
+      `${html}<dialog class="dialog" id="fake-dialog" open>
+        <h2>Delete everything?</h2>
+        <p>This permanently deletes all 1 of your scans. This can't be undone.</p>
+        <p class="status-error" role="status">Couldn't delete: try again.</p>
+        <div class="dialog-actions">
+          <button type="button" class="button-secondary">Cancel</button>
+          <button type="button" class="button-danger">Delete everything</button>
+        </div>
+      </dialog>`,
+    );
+  }, FAKE_ACCOUNT);
+  await expect(page.locator("#fake-dialog")).toBeVisible();
+  await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+  // Light-on-dark on screen (1.09:1 on white as it stands): a question to
+  // answer on screen, not something to keep on paper.
+  expect(
+    await page
+      .locator("#fake-dialog")
+      .evaluate((el) => getComputedStyle(el).display),
+  ).toBe("none");
+  const samples = await textSamples(page, { root: "body" });
+  expect(weakSamples(samples)).toEqual([]);
+});
