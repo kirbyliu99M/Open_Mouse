@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { ParticleStage } from "@/components/home/ParticleStage";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import "./home.css";
 
 /**
- * Home v3, PR A: the static layout (docs/design/home-v3-2026-10-03/README.md,
- * "Page structure"). The story section holds the hero, the hand on A4 and the
- * three mice as ordinary stacked blocks with static SVGs; PR B puts the
- * particle canvas on top of this and keeps it as the fallback. The copy is the
+ * Home v3 (docs/design/home-v3-2026-10-03/README.md, "Page structure"). The
+ * story section holds the hero, the hand on A4 and the three mice as ordinary
+ * stacked blocks with static SVGs (PR A). That static layout is what a visitor
+ * gets without JS, with reduced motion, on a small screen, or if the particle
+ * module fails to load. PR B's <ParticleStage /> loads after the first paint
+ * and, when allowed, draws a canvas under the hero and switches the section to
+ * the pinned, scroll-driven layout (`story--animated`). The copy is the
  * production copy minus the removed lines (the three taglines, "Measure your
  * hand.", and the photo-privacy sentence, which stays on How it works, the
  * scan screens and the camera).
@@ -73,7 +77,7 @@ export default function HomePage() {
           <ul className="story-mice">
             {[0, 1, 2].map((slot) => (
               <li key={slot}>
-                <figure className="story-mouse">
+                <figure className="story-mouse" data-sketch="g-pro-sketch">
                   {/* eslint-disable-next-line @next/next/no-img-element -- static SVG sketch */}
                   <img
                     src="/images/sketches/g-pro-sketch.svg"
@@ -86,6 +90,9 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
+
+          {/* Decorative, and last in the panel: it is drawn under everything. */}
+          <ParticleStage />
         </div>
       </section>
 
