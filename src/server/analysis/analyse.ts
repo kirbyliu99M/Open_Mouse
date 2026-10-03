@@ -14,6 +14,7 @@ import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import { findMedicalClaimTerm } from "./medicalClaims";
+import { mentionsProvisional } from "./provisional";
 import {
   NEGATIVE_REASON_CODES,
   POSITIVE_REASON_CODES,
@@ -107,8 +108,10 @@ function promptData(input: AnalysisInput) {
   return {
     rankingStatus: input.rankingProvisional
       ? // Deliberately avoids the word "provisional": that word is what the
-        // low-confidence caveat check looks for, and copying this sentence
-        // must not satisfy it without saying descriptors are unclassified.
+        // low-confidence caveat check looks for (`mentionsProvisional`, which
+        // also knows the Chinese markers), and copying this sentence must not
+        // satisfy it without saying descriptors are unclassified. A Chinese
+        // version of this sentence must avoid 暫定 / 暂定 / 初步 too.
         "Fit settings have not yet been validated against owner ratings."
       : undefined,
     gripStyle: input.gripStyle,
@@ -175,7 +178,13 @@ function retryPrompt(basePrompt: string, violation: string): string {
   if (violation.startsWith("medical claim: ")) {
     return `${basePrompt}\n\nYour previous answer used a prohibited medical or health term (${violation.slice("medical claim: ".length)}). Rewrite the full answer using only shape facts, with no medical, diagnostic, therapeutic, injury-prevention, or body-safety claims.`;
   }
-  return `${basePrompt}\n\nYour previous answer used the number ${violation}, which does not appear anywhere in the Data above. Every number in your answer MUST come from Data verbatim. Rewrite your full answer without inventing any new numbers.`;
+  // `findUnknownNumeral` reports a numeral symbol it cannot read (❺, ⓴, Ⅴ...)
+  // as NaN: there is no value to name, but the symbol is still a number.
+  const what =
+    violation === "NaN"
+      ? "a numeral symbol (a circled, dingbat, Roman or other special number sign)"
+      : `the number ${violation}`;
+  return `${basePrompt}\n\nYour previous answer used ${what}, which does not appear anywhere in the Data above. Every number in your answer MUST come from Data verbatim. Rewrite your full answer without inventing any new numbers.`;
 }
 
 /**
@@ -204,10 +213,8 @@ function findViolation(
     if (unknown !== null) return String(unknown);
   }
   if (isLowConfidence(input)) {
-    const mentionsProvisional = candidate.caveats.some((c) =>
-      /provisional/i.test(c),
-    );
-    if (!mentionsProvisional) {
+    // In whichever language the model answered: see ./provisional.
+    if (!candidate.caveats.some(mentionsProvisional)) {
       return "(missing) a caveat noting the ranking is provisional";
     }
   }
