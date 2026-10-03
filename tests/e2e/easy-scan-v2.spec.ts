@@ -1888,24 +1888,40 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
   const PERCENTS = [100, 115, 130, 150, 200] as const;
   for (const width of WIDTHS) {
     for (const percent of PERCENTS) {
-      test(`${width} px wide at ${percent}% text: the four grip options are the same width, in one row or two by two, none cut short`, async ({
+      test(`${width} px wide at ${percent}% text: the four grip options are the same width, in one row, two by two, or (only where two would not fit) one under another, none cut short`, async ({
         page,
       }) => {
         await pinnedLayout(page, { width, height: 844 }, percent, "measured");
-        const chips = await page.evaluate(() =>
-          [...document.querySelectorAll<HTMLElement>(".easyGripChip")].map(
-            (el) => {
-              const r = el.getBoundingClientRect();
-              return {
-                text: (el.textContent ?? "").trim(),
-                left: r.left,
-                top: r.top,
-                width: r.width,
-                cut: el.scrollWidth > el.clientWidth + 1,
-              };
+        const { chips, grid } = await page.evaluate(() => {
+          const row = document.querySelector<HTMLElement>(".easyGripChips")!;
+          const chips = [
+            ...document.querySelectorAll<HTMLElement>(".easyGripChip"),
+          ].map((el) => {
+            const r = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            // The width of the label's own text, whatever box it is in.
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return {
+              text: (el.textContent ?? "").trim(),
+              left: r.left,
+              top: r.top,
+              width: r.width,
+              cut: el.scrollWidth > el.clientWidth + 1,
+              textWidth: range.getBoundingClientRect().width,
+              borders:
+                parseFloat(style.borderLeftWidth) +
+                parseFloat(style.borderRightWidth),
+            };
+          });
+          return {
+            chips,
+            grid: {
+              width: row.clientWidth,
+              gap: parseFloat(getComputedStyle(row).columnGap),
             },
-          ),
-        );
+          };
+        });
         expect(chips.map((c) => c.text)).toEqual([
           "Palm",
           "Claw",
@@ -1921,13 +1937,29 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
         expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(
           1,
         );
-        // Four in a row, or two and two: never three and one.
-        expect(rows.length === 1 || rows.length === 2).toBe(true);
+        // Four in a row, or two and two: never three and one. One under
+        // another only where two side by side would not fit: the font, not
+        // only the text size, decides that (DejaVu Sans, which Linux and CI
+        // use, is a quarter wider than Windows' font), so it is worked out from
+        // the width of the widest label and not from a size in px.
+        expect([1, 2, 4]).toContain(rows.length);
         if (rows.length === 2)
           for (const row of rows)
             expect(chips.filter((c) => Math.round(c.top) === row)).toHaveLength(
               2,
             );
+        if (rows.length === 4) {
+          const twoAcross =
+            2 * Math.max(...chips.map((c) => c.textWidth + c.borders)) +
+            grid.gap;
+          console.log(
+            `${width} px, ${percent}%: stacked, two across would need ${twoAcross.toFixed(1)} px of ${grid.width} px`,
+          );
+          expect(
+            twoAcross,
+            "stacked although two by two would have fit",
+          ).toBeGreaterThan(grid.width);
+        }
         // No word cut short ("Fingertip" is the long one).
         expect(chips.filter((c) => c.cut).map((c) => c.text)).toEqual([]);
         // The layout on a 390 px screen at normal text is the one it always was.
@@ -1952,17 +1984,48 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
         const d = document.querySelector<HTMLElement>(
           "dialog.easyResultSheet",
         )!;
+        // 333 px is what the sheet measured in Windows' font, where each line
+        // of text is one line and the four options are in one row. A wider font
+        // (DejaVu Sans on Linux and CI) wraps the numbers onto a second line
+        // and puts the options two by two: that is the content growing, not
+        // the sheet. So the baseline grows by exactly the lines and rows the
+        // text and options really take beyond that, and nothing else: the
+        // text blocks have a fixed line height and the options a fixed height.
+        let extraTextPx = 0;
+        for (const p of d.querySelectorAll<HTMLElement>(":scope > p")) {
+          const lineHeight = parseFloat(getComputedStyle(p).lineHeight);
+          if (!(lineHeight > 0))
+            throw new Error("a text block has no fixed line height");
+          extraTextPx +=
+            (Math.round(p.getBoundingClientRect().height / lineHeight) - 1) *
+            lineHeight;
+        }
+        const chips = [...d.querySelectorAll<HTMLElement>(".easyGripChip")];
+        const rows = new Set(
+          chips.map((c) => Math.round(c.getBoundingClientRect().top)),
+        );
+        const grid = getComputedStyle(d.querySelector(".easyGripChips")!);
+        const extraChipRowsPx =
+          (rows.size - 1) * (chips[0].offsetHeight + parseFloat(grid.rowGap));
         return {
           height: d.offsetHeight,
           scrollHeight: d.scrollHeight,
           clientHeight: d.clientHeight,
+          cap: parseFloat(getComputedStyle(d).maxHeight),
+          extraTextPx,
+          extraChipRowsPx,
         };
       });
+      const expected = Math.round(333 + m.extraTextPx + m.extraChipRowsPx);
       console.log(
-        `${width}x${height} 100%: sheet ${m.height} px (content ${m.scrollHeight} px)`,
+        `${width}x${height} 100%: sheet ${m.height} px (content ${m.scrollHeight} px), the baseline 333 px plus ${m.extraTextPx.toFixed(1)} px of wrapped text and ${m.extraChipRowsPx.toFixed(1)} px of option rows = ${expected} px`,
       );
-      expect(m.height).toBeLessThanOrEqual(333);
-      expect(m.scrollHeight).toBeLessThanOrEqual(m.clientHeight + 1);
+      expect(m.height).toBeLessThanOrEqual(expected);
+      expect(m.scrollHeight).toBeLessThanOrEqual(expected);
+      // It scrolls only where the content is taller than the cap (52vh) it
+      // would have had in the baseline anyway.
+      if (expected <= m.cap + 1)
+        expect(m.scrollHeight).toBeLessThanOrEqual(m.clientHeight + 1);
     });
   }
 });

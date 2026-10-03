@@ -195,7 +195,9 @@ criterion; each item is a decision the build had to make or a thing it could not
   `position: sticky; bottom: 0` with the sheet's own background (light and dark) and the padding
   the sheet had below it, so content scrolls behind it and, scrolled to the end, nothing is under
   it. The row has no top padding of its own, so the sheet is no taller than before it (333 px at
-  100% text on 390x844, 360x780 and 360x640); content that scrolls up behind it fades out over
+  100% text on 390x844, 360x780 and 360x640, in Windows' font; the e2e adds exactly the lines the
+  text wraps onto and the rows the options take in a wider font, 25.6 px for the numbers in DejaVu
+  Sans, and nothing else); content that scrolls up behind it fades out over
   1rem (a `box-shadow` in the sheet's colour; a pseudo-element made axe unable to read the
   buttons' background). The DOM order is unchanged, so the focus order is the reading order.
   `scroll-padding-bottom` keeps a focused control clear of the row's measured height, the fade and
@@ -211,8 +213,14 @@ criterion; each item is a decision the build had to make or a thing it could not
   again and re-checked; what is left is spread exactly along the axis that has room), which
   matters at the 0.4 scale floor where a fixed-size label is large against a small photo.
 - **The four grip options are always the same width.** A grid that follows the width of the sheet in
-  rem (a container query): four columns from 17.25rem, otherwise a clean 2 x 2, never 3 + 1, and no
-  word cut short. 390 px wide at normal text is four columns of 81 px, as it was.
+  `ch` (a container query, where `ch` is the width of "0" in the sheet's own font): four columns from
+  32.5ch, two by two from 16ch, one under another below that; never 3 + 1, and no word cut short.
+  The first version used rem (17.25rem and two columns below it), which fits Windows' font, where
+  "Fingertip" is 3.6rem, and cut the word in DejaVu Sans (what Linux and CI use), where it is 4.5rem:
+  in `ch` the word is about 7.1 (6.7 to 7.1 across system-ui, DejaVu Sans, Verdana and Arial), so one
+  threshold fits them all, and where even two across would not fit (200% text on 390 px, DejaVu) the
+  options stack. 390 px wide at normal text is four columns of 81 px in Windows' font, as it was; in
+  DejaVu Sans it is also one row at 100%, and two by two from 115%.
 - **Dots and the steadiness check follow corners, not labels.** `detectPaperQuad` relabels its
   corners (a cyclic shift) when the paper is held sideways, at about 134 and 314 degrees of
   rotation in the synthetic sweep. The new observation is matched to the dots by the cyclic shift

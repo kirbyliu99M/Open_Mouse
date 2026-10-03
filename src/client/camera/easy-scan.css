@@ -257,19 +257,33 @@
   font-size: 0.9375rem;
 }
 
-/* The four options are always the same width: four in a row where they fit
-   (390px at normal text), otherwise a clean two by two, never three and one,
-   and never a word cut short. Whether four fit follows the width of the
-   sheet in rem, so it follows the text size: "Fingertip" is 3.6rem of text
-   and a column about 3.7rem with its border, so four with their gaps need
-   16rem; 17.25rem leaves each column about 8% over that. */
+/* The four options are always the same width, and never a word cut short:
+   four in a row where they fit (390px at normal text), otherwise two by two,
+   and one under another where even two side by side would not fit (a large
+   text size on a narrow phone, or a wide font); never three and one.
+
+   Whether they fit depends on the font as much as on the text size, so the
+   widths of the sheet that decide it are in ch, not rem. In a container query
+   `ch` is the width of "0" in the sheet's own font, so it grows with a wider
+   font as the words do. "Fingertip" (the longest) is about 7.1ch wide in the
+   chip's type across the fonts measured (system-ui on Windows, DejaVu Sans on
+   Linux, Verdana, Arial: 6.7 to 7.1ch); with its border it is a column of
+   about 7.2ch. Four columns and their three gaps need about 31ch and two
+   columns and their gap about 15ch; the thresholds leave each about 5% over
+   that. (In rem the same words are 3.6rem in Windows' font and 4.5rem in
+   DejaVu Sans, so a rem threshold that fits one cuts the other.) */
 .easyGripChips {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   margin-bottom: 1.25rem;
 }
-@container (min-width: 17.25rem) {
+@container (min-width: 16ch) {
+  .easyGripChips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (min-width: 32.5ch) {
   .easyGripChips {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
