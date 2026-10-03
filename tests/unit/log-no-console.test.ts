@@ -373,12 +373,14 @@ describe("source code writes logs through src/server/log.ts only", () => {
     expect(files).toContain("src/app/page.tsx");
   });
 
+  // Parses every source file with the TypeScript compiler: slow enough to pass
+  // 5 s when the whole suite runs in parallel, so this one test gets longer.
   it("finds no console or process-stream output outside the listed files", () => {
     const offenders = files
       .filter((f) => !(f in EXCEPTIONS))
       .flatMap((f) => hitsIn(f).map((h) => `${f}: ${h}`));
     expect(offenders).toEqual([]);
-  });
+  }, 20_000);
 
   it.each(Object.entries(EXCEPTIONS))(
     "the exception %s is real (it still writes to the console) and says why",
