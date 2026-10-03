@@ -34,21 +34,30 @@ const DIM_PX = 1.4;
 const LIT_DIM_FROM = 0.12;
 
 export interface Sprites {
-  readonly particle: HTMLCanvasElement;
+  readonly particle: CanvasImageSource;
   /** Null when the glow is switched off (prefers-contrast: more). */
-  readonly halo: HTMLCanvasElement | null;
+  readonly halo: CanvasImageSource | null;
 }
 
+/**
+ * A radial-gradient sprite. It is handed back as an ImageBitmap where
+ * OffscreenCanvas exists: stamping a canvas element with drawImage makes the
+ * browser snapshot it on every call, which is what costs the frame time with
+ * hundreds of stamps (measured in a trace: one snapshot per stamp).
+ */
 function makeSprite(
   cssSize: number,
   dpr: number,
   stops: readonly (readonly [number, string])[],
-): HTMLCanvasElement {
-  const sprite = document.createElement("canvas");
+): CanvasImageSource {
   const px = Math.max(1, Math.ceil(cssSize * dpr));
-  sprite.width = px;
-  sprite.height = px;
-  const ctx = sprite.getContext("2d");
+  const offscreen =
+    typeof OffscreenCanvas === "undefined" ? null : new OffscreenCanvas(px, px);
+  const canvas = offscreen ?? document.createElement("canvas");
+  canvas.width = px;
+  canvas.height = px;
+  const ctx = canvas.getContext("2d") as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   if (ctx) {
     const gradient = ctx.createRadialGradient(
       px / 2,
@@ -62,7 +71,7 @@ function makeSprite(
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, px, px);
   }
-  return sprite;
+  return offscreen ? offscreen.transferToImageBitmap() : canvas;
 }
 
 /** The pre-rendered glow sprites, made once per device pixel ratio. */

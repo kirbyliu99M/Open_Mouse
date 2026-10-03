@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import {
   CANVAS,
@@ -99,6 +100,8 @@ test.describe("the animated layout", () => {
       await page.goto("/");
       await waitForAnimated(page);
       await page.waitForTimeout(800);
+      // Nothing moved when the layout switched, nor at any time before it.
+      expect(await read<number>(page, "__clsAfterSwitch")).toBe(0);
       expect(await read<number>(page, "__cls")).toBeLessThanOrEqual(0.001);
       const animated = await heroGeometry(page);
 
@@ -524,6 +527,31 @@ test.describe("the animated layout", () => {
     expect(after - before).toBeLessThanOrEqual(4);
     await page.waitForTimeout(500);
     expect((await read<number[]>(page, "__draws")).length).toBe(after);
+  });
+
+  test("axe finds no WCAG 2.2 AA violation on the animated page: at the top, mid-story and at the last step", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    const activatedAt = await read<number>(page, "__activatedAt");
+    await page.waitForFunction(
+      (start) => performance.now() - start > 3400,
+      activatedAt,
+    );
+    for (const p of [0, 0.5, 0.95]) {
+      await scrollToProgress(page, p);
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(
+        results.violations.map(
+          (v) =>
+            `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+        ),
+        `p=${p}`,
+      ).toEqual([]);
+    }
   });
 
   test("printing from the middle of the story gives the static page, not a 400svh section", async ({

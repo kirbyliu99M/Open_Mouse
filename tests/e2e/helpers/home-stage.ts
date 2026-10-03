@@ -46,7 +46,7 @@ export async function scrollToProgress(page: Page, p: number): Promise<void> {
  * - `__activatedAt`: when `story--animated` was added;
  * - `__events`: the order of the two switch steps (the class added, the static logo hidden), with the canvas's draw count at that moment;
  * - `__frames`: one entry per frame (from a sampler of our own): is the static logo visible, is the canvas shown;
- * - `__cls`: the cumulative layout shift.
+ * - `__cls`: the cumulative layout shift, and `__clsAfterSwitch` the part of it from the moment the layout switched.
  */
 export async function recordStage(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -123,12 +123,18 @@ export async function recordStage(page: Page): Promise<void> {
     };
     raf(sample);
 
+    w.__clsAfterSwitch = 0;
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries() as unknown as {
         value: number;
+        startTime: number;
         hadRecentInput: boolean;
       }[]) {
-        if (!entry.hadRecentInput) w.__cls = (w.__cls as number) + entry.value;
+        if (entry.hadRecentInput) continue;
+        w.__cls = (w.__cls as number) + entry.value;
+        if (w.__activatedAt && entry.startTime >= (w.__activatedAt as number)) {
+          w.__clsAfterSwitch = (w.__clsAfterSwitch as number) + entry.value;
+        }
       }
     }).observe({ type: "layout-shift", buffered: true });
   });
@@ -167,6 +173,8 @@ export async function heroGeometry(page: Page) {
 
 /** Facts about the layout that tell the static page from the animated one. */
 export async function layoutFacts(page: Page) {
+  // Measure with the fonts in place (a web font would swap in after first layout).
+  await page.evaluate(() => document.fonts.ready);
   return page.evaluate(() => {
     const section = document.querySelector<HTMLElement>(".story")!;
     const panel = document.querySelector<HTMLElement>(".story-panel")!;
