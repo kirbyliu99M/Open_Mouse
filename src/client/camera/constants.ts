@@ -3,11 +3,11 @@
  * README.md, revised 2026-09-25 for Kirby's plain-paper direction change —
  * see src/client/camera/quad-source.ts's header). Every number here is a
  * **candidate** picked from the spec's own wording, not measured on a real
- * phone yet — the M2 gate-replay approach (scripts/m2-gate-replay.ts) is
- * the right way to tune these once Kirby has real-phone footage, the same
- * way GATE_THRESHOLDS in src/client/photo/gates.ts already says of its own
- * values. Keep every live-loop/cue threshold in this one file so a future
- * tuning pass has a single place to look.
+ * phone yet — the M2 evaluator (scripts/m2-evaluate.ts, run on the learning
+ * kit's run logs) is the right way to tune these once Kirby has real-phone
+ * footage, the same way GATE_THRESHOLDS in src/client/photo/gates.ts already
+ * says of its own values. Keep every live-loop/cue threshold in this one file
+ * so a future tuning pass has a single place to look.
  */
 
 import {

@@ -1,0 +1,387 @@
+[
+  {
+    "model": "ERGO M575",
+    "slug": "logitech-ergo-m575",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m575-ergo-wireless-trackball",
+    "galleryImages": 10,
+    "uniqueFiles": 10,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G Pro 2 Lightspeed",
+    "slug": "logitech-g-pro-2-lightspeed",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/pro-2-lightspeed",
+    "galleryImages": 13,
+    "uniqueFiles": 13,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-2-wireless-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
+    "viewHints": ["left", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G Pro X Superlight 2",
+    "slug": "logitech-g-pro-x-superlight-2",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/pro-x2-superlight-wireless-mouse",
+    "galleryImages": 13,
+    "uniqueFiles": 13,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+    "viewHints": ["bottom", "left", "lifestyle", "right", "top"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G Pro X Superlight 2 DEX",
+    "slug": "logitech-g-pro-x-superlight-2-dex",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-dex",
+    "galleryImages": 16,
+    "uniqueFiles": 16,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "right", "top"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G Pro X Superlight 2 SE",
+    "slug": "logitech-g-pro-x-superlight-2-se",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-se",
+    "galleryImages": 24,
+    "uniqueFiles": 24,
+    "arSource": null,
+    "viewHints": [
+      "bottom",
+      "left",
+      "lifestyle",
+      "oblique",
+      "rear",
+      "right",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 0,
+    "status": "Sibling AR-derived shell; SE red gallery supplies base colour (Kirby approved 2026-09-28)",
+    "siblingShell": "logitech-g-pro-x-superlight-2"
+  },
+  {
+    "model": "G Pro X Superlight 2c",
+    "slug": "logitech-g-pro-x-superlight-2c",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2c",
+    "galleryImages": 21,
+    "uniqueFiles": 21,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2c/pro-x-superlight-2c-white-gaming-mice-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "left",
+      "lifestyle",
+      "oblique",
+      "right",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G203 Lightsync",
+    "slug": "logitech-g203-lightsync",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g203-lightsync-rgb-gaming-mouse",
+    "galleryImages": 24,
+    "uniqueFiles": 24,
+    "arSource": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g203/g203-blue-hexa.glb",
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "top"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G305 Lightspeed",
+    "slug": "logitech-g305-lightspeed",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g305-lightspeed-wireless-gaming-mouse",
+    "galleryImages": 30,
+    "uniqueFiles": 30,
+    "arSource": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g305/g305-black-gaming-mice-hexa.glb",
+    "viewHints": ["bottom", "left", "lifestyle", "rear", "top"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G309",
+    "slug": "logitech-g309",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g309-lightspeed-gaming-mouse",
+    "galleryImages": 13,
+    "uniqueFiles": 13,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g309/g309-white-gaming-mice-ar-360.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G403 Hero",
+    "slug": "logitech-g403-hero",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g403-hero-gaming-mouse",
+    "galleryImages": 7,
+    "uniqueFiles": 7,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g403/g403-hero-black-hexa.glb",
+    "viewHints": ["top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G502 Hero",
+    "slug": "logitech-g502-hero",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g502-hero-gaming-mouse",
+    "galleryImages": 6,
+    "uniqueFiles": 6,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-hero/g502-hero-black.glb",
+    "viewHints": ["bottom", "left", "rear", "right", "top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G502 X",
+    "slug": "logitech-g502-x",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-wired-lightforce",
+    "galleryImages": 11,
+    "uniqueFiles": 11,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-corded-white.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G502 X Lightspeed",
+    "slug": "logitech-g502-x-lightspeed",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-wireless-lightforce",
+    "galleryImages": 10,
+    "uniqueFiles": 10,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-lightspeecd-white.glb",
+    "viewHints": ["top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G502 X Plus",
+    "slug": "logitech-g502-x-plus",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-plus-wireless-lightforce",
+    "galleryImages": 13,
+    "uniqueFiles": 13,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-plus-black.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "G703 Lightspeed",
+    "slug": "logitech-g703-lightspeed",
+    "sourceUrl": "https://www.logitechg.com/en-us/shop/p/g703-hero-wireless-gaming-mouse",
+    "galleryImages": 5,
+    "uniqueFiles": 5,
+    "arSource": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g703-hero/g703-hero-black-hexa.glb",
+    "viewHints": ["bottom", "left", "rear", "right", "top"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "Lift Vertical",
+    "slug": "logitech-lift-vertical",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/lift-vertical-ergonomic-mouse",
+    "galleryImages": 41,
+    "uniqueFiles": 41,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/lift/offwhite-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "front",
+      "left",
+      "lifestyle",
+      "right",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "M100",
+    "slug": "logitech-m100",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m100-usb-mouse",
+    "galleryImages": 4,
+    "uniqueFiles": 4,
+    "arSource": null,
+    "viewHints": ["unclassified"],
+    "rotationViews": 0,
+    "status": "gallery only; angular gaps remain"
+  },
+  {
+    "model": "M190",
+    "slug": "logitech-m190",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m190-wireless-mouse",
+    "galleryImages": 4,
+    "uniqueFiles": 4,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m190/m190-charcoal-cordless-mice-ar-360.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "M196",
+    "slug": "logitech-m196",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m196-bluetooth-mouse",
+    "galleryImages": 15,
+    "uniqueFiles": 15,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m196/m196-offwhite-cordless-mice-ar-360.glb",
+    "viewHints": ["bottom", "top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "M240",
+    "slug": "logitech-m240",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m240-silent-bluetooth-mouse",
+    "galleryImages": 9,
+    "uniqueFiles": 9,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m240-silent/m240-silent-offwhite-cordless-mice-ar-360.glb",
+    "viewHints": ["top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "M550",
+    "slug": "logitech-m550",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m550-signature-wireless-mouse",
+    "galleryImages": 34,
+    "uniqueFiles": 34,
+    "arSource": null,
+    "viewHints": ["bottom", "front", "oblique", "rear", "top", "unclassified"],
+    "rotationViews": 0,
+    "status": "gallery only; angular gaps remain"
+  },
+  {
+    "model": "M650",
+    "slug": "logitech-m650",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m650-signature-wireless-mouse",
+    "galleryImages": 71,
+    "uniqueFiles": 69,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
+    "viewHints": ["bottom", "front", "oblique", "rear", "top", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "M705 Marathon",
+    "slug": "logitech-m705-marathon",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m705-wireless-mouse",
+    "galleryImages": 4,
+    "uniqueFiles": 4,
+    "arSource": null,
+    "viewHints": ["unclassified"],
+    "rotationViews": 0,
+    "status": "gallery only; angular gaps remain"
+  },
+  {
+    "model": "M720 Triathlon",
+    "slug": "logitech-m720-triathlon",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/m720-triathlon",
+    "galleryImages": 6,
+    "uniqueFiles": 6,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m720/m720-black-ar-360.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "MX Anywhere 3S",
+    "slug": "logitech-mx-anywhere-3s",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s",
+    "galleryImages": 32,
+    "uniqueFiles": 32,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-anywhere-3s/mxanywhere3s-black-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "front",
+      "left",
+      "rear",
+      "right",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "MX Master 3S",
+    "slug": "logitech-mx-master-3s",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mx-master-3s",
+    "galleryImages": 7,
+    "uniqueFiles": 7,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
+    "viewHints": ["lifestyle", "unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "MX Master 4",
+    "slug": "logitech-mx-master-4",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mx-master-4",
+    "galleryImages": 30,
+    "uniqueFiles": 30,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-4/mxmaster4-graphite-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "front",
+      "lifestyle",
+      "oblique",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "MX Vertical",
+    "slug": "logitech-mx-vertical",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+    "galleryImages": 6,
+    "uniqueFiles": 6,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-vertical/mxvertical-graphite-ar-360.glb",
+    "viewHints": ["unclassified"],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "Pebble 2 M350s",
+    "slug": "logitech-pebble-2-m350s",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/pebble-2-m350s-wireless-mouse",
+    "galleryImages": 40,
+    "uniqueFiles": 40,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m350s/m350s-rose-cordless-mice-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "front",
+      "lifestyle",
+      "oblique",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  },
+  {
+    "model": "POP Mouse",
+    "slug": "logitech-pop-mouse",
+    "sourceUrl": "https://www.logitech.com/en-us/shop/p/pop-wireless-mouse",
+    "galleryImages": 80,
+    "uniqueFiles": 80,
+    "arSource": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/pop-mouse/pop-mouse-rose-cordless-mice-ar-360.glb",
+    "viewHints": [
+      "bottom",
+      "lifestyle",
+      "oblique",
+      "rear",
+      "top",
+      "unclassified"
+    ],
+    "rotationViews": 26,
+    "status": "AR rotation available"
+  }
+]
