@@ -62,8 +62,13 @@ describe("not-found screen", () => {
   });
 
   it("sets a title of its own and stays out of search results", () => {
-    expect(metadata.title).toBe(NOT_FOUND_COPY.documentTitle);
+    expect(metadata.title).toBe(NOT_FOUND_COPY.pageTitle);
     expect(metadata.robots).toMatchObject({ index: false });
+  });
+
+  it("names only the page: the root layout's template adds the site name", () => {
+    expect(metadata.title).toBe("Page not found");
+    expect(String(metadata.title)).not.toContain("Open_Mouse");
   });
 });
 
@@ -104,7 +109,11 @@ describe("global error screen (global-error.tsx)", () => {
   it("brings its own <html> and <body>, because the root layout is gone", () => {
     expect(html.startsWith(`<html lang="en">`)).toBe(true);
     expect(count(html, /<body[\s>]/g)).toBe(1);
-    expect(html).toContain(GLOBAL_ERROR_COPY.documentTitle);
+    // The full title, site name included: no layout template reaches this page.
+    expect(html).toContain(`<title>${GLOBAL_ERROR_COPY.documentTitle}</title>`);
+    expect(GLOBAL_ERROR_COPY.documentTitle).toBe(
+      "Something went wrong — Open_Mouse",
+    );
   });
 
   it("has one <main>, one <h1>, links home and to the scan, and a Try again button", () => {

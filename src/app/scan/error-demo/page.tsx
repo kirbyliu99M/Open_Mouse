@@ -4,7 +4,7 @@ import { guardDemoRouteFromProduction } from "../demo-guard";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Error screen (dev only) — Open_Mouse",
+  title: "Error screen (dev only)",
   robots: { index: false, follow: false },
 };
 

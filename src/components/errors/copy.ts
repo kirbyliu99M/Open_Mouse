@@ -20,7 +20,12 @@ export const NOT_FOUND_COPY = {
   title: "We can’t find that page",
   message:
     "The link may be out of date, or the page may have moved. You can head back home or start a scan.",
-  documentTitle: "Page not found — Open_Mouse",
+  /**
+   * The page name only: the root layout's title template ("%s · Open_Mouse",
+   * src/app/layout.tsx) adds the site name, so writing it here would show it
+   * twice.
+   */
+  pageTitle: "Page not found",
 } as const;
 
 export const ERROR_COPY = {
@@ -35,6 +40,11 @@ export const GLOBAL_ERROR_COPY = {
   title: "Open_Mouse hit a problem",
   message:
     "The app couldn’t recover on its own. Try again, or head back home and start from there.",
+  /**
+   * The complete title, site name included, unlike NOT_FOUND_COPY.pageTitle:
+   * global-error.tsx replaces the root layout, so the layout's title template
+   * never reaches it, and an error component cannot export `metadata`.
+   */
   documentTitle: "Something went wrong — Open_Mouse",
 } as const;
 

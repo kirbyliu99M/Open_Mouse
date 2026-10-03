@@ -40,7 +40,10 @@ test.describe("404 page", () => {
       expect(response?.status()).toBe(404);
       await expect(heading(page)).toHaveText(NOT_FOUND_COPY.title);
       await expectOneMainAndOneHeading(page);
-      await expect(page).toHaveTitle(NOT_FOUND_COPY.documentTitle);
+      // The page gives its name; the layout's template adds the site, once.
+      await expect(page).toHaveTitle(
+        `${NOT_FOUND_COPY.pageTitle} · Open_Mouse`,
+      );
       await expect(
         page.getByRole("link", { name: ACTIONS.scan }),
       ).toHaveAttribute("href", "/scan/easy");
@@ -102,6 +105,13 @@ test.describe("error screen", () => {
     await expect(
       page.getByRole("link", { name: ACTIONS.home }),
     ).toHaveAttribute("href", "/");
+  });
+
+  test("the demo route's title carries the site name once", async ({
+    page,
+  }) => {
+    await page.goto("/scan/error-demo");
+    await expect(page).toHaveTitle("Error screen (dev only) · Open_Mouse");
   });
 
   test("moves focus to the heading, so the change is announced", async ({

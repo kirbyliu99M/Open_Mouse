@@ -4,7 +4,7 @@ import { ErrorScreen } from "@/components/errors/ErrorScreen";
 import { ACTIONS, NOT_FOUND_COPY } from "@/components/errors/copy";
 
 export const metadata: Metadata = {
-  title: NOT_FOUND_COPY.documentTitle,
+  title: NOT_FOUND_COPY.pageTitle,
   robots: { index: false, follow: false },
 };
 
