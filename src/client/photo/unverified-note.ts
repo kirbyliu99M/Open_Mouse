@@ -37,7 +37,8 @@ export function measuredSheetNumbers(
  * shows them too, but it is an image). `enteredLengthMm` is set when the
  * hand length was typed rather than measured: it is then the reference the
  * palm width is scaled from, and is said to be entered. Whole millimetres,
- * as on the drawing. Candidate wording, pending Kirby's confirmation.
+ * as on the drawing. Wording: Kirby decided on 2026-10-03 that the remaining
+ * copy ships as it is and is adjusted later (docs/STATUS.md, decisions log).
  */
 export function measuredNumbersText(input: {
   readonly handLengthMm: number;
