@@ -252,8 +252,21 @@ test.describe("AC6: the debug panel", () => {
         },
       });
     });
-    await page.goto("/scan/easy?debug=1");
-    await page.getByRole("button", { name: "Got it" }).click();
+    // The live loop takes the photo by itself about a second after the camera
+    // starts, and on /scan/easy the fake camera has no hand, so the result
+    // sheet opens within a second more. The debug panel then moves into that
+    // sheet as a new copy of itself, and the box this test waits for is gone
+    // with the old one: a window of about a second, which a slow runner (CI)
+    // can spend before the first check. So the pipeline is held, as in the
+    // test above, and the capture is waited for: the panel is where it will
+    // stay for as long as the test takes.
+    await holdPipeline(page);
+    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 20_000 },
+    );
     const panel = page.getByTestId("scan-debug-panel");
     await panel.getByRole("button", { name: "Copy JSON" }).click();
     const box = panel.getByRole("textbox", { name: "Debug JSON" });
