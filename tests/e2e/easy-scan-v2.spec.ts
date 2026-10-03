@@ -1962,25 +1962,36 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
         // 14.5ch and 15.2ch, and the threshold is 16ch. So a sheet up to 12%
         // wider than two across need may still stack (16 / 14.5 = 1.10); far
         // more than that is the layout stacking for no reason.
+        //
+        // The same the other way round: four across need 29.7ch in Windows'
+        // font and 30.9ch in DejaVu Sans against a threshold of 32.5ch, so
+        // where four across would fit with that much to spare the options must
+        // be in one row, not two by two.
         const STACK_SLACK = 1.12;
+        const widestColumn = Math.max(
+          ...chips.map((c) => c.textWidth + c.borders),
+        );
+        const twoAcross = 2 * widestColumn + grid.gap;
+        const fourAcross = 4 * widestColumn + 3 * grid.gap;
+        console.log(
+          `${width} px, ${percent}%: four across need ${fourAcross.toFixed(1)} px, two across ${twoAcross.toFixed(1)} px, of ${grid.width} px`,
+        );
         expect([1, 2, 4]).toContain(rows.length);
         if (rows.length === 2)
           for (const row of rows)
             expect(chips.filter((c) => Math.round(c.top) === row)).toHaveLength(
               2,
             );
-        if (rows.length === 4) {
-          const twoAcross =
-            2 * Math.max(...chips.map((c) => c.textWidth + c.borders)) +
-            grid.gap;
-          console.log(
-            `${width} px, ${percent}%: stacked, two across would need ${twoAcross.toFixed(1)} px of ${grid.width} px`,
-          );
+        if (rows.length === 4)
           expect(
             twoAcross * STACK_SLACK,
             "stacked although two by two would have fit with room to spare",
           ).toBeGreaterThan(grid.width);
-        }
+        if (fourAcross * STACK_SLACK <= grid.width)
+          expect(
+            rows,
+            "not in one row although four across would have fit with room to spare",
+          ).toHaveLength(1);
         // No word cut short ("Fingertip" is the long one).
         expect(chips.filter((c) => c.cut).map((c) => c.text)).toEqual([]);
         // The layout on a 390 px screen at normal text is the one it always was.
