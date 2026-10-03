@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
-import { averageColour, decodePng } from "./fixtures/png";
+import { bestRowOff, decodePng } from "./fixtures/png";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
@@ -1733,16 +1733,23 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
             ringWidth,
             fadeReach,
             clearOfFade: inRow ? Infinity : rowTop - ringLowest,
-            // Where the ring's lowest edge is painted, to look at its pixels.
-            // The middle of the ring's lowest edge, in the middle sixth of the
-            // control's width (a round button is only that low there).
+            // Where the ring's lowest edge is painted, to look at its pixels:
+            // the middle sixth of the control's width (a round button is only
+            // that low there), the ring's whole thickness, and a pixel more
+            // on every side, so that at any sub-pixel position the band holds
+            // the ring's full rows (and the blended rows at its edges, which
+            // the row-by-row look below sets aside).
             ringBottom: {
-              x: r.left + r.width * 0.425,
-              y: r.bottom + ringOffset + ringWidth * 0.25,
-              width: r.width * 0.15,
-              height: ringWidth * 0.5,
+              x: r.left + r.width * 0.425 - 1,
+              y: r.bottom + ringOffset - 1,
+              width: r.width * 0.15 + 2,
+              height: ringWidth + 2,
             },
             ringColour: style.outlineColor,
+            // The page behind the ring, from the token and not typed in here.
+            pageColour: getComputedStyle(document.documentElement)
+              .getPropertyValue("--bg")
+              .trim(),
             dpr: window.devicePixelRatio,
           };
         });
@@ -1755,30 +1762,25 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
         const png = decodePng(
           await page.screenshot({ clip: stop.ringBottom, type: "png" }),
         );
-        const [r, g, b] = averageColour(png);
         const want = (stop.ringColour.match(/[\d.]+/g) ?? []).map(Number);
-        const off = Math.max(
-          Math.abs(r - want[0]),
-          Math.abs(g - want[1]),
-          Math.abs(b - want[2]),
+        // The ring's colour, row by row: the best row of the band. A ring
+        // painted in full has rows of exactly its colour; the rows at its
+        // edges are blended with what is behind them, and at a fractional
+        // layout position (a wider font moves everything by a fraction of a
+        // pixel) the band's own average is too. A ring covered by the pinned
+        // row's fade has no such row.
+        const behind = (stop.pageColour.match(/[\da-f]{2}/gi) ?? []).map((h) =>
+          parseInt(h, 16),
         );
-        // How much of the page behind the ring may show in the pixels sampled:
-        // an edge pixel at a fractional layout position (a wider font moves
-        // everything by a fraction of a pixel) is part ring, part page. The
-        // tolerance is a share of the distance between the ring and the page
-        // (--bg, #060709): 40 of 232 against the old grey, now 20 % of 246.
-        // A ring covered by the pinned row's fade shows the whole distance.
-        const page_ = [6, 7, 9];
-        const tolerance =
-          0.2 *
-          Math.max(
-            Math.abs(want[0]! - page_[0]!),
-            Math.abs(want[1]! - page_[1]!),
-            Math.abs(want[2]! - page_[2]!),
-          );
         Object.assign(stop, {
-          ringPixelOff: off,
-          ringPixelTolerance: tolerance,
+          ringPixelOff: bestRowOff(png, want),
+          // The check can tell the ring from the page behind it, or it would
+          // pass on anything.
+          ringToPage: Math.max(
+            Math.abs(want[0]! - behind[0]!),
+            Math.abs(want[1]! - behind[1]!),
+            Math.abs(want[2]! - behind[2]!),
+          ),
         });
       }
       console.log(
@@ -1786,6 +1788,13 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           .filter((s) => s.clearOfFade !== Infinity)
           .map((s) => s.clearOfFade.toFixed(1))
           .join(", ")} px`,
+      );
+      console.log(
+        `${screen.width}x${screen.height} ${screen.percent}%: best-row ring offsets (limit 12): ${(
+          stops as { ringPixelOff?: number }[]
+        )
+          .map((s) => s.ringPixelOff?.toFixed(1))
+          .join(", ")}`,
       );
       const names = stops.map((s) => s.name);
       // Grip chips, then Retake photo, then See my matches: the DOM's order.
@@ -1800,7 +1809,7 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
       expect(stops[5].inRow).toBe(true);
       for (const stop of stops as ((typeof stops)[number] & {
         ringPixelOff: number;
-        ringPixelTolerance: number;
+        ringToPage: number;
       })[]) {
         expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
           true,
@@ -1817,11 +1826,19 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           `${stop.name}: the ring's lowest edge is clear of the fade`,
         ).toBeGreaterThanOrEqual(stop.fadeReach - 1); // a device pixel of rounding
         // ...and what was painted at the ring's lowest edge is the ring's
-        // colour, not the sheet's background laid over it.
+        // colour, not the sheet's background laid over it: the best row of
+        // the band is within 12 of the ring's colour (about 5 % of the 246
+        // between the ring and the page), where a ring with a fade over it
+        // is off by that share of the whole distance or more (a fade that
+        // lets 8 % of the page through at its edge already fails).
+        expect(
+          stop.ringToPage,
+          `${stop.name}: the ring is far enough from the page for the check to mean something`,
+        ).toBeGreaterThan(120);
         expect(
           stop.ringPixelOff,
-          `${stop.name}: the pixels at the ring's lowest edge are the ring colour (largest channel difference)`,
-        ).toBeLessThanOrEqual(stop.ringPixelTolerance);
+          `${stop.name}: the best row at the ring's lowest edge is the ring colour (largest channel difference)`,
+        ).toBeLessThanOrEqual(12);
       }
     });
   }
