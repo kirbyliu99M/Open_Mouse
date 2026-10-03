@@ -250,8 +250,41 @@ and package-lock.json.
   package's node_modules/jsqr/LICENSE: the standard text, with the appendix's
   copyright line left as the unfilled template. The Apache License 2.0 text in
   public/mediapipe/LICENSE-mediapipe.txt is the same as jsqr's (only the
-  brackets in the appendix template differ). That file also ends with a notice
-  that applies to MediaPipe only (see section 1.3).
+  brackets in the appendix template differ: jsqr's are braces, "{yyyy} {name
+  of copyright owner}", and that file's are square brackets, "[yyyy] [name of
+  copyright owner]"). That file also ends with a notice that applies to
+  MediaPipe only (see section 1.3).
+
+3.3 @google/genai
+
+  Licence: Apache License 2.0. The package carries node_modules/@google/genai/
+  LICENSE: the standard text, with the appendix's copyright line left as the
+  unfilled template, and no NOTICE file. That text is the same as the Apache
+  License 2.0 text in public/mediapipe/LICENSE-mediapipe.txt (compared
+  2026-10-04: no difference but one blank line at the start of the package's
+  file). Both use square brackets in the appendix template ("[yyyy] [name of
+  copyright owner]"); jsqr's uses braces (see 3.2).
+
+3.4 drizzle-orm
+
+  Licence: Apache License 2.0, as the "license" field in package.json and
+  package-lock.json says. The package folder holds no LICENSE or NOTICE file,
+  and its README states no licence (checked 2026-10-04), so there is no copy
+  or copyright line of the package's own to point to. Its upstream licence file
+  was not checked: Unconfirmed. The Apache License 2.0 text is in
+  public/mediapipe/LICENSE-mediapipe.txt (standard text; the appendix template
+  uses square brackets, as in 3.3).
+
+3.5 @mediapipe/tasks-vision
+
+  The package's JavaScript (vision_bundle.*) runs in the browser
+  (src/client/photo/landmarks.ts). Section 1.1 covers the WebAssembly files
+  copied from the same package. Licence: Apache License 2.0, as the "license"
+  field says. The package folder holds no LICENSE or NOTICE file (see 1.1) and
+  its README states no licence (checked 2026-10-04). The Apache License 2.0
+  text is public/mediapipe/LICENSE-mediapipe.txt, a copy of the upstream
+  repository's LICENSE (see 1.1 and 1.3); the appendix template there uses
+  square brackets, as in 3.3.
 
 
 4. Images: public/images/
