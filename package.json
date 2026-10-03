@@ -29,7 +29,8 @@
     "paper:bench": "tsx scripts/paper-quad-bench.ts",
     "classify:descriptors": "tsx scripts/classify-descriptors.ts",
     "descriptors:from-geometry": "tsx scripts/descriptors-from-geometry.ts",
-    "learn:sort": "tsx scripts/learn-sort.ts"
+    "learn:sort": "tsx scripts/learn-sort.ts",
+    "particles:build": "tsx scripts/build-particle-targets.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
