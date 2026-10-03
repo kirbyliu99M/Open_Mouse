@@ -257,16 +257,18 @@ test.describe("the two buttons", () => {
     });
   }
 
-  test("320 wide: they no longer fit, so they stack at full width, the primary on top", async ({
+  test("at 200 % text on a 390 phone they no longer fit, so they stack at full width, the primary on top", async ({
     page,
   }) => {
-    // 10 rem + 8 rem + the gap is wider than a 320 px row in any font.
-    await page.setViewportSize({ width: 320, height: 568 });
+    // Two labels at twice the size are wider than a 342 px row in any font.
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
+    await page.addStyleTag({ content: "html { font-size: 200% }" });
     const { scan, how, row } = await layout(page);
     expect(how.y).toBeGreaterThanOrEqual(scan.y + scan.height);
     expect(Math.abs(scan.width - row.width)).toBeLessThanOrEqual(1);
     expect(Math.abs(how.width - row.width)).toBeLessThanOrEqual(1);
+    expect(scan.x + scan.width).toBeLessThanOrEqual(390);
   });
 
   test("1440 wide: one row, the primary about 14rem and the secondary about 10.5rem", async ({
@@ -318,11 +320,10 @@ test.describe("the hero logo slot", () => {
   }
 });
 
-test("home has no horizontal scroll from 320 px wide up, nor at 200 % text", async ({
-  page,
-}) => {
+test("home has no horizontal scroll from 320 px wide up", async ({ page }) => {
   for (const [width, height] of [
     [320, 568],
+    [360, 640],
     [375, 667],
     [390, 844],
     [1440, 900],
@@ -336,15 +337,109 @@ test("home has no horizontal scroll from 320 px wide up, nor at 200 % text", asy
       `${width}x${height}`,
     ).toBe(true);
   }
-  // 200 % text: the root font size doubles. Everything is in rem, so it follows.
-  await page.setViewportSize({ width: 390, height: 844 });
+});
+
+// 200 % text: the root font size doubles. Everything is in rem, so it follows.
+// The logo slot, the nav and the two buttons are what used to be wider than the
+// column at this size, so besides the page's own scroll width this names any
+// element that sticks out past the viewport.
+for (const [width, height] of [
+  [320, 568],
+  [360, 640],
+  [375, 667],
+  [390, 844],
+] as const) {
+  test(`home has no horizontal scroll at 200 % text on ${width}x${height}, and nothing sticks out of the viewport`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await page.addStyleTag({ content: "html { font-size: 200% }" });
+    const result = await page.evaluate(() => {
+      const outside = [...document.querySelectorAll("body *")]
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          return (
+            box.width > 0 &&
+            (box.left < -0.5 || box.right > window.innerWidth + 0.5)
+          );
+        })
+        .map(
+          (el) =>
+            `${el.tagName.toLowerCase()}.${String(el.getAttribute("class") ?? "")}`,
+        );
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        outside,
+      };
+    });
+    expect(result.scrollWidth).toBeLessThanOrEqual(result.innerWidth);
+    expect(result.outside).toEqual([]);
+    // Both buttons are still there, each inside the column, the primary first.
+    const hero = page.getByTestId("home-hero");
+    const scan = await hero
+      .getByRole("link", { name: "Scan my hand" })
+      .boundingBox();
+    const how = await hero
+      .getByRole("link", { name: "How it works" })
+      .boundingBox();
+    expect(scan!.x).toBeGreaterThanOrEqual(0);
+    expect(how!.x).toBeGreaterThanOrEqual(0);
+    expect(scan!.x + scan!.width).toBeLessThanOrEqual(width);
+    expect(how!.x + how!.width).toBeLessThanOrEqual(width);
+    expect(how!.y).toBeGreaterThanOrEqual(scan!.y + scan!.height - 1);
+  });
+}
+
+// The spec's acceptance for the buttons: from 360 px up the two sit on one
+// line, and the Early preview note and both buttons fit the first screen of a
+// 375 x 667 phone (screens/02). Both depend on the font, and CI is Linux, whose
+// default font is about a quarter wider than Windows', so the sizes in home.css
+// are set for the wider one: this must hold in either.
+for (const [width, height] of [
+  [360, 640],
+  [375, 667],
+  [390, 844],
+] as const) {
+  test(`${width}x${height} at 100 % text: the two buttons share one line`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    const hero = page.getByTestId("home-hero");
+    const scan = await hero
+      .getByRole("link", { name: "Scan my hand" })
+      .boundingBox();
+    const how = await hero
+      .getByRole("link", { name: "How it works" })
+      .boundingBox();
+    expect(Math.abs(scan!.y - how!.y)).toBeLessThan(2);
+    expect(scan!.x).toBeLessThan(how!.x);
+    expect(scan!.height).toBeLessThan(60);
+    expect(how!.height).toBeLessThan(60);
+  });
+}
+
+test("375x667: the first screen holds both buttons and the Early preview note", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
-  await page.addStyleTag({ content: "html { font-size: 200% }" });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
+  const hero = page.getByTestId("home-hero");
+  const boxes = {
+    scan: await hero.getByRole("link", { name: "Scan my hand" }).boundingBox(),
+    how: await hero.getByRole("link", { name: "How it works" }).boundingBox(),
+    note: await hero.locator(".landing-preview-note").boundingBox(),
+  };
+  for (const [name, box] of Object.entries(boxes)) {
+    expect(box, name).not.toBeNull();
+    expect(box!.y, name).toBeGreaterThanOrEqual(0);
+    expect(
+      box!.y + box!.height,
+      `${name} is above the fold`,
+    ).toBeLessThanOrEqual(667);
+  }
 });
 
 test("landing side menu lists How it works and returns focus on Escape", async ({
