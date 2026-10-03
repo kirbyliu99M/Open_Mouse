@@ -9,11 +9,18 @@
  * reading the two numbers next to each other.
  */
 
+/*
+ * A number and its unit are joined by a no-break space (U+00A0), so a wide
+ * font cannot leave "84" at the end of one line and "mm" at the start of the
+ * next. Number extraction is unaffected: NFKC, which numerals.ts runs first,
+ * turns U+00A0 into a plain space (tests/unit/analysis-numerals.test.ts).
+ */
+
 /** Rounds to one decimal for mm display without ever showing "-0.0". */
 export function formatMm(valueMm: number): string {
   const rounded = Math.round(valueMm * 10) / 10;
   const safe = rounded === 0 ? 0 : rounded;
-  return `${safe.toFixed(1)} mm`;
+  return `${safe.toFixed(1)}\u00A0mm`;
 }
 
 /** Signed mm delta, e.g. "+2.0 mm" or "-1.5 mm", for an actual-vs-target row. */
@@ -21,7 +28,7 @@ export function formatSignedMm(deltaMm: number): string {
   const rounded = Math.round(deltaMm * 10) / 10;
   const safe = rounded === 0 ? 0 : rounded;
   const sign = safe > 0 ? "+" : "";
-  return `${sign}${safe.toFixed(1)} mm`;
+  return `${sign}${safe.toFixed(1)}\u00A0mm`;
 }
 
 /** Actual dimension minus the engine's target, for display next to the target. */
@@ -50,7 +57,7 @@ export function formatSignedMmValue(deltaMm: number): string {
 
 export function formatWeight(weightG: number | null): string {
   if (weightG === null) return "Weight not listed";
-  return `${Math.round(weightG)} g`;
+  return `${Math.round(weightG)}\u00A0g`;
 }
 
 /** 0-1 confidence share as a whole-number percentage. */

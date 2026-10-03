@@ -17,19 +17,25 @@ describe("reasonText", () => {
   });
 
   it("formats a length_short delta in mm", () => {
-    expect(reasonText("length_short", { deltaMm: -3.2 })).toContain("3.2 mm");
+    expect(reasonText("length_short", { deltaMm: -3.2 })).toContain(
+      "3.2\u00A0mm",
+    );
   });
 
   it("formats a length_long delta in mm", () => {
-    expect(reasonText("length_long", { deltaMm: 6.4 })).toContain("6.4 mm");
+    expect(reasonText("length_long", { deltaMm: 6.4 })).toContain(
+      "6.4\u00A0mm",
+    );
   });
 
   it("formats a weight_heavier delta in grams, rounded", () => {
-    expect(reasonText("weight_heavier", { deltaG: 12.6 })).toContain("13 g");
+    expect(reasonText("weight_heavier", { deltaG: 12.6 })).toContain(
+      "13\u00A0g",
+    );
   });
 
   it("formats a weight_lighter delta in grams", () => {
-    expect(reasonText("weight_lighter", { deltaG: -8 })).toContain("8 g");
+    expect(reasonText("weight_lighter", { deltaG: -8 })).toContain("8\u00A0g");
   });
 
   it("degrades gracefully when a numeric param is missing", () => {

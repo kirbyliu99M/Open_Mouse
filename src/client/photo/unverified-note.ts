@@ -45,7 +45,7 @@ export function measuredNumbersText(input: {
 }): string {
   const length =
     input.enteredLengthMm === undefined
-      ? `Hand length ${input.handLengthMm.toFixed(0)} mm`
-      : `Hand length ${input.enteredLengthMm.toFixed(0)} mm (entered)`;
-  return `${length} · Palm width ${input.palmWidthMm.toFixed(0)} mm`;
+      ? `Hand length ${input.handLengthMm.toFixed(0)}\u00A0mm`
+      : `Hand length ${input.enteredLengthMm.toFixed(0)}\u00A0mm (entered)`;
+  return `${length} · Palm width ${input.palmWidthMm.toFixed(0)}\u00A0mm`;
 }
