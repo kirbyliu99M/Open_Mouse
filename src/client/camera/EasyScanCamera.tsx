@@ -38,7 +38,11 @@ import {
 } from "../../lib/contracts/measurement";
 import { computeDownscaleSize } from "../photo/decode";
 import { rgbaToGrayscale, computeLaplacianVariance } from "../photo/sharpness";
-import { getHandLandmarker } from "../photo/landmarks";
+import {
+  DETECTOR_LOAD_FAILED_MESSAGE,
+  getHandLandmarker,
+  HandLandmarkerLoadError,
+} from "../photo/landmarks";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
@@ -103,6 +107,11 @@ import {
   noPaperEntryLabel,
 } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
+import { DetectorProgress } from "./DetectorProgress";
+import {
+  measuredSheetNumbers,
+  UNVERIFIED_MEASUREMENT_NOTE,
+} from "../photo/unverified-note";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -512,7 +521,9 @@ export default function EasyScanCamera({
   // except the single submit).
   useEffect(() => {
     void getHandLandmarker().catch(() => {
-      // The measured/gate-failure sheet's own error state owns recovery.
+      // Not swallowed: the load state goes to "failed", and DetectorProgress
+      // tells the person and offers a retry. A photo taken meanwhile gets the
+      // same message from the sheet below.
     });
   }, []);
 
@@ -763,18 +774,26 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         }
-      } catch {
+      } catch (error) {
         if (runId !== runIdRef.current) return;
+        // Only a genuine detector load failure says so; anything else keeps
+        // the message that does not claim a cause it does not know.
+        const detectorFailed = error instanceof HandLandmarkerLoadError;
         setResult({
           kind: "gateFailure",
           previewUrl,
           overlay: null,
           errors: [
-            {
-              code: "PROCESSING_FAILED",
-              message:
-                "Something went wrong while measuring that photo. Try again.",
-            },
+            detectorFailed
+              ? {
+                  code: "DETECTOR_LOAD_FAILED",
+                  message: DETECTOR_LOAD_FAILED_MESSAGE,
+                }
+              : {
+                  code: "PROCESSING_FAILED",
+                  message:
+                    "Something went wrong while measuring that photo. Try again.",
+                },
           ],
           imageWidth: 0,
           imageHeight: 0,
@@ -1160,6 +1179,7 @@ export default function EasyScanCamera({
         data-device-hint={deviceHint}
         aria-busy="true"
       >
+        <h1 className="visuallyHidden">Scan your hand</h1>
         <p className="visuallyHidden">Loading the scanner…</p>
       </main>
     );
@@ -1173,7 +1193,8 @@ export default function EasyScanCamera({
     );
 
   return (
-    <div className="cameraViewfinder easyScanShell">
+    <main className="cameraViewfinder easyScanShell">
+      <h1 className="visuallyHidden">Scan your hand</h1>
       <p
         className="visuallyHiddenLive"
         role="status"
@@ -1210,6 +1231,9 @@ export default function EasyScanCamera({
           />
         </div>
       </div>
+      {/* After the top bar, so where a card is laid out in flow (refused or
+          no camera) the notice joins that flow above it. */}
+      <DetectorProgress inert={lengthStep} />
 
       {lengthStep && (
         <section className="easyLengthStep" aria-labelledby="easy-length-title">
@@ -1241,9 +1265,9 @@ export default function EasyScanCamera({
               strokeWidth="2"
             />
           </svg>
-          <h1 id="easy-length-title" ref={lengthHeadingRef} tabIndex={-1}>
+          <h2 id="easy-length-title" ref={lengthHeadingRef} tabIndex={-1}>
             Hand length
-          </h1>
+          </h2>
           <p>Wrist crease to the tip of your middle finger</p>
           <form
             className="easyLengthForm"
@@ -1465,8 +1489,8 @@ export default function EasyScanCamera({
               <label
                 className="easyUploadIconButton"
                 htmlFor="easy-scan-upload"
-                aria-label="Upload a photo instead"
               >
+                <span className="visuallyHidden">Upload a photo instead</span>
                 <svg
                   viewBox="0 0 24 24"
                   width="22"
@@ -1516,6 +1540,14 @@ export default function EasyScanCamera({
         onChange={onFilePicked}
         className="visuallyHidden"
         inert={lengthStep}
+        // Matches the visible label of whichever upload control is on screen
+        // ("Upload a photo" on the no-camera screen, "Upload a photo instead"
+        // beside a camera), and stays right in the states with none.
+        aria-label={
+          camState.kind === "noCamera"
+            ? "Upload a photo"
+            : "Upload a photo instead"
+        }
       />
 
       {(result.kind === "processing" ||
@@ -1644,6 +1676,13 @@ export default function EasyScanCamera({
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> Hand measured
               </p>
+              <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
+                {measuredSheetNumbers(
+                  result.measurements,
+                  result.submission.calibration,
+                )}
+              </p>
+              <p className="easySheetNote">{UNVERIFIED_MEASUREMENT_NOTE}</p>
               {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
@@ -1651,9 +1690,7 @@ export default function EasyScanCamera({
                       Based on the hand length you entered (
                       {result.submission.calibration.referenceMm} mm)
                     </p>
-                    <p>
-                      Measured without paper — less precise than a scan on A4.
-                    </p>
+                    <p>Measured without paper.</p>
                   </div>
                 )}
               <p className="easySheetGripLabel">
@@ -1833,6 +1870,6 @@ export default function EasyScanCamera({
           Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
         </p>
       </dialog>
-    </div>
+    </main>
   );
 }

@@ -5,7 +5,7 @@ import { ResultsPageClient } from "./ResultsPageClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your results — Open_Mouse",
+  title: "Your results",
   description: "Your ranked mouse recommendations and written analysis.",
   robots: { index: false, follow: false },
 };

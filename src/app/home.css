@@ -306,8 +306,21 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.landing-annotation span {
+.landing-annotation .landing-weight {
   margin-left: 1rem;
+}
+/* Read by a screen reader, not seen: the context for a number that is drawn
+   as an annotation on the sketch. */
+.landing-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .landing-page .home-cta {
   min-height: 3.5rem;

@@ -15,7 +15,7 @@ import {
 import "../scan.css";
 
 export const metadata: Metadata = {
-  title: "Scan measured (mock data) — Open_Mouse",
+  title: "Scan measured (mock data)",
   description:
     "Dev/demo route rendering /scan's measured state against fixed, schema-valid measurements — no photo, no MediaPipe. Exists because no e2e fixture can make MediaPipe detect a hand in a synthetic image (see tests/e2e/scan.spec.ts).",
   robots: { index: false, follow: false },

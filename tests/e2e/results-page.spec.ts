@@ -1,7 +1,9 @@
+import { timePromises } from "./fixtures/time-promise";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { scanPath } from "../../src/lib/contracts/routes";
+import { contrast } from "./fixtures/contrast";
 import { scoreFit } from "../../src/server/fit/score";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 
@@ -110,7 +112,8 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
   // left-hand notice, not in the page-bottom footnote.
   await expect(
     newTab.locator(".results-handNotice", {
-      hasText: "Based on the hand length you entered (190 mm)",
+      hasText:
+        "Based on the hand length you entered (190 mm). Measured without paper.",
     }),
   ).toHaveCount(1);
   await expect(
@@ -177,6 +180,73 @@ test("a typed length stored under an earlier, wider range still gets its note; a
       await expect(
         page.getByText(`(${stored} mm)`, { exact: false }),
       ).toBeVisible();
+  }
+});
+
+// The written-analysis card had a white surface declared after its dark one,
+// so in the dark theme its #f5f5f7 text sat on white (about 1.08:1).
+test("the written-analysis card keeps its contrast in light and dark, in every state", async ({
+  page,
+}) => {
+  const states: readonly (readonly [string, number, unknown])[] = [
+    [
+      "ready, written from the scores, with caveats",
+      200,
+      {
+        ...READY_ANALYSIS_FALLBACK,
+        output: {
+          ...READY_ANALYSIS_FALLBACK.output,
+          caveats: ["Early preview · measurements still being validated."],
+        },
+      },
+    ],
+    ["ready, written by a model", 200, READY_ANALYSIS_MODEL],
+    ["error", 500, { error: "Unavailable" }],
+    ["rate limited", 429, { error: "Too many requests" }],
+  ];
+  await stubHappyFit(page);
+  for (const [state, status, body] of states) {
+    await page.unroute(ANALYSIS_URL).catch(() => {});
+    await page.route(ANALYSIS_URL, (route) => fulfillJson(route, status, body));
+    await page.goto(`/results/${SCAN_ID}`);
+    const card = page.locator(".results-analysis");
+    await expect(card).toBeVisible();
+    for (const scheme of ["light", "dark"] as const) {
+      // No transitions: a colour read mid-fade is neither theme's.
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      const texts = await card.evaluate((root) => {
+        const opaque = (color: string) =>
+          !/rgba\(.*, 0\)$|transparent/.test(color);
+        const background = (el: Element): string => {
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            const color = getComputedStyle(node).backgroundColor;
+            if (opaque(color)) return color;
+          }
+          return "rgb(255, 255, 255)";
+        };
+        const found: { text: string; color: string; background: string }[] = [];
+        for (const el of [root, ...root.querySelectorAll("*")]) {
+          const own = [...el.childNodes]
+            .filter((n) => n.nodeType === Node.TEXT_NODE)
+            .map((n) => n.textContent!.trim())
+            .join(" ")
+            .trim();
+          if (!own) continue;
+          found.push({
+            text: own.slice(0, 40),
+            color: getComputedStyle(el).color,
+            background: background(el),
+          });
+        }
+        return found;
+      });
+      expect(texts.length, `${state} ${scheme}`).toBeGreaterThan(1);
+      for (const t of texts)
+        expect(
+          contrast(t.color, t.background),
+          `${state} / ${scheme} / "${t.text}"`,
+        ).toBeGreaterThan(4.5);
+    }
   }
 });
 
@@ -396,6 +466,13 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { name: "We couldn't find this scan" }),
     ).toBeVisible();
+    // No hours or days in the promise (Kirby, 2026-09-30).
+    await expect(page.locator(".results-page-error")).toContainText(
+      "It may have expired, or the link isn't yours. Scans without an account expire automatically.",
+    );
+    expect(
+      timePromises(await page.locator(".results-page-error").innerText()),
+    ).toEqual([]);
     // Scoped to the error panel's own action — the TopBar above it also has
     // a "Scan again" link (its accessible name is "Back to Scan again"),
     // and an unscoped query matches both.

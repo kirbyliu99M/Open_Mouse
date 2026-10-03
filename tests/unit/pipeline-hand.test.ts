@@ -253,6 +253,23 @@ describe.each(CALIBRATIONS)("$name pipeline", ({ calibration }) => {
     expect(text).not.toContain("HANDEDNESS_MISMATCH");
   });
 
+  it("with a hand the user chose, a photo with no handedness label is stopped as unreadable too, never submitted as chosen", async () => {
+    arrange(null);
+    const result = await run(calibration, {
+      hand: "right",
+      handExplicit: true,
+    });
+    expect(result.status).toBe("error");
+    if (result.status !== "error") return;
+    expect(result.errors.map((e) => e.code)).toContain(
+      "LOW_LANDMARK_CONFIDENCE",
+    );
+    // There is nothing detected to disagree with, so it is not a mismatch.
+    expect(result.errors.map((e) => e.code)).not.toContain(
+      "HANDEDNESS_MISMATCH",
+    );
+  });
+
   it("on auto, a photo with no handedness label is blocked as unreadable, not as a mismatch", async () => {
     arrange(null);
     const result = await run(calibration, {

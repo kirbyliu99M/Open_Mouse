@@ -152,7 +152,7 @@ export function ResultsPageClient({
           <h1>We couldn&apos;t find this scan</h1>
           <p>
             It may have expired, or the link isn&apos;t yours. Scans without an
-            account are only kept for 24 hours.
+            account expire automatically.
           </p>
           <Link href="/scan/easy" className="results-page-action">
             Scan again

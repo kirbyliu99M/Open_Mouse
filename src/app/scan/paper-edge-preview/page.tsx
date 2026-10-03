@@ -4,7 +4,7 @@ import { guardDemoRouteFromProduction } from "../demo-guard";
 import "../scan.css";
 
 export const metadata: Metadata = {
-  title: "Scan (paper-edge preview) — Open_Mouse",
+  title: "Scan (paper-edge preview)",
   description:
     "Dev/screenshot route previewing /scan's page copy for the future blank-paper calibration path (no printed sheet, no card) — the real pipeline is unchanged until the paper-edge detector lands. See src/client/camera/quad-source.ts.",
   robots: { index: false, follow: false },

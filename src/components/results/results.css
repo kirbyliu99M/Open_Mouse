@@ -832,3 +832,16 @@
     color: #b5b5bd;
   }
 }
+
+/* ---- Written analysis card, dark theme ---- */
+/* Kept as its own block, last in the file, on purpose. The card's light
+   surface (`.results-analysis { background: #ffffff }`, declared after the
+   first dark-theme block) has the same specificity as that block's dark one
+   and comes later, so in the dark theme it won and left #f5f5f7 text on
+   white (about 1.08:1 for the heading, the body and the lists). Everything
+   else in the card already has a dark colour of its own. */
+@media (prefers-color-scheme: dark) {
+  .results-analysis {
+    background: #1c1c1e;
+  }
+}

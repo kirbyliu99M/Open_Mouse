@@ -952,16 +952,59 @@ test("a tablet asking for the desktop site gets the camera's dark from the first
   }
 });
 
-test("a desktop user agent is classified for the first paint and keeps every security header", async ({
+test("/scan/easy carries the same security headers as a page that is not rendered per request", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  const response = await page.goto("/scan/easy");
-  const headers = response!.headers();
-  // Rendering per request (the route reads the user agent) changes no header:
-  // they come from next.config.ts, not from the page.
+  const scan = await page.goto("/scan/easy");
+  const headers = scan!.headers();
   expect(headers["content-security-policy"]).toContain("default-src 'self'");
+  expect(headers["content-security-policy"]).toContain("connect-src 'self'");
   expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   expect(headers["permissions-policy"]).toContain("camera=(self)");
-  await expect(page.locator(".easyDeviceEntry")).toBeVisible();
+  // Cache-Control is deliberately not asserted: the dev server sends
+  // `no-store` for every route, so it would pass whatever the page does. That
+  // the page is rendered per request is checked where it can be:
+  // tests/unit/scan-easy-page.test.ts (the page reads the request headers) and
+  // the `next build` route table (`ƒ`, dynamic).
+
+  // The security headers do not come from the page, so a page that does not
+  // read the user agent carries the same ones.
+  const home = await page.goto("/");
+  for (const name of [
+    "content-security-policy",
+    "x-content-type-options",
+    "referrer-policy",
+    "permissions-policy",
+  ])
+    expect(home!.headers()[name], name).toBe(headers[name]);
+});
+
+test("the server classifies the user agent for the first paint: desktop, phone, in-app", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  const cases = [
+    [
+      "desktop",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36",
+    ],
+    ["phone", devices["Pixel 7"].userAgent],
+    ["in-app", LINE_UA],
+  ] as const;
+  for (const [hint, userAgent] of cases) {
+    // Scripts off: the attribute is the server's, not the client's.
+    const context = await browser.newContext({
+      userAgent,
+      javaScriptEnabled: false,
+    });
+    const page = await context.newPage();
+    await page.goto("/scan/easy");
+    await expect(page.locator(".easyDevicePlaceholder")).toHaveAttribute(
+      "data-device-hint",
+      hint,
+    );
+    await context.close();
+  }
 });
