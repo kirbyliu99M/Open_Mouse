@@ -1,8 +1,9 @@
 /**
  * Said next to every measured number on a scan screen. The measurements are
- * an estimate from a photo that has not been checked against a physical
- * ruler yet (docs/PLAN.md, M2), and the screen should say so instead of
- * implying otherwise. Candidate wording, pending Kirby's confirmation.
+ * an estimate from a photo, and the screen says so instead of implying
+ * otherwise. Wording decided by Kirby on 2026-10-03 (docs/STATUS.md, decisions
+ * log): it does not mention a ruler or any accuracy figure, only that the
+ * measurements are still being validated.
  */
 export const UNVERIFIED_MEASUREMENT_NOTE =
   "Measurements are still being validated.";
