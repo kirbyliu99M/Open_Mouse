@@ -5,7 +5,9 @@ import {
   LOW_END_CORES,
   MAX_DPR,
   MIN_VIEWPORT_HEIGHT,
+  PALETTE,
   PARTICLE_BUDGET,
+  PARTICLE_SEED,
   SHIMMER_MAX_MS,
   SHIMMER_MS,
   canvasScale,
@@ -30,12 +32,28 @@ import {
   mouseBox,
   writeParticles,
 } from "@/lib/particles/particle-set";
+import {
+  DEFAULT_SEED,
+  DETAIL_STROKE,
+  PRIMARY_STROKE,
+} from "@/lib/particles/targets";
 import { phaseAt } from "@/lib/particles/timeline";
 
 const targets = parseTargets(
   JSON.parse(readFileSync(ARTIFACT_PATHS.targets, "utf8")),
 );
 const sketch = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+
+describe("what the canvas shares with the static drawings", () => {
+  it("uses the same two stroke colours and the same seed as the target generator", () => {
+    expect(PALETTE.primary).toBe(PRIMARY_STROKE);
+    expect(PALETTE.detail).toBe(DETAIL_STROKE);
+    expect(PARTICLE_SEED).toBe(DEFAULT_SEED);
+    // The key light is the --glow token's blue.
+    const tokens = readFileSync("src/app/tokens.css", "utf8");
+    expect(tokens).toMatch(new RegExp(`--glow: ${PALETTE.glow}`, "i"));
+  });
+});
 
 describe("the particle budget", () => {
   it("is about 900 on a phone and 1,300 on a desktop, as constants", () => {

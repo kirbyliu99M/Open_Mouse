@@ -8,6 +8,16 @@ import { MOUSE_COUNT } from "./pairing";
  * they are measured on a real phone, so each one is a named constant.
  */
 
+/** The seed of the stage's own random choices (resampling, swirl lengths). The same as the target generator's, so a build is reproducible. */
+export const PARTICLE_SEED = 20261003;
+
+/** The stroke colours of the drawings, shared with the static SVGs (README, "Static images"), and the key light. */
+export const PALETTE = {
+  primary: "#cfe0ff",
+  detail: "#6e9bf5",
+  glow: "#3b82f6",
+} as const;
+
 /** Particles in the whole story, shared by every state. */
 export const PARTICLE_BUDGET = { mobile: 900, desktop: 1300 } as const;
 
