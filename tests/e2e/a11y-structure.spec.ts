@@ -1,5 +1,6 @@
 import { devices, expect, test } from "@playwright/test";
 import { contrast } from "./fixtures/contrast";
+import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 
 // ── Page titles: each page names itself; the template adds the site ────────
 
@@ -239,9 +240,28 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
+  // This test is about the focus ring, not the shutter. The ring fills as soon
+  // as the sheet is found (one noisy sample no longer restarts it), so the
+  // auto-shutter fires about a second after the tip closes. Run with the loop
+  // alive, this test passed 13 of 13 times on a warm dev server, but failed
+  // once on a cold one (slow keyboard, 10.7 s run: the shutter had already
+  // fired and the upload icon was gone). Stubbing `requestAnimationFrame`
+  // after waiting for an element is the same race the axe live-camera tests
+  // lost on CI: the loop gets frames in between. So the loop is stopped in the
+  // page, in the same tick in which the picture starts playing, as they do
+  // (fixtures/freeze-loop.ts).
+  await installLoopFreeze(page, {
+    selector: "video.cameraVideo.ready",
+    count: 1,
+  });
   await page.goto("/scan/easy");
   await page.getByRole("button", { name: "Got it" }).click();
   await expect(page.locator(".cameraFrame")).toBeVisible();
+  await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+    timeout: 20_000,
+  });
+  await loopFrozen(page);
+  await expect(page.locator(".cameraCue")).toBeVisible();
   await tabToUpload(page);
   const ring = await focusRing(page);
   expect(ring.focusVisible).toBe(true);

@@ -28,6 +28,7 @@ export type CueCode =
   | "dark"
   | "bright"
   | "hold-still"
+  | "out-of-focus"
   | "perfect";
 
 export interface Cue {
@@ -36,6 +37,13 @@ export interface Cue {
   /** True only for "perfect" — every check passed, auto-capture may run. */
   readonly allPass: boolean;
 }
+
+/** Waiting on the camera's focus: holding still cannot fix it. */
+export const WAITING_FOR_SHARP_PICTURE = "Waiting for a sharp picture";
+/** The cue while out of focus, on a phone whose camera can be told where to focus. */
+export const TAP_TO_FOCUS_CUE = "Tap the paper to focus";
+/** The hint line under the viewfinder while the ring fills. */
+export const HOLD_STILL_TAKING_THE_PHOTO = "Hold still — taking the photo";
 
 const CUE_MESSAGES: Record<CueCode, string> = {
   "place-paper": "Place a blank sheet of paper on a darker surface",
@@ -47,6 +55,7 @@ const CUE_MESSAGES: Record<CueCode, string> = {
   dark: "More light, please",
   bright: "Too bright — avoid glare",
   "hold-still": "Hold still",
+  "out-of-focus": WAITING_FOR_SHARP_PICTURE,
   perfect: "Perfect — hold still",
 };
 
@@ -58,6 +67,47 @@ function cue(code: CueCode, mode: CueCalibrationMode): Cue {
       ? CUE_MESSAGES[code].replaceAll("paper", "sheet")
       : CUE_MESSAGES[code];
   return { code, message, allPass: code === "perfect" };
+}
+
+/** The cue for a code, as `pickCue` would have built it. */
+export function cueFromCode(
+  code: CueCode,
+  mode: CueCalibrationMode = "paper-edge",
+): Cue {
+  return cue(code, mode);
+}
+
+/**
+ * The easy scan's cue line. "Perfect" reads "Got it — hold still" there, and
+ * being out of focus reads "Tap the paper to focus" where a tap can set the
+ * focus (otherwise the plain "Waiting for a sharp picture").
+ */
+export function easyCueText(
+  cue: Cue,
+  options: { readonly tapToFocus: boolean },
+): string {
+  if (cue.code === "perfect") return "Got it — hold still";
+  if (cue.code === "out-of-focus" && options.tapToFocus)
+    return TAP_TO_FOCUS_CUE;
+  return cue.message;
+}
+
+/**
+ * The hint line under the viewfinder: what is happening now, when it is not
+ * already the cue. Empty otherwise. While out of focus it says so, unless the
+ * cue already says exactly that (no tap to focus): the same words twice would
+ * only be read out twice.
+ */
+export function easyHintText(input: {
+  readonly cueCode: CueCode | null;
+  readonly ringFraction: number;
+  readonly tapToFocus: boolean;
+}): string {
+  if (input.cueCode === "out-of-focus")
+    return input.tapToFocus ? WAITING_FOR_SHARP_PICTURE : "";
+  if (input.cueCode === "perfect" && input.ringFraction > 0)
+    return HOLD_STILL_TAKING_THE_PHOTO;
+  return "";
 }
 
 export interface CueInput {
@@ -115,7 +165,10 @@ export function pickCue(
   if (light === "dark") return cue("dark", mode);
   if (light === "bright") return cue("bright", mode);
 
-  if (!input.steady || !input.sharpEnough) return cue("hold-still", mode);
+  // Shake and focus are different problems with different fixes: holding
+  // still cannot bring a soft picture into focus, so they are told apart.
+  if (!input.steady) return cue("hold-still", mode);
+  if (!input.sharpEnough) return cue("out-of-focus", mode);
 
   return cue("perfect", mode);
 }
@@ -147,7 +200,9 @@ export function computeStatusChips(
       label: `${mode === "printed-sheet" ? "Sheet" : "Paper"} ${input.cornersSeen}/4`,
       pass: paperPass,
     },
-    steady: { label: "Steady", pass: input.steady && input.sharpEnough },
+    // "Steady" means what the "hold-still" cue means: shake only. A soft
+    // picture is the "out-of-focus" cue's business, and holding still cannot fix it.
+    steady: { label: "Steady", pass: input.steady },
     light: { label: "Light", pass: light === "ok" },
   };
 }

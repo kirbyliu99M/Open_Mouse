@@ -70,6 +70,7 @@ const DEMO_ROUTES = [
   "/results/demo",
   "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
+  "/scan/easy/live-measured-demo",
   "/scan/easy/measured-demo",
   "/scan/easy/measured-length-demo",
   "/scan/error-demo",
