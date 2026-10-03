@@ -48,6 +48,7 @@ export function parsePathData(d: string): Polyline[] {
   let pen: Vec = [0, 0];
   let start: Vec = [0, 0];
   let command = "";
+  let started = false;
   let i = 0;
 
   const flush = (closed: boolean) => {
@@ -71,6 +72,10 @@ export function parsePathData(d: string): Polyline[] {
       if (!SUPPORTED.has(command.toLowerCase())) {
         throw new Error(`SVG path: unsupported command "${command}"`);
       }
+      if (!started && command.toLowerCase() !== "m") {
+        throw new Error("SVG path: a path must start with a moveto");
+      }
+      started = true;
       if (command === "Z" || command === "z") {
         flush(true);
         pen = start;
@@ -82,6 +87,9 @@ export function parsePathData(d: string): Polyline[] {
     const relative = command === command.toLowerCase();
     const ox = relative ? pen[0] : 0;
     const oy = relative ? pen[1] : 0;
+    // After a closepath the next drawing command starts a new subpath at the
+    // point the closed one began (SVG 1.1, 8.3.3): keep that start point.
+    if (current.length === 0 && command.toLowerCase() !== "m") current = [pen];
     switch (command.toLowerCase()) {
       case "m": {
         flush(false);
@@ -111,7 +119,6 @@ export function parsePathData(d: string): Polyline[] {
         const p1: Vec = [ox + next(), oy + next()];
         const p2: Vec = [ox + next(), oy + next()];
         const p3: Vec = [ox + next(), oy + next()];
-        if (current.length === 0) current = [pen];
         current.push(...flattenCubic(pen, p1, p2, p3));
         pen = p3;
         break;
@@ -168,7 +175,15 @@ export interface Sketch {
 const attr = (tag: string, name: string): string | undefined =>
   new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 
-/** Read a pen.dev line sketch: its viewBox and every stroked path, transforms applied. */
+const TAG = /<(\/?)([a-zA-Z][\w-]*)\b([^>]*?)(\/?)>/g;
+
+/**
+ * Read a pen.dev line sketch: its viewBox and every stroked path, with the
+ * transforms of the path and of every <g> around it composed, outermost first.
+ * A path may sit at the top level or inside any number of groups. Unbalanced
+ * groups, a second <svg> and any element other than <svg>, <g> and <path>
+ * throw.
+ */
 export function parseSketchSvg(svg: string): Sketch {
   const root = /<svg\b[^>]*>/.exec(svg)?.[0];
   const viewBox = root && attr(root, "viewBox");
@@ -180,19 +195,30 @@ export function parseSketchSvg(svg: string): Sketch {
     number,
   ];
 
-  const elements = new Set([...svg.matchAll(/<([a-zA-Z]+)/g)].map((m) => m[1]));
-  for (const name of elements) {
-    if (name !== "svg" && name !== "g" && name !== "path") {
-      throw new Error(`Sketch SVG uses unsupported <${name}>`);
-    }
-  }
-
   const strokes: SketchStroke[] = [];
-  for (const group of svg.matchAll(/<g\b([^>]*)>([\s\S]*?)<\/g>/g)) {
-    const matrix = parseTransform(attr(group[1] ?? "", "transform"));
-    for (const path of (group[2] ?? "").matchAll(/<path\b[^>]*>/g)) {
-      const d = attr(path[0], "d");
-      const stroke = attr(path[0], "stroke");
+  // One matrix per open <g>, the product of every transform around the tag.
+  const matrices: Matrix[] = [IDENTITY];
+  let roots = 0;
+  for (const tag of svg.matchAll(TAG)) {
+    const [text, closing, name, , selfClosing] = tag;
+    const outer = matrices[matrices.length - 1]!;
+    if (name === "svg") {
+      if (!closing) roots += 1;
+      if (roots > 1) throw new Error("Sketch SVG has a nested <svg>");
+    } else if (name === "g") {
+      if (closing) {
+        if (matrices.length === 1) {
+          throw new Error("Sketch SVG has a </g> with no <g>");
+        }
+        matrices.pop();
+      } else if (!selfClosing) {
+        matrices.push(multiply(outer, parseTransform(attr(text, "transform"))));
+      }
+    } else if (name === "path") {
+      if (closing) continue;
+      const matrix = multiply(outer, parseTransform(attr(text, "transform")));
+      const d = attr(text, "d");
+      const stroke = attr(text, "stroke");
       if (!d || !stroke) throw new Error("Sketch path without d or stroke");
       for (const polyline of parsePathData(d)) {
         strokes.push({
@@ -203,8 +229,12 @@ export function parseSketchSvg(svg: string): Sketch {
           },
         });
       }
+    } else {
+      throw new Error(`Sketch SVG uses unsupported <${name}>`);
     }
   }
+  if (matrices.length !== 1)
+    throw new Error("Sketch SVG has a <g> never closed");
   if (strokes.length === 0) throw new Error("Sketch SVG has no strokes");
   return { viewBox: { x, y, width, height }, strokes };
 }

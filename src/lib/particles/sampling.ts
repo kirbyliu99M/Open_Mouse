@@ -115,9 +115,11 @@ export function resampleToCount<
   for (let i = 0; i < count; i += 1) {
     const index = Math.round((i * last) / (count - 1));
     const point = points[index]!;
-    // The very last output is the last input point, exactly; earlier picks of
-    // that point are nudged copies like any other repeat.
-    const exact = i === count - 1 || (index !== last && !seen.has(index));
+    // The first output is the first input point and the last output is the
+    // last input point, exactly (with one input point, both are that point);
+    // other picks of those points are nudged copies like any other repeat.
+    const exact =
+      i === 0 || i === count - 1 || (index !== last && !seen.has(index));
     if (exact) {
       seen.add(index);
       picked.push(point);

@@ -57,6 +57,39 @@ describe("parsePathData", () => {
     expect(shapes[1]!.closed).toBe(true);
   });
 
+  it("starts a new subpath at the closed one's start when a drawing command follows a closepath", () => {
+    // SVG 1.1, 8.3.3: after Z the current point is the subpath's start, so an
+    // l, h, v or c with no moveto begins there. The start point must not be lost.
+    const afterL = parsePathData("M0 0l10 0 0 10zl-5 0");
+    expect(afterL).toHaveLength(2);
+    expect(afterL[0]!.closed).toBe(true);
+    expect(afterL[1]!.closed).toBe(false);
+    expect(afterL[1]!.points).toEqual([
+      [0, 0],
+      [-5, 0],
+    ]);
+    expect(parsePathData("M2 3l10 0 0 10zL7 9")[1]!.points).toEqual([
+      [2, 3],
+      [7, 9],
+    ]);
+    expect(parsePathData("M2 3l10 0 0 10zh4")[1]!.points).toEqual([
+      [2, 3],
+      [6, 3],
+    ]);
+    expect(parsePathData("M2 3l10 0 0 10zV9")[1]!.points).toEqual([
+      [2, 3],
+      [2, 9],
+    ]);
+    const afterC = parsePathData("M0 0l10 0 0 10zc0 5 5 5 5 0")[1]!.points;
+    expect(afterC[0]).toEqual([0, 0]);
+    expect(afterC[afterC.length - 1]![0]).toBeCloseTo(5, 9);
+  });
+
+  it("refuses a path that does not start with a moveto, instead of starting it at the origin", () => {
+    expect(() => parsePathData("L5 5")).toThrow(/moveto/);
+    expect(() => parsePathData("c0 0 1 1 2 2")).toThrow(/moveto/);
+  });
+
   it("refuses a command it does not handle instead of sampling the wrong shape", () => {
     expect(() => parsePathData("M0 0A5 5 0 0 1 10 0")).toThrow(/unsupported/);
     expect(() => parsePathData("M0 0Q5 5 10 0")).toThrow(/unsupported/);
@@ -93,6 +126,71 @@ describe("parseSketchSvg", () => {
       [5, 5],
       [25, 5],
     ]);
+  });
+
+  it("reads a path at the top level, outside every group, as well as one inside a group", () => {
+    const parsed = parseSketchSvg(
+      sketch(
+        `<path d="M0 0l10 0" stroke="#CFE0FF"></path>` +
+          `<g transform="translate(5 5)"><path d="M0 0l10 0" stroke="#6E9BF5"></path></g>`,
+      ),
+    );
+    expect(parsed.strokes.map((s) => s.stroke)).toEqual(["#cfe0ff", "#6e9bf5"]);
+    expect(parsed.strokes[0]!.polyline.points).toEqual([
+      [0, 0],
+      [10, 0],
+    ]);
+    expect(parsed.strokes[1]!.polyline.points).toEqual([
+      [5, 5],
+      [15, 5],
+    ]);
+  });
+
+  it("composes the transforms of nested groups, outermost first, then the path's own", () => {
+    const parsed = parseSketchSvg(
+      sketch(
+        `<g transform="translate(10 0)">` +
+          `<g transform="scale(2 2)">` +
+          `<path d="M1 1l1 0" stroke="#CFE0FF" transform="translate(0 3)"></path>` +
+          `</g>` +
+          // Back in the outer group only: the inner scale no longer applies.
+          `<path d="M1 1l1 0" stroke="#CFE0FF"></path>` +
+          `</g>`,
+      ),
+    );
+    // (1, 1) +3 in y by the path, scaled by 2, then moved 10 in x.
+    expect(parsed.strokes[0]!.polyline.points).toEqual([
+      [12, 8],
+      [14, 8],
+    ]);
+    expect(parsed.strokes[1]!.polyline.points).toEqual([
+      [11, 1],
+      [12, 1],
+    ]);
+  });
+
+  it("refuses unbalanced groups and a nested <svg> instead of reading them wrongly", () => {
+    expect(() =>
+      parseSketchSvg(sketch(`<path d="M0 0l1 1" stroke="#CFE0FF"></path></g>`)),
+    ).toThrow(/<\/g> with no <g>/);
+    expect(() =>
+      parseSketchSvg(sketch(`<g><path d="M0 0l1 1" stroke="#CFE0FF"></path>`)),
+    ).toThrow(/never closed/);
+    expect(() =>
+      parseSketchSvg(
+        sketch(
+          `<svg viewBox="0 0 1 1"><path d="M0 0l1 1" stroke="#CFE0FF"></path></svg>`,
+        ),
+      ),
+    ).toThrow(/nested <svg>/);
+  });
+
+  it("refuses a path with no stroke of its own (a stroke set on a group is not read)", () => {
+    expect(() =>
+      parseSketchSvg(
+        sketch(`<g stroke="#CFE0FF"><path d="M0 0l1 1"></path></g>`),
+      ),
+    ).toThrow(/without d or stroke/);
   });
 
   it("refuses elements it does not read", () => {

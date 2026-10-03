@@ -194,13 +194,43 @@ describe("resampleToCount", () => {
 
   it("keeps the tone of the point a copy comes from", () => {
     const result = resampleToCount(original, 130, 42, 1);
+    let copies = 0;
     for (const point of result) {
-      const source = original.find(
-        (o) => distance([o.x, o.y], [point.x, point.y]) <= 1 + 1e-9,
-      );
-      expect(source).toBeDefined();
+      // The originals are 3 or more apart and a copy is at most 1 from its own
+      // source, so the nearest original is that source.
+      const [source, gap] = original
+        .map((o) => [o, distance([o.x, o.y], [point.x, point.y])] as const)
+        .sort((a, b) => a[1] - b[1])[0]!;
+      expect(gap).toBeLessThanOrEqual(1 + 1e-9);
+      expect(point.tone, `copy of x=${source.x}`).toBe(source.tone);
+      if (gap > 0) copies += 1;
     }
+    // 130 outputs from 50 points: most of them are nudged copies.
+    expect(copies).toBeGreaterThan(60);
     expect(new Set(result.map((p) => p.tone))).toEqual(new Set([0, 1]));
+  });
+
+  it("with a single input point and a count of 2 or more: starts and ends on that point, the rest are nudged copies of it", () => {
+    const only: TargetPoint = { x: 12, y: -7, tone: 1 };
+    for (const count of [2, 3, 50]) {
+      const result = resampleToCount([only], count, 9, 1);
+      expect(result, `count ${count}`).toHaveLength(count);
+      expect(result[0], `count ${count} first`).toEqual(only);
+      expect(result[count - 1], `count ${count} last`).toEqual(only);
+      for (const point of result) {
+        expect(
+          distance([point.x, point.y], [only.x, only.y]),
+        ).toBeLessThanOrEqual(1 + 1e-9);
+        expect(point.tone).toBe(1);
+      }
+    }
+    // The middle ones are copies, not the same point repeated.
+    const many = resampleToCount([only], 50, 9, 1);
+    expect(
+      many.slice(1, -1).some((p) => p.x !== only.x || p.y !== only.y),
+    ).toBe(true);
+    // Same seed, same copies.
+    expect(resampleToCount([only], 50, 9, 1)).toEqual(many);
   });
 
   it("gives the same points for the same seed, and different copies for another seed", () => {
