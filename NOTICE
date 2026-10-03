@@ -119,8 +119,8 @@ Installed with npm (not vendored) and shipped in the server and/or browser
 bundle. Licences are the "license" field in package-lock.json. Most of these
 packages carry a licence file in node_modules/<name>/, but four do not:
 @mediapipe/tasks-vision, @next/env, drizzle-orm and server-only. For those four
-the "license" field is the only evidence (checked 2026-09-30 by listing each
-package folder). Transitive dependencies are listed, with licences, in
+the "license" field is the only evidence (each package folder listed on
+2026-09-30; the table itself was re-checked on 2026-10-04). Transitive dependencies are listed, with licences, in
 package-lock.json. Development-only tools (TypeScript, ESLint, Playwright,
 Vitest, Prettier, drizzle-kit, ...) are not redistributed.
 tests/unit/notice-packages.test.ts keeps this table in step with package.json

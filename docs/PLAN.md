@@ -33,7 +33,7 @@ Owns all feature code, tests, Blender generation scripts, and docs, working **on
 
 **Two standing constraints for Codex:** never commit or move `Dataset/` (it is gitignored from the first commit), and never let the LLM do arithmetic — all numbers originate in tested TypeScript.
 
-### Kirby — Ground Truth & Judgment
+### Kirby — Blind labels & Judgment
 The things neither agent can do:
 - **Hand photos with blind good/bad labels** (M2) — _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ You photograph each participant's mouse hand (participants are coded P###) and label every photo good or bad, blind. There are no ruler-measured true values. **Blocks M2's report** (judgement correctness, target ≥ 95 %).
 - Shape-rubric spot-checks (M1) and the silhouette contact-sheet review (M4).
@@ -243,5 +243,5 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 
 ## Open items
 - M3 coefficients start from published sizing guidance and need tuning against real pairings — the more mice you've owned and can rate, the better this gets.
-- Side-shot parallax correction is unproven. M2 under prereg v2 has no ruler truth and claims no accuracy, so its photo set cannot prove it; how it would be proven is not decided in this document. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
+- Side-shot parallax correction is unproven. M2 under prereg v2 has no ruler truth and claims no accuracy, so its photo set does not test it; how it would be proven is not decided in this document. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
 - The Gemini vision rubric (M1) may need sharpening after the first agreement report.

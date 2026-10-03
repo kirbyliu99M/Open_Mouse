@@ -37,7 +37,7 @@ export interface Thresholds {
 
 /**
  * The old M2 gate's numbers: hand length +/-2 mm against the ruler; +/-1.5 mm
- * across 5 photos. They were in docs/PLAN.md §M2 until 2026-10-02 and are
+ * across 5 photos. They were in docs/PLAN.md §M2 until 2026-10-04 (decided 2026-10-02) and are
  * superseded by prereg v2 (docs/STATUS.md R2; see the header).
  */
 export const CANDIDATE_THRESHOLDS: Thresholds = {
