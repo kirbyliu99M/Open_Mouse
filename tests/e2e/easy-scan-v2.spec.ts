@@ -1762,7 +1762,24 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           Math.abs(g - want[1]),
           Math.abs(b - want[2]),
         );
-        (stop as typeof stop & { ringPixelOff: number }).ringPixelOff = off;
+        // How much of the page behind the ring may show in the pixels sampled:
+        // an edge pixel at a fractional layout position (a wider font moves
+        // everything by a fraction of a pixel) is part ring, part page. The
+        // tolerance is a share of the distance between the ring and the page
+        // (--bg, #060709): 40 of 232 against the old grey, now 20 % of 246.
+        // A ring covered by the pinned row's fade shows the whole distance.
+        const page_ = [6, 7, 9];
+        const tolerance =
+          0.2 *
+          Math.max(
+            Math.abs(want[0]! - page_[0]!),
+            Math.abs(want[1]! - page_[1]!),
+            Math.abs(want[2]! - page_[2]!),
+          );
+        Object.assign(stop, {
+          ringPixelOff: off,
+          ringPixelTolerance: tolerance,
+        });
       }
       console.log(
         `${screen.width}x${screen.height} ${screen.percent}%: focus order ${stops.map((s) => `${s.name}${s.inRow ? " [row]" : ""}`).join(" > ")}; fade reaches ${stops[0]?.fadeReach.toFixed(0)} px; ring clear of it by ${stops
@@ -1783,6 +1800,7 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
       expect(stops[5].inRow).toBe(true);
       for (const stop of stops as ((typeof stops)[number] & {
         ringPixelOff: number;
+        ringPixelTolerance: number;
       })[]) {
         expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
           true,
@@ -1803,7 +1821,7 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
         expect(
           stop.ringPixelOff,
           `${stop.name}: the pixels at the ring's lowest edge are the ring colour (largest channel difference)`,
-        ).toBeLessThanOrEqual(40);
+        ).toBeLessThanOrEqual(stop.ringPixelTolerance);
       }
     });
   }
