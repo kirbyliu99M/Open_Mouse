@@ -137,8 +137,9 @@ export function buildHand(seed: number, count = HAND_FILL_COUNT): HandTarget {
         : [center[0], center[1] + TICK_MM],
     ),
   });
-  // Margins in mm around the sheet: room for the ruler on the right.
-  const margin = { left: 8, top: 8, right: 34, bottom: 8 };
+  // Margins in mm around the sheet. Equal left and right keep the sheet
+  // centred in the drawing; the right one holds the ruler (and its ticks).
+  const margin = { left: 22, top: 8, right: 22, bottom: 8 };
   return {
     viewBox: {
       x: -margin.left * STAGE_SCALE,

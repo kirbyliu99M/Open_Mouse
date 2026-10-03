@@ -1,7 +1,6 @@
-/* Real main page (docs/design/easy-scan-shell-2026-09-25/README.md, screen
-   11-main.png). Tokens: bg #F4F4F6, surface #FFFFFF, text-primary #1C1C1E,
-   text-secondary #55555D, accent #0A64E0, accent-soft #E7F0FD,
-   border #D5D5DC, ok #1E7B45. */
+/* The home page (Home v3, PR A: the static layout; docs/design/
+   home-v3-2026-10-03/README.md) and the How it works page, which shares the
+   nav and button rules. One dark theme: colours come from tokens.css. */
 
 .home-main {
   max-width: 30rem;
@@ -19,6 +18,7 @@
   font-weight: 700;
   font-size: 1.15rem;
   letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 .home-nav-actions {
   display: flex;
@@ -30,17 +30,12 @@
   align-items: center;
   min-height: 2.75rem;
   padding: 0 0.5rem;
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-weight: 500;
   text-decoration: none;
 }
-
-.home-eyebrow-pill {
-  display: inline-block;
-  margin: 0 0 1rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+.home-signin-link:hover {
+  color: var(--text-primary);
 }
 
 .home-main h1 {
@@ -48,10 +43,249 @@
 }
 
 .home-subhead {
+  color: var(--text-secondary);
   font-size: clamp(1rem, 3vw, 1.15rem);
   margin: 0 0 1.5rem;
 }
 
+/* The primary button: the one filled accent control on the site. */
+.home-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.125rem;
+  padding: 0 1rem;
+  /* A real border colour, not transparent: forced colours keeps it visible. */
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--glow) 40%, transparent);
+}
+/* Pressing darkens the fill. Never lower the opacity: 0.85 would take the
+   white label to 4.33:1. */
+.home-cta:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
+.home-cta-caption {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0.6rem 0 2rem;
+}
+
+.home-main a:focus-visible,
+.home-main button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* ── Home: the story section ─────────────────────────────────────────────
+   Static layout (PR A). The section and the panel are ordinary blocks and
+   their parts stack in flow. PR B adds the canvas on top of this layout and
+   keeps it as the reduced-motion, no-JS and small-screen fallback. */
+.landing-page {
+  /* A 1200 px content column once the viewport is wide enough. */
+  max-width: 78rem;
+  padding: 0.75rem 1.5rem 3.5rem;
+}
+.landing-page .home-nav {
+  margin-bottom: 0;
+}
+
+.story-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* The logo slot: room for the glow, with the mark at about 60 % of its height. */
+.story-logo {
+  --slot: clamp(18rem, 40svh, 24rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--slot);
+  /* The key light, behind the mark only: it fades to nothing before the slot
+     ends, so no text ever sits on more than 15 % of it. */
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    color-mix(in srgb, var(--glow) 26%, transparent),
+    transparent
+  );
+}
+.story-logo img {
+  display: block;
+  /* The SVG's 220 x 196 box holds the mark at 176 of 196. */
+  height: calc(var(--slot) * 0.6);
+  width: auto;
+}
+
+.landing-page h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2.25rem, 8vw, 3.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.landing-page .home-subhead {
+  max-width: 27rem;
+  margin: 1rem 0 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+/* "Scan my hand" and "How it works" sit on one line from 360 px up, and stack
+   at full width, primary on top, when they no longer fit. */
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 34rem;
+  margin-top: 1.5rem;
+}
+/* A button is never narrower than its own label (max-content), so the row
+   wraps exactly when the two no longer fit, whatever the font, instead of
+   breaking a label across two lines. */
+.home-actions .home-cta {
+  flex: 3 1 10rem;
+  min-width: max-content;
+}
+.home-cta-secondary {
+  display: inline-flex;
+  flex: 2 1 8rem;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  min-height: 3.125rem;
+  padding: 0 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.home-cta-secondary:active {
+  background: #ffffff14;
+}
+
+.landing-preview-note {
+  margin: 0.75rem 0 0;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* The hand on A4: a static SVG until the particles arrive (PR B). */
+.story-hand {
+  display: block;
+  width: min(100%, 26rem);
+  height: auto;
+  margin: 3.5rem auto 0;
+}
+
+/* The three mice: stacked on a phone, side by side from 48rem. */
+.story-mice {
+  list-style: none;
+  display: grid;
+  gap: 2rem;
+  margin: 2rem 0 0;
+  padding: 0;
+}
+.story-mouse {
+  margin: 0;
+  text-align: center;
+}
+.story-mouse img {
+  display: block;
+  width: 100%;
+  max-width: 21rem;
+  height: auto;
+  margin: 0 auto;
+  aspect-ratio: 487.54 / 231.57;
+}
+.story-mouse figcaption {
+  margin-top: 0.5rem;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.home-final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 3rem;
+  text-align: center;
+}
+.home-final .home-actions {
+  margin-top: 0;
+}
+
+.landing-footer {
+  margin-top: 3rem;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  text-align: left;
+}
+.landing-footer p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+@media (min-width: 48rem) {
+  .story-logo {
+    --slot: 29rem;
+  }
+  .story-logo img {
+    /* About 19 rem of mark in a 29 rem slot. */
+    height: 21rem;
+  }
+  .home-actions {
+    flex-wrap: nowrap;
+  }
+  .home-actions .home-cta {
+    flex: 0 0 14rem;
+  }
+  .home-cta-secondary {
+    flex: 0 0 10.5rem;
+  }
+  .story-hand {
+    width: min(100%, 38rem);
+    margin-top: 4rem;
+  }
+  .story-mice {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2.5rem;
+    margin-top: 3rem;
+  }
+  .landing-footer {
+    text-align: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .landing-page {
+    padding-inline: 1rem;
+  }
+}
+
+/* ── How it works, which shares this stylesheet ───────────────────────── */
 .home-hero {
   position: relative;
   border-radius: 1.25rem;
@@ -119,28 +353,6 @@
   white-space: nowrap;
 }
 
-.home-cta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  min-height: 3.25rem;
-  border-radius: 0.85rem;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 1.05rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-.home-cta:active {
-  opacity: 0.85;
-}
-.home-cta-caption {
-  text-align: center;
-  font-size: 0.875rem;
-  margin: 0.6rem 0 2rem;
-}
-
 .home-how h2 {
   font-size: 1.05rem;
   margin: 0 0 1rem;
@@ -163,6 +375,8 @@
   border-radius: 0.7rem;
   display: grid;
   place-items: center;
+  background: #17395f;
+  color: var(--accent-text);
 }
 .home-how-list strong {
   display: block;
@@ -170,6 +384,7 @@
 }
 .home-how-list p {
   margin: 0.15rem 0 0;
+  color: #b5b5bd;
   font-size: 0.9375rem;
 }
 
@@ -185,6 +400,7 @@
   align-items: flex-start;
   gap: 0.6rem;
   margin: 0;
+  color: var(--text-primary);
 }
 .home-privacy-card p:first-child {
   margin-bottom: 0.75rem;
@@ -192,169 +408,16 @@
 .home-privacy-card p span {
   flex: 0 0 auto;
   margin-top: 0.1rem;
+  color: #6fe39c;
 }
 
-.home-footer-signin,
 .home-footer-note {
   text-align: center;
+  color: #b5b5bd;
   font-size: 0.875rem;
-}
-.home-footer-signin {
-  margin: 0 0 0.5rem;
-}
-.home-footer-signin a {
-  font-weight: 600;
-}
-.home-footer-note {
   margin: 0;
 }
 
-.home-main a:focus-visible,
-.home-main button:focus-visible {
-  outline: 2px solid #0a64e0;
-  outline-offset: 2px;
-}
-
-/* Landing, screen 17. The introduction below reuses the original home rules. */
-.landing-page {
-  max-width: 42rem;
-  padding: 1.25rem 1.5rem 3.5rem;
-}
-.landing-page .home-nav {
-  margin-bottom: 2.25rem;
-}
-.landing-page .home-wordmark {
-  font-size: 1.15rem;
-}
-.landing-eyebrow {
-  margin: 0 0 1rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  line-height: 1.35;
-}
-.landing-page h1 {
-  margin: 0 0 1rem;
-  font-size: clamp(2.25rem, 8vw, 3.75rem);
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
-.landing-page .home-subhead {
-  max-width: 27rem;
-  margin: 0;
-  font-size: 1.15rem;
-  line-height: 1.4;
-}
-.landing-sketch {
-  /* Bleeds slightly past the text column so the long side view reads as
-     the page's one bold element. */
-  margin: 2rem -0.75rem 0.35rem;
-}
-.landing-sketch img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 487.54 / 231.57;
-}
-.landing-sketch figcaption {
-  font-size: 0.8rem;
-  margin: 0.6rem 0.75rem 0;
-}
-.landing-dimension {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0.75rem 0 0.35rem;
-  font-variant-numeric: tabular-nums;
-}
-.landing-dimension::before,
-.landing-dimension::after {
-  content: "";
-  height: 0.7rem;
-  flex: 1;
-  border-bottom: 1px solid #55555d;
-}
-.landing-dimension::before {
-  border-left: 1px solid #55555d;
-}
-.landing-dimension::after {
-  border-right: 1px solid #55555d;
-}
-.landing-dimension span {
-  font-size: 0.875rem;
-}
-.landing-annotation {
-  margin: 0 0 1.5rem;
-  text-align: center;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.landing-annotation .landing-weight {
-  margin-left: 1rem;
-}
-/* Read by a screen reader, not seen: the context for a number that is drawn
-   as an annotation on the sketch. */
-.landing-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-.landing-page .home-cta {
-  min-height: 3.5rem;
-}
-.landing-preview-note {
-  margin: 0.65rem 0 0;
-  text-align: center;
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-.landing-how-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 3.25rem;
-  margin: 0.55rem 0 2.2rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-.landing-points > div {
-  padding: 1.15rem 0;
-  border-bottom: 1px solid #d5d5dc;
-  border-color: #3a3a3d;
-}
-.landing-points > div:last-child {
-  border-bottom: 0;
-}
-.landing-points h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-.landing-points p {
-  margin: 0.35rem 0 0;
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
-.landing-footer {
-  margin-top: 2.5rem;
-  font-size: 0.8rem;
-}
-.landing-footer p {
-  margin: 0 0 0.35rem;
-  line-height: 1.4;
-}
-
-/* The former landing's illustration and steps, screen 18. */
 .home-how-page {
   padding-top: 1.25rem;
 }
@@ -363,11 +426,9 @@
   align-items: center;
   min-height: 2.75rem;
   margin: 0 0 1rem;
+  color: var(--accent-text);
   text-decoration: none;
   font-weight: 600;
-}
-.home-how-page .home-eyebrow-pill {
-  margin-bottom: 0.85rem;
 }
 .home-how-page h1 {
   font-size: clamp(2.6rem, 10vw, 4rem);
@@ -422,6 +483,7 @@
 }
 .home-how-page .home-cta-caption {
   margin-bottom: 1.5rem;
+  color: #b5b5bd;
 }
 .home-privacy-link {
   margin: 0 0 0.35rem;
@@ -431,65 +493,11 @@
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
+  color: var(--accent-text);
   text-decoration: none;
 }
 .home-how-page .home-footer-note {
   text-align: left;
-}
-.landing-sketch figcaption,
-.landing-annotation,
-.landing-preview-note,
-.landing-points p,
-.landing-footer {
-  color: #b5b5bd;
-}
-.landing-eyebrow,
-.landing-how-link,
-.home-back-link,
-.home-privacy-link a {
-  color: #a8ceff;
-}
-
-@media (max-width: 360px) {
-  .landing-page {
-    padding-inline: 1rem;
-  }
-  .landing-annotation {
-    font-size: 0.8rem;
-  }
-}
-.home-wordmark {
-  color: #f5f5f7;
-}
-.home-eyebrow-pill {
-  background: #17395f;
-  color: #a8ceff;
-}
-.home-subhead,
-.home-cta-caption,
-.home-how-list p,
-.home-footer-note {
-  color: #b5b5bd;
-}
-.home-how-icon {
-  background: #17395f;
-  color: #a8ceff;
-}
-.home-privacy-card p {
-  color: #f5f5f7;
-}
-.home-privacy-card p span {
-  color: #6fe39c;
-}
-.home-signin-link,
-.home-footer-signin a {
-  color: #a8ceff;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-cta:active {
-    opacity: 1;
-  }
 }
 
 @media (prefers-contrast: more) {
@@ -498,5 +506,15 @@
   }
   .home-hero-corner {
     outline: 2px solid #fff;
+  }
+}
+
+/* Forced colours: the buttons keep a visible border, and the system colours
+   draw them. */
+@media (forced-colors: active) {
+  .home-cta,
+  .home-cta-secondary {
+    forced-color-adjust: auto;
+    border: 1px solid ButtonText;
   }
 }
