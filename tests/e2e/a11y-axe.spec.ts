@@ -34,6 +34,12 @@ interface Review {
   readonly why: string;
   /** What settles it instead: fails if the claim stops being true. */
   readonly check: (page: Page) => Promise<void>;
+  /**
+   * axe leaves this open only in some environments (it depends on how the
+   * system font wraps the text), so it is expected only where it is open. The
+   * check runs either way.
+   */
+  readonly sometimes?: boolean;
 }
 
 /** The text sits on a translucent pill over a photo; axe cannot see the photo. */
@@ -58,6 +64,59 @@ const overPhotoPill =
       4.5,
     );
   };
+
+/**
+ * The numbers on the measured sheet. They sit on the sheet's own opaque
+ * background, but the sheet floats over the photo, and under it lie the photo's
+ * drawn labels. axe works out the background from the elements stacked under
+ * each line of text. With a font wide enough to wrap the numbers (the Linux
+ * font CI renders with does, Windows' and phones' usually do not) the lines
+ * sit over different things, a label's SVG rect under one and nothing under the
+ * other, and axe gives up: "partially overlaps other elements". The labels are
+ * hidden behind the sheet, so nothing is drawn under or over the text. The
+ * check says so and measures the contrast against the sheet itself.
+ */
+const MEASURED_SHEET_REVIEW: Review = {
+  sometimes: true,
+  why: "The numbers sit on the sheet's own opaque background, but when a wide font wraps them axe finds different elements of the photo under each line and cannot tell which background applies.",
+  check: async (page) => {
+    const s = await page.evaluate(() => {
+      const sheet = document.querySelector(".easySheet")!;
+      const numbers = document.querySelector(".easySheetNumbers")!;
+      const range = document.createRange();
+      range.selectNodeContents(numbers);
+      const lines = [...range.getClientRects()];
+      const sheetBox = sheet.getBoundingClientRect();
+      return {
+        fg: getComputedStyle(numbers).color,
+        bg: getComputedStyle(sheet).backgroundColor,
+        lines: lines.length,
+        // Nothing is drawn over a line of the text: it is the topmost thing there.
+        onTop: lines.every(
+          (line) =>
+            document.elementFromPoint(
+              line.left + line.width / 2,
+              line.top + line.height / 2,
+            ) === numbers,
+        ),
+        // And every line lies inside the sheet.
+        inside: lines.every(
+          (line) =>
+            line.left >= sheetBox.left &&
+            line.right <= sheetBox.right &&
+            line.top >= sheetBox.top &&
+            line.bottom <= sheetBox.bottom,
+        ),
+      };
+    });
+    expect(s.lines).toBeGreaterThan(0);
+    expect(s.onTop).toBe(true);
+    expect(s.inside).toBe(true);
+    // The sheet is opaque, so what lies under it does not show through.
+    expect(Number(s.bg.match(/[\d.]+/g)?.[3] ?? 1)).toBe(1);
+    expect(contrast(s.fg, s.bg)).toBeGreaterThanOrEqual(4.5);
+  },
+};
 
 /** state -> rule id -> the review. */
 const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
@@ -95,6 +154,11 @@ const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
       },
     },
   },
+};
+
+NEEDS_REVIEW["measured sheet"] = { "color-contrast": MEASURED_SHEET_REVIEW };
+NEEDS_REVIEW["measured sheet, typed hand length"] = {
+  "color-contrast": MEASURED_SHEET_REVIEW,
 };
 
 const LIVE_CAMERA_REVIEW: Record<string, Review> = {
@@ -143,10 +207,14 @@ async function audit(page: Page, info: TestInfo, state: string) {
     })),
   ).toEqual([]);
   const reviews = NEEDS_REVIEW[state] ?? {};
+  const openRules = open.map((item) => item.rule);
+  const expected = Object.entries(reviews)
+    .filter(([rule, review]) => !review.sometimes || openRules.includes(rule))
+    .map(([rule]) => rule);
   expect(
-    open.map((item) => item.rule).sort(),
+    openRules.sort(),
     `needs review in "${state}" (add it to NEEDS_REVIEW, with why and a check, once looked at): ${JSON.stringify(open, null, 1)}`,
-  ).toEqual(Object.keys(reviews).sort());
+  ).toEqual(expected.sort());
   for (const review of Object.values(reviews)) await review.check(page);
 }
 
@@ -348,7 +416,19 @@ for (const colorScheme of SCHEMES) {
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
       if (loading) await slowModel(page, "gated");
       await page.goto("/scan/easy");
-      await dismissTip(page);
+      // Freeze the detection loop before it can start: it starts when the tip
+      // closes, and once it finds the sheet the auto-shutter fires within about
+      // a second and would replace the viewfinder under the audit. So the
+      // freeze goes in the very task that closes the tip and the loop never
+      // gets a frame, however slow the machine is. (Placed after the waits
+      // below, it lost that race on CI: the shutter had already fired and the
+      // audit saw the "Measuring your hand…" screen instead.) The green "hold
+      // still" cue is checked on its own below, so it does not depend on
+      // catching that moment.
+      await page.getByRole("button", { name: "Got it" }).evaluate((button) => {
+        window.requestAnimationFrame = () => 0;
+        (button as HTMLElement).click();
+      });
       await expect(page.locator(".cameraFrame")).toBeVisible();
       await expect(page.locator("video.cameraVideo")).toBeVisible();
       // The stream is attached a moment after the element shows.
@@ -362,14 +442,7 @@ for (const colorScheme of SCHEMES) {
         )
         .toBe(true);
       if (loading) await expect(pill(page)).toBeVisible();
-      // Freeze the detection loop where it is: once the sheet is found the
-      // auto-shutter fires within a second and would replace the viewfinder
-      // under the audit. (The green "hold still" cue is checked on its own
-      // below, so it does not depend on catching that moment.)
       await expect(page.locator(".cameraCue")).toBeVisible();
-      await page.evaluate(() => {
-        window.requestAnimationFrame = () => 0;
-      });
       await audit(page, info, state);
     });
   }
