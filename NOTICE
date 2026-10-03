@@ -243,6 +243,15 @@ and package-lock.json.
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
     OTHER DEALINGS IN THE SOFTWARE.
 
+3.2 jsqr
+
+  jsqr runs in the browser: it reads the learning kit's QR code
+  (src/lib/learning/qrread.ts). Its licence, Apache License 2.0, is the
+  package's node_modules/jsqr/LICENSE: the standard text, with the appendix's
+  copyright line left as the unfilled template. The same text (only the
+  brackets in that appendix differ) is in public/mediapipe/LICENSE-mediapipe.txt,
+  described in section 1.3.
+
 
 4. Images: public/images/
 =========================
