@@ -35,7 +35,7 @@ Owns all feature code, tests, Blender generation scripts, and docs, working **on
 
 ### Kirby — Ground Truth & Judgment
 The things neither agent can do:
-- **Hand photos with blind good/bad labels** (M2) — _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ Your own hand photos, each given a blind good or bad label by you. There are no ruler-measured true values. **Blocks M2's report** (judgement correctness, target ≥ 95 %).
+- **Hand photos with blind good/bad labels** (M2) — _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ You photograph each participant's mouse hand (participants are coded P###) and label every photo good or bad, blind. There are no ruler-measured true values. **Blocks M2's report** (judgement correctness, target ≥ 95 %).
 - Shape-rubric spot-checks (M1) and the silhouette contact-sheet review (M4).
 - Mouse-fit preference ratings from mice you've owned — these tune M3's coefficients.
 - Account/secret provisioning: Neon, Vercel, Gemini API key, Google OAuth.
@@ -157,7 +157,7 @@ Photo-specific handling (a live camera never faced these):
 
 **Gate:** _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ M2 has no pass/fail threshold. The target is **judgement correctness ≥ 95 %**: the product's accept/retake verdict on a photo agrees with Kirby's blind good/bad label for that photo (photo-quality gates only). Retake repeatability is reported, not a threshold. There is no ruler truth, so no accuracy is claimed. **Depends on Kirby's photos and blind labels.**
 
-Still photos make the gate reproducible: Kirby's ground-truth set **is** the input, so a local script replays the full pipeline over those files and prints the judgement-correctness and repeatability numbers directly _(revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2: no accuracy figure, since there is no ruler truth)_. Like the licensed dataset, the photos live **outside the repo** (`../Fixtures/hands/`) and the script never runs in CI, which keeps the privacy promise even for our own test data.
+Still photos make the M2 report reproducible: Kirby's blind-labelled photo set **is** the input, so a local script replays the full pipeline over those files and prints the judgement-correctness and repeatability numbers directly _(revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2: no accuracy figure, since there is no ruler truth)_. Like the licensed dataset, the photos live **outside the repo** (where: docs/learning/README.md) and the script never runs in CI, which keeps the privacy promise even for our own test data.
 
 ### M3 — Fit engine
 Pure TypeScript, zero LLM. Six explainable sub-scores (0–100), each emitting a machine-readable reason:
@@ -233,7 +233,7 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 
 **Test layers Codex owns:**
 - **Vitest** — homography math, landmark→mm extraction, all six scorers, shell parameter generation. Everything on the critical path is a pure function; there's no excuse for an untested one.
-- **Golden fixtures** — Kirby's ground-truth photos (M2), hand-profile→ranking pairs (M3), committed and diffed.
+- **Golden fixtures** — hand-profile→ranking pairs (M3), committed and diffed. Kirby's blind-labelled photo set (M2) is the input of the M2 report, not a fixture in the repo: the photos stay outside it. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
 - **Playwright E2E** — full upload → score → render → analysis, uploading fixture photos with `setInputFiles` (no camera stubbing needed) and Gemini stubbed.
 - **Visual regression** — fixed camera and seed, pixel-diff the 3D renders.
 - **Blender** — `gen_shell` output asserted against spec dims; runs on `workflow_dispatch`, not every push.
@@ -243,5 +243,5 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 
 ## Open items
 - M3 coefficients start from published sizing guidance and need tuning against real pairings — the more mice you've owned and can rate, the better this gets.
-- Side-shot parallax correction is unproven until M2's fixture set exists.
+- Side-shot parallax correction is unproven. M2 under prereg v2 has no ruler truth and claims no accuracy, so its photo set cannot prove it; how it would be proven is not decided in this document. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
 - The Gemini vision rubric (M1) may need sharpening after the first agreement report.
