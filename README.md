@@ -188,6 +188,6 @@ Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和 Logitech
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
 - **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未決定。目前主要用來對照空白紙流程的量測結果。
 - **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明（尚未決定）。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明，而隱私條款尚未撰寫。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
