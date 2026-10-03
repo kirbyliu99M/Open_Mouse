@@ -172,8 +172,16 @@ export interface Sketch {
   readonly strokes: readonly SketchStroke[];
 }
 
-const attr = (tag: string, name: string): string | undefined =>
-  new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+/**
+ * An attribute's value: double or single quotes, and any white space around
+ * the `=`, all of which SVG allows (and an exporter may write).
+ */
+const attr = (tag: string, name: string): string | undefined => {
+  const found = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(
+    tag,
+  );
+  return found?.[1] ?? found?.[2];
+};
 
 const TAG = /<(\/?)([a-zA-Z][\w-]*)\b([^>]*?)(\/?)>/g;
 
@@ -205,6 +213,12 @@ export function parseSketchSvg(svg: string): Sketch {
     if (name === "svg") {
       if (!closing) roots += 1;
       if (roots > 1) throw new Error("Sketch SVG has a nested <svg>");
+      // A transform on the outermost <svg> would move the whole picture
+      // relative to its viewBox, which is not the same thing as a group's
+      // transform: it is not read, so it must not be silently dropped.
+      if (!closing && attr(text, "transform") !== undefined) {
+        throw new Error("Sketch SVG has a transform on its root <svg>");
+      }
     } else if (name === "g") {
       if (closing) {
         if (matrices.length === 1) {

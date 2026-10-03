@@ -193,6 +193,59 @@ describe("parseSketchSvg", () => {
     ).toThrow(/without d or stroke/);
   });
 
+  it("reads single-quoted attributes: the viewBox, a group's transform, a path's d and stroke", () => {
+    const parsed = parseSketchSvg(
+      `<svg xmlns='http://www.w3.org/2000/svg' viewBox='10 20 100 50'>` +
+        `<g transform='translate(5 5) scale(2 2)'>` +
+        `<path d='M0 0l10 0' stroke='#CFE0FF'></path></g></svg>`,
+    );
+    expect(parsed.viewBox).toEqual({ x: 10, y: 20, width: 100, height: 50 });
+    expect(parsed.strokes[0]!.stroke).toBe("#cfe0ff");
+    // translate(5 5) scale(2 2): (0,0) -> (5,5), (10,0) -> (25,5).
+    expect(parsed.strokes[0]!.polyline.points).toEqual([
+      [5, 5],
+      [25, 5],
+    ]);
+  });
+
+  it("reads attributes with white space around the equals sign, and mixed quotes", () => {
+    const parsed = parseSketchSvg(
+      `<svg viewBox = "0 0 8 8">` +
+        `<g transform = 'translate(1 2)'>` +
+        `<path d =\n  "M0 0l2 0"  stroke= '#6E9BF5' />` +
+        `</g></svg>`,
+    );
+    expect(parsed.viewBox.width).toBe(8);
+    expect(parsed.strokes[0]!.stroke).toBe("#6e9bf5");
+    expect(parsed.strokes[0]!.polyline.points).toEqual([
+      [1, 2],
+      [3, 2],
+    ]);
+  });
+
+  it("refuses a transform on the root <svg> instead of dropping it", () => {
+    expect(() =>
+      parseSketchSvg(
+        `<svg viewBox="0 0 10 10" transform="scale(2)">` +
+          `<path d="M0 0l1 1" stroke="#CFE0FF"></path></svg>`,
+      ),
+    ).toThrow(/transform on its root <svg>/);
+    expect(() =>
+      parseSketchSvg(
+        `<svg viewBox='0 0 10 10' transform = 'translate(1 1)'>` +
+          `<path d='M0 0l1 1' stroke='#CFE0FF'></path></svg>`,
+      ),
+    ).toThrow(/transform on its root <svg>/);
+  });
+
+  it("an attribute named like the end of another is not mistaken for it (data-d is not d)", () => {
+    expect(() =>
+      parseSketchSvg(
+        `<svg viewBox="0 0 10 10"><path data-d="M0 0l1 1" stroke="#CFE0FF"></path></svg>`,
+      ),
+    ).toThrow(/without d or stroke/);
+  });
+
   it("refuses elements it does not read", () => {
     expect(() => parseSketchSvg(sketch(`<circle r="3"/>`))).toThrow(
       /unsupported <circle>/,
