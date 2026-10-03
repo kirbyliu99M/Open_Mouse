@@ -34,7 +34,7 @@ describe("measuredNumbersText", () => {
 describe("the unverified note", () => {
   it("is one plain sentence", () => {
     expect(UNVERIFIED_MEASUREMENT_NOTE).toBe(
-      "Not yet verified against a ruler.",
+      "Measurements are still being validated.",
     );
   });
 });

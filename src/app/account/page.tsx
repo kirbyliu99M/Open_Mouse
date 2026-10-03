@@ -27,7 +27,7 @@ export default async function AccountPage() {
         </span>
         <h1>Keep your scans</h1>
         <p className="account-subtitle">
-          Signing in is optional. Without an account, a scan is deleted
+          Signing in is optional. Without an account, a scan expires
           automatically after a while.
         </p>
         <ul className="account-benefits">
@@ -76,7 +76,7 @@ export default async function AccountPage() {
               </span>
               <p>
                 Sign-in is unavailable right now. You can still scan — your
-                result is kept for a while, then deleted automatically.
+                result is kept for a while, then expires automatically.
               </p>
             </div>
             <Link className="account-start-button" href="/scan/easy">

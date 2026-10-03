@@ -4,7 +4,8 @@
  * ruler yet (docs/PLAN.md, M2), and the screen should say so instead of
  * implying otherwise. Candidate wording, pending Kirby's confirmation.
  */
-export const UNVERIFIED_MEASUREMENT_NOTE = "Not yet verified against a ruler.";
+export const UNVERIFIED_MEASUREMENT_NOTE =
+  "Measurements are still being validated.";
 
 /**
  * The sheet's line for a scan result: the two numbers, and, when the hand

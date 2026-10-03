@@ -112,7 +112,8 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
   // left-hand notice, not in the page-bottom footnote.
   await expect(
     newTab.locator(".results-handNotice", {
-      hasText: "Based on the hand length you entered (190 mm)",
+      hasText:
+        "Based on the hand length you entered (190 mm). Measured without paper.",
     }),
   ).toHaveCount(1);
   await expect(

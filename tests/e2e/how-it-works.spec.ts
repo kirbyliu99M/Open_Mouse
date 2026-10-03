@@ -32,7 +32,7 @@ test("How it works shows the illustration, steps, privacy details and navigation
   ).toBeVisible();
   await expect(
     page.getByText(
-      "Scans without an account are deleted automatically after a while.",
+      "Scans without an account expire automatically after a while.",
     ),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "‹ Home" })).toHaveAttribute(
@@ -69,6 +69,6 @@ test("no product page promises a deletion time", async ({ page }) => {
     const text = await page.locator("main").innerText();
     expect(timePromises(text), path).toEqual([]);
     if (path === "/how-it-works" || path === "/account")
-      expect(text, path).toMatch(/deleted automatically/i);
+      expect(text, path).toMatch(/expires? automatically/i);
   }
 });
