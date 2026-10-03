@@ -220,7 +220,11 @@ criterion; each item is a decision the build had to make or a thing it could not
   in `ch` the word is about 7.1 (6.7 to 7.1 across system-ui, DejaVu Sans, Verdana and Arial), so one
   threshold fits them all, and where even two across would not fit (200% text on 390 px, DejaVu) the
   options stack. 390 px wide at normal text is four columns of 81 px in Windows' font, as it was; in
-  DejaVu Sans it is also one row at 100%, and two by two from 115%.
+  DejaVu Sans it is also one row at 100%, and two by two from 115%. A `ch` threshold follows a font's
+  digits, not its letters, so it is not exact: two across need 14.5ch in Windows' font and 15.2ch in
+  DejaVu Sans against the 16ch threshold, and a sheet up to about 10% wider than that can still stack
+  (Windows' font at 200% text on 360 px: stacked, with 18 px to spare). The e2e allows that 12% and no
+  more.
 - **Dots and the steadiness check follow corners, not labels.** `detectPaperQuad` relabels its
   corners (a cyclic shift) when the paper is held sideways, at about 134 and 314 degrees of
   rotation in the synthetic sweep. The new observation is matched to the dots by the cyclic shift
