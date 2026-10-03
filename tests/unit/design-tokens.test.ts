@@ -306,12 +306,24 @@ describe("the filled buttons: white on --accent", () => {
     }
   });
 
-  it("the upload and primary buttons transition their fill, so the pressed colour fades in with the press", () => {
+  it("the upload and primary buttons of the scan flow transition only transform and opacity: the pressed fill snaps (design-guidelines.md, Motion; the AC5 e2e)", () => {
     const rules = rulesOf("src/app/scan/scan.css");
     for (const selector of [".uploadButton", ".primaryButton"]) {
-      expect(declared(rules, selector, "transition"), selector).toContain(
-        "background-color",
-      );
+      const properties = (declared(rules, selector, "transition") ?? "")
+        .split(",")
+        .map((part) => part.trim().split(/\s+/)[0]);
+      for (const property of properties) {
+        expect(["transform", "opacity"], `${selector} ${property}`).toContain(
+          property,
+        );
+      }
+    }
+    // Under reduced motion too.
+    const reduced = rules
+      .filter((r) => r.media === "(prefers-reduced-motion: reduce)")
+      .flatMap((r) => (r.decls.transition ? [r.decls.transition] : []));
+    for (const transition of reduced) {
+      expect(transition).not.toContain("background");
     }
   });
 

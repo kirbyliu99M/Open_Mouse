@@ -159,8 +159,7 @@ h1 {
   cursor: pointer;
   transition:
     transform var(--scan-transition),
-    opacity var(--scan-transition),
-    background-color var(--scan-transition);
+    opacity var(--scan-transition);
 }
 .uploadButton:active {
   transform: scale(0.97);
@@ -338,9 +337,7 @@ h1 {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition:
-    transform var(--scan-transition),
-    background-color var(--scan-transition);
+  transition: transform var(--scan-transition);
 }
 .primaryButton:active {
   transform: scale(0.97);
@@ -452,9 +449,7 @@ h1 {
   .pickerButton,
   .uploadButton,
   .primaryButton {
-    transition:
-      opacity var(--scan-transition),
-      background-color var(--scan-transition);
+    transition: opacity var(--scan-transition);
   }
   /* A chip with no fill fades. The filled buttons keep their full opacity and
      darken instead (their pressed fill is set above). */
