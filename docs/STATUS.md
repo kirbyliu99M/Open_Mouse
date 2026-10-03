@@ -27,11 +27,11 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `435b0d1` (#109). Since 2026-10-04 the whole site is dark (one theme, tokens in `src/app/tokens.css`) and the home page has the static Home v3 layout (placeholder logo, headline, a hand on A4, three G Pro sketches). Scan v2 (#97) is live: full-bleed viewfinder, no jumping, real focus. #92, #94, #84 and #86 (2026-10-03) are unchanged; the learning pages still return 404 in production.
+**Production:** behaves as of `435b0d1` (#109). Since 2026-10-04 (#109) the whole site is dark (one theme, tokens in `src/app/tokens.css`) and the home page has the static Home v3 layout (placeholder logo, headline, a hand on A4, three G Pro sketches). Scan v2 (#97, merged 2026-10-03) is deployed: full-bleed viewfinder, no jumping, tap-to-focus. Its numbers are candidates measured in headless Chromium with a fake camera; it has not been tested on a real phone (its AC10 is open). #92, #94, #84 and #86 (2026-10-03) are unchanged; the learning pages still return 404 in production.
 
 - **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each merge; the last run passed against `435b0d1` on 2026-10-04 (`[mobile] reload-keeps-results.spec.ts`, 1 passed in 15.9 s). Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. `/`, `/scan/easy`, `/how-it-works`, `/account` and `/api/health` return 200; `/results/demo` and `/learn` return 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
-- **Kirby's phone test** of #77 (right and left hand) is still pending.
+- **Kirby's phone test** is still pending: #77 (right and left hand), and #97's scan v2 (AC10: jumping, focus and the sharpness threshold on a real Android Chrome).
 
 **Merged 2026-09-28:**
 
@@ -95,8 +95,8 @@ The reasons for each call are in the 2026-09-30 decisions below.
 **Merged 2026-10-03 to 2026-10-04:**
 
 - **#108 (CI):** the `checks` job's limit goes from 20 to 35 minutes. With scan v2's specs the full Playwright matrix (about 900 tests on one worker) passed 20 minutes and #97's ready run was cancelled at the limit.
-- **#97 (S4):** scan v2 (full-bleed viewfinder, no jumping, real focus). Its first ready CI failed 8 layout checks in Linux's wider default font; the fix made the grip options fit any font (`ch` container queries: four, two by two, or stacked) and the sheet-height test count the lines a wider font adds. A debug-panel test that raced the auto-capture was made deterministic. Both directions of the grip layout are guarded.
-- **#109 (Home v3 PR A):** site-wide dark theme from one token file; old `--scan-*` accents split into fill (`--accent`) and text or outline (`--accent-text`); pressed buttons darken instead of fading; print stays light; the static Home v3 layout with no photo-privacy line on the home page (the promise stays on How it works, the scan screens and the camera, pinned by a unit test); the sampling half of the particle-target generator (`src/lib/particles/`, `npm run particles:build`). A `pr-review` run and two verifier rounds; a focus-ring pixel check was made stricter (best row of the whole ring, limit 12) instead of loosened.
+- **#97 (S4):** scan v2 (full-bleed viewfinder, no jumping, real focus). Its first ready CI failed 8 layout checks in Linux's wider default font (the grip options, the pinned actions at 200 % text, the sheet height); the fix made the grip options fit any font (`ch` container queries: four, two by two, or stacked) and the sheet-height test count the lines a wider font adds. A debug-panel test that raced the auto-capture was made deterministic. Both directions of the grip layout are guarded.
+- **#109 (Home v3 PR A):** site-wide dark theme from one token file; old `--scan-*` accents split into fill (`--accent`) and text or outline (`--accent-text`); pressed buttons darken instead of fading; print stays light; the static Home v3 layout with no photo-privacy line on the home page (the promise stays on How it works, the scan screens and the camera, pinned by a unit test); the sampling half of the particle-target generator (`src/lib/particles/`, `npm run particles:build`). A `pr-review` run, one verifier round and a third fix round. A focus-ring pixel check from #97 now measures the best row of the whole ring with a limit of 12 (it was a band average with a limit of 40; a loosened intermediate version was rejected).
 
 **Open work:**
 
@@ -159,7 +159,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 **Queued:**
 
 - #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
-- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82). Fixed by #92 (merged 2026-10-03): a dark `.results-analysis` background in dark mode.
+- Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82). Fixed by #92 (merged 2026-10-03): a dark `.results-analysis` background (the only theme since #109).
 - M1: GD-1 has its result. Hump placement passed and is seeded (#101); front flare and side curvature failed (two runs) and stay unclassified.
 - `security-review` workflow, after U1 (G6 merged as #84 on 2026-10-03).
 
