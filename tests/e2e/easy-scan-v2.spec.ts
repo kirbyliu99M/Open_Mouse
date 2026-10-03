@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
-import { averageColour, decodePng } from "./fixtures/png";
+import { bestRowOff, decodePng } from "./fixtures/png";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
@@ -1126,7 +1126,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     });
   }
 
-  test("88 px, drafting blue #0A64E0, 2 px, 12 px radius, a centre dot, and a thin white halo", async ({
+  test("88 px, the accent fill (--accent, #1F6BF0), 2 px, 12 px radius, a centre dot, and a thin white halo", async ({
     page,
   }) => {
     const reticle = await tapAndReadReticle(page);
@@ -1134,9 +1134,9 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     expect(reticle.height).toBeCloseTo(88, 0);
     expect(reticle.borderWidth).toBe("2px");
     expect(reticle.borderStyle).toBe("solid");
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(reticle.radius).toBe("12px");
-    expect(reticle.dotColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.dotColor).toBe("rgb(31, 107, 240)");
     expect(reticle.dotSize).toEqual(["6px", "6px"]);
     // The halo: white, 1 px, nearly opaque, so the blue does not vanish on a dark picture.
     expect(reticle.shadow).toContain(
@@ -1150,7 +1150,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     await page.emulateMedia({ contrast: "more" });
     const reticle = await tapAndReadReticle(page);
     // Not white: a plain white stroke vanishes on a bright picture.
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(parseFloat(reticle.borderWidth)).toBeGreaterThanOrEqual(2);
     expect(reticle.shadow).toContain("rgb(255, 255, 255) 0px 0px 0px 2px");
     expect(reticle.shadow).toContain("rgb(0, 0, 0) 0px 0px 0px 3px");
@@ -1168,7 +1168,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
       };
     });
     const reticle = await tapAndReadReticle(page);
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(reticle.width).toBeCloseTo(88, 0);
   });
 });
@@ -1733,16 +1733,23 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
             ringWidth,
             fadeReach,
             clearOfFade: inRow ? Infinity : rowTop - ringLowest,
-            // Where the ring's lowest edge is painted, to look at its pixels.
-            // The middle of the ring's lowest edge, in the middle sixth of the
-            // control's width (a round button is only that low there).
+            // Where the ring's lowest edge is painted, to look at its pixels:
+            // the middle sixth of the control's width (a round button is only
+            // that low there), the ring's whole thickness, and a pixel more
+            // on every side, so that at any sub-pixel position the band holds
+            // the ring's full rows (and the blended rows at its edges, which
+            // the row-by-row look below sets aside).
             ringBottom: {
-              x: r.left + r.width * 0.425,
-              y: r.bottom + ringOffset + ringWidth * 0.25,
-              width: r.width * 0.15,
-              height: ringWidth * 0.5,
+              x: r.left + r.width * 0.425 - 1,
+              y: r.bottom + ringOffset - 1,
+              width: r.width * 0.15 + 2,
+              height: ringWidth + 2,
             },
             ringColour: style.outlineColor,
+            // The page behind the ring, from the token and not typed in here.
+            pageColour: getComputedStyle(document.documentElement)
+              .getPropertyValue("--bg")
+              .trim(),
             dpr: window.devicePixelRatio,
           };
         });
@@ -1755,20 +1762,39 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
         const png = decodePng(
           await page.screenshot({ clip: stop.ringBottom, type: "png" }),
         );
-        const [r, g, b] = averageColour(png);
         const want = (stop.ringColour.match(/[\d.]+/g) ?? []).map(Number);
-        const off = Math.max(
-          Math.abs(r - want[0]),
-          Math.abs(g - want[1]),
-          Math.abs(b - want[2]),
+        // The ring's colour, row by row: the best row of the band. A ring
+        // painted in full has rows of exactly its colour; the rows at its
+        // edges are blended with what is behind them, and at a fractional
+        // layout position (a wider font moves everything by a fraction of a
+        // pixel) the band's own average is too. A ring covered by the pinned
+        // row's fade has no such row.
+        const behind = (stop.pageColour.match(/[\da-f]{2}/gi) ?? []).map((h) =>
+          parseInt(h, 16),
         );
-        (stop as typeof stop & { ringPixelOff: number }).ringPixelOff = off;
+        Object.assign(stop, {
+          ringPixelOff: bestRowOff(png, want),
+          // The check can tell the ring from the page behind it, or it would
+          // pass on anything.
+          ringToPage: Math.max(
+            Math.abs(want[0]! - behind[0]!),
+            Math.abs(want[1]! - behind[1]!),
+            Math.abs(want[2]! - behind[2]!),
+          ),
+        });
       }
       console.log(
         `${screen.width}x${screen.height} ${screen.percent}%: focus order ${stops.map((s) => `${s.name}${s.inRow ? " [row]" : ""}`).join(" > ")}; fade reaches ${stops[0]?.fadeReach.toFixed(0)} px; ring clear of it by ${stops
           .filter((s) => s.clearOfFade !== Infinity)
           .map((s) => s.clearOfFade.toFixed(1))
           .join(", ")} px`,
+      );
+      console.log(
+        `${screen.width}x${screen.height} ${screen.percent}%: best-row ring offsets (limit 12): ${(
+          stops as { ringPixelOff?: number }[]
+        )
+          .map((s) => s.ringPixelOff?.toFixed(1))
+          .join(", ")}`,
       );
       const names = stops.map((s) => s.name);
       // Grip chips, then Retake photo, then See my matches: the DOM's order.
@@ -1783,6 +1809,7 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
       expect(stops[5].inRow).toBe(true);
       for (const stop of stops as ((typeof stops)[number] & {
         ringPixelOff: number;
+        ringToPage: number;
       })[]) {
         expect(stop.visible, `${stop.name} is visible and not covered`).toBe(
           true,
@@ -1799,11 +1826,19 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           `${stop.name}: the ring's lowest edge is clear of the fade`,
         ).toBeGreaterThanOrEqual(stop.fadeReach - 1); // a device pixel of rounding
         // ...and what was painted at the ring's lowest edge is the ring's
-        // colour, not the sheet's background laid over it.
+        // colour, not the sheet's background laid over it: the best row of
+        // the band is within 12 of the ring's colour (about 5 % of the 246
+        // between the ring and the page), where a ring with a fade over it
+        // is off by that share of the whole distance or more (a fade that
+        // lets 8 % of the page through at its edge already fails).
+        expect(
+          stop.ringToPage,
+          `${stop.name}: the ring is far enough from the page for the check to mean something`,
+        ).toBeGreaterThan(120);
         expect(
           stop.ringPixelOff,
-          `${stop.name}: the pixels at the ring's lowest edge are the ring colour (largest channel difference)`,
-        ).toBeLessThanOrEqual(40);
+          `${stop.name}: the best row at the ring's lowest edge is the ring colour (largest channel difference)`,
+        ).toBeLessThanOrEqual(12);
       }
     });
   }
@@ -1841,19 +1876,18 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
     });
   }
 
-  test("dark mode: the pinned row wears the dark sheet's background, not the light one", async ({
+  test("the pinned row wears the sheet's own background (--bg), so nothing shows through it", async ({
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
     const l = await pinnedLayout(
       page,
       { width: 360, height: 640 },
       200,
       "measured",
     );
-    // --scan-bg in dark mode is #161617 (src/app/scan/scan.css).
-    expect(l.sheetBackground).toBe("rgb(22, 22, 23)");
-    expect(l.row.background).toBe("rgb(22, 22, 23)");
+    // --bg is #060709 (src/app/tokens.css): the one dark theme.
+    expect(l.sheetBackground).toBe("rgb(6, 7, 9)");
+    expect(l.row.background).toBe("rgb(6, 7, 9)");
     expect(l.main.onTopIsIt).toBe(true);
     expect(l.main.rect.bottom).toBeLessThanOrEqual(l.viewport.height);
   });

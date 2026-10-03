@@ -1,8 +1,18 @@
+/* The tokens (tokens.css) make the whole site one dark theme. */
 :root {
-  color-scheme: light dark;
   font-family: system-ui, sans-serif;
-  background: #f4f4f6;
-  color: #1c1c1e;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Print stays light: without this the dark root shows at the bottom of an A4
+   page when "background graphics" is on. */
+@media print {
+  :root,
+  body {
+    background: #fff;
+    color: #000;
+  }
 }
 
 * {
@@ -27,23 +37,12 @@ h1 {
 p {
   line-height: 1.6;
 }
-.eyebrow,
-.note {
-  color: #55555d;
-}
 .eyebrow {
   font-size: 0.875rem;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    background: #161617;
-    color: #f5f5f7;
-  }
-  .eyebrow,
-  .note {
-    color: #b5b5bd;
-  }
+.eyebrow,
+.note {
+  color: #b5b5bd;
 }
 
 /* ── /account (M6, issue #17) ──────────────────────────────────────────── */
@@ -92,12 +91,14 @@ button:disabled {
 }
 
 .button-primary {
-  background: #0a64e0;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.button-primary:active {
+  background: var(--accent-pressed);
 }
 .button-secondary {
   background: transparent;
-  border-color: #86868b;
   color: inherit;
 }
 .button-danger {
@@ -115,7 +116,7 @@ button:disabled {
 }
 
 .scan-card {
-  border: 1px solid #d2d2d7;
+  border: 1px solid #3a3a3c;
   border-radius: 0.75rem;
   padding: 1rem 1.25rem;
 }
@@ -124,7 +125,6 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   font-size: 0.9rem;
-  color: #57575c;
   margin-bottom: 0.5rem;
 }
 
@@ -136,7 +136,6 @@ button:disabled {
 }
 .measurements dt {
   font-size: 0.8rem;
-  color: #57575c;
 }
 .measurements dd {
   margin: 0;
@@ -160,14 +159,14 @@ button:disabled {
 }
 
 .dialog {
-  background: #fff;
-  color: #1d1d1f;
   border-radius: 1rem;
   padding: 1.5rem;
   max-width: 26rem;
   width: 100%;
   box-shadow: 0 20px 60px rgb(0 0 0 / 25%);
   animation: dialog-in 0.2s ease both;
+  background: #1d1d1f;
+  color: #f5f5f7;
 }
 
 .dialog-actions {
@@ -187,22 +186,12 @@ button:disabled {
     transform: scale(1);
   }
 }
-
-@media (prefers-color-scheme: dark) {
-  .scan-card {
-    border-color: #3a3a3c;
-  }
-  .scan-card-header,
-  .measurements dt {
-    color: #b5b5bd;
-  }
-  .button-secondary {
-    border-color: #6e6e73;
-  }
-  .dialog {
-    background: #1d1d1f;
-    color: #f5f5f7;
-  }
+.scan-card-header,
+.measurements dt {
+  color: #b5b5bd;
+}
+.button-secondary {
+  border-color: #6e6e73;
 }
 
 @media (prefers-reduced-motion: reduce) {

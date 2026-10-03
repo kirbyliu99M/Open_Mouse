@@ -1,15 +1,17 @@
 /* Not-found, error and global-error screens. Self-contained on purpose:
    global-error.tsx replaces the root layout, so globals.css is not loaded
-   there. Tokens are the site's own (home.css): bg #F4F4F6 / #161617, text
-   #1C1C1E / #F5F5F7, muted #55555D / #B5B5BD, accent #0A64E0 / #A8CEFF. */
+   there. The colours are the site's dark tokens (tokens.css, which
+   ErrorScreen imports itself): --bg, --text-primary, --accent / --on-accent
+   for the primary button, --accent-text for the focus ring; the muted text is
+   #b5b5bd. */
 
 /* Only global-error.tsx puts this class on <body>. */
 .errorBody {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background: #f4f4f6;
-  color: #1c1c1e;
-  color-scheme: light dark;
+  background: var(--bg);
+  color: var(--text-primary);
+  color-scheme: dark;
 }
 
 main.errorScreen {
@@ -27,7 +29,6 @@ main.errorScreen {
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #55555d;
 }
 
 main.errorScreen h1 {
@@ -46,13 +47,11 @@ main.errorScreen h1:focus {
   margin: 0 0 1.5rem;
   font-size: 1.05rem;
   line-height: 1.55;
-  color: #55555d;
 }
 
 .errorScreen-reference {
   margin: -0.75rem 0 1.5rem;
   font-size: 0.875rem;
-  color: #55555d;
 }
 .errorScreen-reference code {
   font-family: ui-monospace, monospace;
@@ -85,14 +84,20 @@ main.errorScreen h1:focus {
     opacity 0.15s ease;
 }
 .errorAction:active {
-  opacity: 0.85;
   transform: scale(0.98);
+}
+.errorAction-secondary:active {
+  opacity: 0.85;
+}
+/* The primary label is white on the fill: darken the fill when pressed and
+   never lower the opacity (it would take the label under 4.5:1). */
+.errorAction-primary:active {
+  background: var(--accent-pressed);
 }
 .errorScreen-status {
   margin: 1rem 0 0;
   min-height: 1.5rem;
   font-size: 0.875rem;
-  color: #55555d;
 }
 
 /* Busy, but still focusable: see RetryButton. */
@@ -102,16 +107,16 @@ main.errorScreen h1:focus {
 }
 
 .errorAction-primary {
-  background: #0a64e0;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .errorAction-secondary {
   background: transparent;
-  border-color: #86868b;
   color: inherit;
+  border-color: #6e6e73;
 }
 .errorAction:focus-visible {
-  outline: 3px solid #0a64e0;
+  outline: 3px solid var(--accent-text);
   outline-offset: 2px;
 }
 
@@ -124,24 +129,11 @@ main.errorScreen h1:focus {
     min-width: 10rem;
   }
 }
-
-@media (prefers-color-scheme: dark) {
-  .errorBody {
-    background: #161617;
-    color: #f5f5f7;
-  }
-  .errorScreen-eyebrow,
-  .errorScreen-message,
-  .errorScreen-status,
-  .errorScreen-reference {
-    color: #b5b5bd;
-  }
-  .errorAction-secondary {
-    border-color: #6e6e73;
-  }
-  .errorAction:focus-visible {
-    outline-color: #a8ceff;
-  }
+.errorScreen-eyebrow,
+.errorScreen-message,
+.errorScreen-status,
+.errorScreen-reference {
+  color: #b5b5bd;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,6 +1,11 @@
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { averageColour, decodePng } from "../e2e/fixtures/png";
+import {
+  averageColour,
+  bestRowOff,
+  decodePng,
+  rowAverageColours,
+} from "../e2e/fixtures/png";
 
 /**
  * decodePng reads the pixels of a Playwright screenshot in the e2e suite.
@@ -107,5 +112,92 @@ describe("decodePng", () => {
     ];
     const [r, g, b] = averageColour(decodePng(encode(rows, 4, [0])));
     expect([r, g, b]).toEqual([40, 50, 60]);
+  });
+});
+
+describe("rowAverageColours and bestRowOff (the focus-ring pixel check)", () => {
+  /** A band `width` pixels wide: `rows` of one colour each, top to bottom. */
+  const band = (colours: [number, number, number][], width = 4) =>
+    decodePng(
+      encode(
+        colours.map(([r, g, b]) =>
+          Array.from({ length: width }, () => [r, g, b, 255]).flat(),
+        ),
+        4,
+        [0],
+      ),
+    );
+  const RING: [number, number, number] = [127, 168, 255];
+  const PAGE: [number, number, number] = [6, 7, 9];
+  /** A colour `share` of the way from `from` to `to`. */
+  const mix = (
+    from: [number, number, number],
+    to: [number, number, number],
+    share: number,
+  ) => from.map((c, i) => c + (to[i]! - c) * share) as [number, number, number];
+
+  it("rowAverageColours averages each row on its own", () => {
+    const png = decodePng(
+      encode(
+        [
+          [10, 20, 30, 255, 30, 40, 50, 255],
+          [50, 60, 70, 255, 70, 80, 90, 255],
+        ],
+        4,
+        [0],
+      ),
+    );
+    expect(rowAverageColours(png)).toEqual([
+      [20, 30, 40],
+      [60, 70, 80],
+    ]);
+  });
+
+  it("finds a full ring row among blended edge rows: a ring a few pixels thick, at any sub-pixel position", () => {
+    // Page, a half-covered edge row, three ring rows, another edge row, page:
+    // the whole band averages nowhere near the ring, one row is the ring.
+    const png = band([
+      PAGE,
+      mix(PAGE, RING, 0.5),
+      RING,
+      RING,
+      RING,
+      mix(RING, PAGE, 0.3),
+      PAGE,
+    ]);
+    expect(bestRowOff(png, RING)).toBe(0);
+    const all = rowAverageColours(png);
+    const mean = all.reduce(
+      (s, r) => [s[0]! + r[0], s[1]! + r[1], s[2]! + r[2]],
+      [0, 0, 0],
+    );
+    expect(
+      Math.max(...mean.map((v, i) => Math.abs(v / all.length - RING[i]!))),
+    ).toBeGreaterThan(40);
+  });
+
+  it("is the largest channel difference of the best row: a ring row off by a little reads as that little", () => {
+    const png = band([PAGE, [130, 170, 250], [124, 168, 258 - 3], PAGE]);
+    // Row 1 is (3, 2, 5) off, row 2 is (3, 0, 0) off: the best is 3.
+    expect(bestRowOff(png, RING)).toBe(3);
+  });
+
+  it("fails a ring that is covered: no row comes near it, however much of it is covered", () => {
+    // Covered by the page colour: every row is the page.
+    expect(bestRowOff(band([PAGE, PAGE, PAGE, PAGE]), RING)).toBe(246);
+    // Covered by a fade that lets about 8 % of the page through at its edge
+    // and more further in: no row is within the 12 the check allows.
+    const faded = band([
+      PAGE,
+      mix(RING, PAGE, 0.08),
+      mix(RING, PAGE, 0.1),
+      mix(RING, PAGE, 0.12),
+      PAGE,
+    ]);
+    expect(bestRowOff(faded, RING)).toBeGreaterThan(12);
+    // ...and a ring that is only 4 % covered still passes.
+    expect(
+      bestRowOff(band([PAGE, mix(RING, PAGE, 0.04), PAGE]), RING),
+    ).toBeLessThanOrEqual(12);
   });
 });

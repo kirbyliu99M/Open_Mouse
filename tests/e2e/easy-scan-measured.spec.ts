@@ -90,7 +90,7 @@ test.describe("/scan/easy/measured-demo — the measured bottom sheet", () => {
   });
 });
 
-test("the selected grip chip keeps its contrast in light and dark", async ({
+test("the selected grip chip keeps its contrast, and its text and border use --accent-text, never --accent", async ({
   page,
 }) => {
   await page.goto("/scan/easy/measured-demo");
@@ -98,21 +98,24 @@ test("the selected grip chip keeps its contrast in light and dark", async ({
   await expect(sheet).toBeVisible();
   for (const grip of ["Not sure", "Palm"]) {
     await sheet.getByRole("button", { name: grip, exact: true }).click();
-    for (const scheme of ["light", "dark"] as const) {
-      // No transitions: a computed colour read mid-fade is neither theme's.
-      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-      const selected = sheet.locator(".easyGripChip.selected");
-      await expect(selected).toHaveCount(1);
-      const style = await selected.evaluate((el) => {
-        const computed = getComputedStyle(el);
-        return { color: computed.color, background: computed.backgroundColor };
-      });
-      // --scan-accent-soft was never defined, so the fallback light-blue
-      // fill sat under the dark theme's light-blue text: 1.98:1.
-      expect(
-        contrast(style.color, style.background),
-        `${grip} ${scheme}`,
-      ).toBeGreaterThan(4.5);
-    }
+    // No transitions: a computed colour read mid-fade is neither state's.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const selected = sheet.locator(".easyGripChip.selected");
+    await expect(selected).toHaveCount(1);
+    const style = await selected.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        color: computed.color,
+        background: computed.backgroundColor,
+        border: computed.borderTopColor,
+      };
+    });
+    // --scan-accent-soft was never defined, so the fallback light-blue
+    // fill sat under the dark theme's light-blue text: 1.98:1.
+    expect(contrast(style.color, style.background), grip).toBeGreaterThan(4.5);
+    // The fill --accent (#1F6BF0) is only 2.6:1 on this chip's fill, so the
+    // text and the outline use --accent-text (#7FA8FF), 5.3:1.
+    expect(style.color, grip).toBe("rgb(127, 168, 255)");
+    expect(style.border, grip).toBe("rgb(127, 168, 255)");
   }
 });

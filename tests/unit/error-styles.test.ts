@@ -2,15 +2,22 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * The error screens' colours, checked from the stylesheet itself. The e2e axe
- * run covers the not-found page and the error screen in both colour schemes,
- * but it can not reach global-error.tsx (it only appears when the root layout
- * fails), whose `.errorBody` brings its own background and text colour. This
- * reads errors.css and globals.css and holds every text and control colour to
- * WCAG contrast, so a change to a token fails here whichever screen it lands on.
+ * The error screens' colours, checked from the stylesheet itself. The site is
+ * one dark theme (Kirby, 2026-10-03), so there is a single set of colours to
+ * hold to WCAG contrast. The e2e axe run covers the not-found page and the
+ * error screen, but it can not reach global-error.tsx (it only appears when
+ * the root layout fails), whose `.errorBody` brings its own background and text
+ * colour. This reads errors.css, tokens.css and globals.css and resolves the
+ * `var(--token)` colours, so a change to a token fails here whichever screen
+ * it lands on.
  */
 const errorsCss = readFileSync("src/components/errors/errors.css", "utf8");
+const tokensCss = readFileSync("src/app/tokens.css", "utf8");
 const globalsCss = readFileSync("src/app/globals.css", "utf8");
+const errorScreenTsx = readFileSync(
+  "src/components/errors/ErrorScreen.tsx",
+  "utf8",
+);
 
 const withoutComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -65,29 +72,27 @@ function rules(css: string): Map<string, Declarations> {
   return out;
 }
 
-function schemes(css: string) {
-  const clean = withoutComments(css);
-  const light = rules(withoutMedia(clean));
-  const [darkBlock] = blockAfter(clean, "@media (prefers-color-scheme: dark)");
-  const darkOverrides = rules(darkBlock);
-  /** The value of `property` on `selector` in a scheme (dark falls back to light), if declared. */
-  const optional = (
-    scheme: "light" | "dark",
-    selector: string,
-    property: string,
-  ): string | undefined => {
-    const dark =
-      scheme === "dark" ? darkOverrides.get(selector)?.[property] : undefined;
-    return dark ?? light.get(selector)?.[property];
+const tokens = rules(withoutMedia(withoutComments(tokensCss))).get(":root")!;
+
+/** `var(--bg)` -> the token's value; anything else is returned as written. */
+function resolve(value: string): string {
+  return value.replace(/var\((--[a-z-]+)\)/g, (_, name: string) => {
+    const found = tokens[name];
+    if (!found) throw new Error(`${name} is not defined in tokens.css`);
+    return found;
+  });
+}
+
+function sheet(css: string) {
+  const flat = rules(withoutMedia(withoutComments(css)));
+  /** The resolved value of `property` on `selector`, if declared. */
+  const optional = (selector: string, property: string): string | undefined => {
+    const found = flat.get(selector)?.[property];
+    return found === undefined ? undefined : resolve(found);
   };
-  const value = (
-    scheme: "light" | "dark",
-    selector: string,
-    property: string,
-  ) => {
-    const found = optional(scheme, selector, property);
-    if (!found)
-      throw new Error(`${selector} { ${property} } not found (${scheme})`);
+  const value = (selector: string, property: string) => {
+    const found = optional(selector, property);
+    if (!found) throw new Error(`${selector} { ${property} } not found`);
     return found;
   };
   return { value, optional };
@@ -115,86 +120,88 @@ function contrast(a: string, b: string): number {
   ];
   return (hi + 0.05) / (lo + 0.05);
 }
-/** `3px solid #0a64e0` -> `#0a64e0`; `1px solid #86868b` likewise. */
+/** `3px solid #7fa8ff` -> `#7fa8ff`; `1px solid #6e6e73` likewise. */
 const colourOf = (shorthand: string) => /#[0-9a-f]{3,6}\b/i.exec(shorthand)![0];
 
-const errors = schemes(errorsCss);
-const globals = schemes(globalsCss);
+const errors = sheet(errorsCss);
+const globals = sheet(globalsCss);
 
-describe.each(["light", "dark"] as const)(
-  "error screen colours, %s",
-  (scheme) => {
-    const bg = errors.value(scheme, ".errorBody", "background");
-    const text = errors.value(scheme, ".errorBody", "color");
+describe("error screen colours (the one dark theme)", () => {
+  const bg = errors.value(".errorBody", "background");
+  const text = errors.value(".errorBody", "color");
 
-    it("uses the site's own page background and text colour (global-error has no globals.css)", () => {
-      expect(bg).toBe(globals.value(scheme, ":root", "background"));
-      expect(text).toBe(globals.value(scheme, ":root", "color"));
-    });
+  it("uses the site's own page background and text colour (global-error has no globals.css)", () => {
+    expect(bg).toBe(globals.value(":root", "background"));
+    expect(text).toBe(globals.value(":root", "color"));
+    expect(bg).toBe(tokens["--bg"]);
+    expect(text).toBe(tokens["--text-primary"]);
+  });
 
-    it("body text is at least 7:1 on the page", () => {
-      expect(contrast(text, bg)).toBeGreaterThanOrEqual(7);
-    });
+  it("brings the tokens along itself, because global-error replaces the root layout", () => {
+    expect(errorScreenTsx).toMatch(/import "\.\.\/\.\.\/app\/tokens\.css";/);
+    expect(errors.value(".errorBody", "color-scheme")).toBe("dark");
+  });
 
-    it.each([
-      ".errorScreen-eyebrow",
-      ".errorScreen-message",
-      ".errorScreen-reference",
-      ".errorScreen-status",
-    ])("%s is at least 4.5:1 on the page", (selector) => {
-      expect(
-        contrast(errors.value(scheme, selector, "color"), bg),
-      ).toBeGreaterThanOrEqual(4.5);
-    });
+  it("body text is at least 7:1 on the page", () => {
+    expect(contrast(text, bg)).toBeGreaterThanOrEqual(7);
+  });
 
-    it("the primary button's label is at least 4.5:1 on its fill", () => {
-      expect(
-        contrast(
-          errors.value(scheme, ".errorAction-primary", "color"),
-          errors.value(scheme, ".errorAction-primary", "background"),
-        ),
-      ).toBeGreaterThanOrEqual(4.5);
-    });
+  it.each([
+    ".errorScreen-eyebrow",
+    ".errorScreen-message",
+    ".errorScreen-reference",
+    ".errorScreen-status",
+  ])("%s is at least 4.5:1 on the page", (selector) => {
+    expect(
+      contrast(errors.value(selector, "color"), bg),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
 
-    it("the primary button's fill is at least 3:1 on the page (WCAG 1.4.11)", () => {
-      expect(
-        contrast(
-          errors.value(scheme, ".errorAction-primary", "background"),
-          bg,
-        ),
-      ).toBeGreaterThanOrEqual(3);
-    });
+  it("the primary button's label is at least 4.5:1 on its fill, and on its pressed fill", () => {
+    const fill = errors.value(".errorAction-primary", "background");
+    const label = errors.value(".errorAction-primary", "color");
+    expect(contrast(label, fill)).toBeGreaterThanOrEqual(4.5);
+    // Pressing darkens the fill; it never lowers the opacity (README, Buttons).
+    expect(
+      contrast(
+        label,
+        errors.value(".errorAction-primary:active", "background"),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(errors.optional(".errorAction-primary:active", "opacity")).toBe(
+      undefined,
+    );
+    expect(errors.optional(".errorAction:active", "opacity")).toBe(undefined);
+  });
 
-    it("the secondary button's outline is at least 3:1 on the page", () => {
-      expect(
-        contrast(
-          errors.value(scheme, ".errorAction-secondary", "border-color"),
-          bg,
-        ),
-      ).toBeGreaterThanOrEqual(3);
-    });
+  it("the primary button's fill is at least 3:1 on the page (WCAG 1.4.11)", () => {
+    expect(
+      contrast(errors.value(".errorAction-primary", "background"), bg),
+    ).toBeGreaterThanOrEqual(3);
+  });
 
-    it("the focus ring is at least 3:1 on the page", () => {
-      // Dark mode overrides only the colour; light declares the shorthand.
-      const ring =
-        errors.optional(
-          scheme,
-          ".errorAction:focus-visible",
-          "outline-color",
-        ) ??
-        colourOf(errors.value(scheme, ".errorAction:focus-visible", "outline"));
-      expect(contrast(ring, bg)).toBeGreaterThanOrEqual(3);
-    });
-  },
-);
+  it("the secondary button's outline is at least 3:1 on the page", () => {
+    expect(
+      contrast(errors.value(".errorAction-secondary", "border-color"), bg),
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("the focus ring is at least 3:1 on the page, and is the accent text colour", () => {
+    const ring = colourOf(
+      errors.value(".errorAction:focus-visible", "outline"),
+    );
+    expect(ring).toBe(tokens["--accent-text"]);
+    expect(contrast(ring, bg)).toBeGreaterThanOrEqual(3);
+  });
+});
 
 describe("the Try again button while a retry runs", () => {
   // aria-disabled, not disabled (see RetryButton): only the stylesheet makes it
-  // look busy, so the rule must exist in both colour schemes.
-  it.each(["light", "dark"] as const)("looks busy in %s mode", (scheme) => {
+  // look busy, so the rule must exist.
+  it("looks busy", () => {
     const selector = '.errorAction[aria-disabled="true"]';
-    expect(errors.value(scheme, selector, "cursor")).toBe("progress");
-    const opacity = Number(errors.value(scheme, selector, "opacity"));
+    expect(errors.value(selector, "cursor")).toBe("progress");
+    const opacity = Number(errors.value(selector, "opacity"));
     expect(opacity).toBeGreaterThan(0.5);
     expect(opacity).toBeLessThan(1);
   });

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { REFERENCE_LABEL } from "./copy";
+import "../../app/tokens.css";
 import "./errors.css";
 
 interface ErrorScreenProps {

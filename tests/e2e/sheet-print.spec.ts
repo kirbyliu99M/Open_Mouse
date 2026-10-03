@@ -49,6 +49,29 @@ test.describe("printable calibration sheet (/sheet)", () => {
     );
   });
 
+  test("under print media the page is white with black text, whatever the screen theme", async ({
+    page,
+  }) => {
+    await page.goto("/sheet");
+    // Screen: the one dark theme.
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.documentElement).backgroundColor,
+      ),
+    ).toBe("rgb(6, 7, 9)");
+    // Print: a white root, so the bottom of an A4 page is not dark when
+    // "background graphics" is on, and black text.
+    await page.emulateMedia({ media: "print" });
+    const print = await page.evaluate(() => ({
+      root: getComputedStyle(document.documentElement).backgroundColor,
+      text: getComputedStyle(document.body).color,
+      h1: getComputedStyle(document.querySelector("h1")!).color,
+    }));
+    expect(print.root).toBe("rgb(255, 255, 255)");
+    expect(print.text).toBe("rgb(0, 0, 0)");
+    expect(print.h1).toBe("rgb(0, 0, 0)");
+  });
+
   test("the complete screen preview fits a phone width", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/sheet");

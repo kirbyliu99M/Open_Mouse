@@ -205,10 +205,12 @@ test.describe("/results/demo", () => {
     const analysisCard = page.locator(".results-analysis");
     await expect(analysisCard).toBeVisible();
     // A real card surface, not a bare divider — matches the top-pick card
-    // (item 5).
-    await expect(analysisCard).toHaveCSS(
+    // (item 5). On the one dark theme that surface is #1c1c1e, the top-pick
+    // card's own, lighter than the page (#060709).
+    await expect(analysisCard).toHaveCSS("background-color", "rgb(28, 28, 30)");
+    await expect(page.locator(".results-topPick")).toHaveCSS(
       "background-color",
-      "rgb(255, 255, 255)",
+      "rgb(28, 28, 30)",
     );
     await expect(analysisCard).toHaveCSS("border-radius", "16px");
 

@@ -1,26 +1,19 @@
 import Link from "next/link";
-import logitechCatalogue from "@/db/seed/logitech.json";
 import { NavMenu } from "@/components/nav/NavMenu";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
-import { formatCatalogueSpec } from "./format-catalogue-spec";
+import { handSheetFrame } from "@/lib/particles/template-hand";
 import "./home.css";
 
+/**
+ * Home v3, PR A: the static layout (docs/design/home-v3-2026-10-03/README.md,
+ * "Page structure"). The story section holds the hero, the hand on A4 and the
+ * three mice as ordinary stacked blocks with static SVGs; PR B puts the
+ * particle canvas on top of this and keeps it as the fallback. The copy is the
+ * production copy minus the removed lines (the three taglines, "Measure your
+ * hand.", and the photo-privacy sentence, which stays on How it works, the
+ * scan screens and the camera).
+ */
 export default function HomePage() {
-  const featuredMouse = logitechCatalogue.find(
-    (mouse) => mouse.model === "G Pro X Superlight 2",
-  );
-  if (!featuredMouse || featuredMouse.weightG === null)
-    throw new Error(
-      "Featured mouse specifications are missing from the catalogue",
-    );
-  const dimension = [
-    featuredMouse.lengthMm,
-    featuredMouse.widthMm,
-    featuredMouse.heightMm,
-  ]
-    .map((value) => formatCatalogueSpec(value, "mm").replace(/ mm$/, ""))
-    .join(" × ");
-
+  const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
       <nav className="home-nav" aria-label="Primary">
@@ -33,38 +26,90 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <h1>Measure your hand. Find the mouse that fits.</h1>
-      <p className="home-subhead">
-        A blank sheet of A4 and your phone are all it takes.
-      </p>
+      <section className="story">
+        <div className="story-panel">
+          <div className="story-hero" data-testid="home-hero">
+            {/* The mark is decorative: the wordmark in the nav names the site. */}
+            <div className="story-logo">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, and the LCP image: no loader wanted */}
+              <img
+                src="/images/logo-placeholder.svg"
+                alt=""
+                width={220}
+                height={196}
+              />
+            </div>
+            <h1>Find the mouse that fits.</h1>
+            <p className="home-subhead">
+              A blank sheet of A4 and your phone are all it takes.
+            </p>
+            <HomeActions />
+            <p className="landing-preview-note">
+              Early preview — measurements are still being validated.
+            </p>
+          </div>
 
-      <figure className="landing-sketch">
-        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG sketch */}
-        <img
-          src="/images/g-pro-sketch.svg"
-          alt="Line sketch of the G Pro X Superlight 2 mouse, seen from the left, showing its two side buttons"
-        />
-        <figcaption>G Pro X Superlight 2 · sketch</figcaption>
-      </figure>
-      {/* aria-label is not allowed on a div or a p (axe: aria-prohibited-attr)
-          and would have replaced the numbers for a screen reader anyway, so
-          the context is visually hidden text and the numbers stay text. */}
-      <div className="landing-dimension">
-        <span>
-          <span className="landing-sr">Length </span>
-          {formatCatalogueSpec(featuredMouse.lengthMm, "mm")}
-        </span>
-      </div>
-      <p className="landing-annotation">
-        <span className="landing-sr">
-          G Pro X Superlight 2 dimensions and weight:{" "}
-        </span>
-        {dimension} mm{" "}
-        <span className="landing-weight">
-          {formatCatalogueSpec(featuredMouse.weightG, "g")}
-        </span>
-      </p>
+          {/* The hand on A4 with its landmarks and the two measurement lines
+              (end ticks, no numbers): an illustration, not a result. The
+              sheet's outline is a CSS border over the image, so it follows
+              --hairline and `prefers-contrast: more`. */}
+          <div className="story-hand">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static SVG */}
+            <img src="/images/hand-on-a4.svg" alt="" width={411} height={507} />
+            <span
+              className="story-hand-sheet"
+              aria-hidden="true"
+              style={{
+                left: `${frame.left}%`,
+                top: `${frame.top}%`,
+                width: `${frame.width}%`,
+                height: `${frame.height}%`,
+              }}
+            />
+          </div>
 
+          {/* Only G Pro exists, so all three are placeholders until more
+              sketches do. Each mouse's name is real text. */}
+          <ul className="story-mice">
+            {[0, 1, 2].map((slot) => (
+              <li key={slot}>
+                <figure className="story-mouse">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- static SVG sketch */}
+                  <img
+                    src="/images/sketches/g-pro-sketch.svg"
+                    alt=""
+                    width={488}
+                    height={232}
+                  />
+                  <figcaption>G Pro X Superlight 2 · sketch</figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="home-final" data-testid="home-final">
+        <HomeActions />
+        <p className="landing-preview-note">
+          Early preview — measurements are still being validated.
+        </p>
+      </section>
+
+      <footer className="landing-footer">
+        <p>
+          Not affiliated with Logitech. Sizes from Logitech&apos;s published
+          specs.
+        </p>
+      </footer>
+    </main>
+  );
+}
+
+/** "Scan my hand" (the filled primary) and "How it works" (the outline secondary). */
+function HomeActions() {
+  return (
+    <div className="home-actions">
       <Link className="home-cta" href="/scan/easy">
         <svg
           viewBox="0 0 24 24"
@@ -91,43 +136,9 @@ export default function HomePage() {
         </svg>
         Scan my hand
       </Link>
-      <p className="landing-preview-note">
-        Early preview — measurements are still being validated.
-      </p>
-      <Link className="landing-how-link" href="/how-it-works">
+      <Link className="home-cta-secondary" href="/how-it-works">
         How it works
       </Link>
-
-      <section className="landing-points" aria-label="Why scan your hand">
-        <div>
-          <div>
-            <h2>One photo. No printing.</h2>
-            <p>A blank sheet of A4 is the ruler.</p>
-          </div>
-        </div>
-        <div>
-          <div>
-            <h2>Ranked for your hand, not the hype.</h2>
-            <p>
-              {logitechCatalogue.length} Logitech mice scored on length, grip
-              width and height.
-            </p>
-          </div>
-        </div>
-        <div>
-          <div>
-            <h2>Private by design.</h2>
-            <p>{PHOTO_PRIVACY_COPY}</p>
-          </div>
-        </div>
-      </section>
-
-      <footer className="landing-footer">
-        <p>
-          Not affiliated with Logitech. Sizes from Logitech&apos;s published
-          specs.
-        </p>
-      </footer>
-    </main>
+    </div>
   );
 }

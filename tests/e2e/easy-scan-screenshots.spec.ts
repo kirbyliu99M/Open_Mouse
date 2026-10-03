@@ -29,11 +29,11 @@ test.describe("easy-scan shell screenshots", () => {
     test.skip(testInfo.project.name !== "chromium", "Captures once.");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: "Measure your hand. Find the mouse that fits.",
+        name: "Find the mouse that fits.",
       }),
     ).toBeVisible();
     await page.screenshot({ path: `${OUTPUT}/landing.png`, fullPage: true });
@@ -43,7 +43,7 @@ test.describe("easy-scan shell screenshots", () => {
     test.skip(process.env.SCREENSHOTS !== "1", "Screenshot capture is opt-in.");
     test.skip(testInfo.project.name !== "chromium", "Captures once.");
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/how-it-works");
     await expect(
       page.getByRole("heading", { level: 1, name: "How it works" }),
@@ -62,7 +62,7 @@ test.describe("easy-scan shell screenshots", () => {
     test.skip(testInfo.project.name !== "chromium", "Captures once.");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/account");
     await expect(
       page.getByRole("heading", { name: "Keep your scans" }),
@@ -88,7 +88,7 @@ test.describe("easy-scan shell screenshots", () => {
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/account");
     await expect(
       page.getByRole("heading", { name: "Keep your scans" }),
@@ -112,7 +112,6 @@ test.describe("easy-scan shell screenshots", () => {
       "Needs the fake-media project fed paper-edge-full.y4m (real detector).",
     );
 
-    await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator("[data-testid='camera-cue']")).toContainText(
@@ -139,7 +138,7 @@ test.describe("easy-scan shell screenshots", () => {
       "The dimmed background is the live camera feed — needs the fake-media project.",
     );
 
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/scan/easy");
     await expect(
       page.getByRole("dialog", { name: "One blank sheet is all you need" }),
@@ -158,7 +157,7 @@ test.describe("easy-scan shell screenshots", () => {
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/scan/easy/measured-demo");
     await expect(
       page.getByRole("dialog", { name: "Hand measured" }),

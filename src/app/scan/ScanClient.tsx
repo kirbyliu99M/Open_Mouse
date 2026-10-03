@@ -288,6 +288,16 @@ function DimensionLinesOverlay({
             y2={g.endConnector[1].y}
             className="overlayDimensionExtension"
           />
+          {/* Each stroke has a white halo under it, so it reads on the white
+              paper of the photo (the line is 4.75:1 on white) and on a dark
+              or mid-grey picture alike (the halo is). */}
+          <line
+            x1={g.offsetStart.x}
+            y1={g.offsetStart.y}
+            x2={g.offsetEnd.x}
+            y2={g.offsetEnd.y}
+            className="overlayDimensionHalo"
+          />
           <line
             x1={g.offsetStart.x}
             y1={g.offsetStart.y}
@@ -300,7 +310,21 @@ function DimensionLinesOverlay({
             y1={g.startTick[0].y}
             x2={g.startTick[1].x}
             y2={g.startTick[1].y}
+            className="overlayDimensionHalo"
+          />
+          <line
+            x1={g.startTick[0].x}
+            y1={g.startTick[0].y}
+            x2={g.startTick[1].x}
+            y2={g.startTick[1].y}
             className="overlayDimensionTick"
+          />
+          <line
+            x1={g.endTick[0].x}
+            y1={g.endTick[0].y}
+            x2={g.endTick[1].x}
+            y2={g.endTick[1].y}
+            className="overlayDimensionHalo"
           />
           <line
             x1={g.endTick[0].x}

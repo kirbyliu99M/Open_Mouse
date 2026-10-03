@@ -184,8 +184,9 @@ test("a typed length stored under an earlier, wider range still gets its note; a
 });
 
 // The written-analysis card had a white surface declared after its dark one,
-// so in the dark theme its #f5f5f7 text sat on white (about 1.08:1).
-test("the written-analysis card keeps its contrast in light and dark, in every state", async ({
+// so in the dark theme its #f5f5f7 text sat on white (about 1.08:1). The site
+// is one dark theme now, so there is a single surface to hold.
+test("the written-analysis card keeps its contrast on the dark theme, in every state", async ({
   page,
 }) => {
   const states: readonly (readonly [string, number, unknown])[] = [
@@ -211,9 +212,9 @@ test("the written-analysis card keeps its contrast in light and dark, in every s
     await page.goto(`/results/${SCAN_ID}`);
     const card = page.locator(".results-analysis");
     await expect(card).toBeVisible();
-    for (const scheme of ["light", "dark"] as const) {
-      // No transitions: a colour read mid-fade is neither theme's.
-      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    for (const scheme of ["dark"] as const) {
+      // No transitions: a colour read mid-fade is neither state's.
+      await page.emulateMedia({ reducedMotion: "reduce" });
       const texts = await card.evaluate((root) => {
         const opaque = (color: string) =>
           !/rgba\(.*, 0\)$|transparent/.test(color);
@@ -222,7 +223,7 @@ test("the written-analysis card keeps its contrast in light and dark, in every s
             const color = getComputedStyle(node).backgroundColor;
             if (opaque(color)) return color;
           }
-          return "rgb(255, 255, 255)";
+          return "rgb(6, 7, 9)"; // --bg: the page behind the card
         };
         const found: { text: string; color: string; background: string }[] = [];
         for (const el of [root, ...root.querySelectorAll("*")]) {

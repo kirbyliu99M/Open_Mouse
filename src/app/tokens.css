@@ -1,0 +1,62 @@
+/*
+ * Dark theme tokens. The whole site is one dark theme (Kirby, 2026-10-03), not
+ * a light/dark pair that follows the system. Values and contrast ratios:
+ * docs/design/home-v3-2026-10-03/README.md#dark-theme-tokens.
+ *
+ * Loaded by the root layout and by ErrorScreen (global-error.tsx replaces the
+ * root layout, so it can not rely on the layout's imports).
+ *
+ * Which accent token to use:
+ *   --accent        fills a control (the primary button); the label on it is
+ *                   --on-accent. #1f6bf0 is only 4.24:1 on --bg and 2.6:1 on
+ *                   the selected-chip fill, so it is never used for text.
+ *   --accent-text   text, links, outlines, focus rings and selected chips.
+ */
+:root {
+  color-scheme: dark;
+
+  --bg: #060709;
+  --text-primary: #f5f5f7; /* 18.5:1 on --bg */
+  --text-secondary: #a1a1a6; /* 7.8:1 on --bg */
+  --text-tertiary: #8a8a8f; /* 5.9:1 on --bg */
+
+  --accent: #1f6bf0;
+  --on-accent: #ffffff; /* 4.75:1 on --accent */
+  --accent-pressed: #1a5cd0; /* 6.0:1 for --on-accent */
+  --accent-text: #7fa8ff; /* 8.6:1 on --bg */
+
+  --control-border: #ffffff59; /* about 3.1:1 on --bg */
+  --hairline: #ffffff24; /* decorative */
+
+  --sketch-line: #cfe0ff; /* primary strokes, 15.1:1 on --bg */
+  --sketch-line-detail: #6e9bf5; /* detail strokes */
+  --glow: #3b82f6; /* up to 40 %; decorative */
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --control-border: #8a8a8f;
+    --hairline: #8a8a8f;
+    --glow: transparent;
+  }
+}
+
+/* Print stays light. The page itself is made white and black in globals.css;
+   the tokens are redefined here too, because text that takes its colour from
+   a token (the headline, the wordmark, the subhead, the captions) would
+   otherwise print in near-white on white. The fills keep their blue, and
+   --on-accent stays white on them. */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --text-primary: #000000;
+    --text-secondary: #262626;
+    --text-tertiary: #404040;
+    --accent-text: #1a5cd0;
+    --control-border: #00000099;
+    --hairline: #00000040;
+    --sketch-line: #1a5cd0;
+    --sketch-line-detail: #1a5cd0;
+    --glow: transparent;
+  }
+}

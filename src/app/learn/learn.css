@@ -1,22 +1,22 @@
 /*
  * Learning kit pages (/learn, /learn/print, /learn/slates, /learn/check,
- * /l/v1/[token]). Same tokens as the product: cool paper grey, ink,
+ * /l/v1/[token]). Same dark tokens as the product (tokens.css): ink,
  * graphite, drafting blue, measured green. Class selectors on the page
  * wrapper override globals.css's unscoped `main` rule, as sheet.css does.
  */
 .learn {
-  --learn-ink: #1c1c1e;
-  --learn-graphite: #55555d;
-  --learn-rule: #d5d5dc;
-  --learn-surface: #ffffff;
-  --learn-accent: #0a64e0;
-  --learn-accent-soft: #e7f0fd;
-  --learn-ok: #1e7b45;
-  --learn-warn: #8a5a00;
-  --learn-bad: #b3261e;
   max-width: 44rem;
   margin: 0 auto;
   padding: 1.5rem 1.5rem 5rem;
+  --learn-ink: #f5f5f7;
+  --learn-graphite: #b5b5bd;
+  --learn-rule: #3a3a3f;
+  --learn-surface: #242426;
+  --learn-accent: var(--accent-text);
+  --learn-accent-soft: #17395f;
+  --learn-ok: #5fd08a;
+  --learn-warn: #f0b64a;
+  --learn-bad: #ff8a80;
 }
 
 .learn h1 {
@@ -71,8 +71,8 @@
 }
 
 .learn-button {
-  color: #fff;
-  background: var(--learn-accent);
+  color: var(--on-accent);
+  background: var(--accent);
   border: 0;
 }
 
@@ -85,6 +85,10 @@
 .learn-button:active,
 .learn-button-secondary:active {
   transform: scale(0.97);
+}
+/* White label on the accent fill: darken, never fade. */
+.learn-button:active {
+  background: var(--accent-pressed);
 }
 
 .learn-button:focus-visible,
@@ -395,23 +399,6 @@
   font-weight: 600;
 }
 
-@media (prefers-color-scheme: dark) {
-  .learn {
-    --learn-ink: #f5f5f7;
-    --learn-graphite: #b5b5bd;
-    --learn-rule: #3a3a3f;
-    --learn-surface: #242426;
-    --learn-accent: #6aa8ff;
-    --learn-accent-soft: #17395f;
-    --learn-ok: #5fd08a;
-    --learn-warn: #f0b64a;
-    --learn-bad: #ff8a80;
-  }
-  .learn-button {
-    color: #0b1a2e;
-  }
-}
-
 @media (prefers-contrast: more) {
   .learn-button-secondary,
   .learn-result,
@@ -425,7 +412,10 @@
   .learn-button-secondary {
     transition: none;
   }
-  .learn-button:active,
+  .learn-button:active {
+    transform: none;
+    opacity: 1;
+  }
   .learn-button-secondary:active {
     transform: none;
     opacity: 0.8;

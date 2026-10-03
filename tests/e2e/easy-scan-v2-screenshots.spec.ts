@@ -257,8 +257,8 @@ test.describe("scan v2 storyboard, built (real motion)", () => {
 
   // Round 3: at large text on a small phone the sheet scrolls inside (52vh)
   // and its buttons stay at the foot. 360x640 at 200% is the tightest case the
-  // suite checks; the same screen in the dark theme follows.
-  for (const scheme of ["light", "dark"] as const) {
+  // suite checks. (One dark theme since Home v3: the light pass is gone.)
+  for (const scheme of ["dark"] as const) {
     test(`08 measured at 200% text on a 360x640 phone, ${scheme}: the buttons stay at the foot of the scrolling sheet`, async ({
       page,
     }) => {
@@ -288,10 +288,7 @@ test.describe("scan v2 storyboard, built (real motion)", () => {
         page.getByRole("dialog", { name: "Hand measured" }),
       ).toBeVisible({ timeout: 20_000 });
       await page.waitForTimeout(1800);
-      await shot(
-        page,
-        scheme === "light" ? "08-large-text-200" : "08b-large-text-200-dark",
-      );
+      await shot(page, "08b-large-text-200-dark");
     });
   }
 });

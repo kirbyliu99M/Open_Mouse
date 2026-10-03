@@ -84,3 +84,38 @@ export function averageColour(png: DecodedPng): [number, number, number] {
     for (let c = 0; c < 3; c++) sum[c] += png.data[i * png.channels + c];
   return [sum[0] / pixels, sum[1] / pixels, sum[2] / pixels];
 }
+
+/** The average colour of each row of the image, top to bottom, as [r, g, b]. */
+export function rowAverageColours(png: DecodedPng): [number, number, number][] {
+  const rows: [number, number, number][] = [];
+  for (let y = 0; y < png.height; y++) {
+    const sum = [0, 0, 0];
+    for (let x = 0; x < png.width; x++) {
+      const at = (y * png.width + x) * png.channels;
+      for (let c = 0; c < 3; c++) sum[c] += png.data[at + c];
+    }
+    rows.push([sum[0] / png.width, sum[1] / png.width, sum[2] / png.width]);
+  }
+  return rows;
+}
+
+/**
+ * How far the best row of the image is from `want`: for each row, the largest
+ * channel difference between the row's average colour and `want`; then the
+ * smallest of those. A band laid over a stripe of colour `want` that is a few
+ * pixels thick finds at least one row inside the stripe at any sub-pixel
+ * position (the rows at its edges are blended with what is behind it, which is
+ * why a band's overall average is not the stripe's colour); a band with no
+ * such stripe in it, or with the stripe painted over, has no row near `want`.
+ */
+export function bestRowOff(png: DecodedPng, want: readonly number[]): number {
+  return Math.min(
+    ...rowAverageColours(png).map((row) =>
+      Math.max(
+        Math.abs(row[0] - want[0]),
+        Math.abs(row[1] - want[1]),
+        Math.abs(row[2] - want[2]),
+      ),
+    ),
+  );
+}
