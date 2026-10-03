@@ -155,9 +155,9 @@ Photo-specific handling (a live camera never faced these):
 
 **Quality gates per photo:** all 4 markers found · reprojection error under threshold (also the lens-distortion check) · MediaPipe confidence above threshold · hand fully in frame · card/sheet scale agreement · sharpness (Laplacian variance). All local. Gemini vision is only a *fallback* to explain **why** a local gate failed.
 
-**Gate:** repeatability ≤ ±1.5 mm across 5 photos; accuracy ≤ ±2 mm on hand length vs. ruler. **Depends on Kirby's fixture set.**
+**Gate:** _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ M2 has no pass/fail threshold. The target is **judgement correctness ≥ 95 %**: the product's accept/retake verdict on a photo agrees with Kirby's blind good/bad label for that photo (photo-quality gates only). Retake repeatability is reported, not a threshold. There is no ruler truth, so no accuracy is claimed. **Depends on Kirby's photos and blind labels.**
 
-Still photos make the gate reproducible: Kirby's ground-truth set **is** the input, so a local script replays the full pipeline over those files and prints the repeatability and accuracy numbers directly. Like the licensed dataset, the photos live **outside the repo** (`../Fixtures/hands/`) and the script never runs in CI, which keeps the privacy promise even for our own test data.
+Still photos make the gate reproducible: Kirby's ground-truth set **is** the input, so a local script replays the full pipeline over those files and prints the judgement-correctness and repeatability numbers directly _(revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2: no accuracy figure, since there is no ruler truth)_. Like the licensed dataset, the photos live **outside the repo** (`../Fixtures/hands/`) and the script never runs in CI, which keeps the privacy promise even for our own test data.
 
 ### M3 — Fit engine
 Pure TypeScript, zero LLM. Six explainable sub-scores (0–100), each emitting a machine-readable reason:
@@ -229,7 +229,7 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 
 ## Verification
 
-**Gates** (M1 ≥80%/95% agreement · M2 ±1.5 mm / ±2 mm · M4 0.5 mm bbox, watertight, silhouette review) are hard stops with evidence posted in the PR.
+**Gates** (M1 ≥80%/95% agreement · M4 0.5 mm bbox, watertight, silhouette review) are hard stops with evidence posted in the PR. M2 is not one of them any more: _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ It has no pass/fail threshold; it reports judgement correctness (target ≥ 95 %) and retake repeatability.
 
 **Test layers Codex owns:**
 - **Vitest** — homography math, landmark→mm extraction, all six scorers, shell parameter generation. Everything on the critical path is a pure function; there's no excuse for an untested one.
