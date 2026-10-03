@@ -221,10 +221,17 @@ export function scoreThumb(
       reason: { code, params: {} },
     };
   }
+  // No thumb rest. The score is the same either way (`table.withoutRest`);
+  // only the reason differs. A palm grip would normally rest the thumb on one,
+  // so its absence is a tradeoff worth saying; for claw and fingertip grips
+  // it is genuinely neutral.
+  const code: ReasonCode = isPalm(usedGrip)
+    ? "thumb_rest_missing"
+    : "thumb_neutral";
   return {
     score: table.withoutRest,
     weight: BASE_WEIGHTS.thumb,
-    reason: { code: "thumb_neutral", params: {} },
+    reason: { code, params: {} },
   };
 }
 

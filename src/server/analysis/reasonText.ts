@@ -28,6 +28,7 @@ export const NEGATIVE_REASON_CODES: ReadonlySet<ReasonCode> = new Set([
   "height_high",
   "hump_mismatch_grip",
   "flare_crowds_fingers",
+  "thumb_rest_missing",
   "weight_heavier",
   "weight_lighter",
 ]);

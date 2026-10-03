@@ -115,6 +115,23 @@ test.describe("/results/demo", () => {
     expect(errors).toEqual([]);
   });
 
+  test("an in-range weight says so with the preferred range, not a gap", async ({
+    page,
+  }) => {
+    // high-confidence.json (the default fixture) sends weight_in_range with
+    // { minG: 55, maxG: 60 } for the top pick, so the sentence names the range.
+    await page.goto("/results/demo");
+    const topPick = page.locator(".results-topPick");
+    await expect(
+      topPick.getByText("Weight is within your preferred range (55–60 g).", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    // It never claims a difference for a weight that is inside the range.
+    await expect(topPick).not.toContainText(/heavier than you prefer/i);
+    await expect(topPick).not.toContainText(/lighter than you prefer/i);
+  });
+
   test("expands and collapses the ranked list with the keyboard", async ({
     page,
   }) => {

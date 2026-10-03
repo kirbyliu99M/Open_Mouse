@@ -41,8 +41,16 @@ import type { AnalysisOutput } from "./schema";
  *
  * Bumped to 4 for the no-medical-claims prompt and validation rule, so older
  * cached model prose cannot be served under the new policy.
+ *
+ * Bumped to 5 (G4) although `buildPrompt` itself did not change: the rules a
+ * model answer must pass did (Chinese numerals now count under the
+ * no-new-numerals rule, more Chinese medical terms are rejected, and the
+ * low-confidence caveat must not deny it is provisional), and a palm grip with
+ * no thumb rest now shows the model the `thumb_rest_missing` text instead of
+ * `thumb_neutral`. Prose accepted under the old rules must not be served as if
+ * it had passed the new ones.
  */
-export const ANALYSIS_PROMPT_VERSION = 4;
+export const ANALYSIS_PROMPT_VERSION = 5;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s

@@ -20,7 +20,7 @@ import "../../../learn/learn.css";
  */
 
 export const metadata: Metadata = {
-  title: "Learning kit pose — Open Mouse",
+  title: "Learning kit pose",
   robots: { index: false, follow: false },
 };
 

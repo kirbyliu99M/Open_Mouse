@@ -14,6 +14,7 @@ import { computeCacheKey } from "./cache";
 import type { TextModel } from "./client";
 import { buildAnalysisInput } from "./input";
 import { globalModelCallRateLimitKey } from "./rate-limit-config";
+import { LOG_ROUTES, log } from "../log";
 
 /** Per-key rate limit, injected so the handler stays pure. */
 export interface RateLimiter {
@@ -87,9 +88,12 @@ function logCacheFailure(op: "get" | "set", error: unknown): void {
         : null,
     ) ??
     "none";
-  console.error(
-    `analysis cache ${op} failed (code ${code}); continuing without it`,
-  );
+  log.error("analysis.cache_failed", {
+    route: LOG_ROUTES.analysis,
+    op,
+    code,
+    action: "continue_without_cache",
+  });
 }
 
 export async function handleAnalysisRequest(
