@@ -8,6 +8,7 @@ import {
 import { parseSketchSvg } from "./svg-path";
 import {
   A4_MM,
+  HAND_MARGIN_MM,
   LANDMARKS_MM,
   LENGTH_LINE_MM,
   SKELETON,
@@ -137,9 +138,7 @@ export function buildHand(seed: number, count = HAND_FILL_COUNT): HandTarget {
         : [center[0], center[1] + TICK_MM],
     ),
   });
-  // Margins in mm around the sheet. Equal left and right keep the sheet
-  // centred in the drawing; the right one holds the ruler (and its ticks).
-  const margin = { left: 22, top: 8, right: 22, bottom: 8 };
+  const margin = HAND_MARGIN_MM;
   return {
     viewBox: {
       x: -margin.left * STAGE_SCALE,

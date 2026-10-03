@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 
 const CAPTION = "G Pro X Superlight 2 · sketch";
 const PREVIEW_NOTE = "Early preview — measurements are still being validated.";
@@ -182,6 +183,41 @@ test("print stays light: a white page with black text", async ({ page }) => {
   expect(colours.text).toBe("rgb(0, 0, 0)");
   // The body has no background of its own, so the white root shows through.
   expect(["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"]).toContain(colours.body);
+});
+
+test("print: text that takes its colour from a token prints dark on the white page", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.emulateMedia({ media: "print" });
+  // The headline, the wordmark, the subhead, the Early preview note, a mouse's
+  // caption and the footer: --text-primary, --text-secondary, --text-tertiary
+  // on screen, near-white on dark. On paper they must be dark.
+  const texts = await page.evaluate(() => {
+    const colour = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!).color;
+    return {
+      "h1 (--text-primary)": colour("h1"),
+      "wordmark (--text-primary)": colour(".home-wordmark"),
+      "subhead (--text-secondary)": colour(".home-subhead"),
+      "Early preview note (--text-tertiary)": colour(".landing-preview-note"),
+      "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
+      "footer (--text-tertiary)": colour(".landing-footer"),
+      "Sign in (--text-secondary)": colour(".home-signin-link"),
+    };
+  });
+  for (const [name, colour] of Object.entries(texts)) {
+    expect(contrast(colour, "rgb(255, 255, 255)"), name).toBeGreaterThanOrEqual(
+      name.startsWith("h1") ? 12 : 7,
+    );
+  }
+  // The filled button keeps its blue and its white label.
+  const button = await page.evaluate(() => {
+    const style = getComputedStyle(document.querySelector(".home-cta")!);
+    return { color: style.color, background: style.backgroundColor };
+  });
+  expect(button.color).toBe("rgb(255, 255, 255)");
+  expect(contrast(button.color, button.background)).toBeGreaterThanOrEqual(4.5);
 });
 
 test.describe("the two buttons", () => {
@@ -541,6 +577,47 @@ test("with more contrast the outline button's border is solid #8A8A8F and the gl
   expect(style.shadow).not.toMatch(/59, 130, 246/);
   expect(style.shadow).toMatch(/(\/ 0\)|, 0\))/);
   expect(style.slot).not.toMatch(/59, 130, 246/);
+});
+
+test("the A4 outline is a hairline that sits on the drawing's sheet, and turns solid with more contrast", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const frame = page.locator(".story-hand-sheet");
+  const img = page.locator(".story-hand img");
+  await expect(frame).toHaveCount(1);
+  // The outline is drawn by the page, not by the <img> (which can not read
+  // --hairline): a 1 px border in --hairline, #FFFFFF24.
+  const outline = () =>
+    frame.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        width: style.borderTopWidth,
+        style: style.borderTopStyle,
+        colour: style.borderTopColor,
+      };
+    });
+  expect(await outline()).toEqual({
+    width: "1px",
+    style: "solid",
+    colour: "rgba(255, 255, 255, 0.14)",
+  });
+  // It lies exactly over the A4 sheet of the drawing: 210 : 297, centred.
+  const [outer, inner] = [await img.boundingBox(), await frame.boundingBox()];
+  expect(inner!.width / inner!.height).toBeCloseTo(210 / 297, 2);
+  expect(inner!.x + inner!.width / 2).toBeCloseTo(
+    outer!.x + outer!.width / 2,
+    0,
+  );
+  expect(inner!.x).toBeGreaterThan(outer!.x);
+  expect(inner!.x + inner!.width).toBeLessThan(outer!.x + outer!.width);
+  // More contrast: solid #8A8A8F.
+  await page.emulateMedia({ contrast: "more" });
+  expect(await outline()).toEqual({
+    width: "1px",
+    style: "solid",
+    colour: "rgb(138, 138, 143)",
+  });
 });
 
 test("with forced colours both buttons keep a visible 1 px border", async ({

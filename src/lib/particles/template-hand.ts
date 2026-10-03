@@ -22,6 +22,41 @@ export const A4_MM = { width: 210, height: 297 } as const;
 /** Stage px per millimetre: the A4 sheet is 340 px wide in the target space. */
 export const STAGE_SCALE = 340 / A4_MM.width;
 
+/**
+ * Margins, in mm, between the sheet and the edge of the drawing. Equal left
+ * and right keep the sheet centred; the right one holds the ruler (and its
+ * ticks).
+ */
+export const HAND_MARGIN_MM = {
+  left: 22,
+  top: 8,
+  right: 22,
+  bottom: 8,
+} as const;
+
+/**
+ * Where the A4 sheet sits inside the hand drawing, as percentages of the
+ * drawing's own width and height. The page lays a CSS border (--hairline,
+ * which turns solid with `prefers-contrast: more`) over exactly this
+ * rectangle, so the outline follows the user's setting and the same numbers
+ * will place the particle canvas.
+ */
+export function handSheetFrame(): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} {
+  const width = A4_MM.width + HAND_MARGIN_MM.left + HAND_MARGIN_MM.right;
+  const height = A4_MM.height + HAND_MARGIN_MM.top + HAND_MARGIN_MM.bottom;
+  return {
+    left: (HAND_MARGIN_MM.left / width) * 100,
+    top: (HAND_MARGIN_MM.top / height) * 100,
+    width: (A4_MM.width / width) * 100,
+    height: (A4_MM.height / height) * 100,
+  };
+}
+
 /** MediaPipe hand landmark order: 0 wrist; thumb 1-4; index 5-8; middle 9-12; ring 13-16; pinky 17-20. */
 export const LANDMARKS_MM: readonly Vec[] = [
   [115.3, 242.5], // 0 wrist

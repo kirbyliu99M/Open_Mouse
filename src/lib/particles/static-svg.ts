@@ -50,7 +50,8 @@ const dots = (points: readonly { x: number; y: number }[]): string =>
 
 /**
  * The template hand on an A4 sheet: the particles, the 21 landmarks, the
- * skeleton, the two measurement lines with end ticks, and the sheet's outline.
+ * skeleton, the two measurement lines with end ticks, and the sheet's corner
+ * marks (its outline is a CSS border laid over the image: see `handSheetFrame`).
  * No numbers anywhere: the values on this page are an illustration, never a
  * user's result.
  */
@@ -83,7 +84,10 @@ export function renderHandSvg(hand: HandTarget): string {
     .join("");
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${num(viewBox.x)} ${num(viewBox.y)} ${num(viewBox.width)} ${num(viewBox.height)}" fill="none" stroke-linecap="round" stroke-linejoin="round">\n` +
-    `<rect width="${num(a4.width)}" height="${num(a4.height)}" stroke="#FFFFFF" stroke-opacity=".14" stroke-width="1"/>\n` +
+    // The sheet's own outline is NOT drawn here: the page draws it as a CSS
+    // border in --hairline over this image (an <img> can not read the
+    // variable, so a drawn outline would ignore `prefers-contrast: more`). Only
+    // the four corner marks belong to the drawing.
     `<path d="${brackets}" stroke="#FFFFFF" stroke-opacity=".4" stroke-width="1.4"/>\n` +
     `<path d="${dots(dim)}" stroke="${DETAIL}" stroke-opacity=".75" stroke-width="1.7"/>\n` +
     `<path d="${dots(bright)}" stroke="${PRIMARY}" stroke-width="2.3"/>\n` +

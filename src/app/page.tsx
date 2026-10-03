@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { handSheetFrame } from "@/lib/particles/template-hand";
 import "./home.css";
 
 /**
@@ -12,6 +13,7 @@ import "./home.css";
  * scan screens and the camera).
  */
 export default function HomePage() {
+  const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
       <nav className="home-nav" aria-label="Primary">
@@ -48,15 +50,23 @@ export default function HomePage() {
           </div>
 
           {/* The hand on A4 with its landmarks and the two measurement lines
-              (end ticks, no numbers): an illustration, not a result. */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- static SVG */}
-          <img
-            className="story-hand"
-            src="/images/hand-on-a4.svg"
-            alt=""
-            width={411}
-            height={507}
-          />
+              (end ticks, no numbers): an illustration, not a result. The
+              sheet's outline is a CSS border over the image, so it follows
+              --hairline and `prefers-contrast: more`. */}
+          <div className="story-hand">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static SVG */}
+            <img src="/images/hand-on-a4.svg" alt="" width={411} height={507} />
+            <span
+              className="story-hand-sheet"
+              aria-hidden="true"
+              style={{
+                left: `${frame.left}%`,
+                top: `${frame.top}%`,
+                width: `${frame.width}%`,
+                height: `${frame.height}%`,
+              }}
+            />
+          </div>
 
           {/* Only G Pro exists, so all three are placeholders until more
               sketches do. Each mouse's name is real text. */}

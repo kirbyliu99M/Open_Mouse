@@ -214,10 +214,22 @@
 
 /* The hand on A4: a static SVG until the particles arrive (PR B). */
 .story-hand {
-  display: block;
+  position: relative;
   width: min(100%, 26rem);
-  height: auto;
   margin: 3.5rem auto 0;
+}
+.story-hand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* The A4 sheet's outline, placed by percentages from handSheetFrame(): a
+   border in --hairline (solid #8A8A8F with more contrast asked for), because
+   the drawing is an <img> and can not read the variable. */
+.story-hand-sheet {
+  position: absolute;
+  border: 1px solid var(--hairline);
+  pointer-events: none;
 }
 
 /* The three mice: stacked on a phone, side by side from 48rem. */
