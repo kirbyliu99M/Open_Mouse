@@ -389,8 +389,15 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
-.feedbackCaption {
+.feedback .feedbackCaption {
   margin: 0.75rem 0 0;
+  color: var(--scan-muted);
+  font-size: 0.875rem;
+}
+/* Sits between the measured numbers and the caption under them. Both rules
+   are scoped to .feedback: `.feedback p` (0,1,1) would otherwise win. */
+.feedback .measureNote {
+  margin: 0.5rem 0 0;
   color: var(--scan-muted);
   font-size: 0.875rem;
 }

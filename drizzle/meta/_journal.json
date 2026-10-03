@@ -43,6 +43,13 @@
       "when": 1790153986471,
       "tag": "0005_same_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790722719979,
+      "tag": "0006_sad_energizer",
+      "breakpoints": true
     }
   ]
 }

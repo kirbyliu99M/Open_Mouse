@@ -14,7 +14,7 @@ import {
 } from "../../demo-photo";
 
 export const metadata: Metadata = {
-  title: "Easy scan measured (mock data) — Open_Mouse",
+  title: "Easy scan measured (mock data)",
   description:
     "Dev/demo route rendering the easy-scan measured bottom sheet against fixed, schema-valid measurements — no camera, no MediaPipe.",
   robots: { index: false, follow: false },

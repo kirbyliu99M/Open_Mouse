@@ -262,6 +262,10 @@
     width: 210mm;
     height: 265mm;
   }
+  /* Kit v2 sheets and cards are full A4 pages. */
+  .learn-print-page-a4 svg {
+    height: 297mm;
+  }
 }
 
 @page {

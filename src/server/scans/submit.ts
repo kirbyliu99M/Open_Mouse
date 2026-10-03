@@ -1,4 +1,7 @@
-import { scanSubmissionSchema } from "../../lib/contracts/measurement";
+import {
+  calibrationMethodOf,
+  scanSubmissionSchema,
+} from "../../lib/contracts/measurement";
 import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { BodyTooLargeError, readLimitedBody } from "./body-limit";
 import { buildSessionCookie, readSessionCookie } from "./cookies";
@@ -161,6 +164,9 @@ export async function handleScanSubmission(
       "cardScaleRatio" in submission.calibration
         ? submission.calibration.cardScaleRatio
         : null,
+    measurementModelVersion: submission.measurementModelVersion,
+    calibrationMethod: calibrationMethodOf(submission.calibration),
+    calibrationEvidence: submission.calibration,
   });
 
   // no-store (L4): the body carries a fresh scanId a client could otherwise

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
+import { KIT_V2_SHEETS, type KitV2Sheet } from "@/lib/learning/session";
 import { CheckClient } from "./CheckClient";
 import "../learn.css";
 
@@ -18,13 +19,25 @@ function paperFrom(value: string | string[] | undefined): PaperSize {
     : "a4";
 }
 
+/**
+ * The kit the page starts in: sheet A unless `?sheet=B` (built, not used) or
+ * `?sheet=v1` (the earlier kit's pose pages) says otherwise. Anything else is A.
+ */
+function sheetFrom(value: string | string[] | undefined): KitV2Sheet | null {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (v === "v1") return null;
+  return KIT_V2_SHEETS.find((s) => s === v) ?? "A";
+}
+
 export default async function LearnCheckPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   guardDemoRouteFromProduction();
-  const paper = paperFrom((await searchParams).paper);
+  const params = await searchParams;
+  const paper = paperFrom(params.paper);
+  const sheet = sheetFrom(params.sheet);
   return (
     <main className="learn">
       <TopBar
@@ -38,7 +51,7 @@ export default async function LearnCheckPage({
         nothing is uploaded. Keep the camera&apos;s file names: they set the
         capture order.
       </p>
-      <CheckClient initialPaperSize={paper} />
+      <CheckClient initialPaperSize={paper} initialSheet={sheet} />
     </main>
   );
 }

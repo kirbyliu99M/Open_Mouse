@@ -19,9 +19,14 @@ import {
   buildMarkerCorrespondences,
   type DetectedMarker,
 } from "../../client/photo/markers";
-import { computeSheetLayout } from "../../client/sheet/layout";
+import {
+  computeSheetLayout,
+  type MarkerLayout,
+} from "../../client/sheet/layout";
 import { computeKitLayout } from "./layout";
+import { sheetAMarkers, sheetBMarkers } from "./layoutv2";
 import type { ReportFindings } from "./report";
+import type { KitV2Sheet } from "./session";
 
 /**
  * The flat page's four corner markers as a homography (image px to sheet
@@ -40,6 +45,82 @@ export function markerReference(
   ) {
     return null;
   }
+  const homography = estimateHomography(correspondences);
+  return {
+    method: "markers",
+    homography,
+    reprojectionErrorMm: computeReprojectionErrorMm(
+      homography,
+      correspondences,
+    ),
+  };
+}
+
+/** Fewest sheet markers (16 corners) a kit v2 plane is built from. Sheet B has six; any four of them do. */
+export const KIT_V2_MIN_MARKERS = 4;
+
+export interface SheetCorrespondences {
+  readonly correspondences: readonly PointCorrespondence[];
+  /** Ids of the printed markers that were found (first occurrence each), in layout order. */
+  readonly usedIds: readonly number[];
+  /** Printed ids not found. */
+  readonly missingIds: readonly number[];
+}
+
+/**
+ * Match detected markers to a printed layout by id: four corner
+ * correspondences for each printed marker that was found. Unlike
+ * `buildMarkerCorrespondences` (which wants exactly the product sheet's
+ * ids 0 to 3), the ids come from `layoutMarkers`, so sheet B's six markers
+ * work, and whichever of them were found are used. Markers whose id is not
+ * in the layout are ignored, and so is a second marker with an id already
+ * seen. Pure.
+ */
+export function buildSheetCorrespondences(
+  detected: readonly DetectedMarker[],
+  layoutMarkers: readonly MarkerLayout[],
+): SheetCorrespondences {
+  const byId = new Map<number, DetectedMarker>();
+  for (const marker of detected) {
+    if (!byId.has(marker.id)) byId.set(marker.id, marker);
+  }
+  const correspondences: PointCorrespondence[] = [];
+  const usedIds: number[] = [];
+  const missingIds: number[] = [];
+  for (const printed of layoutMarkers) {
+    const found = byId.get(printed.id);
+    if (!found) {
+      missingIds.push(printed.id);
+      continue;
+    }
+    usedIds.push(printed.id);
+    for (let i = 0; i < 4; i++) {
+      correspondences.push({
+        src: found.corners[i]!,
+        dst: printed.corners[i]!,
+      });
+    }
+  }
+  return { correspondences, usedIds, missingIds };
+}
+
+/**
+ * The kit v2 sheet's plane from its printed markers: a homography (image px
+ * to sheet mm) with how well the markers fit. Sheet A needs all four of the
+ * product sheet's markers; sheet B needs any `KIT_V2_MIN_MARKERS` (four) or
+ * more of its six. `null` below that.
+ */
+export function sheetReference(
+  markers: readonly DetectedMarker[],
+  sheet: KitV2Sheet,
+): NonNullable<ReportFindings["reference"]> | null {
+  const layoutMarkers = sheet === "A" ? sheetAMarkers() : sheetBMarkers();
+  const { correspondences, usedIds } = buildSheetCorrespondences(
+    markers,
+    layoutMarkers,
+  );
+  const needed = sheet === "A" ? layoutMarkers.length : KIT_V2_MIN_MARKERS;
+  if (usedIds.length < needed) return null;
   const homography = estimateHomography(correspondences);
   return {
     method: "markers",

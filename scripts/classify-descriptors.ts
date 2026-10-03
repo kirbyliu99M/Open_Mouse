@@ -6,6 +6,11 @@
  *   npm run classify:descriptors                 (live — needs GEMINI_API_KEY)
  *   npm run classify:descriptors -- --dry-run     (image discovery only, no Gemini calls)
  *
+ * A live run overwrites that file. Since G10 the committed file holds hump
+ * placement measured from the 3D shells (scripts/descriptors-from-geometry.ts),
+ * because the Gemini run failed the M1 gate. Do not commit a live run's output
+ * over it without Claude's say-so.
+ *
  * Sequential with a 1 s delay between product-page fetches, same as
  * scripts/fetch-logitech-specs.ts — this is a few dozen pages (LOGITECH_SOURCES.length), not a crawl.
  */

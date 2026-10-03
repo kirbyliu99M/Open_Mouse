@@ -20,11 +20,13 @@ import {
 } from "@/client/photo/pipeline";
 import {
   getHandLandmarker,
+  DETECTOR_LOAD_FAILED_MESSAGE,
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
+import { UNVERIFIED_MEASUREMENT_NOTE } from "@/client/photo/unverified-note";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import {
   HAND_CONNECTIONS,
@@ -584,7 +586,7 @@ export default function ScanClient({
                 ? "detector_load_failed"
                 : "processing_failed",
               message: isLoadFailure
-                ? "We couldn't load the hand detector. Check your connection and try again."
+                ? DETECTOR_LOAD_FAILED_MESSAGE
                 : "Something went wrong while processing that photo. Try again.",
             } as PipelineIssue,
           ],
@@ -1084,6 +1086,9 @@ export default function ScanClient({
                 </div>
               ))}
             </dl>
+            <p className="measureNote" data-testid="scan-unverified-note">
+              {UNVERIFIED_MEASUREMENT_NOTE}
+            </p>
             <p className="feedbackCaption">
               {isPaperEdge
                 ? // No card, no manual-correction path in paper-edge mode

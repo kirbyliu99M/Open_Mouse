@@ -1,5 +1,7 @@
 import type {
+  CalibrationMethod,
   HandMeasurements,
+  MeasurementModelVersion,
   ScanSubmission,
 } from "../../lib/contracts/measurement";
 
@@ -36,6 +38,11 @@ export interface ScanInsertInput {
   /** `calibration.cardScaleRatio` — sheet-vs-card scale agreement; null
    * for a plain-paper scan, which has no card. */
   scaleCheckRatio: number | null;
+  /** #63: which measurement model and calibration path produced these
+   * numbers, and the evidence the client sent for it. */
+  measurementModelVersion: MeasurementModelVersion;
+  calibrationMethod: CalibrationMethod;
+  calibrationEvidence: ScanSubmission["calibration"];
 }
 
 /**

@@ -10,7 +10,390 @@ for one hand and carries its own QR code. A photo therefore records which
 pose it shows, and a folder of photos can be sorted and checked without
 anyone keeping notes.
 
-## Why this design
+## Kit v2 (protocol `agreed-v2`, 2026-10-02)
+
+Kit v2 replaces the seven-pose pages with **one A4 sheet, one card per
+participant and a fixed shooting order**. It is the collection protocol frozen
+in `docs/design/learning-kit-v2-proposal-2026-10-02/` (`prereg-2026-10-02-v2.frozen.txt`,
+which supersedes version 1; never edited). The rest of this file describes
+kit v1 unless a heading says otherwise.
+
+**What it can claim.** There is no ruler truth: the reference is the millimetre
+value measured through the marker plane on the same sheet. Results are
+**agreement with the marker-sheet reference** and **retake repeatability**,
+never "accurate to x mm" or "accurate against real hands". The M2 gate "within
+2 mm against the ruler" is dormant (it can neither pass nor fail).
+
+**Sheet B is built, not used for now (Kirby, 2026-10-02).** Only sheet A is
+used. B's code (layout, six-marker plane, tests) stays in the repo and works,
+but nothing below asks for it.
+
+| Kit v1 (ruler truth)                           | Kit v2 (`agreed-v2`)                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 7 poses, 14 pages, a QR code on each           | One A4 page for both hands, no pose QR                                             |
+| Pose and hand from the page's QR code          | Pose from the shooting order; hand from `participant.json`                         |
+| A card photographed before each person's run   | A participant card in the sheet's slot, so every photo names its participant       |
+| Ruler values written on the card, `truth.json` | No truth. `participant.json` and `session.json` hold what the consent flow records |
+| Run log format 2                               | Run log format 3 (`protocol`, `session`, `sheet`)                                  |
+| Filed copies keep their EXIF                   | Filed copies are EXIF-stripped (only Orientation stays)                            |
+
+### The sheet and the card
+
+Print from the local server (`npm run dev`), A4, **100% / Actual size**:
+
+- `http://localhost:3000/learn/print?sheet=A`: sheet A. The product sheet's four
+  markers exactly (`computeSheetLayout()`'s), the centre line the middle finger
+  goes along, the wrist line, the card slot at the top, and a **100 mm line**.
+  Check it with a ruler at the start of every session and write what you
+  measure in `session.json` (`printCheckMm`). It checks the print scale, not the
+  hand.
+- `?sheet=B`: sheet B (built, not used for now). Six markers (ids 0 to 5) on the
+  outer ring and a blank hand area. Its scale check is the 180 mm from the outer
+  edge of marker 0 to the outer edge of marker 1.
+- `http://localhost:3000/learn/slates?kit=2&from=901&count=12`: participant
+  cards, 24 to a page. P901 to P912 is the S0 pilot; `?kit=2&from=1&count=48`
+  prints P001 to P048. Each card is 60 × 30 mm: a `P###` QR code and the number
+  in 9 mm bold type (so a person can read it when the QR code will not decode).
+  Cut along the dashed line and put one in the slot, inside its four corner
+  marks, before a person's first photo. A card names a participant, never a name.
+
+Everything on both sheets sits at or above y = 282 mm (a 15 mm margin at the foot
+of the page). Geometry: `src/lib/learning/layoutv2.ts`; the print route's PDF
+output is measured in `tests/e2e/learning-kit-print.spec.ts` (sheet A's 100 mm
+line prints at 99.998 mm, sheet B's 180 mm at 179.997 mm).
+
+The QR code on a card is `https://open-mouse.vercel.app/l/v2/P007`. Like kit
+v1's, it is a name, not a link: the checker reads the text out of the photo,
+and the pages are not served in production. There is no `/l/v2/...` page.
+
+### A session
+
+1. **Once per session**, write `session.json` in a folder of its own (outside
+   the repo), and measure the sheet's printed line with a ruler. Every field
+   is required:
+
+   | Field          | Meaning                                                                                  |
+   | -------------- | ---------------------------------------------------------------------------------------- |
+   | `format`       | `open-mouse-learning-session/1`                                                          |
+   | `session`      | `S001`, `S002`, ...                                                                      |
+   | `protocol`     | `agreed-v2`                                                                              |
+   | `date`         | `YYYY-MM-DD`                                                                             |
+   | `timeBlock`    | `morning`, `afternoon` or `evening`                                                      |
+   | `venue`        | Where, in words                                                                          |
+   | `light`        | The lighting, in words                                                                   |
+   | `phone`        | The phone and lens, by hand: the EXIF white-list deliberately drops make and model       |
+   | `holding`      | How the phone was held (hand-held, stand, ...)                                           |
+   | `sheet`        | `A`. Sheet B is built but not used for now, and the sorter refuses a session that says B |
+   | `paperSize`    | `a4` (kit v2 is A4 only; `letter` is refused)                                            |
+   | `printCheckMm` | The printed 100 mm line as measured with a ruler, in mm; `null` if not done              |
+   | `note`         | Anything else                                                                            |
+
+   The sorter puts the whole record into the run log, so it holds no name and no
+   contact detail; its text is copied as typed. The free-text fields refuse an
+   e-mail address or a long run of digits. A file saved by a Windows editor with a
+   UTF-8 byte-order mark in front is read as it is.
+
+2. **Per person** (about 30 seconds of photography; consent and the form are
+   apart from it):
+   1. Their consent is signed separately. Record under their `P###` (not in the
+      photo) in `participant.json`, below.
+   2. Put their card in the slot.
+   3. Photograph their **mouse hand** on the sheet: **G02 × 3** (flat, fingers
+      spread), then **G04 × 2** (claw: knuckles raised, fingertips curled towards
+      the palm). Lift the hand and place it again before every photo. Do not retake
+      because the product would refuse a photo: a refused photo is data.
+   4. **One extra photo** is allowed per person, only when the hand is clearly off
+      the sheet or a corner is covered. Note it: the sorter does not work out where
+      it goes. Write `shotCounts` in that person's `participant.json` (below).
+
+   `participant.json` (one per participant, `<out>/P###/participant.json`; the
+   sorter writes the template and never overwrites it):
+
+   | Field                                | Meaning                                                                                                                                                                                                                                           |
+   | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `format`                             | `open-mouse-learning-participant/1`                                                                                                                                                                                                               |
+   | `participant`, `protocol`, `session` | `P###`, `agreed-v2`, `S###`: set by the template                                                                                                                                                                                                  |
+   | `mouseHand`                          | `right` or `left`: the hand they use a mouse with (`null` until filled in)                                                                                                                                                                        |
+   | `gripSelf`                           | Their own description: `palm`, `claw`, `fingertip` or `unsure`                                                                                                                                                                                    |
+   | `ageBand`                            | Optional: `under-20`, `20-29`, `30-39`, `40-49`, `50-59`, `60-plus`                                                                                                                                                                               |
+   | `shotCounts`                         | `null` (as planned: 3 G02 then 2 G04) or `{ "G02": n, "G04": m }`, how many of each were actually taken, in shooting order (all G02 first). Fill it in only when the count is not the planned five: an extra shot (at most one), or a missing one |
+   | `note`                               | Anything else; no name                                                                                                                                                                                                                            |
+
+3. At the computer, run
+
+   ```
+   npm run learn:sort -- --in "<folder of photos>" --session "<folder>\session.json"
+   ```
+
+   The sorter **refuses to run without a valid `session.json`**, and refuses one
+   that sits inside the repo or any git worktree (`labels.json` is written next
+   to it, so that folder gets the same rule as `--out`). It starts its
+   own dev server (see "A session (kit v1)": `--port`, `--base`, `--dry-run`
+   and `--out` are as before) and checks the photos as kit v2 on
+   `/learn/check?paper=<size>&sheet=<sheet>`. `--paper a4` is optional (kit v2 is A4 only; any other
+   value is refused, and so is a session whose `paperSize` is not `a4`).
+   `--show-checks` adds the pose-check and hand flags to the summary, after a
+   line saying to label first; by default the summary shows counts and file names
+   only (blind labelling, below).
+
+4. Fill in each new `participant.json`, then run the sorter again. The first run
+   cannot know the mouse hand (nothing was filled in yet), so its hand check is
+   empty; the second run reads `participant.json` and checks MediaPipe's label
+   against it. An existing `participant.json`, copy or labels file is never
+   overwritten.
+5. **Label the photos blind, then look at anything the product says** (below).
+
+Keep the camera's file names: natural file-name order is the shooting order. The
+sorter warns when, in that order, a photo's file time is older than the one
+before it (a phone that restarted its numbering, or two cards merged).
+
+### What the sorter does
+
+Kit v2 sorting is `sortPhotosV2` in `src/lib/learning/sortv2.ts` (kit v1's
+`sortPhotos` is unchanged). In order:
+
+1. **Participant.** The QR code of the card, on every photo. Photos are grouped
+   by it wherever they sit in the folder. A photo with no readable card is
+   `no-code`; a kit v1 card or page is `version-mismatch`; neither is filed, and
+   neither names a participant.
+2. **Pose, from the order, and nothing else.** The plan is the contract's
+   `planShots(count, shotCounts)`. Five photos take the slots G02, G02, G02, G04,
+   G04 (`AGREED_V2_SEQUENCE`). Any other count, **including fewer than five**, is
+   placed only if `shotCounts` in the participant's `participant.json` says how
+   many G02 and how many G04 were taken (at most one more than planned in all, and
+   adding up to the photos). Nothing is read from the file name or the folder, and
+   **the pose check takes no part**.
+3. **Otherwise the participant is `needs-review`.** None of their photos is
+   filed, each is marked `needs-review`, and the sorter tells you to write
+   `shotCounts` in `participant.json` and run it again. The reasons are
+   `photo-count-not-planned` (no `shotCounts`), `shot-counts-do-not-match`
+   (`shotCounts` is there but does not add up, or allows two extras) and
+   `unreadable-photo-in-run` (a photo with no readable card sits beside this run
+   and may be theirs; write `shotCounts`, `{ "G02": 3, "G04": 2 }` if all was as
+   planned, to confirm it is not). The extra shot is the last photo of the pose
+   that has one more than planned (`extraShot: true`): a **candidate
+   convention**, because the order cannot tell a retake from the photo it
+   replaces, so treat a pose's photos as a set.
+   Every photo that names a participant keeps its slot in the order, whatever the
+   checker thinks of it: dropping a photo would shift the poses of the rest.
+4. **Hand.** `mouseHand` in the participant's `participant.json`. MediaPipe's
+   label is only a check: a difference is `hand-mismatch`, filed all the same.
+5. **The pose check never places or moves a photo.** It only fills `poseCheck`
+   and, when it disagrees with the order for a photo, the `pose-mismatch` flag;
+   that photo stays where the order put it.
+6. **A photo that cannot be filed keeps its slot.** Every image-like file in the
+   folder (`.jpg`, `.jpeg`, `.jfif`, `.png`, `.heic`, `.heif`, any case) is analysed in
+   file-name order. If a photo that names a participant cannot be copied (a PNG, a
+   damaged JPEG), it keeps its place in the order, so the photos after it do not
+   shift pose, but it has no `destination`, a status naming why (`not-a-jpeg`,
+   `damaged-jpeg`, `copy-failed`), and is absent from `labels.json`. The summary
+   lists it and the participants whose sequence it is missing from. A HEIC the
+   browser cannot read has no readable card, so it counts as an unreadable photo
+   (item 1): export it to JPEG and run again.
+
+**The pose check** (`src/lib/learning/posecheck.ts`) says whether a photo's 21
+image-space landmarks look like G02 or G04. It uses one ratio and no absolute
+pixel: the mean over the index, middle, ring and little finger of
+|fingertip − MCP| ÷ |wrist − middle MCP|, the "reach". A flat hand shows its
+fingers at nearly full length; a claw, seen from above, foreshortens them.
+Spread fingers are not used: a flat hand with the fingers together reads as G02.
+
+| Threshold (`POSE_CHECK_THRESHOLDS`) | Candidate value | Meaning                                       |
+| ----------------------------------- | --------------- | --------------------------------------------- |
+| `flatReachMin`                      | 0.62            | Reach at or above: G02                        |
+| `clawReachMax`                      | 0.50            | Reach at or below: G04                        |
+| `maxPlausibleReach`                 | 1.5             | Above this the points are not a hand: abstain |
+
+Between the two, with no hand, with fewer or more than 21 landmarks, or with a
+point that is not a finite number, it abstains. **These numbers are candidates
+(未拍板)**, set from the proportions of an adult hand and not from any photo:
+S0 (P901 to P912) will check them against real G02 and G04 photos before a run
+is trusted. They live in one place, so S0 changes one constant.
+
+**Statuses** in `sort.photos[]`:
+
+| `status`           | Meaning                                                           | Filed |
+| ------------------ | ----------------------------------------------------------------- | ----- |
+| `ok`               | Placed by order; nothing to flag                                  | yes   |
+| `pose-mismatch`    | Placed by order; the pose check says the other pose               | yes   |
+| `hand-mismatch`    | Placed by order; MediaPipe's hand differs from `participant.json` | yes   |
+| `needs-review`     | The participant's photos cannot be placed without guessing        | no    |
+| `not-a-jpeg`       | Placed by order, but its copy cannot be made: not a JPEG          | no    |
+| `damaged-jpeg`     | Placed by order, but its copy cannot be made: damaged JPEG        | no    |
+| `copy-failed`      | Placed by order, but the stripped copy failed its own check       | no    |
+| `no-code`          | No readable participant card (a pose page's code is not one)      | no    |
+| `version-mismatch` | A code of another kit version (a kit v1 card or page)             | no    |
+
+When a photo is both `pose-mismatch` and `hand-mismatch`, `pose-mismatch` is
+the status.
+
+### What is filed, and what the copies lose
+
+```
+<out>/P007/G02/1.jpg … 3.jpg      the extra shot continues the numbering (4.jpg)
+<out>/P007/G04/1.jpg … 2.jpg
+<out>/P007/participant.json       template; never overwritten
+<out>/runs/<time>.json            the run log, format 3
+<folder of session.json>/labels.json   blank labels; never overwritten
+```
+
+**Re-running after a correction.** The sorter never overwrites a copy. When a
+re-run files a photo to a destination that already holds other bytes (corrected
+`shotCounts` moved it), that is a **conflict**: the summary says CONFLICT, names
+the files and how to resolve it (move that participant's folder in the output
+folder aside, look at it, then run the sorter again), and the run log's `filing`
+field lists them, so the files on disk are known not to match the log. Copies
+left over from the earlier placement, which this run does not file (an old
+`G02/4.jpg`, or every copy of a participant now in review), are **orphans**,
+listed the same way and never deleted. Same bytes at the same destination is
+simply "already there".
+
+Files in the photo folder that are not photos (a `.webp`, a video) are named in
+the summary ("Skipped N files that are not photos"). A `.jfif` is read as a JPEG.
+
+No `truth.json` is written. The copies are named by pose and shot, so the
+camera's file name (which can hold the time of the shot) is not in the folder;
+it stays in the run log's `file`.
+
+**EXIF stripping.** Each filed copy is the original's bytes with the metadata
+removed (`src/lib/learning/exifstrip.ts`, a pure byte-level function). The
+original in the input folder is only read, never touched. Per segment:
+
+| Dropped                                                                          | Kept, byte for byte                                         |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| APP1 (Exif with its GPS, time, make, model, serial; XMP), APP13 (IPTC), comments | APP0 only as a plain 18-byte JFIF header (no thumbnail)     |
+| JFXX and any JFIF with an embedded thumbnail                                     | APP2 only when it begins `ICC_PROFILE\0`                    |
+| Every other APPn (maker notes, multi-picture index), every JPGn (0xF0 to 0xFD)   | APP14 only as the 12-byte Adobe header                      |
+| Any other APP2 or APP14, and reserved markers                                    | The tables, frame header and every scan: the picture itself |
+| Anything after the end-of-image marker (a gain map, a motion-photo video)        |                                                             |
+
+**Orientation: rebuilt minimal EXIF.** A phone often stores a portrait photo
+sideways with an Orientation tag that turns it upright, and the checker decodes
+it upright, so every pixel coordinate in the run log is in the upright frame. A
+copy must decode upright too. So the copy gets a rebuilt 36-byte EXIF that holds
+**only the Orientation tag**, where the original's Exif block was (no GPS, time,
+device or anything else). The mode is `orientation-only` (`EXIF_STRIP_MODE`); the
+sorter prints it. A real browser decodes an original and its stripped copy to the
+same size and the same plane, and a copy with Orientation dropped lies on its
+side (`tests/e2e/learning-kit-v2.spec.ts`).
+
+The **EXIF white-list** (focal length, pixel dimensions) in the run log comes from
+the checker's analysis of the ORIGINAL file (the reports are made before anything
+is filed); the copy has none. `prepareFiledCopy` also reads it from the original
+before stripping, to hand it back with the copy. A copy is checked by content
+before it is written (`problemsInFiledCopy`: each kept header segment must be
+exactly a plain JFIF header, an ICC profile or an Adobe header, and any Exif must
+be byte for byte the minimal Orientation-only one), and a file that is not a
+complete JPEG (a PNG, a HEIC, a damaged file) is **not copied at all**: it is
+listed as above.
+
+### Run log, format 3
+
+Format 3 is format 2 (below) plus the top-level fields below (`protocol`, `session` and `sheet` are `null` in a
+kit v1 log):
+
+| Field      | Meaning                                                                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocol` | `agreed-v2` for a kit v2 run; `null` for kit v1 (its values are `candidate-v1`, never mixed with these)                                                           |
+| `session`  | The whole `session.json` record, read by the sorter. `null` in a kit v1 log and in a download from the checker page, which has none                               |
+| `filing`   | Kit v2 sorter only: `{ conflicts, orphans }`, the destinations that exist with other bytes than this run files, and the copies this run does not file (see above) |
+| `sheet`    | `A` (or `B`, not used for now), the sheet the photos were taken on; `null` for kit v1                                                                             |
+
+Other fields, in a kit v2 log: `kitVersion` is 2 (each report's too, and each
+`code.version`); `paperSize` is the session's. A report has a participant
+`code` and, like any hand photo, a `hand`, planes and measurements: the card's
+code does not make it a card. Its `checks` are the kit v2 ones: the participant
+card was read; sheet A's four markers (B: any four of six); the fit; the paper
+corners; sharpness; a hand. A photo with no hand still has a verdict (`retake`),
+but it is filed.
+
+`sort.photos[]`, one entry per photo in capture order:
+
+| Field         | Meaning                                                                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file`        | The input file's name                                                                                                                                                               |
+| `status`      | As the table above                                                                                                                                                                  |
+| `participant` | `P###` from the card; `null` for `no-code` and `version-mismatch`                                                                                                                   |
+| `gesture`     | `G02` or `G04`, from the order; `null` for needs-review, no card and another kit version (a photo placed but not filed keeps it)                                                    |
+| `hand`        | `participant.json`'s `mouseHand` (`left`, `right`); `null` until it is filled in                                                                                                    |
+| `shot`        | 1-based position within the pose, the extra shot included                                                                                                                           |
+| `destination` | `P007/G02/1.jpg`, relative to the output folder; `null` when not filed (needs-review, no card, another kit version, or a copy that cannot be made)                                  |
+| `poseSource`  | Always `order`: the pose never comes from a QR code in kit v2                                                                                                                       |
+| `extraShot`   | `true` for the one photo beyond the planned shots (the last of its pose)                                                                                                            |
+| `poseCheck`   | `{ predicted, agrees }`: the pose check's call (`G02`, `G04` or `null`) and whether it agrees with the order (`null` when it abstained or there was no hand). `null` when not filed |
+
+`sort.coverage[]`: `participant`, `gesture`, `hand`, `expected` (3 or 2), `got`
+(filed under the pose, the extra included) and `extra` (how many of them are the
+extra shot); none for a participant in review. `sort.participants[]`:
+`participant`, `photos`, `status` (`ok` or `needs-review`), `reason`
+(`photo-count-not-planned`, `shot-counts-do-not-match`, `unreadable-photo-in-run`
+or `null`), `hand`, `unfiled` (photos placed but not filed because their copy
+cannot be made), and `predictedPoses` (the pose check's call on each of their
+photos in order, for a person looking at a review case).
+
+**The run log holds the product's verdict for every photo** (`verdict`,
+`productGates`, the millimetre values). Do not open it before the labels are done.
+
+### Labels, made blind (`labels.json`)
+
+Judgement correctness (prereg v2, 2.1) is how often the product's accept or
+retake agrees with Kirby's own call, so the call must be made **without seeing
+the product's**. After a session the sorter writes `labels.json` **next to
+`session.json`**: one blank entry per filed photo, in shooting order, holding
+nothing but the photos' relative names (`P007/G02/1.jpg`) and empty fields: no
+verdict and no millimetre value. It is never written where the run logs are, and
+never overwritten. If one is already there, the sorter says which filed photos it
+has no entry for (for example a participant reviewed by hand and filed later).
+
+| Field                 | Meaning                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `format`              | `open-mouse-learning-labels/1`                                                                                                                                     |
+| `session`, `protocol` | The session and `agreed-v2`                                                                                                                                        |
+| `blind`               | `true` for a template; set it to `false` yourself if you looked at the product's verdict first: such a session is reported apart                                   |
+| `labels[].file`       | The filed photo's `destination`, verbatim; a photo that is not filed is not listed, and a file may appear once                                                     |
+| `labels[].label`      | `good` or `bad` (`null` until you decide)                                                                                                                          |
+| `labels[].reasons`    | A bad photo needs at least one, a good one has none: from `hand-off-sheet`, `corner-hidden`, `blur`, `wrong-pose`, `fingers-not-per-protocol`, `lighting`, `other` |
+| `labels[].note`       | Required when the reason `other` is used; empty otherwise                                                                                                          |
+
+**How to fill it in.** Open the photos (the copies under the output folder, not
+the checker) and, for each, ask: _would I measure from this photo?_ **Good** means
+yes. A **bad** photo takes one or more reasons from the list, which describe the
+photo and never the person (no health or injury reason); the reason `other` needs
+a note saying what. Do it **before** you open the run log or `/learn/check`: both
+show the product's verdict, and the checker page says so when a kit is chosen.
+After you finish, do not change a label; a mistake found later is disclosed in
+the report. The sorter's own summary shows counts and file names only, so you
+can read it first: no verdict, no pose-check call, no MediaPipe hand flag, no
+millimetre value. Those are in the run log; `--show-checks` prints the pose-check
+disagreements and hand flags too, after a line saying to label first. `labelsRecordSchema` in
+`src/lib/learning/session.ts` rejects a good photo with reasons, a bad one with
+none, an `other` without a note, a file listed twice, and a file that is not a
+relative `/`-separated path.
+
+### Checking photos on the page
+
+`/learn/check` has a **Kit** selector. With a sheet chosen the page is A4 only (a `?paper=letter` is ignored and the size menu is locked); Letter is offered only for kit v1. It starts on sheet A (`?sheet=v1` selects the earlier
+kit's pose pages, `?sheet=B` the unused sheet B; the
+sorter opens it with `?sheet=A`). With a sheet chosen the page analyses the photos as kit v2 and
+files them by participant and order, lists any participant in review, and its
+download is a format 3 log with `session: null`. Its per-photo verdicts are the
+product's: see the labelling rule above.
+
+### Not settled (candidates, 未拍板)
+
+- The pose-check thresholds (above): S0 will check them.
+- The extra-shot convention (the last photo of the pose that has one more than
+  planned is the extra).
+- "Capture order" is camera file-name order, as in kit v1, because the EXIF time
+  is deliberately not read. Two phones in one folder, or a numbering that restarts,
+  break it: the sorter warns when the file times disagree.
+- Only complete JPEGs are filed: a HEIC export must be converted to JPEG first
+  (the checker already says so).
+- Kit v1 photos can no longer be filed by `learn:sort`, which is kit v2 only. Kit
+  v1's `sortPhotos` and `sortReports` are unchanged; the checker's Kit selector
+  still checks v1 photos.
+
+## Why this design (kit v1)
 
 - **Ground truth and the product in one photo.** Each top-down page keeps the
   product sheet's four ArUco markers in exactly the same positions
@@ -82,7 +465,11 @@ The hand's midline sits about half a palm width in front of the strip. The
 palm width recorded on the card lets the analysis correct for that. This
 correction is not built yet.
 
-## A session
+## A session (kit v1)
+
+_Kit v1 only. `npm run learn:sort` is kit v2 only since 2026-10-02: it no longer files kit v1 photos (see
+"Kit v2"). The steps below are how kit v1 sessions ran, and `/learn/check` with the Kit selector on "Kit v1"
+still checks v1 photos._
 
 1. **Print once**, from the local dev server (`npm run dev`):
    - `http://localhost:3000/learn/print?hands=both`: 14 A4 pages at 100%. Check
@@ -103,10 +490,10 @@ correction is not built yet.
 4. Before the person leaves, open `http://localhost:3000/learn/check` on the
    computer, choose the session's photos, and retake anything marked
    **Retake**.
-5. At the computer, run
-   `npm run learn:sort -- --in "<folder of photos>"`. It copies (never moves
+5. At the computer, run (kit v1; the command now needs `--session` and files kit v2)
+   `npm run learn:sort -- --in "<folder of photos>"`. It copied (never moves
    or overwrites) photos to `../Fixtures/learning/<participant>/<pose>/<n>.jpg`,
-   writes a `truth.json` template per person, and saves the run log to
+   wrote a `truth.json` template per person, and saved the run log to
    `runs/<time>.json`. Copy the ruler values from each `slate.jpg` into
    `truth.json`, right hand and left hand apart.
 
@@ -118,8 +505,9 @@ correction is not built yet.
 
 Keep the camera's file names: natural file-name order is capture order.
 
-**Pages printed on US Letter.** The kit is designed for A4. If a session uses
-Letter paper, pass `--paper letter` to `learn:sort` (the checker page has a
+**Pages printed on US Letter (kit v1 only).** The kit is designed for A4. Kit v2 is A4
+only: `learn:sort` takes no Letter and refuses a Letter session. For kit v1, on
+Letter paper, `--paper letter` was passed to `learn:sort` (the checker page has a
 "Sheet size of the pages" setting, and `/learn/check?paper=letter` presets it)
 so the paper-edge plane assumes the right sheet size. Print at 100%: the marker
 layout stays the A4 layout, and the run log records the size used.
@@ -171,8 +559,8 @@ fitted from the data.
 
 ## Truth file
 
-`npm run learn:sort` writes `../Fixtures/learning/<participant>/truth.json`
-once, and never overwrites it. The two hands are apart because hands differ, and
+Kit v1: `npm run learn:sort` wrote `../Fixtures/learning/<participant>/truth.json`
+once, and never overwrote it. Kit v2 has no ruler truth and writes none. The two hands are apart because hands differ, and
 a photo of the left hand is compared with the left hand's values.
 
 ```json
@@ -191,7 +579,10 @@ Replace each `null` with millimetres. `truthSchema` in
 product's ranges (hand length 100 to 280 mm, palm width 50 to 150 mm), a typo such
 as `1850`, an unknown key and the old one-set-for-both-hands layout.
 
-## Run log, format 2
+## Run log, formats 2 and 3
+
+Format 3 (2026-10-02) is format 2 plus `protocol`, `session` and `sheet` (see "Kit v2"); kit v1 logs written before
+that date are format 2. Everything below holds for both.
 
 `runs/<time>.json` from `learn:sort`. The checker page's **Download results**
 button gives the same file without the folder name and the git commit, which a
@@ -204,13 +595,13 @@ format name did not change.
 
 | Field                | Meaning                                                                                                                           |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `format`             | `open-mouse-learning-run/2`                                                                                                       |
+| `format`             | `open-mouse-learning-run/3` (`/2` before 2026-10-02)                                                                              |
 | `createdAt`          | When the run happened (not when a photo was taken)                                                                                |
-| `kitVersion`         | `LEARNING_KIT_VERSION` of the code that ran                                                                                       |
+| `kitVersion`         | 1 (kit v1) or 2 (kit v2): the kit the run was made as                                                                             |
 | `gitSha`, `gitDirty` | The commit of the checkout that served the checker, and whether it had uncommitted changes. `null` with `--base` (unknown server) |
-| `paperSize`          | `a4` or `letter`: the sheet the pages are printed on, from `--paper` (default `a4`)                                               |
+| `paperSize`          | `a4` or `letter`: the sheet the pages are printed on (kit v2: always `a4`, from the session; kit v1 logs: from `--paper`)         |
 | `input`              | The photo folder, relative to where the command ran, with `/` separators (see Privacy)                                            |
-| `sort`               | The sorter's result: where each photo was filed, and coverage                                                                     |
+| `sort`               | The sorter's result: where each photo was filed, and coverage (kit v2: see "Kit v2")                                              |
 | `reports[]`          | One record per photo, below                                                                                                       |
 
 Each entry of `reports[]` repeats `kitVersion`, `gitSha` and `gitDirty`, so a
@@ -438,7 +829,7 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
   detects and measures in the browser. The e2e tests assert that no
   non-GET request is sent while it runs (the page and its scripts are GETs;
   nothing is POSTed, PUT or otherwise sent).
-- **Photos and `truth.json` stay outside the repo** (`../Fixtures/learning/`,
+- **Photos, `participant.json` and (kit v1) `truth.json` stay outside the repo** (`../Fixtures/learning/`,
   next to the main checkout). The sorter refuses an output folder inside the
   repo, inside the main checkout, or inside **any other git worktree** (it asks
   `git worktree list`), also through a symlink or junction, and refuses to run
@@ -488,7 +879,7 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
     script starts. That is npm's output, outside the script's control. `npm run
 --silent learn:sort -- ...` hides it (checked); use that when the output is
     going to be pasted somewhere.
-  - `--in` and `--out` given in Git Bash, Cygwin or WSL spelling
+  - `--in`, `--out` and `--session` given in Git Bash, Cygwin or WSL spelling
     (`/c/Users/me/...`, `/cygdrive/c/...`, `/mnt/c/...`) are refused on
     Windows: Node would read that as a folder tree on the current drive and
     create it. Use the Windows form (`C:\Users\me\...`).
@@ -497,11 +888,13 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
   - **File names.** Phone cameras often put the time of the shot in the file
     name (`IMG_20260930_101530.jpg`). `file` in the run log, and the file
     names of the copies `learn:sort` files, keep it.
-  - **The filed photos themselves.** `learn:sort` copies each original
-    unchanged, so the copies under `Fixtures/learning/` still carry their full
+  - **The filed photos themselves.** Kit v1's `learn:sort` copied each original
+    unchanged, so kit v1 copies under `Fixtures/learning/` still carry their full
     EXIF: GPS position, time, the device's serial number. Think before sharing,
-    zipping or uploading that folder: strip the EXIF first, or share only the
-    run logs and `truth.json`.
+    zipping or uploading them. Kit v2's copies are EXIF-stripped (see "Kit v2"):
+    only Orientation stays. They are named `P###/G0x/n.jpg`, so the camera's file
+    name (which can hold the time of the shot) is not in the folder, and kit v2 has
+    no `truth.json`.
 - **Participant numbers, never names.**
 - **No medical claims.** G06 and G07 collect posture data for research into
   mouse fit and hand and wrist angles. The pages say so, and nothing
@@ -510,14 +903,155 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
 ## Changing the kit
 
 A printed QR code is permanent. To change a pose, its page or the code
-format, raise `LEARNING_KIT_VERSION` and add a `/l/v2/[token]` route. Keep
-`/l/v1/[token]` answering (locally) for pages already printed. The sorter files only
-the current version, so mixed-version photos are reported rather than mixed.
+format, raise `LEARNING_KIT_VERSION` (2 since kit v2; `KIT_V1_VERSION` is the
+first kit's). Keep `/l/v1/[token]` answering (locally) for pages already printed.
+Kit v2 has no `/l/v2/...` page: its cards are read from the photo, not opened.
+The sorter files only the current version, so mixed-version photos are reported
+(`version-mismatch`) rather than mixed.
 
 The participant card's layout changed on 2026-09-30: it now has a Right and a
 Left column for the ruler values. Its QR code did not change, so a card printed
 before that still identifies its participant, but it has one set of fields.
 Reprint the cards before a session so each hand gets its own values.
+
+## M2 evaluator for kit v2
+
+`npm run m2:evaluate` judges kit v2 runs (protocol `agreed-v2`, frozen prereg
+version 2, 2026-10-02) as well as kit v1 runs. The two are told apart by the
+run logs and are **never mixed**. This section is the agreed-v2 side; the
+"Evaluation" section above stays true for candidate-v1.
+
+| Run logs                                             | Protocol       | Needs                                            | Reference                                    |
+| ---------------------------------------------------- | -------------- | ------------------------------------------------ | -------------------------------------------- |
+| format 2, or format 3 with `protocol: null` (kit v1) | `candidate-v1` | `--truth` (ruler `truth.json`)                   | the ruler                                    |
+| format 3 with `protocol: "agreed-v2"` (kit v2)       | `agreed-v2`    | nothing; `--records` and `--labels` add the rest | the marker plane of the same sheet, no ruler |
+
+```
+npm run m2:evaluate -- \
+  --log ../Fixtures/learning-v2/runs \
+  --records ../Fixtures/learning-v2 \
+  --labels ../Fixtures/learning-v2/S001 \
+  --out ../Fixtures/evaluations/v2-calibration.json
+```
+
+| Option             | Meaning                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--protocol`       | `agreed-v2` or `candidate-v1`: the protocol the run logs must be of. Default: theirs. A mismatch is an error                                                                         |
+| `--records <path>` | A `participant.json`, or a folder holding `participant.json` or `<P###>/participant.json`: the grip a person reports and the hand they use. Repeat freely                            |
+| `--session <path>` | A `session.json` (or a folder holding one). Only a fallback: the sorter embeds the whole session record in its run log, which is where the phone comes from. Repeat freely           |
+| `--labels <path>`  | A `labels.json` (or a folder holding `labels.json` or `<session>/labels.json`): the blind good/bad calls. Repeat freely. Without it the headline is not computed, and nothing errors |
+| `--gesture`        | The poses of the field-by-field tables. Default **G02** (candidate-v1: G01). The per-person statistics always use G02 and G04                                                        |
+| `--held-out`       | Only the held-out participants. **Meant to be run once, by Claude, after the model is frozen**; the run prints a loud notice, on stderr and at the top of the summary                |
+| `--s0`             | Only the S0 pilot (P901-P912)                                                                                                                                                        |
+| `--aggregate-only` | Drop every per-person and per-photo row from the JSON and the summary, for text pasted into a pull request                                                                           |
+| `--participants`   | Narrows the chosen set (a fold). Not with `--held-out`                                                                                                                               |
+
+`--truth` is refused with agreed-v2 logs (a candidate-v1 truth file is the
+forbidden mix; any other is simply not read), `--thresholds` too (the criteria
+are frozen in the prereg), and `--held-out`, `--s0`, `--records`, `--session` and
+`--labels` are refused with candidate-v1.
+
+### Who is evaluated
+
+By the prereg's held-out rule (`src/lib/m2/heldout.ts`): participants come in
+blocks of four (P001-P004, P005-P008, ...); in each **complete** block the
+participant whose lowercase hex SHA-256 of `bec9449f79d85ac5:<P###>` is smallest
+is held out. A test reproduces the 50 ids the prereg lists for P001-P200.
+
+- **Default:** the calibration set. Held-out and S0 participants are left out, and
+  so are participants in a block that is not complete yet (their block could still
+  turn out to give them the smallest hash). The summary and stderr say how many were left out and why.
+- `--held-out`: only the held-out set. `--s0`: only the S0 pilot.
+- A block is complete when all four ids appear in the inputs (a run log's sort, or a participant record).
+
+### What is reported (all report-only except the target)
+
+| Statistic                  | Definition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Judgement correctness**  | The headline. For each labelled photo, the product's accept/retake verdict against the label (good/bad). **The verdict is the product's photo-quality gates (the recorded paper and hand gates) with the handedness gate left out**: a kit v2 report computes it with no stated hand, because the mouse hand comes from `participant.json` only after the browser analysis. Agreement rate, false accepts and false rejects (counts, share of all labelled, share of bad or good), by pose, and by reason. **Target 95 %, shown as a target and never as pass or fail.** Unlabelled photos are left out and counted. Labels from sessions with `blind: false` are reported apart and are not in the headline |
+| G02 retake repeatability   | Pooled within-person SD of hand length on the marker path: `sqrt(sum((n-1) SD^2) / sum(n-1))` over people with 2+ G02 photos, with the people and photos behind it. 1.0 mm is shown as a **reference value**, not a verdict (prereg v2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Path agreement             | Paper-edge minus marker hand length per G02 photo, averaged **within each person first**, then bias and SD across people. The photo-level numbers are shown too, labelled photo-level                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Curl ratio                 | A G04 photo's wrist-to-middle-fingertip length on the marker plane (from the recomputed sheet-mm landmarks, so it exists even when a claw's measurements fall outside the contract's ranges) divided by the same person's mean G02 hand length. Per-person mean, retake SD, overall distribution                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Product-gate acceptance    | Accepted / all, per pose, by the recorded gates as they are. Also the hand-detection rate and how often MediaPipe's hand label agrees with the participant record (the S0 checks): **hand-label agreement is reported on its own and is not part of judgement correctness**                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Coverage                   | People by 10 mm bin of their mean G02 hand length; people and photos by phone, light, sheet and mouse hand. Phone and light are shown as the session wrote them only when they are short plain words (Latin letters, digits, a little punctuation, at most 60 characters); anything else, or anything shaped like a participant code or a path, is counted as `(other)`                                                                                                                                                                                                                                                                                                                                      |
+| Grip-threshold calibration | Each person's r = palm length / hand length (mean over G02, marker plane; the landmarks of `MEASUREMENT_DEFINITIONS`) against the grip they reported (palm, claw, fingertip; `unsure` and blank are skipped and counted). The confusion matrix and agreement with the product's **current** thresholds (palm at r >= 0.58, claw at r >= 0.54, read from `GRIP_PREDICTION`), and the threshold pair that agrees most on these people, with the counts and how many pairs tie. Chosen and scored on the same people, so optimistic. **It never changes `src/server/fit/**`**                                                                                                                                   |
+| Accuracy                   | **Dormant: no ruler truth.** Nothing is computed, nothing errors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Person-level means come before any statistic across people: photos are never
+treated as independent people. Everything is worded as agreement with the
+marker-sheet reference and retake repeatability; the output never says
+"accurate".
+
+### What the evaluator reads from the logs, and how a label finds its photo
+
+- **From a format-3 log** (the sorter's `RUN_LOG_FORMAT`; kit v1 runs are in
+  format 3 too, with `protocol: null`, and are read as candidate-v1):
+  `protocol`, `session` (the whole `session.json` record the sorter was given,
+  which gives the phone and the session id; `null` in a download from the
+  checker page), `sheet`, `reports[]`, and `sort.photos[]` entries matched to
+  a report by `file`: `status`, `destination`, `participant`, `gesture`, `hand`,
+  `shot`, `extraShot`. The pose, hand and shot always come from the sort,
+  **never from the QR code** on the photo (it is the participant's card).
+  `--session` is only a fallback for a log that names its session by id alone,
+  which no sorter writes; with the sorter's logs it is not needed.
+- A photo with no participant or pose (the sorter's `needs-review`, `no-code`) is
+  listed as `NOT_ASSIGNED:<status>`. The same participant, pose and shot seen twice
+  (a folder sorted twice) counts once.
+- **Photos the sorter does not file** (no `destination`): `needs-review` (the
+  participant's photo count is not the planned 3 + 2 and `participant.json` has no
+  matching `shotCounts`; `sort.participants[].reason` is `photo-count-not-planned`,
+  `shot-counts-do-not-match` or `unreadable-photo-in-run`), and the photos placed in
+  the shooting order whose copy cannot be made (`not-a-jpeg`, `damaged-jpeg`,
+  `copy-failed`). They cannot be labelled, so they are **left out of judgement
+  correctness like an unlabelled photo** and counted: the summary and the JSON give the
+  unfiled photos of the evaluated participants by status, and the participants in
+  review by reason. A `needs-review` photo has no pose, so it is also listed as
+  `NOT_ASSIGNED:needs-review` and measured for nothing; a photo that is placed but not
+  filed is still measured for the other statistics.
+- **The embedded session** is checked by the contract's own `sessionRecordSchema`:
+  a session on sheet B or on Letter paper is refused, and so is a top-level `sheet`
+  other than A.
+- **A label names its photo by its `destination`, verbatim** (`P901/G02/1.jpg`):
+  the contract pins that, and it is how the sorter writes the labels template.
+  The photo's own file name and a name worked out from the participant, pose and
+  shot are **not** tried, and neither are other cases or separators: a label that
+  does not match is a label that names no photo. A label belongs to the photos of
+  its own **session**. A photo that was not filed has no destination and cannot
+  be labelled. A label that names no photo of any participant in the run logs is
+  counted (a naming mismatch shows up there).
+- A photo with no recorded product verdict counts as not accepted, and the count is printed.
+- **The handedness gate is left out of judgement correctness** (see its row above),
+  and the output says so. The kit checker's own `retake` verdict is not the product's
+  either: a photo the checker says to retake still counts for the statistics and is out of
+  the field tables' "accepted" group, as in candidate-v1.
+- A test runs the sorter's own pure code (`runSorterWithReports`, which calls
+  `sortReportsV2`, the `participant.json` and `labels.json` templates and
+  `buildSorterRunLog`) on synthetic reports, including a participant held for
+  review and an unfiled photo, and feeds the run log it writes to the evaluator
+  (`evaluateRunJson`) and to the real script.
+
+### The report
+
+A JSON report (`open-mouse-m2-evaluation/2`) and a Markdown summary. They hold
+totals, the anonymous participant codes (`P007`), and photo ids like
+`P007/G01R/3` (participant, pose and hand as printed, shot). They hold **no file
+name, folder, account name, EXIF or landmark**; a test searches both for them.
+The model judged is named (`landmark-raw-v1` for the baseline); a correction
+such as the frozen `calibrated-v1` plugs in as `calibration` in
+`EvaluateOptions` and is applied after the recompute, so both models are judged
+by the same code.
+
+### Held-out participants are evaluated once
+
+The plan is to tune on some participants, freeze the model as `calibrated-v1`,
+and evaluate the held-out participants **once**. So:
+
+- **Claude runs the held-out evaluation, once, on the frozen model.** It is not in a workflow, and not re-run after looking at the result (a second look would make the held-out set a tuning set).
+- Cross-validation folds use `--participants`; the held-out set is the participants no fold ever contained.
+- `--out` refuses to overwrite, so a report cannot be quietly replaced.
+
+`scripts/m2-gate-replay.ts` (the old replay through `/scan`) is gone: it failed
+on blank-paper photos and had no parallax correction. This tool replaces it.
 
 ## Files
 
@@ -525,6 +1059,11 @@ Reprint the cards before a session so each hand gets its own values.
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)                    |
 | `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                                 |
+| `src/lib/learning/layoutv2.ts`                                    | Kit v2 sheets A and B and the participant card in mm (pure, tested)               |
+| `src/lib/learning/session.ts`                                     | Kit v2 contract (Claude's): session, participant, labels records                  |
+| `src/lib/learning/sortv2.ts`, `posecheck.ts`                      | Kit v2 sorter by shooting order; the G02/G04 pose check (pure, tested)            |
+| `src/lib/learning/exifstrip.ts`, `filing.ts`, `sessionfile.ts`    | EXIF stripping (pure); filing copies, participant and labels files; reading them  |
+| `src/lib/learning/order.ts`                                       | File-name order against file-time order (pure)                                    |
 | `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                                    |
 | `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                                  |
 | `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)                  |
@@ -534,7 +1073,7 @@ Reprint the cards before a session so each hand gets its own values.
 | `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch                     |
 | `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI         |
 | `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF                   |
-| `src/components/learning/KitSvg.tsx`                              | Printed pose pages and participant cards                                          |
+| `src/components/learning/KitSvg.tsx`, `KitV2Svg.tsx`              | Printed pose pages and kit v1 cards; kit v2 sheets and cards                      |
 | `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (`noindex`; 404 in production) |
 | `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                                       |
 | `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                             |

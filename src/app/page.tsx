@@ -46,18 +46,23 @@ export default function HomePage() {
         />
         <figcaption>G Pro X Superlight 2 · sketch</figcaption>
       </figure>
-      <div
-        className="landing-dimension"
-        aria-label={`Length ${formatCatalogueSpec(featuredMouse.lengthMm, "mm")}`}
-      >
-        <span>{formatCatalogueSpec(featuredMouse.lengthMm, "mm")}</span>
+      {/* aria-label is not allowed on a div or a p (axe: aria-prohibited-attr)
+          and would have replaced the numbers for a screen reader anyway, so
+          the context is visually hidden text and the numbers stay text. */}
+      <div className="landing-dimension">
+        <span>
+          <span className="landing-sr">Length </span>
+          {formatCatalogueSpec(featuredMouse.lengthMm, "mm")}
+        </span>
       </div>
-      <p
-        className="landing-annotation"
-        aria-label="G Pro X Superlight 2 dimensions and weight"
-      >
+      <p className="landing-annotation">
+        <span className="landing-sr">
+          G Pro X Superlight 2 dimensions and weight:{" "}
+        </span>
         {dimension} mm{" "}
-        <span>{formatCatalogueSpec(featuredMouse.weightG, "g")}</span>
+        <span className="landing-weight">
+          {formatCatalogueSpec(featuredMouse.weightG, "g")}
+        </span>
       </p>
 
       <Link className="home-cta" href="/scan/easy">

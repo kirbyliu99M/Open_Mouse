@@ -16,3 +16,17 @@ export function contrast(fg: string, bg: string): number {
   ].sort((x, y) => y - x);
   return (lighter + 0.05) / (darker + 0.05);
 }
+
+/**
+ * A translucent CSS colour laid over white, as an opaque "rgb(r, g, b)": the
+ * worst case under white text that sits on a photograph. `extraOpacity` is an
+ * element's own `opacity` on top of the colour's alpha.
+ */
+export function overWhite(color: string, extraOpacity = 1): string {
+  const n = (color.match(/[\d.]+/g) ?? []).map(Number);
+  const alpha = (n[3] ?? 1) * extraOpacity;
+  const [r, g, b] = n
+    .slice(0, 3)
+    .map((v) => Math.round(v * alpha + 255 * (1 - alpha)));
+  return `rgb(${r}, ${g}, ${b})`;
+}

@@ -303,8 +303,10 @@
   font-weight: 600;
   text-align: center;
 }
+/* The text is 17px, so it needs 4.5:1: #f0fff6 on the old #2f9e5c was 3.29:1
+   (axe, live camera). #237a48 with the same text is 5.1:1. */
 .cameraCue.perfect {
-  background: #2f9e5c;
+  background: #237a48;
   color: #f0fff6;
 }
 
