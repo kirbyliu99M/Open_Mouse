@@ -124,6 +124,42 @@ test.describe("the animated layout", () => {
     });
   }
 
+  for (const [width, height] of [
+    [375, 667],
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`${width}x${height}: no sideways scroll, and nothing sticks out of the viewport, at the top, mid-story and at the last step`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      for (const p of [0, 0.5, 0.95]) {
+        await scrollToProgress(page, p);
+        const result = await page.evaluate(() => {
+          const outside = [...document.querySelectorAll("body *")]
+            .filter((el) => {
+              const box = el.getBoundingClientRect();
+              return (
+                box.width > 0 &&
+                (box.left < -0.5 || box.right > window.innerWidth + 0.5)
+              );
+            })
+            .map(
+              (el) =>
+                `${el.tagName.toLowerCase()}.${el.getAttribute("class") ?? ""}`,
+            );
+          return {
+            fits: document.documentElement.scrollWidth <= window.innerWidth,
+            outside,
+          };
+        });
+        expect(result, `p=${p}`).toEqual({ fits: true, outside: [] });
+      }
+    });
+  }
+
   test("the hero text fades and moves up over the first tenth; its buttons and links turn inert below opacity 0.05; the h1 never does; scrolling back restores everything", async ({
     page,
   }) => {
