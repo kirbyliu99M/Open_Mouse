@@ -119,3 +119,12 @@
     border-left: 2px solid currentColor;
   }
 }
+
+/* The menu button is an icon in a near-white colour and opens a dialog: on
+   paper it is neither visible nor usable. */
+@media print {
+  .navMenuTrigger,
+  .navMenu {
+    display: none;
+  }
+}

@@ -211,13 +211,46 @@ test("print: text that takes its colour from a token prints dark on the white pa
       name.startsWith("h1") ? 12 : 7,
     );
   }
-  // The filled button keeps its blue and its white label.
-  const button = await page.evaluate(() => {
-    const style = getComputedStyle(document.querySelector(".home-cta")!);
-    return { color: style.color, background: style.backgroundColor };
-  });
-  expect(button.color).toBe("rgb(255, 255, 255)");
-  expect(contrast(button.color, button.background)).toBeGreaterThanOrEqual(4.5);
+  // Chrome does not print backgrounds by default, so a filled button would
+  // print as white text on white paper. On paper the primary is a dark label
+  // with a dark outline and no fill; the secondary too.
+  const buttons = await page.evaluate(() =>
+    [".home-cta", ".home-cta-secondary"].map((selector) => {
+      const style = getComputedStyle(document.querySelector(selector)!);
+      return {
+        selector,
+        color: style.color,
+        background: style.backgroundColor,
+        border: style.borderTopColor,
+        borderWidth: style.borderTopWidth,
+        shadow: style.boxShadow,
+      };
+    }),
+  );
+  for (const button of buttons) {
+    expect(
+      contrast(button.color, "rgb(255, 255, 255)"),
+      `${button.selector} label`,
+    ).toBeGreaterThanOrEqual(12);
+    expect(button.background, `${button.selector} has no fill`).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+    expect(button.border, `${button.selector} outline`).toBe("rgb(0, 0, 0)");
+    expect(button.borderWidth).toBe("1px");
+    expect(button.shadow, `${button.selector} glow`).toBe("none");
+  }
+  // The light-on-dark drawings and the menu icon are left off the page.
+  const hidden = await page.evaluate(() =>
+    [".story-logo", ".story-hand", ".story-mice", ".navMenuTrigger"].map(
+      (selector) => [
+        selector,
+        getComputedStyle(document.querySelector(selector)!).display,
+      ],
+    ),
+  );
+  for (const [selector, display] of hidden) {
+    expect(display, `${selector} is not printed`).toBe("none");
+  }
 });
 
 test.describe("the two buttons", () => {

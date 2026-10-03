@@ -556,3 +556,26 @@
     border: 1px solid ButtonText;
   }
 }
+
+/* Print. Chrome does not print backgrounds unless the user asks for them, so a
+   filled button would print as white text on white paper: on paper it is a
+   dark label with an outline, and its glow is gone. The drawings (the logo, the
+   hand on A4, the three sketches) are decorative and light-on-dark, so they
+   are left off the page; the mice's captions go with them. */
+@media print {
+  .home-cta {
+    background: none;
+    border-color: #000;
+    color: #000;
+    box-shadow: none;
+  }
+  .home-cta-secondary {
+    border-color: #000;
+    color: #000;
+  }
+  .story-logo,
+  .story-hand,
+  .story-mice {
+    display: none;
+  }
+}
