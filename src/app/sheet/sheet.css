@@ -65,12 +65,12 @@
     margin: 1rem 0 1.5rem;
   }
   .sheet-callout {
-    background: #e7f0fd;
+    background: #17395f;
     border-radius: 0.9rem;
     padding: 1.25rem;
   }
   .sheet-callout h2 {
-    color: #0a64e0;
+    color: var(--accent-text);
     margin: 0;
     font-size: 1.3rem;
   }
@@ -94,7 +94,7 @@
     gap: 0.75rem;
   }
   .sheet-after p {
-    color: #55555d;
+    color: #b5b5bd;
     margin: 0 0 0.5rem;
   }
   .sheet-primary,
@@ -108,13 +108,16 @@
     text-align: center;
   }
   .sheet-primary {
-    color: #fff;
-    background: #0a64e0;
+    color: var(--on-accent);
+    background: var(--accent);
+  }
+  .sheet-primary:active {
+    background: var(--accent-pressed);
   }
   .sheet-secondary {
-    color: #0a64e0;
-    background: #fff;
-    border: 1px solid #d5d5dc;
+    color: var(--accent-text);
+    background: #242426;
+    border: 1px solid #3a3a3d;
     text-decoration: none;
   }
   .sheet-after .sheet-privacy {
@@ -127,21 +130,6 @@
   .sheet-secondary:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 3px;
-  }
-}
-@media screen and (prefers-color-scheme: dark) {
-  .sheet-callout {
-    background: #17395f;
-  }
-  .sheet-callout h2,
-  .sheet-secondary {
-    color: #a8ceff;
-  }
-  .sheet-secondary {
-    background: #242426;
-  }
-  .sheet-after p {
-    color: #b5b5bd;
   }
 }
 @media screen and (prefers-contrast: more) {

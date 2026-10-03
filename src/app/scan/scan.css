@@ -1,53 +1,29 @@
 /* /scan — docs/design-guidelines.md's "Scan" section and review checklist. */
 
 /*
- * Tokens matched to the shared journey palette (docs/design/
- * journey-2026-09-23/README.md) so /scan reads as the same product as
- * Home/Sheet/Results. These used to be set here provisionally and then
- * overridden by a second, unconditional `:root` block further down this
- * file — which won in both light AND dark mode (same specificity, later in
- * source), silently discarding the dark values below. Fixed by setting the
- * final values directly here instead of duplicating/overriding them later.
+ * The scan palette. The site is one dark theme (docs/design/
+ * home-v3-2026-10-03/README.md), so these are the dark values only. The page
+ * background and the accent come from the global tokens in tokens.css:
+ * `--bg`, `--accent` (fills), `--accent-text` (text, outlines, focus rings,
+ * selected chips) and `--on-accent` (the label on an accent fill).
  */
 :root {
-  --scan-bg: #f4f4f6;
-  --scan-fg: #1c1c1e;
-  --scan-muted: #55555d;
-  --scan-border: #d5d5dc;
-  --scan-accent: #0a64e0;
-  --scan-accent-soft: #e7f0fd; /* 4.67:1 under --scan-accent text */
-  --scan-on-accent: #ffffff; /* 5.37:1 on #0a64e0 */
-  --scan-status-bg: #eef2f7;
-  --scan-ok-bg: #e6f7ec;
-  --scan-ok-fg: #1e7b45;
-  --scan-warning-bg: #fff6e0;
-  --scan-warning-fg: #7a5300;
-  --scan-error-bg: #fdeceb;
-  --scan-error-fg: #a5251b;
   --scan-marker: #0a6cff;
   --scan-card: #ffb020;
   --scan-landmark: #16a34a;
   --scan-handle: #d81b60;
   --scan-transition: 160ms ease;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --scan-bg: #161617;
-    --scan-fg: #f5f5f7;
-    --scan-muted: #b5b5bd;
-    --scan-border: #3a3a3d;
-    --scan-accent: #79adff;
-    --scan-accent-soft: #1f3554; /* 5.45:1 under --scan-accent text */
-    --scan-on-accent: #101114; /* 8.29:1 on #79adff; white is 2.27:1 */
-    --scan-status-bg: #1f2733;
-    --scan-ok-bg: #103522;
-    --scan-ok-fg: #6fe39c;
-    --scan-warning-bg: #3a2e07;
-    --scan-warning-fg: #f0c34d;
-    --scan-error-bg: #3a1512;
-    --scan-error-fg: #ff9d90;
-  }
+  --scan-fg: #f5f5f7;
+  --scan-muted: #b5b5bd;
+  --scan-border: #3a3a3d;
+  --scan-accent-soft: #1f3554; /* 5.28:1 under --accent-text */
+  --scan-status-bg: #1f2733;
+  --scan-ok-bg: #103522;
+  --scan-ok-fg: #6fe39c;
+  --scan-warning-bg: #3a2e07;
+  --scan-warning-fg: #f0c34d;
+  --scan-error-bg: #3a1512;
+  --scan-error-fg: #ff9d90;
 }
 
 @media (prefers-contrast: more) {
@@ -67,7 +43,7 @@
   margin: 0 auto;
   padding: 1.5rem 1.5rem 4rem;
   color: var(--scan-fg);
-  background: var(--scan-bg);
+  background: var(--bg);
 }
 
 /* /scan/measured-demo's "this is fixture data" banner — mirrors
@@ -88,7 +64,7 @@
 }
 
 .wayOut {
-  color: var(--scan-accent);
+  color: var(--accent-text);
   text-decoration: none;
   min-height: 44px;
   display: inline-flex;
@@ -153,9 +129,9 @@ h1 {
   transform: scale(0.97);
 }
 .pickerButton.selected {
-  background: var(--scan-accent);
-  border-color: var(--scan-accent);
-  color: var(--scan-on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .uploadSlot {
@@ -170,8 +146,8 @@ h1 {
   padding: 0.75rem 1.5rem;
   border: 1px solid var(--scan-border);
   border-radius: 0.75rem;
-  background: var(--scan-accent);
-  color: var(--scan-on-accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -265,7 +241,7 @@ h1 {
   cursor: grab;
 }
 .overlayHandle:focus-visible {
-  outline: 3px solid var(--scan-accent);
+  outline: 3px solid var(--accent-text);
   outline-offset: 2px;
 }
 
@@ -312,12 +288,12 @@ h1 {
   vector-effect: non-scaling-stroke;
 }
 .overlayDimensionLine {
-  stroke: var(--scan-accent);
+  stroke: var(--accent-text);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 .overlayDimensionTick {
-  stroke: var(--scan-accent);
+  stroke: var(--accent-text);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
@@ -337,8 +313,8 @@ h1 {
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 0.75rem;
-  background: var(--scan-accent);
-  color: var(--scan-on-accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -499,8 +475,7 @@ h1 {
 }
 /* Selected state is a solid accent fill (the base `.pickerButton.selected`
    rule above), not a color-only tint — distinguishable without relying on
-   hue, and `--scan-on-accent` keeps its text at 5.37:1 (light) / 8.29:1
-   (dark). A softer accent-soft pill used to override that here, differing
+   hue, and `--on-accent` keeps its text at 4.75:1 on `--accent`. A softer accent-soft pill used to override that here, differing
    from the unselected pill only by color. */
 .scanMain .uploadButton,
 .scanMain .primaryButton {
@@ -511,7 +486,7 @@ h1 {
 }
 .scanMain .visuallyHidden:focus-visible + .uploadButton,
 .scanMain .uploadSlot:focus-within .uploadButton {
-  outline: 3px solid #0a64e0;
+  outline: 3px solid var(--accent-text);
   outline-offset: 3px;
 }
 .scanMain .uploadSlot {
@@ -521,12 +496,12 @@ h1 {
   display: none;
 }
 .scanMain .feedback-ok {
-  background: #fff;
-  color: #1c1c1e;
   border: 0;
   border-radius: 1rem;
   padding: 1.5rem;
   margin: 1rem 0 0;
+  background: #1c1c1e;
+  color: #f5f5f7;
 }
 .scanMain .feedback-ok .feedbackTitle {
   font-size: 1.25rem;
@@ -542,9 +517,6 @@ h1 {
 .scanMain .measurementRow:nth-child(n + 4) {
   display: none;
 }
-.scanMain .measurements dt {
-  color: #55555d;
-}
 .scanMain .measurements dd {
   font-size: 1.125rem;
 }
@@ -554,7 +526,6 @@ h1 {
 }
 .scanMain .submitPanel .primaryButton {
   width: 100%;
-  background: #0a64e0;
 }
 /* Tightened from the generic 1.5rem .uploadSlot margin (nit: the gap
    between "See my matches" and "Use a different photo" read as too loose
@@ -562,18 +533,14 @@ h1 {
 .scanMain .uploadSlot-measured {
   margin: 0.75rem 0 0;
 }
-.scanMain .uploadSlot-measured .uploadButton {
-  background: #fff;
-  color: #0a64e0;
-}
 .scanMain .scanSheetLink {
   align-self: center;
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
-  color: #0a64e0;
   text-decoration: none;
   margin-top: 1.5rem;
+  color: var(--accent-text);
 }
 .scanMain .scanSheetLink:active {
   opacity: 0.65;
@@ -586,25 +553,12 @@ h1 {
   text-align: center;
   margin-top: 1rem;
 }
-@media (prefers-color-scheme: dark) {
-  .scanMain .feedback-ok {
-    background: #1c1c1e;
-    color: #f5f5f7;
-  }
-  .scanMain .measurements dt {
-    color: #b5b5bd;
-  }
-  .scanMain .uploadSlot-measured .uploadButton {
-    background: #1c1c1e;
-    color: #79adff;
-  }
-  .scanMain .submitPanel .primaryButton {
-    background: #79adff;
-    color: #101114;
-  }
-  .scanMain .scanSheetLink {
-    color: #79adff;
-  }
+.scanMain .measurements dt {
+  color: #b5b5bd;
+}
+.scanMain .uploadSlot-measured .uploadButton {
+  background: #1c1c1e;
+  color: var(--accent-text);
 }
 @media (prefers-contrast: more) {
   .scanMain .feedback-ok,

@@ -5,13 +5,10 @@
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 1rem;
-  background: #e7f0fd;
-  color: #0a64e0;
   margin: 0.5rem 0 1rem;
 }
 
 .account-subtitle {
-  color: #55555d;
   margin: 0 0 1.25rem;
 }
 
@@ -30,7 +27,6 @@
 .account-benefits li span {
   flex: 0 0 auto;
   display: inline-flex;
-  color: #0a64e0;
 }
 
 .account-google-button {
@@ -41,9 +37,7 @@
   width: 100%;
   min-height: 3.25rem;
   border-radius: 0.85rem;
-  border: 1px solid #d5d5dc;
-  background: #fff;
-  color: #1c1c1e;
+  border: 1px solid #3a3a3d;
   font-size: 1.02rem;
   font-weight: 700;
 }
@@ -53,14 +47,12 @@
   justify-content: center;
   min-height: 2.75rem;
   align-items: center;
-  color: #0a64e0;
   font-weight: 600;
   margin-top: 0.75rem;
   text-decoration: none;
 }
 
 .account-fine-print {
-  color: #55555d;
   font-size: 0.8125rem;
   text-align: center;
   margin: 1.25rem 0 0;
@@ -70,15 +62,13 @@
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  background: #fff;
-  border: 1px solid #d5d5dc;
+  border: 1px solid #3a3a3d;
   border-radius: 0.75rem;
   padding: 1rem 1.25rem;
   margin-top: 0.5rem;
 }
 .account-unavailable p {
   margin: 0;
-  color: #1c1c1e;
 }
 .account-unavailable span {
   flex: 0 0 auto;
@@ -92,14 +82,13 @@
   gap: 0.6rem;
   min-height: 3.25rem;
   border-radius: 0.85rem;
-  background: #0a64e0;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
   margin-top: 1.25rem;
   text-decoration: none;
 }
 .account-empty-link {
-  color: #0a64e0;
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
@@ -122,34 +111,30 @@
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
-@media (prefers-color-scheme: dark) {
-  .account-hero-icon {
-    background: #17395f;
-    color: #a8ceff;
-  }
-  .account-subtitle,
-  .account-fine-print {
-    color: #b5b5bd;
-  }
-  .account-benefits li span {
-    color: #a8ceff;
-  }
-  .account-google-button {
-    background: #242426;
-    border-color: #3a3a3d;
-    color: #f5f5f7;
-  }
-  .account-unavailable {
-    background: #242426;
-    border-color: #3a3a3d;
-  }
-  .account-unavailable p {
-    color: #f5f5f7;
-  }
-  .account-skip-link,
-  .account-empty-link {
-    color: #a8ceff;
-  }
+.account-hero-icon {
+  background: #17395f;
+  color: var(--accent-text);
+}
+.account-subtitle,
+.account-fine-print {
+  color: #b5b5bd;
+}
+.account-benefits li span {
+  color: var(--accent-text);
+}
+.account-google-button {
+  background: #242426;
+  color: #f5f5f7;
+}
+.account-unavailable {
+  background: #242426;
+}
+.account-unavailable p {
+  color: #f5f5f7;
+}
+.account-skip-link,
+.account-empty-link {
+  color: var(--accent-text);
 }
 @media (prefers-reduced-transparency: reduce) {
   .account dialog.dialog::backdrop {
@@ -166,6 +151,6 @@
 
 .account a:focus-visible,
 .account button:focus-visible {
-  outline: 2px solid #0a64e0;
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
