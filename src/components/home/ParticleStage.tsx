@@ -30,9 +30,13 @@ export function ParticleStage() {
           loading = false;
           if (!cancelled) stage = module.startParticleStage(element);
         })
-        .catch(() => {
-          // The page stays as it is: the static layout.
+        .catch((error: unknown) => {
+          // The page stays as it is: the static layout. Only a developer
+          // needs to hear about it.
           loading = false;
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("The particle stage did not start:", error);
+          }
         });
     };
 
