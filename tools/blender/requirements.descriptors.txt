@@ -1,0 +1,4 @@
+# Local decoding only; no bpy/Draco dependency for pure measurement unit tests.
+# Python 3.13, matching the Blender pipeline.
+numpy==2.4.6
+DracoPy==2.1.0

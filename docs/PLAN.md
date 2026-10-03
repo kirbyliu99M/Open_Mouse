@@ -29,7 +29,7 @@ Decisions locked: printed calibration sheet · 3D parametric mesh · session-sco
 Owns the plan, per-milestone specs with acceptance criteria, the shape rubric, fit-engine scoring design, Gemini prompt design, PR review, and gate adjudication. Runs `/code-review` on each PR and `/security-review` before any public launch. **Writes no feature code** — that boundary is the point of the split.
 
 ### Codex — Implementation & Test
-Owns all feature code, tests, Blender generation scripts, and docs, working **one milestone spec at a time**. Branches `m<N>-<slug>`, opens a PR referencing the milestone issue, drives CI green and the Vercel preview live *before* requesting review. Does not merge its own PRs.
+Owns all feature code, tests, Blender generation scripts, and docs, working **one milestone spec at a time**. Branches `m<N>-<slug>`, opens a PR referencing the milestone issue, drives CI green *before* requesting review (Vercel previews are built only for ready PRs since 2026-09-30; see AGENTS.md). Does not merge its own PRs.
 
 **Two standing constraints for Codex:** never commit or move `Dataset/` (it is gitignored from the first commit), and never let the LLM do arithmetic — all numbers originate in tested TypeScript.
 

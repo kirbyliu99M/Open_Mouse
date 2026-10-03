@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { scanPath } from "../../src/lib/contracts/routes";
 import { contrast } from "./fixtures/contrast";
+import { scoreFit } from "../../src/server/fit/score";
+import type { CatalogueMouse } from "../../src/server/fit/types";
 
 // Read as plain JSON rather than `import ... from "*.json"` — Playwright's
 // test runner loads spec files as native Node ESM, which requires an
@@ -311,6 +313,101 @@ test.describe("/results/[scanId] — real results page", () => {
       .poll(() => page.evaluate((key) => localStorage.getItem(key), HAND_KEY))
       .toBeNull();
   });
+  // G10: the catalogue now carries a hump for most mice, and nothing else about
+  // their shape. This is the fit engine's own output for that state (not a
+  // hand-edited fixture): the hump scored, flare and thumb unknown.
+  test("hump rated, flare and thumb unrated: only the hump is rated, and the page still says some shape scores are not", async ({
+    page,
+  }) => {
+    // Claw grip; targets: length 117.8, grip width 70.4, height 38.
+    const humpOnly = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
+      slug: "acme-alpha",
+      brand: "Acme",
+      model: "Alpha",
+      lengthMm: 117.8,
+      widthMm: 70.4,
+      heightMm: 38,
+      weightG: 80,
+      size: "medium",
+      handCompatibility: null,
+      shape: null,
+      humpPlacement: "back_moderate",
+      frontFlare: null,
+      sideCurvature: null,
+      thumbRest: null,
+      ...patch,
+    });
+    const fit = {
+      scanId: SCAN_ID,
+      ...scoreFit(
+        { handLengthMm: 190, palmLengthMm: 110, palmWidthMm: 80 },
+        [
+          humpOnly({}),
+          humpOnly({
+            slug: "acme-beta",
+            model: "Beta",
+            lengthMm: 112,
+            humpPlacement: "center",
+          }),
+        ],
+        { includeVertical: false },
+        "right",
+      ),
+    };
+    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fit));
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const top = page.locator(".results-topPick");
+    await expect(
+      top.getByRole("heading", { level: 2, name: "Alpha" }),
+    ).toBeVisible();
+    const bar = (label: string) =>
+      top.locator(".results-subscoreBar", { hasText: label });
+
+    // The hump is rated: a score, and the hump sentence rather than a height one.
+    await expect(
+      bar("Height & hump").locator(".results-subscoreBar-value"),
+    ).toHaveText("100");
+    await expect(
+      bar("Height & hump").locator(".results-subscoreBar-reason"),
+    ).toHaveText("The hump position suits how you hold a mouse.");
+
+    // Flare and thumb are not: no score, an empty bar, and the plain words.
+    for (const label of ["Front flare", "Thumb support"]) {
+      await expect(bar(label)).toHaveAttribute("data-assessed", "false");
+      await expect(bar(label).locator(".results-subscoreBar-value")).toHaveText(
+        "—",
+      );
+      await expect(bar(label).locator(".results-subscoreBar-fill")).toHaveCount(
+        0,
+      );
+      await expect(
+        bar(label).locator(".results-subscoreBar-reason"),
+      ).toHaveText("Shape not rated yet");
+    }
+
+    // So the one honest line about unrated shape is still shown, and still true.
+    await expect(top.locator(".results-sizeNotice")).toHaveText(
+      "Some shape scores aren't rated yet for this mouse, so the fit score currently leans on its size.",
+    );
+
+    // The generic confidence note appears nowhere: not on the top pick, and
+    // not on the other matches (their confidence is above the low threshold).
+    await page
+      .getByRole("button", { name: /Show the other 1 ranked mouse/ })
+      .click();
+    await expect(
+      page.getByRole("heading", { level: 3, name: /Acme Beta/ }),
+    ).toBeVisible();
+    await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
+    await expect(
+      page.getByText(/haven't assessed this mouse's shape/),
+    ).toHaveCount(0);
+  });
+
   test("renders the ranking as soon as the fit route resolves, then the written analysis once it resolves too", async ({
     page,
   }) => {

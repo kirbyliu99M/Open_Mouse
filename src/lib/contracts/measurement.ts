@@ -3,7 +3,8 @@
  * Images never leave the device; these millimetres are all the server sees.
  *
  * Frontend builders compute these; backend builders validate and store them.
- * Change this file only in a PR of its own.
+ * Change this file only in a contract PR of its own, carrying no more than the
+ * minimal consumer updates (storage included) that keep `main` green.
  */
 import { z } from "zod";
 
@@ -102,9 +103,29 @@ export const MEASUREMENT_DEFINITIONS = {
 
 export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v1";
 
+/**
+ * Every measurement model the server accepts. Clients send the one they
+ * measured with (`MEASUREMENT_MODEL_VERSION` today). A calibrated model (W7)
+ * is appended here, so clients still on the old one keep working through a
+ * deploy instead of getting a 400. Written as literals, not derived from
+ * `MEASUREMENT_MODEL_VERSION`: bumping the current version must never
+ * silently drop an old one from this list.
+ */
+export const MEASUREMENT_MODEL_VERSIONS = ["landmark-raw-v1"] as const;
+export type MeasurementModelVersion =
+  (typeof MEASUREMENT_MODEL_VERSIONS)[number];
+
 // ── Payload ─────────────────────────────────────────────────────────────────
 
 const mm = (min: number, max: number) => z.number().finite().min(min).max(max);
+
+const FINGER_KEYS = [
+  "thumbLengthMm",
+  "indexLengthMm",
+  "middleLengthMm",
+  "ringLengthMm",
+  "pinkyLengthMm",
+] as const;
 
 export const handMeasurementsSchema = z
   .strictObject({
@@ -127,6 +148,21 @@ export const handMeasurementsSchema = z
   .refine((m) => m.palmLengthMm < m.handLengthMm, {
     message: "palmLengthMm must be shorter than handLengthMm",
     path: ["palmLengthMm"],
+  })
+  // #63: a finger is part of the hand, so every finger chain is shorter than
+  // wrist-to-middle-fingertip. Only invariants that hold for any real hand
+  // are enforced here; proportion bands need M2 data first.
+  .superRefine((m, ctx) => {
+    for (const key of FINGER_KEYS) {
+      const value = m[key];
+      if (value !== undefined && value >= m.handLengthMm) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} must be shorter than handLengthMm`,
+        });
+      }
+    }
   });
 
 /** Printed calibration sheet: ArUco markers + bank-card cross-check. */
@@ -216,6 +252,24 @@ export const calibrationEvidenceSchema = z.union([
 ]);
 
 /**
+ * How a scan was calibrated. The printed sheet predates the `method` tag, so
+ * its evidence carries none; the other two name themselves. Stored with the
+ * scan (#63) so M2 validation and aggregate stats can tell the paths apart.
+ */
+export const CALIBRATION_METHODS = [
+  "printed-sheet",
+  "paper-edge",
+  "user-length",
+] as const;
+export type CalibrationMethod = (typeof CALIBRATION_METHODS)[number];
+
+export function calibrationMethodOf(
+  evidence: z.infer<typeof calibrationEvidenceSchema>,
+): CalibrationMethod {
+  return "method" in evidence ? evidence.method : "printed-sheet";
+}
+
+/**
  * Strict: an unexpected field fails the parse instead of being silently
  * stripped, so a client that tries to send an image is rejected loudly.
  */
@@ -225,7 +279,7 @@ export const scanSubmissionSchema = z
     gripStyleStated: z.enum(["palm", "claw", "fingertip"]).optional(),
     measurements: handMeasurementsSchema,
     calibration: calibrationEvidenceSchema,
-    measurementModelVersion: z.literal(MEASUREMENT_MODEL_VERSION),
+    measurementModelVersion: z.enum(MEASUREMENT_MODEL_VERSIONS),
   })
   .superRefine((s, ctx) => {
     if (
