@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-10-03 · by: Claude (#106, #92, #94, #84, #86 merged; Home v3 spec; #97 in its CI-font fix round)_
+_Last updated: 2026-10-04 · by: Claude (#97, #108 and Home v3 PR A #109 merged; PR B and a follow-ups PR in progress)_
 
 ---
 
@@ -27,9 +27,9 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **W7**: the real-hand-photo ML phase, which is the last engineering job.
 - **W8**: launch (public Beta, then general availability).
 
-**Production:** behaves as of `0170e42` (#86). Since 2026-10-03 it also carries #92 (audit P1 fixes and the no-ruler, expire wording), #94 (error and 404 pages, `/api/health`, structured logs, one site name per page title), #84 (README, NOTICE, CONTRIBUTING, MediaPipe caching) and #86 (scoring and copy logic). The hump seed (#101) and scan provenance (#85) from 2026-10-02 are unchanged; the learning pages still return 404 in production.
+**Production:** behaves as of `435b0d1` (#109). Since 2026-10-04 the whole site is dark (one theme, tokens in `src/app/tokens.css`) and the home page has the static Home v3 layout (placeholder logo, headline, a hand on A4, three G Pro sketches). Scan v2 (#97) is live: full-bleed viewfinder, no jumping, real focus. #92, #94, #84 and #86 (2026-10-03) are unchanged; the learning pages still return 404 in production.
 
-- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each merge on 2026-10-03; the last run passed against `0170e42` (`[mobile] reload-keeps-results.spec.ts`, 1 passed). Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. After each merge `/`, `/how-it-works`, `/account` and `/api/health` returned 200, and `/results/demo`, `/learn` and an unknown path returned 404.
+- **Anonymous flow:** operational. Claude ran the unmocked live e2e (reload included) locally after each merge; the last run passed against `435b0d1` on 2026-10-04 (`[mobile] reload-keeps-results.spec.ts`, 1 passed in 15.9 s). Command: `BASE_URL=https://open-mouse.vercel.app npx playwright test -c playwright.live.config.ts`. `/`, `/scan/easy`, `/how-it-works`, `/account` and `/api/health` return 200; `/results/demo` and `/learn` return 404.
 - **Every merge:** followed by a local `npm run test:e2e:live` against production. We run it locally rather than through `live-e2e.yml`.
 - **Kirby's phone test** of #77 (right and left hand) is still pending.
 
@@ -92,16 +92,20 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **#84 (G6):** README without the ruler-accuracy line or "(未拍板)" markers, NOTICE with jsqr (Apache-2.0), CONTRIBUTING, templates, MediaPipe caching, the non-SIMD fallback.
 - **#86 (G4):** scoring and copy logic (Chinese numerals, provisional check, medical terms, weight parameters, thumb reason).
 
+**Merged 2026-10-03 to 2026-10-04:**
+
+- **#108 (CI):** the `checks` job's limit goes from 20 to 35 minutes. With scan v2's specs the full Playwright matrix (about 900 tests on one worker) passed 20 minutes and #97's ready run was cancelled at the limit.
+- **#97 (S4):** scan v2 (full-bleed viewfinder, no jumping, real focus). Its first ready CI failed 8 layout checks in Linux's wider default font; the fix made the grip options fit any font (`ch` container queries: four, two by two, or stacked) and the sheet-height test count the lines a wider font adds. A debug-panel test that raced the auto-capture was made deterministic. Both directions of the grip layout are guarded.
+- **#109 (Home v3 PR A):** site-wide dark theme from one token file; old `--scan-*` accents split into fill (`--accent`) and text or outline (`--accent-text`); pressed buttons darken instead of fading; print stays light; the static Home v3 layout with no photo-privacy line on the home page (the promise stays on How it works, the scan screens and the camera, pinned by a unit test); the sampling half of the particle-target generator (`src/lib/particles/`, `npm run particles:build`). A `pr-review` run and two verifier rounds; a focus-ring pixel check was made stricter (best row of the whole ring, limit 12) instead of loosened.
+
 **Open work:**
 
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
 - **#75** — UI/UX audit (draft). The corrections to findings 3 and 5 are pushed (`cda0957`).
 - **Copy review (2026-10-02)** — closed. Kirby decided its three directions on 2026-10-03 and approved the remaining strings as they ship (#69 and #74 after the fact, the #86 results-page strings), to be adjusted later (see the decisions log).
 - **Front flare and side curvature** — still unclassified. GD-2 redesigned both and ran once more, in-sample on the same 28 rows (flare 75.0 % coarse / 92.9 % within-one, curvature 60.7 % / 89.3 %: both fail). One authorised run is left; Claude recommends not using it on the same rows.
-- **#97 (S4)** — scan v2 UI (full-bleed viewfinder), from another session; base retargeted to `main` after #92. Its ready CI failed 8 layout e2e checks in Linux's wider default font (grip options, the pinned actions at 200 % text, the sheet height). A builder is fixing them (font-independent grip thresholds in `ch`; tests that count wrapped lines) and merging `main`.
-- **Home v3 PR A** — dispatched after #97 merges, from the spec in `docs/design/home-v3-2026-10-03/README.md`.
-- **Small follow-ups (2026-10-03):** a non-breaking space between number and unit (`84 mm` can wrap in a wide font); two Apache-2.0 packages in NOTICE (`@google/genai`, `drizzle-orm`) without a pointer to the licence text; the stale JSDoc in `src/client/photo/unverified-note.ts`.
-- **`docs/PLAN.md`** still states the old M2 gate (±1.5 mm / ±2 mm, lines 158 and 232); update it to prereg v2 in a docs PR.
+- **Home v3 PR B** (particle canvas) — a builder is implementing it from the spec; draft PR to follow. The frame-time target (about 8 ms on a mid-range phone) stays candidate until measured on a real phone.
+- **Small follow-ups** — a builder is preparing one PR: results-page print colours; NOTICE pointers for `@google/genai` and `drizzle-orm`; a non-breaking space between number and unit; the stale JSDoc in `src/client/photo/unverified-note.ts`; the old M2 gate in `docs/PLAN.md`.
 - **#26 follow-ups (low)** — the 3 studies' bounds check and two `__main__` checks in `check_catalogues.py` have no test that fails when they are removed; the GLB scene index is not tested.
 - **#104 follow-ups (low)** — after a re-sort with corrected `shotCounts`, a `labels.json` already filled for that participant may now point at other photos (the CONFLICT message should say to redo that participant's labels); the checker's forced A4 (`shownPaper`) and the script's skipped-files wiring have no test; photos in subfolders are ignored without a mention; `findOrphans` also lists non-photo files.
 - **`descriptor_method`** — the seed writes `rubric_vision` for the geometry hump because the enum has no `geometry` value; the true source is in `descriptor_model`. Adding `geometry` needs a migration.
