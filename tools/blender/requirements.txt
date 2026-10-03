@@ -1,0 +1,2 @@
+# Python == 3.13; installed Blender 5.2.2 already bundles this module.
+bpy==5.2.2

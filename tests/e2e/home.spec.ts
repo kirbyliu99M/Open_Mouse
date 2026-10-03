@@ -56,7 +56,7 @@ test("landing shows the headline, sketch, catalogue specifications and CTA desti
   }
   await expect(
     page.getByText(
-      `${catalogue.length} Logitech mice scored on length, grip width and weight.`,
+      `${catalogue.length} Logitech mice scored on length, grip width and height.`,
     ),
   ).toBeVisible();
   await expect(

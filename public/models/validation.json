@@ -1,0 +1,2928 @@
+{
+  "roundTrips": [
+    {
+      "slug": "logitech-ergo-m575",
+      "model": "ERGO M575",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+        "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+        "bytes": 3779732,
+        "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+      },
+      "mesh": {
+        "vertices": 6997,
+        "triangles": 13998,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 251522.64115474958
+      },
+      "dimensionsXYZmm": [
+        100.00000894069672, 134.0000182390213, 48.00000786781311
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
+      "uncalibratedDimensionsXYZmm": [
+        99.38473999500275, 133.3036944270134, 47.82551146490732
+      ],
+      "dimensionCalibrationScale": [
+        1.0061907038761113, 1.0052234779676565, 1.003648449268613
+      ],
+      "bytes": 242904,
+      "path": "shells/logitech-ergo-m575.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999985098839, 0.9999999750905969, 0.999999991307656
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+          "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+          "bytes": 3779732,
+          "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2130757,
+          "firstPassMissedTexels": 21633,
+          "firstPassMissedShare": 0.010152729757546261,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10490,
+          "filledTexels": 11124,
+          "unresolvedTexels": 19,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516
+    },
+    {
+      "slug": "logitech-g-pro-2-lightspeed",
+      "model": "G Pro 2 Lightspeed",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-2-wireless-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
+        "file": "logitech-g-pro-2-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
+        "bytes": 10838520,
+        "sha256": "019fa91f7af013b18a258e05a68037633024974043bf517a6f7c94ae68de8430"
+      },
+      "mesh": {
+        "vertices": 6990,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 181692.2543105519
+      },
+      "dimensionsXYZmm": [
+        63.50000947713852, 125.0000149011612, 40.00000283122063
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
+      "uncalibratedDimensionsXYZmm": [
+        63.2573626935482, 123.98982793092728, 39.84402784408303
+      ],
+      "dimensionCalibrationScale": [
+        1.003835748483306, 1.008147217283304, 1.0039146390457299
+      ],
+      "bytes": 313576,
+      "path": "shells/logitech-g-pro-2-lightspeed.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [0.999999968085703, 1.0, 0.9999999292194893]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-2-wireless-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
+          "file": "logitech-g-pro-2-lightspeed/pro-2-wireless-lightspeed-white-gaming-mice-usdz-ar-360.glb",
+          "bytes": 10838520,
+          "sha256": "019fa91f7af013b18a258e05a68037633024974043bf517a6f7c94ae68de8430"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1717607,
+          "firstPassMissedTexels": 84180,
+          "firstPassMissedShare": 0.0490100471178797,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 23836,
+          "filledTexels": 55017,
+          "unresolvedTexels": 5327,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 23.299087111893105
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2",
+      "model": "G Pro X Superlight 2",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "bytes": 9233256,
+        "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 184729.86320531598
+      },
+      "dimensionsXYZmm": [
+        63.50000947713852, 125.0000149011612, 40.00000283122063
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
+      "uncalibratedDimensionsXYZmm": [
+        63.24205920100212, 123.94244968891144, 39.63208264030982
+      ],
+      "dimensionCalibrationScale": [
+        1.0040786594999378, 1.0085325916483252, 1.0092833928070335
+      ],
+      "bytes": 302612,
+      "path": "shells/logitech-g-pro-x-superlight-2.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [0.999999968085703, 1.0, 0.9999999292194893]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "bytes": 9233256,
+          "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 25.490273276389463
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2-dex",
+      "model": "G Pro X Superlight 2 DEX",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
+        "file": "logitech-g-pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
+        "bytes": 7600472,
+        "sha256": "6b02b8cec98bb8c5c5ffd8bcc68cd889c2aee3c038fe88c6727d4dee61cde86e"
+      },
+      "mesh": {
+        "vertices": 6984,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 196186.58805024935
+      },
+      "dimensionsXYZmm": [
+        67.70000606775284, 125.8000135421753, 43.900009244680405
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.3542175295810921e-5,
+      "uncalibratedDimensionsXYZmm": [
+        67.3091821372509, 124.72071498632431, 43.768318650108995
+      ],
+      "dimensionCalibrationScale": [
+        1.0058062877531988, 1.008653723288624, 1.0030086406801118
+      ],
+      "bytes": 300636,
+      "path": "shells/logitech-g-pro-x-superlight-2-dex.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999653993727, 0.9999998923515593, 0.9999999591321246
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
+          "file": "logitech-g-pro-x-superlight-2-dex/pro-x-superlight-2-dex-black-gaming-mice-ar-360.glb",
+          "bytes": 7600472,
+          "sha256": "6b02b8cec98bb8c5c5ffd8bcc68cd889c2aee3c038fe88c6727d4dee61cde86e"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1812022,
+          "firstPassMissedTexels": 55552,
+          "firstPassMissedShare": 0.030657464423721126,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 16695,
+          "filledTexels": 37775,
+          "unresolvedTexels": 1082,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 25.509128868285263
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2-se",
+      "model": "G Pro X Superlight 2 SE",
+      "status": "reference-derived-review",
+      "method": "Kirby-approved Superlight 2 AR-derived sibling shell with photo-measured red SE base colour",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+        "bytes": 9233256,
+        "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 184729.86320531598
+      },
+      "dimensionsXYZmm": [
+        63.50000947713852, 125.0000149011612, 40.00000283122063
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.4901161193847656e-5,
+      "uncalibratedDimensionsXYZmm": [
+        63.24205920100212, 123.94244968891144, 39.63208264030982
+      ],
+      "dimensionCalibrationScale": [
+        1.0040786594999378, 1.0085325916483252, 1.0092833928070335
+      ],
+      "bytes": 305720,
+      "path": "shells/logitech-g-pro-x-superlight-2-se.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [0.999999968085703, 1.0, 0.9999999292194893]
+      },
+      "textureRefinement": {
+        "method": "Source component ID bake; explicit spatial UV print annotations; robust quadratic log-luminance removal with median illumination anchor and neutral specular subtraction on saturated red plastic; median linear RGB; multiplicative detail recolour and continuous ink compositing",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "file": "logitech-g-pro-x-superlight-2/pro-x-superlight-2-off-white-gaming-mice-ar-360.glb",
+          "bytes": 9233256,
+          "sha256": "ce7f19702694eaf41f2b4c5e9793eb9cd13c17e6b451d6d508a4038a94bc5888"
+        },
+        "normalStrength": 0.65,
+        "baseColourPhotos": [
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+            "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+            "sha256": "5094027798ff04124626e2753850cb2e3add2a313b1cca06141d36972fb9317c"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+            "sha256": "36670af1ad6d8049ce44a4318f0b0200708252348842453cf71cb4d882096b67"
+          },
+          {
+            "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+            "url": "https://resource.logitechg.com/content/dam/gaming/en/products/pro-x-superlight-2-se-pdp/gallery/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+            "sha256": "eb99c90942416c8713861e43e5f135afa2fbe5aaf00f5eb6586d0df35dd34929"
+          }
+        ],
+        "baseColourRegions": [
+          {
+            "region": "shell",
+            "photoLinearRGB": [0.6796035481577938, 0.0, 0.010290862157551437],
+            "textureLinearRGB": [0.6795424696330938, 0.0, 0.010329823029626936],
+            "deltaE2000": 0.013263414116185195,
+            "textureCorePixels": 788286,
+            "deliveredLinearRGB": [
+              0.6724431569576875, 0.0, 0.010329823029626936
+            ],
+            "deliveredDeltaE2000": 0.22022226785379426,
+            "deliveredCorePixels": 47805,
+            "subpixelFallback": false
+          },
+          {
+            "region": "main_buttons",
+            "photoLinearRGB": [0.6719035485634272, 0.0, 0.025114456081087953],
+            "textureLinearRGB": [0.6724431569576875, 0.0, 0.02518685962736163],
+            "deltaE2000": 0.020400286172217594,
+            "textureCorePixels": 399836,
+            "deliveredLinearRGB": [0.665387298282272, 0.0, 0.02518685962736163],
+            "deliveredDeltaE2000": 0.2119457285123935,
+            "deliveredCorePixels": 23169,
+            "subpixelFallback": false
+          },
+          {
+            "region": "side_buttons",
+            "photoLinearRGB": [0.9215820968665375, 0.0, 0.03678270356938445],
+            "textureLinearRGB": [0.9215818562772946, 0.0, 0.03688945040110004],
+            "deltaE2000": 0.019706154455140082,
+            "textureCorePixels": 23775,
+            "deliveredLinearRGB": [
+              0.9215818562772946, 0.0003035269835488375, 0.03560131487502034
+            ],
+            "deliveredDeltaE2000": 0.24507934395643857,
+            "deliveredCorePixels": 1211,
+            "subpixelFallback": false
+          },
+          {
+            "region": "wheel_rubber",
+            "photoLinearRGB": [
+              0.031592138594987176, 0.029580768633465197, 0.029882861009358976
+            ],
+            "textureLinearRGB": [
+              0.03189603307301153, 0.0295568344378088, 0.0295568344378088
+            ],
+            "deltaE2000": 0.22479793296807168,
+            "textureCorePixels": 13682,
+            "deliveredLinearRGB": [
+              0.03189603307301153, 0.0295568344378088, 0.030713443732993635
+            ],
+            "deliveredDeltaE2000": 0.5824204438236626,
+            "deliveredCorePixels": 703,
+            "subpixelFallback": false
+          },
+          {
+            "region": "wheel_rim",
+            "photoLinearRGB": [
+              0.6357919660260487, 0.6122087570381255, 0.6173772145348393
+            ],
+            "textureLinearRGB": [
+              0.6375968739940326, 0.6104955708078648, 0.6172065624196511
+            ],
+            "deltaE2000": 0.30691111818882033,
+            "textureCorePixels": 23810,
+            "deliveredLinearRGB": [
+              0.6444796819705821, 0.6038273388553378, 0.5972017883637634
+            ],
+            "deliveredDeltaE2000": 1.3596753633263838,
+            "deliveredCorePixels": 911,
+            "subpixelFallback": false
+          },
+          {
+            "region": "underside",
+            "photoLinearRGB": [
+              0.022249240421722598, 0.022438453256610556, 0.0224520964464043
+            ],
+            "textureLinearRGB": [
+              0.02217388479338738, 0.02217388479338738, 0.02217388479338738
+            ],
+            "deltaE2000": 0.15157630434826064,
+            "textureCorePixels": 456634,
+            "deliveredLinearRGB": [
+              0.02315336617811041, 0.02315336617811041, 0.02315336617811041
+            ],
+            "deliveredDeltaE2000": 0.2769736075978594,
+            "deliveredCorePixels": 26896,
+            "subpixelFallback": false
+          },
+          {
+            "region": "feet",
+            "photoLinearRGB": [
+              0.09445485122299627, 0.11650939088408446, 0.1484081536871295
+            ],
+            "textureLinearRGB": [
+              0.0953074666309647, 0.11697066775851084, 0.14702726649759498
+            ],
+            "deltaE2000": 0.328121121931068,
+            "textureCorePixels": 217225,
+            "deliveredLinearRGB": [
+              0.09758734714186246, 0.11697066775851084, 0.14702726649759498
+            ],
+            "deliveredDeltaE2000": 0.5364691859531293,
+            "deliveredCorePixels": 13044,
+            "subpixelFallback": false
+          },
+          {
+            "region": "logo",
+            "photoLinearRGB": [
+              0.36617269914479245, 0.3611454780004699, 0.370710163968508
+            ],
+            "textureLinearRGB": [
+              0.3662525955988395, 0.3613067797835095, 0.3712376804741491
+            ],
+            "deltaE2000": 0.040852077097710424,
+            "textureCorePixels": 7045,
+            "deliveredLinearRGB": [
+              0.39157247774972326, 0.35153259950043936, 0.35153259950043936
+            ],
+            "deliveredDeltaE2000": 3.401652864240701,
+            "deliveredCorePixels": 326,
+            "subpixelFallback": false
+          },
+          {
+            "region": "side_wordmark",
+            "photoLinearRGB": [
+              0.672443156961918, 0.6722855072523601, 0.6653872982864583
+            ],
+            "textureLinearRGB": [
+              0.6724431569576875, 0.6724431569576875, 0.665387298282272
+            ],
+            "deltaE2000": 0.01926776173977427,
+            "textureCorePixels": 3527,
+            "deliveredLinearRGB": [1.0, 0.5552179835375579, 0.5215161256799179],
+            "deliveredDeltaE2000": 18.758745921136118,
+            "deliveredCorePixels": 4,
+            "subpixelFallback": false
+          },
+          {
+            "region": "indicator",
+            "photoLinearRGB": [
+              0.08372948120588206, 0.46343845042659176, 0.02378736386680226
+            ],
+            "textureLinearRGB": [
+              0.08437621154414882, 0.4620769996544071, 0.024157632448504756
+            ],
+            "deltaE2000": 0.07845715839357363,
+            "textureCorePixels": 14,
+            "deliveredLinearRGB": [
+              0.45641102318040466, 0.2831487404299921, 0.13563332965520566
+            ],
+            "deliveredDeltaE2000": 31.935767397405193,
+            "deliveredCorePixels": 1,
+            "subpixelFallback": true
+          },
+          {
+            "region": "ports_and_recesses",
+            "photoLinearRGB": [
+              0.006776989277595347, 0.006816390222481452, 0.006816390222481452
+            ],
+            "textureLinearRGB": [
+              0.006995410187265387, 0.006995410187265387, 0.006995410187265387
+            ],
+            "deltaE2000": 0.11495169916457214,
+            "textureCorePixels": 150408,
+            "deliveredLinearRGB": [
+              0.006995410187265387, 0.006995410187265387, 0.006995410187265387
+            ],
+            "deliveredDeltaE2000": 0.11495169916457214,
+            "deliveredCorePixels": 7628,
+            "subpixelFallback": false
+          },
+          {
+            "region": "underside_logo",
+            "photoLinearRGB": [
+              0.21524677785822038, 0.21607145000154118, 0.21602365434631055
+            ],
+            "textureLinearRGB": [
+              0.21586050011389926, 0.21586050011389926, 0.21586050011389926
+            ],
+            "deltaE2000": 0.13230318195831645,
+            "textureCorePixels": 3684,
+            "deliveredLinearRGB": [
+              0.46493039788328305, 0.46493039788328305, 0.47065764613008426
+            ],
+            "deliveredDeltaE2000": 16.987242951676404,
+            "deliveredCorePixels": 148,
+            "subpixelFallback": false
+          }
+        ],
+        "cameraRegistration": {
+          "method": "Canonical orthographic bbox registration and held-out oblique silhouette fit.\n\nThe orthogonal registration repeats A2: alpha >180, largest component, filled\nholes, independent X/Y bbox normalisation. It is explicitly an affine framing\nfit, not a recovered physical lens or an independent shape-identity proof.\n",
+          "views": [
+            {
+              "view": "top",
+              "iou": 0.9941377011798662,
+              "axes": [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0]
+              ],
+              "size": [504, 1000],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-top-angle-gallery-1.png",
+              "sha256": "13b5b616c335edfc7bd688f567c5d46aa639260c7448fd61a5e74c31e56306d9",
+              "bbox": [851, 286, 1653, 1877]
+            },
+            {
+              "view": "left",
+              "iou": 0.9866333582065341,
+              "axes": [
+                [0, -1, 0],
+                [0, 0, 1],
+                [-1, 0, 0]
+              ],
+              "size": [1000, 317],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-left-angle-gallery-4.png",
+              "sha256": "5094027798ff04124626e2753850cb2e3add2a313b1cca06141d36972fb9317c",
+              "bbox": [346, 796, 2152, 1369]
+            },
+            {
+              "view": "right",
+              "iou": 0.9858744385554249,
+              "axes": [
+                [0, 1, 0],
+                [0, 0, 1],
+                [1, 0, 0]
+              ],
+              "size": [1000, 318],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-profile-right-angle-gallery-5.png",
+              "sha256": "eb99c90942416c8713861e43e5f135afa2fbe5aaf00f5eb6586d0df35dd34929",
+              "bbox": [353, 793, 2154, 1365]
+            },
+            {
+              "view": "bottom",
+              "iou": 0.9929363576818512,
+              "axes": [
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, 0, -1]
+              ],
+              "size": [504, 1000],
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-bottom-angle-gallery-6.png",
+              "sha256": "36670af1ad6d8049ce44a4318f0b0200708252348842453cf71cb4d882096b67",
+              "bbox": [850, 283, 1654, 1877]
+            },
+            {
+              "view": "hero-held-out",
+              "file": "logitech-g-pro-x-superlight-2-se/pro-x-superlight-2-se-red-3qtr-high-back-angle-gallery-3.png",
+              "iou": 0.9789141207863639,
+              "angles": [
+                -49.52540034558602, 36.21298153854552, 0.0001921639946296404
+              ],
+              "axes": [
+                [
+                  -0.6491093743326405, -0.7606950901288674,
+                  2.7060108129756408e-6
+                ],
+                [0.449411317745405, -0.38348468365838434, 0.8068264775537352],
+                [-0.6137479023473944, 0.5237198461517985, 0.5907884859329182]
+              ],
+              "usedForColour": false
+            }
+          ]
+        },
+        "regionBakeSurfaceCoveragePercent": {
+          "upper": 99.97004286568742,
+          "side": 99.99657076485667,
+          "underside": 99.99866062974296
+        },
+        "colourLimitation": "Relative studio de-shading only: no colour chart or known exposure; unknown global illumination scale remains.",
+        "smallFeatureLimitations": "512px JPEG red chroma bleed shifts side wordmark and subpixel indicator; filtered high-contrast inherited underside logo shifts its median. Underside regulatory glyphs retain sibling artwork and relative contrast; not SE serial/model-label evidence."
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 25.490273276389463,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      },
+      "inheritedShell": {
+        "slug": "logitech-g-pro-x-superlight-2",
+        "deliveredSHA256": "86e0a50d879d35e5e23b791d410ca5f5ebadd917cd6775491eb0cd5691e86142",
+        "geometryAndUV": "Byte-identical compressed geometry and UV atlas; decoded vertex displacement 0 mm",
+        "detailMaps": "Byte-identical sibling tangent normal and packed metallic/roughness maps",
+        "preservedBufferViews": [
+          {
+            "bufferView": 0,
+            "bytes": 106546,
+            "sha256": "3711fad8f93294a279c30ce31e4e8b4aaa15b77ef2b0f46729700747acd31203"
+          },
+          {
+            "bufferView": 1,
+            "bytes": 95110,
+            "sha256": "15fe0c57c5963d1aa56928a83b8af24c8be21bab86491a6ea08c5a2b57f23015"
+          },
+          {
+            "bufferView": 3,
+            "bytes": 45355,
+            "sha256": "e9b4bbab4e0759621bf7224265799619da35c5271d9aa9320f7249f23067dbb8"
+          }
+        ],
+        "decision": "Kirby approved the Superlight 2 sibling shell and detail-map route for red SE on 2026-09-28",
+        "a2": {
+          "topIoU": 0.994485,
+          "sideIoU": 0.989098,
+          "topMaxBoundaryGapMm": 1.008,
+          "sideMaxBoundaryGapMm": 2.338,
+          "interpretation": "Original same-shell gate inconclusive at a narrow seam; substitution is Kirby-approved, not a changed gate"
+        }
+      }
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2c",
+      "model": "G Pro X Superlight 2c",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2c/pro-x-superlight-2c-white-gaming-mice-ar-360.glb",
+        "file": "logitech-g-pro-x-superlight-2c/pro-x-superlight-2c-white-gaming-mice-ar-360.glb",
+        "bytes": 6083632,
+        "sha256": "f8970fd5366a6bd5223a28ef038cd7eb96d63d24ca9a3b255c6d2a71808ac413"
+      },
+      "mesh": {
+        "vertices": 6994,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 158523.59154852212
+      },
+      "dimensionsXYZmm": [
+        61.40001118183136, 118.40000748634338, 38.49999979138374
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1181831361284367e-5,
+      "uncalibratedDimensionsXYZmm": [
+        60.937270522117615, 117.45145544409752, 38.33272954216227
+      ],
+      "dimensionCalibrationScale": [
+        1.0075935992073224, 1.0080761199481034, 1.0043637376338617
+      ],
+      "bytes": 312252,
+      "path": "shells/logitech-g-pro-x-superlight-2c.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999392304473, 0.9999999367707525, 0.9999999086578254
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/pro-x-superlight-2c/pro-x-superlight-2c-white-gaming-mice-ar-360.glb",
+          "file": "logitech-g-pro-x-superlight-2c/pro-x-superlight-2c-white-gaming-mice-ar-360.glb",
+          "bytes": 6083632,
+          "sha256": "f8970fd5366a6bd5223a28ef038cd7eb96d63d24ca9a3b255c6d2a71808ac413"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2095546,
+          "firstPassMissedTexels": 3349,
+          "firstPassMissedShare": 0.0015981515080079368,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 1515,
+          "filledTexels": 1806,
+          "unresolvedTexels": 28,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 25.574942280433472
+    },
+    {
+      "slug": "logitech-g203-lightsync",
+      "model": "G203 Lightsync",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g203/g203-blue-hexa.glb",
+        "file": "logitech-g203-lightsync/g203-blue-hexa.glb",
+        "bytes": 2991020,
+        "sha256": "cc3d6af89146023ab4a5c7ed429df7d21a98740f8f21ff4c4554f3aac118c4f9",
+        "discoveredOn": "https://www.logitechg.com/en-us/shop/p/g203-lightsync-rgb-gaming-mouse"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 161242.06235582964
+      },
+      "dimensionsXYZmm": [
+        62.10000067949295, 116.60000681877136, 38.200005888938904
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
+      "uncalibratedDimensionsXYZmm": [
+        61.68647110462189, 116.1031536757946, 38.054062981245806
+      ],
+      "dimensionCalibrationScale": [
+        1.0067037320739212, 1.004279411258407, 1.0038350486379004
+      ],
+      "bytes": 219512,
+      "path": "shells/logitech-g203-lightsync.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999890580847, 0.9999999415199745, 0.9999999433599875
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g203/g203-blue-hexa.glb",
+          "file": "logitech-g203-lightsync/g203-blue-hexa.glb",
+          "bytes": 2991020,
+          "sha256": "cc3d6af89146023ab4a5c7ed429df7d21a98740f8f21ff4c4554f3aac118c4f9",
+          "discoveredOn": "https://www.logitechg.com/en-us/shop/p/g203-lightsync-rgb-gaming-mouse"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.14810226260821
+    },
+    {
+      "slug": "logitech-g305-lightspeed",
+      "model": "G305 Lightspeed",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g305/g305-black-gaming-mice-hexa.glb",
+        "file": "logitech-g305-lightspeed/g305-black-gaming-mice-hexa.glb",
+        "bytes": 1618312,
+        "sha256": "48a1a909f3bd0182c54f1890e5decee16814c1e27df983c95d417fe41c5a0571",
+        "discoveredOn": "https://www.logitechg.com/en-us/shop/p/g305-lightspeed-wireless-gaming-mouse"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 167207.86245010112
+      },
+      "dimensionsXYZmm": [
+        62.10000067949295, 116.60000681877136, 38.200005888938904
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.818771367989029e-6,
+      "uncalibratedDimensionsXYZmm": [
+        61.77341379225254, 115.78962206840515, 38.05063934851205
+      ],
+      "dimensionCalibrationScale": [
+        1.0052868518540798, 1.0069987684206056, 1.0039253693944146
+      ],
+      "bytes": 158256,
+      "path": "shells/logitech-g305-lightspeed.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999890580847, 0.9999999415199745, 0.9999999433599875
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/gaming/en/ar-models/g305/g305-black-gaming-mice-hexa.glb",
+          "file": "logitech-g305-lightspeed/g305-black-gaming-mice-hexa.glb",
+          "bytes": 1618312,
+          "sha256": "48a1a909f3bd0182c54f1890e5decee16814c1e27df983c95d417fe41c5a0571",
+          "discoveredOn": "https://www.logitechg.com/en-us/shop/p/g305-lightspeed-wireless-gaming-mouse"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2303891,
+          "firstPassMissedTexels": 22,
+          "firstPassMissedShare": 9.549062867991584e-6,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 12,
+          "filledTexels": 10,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 23.555981240544558
+    },
+    {
+      "slug": "logitech-g309",
+      "model": "G309",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g309/g309-white-gaming-mice-ar-360.glb",
+        "file": "logitech-g309/g309-white-gaming-mice-ar-360.glb",
+        "bytes": 14367228,
+        "sha256": "7cbc75e914d9113c92bbcbe4f190d6db4e0f7023bdb86cab48b06ce474a34c08"
+      },
+      "mesh": {
+        "vertices": 6990,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 169458.72277140306
+      },
+      "dimensionsXYZmm": [
+        64.00001049041748, 120.00000476837158, 39.000000804662704
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.049041748046875e-5,
+      "uncalibratedDimensionsXYZmm": [
+        63.74146416783333, 118.69828030467033, 38.83600520930486
+      ],
+      "dimensionCalibrationScale": [
+        1.0040560548048099, 1.010966666579836, 1.0042227719991796
+      ],
+      "bytes": 397556,
+      "path": "shells/logitech-g309.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999952502551, 0.9999999602635717, 0.9999999793676234
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g309/g309-white-gaming-mice-ar-360.glb",
+          "file": "logitech-g309/g309-white-gaming-mice-ar-360.glb",
+          "bytes": 14367228,
+          "sha256": "7cbc75e914d9113c92bbcbe4f190d6db4e0f7023bdb86cab48b06ce474a34c08"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 986457,
+          "firstPassMissedTexels": 35651,
+          "firstPassMissedShare": 0.0361404501159199,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 7857,
+          "filledTexels": 27029,
+          "unresolvedTexels": 765,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 23.554050815579323
+    },
+    {
+      "slug": "logitech-g403-hero",
+      "model": "G403 Hero",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g403/g403-hero-black-hexa.glb",
+        "file": "logitech-g403-hero/g403-hero-black-hexa.glb",
+        "bytes": 2747304,
+        "sha256": "e636d1ed7246185d17c559fe6b31efd0e80fef3891313a4c682fc8003b0600ee"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 201995.1388191985
+      },
+      "dimensionsXYZmm": [
+        68.00001114606857, 124.00000542402267, 43.000005185604095
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
+      "uncalibratedDimensionsXYZmm": [
+        67.65294820070267, 123.25747311115265, 42.74003184400499
+      ],
+      "dimensionCalibrationScale": [
+        1.0051299389607637, 1.0060242376719861, 1.0060825789100405
+      ],
+      "bytes": 194384,
+      "path": "shells/logitech-g403-hero.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999998360872538, 0.9999999562578835, 0.9999999660392151
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g403/g403-hero-black-hexa.glb",
+          "file": "logitech-g403-hero/g403-hero-black-hexa.glb",
+          "bytes": 2747304,
+          "sha256": "e636d1ed7246185d17c559fe6b31efd0e80fef3891313a4c682fc8003b0600ee"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1927091,
+          "firstPassMissedTexels": 21647,
+          "firstPassMissedShare": 0.01123299314874077,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 2993,
+          "filledTexels": 17032,
+          "unresolvedTexels": 1622,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 24.895363805244855
+    },
+    {
+      "slug": "logitech-g502-hero",
+      "model": "G502 Hero",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-hero/g502-hero-black.glb",
+        "file": "logitech-g502-hero/g502-hero-black.glb",
+        "bytes": 2952540,
+        "sha256": "2360abc289f569df0da3d34f66e9db76af309050f5300af2d2a54c9744dd5cbe"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 192320.7490445974
+      },
+      "dimensionsXYZmm": [
+        75.00001043081284, 131.20001554489136, 40.000006556510925
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.554489136879056e-5,
+      "uncalibratedDimensionsXYZmm": [
+        74.31714981794357, 130.40413707494736, 39.663036357524106
+      ],
+      "dimensionCalibrationScale": [
+        1.009188365861197, 1.006103054601139, 1.008495730651055
+      ],
+      "bytes": 251940,
+      "path": "shells/logitech-g502-hero.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999602635717, 0.99999999509352, 0.9999999292194893
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-hero/g502-hero-black.glb",
+          "file": "logitech-g502-hero/g502-hero-black.glb",
+          "bytes": 2952540,
+          "sha256": "2360abc289f569df0da3d34f66e9db76af309050f5300af2d2a54c9744dd5cbe"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.62276277650138
+    },
+    {
+      "slug": "logitech-g502-x",
+      "model": "G502 X",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-corded-white.glb",
+        "file": "logitech-g502-x/g502-x-corded-white.glb",
+        "bytes": 8754384,
+        "sha256": "b776d5cfda8196c7906e9e05d440ab9dbe051822a1f962370df8a7cf0992c2fd"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 198833.76687884014
+      },
+      "dimensionsXYZmm": [
+        79.20000702142715, 131.40001893043518, 41.10000655055046
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
+      "uncalibratedDimensionsXYZmm": [
+        78.19097116589546, 130.73594868183136, 40.63201285316609
+      ],
+      "dimensionCalibrationScale": [
+        1.012904666483938, 1.0050793630530706, 1.0115176732320637
+      ],
+      "bytes": 346700,
+      "path": "shells/logitech-g502-x.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000524551005, 0.9999999693358155, 1.000000021898544
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-corded-white.glb",
+          "file": "logitech-g502-x/g502-x-corded-white.glb",
+          "bytes": 8754384,
+          "sha256": "b776d5cfda8196c7906e9e05d440ab9dbe051822a1f962370df8a7cf0992c2fd"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1544476,
+          "firstPassMissedTexels": 8420,
+          "firstPassMissedShare": 0.005451687174161334,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 4429,
+          "filledTexels": 3981,
+          "unresolvedTexels": 10,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.03789211835509
+    },
+    {
+      "slug": "logitech-g502-x-lightspeed",
+      "model": "G502 X Lightspeed",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-lightspeecd-white.glb",
+        "file": "logitech-g502-x-lightspeed/g502-x-lightspeecd-white.glb",
+        "bytes": 9661560,
+        "sha256": "fc5ca084f8108a07c1a6a5cd6f71b2af551b7593ccdfb56c54ae5946b0aafc0c"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 193287.22951143762
+      },
+      "dimensionsXYZmm": [
+        79.20000702142715, 131.40001893043518, 41.10000655055046
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
+      "uncalibratedDimensionsXYZmm": [
+        78.17047834396362, 129.94390726089478, 40.5975799440057
+      ],
+      "dimensionCalibrationScale": [
+        1.0131702050274385, 1.0112055793847705, 1.0123755937338415
+      ],
+      "bytes": 301816,
+      "path": "shells/logitech-g502-x-lightspeed.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000524551005, 0.9999999693358155, 1.000000021898544
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-lightspeecd-white.glb",
+          "file": "logitech-g502-x-lightspeed/g502-x-lightspeecd-white.glb",
+          "bytes": 9661560,
+          "sha256": "fc5ca084f8108a07c1a6a5cd6f71b2af551b7593ccdfb56c54ae5946b0aafc0c"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1906909,
+          "firstPassMissedTexels": 9022,
+          "firstPassMissedShare": 0.004731216854081658,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 4191,
+          "filledTexels": 4831,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993
+    },
+    {
+      "slug": "logitech-g502-x-plus",
+      "model": "G502 X Plus",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-plus-black.glb",
+        "file": "logitech-g502-x-plus/g502-x-plus-black.glb",
+        "bytes": 10119168,
+        "sha256": "e47ad69f9dde34f0cfff55b516c5081c886eba49e8bd628cf1f357ce74d6ae64"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 193287.22951143762
+      },
+      "dimensionsXYZmm": [
+        79.20000702142715, 131.40001893043518, 41.10000655055046
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
+      "uncalibratedDimensionsXYZmm": [
+        78.17047834396362, 129.94390726089478, 40.5975799440057
+      ],
+      "dimensionCalibrationScale": [
+        1.0131702050274385, 1.0112055793847705, 1.0123755937338415
+      ],
+      "bytes": 267616,
+      "path": "shells/logitech-g502-x-plus.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000524551005, 0.9999999693358155, 1.000000021898544
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g502-x/g502-x-plus-black.glb",
+          "file": "logitech-g502-x-plus/g502-x-plus-black.glb",
+          "bytes": 10119168,
+          "sha256": "e47ad69f9dde34f0cfff55b516c5081c886eba49e8bd628cf1f357ce74d6ae64"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.3485830907993
+    },
+    {
+      "slug": "logitech-g703-lightspeed",
+      "model": "G703 Lightspeed",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g703-hero/g703-hero-black-hexa.glb",
+        "file": "logitech-g703-lightspeed/g703-hero-black-hexa.glb",
+        "bytes": 3381816,
+        "sha256": "d48518c9a940f0670dd7698494c83e871f1d852b31afdcf7bf9405275432f96c"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 200224.28631502282
+      },
+      "dimensionsXYZmm": [
+        68.00001114606857, 124.00000542402267, 43.000005185604095
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1146068572998047e-5,
+      "uncalibratedDimensionsXYZmm": [
+        67.64046102762222, 122.65227362513542, 42.74955928849522
+      ],
+      "dimensionCalibrationScale": [
+        1.0053154970028801, 1.0109882333123832, 1.0058583568108497
+      ],
+      "bytes": 198948,
+      "path": "shells/logitech-g703-lightspeed.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999998360872538, 0.9999999562578835, 0.9999999660392151
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g703-hero/g703-hero-black-hexa.glb",
+          "file": "logitech-g703-lightspeed/g703-hero-black-hexa.glb",
+          "bytes": 3381816,
+          "sha256": "d48518c9a940f0670dd7698494c83e871f1d852b31afdcf7bf9405275432f96c"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 24.744950685251297
+    },
+    {
+      "slug": "logitech-g903-hero",
+      "model": "G903 Hero",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g903-lightspeed/g903-lightspeed-black-gaming-mice-ar-360.glb",
+        "file": "logitech-g903-hero/g903-lightspeed-black-gaming-mice-ar-360.glb",
+        "bytes": 4691004,
+        "sha256": "10756b6c181b4fd3d8578a148c43f141ae47b462c46a3a593378fae48dab6baa"
+      },
+      "mesh": {
+        "vertices": 6960,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 188259.07007137945
+      },
+      "dimensionsXYZmm": [
+        67.00001657009125, 130.0000101327896, 39.99999910593033
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.6570091247558594e-5,
+      "uncalibratedDimensionsXYZmm": [
+        66.12597405910492, 128.51621955633163, 39.852618145232555
+      ],
+      "dimensionCalibrationScale": [
+        1.0132176141412135, 1.011545551071922, 1.0036982434993598
+      ],
+      "bytes": 393920,
+      "path": "shells/logitech-g903-hero.glb",
+      "sourceCalibration": {
+        "uncalibratedDimensionsXYZmm": [
+          72.85880297422409, 142.63468980789185, 44.7760708630085
+        ],
+        "dimensionCalibrationScale": [
+          0.9195869124096541, 0.9114193069573797, 0.8933343649915118
+        ],
+        "cableTrim": null
+      },
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999750905969, 0.9999999220554706, 0.9999999292194893
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitechg.com/content/dam/gaming/en/ar-models/g903-lightspeed/g903-lightspeed-black-gaming-mice-ar-360.glb",
+          "file": "logitech-g903-hero/g903-lightspeed-black-gaming-mice-ar-360.glb",
+          "bytes": 4691004,
+          "sha256": "10756b6c181b4fd3d8578a148c43f141ae47b462c46a3a593378fae48dab6baa"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 665198,
+          "firstPassMissedTexels": 28235,
+          "firstPassMissedShare": 0.04244600855685074,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 14705,
+          "filledTexels": 13385,
+          "unresolvedTexels": 145,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.57788751771076
+    },
+    {
+      "slug": "logitech-lift-vertical",
+      "model": "Lift Vertical",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/lift/offwhite-ar-360.glb",
+        "file": "logitech-lift-vertical/offwhite-ar-360.glb",
+        "bytes": 7897616,
+        "sha256": "335eb9dfd4473dbc87d1bc55d88fe21b6323d244054ddee3666c37191ecc15c0"
+      },
+      "mesh": {
+        "vertices": 7001,
+        "triangles": 13998,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 229141.1064205393
+      },
+      "dimensionsXYZmm": [
+        70.00000029802322, 108.0000102519989, 71.00000977516174
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0251998901367188e-5,
+      "uncalibratedDimensionsXYZmm": [
+        69.62908059358597, 107.5732484459877, 70.5227360012941
+      ],
+      "dimensionCalibrationScale": [
+        1.0053270803129264, 1.0039671048480503, 1.006767552570256
+      ],
+      "bytes": 261028,
+      "path": "shells/logitech-lift-vertical.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [7.549790126404332e-8, 0.0, 1.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [-1.0, 0.0, 7.549790126404332e-8, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": true,
+        "dimensionScale": [
+          0.9859154728206452, 0.9999999740609423, 1.0142856559887257
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/lift/offwhite-ar-360.glb",
+          "file": "logitech-lift-vertical/offwhite-ar-360.glb",
+          "bytes": 7897616,
+          "sha256": "335eb9dfd4473dbc87d1bc55d88fe21b6323d244054ddee3666c37191ecc15c0"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2382345,
+          "firstPassMissedTexels": 359,
+          "firstPassMissedShare": 0.00015069186033089246,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 40,
+          "filledTexels": 319,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 24.320639295712933
+    },
+    {
+      "slug": "logitech-m190",
+      "model": "M190",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m190/m190-charcoal-cordless-mice-ar-360.glb",
+        "file": "logitech-m190/m190-charcoal-cordless-mice-ar-360.glb",
+        "bytes": 9004824,
+        "sha256": "2ceb40e009345a5188f57cb13d4e6f6d84d864001ab93ee026c71aa09cb76243"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 172773.29812023483
+      },
+      "dimensionsXYZmm": [
+        66.10000133514404, 115.39999395608902, 40.300000458955765
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.043910985908951e-6,
+      "uncalibratedDimensionsXYZmm": [
+        65.84659963846207, 114.55817520618439, 40.04804048599908
+      ],
+      "dimensionCalibrationScale": [
+        1.003848364199113, 1.007348525319565, 1.006291443224164
+      ],
+      "bytes": 260380,
+      "path": "shells/logitech-m190.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999798011494, 0.9999999232474044, 0.9999999886115195
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m190/m190-charcoal-cordless-mice-ar-360.glb",
+          "file": "logitech-m190/m190-charcoal-cordless-mice-ar-360.glb",
+          "bytes": 9004824,
+          "sha256": "2ceb40e009345a5188f57cb13d4e6f6d84d864001ab93ee026c71aa09cb76243"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 20.250784275869
+    },
+    {
+      "slug": "logitech-m196",
+      "model": "M196",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m196/m196-offwhite-cordless-mice-ar-360.glb",
+        "file": "logitech-m196/m196-offwhite-cordless-mice-ar-360.glb",
+        "bytes": 11314656,
+        "sha256": "0b65103c47c89d3d9ef5fc68e3c6378aa82175dd853040629feeb6eeb5d23ac1"
+      },
+      "mesh": {
+        "vertices": 6998,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 141753.5484700069
+      },
+      "dimensionsXYZmm": [
+        59.999994933605194, 100.00000894069672, 38.00000250339508
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 8.940696716308594e-6,
+      "uncalibratedDimensionsXYZmm": [
+        59.24980528652668, 99.23302382230759, 37.75226156722056
+      ],
+      "dimensionCalibrationScale": [
+        1.0126615960007164, 1.007729056701748, 1.0065622806658459
+      ],
+      "bytes": 255260,
+      "path": "shells/logitech-m196.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999602635717, 0.999999985098839, 0.9999999341211864
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m196/m196-offwhite-cordless-mice-ar-360.glb",
+          "file": "logitech-m196/m196-offwhite-cordless-mice-ar-360.glb",
+          "bytes": 11314656,
+          "sha256": "0b65103c47c89d3d9ef5fc68e3c6378aa82175dd853040629feeb6eeb5d23ac1"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 20.60913154565747
+    },
+    {
+      "slug": "logitech-m240",
+      "model": "M240",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m240-silent/m240-silent-offwhite-cordless-mice-ar-360.glb",
+        "file": "logitech-m240/m240-silent-offwhite-cordless-mice-ar-360.glb",
+        "bytes": 9287480,
+        "sha256": "7de341bf27d3ccb2bc00816389d2d4fd1d379db90bbecc5adb317d2e15d62421",
+        "discoveredOn": "https://www.logitech.com/en-gb/shop/p/m240-silent-bluetooth-mouse"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 136137.8062144498
+      },
+      "dimensionsXYZmm": [
+        60.00000610947609, 99.0000069141388, 39.000000804662704
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.9141387939453125e-6,
+      "uncalibratedDimensionsXYZmm": [
+        59.378160163760185, 98.35385903716087, 38.714693022484425
+      ],
+      "dimensionCalibrationScale": [
+        1.0104725747431482, 1.006569624042243, 1.0073694961758468
+      ],
+      "bytes": 209888,
+      "path": "shells/logitech-m240.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999602635717, 0.9999999301602192, 0.9999999793676234
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m240-silent/m240-silent-offwhite-cordless-mice-ar-360.glb",
+          "file": "logitech-m240/m240-silent-offwhite-cordless-mice-ar-360.glb",
+          "bytes": 9287480,
+          "sha256": "7de341bf27d3ccb2bc00816389d2d4fd1d379db90bbecc5adb317d2e15d62421",
+          "discoveredOn": "https://www.logitech.com/en-gb/shop/p/m240-silent-bluetooth-mouse"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1980773,
+          "firstPassMissedTexels": 1234,
+          "firstPassMissedShare": 0.0006229891057683036,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 27,
+          "filledTexels": 1207,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 15.421830829736379
+    },
+    {
+      "slug": "logitech-m325s",
+      "model": "M325s",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/graphite/m325s-graphite-mouse-top-view-1.png",
+          "file": "logitech-m325s/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "23f827a24b5f171a6fea092891fbc16c04ff09ff0c5959439f99795d468a24ef",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/celebration-black/m325s-celebration-mouse-profile-view-2.png",
+          "file": "logitech-m325s/extra-4.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "0ce689a63289eaf0244339eb684cc40daca3365c8699609483252b0524b414f8",
+          "viewHint": "right"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 137358.08287757862
+      },
+      "dimensionsXYZmm": [
+        57.00000002980232, 94.70000118017197, 39.09999877214432
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.2278556837941323e-6,
+      "uncalibratedDimensionsXYZmm": [
+        56.871164590120316, 93.86329352855682, 39.06819006664364
+      ],
+      "dimensionCalibrationScale": [
+        1.0022653907442942, 1.0089140966611045, 1.0008142156906195
+      ],
+      "bytes": 181492,
+      "path": "studies/logitech-m325s.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Patterned side colourway provides silhouette only; charcoal top photo provides upper texture",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
+      ],
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999994771522, 0.9999999875377831, 1.0000000314029598
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/m325s-wireless-mouse/gallery/graphite/m325s-graphite-mouse-top-view-1.png",
+          "file": "logitech-m325s/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "23f827a24b5f171a6fea092891fbc16c04ff09ff0c5959439f99795d468a24ef",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 22.720195600521492,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 1
+      },
+      "geometryRefinement": {
+        "deformation": {
+          "method": "12 smooth Gaussian loft fields; fixed baseline perspective cameras",
+          "coefficients": [
+            0.07580209946627968, 0.3090351106707338, -0.07701372318089625,
+            0.8172958817782922, 0.7228095318496257, 1.903810691608264,
+            -3.323631320735252, 0.5831066382205333, 0.9291331206875266,
+            -1.12641677482662, 0.06890987952904687, -1.5903246917788687
+          ],
+          "coefficientBoundMm": 5,
+          "stages": [
+            {
+              "resolution": 320,
+              "loss": 0.023548100518657245,
+              "evaluations": 408,
+              "iterations": 226,
+              "converged": true,
+              "message": "Optimization terminated successfully.",
+              "coefficients": [
+                -0.027147311712894816, 0.26097127836282985,
+                0.020927902893388858, 0.8257219589347904, 1.3508117844475032,
+                1.5308605524152643, -3.321763422451901, 0.39696192521595275,
+                0.7302669460950689, -1.3468126981264927, 0.3952378428896527,
+                -1.684984248797963
+              ]
+            },
+            {
+              "resolution": 720,
+              "loss": 0.02445082132670289,
+              "evaluations": 357,
+              "iterations": 174,
+              "converged": true,
+              "message": "Optimization terminated successfully.",
+              "coefficients": [
+                0.07580209946627968, 0.3090351106707338, -0.07701372318089625,
+                0.8172958817782922, 0.7228095318496257, 1.903810691608264,
+                -3.323631320735252, 0.5831066382205333, 0.9291331206875266,
+                -1.12641677482662, 0.06890987952904687, -1.5903246917788687
+              ]
+            }
+          ],
+          "trainingFiles": [
+            "top.png",
+            "left.png",
+            "extra-1.png",
+            "extra-2.png",
+            "extra-3.png",
+            "extra-4.png",
+            "extra-5.png"
+          ],
+          "heldOutUsed": false,
+          "maxDisplacementMm": 1.7467647961395312,
+          "dimensionsXYZmm": [57.0, 94.7, 39.1],
+          "minZmm": 0.0,
+          "topologyChanged": false,
+          "cameraRefitted": false,
+          "materialsChanged": false,
+          "uvChanged": false
+        },
+        "roundTrip": {
+          "mesh": {
+            "vertices": 7002,
+            "triangles": 14000,
+            "nonManifoldEdges": 0,
+            "degenerateFaces": 0,
+            "nonAdjacentIntersectionPairs": 0,
+            "volumeMm3": 137358.08287757862
+          },
+          "dimensionsXYZmm": [
+            57.00000002980232, 94.70000118017197, 39.09999877214432
+          ],
+          "maxBboxErrorMm": 1.2278556837941323e-6,
+          "supportMarginMm": 22.720195600521492,
+          "minZmm": 0.0,
+          "uvUnchanged": true,
+          "materialsUnchanged": true,
+          "textureBytesUnchanged": true,
+          "trianglePositionsMatchFloat32Candidate": true,
+          "bytes": 181492,
+          "roundtripMeshSHA256": "e247c1bbdd0c268916a183226bb29970f4bf231ae21559b7ca752d404d41d18c",
+          "candidateSHA256": "b76997c9df7dc4a7474cb1354463e9cbd59ecdd9104d9b2d00408322f987c104"
+        },
+        "silhouettes": {
+          "views": [
+            {
+              "file": "top.png",
+              "view": "graphite top",
+              "role": "fit",
+              "beforeIoU": 0.9897281732774557,
+              "afterIoU": 0.9890520187318061,
+              "deltaIoU": -0.0006761545456495099,
+              "beforeGapMm": 0.7343248964055535,
+              "afterGapMm": 0.6852040874024053
+            },
+            {
+              "file": "left.png",
+              "view": "red front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.969655609333439,
+              "afterIoU": 0.9748720998293107,
+              "deltaIoU": 0.005216490495871695,
+              "beforeGapMm": 1.7988917938323903,
+              "afterGapMm": 1.7546240515553537
+            },
+            {
+              "file": "right.png",
+              "view": "patterned rear-left oblique",
+              "role": "held-out",
+              "beforeIoU": 0.9665325000340957,
+              "afterIoU": 0.9665635483846178,
+              "deltaIoU": 3.104835052203381e-5,
+              "beforeGapMm": 2.2955261552116566,
+              "afterGapMm": 2.2359337553627823
+            },
+            {
+              "file": "extra-1.png",
+              "view": "pale-grey front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.9718008957526801,
+              "afterIoU": 0.9747060935743964,
+              "deltaIoU": 0.0029051978217162766,
+              "beforeGapMm": 1.9428382374513196,
+              "afterGapMm": 1.952013439550875
+            },
+            {
+              "file": "extra-2.png",
+              "view": "lilac front-left oblique",
+              "role": "fit",
+              "beforeIoU": 0.9707777520650008,
+              "afterIoU": 0.9754401267817016,
+              "deltaIoU": 0.0046623747167007235,
+              "beforeGapMm": 2.03550962270597,
+              "afterGapMm": 2.00860743193327
+            },
+            {
+              "file": "extra-3.png",
+              "view": "blue front-right oblique",
+              "role": "fit",
+              "beforeIoU": 0.9720564044295962,
+              "afterIoU": 0.9753028712749277,
+              "deltaIoU": 0.003246466845331475,
+              "beforeGapMm": 1.7935278323625117,
+              "afterGapMm": 1.7520606375564842
+            },
+            {
+              "file": "extra-4.png",
+              "view": "patterned elevated left",
+              "role": "fit",
+              "beforeIoU": 0.9759184563574044,
+              "afterIoU": 0.9740675079661795,
+              "deltaIoU": -0.0018509483912249047,
+              "beforeGapMm": 3.0662700481111482,
+              "afterGapMm": 2.974568140885802
+            },
+            {
+              "file": "extra-5.png",
+              "view": "patterned front-right oblique",
+              "role": "fit",
+              "beforeIoU": 0.9692987593507723,
+              "afterIoU": 0.9744088402937165,
+              "deltaIoU": 0.005110080942944295,
+              "beforeGapMm": 1.956900386207389,
+              "afterGapMm": 1.9760364793843974
+            }
+          ],
+          "gate": {
+            "passed": true,
+            "reasons": [],
+            "meanBefore": 0.9741765786523354,
+            "meanAfter": 0.9768356512074341,
+            "worstFittedDelta": -0.0018509483912249047,
+            "heldOutDeltas": [3.104835052203381e-5]
+          },
+          "camerasFrozen": true,
+          "evaluationMaxDimension": 1440,
+          "largestRemainingGapMm": 2.974568140885802,
+          "gapInterpretation": "Projected boundary Hausdorff gap at fitted target plane, not 3D surface error",
+          "candidateSHA256": "b76997c9df7dc4a7474cb1354463e9cbd59ecdd9104d9b2d00408322f987c104"
+        },
+        "baselineSHA256": "d2e9f8a3b4b1cca1e868927b04290e4a5c3207e2e0e30a16566ace81a8584ac7",
+        "limitation": "Smooth photo-silhouette refinement; existing projected details can stretch; local shape remains approximate"
+      }
+    },
+    {
+      "slug": "logitech-m550",
+      "model": "M550",
+      "status": "reference-derived-review",
+      "method": "M650 AR-derived sibling shell with the two thumb buttons removed by biharmonic fairing and the light wheel-to-LED plate refilled with surrounding graphite (Phase D2)",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
+        "file": "logitech-m650/m650-m-graphite-ar-360.glb",
+        "bytes": 2636936,
+        "sha256": "631402f0eb3b84818bc90c60090f7742ab1ccf9f1b6a338a51d66105ad79df68"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 144843.03195488127
+      },
+      "dimensionsXYZmm": [
+        61.000000685453415, 108.20000618696213, 38.80000114440918
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 7.450580596923828e-6,
+      "uncalibratedDimensionsXYZmm": [
+        60.10241433978081, 107.12982341647148, 38.59023517725291
+      ],
+      "dimensionCalibrationScale": [
+        1.014934343001406, 1.0099895181918643, 1.0054357265819391
+      ],
+      "bytes": 327296,
+      "path": "shells/logitech-m550.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999276927313, 1.0000000116785444, 0.9999999705049187
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
+          "file": "logitech-m650/m650-m-graphite-ar-360.glb",
+          "bytes": 2636936,
+          "sha256": "631402f0eb3b84818bc90c60090f7742ab1ccf9f1b6a338a51d66105ad79df68"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1324295,
+          "firstPassMissedTexels": 44576,
+          "firstPassMissedShare": 0.033660173903850725,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 9625,
+          "filledTexels": 33379,
+          "unresolvedTexels": 1572,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.564845780381813,
+      "deliveredTexture": {
+        "format": "JPEG",
+        "maxResolution": 512,
+        "maps": 3,
+        "normalEncoding": "JPEG q90 4:4:4"
+      }
+    },
+    {
+      "slug": "logitech-m650",
+      "model": "M650",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
+        "file": "logitech-m650/m650-m-graphite-ar-360.glb",
+        "bytes": 2636936,
+        "sha256": "631402f0eb3b84818bc90c60090f7742ab1ccf9f1b6a338a51d66105ad79df68"
+      },
+      "mesh": {
+        "vertices": 6996,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 144937.42853036575
+      },
+      "dimensionsXYZmm": [
+        61.000000685453415, 108.20000618696213, 38.80000114440918
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.186962124843376e-6,
+      "uncalibratedDimensionsXYZmm": [
+        60.10241433978081, 107.12982341647148, 38.59023517725291
+      ],
+      "dimensionCalibrationScale": [
+        1.014934343001406, 1.0099895181918643, 1.0054357265819391
+      ],
+      "bytes": 331176,
+      "path": "shells/logitech-m650.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999276927313, 1.0000000116785444, 0.9999999705049187
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m650/m650-m-graphite-ar-360.glb",
+          "file": "logitech-m650/m650-m-graphite-ar-360.glb",
+          "bytes": 2636936,
+          "sha256": "631402f0eb3b84818bc90c60090f7742ab1ccf9f1b6a338a51d66105ad79df68"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1324295,
+          "firstPassMissedTexels": 44576,
+          "firstPassMissedShare": 0.033660173903850725,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 9625,
+          "filledTexels": 33379,
+          "unresolvedTexels": 1572,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.582861476254337
+    },
+    {
+      "slug": "logitech-m705-marathon",
+      "model": "M705 Marathon",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m705/gallery/m705-gallery-1.png",
+          "file": "logitech-m705-marathon/m705-gallery-1.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "RGBA",
+          "sha256": "4d725eb1a36114a8ee079cfcc1b8b0035784a3d1939c1a7678368582268fbe6b",
+          "viewHint": "unclassified"
+        },
+        {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m705/gallery/m705-gallery-4.png",
+          "file": "logitech-m705-marathon/m705-gallery-4.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "RGBA",
+          "sha256": "cb830c14730dfbc66e7ddb16b2c21c67892df90ee520306bdb86b770533eb132",
+          "viewHint": "unclassified"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 197472.76914499397
+      },
+      "dimensionsXYZmm": [
+        71.00000232458115, 109.00000482797623, 41.999999433755875
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 4.827976226806641e-6,
+      "uncalibratedDimensionsXYZmm": [
+        70.84275037050247, 108.03690552711487, 41.73445167543832
+      ],
+      "dimensionCalibrationScale": [
+        1.002219699668281, 1.0089144951735352, 1.0063628085167335
+      ],
+      "bytes": 80568,
+      "path": "studies/logitech-m705-marathon.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Side image perspective has not been camera-calibrated",
+        "Wheel and button details are not reconstructed"
+      ],
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999672594214, 1.000000024060591, 1.0000000134820033
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/products/mice/m705/gallery/m705-gallery-1.png",
+          "file": "logitech-m705-marathon/m705-gallery-1.png",
+          "width": 1600,
+          "height": 1374,
+          "mode": "RGBA",
+          "sha256": "4d725eb1a36114a8ee079cfcc1b8b0035784a3d1939c1a7678368582268fbe6b",
+          "viewHint": "unclassified"
+        },
+        "limitation": "Top photograph includes lighting; side detail and raised wheel remain approximate"
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 11.361876007048018
+    },
+    {
+      "slug": "logitech-m720-triathlon",
+      "model": "M720 Triathlon",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m720/m720-black-ar-360.glb",
+        "file": "logitech-m720-triathlon/m720-black-ar-360.glb",
+        "bytes": 4481588,
+        "sha256": "eff2bb2e0a0fbcc389efa7b3c54aeca64d17b5470aaeefe8b53418a9f72af084"
+      },
+      "mesh": {
+        "vertices": 7000,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 189755.07706890538
+      },
+      "dimensionsXYZmm": [
+        74.00000840425491, 114.99999463558197, 44.999998062849045
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 8.404254913330078e-6,
+      "uncalibratedDimensionsXYZmm": [
+        73.20867851376534, 114.08388614654541, 44.72765985701699
+      ],
+      "dimensionCalibrationScale": [
+        1.010809134326338, 1.0080301957670024, 1.006088892913087
+      ],
+      "bytes": 244336,
+      "path": "shells/logitech-m720-triathlon.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999871125094, 0.9999999818594563, 0.9999999602635717
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m720/m720-black-ar-360.glb",
+          "file": "logitech-m720-triathlon/m720-black-ar-360.glb",
+          "bytes": 4481588,
+          "sha256": "eff2bb2e0a0fbcc389efa7b3c54aeca64d17b5470aaeefe8b53418a9f72af084"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2102710,
+          "firstPassMissedTexels": 2130,
+          "firstPassMissedShare": 0.0010129784896633393,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 619,
+          "filledTexels": 1509,
+          "unresolvedTexels": 2,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 30.520380229040054
+    },
+    {
+      "slug": "logitech-m750",
+      "model": "M750",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m750/m750-m-graphite-ar-360.glb",
+        "file": "logitech-m750/m750-m-graphite-ar-360.glb",
+        "bytes": 6180480,
+        "sha256": "259a809168b944f9f6ca65c53fa5d31205e850d2052e097afb40d9b89e3e6dea"
+      },
+      "mesh": {
+        "vertices": 6990,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 141166.45095237612
+      },
+      "dimensionsXYZmm": [
+        61.80000305175781, 107.19000548124313, 37.800002843141556
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 5.481243135818659e-6,
+      "uncalibratedDimensionsXYZmm": [
+        60.89291162788868, 106.22432455420494, 37.619239676132565
+      ],
+      "dimensionCalibrationScale": [
+        1.0148965027228833, 1.0090909585077703, 1.0048050723131354
+      ],
+      "bytes": 331092,
+      "path": "shells/logitech-m750.glb",
+      "sourceCalibration": {
+        "uncalibratedDimensionsXYZmm": [
+          60.589998960494995, 107.61498659849167, 38.28100115060806
+        ],
+        "dimensionCalibrationScale": [
+          1.019970359993763, 0.9960509113955092, 0.9874350645748755
+        ],
+        "cableTrim": null
+      },
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999950618808, 0.999999948864233, 0.9999999247846206
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m750/m750-m-graphite-ar-360.glb",
+          "file": "logitech-m750/m750-m-graphite-ar-360.glb",
+          "bytes": 6180480,
+          "sha256": "259a809168b944f9f6ca65c53fa5d31205e850d2052e097afb40d9b89e3e6dea"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1420576,
+          "firstPassMissedTexels": 46124,
+          "firstPassMissedShare": 0.03246851981168202,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10471,
+          "filledTexels": 32638,
+          "unresolvedTexels": 3015,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.741765310900302
+    },
+    {
+      "slug": "logitech-mx-anywhere-3s",
+      "model": "MX Anywhere 3S",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-anywhere-3s/mxanywhere3s-black-ar-360.glb",
+        "file": "logitech-mx-anywhere-3s/mxanywhere3s-black-ar-360.glb",
+        "bytes": 6168520,
+        "sha256": "cb8e16cf0931a955968266e6110454b47bfa92032f1ad525622572c1c045c072"
+      },
+      "mesh": {
+        "vertices": 7000,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 132125.84805431927
+      },
+      "dimensionsXYZmm": [
+        64.99999761581421, 100.50000995397568, 34.400004893541336
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 9.953975677490234e-6,
+      "uncalibratedDimensionsXYZmm": [
+        64.19152393937111, 99.69508647918701, 34.18226969006355
+      ],
+      "dimensionCalibrationScale": [
+        1.0125948268152554, 1.0080737782837081, 1.00636982872852
+      ],
+      "bytes": 194984,
+      "path": "shells/logitech-mx-anywhere-3s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999220554706, 0.9999999750905969, 0.9999998577459116
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-anywhere-3s/mxanywhere3s-black-ar-360.glb",
+          "file": "logitech-mx-anywhere-3s/mxanywhere3s-black-ar-360.glb",
+          "bytes": 6168520,
+          "sha256": "cb8e16cf0931a955968266e6110454b47bfa92032f1ad525622572c1c045c072"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1938812,
+          "firstPassMissedTexels": 16,
+          "firstPassMissedShare": 8.252476258657364e-6,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10,
+          "filledTexels": 6,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 21.107552165967043
+    },
+    {
+      "slug": "logitech-mx-master-3s",
+      "model": "MX Master 3S",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
+        "file": "logitech-mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
+        "bytes": 5029100,
+        "sha256": "804a363ff86c792eca8828684e392836d02df6909faaf2c5432d928c925cfc0c",
+        "discoveredOn": "https://www.logitech.com/en-gb/shop/p/mx-master-3s"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 210408.025879987
+      },
+      "dimensionsXYZmm": [
+        84.30001139640808, 124.90000575780869, 51.00000649690628
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1396408083896858e-5,
+      "uncalibratedDimensionsXYZmm": [
+        83.36737751960754, 123.91875684261322, 50.774821120285196
+      ],
+      "dimensionCalibrationScale": [
+        1.0111869469085866, 1.0079184857901837, 1.0044349078216805
+      ],
+      "bytes": 207976,
+      "path": "shells/logitech-mx-master-3s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999531930333, 0.9999999539006532, 0.9999999456545915
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
+          "file": "logitech-mx-master-3s/mx-master-3s-bluetooth-edition-graphite-cordless-mice-ar-360.glb",
+          "bytes": 5029100,
+          "sha256": "804a363ff86c792eca8828684e392836d02df6909faaf2c5432d928c925cfc0c",
+          "discoveredOn": "https://www.logitech.com/en-gb/shop/p/mx-master-3s"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1721927,
+          "firstPassMissedTexels": 158,
+          "firstPassMissedShare": 9.17576645235251e-5,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 1,
+          "filledTexels": 157,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 30.080465256994962
+    },
+    {
+      "slug": "logitech-mx-master-4",
+      "model": "MX Master 4",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-4/mxmaster4-graphite-ar-360.glb",
+        "file": "logitech-mx-master-4/mxmaster4-graphite-ar-360.glb",
+        "bytes": 10078436,
+        "sha256": "9737671300c5b928c0517f190eb25fc0fc2f01bc08496f68a42e30012508938c"
+      },
+      "mesh": {
+        "vertices": 7000,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 224914.15452049868
+      },
+      "dimensionsXYZmm": [
+        88.35000544786453, 128.15001606941223, 50.79999938607216
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.606941222576097e-5,
+      "uncalibratedDimensionsXYZmm": [
+        87.44779974222183, 127.33045220375061, 50.63457133655902
+      ],
+      "dimensionCalibrationScale": [
+        1.010317077254113, 1.0064363940464847, 1.0032671704417886
+      ],
+      "bytes": 295680,
+      "path": "shells/logitech-mx-master-4.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999383377001, 0.999999990883722, 0.9999999387527112
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-master-4/mxmaster4-graphite-ar-360.glb",
+          "file": "logitech-mx-master-4/mxmaster4-graphite-ar-360.glb",
+          "bytes": 10078436,
+          "sha256": "9737671300c5b928c0517f190eb25fc0fc2f01bc08496f68a42e30012508938c"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1733937,
+          "firstPassMissedTexels": 552,
+          "firstPassMissedShare": 0.0003183506667197251,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 230,
+          "filledTexels": 322,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        },
+        "coverComposite": {
+          "coverObjects": ["LEFT_BUTTON.001", "RIGHT_BUTTON.001"],
+          "texelsComposited": 2268273,
+          "alphaRange": [0.0, 1.0],
+          "method": "Base colour: transparent cover composited over the body beneath it in linear light (alpha * cover + (1 - alpha) * body); other channels use the opaque cover"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 29.237831928572103
+    },
+    {
+      "slug": "logitech-mx-vertical",
+      "model": "MX Vertical",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-vertical/mxvertical-graphite-ar-360.glb",
+        "file": "logitech-mx-vertical/mxvertical-graphite-ar-360.glb",
+        "bytes": 7077964,
+        "sha256": "3740a177977655f5f517c862d64c6b2e32ecf07cc72d926d7c23423171cf384b"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 299242.495123086
+      },
+      "dimensionsXYZmm": [
+        79.00001108646393, 120.00000476837158, 78.50001007318497
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.1086463928222656e-5,
+      "uncalibratedDimensionsXYZmm": [
+        78.48895713686943, 119.3273738026619, 78.00160127226263
+      ],
+      "dimensionCalibrationScale": [
+        1.0065110624176434, 1.0056368538439642, 1.0063896297282677
+      ],
+      "bytes": 183740,
+      "path": "shells/logitech-mx-vertical.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-7.549790126404332e-8, -8.742277657347586e-8, -1.0, 0.0],
+          [6.6002361555513294e-15, -1.0, 8.742277657347586e-8, 0.0],
+          [-1.0, 0.0, 7.549790126404332e-8, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": true,
+        "dimensionScale": [
+          1.0063694378184784, 0.9999999602635717, 0.9936707934862881
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/mx-vertical/mxvertical-graphite-ar-360.glb",
+          "file": "logitech-mx-vertical/mxvertical-graphite-ar-360.glb",
+          "bytes": 7077964,
+          "sha256": "3740a177977655f5f517c862d64c6b2e32ecf07cc72d926d7c23423171cf384b"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2248502,
+          "firstPassMissedTexels": 76,
+          "firstPassMissedShare": 3.380028125391928e-5,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 0,
+          "filledTexels": 76,
+          "unresolvedTexels": 0,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        },
+        "coverComposite": {
+          "coverObjects": ["Node9"],
+          "texelsComposited": 1639632,
+          "alphaRange": [0.0, 1.0],
+          "method": "Base colour: transparent cover composited over the body beneath it in linear light (alpha * cover + (1 - alpha) * body); other channels use the opaque cover"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 26.2400533011976
+    },
+    {
+      "slug": "logitech-pebble-2-m350s",
+      "model": "Pebble 2 M350s",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m350s/m350s-rose-cordless-mice-ar-360.glb",
+        "file": "logitech-pebble-2-m350s/m350s-rose-cordless-mice-ar-360.glb",
+        "bytes": 9483912,
+        "sha256": "4c1e7d066eab17ddeaaa4fcc49dee25994283d867ebaa280f27d459146d584c1"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 101533.78559169985
+      },
+      "dimensionsXYZmm": [
+        58.70001018047333, 106.00000619888306, 26.62000060081482
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.0180473324794548e-5,
+      "uncalibratedDimensionsXYZmm": [
+        58.3631731569767, 105.61281815171242, 26.452623118530028
+      ],
+      "dimensionCalibrationScale": [
+        1.0057712690159955, 1.0036661084700387, 1.0063275140684513
+      ],
+      "bytes": 203580,
+      "path": "shells/logitech-pebble-2-m350s.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, -0.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999534941635, 0.9999999415199745, 0.9999999074583118
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m350s/m350s-rose-cordless-mice-ar-360.glb",
+          "file": "logitech-pebble-2-m350s/m350s-rose-cordless-mice-ar-360.glb",
+          "bytes": 9483912,
+          "sha256": "4c1e7d066eab17ddeaaa4fcc49dee25994283d867ebaa280f27d459146d584c1"
+        },
+        "normalStrength": 0.65
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 16.4819995147211
+    },
+    {
+      "slug": "logitech-pop-mouse",
+      "model": "POP Mouse",
+      "status": "reference-derived-review",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/pop-mouse/pop-mouse-rose-cordless-mice-ar-360.glb",
+        "file": "logitech-pop-mouse/pop-mouse-rose-cordless-mice-ar-360.glb",
+        "bytes": 2535936,
+        "sha256": "4819609788d75ceb8681c8de9741101cfc19003176cea0bd8eb6abfdafe005ab"
+      },
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 131095.70641824932
+      },
+      "dimensionsXYZmm": [
+        59.400007128715515, 104.80000823736191, 35.200007259845734
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 8.237361910801155e-6,
+      "uncalibratedDimensionsXYZmm": [
+        58.862559497356415, 103.8270927965641, 34.9959999366547
+      ],
+      "dimensionCalibrationScale": [
+        1.0091304882196457, 1.0093705353255351, 1.0058293404466225
+      ],
+      "bytes": 325364,
+      "path": "shells/logitech-pop-mouse.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.9999999427032825, 0.9999999213992246, 0.9999998995865035
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/pop-mouse/pop-mouse-rose-cordless-mice-ar-360.glb",
+          "file": "logitech-pop-mouse/pop-mouse-rose-cordless-mice-ar-360.glb",
+          "bytes": 2535936,
+          "sha256": "4819609788d75ceb8681c8de9741101cfc19003176cea0bd8eb6abfdafe005ab"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 1697758,
+          "firstPassMissedTexels": 4722,
+          "firstPassMissedShare": 0.002781315122649989,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 2350,
+          "filledTexels": 2371,
+          "unresolvedTexels": 1,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 15.99125490656468
+    },
+    {
+      "slug": "logitech-signature-comfort-plus-m850l",
+      "model": "Signature Comfort Plus M850L",
+      "status": "limited-view-study",
+      "method": "Model-specific top and side photo contour loft",
+      "source": [
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/graphite/signature-comfort-plus-m850-l-mouse-graphite-top-angle-gallery-1.png",
+          "file": "logitech-signature-comfort-plus-m850l/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "0ae590a9b5d4c09eb3487d7f2fe8f5d6281ce47df99bb7b7bbbb9c5ca65c1103",
+          "viewHint": "top"
+        },
+        {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/black/signature-comfort-plus-m850-l-mouse-black-profile.png",
+          "file": "logitech-signature-comfort-plus-m850l/left.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "44c62edb98e8b263b7787b3f93749ce032a7feccbf47dd858a8aed34d3c63e04",
+          "viewHint": "left"
+        }
+      ],
+      "mesh": {
+        "vertices": 7002,
+        "triangles": 14000,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 238753.78853980565
+      },
+      "dimensionsXYZmm": [
+        74.30000603199005, 121.8000054359436, 44.200003147125244
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 6.031990054111702e-6,
+      "uncalibratedDimensionsXYZmm": [
+        74.12109524011612, 120.72384357452393, 44.16398205705718
+      ],
+      "dimensionCalibrationScale": [
+        1.0024136820874585, 1.0089141994954107, 1.0008155501670182
+      ],
+      "bytes": 77344,
+      "path": "studies/logitech-signature-comfort-plus-m850l.glb",
+      "limitations": [
+        "No working official 360 asset found",
+        "Cross-sections interpolated between traced outlines",
+        "Image contour crops correct framing and calibrated L/W/H correct global scale, but no camera intrinsics or landmarks exist for a side-view homography",
+        "Residual perspective changes local hump and nose proportions; wheel and button details are projected, not reconstructed",
+        "Base flattened to Z=0 along the length because the oblique side photo projects the underside above the desk; local underside curvature is unverified"
+      ],
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [1.0, 0.0, 0.0, 0.0],
+          [0.0, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          1.0000000190927398, 1.0000000165405338, 1.0000000130806577
+        ]
+      },
+      "textureRefinement": {
+        "method": "Model-specific top-gallery image projected onto upper shell; matched matte sides and underside",
+        "approximate": true,
+        "source": {
+          "url": "https://resource.logitech.com/w_1600,c_limit,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/logitech/en/products/mice/signature-comfort-plus-m850l/gallery/graphite/signature-comfort-plus-m850-l-mouse-graphite-top-angle-gallery-1.png",
+          "file": "logitech-signature-comfort-plus-m850l/top.png",
+          "width": 1600,
+          "height": 1382,
+          "mode": "P",
+          "sha256": "0ae590a9b5d4c09eb3487d7f2fe8f5d6281ce47df99bb7b7bbbb9c5ca65c1103",
+          "viewHint": "top"
+        },
+        "limitation": "Photo perspective and lighting remain baked in; wheel and side buttons are projected details, not separate geometry"
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 27.747661179205323
+    },
+    {
+      "slug": "logitech-ergo-m575s",
+      "model": "ERGO M575S",
+      "status": "source-shell-alias",
+      "method": "26-view silhouette and depth image carving",
+      "source": {
+        "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+        "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+        "bytes": 3779732,
+        "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+      },
+      "mesh": {
+        "vertices": 6997,
+        "triangles": 13998,
+        "nonManifoldEdges": 0,
+        "degenerateFaces": 0,
+        "nonAdjacentIntersectionPairs": 0,
+        "volumeMm3": 251522.64115474958
+      },
+      "dimensionsXYZmm": [
+        100.00000894069672, 134.0000182390213, 48.00000786781311
+      ],
+      "calibratedBboxRoundTripDifferenceMm": 1.823902130126953e-5,
+      "uncalibratedDimensionsXYZmm": [
+        99.38473999500275, 133.3036944270134, 47.82551146490732
+      ],
+      "dimensionCalibrationScale": [
+        1.0061907038761113, 1.0052234779676565, 1.003648449268613
+      ],
+      "bytes": 242904,
+      "path": "shells/logitech-ergo-m575.glb",
+      "orientation": {
+        "up": "+Z",
+        "forward": "+Y",
+        "groundZ": 0,
+        "rotationMatrix": [
+          [-1.0, -8.742277657347586e-8, 0.0, 0.0],
+          [8.742277657347586e-8, -1.0, 0.0, 0.0],
+          [0.0, 0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0, 1.0]
+        ],
+        "correctedWidthHeightSwap": false,
+        "dimensionScale": [
+          0.999999985098839, 0.9999999750905969, 0.999999991307656
+        ]
+      },
+      "textureRefinement": {
+        "method": "Selected-to-active source appearance baking onto reconstructed UV atlas",
+        "resolution": 2048,
+        "maps": ["BaseColour", "Roughness", "Normal", "Metallic"],
+        "source": {
+          "url": "https://resource.logitech.com/content/dam/logitech/en/ar-models/mice/m575/m575-graphite-ar-360.glb",
+          "file": "logitech-ergo-m575/m575-graphite-ar-360.glb",
+          "bytes": 3779732,
+          "sha256": "b2f14a1264ab35b780f6c25a9988c04af9831a449e29ddb91e8dfb68ae905423"
+        },
+        "normalStrength": 0.65,
+        "missedRayFallback": {
+          "validTexels": 2130757,
+          "firstPassMissedTexels": 21633,
+          "firstPassMissedShare": 0.010152729757546261,
+          "secondReachMm": [12.0, 16.0],
+          "repairedTexels": 10490,
+          "filledTexels": 11124,
+          "unresolvedTexels": 19,
+          "method": "Second selected-to-active pass for first-pass misses only, looking further out (12 to 4 mm above the shell, cage 12 mm, reach 16 mm) and rejecting hits whose source normal faces away from the shell; remaining misses (holes in the source skin) filled from resolved neighbours on the same island"
+        }
+      },
+      "groundErrorMm": 0.0,
+      "supportMarginMm": 33.025334709357516,
+      "aliasOf": "logitech-ergo-m575",
+      "limitations": [
+        "shape assumed identical to ERGO M575 (same published dimensions); not independently reconstructed — candidate"
+      ]
+    }
+  ],
+  "maxCalibratedBboxRoundTripDifferenceMm": 1.893043517497972e-5,
+  "passed": true
+}

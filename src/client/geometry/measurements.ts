@@ -101,7 +101,9 @@ function assertLandmarkCount(landmarks: readonly Landmark[], fn: string): void {
  * the server. Shared by both the uncorrected and parallax-corrected paths
  * below.
  */
-function measurementsFromSheetMm(points: readonly Point2[]): HandMeasurements {
+export function measurementsFromSheetMm(
+  points: readonly Point2[],
+): HandMeasurements {
   const measurements: Record<string, number> = {};
   for (const [field, definition] of Object.entries(MEASUREMENT_DEFINITIONS)) {
     const { kind, indices } = parseDefinition(field, definition);
