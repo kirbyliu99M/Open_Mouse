@@ -137,6 +137,316 @@ function cssFiles(dir: string): string[] {
   });
 }
 
+// ── Reading the stylesheets themselves ─────────────────────────────────────
+
+/** One rule of a stylesheet, with the @media query it sits in (null: none). */
+interface Rule {
+  readonly media: string | null;
+  readonly selectors: readonly string[];
+  readonly decls: Readonly<Record<string, string>>;
+}
+
+/** A flat list of rules, one @media level deep (the stylesheets go no deeper). */
+function parseRules(css: string): Rule[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: Rule[] = [];
+  const walk = (source: string, media: string | null) => {
+    let i = 0;
+    while (i < source.length) {
+      const open = source.indexOf("{", i);
+      if (open < 0) break;
+      let depth = 0;
+      let close = open;
+      for (; close < source.length; close += 1) {
+        if (source[close] === "{") depth += 1;
+        if (source[close] === "}") {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      const head = source.slice(i, open).trim();
+      const body = source.slice(open + 1, close);
+      if (head.startsWith("@media")) {
+        walk(body, head.slice("@media".length).trim());
+      } else if (!head.startsWith("@")) {
+        const decls: Record<string, string> = {};
+        for (const line of body.split(";")) {
+          const colon = line.indexOf(":");
+          if (colon > 0) {
+            decls[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+          }
+        }
+        rules.push({
+          media,
+          selectors: head.split(",").map((s) => s.trim()),
+          decls,
+        });
+      }
+      i = close + 1;
+    }
+  };
+  walk(text, null);
+  return rules;
+}
+
+const rulesOf = (path: string) => parseRules(readFileSync(path, "utf8"));
+
+/** The last value declared for `property` on exactly `selector` in `media`. */
+function declared(
+  rules: readonly Rule[],
+  selector: string,
+  property: string,
+  media: string | null = null,
+): string | undefined {
+  let found: string | undefined;
+  for (const rule of rules) {
+    if (
+      rule.media === media &&
+      rule.selectors.includes(selector) &&
+      property in rule.decls
+    ) {
+      found = rule.decls[property];
+    }
+  }
+  return found;
+}
+
+/** `var(--token)` replaced by the dark token's value; any other value as written. */
+const resolve = (value: string) =>
+  value.replace(/var\((--[a-z-]+)\)/g, (_, name: string) => token(name));
+
+/** A colour laid over an opaque one at `alpha`, as the eye sees it. */
+function blend(
+  top: [number, number, number],
+  alpha: number,
+  under: [number, number, number],
+) {
+  return top.map((c, i) => c * alpha + under[i]! * (1 - alpha)) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+describe("the filled buttons: white on --accent", () => {
+  // A white label on --accent is 4.75:1. Dropping the opacity of a pressed
+  // button would take it to 4.33:1 at 0.85 (and lower further), so every
+  // filled button darkens its fill to --accent-pressed (6.0:1) instead.
+  const FILLED: readonly (readonly [string, string, string | null])[] = [
+    ["src/app/scan/scan.css", ".uploadButton", null],
+    ["src/app/scan/scan.css", ".primaryButton", null],
+    ["src/app/scan/scan.css", ".pickerButton.selected", null],
+    ["src/app/learn/learn.css", ".learn-button", null],
+    ["src/app/globals.css", ".button-primary", null],
+    ["src/app/home.css", ".home-cta", null],
+    ["src/app/account/account.css", ".account-start-button", null],
+    ["src/components/results/results.css", ".results-page-action", null],
+    ["src/components/errors/errors.css", ".errorAction-primary", null],
+    ["src/app/sheet/sheet.css", ".sheet-primary", "screen"],
+    ["src/client/camera/camera.css", ".cameraUsePhoto", null],
+    ["src/client/camera/camera.css", ".cameraResumeButton", null],
+    ["src/client/camera/easy-scan.css", ".easyCopyLink", null],
+    ["src/client/camera/easy-scan.css", ".easyUploadFallbackButton", null],
+  ];
+
+  it.each(FILLED)(
+    "%s %s: pressing darkens the fill and never lowers the opacity",
+    (file, selector, media) => {
+      const rules = rulesOf(file);
+      const fill = declared(rules, selector, "background", media);
+      expect(fill && resolve(fill), "its fill").toBe(token("--accent"));
+      const label = declared(rules, selector, "color", media);
+      expect(label && resolve(label), "its label").toBe(token("--on-accent"));
+
+      const pressed = declared(
+        rules,
+        `${selector}:active`,
+        "background",
+        media,
+      );
+      expect(pressed && resolve(pressed), "pressed fill").toBe(
+        token("--accent-pressed"),
+      );
+      expect(
+        ratio(rgb("--on-accent"), channels(resolve(pressed!))),
+        "label on the pressed fill",
+      ).toBeGreaterThanOrEqual(4.5);
+
+      // No pressed rule anywhere, in any media query (reduced motion included),
+      // fades the button.
+      for (const rule of rules) {
+        if (
+          rule.selectors.includes(`${selector}:active`) &&
+          "opacity" in rule.decls
+        ) {
+          expect(Number(rule.decls.opacity), `${rule.media} opacity`).toBe(1);
+        }
+      }
+    },
+  );
+
+  it("the picker chip's pressed state also darkens its border, so the outline does not stay light", () => {
+    const rules = rulesOf("src/app/scan/scan.css");
+    expect(
+      resolve(
+        declared(rules, ".pickerButton.selected:active", "border-color")!,
+      ),
+    ).toBe(token("--accent-pressed"));
+  });
+
+  it("under reduced motion the filled buttons keep full opacity, and only an unfilled chip fades", () => {
+    for (const file of ["src/app/scan/scan.css", "src/app/learn/learn.css"]) {
+      const rules = rulesOf(file);
+      const reduced = rules.filter(
+        (r) => r.media === "(prefers-reduced-motion: reduce)",
+      );
+      const opacityOf = (selector: string) =>
+        reduced
+          .filter((r) => r.selectors.includes(selector))
+          .map((r) => r.decls.opacity)
+          .pop();
+      const filled = file.endsWith("scan.css")
+        ? [
+            ".pickerButton.selected:active",
+            ".uploadButton:active",
+            ".primaryButton:active",
+          ]
+        : [".learn-button:active"];
+      for (const selector of filled) {
+        expect(opacityOf(selector), `${file} ${selector}`).toBe("1");
+      }
+    }
+  });
+});
+
+describe("the hand ghost over the paper", () => {
+  const camera = rulesOf("src/client/camera/camera.css");
+  // The e2e fixtures' paper is a light grey, a real sheet is nearer white.
+  const PAPERS: readonly (readonly [string, [number, number, number]])[] = [
+    ["white", [255, 255, 255]],
+    ["the fixtures' grey paper (#f6f6f2)", [246, 246, 242]],
+  ];
+
+  it.each(PAPERS)(
+    "its outline keeps 3:1 against %s at the ghost's own opacity (WCAG 1.4.11)",
+    (_, paper) => {
+      const outline = resolve(
+        declared(camera, ".cameraHandGhostOutline", "stroke")!,
+      );
+      const opacity = Number(declared(camera, ".cameraHandGhost", "opacity"));
+      expect(opacity).toBeGreaterThan(0);
+      expect(opacity).toBeLessThanOrEqual(1);
+      const seen = blend(channels(outline), opacity, paper);
+      expect(ratio(seen, paper)).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it("is --accent-pressed: --accent itself would fall under 3:1 at that opacity", () => {
+    expect(declared(camera, ".cameraHandGhostOutline", "stroke")).toBe(
+      "var(--accent-pressed)",
+    );
+    expect(declared(camera, ".cameraHandGhostOutline", "fill")).toBe(
+      "var(--accent-pressed)",
+    );
+    const opacity = Number(declared(camera, ".cameraHandGhost", "opacity"));
+    const white: [number, number, number] = [255, 255, 255];
+    expect(ratio(blend(rgb("--accent"), opacity, white), white)).toBeLessThan(
+      3,
+    );
+  });
+});
+
+describe("the dimension lines over the user's photo", () => {
+  const scan = rulesOf("src/app/scan/scan.css");
+  const white: [number, number, number] = [255, 255, 255];
+
+  it("are --accent, not --accent-text (2.35:1 on a white sheet of paper)", () => {
+    for (const selector of [".overlayDimensionLine", ".overlayDimensionTick"]) {
+      expect(declared(scan, selector, "stroke"), selector).toBe(
+        "var(--accent)",
+      );
+    }
+    expect(ratio(rgb("--accent-text"), white)).toBeLessThan(3);
+  });
+
+  it("keep 3:1 on the white paper, on the page's black, and against their own white halo", () => {
+    expect(ratio(rgb("--accent"), white)).toBeGreaterThanOrEqual(3);
+    expect(ratio(rgb("--accent"), rgb("--bg"))).toBeGreaterThanOrEqual(3);
+    const halo = declared(scan, ".overlayDimensionHalo", "stroke")!;
+    expect(halo).toBe("#fff");
+    expect(ratio(rgb("--accent"), channels("#ffffff"))).toBeGreaterThanOrEqual(
+      3,
+    );
+    // The halo is nearly opaque and wider than the line, so a dark or mid-grey
+    // picture shows the halo around the line, not the line on the picture.
+    expect(
+      Number(declared(scan, ".overlayDimensionHalo", "stroke-opacity")),
+    ).toBeGreaterThanOrEqual(0.8);
+    expect(
+      Number(declared(scan, ".overlayDimensionHalo", "stroke-width")),
+    ).toBeGreaterThan(
+      Number(declared(scan, ".overlayDimensionLine", "stroke-width")),
+    );
+  });
+
+  it("are drawn with a halo under every stroke: one halo per line and per tick", () => {
+    const tsx = readFileSync("src/app/scan/ScanClient.tsx", "utf8");
+    const count = (name: string) =>
+      (tsx.match(new RegExp(`className="${name}"`, "g")) ?? []).length;
+    expect(count("overlayDimensionHalo")).toBe(
+      count("overlayDimensionLine") + count("overlayDimensionTick"),
+    );
+    expect(count("overlayDimensionLine")).toBeGreaterThan(0);
+  });
+});
+
+describe("print", () => {
+  const tokenRules = parseRules(tokensCss);
+  const print = tokenRules.find(
+    (r) => r.media === "print" && r.selectors.includes(":root"),
+  )!;
+
+  it("redefines the text and background tokens, so text that takes its colour from a token prints dark on white", () => {
+    expect(print).toBeDefined();
+    const bg = channels(print.decls["--bg"]!);
+    expect(bg).toEqual([255, 255, 255]);
+    expect(
+      ratio(channels(print.decls["--text-primary"]!), bg),
+    ).toBeGreaterThanOrEqual(12);
+    expect(
+      ratio(channels(print.decls["--text-secondary"]!), bg),
+    ).toBeGreaterThanOrEqual(7);
+    expect(
+      ratio(channels(print.decls["--text-tertiary"]!), bg),
+    ).toBeGreaterThanOrEqual(7);
+    expect(
+      ratio(channels(print.decls["--accent-text"]!), bg),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("leaves the fills and their white label alone, and takes the glow away", () => {
+    expect(print.decls["--accent"]).toBeUndefined();
+    expect(print.decls["--on-accent"]).toBeUndefined();
+    expect(print.decls["--glow"]).toBe("transparent");
+  });
+
+  it("covers every token a headline, wordmark, subhead, caption or link takes its colour from", () => {
+    const textTokens = [
+      "--text-primary",
+      "--text-secondary",
+      "--text-tertiary",
+      "--accent-text",
+    ];
+    for (const name of textTokens) {
+      expect(print.decls[name], name).toBeDefined();
+    }
+    // ...and the page rule beside them sets the root and body.
+    const globals = rulesOf("src/app/globals.css");
+    expect(declared(globals, ":root", "background", "print")).toBe("#fff");
+    expect(declared(globals, "body", "color", "print")).toBe("#000");
+  });
+});
+
 describe("the stylesheets", () => {
   const files = cssFiles("src");
 
@@ -149,11 +459,11 @@ describe("the stylesheets", () => {
   });
 
   it("keeps no hard-coded accent hex outside the token file: one primary button, one accent text colour", () => {
-    // #0a64e0 and #79adff were the two old accents; #a8ceff and #6aa8ff the
-    // two old accent-text colours; #1f6bf0 and #7fa8ff are the tokens' own
+    // #0a64e0 and #79adff were the two old accents; #a8ceff, #6aa8ff and #9fc4ff
+    // the old accent-text colours; #1f6bf0 and #7fa8ff are the tokens own
     // values. Only tokens.css may write any of them.
     const banned =
-      /#(0a64e0|79adff|a8ceff|6aa8ff|1f6bf0|7fa8ff|1a5cd0|2f7bff)\b/i;
+      /#(0a64e0|79adff|a8ceff|6aa8ff|9fc4ff|1f6bf0|7fa8ff|1a5cd0|2f7bff)\b/i;
     for (const file of files) {
       if (file.endsWith("tokens.css")) continue;
       const stripped = readFileSync(file, "utf8")
@@ -162,6 +472,16 @@ describe("the stylesheets", () => {
         // Print-only colours stay as they are.
         .replace(/@media print\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, "");
       expect(stripped, file).not.toMatch(banned);
+    }
+  });
+
+  it("keeps none of the light theme's greys as a text colour (#55555d, #57575c): use a token", () => {
+    for (const file of files) {
+      const stripped = readFileSync(file, "utf8").replace(
+        /\/\*[\s\S]*?\*\//g,
+        "",
+      );
+      expect(stripped, file).not.toMatch(/#(55555d|57575c)\b/i);
     }
   });
 

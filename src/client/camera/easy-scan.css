@@ -699,6 +699,11 @@ main.easyScanShell {
   background: var(--accent);
   color: var(--on-accent);
 }
+/* White on the accent fill: pressing darkens it, never fades it. */
+.easyCopyLink:active,
+.easyUploadFallbackButton:active {
+  background: var(--accent-pressed);
+}
 .easyDeviceUpload {
   background: transparent;
   color: var(--accent-text);
@@ -1383,7 +1388,7 @@ main.easyScanShell {
   margin: 0 0 0.5rem;
 }
 .easyDebug dt {
-  color: #9fc4ff;
+  color: var(--accent-text);
 }
 .easyDebug dd {
   margin: 0;

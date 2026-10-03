@@ -86,6 +86,10 @@
 .learn-button-secondary:active {
   transform: scale(0.97);
 }
+/* White label on the accent fill: darken, never fade. */
+.learn-button:active {
+  background: var(--accent-pressed);
+}
 
 .learn-button:focus-visible,
 .learn-button-secondary:focus-visible,
@@ -408,7 +412,10 @@
   .learn-button-secondary {
     transition: none;
   }
-  .learn-button:active,
+  .learn-button:active {
+    transform: none;
+    opacity: 1;
+  }
   .learn-button-secondary:active {
     transform: none;
     opacity: 0.8;

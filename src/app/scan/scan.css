@@ -133,6 +133,12 @@ h1 {
   border-color: var(--accent);
   color: var(--on-accent);
 }
+/* A white label on an accent fill: pressing darkens the fill and never lowers
+   the opacity, which would take the label under 4.5:1. */
+.pickerButton.selected:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
 
 .uploadSlot {
   margin: 1.5rem 0;
@@ -157,7 +163,7 @@ h1 {
 }
 .uploadButton:active {
   transform: scale(0.97);
-  opacity: 0.9;
+  background: var(--accent-pressed);
 }
 
 .visuallyHidden {
@@ -287,13 +293,26 @@ h1 {
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
+/* The dimension lines are drawn over the user's own photo, which is a white
+   sheet of paper with a hand on it. --accent is 4.75:1 on white, and a thin
+   white halo under it keeps that pair (4.75:1 between the line and its halo)
+   wherever the picture is dark or mid-grey, where the halo itself is
+   what stands out. --accent-text is the text colour and is only 2.35:1 on
+   white, so it is not used here. */
+.overlayDimensionHalo {
+  stroke: #fff;
+  stroke-opacity: 0.9;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
 .overlayDimensionLine {
-  stroke: var(--accent-text);
+  stroke: var(--accent);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 .overlayDimensionTick {
-  stroke: var(--accent-text);
+  stroke: var(--accent);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
@@ -322,6 +341,7 @@ h1 {
 }
 .primaryButton:active {
   transform: scale(0.97);
+  background: var(--accent-pressed);
 }
 .primaryButton:disabled {
   opacity: 0.6;
@@ -429,11 +449,23 @@ h1 {
   .pickerButton,
   .uploadButton,
   .primaryButton {
-    transition: opacity var(--scan-transition);
+    transition:
+      opacity var(--scan-transition),
+      background-color var(--scan-transition);
   }
-  .pickerButton:active,
+  /* A chip with no fill fades. The filled buttons keep their full opacity and
+     darken instead (their pressed fill is set above). */
+  .pickerButton:active {
+    transform: none;
+    opacity: 0.8;
+  }
+  .pickerButton.selected:active,
   .uploadButton:active,
   .primaryButton:active {
+    transform: none;
+    opacity: 1;
+  }
+  .scanMain .uploadSlot-measured .uploadButton:active {
     transform: none;
     opacity: 0.8;
   }
@@ -541,6 +573,11 @@ h1 {
   text-decoration: none;
   margin-top: 1.5rem;
   color: var(--accent-text);
+}
+/* The measured sheet's second upload button is not an accent fill (a dark
+   surface with accent text), so it keeps a fade for its pressed state. */
+.scanMain .uploadSlot-measured .uploadButton:active {
+  opacity: 0.9;
 }
 .scanMain .scanSheetLink:active {
   opacity: 0.65;

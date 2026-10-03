@@ -224,16 +224,18 @@
   pointer-events: none;
 }
 /* Widths come from SVG attributes (per-finger capsule widths), never CSS,
-   which would override them. Light accent fill + accent outline: the paper is white, so a white ghost
-   disappears into it. The --accent outline against the paper is 4.75:1 before the
-   group opacity; at 0.7 it still reads clearly as a line (non-text UI,
-   >= 3:1 is the bar). */
+   which would override them. Light accent fill + accent outline: the paper is
+   white, so a white ghost disappears into it. The outline is --accent-pressed
+   (6.0:1 on white before the group opacity): at 0.7 it is 3.3:1 on white and
+   3.2:1 on the grey paper of the e2e fixtures, which clears the 3:1 bar for
+   non-text UI. --accent itself (4.75:1) would fall to 2.9:1 at 0.7.
+   tests/unit/design-tokens.test.ts pins this. */
 .cameraHandGhost {
   opacity: 0.7;
 }
 .cameraHandGhostOutline {
-  fill: var(--accent);
-  stroke: var(--accent);
+  fill: var(--accent-pressed);
+  stroke: var(--accent-pressed);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -478,6 +480,11 @@
   border: none;
   background: var(--accent);
   color: var(--on-accent);
+}
+/* White on the accent fill: pressing darkens it, never fades it. */
+.cameraUsePhoto:active,
+.cameraResumeButton:active {
+  background: var(--accent-pressed);
 }
 .cameraRetake {
   order: 2;
