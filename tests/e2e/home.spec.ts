@@ -307,6 +307,39 @@ test.describe("the two buttons", () => {
     expect(scan.x + scan.width).toBeLessThanOrEqual(390);
   });
 
+  // 320 is the one width at which the two buttons share a line in a narrow font
+  // and stack in a wide one, so it asserts the rule and not which side of it
+  // this font falls on: one row, or full-width rows with the primary on top;
+  // and in both cases nothing overflows, whatever the font.
+  test("320x568 at 100 % text: one row, or stacked at full width with the primary on top, and nothing overflows", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/");
+    const { scan, how, row, scanScrolls, howScrolls } = await layout(page);
+    const sameRow = Math.abs(scan.y - how.y) < 2;
+    if (sameRow) {
+      expect(scan.x).toBeLessThan(how.x);
+      expect(how.x + how.width).toBeLessThanOrEqual(row.x + row.width + 1);
+    } else {
+      expect(how.y).toBeGreaterThanOrEqual(scan.y + scan.height);
+      expect(Math.abs(scan.width - row.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(how.width - row.width)).toBeLessThanOrEqual(1);
+    }
+    // Either way: inside the viewport, no label cut off, no sideways scroll.
+    for (const button of [scan, how]) {
+      expect(button.x).toBeGreaterThanOrEqual(0);
+      expect(button.x + button.width).toBeLessThanOrEqual(320);
+    }
+    expect(scanScrolls).toBe(false);
+    expect(howScrolls).toBe(false);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+
   test("1440 wide: one row, the primary about 14rem and the secondary about 10.5rem", async ({
     page,
   }) => {
@@ -433,8 +466,14 @@ for (const [width, height] of [
 // 375 x 667 phone (screens/02). Both depend on the font, and CI is Linux, whose
 // default font is about a quarter wider than Windows', so the sizes in home.css
 // are set for the wider one: this must hold in either.
+// 361 and 364 are in the list on purpose: the side padding used to step from
+// 1.5rem to 1rem at 360 px, which left those widths a few pixels short in a wide
+// font (the buttons stacked at 361 to 364 px, though they fit at 360). It ramps
+// now, so every width from 360 px up has at least as much room as 360 px has.
 for (const [width, height] of [
   [360, 640],
+  [361, 640],
+  [364, 640],
   [375, 667],
   [390, 844],
 ] as const) {
