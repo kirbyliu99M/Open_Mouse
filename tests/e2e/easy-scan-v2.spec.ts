@@ -1942,6 +1942,14 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
         // only the text size, decides that (DejaVu Sans, which Linux and CI
         // use, is a quarter wider than Windows' font), so it is worked out from
         // the width of the widest label and not from a size in px.
+        //
+        // "Would not fit" has the slack of the CSS's own thresholds, which are
+        // in ch and so follow the font's digits, not its letters: "Fingertip"
+        // is 6.7ch in Windows' font and 7.1ch in DejaVu Sans, two across need
+        // 14.5ch and 15.2ch, and the threshold is 16ch. So a sheet up to 12%
+        // wider than two across need may still stack (16 / 14.5 = 1.10); far
+        // more than that is the layout stacking for no reason.
+        const STACK_SLACK = 1.12;
         expect([1, 2, 4]).toContain(rows.length);
         if (rows.length === 2)
           for (const row of rows)
@@ -1956,8 +1964,8 @@ test.describe("fix round 4: the sheet's grip options and height", () => {
             `${width} px, ${percent}%: stacked, two across would need ${twoAcross.toFixed(1)} px of ${grid.width} px`,
           );
           expect(
-            twoAcross,
-            "stacked although two by two would have fit",
+            twoAcross * STACK_SLACK,
+            "stacked although two by two would have fit with room to spare",
           ).toBeGreaterThan(grid.width);
         }
         // No word cut short ("Fingertip" is the long one).
