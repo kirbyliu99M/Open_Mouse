@@ -6,7 +6,7 @@ import { GESTURES, KIT_V1_VERSION, shotsPerHand } from "@/lib/learning/kit";
 import "./learn.css";
 
 export const metadata: Metadata = {
-  title: "Learning kit — Open Mouse",
+  title: "Learning kit",
   description:
     "Printed, QR-labelled pages for collecting ruler-checked hand photos.",
   robots: { index: false, follow: false },

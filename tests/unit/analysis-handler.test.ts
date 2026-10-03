@@ -635,9 +635,19 @@ describe("handleAnalysisRequest — the cache never fails a request", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ source: "model", cached: false });
     const logged = errors.mock.calls.flat().map(String).join("\n");
+    expect(JSON.parse(String(errors.mock.calls[0]![0]))).toMatchObject({
+      level: "error",
+      event: "analysis.cache_failed",
+      op: "set",
+      code: "23502",
+    });
     expect(logged).toContain("23502");
     expect(logged).not.toContain("125 mm");
     expect(logged).not.toContain("null value");
+    // The wrapper error's own message quotes the query and its parameters,
+    // which here are prose about the hand: none of it may be logged either.
+    expect(logged).not.toContain("ideal range");
+    expect(logged).not.toContain("insert into");
     errors.mockRestore();
   });
 });

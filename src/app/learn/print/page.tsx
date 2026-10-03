@@ -15,7 +15,7 @@ import { PrintButton } from "../PrintButton";
 import "../learn.css";
 
 export const metadata: Metadata = {
-  title: "Print the learning kit — Open Mouse",
+  title: "Print the learning kit",
   robots: { index: false, follow: false },
 };
 

@@ -7,7 +7,7 @@ import { CheckClient } from "./CheckClient";
 import "../learn.css";
 
 export const metadata: Metadata = {
-  title: "Check photos — Open Mouse",
+  title: "Check photos",
   robots: { index: false, follow: false },
 };
 
