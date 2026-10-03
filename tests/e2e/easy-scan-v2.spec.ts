@@ -1126,7 +1126,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     });
   }
 
-  test("88 px, drafting blue #0A64E0, 2 px, 12 px radius, a centre dot, and a thin white halo", async ({
+  test("88 px, the accent fill (--accent, #1F6BF0), 2 px, 12 px radius, a centre dot, and a thin white halo", async ({
     page,
   }) => {
     const reticle = await tapAndReadReticle(page);
@@ -1134,9 +1134,9 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     expect(reticle.height).toBeCloseTo(88, 0);
     expect(reticle.borderWidth).toBe("2px");
     expect(reticle.borderStyle).toBe("solid");
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(reticle.radius).toBe("12px");
-    expect(reticle.dotColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.dotColor).toBe("rgb(31, 107, 240)");
     expect(reticle.dotSize).toEqual(["6px", "6px"]);
     // The halo: white, 1 px, nearly opaque, so the blue does not vanish on a dark picture.
     expect(reticle.shadow).toContain(
@@ -1150,7 +1150,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     await page.emulateMedia({ contrast: "more" });
     const reticle = await tapAndReadReticle(page);
     // Not white: a plain white stroke vanishes on a bright picture.
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(parseFloat(reticle.borderWidth)).toBeGreaterThanOrEqual(2);
     expect(reticle.shadow).toContain("rgb(255, 255, 255) 0px 0px 0px 2px");
     expect(reticle.shadow).toContain("rgb(0, 0, 0) 0px 0px 0px 3px");
@@ -1168,7 +1168,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
       };
     });
     const reticle = await tapAndReadReticle(page);
-    expect(reticle.borderColor).toBe("rgb(10, 100, 224)");
+    expect(reticle.borderColor).toBe("rgb(31, 107, 240)");
     expect(reticle.width).toBeCloseTo(88, 0);
   });
 });
@@ -1841,19 +1841,18 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
     });
   }
 
-  test("dark mode: the pinned row wears the dark sheet's background, not the light one", async ({
+  test("the pinned row wears the sheet's own background (--bg), so nothing shows through it", async ({
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
     const l = await pinnedLayout(
       page,
       { width: 360, height: 640 },
       200,
       "measured",
     );
-    // --scan-bg in dark mode is #161617 (src/app/scan/scan.css).
-    expect(l.sheetBackground).toBe("rgb(22, 22, 23)");
-    expect(l.row.background).toBe("rgb(22, 22, 23)");
+    // --bg is #060709 (src/app/tokens.css): the one dark theme.
+    expect(l.sheetBackground).toBe("rgb(6, 7, 9)");
+    expect(l.row.background).toBe("rgb(6, 7, 9)");
     expect(l.main.onTopIsIt).toBe(true);
     expect(l.main.rect.bottom).toBeLessThanOrEqual(l.viewport.height);
   });

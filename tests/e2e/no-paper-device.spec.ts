@@ -210,7 +210,7 @@ test("the upload picker is not a second control: out of the tab order and hidden
   }
 });
 
-test("the desktop entry follows dark mode, including the copy-link fallback box", async ({
+test("the desktop entry is on the dark theme, including the copy-link fallback box", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
@@ -231,7 +231,7 @@ test("the desktop entry follows dark mode, including the copy-link fallback box"
       copy: read("button.easyCopyLink"),
     };
   });
-  expect(styles.entry.background).toBe("rgb(22, 22, 23)");
+  expect(styles.entry.background).toBe("rgb(6, 7, 9)"); // --bg
   expect(contrast(styles.entry.color, styles.entry.background)).toBeGreaterThan(
     7,
   );
@@ -441,14 +441,14 @@ test("without a usable camera, the length step goes back to the upload screen, n
   await context.close();
 });
 
-// ── Contrast in both themes ────────────────────────────────────────────────
+// ── Contrast on the dark theme ─────────────────────────────────────────────
 
-test("the length step is themed: focus ring, link, hint and button keep their contrast in light and dark", async ({
+test("the length step is themed: focus ring, link, hint and button keep their contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
   await openLengthStepFromTip(page);
-  for (const scheme of ["light", "dark"] as const) {
+  for (const scheme of ["dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     const input = page.getByLabel("Hand length (mm)");
     await input.focus();
@@ -521,7 +521,7 @@ test("the length step is themed: focus ring, link, hint and button keep their co
   }
 });
 
-test("the tip's no-paper link and the measured sheet's precision note keep their contrast in dark mode", async ({
+test("the tip's no-paper link and the measured sheet's precision note keep their contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
@@ -559,12 +559,12 @@ test("the tip's no-paper link and the measured sheet's precision note keep their
 
 const CAMERA_SHELL_BG = "rgb(18, 22, 28)";
 
-test("the length field's placeholder keeps its contrast in light and dark", async ({
+test("the length field's placeholder keeps its contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
   await openLengthStepFromTip(page);
-  for (const scheme of ["light", "dark"] as const) {
+  for (const scheme of ["dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     const placeholder = await page.evaluate(() => {
       const input = document.querySelector("#easy-hand-length")!;
@@ -656,13 +656,17 @@ test("without the Clipboard API, copy link still says what to do", async ({
   await expect(page.getByRole("status")).toContainText("Couldn't copy");
 });
 
-const PAGE_BG = { light: "rgb(244, 244, 246)", dark: "rgb(22, 22, 23)" };
+// --bg (src/app/tokens.css). The site is one dark theme since Home v3, so the
+// loops below that used to run once per colour scheme now run once, with the
+// scheme the system asks for left at "dark"; tests/e2e/home.spec.ts checks the
+// page stays dark whatever the system asks.
+const PAGE_BG = { dark: "rgb(6, 7, 9)" };
 
-test("on a desktop the placeholder is the entry screen's own background in both themes, with no controls", async ({
+test("on a desktop the placeholder is the entry screen's own background, with no controls", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     // Scripts off: only the server-rendered first paint exists.
     const bare = await browser.newContext({
       javaScriptEnabled: false,
@@ -694,11 +698,11 @@ test("on a desktop the placeholder is the entry screen's own background in both 
   }
 });
 
-test("on a touch device the placeholder is the camera shell's own dark in both themes, and the shell that replaces it is the same dark", async ({
+test("on a touch device the placeholder is the camera shell's own dark, and the shell that replaces it is the same dark", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const bare = await browser.newContext({
       ...devices["Pixel 7"],
       javaScriptEnabled: false,
@@ -881,11 +885,11 @@ async function firstPaintThenScreen(
   return { hint, before, after, fine };
 }
 
-test("an in-app browser on a touch screen keeps the entry screen's background from the first paint, in both themes", async ({
+test("an in-app browser on a touch screen keeps the entry screen's background from the first paint", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {
@@ -911,7 +915,7 @@ test("an Android phone with a mouse attached still gets the camera's dark from t
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {
@@ -933,7 +937,7 @@ test("a tablet asking for the desktop site gets the camera's dark from the first
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {

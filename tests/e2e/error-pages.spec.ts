@@ -208,7 +208,8 @@ for (const [name, path, title] of [
   ["404 page", "/no-such-page-xyz", NOT_FOUND_COPY.title],
   ["error screen", "/scan/error-demo", ERROR_COPY.title],
 ] as const) {
-  for (const colorScheme of ["light", "dark"] as const) {
+  // One dark theme since Home v3: the light iteration is gone.
+  for (const colorScheme of ["dark"] as const) {
     test(`the ${name} has no WCAG 2.2 AA violations in ${colorScheme} mode`, async ({
       page,
     }) => {

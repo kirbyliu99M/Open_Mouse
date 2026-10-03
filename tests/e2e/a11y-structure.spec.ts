@@ -198,7 +198,8 @@ async function focusRing(page: import("@playwright/test").Page) {
   });
 }
 
-for (const colorScheme of ["light", "dark"] as const) {
+// One dark theme since Home v3: the light iteration is gone.
+for (const colorScheme of ["dark"] as const) {
   test(`Tab to the upload input shows a ring on the visible "Upload a photo instead" label (camera refused, ${colorScheme})`, async ({
     page,
   }, info) => {

@@ -327,7 +327,6 @@
 
 .results-rankedList,
 .results-excludedList {
-  border-top: 1px solid #d0d0d5;
   padding-top: 1.5rem;
 }
 
@@ -428,7 +427,6 @@
 /* ---- Written analysis slot ---- */
 
 .results-analysis {
-  border-top: 1px solid #d0d0d5;
   padding-top: 1.5rem;
 }
 
@@ -634,10 +632,8 @@
 .results-subscoreBar-track {
   height: 0.375rem;
 }
-/* #86868b: 3.62:1 against the white card — #d5d5dc (the border token used
-   elsewhere) was only 1.46:1 here and failed the ≥3:1 non-text-indicator
-   requirement (nit). Dark's #71717a (below) already passed at 3.52:1
-   against the dark card. */
+/* #71717a: 3.52:1 against the card — the border colour used elsewhere is
+   too faint here for the ≥3:1 non-text-indicator requirement (nit). */
 .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {
   background-image: none;
   border: 1px solid #71717a;
@@ -659,6 +655,7 @@
   border: 0;
   border-radius: 1rem;
   padding: 1.5rem;
+  background: #1c1c1e;
 }
 .results-rankedList-toggle {
   width: 100%;
@@ -738,15 +735,4 @@
 .results-fitNotice,
 .results-handNotice {
   color: #b5b5bd;
-}
-
-/* ---- Written analysis card, dark theme ---- */
-/* Kept as its own block, last in the file, on purpose. The card's light
-   surface (`.results-analysis { background: #ffffff }`, declared after the
-   first dark-theme block) has the same specificity as that block's dark one
-   and comes later, so in the dark theme it won and left #f5f5f7 text on
-   white (about 1.08:1 for the heading, the body and the lists). Everything
-   else in the card already has a dark colour of its own. */
-.results-analysis {
-  background: #1c1c1e;
 }

@@ -18,8 +18,8 @@ import {
 
 /**
  * WCAG 2.2 AA rules (and the A rules under them) on the main pages and on
- * every state of the scan screen that this work touches, in the light and the
- * dark theme.
+ * every state of the scan screen that this work touches, in the dark theme
+ * (the site's only theme).
  *
  * `@axe-core/playwright` is a devDependency (MPL-2.0, like the axe-core it
  * wraps; neither ships to users). Any rule that cannot be fixed is listed in
@@ -378,7 +378,10 @@ async function audit(
   for (const check of always) await check(page);
 }
 
-const SCHEMES = ["light", "dark"] as const;
+// The site is one dark theme since Home v3 (Kirby, 2026-10-03): the light
+// iteration only repeated the dark one under another name, so it is gone. What
+// the system asks for is ignored on purpose (tests/e2e/home.spec.ts checks it).
+const SCHEMES = ["dark"] as const;
 
 // ── Pages ───────────────────────────────────────────────────────────────────
 
