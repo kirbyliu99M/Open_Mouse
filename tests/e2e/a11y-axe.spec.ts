@@ -31,8 +31,10 @@ import {
  * settles it here. A new open item fails until someone has looked at it.
  * The other way round is tolerated only where a review says `mayResolve`: axe
  * may decide such a rule itself (and pass it) on a run where the thing that
- * made it undecidable is not there. Any other review that axe no longer needs
- * fails, so the list cannot go stale.
+ * made it undecidable is not there; or `sometimes`: axe leaves it open only
+ * where the system font wraps the text a certain way, and its check runs
+ * either way. Any other review that axe no longer needs fails, so the list
+ * cannot go stale.
  */
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -88,18 +90,22 @@ const overPhotoPill =
 
 /**
  * The numbers on the measured sheet. They sit on the sheet's own opaque
- * background, but the sheet floats over the photo, and under it lie the photo's
- * drawn labels. axe works out the background from the elements stacked under
- * each line of text. With a font wide enough to wrap the numbers (the Linux
- * font CI renders with does, Windows' and phones' usually do not) the lines
- * sit over different things, a label's SVG rect under one and nothing under the
- * other, and axe gives up: "partially overlaps other elements". The labels are
- * hidden behind the sheet, so nothing is drawn under or over the text. The
- * check says so and measures the contrast against the sheet itself.
+ * background. Since scan v2 the photo is moved up so that the paper, the hand
+ * and the drawn labels lie above the sheet, so normally nothing of it is under
+ * the text. Part of the drawing can still lie under the sheet on a short
+ * screen, once the photo's scale has reached its floor of 0.4 (see the build
+ * notes of scan v2). This review is the fallback for that and for a font wide
+ * enough to wrap the numbers (the Linux font CI renders with does, Windows'
+ * and phones' usually do not): the lines can then sit over different things,
+ * a label's SVG rect under one and nothing under the other, and axe gives up:
+ * "partially overlaps other elements". axe leaves it open only in such
+ * environments, so it is `sometimes`. The check runs either way: it says that
+ * nothing is drawn under or over the text and measures the contrast against
+ * the sheet itself.
  */
 const MEASURED_SHEET_REVIEW: Review = {
   sometimes: true,
-  why: "The numbers sit on the sheet's own opaque background, but when a wide font wraps them axe finds different elements of the photo under each line and cannot tell which background applies.",
+  why: "The numbers sit on the sheet's own opaque background, and the photo is above the sheet. As a fallback for a font that wraps the numbers (or a short screen where part of the drawing is under the sheet), axe may find different elements under each line and cannot tell which background applies.",
   check: async (page) => {
     const s = await page.evaluate(() => {
       const sheet = document.querySelector(".easySheet")!;
