@@ -25,19 +25,16 @@ frames named `[Home v3] …` under the header "Home v3 header". The PNGs in
 - The "Measure your hand." line above the headline is removed, in every
   language.
 - The zh-TW strings in [Copy](#copy) are confirmed.
+- **No photo-privacy line on the home page** (Kirby, 2026-10-03, after this
+  spec first merged). The third tagline, "Private by design.", carried the
+  home page's only copy of `PHOTO_PRIVACY_COPY` ("Your photo never leaves your
+  phone. Only measurements are sent."). It goes with the taglines and is not
+  moved elsewhere on the home page. The promise stays on How it works, the
+  scan screens and the camera. A separate privacy-rights statement page is
+  planned for later (candidate).
 
 Still **not decided (未拍板, candidate)**:
 
-- **Where the photo-privacy line goes on the home page.** The third tagline,
-  "Private by design.", carried the home page's only privacy promise
-  (`PHOTO_PRIVACY_COPY`: "Your photo never leaves your phone. Only
-  measurements are sent."). Removing the taglines removes it from the home
-  page; it stays on How it works, the scan screens and the camera.
-  - Claude suggests keeping the existing English string as one line under the
-    final CTA. Its zh-TW wording also needs Kirby's confirmation.
-  - Until Kirby decides, builders keep the string on the home page (under the
-    final CTA) and keep the e2e assertion for it. The screens don't show it
-    yet.
 - The logo. The particle logo in the hero (Story 1) is a placeholder.
 - Which three mice the last step shows. All three are G Pro placeholders until
   more sketches exist.
@@ -128,8 +125,7 @@ DOM order:
    2. the hand (a static SVG);
    3. the three mice (static SVGs), each with its caption as real text;
    4. the `<canvas>` (PR B only).
-3. Final section: both buttons again, the Early preview note again, and the
-   privacy line (see the undecided item above).
+3. Final section: both buttons again and the Early preview note again.
 4. Footer disclaimer: left-aligned on mobile, centred on desktop.
 
 **Static layout.** This is PR A. In PR B it is also used under reduced motion,
@@ -385,7 +381,9 @@ change in PR A. Rewrite them; don't delete them silently.
   - The catalogue-count sentence is removed.
   - `.landing-points > div > span` `toHaveCount(0)` becomes meaningless once
     the block is gone. Replace it with a check that the taglines are absent.
-  - The privacy sentence stays until Kirby decides (see above).
+  - The privacy sentence leaves the home page (see the decisions above).
+    Replace that assertion with one that it is absent on `/`, and keep the
+    How it works assertion for it.
 - **Duplicates.** "Scan my hand", "How it works" and the Early preview note
   (`.landing-preview-note`) now appear twice: once in the hero, once in the
   final section. Scope each locator to its region, for example with a test
@@ -412,8 +410,9 @@ change in PR A. Rewrite them; don't delete them silently.
   drop the light iteration.
 
 - **`tests/unit/privacy-copy.test.ts`** asserts that `src/app/page.tsx` uses
-  `PHOTO_PRIVACY_COPY`. It stays true under the interim rule. If Kirby later
-  removes the line from the home page, this test changes with it.
+  `PHOTO_PRIVACY_COPY`. With the line gone from the home page, it must instead
+  pin the surfaces that keep the promise (How it works, the scan screens, the
+  camera), so the promise can't silently disappear from all of them.
 
 ## Accessibility checklist for PR A and PR B
 
