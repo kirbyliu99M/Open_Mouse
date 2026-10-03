@@ -17,8 +17,7 @@ tool and does not diagnose, treat or prevent anything.
 engines are told not to list it) and has not been announced. Do not treat its
 output as validated:
 
-- The hand measurement has not yet passed its accuracy check against a ruler
-  (the target is within ±2 mm on hand length).
+- The hand measurement is still being validated.
 - The fit weights are provisional, and some mice have shape descriptors that are
   still unclassified, so their ranking leans on dimensions.
 
@@ -52,7 +51,7 @@ locked. The paper's known size is the ruler.
 sheet carrying six ArUco markers (four flat on the sheet, two on a flap you fold
 up for the side shot; identical on A4 and Letter) and photograph your hand with
 the sheet in frame. It is still available; whether to keep it is pending
-(未拍板). Until that is decided it is mainly used for checking the blank-paper
+(not decided yet). Until that is decided it is mainly used for checking the blank-paper
 measurement against ground truth (a learning kit for that is in development).
 
 **No paper: type your hand length.** A "No paper? Use a ruler instead" entry lets
@@ -77,14 +76,14 @@ photo measurement is validated.
   not the address itself. The key is the `RATE_LIMIT_KEY_SECRET` environment
   variable (see `.env.example`); when it is not set, the code falls back to a
   fixed, non-secret salt (the hash can then be reversed by brute force) and logs a
-  warning. Whether production sets it is **unconfirmed** (未確認).
+  warning. Whether production sets it is **unconfirmed**.
 - **Deletion.** A scan made without an account belongs to a session that
   expires automatically. Once it has expired, the app treats the session and its
   scans as if they did not exist, so they can no longer be read. When the expired
   data is physically removed from the database, and how long database backups
   keep it, are not stated here: they will be set out in the privacy terms, which
-  are not written yet (未拍板). How long Neon's point-in-time restore (PITR) keeps
-  data has **not been confirmed** (未確認). You can delete a scan at any time with
+  are not written yet (not decided yet). How long Neon's point-in-time restore (PITR) keeps
+  data has **not been confirmed**. You can delete a scan at any time with
   "Delete this scan now" on its results page.
 - **Accounts are optional, and sign-in is off on the production site.** Google
   sign-in exists in the code and stays off unless OAuth credentials are
@@ -185,10 +184,10 @@ can see a public repository. Third-party components keep their own licences; see
 Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和 Logitech 滑鼠型錄裡各型號的公開尺寸比對，
 給出適合度排名，並用白話說明原因。它只提供購買時的適合度估計，不是醫療或健康工具，不做任何診斷或治療宣稱。
 
-- **狀態：早期預覽，尚未公開。** 網站已部署，但標了 `noindex`，沒有對外宣傳。手部量測還沒通過對照尺的準確度檢查（目標是手長誤差在 ±2 mm 內），適合度權重也是暫定值，請不要當成已驗證的結果。
+- **狀態：早期預覽，尚未公開。** 網站已部署，但標了 `noindex`，沒有對外宣傳。手部量測仍在驗證中，適合度權重也是暫定值，請不要當成已驗證的結果。
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
-- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未拍板（未拍板）。目前主要用來對照空白紙流程的量測結果。
+- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未拍板（尚未決定）。目前主要用來對照空白紙流程的量測結果。
 - **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明（未拍板）。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明（尚未決定）。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。

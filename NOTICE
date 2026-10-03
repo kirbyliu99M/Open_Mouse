@@ -135,7 +135,8 @@ and package-lock.json.
   @next/env                   15.5.25          MIT
   drizzle-orm                 0.45.2           Apache-2.0
   js-aruco2                   2.0.0            MIT
-  next                        15.5.25          MIT
+  jsqr                        1.4.0            Apache-2.0
+  next                      15.5.25          MIT
   next-auth                   5.0.0-beta.32    ISC
   qrcode                      1.5.4            MIT
   react                       19.3.0           MIT
