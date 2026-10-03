@@ -112,7 +112,7 @@ describe("global error screen (global-error.tsx)", () => {
     // The full title, site name included: no layout template reaches this page.
     expect(html).toContain(`<title>${GLOBAL_ERROR_COPY.documentTitle}</title>`);
     expect(GLOBAL_ERROR_COPY.documentTitle).toBe(
-      "Something went wrong — Open_Mouse",
+      "Something went wrong · Open_Mouse",
     );
   });
 

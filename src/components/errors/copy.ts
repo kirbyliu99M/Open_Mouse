@@ -43,9 +43,10 @@ export const GLOBAL_ERROR_COPY = {
   /**
    * The complete title, site name included, unlike NOT_FOUND_COPY.pageTitle:
    * global-error.tsx replaces the root layout, so the layout's title template
-   * never reaches it, and an error component cannot export `metadata`.
+   * never reaches it, and an error component cannot export `metadata`. It
+   * copies the template's " · " separator so every page title reads alike.
    */
-  documentTitle: "Something went wrong — Open_Mouse",
+  documentTitle: "Something went wrong · Open_Mouse",
 } as const;
 
 export const REFERENCE_LABEL = "Reference";

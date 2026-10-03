@@ -9,7 +9,7 @@ import { PrintButton } from "../PrintButton";
 import "../learn.css";
 
 export const metadata: Metadata = {
-  title: "Participant cards — Open Mouse",
+  title: "Participant cards",
   robots: { index: false, follow: false },
 };
 
