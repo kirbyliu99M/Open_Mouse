@@ -7,7 +7,7 @@ vendored in this repository, and npm packages that ship in the deployed app.
 It records what was verified and where. Anything that could not be confirmed
 says "Unconfirmed". It is not legal advice.
 
-Last checked: 2026-09-30.
+Last checked: 2026-10-04.
 
 
 1. Vendored files: public/mediapipe/
@@ -260,10 +260,12 @@ and package-lock.json.
   Licence: Apache License 2.0. The package carries node_modules/@google/genai/
   LICENSE: the standard text, with the appendix's copyright line left as the
   unfilled template, and no NOTICE file. That text is the same as the Apache
-  License 2.0 text in public/mediapipe/LICENSE-mediapipe.txt (compared
-  2026-10-04: no difference but one blank line at the start of the package's
-  file). Both use square brackets in the appendix template ("[yyyy] [name of
-  copyright owner]"); jsqr's uses braces (see 3.2).
+  License 2.0 text at the top of public/mediapipe/LICENSE-mediapipe.txt, up to
+  the end of the appendix (compared 2026-10-04: no difference but one blank
+  line at the start of the package's file). The repo file goes on after that
+  with a notice that applies to MediaPipe only (see 1.3); the package's file
+  has nothing after the appendix. Both use square brackets in the appendix
+  template ("[yyyy] [name of copyright owner]"); jsqr's uses braces (see 3.2).
 
 3.4 drizzle-orm
 
