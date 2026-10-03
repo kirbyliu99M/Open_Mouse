@@ -741,3 +741,71 @@
 .results-handNotice {
   color: #b5b5bd;
 }
+
+/* ---- Print ----
+ * The screen styles above are written for the dark theme: light grey captions,
+ * near-white button labels, a pale amber note, and dark card fills. Chrome
+ * prints no backgrounds unless the user asks for them, so light text on a dark
+ * card would print as light text on white; with "background graphics" on, the
+ * dark cards would print dark and the black body text would vanish on them.
+ * On paper the text is dark, the cards have no fill (a hairline keeps their
+ * shape), and a button is a dark label with an outline, as on the home page.
+ * The colours come from the print tokens in tokens.css. Placed last so these
+ * win over the rules above at equal specificity.
+ * (The dev-only demo controls are left alone: /results/demo is a 404 in
+ * production.)
+ */
+@media print {
+  .results-page-status,
+  .results-page-error p,
+  .results-eyebrow,
+  .results-mouseHeader-rank,
+  .results-mouseHeader-stats dt,
+  .results-targetDeltas caption,
+  .results-targetDeltas th[scope="col"],
+  .results-excludedList-reason,
+  .results-analysis-caveats,
+  .results-analysis-provenance,
+  .results-topPick-eyebrow,
+  .results-topPick-scoreLabel,
+  .results-subscoreBar-reason,
+  .results-sizeNotice,
+  .results-previewNotice,
+  .results-fitNotice,
+  .results-handNotice {
+    color: var(--text-secondary);
+  }
+  .results-topPick,
+  .results-analysis {
+    background: none;
+    border: 1px solid var(--hairline);
+  }
+  .results-confidenceNote {
+    background: none;
+    color: var(--text-primary);
+  }
+  .results-analysis-error {
+    color: #b3261e; /* 6.5:1 on white; the screen's salmon is 2.0:1 */
+  }
+  .results-analysis-retry,
+  .results-rankedList-toggle {
+    background: none;
+    border-color: var(--control-border);
+  }
+  .results-analysis-retry {
+    color: var(--text-primary);
+  }
+  .results-page-action {
+    background: none;
+    border: 1px solid var(--text-primary);
+    color: var(--text-primary);
+  }
+  /* The track is a pale groove, not the screen's dark one, so the blue fill
+     reads against it when background graphics are on. */
+  .results-subscoreBar-track {
+    background: #e5e5ea;
+  }
+  .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {
+    background: none;
+  }
+}

@@ -1,8 +1,9 @@
 /**
  * Said next to every measured number on a scan screen. The measurements are
- * an estimate from a photo that has not been checked against a physical
- * ruler yet (docs/PLAN.md, M2), and the screen should say so instead of
- * implying otherwise. Candidate wording, pending Kirby's confirmation.
+ * an estimate from a photo, and the screen says so instead of implying
+ * otherwise. Wording decided by Kirby on 2026-10-03 (docs/STATUS.md, decisions
+ * log): it does not mention a ruler or any accuracy figure, only that the
+ * measurements are still being validated.
  */
 export const UNVERIFIED_MEASUREMENT_NOTE =
   "Measurements are still being validated.";
@@ -36,7 +37,8 @@ export function measuredSheetNumbers(
  * shows them too, but it is an image). `enteredLengthMm` is set when the
  * hand length was typed rather than measured: it is then the reference the
  * palm width is scaled from, and is said to be entered. Whole millimetres,
- * as on the drawing. Candidate wording, pending Kirby's confirmation.
+ * as on the drawing. Wording: Kirby decided on 2026-10-03 that the remaining
+ * copy ships as it is and is adjusted later (docs/STATUS.md, decisions log).
  */
 export function measuredNumbersText(input: {
   readonly handLengthMm: number;
@@ -45,7 +47,7 @@ export function measuredNumbersText(input: {
 }): string {
   const length =
     input.enteredLengthMm === undefined
-      ? `Hand length ${input.handLengthMm.toFixed(0)} mm`
-      : `Hand length ${input.enteredLengthMm.toFixed(0)} mm (entered)`;
-  return `${length} · Palm width ${input.palmWidthMm.toFixed(0)} mm`;
+      ? `Hand length ${input.handLengthMm.toFixed(0)}\u00A0mm`
+      : `Hand length ${input.enteredLengthMm.toFixed(0)}\u00A0mm (entered)`;
+  return `${length} · Palm width ${input.palmWidthMm.toFixed(0)}\u00A0mm`;
 }

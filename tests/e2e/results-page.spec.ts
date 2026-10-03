@@ -105,7 +105,7 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
   );
   await newTab.goto(`/results/${SCAN_ID}`);
   await expect(
-    newTab.getByText(/Based on the hand length you entered \(190 mm\)/),
+    newTab.getByText(/Based on the hand length you entered \(190\u00A0mm\)/),
   ).toBeVisible();
   await expect(newTab.getByText(/Left-hand fit isn't rated yet/)).toBeVisible();
   // The no-paper disclosure sits right after the top pick, styled like the
