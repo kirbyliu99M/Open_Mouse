@@ -56,26 +56,32 @@ for (const selector of [".eyebrow", ".note"]) {
   });
 }
 
-// The signed-in account list (AccountView.tsx) cannot be reached either. Its
-// markup is put on a page that loads the same stylesheet, so the real cascade
+// The signed-in account page (AccountView.tsx) cannot be reached either. Its
+// markup is put on a page that loads the same stylesheets, so the real cascade
 // decides its print colours. Keep the classes in step with AccountView.
-test("a signed-in account's scan card prints dark on white", async ({
+const FAKE_ACCOUNT = `<section id="fake-account">
+  <div class="account-actions">
+    <button type="button" class="button-secondary">Export as JSON</button>
+    <button type="button" class="button-danger">Delete everything</button>
+  </div>
+  <p class="status-error" role="status">Couldn't export: check your connection and try again.</p>
+  <ul class="scan-list"><li class="scan-card">
+    <div class="scan-card-header"><span>4 Oct 2026</span><span>Right hand</span></div>
+    <dl class="measurements">
+      <div><dt>Hand length</dt><dd>190 mm</dd></div>
+    </dl>
+  </li></ul>
+</section>`;
+
+test("a signed-in account's actions, error line and scan card print dark on white", async ({
   page,
 }) => {
   await page.goto("/no-such-page-xyz");
-  await page.evaluate(() => {
-    document.querySelector("main")!.insertAdjacentHTML(
-      "beforeend",
-      `<ul class="scan-list" id="fake-scans"><li class="scan-card">
-        <div class="scan-card-header"><span>4 Oct 2026</span><span>Right hand</span></div>
-        <dl class="measurements">
-          <div><dt>Hand length</dt><dd>190 mm</dd></div>
-        </dl>
-      </li></ul>`,
-    );
-  });
+  await page.evaluate((html) => {
+    document.querySelector("main")!.insertAdjacentHTML("beforeend", html);
+  }, FAKE_ACCOUNT);
   await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
-  const samples = await textSamples(page, { root: "#fake-scans" });
-  expect(samples.length).toBeGreaterThanOrEqual(4);
+  const samples = await textSamples(page, { root: "#fake-account" });
+  expect(samples.length).toBeGreaterThanOrEqual(7);
   expect(weakSamples(samples)).toEqual([]);
 });
