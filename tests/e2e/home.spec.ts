@@ -403,6 +403,74 @@ test("the focus ring is the accent text colour, 2 px, visible on the dark page",
   });
 });
 
+test("every piece of text on the home page is one of the token colours, never the retired #6E6E73", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const colours = await page.evaluate(() => {
+    const found = new Set<string>();
+    for (const el of document.querySelectorAll("main *")) {
+      const own = [...el.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent!.trim())
+        .join("");
+      if (own) found.add(getComputedStyle(el).color);
+    }
+    return [...found].sort();
+  });
+  // --text-primary, --text-secondary, --text-tertiary, --on-accent.
+  const allowed = [
+    "rgb(138, 138, 143)",
+    "rgb(161, 161, 166)",
+    "rgb(245, 245, 247)",
+    "rgb(255, 255, 255)",
+  ];
+  for (const colour of colours) expect(allowed).toContain(colour);
+  expect(colours).not.toContain("rgb(110, 110, 115)"); // #6E6E73, 3.97:1
+});
+
+test("with more contrast the outline button's border is solid #8A8A8F and the glow is gone", async ({
+  page,
+}) => {
+  await page.emulateMedia({ contrast: "more" });
+  await page.goto("/");
+  const style = await page.evaluate(() => ({
+    border: getComputedStyle(document.querySelector(".home-cta-secondary")!)
+      .borderTopColor,
+    shadow: getComputedStyle(document.querySelector(".home-cta")!).boxShadow,
+    slot: getComputedStyle(document.querySelector(".story-logo")!)
+      .backgroundImage,
+  }));
+  expect(style.border).toBe("rgb(138, 138, 143)");
+  // The glow colour is --glow at an alpha; with --glow transparent no blue is left.
+  expect(style.shadow).not.toMatch(/59, 130, 246/);
+  expect(style.shadow).toMatch(/(\/ 0\)|, 0\))/);
+  expect(style.slot).not.toMatch(/59, 130, 246/);
+});
+
+test("with forced colours both buttons keep a visible 1 px border", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/");
+  for (const selector of [".home-cta", ".home-cta-secondary"]) {
+    const border = await page.evaluate((sel) => {
+      const style = getComputedStyle(document.querySelector(sel)!);
+      return {
+        width: style.borderTopWidth,
+        style: style.borderTopStyle,
+        colour: style.borderTopColor,
+        adjust: style.forcedColorAdjust,
+      };
+    }, selector);
+    expect(border.width, selector).toBe("1px");
+    expect(border.style, selector).toBe("solid");
+    // Drawn in a system colour, never transparent.
+    expect(border.colour, selector).not.toBe("rgba(0, 0, 0, 0)");
+    expect(border.adjust, selector).toBe("auto");
+  }
+});
+
 test("the printed-sheet flow stays reachable from /scan", async ({ page }) => {
   const response = await page.goto("/scan");
   expect(response?.status()).toBe(200);
