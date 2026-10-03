@@ -29,6 +29,7 @@ import {
   SIDE_CURVATURES,
   SIZES,
 } from "../lib/contracts/descriptors";
+import { CALIBRATION_METHODS } from "../lib/contracts/measurement";
 
 // Infrastructure only, from M0. Proves the migration pipeline end to end.
 export const scaffoldChecks = pgTable("scaffold_checks", {
@@ -52,6 +53,10 @@ export const descriptorMethodEnum = pgEnum("descriptor_method", [
   "rubric_vision",
   "manual",
 ]);
+export const calibrationMethodEnum = pgEnum(
+  "calibration_method",
+  CALIBRATION_METHODS,
+);
 export const gripStyleEnum = pgEnum("grip_style", [
   "palm",
   "claw",
@@ -251,6 +256,12 @@ export const scanMeasurements = pgTable(
       scale: 4,
       mode: "number",
     }),
+    // #63 — the measurement model and calibration evidence the client sent,
+    // kept with the scan (and deleted with it). Nullable: rows written before
+    // migration 0006 have neither.
+    measurementModelVersion: text("measurement_model_version"),
+    calibrationMethod: calibrationMethodEnum("calibration_method"),
+    calibrationEvidence: jsonb("calibration_evidence"),
   },
   (t) => [
     check(

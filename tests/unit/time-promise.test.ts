@@ -21,8 +21,8 @@ describe("timePromises", () => {
   });
 
   it.each([
-    "Scans without an account are deleted automatically after a while.",
-    "Your result is kept for a while, then deleted automatically.",
+    "Scans without an account expire automatically after a while.",
+    "Your result is kept for a while, then expires automatically.",
     "Scans without an account expire automatically.",
     "It may have expired, or the link isn't yours.",
     "Takes about a minute.",

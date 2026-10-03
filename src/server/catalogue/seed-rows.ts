@@ -56,7 +56,15 @@ export function toMouseRow(r: SpecRecord) {
 
 export type MouseRow = NonNullable<ReturnType<typeof toMouseRow>>;
 
-/** src/db/seed/logitech-descriptors.json's shape — scripts/classify-descriptors.ts writes it. */
+/** The descriptors file scripts/seed.ts reads and both producers write. */
+export const DESCRIPTORS_SEED_PATH = "src/db/seed/logitech-descriptors.json";
+
+/**
+ * src/db/seed/logitech-descriptors.json's shape. Two scripts write that file:
+ * scripts/classify-descriptors.ts (Gemini vision; its run failed the M1 gate)
+ * and scripts/descriptors-from-geometry.ts (hump placement measured from the
+ * 3D shells; the committed file comes from this one).
+ */
 export interface DescriptorRecord {
   model: string;
   shape: Shape | null;

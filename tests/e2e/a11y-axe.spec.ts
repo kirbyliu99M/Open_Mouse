@@ -55,6 +55,12 @@ interface Review {
    * rule that axe has simply stopped asking about.
    */
   readonly mayResolve?: true;
+  /**
+   * axe leaves this open only in some environments (it depends on how the
+   * system font wraps the text), so it is expected only where it is open. The
+   * check runs either way.
+   */
+  readonly sometimes?: boolean;
 }
 
 /** The text sits on a translucent pill over a photo; axe cannot see the photo. */
@@ -79,6 +85,59 @@ const overPhotoPill =
       4.5,
     );
   };
+
+/**
+ * The numbers on the measured sheet. They sit on the sheet's own opaque
+ * background, but the sheet floats over the photo, and under it lie the photo's
+ * drawn labels. axe works out the background from the elements stacked under
+ * each line of text. With a font wide enough to wrap the numbers (the Linux
+ * font CI renders with does, Windows' and phones' usually do not) the lines
+ * sit over different things, a label's SVG rect under one and nothing under the
+ * other, and axe gives up: "partially overlaps other elements". The labels are
+ * hidden behind the sheet, so nothing is drawn under or over the text. The
+ * check says so and measures the contrast against the sheet itself.
+ */
+const MEASURED_SHEET_REVIEW: Review = {
+  sometimes: true,
+  why: "The numbers sit on the sheet's own opaque background, but when a wide font wraps them axe finds different elements of the photo under each line and cannot tell which background applies.",
+  check: async (page) => {
+    const s = await page.evaluate(() => {
+      const sheet = document.querySelector(".easySheet")!;
+      const numbers = document.querySelector(".easySheetNumbers")!;
+      const range = document.createRange();
+      range.selectNodeContents(numbers);
+      const lines = [...range.getClientRects()];
+      const sheetBox = sheet.getBoundingClientRect();
+      return {
+        fg: getComputedStyle(numbers).color,
+        bg: getComputedStyle(sheet).backgroundColor,
+        lines: lines.length,
+        // Nothing is drawn over a line of the text: it is the topmost thing there.
+        onTop: lines.every(
+          (line) =>
+            document.elementFromPoint(
+              line.left + line.width / 2,
+              line.top + line.height / 2,
+            ) === numbers,
+        ),
+        // And every line lies inside the sheet.
+        inside: lines.every(
+          (line) =>
+            line.left >= sheetBox.left &&
+            line.right <= sheetBox.right &&
+            line.top >= sheetBox.top &&
+            line.bottom <= sheetBox.bottom,
+        ),
+      };
+    });
+    expect(s.lines).toBeGreaterThan(0);
+    expect(s.onTop).toBe(true);
+    expect(s.inside).toBe(true);
+    // The sheet is opaque, so what lies under it does not show through.
+    expect(Number(s.bg.match(/[\d.]+/g)?.[3] ?? 1)).toBe(1);
+    expect(contrast(s.fg, s.bg)).toBeGreaterThanOrEqual(4.5);
+  },
+};
 
 /** state -> rule id -> the review. */
 const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
@@ -116,6 +175,11 @@ const NEEDS_REVIEW: Record<string, Record<string, Review>> = {
       },
     },
   },
+};
+
+NEEDS_REVIEW["measured sheet"] = { "color-contrast": MEASURED_SHEET_REVIEW };
+NEEDS_REVIEW["measured sheet, typed hand length"] = {
+  "color-contrast": MEASURED_SHEET_REVIEW,
 };
 
 /**
@@ -280,7 +344,9 @@ async function audit(
     `needs review in "${state}" (add it to NEEDS_REVIEW, with why and a check, once looked at): ${JSON.stringify(open, null, 1)}`,
   ).toEqual([]);
   // ...and so does a review that axe no longer needs, unless axe may decide
-  // that rule by itself (then it passed: there were no violations above).
+  // that rule by itself (`mayResolve`: then it passed, there were no
+  // violations above) or leaves it open only in some environments
+  // (`sometimes`).
   const decidedByAxe = Object.keys(reviews).filter(
     (rule) => !openRules.includes(rule),
   );
@@ -289,11 +355,15 @@ async function audit(
     contentType: "application/json",
   });
   expect(
-    decidedByAxe.filter((rule) => !reviews[rule].mayResolve),
+    decidedByAxe.filter(
+      (rule) => !reviews[rule].mayResolve && !reviews[rule].sometimes,
+    ),
     `reviewed in "${state}" but axe no longer leaves it open: remove the review`,
   ).toEqual([]);
   for (const [rule, review] of Object.entries(reviews)) {
-    if (decidedByAxe.includes(rule)) continue;
+    // A `sometimes` check runs either way. A `mayResolve` one has nothing to
+    // look at once axe has decided the rule itself.
+    if (decidedByAxe.includes(rule) && !review.sometimes) continue;
     const targets = incomplete
       .filter((item) => item.id === rule)
       .flatMap((item) => item.nodes.map((n) => n.target.join(" ")));

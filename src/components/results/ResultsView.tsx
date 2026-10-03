@@ -42,7 +42,7 @@ export function ResultsView({
       {enteredLengthMm !== null && (
         <p className="results-handNotice">
           Based on the hand length you entered ({enteredLengthMm} mm). Measured
-          without paper — less precise than a scan on A4.
+          without paper.
         </p>
       )}
       {/* The hand comes from the fit response (#62), not from browser

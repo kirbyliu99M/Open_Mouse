@@ -1,0 +1,126 @@
+{
+  "small_fingertip": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 165,
+      "palmLengthMm": 82,
+      "palmWidthMm": 66
+    },
+    "predictedGrip": "fingertip",
+    "top5": [
+      {
+        "slug": "logitech-m325s",
+        "total": 75
+      },
+      {
+        "slug": "logitech-m240",
+        "total": 72
+      },
+      {
+        "slug": "logitech-m196",
+        "total": 66
+      },
+      {
+        "slug": "logitech-mx-anywhere-3s",
+        "total": 63
+      },
+      {
+        "slug": "logitech-pebble-2-m350s",
+        "total": 54
+      }
+    ]
+  },
+  "medium_claw": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 185,
+      "palmLengthMm": 104,
+      "palmWidthMm": 76
+    },
+    "predictedGrip": "claw",
+    "top5": [
+      {
+        "slug": "logitech-m190",
+        "total": 87
+      },
+      {
+        "slug": "logitech-m100",
+        "total": 86
+      },
+      {
+        "slug": "logitech-g203-lightsync",
+        "total": 85
+      },
+      {
+        "slug": "logitech-g305-lightspeed",
+        "total": 85
+      },
+      {
+        "slug": "logitech-g-pro-x-superlight-2c",
+        "total": 78
+      }
+    ]
+  },
+  "large_palm": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 205,
+      "palmLengthMm": 124,
+      "palmWidthMm": 88
+    },
+    "predictedGrip": "palm",
+    "top5": [
+      {
+        "slug": "logitech-g502-x",
+        "total": 80
+      },
+      {
+        "slug": "logitech-g502-x-lightspeed",
+        "total": 80
+      },
+      {
+        "slug": "logitech-g502-x-plus",
+        "total": 80
+      },
+      {
+        "slug": "logitech-g502-hero",
+        "total": 75
+      },
+      {
+        "slug": "logitech-ergo-m575",
+        "total": 64
+      }
+    ]
+  },
+  "left_handed": {
+    "hand": "left",
+    "measurements": {
+      "handLengthMm": 178,
+      "palmLengthMm": 103,
+      "palmWidthMm": 73
+    },
+    "predictedGrip": "claw",
+    "top5": [
+      {
+        "slug": "logitech-m750",
+        "total": 84
+      },
+      {
+        "slug": "logitech-m100",
+        "total": 83
+      },
+      {
+        "slug": "logitech-m550",
+        "total": 83
+      },
+      {
+        "slug": "logitech-m650",
+        "total": 83
+      },
+      {
+        "slug": "logitech-pop-mouse",
+        "total": 74
+      }
+    ]
+  }
+}

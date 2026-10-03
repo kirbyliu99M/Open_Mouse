@@ -271,7 +271,7 @@ test("the easy-scan measured sheet says the numbers are not yet verified, next t
   const sheet = page.getByRole("dialog", { name: "Hand measured" });
   await expect(sheet).toBeVisible();
   await expect(sheet.locator(".easySheetNote")).toHaveText(
-    "Not yet verified against a ruler.",
+    "Measurements are still being validated.",
   );
   // The drawing on the photo shows the numbers, but it is an image to a screen
   // reader, so the sheet says them in text too, and the note is the very next
@@ -303,7 +303,11 @@ test("a typed hand length is said to be entered, in the sheet's text and on the 
     "Hand length 186 mm (entered) · Palm width 80 mm",
   );
   await expect(sheet.locator(".easySheetNote")).toHaveText(
-    "Not yet verified against a ruler.",
+    "Measurements are still being validated.",
+  );
+  // The no-paper line says how it was measured and does not compare accuracy.
+  await expect(sheet.locator(".easyLengthDisclosure p").last()).toHaveText(
+    "Measured without paper.",
   );
   await expect(page.getByText("Entered 186 mm")).toBeVisible();
 });
@@ -314,7 +318,7 @@ test("the printed-sheet scan page says it too, between the numbers and their cap
   test.skip(info.project.name !== "chromium");
   await page.goto("/scan/measured-demo");
   const note = page.getByTestId("scan-unverified-note");
-  await expect(note).toHaveText("Not yet verified against a ruler.");
+  await expect(note).toHaveText("Measurements are still being validated.");
   const order = await page.evaluate(() => {
     const list = document.querySelector("[data-testid=scan-measurements]")!;
     const note = document.querySelector("[data-testid=scan-unverified-note]")!;

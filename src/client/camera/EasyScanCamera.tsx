@@ -2087,9 +2087,7 @@ export default function EasyScanCamera({
                       Based on the hand length you entered (
                       {result.submission.calibration.referenceMm} mm)
                     </p>
-                    <p>
-                      Measured without paper — less precise than a scan on A4.
-                    </p>
+                    <p>Measured without paper.</p>
                   </div>
                 )}
               <p className="easySheetGripLabel">
