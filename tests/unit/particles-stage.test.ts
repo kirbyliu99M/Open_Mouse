@@ -18,6 +18,7 @@ import {
 } from "@/lib/particles/budget";
 import {
   interpolatePosition,
+  legWeights,
   swirlDirection,
 } from "@/lib/particles/interpolate";
 import { parseTargets } from "@/lib/particles/load-targets";
@@ -265,30 +266,34 @@ describe("the particles", () => {
     }
   });
 
-  it("between, a particle follows pos = a + (b - a) * e(t) + sin(pi * e) * A along its golden-angle direction", () => {
-    // Logo to hand at p = 0.19, hand to mouse at p = 0.725.
-    for (const [p, from, to, swirl] of [
-      [0.19, set.logo, set.hand, set.swirlForm],
-      [0.725, set.hand, set.mouse, set.swirlSplit],
+  it("between, every particle is where interpolatePosition (the formula's one implementation) puts it, and bright as far along as e(t)", () => {
+    // Several points of both legs: logo to hand, then hand to mice.
+    for (const [p, from, to, swirl, toneFrom, toneTo] of [
+      [0.04, set.logo, set.hand, set.swirlForm, set.toneLogo, set.toneHand],
+      [0.19, set.logo, set.hand, set.swirlForm, set.toneLogo, set.toneHand],
+      [0.33, set.logo, set.hand, set.swirlForm, set.toneLogo, set.toneHand],
+      [0.6, set.hand, set.mouse, set.swirlSplit, set.toneHand, set.toneMouse],
+      [0.725, set.hand, set.mouse, set.swirlSplit, set.toneHand, set.toneMouse],
+      [0.85, set.hand, set.mouse, set.swirlSplit, set.toneHand, set.toneMouse],
     ] as const) {
       const phase = phaseAt(p);
-      const t = p < 0.5 ? phase.formT : phase.mouseT;
-      const { xy } = at(p);
-      for (const i of [0, 1, 17, 450, 899]) {
-        const amplitude = Math.hypot(swirl[2 * i]!, swirl[2 * i + 1]!);
-        const direction: [number, number] = [
-          swirl[2 * i]! / amplitude,
-          swirl[2 * i + 1]! / amplitude,
-        ];
+      const t = from === set.logo ? phase.formT : phase.mouseT;
+      const { xy, bright } = at(p);
+      const e = legWeights(t).e;
+      for (let i = 0; i < set.count; i += 1) {
+        // The stored swirl is the vector at full amplitude: direction * amplitude.
         const [x, y] = interpolatePosition(
           [from[2 * i]!, from[2 * i + 1]!],
           [to[2 * i]!, to[2 * i + 1]!],
           t,
-          direction,
-          amplitude,
+          [swirl[2 * i]!, swirl[2 * i + 1]!],
+          1,
         );
-        expect(xy[2 * i]!).toBeCloseTo(x, 2);
-        expect(xy[2 * i + 1]!).toBeCloseTo(y, 2);
+        expect(xy[2 * i]!).toBe(Math.fround(x));
+        expect(xy[2 * i + 1]!).toBe(Math.fround(y));
+        expect(bright[i]!).toBe(
+          Math.fround(toneFrom[i]! + (toneTo[i]! - toneFrom[i]!) * e),
+        );
       }
     }
   });

@@ -197,7 +197,6 @@ test.describe("the animated layout", () => {
             a.hasAttribute("inert"),
           ),
           h1Inert: el.querySelector("h1")!.closest("[inert]") !== null,
-          h1InTree: true,
         };
       });
 

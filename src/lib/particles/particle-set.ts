@@ -1,4 +1,4 @@
-import { easeInOutQuad, interpolateAxis, swirlDirection } from "./interpolate";
+import { interpolateAxis, legWeights, swirlDirection } from "./interpolate";
 import { LOGO_BOX } from "./logo";
 import { mulberry32 } from "./random";
 import type { Pairing } from "./pairing";
@@ -177,20 +177,12 @@ export function writeParticles(
   const swirl = split ? set.swirlSplit : set.swirlForm;
   const { xy, bright } = frame;
   const n = set.count;
-  if (!(t > 0) || t >= 1) {
-    const rest = t >= 1 ? to : from;
-    const tone = t >= 1 ? toneTo : toneFrom;
-    for (let i = 0; i < 2 * n; i += 1) xy[i] = rest[i]!;
-    for (let i = 0; i < n; i += 1) bright[i] = tone[i]!;
-    return;
-  }
-  const e = easeInOutQuad(t);
-  const swing = Math.sin(Math.PI * e);
+  const weights = legWeights(t);
   for (let i = 0; i < n; i += 1) {
     const x = 2 * i;
     const y = x + 1;
-    xy[x] = interpolateAxis(from[x]!, to[x]!, e, swirl[x]! * swing);
-    xy[y] = interpolateAxis(from[y]!, to[y]!, e, swirl[y]! * swing);
-    bright[i] = toneFrom[i]! + (toneTo[i]! - toneFrom[i]!) * e;
+    xy[x] = interpolateAxis(from[x]!, to[x]!, weights, swirl[x]!);
+    xy[y] = interpolateAxis(from[y]!, to[y]!, weights, swirl[y]!);
+    bright[i] = toneFrom[i]! + (toneTo[i]! - toneFrom[i]!) * weights.e;
   }
 }

@@ -37,21 +37,46 @@ export function swirlDirection(index: number, offset = 0): Vec {
   return [Math.cos(angle), Math.sin(angle)];
 }
 
-/** One axis of the formula: `a + (b - a) * e + swirl`, with `e` already eased and `swirl` already scaled by sin(pi * e). */
+/** What the formula needs of `t`, once per frame: the eased `e(t)` and the swing `sin(pi * e(t))`. */
+export interface LegWeights {
+  readonly e: number;
+  readonly swing: number;
+}
+
+/**
+ * `e(t)` and `sin(pi * e(t))`. Every particle of a frame shares them, so the
+ * frame writer computes them once. At t <= 0 they are (0, 0) and at t >= 1 they
+ * are (1, 0): the ends of the leg.
+ */
+export function legWeights(t: number): LegWeights {
+  if (!(t > 0)) return { e: 0, swing: 0 };
+  if (t >= 1) return { e: 1, swing: 0 };
+  const e = easeInOutQuad(t);
+  return { e, swing: Math.sin(Math.PI * e) };
+}
+
+/**
+ * One axis of `pos = a + (b - a) * e(t) + sin(pi * e(t)) * A`, where `swirl` is
+ * this axis's share of A. At the ends of the leg it returns `a` or `b` itself,
+ * exactly (no rounding from the sine's last digits), so the story rests
+ * precisely on its targets. This is the one implementation: both
+ * `interpolatePosition` and the frame writer call it.
+ */
 export function interpolateAxis(
   a: number,
   b: number,
-  e: number,
+  weights: LegWeights,
   swirl: number,
 ): number {
-  return a + (b - a) * e + swirl;
+  if (weights.e <= 0) return a;
+  if (weights.e >= 1) return b;
+  return a + (b - a) * weights.e + swirl * weights.swing;
 }
 
 /**
  * Where a particle is at `t` (0 to 1) on its way from `a` to `b`, with its swirl
- * `amplitude` (in the same units as the points) along `swirlDirection`.
- * t <= 0 returns `a` and t >= 1 returns `b`, exactly (no rounding from the
- * sine's last digits), so the story rests precisely on its targets.
+ * `amplitude` (in the same units as the points) along `direction`
+ * (see `swirlDirection`).
  */
 export function interpolatePosition(
   a: Vec,
@@ -60,12 +85,9 @@ export function interpolatePosition(
   direction: Vec,
   amplitude: number,
 ): Vec {
-  if (!(t > 0)) return [a[0], a[1]];
-  if (t >= 1) return [b[0], b[1]];
-  const e = easeInOutQuad(t);
-  const swing = Math.sin(Math.PI * e) * amplitude;
+  const weights = legWeights(t);
   return [
-    interpolateAxis(a[0], b[0], e, direction[0] * swing),
-    interpolateAxis(a[1], b[1], e, direction[1] * swing),
+    interpolateAxis(a[0], b[0], weights, direction[0] * amplitude),
+    interpolateAxis(a[1], b[1], weights, direction[1] * amplitude),
   ];
 }

@@ -4,7 +4,9 @@ import {
   GOLDEN_ANGLE,
   clamp01,
   easeInOutQuad,
+  interpolateAxis,
   interpolatePosition,
+  legWeights,
   swirlDirection,
 } from "@/lib/particles/interpolate";
 import { mulberry32 } from "@/lib/particles/random";
@@ -108,6 +110,42 @@ describe("interpolatePosition: pos = a + (b - a) * e(t) + sin(pi * e(t)) * A", (
       expect(interpolatePosition(a, b, 0.37, direction, amplitude)).toEqual(
         interpolatePosition(a, b, 0.37, direction, amplitude),
       );
+    }
+  });
+});
+
+describe("legWeights and interpolateAxis, the shared implementation", () => {
+  it("legWeights is (e, sin(pi * e)) inside the leg and (0, 0) and (1, 0) at its ends", () => {
+    expect(legWeights(0)).toEqual({ e: 0, swing: 0 });
+    expect(legWeights(-3)).toEqual({ e: 0, swing: 0 });
+    expect(legWeights(Number.NaN)).toEqual({ e: 0, swing: 0 });
+    expect(legWeights(1)).toEqual({ e: 1, swing: 0 });
+    expect(legWeights(2)).toEqual({ e: 1, swing: 0 });
+    for (const t of [0.1, 0.25, 0.5, 0.9]) {
+      const { e, swing } = legWeights(t);
+      expect(e).toBe(easeInOutQuad(t));
+      expect(swing).toBe(Math.sin(Math.PI * e));
+    }
+    // The swing is greatest half way, where e is 1/2.
+    expect(legWeights(0.5).swing).toBe(1);
+  });
+
+  it("interpolateAxis returns a and b themselves at the ends, and the formula between", () => {
+    expect(interpolateAxis(0.1, 0.7, legWeights(0), 123)).toBe(0.1);
+    expect(interpolateAxis(0.1, 0.7, legWeights(1), 123)).toBe(0.7);
+    const w = legWeights(0.3);
+    expect(interpolateAxis(10, 20, w, 5)).toBe(10 + 10 * w.e + 5 * w.swing);
+  });
+
+  it("interpolatePosition is exactly interpolateAxis on each axis", () => {
+    const a: Vec = [3, 4];
+    const b: Vec = [30, 41];
+    for (const t of [0, 0.2, 0.5, 0.77, 1]) {
+      const w = legWeights(t);
+      expect(interpolatePosition(a, b, t, [0.6, -0.8], 12)).toEqual([
+        interpolateAxis(3, 30, w, 0.6 * 12),
+        interpolateAxis(4, 41, w, -0.8 * 12),
+      ]);
     }
   });
 });

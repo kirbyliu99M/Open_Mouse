@@ -34,9 +34,6 @@ export const MIN_VIEWPORT_HEIGHT = 600;
 export const SHIMMER_MS = 2600;
 export const SHIMMER_MAX_MS = 3000;
 
-/** The story section is this many viewport heights tall in the animated layout. */
-export const SECTION_SVH = 400;
-
 /**
  * How many particles to use: the budget for a phone or a desktop, halved on a
  * device with 4 cores or fewer, and rounded down to a multiple of three
