@@ -316,10 +316,34 @@ class Stage {
   private remeasure(panelHeight: number): void {
     this.cssWidth = this.parts.panel.clientWidth;
     this.cssHeight = panelHeight;
+    // Setting a canvas's size clears it, so the frame is drawn again here, in
+    // the same task: waiting for the next frame would show it empty, and
+    // while a window is being dragged that is nearly every frame.
     this.fitCanvas();
     this.measureAndBuild();
     this.dirty = true;
-    this.schedule();
+    this.redrawNow();
+  }
+
+  /** Draw the current frame now, if the stage is on screen; otherwise remember to. */
+  private redrawNow(): void {
+    if (!this.visible || document.hidden) return;
+    const p = this.currentProgress();
+    try {
+      this.draw(p, performance.now());
+    } catch {
+      this.deactivate();
+      return;
+    }
+    this.lastP = p;
+    this.dirty = false;
+    if (!this.shimmerOver) this.schedule();
+  }
+
+  private currentProgress(): number {
+    const { section, panel } = this.parts;
+    const box = section.getBoundingClientRect();
+    return sectionProgress(box.top, box.height, panel.offsetHeight);
   }
 
   /** Animated to static: the page goes back to PR A's layout, as if nothing had loaded. */
@@ -447,9 +471,7 @@ class Stage {
       this.dirty = true;
       return;
     }
-    const { section, panel } = this.parts;
-    const box = section.getBoundingClientRect();
-    const p = sectionProgress(box.top, box.height, panel.offsetHeight);
+    const p = this.currentProgress();
     if (!this.dirty && p === this.lastP && this.shimmerOver) return;
     try {
       this.draw(p, now);

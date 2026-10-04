@@ -548,6 +548,48 @@ test.describe("the animated layout", () => {
     expect((await read<number[]>(page, "__draws")).length).toBe(woken);
   });
 
+  test("resizing the window redraws the canvas in the same task that clears it: no frame is shown empty", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    const activatedAt = await read<number>(page, "__activatedAt");
+    await page.waitForFunction(
+      (start) => performance.now() - start > 3400,
+      activatedAt,
+    );
+    await scrollToProgress(page, 0.5);
+    await page.evaluate(() => {
+      (window as unknown as { __canvasLog: string[] }).__canvasLog.length = 0;
+    });
+    const size = page.viewportSize()!;
+    for (const [dw, dh] of [
+      [-60, 0],
+      [-30, -40],
+      [20, 30],
+      [60, 0],
+    ]) {
+      await page.setViewportSize({
+        width: size.width + dw!,
+        height: size.height + dh!,
+      });
+      await page.waitForTimeout(250);
+    }
+    const log = await read<string[]>(page, "__canvasLog");
+    const resizes = log.filter((entry) => entry === "resize").length;
+    expect(resizes).toBeGreaterThanOrEqual(4);
+    // After every resize, the next thing that happens to the canvas is a draw
+    // (or another resize of the same task), never the start of a new frame.
+    const empty: number[] = [];
+    log.forEach((entry, i) => {
+      if (entry !== "resize") return;
+      const next = log.slice(i + 1).find((e) => e !== "resize");
+      if (next !== "draw") empty.push(i);
+    });
+    expect(empty).toEqual([]);
+    await expect(page.locator(STORY)).toHaveAttribute("data-progress", /^0\.5/);
+  });
+
   test("a resize after the shimmer redraws the stage once and does not play it again", async ({
     page,
   }) => {

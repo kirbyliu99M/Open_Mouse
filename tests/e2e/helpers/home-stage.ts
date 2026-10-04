@@ -57,14 +57,33 @@ export async function recordStage(page: Page): Promise<void> {
     w.__frames = [] as { logo: boolean; canvas: boolean; drawn: number }[];
     w.__cls = 0;
 
+    // The order of what happens to the canvas: "resize" (its backing store was
+    // resized, which clears it), "draw", and "frame" (a new frame began).
+    const canvasLog: string[] = [];
+    w.__canvasLog = canvasLog;
     const proto = CanvasRenderingContext2D.prototype;
     const clear = proto.clearRect;
     proto.clearRect = function (...args: Parameters<typeof clear>) {
       if (this.canvas.classList.contains("story-canvas")) {
         (w.__draws as number[]).push(performance.now());
+        canvasLog.push("draw");
       }
       return clear.apply(this, args);
     };
+    for (const side of ["width", "height"] as const) {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        HTMLCanvasElement.prototype,
+        side,
+      );
+      if (!descriptor?.set) continue;
+      Object.defineProperty(HTMLCanvasElement.prototype, side, {
+        ...descriptor,
+        set(value: number) {
+          if (this.classList.contains("story-canvas")) canvasLog.push("resize");
+          descriptor.set!.call(this, value);
+        },
+      });
+    }
 
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (callback) => {
@@ -112,6 +131,7 @@ export async function recordStage(page: Page): Promise<void> {
     const sample = () => {
       const logo = document.querySelector<HTMLElement>(".story-logo img");
       const canvas = document.querySelector<HTMLElement>(".story-canvas");
+      canvasLog.push("frame");
       if (logo && canvas) {
         (w.__frames as unknown[]).push({
           logo: getComputedStyle(logo).visibility !== "hidden",
