@@ -22,12 +22,10 @@ import { expectPrintsDark } from "./fixtures/print-text";
  * facts (buttons, sizes, colours) are pinned in home.spec.ts.
  */
 
-// The desktop project's default window is 1280x720, and the hero is about 700 px
-// tall in a wide font (DejaVu Sans, which CI renders with) against 674 px in
-// Windows' system font: 20 px of room, so one more wrapped line would leave the
-// stage off and fail every animated test. Desktop runs use 1280x800, which has
-// 100 px. (A phone's 412x839 has more than 250.) A real laptop window under
-// about 700 px tall keeps the static layout: see the PR description.
+// The desktop project's default window is 1280x720. The animated tests below
+// run at 1280x800 instead, as they were written. Since the desktop hero scales
+// down with the window's height, the stage is on at 1280x720 too (and down to
+// 600 px tall): home-stage-short.spec.ts runs the short windows.
 test.beforeEach(async ({ page }, info) => {
   if (info.project.name === "chromium") {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -1001,27 +999,45 @@ test.describe("the layout follows what the page can hold", () => {
   test("changing only the window's height switches the stage on and off where the hero stops fitting in 100svh", async ({
     page,
   }) => {
-    // A desktop width: the hero is about 700 px tall there, so 640 is tall
-    // enough for the 600 px line and too short for the hero, in any font.
-    await page.setViewportSize({ width: 1280, height: 640 });
+    // The desktop hero scales down with the height, so at 100 % text it fits
+    // every window from 600 px up (home-stage-short.spec.ts). The fit check is
+    // still the rule, and it is what this exercises: at 200 % text the logo
+    // slot is at its floor and everything else doubles, so the hero is 870 to
+    // 1,000 px (the headline wraps in either font), too tall for an 800 px
+    // window and fine in 1,100. Only the window's height changes below.
+    await page.setViewportSize({ width: 1280, height: 1100 });
     await page.goto("/");
-    await page.waitForTimeout(4000);
+    await waitForAnimated(page);
+    await page.evaluate(() => {
+      const style = document.createElement("style");
+      style.id = "zoom";
+      style.textContent = "html { font-size: 200% }";
+      document.head.append(style);
+    });
     const hero = await page
       .locator(HERO)
       .evaluate((el) => (el as HTMLElement).offsetHeight);
-    expect(hero).toBeGreaterThan(640);
-    expect((await layoutFacts(page)).animated).toBe(false);
-    // Tall enough for the hero: on.
+    expect(hero).toBeGreaterThan(800);
+    expect(hero).toBeLessThanOrEqual(1100);
+    // It fits 1,100: the stage stays on.
+    await expect(page.locator(STORY)).toHaveClass(/story--animated/);
+    // Too tall for 800: off, and the static page is whole.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
+      timeout: 10_000,
+    });
+    expect((await layoutFacts(page)).canvasDisplay).toBe("none");
+    // Tall enough for the hero again: on. Too short again: off.
     await page.setViewportSize({ width: 1280, height: hero + 60 });
     await waitForAnimated(page);
-    // Too short for it again: off.
-    await page.setViewportSize({ width: 1280, height: 640 });
+    await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
       timeout: 10_000,
     });
     const facts = await layoutFacts(page);
     expect(facts.sectionHeight).toBe(facts.panelHeight);
     expect(facts.logoVisibility).toBe("visible");
+    expect(facts.inert).toBe(0);
   });
 
   test("a viewport under 600 px tall is static", async ({ page }) => {

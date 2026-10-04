@@ -317,17 +317,17 @@
   .story-hero {
     --hero-h1: clamp(
       2.75rem,
-      calc(2.75rem + (100svh - 600px) * 0.1143),
+      calc(2.75rem + (100svh - 600px) * 0.114286),
       3.75rem
     );
     --hero-gap-sub: clamp(
       0.5rem,
-      calc(0.5rem + (100svh - 600px) * 0.0571),
+      calc(0.5rem + (100svh - 600px) * 0.057143),
       1rem
     );
     --hero-gap-actions: clamp(
       1rem,
-      calc(1rem + (100svh - 600px) * 0.0571),
+      calc(1rem + (100svh - 600px) * 0.057143),
       1.5rem
     );
   }
@@ -349,8 +349,9 @@
     --slot: clamp(
       14rem,
       calc(
-        100svh - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) - 1.61rem -
-          var(--hero-gap-actions) - 3.125rem - 0.75rem - 1.2rem - 0.5rem
+        100svh - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) -
+          1.61rem - var(--hero-gap-actions) - 3.125rem - 0.75rem - 1.2rem -
+          0.5rem
       ),
       29rem
     );
