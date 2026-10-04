@@ -33,6 +33,7 @@ import { applyHomography, type Homography, type Point2 } from "./homography";
 import {
   correctLandmarks,
   landmarkHeightsMm,
+  REFERENCE_HAND_LENGTH_MM,
   REFERENCE_LANDMARK_HEIGHTS_MM,
   type FocalSource,
   resolveFocalPx,
@@ -142,53 +143,84 @@ export function handLengthFromSheetMm(points: readonly Point2[]): number {
   );
 }
 
+/**
+ * The correction counts as settled when the hand length measured from the
+ * corrected points is within this many mm of the length the heights were
+ * scaled to.
+ */
+export const HAND_LENGTH_SETTLED_MM = 0.01;
+
+/**
+ * Most correction passes `correctLandmarksByHandLength` makes. A hand that has
+ * not settled by then is returned as it stands (never thrown): the cap only
+ * guards a geometry where the passes would not converge.
+ */
+export const MAX_CORRECTION_PASSES = 8;
+
 export interface HandLengthCorrection {
   /** The 21 landmarks in sheet mm, back-projected at `heightsMm`. */
   readonly points: Point2[];
-  /** The 21 heights the points were back-projected at (the second pass's). */
+  /** The 21 heights the points were back-projected at (the last pass's). */
   readonly heightsMm: number[];
-  /** The hand length the first pass measured (L₁), which `heightsMm` is scaled to. */
+  /**
+   * The hand length `heightsMm` is scaled to (`heightsMm` is
+   * `landmarkHeightsMm(handLengthMm)`). Within `HAND_LENGTH_SETTLED_MM` of the
+   * hand length measured from `points`, unless the passes ran out.
+   */
   readonly handLengthMm: number;
+  /** How many back-projection passes it took, 1 to `MAX_CORRECTION_PASSES`. */
+  readonly passes: number;
 }
 
 /**
  * Parallax-correct 21 landmarks with heights proportional to the hand's own
- * length (landmark-heights-v2, parallax.ts). The length is not known until
- * the landmarks are corrected, so it takes two passes:
+ * length (landmark-heights-v2, parallax.ts). The length is not known until the
+ * landmarks are corrected, so the passes repeat until the heights and the
+ * length agree:
  *
  *  1. back-project at the reference heights (a hand of 190 mm) and measure the
- *     hand length L₁ from those points (`handLengthFromSheetMm`);
- *  2. back-project again at `landmarkHeightsMm(L₁)`.
+ *     hand length from those points (`handLengthFromSheetMm`);
+ *  2. if it is within `HAND_LENGTH_SETTLED_MM` of the length the heights were
+ *     scaled to, stop; otherwise back-project again at `landmarkHeightsMm` of
+ *     the length just measured, and measure again (at most
+ *     `MAX_CORRECTION_PASSES` passes in all).
  *
- * Each pass shrinks the error in the hand length about thirtyfold, so two
- * passes are enough: the first leaves a hand of 160 or 220 mm up to about
- * 1 mm off, and a third pass would change the length by under 0.05 mm. The
- * unit tests check that for hands of 160, 190 and 220 mm at 0 and 20 degrees
- * of tilt, a camera 450 mm up (measurements-corrected.test.ts). The length
- * is still only as good as the ratios: this makes the heights consistent
- * with the length, it does not make them true.
+ * Each pass shrinks the disagreement about twelvefold. In the unit-test scenes
+ * (hands of 160 to 220 mm, a camera 350 or 450 mm up, a hand up to 160 mm from
+ * the point under the camera, hands standing at the v2 heights and at the v1
+ * ones) the first pass is off by up to 2.5 mm, and the passes settle in at
+ * most 5, so a further pass would change the hand length by under 0.002 mm.
+ * (Stopping after two passes, as an earlier version did, left up to 0.22 mm
+ * for a hand far from the camera's axis.) A pure function of its inputs. The
+ * result is only as good as the ratios: it makes the heights consistent with
+ * the length, it does not make them true.
  *
- * A first-pass length that cannot give heights (zero, from a degenerate
- * input) throws the RangeError of `landmarkHeightsMm`.
+ * A pass whose length cannot give heights (not finite, or zero) throws the
+ * RangeError of `landmarkHeightsMm`.
  */
 export function correctLandmarksByHandLength(
   landmarksPx: readonly Point2[],
   homography: Homography,
   intrinsics: Intrinsics,
 ): HandLengthCorrection {
-  const firstPass = correctLandmarks(
-    landmarksPx,
-    homography,
-    intrinsics,
-    REFERENCE_LANDMARK_HEIGHTS_MM,
-  );
-  const handLengthMm = handLengthFromSheetMm(firstPass);
-  const heightsMm = landmarkHeightsMm(handLengthMm);
-  return {
-    points: correctLandmarks(landmarksPx, homography, intrinsics, heightsMm),
-    heightsMm,
-    handLengthMm,
-  };
+  let heightsMm: number[] = [...REFERENCE_LANDMARK_HEIGHTS_MM];
+  let scaledToMm = REFERENCE_HAND_LENGTH_MM;
+  let points = correctLandmarks(landmarksPx, homography, intrinsics, heightsMm);
+  let measuredMm = handLengthFromSheetMm(points);
+  let passes = 1;
+  // `!(x < tolerance)` rather than `x >= tolerance`: a length that is NaN must
+  // go on and throw in `landmarkHeightsMm`, not be taken as settled.
+  while (
+    passes < MAX_CORRECTION_PASSES &&
+    !(Math.abs(measuredMm - scaledToMm) < HAND_LENGTH_SETTLED_MM)
+  ) {
+    scaledToMm = measuredMm;
+    heightsMm = landmarkHeightsMm(scaledToMm);
+    points = correctLandmarks(landmarksPx, homography, intrinsics, heightsMm);
+    measuredMm = handLengthFromSheetMm(points);
+    passes++;
+  }
+  return { points, heightsMm, handLengthMm: scaledToMm, passes };
 }
 
 /**
@@ -216,7 +248,7 @@ export interface CorrectedMeasurementsOptions {
   /**
    * Per-landmark heights above the sheet, mm. Overrides the product's own
    * (`correctLandmarksByHandLength`: proportional to the hand length), and
-   * then no second pass is made.
+   * then a single pass is made at exactly these heights.
    */
   readonly heightsMm?: readonly number[];
 }

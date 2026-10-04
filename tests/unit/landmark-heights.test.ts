@@ -167,6 +167,10 @@ describe("landmark-heights-v2: source data", () => {
       meanHandLengthCm: 17.93,
       handLengthPdfPage: 15,
     });
+    // Both covers carry the report number and the date (PDF p.1).
+    expect(GARRETT_SOURCES.female.report).toContain("AMRL-TR-69-26");
+    expect(GARRETT_SOURCES.male.report).toContain("1970");
+    expect(GARRETT_SOURCES.female.report).toContain("1970");
   });
 
   it("holds the ten depth variables the table uses, each with a page in both reports", () => {

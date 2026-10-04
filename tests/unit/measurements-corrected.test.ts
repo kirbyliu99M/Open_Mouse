@@ -9,6 +9,8 @@ import {
   type PointCorrespondence,
 } from "../../src/client/geometry/homography";
 import {
+  HAND_LENGTH_SETTLED_MM,
+  MAX_CORRECTION_PASSES,
   computeCorrectedHandMeasurements,
   computeHandMeasurements,
   correctLandmarksByHandLength,
@@ -16,6 +18,7 @@ import {
   measurementsFromSheetMm,
 } from "../../src/client/geometry/measurements";
 import {
+  REFERENCE_HAND_LENGTH_MM,
   REFERENCE_LANDMARK_HEIGHTS_MM,
   correctLandmarks,
   landmarkHeightsMm,
@@ -183,7 +186,7 @@ describe("resolveFocalPx", () => {
 
 // The v1 table: the same 21 millimetres for every hand. Written out as
 // literals so a hand can be built that stands at heights the v2 model does not
-// assume, to show the two passes do not depend on the model being exact.
+// assume, to show the passes do not depend on the model being exact.
 const V1_HEIGHTS_MM = [
   20, 18, 15, 11, 6, 13, 10, 8, 6, 13, 10, 8, 6, 13, 10, 8, 6, 13, 10, 8, 6,
 ];
@@ -198,18 +201,33 @@ function handOfLength(lengthMm: number): Point2[] {
   }));
 }
 
+/**
+ * A photo of the hand: the exact synthetic camera hangs `distanceMm` above the
+ * sheet's origin (tilt only turns it; it does not move it off that point).
+ * With `offsetMm` the hand is moved so the middle of its wrist-to-fingertip
+ * line sits that far from the point under the camera, in sheet mm; without it
+ * the hand stays where `MM_LANDMARKS` puts it.
+ */
 function sceneOf(
   lengthMm: number,
   tiltDeg: number,
   truthHeightsMm: readonly number[],
+  options: { distanceMm?: number; offsetMm?: Point2 } = {},
 ) {
   const camera = buildSyntheticCamera({
     tiltDeg,
-    distanceMm: DISTANCE_MM,
+    distanceMm: options.distanceMm ?? DISTANCE_MM,
     fPx: F_PX,
   });
   const h = buildH(camera);
-  const hand = handOfLength(lengthMm);
+  const shape = handOfLength(lengthMm);
+  const { offsetMm } = options;
+  const hand = offsetMm
+    ? shape.map((p) => ({
+        x: p.x - (shape[0].x + shape[12].x) / 2 + offsetMm.x,
+        y: p.y - (shape[0].y + shape[12].y) / 2 + offsetMm.y,
+      }))
+    : shape;
   const landmarksPx = hand.map((mm, i) =>
     projectSheetMm(camera, mm, truthHeightsMm[i]),
   );
@@ -244,89 +262,122 @@ describe("hand length, as the heights are scaled to it", () => {
   });
 });
 
-describe("correctLandmarksByHandLength: two passes, the second at the heights of the first pass's hand length", () => {
-  for (const lengthMm of [160, 190, 220]) {
-    for (const tiltDeg of [0, 20]) {
-      for (const [truthName, truthHeights] of [
-        ["v2 heights for that hand", landmarkHeightsMm(lengthMm)],
-        ["v1 table (not the v2 model)", V1_HEIGHTS_MM],
-      ] as const) {
-        it(`${lengthMm} mm hand, ${tiltDeg} deg tilt, standing at the ${truthName}: one more pass changes the hand length by under 0.05 mm`, () => {
-          const { camera, h, landmarksPx } = sceneOf(
-            lengthMm,
-            tiltDeg,
-            truthHeights,
-          );
-          const result = correctLandmarksByHandLength(
-            landmarksPx,
-            h,
-            camera.intrinsics,
-          );
-          const length2 = handLengthFromSheetMm(result.points);
+// Where the hand is, relative to the point under the camera, matters: the
+// parallax of a height error grows with the distance from that point. Tilt does
+// not move the camera (see `sceneOf`), so 0 and 20 degrees give the same
+// numbers; both are kept as a check that the recovered pose is what matters.
+const TILTS_DEG = [0, 20];
+const CAMERA_HEIGHTS_MM = [350, 450];
+const OFFSETS_MM: readonly Point2[] = [
+  { x: 0, y: 0 },
+  { x: 0, y: -80 },
+  { x: 0, y: -160 }, // along the hand's axis, as far as the review found
+  { x: 0, y: 160 },
+  { x: 160, y: 0 }, // across it
+];
 
-          // A third pass, worked out here: heights for the length just
-          // measured, then measure again.
-          const third = correctLandmarks(
-            landmarksPx,
-            h,
-            camera.intrinsics,
-            landmarkHeightsMm(length2),
-          );
-          const length3 = handLengthFromSheetMm(third);
-          expect(Math.abs(length3 - length2)).toBeLessThan(0.05);
-        });
-      }
+describe("correctLandmarksByHandLength: passes until the heights and the length agree", () => {
+  for (const lengthMm of [160, 190, 220]) {
+    for (const [truthName, truthHeights] of [
+      ["v2 heights for that hand", landmarkHeightsMm(lengthMm)],
+      ["v1 table (not the v2 model)", V1_HEIGHTS_MM],
+    ] as const) {
+      it(`${lengthMm} mm hand at the ${truthName}: settled before the cap, and one more pass changes the hand length by under 0.01 mm (0 and 20 deg tilt, camera 350 and 450 mm up, hand 0 to 160 mm off its axis)`, () => {
+        for (const tiltDeg of TILTS_DEG) {
+          for (const distanceMm of CAMERA_HEIGHTS_MM) {
+            for (const offsetMm of OFFSETS_MM) {
+              const label = `${tiltDeg} deg, ${distanceMm} mm, offset ${offsetMm.x},${offsetMm.y}`;
+              const { camera, h, landmarksPx } = sceneOf(
+                lengthMm,
+                tiltDeg,
+                truthHeights,
+                { distanceMm, offsetMm },
+              );
+              const result = correctLandmarksByHandLength(
+                landmarksPx,
+                h,
+                camera.intrinsics,
+              );
+              expect(result.passes, label).toBeLessThan(MAX_CORRECTION_PASSES);
+
+              // One more pass, worked out here: heights for the length just
+              // measured, then measure again.
+              const length = handLengthFromSheetMm(result.points);
+              const more = correctLandmarks(
+                landmarksPx,
+                h,
+                camera.intrinsics,
+                landmarkHeightsMm(length),
+              );
+              expect(
+                Math.abs(handLengthFromSheetMm(more) - length),
+                label,
+              ).toBeLessThan(0.01);
+              // ...and the heights are the ones of the length they say.
+              expect(result.heightsMm, label).toEqual(
+                landmarkHeightsMm(result.handLengthMm),
+              );
+              expect(
+                Math.abs(length - result.handLengthMm),
+                label,
+              ).toBeLessThan(HAND_LENGTH_SETTLED_MM);
+              if (truthName.startsWith("v2")) {
+                // The model is exact here, so the true length comes back.
+                expect(Math.abs(length - lengthMm), label).toBeLessThan(0.01);
+              }
+            }
+          }
+        }
+      });
     }
   }
 
-  it("makes the second pass matter: the first pass alone is off by 0.2 mm or more for a 160 or 220 mm hand, and the two passes by under 0.05 mm", () => {
-    for (const lengthMm of [160, 220]) {
-      const { camera, h, landmarksPx } = sceneOf(
-        lengthMm,
-        20,
-        landmarkHeightsMm(lengthMm),
-      );
-      const first = correctLandmarks(
-        landmarksPx,
-        h,
-        camera.intrinsics,
-        REFERENCE_LANDMARK_HEIGHTS_MM,
-      );
-      expect(Math.abs(handLengthFromSheetMm(first) - lengthMm)).toBeGreaterThan(
-        0.2,
-      );
-      const result = correctLandmarksByHandLength(
-        landmarksPx,
-        h,
-        camera.intrinsics,
-      );
-      expect(
-        Math.abs(handLengthFromSheetMm(result.points) - lengthMm),
-      ).toBeLessThan(0.05);
-    }
-  });
-
-  it("reports the first pass's hand length and the heights scaled to it", () => {
-    const { camera, h, landmarksPx } = sceneOf(160, 20, landmarkHeightsMm(160));
-    const first = correctLandmarks(
-      landmarksPx,
-      h,
-      camera.intrinsics,
-      REFERENCE_LANDMARK_HEIGHTS_MM,
+  it("needs more than two passes for a hand far from the camera's axis: two fixed passes would leave 0.1 mm or more", () => {
+    // 220 mm hand, camera 350 mm up, the hand 160 mm from the point under it.
+    const { camera, h, landmarksPx } = sceneOf(
+      220,
+      20,
+      landmarkHeightsMm(220),
+      { distanceMm: 350, offsetMm: { x: 0, y: -160 } },
     );
+    const lengthAfter = (heights: readonly number[]) =>
+      handLengthFromSheetMm(
+        correctLandmarks(landmarksPx, h, camera.intrinsics, heights),
+      );
+    const first = lengthAfter(REFERENCE_LANDMARK_HEIGHTS_MM);
+    const second = lengthAfter(landmarkHeightsMm(first));
+    const third = lengthAfter(landmarkHeightsMm(second));
+    expect(Math.abs(first - 220)).toBeGreaterThan(2);
+    expect(Math.abs(third - second)).toBeGreaterThan(0.1);
+
     const result = correctLandmarksByHandLength(
       landmarksPx,
       h,
       camera.intrinsics,
     );
-    expect(result.handLengthMm).toBe(handLengthFromSheetMm(first));
+    expect(result.passes).toBeGreaterThan(2);
+    expect(Math.abs(handLengthFromSheetMm(result.points) - 220)).toBeLessThan(
+      0.01,
+    );
+  });
+
+  it("reports the length the heights are scaled to, the heights, the points and the pass count", () => {
+    const { camera, h, landmarksPx } = sceneOf(160, 20, landmarkHeightsMm(160));
+    const result = correctLandmarksByHandLength(
+      landmarksPx,
+      h,
+      camera.intrinsics,
+    );
+    expect(result.passes).toBeGreaterThan(1);
+    expect(result.heightsMm).toHaveLength(21);
     expect(result.heightsMm).toEqual(landmarkHeightsMm(result.handLengthMm));
+    expect(result.handLengthMm).toBeCloseTo(160, 1);
     expect(result.points).toEqual(
       correctLandmarks(landmarksPx, h, camera.intrinsics, result.heightsMm),
     );
   });
 
-  it("is exact for a 190 mm hand: the first pass already used the right heights", () => {
+  it("is exact for a 190 mm hand in one pass: the reference heights are already the right ones", () => {
     const { camera, h, hand, landmarksPx } = sceneOf(
       190,
       20,
@@ -337,14 +388,16 @@ describe("correctLandmarksByHandLength: two passes, the second at the heights of
       h,
       camera.intrinsics,
     );
-    expect(result.handLengthMm).toBeCloseTo(190, 9);
+    expect(result.passes).toBe(1);
+    expect(result.handLengthMm).toBe(REFERENCE_HAND_LENGTH_MM);
+    expect(result.heightsMm).toEqual([...REFERENCE_LANDMARK_HEIGHTS_MM]);
     result.points.forEach((p, i) => {
       expect(p.x).toBeCloseTo(hand[i].x, 6);
       expect(p.y).toBeCloseTo(hand[i].y, 6);
     });
   });
 
-  it("throws a RangeError when the first pass gives no usable hand length", () => {
+  it("throws a RangeError when a pass gives no usable hand length", () => {
     const { camera, h, landmarksPx } = sceneOf(190, 20, landmarkHeightsMm(190));
     const broken = landmarksPx.map((p, i) =>
       i === 12 ? { x: Number.NaN, y: p.y } : p,
@@ -355,8 +408,53 @@ describe("correctLandmarksByHandLength: two passes, the second at the heights of
   });
 });
 
+describe("correctLandmarksByHandLength: a hand whose length is cut short (curled fingers)", () => {
+  // L is the wrist-to-middle-fingertip distance, so a curled middle finger
+  // shortens it and the heights shrink with it. That is a limit of the method
+  // (docs/research/landmark-heights-v2.md), pinned here so it is not changed
+  // by accident: the recorded heights of a grip photo are an unreliable
+  // estimate, not a measurement.
+  it("scales the heights down in proportion to the shortened length", () => {
+    const flat = sceneOf(190, 20, landmarkHeightsMm(190));
+    // The middle finger (landmarks 10-12) folded to 40 % of its length about
+    // its base joint (9), the rest of the hand and the heights left as they were.
+    const base = flat.hand[9];
+    const curledHand = flat.hand.map((p, i) =>
+      i >= 10 && i <= 12
+        ? { x: base.x + (p.x - base.x) * 0.4, y: base.y + (p.y - base.y) * 0.4 }
+        : p,
+    );
+    const curledPx = curledHand.map((mm, i) =>
+      projectSheetMm(flat.camera, mm, landmarkHeightsMm(190)[i]),
+    );
+
+    const flatResult = correctLandmarksByHandLength(
+      flat.landmarksPx,
+      flat.h,
+      flat.camera.intrinsics,
+    );
+    const curledResult = correctLandmarksByHandLength(
+      curledPx,
+      flat.h,
+      flat.camera.intrinsics,
+    );
+    // The tip is much closer to the wrist, so L is much shorter...
+    expect(curledResult.handLengthMm).toBeLessThan(
+      flatResult.handLengthMm * 0.8,
+    );
+    // ...and every height is that same fraction of the flat hand's.
+    const ratio = curledResult.handLengthMm / flatResult.handLengthMm;
+    curledResult.heightsMm.forEach((height, i) => {
+      expect(height).toBeCloseTo(flatResult.heightsMm[i] * ratio, 6);
+    });
+    expect(curledResult.heightsMm[0]).toBeLessThan(
+      flatResult.heightsMm[0] * 0.8,
+    );
+  });
+});
+
 describe("computeCorrectedHandMeasurements: heights follow the hand, and options.heightsMm still overrides", () => {
-  it("measures a 160 mm and a 220 mm hand to within 0.05 mm with the default (two-pass) heights", () => {
+  it("measures a 160 mm and a 220 mm hand to within 0.01 mm with the default heights", () => {
     for (const lengthMm of [160, 220]) {
       const { h, landmarksPx } = sceneOf(
         lengthMm,
@@ -370,18 +468,18 @@ describe("computeCorrectedHandMeasurements: heights follow the hand, and options
       });
       expect(
         Math.abs(result.measurements.handLengthMm - lengthMm),
-      ).toBeLessThan(0.05);
+      ).toBeLessThan(0.01);
       // The heights it reports are the ones of this hand, not of a 190 mm hand.
       expect(result.heightsMm).toHaveLength(21);
       expect(result.heightsMm![0]).toBeCloseTo(
         landmarkHeightsMm(lengthMm)[0],
-        0,
+        1,
       );
       expect(result.heightsMm![0]).not.toBeCloseTo(20, 0);
     }
   });
 
-  it("uses options.heightsMm as given, without a second pass, and reports it", () => {
+  it("uses options.heightsMm as given, in a single pass, and reports it", () => {
     const { camera, h, landmarksPx } = sceneOf(160, 20, V1_HEIGHTS_MM);
     const result = computeCorrectedHandMeasurements(landmarksPx, h, {
       exifFocalPx: F_PX,

@@ -32,16 +32,23 @@ import type { Homography, Point2 } from "./homography";
 //
 //     height_i = LANDMARK_HEIGHT_RATIOS[i] × L        (L = this photo's hand length)
 //
-// STATUS: candidate (未拍板). This is a best estimate from published
-// anthropometry, not a fit to any measured hand. No ground truth exists for it
-// (docs/PLAN.md: no ruler truth since the prereg v2 decision). Full write-up,
-// table and limits: docs/research/landmark-heights-v2.md.
+// STATUS: Kirby decided the METHOD on 2026-10-04 (ratio x hand length, pooled
+// male-female ratio, v1 values kept for the wrist, thumb CMC and fingertips).
+// The NUMBERS it gives are candidate (未拍板): a best estimate from published
+// anthropometry, not a fit to any measured hand. No ground truth exists for
+// them (docs/PLAN.md: no ruler truth since the prereg v2 decision). Full
+// write-up, table and limits: docs/research/landmark-heights-v2.md.
 //
 // Where the ratios come from. Garrett measured the depth (thickness, dorsal
 // to palmar surface) of the right hand's joints with a sliding caliper, on
-// 148 men and 211 women of the US Air Force. Both reports are US Government
-// works, "approved for public release and sale; its distribution is
-// unlimited" (PDF p.1 of each). For one joint,
+// 148 men and 211 women of the US Air Force. The cover of each report says
+// "This document has been approved for public release and sale; its
+// distribution is unlimited" (PDF p.1), and each Foreword (PDF p.3) says the
+// report was prepared by the Anthropology Branch, Human Engineering Division,
+// Aerospace Medical Research Laboratory, Wright-Patterson Air Force Base, and
+// approved by the laboratory's Commander. The basis relied on is that cover
+// statement: neither PDF has a DD Form 1473 in its front matter or last pages
+// (not every page was checked). For one joint,
 //
 //     ratio = ( (depth / 2) / mean hand length ), averaged over the two sexes
 //     (male and female ratios weighted equally, not by sample size)
@@ -59,6 +66,11 @@ import type { Homography, Point2 } from "./homography";
 //    `MEASUREMENT_DEFINITIONS.handLengthMm`, landmark 0 to landmark 12) is a
 //    distance between joint-centre landmarks, so it is somewhat shorter, and
 //    the heights come out slightly low for that reason too.
+//  - The heights assume a FLAT hand. A photo of a grip (curled fingers) has a
+//    shorter wrist-to-fingertip distance, so its L is shorter and every
+//    recorded height shrinks in proportion (a middle finger folded to 40 % of
+//    its length cuts L by about a quarter). The heights of such a photo are an
+//    unreliable estimate, not a measurement; a unit test pins this behaviour.
 //
 // Landmarks Garrett did not measure (proxies, all uncertain):
 //  - wrist, thumb CMC and every fingertip keep the old v1 value, written as a
@@ -107,7 +119,8 @@ export const GARRETT_SOURCES = {
     handLengthPdfPage: 11,
   },
   female: {
-    report: "Garrett, J. W. Anthropometry of the Air Force Female Hand",
+    report:
+      "Garrett, J. W. (1970). Anthropometry of the Air Force Female Hand. AMRL-TR-69-26",
     dtic: "AD0710202",
     n: 211,
     meanHandLengthCm: 17.93,

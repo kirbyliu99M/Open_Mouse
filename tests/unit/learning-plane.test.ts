@@ -95,35 +95,13 @@ describe("buildPlane: a parallax-corrected plane", () => {
     for (const handLengthMm of [160, 220]) {
       const shot = syntheticShot({ handLengthMm });
       const heights = buildPlane(input(shot))!.plane.parallax!.heightsMm;
-      // The heights are scaled to the hand length the first pass measured
-      // (through the reference heights), worked out here on its own.
-      const firstPass = correctLandmarks(
-        shot.landmarksPx,
-        shot.markerHomography,
-        {
-          fPx: shot.exifFocalPx,
-          ...centrePrincipalPoint(shot.imageSize.width, shot.imageSize.height),
-        },
-        landmarkHeightsMm(190),
-      );
-      const firstLength = Math.hypot(
-        firstPass[0]!.x - firstPass[12]!.x,
-        firstPass[0]!.y - firstPass[12]!.y,
-      );
-      // It reads the 160 and 220 mm hands about 0.75 mm short and 1 mm long.
-      expect(Math.abs(firstLength - handLengthMm)).toBeGreaterThan(0.5);
-      expect(Math.abs(firstLength - handLengthMm)).toBeLessThan(1.5);
       for (let i = 0; i < 21; i++) {
+        // The passes settle within 0.01 mm of the true length, so each height
+        // is the ratio times that length to well under 0.01 mm.
         expect(heights[i]).toBeCloseTo(
-          LANDMARK_HEIGHT_RATIOS[i]! * firstLength,
-          9,
+          LANDMARK_HEIGHT_RATIOS[i]! * handLengthMm,
+          2,
         );
-        // ...so within 1 % of the ratios times the true length.
-        expect(
-          Math.abs(
-            heights[i]! / (LANDMARK_HEIGHT_RATIOS[i]! * handLengthMm) - 1,
-          ),
-        ).toBeLessThan(0.01);
       }
     }
   });
@@ -532,6 +510,29 @@ describe("recomputePlane: a log written by landmark-heights-v1 is worked out wit
     expect(again.measurements).toEqual(measurementsFromSheetMm(v1Points));
     // The recorded heights were the true ones, so the hand comes out true.
     expect(Math.abs(again.measurements!.handLengthMm - 160)).toBeLessThan(0.01);
+  });
+
+  it("gives frozen numbers, so a change to correctLandmarks itself is caught too", () => {
+    // Written down from the build that wrote v1 logs (the main branch at
+    // 062fed2, run on this same photo: its buildPlane with the v1 constant),
+    // not from the code under test. They are also the hand's own coordinates,
+    // which the correction recovers exactly when it uses the heights the hand
+    // really stood at.
+    const again = recomputePlane(shot.landmarksPx, saved);
+    const frozen: readonly [number, number, number][] = [
+      [0, 0, -80], // wrist
+      [5, -16.8421052632, 4.21052631579], // index MCP
+      [12, 0, 80], // middle fingertip
+      [17, 50.5263157895, 2.52631578947], // little MCP
+    ];
+    for (const [i, x, y] of frozen) {
+      expect(again.points[i]!.x, `landmark ${i} x`).toBeCloseTo(x, 6);
+      expect(again.points[i]!.y, `landmark ${i} y`).toBeCloseTo(y, 6);
+    }
+    expect(again.measurements!.handLengthMm).toBeCloseTo(160, 6);
+    expect(again.measurements!.palmLengthMm).toBeCloseTo(88.4210526316, 6);
+    expect(again.measurements!.palmWidthMm).toBeCloseTo(67.3894703958, 6);
+    expect(again.measurements!.middleLengthMm).toBeCloseTo(71.5789473684, 6);
   });
 
   it("is not replaced by the current algorithm: a v2 build of the same photo gives different numbers", () => {

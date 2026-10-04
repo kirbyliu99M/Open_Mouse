@@ -1,15 +1,17 @@
 # Landmark heights v2: a ratio of the hand's length
 
-**Status: candidate (未拍板).** Kirby approved the method on 2026-10-04: heights
-as a ratio of the photo's hand length, a pooled male-female ratio, and the old
-values kept for the wrist, the thumb CMC and every fingertip. The numbers below
-are a best estimate from published data. They are **not calibrated against any
+**Status: the method is decided, the numbers are candidate (未拍板).** Kirby
+decided the method on 2026-10-04: heights as a ratio of the photo's hand length,
+a pooled male-female ratio, and the old values kept for the wrist, the thumb CMC
+and every fingertip. That method is now the code's default. The numbers it
+produces are a best estimate from published data, **not calibrated against any
 hand**, and there is no ground truth to calibrate against (docs/PLAN.md, prereg
-v2). Nothing here is a decided figure until Kirby says so.
+v2), so they stay candidate until there is one.
 
 Version string in the code: `landmark-heights-v2` (`LANDMARK_HEIGHTS_MM_VERSION`
-in `src/client/geometry/parallax.ts`). The previous table was
-`landmark-heights-v1`: 21 fixed millimetres, guessed.
+in `src/client/geometry/parallax.ts`); the contract's measurement model for scans
+made with it is `landmark-raw-v2`. The previous table was `landmark-heights-v1`:
+21 fixed millimetres, guessed.
 
 ## Why heights matter
 
@@ -49,32 +51,58 @@ mean hand length `H` of each sex:
 
 The heights need `L`, but `L` can only be measured from corrected points. The
 code (`correctLandmarksByHandLength` in `src/client/geometry/measurements.ts`)
-takes two passes:
+repeats the correction until the two agree:
 
 1. Back-project the 21 landmarks at the heights of a 190 mm hand (`k × 190`)
-   and measure the hand length `L1` from those points.
-2. Back-project again at `k × L1`.
+   and measure the hand length from those points.
+2. If that length is within 0.01 mm of the length the heights were scaled to,
+   stop. Otherwise back-project again at `k ×` the length just measured, and
+   measure again. At most 8 passes; a hand that has not settled by then is
+   returned as it is.
 
 **Definition of the hand length (not changed by this work).** The contract's
 `MEASUREMENT_DEFINITIONS.handLengthMm`: the straight distance in sheet mm from
 landmark 0 (wrist) to landmark 12 (middle fingertip). The code reads it from the
 contract, and a unit test pins it.
 
-A third pass would change the hand length by under 0.05 mm; unit tests check this
-on synthetic hands of 160, 190 and 220 mm, at 0 and 20 degrees of tilt, 450 mm
-from the sheet. `options.heightsMm` of `computeCorrectedHandMeasurements` still
-overrides the heights (and then there is no second pass).
+How fast it settles, on synthetic hands of 160, 190 and 220 mm (standing at the
+v2 heights, and at the v1 ones), a camera 350 or 450 mm up, 0 and 20 degrees of
+tilt, and the hand 0 to 160 mm from the point under the camera:
+
+- the first pass is off by up to 2.5 mm (largest for a 220 mm hand 160 mm off
+  axis, camera 350 mm up);
+- each pass shrinks the disagreement about twelvefold, and the loop settles in
+  at most 5 passes;
+- one more pass after it would change the hand length by under 0.001 mm, and for
+  a hand that stands at the v2 heights the true length comes back to within
+  0.001 mm.
+
+Tilt changes nothing in these scenes (the synthetic camera turns but does not
+move), so 0 and 20 degrees give the same numbers. The distance of the hand from
+the point under the camera does matter. An earlier version stopped after two
+passes; that left up to 0.22 mm in the worst scene above, so it now iterates.
+These are numbers about the arithmetic being self-consistent, not about heights
+being true: they are far smaller than the uncertainty of the heights themselves
+(below).
+
+`options.heightsMm` of `computeCorrectedHandMeasurements` still overrides the
+heights (and then there is a single pass at exactly those heights).
 
 ## Sources
 
-Both reports are US Government works whose cover says: _"This document has been
-approved for public release and sale; its distribution is unlimited."_ (PDF p.1
-of each; the page numbers below count from the cover.)
+The cover of each report says: _"This document has been approved for public
+release and sale; its distribution is unlimited."_ (PDF p.1 of each; the page
+numbers below count from the cover.) Each Foreword (PDF p.3, printed iii) says
+the report was prepared by the Anthropology Branch, Human Engineering Division,
+Aerospace Medical Research Laboratory, Wright-Patterson Air Force Base, and was
+reviewed and approved by the laboratory's Commander. The basis relied on here is
+the cover's distribution statement. Neither PDF has a DD Form 1473 in its front
+matter or last pages (not every page was checked), and this is not legal advice.
 
 | Sex    | Report                                                                                                | DTIC      | Sample                                 | Mean hand length | Hand length page |
 | ------ | ----------------------------------------------------------------------------------------------------- | --------- | -------------------------------------- | ---------------- | ---------------- |
 | Male   | Garrett, J. W. (1970). _Anthropometry of the Hands of Male Air Force Flight Personnel_. AMRL-TR-69-42 | AD0709883 | 148 men, right hand, sliding caliper   | 19.72 cm         | PDF p.11         |
-| Female | Garrett, J. W. _Anthropometry of the Air Force Female Hand_                                           | AD0710202 | 211 women, right hand, sliding caliper | 17.93 cm         | PDF p.15         |
+| Female | Garrett, J. W. (1970). _Anthropometry of the Air Force Female Hand_. AMRL-TR-69-26                    | AD0710202 | 211 women, right hand, sliding caliper | 17.93 cm         | PDF p.15         |
 
 Garrett's hand length is "the distance from the wrist crease baseline to the
 tip of the longest finger" (male report p.11, female report p.15).
@@ -159,22 +187,30 @@ Own calculations from the source statistics, not guarantees:
    crease to the tip of the longest finger, skin to skin. The app's runs between
    two joint-centre landmarks, so it is somewhat shorter; the heights come out
    slightly low for that reason too. The size is unknown.
-3. **Proxies.** The thumb MCP borrows the thumb IP depth. The index, ring and
+3. **A flat hand is assumed.** `L` is the wrist-to-middle-fingertip distance, so
+   in a photo of a grip (curled fingers, poses G03 to G05 of the learning kit) `L`
+   is shorter and every height shrinks in proportion. A middle finger folded to
+   40 % of its length cuts `L` by about a quarter. The recorded heights of such a
+   photo are an unreliable estimate, not a measurement. The method is not changed
+   for this; a unit test pins the behaviour.
+4. **Proxies.** The thumb MCP borrows the thumb IP depth. The index, ring and
    little MCPs borrow the middle MCP thickness. The wrist, the thumb CMC and every
    fingertip keep guessed v1 values: Garrett measured none of them.
-4. **Air Force samples.** Male flight personnel and Air Force women, from
+5. **Air Force samples.** Male flight personnel and Air Force women, from
    reports decades old (the male one is dated March 1970). They are not a
    sample of today's users.
-5. **Pooling.** Male and female ratios have equal weight, not weighted by the
+6. **Pooling.** Male and female ratios have equal weight, not weighted by the
    users the product will meet.
-6. **Thumb rotation.** The thumb depth direction changes as the thumb rotates;
+7. **Thumb rotation.** The thumb depth direction changes as the thumb rotates;
    treating it as thickness perpendicular to the paper is an assumption.
-7. **All of these numbers need checking on a real phone.** No ruler truth
+8. **All of these numbers need checking on a real phone.** No ruler truth
    exists; any claim about accuracy stays out until there is one.
 
-Not decided by this document, and left to Kirby: whether v2 replaces v1 as the
-product's default, whether the pooled ratio, the half-depth rule and the kept
-values stay, and whether any palm-compression offset is added.
+Decided (Kirby, 2026-10-04): the method, that is the ratio times the hand
+length, the half-depth rule, the pooled male-female ratio, and the v1 values kept
+for the wrist, the thumb CMC and the fingertips. Still candidate (未拍板): the
+numbers this gives, the choice of proxies, and whether any palm-compression
+offset is added (none is).
 
 ## What a stored record says
 
@@ -184,6 +220,7 @@ they differ from photo to photo, since they follow that photo's hand length. A
 log written under v1 (the same 21 mm for every photo) is recomputed from the
 heights it recorded, never from the current version's; a unit test pins this.
 
-The measurement contract (`src/lib/contracts/`) does not carry the heights
-version: a scan stored by the server cannot say whether it was measured under v1
-or v2. That is a question for Claude, who owns the contract.
+A scan stored by the server carries the contract's `measurementModelVersion`:
+`landmark-raw-v2` for a scan measured with these heights, `landmark-raw-v1` for
+one measured with the fixed v1 heights (both are accepted). The server does not
+store the 21 heights themselves.
