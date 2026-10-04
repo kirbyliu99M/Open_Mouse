@@ -1,7 +1,7 @@
 # Offline image analysis helpers; renderer uses requirements.txt / Blender 5.2.2.
 numpy==2.4.6
 scipy==1.17.1
-Pillow==12.2.0
+Pillow==12.3.0
 opencv-python-headless==4.13.0.92
 scikit-image==0.26.0
 lazy-loader==0.5
