@@ -197,6 +197,28 @@ about 60 % of the slot's height):
 | 390 wide     | same                         | about 11rem      |
 | 1440 desktop | about 29rem                  | about 19rem      |
 
+**Short desktop windows** (Kirby, 2026-10-04: laptop windows animate too). The
+desktop hero is 674 px tall at full size, and the stage switches on only when
+the hero fits in `100svh`, so a 1280×640 or 1366×657 window stayed static. The
+fit rule is kept; the hero shrinks instead, at 48rem and up, with the window's
+height (`home.css`, `.story-hero` and `.story-logo`):
+
+- everything is linear in `100svh` and clamped, so it shrinks continuously and
+  there is no breakpoint to jump at;
+- full size from 740 px of height; the headline goes from 60 px down to 44 px,
+  and two gaps tighten, as the height falls to 600 px;
+- the logo slot takes what is left: `100svh` less the nav and the rest of the
+  hero, so the whole hero (buttons and note too) is above the fold at the top
+  of the page, from a 14rem floor up to the full 29rem;
+- below 600 px the page is static, and shows the same shrunken hero;
+- the subhead may be 32rem wide here, so it is one line in a wide font too;
+- the copy, the order, the 44 px hit areas and the colours do not change.
+
+It is a calculation, not a fit: it assumes a one-line headline and subhead. A
+very large text size, or a narrow window (768 to 860 px) in a wide font that
+wraps the headline, makes the hero taller than the calculation; the stage's own
+check decides then.
+
 ### Static images (PR A)
 
 `<img>` can't read CSS variables, so these SVGs hard-code the colours. Primary
