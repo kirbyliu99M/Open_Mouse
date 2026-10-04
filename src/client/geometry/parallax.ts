@@ -46,9 +46,9 @@ import type { Homography, Point2 } from "./homography";
 // distribution is unlimited" (PDF p.1), and each Foreword (PDF p.3) says the
 // report was prepared by the Anthropology Branch, Human Engineering Division,
 // Aerospace Medical Research Laboratory, Wright-Patterson Air Force Base, and
-// approved by the laboratory's Commander. The basis relied on is that cover
-// statement: neither PDF has a DD Form 1473 in its front matter or last pages
-// (not every page was checked). For one joint,
+// approved by the laboratory's Commander. Both reports also carry a DD Form
+// 1473 (male PDF p.78, female PDF p.83; UNCLASSIFIED, March 1970) that repeats
+// the same distribution statement. For one joint,
 //
 //     ratio = ( (depth / 2) / mean hand length ), averaged over the two sexes
 //     (male and female ratios weighted equally, not by sample size)
@@ -90,8 +90,8 @@ export const LANDMARK_HEIGHTS_MM_VERSION = "landmark-heights-v2";
 
 /**
  * The hand length at which the v1 heights (a fixed 20, 18, 15 ... 6 mm,
- * guessed for a hand about this long) were written down. Also the length used
- * for the first of the two correction passes in measurements.ts, before this
+ * guessed for a hand about this long) were written down. Also the length the
+ * first correction pass in measurements.ts scales the heights to, before this
  * photo's own hand length is known.
  */
 export const REFERENCE_HAND_LENGTH_MM = 190;

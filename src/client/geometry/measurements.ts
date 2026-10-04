@@ -151,9 +151,10 @@ export function handLengthFromSheetMm(points: readonly Point2[]): number {
 export const HAND_LENGTH_SETTLED_MM = 0.01;
 
 /**
- * Most correction passes `correctLandmarksByHandLength` makes. A hand that has
- * not settled by then is returned as it stands (never thrown): the cap only
- * guards a geometry where the passes would not converge.
+ * Most correction passes `correctLandmarksByHandLength` makes by default. A
+ * hand that has not settled by then is returned as it stands, with
+ * `converged: false` (never thrown): the cap only guards a geometry where the
+ * passes would not converge.
  */
 export const MAX_CORRECTION_PASSES = 8;
 
@@ -168,8 +169,19 @@ export interface HandLengthCorrection {
    * hand length measured from `points`, unless the passes ran out.
    */
   readonly handLengthMm: number;
-  /** How many back-projection passes it took, 1 to `MAX_CORRECTION_PASSES`. */
+  /** How many back-projection passes it took, 1 up to the cap. */
   readonly passes: number;
+  /**
+   * True when the hand length measured from `points` is within
+   * `HAND_LENGTH_SETTLED_MM` of `handLengthMm`. False when the cap was reached
+   * first: `points` and `heightsMm` are then the last pass's, not settled.
+   */
+  readonly converged: boolean;
+}
+
+export interface HandLengthCorrectionOptions {
+  /** Most passes to make, an integer of 1 or more. Default `MAX_CORRECTION_PASSES`. */
+  readonly maxPasses?: number;
 }
 
 /**
@@ -183,26 +195,35 @@ export interface HandLengthCorrection {
  *  2. if it is within `HAND_LENGTH_SETTLED_MM` of the length the heights were
  *     scaled to, stop; otherwise back-project again at `landmarkHeightsMm` of
  *     the length just measured, and measure again (at most
- *     `MAX_CORRECTION_PASSES` passes in all).
+ *     `options.maxPasses` passes in all, `MAX_CORRECTION_PASSES` by default;
+ *     `converged` says whether it settled before the cap).
  *
  * Each pass shrinks the disagreement about twelvefold. In the unit-test scenes
  * (hands of 160 to 220 mm, a camera 350 or 450 mm up, a hand up to 160 mm from
  * the point under the camera, hands standing at the v2 heights and at the v1
  * ones) the first pass is off by up to 2.5 mm, and the passes settle in at
- * most 5, so a further pass would change the hand length by under 0.002 mm.
+ * most 5, so a further pass would change the hand length by under 0.001 mm.
  * (Stopping after two passes, as an earlier version did, left up to 0.22 mm
  * for a hand far from the camera's axis.) A pure function of its inputs. The
  * result is only as good as the ratios: it makes the heights consistent with
  * the length, it does not make them true.
  *
  * A pass whose length cannot give heights (not finite, or zero) throws the
- * RangeError of `landmarkHeightsMm`.
+ * RangeError of `landmarkHeightsMm`, and so does a `maxPasses` that is not an
+ * integer of 1 or more.
  */
 export function correctLandmarksByHandLength(
   landmarksPx: readonly Point2[],
   homography: Homography,
   intrinsics: Intrinsics,
+  options: HandLengthCorrectionOptions = {},
 ): HandLengthCorrection {
+  const maxPasses = options.maxPasses ?? MAX_CORRECTION_PASSES;
+  if (!Number.isInteger(maxPasses) || maxPasses < 1) {
+    throw new RangeError(
+      "correctLandmarksByHandLength: maxPasses must be an integer of 1 or more.",
+    );
+  }
   let heightsMm: number[] = [...REFERENCE_LANDMARK_HEIGHTS_MM];
   let scaledToMm = REFERENCE_HAND_LENGTH_MM;
   let points = correctLandmarks(landmarksPx, homography, intrinsics, heightsMm);
@@ -211,7 +232,7 @@ export function correctLandmarksByHandLength(
   // `!(x < tolerance)` rather than `x >= tolerance`: a length that is NaN must
   // go on and throw in `landmarkHeightsMm`, not be taken as settled.
   while (
-    passes < MAX_CORRECTION_PASSES &&
+    passes < maxPasses &&
     !(Math.abs(measuredMm - scaledToMm) < HAND_LENGTH_SETTLED_MM)
   ) {
     scaledToMm = measuredMm;
@@ -220,7 +241,13 @@ export function correctLandmarksByHandLength(
     measuredMm = handLengthFromSheetMm(points);
     passes++;
   }
-  return { points, heightsMm, handLengthMm: scaledToMm, passes };
+  return {
+    points,
+    heightsMm,
+    handLengthMm: scaledToMm,
+    passes,
+    converged: Math.abs(measuredMm - scaledToMm) < HAND_LENGTH_SETTLED_MM,
+  };
 }
 
 /**

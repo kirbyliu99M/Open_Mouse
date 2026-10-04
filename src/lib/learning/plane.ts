@@ -188,8 +188,8 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
             fPx: resolved.fPx,
             ...principalPoint,
           };
-          // The same two-pass correction the product's blank-paper function
-          // makes, and the heights it used are the ones recorded below.
+          // The same hand-length-scaled correction the product's blank-paper
+          // function makes, and the heights it used are the ones recorded below.
           const result = correctLandmarksByHandLength(
             landmarksPx,
             homography,

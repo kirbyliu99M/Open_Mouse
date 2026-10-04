@@ -67,9 +67,10 @@ export type Hand = "left" | "right";
 export type Selection = "calibration" | "held-out" | "s0";
 
 /**
- * A correction applied to the recomputed measurements. The baseline,
- * `landmark-raw-v1`, changes nothing. The frozen `calibrated-v1` plugs in
- * here later, so the same evaluator judges both.
+ * A correction applied to the recomputed measurements. The baseline, named
+ * after the contract's current `MEASUREMENT_MODEL_VERSION` (`landmark-raw-v2`
+ * since 2026-10-04, `landmark-raw-v1` before), changes nothing. The frozen
+ * `calibrated-v1` plugs in here later, so the same evaluator judges both.
  */
 export interface Calibration {
   readonly name: string;
@@ -168,7 +169,7 @@ export interface EvaluationReport {
   readonly format: typeof EVALUATION_FORMAT;
   /** Always candidate-v1 here: format-2 run logs and truth files. agreed-v2 has its own report (src/lib/m2/kitv2.ts). */
   readonly protocol: typeof PROTOCOL_CANDIDATE_V1;
-  /** The measurement model judged (`landmark-raw-v1` for the baseline). */
+  /** The measurement model judged (the current `MEASUREMENT_MODEL_VERSION` for the baseline: `landmark-raw-v2` since 2026-10-04). */
   readonly model: string;
   readonly createdAt: string;
   readonly thresholds: Thresholds;

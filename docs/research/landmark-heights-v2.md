@@ -57,8 +57,9 @@ repeats the correction until the two agree:
    and measure the hand length from those points.
 2. If that length is within 0.01 mm of the length the heights were scaled to,
    stop. Otherwise back-project again at `k ×` the length just measured, and
-   measure again. At most 8 passes; a hand that has not settled by then is
-   returned as it is.
+   measure again. At most 8 passes (the cap can be set lower with
+   `options.maxPasses`); a hand that has not settled by then is returned as it
+   is, with `converged: false`, and nothing is thrown.
 
 **Definition of the hand length (not changed by this work).** The contract's
 `MEASUREMENT_DEFINITIONS.handLengthMm`: the straight distance in sheet mm from
@@ -95,9 +96,10 @@ release and sale; its distribution is unlimited."_ (PDF p.1 of each; the page
 numbers below count from the cover.) Each Foreword (PDF p.3, printed iii) says
 the report was prepared by the Anthropology Branch, Human Engineering Division,
 Aerospace Medical Research Laboratory, Wright-Patterson Air Force Base, and was
-reviewed and approved by the laboratory's Commander. The basis relied on here is
-the cover's distribution statement. Neither PDF has a DD Form 1473 in its front
-matter or last pages (not every page was checked), and this is not legal advice.
+reviewed and approved by the laboratory's Commander. Both reports also carry a
+DD Form 1473 (Document Control Data, R & D; male PDF p.78, female PDF p.83, each
+followed by a key-words page), UNCLASSIFIED, dated March 1970, that repeats the
+same distribution statement. This is not legal advice.
 
 | Sex    | Report                                                                                                | DTIC      | Sample                                 | Mean hand length | Hand length page |
 | ------ | ----------------------------------------------------------------------------------------------------- | --------- | -------------------------------------- | ---------------- | ---------------- |
@@ -224,3 +226,10 @@ A scan stored by the server carries the contract's `measurementModelVersion`:
 `landmark-raw-v2` for a scan measured with these heights, `landmark-raw-v1` for
 one measured with the fixed v1 heights (both are accepted). The server does not
 store the 21 heights themselves.
+
+Only a scan with `calibration.parallaxCorrected = true` actually used the
+heights. Today that is the paper-edge path, and only when a focal length could be
+resolved. The printed-sheet path (uncorrected, `parallaxCorrected` is always
+false) and the user-length path (the typed length sets the scale, never
+corrected) give the same numbers under v1 and v2; only their version label
+differs.

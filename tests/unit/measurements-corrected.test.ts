@@ -299,6 +299,7 @@ describe("correctLandmarksByHandLength: passes until the heights and the length 
                 camera.intrinsics,
               );
               expect(result.passes, label).toBeLessThan(MAX_CORRECTION_PASSES);
+              expect(result.converged, label).toBe(true);
 
               // One more pass, worked out here: heights for the length just
               // measured, then measure again.
@@ -356,9 +357,73 @@ describe("correctLandmarksByHandLength: passes until the heights and the length 
       camera.intrinsics,
     );
     expect(result.passes).toBeGreaterThan(2);
+    expect(result.converged).toBe(true);
     expect(Math.abs(handLengthFromSheetMm(result.points) - 220)).toBeLessThan(
       0.01,
     );
+  });
+
+  it("at the cap it does not throw: it returns the last pass with converged false", () => {
+    // The same far-off hand, but the cap set to two passes, which is not enough.
+    const { camera, h, landmarksPx } = sceneOf(
+      220,
+      20,
+      landmarkHeightsMm(220),
+      { distanceMm: 350, offsetMm: { x: 0, y: -160 } },
+    );
+    const capped = correctLandmarksByHandLength(
+      landmarksPx,
+      h,
+      camera.intrinsics,
+      { maxPasses: 2 },
+    );
+    expect(capped.passes).toBe(2);
+    expect(capped.converged).toBe(false);
+    // Still a complete, usable result: heights for the length it scaled to,
+    // and the points back-projected at them.
+    expect(capped.points).toHaveLength(21);
+    expect(capped.heightsMm).toEqual(landmarkHeightsMm(capped.handLengthMm));
+    expect(capped.points).toEqual(
+      correctLandmarks(landmarksPx, h, camera.intrinsics, capped.heightsMm),
+    );
+    // It is the unsettled state the flag says: the length measured from the
+    // points is 0.1 mm or more from the one the heights were scaled to.
+    expect(
+      Math.abs(handLengthFromSheetMm(capped.points) - capped.handLengthMm),
+    ).toBeGreaterThan(0.1);
+
+    // One pass is the reference heights, whatever the hand.
+    const single = correctLandmarksByHandLength(
+      landmarksPx,
+      h,
+      camera.intrinsics,
+      { maxPasses: 1 },
+    );
+    expect(single.passes).toBe(1);
+    expect(single.converged).toBe(false);
+    expect(single.heightsMm).toEqual([...REFERENCE_LANDMARK_HEIGHTS_MM]);
+
+    // The default cap settles the same hand.
+    const byDefault = correctLandmarksByHandLength(
+      landmarksPx,
+      h,
+      camera.intrinsics,
+    );
+    expect(byDefault.converged).toBe(true);
+    expect(byDefault.passes).toBeLessThan(MAX_CORRECTION_PASSES);
+  });
+
+  it("refuses a maxPasses that is not an integer of 1 or more", () => {
+    const { camera, h, landmarksPx } = sceneOf(190, 20, landmarkHeightsMm(190));
+    for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        () =>
+          correctLandmarksByHandLength(landmarksPx, h, camera.intrinsics, {
+            maxPasses: bad,
+          }),
+        String(bad),
+      ).toThrow(RangeError);
+    }
   });
 
   it("reports the length the heights are scaled to, the heights, the points and the pass count", () => {
@@ -389,6 +454,7 @@ describe("correctLandmarksByHandLength: passes until the heights and the length 
       camera.intrinsics,
     );
     expect(result.passes).toBe(1);
+    expect(result.converged).toBe(true);
     expect(result.handLengthMm).toBe(REFERENCE_HAND_LENGTH_MM);
     expect(result.heightsMm).toEqual([...REFERENCE_LANDMARK_HEIGHTS_MM]);
     result.points.forEach((p, i) => {
