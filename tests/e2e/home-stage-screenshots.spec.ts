@@ -8,6 +8,7 @@ import {
 } from "./helpers/home-stage";
 
 const OUTPUT = "docs/design/home-v3-2026-10-03/pr-b";
+const SHORT_OUTPUT = "docs/design/home-v3-2026-10-03/short-desktop";
 
 // Opt-in only (the same convention as easy-scan-screenshots.spec.ts): a normal
 // `playwright test` run must never rewrite the committed docs PNGs. Run with:
@@ -23,7 +24,50 @@ const SIZES = [
 ] as const;
 const PROGRESS = [0, 0.3, 0.5, 0.95] as const;
 
+// Short laptop windows (the hero scales down with the height): p = 0 and about
+// the middle of the story, with the nav showing at p = 0 as a visitor first
+// sees it. `... --project=chromium -g "short desktop"` captures only these.
+const SHORT_SIZES = [
+  [1280, 640],
+  [1366, 657],
+] as const;
+const SHORT_PROGRESS = [0, 0.5] as const;
+
 test.describe("home stage screenshots", () => {
+  /** The stage at rest at each progress, one viewport shot each, into `output`. */
+  async function capture(
+    page: import("@playwright/test").Page,
+    width: number,
+    height: number,
+    progress: readonly number[],
+    output: string,
+  ) {
+    await recordStage(page);
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await waitForAnimated(page);
+    // The shimmer is over (it is the one thing that moves on its own), so
+    // every shot is the stage at rest.
+    const activatedAt = await read<number>(page, "__activatedAt");
+    await page.waitForFunction(
+      (start) => performance.now() - start > 3400,
+      activatedAt,
+    );
+    for (const p of progress) {
+      if (p === 0) {
+        // The first screen, with the nav, as a visitor first sees it.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(200);
+      } else {
+        await scrollToProgress(page, p);
+        await page.waitForTimeout(200);
+      }
+      await page.screenshot({
+        path: `${output}/${width}x${height}-p${p.toFixed(2)}.png`,
+      });
+    }
+  }
+
   test.skip(
     process.env.SCREENSHOTS !== "1",
     "Screenshot capture is opt-in: set SCREENSHOTS=1 to run it.",
@@ -36,30 +80,16 @@ test.describe("home stage screenshots", () => {
     test(`${width}x${height}`, async ({ page }, info) => {
       test.skip(info.project.name !== "chromium", "Captures once.");
       test.setTimeout(120_000);
-      await recordStage(page);
-      await page.setViewportSize({ width, height });
-      await page.goto("/");
-      await waitForAnimated(page);
-      // The shimmer is over (it is the one thing that moves on its own), so
-      // every shot is the stage at rest.
-      const activatedAt = await read<number>(page, "__activatedAt");
-      await page.waitForFunction(
-        (start) => performance.now() - start > 3400,
-        activatedAt,
-      );
-      for (const p of PROGRESS) {
-        if (p === 0) {
-          // The first screen, with the nav, as a visitor first sees it.
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await page.waitForTimeout(200);
-        } else {
-          await scrollToProgress(page, p);
-          await page.waitForTimeout(200);
-        }
-        await page.screenshot({
-          path: `${OUTPUT}/${width}x${height}-p${p.toFixed(2)}.png`,
-        });
-      }
+      await capture(page, width, height, PROGRESS, OUTPUT);
+    });
+  }
+
+  for (const [width, height] of SHORT_SIZES) {
+    test(`short desktop ${width}x${height}`, async ({ page }, info) => {
+      test.skip(info.project.name !== "chromium", "Captures once.");
+      test.setTimeout(120_000);
+      await mkdir(SHORT_OUTPUT, { recursive: true });
+      await capture(page, width, height, SHORT_PROGRESS, SHORT_OUTPUT);
     });
   }
 });
