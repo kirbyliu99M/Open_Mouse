@@ -613,6 +613,8 @@ export default function CameraCapture({
         calibrationMode,
       );
 
+      // The ring empties after 3 consecutive failed samples; one or two only
+      // pause it (autoCapture.ts, scan v2). It used to reset on any failure.
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
         nextCue.allPass,

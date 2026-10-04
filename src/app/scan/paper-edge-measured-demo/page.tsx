@@ -15,7 +15,7 @@ import {
 import "../scan.css";
 
 export const metadata: Metadata = {
-  title: "Scan measured, paper-edge (mock data) — Open_Mouse",
+  title: "Scan measured, paper-edge (mock data)",
   description:
     "Dev/demo route rendering /scan's measured state in paper-edge mode against fixed, schema-valid measurements — no photo, no MediaPipe. Mirrors /scan/measured-demo for the future blank-paper calibration path (see src/client/paper/detect.ts).",
   robots: { index: false, follow: false },

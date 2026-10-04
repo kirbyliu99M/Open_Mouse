@@ -710,6 +710,18 @@ test.describe("/scan/hand-explicit-demo — the hand picker", () => {
       { timeout: 5_000 },
     );
 
+    // A new photo after choosing is still under that choice: the picker was
+    // tapped, and a photo cannot un-tap it.
+    await page.setInputFiles(FILE_INPUT, {
+      name: "another.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("another photo"),
+    });
+    await expect(page.locator(".feedback-ok .feedbackTitle")).toContainText(
+      "Hand measured",
+      { timeout: 5_000 },
+    );
+
     const calls = await page.evaluate(
       () =>
         (
@@ -721,6 +733,7 @@ test.describe("/scan/hand-explicit-demo — the hand picker", () => {
     expect(calls).toEqual([
       { hand: "right", handExplicit: false },
       { hand: "right", handExplicit: true },
+      { hand: "left", handExplicit: true },
       { hand: "left", handExplicit: true },
     ]);
   });

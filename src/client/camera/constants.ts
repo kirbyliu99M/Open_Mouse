@@ -3,11 +3,11 @@
  * README.md, revised 2026-09-25 for Kirby's plain-paper direction change —
  * see src/client/camera/quad-source.ts's header). Every number here is a
  * **candidate** picked from the spec's own wording, not measured on a real
- * phone yet — the M2 gate-replay approach (scripts/m2-gate-replay.ts) is
- * the right way to tune these once Kirby has real-phone footage, the same
- * way GATE_THRESHOLDS in src/client/photo/gates.ts already says of its own
- * values. Keep every live-loop/cue threshold in this one file so a future
- * tuning pass has a single place to look.
+ * phone yet — the M2 evaluator (scripts/m2-evaluate.ts, run on the learning
+ * kit's run logs) is the right way to tune these once Kirby has real-phone
+ * footage, the same way GATE_THRESHOLDS in src/client/photo/gates.ts already
+ * says of its own values. Keep every live-loop/cue threshold in this one file
+ * so a future tuning pass has a single place to look.
  */
 
 import {
@@ -78,10 +78,41 @@ export const CAMERA_CONSTANTS = {
     minLiveLaplacianVariance: 15,
   },
   autoCapture: {
-    /** Ring-fill duration once every check passes continuously (spec: 800 ms, not a candidate). */
+    /** Ring-fill duration of passing samples (spec: 800 ms, not a candidate). */
     durationMs: 800,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
+    /**
+     * Consecutive failed samples that empty the ring (scan v2, candidate). At
+     * 8 samples per second one noisy sample used to restart the 800 ms fill,
+     * so the ring rarely completed; one or two failures now only pause it.
+     */
+    maxConsecutiveFailures: 3,
   },
+  /** Still used by the printed-sheet flow (CameraCapture). The easy scan uses `cueDebounce`. */
   cueThrottleMs: 1500,
+  /** The easy scan's cue line (scan v2, candidates). */
+  cueDebounce: {
+    /** Consecutive non-perfect samples before "perfect" is replaced. */
+    leavePerfectSamples: 2,
+    /** The cue text changes no more often than this, except into "perfect". */
+    minTextChangeMs: 500,
+  },
+  /** The easy scan's corner dots (scan v2, candidates). */
+  corners: {
+    /** Exponential low-pass weight of a new sample, per sample. */
+    filterAlpha: 0.35,
+    /** A corner lost this long eases back to the guide. */
+    returnToGuideAfterMs: 1000,
+    /** A corner found again within this long of being lost does not pop in again. */
+    repopAfterLostMs: 500,
+  },
+  /** Focus (scan v2). */
+  focus: {
+    /** Preview stream size the camera is asked for; the photo still comes from takePhoto. */
+    previewIdealWidth: 1920,
+    previewIdealHeight: 1080,
+    /** After a tap's single-shot focus, continuous focus is asked for again. */
+    tapRefocusMs: 1200,
+  },
 } as const;

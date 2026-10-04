@@ -1,0 +1,91 @@
+name: Measurement looks wrong
+description: The millimetre numbers the app gave for your hand do not match a ruler. Numbers and device only, no photos.
+title: "Measurement: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. This form asks for **numbers and your device only**.
+
+        - **Do not attach or link any photo**, screenshot of the camera view, or video. The app never uploads your photo, and this report must not either.
+        - Do not write your name, email address or anything else that identifies you.
+        - Issues are **public and permanent**, and hand measurements are personal data. Post only your own, and only if you are comfortable with them being public.
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Which flow did you use?
+      options:
+        - Blank paper, live camera (/scan/easy)
+        - Printed sheet (/scan)
+        - Typed hand length, no paper
+    validations:
+      required: true
+  - type: dropdown
+    id: paper
+    attributes:
+      label: Paper
+      options:
+        - A4 (blank)
+        - Letter (blank)
+        - The printed calibration sheet
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: hand
+    attributes:
+      label: Hand
+      options:
+        - Left
+        - Right
+    validations:
+      required: true
+  - type: textarea
+    id: app-numbers
+    attributes:
+      label: What the app reported (mm)
+      description: The values the app showed for your hand.
+      placeholder: |
+        Hand length: ...
+        Palm width: ...
+    validations:
+      required: true
+  - type: textarea
+    id: ruler-numbers
+    attributes:
+      label: What a ruler says (mm)
+      description: Hand length is measured from the wrist crease to the tip of the middle finger. Say how you measured palm width.
+      placeholder: |
+        Hand length: ...
+        Palm width: ...
+        How I measured palm width: ...
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone or device model
+      description: For example Pixel 7 or iPhone 14.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and browser, with versions
+      placeholder: Android 15 and Chrome 140, iOS 18.1 and Safari 18 ...
+    validations:
+      required: true
+  - type: textarea
+    id: conditions
+    attributes:
+      label: Conditions (optional)
+      description: In words only. Lighting, colour of the table, how far above the paper the phone was, anything that felt unusual.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report contains no photo, screenshot of the camera view, name or other personal data.
+          required: true
+        - label: The measurements are my own and I am comfortable with them being public.
+          required: true

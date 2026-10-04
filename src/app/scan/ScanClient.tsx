@@ -20,11 +20,13 @@ import {
 } from "@/client/photo/pipeline";
 import {
   getHandLandmarker,
+  DETECTOR_LOAD_FAILED_MESSAGE,
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
+import { UNVERIFIED_MEASUREMENT_NOTE } from "@/client/photo/unverified-note";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import {
   HAND_CONNECTIONS,
@@ -286,6 +288,16 @@ function DimensionLinesOverlay({
             y2={g.endConnector[1].y}
             className="overlayDimensionExtension"
           />
+          {/* Each stroke has a white halo under it, so it reads on the white
+              paper of the photo (the line is 4.75:1 on white) and on a dark
+              or mid-grey picture alike (the halo is). */}
+          <line
+            x1={g.offsetStart.x}
+            y1={g.offsetStart.y}
+            x2={g.offsetEnd.x}
+            y2={g.offsetEnd.y}
+            className="overlayDimensionHalo"
+          />
           <line
             x1={g.offsetStart.x}
             y1={g.offsetStart.y}
@@ -298,7 +310,21 @@ function DimensionLinesOverlay({
             y1={g.startTick[0].y}
             x2={g.startTick[1].x}
             y2={g.startTick[1].y}
+            className="overlayDimensionHalo"
+          />
+          <line
+            x1={g.startTick[0].x}
+            y1={g.startTick[0].y}
+            x2={g.startTick[1].x}
+            y2={g.startTick[1].y}
             className="overlayDimensionTick"
+          />
+          <line
+            x1={g.endTick[0].x}
+            y1={g.endTick[0].y}
+            x2={g.endTick[1].x}
+            y2={g.endTick[1].y}
+            className="overlayDimensionHalo"
           />
           <line
             x1={g.endTick[0].x}
@@ -584,7 +610,7 @@ export default function ScanClient({
                 ? "detector_load_failed"
                 : "processing_failed",
               message: isLoadFailure
-                ? "We couldn't load the hand detector. Check your connection and try again."
+                ? DETECTOR_LOAD_FAILED_MESSAGE
                 : "Something went wrong while processing that photo. Try again.",
             } as PipelineIssue,
           ],
@@ -1064,8 +1090,10 @@ export default function ScanClient({
                 ))}
               </div>
             )}
-            {/* Raw JSON, for scripts/m2-gate-replay.ts to parse exact values
-                from — the visible dl below is for people, formatted/rounded. */}
+            {/* Raw JSON with the exact values (the old scripts/m2-gate-replay.ts
+                read it; it was replaced by scripts/m2-evaluate.ts, which works
+                from learning-kit run logs) — the visible dl below is for
+                people, formatted/rounded. */}
             <p hidden data-testid="scan-measurements-json">
               {JSON.stringify(state.measurements)}
             </p>
@@ -1077,11 +1105,14 @@ export default function ScanClient({
                     {typeof value === "number"
                       ? value.toFixed(1)
                       : String(value)}
-                    {key.endsWith("Deg") ? "°" : " mm"}
+                    {key.endsWith("Deg") ? "°" : "\u00A0mm"}
                   </dd>
                 </div>
               ))}
             </dl>
+            <p className="measureNote" data-testid="scan-unverified-note">
+              {UNVERIFIED_MEASUREMENT_NOTE}
+            </p>
             <p className="feedbackCaption">
               {isPaperEdge
                 ? // No card, no manual-correction path in paper-edge mode

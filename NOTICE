@@ -1,0 +1,324 @@
+Open_Mouse - third-party notices
+
+Open_Mouse's own code has no licence yet (to be decided; see README.md).
+
+This file lists third-party material that Open_Mouse redistributes: files
+vendored in this repository, and npm packages that ship in the deployed app.
+It records what was verified and where. Anything that could not be confirmed
+says "Unconfirmed". It is not legal advice.
+
+Last checked: 2026-10-04 for sections 3.2 to 3.5 and the package table; the other sections were last checked on 2026-09-30.
+
+
+1. Vendored files: public/mediapipe/
+====================================
+
+1.1 MediaPipe Tasks Vision runtime (WebAssembly)
+
+  Files:    wasm/vision_wasm_internal.js and .wasm      (SIMD build)
+            wasm/vision_wasm_nosimd_internal.js and .wasm
+                                                        (fallback for browsers
+                                                        without WebAssembly SIMD)
+  Origin:   npm package @mediapipe/tasks-vision 1.0.1, copied unmodified
+            (byte-identical; SHA-256 digests in public/mediapipe/README.md).
+  Licence:  Apache License 2.0.
+  Evidence: "license": "Apache-2.0" in the package's package.json and in
+            package-lock.json; the upstream repository
+            https://github.com/google-ai-edge/mediapipe declares Apache
+            License 2.0 (its LICENSE is copied to
+            public/mediapipe/LICENSE-mediapipe.txt).
+  Not found: the npm package contains no LICENSE or NOTICE file of its own.
+
+  Statically linked code - Unconfirmed. The .wasm files are static builds. A
+  string search of the binary finds code from other projects: Abseil,
+  Protocol Buffers, XNNPACK, TensorFlow Lite, ruy, gemmlowp, Eigen, OpenCV,
+  FlatBuffers and the Emscripten runtime. The package ships no notices for
+  them, and which versions and licence terms are compiled in was not confirmed.
+
+  Usage metrics. The package README's privacy notice (last modified
+  2026-06-05) says the Tasks APIs send performance and usage metrics to
+  Google, and that input data such as images is processed on the device and
+  not sent to Google. The bundle contains the logger (endpoint
+  https://odml.pa.googleapis.com/v1/log). Open_Mouse's Content-Security-Policy
+  (connect-src 'self', next.config.ts) blocks that request: observed on
+  2026-09-30 in Chromium against the dev server, the browser logged
+  "Refused to connect ... because it violates the document's Content Security
+  Policy" and no request left the page. Loosening connect-src would let it
+  through.
+
+1.2 Hand landmark model
+
+  File:     models/hand_landmarker.task  (float16, revision 1; 7,819,105 bytes;
+            MD5 15318430ea3851670fe9914116a9cfad)
+  Origin:   https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+  Contents: a zip archive of two TensorFlow Lite models, hand_detector.tflite
+            and hand_landmarks_detector.tflite (both dated 2023-04-26).
+  Licence:  Apache License 2.0, as stated by Google's model card "MediaPipe
+            Hands (Lite/Full)", page 2, section "Licensed under":
+            https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Hand%20Tracking%20(Lite_Full)%20with%20Fairness%20Oct%202021.pdf
+            Google's Hand Landmarker documentation links to that card:
+            https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker
+  Caveats:  Stated by the model card only. The .task file carries no licence
+            text and the download location serves none, so that this card
+            covers this exact file rests on Google's documentation linking
+            them. The Hand Landmarker page itself states no licence for the
+            model (its footer licences the page: CC BY 4.0, with code samples
+            under Apache 2.0). The card also says the model was trained on
+            limited datasets and is meant for experimental usage, and is not
+            intended for human life-critical decisions.
+
+1.3 Licence text: public/mediapipe/LICENSE-mediapipe.txt is a copy of the
+    upstream LICENSE (Apache License 2.0). The extra notice at its end
+    applies to files under the upstream text-task directory
+    (tasks/cc/text/language_detector/...), not to the vision build.
+
+
+2. Code copied into src/
+========================
+
+2.1 ArUco dictionary codes
+
+  src/client/sheet/aruco-codes.ts holds six marker codes of the
+  ARUCO_MIP_36h12 dictionary, taken from
+  node_modules/js-aruco2/src/dictionaries/aruco_mip_36h12.js. That file's
+  header reads "Dictionary extracted from
+  https://sourceforge.net/projects/aruco/files/3.1.12/" and carries this
+  notice, reproduced as required:
+
+    Copyright 2017 Rafael Muñoz Salinas. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without modification, are
+    permitted provided that the following conditions are met:
+
+       1. Redistributions of source code must retain the above copyright notice, this list of
+          conditions and the following disclaimer.
+
+       2. Redistributions in binary form must reproduce the above copyright notice, this list
+          of conditions and the following disclaimer in the documentation and/or other materials
+          provided with the distribution.
+
+    THIS SOFTWARE IS PROVIDED BY Rafael Muñoz Salinas ''AS IS'' AND ANY EXPRESS OR IMPLIED
+    WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+    FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Rafael Muñoz Salinas OR
+    CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+    ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+    ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+    The views and conclusions contained in the software and documentation are those of the
+    authors and should not be interpreted as representing official policies, either expressed
+    or implied, of Rafael Muñoz Salinas.
+
+
+3. npm packages shipped in the deployed app
+===========================================
+
+Installed with npm (not vendored) and shipped in the server and/or browser
+bundle. Licences are the "license" field in package-lock.json. Most of these
+packages carry a licence file in node_modules/<name>/, but four do not:
+@mediapipe/tasks-vision, @next/env, drizzle-orm and server-only. For those four
+the "license" field is the only evidence (each package folder listed on
+2026-09-30; the table itself was re-checked on 2026-10-04). Transitive dependencies are listed, with licences, in
+package-lock.json. Development-only tools (TypeScript, ESLint, Playwright,
+Vitest, Prettier, drizzle-kit, ...) are not redistributed.
+tests/unit/notice-packages.test.ts keeps this table in step with package.json
+and package-lock.json.
+
+  Package                     Version          Licence
+  --------------------------  ---------------  ----------
+  @auth/drizzle-adapter       1.11.3           ISC
+  @google/genai               2.23.0           Apache-2.0
+  @mediapipe/tasks-vision     1.0.1            Apache-2.0
+  @neondatabase/serverless    1.1.0            MIT
+  @next/env                   15.5.25          MIT
+  drizzle-orm                 0.45.2           Apache-2.0
+  js-aruco2                   2.0.0            MIT
+  jsqr                        1.4.0            Apache-2.0
+  next                        15.5.25          MIT
+  next-auth                   5.0.0-beta.32    ISC
+  qrcode                      1.5.4            MIT
+  react                       19.3.0           MIT
+  react-dom                   19.3.0           MIT
+  server-only                 0.0.1            MIT
+  zod                         4.6.5            MIT
+
+3.1 js-aruco2
+
+  The app runs js-aruco2's src/aruco.js and src/cv.js in the browser
+  (printed-sheet marker detection and the bank-card check). Their headers carry
+  an MIT notice with the text below (aruco.js: Damiano Falcioni 2020 and Juan
+  Mellado 2011; cv.js: Juan Mellado 2011). The package's LICENSE.txt also
+  carries entries for four other works that js-aruco2 is derived from or refers
+  to. For OpenCV (BSD-style), AForge.NET (GNU LGPL v3) and StackBoxBlur (MIT,
+  Copyright (c) 2010 Mario Klingemann) it reproduces the licence text. For ArUco
+  it has only a heading ("BSD License") and no text; the ArUco licence text is
+  the one in section 2.1, taken from the header of the dictionary file. The AForge.NET
+  reference sits in src/posit2.js, which Open_Mouse does not import. StackBoxBlur
+  is code that runs: CV.adaptiveThreshold in cv.js calls CV.stackBoxBlur, and the
+  marker detector in aruco.js calls CV.adaptiveThreshold (cv.js cites "Stack
+  Blur: Fast But Goodlooking" as its reference). Which parts of aruco.js and
+  cv.js derive from ArUco or OpenCV was not confirmed, so the OpenCV notice is
+  reproduced here as well, and the StackBoxBlur notice follows it.
+
+  MIT (js-aruco2, from the package's LICENSE.txt):
+
+    Copyright (c) 2020 Damiano Falcioni
+    Copyright (c) 2011 Juan Mellado
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+
+  OpenCV (from the package's LICENSE.txt):
+
+    License Agreement
+                    For Open Source Computer Vision Library
+
+    Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
+    Copyright (C) 2009, Willow Garage Inc., all rights reserved.
+    Third party copyrights are property of their respective owners.
+
+    Redistribution and use in source and binary forms, with or without modification,
+    are permitted provided that the following conditions are met:
+
+      * Redistribution's of source code must retain the above copyright notice,
+        this list of conditions and the following disclaimer.
+
+      * Redistribution's in binary form must reproduce the above copyright notice,
+        this list of conditions and the following disclaimer in the documentation
+        and/or other materials provided with the distribution.
+
+      * The name of the copyright holders may not be used to endorse or promote products
+        derived from this software without specific prior written permission.
+
+    This software is provided by the copyright holders and contributors "as is" and
+    any express or implied warranties, including, but not limited to, the implied
+    warranties of merchantability and fitness for a particular purpose are disclaimed.
+    In no event shall the Intel Corporation or contributors be liable for any direct,
+    indirect, incidental, special, exemplary, or consequential damages
+    (including, but not limited to, procurement of substitute goods or services;
+    loss of use, data, or profits; or business interruption) however caused
+    and on any theory of liability, whether in contract, strict liability,
+    or tort (including negligence or otherwise) arising in any way out of
+    the use of this software, even if advised of the possibility of such damage.
+
+  StackBoxBlur (from the package's LICENSE.txt):
+
+    Copyright (c) 2010 Mario Klingemann
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation
+    files (the "Software"), to deal in the Software without
+    restriction, including without limitation the rights to use,
+    copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following
+    conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+    OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+    WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+    OTHER DEALINGS IN THE SOFTWARE.
+
+3.2 jsqr
+
+  jsqr runs in the browser: it reads the learning kit's QR code
+  (src/lib/learning/qrread.ts). Its licence, Apache License 2.0, is the
+  package's node_modules/jsqr/LICENSE: the standard text, with the appendix's
+  copyright line left as the unfilled template. The Apache License 2.0 text in
+  public/mediapipe/LICENSE-mediapipe.txt is the same as jsqr's (only the
+  brackets in the appendix template differ: jsqr's are braces, "{yyyy} {name
+  of copyright owner}", and that file's are square brackets, "[yyyy] [name of
+  copyright owner]"). That file also ends with a notice that applies to
+  MediaPipe only (see section 1.3).
+
+3.3 @google/genai
+
+  Licence: Apache License 2.0. The package carries node_modules/@google/genai/
+  LICENSE: the standard text, with the appendix's copyright line left as the
+  unfilled template, and no NOTICE file. That text is the same as the Apache
+  License 2.0 text at the top of public/mediapipe/LICENSE-mediapipe.txt, up to
+  the end of the appendix (compared 2026-10-04: no difference but one blank
+  line at the start of the package's file). The repo file goes on after that
+  with a notice that applies to MediaPipe only (see 1.3); the package's file
+  has nothing after the appendix. Both use square brackets in the appendix
+  template ("[yyyy] [name of copyright owner]"); jsqr's uses braces (see 3.2).
+
+3.4 drizzle-orm
+
+  Licence: Apache License 2.0, as the "license" field in package.json and
+  package-lock.json says. The package folder holds no LICENSE or NOTICE file,
+  and its README states no licence (checked 2026-10-04), so there is no copy
+  or copyright line of the package's own to point to. Its upstream licence file
+  was not checked: Unconfirmed. The Apache License 2.0 text is in
+  public/mediapipe/LICENSE-mediapipe.txt (standard text; the appendix template
+  uses square brackets, as in 3.3).
+
+3.5 @mediapipe/tasks-vision
+
+  The package's JavaScript (vision_bundle.*) runs in the browser
+  (src/client/photo/landmarks.ts). Section 1.1 covers the WebAssembly files
+  copied from the same package. Licence: Apache License 2.0, as the "license"
+  field says. The package folder holds no LICENSE or NOTICE file (see 1.1) and
+  its README states no licence (checked 2026-10-04). The Apache License 2.0
+  text is public/mediapipe/LICENSE-mediapipe.txt, a copy of the upstream
+  repository's LICENSE (see 1.1 and 1.3); the appendix template there uses
+  square brackets, as in 3.3.
+
+
+4. Images: public/images/
+=========================
+
+  hand-on-a4-hero.png     Described in docs/design/easy-scan-shell-2026-09-25/
+                          README.md as an AI-generated illustration (2026-09-25).
+                          The tool used and its terms are not recorded:
+                          Unconfirmed.
+  hand-on-a4-camera.png   Origin not recorded: Unconfirmed.
+  sketches/g-pro-sketch.svg
+                          A line sketch of a Logitech mouse (G Pro X Superlight
+                          2 style). docs/design/easy-scan-shell-2026-09-25/
+                          README.md records that it was generated on pen.dev
+                          (regenerated as "v2" on 2026-09-26). pen.dev's terms
+                          for generated output were not checked: Unconfirmed.
+                          Home v3 recoloured its strokes (#CFE0FF / #6E9BF5)
+                          for the dark theme; the shape is unchanged.
+  logo-placeholder.svg,   Written by scripts/build-particle-targets.ts from
+  hand-on-a4.svg          geometry in src/lib/particles/ (a placeholder mouse
+                          outline with a ruler; a stylised template hand on
+                          an A4 outline, set by hand from the Home v3 design
+                          screens). Not traced from any photo, dataset or
+                          third-party artwork. The logo is a placeholder, not
+                          the final mark.
+
+
+5. Trademarks
+=============
+
+Logitech, G and other product names are trademarks of their owners. Open_Mouse
+is not affiliated with or endorsed by Logitech or any other manufacturer.
+Product names appear only to say which product a result refers to. The
+catalogue uses each manufacturer's own published dimensions (see "Data
+provenance" in README.md).

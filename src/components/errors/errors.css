@@ -1,0 +1,169 @@
+/* Not-found, error and global-error screens. Self-contained on purpose:
+   global-error.tsx replaces the root layout, so globals.css is not loaded
+   there. The colours are the site's dark tokens (tokens.css, which
+   ErrorScreen imports itself): --bg, --text-primary, --accent / --on-accent
+   for the primary button, --accent-text for the focus ring; the muted text is
+   #b5b5bd. */
+
+/* Only global-error.tsx puts this class on <body>. */
+.errorBody {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  color-scheme: dark;
+}
+
+main.errorScreen {
+  box-sizing: border-box;
+  max-width: 36rem;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.errorScreen-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+main.errorScreen h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+/* Focused by script for screen readers; it is not an interactive control. */
+main.errorScreen h1:focus {
+  outline: none;
+}
+
+.errorScreen-message {
+  margin: 0 0 1.5rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.errorScreen-reference {
+  margin: -0.75rem 0 1.5rem;
+  font-size: 0.875rem;
+}
+.errorScreen-reference code {
+  font-family: ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.errorScreen-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.errorAction {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.25rem; /* >= 44px touch target */
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+.errorAction:active {
+  transform: scale(0.98);
+}
+.errorAction-secondary:active {
+  opacity: 0.85;
+}
+/* The primary label is white on the fill: darken the fill when pressed and
+   never lower the opacity (it would take the label under 4.5:1). */
+.errorAction-primary:active {
+  background: var(--accent-pressed);
+}
+.errorScreen-status {
+  margin: 1rem 0 0;
+  min-height: 1.5rem;
+  font-size: 0.875rem;
+}
+
+/* Busy, but still focusable: see RetryButton. */
+.errorAction[aria-disabled="true"] {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.errorAction-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.errorAction-secondary {
+  background: transparent;
+  color: inherit;
+  border-color: #6e6e73;
+}
+.errorAction:focus-visible {
+  outline: 3px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (min-width: 40rem) {
+  .errorScreen-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .errorAction {
+    min-width: 10rem;
+  }
+}
+.errorScreen-eyebrow,
+.errorScreen-message,
+.errorScreen-status,
+.errorScreen-reference {
+  color: #b5b5bd;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .errorAction {
+    transition: none;
+  }
+  .errorAction:active {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .errorAction-secondary {
+    border-width: 2px;
+  }
+}
+
+/* Print: the muted text takes the print tokens (tokens.css, which ErrorScreen
+   imports itself), and the filled primary button is a dark label with an
+   outline, since Chrome prints no backgrounds unless the user asks for them. */
+@media print {
+  .errorScreen-eyebrow,
+  .errorScreen-message,
+  .errorScreen-status,
+  .errorScreen-reference {
+    color: var(--text-secondary);
+  }
+  .errorAction-primary {
+    background: none;
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+  }
+}

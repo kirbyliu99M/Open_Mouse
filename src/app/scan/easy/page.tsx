@@ -4,7 +4,7 @@ import EasyScanCamera from "@/client/camera/EasyScanCamera";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
 
 export const metadata: Metadata = {
-  title: "Scan your hand — Open_Mouse",
+  title: "Scan your hand",
   description:
     "Lay your hand on any blank sheet of A4 and photograph it — measured entirely on this device.",
 };
@@ -21,8 +21,10 @@ export const metadata: Metadata = {
  * screen's page background). The server can already classify the user agent
  * with the same function the client uses, and hands that over as a hint for
  * the first paint only; it decides nothing else. Reading the request headers
- * makes this route dynamic (rendered per request instead of prerendered),
- * which changes no response header: the security headers come from
+ * makes this route dynamic (rendered per request instead of prerendered).
+ * That changes one response header, `Cache-Control` (private, no-store
+ * instead of the static route's long shared `s-maxage`), and none of the
+ * security headers: CSP, Referrer-Policy and the rest come from
  * next.config.ts `headers()`, not from rendering.
  */
 export default async function ScanEasyPage() {

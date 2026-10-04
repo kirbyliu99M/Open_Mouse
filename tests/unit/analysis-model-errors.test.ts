@@ -96,8 +96,17 @@ describe("a model call that throws", () => {
       throwingModel(leaky),
     );
 
+    // One structured line (src/server/log.ts): the event, the status, no text.
+    expect(spy).toHaveBeenCalledTimes(1);
+    const line = JSON.parse(String(spy.mock.calls[0]![0]));
+    expect(line).toMatchObject({
+      level: "error",
+      event: "analysis.model_call_failed",
+      route: "/api/scans/[scanId]/analysis",
+      status: "400",
+    });
+    expect(typeof line.ms).toBe("number");
     const logged = spy.mock.calls.flat().map(String).join(" ");
-    expect(logged).toContain("status 400");
     expect(logged).not.toContain("187.4");
     expect(logged).not.toContain("handLengthMm");
   });

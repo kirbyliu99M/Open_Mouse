@@ -95,24 +95,26 @@ const TEMPLATES: Record<ReasonCode, (params: Params) => string> = {
     "There's no thumb rest, and a palm grip usually rests the thumb on one.",
   thumb_rest_unneeded: () =>
     "There's a thumb rest, but your grip doesn't need one.",
+  // The engine sends `{ minG, maxG }` for an in-range weight (there is no gap
+  // to report), and `{ deltaG, minG, maxG }` for heavier and lighter.
   weight_in_range: (p) => {
-    const value = p.deltaG;
-    if (typeof value === "number") {
-      return `Weight is within ${Math.round(Math.abs(value))} g of your preferred range.`;
+    const { minG, maxG } = p;
+    if (typeof minG === "number" && typeof maxG === "number") {
+      return `Weight is within your preferred range (${Math.round(minG)}–${Math.round(maxG)}\u00A0g).`;
     }
     return "Weight is within your preferred range.";
   },
   weight_heavier: (p) => {
     const value = p.deltaG;
     if (typeof value === "number") {
-      return `This mouse is about ${Math.round(Math.abs(value))} g heavier than you prefer.`;
+      return `This mouse is about ${Math.round(Math.abs(value))}\u00A0g heavier than you prefer.`;
     }
     return "This mouse is heavier than you prefer.";
   },
   weight_lighter: (p) => {
     const value = p.deltaG;
     if (typeof value === "number") {
-      return `This mouse is about ${Math.round(Math.abs(value))} g lighter than you prefer.`;
+      return `This mouse is about ${Math.round(Math.abs(value))}\u00A0g lighter than you prefer.`;
     }
     return "This mouse is lighter than you prefer.";
   },

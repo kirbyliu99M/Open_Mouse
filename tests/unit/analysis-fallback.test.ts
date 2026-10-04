@@ -128,6 +128,53 @@ describe("buildFallbackOutput", () => {
     await expectAcceptedByModelChecks(input);
   });
 
+  it("lists a missing thumb rest under a palm grip as a tradeoff, and a neutral thumb area as nothing", async () => {
+    const base = makeEntry();
+    const withThumb = (code: "thumb_rest_missing" | "thumb_neutral") =>
+      inputWith(
+        makeFit({
+          excluded: [],
+          gripStyle: { stated: "palm", predicted: "palm", used: "palm" },
+          results: [
+            makeEntry({
+              // No digit in the name: the default model's "2" is only allowed
+              // by an unrelated reason param in the shared fixture.
+              mouse: {
+                ...base.mouse,
+                slug: "example-mouse",
+                brand: "Example",
+                model: "Mouse",
+              },
+              subscores: {
+                ...base.subscores,
+                // Keep every other reason out of the tradeoffs so the thumb
+                // reason is the only candidate.
+                length: {
+                  ...base.subscores.length,
+                  reason: { code: "no_preference", params: {} },
+                },
+                frontFlare: {
+                  ...base.subscores.frontFlare,
+                  reason: { code: "no_preference", params: {} },
+                },
+                thumb: { score: 75, weight: 0.1, reason: { code, params: {} } },
+              },
+            }),
+          ],
+        }),
+      );
+
+    const missing = withThumb("thumb_rest_missing");
+    expect(buildFallbackOutput(missing).tradeoffs).toEqual([
+      "It has no thumb rest, which a palm grip would normally use",
+    ]);
+    await expectAcceptedByModelChecks(missing);
+
+    expect(buildFallbackOutput(withThumb("thumb_neutral")).tradeoffs).toEqual(
+      [],
+    );
+  });
+
   it("omits the grip clause when grip style was predicted", async () => {
     const input = inputWith(
       makeFit({ excluded: [], results: [entryWithoutPositiveReasons()] }),

@@ -1,7 +1,6 @@
-/* Real main page (docs/design/easy-scan-shell-2026-09-25/README.md, screen
-   11-main.png). Tokens: bg #F4F4F6, surface #FFFFFF, text-primary #1C1C1E,
-   text-secondary #55555D, accent #0A64E0, accent-soft #E7F0FD,
-   border #D5D5DC, ok #1E7B45. */
+/* The home page (Home v3, PR A: the static layout; docs/design/
+   home-v3-2026-10-03/README.md) and the How it works page, which shares the
+   nav and button rules. One dark theme: colours come from tokens.css. */
 
 .home-main {
   max-width: 30rem;
@@ -11,39 +10,37 @@
 
 .home-nav {
   display: flex;
+  /* At large text the wordmark and the controls no longer share a line:
+     the controls wrap under it instead of pushing the page sideways. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 0 1rem;
   margin-bottom: 1.5rem;
 }
 .home-wordmark {
   font-weight: 700;
   font-size: 1.15rem;
   letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 .home-nav-actions {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  margin-left: auto;
 }
 .home-signin-link {
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
   padding: 0 0.5rem;
-  color: #0a64e0;
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-weight: 500;
   text-decoration: none;
 }
-
-.home-eyebrow-pill {
-  display: inline-block;
-  margin: 0 0 1rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  background: #e7f0fd;
-  color: #0a64e0;
-  font-size: 0.8125rem;
-  font-weight: 600;
+.home-signin-link:hover {
+  color: var(--text-primary);
 }
 
 .home-main h1 {
@@ -51,11 +48,378 @@
 }
 
 .home-subhead {
-  color: #55555d;
+  color: var(--text-secondary);
   font-size: clamp(1rem, 3vw, 1.15rem);
   margin: 0 0 1.5rem;
 }
 
+/* The primary button: the one filled accent control on the site. */
+.home-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.125rem;
+  padding: 0 1rem;
+  /* A real border colour, not transparent: forced colours keeps it visible. */
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--glow) 40%, transparent);
+}
+/* Pressing darkens the fill. Never lower the opacity: 0.85 would take the
+   white label to 4.33:1. */
+.home-cta:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
+.home-cta-caption {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0.6rem 0 2rem;
+}
+
+.home-main a:focus-visible,
+.home-main button:focus-visible,
+.home-main h1[tabindex="-1"]:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* ── Home: the story section ─────────────────────────────────────────────
+   Static layout (PR A). The section and the panel are ordinary blocks and
+   their parts stack in flow. PR B adds the canvas on top of this layout and
+   keeps it as the reduced-motion, no-JS and small-screen fallback. */
+.landing-page {
+  /* A 1200 px content column once the viewport is wide enough. */
+  max-width: 78rem;
+  /* The side padding is 1rem at 360 px and below and 1.5rem from 376 px up
+     (at 100 % text), and grows by half a pixel per pixel of viewport between.
+     Both sides together take one pixel for each pixel the viewport gains, so
+     the row the buttons live in is exactly as wide at every width from 360 px
+     to where the padding is full as it is at 360 px, where the two share a
+     line. A step at 360 px left a gap in a wide font (361 to 364 px: the two
+     buttons stacked, though they fit at 360); a ramp that grows faster than
+     0.5 would narrow the row below its 360 px width on the way. */
+  padding: 0.75rem clamp(1rem, calc(1rem + (100vw - 360px) * 0.5), 1.5rem)
+    3.5rem;
+}
+.landing-page .home-nav {
+  margin-bottom: 0;
+}
+
+.story-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* The logo slot: room for the glow, with the mark at about 60 % of its height. */
+.story-logo {
+  --slot: clamp(18rem, 40svh, 24rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--slot);
+  /* The key light, behind the mark only: it fades to nothing before the slot
+     ends, so no text ever sits on more than 15 % of it. */
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    color-mix(in srgb, var(--glow) 26%, transparent),
+    transparent
+  );
+}
+.story-logo img {
+  display: block;
+  /* The SVG's 220 x 196 box holds the mark at 176 of 196. */
+  height: calc(var(--slot) * 0.6);
+  width: auto;
+  /* At large text the slot is taller than the column is wide: the mark
+     shrinks inside its box instead of widening the page. */
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.landing-page h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2.25rem, 8vw, 3.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.landing-page .home-subhead {
+  max-width: 27rem;
+  margin: 1rem 0 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+/* "Scan my hand" and "How it works" sit on one line from 360 px up, and stack
+   at full width, primary on top, when they no longer fit. */
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 34rem;
+  margin-top: 1.5rem;
+}
+/* Each button is as wide as its own label (`flex-basis: auto`), so the row
+   wraps exactly when the two no longer fit, whatever the font, and a label is
+   never broken across lines on the way there. On a line of its own a button
+   grows to the full row; if even one label is wider than the row (a very large
+   text size on a small phone) it is capped at the row's width and wraps
+   inside, instead of pushing the page sideways. The size is chosen so both
+   share a line from 360 px up, in Windows' system font and in DejaVu Sans
+   (Linux, CI: about a quarter wider), at 100 % text. */
+.home-actions .home-cta,
+.home-cta-secondary {
+  max-width: 100%;
+  padding: 0 0.75rem;
+  font-size: 0.9375rem;
+}
+.home-actions .home-cta {
+  flex: 3 1 auto;
+  gap: 0.4rem;
+}
+.home-actions .home-cta svg {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.home-cta-secondary {
+  display: inline-flex;
+  flex: 2 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.125rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.home-cta-secondary:active {
+  background: #ffffff14;
+}
+
+.landing-preview-note {
+  margin: 0.75rem 0 0;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* The hand on A4: a static SVG until the particles arrive (PR B). */
+.story-hand {
+  position: relative;
+  width: min(100%, 26rem);
+  margin: 3.5rem auto 0;
+}
+.story-hand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* The A4 sheet's outline, placed by percentages from handSheetFrame(): a
+   border in --hairline (solid #8A8A8F with more contrast asked for), because
+   the drawing is an <img> and can not read the variable. */
+.story-hand-sheet {
+  position: absolute;
+  border: 1px solid var(--hairline);
+  pointer-events: none;
+}
+
+/* The three mice: stacked on a phone, side by side from 48rem. */
+.story-mice {
+  list-style: none;
+  display: grid;
+  gap: 2rem;
+  margin: 2rem 0 0;
+  padding: 0;
+}
+.story-mouse {
+  margin: 0;
+  text-align: center;
+}
+.story-mouse img {
+  display: block;
+  width: 100%;
+  max-width: 21rem;
+  height: auto;
+  margin: 0 auto;
+  aspect-ratio: 487.54 / 231.57;
+}
+.story-mouse figcaption {
+  margin-top: 0.5rem;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.home-final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 3rem;
+  text-align: center;
+}
+.home-final .home-actions {
+  margin-top: 0;
+}
+
+.landing-footer {
+  margin-top: 3rem;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  text-align: left;
+}
+.landing-footer p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+@media (min-width: 48rem) {
+  .story-logo {
+    --slot: 29rem;
+  }
+  .story-logo img {
+    /* About 19 rem of mark in a 29 rem slot. */
+    height: 21rem;
+  }
+  .home-actions {
+    flex-wrap: nowrap;
+  }
+  .home-actions .home-cta,
+  .home-cta-secondary {
+    padding: 0 1.5rem;
+    font-size: 1rem;
+  }
+  .home-actions .home-cta {
+    flex: 0 0 14rem;
+  }
+  .home-cta-secondary {
+    flex: 0 0 10.5rem;
+  }
+  .story-hand {
+    width: min(100%, 38rem);
+    margin-top: 4rem;
+  }
+  .story-mice {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2.5rem;
+    margin-top: 3rem;
+  }
+  .landing-footer {
+    text-align: center;
+  }
+}
+
+/* ── Home: the animated layout (PR B) ────────────────────────────────────
+   Everything below applies only while the particle module has loaded, drawn
+   its first frame and added `story--animated` to the section (see
+   src/components/home/particle-stage.ts). Without it, which is what no JS,
+   reduced motion, a short or small viewport, or a module that failed to load
+   all get, the section is PR A's static stack and none of this exists: the
+   canvas is not displayed and the section has no extra height.
+
+   The hero sits in the same place in both layouts (it is the panel's first
+   child, and nothing here moves it), so switching shifts nothing in view. */
+.story-canvas {
+  display: none;
+}
+
+.story--animated {
+  /* About 400 svh, to be tuned: the panel is pinned for the last 300 svh, and
+     p is 0 when it pins and 1 when the section's bottom reaches the panel's. */
+  height: 400vh;
+  height: 400svh;
+}
+.story--animated .story-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+}
+/* The canvas is a decorative layer under the hero and the captions: it takes
+   no pointer events, so every button stays clickable. */
+.story--animated .story-canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.story--animated .story-hero {
+  position: relative;
+  z-index: 1;
+  will-change: opacity, transform;
+}
+/* The static hand and mice are hidden: the canvas draws those states. They
+   keep their boxes, which is how the canvas knows where to draw. */
+.story--animated .story-hand {
+  --hand-max: 26rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: min(100%, var(--hand-max), calc(86svh * 411 / 507));
+  margin: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.story--animated .story-hand img {
+  visibility: hidden;
+}
+/* The A4 outline stays a CSS border (it follows --hairline); the stage fades it. */
+.story--animated .story-hand-sheet {
+  opacity: 0;
+}
+.story--animated .story-mice {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  align-content: center;
+  gap: clamp(1rem, 4svh, 2rem);
+  margin: 0;
+  pointer-events: none;
+}
+.story--animated .story-mouse img {
+  visibility: hidden;
+  /* Three stacked mice and their captions must fit the panel. */
+  max-width: min(21rem, calc(((100svh - 5rem) / 3 - 3rem) * 2.105));
+}
+.story--animated .story-mouse figcaption {
+  opacity: 0;
+}
+
+@media (min-width: 48rem) {
+  .story--animated .story-hand {
+    --hand-max: 38rem;
+  }
+  .story--animated .story-mice {
+    gap: 2.5rem;
+  }
+  .story--animated .story-mouse img {
+    max-width: 21rem;
+  }
+}
+
+/* ── How it works, which shares this stylesheet ───────────────────────── */
 .home-hero {
   position: relative;
   border-radius: 1.25rem;
@@ -123,29 +487,6 @@
   white-space: nowrap;
 }
 
-.home-cta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  min-height: 3.25rem;
-  border-radius: 0.85rem;
-  background: #0a64e0;
-  color: #fff;
-  font-size: 1.05rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-.home-cta:active {
-  opacity: 0.85;
-}
-.home-cta-caption {
-  text-align: center;
-  color: #55555d;
-  font-size: 0.875rem;
-  margin: 0.6rem 0 2rem;
-}
-
 .home-how h2 {
   font-size: 1.05rem;
   margin: 0 0 1rem;
@@ -168,8 +509,8 @@
   border-radius: 0.7rem;
   display: grid;
   place-items: center;
-  background: #e7f0fd;
-  color: #0a64e0;
+  background: #17395f;
+  color: var(--accent-text);
 }
 .home-how-list strong {
   display: block;
@@ -177,189 +518,40 @@
 }
 .home-how-list p {
   margin: 0.15rem 0 0;
-  color: #55555d;
+  color: #b5b5bd;
   font-size: 0.9375rem;
 }
 
 .home-privacy-card {
-  background: #fff;
-  border: 1px solid #d5d5dc;
+  border: 1px solid #3a3a3d;
   border-radius: 1rem;
   padding: 1rem 1.1rem;
   margin: 0 0 1.5rem;
+  background: #242426;
 }
 .home-privacy-card p {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
   margin: 0;
-  color: #1c1c1e;
+  color: var(--text-primary);
 }
 .home-privacy-card p:first-child {
   margin-bottom: 0.75rem;
 }
 .home-privacy-card p span {
   flex: 0 0 auto;
-  color: #1e7b45;
   margin-top: 0.1rem;
+  color: #6fe39c;
 }
 
-.home-footer-signin,
 .home-footer-note {
   text-align: center;
+  color: #b5b5bd;
   font-size: 0.875rem;
-}
-.home-footer-signin {
-  margin: 0 0 0.5rem;
-}
-.home-footer-signin a {
-  color: #0a64e0;
-  font-weight: 600;
-}
-.home-footer-note {
-  color: #55555d;
   margin: 0;
 }
 
-.home-main a:focus-visible,
-.home-main button:focus-visible {
-  outline: 2px solid #0a64e0;
-  outline-offset: 2px;
-}
-
-/* Landing, screen 17. The introduction below reuses the original home rules. */
-.landing-page {
-  max-width: 42rem;
-  padding: 1.25rem 1.5rem 3.5rem;
-}
-.landing-page .home-nav {
-  margin-bottom: 2.25rem;
-}
-.landing-page .home-wordmark {
-  font-size: 1.15rem;
-}
-.landing-eyebrow {
-  margin: 0 0 1rem;
-  color: #0a64e0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  line-height: 1.35;
-}
-.landing-page h1 {
-  margin: 0 0 1rem;
-  font-size: clamp(2.25rem, 8vw, 3.75rem);
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
-.landing-page .home-subhead {
-  max-width: 27rem;
-  margin: 0;
-  font-size: 1.15rem;
-  line-height: 1.4;
-}
-.landing-sketch {
-  /* Bleeds slightly past the text column so the long side view reads as
-     the page's one bold element. */
-  margin: 2rem -0.75rem 0.35rem;
-}
-.landing-sketch img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 487.54 / 231.57;
-}
-.landing-sketch figcaption {
-  color: #55555d;
-  font-size: 0.8rem;
-  margin: 0.6rem 0.75rem 0;
-}
-.landing-dimension {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0.75rem 0 0.35rem;
-  font-variant-numeric: tabular-nums;
-}
-.landing-dimension::before,
-.landing-dimension::after {
-  content: "";
-  height: 0.7rem;
-  flex: 1;
-  border-bottom: 1px solid #55555d;
-}
-.landing-dimension::before {
-  border-left: 1px solid #55555d;
-}
-.landing-dimension::after {
-  border-right: 1px solid #55555d;
-}
-.landing-dimension span {
-  font-size: 0.875rem;
-}
-.landing-annotation {
-  margin: 0 0 1.5rem;
-  text-align: center;
-  color: #55555d;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.landing-annotation span {
-  margin-left: 1rem;
-}
-.landing-page .home-cta {
-  min-height: 3.5rem;
-}
-.landing-preview-note {
-  margin: 0.65rem 0 0;
-  text-align: center;
-  color: #55555d;
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-.landing-how-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 3.25rem;
-  margin: 0.55rem 0 2.2rem;
-  color: #0a64e0;
-  font-weight: 700;
-  text-decoration: none;
-}
-.landing-points > div {
-  padding: 1.15rem 0;
-  border-bottom: 1px solid #d5d5dc;
-}
-.landing-points > div:last-child {
-  border-bottom: 0;
-}
-.landing-points h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-.landing-points p {
-  margin: 0.35rem 0 0;
-  color: #55555d;
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
-.landing-footer {
-  margin-top: 2.5rem;
-  color: #55555d;
-  font-size: 0.8rem;
-}
-.landing-footer p {
-  margin: 0 0 0.35rem;
-  line-height: 1.4;
-}
-
-/* The former landing's illustration and steps, screen 18. */
 .home-how-page {
   padding-top: 1.25rem;
 }
@@ -368,12 +560,9 @@
   align-items: center;
   min-height: 2.75rem;
   margin: 0 0 1rem;
-  color: #0a64e0;
+  color: var(--accent-text);
   text-decoration: none;
   font-weight: 600;
-}
-.home-how-page .home-eyebrow-pill {
-  margin-bottom: 0.85rem;
 }
 .home-how-page h1 {
   font-size: clamp(2.6rem, 10vw, 4rem);
@@ -428,6 +617,7 @@
 }
 .home-how-page .home-cta-caption {
   margin-bottom: 1.5rem;
+  color: #b5b5bd;
 }
 .home-privacy-link {
   margin: 0 0 0.35rem;
@@ -437,79 +627,11 @@
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
-  color: #0a64e0;
+  color: var(--accent-text);
   text-decoration: none;
 }
 .home-how-page .home-footer-note {
   text-align: left;
-}
-
-@media (prefers-color-scheme: dark) {
-  .landing-sketch figcaption,
-  .landing-annotation,
-  .landing-preview-note,
-  .landing-points p,
-  .landing-footer {
-    color: #b5b5bd;
-  }
-  .landing-points > div {
-    border-color: #3a3a3d;
-  }
-  .landing-eyebrow,
-  .landing-how-link,
-  .home-back-link,
-  .home-privacy-link a {
-    color: #a8ceff;
-  }
-}
-
-@media (max-width: 360px) {
-  .landing-page {
-    padding-inline: 1rem;
-  }
-  .landing-annotation {
-    font-size: 0.8rem;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-wordmark {
-    color: #f5f5f7;
-  }
-  .home-eyebrow-pill {
-    background: #17395f;
-    color: #a8ceff;
-  }
-  .home-subhead,
-  .home-cta-caption,
-  .home-how-list p,
-  .home-footer-note {
-    color: #b5b5bd;
-  }
-  .home-how-icon {
-    background: #17395f;
-    color: #a8ceff;
-  }
-  .home-privacy-card {
-    background: #242426;
-    border-color: #3a3a3d;
-  }
-  .home-privacy-card p {
-    color: #f5f5f7;
-  }
-  .home-privacy-card p span {
-    color: #6fe39c;
-  }
-  .home-signin-link,
-  .home-footer-signin a {
-    color: #a8ceff;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-cta:active {
-    opacity: 1;
-  }
 }
 
 @media (prefers-contrast: more) {
@@ -518,5 +640,73 @@
   }
   .home-hero-corner {
     outline: 2px solid #fff;
+  }
+}
+
+/* Forced colours: the buttons keep a visible border, and the system colours
+   draw them. */
+@media (forced-colors: active) {
+  .home-cta,
+  .home-cta-secondary {
+    forced-color-adjust: auto;
+    border: 1px solid ButtonText;
+  }
+}
+
+/* Print. Chrome does not print backgrounds unless the user asks for them, so a
+   filled button would print as white text on white paper: on paper it is a
+   dark label with an outline, and its glow is gone. The drawings (the logo, the
+   hand on A4, the three sketches) are decorative and light-on-dark, so they
+   are left off the page; the mice's captions go with them. The How it works
+   page is printed too: its muted text takes the print tokens, the numbered
+   squares and the privacy card lose their dark fills, and the camera-UI badge
+   over the photo (white on a translucent black pill) is left off like the
+   drawings. */
+@media print {
+  .home-cta {
+    background: none;
+    border-color: #000;
+    color: #000;
+    box-shadow: none;
+  }
+  .home-cta-secondary {
+    border-color: #000;
+    color: #000;
+  }
+  .story-logo,
+  .story-hand,
+  .story-mice,
+  .story-canvas,
+  .home-hero-badge {
+    display: none !important;
+  }
+  /* Printed from the middle of the story, the page is still the static one:
+     no tall section, no pinned panel, the hero text whole. */
+  .story--animated {
+    height: auto;
+  }
+  .story--animated .story-panel {
+    position: static;
+    height: auto;
+  }
+  .story-hero {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .home-how-list p,
+  .home-cta-caption,
+  .home-how-page .home-cta-caption,
+  .home-footer-note {
+    color: var(--text-secondary);
+  }
+  .home-how-icon {
+    background: none;
+    border: 1px solid var(--hairline);
+  }
+  .home-privacy-card {
+    background: none;
+  }
+  .home-privacy-card p span {
+    color: var(--text-secondary);
   }
 }

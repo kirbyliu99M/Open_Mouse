@@ -5,8 +5,11 @@ import { AccountView } from "./AccountView";
 import { AuthButton } from "./AuthButton";
 import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
 import { TopBar } from "@/components/nav/TopBar";
+import type { Metadata } from "next";
 import Link from "next/link";
 import "./account.css";
+
+export const metadata: Metadata = { title: "Account" };
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +27,8 @@ export default async function AccountPage() {
         </span>
         <h1>Keep your scans</h1>
         <p className="account-subtitle">
-          Signing in is optional. Without an account, a scan is deleted within
-          24 hours.
+          Signing in is optional. Without an account, a scan expires
+          automatically after a while.
         </p>
         <ul className="account-benefits">
           <li>
@@ -73,7 +76,7 @@ export default async function AccountPage() {
               </span>
               <p>
                 Sign-in is unavailable right now. You can still scan — your
-                result is kept for 24 hours.
+                result is kept for a while, then expires automatically.
               </p>
             </div>
             <Link className="account-start-button" href="/scan/easy">

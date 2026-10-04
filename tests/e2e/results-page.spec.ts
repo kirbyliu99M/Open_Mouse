@@ -1,7 +1,11 @@
+import { timePromises } from "./fixtures/time-promise";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { scanPath } from "../../src/lib/contracts/routes";
+import { contrast } from "./fixtures/contrast";
+import { scoreFit } from "../../src/server/fit/score";
+import type { CatalogueMouse } from "../../src/server/fit/types";
 
 // Read as plain JSON rather than `import ... from "*.json"` — Playwright's
 // test runner loads spec files as native Node ESM, which requires an
@@ -101,14 +105,15 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
   );
   await newTab.goto(`/results/${SCAN_ID}`);
   await expect(
-    newTab.getByText(/Based on the hand length you entered \(190 mm\)/),
+    newTab.getByText(/Based on the hand length you entered \(190\u00A0mm\)/),
   ).toBeVisible();
   await expect(newTab.getByText(/Left-hand fit isn't rated yet/)).toBeVisible();
   // The no-paper disclosure sits right after the top pick, styled like the
   // left-hand notice, not in the page-bottom footnote.
   await expect(
     newTab.locator(".results-handNotice", {
-      hasText: "Based on the hand length you entered (190 mm)",
+      hasText:
+        "Based on the hand length you entered (190 mm). Measured without paper.",
     }),
   ).toHaveCount(1);
   await expect(
@@ -178,6 +183,74 @@ test("a typed length stored under an earlier, wider range still gets its note; a
   }
 });
 
+// The written-analysis card had a white surface declared after its dark one,
+// so in the dark theme its #f5f5f7 text sat on white (about 1.08:1). The site
+// is one dark theme now, so there is a single surface to hold.
+test("the written-analysis card keeps its contrast on the dark theme, in every state", async ({
+  page,
+}) => {
+  const states: readonly (readonly [string, number, unknown])[] = [
+    [
+      "ready, written from the scores, with caveats",
+      200,
+      {
+        ...READY_ANALYSIS_FALLBACK,
+        output: {
+          ...READY_ANALYSIS_FALLBACK.output,
+          caveats: ["Early preview · measurements still being validated."],
+        },
+      },
+    ],
+    ["ready, written by a model", 200, READY_ANALYSIS_MODEL],
+    ["error", 500, { error: "Unavailable" }],
+    ["rate limited", 429, { error: "Too many requests" }],
+  ];
+  await stubHappyFit(page);
+  for (const [state, status, body] of states) {
+    await page.unroute(ANALYSIS_URL).catch(() => {});
+    await page.route(ANALYSIS_URL, (route) => fulfillJson(route, status, body));
+    await page.goto(`/results/${SCAN_ID}`);
+    const card = page.locator(".results-analysis");
+    await expect(card).toBeVisible();
+    for (const scheme of ["dark"] as const) {
+      // No transitions: a colour read mid-fade is neither state's.
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const texts = await card.evaluate((root) => {
+        const opaque = (color: string) =>
+          !/rgba\(.*, 0\)$|transparent/.test(color);
+        const background = (el: Element): string => {
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            const color = getComputedStyle(node).backgroundColor;
+            if (opaque(color)) return color;
+          }
+          return "rgb(6, 7, 9)"; // --bg: the page behind the card
+        };
+        const found: { text: string; color: string; background: string }[] = [];
+        for (const el of [root, ...root.querySelectorAll("*")]) {
+          const own = [...el.childNodes]
+            .filter((n) => n.nodeType === Node.TEXT_NODE)
+            .map((n) => n.textContent!.trim())
+            .join(" ")
+            .trim();
+          if (!own) continue;
+          found.push({
+            text: own.slice(0, 40),
+            color: getComputedStyle(el).color,
+            background: background(el),
+          });
+        }
+        return found;
+      });
+      expect(texts.length, `${state} ${scheme}`).toBeGreaterThan(1);
+      for (const t of texts)
+        expect(
+          contrast(t.color, t.background),
+          `${state} / ${scheme} / "${t.text}"`,
+        ).toBeGreaterThan(4.5);
+    }
+  }
+});
+
 test.describe("/results/[scanId] — real results page", () => {
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({
     page,
@@ -242,6 +315,101 @@ test.describe("/results/[scanId] — real results page", () => {
       .poll(() => page.evaluate((key) => localStorage.getItem(key), HAND_KEY))
       .toBeNull();
   });
+  // G10: the catalogue now carries a hump for most mice, and nothing else about
+  // their shape. This is the fit engine's own output for that state (not a
+  // hand-edited fixture): the hump scored, flare and thumb unknown.
+  test("hump rated, flare and thumb unrated: only the hump is rated, and the page still says some shape scores are not", async ({
+    page,
+  }) => {
+    // Claw grip; targets: length 117.8, grip width 70.4, height 38.
+    const humpOnly = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
+      slug: "acme-alpha",
+      brand: "Acme",
+      model: "Alpha",
+      lengthMm: 117.8,
+      widthMm: 70.4,
+      heightMm: 38,
+      weightG: 80,
+      size: "medium",
+      handCompatibility: null,
+      shape: null,
+      humpPlacement: "back_moderate",
+      frontFlare: null,
+      sideCurvature: null,
+      thumbRest: null,
+      ...patch,
+    });
+    const fit = {
+      scanId: SCAN_ID,
+      ...scoreFit(
+        { handLengthMm: 190, palmLengthMm: 110, palmWidthMm: 80 },
+        [
+          humpOnly({}),
+          humpOnly({
+            slug: "acme-beta",
+            model: "Beta",
+            lengthMm: 112,
+            humpPlacement: "center",
+          }),
+        ],
+        { includeVertical: false },
+        "right",
+      ),
+    };
+    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fit));
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const top = page.locator(".results-topPick");
+    await expect(
+      top.getByRole("heading", { level: 2, name: "Alpha" }),
+    ).toBeVisible();
+    const bar = (label: string) =>
+      top.locator(".results-subscoreBar", { hasText: label });
+
+    // The hump is rated: a score, and the hump sentence rather than a height one.
+    await expect(
+      bar("Height & hump").locator(".results-subscoreBar-value"),
+    ).toHaveText("100");
+    await expect(
+      bar("Height & hump").locator(".results-subscoreBar-reason"),
+    ).toHaveText("The hump position suits how you hold a mouse.");
+
+    // Flare and thumb are not: no score, an empty bar, and the plain words.
+    for (const label of ["Front flare", "Thumb support"]) {
+      await expect(bar(label)).toHaveAttribute("data-assessed", "false");
+      await expect(bar(label).locator(".results-subscoreBar-value")).toHaveText(
+        "—",
+      );
+      await expect(bar(label).locator(".results-subscoreBar-fill")).toHaveCount(
+        0,
+      );
+      await expect(
+        bar(label).locator(".results-subscoreBar-reason"),
+      ).toHaveText("Shape not rated yet");
+    }
+
+    // So the one honest line about unrated shape is still shown, and still true.
+    await expect(top.locator(".results-sizeNotice")).toHaveText(
+      "Some shape scores aren't rated yet for this mouse, so the fit score currently leans on its size.",
+    );
+
+    // The generic confidence note appears nowhere: not on the top pick, and
+    // not on the other matches (their confidence is above the low threshold).
+    await page
+      .getByRole("button", { name: /Show the other 1 ranked mouse/ })
+      .click();
+    await expect(
+      page.getByRole("heading", { level: 3, name: /Acme Beta/ }),
+    ).toBeVisible();
+    await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
+    await expect(
+      page.getByText(/haven't assessed this mouse's shape/),
+    ).toHaveCount(0);
+  });
+
   test("renders the ranking as soon as the fit route resolves, then the written analysis once it resolves too", async ({
     page,
   }) => {
@@ -299,6 +467,13 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { name: "We couldn't find this scan" }),
     ).toBeVisible();
+    // No hours or days in the promise (Kirby, 2026-09-30).
+    await expect(page.locator(".results-page-error")).toContainText(
+      "It may have expired, or the link isn't yours. Scans without an account expire automatically.",
+    );
+    expect(
+      timePromises(await page.locator(".results-page-error").innerText()),
+    ).toEqual([]);
     // Scoped to the error panel's own action — the TopBar above it also has
     // a "Scan again" link (its accessible name is "Back to Scan again"),
     // and an unscoped query matches both.

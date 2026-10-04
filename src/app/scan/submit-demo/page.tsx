@@ -8,7 +8,7 @@ import {
 import "../scan.css";
 
 export const metadata: Metadata = {
-  title: "Scan submit (mock data) — Open_Mouse",
+  title: "Scan submit (mock data)",
   description:
     "Dev/demo route rendering the scan submit UI against a fixed, schema-valid ScanSubmission — no photo, no MediaPipe.",
   robots: { index: false, follow: false },

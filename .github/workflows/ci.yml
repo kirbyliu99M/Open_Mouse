@@ -42,7 +42,11 @@ jobs:
     # Required-check name for branch protection: "checks".
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The full Playwright matrix took about 15 min before scan v2 (#97) added
+    # its specs; with them a ready-PR run passes 20 min (run 37110337828 was
+    # cancelled at 20m14s). Minutes are spent by the tests either way; the
+    # limit only stops a hung job.
+    timeout-minutes: 35
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:

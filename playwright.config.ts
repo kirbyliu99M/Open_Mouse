@@ -91,11 +91,12 @@ export default defineConfig({
     // tests/e2e/camera-paper-edge.spec.ts and the paper-edge screenshots in
     // camera-screenshots.spec.ts: the real detectPaperQuad's lock-on target
     // — a blank paper fixture (no markers), fed to the paper-edge preview
-    // route.
+    // route. The a11y specs' live-camera cases run here too: a phone with a
+    // camera is the only place the live viewfinder can be checked.
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-screenshots\.spec\.ts|no-paper-device\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-screenshots\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },

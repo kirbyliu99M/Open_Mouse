@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import logitechCatalogue from "@/db/seed/logitech.json";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import "../home.css";
+
+export const metadata: Metadata = { title: "How it works" };
 
 /** The original introduction, moved to its own route (screen 18). */
 export default function HowItWorksPage() {
@@ -95,7 +98,7 @@ export default function HowItWorksPage() {
           <span aria-hidden="true">
             <ClockIcon />
           </span>
-          Scans without an account are deleted within 24 hours.
+          Scans without an account expire automatically after a while.
         </p>
       </div>
 

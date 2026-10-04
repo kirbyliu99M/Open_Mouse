@@ -107,7 +107,8 @@ separate page.
   the M2 ruler gate passes).
 - Headline "Shape matters more than specs."; subhead "The right mouse starts
   with the size of your hand."
-- The sketch `public/images/g-pro-sketch.svg` (generated on pen.dev as a
+- The sketch `public/images/sketches/g-pro-sketch.svg` (moved there, and
+  recoloured to the dark theme's two stroke colours, in Home v3; generated on pen.dev as a
   line drawing in the style of the G Pro X Superlight 2 — no Logitech logo,
   wordmark or trade dress beyond the shape; keep it logo-free). Caption
   "G Pro X Superlight 2 · sketch".

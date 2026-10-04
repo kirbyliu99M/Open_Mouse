@@ -28,6 +28,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import { rateLimits } from "../../db/schema";
+import { log } from "../log";
 import type { RateLimiter } from "./handler";
 import { computeWindowStart, hashRateLimitKey } from "./rate-limit";
 
@@ -44,10 +45,11 @@ function hashKeyForStorage(key: string): string {
   const secret = process.env.RATE_LIMIT_KEY_SECRET;
   if (!secret && !warnedMissingKeySecret) {
     warnedMissingKeySecret = true;
-    console.warn(
-      "RATE_LIMIT_KEY_SECRET is not set; rate-limit keys are hashed with a " +
-        "fixed, non-secret salt instead. Set RATE_LIMIT_KEY_SECRET in production.",
-    );
+    log.warn("rate_limit.key_secret_missing", {
+      env: "RATE_LIMIT_KEY_SECRET",
+      fallback: "fixed_non_secret_salt",
+      action: "set the variable in production",
+    });
   }
   return hashRateLimitKey(key, secret);
 }

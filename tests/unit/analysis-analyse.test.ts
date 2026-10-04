@@ -145,6 +145,12 @@ describe("analyse — medical claims", () => {
     "受伤",
     "緩解",
     "缓解",
+    "滑鼠手",
+    "鼠标手",
+    "疗效",
+    "保護手腕",
+    "对手腕更安全",
+    "手痛",
   ])("rejects model output containing %s", async (term) => {
     const client = new FakeTextModel({
       answer: () => answerWith(`A ${term} choice.`),

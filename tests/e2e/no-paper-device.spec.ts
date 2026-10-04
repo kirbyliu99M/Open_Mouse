@@ -138,7 +138,7 @@ test("typed-length flow reaches hand detection gate with no requests after camer
   await expect(page.getByTestId("camera-cue")).toContainText(
     "Hand flat, fingers together, phone straight above",
   );
-  await expect(page.locator(".cameraCornerDot")).toHaveCount(0);
+  await expect(page.locator(".easyCorner")).toHaveCount(0);
   if (process.env.SCREENSHOTS === "1")
     await page.screenshot({ path: `${output}/no-paper-camera.png` });
   await page.waitForTimeout(1200);
@@ -210,7 +210,7 @@ test("the upload picker is not a second control: out of the tab order and hidden
   }
 });
 
-test("the desktop entry follows dark mode, including the copy-link fallback box", async ({
+test("the desktop entry is on the dark theme, including the copy-link fallback box", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
@@ -231,7 +231,7 @@ test("the desktop entry follows dark mode, including the copy-link fallback box"
       copy: read("button.easyCopyLink"),
     };
   });
-  expect(styles.entry.background).toBe("rgb(22, 22, 23)");
+  expect(styles.entry.background).toBe("rgb(6, 7, 9)"); // --bg
   expect(contrast(styles.entry.color, styles.entry.background)).toBeGreaterThan(
     7,
   );
@@ -441,14 +441,14 @@ test("without a usable camera, the length step goes back to the upload screen, n
   await context.close();
 });
 
-// ── Contrast in both themes ────────────────────────────────────────────────
+// ── Contrast on the dark theme ─────────────────────────────────────────────
 
-test("the length step is themed: focus ring, link, hint and button keep their contrast in light and dark", async ({
+test("the length step is themed: focus ring, link, hint and button keep their contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
   await openLengthStepFromTip(page);
-  for (const scheme of ["light", "dark"] as const) {
+  for (const scheme of ["dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     const input = page.getByLabel("Hand length (mm)");
     await input.focus();
@@ -521,7 +521,7 @@ test("the length step is themed: focus ring, link, hint and button keep their co
   }
 });
 
-test("the tip's no-paper link and the measured sheet's precision note keep their contrast in dark mode", async ({
+test("the tip's no-paper link and the measured sheet's precision note keep their contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
@@ -559,12 +559,12 @@ test("the tip's no-paper link and the measured sheet's precision note keep their
 
 const CAMERA_SHELL_BG = "rgb(18, 22, 28)";
 
-test("the length field's placeholder keeps its contrast in light and dark", async ({
+test("the length field's placeholder keeps its contrast on the dark theme", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
   await openLengthStepFromTip(page);
-  for (const scheme of ["light", "dark"] as const) {
+  for (const scheme of ["dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     const placeholder = await page.evaluate(() => {
       const input = document.querySelector("#easy-hand-length")!;
@@ -656,13 +656,17 @@ test("without the Clipboard API, copy link still says what to do", async ({
   await expect(page.getByRole("status")).toContainText("Couldn't copy");
 });
 
-const PAGE_BG = { light: "rgb(244, 244, 246)", dark: "rgb(22, 22, 23)" };
+// --bg (src/app/tokens.css). The site is one dark theme since Home v3, so the
+// loops below that used to run once per colour scheme now run once, with the
+// scheme the system asks for left at "dark"; tests/e2e/home.spec.ts checks the
+// page stays dark whatever the system asks.
+const PAGE_BG = { dark: "rgb(6, 7, 9)" };
 
-test("on a desktop the placeholder is the entry screen's own background in both themes, with no controls", async ({
+test("on a desktop the placeholder is the entry screen's own background, with no controls", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     // Scripts off: only the server-rendered first paint exists.
     const bare = await browser.newContext({
       javaScriptEnabled: false,
@@ -694,11 +698,11 @@ test("on a desktop the placeholder is the entry screen's own background in both 
   }
 });
 
-test("on a touch device the placeholder is the camera shell's own dark in both themes, and the shell that replaces it is the same dark", async ({
+test("on a touch device the placeholder is the camera shell's own dark, and the shell that replaces it is the same dark", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const bare = await browser.newContext({
       ...devices["Pixel 7"],
       javaScriptEnabled: false,
@@ -881,11 +885,11 @@ async function firstPaintThenScreen(
   return { hint, before, after, fine };
 }
 
-test("an in-app browser on a touch screen keeps the entry screen's background from the first paint, in both themes", async ({
+test("an in-app browser on a touch screen keeps the entry screen's background from the first paint", async ({
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {
@@ -911,7 +915,7 @@ test("an Android phone with a mouse attached still gets the camera's dark from t
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {
@@ -933,7 +937,7 @@ test("a tablet asking for the desktop site gets the camera's dark from the first
   browser,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  for (const colorScheme of ["light", "dark"] as const) {
+  for (const colorScheme of ["dark"] as const) {
     const paint = await firstPaintThenScreen(
       browser,
       {
@@ -952,16 +956,59 @@ test("a tablet asking for the desktop site gets the camera's dark from the first
   }
 });
 
-test("a desktop user agent is classified for the first paint and keeps every security header", async ({
+test("/scan/easy carries the same security headers as a page that is not rendered per request", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
-  const response = await page.goto("/scan/easy");
-  const headers = response!.headers();
-  // Rendering per request (the route reads the user agent) changes no header:
-  // they come from next.config.ts, not from the page.
+  const scan = await page.goto("/scan/easy");
+  const headers = scan!.headers();
   expect(headers["content-security-policy"]).toContain("default-src 'self'");
+  expect(headers["content-security-policy"]).toContain("connect-src 'self'");
   expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   expect(headers["permissions-policy"]).toContain("camera=(self)");
-  await expect(page.locator(".easyDeviceEntry")).toBeVisible();
+  // Cache-Control is deliberately not asserted: the dev server sends
+  // `no-store` for every route, so it would pass whatever the page does. That
+  // the page is rendered per request is checked where it can be:
+  // tests/unit/scan-easy-page.test.ts (the page reads the request headers) and
+  // the `next build` route table (`ƒ`, dynamic).
+
+  // The security headers do not come from the page, so a page that does not
+  // read the user agent carries the same ones.
+  const home = await page.goto("/");
+  for (const name of [
+    "content-security-policy",
+    "x-content-type-options",
+    "referrer-policy",
+    "permissions-policy",
+  ])
+    expect(home!.headers()[name], name).toBe(headers[name]);
+});
+
+test("the server classifies the user agent for the first paint: desktop, phone, in-app", async ({
+  browser,
+}, info) => {
+  test.skip(info.project.name !== "chromium");
+  const cases = [
+    [
+      "desktop",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36",
+    ],
+    ["phone", devices["Pixel 7"].userAgent],
+    ["in-app", LINE_UA],
+  ] as const;
+  for (const [hint, userAgent] of cases) {
+    // Scripts off: the attribute is the server's, not the client's.
+    const context = await browser.newContext({
+      userAgent,
+      javaScriptEnabled: false,
+    });
+    const page = await context.newPage();
+    await page.goto("/scan/easy");
+    await expect(page.locator(".easyDevicePlaceholder")).toHaveAttribute(
+      "data-device-hint",
+      hint,
+    );
+    await context.close();
+  }
 });

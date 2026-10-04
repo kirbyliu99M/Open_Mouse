@@ -275,7 +275,7 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
   });
 });
 
-test("the hand chip inside the retake sheet is readable in light and dark", async ({
+test("the hand chip inside the retake sheet is readable on the dark theme", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
@@ -289,25 +289,21 @@ test("the hand chip inside the retake sheet is readable in light and dark", asyn
   const sheet = page.getByRole("dialog", { name: "Retake needed" });
   const chip = sheet.locator(".easyHandChipInSheet");
   await expect(chip).toBeVisible();
-  for (const scheme of ["light", "dark"] as const) {
-    // No transitions: a computed colour read mid-fade is neither theme's.
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    const style = await chip.evaluate((el) => {
-      const computed = getComputedStyle(el);
-      return {
-        color: computed.color,
-        background: computed.backgroundColor,
-        icon: getComputedStyle(el.querySelector("svg")!).stroke,
-      };
-    });
-    // The white text on the dark theme's near-white chip was 1.09:1.
-    expect(
-      contrast(style.color, style.background),
-      `${scheme} text`,
-    ).toBeGreaterThan(4.5);
-    // The icon draws in the text colour, so it is as readable as the text.
-    expect(style.icon, `${scheme} icon`).toBe(style.color);
-  }
+  // One dark theme since Home v3: the light pass is gone.
+  // No transitions: a computed colour read mid-fade is neither state's.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const style = await chip.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return {
+      color: computed.color,
+      background: computed.backgroundColor,
+      icon: getComputedStyle(el.querySelector("svg")!).stroke,
+    };
+  });
+  // The white text on the dark theme's near-white chip was 1.09:1.
+  expect(contrast(style.color, style.background), "text").toBeGreaterThan(4.5);
+  // The icon draws in the text colour, so it is as readable as the text.
+  expect(style.icon, "icon").toBe(style.color);
 });
 
 test("the hand chip is a plain button named for what it does, not a toggle", async ({
@@ -337,4 +333,52 @@ test("the hand chip is a plain button named for what it does, not a toggle", asy
   ).toBeVisible();
   // The visible text is still the start of the name (label in name).
   await expect(chip).toHaveText(/^\s*Left hand\s*$/);
+});
+
+// `prefers-reduced-transparency` has no Playwright switch, so it goes through
+// the DevTools protocol. Its rule turns the top-bar chips solid black; the
+// chip inside the retake sheet has its own inverted surface and must keep it.
+test("the hand chip inside the retake sheet stays readable with reduced transparency", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
+  const cdp = await page.context().newCDPSession(page);
+  const emulate = () =>
+    cdp.send("Emulation.setEmulatedMedia", {
+      features: [
+        { name: "prefers-reduced-transparency", value: "reduce" },
+        { name: "prefers-reduced-motion", value: "reduce" },
+      ],
+    });
+  await emulate();
+  await page.goto("/scan/easy/hand-mismatch-demo");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.locator("#easy-scan-upload").setInputFiles({
+    name: "hand.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  const chip = page
+    .getByRole("dialog", { name: "Retake needed" })
+    .locator(".easyHandChipInSheet");
+  await expect(chip).toBeVisible();
+  // The emulation took: the top-bar chip is the solid black the rule sets.
+  expect(
+    await page.evaluate(
+      () => matchMedia("(prefers-reduced-transparency: reduce)").matches,
+    ),
+  ).toBe(true);
+  expect(
+    await page
+      .locator(".cameraTopBar .easyHandChip")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(0, 0, 0)");
+  const style = await chip.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return { color: computed.color, background: computed.backgroundColor };
+  });
+  expect(
+    contrast(style.color, style.background),
+    "with reduced transparency",
+  ).toBeGreaterThan(4.5);
 });

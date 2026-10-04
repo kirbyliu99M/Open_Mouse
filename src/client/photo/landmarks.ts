@@ -14,11 +14,56 @@ import {
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 import type { Point2 } from "../geometry/homography";
+import { createModelReader } from "./model-download";
 
 const WASM_BASE_PATH = "/mediapipe/wasm";
 const MODEL_ASSET_PATH = "/mediapipe/models/hand_landmarker.task";
 
 let landmarkerPromise: Promise<HandLandmarker> | null = null;
+
+/**
+ * Where the detector is in loading, for a progress display. MediaPipe loads
+ * its WASM runtime first and reports nothing while it does, so that stage is
+ * indeterminate; it then reads the model, which is counted (determinate).
+ */
+export type DetectorLoadState =
+  | { readonly stage: "idle" }
+  | {
+      readonly stage: "model";
+      readonly loadedBytes: number;
+      readonly totalBytes: number | null;
+    }
+  | { readonly stage: "runtime" }
+  | { readonly stage: "ready" }
+  | { readonly stage: "failed" };
+
+let loadState: DetectorLoadState = { stage: "idle" };
+const loadListeners = new Set<() => void>();
+
+function setLoadState(next: DetectorLoadState) {
+  loadState = next;
+  for (const listener of loadListeners) listener();
+}
+
+/** Current snapshot; stable between changes (safe for useSyncExternalStore). */
+export function getDetectorLoadState(): DetectorLoadState {
+  return loadState;
+}
+
+export function subscribeDetectorLoadState(listener: () => void): () => void {
+  loadListeners.add(listener);
+  return () => {
+    loadListeners.delete(listener);
+  };
+}
+
+/**
+ * What a person is told when the hand detector could not be loaded (the app's
+ * own download and MediaPipe's fetch by path both failed). Shared by every
+ * screen that says so, so the wording cannot drift.
+ */
+export const DETECTOR_LOAD_FAILED_MESSAGE =
+  "We couldn't load the hand detector. Check your connection and try again.";
 
 /**
  * Thrown by `getHandLandmarker()` when the model/WASM fetch or
@@ -46,18 +91,48 @@ export class HandLandmarkerLoadError extends Error {
  */
 export function getHandLandmarker(): Promise<HandLandmarker> {
   landmarkerPromise ??= (async () => {
+    // MediaPipe loads its WASM runtime first (nothing to count there), and
+    // only then reads the model. The model goes in as a reader that counts
+    // the bytes and fetches nothing until MediaPipe first reads from it, so
+    // the request order and timing stay MediaPipe's own.
+    setLoadState({ stage: "runtime" });
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
-    return HandLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        modelAssetPath: MODEL_ASSET_PATH,
-        delegate: "CPU", // GPU delegate isn't consistently available/deterministic across devices for a one-shot still-photo scan.
-      },
-      runningMode: "IMAGE",
-      numHands: 1,
-    });
+    const create = (
+      model:
+        | { modelAssetBuffer: ReadableStreamDefaultReader<Uint8Array> }
+        | { modelAssetPath: string },
+    ) =>
+      HandLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          ...model,
+          delegate: "CPU", // GPU delegate isn't consistently available/deterministic across devices for a one-shot still-photo scan.
+        },
+        runningMode: "IMAGE",
+        numHands: 1,
+      });
+    let landmarker: HandLandmarker;
+    try {
+      landmarker = await create({
+        modelAssetBuffer: createModelReader(
+          (input, init) => globalThis.fetch(input, init),
+          MODEL_ASSET_PATH,
+          (progress) => setLoadState({ stage: "model", ...progress }),
+        ),
+      });
+    } catch {
+      // The counted download failed (no stream, a network or read error, a
+      // truncated file): let MediaPipe fetch the same file by path, exactly as
+      // it did before this counted bytes. If that fails too, the error below
+      // is the one the caller sees.
+      setLoadState({ stage: "runtime" });
+      landmarker = await create({ modelAssetPath: MODEL_ASSET_PATH });
+    }
+    setLoadState({ stage: "ready" });
+    return landmarker;
   })().catch((error: unknown) => {
     // A transient asset failure must not poison every later retry.
     landmarkerPromise = null;
+    setLoadState({ stage: "failed" });
     throw new HandLandmarkerLoadError(error);
   });
   return landmarkerPromise;

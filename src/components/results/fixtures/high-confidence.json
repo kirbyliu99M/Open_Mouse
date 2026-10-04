@@ -49,7 +49,10 @@
         "weight": {
           "score": 96,
           "weight": 0.15,
-          "reason": { "code": "weight_in_range", "params": { "deltaG": 2 } }
+          "reason": {
+            "code": "weight_in_range",
+            "params": { "minG": 55, "maxG": 60 }
+          }
         }
       }
     },
@@ -96,7 +99,10 @@
         "weight": {
           "score": 97,
           "weight": 0.15,
-          "reason": { "code": "weight_in_range", "params": { "deltaG": 1 } }
+          "reason": {
+            "code": "weight_in_range",
+            "params": { "minG": 55, "maxG": 60 }
+          }
         }
       }
     },

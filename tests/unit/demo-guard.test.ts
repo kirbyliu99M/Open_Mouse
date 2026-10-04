@@ -49,19 +49,31 @@ const PRODUCT_ROUTES = [
 ];
 
 /**
- * Whole subtrees that are product pages: the learning kit (`/learn/**`, and the
- * QR landing pages `/l/**`). They are `noindex`, not demos, and are meant to be
- * reachable in production. A prefix matches the route itself and anything
- * below it, on whole segments (`/l` does not match `/learn`).
+ * The learning kit's pages (`/learn/**` and the QR landing pages `/l/**`).
+ * Kirby's decision, 2026-09-30: the learning data is collected by hand, on his
+ * own machine, and the kit is not served in production. Each page 404s there
+ * like a demo page, and stays reachable on a local `next dev` (which
+ * `learn:sort` starts) and on Vercel previews. They are listed apart from the
+ * demos so the reason stays with them, and joined into DEMO_ROUTES below.
  */
-const PRODUCT_ROUTE_PREFIXES = ["/learn", "/l"];
+const LEARNING_ROUTES = [
+  "/l/v1/[token]",
+  "/learn",
+  "/learn/check",
+  "/learn/print",
+  "/learn/slates",
+];
 
 /** Dev and demo pages: 404 in production. Pinned in full. */
 const DEMO_ROUTES = [
+  ...LEARNING_ROUTES,
   "/results/demo",
   "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
+  "/scan/easy/live-measured-demo",
   "/scan/easy/measured-demo",
+  "/scan/easy/measured-length-demo",
+  "/scan/error-demo",
   "/scan/grip-race-demo",
   "/scan/hand-explicit-demo",
   "/scan/measured-demo",
@@ -91,11 +103,7 @@ function routeOf(file: string): string {
   return "/" + segments.join("/");
 }
 
-const isProductRoute = (route: string) =>
-  PRODUCT_ROUTES.includes(route) ||
-  PRODUCT_ROUTE_PREFIXES.some(
-    (prefix) => route === prefix || route.startsWith(prefix + "/"),
-  );
+const isProductRoute = (route: string) => PRODUCT_ROUTES.includes(route);
 
 // ── Reading a page's source ─────────────────────────────────────────────────
 
@@ -288,12 +296,11 @@ describe("the source check itself", () => {
     expect(routeOf("scan/easy/page.tsx")).toBe("/scan/easy");
     expect(routeOf("results/[scanId]/page.tsx")).toBe("/results/[scanId]");
     expect(routeOf("(marketing)/how-it-works/page.tsx")).toBe("/how-it-works");
-    expect(isProductRoute("/learn")).toBe(true);
-    expect(isProductRoute("/learn/print")).toBe(true);
-    expect(isProductRoute("/l/v1/[token]")).toBe(true);
-    // Whole segments only: a look-alike prefix is not a product page.
-    expect(isProductRoute("/lab")).toBe(false);
-    expect(isProductRoute("/learning-lab")).toBe(false);
+    expect(isProductRoute("/scan")).toBe(true);
+    // The learning kit is not a product page: it is guarded (see LEARNING_ROUTES).
+    expect(isProductRoute("/learn")).toBe(false);
+    expect(isProductRoute("/learn/print")).toBe(false);
+    expect(isProductRoute("/l/v1/[token]")).toBe(false);
     expect(isProductRoute("/scan/anything-else")).toBe(false);
   });
 });

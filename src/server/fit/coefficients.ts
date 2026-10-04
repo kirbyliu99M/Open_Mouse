@@ -8,6 +8,14 @@ import type { GripStyle, Subscore } from "../../lib/contracts/fit";
  * Every tunable number the fit engine uses, in one place. Provisional until
  * Kirby's mouse ratings arrive (docs/STATUS.md: "M3 coefficients are
  * unvalidated") — keep this the only file a coefficient lives in.
+ *
+ * Bump `ENGINE_VERSION` when a score, weight, total or ranking can change for
+ * the same input. Changing only which reason code or params a sub-score reports
+ * does not: `fit_results` is unique on (scan, mouse, engineVersion) and upserts
+ * `reasons` on conflict, so a re-fit under the same version simply overwrites
+ * them, while a new version would leave a second row per mouse for the same
+ * scan. (G4: a palm grip with no thumb rest now reports `thumb_rest_missing`
+ * instead of `thumb_neutral`, with the same score, so no bump.)
  */
 export const ENGINE_VERSION = "fit-v0-provisional";
 

@@ -25,7 +25,7 @@ test.describe("camera capture screenshots", () => {
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await expect(
@@ -44,7 +44,7 @@ test.describe("camera capture screenshots", () => {
       "Needs the fake-media project fed paper-edge-partial.y4m (only 2 of 4 corners, real detector).",
     );
 
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
@@ -65,7 +65,6 @@ test.describe("camera capture screenshots", () => {
       "Needs the fake-media project fed paper-edge-full.y4m (all 4 corners, real detector).",
     );
 
-    await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
@@ -98,7 +97,6 @@ test.describe("camera capture screenshots", () => {
       "Needs the fake-media project fed paper-edge-full.y4m (all 4 corners, real detector).",
     );
 
-    await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/scan/paper-edge-preview");
     await page.getByRole("button", { name: "Open camera" }).click();
     await page.getByRole("button", { name: "Turn on camera" }).click();
@@ -119,7 +117,7 @@ test.describe("camera capture screenshots", () => {
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     // Paper-edge mode, per Kirby: the measured card must say "paper
     // corners", never "sheet markers and the card".
     await page.goto("/scan/paper-edge-measured-demo");

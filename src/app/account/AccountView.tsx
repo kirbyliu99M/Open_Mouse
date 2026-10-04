@@ -137,15 +137,15 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
               <dl className="measurements">
                 <div>
                   <dt>Hand length</dt>
-                  <dd>{scan.measurements.handLengthMm} mm</dd>
+                  <dd>{scan.measurements.handLengthMm}&nbsp;mm</dd>
                 </div>
                 <div>
                   <dt>Palm length</dt>
-                  <dd>{scan.measurements.palmLengthMm} mm</dd>
+                  <dd>{scan.measurements.palmLengthMm}&nbsp;mm</dd>
                 </div>
                 <div>
                   <dt>Palm width</dt>
-                  <dd>{scan.measurements.palmWidthMm} mm</dd>
+                  <dd>{scan.measurements.palmWidthMm}&nbsp;mm</dd>
                 </div>
               </dl>
             </li>

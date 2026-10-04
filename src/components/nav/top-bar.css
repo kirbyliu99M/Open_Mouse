@@ -4,7 +4,7 @@
   justify-content: space-between;
   gap: 1rem;
   min-height: 3.25rem;
-  color: #55555d;
+  color: #b5b5bd;
 }
 .journey-top-bar a {
   display: inline-flex;
@@ -14,8 +14,8 @@
      otherwise renders as "‹Scan again" with no space at all. */
   gap: 0.25rem;
   min-height: 2.75rem;
-  color: #0a64e0;
   text-decoration: none;
+  color: var(--accent-text);
 }
 .journey-top-bar a:active {
   opacity: 0.65;
@@ -27,11 +27,11 @@
 .journey-top-bar-step {
   text-align: right;
 }
-@media (prefers-color-scheme: dark) {
+
+/* Print: the screen's light grey step label would print as light text on
+   white. The back link keeps --accent-text, which is dark blue in print. */
+@media print {
   .journey-top-bar {
-    color: #b5b5bd;
-  }
-  .journey-top-bar a {
-    color: #79adff;
+    color: var(--text-secondary);
   }
 }
