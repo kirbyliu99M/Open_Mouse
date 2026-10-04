@@ -221,3 +221,4 @@ Work starts after #52 (#117) merges, because both touch `src/auth.ts`.
 | Sign-up             | open to anyone, rate limited                                                   |
 | Email already used  | accepted as "that email is already used" (a low-risk leak, it is not a login)  |
 | Google code         | kept, unused, until Kirby says to delete it                                    |
+| Claiming on sign-in | automatic, as today; or ask the user before adding the current scan            |
