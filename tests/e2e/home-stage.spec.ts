@@ -22,6 +22,18 @@ import { expectPrintsDark } from "./fixtures/print-text";
  * facts (buttons, sizes, colours) are pinned in home.spec.ts.
  */
 
+// The desktop project's default window is 1280x720, and the hero is about 700 px
+// tall in a wide font (DejaVu Sans, which CI renders with) against 674 px in
+// Windows' system font: 20 px of room, so one more wrapped line would leave the
+// stage off and fail every animated test. Desktop runs use 1280x800, which has
+// 100 px. (A phone's 412x839 has more than 250.) A real laptop window under
+// about 700 px tall keeps the static layout: see the PR description.
+test.beforeEach(async ({ page }, info) => {
+  if (info.project.name === "chromium") {
+    await page.setViewportSize({ width: 1280, height: 800 });
+  }
+});
+
 /** The first screen's whole layout shift. Strict (0.001) unless the local wide-font simulation says so. */
 const TOTAL_CLS_BOUND = process.env.WIDE_FONT_RUN === "1" ? 0.02 : 0.001;
 
