@@ -12,6 +12,7 @@ import {
   scrollToProgress,
   waitForAnimated,
 } from "./helpers/home-stage";
+import { expectPrintsDark } from "./fixtures/print-text";
 
 /**
  * Home v3, PR B: the particle stage (docs/design/home-v3-2026-10-03/README.md).
@@ -590,6 +591,35 @@ test.describe("the animated layout", () => {
         ),
         `p=${p}`,
       ).toEqual([]);
+    }
+  });
+
+  test("printing from an animated page, as print-pages.spec.ts does (print and reduced motion emulated together), prints dark text on white, wherever the story was", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    for (const p of [0, 0.5, 0.95]) {
+      await scrollToProgress(page, p);
+      await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+      // The preference also takes the stage back to the static layout, a frame later.
+      await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
+        timeout: 10_000,
+      });
+      const facts = await layoutFacts(page);
+      expect(facts.sectionHeight, `p=${p}`).toBe(facts.panelHeight);
+      expect(facts.heroOpacity, `p=${p}`).toBe("1");
+      expect(facts.canvasDisplay, `p=${p}`).toBe("none");
+      await expectPrintsDark(page, `home printed after p=${p}`, {
+        root: "body",
+        minSamples: 2,
+      });
+      // Screen again, motion allowed: the stage comes back for the next p.
+      await page.emulateMedia({
+        media: "screen",
+        reducedMotion: "no-preference",
+      });
+      await waitForAnimated(page);
     }
   });
 
