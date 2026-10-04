@@ -745,6 +745,60 @@ test.describe("the layout follows what the page can hold", () => {
     await waitForAnimated(page);
   });
 
+  test("changing only the window's height switches the stage on and off at the 600 px line", async ({
+    page,
+  }) => {
+    // 700 wide: the hero is short enough to fit whenever the height is 600 or more.
+    await page.setViewportSize({ width: 700, height: 560 });
+    await page.goto("/");
+    // The module has had time to load and has declined: the viewport is too short.
+    await page.waitForTimeout(4000);
+    expect((await layoutFacts(page)).animated).toBe(false);
+    // Taller: on, with nothing but the height changed.
+    await page.setViewportSize({ width: 700, height: 800 });
+    await waitForAnimated(page);
+    expect((await layoutFacts(page)).logoVisibility).toBe("hidden");
+    // Shorter again: off, and the static page is whole.
+    await page.setViewportSize({ width: 700, height: 560 });
+    await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
+      timeout: 10_000,
+    });
+    const facts = await layoutFacts(page);
+    expect(facts.sectionHeight).toBe(facts.panelHeight);
+    expect(facts.logoVisibility).toBe("visible");
+    expect(facts.heroOpacity).toBe("1");
+    expect(facts.canvasDisplay).toBe("none");
+    // And on again.
+    await page.setViewportSize({ width: 700, height: 600 });
+    await waitForAnimated(page);
+  });
+
+  test("changing only the window's height switches the stage on and off where the hero stops fitting in 100svh", async ({
+    page,
+  }) => {
+    // A desktop width: the hero is about 700 px tall there, so 640 is tall
+    // enough for the 600 px line and too short for the hero, in any font.
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await page.goto("/");
+    await page.waitForTimeout(4000);
+    const hero = await page
+      .locator(HERO)
+      .evaluate((el) => (el as HTMLElement).offsetHeight);
+    expect(hero).toBeGreaterThan(640);
+    expect((await layoutFacts(page)).animated).toBe(false);
+    // Tall enough for the hero: on.
+    await page.setViewportSize({ width: 1280, height: hero + 60 });
+    await waitForAnimated(page);
+    // Too short for it again: off.
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
+      timeout: 10_000,
+    });
+    const facts = await layoutFacts(page);
+    expect(facts.sectionHeight).toBe(facts.panelHeight);
+    expect(facts.logoVisibility).toBe("visible");
+  });
+
   test("a viewport under 600 px tall is static", async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 599 });
     await page.goto("/");

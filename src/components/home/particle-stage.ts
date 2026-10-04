@@ -198,6 +198,10 @@ class Stage {
     this.resize = new ResizeObserver(this.requestReflow);
     this.resize.observe(this.parts.section);
     this.resize.observe(this.parts.hero);
+    // The probe is 100svh tall: it is what notices a change of the viewport's
+    // height alone (a window dragged taller or shorter), which changes neither
+    // the section's width nor the hero's.
+    this.resize.observe(this.probe);
     this.reflow();
   }
 
@@ -233,7 +237,10 @@ class Stage {
       reducedMotion: this.queries.reduced.matches,
       heroHeight: this.parts.hero.offsetHeight,
       panelHeight,
-      viewportHeight: window.innerHeight,
+      // The small viewport, like the panel: window.innerHeight would change
+      // while a phone's toolbars slide, and the page would flap between the
+      // two layouts around the 600 px line.
+      viewportHeight: panelHeight,
     });
     if (!allowed) {
       this.waitingForTop = false;
