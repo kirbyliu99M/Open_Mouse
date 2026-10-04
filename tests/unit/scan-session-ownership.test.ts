@@ -115,7 +115,7 @@ const MATRIX: MatrixRow[] = [
     caller: "signed-out",
     cookie: "none",
     outcome: "new-anonymous",
-    note: "no cookie -> new anonymous session, 24 h expiry",
+    note: "no cookie -> new anonymous session with the SESSION_TTL_MS expiry",
   },
   {
     id: "R2",
@@ -425,6 +425,7 @@ describe("POST /api/scans — a claim that does not stick (handler logic)", () =
 
   async function setup(
     interfere: (row: { userId: string | null; expiresAt: Date | null }) => void,
+    { claimDoesNothing = false } = {},
   ) {
     const { repo, sessions, insertedScans } = createFakeRepo();
     const id = randomUUID();
@@ -436,7 +437,7 @@ describe("POST /api/scans — a claim that does not stick (handler logic)", () =
     const realClaim = repo.claimSession;
     repo.claimSession = vi.fn(async (sessionId, userId, now) => {
       interfere(sessions.get(sessionId)!);
-      await realClaim(sessionId, userId, now);
+      if (!claimDoesNothing) await realClaim(sessionId, userId, now);
     });
     const res = await handleScanSubmission(scanRequest(id), {
       repo,
@@ -472,6 +473,27 @@ describe("POST /api/scans — a claim that does not stick (handler logic)", () =
     expect(landed).toMatchObject({ userId: CALLER, expiresAt: null });
   });
 
+  it("the claim changes nothing and the session is still an unexpired anonymous one: never reused as the caller's, caller gets a new claimed session", async () => {
+    // Not reachable with the real repo today (claimSession succeeds on exactly
+    // the rows findValidSession offers for claiming), so the only thing that
+    // can fail here is the handler's own check that the session it ends up
+    // writing into really is the caller's.
+    const { res, id, sessions, insertedScans } = await setup(() => {}, {
+      claimDoesNothing: true,
+    });
+    expect(res.status).toBe(201);
+    expect(sessions.get(id)).toEqual({
+      id,
+      userId: null,
+      expiresAt: new Date(NOW.getTime() + HOUR_MS),
+    });
+    expect(insertedScans).toHaveLength(1);
+    const landed = sessions.get(insertedScans[0]!.sessionId)!;
+    expect(landed.id).not.toBe(id);
+    expect(landed).toMatchObject({ userId: CALLER, expiresAt: null });
+    expect(res.headers.get("set-cookie")).toContain(landed.id);
+  });
+
   it("the same user claims it first (two parallel submissions): reused, no extra session or cookie", async () => {
     const { res, id, sessions, insertedScans } = await setup((row) => {
       row.userId = CALLER;
@@ -481,6 +503,30 @@ describe("POST /api/scans — a claim that does not stick (handler logic)", () =
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(insertedScans[0]!.sessionId).toBe(id);
     expect(sessions.size).toBe(1);
+  });
+});
+
+describe("POST /api/scans — getUserId failing (handler logic)", () => {
+  // Deliberate (issue #52 review): if the caller cannot be resolved the
+  // submission fails (the route answers 500), exactly like the fit, analysis
+  // and delete routes. Treating it as "signed out" would hide a broken auth
+  // setup and quietly drop a signed-in user's scan into a short-lived
+  // anonymous session.
+  it("fails the request and writes nothing, instead of falling back to anonymous", async () => {
+    const { repo } = createFakeRepo();
+    await expect(
+      handleScanSubmission(scanRequest(randomUUID()), {
+        repo,
+        getUserId: async () => {
+          throw new Error("auth backend down");
+        },
+        now: () => NOW,
+        sweep: { maybeSweep: async () => {} },
+      }),
+    ).rejects.toThrow("auth backend down");
+    expect(repo.createAnonymousSession).not.toHaveBeenCalled();
+    expect(repo.createClaimedSession).not.toHaveBeenCalled();
+    expect(repo.insertScanWithMeasurements).not.toHaveBeenCalled();
   });
 });
 
