@@ -92,7 +92,6 @@ describe("POST /api/scans 400 issues for a calibration union", () => {
         repo: {
           findValidSession: async () => null,
           createAnonymousSession: async () => ({ id: "x" }),
-          createClaimedSession: async () => ({ id: "x" }),
           insertScanWithMeasurements: async () => ({ scanId: "y" }),
           deleteExpiredAnonymousSessions: async () => 0,
         } as never,

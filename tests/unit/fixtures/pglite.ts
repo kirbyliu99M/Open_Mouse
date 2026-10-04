@@ -45,6 +45,23 @@ export async function migratedDatabase() {
   return { pg, db: drizzle(pg) };
 }
 
+/**
+ * PGlite's drizzle driver has no `db.batch` (neon-http's atomic multi-query
+ * request, which `createDrizzleScanRepo` uses to insert a scan and its
+ * measurements). Run the batch's queries in order instead: tests using this
+ * check the repo's SQL and column mapping against the real schema, not batch
+ * atomicity. `Db` is the type the repo under test expects.
+ */
+export function withSequentialBatch<Db>(db: object): Db {
+  return Object.assign(db, {
+    batch: async (queries: PromiseLike<unknown>[]) => {
+      const results: unknown[] = [];
+      for (const query of queries) results.push(await query);
+      return results;
+    },
+  }) as unknown as Db;
+}
+
 export async function count(pg: PGlite, sql: string): Promise<number> {
   const { rows } = await pg.query<{ n: number }>(sql);
   return Number(rows[0]!.n);

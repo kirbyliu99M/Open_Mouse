@@ -11,7 +11,7 @@
  */
 import type { ScanRepo } from "../../../src/server/scans/repo";
 import { createFakeRepo, type FakeSessionRow } from "./fake-scan-repo";
-import { migratedDatabase } from "./pglite";
+import { migratedDatabase, withSequentialBatch } from "./pglite";
 
 export type SessionState = FakeSessionRow;
 
@@ -70,16 +70,7 @@ export async function createPgliteWorld(): Promise<ScanWorld> {
   type ScanDb = Parameters<typeof createDrizzleScanRepo>[0];
 
   const { pg, db } = await migratedDatabase();
-  // PGlite's drizzle driver has no `db.batch` (neon-http's atomic multi-query
-  // request). Run the batch's queries in order instead: these tests check
-  // session rules against the real schema, not batch atomicity.
-  const sequentialBatchDb = Object.assign(db, {
-    batch: async (queries: PromiseLike<unknown>[]) => {
-      const results: unknown[] = [];
-      for (const query of queries) results.push(await query);
-      return results;
-    },
-  }) as unknown as ScanDb;
+  const sequentialBatchDb = withSequentialBatch<ScanDb>(db);
 
   const count = async (sql: string, params: unknown[] = []) => {
     const { rows } = await pg.query<{ n: number }>(sql, params);
