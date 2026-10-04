@@ -150,3 +150,20 @@ main.errorScreen h1:focus {
     border-width: 2px;
   }
 }
+
+/* Print: the muted text takes the print tokens (tokens.css, which ErrorScreen
+   imports itself), and the filled primary button is a dark label with an
+   outline, since Chrome prints no backgrounds unless the user asks for them. */
+@media print {
+  .errorScreen-eyebrow,
+  .errorScreen-message,
+  .errorScreen-status,
+  .errorScreen-reference {
+    color: var(--text-secondary);
+  }
+  .errorAction-primary {
+    background: none;
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+  }
+}

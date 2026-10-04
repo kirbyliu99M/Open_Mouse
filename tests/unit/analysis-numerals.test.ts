@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatMm,
+  formatSignedMm,
+  formatWeight,
+} from "../../src/components/results/format";
+import { reasonText } from "../../src/components/results/reasons";
+import {
   collectNumbers,
   extractNumerals,
   extractWordNumerals,
@@ -1084,4 +1090,95 @@ describe("a numeral symbol nothing reads is refused", () => {
       ).not.toBeNaN();
     },
   );
+});
+
+/**
+ * The results UI joins a number and its unit with a no-break space (U+00A0) so
+ * the two cannot wrap apart, and a model may write it too. The numeral check
+ * must read "84\u00A0mm" exactly as it reads "84 mm": NFKC, which every digit
+ * path runs first, turns U+00A0 into a plain space. A check that read the two
+ * differently would let a number through (or flag one) just for the space.
+ */
+describe("a no-break space between a number and its unit", () => {
+  const NBSP = "\u00A0";
+  const nbsp = (text: string) => text.replaceAll(" ", NBSP);
+  const allowed = new Set([84, 125, 62, 90, 0.9, 1, 0]);
+
+  it.each([
+    ["It is 125 mm long.", null],
+    ["It is 126 mm long.", 126],
+    ["about 68 mm wide", 68],
+    ["about 84 mm and 85 mm", 85],
+    ["It runs about five mm shorter.", 5],
+    ["It's twelve mm narrower.", 12],
+    ["roughly one hundred and twenty mm", 120],
+    ["that is 90 % of it", null],
+    ["that is 91 % of it", 91],
+    ["It weighs 1 000 g.", 1000],
+    ["長度約 126 mm", 126],
+    ["長度約 125 mm", null],
+    ["約三十 mm", 30],
+  ] as const)(
+    "finds %j the same with a no-break space as with a plain one (%s)",
+    (text, expected) => {
+      expect(findUnknownNumeral(text, allowed)).toBe(expected);
+      expect(findUnknownNumeral(nbsp(text), allowed)).toBe(expected);
+      expect(extractNumerals(nbsp(text))).toEqual(extractNumerals(text));
+    },
+  );
+
+  it.each([
+    "a dozen mm",
+    "about 1 / 3 of the width",
+    "百分之 三十 的人",
+    "半 mm",
+    "about 2 cm and 5 g",
+  ])("reads %j the same whichever space is used", (text) => {
+    expect(findUnknownNumeral(nbsp(text), allowed)).toBe(
+      findUnknownNumeral(text, allowed),
+    );
+  });
+
+  it("extracts the same numbers from the strings the results page really shows", () => {
+    const shown = [
+      formatMm(63.46),
+      formatSignedMm(-1.5),
+      formatWeight(59.6),
+      reasonText("length_short", { deltaMm: -3.2 }),
+      reasonText("weight_in_range", { minG: 60, maxG: 90 }),
+      reasonText("weight_heavier", { deltaG: 12.6 }),
+      "Hand length 190\u00A0mm (entered) · Palm width 84\u00A0mm",
+    ];
+    for (const text of shown) {
+      expect(text, "the unit is joined with a no-break space").toContain(NBSP);
+      const plain = text.replaceAll(NBSP, " ");
+      expect(extractNumerals(text), plain).toEqual(extractNumerals(plain));
+    }
+    expect(extractNumerals(formatMm(63.46))).toEqual([63.5]);
+    expect(
+      extractNumerals(reasonText("weight_heavier", { deltaG: 12.6 })),
+    ).toEqual([13]);
+    expect(
+      extractNumerals(reasonText("weight_in_range", { minG: 60, maxG: 90 })),
+    ).toEqual([60, 90]);
+  });
+
+  it("does not let the space hide a number: it stays a separator, not part of the digits", () => {
+    // "1<nbsp>85" is two numbers, as "1 85" is; only a 3-digit group after the
+    // separator makes one number ("1 000").
+    expect(extractNumerals(`1${NBSP}85`)).toEqual([1, 85]);
+    expect(extractNumerals(`1${NBSP}000${NBSP}g`)).toEqual([1000]);
+    expect(findUnknownNumeral(`about${NBSP}68${NBSP}mm`, allowed)).toBe(68);
+    expect(findUnknownNumeral(`about${NBSP}84${NBSP}mm`, allowed)).toBeNull();
+  });
+
+  it("keeps a product name exempt when a no-break space follows it", () => {
+    const exempt = stringTokens("Logitech G502 X");
+    expect(
+      findUnknownNumeral(`the G502${NBSP}X is 84${NBSP}mm`, allowed, exempt),
+    ).toBeNull();
+    expect(
+      findUnknownNumeral(`the g502${NBSP}X is 84${NBSP}mm`, allowed, exempt),
+    ).toBe(502);
+  });
 });

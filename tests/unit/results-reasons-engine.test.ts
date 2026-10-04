@@ -54,7 +54,7 @@ describe("weight reasons rendered from the engine's own params", () => {
     const { reason } = scoreWeight(mouse({ weightG: 75 }), prefs);
     expect(reason.code).toBe("weight_in_range");
     expect(reasonText(reason.code, reason.params)).toBe(
-      "Weight is within your preferred range (60–90 g).",
+      "Weight is within your preferred range (60–90\u00A0g).",
     );
   });
 
@@ -71,10 +71,10 @@ describe("weight reasons rendered from the engine's own params", () => {
     const heavy = scoreWeight(mouse({ weightG: 100 }), prefs).reason;
     const light = scoreWeight(mouse({ weightG: 50 }), prefs).reason;
     expect(reasonText(heavy.code, heavy.params)).toBe(
-      "This mouse is about 10 g heavier than you prefer.",
+      "This mouse is about 10\u00A0g heavier than you prefer.",
     );
     expect(reasonText(light.code, light.params)).toBe(
-      "This mouse is about 10 g lighter than you prefer.",
+      "This mouse is about 10\u00A0g lighter than you prefer.",
     );
   });
 

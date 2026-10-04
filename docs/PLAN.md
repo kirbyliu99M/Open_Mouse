@@ -33,9 +33,9 @@ Owns all feature code, tests, Blender generation scripts, and docs, working **on
 
 **Two standing constraints for Codex:** never commit or move `Dataset/` (it is gitignored from the first commit), and never let the LLM do arithmetic — all numbers originate in tested TypeScript.
 
-### Kirby — Ground Truth & Judgment
+### Kirby — Blind labels & Judgment
 The things neither agent can do:
-- **Ground-truth photo fixture set** (M2) — your hand, 5 repeats per angle, ruler-measured true values. **Blocks M2's accuracy gate.**
+- **Hand photos with blind good/bad labels** (M2) — _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ You photograph each participant's mouse hand (participants are coded P###) and label every photo good or bad, blind. There are no ruler-measured true values. **Blocks M2's report** (judgement correctness, target ≥ 95 %).
 - Shape-rubric spot-checks (M1) and the silhouette contact-sheet review (M4).
 - Mouse-fit preference ratings from mice you've owned — these tune M3's coefficients.
 - Account/secret provisioning: Neon, Vercel, Gemini API key, Google OAuth.
@@ -94,7 +94,7 @@ RUNTIME — Browser (photos never leave the device)
 
 ## Milestones
 
-Gated milestones (**M1, M2, M4**) are hard stops — the next milestone does not start until the gate passes with posted numbers.
+Gated milestones (**M1, M4**) are hard stops — the next milestone does not start until the gate passes with posted numbers. M2 is not one of them any more: _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ It has no pass/fail threshold; it reports judgement correctness (target ≥ 95 %) and retake repeatability.
 
 ### M0 — Scaffold
 Next.js 15 + TS strict, Drizzle, Vitest, Playwright, ESLint/Prettier. Push to the existing empty `Open_Mouse` repo — **`.gitignore` must contain `Dataset/` in the very first commit; verify before the first push.** Vercel project linked. Neon via the [Vercel Marketplace integration](https://vercel.com/marketplace/neon) → sets `DATABASE_URL` (pooled) + `DATABASE_URL_UNPOOLED` and creates a **DB branch per preview deployment**, so PR migrations never touch production. GitHub Actions: typecheck · lint · unit · migration check · E2E.
@@ -127,7 +127,7 @@ into just three of the seven flare levels, which makes exact 7-way agreement a
 poor proxy for whether the rubric is fit for purpose. Miss the gate and the
 *rubric* gets revised, never the gate.
 
-### M2 — Calibration + measurement *(gated)*
+### M2 — Calibration + measurement *(no pass/fail gate — Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2)*
 **The printed sheet** — one design for A4 *and* Letter: put the 4 ArUco markers on a **180 × 180 mm inner square**, which fits both identically. Paper size stops being a variable.
 
 **L-fold design:** lower flap lies flat (top-down plane); upper flap folds up against a book or wall carrying a marker strip in the hand's **midline plane** for the side shot. One print, two calibrated planes.
@@ -142,7 +142,7 @@ poor proxy for whether the rubric is fit for purpose. Miss the gate and the
 
 **Pipeline:** `js-aruco2` finds markers → homography rectifies the image to the sheet plane in mm (**this also removes perspective distortion** — the real advantage over a bare reference object) → MediaPipe gives 21 landmarks → projected through the homography → millimetres. Manual 4-corner drag fallback when detection fails.
 
-**Parallax correction on the top-down photo** (issue #16): landmarks sit 6–20 mm above the sheet, so mapping them through the sheet homography inflates distances (measured +2.6 mm on a 190 mm hand at 450 mm / 20° tilt, above the ±2 mm gate). The camera pose is recovered from the homography plus the focal length (EXIF `FocalLengthIn35mmFilm`, falling back to a single-view estimate from the homography when tilt ≥ 15°), then each landmark ray is intersected with its own height plane. The per-landmark heights are provisional and get fitted in the M2 gate.
+**Parallax correction on the top-down photo** (issue #16): landmarks sit 6–20 mm above the sheet, so mapping them through the sheet homography inflates distances (measured +2.6 mm on a 190 mm hand at 450 mm / 20° tilt, above the ±2 mm accuracy limit this section used to set). The camera pose is recovered from the homography plus the focal length (EXIF `FocalLengthIn35mmFilm`, falling back to a single-view estimate from the homography when tilt ≥ 15°), then each landmark ray is intersected with its own height plane. The per-landmark heights are provisional. They were to be fitted against ruler-measured hands in M2; _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2:_ there is no ruler truth and no ±2 mm limit any more, and this document does not say what replaces that fitting.
 
 **Input is still photos, not a live camera** _(design change, 2026-09-22)_. Three photo slots, one per shot. Each accepts a file from the camera app or the gallery (`<input type="file" accept="image/*">`). **Processing stays in the browser**: the file is decoded locally and never uploaded, so "photos never leave your device" still holds.
 
@@ -155,9 +155,9 @@ Photo-specific handling (a live camera never faced these):
 
 **Quality gates per photo:** all 4 markers found · reprojection error under threshold (also the lens-distortion check) · MediaPipe confidence above threshold · hand fully in frame · card/sheet scale agreement · sharpness (Laplacian variance). All local. Gemini vision is only a *fallback* to explain **why** a local gate failed.
 
-**Gate:** repeatability ≤ ±1.5 mm across 5 photos; accuracy ≤ ±2 mm on hand length vs. ruler. **Depends on Kirby's fixture set.**
+**Gate:** _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ M2 has no pass/fail threshold. The target is **judgement correctness ≥ 95 %**: the product's accept/retake verdict on a photo agrees with Kirby's blind good/bad label for that photo (photo-quality gates only). Retake repeatability is reported, not a threshold. There is no ruler truth, so no accuracy is claimed. **Depends on Kirby's photos and blind labels.**
 
-Still photos make the gate reproducible: Kirby's ground-truth set **is** the input, so a local script replays the full pipeline over those files and prints the repeatability and accuracy numbers directly. Like the licensed dataset, the photos live **outside the repo** (`../Fixtures/hands/`) and the script never runs in CI, which keeps the privacy promise even for our own test data.
+Still photos make the M2 report reproducible: Kirby's blind-labelled photo set **is** the input, so a local script replays the full pipeline over those files and prints the judgement-correctness and repeatability numbers directly _(revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2: no accuracy figure, since there is no ruler truth)_. Like the licensed dataset, the photos live **outside the repo** (where: docs/learning/README.md) and the script never runs in CI, which keeps the privacy promise even for our own test data.
 
 ### M3 — Fit engine
 Pure TypeScript, zero LLM. Six explainable sub-scores (0–100), each emitting a machine-readable reason:
@@ -229,19 +229,19 @@ Logitech's 76 is the pilot precisely because they publish full dimensions. Once 
 
 ## Verification
 
-**Gates** (M1 ≥80%/95% agreement · M2 ±1.5 mm / ±2 mm · M4 0.5 mm bbox, watertight, silhouette review) are hard stops with evidence posted in the PR.
+**Gates** (M1 ≥80%/95% agreement · M4 0.5 mm bbox, watertight, silhouette review) are hard stops with evidence posted in the PR. M2 is not one of them any more: _Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2._ It has no pass/fail threshold; it reports judgement correctness (target ≥ 95 %) and retake repeatability.
 
 **Test layers Codex owns:**
 - **Vitest** — homography math, landmark→mm extraction, all six scorers, shell parameter generation. Everything on the critical path is a pure function; there's no excuse for an untested one.
-- **Golden fixtures** — Kirby's ground-truth photos (M2), hand-profile→ranking pairs (M3), committed and diffed.
+- **Golden fixtures** — hand-profile→ranking pairs (M3), committed and diffed. Kirby's blind-labelled photo set (M2) is the input of the M2 report, not a fixture in the repo: the photos stay outside it. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
 - **Playwright E2E** — full upload → score → render → analysis, uploading fixture photos with `setInputFiles` (no camera stubbing needed) and Gemini stubbed.
 - **Visual regression** — fixed camera and seed, pixel-diff the 3D renders.
 - **Blender** — `gen_shell` output asserted against spec dims; runs on `workflow_dispatch`, not every push.
 - **DB** — migrations verified on the per-PR Neon branch.
 
-**End-to-end acceptance:** on a preview deployment, print the sheet, scan your own hand, and confirm reported hand length is within 2 mm of a ruler, the top-5 contains mice you already know fit you, and the 3D contact map matches where your hand actually touches a mouse you own. That last check is the one that tells us the whole thing works.
+**End-to-end acceptance:** on a preview deployment, print the sheet, scan your own hand, and confirm the top-5 contains mice you already know fit you, and the 3D contact map matches where your hand actually touches a mouse you own. That last check is the one that tells us the whole thing works. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2: the earlier check that the reported hand length is within 2 mm of a ruler is dropped; there is no ruler truth, so no accuracy is claimed.)_
 
 ## Open items
 - M3 coefficients start from published sizing guidance and need tuning against real pairings — the more mice you've owned and can rate, the better this gets.
-- Side-shot parallax correction is unproven until M2's fixture set exists.
+- Side-shot parallax correction is unproven. M2 under prereg v2 has no ruler truth and claims no accuracy, so its photo set does not test it; how it would be proven is not decided in this document. _(Revised 2026-10-02 (Kirby), prereg v2, see docs/STATUS.md R2.)_
 - The Gemini vision rubric (M1) may need sharpening after the first agreement report.

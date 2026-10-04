@@ -1829,7 +1829,7 @@ export default function EasyScanCamera({
               }}
             />
             <p id="easy-length-hint" className="easyLengthHint">
-              18.6 cm = 186 mm. Enter millimetres, from{" "}
+              18.6&nbsp;cm = 186&nbsp;mm. Enter millimetres, from{" "}
               {USER_LENGTH_RANGE_MM.min} to {USER_LENGTH_RANGE_MM.max}.
             </p>
             {lengthError && (
@@ -1960,7 +1960,7 @@ export default function EasyScanCamera({
                   </button>
                 ) : (
                   <span className="easyLengthChip">
-                    {userLengthMm} mm entered
+                    {userLengthMm}&nbsp;mm entered
                   </span>
                 )}
                 <button
@@ -2085,7 +2085,7 @@ export default function EasyScanCamera({
                   <div className="easyLengthDisclosure">
                     <p>
                       Based on the hand length you entered (
-                      {result.submission.calibration.referenceMm} mm)
+                      {result.submission.calibration.referenceMm}&nbsp;mm)
                     </p>
                     <p>Measured without paper.</p>
                   </div>

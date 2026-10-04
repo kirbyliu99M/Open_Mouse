@@ -271,9 +271,9 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
   expect(contrast(ring.outlineColor, ring.shell)).toBeGreaterThanOrEqual(3);
 });
 
-// ── The measured numbers say they are not verified yet ────────────────────
+// ── The measured numbers say they are still being validated ───────────────
 
-test("the easy-scan measured sheet says the numbers are not yet verified, next to them", async ({
+test("the easy-scan measured sheet says the measurements are still being validated, next to the numbers", async ({
   page,
 }) => {
   await page.goto("/scan/easy/measured-demo");

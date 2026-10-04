@@ -1105,7 +1105,7 @@ export default function ScanClient({
                     {typeof value === "number"
                       ? value.toFixed(1)
                       : String(value)}
-                    {key.endsWith("Deg") ? "°" : " mm"}
+                    {key.endsWith("Deg") ? "°" : "\u00A0mm"}
                   </dd>
                 </div>
               ))}

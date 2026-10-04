@@ -7,7 +7,7 @@ vendored in this repository, and npm packages that ship in the deployed app.
 It records what was verified and where. Anything that could not be confirmed
 says "Unconfirmed". It is not legal advice.
 
-Last checked: 2026-09-30.
+Last checked: 2026-10-04 for sections 3.2 to 3.5 and the package table; the other sections were last checked on 2026-09-30.
 
 
 1. Vendored files: public/mediapipe/
@@ -119,8 +119,8 @@ Installed with npm (not vendored) and shipped in the server and/or browser
 bundle. Licences are the "license" field in package-lock.json. Most of these
 packages carry a licence file in node_modules/<name>/, but four do not:
 @mediapipe/tasks-vision, @next/env, drizzle-orm and server-only. For those four
-the "license" field is the only evidence (checked 2026-09-30 by listing each
-package folder). Transitive dependencies are listed, with licences, in
+the "license" field is the only evidence (each package folder listed on
+2026-09-30; the table itself was re-checked on 2026-10-04). Transitive dependencies are listed, with licences, in
 package-lock.json. Development-only tools (TypeScript, ESLint, Playwright,
 Vitest, Prettier, drizzle-kit, ...) are not redistributed.
 tests/unit/notice-packages.test.ts keeps this table in step with package.json
@@ -250,8 +250,43 @@ and package-lock.json.
   package's node_modules/jsqr/LICENSE: the standard text, with the appendix's
   copyright line left as the unfilled template. The Apache License 2.0 text in
   public/mediapipe/LICENSE-mediapipe.txt is the same as jsqr's (only the
-  brackets in the appendix template differ). That file also ends with a notice
-  that applies to MediaPipe only (see section 1.3).
+  brackets in the appendix template differ: jsqr's are braces, "{yyyy} {name
+  of copyright owner}", and that file's are square brackets, "[yyyy] [name of
+  copyright owner]"). That file also ends with a notice that applies to
+  MediaPipe only (see section 1.3).
+
+3.3 @google/genai
+
+  Licence: Apache License 2.0. The package carries node_modules/@google/genai/
+  LICENSE: the standard text, with the appendix's copyright line left as the
+  unfilled template, and no NOTICE file. That text is the same as the Apache
+  License 2.0 text at the top of public/mediapipe/LICENSE-mediapipe.txt, up to
+  the end of the appendix (compared 2026-10-04: no difference but one blank
+  line at the start of the package's file). The repo file goes on after that
+  with a notice that applies to MediaPipe only (see 1.3); the package's file
+  has nothing after the appendix. Both use square brackets in the appendix
+  template ("[yyyy] [name of copyright owner]"); jsqr's uses braces (see 3.2).
+
+3.4 drizzle-orm
+
+  Licence: Apache License 2.0, as the "license" field in package.json and
+  package-lock.json says. The package folder holds no LICENSE or NOTICE file,
+  and its README states no licence (checked 2026-10-04), so there is no copy
+  or copyright line of the package's own to point to. Its upstream licence file
+  was not checked: Unconfirmed. The Apache License 2.0 text is in
+  public/mediapipe/LICENSE-mediapipe.txt (standard text; the appendix template
+  uses square brackets, as in 3.3).
+
+3.5 @mediapipe/tasks-vision
+
+  The package's JavaScript (vision_bundle.*) runs in the browser
+  (src/client/photo/landmarks.ts). Section 1.1 covers the WebAssembly files
+  copied from the same package. Licence: Apache License 2.0, as the "license"
+  field says. The package folder holds no LICENSE or NOTICE file (see 1.1) and
+  its README states no licence (checked 2026-10-04). The Apache License 2.0
+  text is public/mediapipe/LICENSE-mediapipe.txt, a copy of the upstream
+  repository's LICENSE (see 1.1 and 1.3); the appendix template there uses
+  square brackets, as in 3.3.
 
 
 4. Images: public/images/

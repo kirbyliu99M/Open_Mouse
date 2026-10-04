@@ -14,25 +14,25 @@ import {
 
 describe("formatMm", () => {
   it("rounds to one decimal and appends the unit", () => {
-    expect(formatMm(63.46)).toBe("63.5 mm");
+    expect(formatMm(63.46)).toBe("63.5\u00A0mm");
   });
 
   it("never shows -0.0", () => {
-    expect(formatMm(-0.02)).toBe("0.0 mm");
+    expect(formatMm(-0.02)).toBe("0.0\u00A0mm");
   });
 });
 
 describe("formatSignedMm", () => {
   it("prefixes positive deltas with a plus sign", () => {
-    expect(formatSignedMm(2)).toBe("+2.0 mm");
+    expect(formatSignedMm(2)).toBe("+2.0\u00A0mm");
   });
 
   it("keeps the minus sign for negative deltas", () => {
-    expect(formatSignedMm(-1.5)).toBe("-1.5 mm");
+    expect(formatSignedMm(-1.5)).toBe("-1.5\u00A0mm");
   });
 
   it("shows a bare zero for no difference", () => {
-    expect(formatSignedMm(0)).toBe("0.0 mm");
+    expect(formatSignedMm(0)).toBe("0.0\u00A0mm");
   });
 });
 
@@ -69,7 +69,7 @@ describe("formatWeight", () => {
   });
 
   it("rounds grams", () => {
-    expect(formatWeight(59.6)).toBe("60 g");
+    expect(formatWeight(59.6)).toBe("60\u00A0g");
   });
 });
 
