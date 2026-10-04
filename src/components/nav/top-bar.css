@@ -27,3 +27,11 @@
 .journey-top-bar-step {
   text-align: right;
 }
+
+/* Print: the screen's light grey step label would print as light text on
+   white. The back link keeps --accent-text, which is dark blue in print. */
+@media print {
+  .journey-top-bar {
+    color: var(--text-secondary);
+  }
+}

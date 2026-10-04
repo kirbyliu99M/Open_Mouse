@@ -138,7 +138,7 @@ describe("typed hand length range", () => {
     expect(parseUserLength("")).toBeNull();
     expect(parseUserLength("abc")).toBeNull();
     expect(userLengthRangeMessage()).toBe(
-      `Enter a hand length between ${min} and ${max} mm.`,
+      `Enter a hand length between ${min} and ${max}\u00A0mm.`,
     );
   });
 
@@ -197,7 +197,7 @@ describe("typed hand length range", () => {
 
   it("names the typed number and gives one instruction when the palm does not fit", () => {
     const message = userLengthRetakeMessage(120);
-    expect(message).toContain("120 mm you entered");
+    expect(message).toContain("120\u00A0mm you entered");
     expect(message).toMatch(/check that number/i);
     // The failure sheet's own buttons are the retry and the edit; the message
     // is a single instruction, so it does not offer a second way out.

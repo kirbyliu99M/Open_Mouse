@@ -89,8 +89,10 @@ caused one agent's uncommitted work to be committed by another.
    functions. A pure function on the critical path without a unit test is not
    done.
 
-4. **Gates are hard stops, and evidence is numbers.** M1, M2, and M4 have
-   numeric gates in `docs/PLAN.md`. Post actual measured values in the PR. "Looks
+4. **Gates are hard stops, and evidence is numbers.** M1 and M4 have
+   numeric gates in `docs/PLAN.md`. M2 has no pass/fail gate since 2026-10-02
+   (Kirby, prereg v2): it reports judgement correctness against a target and
+   retake repeatability, still as numbers, and its preregistration is frozen. Post actual measured values in the PR. "Looks
    good" is not evidence. If a gate fails, the *implementation or rubric* gets
    revised — never the gate. Raise it with Claude instead.
 

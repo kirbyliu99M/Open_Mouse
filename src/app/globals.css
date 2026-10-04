@@ -217,3 +217,32 @@ button:disabled {
     border-width: 2px;
   }
 }
+
+/* Print: the muted text above is #b5b5bd, written for the dark theme, and would
+   print as light grey on white. It takes the print token instead (tokens.css).
+   The red of the danger button and the error line (#ff3b30) is 3.55:1 on
+   white, so on paper it is the darker red the results page's error uses
+   (6.5:1). */
+@media print {
+  .eyebrow,
+  .note,
+  .scan-card-header,
+  .measurements dt {
+    color: var(--text-secondary);
+  }
+  .button-danger,
+  .status-error {
+    color: #b3261e;
+  }
+  .button-danger {
+    border-color: #b3261e;
+  }
+  /* The confirmation dialogs ("Delete this scan now?", "Delete everything?")
+     are light text on a dark panel; printed as they stand that is 1.09:1 on
+     white. They are a question to answer on screen, not content, so they and
+     their backdrop are left off the page. */
+  .dialog,
+  .dialog-backdrop {
+    display: none;
+  }
+}

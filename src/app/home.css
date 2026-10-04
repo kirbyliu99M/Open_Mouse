@@ -656,7 +656,11 @@
    filled button would print as white text on white paper: on paper it is a
    dark label with an outline, and its glow is gone. The drawings (the logo, the
    hand on A4, the three sketches) are decorative and light-on-dark, so they
-   are left off the page; the mice's captions go with them. */
+   are left off the page; the mice's captions go with them. The How it works
+   page is printed too: its muted text takes the print tokens, the numbered
+   squares and the privacy card lose their dark fills, and the camera-UI badge
+   over the photo (white on a translucent black pill) is left off like the
+   drawings. */
 @media print {
   .home-cta {
     background: none;
@@ -671,7 +675,8 @@
   .story-logo,
   .story-hand,
   .story-mice,
-  .story-canvas {
+  .story-canvas,
+  .home-hero-badge {
     display: none !important;
   }
   /* Printed from the middle of the story, the page is still the static one:
@@ -686,5 +691,21 @@
   .story-hero {
     opacity: 1 !important;
     transform: none !important;
+  }
+  .home-how-list p,
+  .home-cta-caption,
+  .home-how-page .home-cta-caption,
+  .home-footer-note {
+    color: var(--text-secondary);
+  }
+  .home-how-icon {
+    background: none;
+    border: 1px solid var(--hairline);
+  }
+  .home-privacy-card {
+    background: none;
+  }
+  .home-privacy-card p span {
+    color: var(--text-secondary);
   }
 }

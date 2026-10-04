@@ -20,7 +20,7 @@ export const USER_LENGTH_RETAKE =
  * next to "Try again", which is the retake.
  */
 export function userLengthRetakeMessage(handLengthMm: number): string {
-  return `Your palm doesn't fit the ${handLengthMm} mm you entered. Check that number: wrist crease to the tip of your middle finger.`;
+  return `Your palm doesn't fit the ${handLengthMm}\u00A0mm you entered. Check that number: wrist crease to the tip of your middle finger.`;
 }
 
 // Candidate — tune on M2 photos. A flat middle finger's joint chain is
@@ -57,7 +57,7 @@ export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
 export const USER_LENGTH_RANGE_MM = { min: 135, max: 265 } as const;
 
 export function userLengthRangeMessage(): string {
-  return `Enter a hand length between ${USER_LENGTH_RANGE_MM.min} and ${USER_LENGTH_RANGE_MM.max} mm.`;
+  return `Enter a hand length between ${USER_LENGTH_RANGE_MM.min} and ${USER_LENGTH_RANGE_MM.max}\u00A0mm.`;
 }
 
 function distance(a: Point2, b: Point2): number {

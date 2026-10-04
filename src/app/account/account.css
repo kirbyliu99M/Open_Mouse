@@ -157,3 +157,28 @@
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
+
+/* Print: the screen styles are written for the dark theme. Muted text takes
+   the print tokens, the dark fills go (Chrome prints no backgrounds unless the
+   user asks for them), and the filled link is a dark label with an outline, as
+   on the home page. */
+@media print {
+  .account-subtitle,
+  .account-fine-print {
+    color: var(--text-secondary);
+  }
+  .account-hero-icon,
+  .account-google-button,
+  .account-unavailable {
+    background: none;
+  }
+  .account-google-button,
+  .account-unavailable p {
+    color: var(--text-primary);
+  }
+  .account-start-button {
+    background: none;
+    border: 1px solid var(--text-primary);
+    color: var(--text-primary);
+  }
+}
