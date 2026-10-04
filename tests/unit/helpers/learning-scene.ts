@@ -10,15 +10,16 @@
  *    `independent-scene.ts`, rendered to pixels and run through the REAL
  *    `detectPaperQuad`, so the paper-edge plane comes from an image.
  * The hand has 21 landmarks placed in millimetres with the product's own
- * per-landmark heights above the sheet, projected through the camera. The true
- * hand length (wrist to middle fingertip) is known exactly.
+ * per-landmark heights above the sheet for a hand of that length
+ * (`landmarkHeightsMm`, landmark-heights-v2), projected through the camera. The
+ * true hand length (wrist to middle fingertip) is known exactly.
  */
 import {
   estimateHomography,
   type Homography,
   type Point2,
 } from "../../../src/client/geometry/homography";
-import { LANDMARK_HEIGHTS_MM } from "../../../src/client/geometry/parallax";
+import { landmarkHeightsMm } from "../../../src/client/geometry/parallax";
 import { detectPaperQuad } from "../../../src/client/paper/detect";
 import { buildPaperHomography } from "../../../src/client/paper/homography";
 import type { PaperSize } from "../../../src/lib/contracts/measurement";
@@ -65,6 +66,13 @@ export const HAND_MM: readonly Point2[] = (
 const dist = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.y - b.y);
 export const TRUE_HAND_LENGTH_MM = dist(HAND_MM[0]!, HAND_MM[12]!);
 export const TRUE_PALM_WIDTH_MM = dist(HAND_MM[5]!, HAND_MM[17]!);
+/**
+ * The heights the template hand's landmarks stand at above the sheet: what the
+ * product's correction assumes for a hand of this length, so a scene built
+ * with them is recovered exactly.
+ */
+export const HAND_HEIGHTS_MM: readonly number[] =
+  landmarkHeightsMm(TRUE_HAND_LENGTH_MM);
 
 export interface Shot {
   readonly imageSize: { readonly width: number; readonly height: number };
@@ -84,9 +92,23 @@ export function syntheticShot(
     tiltDeg?: number;
     distanceMm?: number;
     fPx?: number;
+    /**
+     * Scale the template hand to this wrist-to-middle-fingertip length (mm).
+     * Default: the template's own length.
+     */
+    handLengthMm?: number;
+    /**
+     * The heights the landmarks really stand at, mm. Default: what the
+     * product assumes for a hand of `handLengthMm` (`landmarkHeightsMm`), so
+     * the correction recovers the hand exactly.
+     */
+    heightsMm?: readonly number[];
   } = {},
 ): Shot {
   const fPx = options.fPx ?? 3800;
+  const handLengthMm = options.handLengthMm ?? TRUE_HAND_LENGTH_MM;
+  const scale = handLengthMm / TRUE_HAND_LENGTH_MM;
+  const heightsMm = options.heightsMm ?? landmarkHeightsMm(handLengthMm);
   const camera = buildSyntheticCamera({
     tiltDeg: options.tiltDeg ?? 20,
     distanceMm: options.distanceMm ?? 450,
@@ -113,7 +135,11 @@ export function syntheticShot(
     imageSize: { width: camera.widthPx, height: camera.heightPx },
     exifFocalPx: fPx,
     landmarksPx: HAND_MM.map((mm, i) =>
-      projectSheetMm(camera, mm, LANDMARK_HEIGHTS_MM[i]),
+      projectSheetMm(
+        camera,
+        { x: mm.x * scale, y: mm.y * scale },
+        heightsMm[i]!,
+      ),
     ),
     markerHomography,
     paperHomography: buildPaperHomography(corners, "a4"),
@@ -176,7 +202,7 @@ export function independentShot(
     imageSize: { width: rendered.width, height: rendered.height },
     exifFocalPx: camera.focalPx,
     landmarksPx: HAND_MM.map((mm, i) =>
-      camera.project(mm.x + cx, mm.y + cy, LANDMARK_HEIGHTS_MM[i]!),
+      camera.project(mm.x + cx, mm.y + cy, HAND_HEIGHTS_MM[i]!),
     ),
     markerHomography,
     paperHomography,

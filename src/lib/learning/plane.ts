@@ -27,10 +27,10 @@ import {
 } from "../../client/geometry/homography";
 import {
   computeCorrectedHandMeasurements,
+  correctLandmarksByHandLength,
   measurementsFromSheetMm,
 } from "../../client/geometry/measurements";
 import {
-  LANDMARK_HEIGHTS_MM,
   LANDMARK_HEIGHTS_MM_VERSION,
   correctLandmarks,
   resolveFocalPx,
@@ -39,6 +39,9 @@ import {
 } from "../../client/geometry/parallax";
 import type { HandMeasurements } from "../contracts/measurement";
 import { failureKind } from "./errorkind";
+
+/** The heights of a plane whose landmarks were not lifted off the sheet: 21 zeros. */
+const NO_HEIGHTS_MM: readonly number[] = Array<number>(21).fill(0);
 
 export type PlaneMethod = "markers" | "paper-edge" | "strip-markers";
 
@@ -57,7 +60,20 @@ export interface ParallaxRecord {
   readonly exifFocalPx: number | null;
   readonly principalPoint: { readonly cx: number; readonly cy: number };
   readonly imageSize: { readonly width: number; readonly height: number };
+  /**
+   * Which set of landmark heights the build that wrote this record used
+   * (`LANDMARK_HEIGHTS_MM_VERSION`). `recomputePlane` never reads it: it
+   * works from `heightsMm`, so a log written by an older build (v1: the same
+   * 21 millimetres for every photo) is worked out again from the heights it
+   * recorded, not from the current version's.
+   */
   readonly heightsVersion: string;
+  /**
+   * The 21 heights above the sheet, in mm, the landmarks were back-projected
+   * at. From v2 on they differ from photo to photo (a fixed ratio times that
+   * photo's own hand length). All 0 when `corrected` is false: the landmarks
+   * were then projected onto the sheet itself.
+   */
   readonly heightsMm: readonly number[];
   /**
    * Why the plane could not be turned into mm, when it could not: the error's
@@ -143,6 +159,7 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
   let parallax: ParallaxRecord | null = null;
   let points: Point2[] | null = null;
   let measurements: HandMeasurements | null = null;
+  let heightsMm: readonly number[] = NO_HEIGHTS_MM;
 
   if (!input.parallax) {
     if (landmarksPx) {
@@ -171,12 +188,15 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
             fPx: resolved.fPx,
             ...principalPoint,
           };
-          points = correctLandmarks(
+          // The same two-pass correction the product's blank-paper function
+          // makes, and the heights it used are the ones recorded below.
+          const result = correctLandmarksByHandLength(
             landmarksPx,
             homography,
             intrinsics,
-            LANDMARK_HEIGHTS_MM,
           );
+          points = result.points;
+          heightsMm = result.heightsMm;
           corrected = true;
         }
       } catch (err) {
@@ -192,7 +212,7 @@ export function buildPlane(input: PlaneInput): PlaneResult | null {
       principalPoint,
       imageSize: { width: imageSize.width, height: imageSize.height },
       heightsVersion: LANDMARK_HEIGHTS_MM_VERSION,
-      heightsMm: [...LANDMARK_HEIGHTS_MM],
+      heightsMm: [...heightsMm],
       error,
     };
     if (landmarksPx && points) {

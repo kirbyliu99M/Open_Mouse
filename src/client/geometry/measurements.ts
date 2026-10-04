@@ -18,6 +18,8 @@
  *    #16), following the focal policy documented on that function — EXIF
  *    focal length when available, else a well-conditioned homography-focal
  *    estimate, else no correction at all (never a silently-wrong one).
+ *    The heights scale with the photo's own hand length, which is itself
+ *    measured from corrected points: see `correctLandmarksByHandLength`.
  * Both funnel through `measurementsFromSheetMm`, so the arithmetic itself
  * only lives in one place.
  */
@@ -30,7 +32,8 @@ import { centrePrincipalPoint, type Intrinsics } from "./camera-pose";
 import { applyHomography, type Homography, type Point2 } from "./homography";
 import {
   correctLandmarks,
-  LANDMARK_HEIGHTS_MM,
+  landmarkHeightsMm,
+  REFERENCE_LANDMARK_HEIGHTS_MM,
   type FocalSource,
   resolveFocalPx,
 } from "./parallax";
@@ -86,6 +89,15 @@ function chainMm(
   return total;
 }
 
+function evaluateDefinition(
+  points: readonly Point2[],
+  { kind, indices }: ParsedDefinition,
+): number {
+  return kind === "distance"
+    ? distanceMm(points, indices[0], indices[1])
+    : chainMm(points, indices);
+}
+
 function assertLandmarkCount(landmarks: readonly Landmark[], fn: string): void {
   if (landmarks.length !== EXPECTED_LANDMARK_COUNT) {
     throw new RangeError(
@@ -106,13 +118,77 @@ export function measurementsFromSheetMm(
 ): HandMeasurements {
   const measurements: Record<string, number> = {};
   for (const [field, definition] of Object.entries(MEASUREMENT_DEFINITIONS)) {
-    const { kind, indices } = parseDefinition(field, definition);
-    measurements[field] =
-      kind === "distance"
-        ? distanceMm(points, indices[0], indices[1])
-        : chainMm(points, indices);
+    measurements[field] = evaluateDefinition(
+      points,
+      parseDefinition(field, definition),
+    );
   }
   return handMeasurementsSchema.parse(measurements);
+}
+
+/**
+ * The hand length the landmark heights are scaled to: exactly the contract's
+ * own `handLengthMm` definition (`MEASUREMENT_DEFINITIONS.handLengthMm`, today
+ * the straight distance from landmark 0, the wrist, to landmark 12, the middle
+ * fingertip, in sheet mm). It is read from the contract, not written out here,
+ * so the number the heights are scaled to is always the number reported as
+ * `handLengthMm`. Unlike `measurementsFromSheetMm` it does not check the
+ * result against the contract's ranges: it is an intermediate value.
+ */
+export function handLengthFromSheetMm(points: readonly Point2[]): number {
+  return evaluateDefinition(
+    points,
+    parseDefinition("handLengthMm", MEASUREMENT_DEFINITIONS.handLengthMm),
+  );
+}
+
+export interface HandLengthCorrection {
+  /** The 21 landmarks in sheet mm, back-projected at `heightsMm`. */
+  readonly points: Point2[];
+  /** The 21 heights the points were back-projected at (the second pass's). */
+  readonly heightsMm: number[];
+  /** The hand length the first pass measured (L₁), which `heightsMm` is scaled to. */
+  readonly handLengthMm: number;
+}
+
+/**
+ * Parallax-correct 21 landmarks with heights proportional to the hand's own
+ * length (landmark-heights-v2, parallax.ts). The length is not known until
+ * the landmarks are corrected, so it takes two passes:
+ *
+ *  1. back-project at the reference heights (a hand of 190 mm) and measure the
+ *     hand length L₁ from those points (`handLengthFromSheetMm`);
+ *  2. back-project again at `landmarkHeightsMm(L₁)`.
+ *
+ * Each pass shrinks the error in the hand length about thirtyfold, so two
+ * passes are enough: the first leaves a hand of 160 or 220 mm up to about
+ * 1 mm off, and a third pass would change the length by under 0.05 mm. The
+ * unit tests check that for hands of 160, 190 and 220 mm at 0 and 20 degrees
+ * of tilt, a camera 450 mm up (measurements-corrected.test.ts). The length
+ * is still only as good as the ratios: this makes the heights consistent
+ * with the length, it does not make them true.
+ *
+ * A first-pass length that cannot give heights (zero, from a degenerate
+ * input) throws the RangeError of `landmarkHeightsMm`.
+ */
+export function correctLandmarksByHandLength(
+  landmarksPx: readonly Point2[],
+  homography: Homography,
+  intrinsics: Intrinsics,
+): HandLengthCorrection {
+  const firstPass = correctLandmarks(
+    landmarksPx,
+    homography,
+    intrinsics,
+    REFERENCE_LANDMARK_HEIGHTS_MM,
+  );
+  const handLengthMm = handLengthFromSheetMm(firstPass);
+  const heightsMm = landmarkHeightsMm(handLengthMm);
+  return {
+    points: correctLandmarks(landmarksPx, homography, intrinsics, heightsMm),
+    heightsMm,
+    handLengthMm,
+  };
 }
 
 /**
@@ -137,7 +213,11 @@ export interface CorrectedMeasurementsOptions {
   /** The decoded bitmap's pixel dimensions, for the principal point (image centre) and as the intrinsics' implicit frame. */
   readonly widthPx: number;
   readonly heightPx: number;
-  /** Per-landmark heights above the sheet, mm. Defaults to `LANDMARK_HEIGHTS_MM`. */
+  /**
+   * Per-landmark heights above the sheet, mm. Overrides the product's own
+   * (`correctLandmarksByHandLength`: proportional to the hand length), and
+   * then no second pass is made.
+   */
   readonly heightsMm?: readonly number[];
 }
 
@@ -146,6 +226,8 @@ export interface CorrectedMeasurementsResult {
   /** False when neither EXIF nor a well-conditioned homography focal estimate was available — `measurements` is then the uncorrected path's result. */
   readonly parallaxCorrected: boolean;
   readonly focalSource: FocalSource;
+  /** The 21 heights the points were back-projected at; `null` when `parallaxCorrected` is false. */
+  readonly heightsMm: readonly number[] | null;
 }
 
 /**
@@ -183,19 +265,26 @@ export function computeCorrectedHandMeasurements(
       measurements: measurementsFromSheetMm(points),
       parallaxCorrected: false,
       focalSource: resolved.source,
+      heightsMm: null,
     };
   }
 
   const intrinsics: Intrinsics = { fPx: resolved.fPx, ...principalPoint };
-  const corrected = correctLandmarks(
-    landmarks,
-    homography,
-    intrinsics,
-    options.heightsMm ?? LANDMARK_HEIGHTS_MM,
-  );
+  const { points, heightsMm } = options.heightsMm
+    ? {
+        points: correctLandmarks(
+          landmarks,
+          homography,
+          intrinsics,
+          options.heightsMm,
+        ),
+        heightsMm: [...options.heightsMm],
+      }
+    : correctLandmarksByHandLength(landmarks, homography, intrinsics);
   return {
-    measurements: measurementsFromSheetMm(corrected),
+    measurements: measurementsFromSheetMm(points),
     parallaxCorrected: true,
     focalSource: resolved.source,
+    heightsMm,
   };
 }
