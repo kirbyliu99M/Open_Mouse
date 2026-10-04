@@ -294,7 +294,7 @@
 @media (min-width: 48rem) {
   /* The hero on a desktop or tablet, which gets shorter as the window does.
      At full size it is 29rem of logo slot, the headline, the subhead, the
-     buttons and the note: 700 px, plus the nav above it. A laptop window
+     buttons and the note: 674 px, plus the nav above it. A laptop window
      (1280x640, 1366x657) is shorter than that, and the stage switches on only
      when the hero fits in 100svh, so the hero scales down with the height
      instead of the rule being loosened.
