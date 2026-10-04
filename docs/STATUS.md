@@ -4,7 +4,7 @@
 Codex never edit it** (2026-09-30 — parallel branches kept colliding here). It is the single
 source of truth for where the project stands. Read it before starting any task.
 
-_Last updated: 2026-10-04 · by: Claude (#111, Home v3 PR B #112 and the audit #75 merged; no open work PRs)_
+_Last updated: 2026-10-04 · by: Claude (#111, Home v3 PR B #112 and the audit #75 merged; #1 and #62 closed; branch clean-up; sign-in moves to username + password; #52 in progress)_
 
 ---
 
@@ -17,6 +17,8 @@ _Last updated: 2026-10-04 · by: Claude (#111, Home v3 PR B #112 and the audit #
 - Taiwan launches first, with zh-TW as the default language.
 
 The reasons for each call are in the 2026-09-30 decisions below.
+
+**Where progress is tracked (Kirby, 2026-10-04):** the remaining problems are scheduled in the PRD's schedule section (in Kirby's and Claude's workspace, not in this repo), and the PRD and this file are updated together after each merge or decision. The PRD's schedule dates are candidates (未拍板).
 
 **Work codes** used below come from the 2026-09-30 plan (kept in Kirby's and Claude's workspace, not in this repo):
 
@@ -100,9 +102,13 @@ The reasons for each call are in the 2026-09-30 decisions below.
 - **#111 (follow-ups):** print in dark text on white for the results, home, How it works, account, 404 and error pages (dialogs are not printed), each pinned by a contrast test; NOTICE points `@google/genai`, `drizzle-orm` and `@mediapipe/tasks-vision` to the Apache 2.0 text (for `drizzle-orm` the upstream licence file is marked Unconfirmed, NOTICE 3.4); measurements keep their unit on the same line (U+00A0; hard rule 2's numeral check normalises it first); `docs/PLAN.md` and AGENTS.md hard rule 4 now follow prereg v2 for M2 (no pass/fail gate; M1 and M4 keep theirs).
 - **#112 (Home v3 PR B):** the particle stage: pure pairing, interpolation and timeline functions with unit tests; one Canvas 2D loop with pre-rendered particle and halo sprites, DPR capped at 2, a candidate budget of 900 particles below 48rem and 1,300 from 48rem up (1,299 drawn; halved with four cores or fewer), no idle loop, paused off screen; a one-time shimmer under 3 s (WCAG 2.2.2); the logo handoff never shows two logos; the hero's controls become inert as it fades, and focus moves to the h1 if one of them held it; the switch causes no layout shift. A `pr-review` run found no blocker or major. Frame time was measured only in Chromium with 4× CPU throttling, not on a phone. The stage's draw callback took a mean of 3.7 ms and a p95 of 5.9 ms on mobile emulation. The whole main-thread time per frame was 7.8 ms (GPU) to 19.6 ms (headless, software canvas) on mobile, and 11.0 to 16.3 ms on desktop. The target of about 8 ms of main-thread time stays candidate until it is measured on a real phone. The other open points are in #112's description, items 1 to 14.
 - **#75 (audit, 2026-09-29):** merged as a snapshot of `main` at `5ffbdaa`, with a note pointing to `docs/STATUS.md` for the project's open items.
+- **Housekeeping (Kirby, 2026-10-04):** #1 (M0 merged in #3) and #62 (`hand` is in `fitResponseSchema` and the results page reads it) are closed as done. Branch clean-up: 13 merged remote branches deleted (`ci-e2e-timeout`, `docs-home-v3-spec`, `docs-status-2026-10-03`, `docs-status-2026-10-04`, `docs-status-2026-10-04b`, `followups-2026-10-04`, `g4-scoring-logic`, `g5a-ops`, `g6-governance-static-perf`, `home-v3-a`, `home-v3-b`, `s3-audit-p1`, `s4-scan-v2`), 7 merged worktrees removed, and 27 local branches that were already in `main` deleted. Kept: `audit-uiux-2026-09-29` (a worktree still uses it), `home-v3-short-desktop` (#114) and `s5-session-claim` (#52). The deleted tips are saved outside the repo, so a branch can be restored with `git push origin <sha>:refs/heads/<name>`.
 
 **Open work:**
 
+- **Sign-in direction (Kirby, 2026-10-04):** Google OAuth is paused; sign-in becomes username + password, and a user may enter an email as a backup. What the email is for (an emailed reset link, or stored only) is **not decided (未拍板)**. Auth.js's Credentials provider needs JWT sessions, so `src/auth.ts` (database sessions today) must be rewritten, and the username and password hash need a migration. The Google code is not removed yet. A spec comes first; the work starts after #52 merges, because both touch `src/auth.ts`.
+- **#52 (in progress):** a builder is working on it on branch `s5-session-claim` (the submit session depends on who submits, plus the two related gaps from the issue's comments). Review and CI come before any merge. #17 stays open until a real sign-in has been driven in a browser, reload included.
+- **#114 (Home v3, short laptop windows):** open and marked ready; it makes desktop windows shorter than the hero animate too. Not merged: its review and CI result are not recorded here yet.
 - A branch created before #78 still carries the old `ci.yml`, and a `push` event uses the pushed commit's file. **Merge `main` into such a branch before pushing to it.**
 - **Copy review (2026-10-02)** — closed. Kirby decided its three directions on 2026-10-03 and approved the remaining strings as they ship (#69 and #74 after the fact, the #86 results-page strings), to be adjusted later (see the decisions log).
 - **Front flare and side curvature** — still unclassified. GD-2 redesigned both and ran once more, in-sample on the same 28 rows (flare 75.0 % coarse / 92.9 % within-one, curvature 60.7 % / 89.3 %: both fail). One authorised run is left; Claude recommends not using it on the same rows.
@@ -151,7 +157,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 - Backup scheduler (deferred with the privacy policy)
 - Neon PITR retention
 - Keep or remove the legacy `/scan` flow
-- GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection (off as of 2026-09-30). Private vulnerability reporting is on (2026-10-02).
+- GitHub settings now that #78 is in: branch protection on `main` with required check `checks`; Dependabot security updates; secret scanning; push protection (off as of 2026-09-30; still off on 2026-10-04: `main` has no branch protection, and secret scanning, push protection and Dependabot alerts and security updates are disabled; the repository is public). Private vulnerability reporting is on (2026-10-02).
 - Phone test of #77 (right and left hand)
 - #89: spot-check the ⚠ models before G9b; and whether `formFactor` "standard" stays null (33 models) or G9b derives it
 - The typed-length input range, 135–265 mm (candidate)
@@ -163,7 +169,7 @@ On 2026-09-29, jobs were refused from 11:49Z with "recent account payments have 
 
 **Queued:**
 
-- #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch.
+- #52: a submit after sign-out joins the previous user's claimed session. It blocks enabling sign-in, not the anonymous launch. A builder is on it (see Open work).
 - Dark mode: the results page's "Why this one" card keeps a white background (`.results-analysis` in `results.css`) while its text turns light, so the analysis is unreadable. Recorded by #69's audit and again by G2 (#82). Fixed by #92 (merged 2026-10-03): a dark `.results-analysis` background (the only theme since #109).
 - M1: GD-1 has its result. Hump placement passed and is seeded (#101); front flare and side curvature failed (two runs) and stay unclassified.
 - `security-review` workflow, after U1 (G6 merged as #84 on 2026-10-03).
@@ -211,7 +217,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 2. ~~Gemini API key~~ — added 2026-09-23
 3. ~~A decision on the photo-derived shell textures~~ — decided 2026-09-27: publish
 4. ~~Production DB variables back to Sensitive~~. Decided 2026-09-25: they stay non-Sensitive (accepted risk; see Decisions log).
-5. Google OAuth credentials → sign-in. _Optional for launch: the anonymous flow works without it._
+5. ~~Google OAuth credentials~~ — paused 2026-10-04: sign-in becomes username + password (see Open work). _Optional for launch: the anonymous flow works without it._
 6. Final acceptance on a real phone
 
 ### Other open items
@@ -231,7 +237,7 @@ A real user, on their own phone, can print the sheet, photograph their hand and 
 | M3  | Fit engine                         | –                                 | ✅ merged      | #12 #21 #22                                            | coefficients provisional (`fit-v0-provisional`) until owner ratings in W8                                                    |
 | M4  | 3D simulation (Blender + three.js) | ✅                                | ✅ merged      | #26                                                    | assets on `main` 2026-10-02 (#73 folded into #26); M4b viewer optional                                                       |
 | M5  | Gemini analysis                    | –                                 | ✅ merged      | #20                                                    | live since 2026-09-23; zh-TW numerals and provisional check merged (#86, 2026-10-03)                                         |
-| M6  | Sessions, auth, privacy            | –                                 | ✅ merged      | #24                                                    | sign-in not enabled in production; fix #52 before enabling                                                                   |
+| M6  | Sessions, auth, privacy            | –                                 | ✅ merged      | #24                                                    | sign-in not enabled in production; Google paused, username + password next (Kirby, 2026-10-04); fix #52 first                |
 | M7  | Polish + security review           | –                                 | 🏗 in progress  | –                                                      | UI lane and system lane; `security-review` after U1 (G6 merged as #84)                                                       |
 
 Status key: 🔜 ready · 🏗 in progress · 🔍 in review · ✅ merged · ⛔ gate failed · ⬜ not started
@@ -387,6 +393,10 @@ Append; don't rewrite. Each entry: what, why, when.
 | 2026-10-03 | **No photo-privacy line on the home page**; a separate privacy-rights statement page comes later (candidate). This settles the item the #106 spec left undecided; #107 updates the spec                                                                                                                                                                                                                                                                           | Kirby. The promise stays on How it works, the scan screens and the camera                                                                                                                                                                                                                                         |
 | 2026-10-03 | **Copy-review directions:** no "verified against a ruler" or ±2 mm wording; "expire", not "deleted"; no "(未拍板)" in the public README                                                                                                                                                                                                                                                                                                                           | Kirby, choosing Claude's recommendation on each                                                                                                                                                                                                                                                                   |
 | 2026-10-03 | **The remaining copy ships as is**: the #69 and #74 strings merged earlier, and the #86 results-page strings (`weight_in_range`, `thumb_rest_missing`)                                                                                                                                                                                                                                                                                                            | Kirby: "文案可以先上，我們後續再調整". Wording can still change later                                                                                                                                                                                                                                             |
+| 2026-10-04 | **Sign-in becomes username + password; Google OAuth is paused.** A user may enter an email as a backup; what the email is for (an emailed reset link, or stored only) is candidate (未拍板)                                                                                                                                                                                                                                                                       | Kirby: "Google OAuth 先暫停，我們單純以使用者帳號密碼登入即可；備援可以讓用戶填入電郵". Auth.js's Credentials provider needs JWT sessions                                                                                                                                                                         |
+| 2026-10-04 | **#1 and #62 closed as done; #17 and #52 are fixed together**                                                                                                                                                                                                                                                                                                                                                                                                     | Kirby. #17 stays open until a real sign-in has been driven in a browser, reload included                                                                                                                                                                                                                          |
+| 2026-10-04 | **The remaining problems are scheduled in the PRD, and the PRD and this file are updated together**                                                                                                                                                                                                                                                                                                                                                               | Kirby: "PRD & Status md 同步更新". The PRD's schedule dates are candidates                                                                                                                                                                                                                                        |
+| 2026-10-04 | **Merged remote branches and old worktrees deleted** (13 remote branches, 7 worktrees, 27 local branches)                                                                                                                                                                                                                                                                                                                                                         | Kirby: "可以清理舊分支&worktree了". Branches still in use were kept (see Housekeeping above)                                                                                                                                                                                                                      |
 
 ---
 
