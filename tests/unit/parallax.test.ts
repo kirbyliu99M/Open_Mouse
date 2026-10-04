@@ -6,8 +6,8 @@ import {
   type PointCorrespondence,
 } from "../../src/client/geometry/homography";
 import {
-  LANDMARK_HEIGHTS_MM,
   correctLandmarks,
+  landmarkHeightsMm,
 } from "../../src/client/geometry/parallax";
 import {
   SHEET_MM_MARKER_CORNERS,
@@ -22,8 +22,8 @@ const TILT_DEG = 20;
 
 // A synthetic hand, laid out directly in sheet mm (same shape as
 // measurements.test.ts's fixture: index finger deliberately curled),
-// paired with LANDMARK_HEIGHTS_MM so each joint sits at its provisional
-// real-world height above the sheet, not on the sheet plane.
+// paired with the v2 heights for a hand of its own length, so each joint sits
+// at its estimated real-world height above the sheet, not on the sheet plane.
 const MM_LANDMARKS: readonly Point2[] = [
   { x: 100, y: 0 }, // 0 wrist
   { x: 85, y: 20 }, // 1 thumb CMC
@@ -53,6 +53,7 @@ function dist(a: Point2, b: Point2): number {
 }
 
 const TRUE_HAND_LENGTH_MM = dist(MM_LANDMARKS[0], MM_LANDMARKS[12]);
+const HEIGHTS_MM = landmarkHeightsMm(TRUE_HAND_LENGTH_MM);
 
 function buildCameraAndHomography(camera: SyntheticCamera) {
   const correspondences: PointCorrespondence[] = SHEET_MM_MARKER_CORNERS.map(
@@ -62,9 +63,7 @@ function buildCameraAndHomography(camera: SyntheticCamera) {
 }
 
 function projectLandmarks(camera: SyntheticCamera): Point2[] {
-  return MM_LANDMARKS.map((mm, i) =>
-    projectSheetMm(camera, mm, LANDMARK_HEIGHTS_MM[i]),
-  );
+  return MM_LANDMARKS.map((mm, i) => projectSheetMm(camera, mm, HEIGHTS_MM[i]));
 }
 
 // Deterministic PRNG (mulberry32) + Box-Muller, matching
@@ -120,7 +119,12 @@ describe("correctLandmarks", () => {
     // "EXIF-focal path": the caller already knows fPx exactly (as if read
     // from EXIF), so intrinsics are exact and only H comes from marker
     // detection.
-    const corrected = correctLandmarks(landmarksPx, h, camera.intrinsics);
+    const corrected = correctLandmarks(
+      landmarksPx,
+      h,
+      camera.intrinsics,
+      HEIGHTS_MM,
+    );
 
     for (let i = 0; i < MM_LANDMARKS.length; i++) {
       expect(corrected[i].x).toBeCloseTo(MM_LANDMARKS[i].x, 1); // 1 dp ~ 0.05mm resolution
@@ -136,7 +140,12 @@ describe("correctLandmarks", () => {
         const camera = buildSyntheticCamera({ tiltDeg, distanceMm, fPx: F_PX });
         const h = buildCameraAndHomography(camera);
         const landmarksPx = projectLandmarks(camera);
-        const corrected = correctLandmarks(landmarksPx, h, camera.intrinsics);
+        const corrected = correctLandmarks(
+          landmarksPx,
+          h,
+          camera.intrinsics,
+          HEIGHTS_MM,
+        );
         const correctedLength = dist(corrected[0], corrected[12]);
         expect(Math.abs(correctedLength - TRUE_HAND_LENGTH_MM)).toBeLessThan(
           0.3,
@@ -174,6 +183,7 @@ describe("correctLandmarks", () => {
       noisyLandmarksPx,
       noisyH,
       camera.intrinsics,
+      HEIGHTS_MM,
     );
     const correctedLength = dist(corrected[0], corrected[12]);
     expect(Math.abs(correctedLength - TRUE_HAND_LENGTH_MM)).toBeLessThan(1);

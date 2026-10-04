@@ -9,6 +9,7 @@
  * focal lengths, parallax and noise, are in learning-m2-scenes.test.ts.)
  */
 import type { Point2 } from "../../../src/client/geometry/homography";
+import { LANDMARK_HEIGHTS_MM_VERSION } from "../../../src/client/geometry/parallax";
 import type { PlaneCalibration } from "../../../src/lib/learning/plane";
 import type {
   GateRecord,
@@ -58,7 +59,9 @@ export function identityPlane(
       exifFocalPx: null,
       principalPoint: { cx: 0, cy: 0 },
       imageSize: { width: 1, height: 1 },
-      heightsVersion: "landmark-heights-v1",
+      // As `buildPlane` records an uncorrected plane: the current version and
+      // 21 zero heights (nothing was lifted off the sheet).
+      heightsVersion: LANDMARK_HEIGHTS_MM_VERSION,
       heightsMm: Array<number>(21).fill(0),
       error: null,
     },

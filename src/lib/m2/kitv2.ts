@@ -286,7 +286,7 @@ export interface SelectionSummary {
 export interface KitV2Report {
   readonly format: typeof KIT_V2_EVALUATION_FORMAT;
   readonly protocol: typeof PROTOCOL_AGREED_V2;
-  /** The measurement model judged (`landmark-raw-v1` for the baseline). */
+  /** The measurement model judged (the current `MEASUREMENT_MODEL_VERSION` for the baseline: `landmark-raw-v2` since 2026-10-04). */
   readonly model: string;
   readonly createdAt: string;
   /** Things the reader must not miss (a held-out run is meant to happen once). */

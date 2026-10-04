@@ -25,6 +25,7 @@ import { buildRunLog, sortReports } from "../../src/lib/learning/runlog";
 import { evaluate, type EvaluationReport } from "../../src/lib/m2/evaluate";
 import { slateReport } from "./helpers/m2-synth";
 import {
+  HAND_HEIGHTS_MM,
   HAND_MM,
   INDEPENDENT_SCENE,
   TRUE_HAND_LENGTH_MM,
@@ -32,7 +33,6 @@ import {
   independentShot,
 } from "./helpers/learning-scene";
 import { independentSceneCamera } from "./helpers/independent-scene";
-import { LANDMARK_HEIGHTS_MM } from "../../src/client/geometry/parallax";
 import { truthOf } from "./helpers/m2-synth";
 
 const code = (hand: "left" | "right"): KitCode => ({
@@ -76,7 +76,7 @@ function photo(
     camera.project(
       mm.x + cx + (v.handOffsetMm ?? 0),
       mm.y + cy,
-      LANDMARK_HEIGHTS_MM[i]!,
+      HAND_HEIGHTS_MM[i]!,
     ),
   );
   const markers: DetectedMarker[] = flatMarkerDetections(scene);
