@@ -255,6 +255,172 @@ test.describe("the animated layout", () => {
     expect(leftovers).toEqual({ style: "", inert: 0 });
   });
 
+  test.describe("the keyboard", () => {
+    /** What has the focus: where it is, whether it shows a ring, and whether it is on screen. */
+    const focused = (page: import("@playwright/test").Page) =>
+      page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el) return null;
+        const style = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        return {
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent ?? "").trim().slice(0, 40),
+          inHero: el.closest('[data-testid="home-hero"]') !== null,
+          inFinal: el.closest('[data-testid="home-final"]') !== null,
+          tabindex: el.getAttribute("tabindex"),
+          inert: el.closest("[inert]") !== null,
+          focusVisible: el.matches(":focus-visible"),
+          outline: {
+            style: style.outlineStyle,
+            width: style.outlineWidth,
+            colour: style.outlineColor,
+          },
+          onScreen:
+            box.top >= 0 &&
+            box.bottom <= window.innerHeight &&
+            box.left >= 0 &&
+            box.right <= window.innerWidth,
+          hit: (() => {
+            const hit = document.elementFromPoint(
+              box.x + box.width / 2,
+              box.y + box.height / 2,
+            );
+            return hit === el || el.contains(hit);
+          })(),
+        };
+      });
+    /** Put the focus on the nav's menu button without scrolling: the last tab stop before the hero. */
+    const focusMenuButton = (page: import("@playwright/test").Page) =>
+      page.evaluate(() => {
+        const menu = document.querySelector<HTMLElement>(
+          'button[aria-label="Open menu"], .navMenuTrigger',
+        )!;
+        menu.focus({ preventScroll: true });
+      });
+
+    test("at p = 0, Tab from the top of the page reaches the hero's two links, and each shows the focus ring", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForAnimated(page);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(page.locator(STORY)).toHaveAttribute(
+        "data-progress",
+        "0.000",
+      );
+      const stops: Awaited<ReturnType<typeof focused>>[] = [];
+      for (
+        let i = 0;
+        i < 6 && stops.filter((s) => s?.inHero).length < 2;
+        i += 1
+      ) {
+        await page.keyboard.press("Tab");
+        stops.push(await focused(page));
+      }
+      const hero = stops.filter((s) => s?.inHero);
+      expect(hero.map((s) => s!.text)).toEqual([
+        "Scan my hand",
+        "How it works",
+      ]);
+      for (const stop of hero) {
+        expect(stop!.inert).toBe(false);
+        expect(stop!.focusVisible).toBe(true);
+        // The ring is the accent text colour, 2 px, and nothing covers the link.
+        expect(stop!.outline).toEqual({
+          style: "solid",
+          width: "2px",
+          colour: "rgb(127, 168, 255)",
+        });
+        expect(stop!.onScreen).toBe(true);
+        expect(stop!.hit).toBe(true);
+      }
+    });
+
+    test("at p = 0.5, Tab and Shift+Tab skip the hero's links", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForAnimated(page);
+      await scrollToProgress(page, 0.5);
+      // Forward: from the menu button (above the hero) the next tab stop is
+      // the final section's button, not the hero's.
+      await focusMenuButton(page);
+      await page.keyboard.press("Tab");
+      let stop = await focused(page);
+      expect(stop).toMatchObject({
+        inHero: false,
+        inFinal: true,
+        text: "Scan my hand",
+      });
+      // Backward: from the final section the previous stop is the menu button.
+      await scrollToProgress(page, 1);
+      await page.evaluate(() =>
+        document
+          .querySelector<HTMLElement>('[data-testid="home-final"] a')!
+          .focus({ preventScroll: true }),
+      );
+      await page.keyboard.press("Shift+Tab");
+      stop = await focused(page);
+      expect(stop).toMatchObject({ inHero: false, tag: "button" });
+    });
+
+    test("scrolling down while a hero link has the focus moves the focus to the h1, not to the body; scrolling back does not take it back, and Tab reaches the links again", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForAnimated(page);
+      await scrollToProgress(page, 0);
+      await page
+        .locator(HERO)
+        .getByRole("link", { name: "How it works" })
+        .focus();
+      expect((await focused(page))?.text).toBe("How it works");
+      // Down: the links turn inert, and the focus lands on the h1.
+      await scrollToProgress(page, 0.5);
+      const heading = await focused(page);
+      expect(heading).toMatchObject({
+        tag: "h1",
+        text: "Find the mouse that fits.",
+        tabindex: "-1",
+        inert: false,
+      });
+      // Not a tab stop: Tab from here goes on, and never to a hero link.
+      await page.keyboard.press("Tab");
+      expect((await focused(page))?.inHero).toBe(false);
+      // Back up: the links work again, the focus stays where it is (the h1 or
+      // wherever Tab took it), and Tab from the menu button reaches the links.
+      await scrollToProgress(page, 0);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(page.locator(STORY)).toHaveAttribute(
+        "data-progress",
+        "0.000",
+      );
+      await expect(page.locator(HERO).getByRole("link")).toHaveCount(2);
+      expect(await page.locator(HERO).locator("a[inert]").count()).toBe(0);
+      await focusMenuButton(page);
+      await page.keyboard.press("Tab");
+      expect(await focused(page)).toMatchObject({
+        inHero: true,
+        text: "Scan my hand",
+        focusVisible: true,
+      });
+    });
+
+    test("with nothing focused, scrolling down leaves the focus where it was: on the body", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForAnimated(page);
+      await page.evaluate(() =>
+        (document.activeElement as HTMLElement)?.blur(),
+      );
+      await scrollToProgress(page, 0.5);
+      expect((await focused(page))?.tag).toBe("body");
+      expect(await page.locator("h1").getAttribute("tabindex")).toBeNull();
+    });
+  });
+
   test("the canvas is decorative: aria-hidden, under the hero, and it takes no clicks", async ({
     page,
   }) => {
