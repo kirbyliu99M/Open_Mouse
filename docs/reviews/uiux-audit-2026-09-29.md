@@ -14,6 +14,12 @@ notice already exists in two places) and finding 5 (six of the seven demo
 routes were already guarded at the audit's own commit, and the seventh is now).
 The rest of the audit is unchanged.
 
+**Status, 2026-10-04.** This is a snapshot of `main` at `5ffbdaa`; it is not
+updated as findings are fixed. Later PRs addressed several of them, for example
+#77 (finding 0, the hand detected reversed) and #74 (finding 1, re-scans now go
+to `/scan/easy`), and the site has since moved to one dark theme (#109).
+`docs/STATUS.md` tracks what is still open.
+
 **Lenses.** The audit uses three lenses, and each finding is tagged with the
 ones that apply:
 
