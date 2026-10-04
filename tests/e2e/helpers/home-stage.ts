@@ -218,3 +218,74 @@ export async function layoutFacts(page: Page) {
     };
   });
 }
+
+/**
+ * How far the canvas's logo is from the static logo's drawing, in CSS px: the
+ * bounding box of the opaque pixels of the SVG (drawn at the `<img>`'s own rect)
+ * against the bounding box of the canvas's pixels over that same rect. The
+ * canvas draws the logo where the image is (it reads the image's rect, never a
+ * fixed size), so each of the four edges is within a pixel or two: sampling
+ * puts a particle just inside the stroke. A canvas that drew the logo at a
+ * stale or hard-coded place or size would be off by tens of px.
+ */
+export async function logoInk(page: Page) {
+  return page.evaluate(() => {
+    const img = document.querySelector<HTMLImageElement>(".story-logo img")!;
+    const canvas = document.querySelector<HTMLCanvasElement>(".story-canvas")!;
+    const rect = img.getBoundingClientRect();
+    const box = canvas.getBoundingClientRect();
+    const scale = canvas.width / box.width;
+    type Bounds = { x0: number; y0: number; x1: number; y1: number };
+    const bounds = (
+      data: Uint8ClampedArray,
+      width: number,
+      height: number,
+      minAlpha: number,
+    ): Bounds => {
+      const out = { x0: width, y0: height, x1: -1, y1: -1 };
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          if ((data[(y * width + x) * 4 + 3] ?? 0) < minAlpha) continue;
+          out.x0 = Math.min(out.x0, x);
+          out.x1 = Math.max(out.x1, x);
+          out.y0 = Math.min(out.y0, y);
+          out.y1 = Math.max(out.y1, y);
+        }
+      }
+      return out;
+    };
+
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    const reference = document.createElement("canvas");
+    reference.width = width;
+    reference.height = height;
+    const referenceContext = reference.getContext("2d")!;
+    referenceContext.drawImage(img, 0, 0, width, height);
+    const want = bounds(
+      referenceContext.getImageData(0, 0, width, height).data,
+      width,
+      height,
+      100,
+    );
+
+    const left = Math.round((rect.left - box.left) * scale);
+    const top = Math.round((rect.top - box.top) * scale);
+    const w = Math.round(rect.width * scale);
+    const h = Math.round(rect.height * scale);
+    const drawn = canvas.getContext("2d")!.getImageData(left, top, w, h);
+    // An alpha of 120 keeps the glow's faint halo out and the dotted ruler in.
+    const got = bounds(drawn.data, w, h, 120);
+    const edges = {
+      left: got.x0 / scale - want.x0,
+      top: got.y0 / scale - want.y0,
+      right: got.x1 / scale - want.x1,
+      bottom: got.y1 / scale - want.y1,
+    };
+    return {
+      edges,
+      worst: Math.max(...Object.values(edges).map((d) => Math.abs(d))),
+      empty: got.x1 < 0 || want.x1 < 0,
+    };
+  });
+}
