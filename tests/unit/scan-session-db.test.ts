@@ -190,3 +190,101 @@ describe("claimSession then findValidSession on real Postgres", () => {
     expect(await repo.findValidSession(id, stranger, NOW)).toBeNull();
   });
 });
+
+describe("claimSession on real Postgres (the guard in its single UPDATE)", () => {
+  it("never takes a session someone else already claimed", async () => {
+    const owner = await user();
+    const attacker = await user();
+    const claimedNoExpiry = randomUUID();
+    const claimedFutureExpiry = randomUUID();
+    await world.addSession({
+      id: claimedNoExpiry,
+      userId: owner,
+      expiresAt: null,
+    });
+    await world.addSession({
+      id: claimedFutureExpiry,
+      userId: owner,
+      expiresAt: LIVE,
+    });
+
+    await repo.claimSession(claimedNoExpiry, attacker, NOW);
+    await repo.claimSession(claimedFutureExpiry, attacker, NOW);
+
+    expect(await world.getSession(claimedNoExpiry)).toEqual({
+      id: claimedNoExpiry,
+      userId: owner,
+      expiresAt: null,
+    });
+    // Untouched means untouched: the stored expiry is not cleared either.
+    expect(await world.getSession(claimedFutureExpiry)).toEqual({
+      id: claimedFutureExpiry,
+      userId: owner,
+      expiresAt: LIVE,
+    });
+  });
+
+  it("never revives an expired anonymous session (it stays anonymous and expired, not claimed and immortal)", async () => {
+    const claimer = await user();
+    const expired = randomUUID();
+    const expiringNow = randomUUID();
+    await world.addSession({ id: expired, userId: null, expiresAt: PAST });
+    await world.addSession({ id: expiringNow, userId: null, expiresAt: NOW });
+
+    await repo.claimSession(expired, claimer, NOW);
+    await repo.claimSession(expiringNow, claimer, NOW);
+
+    expect(await world.getSession(expired)).toEqual({
+      id: expired,
+      userId: null,
+      expiresAt: PAST,
+    });
+    expect(await world.getSession(expiringNow)).toEqual({
+      id: expiringNow,
+      userId: null,
+      expiresAt: NOW,
+    });
+  });
+
+  it("claims an unexpired anonymous session for the caller and clears its expiry", async () => {
+    const claimer = await user();
+    const id = randomUUID();
+    await world.addSession({ id, userId: null, expiresAt: LIVE });
+
+    await repo.claimSession(id, claimer, NOW);
+
+    expect(await world.getSession(id)).toEqual({
+      id,
+      userId: claimer,
+      expiresAt: null,
+    });
+  });
+
+  it("is idempotent for the same user, and still not reassignable afterwards", async () => {
+    const owner = await user();
+    const other = await user();
+    const id = randomUUID();
+    await world.addSession({ id, userId: null, expiresAt: LIVE });
+
+    await repo.claimSession(id, owner, NOW);
+    await repo.claimSession(id, owner, NOW);
+    expect(await world.getSession(id)).toEqual({
+      id,
+      userId: owner,
+      expiresAt: null,
+    });
+
+    await repo.claimSession(id, other, NOW);
+    expect(await world.getSession(id)).toEqual({
+      id,
+      userId: owner,
+      expiresAt: null,
+    });
+  });
+
+  it("an unknown id is a no-op: no row is created", async () => {
+    const before = await world.sessionCount();
+    await repo.claimSession(randomUUID(), await user(), NOW);
+    expect(await world.sessionCount()).toBe(before);
+  });
+});
