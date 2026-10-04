@@ -811,7 +811,9 @@ A JSON report (`open-mouse-m2-evaluation/1`) and a Markdown summary. They hold
 totals, the anonymous participant codes (`P007`), and photo ids like
 `P007/G01R/3` (participant, pose and hand as printed, shot). They hold **no file
 name, folder, account name, EXIF or landmark**; a test searches both for them.
-The model judged is named (`landmark-raw-v1` for the baseline); a correction
+The model judged is named (`landmark-raw-v2` for the baseline since 2026-10-04,
+`landmark-raw-v1` before; the heights a replay uses still come from each run
+log's `heightsMm`); a correction
 such as the frozen `calibrated-v1` plugs in as `calibration` in
 `EvaluateOptions` and is applied after the recompute, so both models are judged
 by the same code.
@@ -1041,7 +1043,9 @@ A JSON report (`open-mouse-m2-evaluation/2`) and a Markdown summary. They hold
 totals, the anonymous participant codes (`P007`), and photo ids like
 `P007/G01R/3` (participant, pose and hand as printed, shot). They hold **no file
 name, folder, account name, EXIF or landmark**; a test searches both for them.
-The model judged is named (`landmark-raw-v1` for the baseline); a correction
+The model judged is named (`landmark-raw-v2` for the baseline since 2026-10-04,
+`landmark-raw-v1` before; the heights a replay uses still come from each run
+log's `heightsMm`); a correction
 such as the frozen `calibrated-v1` plugs in as `calibration` in
 `EvaluateOptions` and is applied after the recompute, so both models are judged
 by the same code.

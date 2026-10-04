@@ -90,7 +90,7 @@ describe("m2-evaluate script", () => {
     const out = join(scratch, "reports", "baseline.json");
     const result = evaluator(["--log", runs, "--truth", truth, "--out", out]);
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(/# M2 evaluation: landmark-raw-v1/);
+    expect(result.stdout).toMatch(/# M2 evaluation: landmark-raw-v2/);
     expect(result.stdout).toMatch(/未拍板/);
     // The numbers worked out by hand in m2-evaluate.test.ts: bias -1.00, MAE 1.40.
     expect(result.stdout).toMatch(

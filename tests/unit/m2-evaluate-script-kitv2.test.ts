@@ -171,7 +171,7 @@ describe("m2-evaluate script, kit v2 (agreed-v2)", () => {
     ]);
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(
-      /^# M2 evaluation \(agreed-v2\): landmark-raw-v1/,
+      /^# M2 evaluation \(agreed-v2\): landmark-raw-v2/,
     );
     expect(result.stdout).toMatch(/Dormant: no ruler truth/);
     expect(result.stdout).toMatch(/Poses \(field tables\): G02\./);
