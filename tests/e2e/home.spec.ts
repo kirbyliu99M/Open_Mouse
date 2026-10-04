@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { contrast } from "./fixtures/contrast";
 
+// These tests pin the static layout (Home v3 PR A): the story as a stack of
+// ordinary blocks. That layout is also what reduced motion keeps, so they run
+// under it, and cannot race the particle stage switching the page to its
+// animated layout mid-test. The animated layout, and the fallbacks to this
+// one, are in home-stage.spec.ts.
+test.use({ reducedMotion: "reduce" });
+
 const CAPTION = "G Pro X Superlight 2 · sketch";
 const PREVIEW_NOTE = "Early preview — measurements are still being validated.";
 

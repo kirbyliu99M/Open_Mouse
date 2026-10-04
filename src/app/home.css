@@ -85,7 +85,8 @@
 }
 
 .home-main a:focus-visible,
-.home-main button:focus-visible {
+.home-main button:focus-visible,
+.home-main h1[tabindex="-1"]:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
@@ -323,6 +324,98 @@
   }
   .landing-footer {
     text-align: center;
+  }
+}
+
+/* ── Home: the animated layout (PR B) ────────────────────────────────────
+   Everything below applies only while the particle module has loaded, drawn
+   its first frame and added `story--animated` to the section (see
+   src/components/home/particle-stage.ts). Without it, which is what no JS,
+   reduced motion, a short or small viewport, or a module that failed to load
+   all get, the section is PR A's static stack and none of this exists: the
+   canvas is not displayed and the section has no extra height.
+
+   The hero sits in the same place in both layouts (it is the panel's first
+   child, and nothing here moves it), so switching shifts nothing in view. */
+.story-canvas {
+  display: none;
+}
+
+.story--animated {
+  /* About 400 svh, to be tuned: the panel is pinned for the last 300 svh, and
+     p is 0 when it pins and 1 when the section's bottom reaches the panel's. */
+  height: 400vh;
+  height: 400svh;
+}
+.story--animated .story-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+}
+/* The canvas is a decorative layer under the hero and the captions: it takes
+   no pointer events, so every button stays clickable. */
+.story--animated .story-canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.story--animated .story-hero {
+  position: relative;
+  z-index: 1;
+  will-change: opacity, transform;
+}
+/* The static hand and mice are hidden: the canvas draws those states. They
+   keep their boxes, which is how the canvas knows where to draw. */
+.story--animated .story-hand {
+  --hand-max: 26rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: min(100%, var(--hand-max), calc(86svh * 411 / 507));
+  margin: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.story--animated .story-hand img {
+  visibility: hidden;
+}
+/* The A4 outline stays a CSS border (it follows --hairline); the stage fades it. */
+.story--animated .story-hand-sheet {
+  opacity: 0;
+}
+.story--animated .story-mice {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  align-content: center;
+  gap: clamp(1rem, 4svh, 2rem);
+  margin: 0;
+  pointer-events: none;
+}
+.story--animated .story-mouse img {
+  visibility: hidden;
+  /* Three stacked mice and their captions must fit the panel. */
+  max-width: min(21rem, calc(((100svh - 5rem) / 3 - 3rem) * 2.105));
+}
+.story--animated .story-mouse figcaption {
+  opacity: 0;
+}
+
+@media (min-width: 48rem) {
+  .story--animated .story-hand {
+    --hand-max: 38rem;
+  }
+  .story--animated .story-mice {
+    gap: 2.5rem;
+  }
+  .story--animated .story-mouse img {
+    max-width: 21rem;
   }
 }
 
@@ -583,8 +676,22 @@
   .story-logo,
   .story-hand,
   .story-mice,
+  .story-canvas,
   .home-hero-badge {
-    display: none;
+    display: none !important;
+  }
+  /* Printed from the middle of the story, the page is still the static one:
+     no tall section, no pinned panel, the hero text whole. */
+  .story--animated {
+    height: auto;
+  }
+  .story--animated .story-panel {
+    position: static;
+    height: auto;
+  }
+  .story-hero {
+    opacity: 1 !important;
+    transform: none !important;
   }
   .home-how-list p,
   .home-cta-caption,
