@@ -18,7 +18,7 @@ The rest of the audit is unchanged.
 updated as findings are fixed. Later PRs addressed several of them, for example
 #77 (finding 0, the hand detected reversed) and #74 (finding 1, re-scans now go
 to `/scan/easy`), and the site has since moved to one dark theme (#109).
-`docs/STATUS.md` tracks what is still open.
+See `docs/STATUS.md` for the project's open items.
 
 **Lenses.** The audit uses three lenses, and each finding is tagged with the
 ones that apply:
@@ -102,11 +102,11 @@ back of a hand is itself a mirror of MediaPipe's palm-facing convention, so
 the two flips cancel. Measured through the real pipeline (MediaPipe
 in-browser, `/learn/check` on the `learning-kit` branch):
 
-| Photo                                         | Hand in photo    | Pipeline says (confidence) |
-| --------------------------------------------- | ---------------- | -------------------------- |
-| Kirby's 2026-09-23 photo (`../Fixure Hands/`) | right, palm down | **left** (0.91)            |
-| the same photo mirrored                       | left, palm down  | **right** (0.96)           |
-| `public/images/hand-on-a4-camera.png`         | left, palm down  | **right** (0.93)           |
+| Photo                                    | Hand in photo    | Pipeline says (confidence) |
+| ---------------------------------------- | ---------------- | -------------------------- |
+| Kirby's 2026-09-23 photo (a local photo) | right, palm down | **left** (0.91)            |
+| the same photo mirrored                  | left, palm down  | **right** (0.96)           |
+| `public/images/hand-on-a4-camera.png`    | left, palm down  | **right** (0.93)           |
 
 Consequences on `main`:
 
@@ -182,10 +182,10 @@ time the number shows up.
 > ("Early preview — measurements are still being validated.",
 > `src/app/page.tsx`) and the results page ("Early preview · measurements still
 > being validated.", `src/app/results/[scanId]/ResultsPageClient.tsx`). What
-> was missing is the caveat next to the number itself. #92 (draft, not merged)
-> adds it: "Not yet verified against a ruler." beside every measured number on
-> the scan screens (`src/client/photo/unverified-note.ts`, wording pending
-> Kirby's confirmation). The alternative in the arrow above, waiting for the
+> was missing is the caveat next to the number itself. #92 (merged 2026-10-03)
+> adds it beside every measured number on the scan screens
+> (`src/client/photo/unverified-note.ts`); the shipped wording is "Measurements
+> are still being validated.", not the draft that mentioned a ruler. The alternative in the arrow above, waiting for the
 > M2 data from the learning kit, stays open.
 
 **4. The dark-mode selected chip fails contrast (1.98 : 1). [U accessibility P1]**
@@ -437,5 +437,5 @@ check ruler and a card outline"`.
 
 Evidence (screenshots and `audit.json`) was generated locally and is not
 committed. It can be reproduced with `node audit.mjs http://127.0.0.1:<port>`
-(Playwright over every route; the script is in the session scratchpad and can
+(Playwright over every route; the script is a local one and can
 be committed under `scripts/` if wanted).
