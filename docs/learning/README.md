@@ -639,7 +639,12 @@ A plane (`markerPlane`, `paperPlane`):
 `parallax` holds `corrected`, `focalSource` (`exif`, `homography` or `none`),
 `focalPx`, `exifFocalPx` (what EXIF offered before the policy chose),
 `principalPoint`, `imageSize`, `heightsVersion` with the 21 `heightsMm` it used,
-and `error` if the plane could not be turned into mm.
+and `error` if the plane could not be turned into mm. Under
+`landmark-heights-v2` the heights are a fixed ratio times that photo's own hand
+length (so they differ from photo to photo; method and sources in
+`docs/research/landmark-heights-v2.md`), and are 21 zeros when `corrected` is
+false. A log written under `landmark-heights-v1` has the same 21 millimetres in
+every plane.
 
 On a **side page** there is a `markerPlane` (`strip-markers`) and no
 `paperPlane`. Its `landmarksSheetMm` are the landmarks projected onto the strip
