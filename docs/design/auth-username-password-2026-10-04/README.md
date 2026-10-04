@@ -1,7 +1,8 @@
 # Sign-in with username and password: spec (2026-10-04)
 
 This replaces the Google-only scope of #17. It is for the builders. Kirby
-approved it on 2026-10-04, including every value in [Values](#values).
+approved it on 2026-10-04, including every value in [Values](#values). No work
+starts before #52 (PR #117) merges, because both touch `src/auth.ts`.
 
 ## Decisions (Kirby, 2026-10-04)
 
@@ -9,11 +10,12 @@ approved it on 2026-10-04, including every value in [Values](#values).
 - **A user may enter an email as a backup.** The email is only stored. Nothing is
   sent until a sending system is built later ("先只存電郵，後續再建立系統").
 - **Password reset is a request form that people handle by hand for now** ("可以變成是一份重設的表單的感覺，我們至少可以先用手動送出").
-- **The spec and the values in [Values](#values) are approved** ("#118 都OK"). The
-  scrypt cost still depends on the latency measurement on Vercel, and asking
-  before claiming (see Security requirements) stays an option for later.
+- **The spec and the values in [Values](#values) are approved** ("#118 都OK", approved as
+  a block). Any value can be revised later; the scrypt cost in particular depends on
+  the latency measurement on Vercel, and asking before claiming (see Security
+  requirements) stays an option for later.
 
-How the last point works (approved with the spec): a "forgot password" form stores
+How the reset request works (approved with the spec): a "forgot password" form stores
 a request and always answers "received". An operator-only script lists the
 requests and issues a one-time, expiring link, which Kirby sends by hand. There is
 no admin web page.
@@ -41,12 +43,13 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 
 - **Sessions.** Auth.js's Credentials provider can only be used with JWT sessions
   (its `UnsupportedStrategy` error:
-  <https://authjs.dev/reference/core/errors#unsupportedstrategy>). `src/auth.ts`
+  <https://authjs.dev/reference/core/errors#unsupportedstrategy>; in the installed
+  `@auth/core`, a Credentials sign-in always issues a JWT cookie). `src/auth.ts`
   uses database sessions when the adapter is available, and its `session`
   callback reads `user.id`; both change.
 - **A JWT cannot be revoked on the server.** A deleted user, or a user who just
   reset their password, would stay signed in until the token expires. The
-  `session` callback therefore checks the user on every `auth()` call (see
+  `jwt` callback therefore checks the user on every `auth()` call (see
   [Sessions](#sessions)).
 - **`AUTH_SECRET` must be set in Production and Preview before sign-in is
   enabled.** Without it, `resolveAuthSecret` returns a random value per process in
@@ -59,7 +62,7 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 
 - `users` gains `username` (text, unique, stored lowercase), `password_hash`
   (text) and `password_changed_at` (timestamptz). `email` already exists
-  (nullable, unique); it is stored lowercase. Both new columns are nullable so that
+  (nullable, unique); it is stored lowercase. All three new columns are nullable so that
   existing rows stay valid.
 - `password_reset_requests`: `id` (uuid), `user_id` (text, null when nothing
   matched), `identifier` (text, as typed, at most 254 characters), `created_at`,
@@ -73,15 +76,17 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 
 ## Passwords
 
-- Hash with Node's built-in `crypto.scrypt` (no new dependency; AGENTS.md pins
-  every dependency), a random salt of at least 16 bytes per user, stored as one
+- Hash with Node's built-in `crypto.scrypt` (no new dependency), a random salt of at least 16 bytes per user, stored as one
   encoded string that carries its own parameters, so the cost can be raised later.
   Compare with `timingSafeEqual`.
-- Cost parameters (approved, subject to the measurement below): the commonly cited minimum for scrypt is
-  N = 2^17, r = 8, p = 1 (OWASP Password Storage Cheat Sheet). Node's default
-  `maxmem` is too small for that, so it must be raised. The builder confirms the
-  figure and **measures the latency on the Vercel runtime**; the result goes in the
-  PR.
+- Cost parameters (approved, subject to the measurement below): the OWASP
+  Password Storage Cheat Sheet lists five equivalent minimum scrypt settings, to
+  pick one from; this spec takes the first, N = 2^17 (128 MiB), r = 8, p = 1. Node's
+  default `maxmem` (32 MiB) is too small for that (the call throws
+  `ERR_CRYPTO_INVALID_SCRYPT_PARAMS`), so it must be raised. The builder confirms
+  the figure and **measures the latency and memory on the Vercel runtime**; if they
+  are not acceptable, another setting from the same table is allowed (for example
+  N = 2^16, p = 2). The result goes in the PR.
 - An unknown username is checked against a fixed dummy hash, so the response time
   does not reveal whether the account exists.
 - A password is never logged, echoed, or put in an error message. Errors go
@@ -99,37 +104,54 @@ editing, two-factor sign-in, an admin web page, "forgot username".
   `sessionToken` to browser JavaScript through `GET /api/auth/session`; that is
   not checked on a running server, and it does not matter in production while
   sign-in is off.
-- On every `auth()` call the `session` callback loads the user by primary key and
-  returns no session when the user is gone, or when the token was issued before
-  `password_changed_at`. That is one indexed lookup per call; the builder measures
-  it and may cache it for a short time if it matters (at most 10
-  minutes). A deleted user who still holds a valid token must read as signed out:
-  otherwise `createClaimedSession` and `claimSession` fail on the foreign key
-  (Postgres 23503) and every `POST /api/scans` from that user returns 500 until
-  the token expires (a finding of the #117 review).
-- Token lifetime: 7 days.
+- **The user check lives in the `jwt` callback, not in the `session` callback.**
+  Auth.js runs `jwt` on every read of the session. At sign-in it stores a
+  `signedInAt` claim in the token (milliseconds, set once). On every later call it
+  loads the user by primary key and returns `null` when the user is gone or when
+  `password_changed_at` is later than `signedInAt`; `auth()` then returns null and
+  the cookie is cleared. Two traps, both found by running the installed next-auth
+  in the #118 fact-check: a `null` from the `session` callback does not sign anyone
+  out (next-auth 5.0.0-beta.32 falls back to a default session), and the token's
+  `iat` cannot be used, because Auth.js re-signs the token on every read, so `iat`
+  becomes the time of the last read and a stolen old token would pass on its second
+  read. The check is one indexed lookup per call; the builder measures it and may
+  cache it for a short time if it matters (at most 10 minutes). A deleted user who
+  still holds a valid token must read as signed out: otherwise
+  `createClaimedSession` and `claimSession` fail on the foreign key (Postgres 23503) and every `POST /api/scans` from that user returns 500 until the token
+  expires (a finding of the #117 review). The tests must go through the real
+  `auth()` wrapper from next-auth, not only through `@auth/core`.
+- Token lifetime: 7 days, **sliding**: each read through a route handler or
+  middleware extends it, so it is 7 days of inactivity (a server component's
+  `auth()` cannot write the cookie). An absolute limit is not part of this spec.
 - `events.signIn` still claims the visitor's anonymous scan session, by the
-  httpOnly cookie only, through the shared `parseSessionId` check (#117). The
-  builder must **prove with a test** that this event fires for a Credentials
-  sign-in; if it does not, the sign-up and sign-in actions call the claim
-  explicitly.
+  httpOnly cookie only, through the shared `parseSessionId` check (it exists only
+  on the #117 branch so far, not on `main`). The installed `@auth/core` does call
+  `events.signIn` after a Credentials sign-in, but only when the sign-in goes
+  through Auth.js, and `authorize()` must return an object with an `id`. A sign-up
+  action that creates the user itself and does not go through `signIn()` must call
+  the claim explicitly. The builder **proves it with a test**.
 
 ## Security requirements
 
 - **Rate limits**, on the existing `rate_limits` table, keyed on an HMAC (as the
-  other limits are): sign-in per IP and per username; sign-up per IP; reset
+  other limits are, when `RATE_LIMIT_KEY_SECRET` is set; without it the key is a
+  hash with a fixed public salt, which can be brute-forced offline): sign-in per IP and per username; sign-up per IP; reset
   request per IP. Values: 10 sign-in attempts per 10 minutes, 5 sign-ups per
-  hour, 5 reset requests per hour. A limited caller writes nothing.
+  hour, 5 reset requests per hour. A limited caller creates no user,
+  request or token row (the limiter's own counter row is still written).
 - **One error message for a failed sign-in**, whether the username is unknown or
   the password is wrong.
 - **The reset request always answers "received"**, whether or not the identifier
   matched anything.
-- **Forms are Next.js server actions**, which carry their own same-origin check;
-  no new unauthenticated JSON endpoint is added for them.
+- **Forms are Next.js server actions**, which carry their own same-origin check
+  (it stops browser CSRF only: a request without an `Origin` header is only
+  logged, so an action can still be POSTed to directly, and the rate limit and the
+  validation therefore live inside the action); no new unauthenticated JSON
+  endpoint is added for them.
 - The form limits are in `src/lib/contracts/` (Claude writes that contract first):
   username, password and email schemas, shared by the client and the server.
 - **Shared browsers.** The next person who signs in on a browser claims that
-  browser's current anonymous scan session, as #17 designed ("Your current scan
+  browser's current anonymous scan session, as the account page says today ("Your current scan
   joins your account when you sign in"). #117 fixes only the reverse case, a
   signed-out cookie being reused by a later visitor. Sign-in keeps claiming
   automatically; asking first stays an option for later (see the table).
@@ -185,8 +207,8 @@ follows `docs/design-guidelines.md`; no canvas design is part of this spec.
   issue and use (single use, expiry, replacement).
 - Real Postgres (PGlite, with the repo's own migrations): sign-up uniqueness,
   including two sign-ups at once; reset token single use and expiry; account
-  deletion leaves nothing; the session check refuses a deleted user and a token
-  older than `password_changed_at`.
+  deletion leaves nothing; the session check refuses a deleted user and a sign-in
+  that predates `password_changed_at`, through the real `auth()` wrapper.
 - **Mutation checks** reported in the PR: remove each security guard in turn
   (dummy hash, rate limit, token expiry, single use, session user check) and show
   a test fails.
@@ -198,14 +220,16 @@ follows `docs/design-guidelines.md`; no canvas design is part of this spec.
 
 ## Delivery
 
-AGENTS.md says a milestone that spans both sides is two PRs.
+AGENTS.md says a milestone that spans both sides is two PRs; the contract PR below
+is the seam itself, which only Claude writes.
 
 1. Claude's contract PR: the form schemas and limits.
 2. Backend PR: migration, hashing, `src/auth.ts`, the session check, the reset
    tables and the two scripts.
 3. UI PR: the forms, `/account`, the reset page, the copy.
-4. Production steps, in order: migration applied; Kirby sets `AUTH_SECRET` and
-   checks that `AUTH_URL`, if it is set in Vercel, is a full `https://…` URL (a
+4. Production steps, in order: migration applied; Kirby sets `AUTH_SECRET`, confirms
+   that `RATE_LIMIT_KEY_SECRET` is set (the sign-in limit keys on a username, so the
+   unsalted fallback is not enough), and checks that `AUTH_URL`, if it is set in Vercel, is a full `https://…` URL (a
    reviewer's simulation: an invalid value makes `auth()` throw `Invalid URL`
    and fails scan submission; whether production sets it is not checked);
    `security-review`; sign-in enabled.
@@ -220,10 +244,10 @@ Approved by Kirby on 2026-10-04.
 | ------------------- | ------------------------------------------------------------------------------ |
 | Password length     | 10 to 128 characters, no composition rules, not equal to the username          |
 | Username            | 3 to 32 characters of `a-z 0-9 _ . -`, case-insensitive, a short reserved list |
-| Token lifetime      | 7 days                                                                         |
+| Token lifetime      | 7 days, sliding                                                                |
 | Reset link lifetime | 24 hours                                                                       |
 | scrypt cost         | N = 2^17, r = 8, p = 1, after measuring on Vercel                              |
 | Sign-up             | open to anyone, rate limited                                                   |
 | Email already used  | accepted as "that email is already used" (a low-risk leak, it is not a login)  |
-| Google code         | kept, unused, until Kirby says to delete it                                    |
+| Google code         | kept, unused, for now (deleting it is a later decision)                        |
 | Claiming on sign-in | automatic, as today; asking first stays an option for later                    |
