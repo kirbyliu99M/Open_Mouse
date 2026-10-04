@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { SCAN_SESSION_COOKIE } from "../../src/server/scans/cookies";
+import {
+  SCAN_SESSION_COOKIE,
+  parseSessionId,
+  readSessionCookie,
+} from "../../src/server/scans/cookies";
 import {
   claimAnonymousSession,
   deriveClaimSessionId,
@@ -83,6 +87,10 @@ function fakeClaimRepo(rows: FakeRow[]) {
   return { repo: { claimSession }, table };
 }
 
+const MINE = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const VICTIM = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const STALE = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+
 describe("claimAnonymousSession", () => {
   it("does nothing when there is no anonymous cookie", async () => {
     const { repo } = fakeClaimRepo([]);
@@ -92,15 +100,15 @@ describe("claimAnonymousSession", () => {
 
   it("claims exactly the session named by the cookie, for that user", async () => {
     const { repo, table } = fakeClaimRepo([
-      { id: "mine", userId: null, expiresAt: new Date(Date.now() + 1000) },
+      { id: MINE, userId: null, expiresAt: new Date(Date.now() + 1000) },
     ]);
-    await claimAnonymousSession("mine", "user-1", { repo });
+    await claimAnonymousSession(MINE, "user-1", { repo });
     expect(repo.claimSession).toHaveBeenCalledWith(
-      "mine",
+      MINE,
       "user-1",
       expect.any(Date),
     );
-    expect(table.get("mine")).toMatchObject({
+    expect(table.get(MINE)).toMatchObject({
       userId: "user-1",
       expiresAt: null,
     });
@@ -108,35 +116,91 @@ describe("claimAnonymousSession", () => {
 
   it("never reassigns a session someone else already claimed", async () => {
     const { repo, table } = fakeClaimRepo([
-      { id: "victim", userId: "victim-user", expiresAt: null },
+      { id: VICTIM, userId: "victim-user", expiresAt: null },
     ]);
-    // Attacker somehow gets "victim" into their own cookie (e.g. a stolen
+    // Attacker somehow gets VICTIM into their own cookie (e.g. a stolen
     // or shared browser) and signs in as themselves.
-    await claimAnonymousSession("victim", "attacker-user", { repo });
-    expect(table.get("victim")!.userId).toBe("victim-user");
+    await claimAnonymousSession(VICTIM, "attacker-user", { repo });
+    expect(table.get(VICTIM)!.userId).toBe("victim-user");
   });
 
   it("does not claim an already-expired anonymous session", async () => {
     const { repo, table } = fakeClaimRepo([
       {
-        id: "stale",
+        id: STALE,
         userId: null,
         expiresAt: new Date("2020-01-01T00:00:00Z"),
       },
     ]);
-    await claimAnonymousSession("stale", "user-1", {
+    await claimAnonymousSession(STALE, "user-1", {
       repo,
       now: () => new Date("2026-09-22T00:00:00Z"),
     });
-    expect(table.get("stale")).toMatchObject({ userId: null });
+    expect(table.get(STALE)).toMatchObject({ userId: null });
   });
 
   it("is idempotent — claiming twice is harmless", async () => {
     const { repo, table } = fakeClaimRepo([
-      { id: "mine", userId: null, expiresAt: null },
+      { id: MINE, userId: null, expiresAt: null },
     ]);
-    await claimAnonymousSession("mine", "user-1", { repo });
-    await claimAnonymousSession("mine", "user-1", { repo });
-    expect(table.get("mine")).toMatchObject({ userId: "user-1" });
+    await claimAnonymousSession(MINE, "user-1", { repo });
+    await claimAnonymousSession(MINE, "user-1", { repo });
+    expect(table.get(MINE)).toMatchObject({ userId: "user-1" });
+  });
+
+  // The Auth.js sign-in event (src/auth.ts) hands this function the raw
+  // `scan_session` value from the cookie store. A malformed one used to reach
+  // Postgres as an invalid uuid (22P02) and could fail the sign-in itself.
+  it.each([
+    ["not a uuid", "session-123"],
+    ["an SQL fragment", "' OR 1=1 --"],
+    ["a uuid with trailing junk", `${MINE}x`],
+    ["a uuid with leading whitespace", ` ${MINE}`],
+    ["an empty string", ""],
+    ["a truncated uuid", MINE.slice(0, 20)],
+    ["a percent-encoding remnant", "%E0%A4%A"],
+  ])(
+    "never lets a malformed cookie value reach the repo (%s)",
+    async (_label, value) => {
+      const { repo } = fakeClaimRepo([]);
+      await claimAnonymousSession(value, "user-1", { repo });
+      expect(repo.claimSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("treats an absent cookie (undefined, as the cookie store returns it) as no session", async () => {
+    const { repo } = fakeClaimRepo([]);
+    await claimAnonymousSession(undefined, "user-1", { repo });
+    expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+
+  it("still claims a well-formed value, in any letter case", async () => {
+    const { repo } = fakeClaimRepo([]);
+    await claimAnonymousSession(MINE.toUpperCase(), "user-1", { repo });
+    expect(repo.claimSession).toHaveBeenCalledTimes(1);
+    expect(repo.claimSession).toHaveBeenCalledWith(
+      MINE.toUpperCase(),
+      "user-1",
+      expect.any(Date),
+    );
+  });
+});
+
+describe("parseSessionId — the one UUID check every cookie reader shares", () => {
+  it("accepts exactly what readSessionCookie accepts", () => {
+    for (const value of [
+      MINE,
+      VICTIM,
+      "00000000-0000-4000-8000-000000000001",
+    ]) {
+      expect(parseSessionId(value)).toBe(value);
+      expect(readSessionCookie(`${SCAN_SESSION_COOKIE}=${value}`)).toBe(value);
+    }
+    for (const value of ["", "abc", `${MINE}0`, "' OR 1=1 --"]) {
+      expect(parseSessionId(value)).toBeNull();
+      expect(readSessionCookie(`${SCAN_SESSION_COOKIE}=${value}`)).toBeNull();
+    }
+    expect(parseSessionId(undefined)).toBeNull();
+    expect(parseSessionId(null)).toBeNull();
   });
 });

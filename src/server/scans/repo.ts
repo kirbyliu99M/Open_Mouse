@@ -9,6 +9,14 @@ export interface SessionRecord {
   id: string;
 }
 
+/**
+ * A session a caller may write scans into (`findValidSession`), with who
+ * owns it: `userId` is null for an anonymous (unclaimed, unexpired) session.
+ */
+export interface UsableSession extends SessionRecord {
+  userId: string | null;
+}
+
 /** A scan's hand + measurements, returned only once ownership is proven. */
 export interface OwnedScan {
   hand: ScanSubmission["hand"];
@@ -51,9 +59,34 @@ export interface ScanInsertInput {
  * unit tests (AGENTS.md, issue #11).
  */
 export interface ScanRepo {
-  /** Null if the id is unknown, or known but past `expiresAt`. */
-  findValidSession(sessionId: string, now: Date): Promise<SessionRecord | null>;
+  /**
+   * The session `sessionId` names, but only if the caller — signed in as
+   * `userId`, or anonymous when null — may write a scan into it (issue #52):
+   *
+   * - anonymous caller (`userId` null): the session must be unclaimed
+   *   (`user_id IS NULL`) and unexpired. A claimed session is never returned,
+   *   even though its row still exists — the browser may simply have kept the
+   *   cookie after sign-out.
+   * - signed-in caller: the session is the caller's own (`user_id = userId`,
+   *   which never expires), or it is unclaimed and unexpired (the caller
+   *   claims it next — see `claimSession`). A session claimed by anyone else
+   *   is never returned.
+   *
+   * Null in every other case: unknown id, expired, or someone else's. The
+   * returned `userId` tells the caller whether a claim is still needed.
+   */
+  findValidSession(
+    sessionId: string,
+    userId: string | null,
+    now: Date,
+  ): Promise<UsableSession | null>;
   createAnonymousSession(expiresAt: Date): Promise<SessionRecord>;
+  /**
+   * A new session already owned by `userId`: `user_id` set, `expires_at`
+   * NULL (allowed by the `scan_sessions_anonymous_expire` CHECK). For a
+   * signed-in caller whose cookie names no usable session.
+   */
+  createClaimedSession(userId: string): Promise<SessionRecord>;
   /** Inserts `scans` and `scan_measurements` atomically. */
   insertScanWithMeasurements(
     input: ScanInsertInput,

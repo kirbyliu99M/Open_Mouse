@@ -13,87 +13,24 @@ import {
   selectExpiredAnonymousSessionIds,
   type SessionRow,
 } from "../../src/server/scans/expiry";
-import type { ScanRepo, SessionRecord } from "../../src/server/scans/repo";
 import { handleSessionDelete } from "../../src/server/scans/session";
-import { handleScanSubmission } from "../../src/server/scans/submit";
+import {
+  handleScanSubmission,
+  type SubmitScanDeps,
+} from "../../src/server/scans/submit";
 import { createSweepThrottle } from "../../src/server/scans/sweep";
+import { createFakeRepo } from "./fixtures/fake-scan-repo";
 
-/**
- * In-memory `ScanRepo` fake. No real database — every handler test below
- * injects this instead of `drizzle-repo.ts`.
- */
-function createFakeRepo() {
-  const sessions = new Map<
-    string,
-    { id: string; userId: string | null; expiresAt: Date | null }
-  >();
-  const insertedScans: unknown[] = [];
-  let counter = 0;
-
-  const repo: ScanRepo = {
-    findValidSession: vi.fn(
-      async (sessionId: string, now: Date): Promise<SessionRecord | null> => {
-        const row = sessions.get(sessionId);
-        if (!row) return null;
-        if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) {
-          return null;
-        }
-        return { id: row.id };
-      },
-    ),
-    createAnonymousSession: vi.fn(
-      async (expiresAt: Date): Promise<SessionRecord> => {
-        const id = `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
-        sessions.set(id, { id, userId: null, expiresAt });
-        return { id };
-      },
-    ),
-    insertScanWithMeasurements: vi.fn(async (input) => {
-      const scanId = `scan-${++counter}`;
-      insertedScans.push({ scanId, ...input });
-      return { scanId };
-    }),
-    deleteSession: vi.fn(async (sessionId: string) => {
-      // Mirrors drizzle-repo.ts's own guard: never deletes a session a
-      // signed-in user has claimed.
-      const row = sessions.get(sessionId);
-      if (!row || row.userId !== null) return;
-      sessions.delete(sessionId);
-    }),
-    deleteExpiredAnonymousSessions: vi.fn(async (now: Date) => {
-      let removed = 0;
-      for (const [id, row] of sessions) {
-        if (
-          row.userId === null &&
-          row.expiresAt &&
-          row.expiresAt.getTime() <= now.getTime()
-        ) {
-          sessions.delete(id);
-          removed++;
-        }
-      }
-      return removed;
-    }),
-    // Not exercised here — covered against a real Postgres in
-    // tests/unit/rate-limit-db.test.ts (L2 hardening).
-    deleteEndedRateLimitWindows: vi.fn(async () => 0),
-    claimSession: vi.fn(
-      async (sessionId: string, userId: string, now: Date) => {
-        const row = sessions.get(sessionId);
-        if (!row) return;
-        if (row.userId !== null) return;
-        if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return;
-        sessions.set(sessionId, { ...row, userId, expiresAt: null });
-      },
-    ),
-    // Not exercised by the scan-submission/session/expiry tests below —
-    // covered on its own in tests/unit/fit-service.test.ts and
-    // tests/unit/scan-ownership.test.ts. Kept here only so this fake keeps
-    // satisfying ScanRepo's shape.
-    findOwnedScan: vi.fn(async () => null),
-    deleteOwnedScan: vi.fn(async () => false),
-  };
-  return { repo, sessions, insertedScans };
+/** Signed out unless a test says otherwise (see scan-session-ownership.test.ts). */
+function submit(
+  request: Request,
+  deps: Omit<SubmitScanDeps, "getUserId"> &
+    Partial<Pick<SubmitScanDeps, "getUserId">>,
+): Promise<Response> {
+  return handleScanSubmission(request, {
+    getUserId: async () => null,
+    ...deps,
+  });
 }
 
 const validSubmission = {
@@ -136,7 +73,7 @@ function scanRequest(
 describe("POST /api/scans — valid submission", () => {
   it("stores the scan, creates a session and sets its cookie", async () => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(scanRequest(validSubmission), {
+    const res = await submit(scanRequest(validSubmission), {
       repo,
     });
 
@@ -171,7 +108,7 @@ describe("POST /api/scans — valid submission", () => {
 
   it("stores a null scale check for a plain-paper scan, which has no card", async () => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(
+    const res = await submit(
       scanRequest({
         ...validSubmission,
         calibration: {
@@ -200,7 +137,7 @@ describe("POST /api/scans — valid submission", () => {
 
   it("stores a user-length scan as user-length, finger lengths included", async () => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(
+    const res = await submit(
       scanRequest({
         ...validSubmission,
         measurements: {
@@ -235,14 +172,14 @@ describe("POST /api/scans — valid submission", () => {
   it("creates a session cookie on first call and reuses it afterwards", async () => {
     const { repo } = createFakeRepo();
 
-    const first = await handleScanSubmission(scanRequest(validSubmission), {
+    const first = await submit(scanRequest(validSubmission), {
       repo,
     });
     const setCookie = first.headers.get("set-cookie");
     expect(setCookie).toBeTruthy();
     const sessionId = setCookie!.split(";")[0]!.split("=")[1]!;
 
-    const second = await handleScanSubmission(
+    const second = await submit(
       scanRequest(validSubmission, {
         cookie: `${SCAN_SESSION_COOKIE}=${sessionId}`,
       }),
@@ -254,21 +191,29 @@ describe("POST /api/scans — valid submission", () => {
     expect(repo.createAnonymousSession).toHaveBeenCalledTimes(1);
     expect(repo.findValidSession).toHaveBeenCalledWith(
       sessionId,
+      null,
       expect.any(Date),
     );
   });
 
   it("issues a fresh session when the cookie names an unknown or expired session", async () => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(
+    const unknownId = "99999999-9999-4999-8999-999999999999";
+    const res = await submit(
       scanRequest(validSubmission, {
-        cookie: `${SCAN_SESSION_COOKIE}=does-not-exist`,
+        cookie: `${SCAN_SESSION_COOKIE}=${unknownId}`,
       }),
       { repo },
     );
 
     expect(res.status).toBe(201);
+    expect(repo.findValidSession).toHaveBeenCalledWith(
+      unknownId,
+      null,
+      expect.any(Date),
+    );
     expect(res.headers.get("set-cookie")).toContain(SCAN_SESSION_COOKIE);
+    expect(res.headers.get("set-cookie")).not.toContain(unknownId);
     expect(repo.createAnonymousSession).toHaveBeenCalledTimes(1);
   });
 });
@@ -300,7 +245,7 @@ describe("POST /api/scans — strict-schema rejection", () => {
     ],
   ])("rejects %s with 400 and no DB writes", async (_label, payload) => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(scanRequest(payload), { repo });
+    const res = await submit(scanRequest(payload), { repo });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -313,7 +258,7 @@ describe("POST /api/scans — strict-schema rejection", () => {
   it("never echoes the rejected request body back to the caller", async () => {
     const { repo } = createFakeRepo();
     const payload = { ...validSubmission, secretField: "s3cr3t-marker" };
-    const res = await handleScanSubmission(scanRequest(payload), { repo });
+    const res = await submit(scanRequest(payload), { repo });
 
     expect(res.status).toBe(400);
     const raw = JSON.stringify(await res.json());
@@ -333,7 +278,7 @@ describe("POST /api/scans — oversized body", () => {
       body: oversized,
     });
 
-    const res = await handleScanSubmission(request, { repo });
+    const res = await submit(request, { repo });
 
     expect(res.status).toBe(413);
     expect(repo.findValidSession).not.toHaveBeenCalled();
@@ -346,7 +291,7 @@ describe("POST /api/scans — per-IP rate limit (M2 hardening)", () => {
   it("429s with a no-store, user-facing error body when the limiter rejects the request, without creating a session or scan", async () => {
     const { repo } = createFakeRepo();
 
-    const res = await handleScanSubmission(
+    const res = await submit(
       scanRequest(validSubmission, {
         "x-vercel-forwarded-for": "203.0.113.9",
       }),
@@ -364,7 +309,7 @@ describe("POST /api/scans — per-IP rate limit (M2 hardening)", () => {
   it("does not limit when the request carries no usable client IP (local dev)", async () => {
     const { repo } = createFakeRepo();
 
-    const res = await handleScanSubmission(scanRequest(validSubmission), {
+    const res = await submit(scanRequest(validSubmission), {
       repo,
       limiter: { allow: () => false },
     });
@@ -376,7 +321,7 @@ describe("POST /api/scans — per-IP rate limit (M2 hardening)", () => {
     const { repo } = createFakeRepo();
     const seen: string[] = [];
 
-    await handleScanSubmission(
+    await submit(
       scanRequest(validSubmission, {
         "x-vercel-forwarded-for": "203.0.113.9",
       }),
@@ -435,20 +380,22 @@ describe("DELETE /api/scans/session", () => {
 
   it("never deletes a session a signed-in user has claimed (beacon is anonymous-only, enforced server-side too)", async () => {
     const { repo, sessions } = createFakeRepo();
-    sessions.set("claimed", {
-      id: "claimed",
+    const claimedId = "55555555-5555-4555-8555-555555555555";
+    sessions.set(claimedId, {
+      id: claimedId,
       userId: "user-1",
       expiresAt: null,
     });
     const request = new Request("http://localhost/api/scans/session", {
       method: "DELETE",
-      headers: { cookie: `${SCAN_SESSION_COOKIE}=claimed` },
+      headers: { cookie: `${SCAN_SESSION_COOKIE}=${claimedId}` },
     });
 
     const res = await handleSessionDelete(request, { repo });
 
     expect(res.status).toBe(204);
-    expect(sessions.get("claimed")).toBeDefined();
+    expect(repo.deleteSession).toHaveBeenCalledWith(claimedId);
+    expect(sessions.get(claimedId)).toBeDefined();
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 });
@@ -570,7 +517,7 @@ describe("POST /api/scans — lazy sweep (issue #17 spec amendment)", () => {
     const sweep = createSweepThrottle();
     const now = () => new Date("2026-09-22T12:00:00Z");
 
-    await handleScanSubmission(scanRequest(validSubmission), {
+    await submit(scanRequest(validSubmission), {
       repo,
       sweep,
       now,
@@ -579,7 +526,7 @@ describe("POST /api/scans — lazy sweep (issue #17 spec amendment)", () => {
 
     // A second request one second later, inside the throttle window, does
     // not sweep again.
-    await handleScanSubmission(scanRequest(validSubmission), {
+    await submit(scanRequest(validSubmission), {
       repo,
       sweep,
       now: () => new Date("2026-09-22T12:00:01Z"),
@@ -595,7 +542,7 @@ describe("POST /api/scans — lazy sweep (issue #17 spec amendment)", () => {
       }),
     };
 
-    const res = await handleScanSubmission(scanRequest(validSubmission), {
+    const res = await submit(scanRequest(validSubmission), {
       repo,
       sweep: throwingSweep,
     });
@@ -606,7 +553,7 @@ describe("POST /api/scans — lazy sweep (issue #17 spec amendment)", () => {
 
   it("uses the shared default throttle when none is injected", async () => {
     const { repo } = createFakeRepo();
-    const res = await handleScanSubmission(scanRequest(validSubmission), {
+    const res = await submit(scanRequest(validSubmission), {
       repo,
     });
     expect(res.status).toBe(201);
@@ -619,23 +566,25 @@ describe("expired means gone — findValidSession never serves a stale session",
   it("treats a cookie naming an expired session as if it had already been deleted", async () => {
     const { repo, sessions } = createFakeRepo();
     // The row still physically exists (not yet swept) but is past expiry.
-    sessions.set("stale", {
-      id: "stale",
+    const staleId = "66666666-6666-4666-8666-666666666666";
+    sessions.set(staleId, {
+      id: staleId,
       userId: null,
       expiresAt: new Date("2020-01-01T00:00:00Z"),
     });
 
     const result = await repo.findValidSession(
-      "stale",
+      staleId,
+      null,
       new Date("2026-09-22T12:00:00Z"),
     );
     expect(result).toBeNull();
 
     // POST /api/scans replaces the cookie with a fresh session rather than
     // reusing (or erroring on) the expired one.
-    const res = await handleScanSubmission(
+    const res = await submit(
       scanRequest(validSubmission, {
-        cookie: `${SCAN_SESSION_COOKIE}=stale`,
+        cookie: `${SCAN_SESSION_COOKIE}=${staleId}`,
       }),
       { repo },
     );

@@ -22,7 +22,12 @@ async function errorBodyFor(
     headers: { "content-type": "application/json" },
     body,
   });
-  const res = await handleScanSubmission(request, { repo: unusedRepo });
+  const res = await handleScanSubmission(request, {
+    repo: unusedRepo,
+    getUserId: async () => {
+      throw new Error("the caller is not looked up on a rejected request");
+    },
+  });
   return { status: res.status, json: await res.json() };
 }
 

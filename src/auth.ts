@@ -89,12 +89,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * only for the session named by *their own* httpOnly cookie. `cookies()`
      * here reads the same request that just completed the OAuth callback,
      * so this can never be pointed at a session the caller doesn't hold.
+     * The raw cookie value goes straight to `claimAnonymousSession`, which
+     * applies the same UUID check as `readSessionCookie`: a malformed value
+     * never reaches the database (it would throw 22P02 and could fail the
+     * sign-in).
      */
     async signIn({ user }) {
       if (!user.id) return;
       const store = await cookies();
-      const sessionId = store.get(SCAN_SESSION_COOKIE)?.value ?? null;
-      await claimAnonymousSession(sessionId, user.id, {
+      const cookieValue = store.get(SCAN_SESSION_COOKIE)?.value;
+      await claimAnonymousSession(cookieValue, user.id, {
         repo: createDrizzleScanRepo(),
       });
     },

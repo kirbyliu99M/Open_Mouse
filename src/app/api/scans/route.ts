@@ -1,3 +1,4 @@
+import { auth } from "../../../auth";
 import { createDrizzleRateLimiter } from "../../../server/analysis/drizzle-rate-limiter";
 import {
   SCAN_SUBMIT_RATE_LIMIT_MAX,
@@ -16,5 +17,6 @@ export async function POST(request: Request): Promise<Response> {
       limit: SCAN_SUBMIT_RATE_LIMIT_MAX,
       keyPrefix: "submit:",
     }),
+    getUserId: async () => (await auth())?.user?.id ?? null,
   });
 }

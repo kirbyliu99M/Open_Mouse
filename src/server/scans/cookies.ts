@@ -33,15 +33,25 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The session id from the request's Cookie header, or null if absent or not
- * a UUID. Every id this app issues is a UUID (`scan_sessions.id`), so any
- * other value is tampering or corruption — treated as "no cookie" rather
- * than passed to Postgres, where a non-UUID makes the query throw (a 500
- * instead of the contract's 404).
+ * A `scan_session` cookie *value* as a session id, or null if it is absent
+ * or not a UUID. Every id this app issues is a UUID (`scan_sessions.id`), so
+ * any other value is tampering or corruption — treated as "no cookie" rather
+ * than passed to Postgres, where a non-UUID makes the query throw (22P02: a
+ * 500 instead of the contract's 404, or a failed sign-in).
+ *
+ * The one check every reader of the cookie goes through, whether it has the
+ * raw Cookie header (`readSessionCookie`) or an already-parsed value (the
+ * Auth.js sign-in event, via `claimAnonymousSession`).
  */
-export function readSessionCookie(header: string | null): string | null {
-  const value = parseCookieHeader(header)[SCAN_SESSION_COOKIE];
+export function parseSessionId(
+  value: string | null | undefined,
+): string | null {
   return value && UUID_PATTERN.test(value) ? value : null;
+}
+
+/** The session id from the request's Cookie header, or null (see `parseSessionId`). */
+export function readSessionCookie(header: string | null): string | null {
+  return parseSessionId(parseCookieHeader(header)[SCAN_SESSION_COOKIE]);
 }
 
 /** Set-Cookie value for a newly created session. No Max-Age — see above. */

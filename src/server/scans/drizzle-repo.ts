@@ -14,6 +14,7 @@ import type {
   ScanOwnershipContext,
   ScanRepo,
   SessionRecord,
+  UsableSession,
 } from "./repo";
 
 function ownershipPredicate(ctx: ScanOwnershipContext) {
@@ -55,17 +56,28 @@ function ownershipPredicate(ctx: ScanOwnershipContext) {
  */
 export function createDrizzleScanRepo(db = getDb()): ScanRepo {
   return {
-    async findValidSession(sessionId, now): Promise<SessionRecord | null> {
+    async findValidSession(
+      sessionId,
+      userId,
+      now,
+    ): Promise<UsableSession | null> {
+      // Anonymous sessions always have an expiry (DB CHECK), so "unclaimed
+      // and unexpired" needs no "no expiry" case.
+      const anonymousAndLive = and(
+        isNull(scanSessions.userId),
+        gt(scanSessions.expiresAt, now),
+      );
+      // Issue #52: who is asking decides which rows count. A signed-in
+      // session never expires (M6) and is usable only by its own user; every
+      // other caller only ever gets an unclaimed, unexpired one.
+      const usableBy =
+        userId === null
+          ? anonymousAndLive
+          : or(eq(scanSessions.userId, userId), anonymousAndLive);
       const rows = await db
-        .select({ id: scanSessions.id })
+        .select({ id: scanSessions.id, userId: scanSessions.userId })
         .from(scanSessions)
-        .where(
-          and(
-            eq(scanSessions.id, sessionId),
-            // A signed-in session (M6) has no expiresAt and never expires here.
-            or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, now)),
-          ),
-        )
+        .where(and(eq(scanSessions.id, sessionId), usableBy))
         .limit(1);
       return rows[0] ?? null;
     },
@@ -74,6 +86,14 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       const [row] = await db
         .insert(scanSessions)
         .values({ expiresAt })
+        .returning({ id: scanSessions.id });
+      return row;
+    },
+
+    async createClaimedSession(userId): Promise<SessionRecord> {
+      const [row] = await db
+        .insert(scanSessions)
+        .values({ userId, expiresAt: null })
         .returning({ id: scanSessions.id });
       return row;
     },

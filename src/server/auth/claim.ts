@@ -1,4 +1,4 @@
-import { readSessionCookie } from "../scans/cookies";
+import { parseSessionId, readSessionCookie } from "../scans/cookies";
 import type { ScanRepo } from "../scans/repo";
 
 /**
@@ -31,10 +31,16 @@ export interface ClaimDeps {
  * (expired means gone — issue #17 spec amendment).
  */
 export async function claimAnonymousSession(
-  cookieSessionId: string | null,
+  cookieValue: string | null | undefined,
   userId: string,
   deps: ClaimDeps,
 ): Promise<void> {
+  // `cookieValue` is whatever the browser sent, read straight from the
+  // cookie store by the Auth.js sign-in event, so it gets the same UUID check
+  // as `readSessionCookie`. A malformed value (tampering, corruption) used to
+  // reach Postgres as an invalid uuid (22P02) and could fail the sign-in
+  // itself; now it is simply "no cookie".
+  const cookieSessionId = parseSessionId(cookieValue);
   if (!cookieSessionId) return;
   const now = deps.now ?? (() => new Date());
   await deps.repo.claimSession(cookieSessionId, userId, now());

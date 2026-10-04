@@ -32,6 +32,10 @@ export interface SubmitScanDeps {
   /** Per-IP submit limit (M2 hardening); defaults to an always-allow no-op —
    * see `ALWAYS_ALLOW_LIMITER` above. */
   limiter?: RateLimiter;
+  /** The signed-in caller's user id, or null when signed out. Required, not
+   * defaulted: a route that forgets it must fail to compile rather than
+   * silently treat every signed-in user as anonymous (issue #52). */
+  getUserId: () => Promise<string | null>;
 }
 
 /**
@@ -138,22 +142,12 @@ export async function handleScanSubmission(
     // swallow — see comment above
   }
 
-  const cookieSessionId = readSessionCookie(request.headers.get("cookie"));
-  const existing = cookieSessionId
-    ? await deps.repo.findValidSession(cookieSessionId, currentNow)
-    : null;
-
-  let sessionId: string;
-  let setCookie: string | undefined;
-  if (existing) {
-    sessionId = existing.id;
-  } else {
-    const created = await deps.repo.createAnonymousSession(
-      new Date(currentNow.getTime() + SESSION_TTL_MS),
-    );
-    sessionId = created.id;
-    setCookie = buildSessionCookie(sessionId);
-  }
+  const { sessionId, setCookie } = await resolveSubmitSession(
+    deps.repo,
+    readSessionCookie(request.headers.get("cookie")),
+    await deps.getUserId(),
+    currentNow,
+  );
 
   const { scanId } = await deps.repo.insertScanWithMeasurements({
     sessionId,
@@ -179,4 +173,53 @@ export async function handleScanSubmission(
       ...(setCookie ? { "set-cookie": setCookie } : {}),
     },
   );
+}
+
+/**
+ * Which session a submitted scan is written into (issue #52). The cookie
+ * only says which session the *browser* holds, never who is submitting now:
+ * a browser can keep an old cookie after sign-out, or carry a fresh one into
+ * a signed-in visit. So the caller's identity (`userId`, null when signed
+ * out) decides whether the cookie's session may be used (`findValidSession`
+ * applies the ownership rule) and what to create when it may not.
+ *
+ * - signed out: reuse an unclaimed, unexpired session; otherwise (no cookie,
+ *   expired, unknown, or already claimed by anyone) a new anonymous session
+ *   with the 24 h expiry, and a new cookie.
+ * - signed in as `userId`: reuse their own session; claim an unclaimed,
+ *   unexpired one first (`claimSession`, the same step sign-in runs, for a
+ *   browser that signed in before it held a cookie); otherwise (no cookie,
+ *   expired, unknown, or claimed by someone else, which is never touched) a
+ *   new session already claimed for them, and a new cookie.
+ *
+ * `setCookie` is set exactly when the session is not the one the cookie named.
+ */
+async function resolveSubmitSession(
+  repo: ScanRepo,
+  cookieSessionId: string | null,
+  userId: string | null,
+  now: Date,
+): Promise<{ sessionId: string; setCookie?: string }> {
+  let usable = cookieSessionId
+    ? await repo.findValidSession(cookieSessionId, userId, now)
+    : null;
+
+  if (usable && userId !== null && usable.userId === null) {
+    await repo.claimSession(usable.id, userId, now);
+    // The claim is conditional (unclaimed and unexpired) and another request
+    // may have won the race or the session may have just expired: trust only
+    // what the database now says is this caller's.
+    usable = await repo.findValidSession(usable.id, userId, now);
+    if (usable && usable.userId !== userId) usable = null;
+  }
+
+  if (usable) return { sessionId: usable.id };
+
+  const created =
+    userId === null
+      ? await repo.createAnonymousSession(
+          new Date(now.getTime() + SESSION_TTL_MS),
+        )
+      : await repo.createClaimedSession(userId);
+  return { sessionId: created.id, setCookie: buildSessionCookie(created.id) };
 }
