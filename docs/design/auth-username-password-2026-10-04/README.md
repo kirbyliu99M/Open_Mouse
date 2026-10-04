@@ -1,8 +1,7 @@
 # Sign-in with username and password: spec (2026-10-04)
 
-This replaces the Google-only scope of #17. It is for the builders, and it is a
-draft until Kirby approves it: every number below that is not in the Decisions
-section is a **candidate (未拍板)**.
+This replaces the Google-only scope of #17. It is for the builders. Kirby
+approved it on 2026-10-04, including every value in [Values](#values).
 
 ## Decisions (Kirby, 2026-10-04)
 
@@ -10,16 +9,20 @@ section is a **candidate (未拍板)**.
 - **A user may enter an email as a backup.** The email is only stored. Nothing is
   sent until a sending system is built later ("先只存電郵，後續再建立系統").
 - **Password reset is a request form that people handle by hand for now** ("可以變成是一份重設的表單的感覺，我們至少可以先用手動送出").
+- **The spec and the values in [Values](#values) are approved** ("#118 都OK"). The
+  scrypt cost still depends on the latency measurement on Vercel, and asking
+  before claiming (see Security requirements) stays an option for later.
 
-Claude's reading of the last point, **candidate**: a "forgot password" form stores
+How the last point works (approved with the spec): a "forgot password" form stores
 a request and always answers "received". An operator-only script lists the
 requests and issues a one-time, expiring link, which Kirby sends by hand. There is
 no admin web page.
 
-## Not decided (未拍板, candidate)
+## Not decided (未拍板)
 
-The values in [Candidates](#candidates), whether the Google code is deleted, and
-when the email-sending system is built.
+When the email-sending system is built, and whether the Google code is deleted (it
+is kept, unused, for now). The zh-TW strings are drafted by the builder and
+confirmed by Kirby (see [Copy](#copy)).
 
 ## Scope
 
@@ -74,7 +77,7 @@ editing, two-factor sign-in, an admin web page, "forgot username".
   every dependency), a random salt of at least 16 bytes per user, stored as one
   encoded string that carries its own parameters, so the cost can be raised later.
   Compare with `timingSafeEqual`.
-- Cost parameters are a candidate: the commonly cited minimum for scrypt is
+- Cost parameters (approved, subject to the measurement below): the commonly cited minimum for scrypt is
   N = 2^17, r = 8, p = 1 (OWASP Password Storage Cheat Sheet). Node's default
   `maxmem` is too small for that, so it must be raised. The builder confirms the
   figure and **measures the latency on the Vercel runtime**; the result goes in the
@@ -99,12 +102,12 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 - On every `auth()` call the `session` callback loads the user by primary key and
   returns no session when the user is gone, or when the token was issued before
   `password_changed_at`. That is one indexed lookup per call; the builder measures
-  it and may cache it for a short time if it matters (candidate: at most 10
+  it and may cache it for a short time if it matters (at most 10
   minutes). A deleted user who still holds a valid token must read as signed out:
   otherwise `createClaimedSession` and `claimSession` fail on the foreign key
   (Postgres 23503) and every `POST /api/scans` from that user returns 500 until
   the token expires (a finding of the #117 review).
-- Token lifetime is a candidate (7 days).
+- Token lifetime: 7 days.
 - `events.signIn` still claims the visitor's anonymous scan session, by the
   httpOnly cookie only, through the shared `parseSessionId` check (#117). The
   builder must **prove with a test** that this event fires for a Credentials
@@ -115,7 +118,7 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 
 - **Rate limits**, on the existing `rate_limits` table, keyed on an HMAC (as the
   other limits are): sign-in per IP and per username; sign-up per IP; reset
-  request per IP. Candidates: 10 sign-in attempts per 10 minutes, 5 sign-ups per
+  request per IP. Values: 10 sign-in attempts per 10 minutes, 5 sign-ups per
   hour, 5 reset requests per hour. A limited caller writes nothing.
 - **One error message for a failed sign-in**, whether the username is unknown or
   the password is wrong.
@@ -128,20 +131,20 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 - **Shared browsers.** The next person who signs in on a browser claims that
   browser's current anonymous scan session, as #17 designed ("Your current scan
   joins your account when you sign in"). #117 fixes only the reverse case, a
-  signed-out cookie being reused by a later visitor. Whether sign-in should ask
-  before claiming is a candidate (see the table).
+  signed-out cookie being reused by a later visitor. Sign-in keeps claiming
+  automatically; asking first stays an option for later (see the table).
 - Sign-up says when a username is taken. That reveals the username exists, which
   is accepted for a username (it is not a secret).
 
 ## Password reset by hand
 
 - `POST` of the form stores a row in `password_reset_requests` and answers
-  "received". Requests older than 30 days are swept (candidate).
+  "received". Requests older than 30 days are swept.
 - `npm run auth:reset-requests` lists the pending requests (id, time, what was
   typed, whether it matched an account).
 - `npm run auth:reset-link -- <username>` issues a link for that account: a random
   token of at least 32 bytes, stored only as its SHA-256, **valid 24 hours
-  (candidate; the link is delivered by hand), single use**. Issuing a new link
+  (the link is delivered by hand), single use**. Issuing a new link
   invalidates the user's earlier unused ones. It prints the URL once and marks the
   matching request handled.
 - Both scripts read `DATABASE_URL_UNPOOLED` and are meant for Kirby or Claude on a
@@ -149,7 +152,7 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 - `/account/reset?token=…` (a server action) checks the token, sets the new
   password, sets `password_changed_at`, and marks the token used. A wrong, used or
   expired token gets the same message.
-- **Policy for the person sending the link (candidate):** send it only to the email
+- **Policy for the person sending the link:** send it only to the email
   stored on that account. An account with no email cannot be recovered, and the
   sign-up copy says so.
 
@@ -209,9 +212,11 @@ AGENTS.md says a milestone that spans both sides is two PRs.
 
 Work starts after #52 (#117) merges, because both touch `src/auth.ts`.
 
-## Candidates
+## Values
 
-| Item                | Candidate                                                                      |
+Approved by Kirby on 2026-10-04.
+
+| Item                | Value                                                                          |
 | ------------------- | ------------------------------------------------------------------------------ |
 | Password length     | 10 to 128 characters, no composition rules, not equal to the username          |
 | Username            | 3 to 32 characters of `a-z 0-9 _ . -`, case-insensitive, a short reserved list |
@@ -221,4 +226,4 @@ Work starts after #52 (#117) merges, because both touch `src/auth.ts`.
 | Sign-up             | open to anyone, rate limited                                                   |
 | Email already used  | accepted as "that email is already used" (a low-risk leak, it is not a login)  |
 | Google code         | kept, unused, until Kirby says to delete it                                    |
-| Claiming on sign-in | automatic, as today; or ask the user before adding the current scan            |
+| Claiming on sign-in | automatic, as today; asking first stays an option for later                    |
