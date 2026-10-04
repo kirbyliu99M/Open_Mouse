@@ -90,11 +90,20 @@ editing, two-factor sign-in, an admin web page, "forgot username".
 - `session: { strategy: "jwt" }`, with the Credentials provider. The adapter
   stays for the existing tables.
 - `session.user.id` comes from the token's subject.
+- The `session` callback returns only `user.id` and the expiry, never the raw
+  token or any other field. A reviewer's simulation of today's callback (it
+  returns the whole session object) with `@auth/core` 0.41.3 handed the raw
+  `sessionToken` to browser JavaScript through `GET /api/auth/session`; that is
+  not checked on a running server, and it does not matter in production while
+  sign-in is off.
 - On every `auth()` call the `session` callback loads the user by primary key and
   returns no session when the user is gone, or when the token was issued before
   `password_changed_at`. That is one indexed lookup per call; the builder measures
   it and may cache it for a short time if it matters (candidate: at most 10
-  minutes).
+  minutes). A deleted user who still holds a valid token must read as signed out:
+  otherwise `createClaimedSession` and `claimSession` fail on the foreign key
+  (Postgres 23503) and every `POST /api/scans` from that user returns 500 until
+  the token expires (a finding of the #117 review).
 - Token lifetime is a candidate (7 days).
 - `events.signIn` still claims the visitor's anonymous scan session, by the
   httpOnly cookie only, through the shared `parseSessionId` check (#117). The
@@ -116,6 +125,11 @@ editing, two-factor sign-in, an admin web page, "forgot username".
   no new unauthenticated JSON endpoint is added for them.
 - The form limits are in `src/lib/contracts/` (Claude writes that contract first):
   username, password and email schemas, shared by the client and the server.
+- **Shared browsers.** The next person who signs in on a browser claims that
+  browser's current anonymous scan session, as #17 designed ("Your current scan
+  joins your account when you sign in"). #117 fixes only the reverse case, a
+  signed-out cookie being reused by a later visitor. Whether sign-in should ask
+  before claiming is a candidate (see the table).
 - Sign-up says when a username is taken. That reveals the username exists, which
   is accepted for a username (it is not a secret).
 
@@ -187,7 +201,10 @@ AGENTS.md says a milestone that spans both sides is two PRs.
 2. Backend PR: migration, hashing, `src/auth.ts`, the session check, the reset
    tables and the two scripts.
 3. UI PR: the forms, `/account`, the reset page, the copy.
-4. Production steps, in order: migration applied; Kirby sets `AUTH_SECRET`;
+4. Production steps, in order: migration applied; Kirby sets `AUTH_SECRET` and
+   checks that `AUTH_URL`, if it is set in Vercel, is a full `https://…` URL (a
+   reviewer's simulation: an invalid value makes `auth()` throw `Invalid URL`
+   and fails scan submission; whether production sets it is not checked);
    `security-review`; sign-in enabled.
 
 Work starts after #52 (#117) merges, because both touch `src/auth.ts`.
