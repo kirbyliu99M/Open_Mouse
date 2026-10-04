@@ -1001,11 +1001,17 @@ test.describe("the layout follows what the page can hold", () => {
   }) => {
     // The desktop hero scales down with the height, so at 100 % text it fits
     // every window from 600 px up (home-stage-short.spec.ts). The fit check is
-    // still the rule, and it is what this exercises: at 200 % text the logo
-    // slot is at its floor and everything else doubles, so the hero is 870 to
-    // 1,000 px (the headline wraps in either font), too tall for an 800 px
-    // window and fine in 1,100. Only the window's height changes below.
-    await page.setViewportSize({ width: 1280, height: 1100 });
+    // still the rule, and it is what this exercises: at 200 % text the
+    // headline wraps to two lines (in either font) and everything doubles, so
+    // the hero is 966 px in an 800 px window (the logo slot at its 14 rem
+    // floor, 448 px) and 1,474 px once the slot reaches its 29 rem cap
+    // (928 px), which it does from about 1,480 px of height up. The stage is
+    // switched on at 1,600 px: the slot is capped there, so the hero no longer
+    // changes with the window and has 126 px to spare, which does not depend
+    // on the shrink's 0.5rem of room (between about 800 and 1,480 px the slot
+    // fills the window to within 2 px, so those heights say nothing about the
+    // fit check). Only the window's height changes below.
+    await page.setViewportSize({ width: 1280, height: 1600 });
     await page.goto("/");
     await waitForAnimated(page);
     await page.evaluate(() => {
@@ -1014,21 +1020,30 @@ test.describe("the layout follows what the page can hold", () => {
       style.textContent = "html { font-size: 200% }";
       document.head.append(style);
     });
-    const hero = await page
-      .locator(HERO)
-      .evaluate((el) => (el as HTMLElement).offsetHeight);
-    expect(hero).toBeGreaterThan(800);
-    expect(hero).toBeLessThanOrEqual(1100);
-    // It fits 1,100: the stage stays on.
+    const measure = () =>
+      page.evaluate(() => ({
+        hero: document.querySelector<HTMLElement>('[data-testid="home-hero"]')!
+          .offsetHeight,
+        slot: document.querySelector(".story-logo")!.getBoundingClientRect()
+          .height,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      }));
+    const tall = await measure();
+    expect(tall.rem).toBe(32);
+    // The slot is at its cap, so there is room whatever the shrink's margin.
+    expect(tall.slot).toBe(29 * tall.rem);
+    expect(tall.hero).toBeLessThanOrEqual(1600 - 100);
+    // It fits: the stage stays on.
     await expect(page.locator(STORY)).toHaveClass(/story--animated/);
-    // Too tall for 800: off, and the static page is whole.
+    // Too tall for 800 (by 160 px or more): off, and the static page is whole.
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
       timeout: 10_000,
     });
+    expect((await measure()).hero).toBeGreaterThan(800 + 100);
     expect((await layoutFacts(page)).canvasDisplay).toBe("none");
-    // Tall enough for the hero again: on. Too short again: off.
-    await page.setViewportSize({ width: 1280, height: hero + 60 });
+    // Tall enough again: on. Too short again: off.
+    await page.setViewportSize({ width: 1280, height: 1600 });
     await waitForAnimated(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {

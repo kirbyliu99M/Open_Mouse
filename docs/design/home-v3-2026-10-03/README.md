@@ -139,7 +139,9 @@ are ordinary blocks, and their parts stack in flow, as in
   has loaded and drawn its first frame, and only when all three hold:
   - motion is allowed;
   - the hero's measured height fits in `100svh` (so not at 320×568, in
-    landscape on a phone, or at large text zoom);
+    landscape on a phone, or when a large text size makes the hero taller than
+    the window: a tall enough window still holds it, so the switch follows the
+    window's height and the text size together);
   - the viewport is at least about 600 px tall.
 
   Otherwise the page stays static. If the module fails to load, nothing
@@ -201,7 +203,9 @@ about 60 % of the slot's height):
 desktop hero is 674 px tall at full size, and the stage switches on only when
 the hero fits in `100svh`, so a 1280×640 or 1366×657 window stayed static. The
 fit rule is kept; the hero shrinks instead, at 48rem and up, with the window's
-height (`home.css`, `.story-hero` and `.story-logo`):
+height (`home.css`, `.story-hero` and `.story-logo`). **The numbers below
+(740 px, 44 px, 14rem, 32rem, 0.5rem) are 未拍板 (candidate) until Kirby checks
+them on a real laptop;** each is one value in `home.css`.
 
 - everything is linear in `100svh` and clamped, so it shrinks continuously and
   there is no breakpoint to jump at;
@@ -210,7 +214,10 @@ height (`home.css`, `.story-hero` and `.story-logo`):
 - the logo slot takes what is left: `100svh` less the nav and the rest of the
   hero, so the whole hero (buttons and note too) is above the fold at the top
   of the page, from a 14rem floor up to the full 29rem;
-- below 600 px the page is static, and shows the same shrunken hero;
+- below 600 px the page is static, and shows the same shrunken hero. So do
+  reduced motion and no JS, at any height under 740 px: one CSS serves the
+  static and the animated page, which is what keeps the switch from shifting
+  anything;
 - the subhead may be 32rem wide here, so it is one line in a wide font too;
 - the copy, the order, the 44 px hit areas and the colours do not change.
 
@@ -218,6 +225,11 @@ It is a calculation, not a fit: it assumes a one-line headline and subhead. A
 very large text size, or a narrow window (768 to 860 px) in a wide font that
 wraps the headline, makes the hero taller than the calculation; the stage's own
 check decides then.
+
+The calculation uses the Latin line heights (1.05 for the headline, 1.4 for
+the subhead, 1.5 for the note). **When the i18n PR lands the zh-TW `:lang` line
+heights (about 1.2 and 1.6), recompute it in the same PR:** the 0.5rem of room
+will not cover them.
 
 ### Static images (PR A)
 

@@ -313,23 +313,43 @@
      in Windows' system font and in DejaVu Sans), and the nav is 3.5rem. If
      they are not (a very large text size, a narrow window in a wide font),
      the hero is taller than the calculation, and the stage's own check
-     (the hero's measured height fits in 100svh) keeps the static layout. */
+     (the hero's measured height fits in 100svh) keeps the static layout.
+
+     未拍板 (candidate), until Kirby checks it on a real laptop: the numbers
+     here (full size from 740px, the 44px headline floor at 600px, the tighter
+     gaps, the 14rem slot floor, the 32rem subhead, and the 0.5rem of room) are
+     the builder's choices, not decided. Each is one value in this block.
+
+     The slot's line heights (1.05, 1.4 and 1.5) are the Latin ones. When the
+     i18n PR lands zh-TW's :lang line heights (about 1.2 for the headline and
+     1.6 for body text), this calculation has to be redone with them in the
+     same PR: 0.5rem of room will not cover the difference.
+
+     --hero-vh is 100svh, or 100vh where svh is unknown: a var() that holds an
+     unknown unit is invalid when it is used, and would leave the headline at
+     the page's 16px. */
   .story-hero {
+    --hero-vh: 100vh;
     --hero-h1: clamp(
       2.75rem,
-      calc(2.75rem + (100svh - 600px) * 0.114286),
+      calc(2.75rem + (var(--hero-vh) - 600px) * 0.114286),
       3.75rem
     );
     --hero-gap-sub: clamp(
       0.5rem,
-      calc(0.5rem + (100svh - 600px) * 0.057143),
+      calc(0.5rem + (var(--hero-vh) - 600px) * 0.057143),
       1rem
     );
     --hero-gap-actions: clamp(
       1rem,
-      calc(1rem + (100svh - 600px) * 0.057143),
+      calc(1rem + (var(--hero-vh) - 600px) * 0.057143),
       1.5rem
     );
+  }
+  @supports (height: 1svh) {
+    .story-hero {
+      --hero-vh: 100svh;
+    }
   }
   .story-hero h1 {
     font-size: var(--hero-h1);
@@ -345,11 +365,11 @@
     /* 100svh, less: the nav (3.5rem), the headline (1.05 line height), the
        gap, one line of subhead (1.15rem x 1.4), the gap, the buttons (3.125rem),
        the note's gap (0.75rem) and its line (0.8rem x 1.5), and 0.5rem of
-       room. */
+       room. Latin line heights: see the note above for zh-TW. */
     --slot: clamp(
       14rem,
       calc(
-        100svh - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) -
+        var(--hero-vh) - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) -
           1.61rem - var(--hero-gap-actions) - 3.125rem - 0.75rem - 1.2rem -
           0.5rem
       ),
