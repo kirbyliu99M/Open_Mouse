@@ -62,10 +62,26 @@ describe("findValidSession on real Postgres", () => {
     // would allow a stale value and it must not make the row unusable.
     ["claimed, stale expiry: its owner", "caller", PAST, "caller", true],
     ["claimed, stale expiry: signed out", "caller", PAST, "signed-out", false],
+    // The CHECK also allows a claimed row that still carries a future expiry
+    // (nothing in the app writes one): it is the owner's, and only theirs.
+    ["claimed, future expiry: its owner", "caller", LIVE, "caller", true],
+    ["claimed, future expiry: signed out", "caller", LIVE, "signed-out", false],
+    [
+      "claimed, future expiry: someone else",
+      "caller",
+      LIVE,
+      "someone-else",
+      false,
+    ],
   ];
 
-  it.each(table)(
-    "%s -> usable=%s",
+  it.each(
+    table.map(
+      ([label, ...rest]) =>
+        [`${label} -> ${rest[3] ? "usable" : "not usable"}`, ...rest] as const,
+    ),
+  )(
+    "%s",
     async (_label, owner, expiresAt, caller, usable) => {
       const callerId = await user();
       const otherId = await user();
