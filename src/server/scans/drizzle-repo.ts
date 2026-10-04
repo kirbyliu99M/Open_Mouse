@@ -61,19 +61,19 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       userId,
       now,
     ): Promise<UsableSession | null> {
-      // Anonymous sessions always have an expiry (DB CHECK), so "unclaimed
-      // and unexpired" needs no "no expiry" case.
-      const anonymousAndLive = and(
-        isNull(scanSessions.userId),
-        gt(scanSessions.expiresAt, now),
-      );
-      // Issue #52: who is asking decides which rows count. A signed-in
-      // session never expires (M6) and is usable only by its own user; every
-      // other caller only ever gets an unclaimed, unexpired one.
-      const usableBy =
-        userId === null
-          ? anonymousAndLive
-          : or(eq(scanSessions.userId, userId), anonymousAndLive);
+      // Issue #52: a session is usable for a caller by exactly the rule that
+      // lets them read or delete its scans (`ownershipPredicate`), so the two
+      // cannot disagree: their own (`user_id = userId`, never expires) or an
+      // unclaimed, unexpired one named by the caller's cookie (here, the id
+      // being looked up). Anonymous callers only ever get the second kind.
+      const usableBy = ownershipPredicate({
+        userId,
+        cookieSessionId: sessionId,
+        now,
+      });
+      // `cookieSessionId` is set, so there is always a predicate; if that
+      // ever changed, no predicate must mean no session, not every session.
+      if (!usableBy) return null;
       const rows = await db
         .select({ id: scanSessions.id, userId: scanSessions.userId })
         .from(scanSessions)
