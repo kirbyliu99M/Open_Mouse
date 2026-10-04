@@ -22,6 +22,9 @@ import { expectPrintsDark } from "./fixtures/print-text";
  * facts (buttons, sizes, colours) are pinned in home.spec.ts.
  */
 
+/** The first screen's whole layout shift. Strict (0.001) unless the local wide-font simulation says so. */
+const TOTAL_CLS_BOUND = process.env.WIDE_FONT_RUN === "1" ? 0.02 : 0.001;
+
 test.describe("the animated layout", () => {
   test.beforeEach(async ({ page }) => {
     await recordStage(page);
@@ -103,10 +106,13 @@ test.describe("the animated layout", () => {
       await page.waitForTimeout(800);
       // Nothing moved from the moment the layout switched.
       expect(await read<number>(page, "__clsAfterSwitch")).toBe(0);
-      // And the whole first screen stays put (a web font swapping in, which
-      // the page does not use but a wide-font run of this suite does, is worth
-      // about 0.005 on the static page too; a real shift of the hero is more).
-      expect(await read<number>(page, "__cls")).toBeLessThanOrEqual(0.02);
+      // And the whole first screen stays put. On CI, and by default, that is
+      // strict. The local wide-font simulation serves DejaVu Sans as a web
+      // font, which swaps in after load and is worth about 0.005 on the static
+      // page too, so a run with WIDE_FONT_RUN=1 allows for it.
+      expect(await read<number>(page, "__cls")).toBeLessThanOrEqual(
+        TOTAL_CLS_BOUND,
+      );
       const animated = await heroGeometry(page);
 
       // The same page with reduced motion never leaves the static layout.
