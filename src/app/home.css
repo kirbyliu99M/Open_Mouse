@@ -292,12 +292,72 @@
 }
 
 @media (min-width: 48rem) {
+  /* The hero on a desktop or tablet, which gets shorter as the window does.
+     At full size it is 29rem of logo slot, the headline, the subhead, the
+     buttons and the note: 700 px, plus the nav above it. A laptop window
+     (1280x640, 1366x657) is shorter than that, and the stage switches on only
+     when the hero fits in 100svh, so the hero scales down with the height
+     instead of the rule being loosened.
+
+     Everything is linear in 100svh and clamped, so it shrinks continuously and
+     there is no breakpoint to jump at. The headline and two gaps go from full
+     size at 740px of height down to 44px type and tighter gaps at 600px (the
+     stage's own floor, MIN_VIEWPORT_HEIGHT). The logo slot takes whatever is
+     left: the viewport minus the nav and the rest of the hero, so the whole
+     hero (buttons and note too) is above the fold at the top of the page, down
+     to a floor of 14rem. Below 600px the page is static, and the same
+     shrunken hero is what it shows. Full size is untouched from 740px up.
+
+     This is a calculation, not a fit: it assumes the headline and the subhead
+     are one line each (the subhead is allowed 32rem below, so it is one line
+     in Windows' system font and in DejaVu Sans), and the nav is 3.5rem. If
+     they are not (a very large text size, a narrow window in a wide font),
+     the hero is taller than the calculation, and the stage's own check
+     (the hero's measured height fits in 100svh) keeps the static layout. */
+  .story-hero {
+    --hero-h1: clamp(
+      2.75rem,
+      calc(2.75rem + (100svh - 600px) * 0.1143),
+      3.75rem
+    );
+    --hero-gap-sub: clamp(
+      0.5rem,
+      calc(0.5rem + (100svh - 600px) * 0.0571),
+      1rem
+    );
+    --hero-gap-actions: clamp(
+      1rem,
+      calc(1rem + (100svh - 600px) * 0.0571),
+      1.5rem
+    );
+  }
+  .story-hero h1 {
+    font-size: var(--hero-h1);
+  }
+  .story-hero .home-subhead {
+    max-width: 32rem;
+    margin-top: var(--hero-gap-sub);
+  }
+  .story-hero .home-actions {
+    margin-top: var(--hero-gap-actions);
+  }
   .story-logo {
-    --slot: 29rem;
+    /* 100svh, less: the nav (3.5rem), the headline (1.05 line height), the
+       gap, one line of subhead (1.15rem x 1.4), the gap, the buttons (3.125rem),
+       the note's gap (0.75rem) and its line (0.8rem x 1.5), and 0.5rem of
+       room. */
+    --slot: clamp(
+      14rem,
+      calc(
+        100svh - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) - 1.61rem -
+          var(--hero-gap-actions) - 3.125rem - 0.75rem - 1.2rem - 0.5rem
+      ),
+      29rem
+    );
   }
   .story-logo img {
-    /* About 19 rem of mark in a 29 rem slot. */
-    height: 21rem;
+    /* About 19 rem of mark in a 29 rem slot: 21 rem of image in 29 rem. */
+    height: calc(var(--slot) * 21 / 29);
   }
   .home-actions {
     flex-wrap: nowrap;
