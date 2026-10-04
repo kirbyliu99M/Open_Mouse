@@ -5,10 +5,9 @@ import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
-import { claimAnonymousSession } from "./server/auth/claim";
+import { claimOnSignIn } from "./server/auth/claim";
 import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
-import { SCAN_SESSION_COOKIE } from "./server/scans/cookies";
 
 /**
  * `getDb()` throws when `DATABASE_URL` is unset or malformed (see
@@ -89,16 +88,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * only for the session named by *their own* httpOnly cookie. `cookies()`
      * here reads the same request that just completed the OAuth callback,
      * so this can never be pointed at a session the caller doesn't hold.
-     * The raw cookie value goes straight to `claimAnonymousSession`, which
-     * applies the same UUID check as `readSessionCookie`: a malformed value
-     * never reaches the database (it would throw 22P02 and could fail the
-     * sign-in).
+     * The raw cookie value goes straight to `claimAnonymousSession` (via
+     * `claimOnSignIn`), which applies the same UUID check as
+     * `readSessionCookie`: a malformed value never reaches the database
+     * (there it would be one query that can only fail, plus an EventError in
+     * the log, with the claim skipped).
      */
     async signIn({ user }) {
-      if (!user.id) return;
-      const store = await cookies();
-      const cookieValue = store.get(SCAN_SESSION_COOKIE)?.value;
-      await claimAnonymousSession(cookieValue, user.id, {
+      await claimOnSignIn(user, await cookies(), {
         repo: createDrizzleScanRepo(),
       });
     },

@@ -6,6 +6,7 @@ import {
 } from "../../src/server/scans/cookies";
 import {
   claimAnonymousSession,
+  claimOnSignIn,
   deriveClaimSessionId,
 } from "../../src/server/auth/claim";
 
@@ -150,7 +151,9 @@ describe("claimAnonymousSession", () => {
 
   // The Auth.js sign-in event (src/auth.ts) hands this function the raw
   // `scan_session` value from the cookie store. A malformed one used to reach
-  // Postgres as an invalid uuid (22P02) and could fail the sign-in itself.
+  // Postgres as an invalid uuid (22P02): a query that can only fail and an
+  // EventError log line (Auth.js swallows it, so the sign-in still succeeds),
+  // with the claim skipped.
   it.each([
     ["not a uuid", "session-123"],
     ["an SQL fragment", "' OR 1=1 --"],
@@ -202,5 +205,77 @@ describe("parseSessionId — the one UUID check every cookie reader shares", () 
     }
     expect(parseSessionId(undefined)).toBeNull();
     expect(parseSessionId(null)).toBeNull();
+  });
+});
+
+/**
+ * `claimOnSignIn` is the body of the Auth.js `events.signIn` hook in
+ * src/auth.ts. The hook itself needs a real sign-in to run, so what it does
+ * is pinned here: it hands the signed-in user's id and the `scan_session`
+ * cookie's raw value (and nothing else) to the claim.
+ */
+describe("claimOnSignIn — the Auth.js sign-in event", () => {
+  function cookieStore(cookies: Record<string, string>) {
+    return {
+      get: vi.fn((name: string) =>
+        name in cookies ? { value: cookies[name]! } : undefined,
+      ),
+    };
+  }
+
+  it("claims the cookie's session for the user who signed in", async () => {
+    const { repo, table } = fakeClaimRepo([
+      { id: MINE, userId: null, expiresAt: new Date(Date.now() + 60_000) },
+    ]);
+    const store = cookieStore({ [SCAN_SESSION_COOKIE]: MINE });
+
+    await claimOnSignIn({ id: "user-1" }, store, { repo });
+
+    expect(store.get).toHaveBeenCalledWith(SCAN_SESSION_COOKIE);
+    expect(repo.claimSession).toHaveBeenCalledTimes(1);
+    expect(repo.claimSession).toHaveBeenCalledWith(
+      MINE,
+      "user-1",
+      expect.any(Date),
+    );
+    expect(table.get(MINE)).toMatchObject({
+      userId: "user-1",
+      expiresAt: null,
+    });
+  });
+
+  it("reads only the scan_session cookie, never another one", async () => {
+    const { repo } = fakeClaimRepo([]);
+    const store = cookieStore({ other: MINE });
+    await claimOnSignIn({ id: "user-1" }, store, { repo });
+    expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["no user id", { id: undefined }],
+    ["a null user id", { id: null }],
+    ["an empty user id", { id: "" }],
+  ])("claims nothing for %s", async (_label, user) => {
+    const { repo } = fakeClaimRepo([]);
+    await claimOnSignIn(user, cookieStore({ [SCAN_SESSION_COOKIE]: MINE }), {
+      repo,
+    });
+    expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+
+  it("claims nothing when there is no scan_session cookie", async () => {
+    const { repo } = fakeClaimRepo([]);
+    await claimOnSignIn({ id: "user-1" }, cookieStore({}), { repo });
+    expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+
+  it("a malformed scan_session value never reaches the repo", async () => {
+    const { repo } = fakeClaimRepo([]);
+    await claimOnSignIn(
+      { id: "user-1" },
+      cookieStore({ [SCAN_SESSION_COOKIE]: "not-a-uuid" }),
+      { repo },
+    );
+    expect(repo.claimSession).not.toHaveBeenCalled();
   });
 });

@@ -185,7 +185,7 @@ export async function handleScanSubmission(
  *
  * - signed out: reuse an unclaimed, unexpired session; otherwise (no cookie,
  *   expired, unknown, or already claimed by anyone) a new anonymous session
- *   with the 24 h expiry, and a new cookie.
+ *   with the `SESSION_TTL_MS` expiry (20 h 30 min), and a new cookie.
  * - signed in as `userId`: reuse their own session; claim an unclaimed,
  *   unexpired one first (`claimSession`, the same step sign-in runs, for a
  *   browser that signed in before it held a cookie); otherwise (no cookie,

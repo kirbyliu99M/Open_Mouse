@@ -37,7 +37,8 @@ const UUID_PATTERN =
  * or not a UUID. Every id this app issues is a UUID (`scan_sessions.id`), so
  * any other value is tampering or corruption — treated as "no cookie" rather
  * than passed to Postgres, where a non-UUID makes the query throw (22P02: a
- * 500 instead of the contract's 404, or a failed sign-in).
+ * 500 instead of the contract's 404; in the sign-in event, a wasted failing
+ * query and an EventError log line, with the claim skipped).
  *
  * The one check every reader of the cookie goes through, whether it has the
  * raw Cookie header (`readSessionCookie`) or an already-parsed value (the
