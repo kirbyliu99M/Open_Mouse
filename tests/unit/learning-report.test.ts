@@ -6,7 +6,6 @@ import {
   checkPaperEdgeGatesOnly,
   runPaperEdgeHandGates,
 } from "../../src/client/photo/gates";
-import { LANDMARK_HEIGHTS_MM } from "../../src/client/geometry/parallax";
 import { PAPER_SIZES_MM } from "../../src/lib/contracts/measurement";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
 import { readExifWhitelist } from "../../src/lib/learning/exif";
@@ -28,6 +27,7 @@ import {
 import { sortReports } from "../../src/lib/learning/runlog";
 import { buildExifJpeg, phoneSpec, PRIVATE } from "./helpers/exif-jpeg";
 import {
+  HAND_HEIGHTS_MM,
   HAND_MM,
   INDEPENDENT_SCENE,
   TRUE_HAND_LENGTH_MM,
@@ -586,7 +586,7 @@ describe("the paper detection and the product's gates, recorded", () => {
     const cx = shot.scene.paperWidthMm / 2;
     const cy = shot.scene.paperHeightMm / 2;
     const far = HAND_MM.map((mm, i) =>
-      camera.project(mm.x + cx + 450, mm.y + cy, LANDMARK_HEIGHTS_MM[i]!),
+      camera.project(mm.x + cx + 450, mm.y + cy, HAND_HEIGHTS_MM[i]!),
     );
     expect(codes({ hand: { ...HAND, landmarksPx: far } })).toEqual([
       "HAND_OUT_OF_BOUNDS",

@@ -660,7 +660,7 @@ describe("the Markdown summary of an agreed-v2 run", () => {
   const md = renderMarkdown(report);
 
   it("says accuracy is dormant, and what the numbers are instead", () => {
-    expect(md).toMatch(/^# M2 evaluation \(agreed-v2\): landmark-raw-v1/);
+    expect(md).toMatch(/^# M2 evaluation \(agreed-v2\): landmark-raw-v2/);
     expect(md).toMatch(/## Accuracy\n\nDormant: no ruler truth\./);
     expect(md).toMatch(/agreement with the marker-sheet reference/);
     expect(md).toMatch(/retake repeatability/);

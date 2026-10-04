@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
 import {
   applyHomography,
   type Homography,
@@ -6,16 +7,20 @@ import {
 import {
   computeCorrectedHandMeasurements,
   computeHandMeasurements,
+  measurementsFromSheetMm,
 } from "../../src/client/geometry/measurements";
 import {
-  LANDMARK_HEIGHTS_MM,
   LANDMARK_HEIGHTS_MM_VERSION,
+  LANDMARK_HEIGHT_RATIOS,
+  correctLandmarks,
+  landmarkHeightsMm,
 } from "../../src/client/geometry/parallax";
 import {
   buildPlane,
   homographyToRows,
   recomputePlane,
   rowsToHomography,
+  type PlaneCalibration,
   type PlaneInput,
 } from "../../src/lib/learning/plane";
 import { independentSceneCamera } from "./helpers/independent-scene";
@@ -67,13 +72,41 @@ describe("buildPlane: a parallax-corrected plane", () => {
         cy: shot.imageSize.height / 2,
       },
       imageSize: shot.imageSize,
-      heightsVersion: LANDMARK_HEIGHTS_MM_VERSION,
-      heightsMm: [...LANDMARK_HEIGHTS_MM],
+      heightsVersion: "landmark-heights-v2",
       error: null,
     });
+    expect(built.plane.parallax!.heightsVersion).toBe(
+      LANDMARK_HEIGHTS_MM_VERSION,
+    );
   });
 
-  it("gives exactly the numbers the product's blank-paper function gives", () => {
+  it("records the 21 heights the correction used: the v2 ratios times this photo's hand length", () => {
+    const heights = built.plane.parallax!.heightsMm;
+    expect(heights).toHaveLength(21);
+    for (let i = 0; i < 21; i++) {
+      expect(heights[i]).toBeCloseTo(
+        LANDMARK_HEIGHT_RATIOS[i]! * TRUE_HAND_LENGTH_MM,
+        6,
+      );
+    }
+  });
+
+  it("records different heights for a different hand: they follow the photo's own hand length, not a constant", () => {
+    for (const handLengthMm of [160, 220]) {
+      const shot = syntheticShot({ handLengthMm });
+      const heights = buildPlane(input(shot))!.plane.parallax!.heightsMm;
+      for (let i = 0; i < 21; i++) {
+        // The passes settle within 0.01 mm of the true length, so each height
+        // is the ratio times that length to well under 0.01 mm.
+        expect(heights[i]).toBeCloseTo(
+          LANDMARK_HEIGHT_RATIOS[i]! * handLengthMm,
+          2,
+        );
+      }
+    }
+  });
+
+  it("gives exactly the numbers the product's blank-paper function gives, and records the heights it used", () => {
     const product = computeCorrectedHandMeasurements(
       shot.landmarksPx,
       shot.markerHomography,
@@ -84,6 +117,7 @@ describe("buildPlane: a parallax-corrected plane", () => {
       },
     );
     expect(built.measurements).toEqual(product.measurements);
+    expect(built.plane.parallax!.heightsMm).toEqual(product.heightsMm);
   });
 
   it("is parallax-corrected: close to the true hand, where the uncorrected path reads long", () => {
@@ -224,6 +258,20 @@ describe("buildPlane: when the correction does not apply", () => {
       corrected: false,
       focalSource: "exif",
     });
+  });
+
+  it("records 21 zero heights when nothing was lifted off the sheet (no correction, or no hand)", () => {
+    const flat = buildPlane(
+      input(syntheticShot({ tiltDeg: 0.5 }), { exifFocalPx: null }),
+    )!;
+    const noHand = buildPlane(input(syntheticShot(), { landmarksPx: null }))!;
+    for (const built of [flat, noHand]) {
+      expect(built.plane.parallax!.corrected).toBe(false);
+      expect(built.plane.parallax!.heightsMm).toEqual(Array(21).fill(0));
+      expect(built.plane.parallax!.heightsVersion).toBe(
+        LANDMARK_HEIGHTS_MM_VERSION,
+      );
+    }
   });
 
   it("keeps the points but reports no measurements for a pose outside the contract's ranges", () => {
@@ -409,5 +457,109 @@ describe("recomputePlane: the two branches that used to be untested", () => {
     expect(
       recomputePlane(shot.landmarksPx, roundTrip(built.plane)).measurements,
     ).not.toBeNull();
+  });
+});
+
+// What landmark-heights-v1 wrote into every plane of every log: these 21
+// millimetres, the same for every photo, under this version string. Written out
+// as literals on purpose, so that nothing the current build changes can move
+// them.
+const V1_HEIGHTS_MM = [
+  20, 18, 15, 11, 6, 13, 10, 8, 6, 13, 10, 8, 6, 13, 10, 8, 6, 13, 10, 8, 6,
+] as const;
+
+describe("recomputePlane: a log written by landmark-heights-v1 is worked out with the heights it recorded", () => {
+  // A 160 mm hand whose landmarks really stand at the v1 heights, as a v1
+  // build's correction assumed. The v2 algorithm would assume other heights
+  // for it (about 0.8 mm of hand length different, see below).
+  const shot = syntheticShot({ handLengthMm: 160, heightsMm: V1_HEIGHTS_MM });
+  const principalPoint = centrePrincipalPoint(
+    shot.imageSize.width,
+    shot.imageSize.height,
+  );
+  // The old record as the old build wrote it, built from the unchanged
+  // primitive `correctLandmarks` (v1's buildPlane called it with the constant).
+  const v1Points = correctLandmarks(
+    shot.landmarksPx,
+    shot.markerHomography,
+    { fPx: shot.exifFocalPx, ...principalPoint },
+    V1_HEIGHTS_MM,
+  );
+  const v1Plane: PlaneCalibration = {
+    method: "markers",
+    homography: homographyToRows(shot.markerHomography),
+    fit: NO_FIT,
+    parallax: {
+      corrected: true,
+      focalSource: "exif",
+      focalPx: shot.exifFocalPx,
+      exifFocalPx: shot.exifFocalPx,
+      principalPoint,
+      imageSize: shot.imageSize,
+      heightsVersion: "landmark-heights-v1",
+      heightsMm: [...V1_HEIGHTS_MM],
+      error: null,
+    },
+    landmarksSheetMm: v1Points,
+  };
+  const saved = roundTrip(v1Plane);
+
+  it("reproduces the recorded points and measurements exactly", () => {
+    const again = recomputePlane(roundTrip(shot.landmarksPx), saved);
+    expect(again.points).toEqual(saved.landmarksSheetMm);
+    expect(again.measurements).toEqual(measurementsFromSheetMm(v1Points));
+    // The recorded heights were the true ones, so the hand comes out true.
+    expect(Math.abs(again.measurements!.handLengthMm - 160)).toBeLessThan(0.01);
+  });
+
+  it("gives frozen numbers, so a change to correctLandmarks itself is caught too", () => {
+    // Written down from the build that wrote v1 logs (the main branch at
+    // 062fed2, run on this same photo: its buildPlane with the v1 constant),
+    // not from the code under test. They are also the hand's own coordinates,
+    // which the correction recovers exactly when it uses the heights the hand
+    // really stood at.
+    const again = recomputePlane(shot.landmarksPx, saved);
+    const frozen: readonly [number, number, number][] = [
+      [0, 0, -80], // wrist
+      [5, -16.8421052632, 4.21052631579], // index MCP
+      [12, 0, 80], // middle fingertip
+      [17, 50.5263157895, 2.52631578947], // little MCP
+    ];
+    for (const [i, x, y] of frozen) {
+      expect(again.points[i]!.x, `landmark ${i} x`).toBeCloseTo(x, 6);
+      expect(again.points[i]!.y, `landmark ${i} y`).toBeCloseTo(y, 6);
+    }
+    expect(again.measurements!.handLengthMm).toBeCloseTo(160, 6);
+    expect(again.measurements!.palmLengthMm).toBeCloseTo(88.4210526316, 6);
+    expect(again.measurements!.palmWidthMm).toBeCloseTo(67.3894703958, 6);
+    expect(again.measurements!.middleLengthMm).toBeCloseTo(71.5789473684, 6);
+  });
+
+  it("is not replaced by the current algorithm: a v2 build of the same photo gives different numbers", () => {
+    const again = recomputePlane(shot.landmarksPx, saved);
+    const v2 = buildPlane(input(shot))!;
+    // The v2 algorithm measures this photo's 160 mm hand about 0.76 mm long.
+    expect(
+      Math.abs(
+        v2.measurements!.handLengthMm - again.measurements!.handLengthMm,
+      ),
+    ).toBeGreaterThan(0.5);
+    expect(v2.plane.parallax!.heightsVersion).toBe("landmark-heights-v2");
+    expect(v2.plane.parallax!.heightsMm).not.toEqual([...V1_HEIGHTS_MM]);
+  });
+
+  it("goes by the recorded heights, not by the version label", () => {
+    const relabelled = {
+      ...saved,
+      parallax: {
+        ...saved.parallax!,
+        heightsVersion: LANDMARK_HEIGHTS_MM_VERSION,
+      },
+    };
+    expect(recomputePlane(shot.landmarksPx, relabelled)).toEqual(
+      recomputePlane(shot.landmarksPx, saved),
+    );
+    // ...and the current ratios, applied to this hand, are not what it used.
+    expect(landmarkHeightsMm(160)).not.toEqual([...V1_HEIGHTS_MM]);
   });
 });

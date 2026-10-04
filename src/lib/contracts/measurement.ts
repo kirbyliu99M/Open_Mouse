@@ -101,7 +101,14 @@ export const MEASUREMENT_DEFINITIONS = {
   pinkyLengthMm: "chain(17, 18, 19, 20)",
 } as const;
 
-export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v1";
+/**
+ * The model the client measures with today. `landmark-raw-v2` (2026-10-04)
+ * keeps the raw landmark distances of v1 but corrects parallax with
+ * per-landmark heights that scale with hand length (`landmark-heights-v2`,
+ * docs/research/landmark-heights-v2.md); v1 used 21 fixed heights. The stored
+ * version is what tells the two apart.
+ */
+export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v2";
 
 /**
  * Every measurement model the server accepts. Clients send the one they
@@ -111,7 +118,10 @@ export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v1";
  * `MEASUREMENT_MODEL_VERSION`: bumping the current version must never
  * silently drop an old one from this list.
  */
-export const MEASUREMENT_MODEL_VERSIONS = ["landmark-raw-v1"] as const;
+export const MEASUREMENT_MODEL_VERSIONS = [
+  "landmark-raw-v1",
+  "landmark-raw-v2",
+] as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
 

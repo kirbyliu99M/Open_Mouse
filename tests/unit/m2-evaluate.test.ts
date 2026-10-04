@@ -629,10 +629,12 @@ describe("several logs", () => {
 });
 
 describe("a correction plugged into the evaluator (the frozen calibrated-v1 will go here)", () => {
-  it("the baseline changes nothing and names itself landmark-raw-v1", () => {
+  it("the baseline changes nothing and names itself after the current model", () => {
     const r = run(LENGTHS.map((mm) => right(mm)));
-    expect(r.model).toBe("landmark-raw-v1");
-    expect(RAW_CALIBRATION.name).toBe("landmark-raw-v1");
+    // landmark-raw-v2 since 2026-10-04 (landmark heights as a ratio of hand
+    // length). The heights a replay uses still come from each run log.
+    expect(r.model).toBe("landmark-raw-v2");
+    expect(RAW_CALIBRATION.name).toBe("landmark-raw-v2");
   });
 
   it("a correction shifts every error, and only the correction", () => {
@@ -770,7 +772,7 @@ describe("what the report holds", () => {
   });
 
   it("the summary shows the numbers and the candidate label", () => {
-    expect(markdown).toMatch(/# M2 evaluation: landmark-raw-v1/);
+    expect(markdown).toMatch(/# M2 evaluation: landmark-raw-v2/);
     expect(markdown).toMatch(/未拍板/);
     expect(markdown).toMatch(/PAPER_CURLED/);
     expect(markdown).toMatch(/P001\/G01R\/2/);
