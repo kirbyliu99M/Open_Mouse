@@ -95,6 +95,7 @@ describe("POST /api/scans 400 issues for a calibration union", () => {
           insertScanWithMeasurements: async () => ({ scanId: "y" }),
           deleteExpiredAnonymousSessions: async () => 0,
         } as never,
+        getUserId: async () => null,
       },
     );
     expect(res.status).toBe(400);

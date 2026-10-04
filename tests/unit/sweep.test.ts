@@ -9,6 +9,7 @@ function fakeRepo(): ScanRepo {
   return {
     findValidSession: vi.fn(async () => null),
     createAnonymousSession: vi.fn(async () => ({ id: "s" })),
+    createClaimedSession: vi.fn(async () => ({ id: "s" })),
     insertScanWithMeasurements: vi.fn(async () => ({ scanId: "scan" })),
     deleteSession: vi.fn(async () => {}),
     deleteExpiredAnonymousSessions: vi.fn(async () => 0),

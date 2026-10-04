@@ -66,6 +66,7 @@ export function createFakeScanRepo(
   return {
     findValidSession: vi.fn(async () => null),
     createAnonymousSession: vi.fn(async () => ({ id: "session" })),
+    createClaimedSession: vi.fn(async () => ({ id: "session" })),
     insertScanWithMeasurements: vi.fn(async () => ({ scanId: "scan" })),
     deleteSession: vi.fn(async () => {}),
     deleteExpiredAnonymousSessions: vi.fn(async () => 0),

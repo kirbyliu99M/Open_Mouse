@@ -14,6 +14,7 @@ import type {
   ScanOwnershipContext,
   ScanRepo,
   SessionRecord,
+  UsableSession,
 } from "./repo";
 
 function ownershipPredicate(ctx: ScanOwnershipContext) {
@@ -55,17 +56,28 @@ function ownershipPredicate(ctx: ScanOwnershipContext) {
  */
 export function createDrizzleScanRepo(db = getDb()): ScanRepo {
   return {
-    async findValidSession(sessionId, now): Promise<SessionRecord | null> {
+    async findValidSession(
+      sessionId,
+      userId,
+      now,
+    ): Promise<UsableSession | null> {
+      // Issue #52: a session is usable for a caller by exactly the rule that
+      // lets them read or delete its scans (`ownershipPredicate`), so the two
+      // cannot disagree: their own (`user_id = userId`, never expires) or an
+      // unclaimed, unexpired one named by the caller's cookie (here, the id
+      // being looked up). Anonymous callers only ever get the second kind.
+      const usableBy = ownershipPredicate({
+        userId,
+        cookieSessionId: sessionId,
+        now,
+      });
+      // `cookieSessionId` is set, so there is always a predicate; if that
+      // ever changed, no predicate must mean no session, not every session.
+      if (!usableBy) return null;
       const rows = await db
-        .select({ id: scanSessions.id })
+        .select({ id: scanSessions.id, userId: scanSessions.userId })
         .from(scanSessions)
-        .where(
-          and(
-            eq(scanSessions.id, sessionId),
-            // A signed-in session (M6) has no expiresAt and never expires here.
-            or(isNull(scanSessions.expiresAt), gt(scanSessions.expiresAt, now)),
-          ),
-        )
+        .where(and(eq(scanSessions.id, sessionId), usableBy))
         .limit(1);
       return rows[0] ?? null;
     },
@@ -74,6 +86,14 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       const [row] = await db
         .insert(scanSessions)
         .values({ expiresAt })
+        .returning({ id: scanSessions.id });
+      return row;
+    },
+
+    async createClaimedSession(userId): Promise<SessionRecord> {
+      const [row] = await db
+        .insert(scanSessions)
+        .values({ userId, expiresAt: null })
         .returning({ id: scanSessions.id });
       return row;
     },

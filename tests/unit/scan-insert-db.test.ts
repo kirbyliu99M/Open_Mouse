@@ -10,27 +10,14 @@ vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
 import { CALIBRATION_METHODS } from "../../src/lib/contracts/measurement";
 import { createDrizzleScanRepo } from "../../src/server/scans/drizzle-repo";
-import { migratedDatabase } from "./fixtures/pglite";
+import { migratedDatabase, withSequentialBatch } from "./fixtures/pglite";
 
 type ScanDb = Parameters<typeof createDrizzleScanRepo>[0];
-
-// PGlite's drizzle driver has no `db.batch` (neon-http's atomic multi-query
-// request). Run the batch's queries in order instead: this test checks the
-// repo's column mapping against the real schema, not batch atomicity.
-function withSequentialBatch(db: object): ScanDb {
-  return Object.assign(db, {
-    batch: async (queries: PromiseLike<unknown>[]) => {
-      const results: unknown[] = [];
-      for (const query of queries) results.push(await query);
-      return results;
-    },
-  }) as unknown as ScanDb;
-}
 
 describe("createDrizzleScanRepo().insertScanWithMeasurements", () => {
   it("stores the measurement model, calibration method and evidence", async () => {
     const { pg, db } = await migratedDatabase();
-    const repo = createDrizzleScanRepo(withSequentialBatch(db));
+    const repo = createDrizzleScanRepo(withSequentialBatch<ScanDb>(db));
     const session = await repo.createAnonymousSession(
       new Date(Date.now() + 60_000),
     );
@@ -83,7 +70,7 @@ describe("createDrizzleScanRepo().insertScanWithMeasurements", () => {
     );
     expect(rows.map((r) => r.v)).toEqual([...CALIBRATION_METHODS]);
 
-    const repo = createDrizzleScanRepo(withSequentialBatch(db));
+    const repo = createDrizzleScanRepo(withSequentialBatch<ScanDb>(db));
     const session = await repo.createAnonymousSession(
       new Date(Date.now() + 60_000),
     );
@@ -114,7 +101,7 @@ describe("createDrizzleScanRepo().insertScanWithMeasurements", () => {
 
   it("old code that omits the new columns still inserts (they are nullable)", async () => {
     const { pg, db } = await migratedDatabase();
-    const repo = createDrizzleScanRepo(withSequentialBatch(db));
+    const repo = createDrizzleScanRepo(withSequentialBatch<ScanDb>(db));
     const session = await repo.createAnonymousSession(
       new Date(Date.now() + 60_000),
     );
