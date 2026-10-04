@@ -85,7 +85,8 @@
 }
 
 .home-main a:focus-visible,
-.home-main button:focus-visible {
+.home-main button:focus-visible,
+.home-main h1[tabindex="-1"]:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }

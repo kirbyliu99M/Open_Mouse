@@ -68,7 +68,7 @@ export interface AnimationConditions {
   readonly heroHeight: number;
   /** The panel's height in the animated layout: 100svh (px). */
   readonly panelHeight: number;
-  /** The viewport's height (px). */
+  /** The height the 600 px rule reads (px): the stage passes 100svh, the same as panelHeight, so a phone's toolbar showing or hiding does not flip the layout. */
   readonly viewportHeight: number;
 }
 
