@@ -151,6 +151,9 @@ class Stage {
     captions?: string;
   } = {};
 
+  /** True while the h1 carries the tabindex this stage gave it. */
+  private headingTabindexSet = false;
+
   private readonly probe: HTMLElement;
   private readonly controls: HTMLElement[];
   private readonly queries: Record<
@@ -359,6 +362,10 @@ class Stage {
     hero.style.transform = "";
     for (const control of this.controls)
       control.toggleAttribute("inert", false);
+    if (this.headingTabindexSet) {
+      hero.querySelector("h1")?.removeAttribute("tabindex");
+      this.headingTabindexSet = false;
+    }
     if (sheet) sheet.style.opacity = "";
     for (const mouse of mice)
       if (mouse.caption) mouse.caption.style.opacity = "";
@@ -518,6 +525,28 @@ class Stage {
     this.parts.section.dataset.story = String(phase.story);
   }
 
+  /**
+   * If a hero control has the focus, move it to the h1 (made focusable with
+   * tabindex -1, so it is not a tab stop) without scrolling. Scrolling back
+   * does not move it again.
+   */
+  private moveFocusToHeading(): void {
+    const active = document.activeElement;
+    if (
+      !active ||
+      !this.controls.some((c) => c === active || c.contains(active))
+    ) {
+      return;
+    }
+    const heading = this.parts.hero.querySelector<HTMLElement>("h1");
+    if (!heading) return;
+    if (!heading.hasAttribute("tabindex")) {
+      heading.setAttribute("tabindex", "-1");
+      this.headingTabindexSet = true;
+    }
+    heading.focus({ preventScroll: true });
+  }
+
   /** The DOM's share of the story: the hero's fade, the A4 outline, the captions. Opacity and transform only. */
   private applyDom(phase: Phase): void {
     const { hero, sheet, mice } = this.parts;
@@ -535,7 +564,10 @@ class Stage {
       w.transform = transform;
     }
     if (phase.hero.inert !== w.inert) {
-      // Hidden controls can not be tabbed to; the h1 stays in the accessibility tree.
+      // A control that holds the focus when it turns inert would drop it on
+      // the body: hand it to the h1 first (it stays in the accessibility tree).
+      if (phase.hero.inert) this.moveFocusToHeading();
+      // Hidden controls can not be tabbed to.
       for (const control of this.controls) {
         control.toggleAttribute("inert", phase.hero.inert);
       }
