@@ -82,7 +82,7 @@ export default function HomePage() {
               this. */}
           <ul className="story-notes">
             {homeStoryNotes().map((note) => (
-              <li key={note.key} className="story-note" data-note={note.key}>
+              <li key={note.key} className="story-note">
                 <p className="story-note-title">{note.title}</p>
                 <p className="story-note-why">{note.why}</p>
               </li>

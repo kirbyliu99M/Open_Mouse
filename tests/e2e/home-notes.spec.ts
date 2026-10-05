@@ -447,43 +447,49 @@ test.describe("the hand's outline", () => {
     );
   }
 
-  test("closes the wrist with a flat base in #5F86C9: an edge pixel under the wrist, once the skeleton is drawn, and none before", async ({
-    page,
-  }, info) => {
-    test.skip(info.project.name !== "chromium", "One project is enough.");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
-    await waitForAnimated(page);
-    const { hand } = await boxes(page);
-    const canvas = await page.locator(CANVAS).boundingBox();
-    const viewBoxWidth =
-      (A4_MM.width + HAND_MARGIN_MM.left + HAND_MARGIN_MM.right) * STAGE_SCALE;
-    const k = hand.width / viewBoxWidth;
-    // The base's lowest edge, at the wrist's centre, in canvas px.
-    const centre = {
-      x: hand.left - canvas!.x + (HAND_MARGIN_MM.left + 115) * STAGE_SCALE * k,
-      y: wristBottom(hand) - canvas!.y,
-    };
-    const half = { x: 6, y: 3 };
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`${width}x${height}: closes the wrist with a flat base in #5F86C9: an edge pixel under the wrist once the skeleton is drawn, and none before`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      const { hand } = await boxes(page);
+      const canvas = await page.locator(CANVAS).boundingBox();
+      const viewBoxWidth =
+        (A4_MM.width + HAND_MARGIN_MM.left + HAND_MARGIN_MM.right) *
+        STAGE_SCALE;
+      const k = hand.width / viewBoxWidth;
+      // The base's lowest edge, at the wrist's centre, in canvas px.
+      const centre = {
+        x:
+          hand.left - canvas!.x + (HAND_MARGIN_MM.left + 115) * STAGE_SCALE * k,
+        y: wristBottom(hand) - canvas!.y,
+      };
+      const half = { x: 6, y: 3 };
 
-    // Before the skeleton (p = 0.42) the outline has not started: no edge.
-    await scrollToProgress(page, 0.3);
-    expect((await strongest(page, centre, half))[3]).toBeLessThan(10);
+      // The hand has formed (p = 0.41) but the skeleton has not started: no outline yet.
+      await scrollToProgress(page, 0.41);
+      expect((await strongest(page, centre, half))[3]).toBeLessThan(10);
 
-    // With the skeleton and the notes (p = 0.5, 0.54): the edge, in #5F86C9 at
-    // the skeleton's 0.9 (an edge 1 px thick covers a pixel only in part).
-    for (const p of [0.5, 0.54]) {
-      await scrollToProgress(page, p);
-      const [r, g, b, a] = await strongest(page, centre, half);
-      expect(a, `p=${p} alpha`).toBeGreaterThan(60);
-      expect(Math.abs(r - 0x5f), `p=${p} red`).toBeLessThan(25);
-      expect(Math.abs(g - 0x86), `p=${p} green`).toBeLessThan(25);
-      expect(Math.abs(b - 0xc9), `p=${p} blue`).toBeLessThan(25);
-    }
-    // Quieter than the landmarks: the edge is not white.
-    const [r] = await strongest(page, centre, half);
-    expect(r).toBeLessThan(160);
-  });
+      // With the skeleton (p = 0.5, 0.54): the edge, in #5F86C9 at the
+      // skeleton's 0.9 (an edge 1 px thick covers a pixel only in part).
+      for (const p of [0.5, 0.54]) {
+        await scrollToProgress(page, p);
+        const [r, g, b, a] = await strongest(page, centre, half);
+        expect(a, `p=${p} alpha`).toBeGreaterThan(60);
+        expect(Math.abs(r - 0x5f), `p=${p} red`).toBeLessThan(25);
+        expect(Math.abs(g - 0x86), `p=${p} green`).toBeLessThan(25);
+        expect(Math.abs(b - 0xc9), `p=${p} blue`).toBeLessThan(25);
+      }
+      // Quieter than the landmarks: the edge is not white.
+      const [r] = await strongest(page, centre, half);
+      expect(r).toBeLessThan(160);
+    });
+  }
 });
 
 test.describe("the same five blocks as a list, where the stage is off", () => {
