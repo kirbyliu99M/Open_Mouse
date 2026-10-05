@@ -15,6 +15,8 @@ const config = [
       // Vendored, unmodified third-party build output (WASM loader glue) —
       // see public/mediapipe/README for provenance. Not app code.
       "public/mediapipe/**",
+      // Vendored, unmodified Draco decoder (see public/draco/README.md).
+      "public/draco/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

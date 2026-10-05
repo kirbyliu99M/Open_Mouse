@@ -7,7 +7,7 @@ vendored in this repository, and npm packages that ship in the deployed app.
 It records what was verified and where. Anything that could not be confirmed
 says "Unconfirmed". It is not legal advice.
 
-Last checked: 2026-10-04 for sections 3.2 to 3.5 and the package table; the other sections were last checked on 2026-09-30.
+Last checked: 2026-10-06 for section 1.4 and the three row of the package table; 2026-10-04 for sections 3.2 to 3.5 and the other rows of the table; the other sections were last checked on 2026-09-30.
 
 
 1. Vendored files: public/mediapipe/
@@ -71,6 +71,25 @@ Last checked: 2026-10-04 for sections 3.2 to 3.5 and the package table; the othe
     upstream LICENSE (Apache License 2.0). The extra notice at its end
     applies to files under the upstream text-task directory
     (tasks/cc/text/language_detector/...), not to the vision build.
+
+1.4 Draco decoder for the 3D viewer: public/draco/
+
+  Files:    draco_decoder.wasm and draco_wasm_wrapper.js (WebAssembly build),
+            draco_decoder.js (pure-JS fallback for a browser without
+            WebAssembly)
+  Origin:   npm package three 0.186.1, examples/jsm/libs/draco/gltf/, copied
+            unmodified (byte-identical; SHA-256 digests in
+            public/draco/README.md; tests/unit/viewer-draco-decoder.test.ts
+            compares the copy with node_modules).
+  Licence:  Apache License 2.0, as stated by the README beside the decoders in
+            three (examples/jsm/libs/draco/README.md, which links
+            https://github.com/google/draco/blob/master/LICENSE).
+  Not found: no LICENSE or NOTICE file sits next to the decoders; the
+            statement is the README's only (checked 2026-10-06). The standard
+            Apache License 2.0 text is public/mediapipe/LICENSE-mediapipe.txt;
+            whether Draco's upstream LICENSE is the same text was not checked.
+  Statically linked code - Unconfirmed. The decoders are Emscripten builds;
+  which other projects' code is compiled in was not checked.
 
 
 2. Code copied into src/
@@ -142,6 +161,7 @@ and package-lock.json.
   react                       19.3.0           MIT
   react-dom                   19.3.0           MIT
   server-only                 0.0.1            MIT
+  three                       0.186.1          MIT
   zod                         4.6.5            MIT
 
 3.1 js-aruco2

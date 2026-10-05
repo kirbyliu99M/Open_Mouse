@@ -30,7 +30,9 @@
     "classify:descriptors": "tsx scripts/classify-descriptors.ts",
     "descriptors:from-geometry": "tsx scripts/descriptors-from-geometry.ts",
     "learn:sort": "tsx scripts/learn-sort.ts",
-    "particles:build": "tsx scripts/build-particle-targets.ts"
+    "particles:build": "tsx scripts/build-particle-targets.ts",
+    "viewer:index": "tsx scripts/build-viewer-shell-index.ts",
+    "viewer:draco": "node scripts/copy-draco-decoder.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
