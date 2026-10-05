@@ -452,6 +452,7 @@ class Stage {
     delete section.dataset.story;
     delete section.dataset.renderer;
     this.written = {};
+    this.needsMeasure = false;
     this.animated = false;
   }
 
