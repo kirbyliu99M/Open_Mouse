@@ -64,6 +64,19 @@ Live e2e against production runs locally (`BASE_URL=… npm run test:e2e:live`) 
 than through `live-e2e.yml`.
 Do not add scheduled workflows without Claude's sign-off.
 
+**No GitHub Actions run for code PRs; the merge gate is a local run** (Kirby, 2026-10-05).
+Claude runs the steps of `ci.yml` on the PR's branch, one step at a time (typecheck, lint,
+`format:check`, vitest with `--maxWorkers=2`, `db:check` and `db:generate` with no drift in
+`drizzle/`, `npm audit --omit=dev`, `next build`, and the Playwright specs the change touches),
+keeps the logs, and merges locally: a merge commit with `[skip ci]`, pushed to `main`, which
+GitHub then shows as merged. Marking a PR ready would start Actions, so it is no longer done
+(the "marks the PR ready" and "CI green" lines in builder step 3, Conventions and the Definition
+of done describe the earlier flow). The local run is Windows, not Ubuntu, so a Linux-only
+failure (fonts, POSIX paths) can get through, as #97 showed (8 layout checks failed only on
+Linux). It runs the Playwright specs the change touches, where CI runs every spec on all five
+projects (`--e2e all` in the script runs them all). Ask Kirby first about a PR that adds a migration. Never start two heavy
+steps at once: the machine has crashed under load.
+
 **Commit and push work in progress after each meaningful step** (a draft PR is fine early). Builders can be stopped mid-task by usage limits; anything uncommitted is at risk and pushed work resumes cleanly.
 
 **Each worktree runs its own `npm ci`. Never link or share `node_modules`** — every `npm install` reconciles the whole folder against *its* branch's lockfile, so a shared folder is silently rewritten by whichever agent installs last.

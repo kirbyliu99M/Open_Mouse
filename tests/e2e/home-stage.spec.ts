@@ -633,6 +633,22 @@ test.describe("the animated layout", () => {
     await expect(sheet).toHaveCSS("opacity", "1");
     await scrollToProgress(page, 0.8);
     await expect(sheet).toHaveCSS("opacity", "0");
+
+    // The five annotations come with the measured hand (story 4, a little into
+    // 5) and at no other time: none before it, none once the mice come.
+    const notes = page.locator(".story-note");
+    await expect(notes).toHaveCount(5);
+    const shown = () =>
+      notes.evaluateAll((els) =>
+        els.map((el) => Number(getComputedStyle(el).opacity)),
+      );
+    for (const p of [0, 0.1, 0.2, 0.35, 0.8, 1]) {
+      await scrollToProgress(page, p);
+      expect(await shown(), `p=${p}`).toEqual([0, 0, 0, 0, 0]);
+    }
+    // The middle of the second window: the palm width is whole, the rest hidden.
+    await scrollToProgress(page, 0.46);
+    expect(await shown()).toEqual([0, 1, 0, 0, 0]);
   });
 
   test("at p = 1 the panel lets go: the mice and their captions scroll away with it, and the final section follows", async ({
@@ -893,7 +909,9 @@ test.describe("the animated layout", () => {
       (start) => performance.now() - start > 3400,
       activatedAt,
     );
-    for (const p of [0, 0.5, 0.95]) {
+    // Including a note's whole window: the large and small lines are measured
+    // for contrast where they are shown (p = 0.42 is the first note, 0.58 the last).
+    for (const p of [0, 0.42, 0.5, 0.58, 0.95]) {
       await scrollToProgress(page, p);
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
@@ -1250,6 +1268,7 @@ test.describe("the static layout is kept, with no extra height", () => {
       const blocks = [
         ".story-hero",
         ".story-hand",
+        ".story-notes",
         ".story-mice",
         '[data-testid="home-final"]',
         ".landing-footer",
@@ -1423,9 +1442,12 @@ test("the story section's markup: the hero first, the two canvases last (WebGL u
       h1: document.querySelectorAll("h1").length,
     };
   });
+  // The five annotations sit right after the hand they are about, as real text
+  // in reading order; the canvas stays last.
   expect(order.children).toEqual([
     "story-hero",
     "story-hand",
+    "story-notes",
     "story-mice",
     "story-canvas-gl",
     "story-canvas",

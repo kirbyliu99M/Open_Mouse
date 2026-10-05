@@ -7,6 +7,7 @@ import {
   logoInk,
   read,
   recordStage,
+  scrollToProgress,
   waitForAnimated,
 } from "./helpers/home-stage";
 
@@ -192,6 +193,65 @@ test.describe("short laptop windows animate", () => {
       .evaluate((el) => el.getBoundingClientRect().height);
     expect(slot).toBe(29 * 16);
   });
+});
+
+test.describe("the five annotations animate on short laptop windows too", () => {
+  // The middle of each note's window (see home-notes.spec.ts for the rest).
+  const MIDDLES = [0.42, 0.46, 0.5, 0.54, 0.58] as const;
+
+  for (const [width, height] of [
+    [1280, 600],
+    [1366, 657],
+    [1440, 740],
+  ] as const) {
+    test(`${width}x${height}: each is whole in its window, beside the hand, inside the window and clear of the hand`, async ({
+      page,
+    }) => {
+      await recordStage(page);
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      for (const [i, p] of MIDDLES.entries()) {
+        await scrollToProgress(page, p);
+        const facts = await page.evaluate((index) => {
+          const note = document
+            .querySelectorAll(".story-note")
+            [index]!.getBoundingClientRect();
+          const hand = document
+            .querySelector(".story-hand img")!
+            .getBoundingClientRect();
+          const opacities = [...document.querySelectorAll(".story-note")].map(
+            (el) => Number(getComputedStyle(el).opacity),
+          );
+          return {
+            note: {
+              left: note.left,
+              right: note.right,
+              top: note.top,
+              bottom: note.bottom,
+            },
+            hand: { left: hand.left, right: hand.right },
+            opacities,
+            width: window.innerWidth,
+            height: window.innerHeight,
+          };
+        }, i);
+        const want = [0, 0, 0, 0, 0];
+        want[i] = 1;
+        expect(facts.opacities, `p=${p}`).toEqual(want);
+        expect(facts.note.top).toBeGreaterThanOrEqual(0);
+        expect(facts.note.bottom).toBeLessThanOrEqual(facts.height);
+        expect(facts.note.left).toBeGreaterThanOrEqual(0);
+        expect(facts.note.right).toBeLessThanOrEqual(facts.width);
+        // Beside the hand: clear of its image, on its right (the thumb's, on its left).
+        if (i < 4) {
+          expect(facts.note.left).toBeGreaterThanOrEqual(facts.hand.right + 20);
+        } else {
+          expect(facts.note.right).toBeLessThanOrEqual(facts.hand.left - 20);
+        }
+      }
+    });
+  }
 });
 
 test.describe("below 600 px tall the page stays static", () => {

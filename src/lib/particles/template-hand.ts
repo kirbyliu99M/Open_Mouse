@@ -120,6 +120,11 @@ const FINGERS: readonly {
   { chain: [17, 18, 19, 20], base: 6.6, tip: 5 },
 ];
 
+/** The five finger chains (landmark indices), thumb first: the same chains the capsules and the hand's outline follow. */
+export const FINGER_CHAINS: readonly (readonly number[])[] = FINGERS.map(
+  ({ chain }) => chain,
+);
+
 /** The palm: wrist crease, the thumb's web, across the knuckles, down the little finger's side. */
 export const PALM_POLYGON_MM: readonly Vec[] = [
   [96, 246],
