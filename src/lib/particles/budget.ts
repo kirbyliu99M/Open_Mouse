@@ -18,8 +18,22 @@ export const PALETTE = {
   glow: "#3b82f6",
 } as const;
 
-/** Particles in the whole story, shared by every state. */
-export const PARTICLE_BUDGET = { mobile: 900, desktop: 1300 } as const;
+/** Which drawing path the stage uses: WebGL, or the Canvas 2D one it falls back to. */
+export type Renderer = "webgl" | "2d";
+
+/**
+ * Particles in the whole story, shared by every state, per drawing path.
+ *
+ * - The Canvas 2D path draws every particle on the main thread, so its budget
+ *   is small (about 900 on a phone, 1,300 on a desktop): it is also what a
+ *   device without WebGL, or whose WebGL fails, falls back to.
+ * - The WebGL path moves the maths to the GPU and draws with one call. The
+ *   numbers are Claude's candidate (未拍板) until Kirby picks from the 4,000 /
+ *   8,000, 6,000 / 12,000 and 10,000 / 20,000 screenshots, and until a real
+ *   phone has been measured: the GPU's fill cost on a phone is not measured.
+ */
+export const PARTICLE_BUDGET_2D = { mobile: 900, desktop: 1300 } as const;
+export const PARTICLE_BUDGET_GL = { mobile: 6000, desktop: 12000 } as const;
 
 /** A device with this many logical cores or fewer gets half the particles. */
 export const LOW_END_CORES = 4;
@@ -35,15 +49,17 @@ export const SHIMMER_MS = 2600;
 export const SHIMMER_MAX_MS = 3000;
 
 /**
- * How many particles to use: the budget for a phone or a desktop, halved on a
- * device with 4 cores or fewer, and rounded down to a multiple of three
- * (the three mice each take a third).
+ * How many particles to use: the budget of the drawing path for a phone or a
+ * desktop, halved on a device with 4 cores or fewer, and rounded down to a
+ * multiple of three (the three mice each take a third).
  */
 export function particleCount(
   wide: boolean,
   hardwareConcurrency: number | undefined,
+  renderer: Renderer,
 ): number {
-  const base = wide ? PARTICLE_BUDGET.desktop : PARTICLE_BUDGET.mobile;
+  const budget = renderer === "webgl" ? PARTICLE_BUDGET_GL : PARTICLE_BUDGET_2D;
+  const base = wide ? budget.desktop : budget.mobile;
   const lowEnd =
     typeof hardwareConcurrency === "number" &&
     hardwareConcurrency > 0 &&
@@ -52,13 +68,56 @@ export function particleCount(
   return wanted - (wanted % MOUSE_COUNT);
 }
 
-/** The canvas's device pixel ratio: the screen's, at least 1 and at most 2. */
+/** The 2D canvas's device pixel ratio: the screen's, at least 1 and at most 2. */
 export function canvasScale(devicePixelRatio: number | undefined): number {
   const dpr =
     typeof devicePixelRatio === "number" && devicePixelRatio > 0
       ? devicePixelRatio
       : 1;
   return Math.min(Math.max(dpr, 1), MAX_DPR);
+}
+
+/**
+ * The WebGL canvas's device pixel ratio cap: 2 on a wide screen and 1.5 on a
+ * narrow one (under 48 rem), where a phone's ratio of 3 would triple the
+ * filled pixels for no visible gain. Candidate (未拍板).
+ */
+export const GL_MAX_DPR = { wide: 2, narrow: 1.5 } as const;
+
+/** The WebGL canvas's device pixel ratio: the screen's, at least 1 and at most the cap. */
+export function glCanvasScale(
+  devicePixelRatio: number | undefined,
+  wide: boolean,
+): number {
+  const dpr =
+    typeof devicePixelRatio === "number" && devicePixelRatio > 0
+      ? devicePixelRatio
+      : 1;
+  return Math.min(Math.max(dpr, 1), wide ? GL_MAX_DPR.wide : GL_MAX_DPR.narrow);
+}
+
+/** The largest point the GPU must be able to draw is this much smaller than its limit: a margin for the shimmer's swell and for rounding (px). */
+export const POINT_SIZE_HEADROOM_PX = 24;
+
+/**
+ * Whether the GPU can draw the biggest point the stage will ask for.
+ * `range` is `gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)`: [smallest,
+ * largest], in device pixels. `neededPx` is the biggest point (device px, with
+ * the pixel ratio and the shimmer's swell counted in). A GPU that reports a
+ * largest size under `neededPx` + the headroom, or reports nothing usable,
+ * gets the Canvas 2D path.
+ */
+export function pointSizeFits(
+  range: ArrayLike<number> | null | undefined,
+  neededPx: number,
+): boolean {
+  if (!range || range.length < 2) return false;
+  const largest = range[1]!;
+  return (
+    Number.isFinite(largest) &&
+    Number.isFinite(neededPx) &&
+    largest >= neededPx + POINT_SIZE_HEADROOM_PX
+  );
 }
 
 export interface AnimationConditions {

@@ -1,8 +1,9 @@
 import type { Polyline, Vec } from "./geometry";
 import { LOGO_BOX, logoStrokes } from "./logo";
 import {
+  type StrokeRun,
   type TargetPoint,
-  sampleStrokes,
+  sampleStrokeRuns,
   type SamplingStyle,
 } from "./sampling";
 import { parseSketchSvg } from "./svg-path";
@@ -43,6 +44,8 @@ export interface ShapeTarget {
   readonly width: number;
   readonly height: number;
   readonly points: readonly TargetPoint[];
+  /** Which consecutive points make up each stroke (see `StrokeRun`). */
+  readonly runs: readonly StrokeRun[];
 }
 
 export interface Line {
@@ -109,7 +112,7 @@ export function sampleSketch(svg: string): ShapeTarget {
   return {
     width: STAGE_WIDTH,
     height: sketch.viewBox.height * scale,
-    points: sampleStrokes(strokes, SAMPLING),
+    ...sampleStrokeRuns(strokes, SAMPLING),
   };
 }
 
@@ -117,7 +120,7 @@ export function sampleLogo(): ShapeTarget {
   return {
     width: LOGO_BOX.width,
     height: LOGO_BOX.height,
-    points: sampleStrokes(logoStrokes(), SAMPLING),
+    ...sampleStrokeRuns(logoStrokes(), SAMPLING),
   };
 }
 
@@ -191,8 +194,9 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
  * The JSON the browser will load (PR B): one file on one line, every number
- * rounded to 0.1 px, points as [x, y, tone] triples. The browser never parses
- * SVG.
+ * rounded to 0.1 px, points as [x, y, tone] triples and each stroke of the logo
+ * and the mice as a [start, count, closed] run over those points. The browser
+ * never parses SVG.
  */
 export function serializeTargets(targets: ParticleTargets): string {
   const pts = (points: readonly TargetPoint[]) =>
@@ -203,6 +207,8 @@ export function serializeTargets(targets: ParticleTargets): string {
     width: round1(s.width),
     height: round1(s.height),
     points: pts(s.points),
+    // [start, count, closed] per stroke.
+    runs: s.runs.map((r) => [r.start, r.count, r.closed ? 1 : 0]),
   });
   const { hand } = targets;
   return (

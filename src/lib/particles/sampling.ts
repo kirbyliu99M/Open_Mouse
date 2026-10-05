@@ -60,23 +60,49 @@ export interface SamplingStyle {
   readonly dimSpacing: number;
 }
 
-/** Sample every polyline of one tone and tag the points. */
-export function sampleStrokes(
+/**
+ * One stroke's share of a sampled point list: `count` consecutive points from
+ * `start`, all of one tone. `closed` means the last point joins back to the
+ * first. The stage reads these to put more particles on a stroke than it was
+ * sampled with (see dense.ts) without ever guessing where a stroke ends.
+ */
+export interface StrokeRun {
+  readonly start: number;
+  readonly count: number;
+  readonly closed: boolean;
+}
+
+/** Sample every polyline and tag the points, and say which points belong to which stroke. */
+export function sampleStrokeRuns(
   strokes: readonly { readonly polyline: Polyline; readonly tone: 0 | 1 }[],
   style: SamplingStyle,
-): TargetPoint[] {
-  const out: TargetPoint[] = [];
+): { points: TargetPoint[]; runs: StrokeRun[] } {
+  const points: TargetPoint[] = [];
+  const runs: StrokeRun[] = [];
   for (const { polyline, tone } of strokes) {
     const spacing = tone === 1 ? style.brightSpacing : style.dimSpacing;
+    const start = points.length;
     for (const [x, y] of samplePolyline(
       polyline.points,
       spacing,
       polyline.closed,
     )) {
-      out.push({ x, y, tone });
+      points.push({ x, y, tone });
+    }
+    const count = points.length - start;
+    if (count > 0) {
+      runs.push({ start, count, closed: polyline.closed && count > 2 });
     }
   }
-  return out;
+  return { points, runs };
+}
+
+/** Sample every polyline of one tone and tag the points. */
+export function sampleStrokes(
+  strokes: readonly { readonly polyline: Polyline; readonly tone: 0 | 1 }[],
+  style: SamplingStyle,
+): TargetPoint[] {
+  return sampleStrokeRuns(strokes, style).points;
 }
 
 /**

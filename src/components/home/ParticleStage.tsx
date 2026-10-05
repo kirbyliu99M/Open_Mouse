@@ -3,16 +3,21 @@
 import { useEffect, useRef } from "react";
 
 /**
- * The home page's particle canvas (Home v3, PR B). It renders the one empty,
- * decorative <canvas> that the story panel holds, and after the first paint
- * loads the stage module with a dynamic import, so the particles never delay
- * the logo or the headline (the LCP). Until the module has loaded and drawn
- * its first frame the canvas is hidden by CSS and the page is PR A's static
- * layout, which is also what reduced motion, no JS and small screens keep. If
- * the module fails to load, nothing changes.
+ * The home page's particle canvases (Home v3, PR B and the WebGL stage). It
+ * renders two empty, decorative <canvas> elements that the story panel holds:
+ * the WebGL layer that draws the particles, and on top of it the 2D layer that
+ * draws the overlay (and the particles too, if WebGL is not available). After
+ * the first paint it loads the stage module with a dynamic import, so the
+ * particles never delay the logo or the headline (the LCP). Until the module
+ * has loaded and drawn its first frame the canvases are hidden by CSS and the
+ * page is PR A's static layout, which is also what reduced motion, no JS and
+ * small screens keep. If the module fails to load, nothing changes.
+ *
+ * One canvas can not give both a 2D and a WebGL context, hence two.
  */
 export function ParticleStage() {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const glCanvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const element = canvas.current;
@@ -28,7 +33,9 @@ export function ParticleStage() {
       import("./particle-stage")
         .then((module) => {
           loading = false;
-          if (!cancelled) stage = module.startParticleStage(element);
+          if (!cancelled) {
+            stage = module.startParticleStage(element, glCanvas.current);
+          }
         })
         .catch(() => {
           // The page stays as it is: the static layout. (Nothing is logged:
@@ -77,5 +84,10 @@ export function ParticleStage() {
     };
   }, []);
 
-  return <canvas ref={canvas} className="story-canvas" aria-hidden="true" />;
+  return (
+    <>
+      <canvas ref={glCanvas} className="story-canvas-gl" aria-hidden="true" />
+      <canvas ref={canvas} className="story-canvas" aria-hidden="true" />
+    </>
+  );
 }

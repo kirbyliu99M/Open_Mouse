@@ -1,4 +1,9 @@
-import { interpolateAxis, legWeights, swirlDirection } from "./interpolate";
+import {
+  type LegWeights,
+  interpolateAxis,
+  legWeights,
+  swirlDirection,
+} from "./interpolate";
 import { LOGO_BOX } from "./logo";
 import { mulberry32 } from "./random";
 import type { Pairing } from "./pairing";
@@ -157,6 +162,27 @@ export function createFrame(count: number): Frame {
   return { xy: new Float32Array(2 * count), bright: new Float32Array(count) };
 }
 
+/** Which leg of the story a phase is in, and how far along it: what both drawing paths read. */
+export interface Leg {
+  /** False: logo to hand. True: hand to the three mice. */
+  readonly split: boolean;
+  /** Progress along the leg, 0 to 1. */
+  readonly t: number;
+  /** The eased `e(t)` and the swing `sin(pi * e(t))`, exact at the ends of the leg. */
+  readonly weights: LegWeights;
+}
+
+/**
+ * Logo to hand while `formT` runs (the hand rests until the lines are drawn),
+ * then hand to mice while `mouseT` runs. The one place that decides it: the
+ * frame writer below (Canvas 2D) and the WebGL stage's uniforms both call it.
+ */
+export function legOf(phase: Pick<Phase, "formT" | "mouseT">): Leg {
+  const split = phase.mouseT > 0;
+  const t = split ? phase.mouseT : phase.formT;
+  return { split, t, weights: legWeights(t) };
+}
+
 /**
  * Where every particle is at this phase: logo to hand while `formT` runs
  * (the hand rests until the lines are drawn), then hand to mice while `mouseT`
@@ -168,8 +194,7 @@ export function writeParticles(
   phase: Pick<Phase, "formT" | "mouseT">,
   frame: Frame,
 ): void {
-  const split = phase.mouseT > 0;
-  const t = split ? phase.mouseT : phase.formT;
+  const { split, weights } = legOf(phase);
   const from = split ? set.hand : set.logo;
   const to = split ? set.mouse : set.hand;
   const toneFrom = split ? set.toneHand : set.toneLogo;
@@ -177,7 +202,6 @@ export function writeParticles(
   const swirl = split ? set.swirlSplit : set.swirlForm;
   const { xy, bright } = frame;
   const n = set.count;
-  const weights = legWeights(t);
   for (let i = 0; i < n; i += 1) {
     const x = 2 * i;
     const y = x + 1;

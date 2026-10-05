@@ -1,17 +1,33 @@
 import targetsJson from "@/lib/particles/targets.generated.json";
 import {
   PARTICLE_SEED,
+  type Renderer,
   canvasScale,
+  glCanvasScale,
   mayAnimate,
   particleCount,
   shimmerAt,
 } from "@/lib/particles/budget";
+import {
+  DEGRADE,
+  estimateRefreshMs,
+  isFrameGap,
+  nextDrawCount,
+} from "@/lib/particles/degrade";
+import {
+  GL_FLOATS_PER_PARTICLE,
+  SHUFFLE_SEED,
+  packParticles,
+  shuffleOrder,
+} from "@/lib/particles/gl-buffers";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { glLook, legGain } from "@/lib/particles/look";
 import {
   type MiceLayout,
   type Pairing,
   MOUSE_COUNT,
   buildPairing,
+  buildPairingInSlices,
 } from "@/lib/particles/pairing";
 import {
   type Frame,
@@ -21,11 +37,13 @@ import {
   buildParticleSet,
   createFrame,
   handBox,
+  legOf,
   logoBox,
   mouseBox,
   writeParticles,
 } from "@/lib/particles/particle-set";
 import { type Phase, phaseAt, sectionProgress } from "@/lib/particles/timeline";
+import { type GlRenderer, createGlRenderer } from "./stage-gl";
 import { type Sprites, createSprites, drawStage } from "./stage-render";
 
 /**
@@ -39,6 +57,15 @@ import { type Sprites, createSprites, drawStage } from "./stage-render";
  * Frame draw runs only while something changes (a scroll, a resize, the
  * one-time shimmer), is paused off screen and in a hidden tab, and never loops
  * on its own.
+ *
+ * Two drawing paths share one stage. The particles are drawn with WebGL
+ * (stage-gl.ts: one program, static buffers, one draw call, the interpolation
+ * in the vertex shader) on a canvas under the 2D one, which then only carries
+ * the overlay. Without WebGL, or when it fails (the shaders do not compile, the
+ * GPU's largest point is too small, the context is lost), the stage draws the
+ * particles on the 2D canvas as before, with the old, smaller budget, and says
+ * which path it is on in `data-renderer` on the section. The WebGL path also
+ * draws fewer particles when its frames come slowly (degrade.ts).
  *
  * Anything that goes wrong (no 2D context, a bad targets file, a draw that
  * throws) takes the page back to the static layout. The maths lives in
@@ -104,15 +131,38 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
   };
 }
 
-export function startParticleStage(canvas: HTMLCanvasElement): StageHandle {
+/**
+ * `canvas` is the 2D layer (the top one). `glCanvas`, the WebGL layer under
+ * it, is optional: without it the stage is Canvas 2D only.
+ */
+export function startParticleStage(
+  canvas: HTMLCanvasElement,
+  glCanvas?: HTMLCanvasElement | null,
+): StageHandle {
   const parts = findParts(canvas);
   if (!parts) return { destroy() {} };
-  const stage = new Stage(canvas, parts);
+  const stage = new Stage(canvas, glCanvas ?? null, parts);
   stage.start();
   return { destroy: () => stage.destroy() };
 }
 
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
+/** Let the browser run what is waiting (input, a frame) before the next slice of work. */
+function pause(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof MessageChannel === "undefined") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(0);
+  });
+}
 
 class Stage {
   private animated = false;
@@ -130,6 +180,26 @@ class Stage {
   private layout: StageLayout | null = null;
   private set: ParticleSet | null = null;
   private frame: Frame | null = null;
+
+  /** The drawing path in use now. "2d" until WebGL has been made, and for good once it has failed. */
+  private renderer: Renderer = "2d";
+  private gl: GlRenderer | null = null;
+  /** WebGL has failed (or is missing) this visit: it is not tried again. */
+  private glFailed = false;
+  /** The pairing is built (in slices, off the activation task) and the drawing path is chosen. */
+  private ready = false;
+  private preparing = false;
+  /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
+  private budget = 0;
+  private drawCount = 0;
+  /** The order the particles are uploaded in (shuffled, so the first N are a fair sample), and the buffer they are packed into. */
+  private order: Uint32Array | null = null;
+  private glData: Float32Array | null = null;
+  /** The guard's state: when the last frame was drawn, the latest gaps between frames, the first ones, and the screen's refresh interval from them. */
+  private lastFrameAt = 0;
+  private gaps: number[] = [];
+  private firstGaps: number[] = [];
+  private refreshMs: number | null = null;
 
   private rafId = 0;
   private reflowId = 0;
@@ -165,6 +235,7 @@ class Stage {
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
+    private readonly glCanvas: HTMLCanvasElement | null,
     private readonly parts: Parts,
   ) {
     this.queries = {
@@ -220,6 +291,8 @@ class Stage {
     this.resize?.disconnect();
     if (this.reflowId) cancelAnimationFrame(this.reflowId);
     this.probe.remove();
+    this.gl?.dispose();
+    this.gl = null;
   }
 
   // ── Switching the layout ────────────────────────────────────────────────
@@ -259,6 +332,12 @@ class Stage {
           return;
         }
         this.waitingForTop = false;
+        if (!this.ready) {
+          // The heavy part (the drawing path, the pairing) is built in slices,
+          // off this task; it asks for another reflow when it is done.
+          this.prepare();
+          return;
+        }
         this.activate(panelHeight);
       } else {
         this.remeasure(panelHeight);
@@ -280,6 +359,7 @@ class Stage {
     this.ctx = ctx;
     this.cssWidth = panel.clientWidth;
     this.cssHeight = panelHeight;
+    section.dataset.renderer = this.renderer;
     this.fitCanvas();
 
     // The hero is in the same place in both layouts, so the logo's rect now
@@ -335,7 +415,8 @@ class Stage {
     try {
       this.draw(p, performance.now());
     } catch {
-      this.deactivate();
+      if (this.renderer === "webgl") this.useTwoD();
+      else this.deactivate();
       return;
     }
     this.lastP = p;
@@ -371,6 +452,7 @@ class Stage {
       if (mouse.caption) mouse.caption.style.opacity = "";
     delete section.dataset.progress;
     delete section.dataset.story;
+    delete section.dataset.renderer;
     this.written = {};
     this.animated = false;
   }
@@ -387,11 +469,27 @@ class Stage {
       this.canvas.height = height;
     }
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    // The sprites: the halos of the overlay, and the particles themselves on
+    // the 2D path.
     const glow = !this.queries.contrast.matches;
     const key = `${this.dpr}:${glow}`;
     if (key !== this.spritesKey) {
       this.sprites = createSprites(this.dpr, glow);
       this.spritesKey = key;
+    }
+    if (this.renderer === "webgl" && this.gl) {
+      // The pixel ratio can change under a running page (a window dragged to
+      // another screen, the browser's zoom): the biggest point the GPU must
+      // draw changes with it.
+      const pixelRatio = glCanvasScale(
+        window.devicePixelRatio,
+        this.queries.wide.matches,
+      );
+      if (this.gl.isLost() || !this.gl.fits(pixelRatio)) {
+        this.useTwoD();
+        return;
+      }
+      this.gl.resize(this.cssWidth, this.cssHeight, pixelRatio);
     }
   }
 
@@ -415,23 +513,33 @@ class Stage {
     const layoutKind: MiceLayout = this.queries.wide.matches
       ? "row"
       : "stacked";
-    const count = particleCount(
-      this.queries.wide.matches,
-      navigator.hardwareConcurrency,
-    );
     const sketches = this.parts.mice.map((m) => m.sketch);
-    const key = `${count}:${layoutKind}:${sketches.join(",")}`;
+    const count = this.countFor(this.renderer);
+    const key = this.pairingKeyFor(this.renderer, count, layoutKind, sketches);
     if (key !== this.pairingKey || !this.pairing) {
+      // Normally the slices in `prepare` have built this already; this is the
+      // rare case where the layout moved on while they ran, or the stage fell
+      // back to the 2D path.
       this.pairing = buildPairing(targets, {
         count,
         layout: layoutKind,
         seed: PARTICLE_SEED,
         mice: sketches,
+        density: this.renderer === "webgl" ? "dense" : "sparse",
       });
       this.pairingKey = key;
-      this.frame = createFrame(count);
+    }
+    if (count !== this.budget) {
+      this.budget = count;
+      this.drawCount = count;
+      this.gaps = [];
+      this.lastFrameAt = 0;
+      this.frame = this.renderer === "2d" ? createFrame(count) : null;
+      this.order =
+        this.renderer === "webgl" ? shuffleOrder(count, SHUFFLE_SEED) : null;
       // For the e2e suite and for anyone checking the budget in the inspector.
       this.canvas.dataset.particles = String(count);
+      this.canvas.dataset.drawn = String(count);
     }
     this.layout = {
       width: this.cssWidth,
@@ -443,6 +551,135 @@ class Stage {
       ),
     };
     this.set = buildParticleSet(this.pairing, this.layout, PARTICLE_SEED);
+    if (this.renderer === "webgl" && this.gl && this.order) {
+      // Once per layout, and never while scrolling.
+      this.glData = packParticles(
+        this.set,
+        this.order,
+        this.glData ?? undefined,
+      );
+      this.gl.upload(this.glData.subarray(0, count * GL_FLOATS_PER_PARTICLE));
+    }
+  }
+
+  private countFor(renderer: Renderer): number {
+    return particleCount(
+      this.queries.wide.matches,
+      navigator.hardwareConcurrency,
+      renderer,
+    );
+  }
+
+  private pairingKeyFor(
+    renderer: Renderer,
+    count: number,
+    layout: MiceLayout,
+    sketches: readonly string[],
+  ): string {
+    return `${renderer}:${count}:${layout}:${sketches.join(",")}`;
+  }
+
+  // ── The drawing path ────────────────────────────────────────────────────
+
+  /**
+   * Build what the first frame needs, a slice at a time: pick the drawing path
+   * (making the WebGL context if it is allowed), then the pairing for its
+   * budget. Nothing here touches the page. When it is done the stage asks for
+   * a reflow, which switches the layout on. A failure leaves the page static.
+   */
+  private prepare(): void {
+    if (this.preparing || this.ready || this.destroyed) return;
+    this.preparing = true;
+    void (async () => {
+      let done = false;
+      try {
+        await pause();
+        this.chooseRenderer();
+        await pause();
+        const layoutKind: MiceLayout = this.queries.wide.matches
+          ? "row"
+          : "stacked";
+        const sketches = this.parts.mice.map((m) => m.sketch);
+        const renderer = this.renderer;
+        const count = this.countFor(renderer);
+        const key = this.pairingKeyFor(renderer, count, layoutKind, sketches);
+        const pairing = await buildPairingInSlices(
+          targets,
+          {
+            count,
+            layout: layoutKind,
+            seed: PARTICLE_SEED,
+            mice: sketches,
+            density: renderer === "webgl" ? "dense" : "sparse",
+          },
+          pause,
+        );
+        // The context may have been lost meanwhile: the pairing is then not
+        // for the path in use, and `buildSet` makes its own.
+        if (renderer === this.renderer) {
+          this.pairing = pairing;
+          this.pairingKey = key;
+        }
+        done = true;
+      } catch {
+        // The page stays as it is: the static layout.
+      } finally {
+        this.preparing = false;
+      }
+      if (done) {
+        this.ready = true;
+        if (!this.destroyed) this.requestReflow();
+      }
+    })();
+  }
+
+  /** WebGL if the browser has it and the GPU can draw the points; otherwise the 2D path, for good. */
+  private chooseRenderer(): void {
+    if (!this.gl && !this.glFailed) {
+      const gl = this.glCanvas
+        ? createGlRenderer(this.glCanvas, this.onContextLost)
+        : null;
+      const pixelRatio = glCanvasScale(
+        window.devicePixelRatio,
+        this.queries.wide.matches,
+      );
+      if (gl && gl.fits(pixelRatio)) {
+        this.gl = gl;
+      } else {
+        gl?.dispose();
+        this.glFailed = true;
+      }
+    }
+    this.renderer = this.gl ? "webgl" : "2d";
+  }
+
+  /** The browser took the WebGL context away: the 2D path for the rest of the visit. */
+  private readonly onContextLost = (): void => {
+    this.glFailed = true;
+    this.useTwoD();
+  };
+
+  /**
+   * Leave WebGL for good and carry on on the 2D path with the 2D budget: the
+   * particles are rebuilt for it and redrawn, in this task, so no frame is
+   * shown empty.
+   */
+  private useTwoD(): void {
+    if (this.destroyed) return;
+    const gl = this.gl;
+    this.glFailed = true;
+    this.gl = null;
+    this.renderer = "2d";
+    this.glData = null;
+    this.order = null;
+    this.budget = 0;
+    gl?.dispose();
+    if (!this.animated || !this.ctx) return;
+    this.parts.section.dataset.renderer = "2d";
+    this.fitCanvas();
+    this.measureAndBuild();
+    this.dirty = true;
+    this.redrawNow();
   }
 
   // ── Drawing ─────────────────────────────────────────────────────────────
@@ -483,18 +720,52 @@ class Stage {
     try {
       this.draw(p, now);
     } catch {
-      this.deactivate();
+      if (this.renderer === "webgl") this.useTwoD();
+      else this.deactivate();
       return;
     }
     this.lastP = p;
     this.dirty = false;
+    this.noteFrame(now);
     // Only the one-time shimmer keeps frames coming; a scroll asks for its own.
     if (!this.shimmerOver) this.schedule();
   };
 
+  /**
+   * The guard (degrade.ts): on the WebGL path, watch the gaps between frames
+   * and draw fewer particles when they run long. Pauses (a gap over 50 ms) are
+   * not counted. It never draws more again.
+   */
+  private noteFrame(now: number): void {
+    if (this.renderer !== "webgl") return;
+    const gap = now - this.lastFrameAt;
+    const counts = this.lastFrameAt > 0 && isFrameGap(gap);
+    this.lastFrameAt = now;
+    if (!counts) return;
+    this.gaps.push(gap);
+    if (this.gaps.length > DEGRADE.WINDOW) this.gaps.shift();
+    if (this.firstGaps.length < DEGRADE.REFRESH_SAMPLES) {
+      this.firstGaps.push(gap);
+    }
+    this.refreshMs ??= estimateRefreshMs(this.firstGaps);
+    const next = nextDrawCount({
+      current: this.drawCount,
+      budget: this.budget,
+      gaps: this.gaps,
+      refreshMs: this.refreshMs,
+    });
+    if (next === this.drawCount) return;
+    this.drawCount = next;
+    // A new window for the new count; the picture follows in the next frame.
+    this.gaps = [];
+    this.canvas.dataset.drawn = String(next);
+    this.dirty = true;
+    this.schedule();
+  }
+
   private draw(p: number, now: number): void {
-    const { ctx, set, frame, layout, sprites } = this;
-    if (!ctx || !set || !frame || !layout || !sprites) return;
+    const { ctx, set, layout, sprites } = this;
+    if (!ctx || !set || !layout || !sprites) return;
     const phase = phaseAt(p);
     let band: number | null = null;
     if (!this.shimmerOver) {
@@ -506,12 +777,31 @@ class Stage {
       if (shimmer?.active) band = shimmer.center;
       else this.shimmerOver = true;
     }
-    writeParticles(set, phase, frame);
+    let particles: { set: ParticleSet; frame: Frame } | null = null;
+    if (this.renderer === "webgl" && this.gl) {
+      // One draw call: the maths is in the vertex shader. The leg and its
+      // weights are the same ones the 2D path's frame writer uses.
+      const leg = legOf(phase);
+      this.gl.draw({
+        split: leg.split,
+        e: leg.weights.e,
+        swing: leg.weights.swing,
+        band,
+        count: this.drawCount,
+        glow: !this.queries.contrast.matches,
+        look: glLook(this.drawCount, layout.hand.scale),
+        gain: legGain(leg.split),
+      });
+    } else if (this.frame) {
+      writeParticles(set, phase, this.frame);
+      particles = { set, frame: this.frame };
+    } else {
+      return;
+    }
     drawStage(ctx, {
       width: this.cssWidth,
       height: this.cssHeight,
-      set,
-      frame,
+      particles,
       phase,
       sprites,
       hand: targets.hand,
