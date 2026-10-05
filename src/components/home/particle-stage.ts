@@ -241,6 +241,8 @@ class Stage {
   private warmKey = "";
   /** The layout was measured for the first frame only: measure it for real in the first frame of the animated layout. */
   private needsMeasure = false;
+  /** The first frame of the animated layout has gone by since `needsMeasure` was set (see `tick`). */
+  private measureWaited = false;
   /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
   private budget = 0;
   private guard: GuardState = newGuard(0);
@@ -446,6 +448,7 @@ class Stage {
     this.fitCanvas();
     this.measureAndBuild();
     this.needsMeasure = false;
+    this.measureWaited = false;
     this.dirty = true;
     this.redrawNow();
   }
@@ -514,6 +517,7 @@ class Stage {
     delete section.dataset.notes;
     this.written = {};
     this.needsMeasure = false;
+    this.measureWaited = false;
     this.animated = false;
   }
 
@@ -966,7 +970,18 @@ class Stage {
       return;
     }
     if (this.needsMeasure) {
+      // The first frame of the animated layout is rendered (style, layout,
+      // paint of the 400 svh section) in the task this callback is in. The
+      // measure and the particles it rebuilds are a task of their own, one
+      // frame later, so neither is long on a slow phone, unless the reader has
+      // already scrolled: then the hand and the mice are wanted now.
+      if (!this.measureWaited && this.currentProgress() === 0) {
+        this.measureWaited = true;
+        this.schedule();
+        return;
+      }
       this.needsMeasure = false;
+      this.measureWaited = false;
       try {
         this.measureAndBuild();
       } catch {
