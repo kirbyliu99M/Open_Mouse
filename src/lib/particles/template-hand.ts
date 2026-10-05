@@ -1,4 +1,4 @@
-import { type Vec, distance } from "./geometry";
+import type { Vec } from "./geometry";
 import { mulberry32 } from "./random";
 import type { TargetPoint } from "./sampling";
 

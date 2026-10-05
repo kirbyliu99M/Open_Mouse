@@ -2,17 +2,22 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import {
+  GL_MAX_DPR,
   LOW_END_CORES,
   MAX_DPR,
   MIN_VIEWPORT_HEIGHT,
   PALETTE,
-  PARTICLE_BUDGET,
+  PARTICLE_BUDGET_2D,
+  PARTICLE_BUDGET_GL,
   PARTICLE_SEED,
+  POINT_SIZE_HEADROOM_PX,
   SHIMMER_MAX_MS,
   SHIMMER_MS,
   canvasScale,
+  glCanvasScale,
   mayAnimate,
   particleCount,
+  pointSizeFits,
   shimmerAt,
   shimmerBoost,
 } from "@/lib/particles/budget";
@@ -57,33 +62,55 @@ describe("what the canvas shares with the static drawings", () => {
 });
 
 describe("the particle budget", () => {
-  it("is about 900 on a phone and 1,300 on a desktop, as constants", () => {
-    expect(PARTICLE_BUDGET).toEqual({ mobile: 900, desktop: 1300 });
-    expect(particleCount(false, 8)).toBe(900);
+  it("has two: the Canvas 2D fallback's 900 on a phone and 1,300 on a desktop (the old numbers, kept), and the WebGL path's 6,000 and 12,000 (candidate, 未拍板)", () => {
+    expect(PARTICLE_BUDGET_2D).toEqual({ mobile: 900, desktop: 1300 });
+    expect(PARTICLE_BUDGET_GL).toEqual({ mobile: 6000, desktop: 12000 });
+  });
+
+  it("the 2D fallback is exactly what the stage used before WebGL", () => {
+    expect(particleCount(false, 8, "2d")).toBe(900);
     // 1300 is not a multiple of three, and the mice each take a third.
-    expect(particleCount(true, 8)).toBe(1299);
-    expect(particleCount(true, undefined)).toBe(1299);
+    expect(particleCount(true, 8, "2d")).toBe(1299);
+    expect(particleCount(true, undefined, "2d")).toBe(1299);
+    expect(particleCount(false, 4, "2d")).toBe(450);
+    expect(particleCount(true, 4, "2d")).toBe(648);
   });
 
-  it("is halved on 4 cores or fewer", () => {
+  it("the WebGL path is 6,000 on a phone and 12,000 on a desktop, halved on 4 cores or fewer", () => {
+    expect(particleCount(false, 8, "webgl")).toBe(6000);
+    expect(particleCount(true, 8, "webgl")).toBe(12000);
+    expect(particleCount(true, undefined, "webgl")).toBe(12000);
+    expect(particleCount(false, 4, "webgl")).toBe(3000);
+    expect(particleCount(true, 2, "webgl")).toBe(6000);
+    expect(particleCount(false, 5, "webgl")).toBe(6000);
+  });
+
+  it("is halved on 4 cores or fewer, and 0 or missing cores mean unknown, not low end", () => {
     expect(LOW_END_CORES).toBe(4);
-    expect(particleCount(false, 4)).toBe(450);
-    expect(particleCount(false, 2)).toBe(450);
-    expect(particleCount(true, 4)).toBe(648);
-    expect(particleCount(false, 5)).toBe(900);
-    // 0 and missing mean "unknown", not "low end".
-    expect(particleCount(false, 0)).toBe(900);
+    for (const renderer of ["2d", "webgl"] as const) {
+      const full = particleCount(false, 8, renderer);
+      expect(particleCount(false, 4, renderer)).toBe(
+        Math.floor(full / 2) - (Math.floor(full / 2) % 3),
+      );
+      expect(particleCount(false, 2, renderer)).toBe(
+        particleCount(false, 4, renderer),
+      );
+      expect(particleCount(false, 5, renderer)).toBe(full);
+      expect(particleCount(false, 0, renderer)).toBe(full);
+    }
   });
 
-  it("always gives a multiple of three", () => {
-    for (const wide of [false, true]) {
-      for (const cores of [undefined, 1, 4, 6, 16]) {
-        expect(particleCount(wide, cores) % 3).toBe(0);
+  it("always gives a multiple of three, for either path and whether or not it is halved", () => {
+    for (const renderer of ["2d", "webgl"] as const) {
+      for (const wide of [false, true]) {
+        for (const cores of [undefined, 1, 4, 6, 16]) {
+          expect(particleCount(wide, cores, renderer) % 3).toBe(0);
+        }
       }
     }
   });
 
-  it("caps the canvas's device pixel ratio at 2", () => {
+  it("caps the 2D canvas's device pixel ratio at 2", () => {
     expect(MAX_DPR).toBe(2);
     expect(canvasScale(1)).toBe(1);
     expect(canvasScale(1.5)).toBe(1.5);
@@ -91,6 +118,38 @@ describe("the particle budget", () => {
     expect(canvasScale(0.5)).toBe(1);
     expect(canvasScale(undefined)).toBe(1);
     expect(canvasScale(Number.NaN)).toBe(1);
+  });
+
+  it("caps the WebGL canvas's ratio at 2 on a wide screen and 1.5 on a narrow one", () => {
+    expect(GL_MAX_DPR).toEqual({ wide: 2, narrow: 1.5 });
+    expect(glCanvasScale(3, true)).toBe(2);
+    expect(glCanvasScale(3, false)).toBe(1.5);
+    expect(glCanvasScale(2, false)).toBe(1.5);
+    expect(glCanvasScale(1.25, false)).toBe(1.25);
+    expect(glCanvasScale(1, true)).toBe(1);
+    expect(glCanvasScale(0.75, true)).toBe(1);
+    expect(glCanvasScale(undefined, false)).toBe(1);
+    expect(glCanvasScale(Number.NaN, true)).toBe(1);
+  });
+});
+
+describe("the point size check", () => {
+  it("needs the GPU's largest point to exceed the biggest the stage draws by 24 px", () => {
+    expect(POINT_SIZE_HEADROOM_PX).toBe(24);
+    expect(pointSizeFits([1, 1023], 30)).toBe(true);
+    expect(pointSizeFits([1, 54], 30)).toBe(true);
+    expect(pointSizeFits([1, 53.9], 30)).toBe(false);
+    expect(pointSizeFits([1, 64], 41)).toBe(false);
+    expect(pointSizeFits(new Float32Array([1, 256]), 100)).toBe(true);
+  });
+
+  it("falls back for a GPU that reports nothing usable", () => {
+    expect(pointSizeFits(null, 10)).toBe(false);
+    expect(pointSizeFits(undefined, 10)).toBe(false);
+    expect(pointSizeFits([], 10)).toBe(false);
+    expect(pointSizeFits([1], 10)).toBe(false);
+    expect(pointSizeFits([1, Number.NaN], 10)).toBe(false);
+    expect(pointSizeFits([1, 1023], Number.NaN)).toBe(false);
   });
 });
 
