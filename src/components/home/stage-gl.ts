@@ -234,15 +234,24 @@ export function createGlRenderer(
     gl = null;
   }
   if (!gl || gl.isContextLost()) return null;
+  const made = gl;
+  // Anything that goes wrong from here hands the context back at once (a page
+  // may hold only a few) and tells the stage to use Canvas 2D.
+  const giveUp = (): null => {
+    if (!made.isContextLost()) {
+      made.getExtension("WEBGL_lose_context")?.loseContext();
+    }
+    return null;
+  };
 
   const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
   const program = gl.createProgram();
-  if (!vertex || !fragment || !program) return null;
+  if (!vertex || !fragment || !program) return giveUp();
   gl.attachShader(program, vertex);
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return giveUp();
   gl.deleteShader(vertex);
   gl.deleteShader(fragment);
   gl.useProgram(program);
@@ -250,16 +259,16 @@ export function createGlRenderer(
   const uniform = {} as Record<(typeof UNIFORMS)[number], WebGLUniformLocation>;
   for (const name of UNIFORMS) {
     const location = gl.getUniformLocation(program, name);
-    if (!location) return null;
+    if (!location) return giveUp();
     uniform[name] = location;
   }
   const buffer = gl.createBuffer();
-  if (!buffer) return null;
+  if (!buffer) return giveUp();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   const stride = GL_FLOATS_PER_PARTICLE * 4;
   for (const [name, size, offset] of ATTRIBUTES) {
     const location = gl.getAttribLocation(program, name);
-    if (location < 0) return null;
+    if (location < 0) return giveUp();
     gl.enableVertexAttribArray(location);
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * 4);
   }

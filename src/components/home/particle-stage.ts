@@ -636,9 +636,15 @@ class Stage {
   /** WebGL if the browser has it and the GPU can draw the points; otherwise the 2D path, for good. */
   private chooseRenderer(): void {
     if (!this.gl && !this.glFailed) {
-      const gl = this.glCanvas
-        ? createGlRenderer(this.glCanvas, this.onContextLost)
-        : null;
+      let gl: GlRenderer | null = null;
+      try {
+        gl = this.glCanvas
+          ? createGlRenderer(this.glCanvas, this.onContextLost)
+          : null;
+      } catch {
+        // Anything the GL calls throw is the same as having no WebGL.
+        gl = null;
+      }
       const pixelRatio = glCanvasScale(
         window.devicePixelRatio,
         this.queries.wide.matches,
@@ -747,7 +753,13 @@ class Stage {
     if (this.firstGaps.length < DEGRADE.REFRESH_SAMPLES) {
       this.firstGaps.push(gap);
     }
-    this.refreshMs ??= estimateRefreshMs(this.firstGaps);
+    if (this.refreshMs === null) {
+      this.refreshMs = estimateRefreshMs(this.firstGaps);
+      if (this.refreshMs !== null) {
+        // For the e2e suite and for anyone checking the guard in the inspector.
+        this.canvas.dataset.refreshMs = this.refreshMs.toFixed(1);
+      }
+    }
     const next = nextDrawCount({
       current: this.drawCount,
       budget: this.budget,

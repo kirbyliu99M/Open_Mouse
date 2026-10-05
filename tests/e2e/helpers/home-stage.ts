@@ -3,13 +3,18 @@ import { expect, type Page } from "@playwright/test";
 /**
  * Shared by the home page's particle-stage specs (Home v3, PR B): the story's
  * scroll helpers, and an init script that records what the page does while it
- * switches to the animated layout. The page publishes three diagnostics on
- * purpose: `data-progress` and `data-story` on the section, and `data-draws`
- * and `data-particles` on the canvas.
+ * switches to the animated layout. The page publishes its diagnostics on
+ * purpose: `data-progress`, `data-story` and `data-renderer` ("webgl" or "2d")
+ * on the section, and `data-draws`, `data-particles` (the budget) and
+ * `data-drawn` (how many the WebGL path draws now: the guard only lowers it)
+ * on the 2D canvas.
  */
 
 export const STORY = ".story";
+/** The 2D layer (the top canvas): the overlay, and the particles too when the stage has fallen back to Canvas 2D. */
 export const CANVAS = ".story-canvas";
+/** The WebGL layer under it, which draws the particles when WebGL is on. */
+export const GL_CANVAS = ".story-canvas-gl";
 export const HERO = '[data-testid="home-hero"]';
 export const CAPTION = "G Pro X Superlight 2 · sketch";
 
@@ -47,14 +52,30 @@ export async function scrollToProgress(page: Page, p: number): Promise<void> {
  * - `__events`: the order of the two switch steps (the class added, the static logo hidden), with the canvas's draw count at that moment;
  * - `__frames`: one entry per frame (from a sampler of our own): is the static logo visible, is the canvas shown;
  * - `__cls`: the cumulative layout shift, and `__clsAfterSwitch` the part of it from the moment the layout switched.
+ *
+ * And for the WebGL layer (the canvas `.story-canvas-gl`), which has no pixels
+ * to read once the browser has shown a frame:
+ * - `__glDraws`: when each `drawArrays` on it ran;
+ * - `__glLog`: the order of what happens to it, "resize" and "draw", like `__canvasLog` for the 2D canvas;
+ * - `__glSnapshot`: a 2D canvas that is a copy of the WebGL canvas, taken in the same task right after every draw (when its drawing buffer is still valid). Reading it is reading the WebGL pixels;
+ * - `__bufferUploads`: how many `bufferData` calls it made (the particles are uploaded once per layout, never while scrolling).
  */
 export async function recordStage(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>;
     w.__draws = [] as number[];
+    w.__glDraws = [] as number[];
+    w.__glLog = [] as string[];
+    w.__bufferUploads = 0;
     w.__raf = 0;
     w.__events = [] as string[];
-    w.__frames = [] as { logo: boolean; canvas: boolean; drawn: number }[];
+    w.__frames = [] as {
+      logo: boolean;
+      canvas: boolean;
+      drawn: number;
+      gl: boolean;
+      glDrawn: number;
+    }[];
     w.__cls = 0;
 
     // The order of what happens to the canvas: "resize" (its backing store was
@@ -85,6 +106,57 @@ export async function recordStage(page: Page): Promise<void> {
       });
     }
 
+    // The WebGL layer. `drawArrays` is the one draw call a frame makes: record
+    // it, and copy the canvas into a 2D canvas while its drawing buffer is valid.
+    const isGlLayer = (canvas: HTMLCanvasElement) =>
+      canvas.classList.contains("story-canvas-gl");
+    const glLog = w.__glLog as string[];
+    const snapshot = document.createElement("canvas");
+    w.__glSnapshot = snapshot;
+    const glProto = WebGLRenderingContext.prototype;
+    const drawArrays = glProto.drawArrays;
+    glProto.drawArrays = function (
+      this: WebGLRenderingContext,
+      ...args: Parameters<typeof drawArrays>
+    ) {
+      const result = drawArrays.apply(this, args);
+      const canvas = this.canvas as HTMLCanvasElement;
+      if (isGlLayer(canvas)) {
+        (w.__glDraws as number[]).push(performance.now());
+        glLog.push("draw");
+        if (snapshot.width !== canvas.width) snapshot.width = canvas.width;
+        if (snapshot.height !== canvas.height) snapshot.height = canvas.height;
+        const copy = snapshot.getContext("2d")!;
+        copy.clearRect(0, 0, snapshot.width, snapshot.height);
+        copy.drawImage(canvas, 0, 0);
+      }
+      return result;
+    };
+    const bufferData = glProto.bufferData as (...args: unknown[]) => void;
+    glProto.bufferData = function (
+      this: WebGLRenderingContext,
+      ...args: unknown[]
+    ) {
+      if (isGlLayer(this.canvas as HTMLCanvasElement)) {
+        w.__bufferUploads = (w.__bufferUploads as number) + 1;
+      }
+      return bufferData.apply(this, args);
+    } as typeof glProto.bufferData;
+    for (const side of ["width", "height"] as const) {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        HTMLCanvasElement.prototype,
+        side,
+      );
+      if (!descriptor?.set) continue;
+      Object.defineProperty(HTMLCanvasElement.prototype, side, {
+        ...descriptor,
+        set(this: HTMLCanvasElement, value: number) {
+          if (isGlLayer(this)) glLog.push("resize");
+          descriptor.set!.call(this, value);
+        },
+      });
+    }
+
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (callback) => {
       w.__raf = (w.__raf as number) + 1;
@@ -107,6 +179,7 @@ export async function recordStage(page: Page): Promise<void> {
     DOMTokenList.prototype.add = function (...tokens: string[]) {
       if (tokens.includes("story--animated") && !w.__activatedAt) {
         w.__activatedAt = performance.now();
+        w.__glDrawsAtSwitch = (w.__glDraws as number[]).length;
         const logo = document.querySelector<HTMLElement>(".story-logo img");
         events.push(
           `class added, draws=${draws()}, clears=${(w.__draws as number[]).length}, logoHidden=${logo?.style.visibility === "hidden"}`,
@@ -133,10 +206,13 @@ export async function recordStage(page: Page): Promise<void> {
       const canvas = document.querySelector<HTMLElement>(".story-canvas");
       canvasLog.push("frame");
       if (logo && canvas) {
+        const gl = document.querySelector<HTMLElement>(".story-canvas-gl");
         (w.__frames as unknown[]).push({
           logo: getComputedStyle(logo).visibility !== "hidden",
           canvas: getComputedStyle(canvas).display !== "none",
           drawn: Number(canvas.getAttribute("data-draws") ?? 0),
+          gl: gl !== null && getComputedStyle(gl).display !== "none",
+          glDrawn: (w.__glDraws as number[]).length,
         });
       }
       raf(sample);
@@ -199,6 +275,7 @@ export async function layoutFacts(page: Page) {
     const section = document.querySelector<HTMLElement>(".story")!;
     const panel = document.querySelector<HTMLElement>(".story-panel")!;
     const canvas = document.querySelector<HTMLElement>(".story-canvas")!;
+    const glCanvas = document.querySelector<HTMLElement>(".story-canvas-gl")!;
     const logo = document.querySelector<HTMLElement>(".story-logo img")!;
     const hero = document.querySelector<HTMLElement>(".story-hero")!;
     return {
@@ -209,6 +286,8 @@ export async function layoutFacts(page: Page) {
       scrollHeight: document.documentElement.scrollHeight,
       viewport: window.innerHeight,
       canvasDisplay: getComputedStyle(canvas).display,
+      glCanvasDisplay: getComputedStyle(glCanvas).display,
+      renderer: section.dataset.renderer ?? null,
       logoVisibility: getComputedStyle(logo).visibility,
       heroOpacity: getComputedStyle(hero).opacity,
       heroTransform: getComputedStyle(hero).transform,
@@ -231,9 +310,18 @@ export async function layoutFacts(page: Page) {
 export async function logoInk(page: Page) {
   return page.evaluate(() => {
     const img = document.querySelector<HTMLImageElement>(".story-logo img")!;
-    const canvas = document.querySelector<HTMLCanvasElement>(".story-canvas")!;
+    const layer = document.querySelector<HTMLCanvasElement>(".story-canvas")!;
+    // The logo is on whichever canvas draws the particles: the WebGL one (read
+    // through the copy `recordStage` keeps of it) or, on the 2D path, the 2D one.
+    const webgl =
+      document.querySelector<HTMLElement>(".story")!.dataset.renderer ===
+      "webgl";
+    const canvas = webgl
+      ? ((window as unknown as Record<string, unknown>)
+          .__glSnapshot as HTMLCanvasElement)
+      : layer;
     const rect = img.getBoundingClientRect();
-    const box = canvas.getBoundingClientRect();
+    const box = layer.getBoundingClientRect();
     const scale = canvas.width / box.width;
     type Bounds = { x0: number; y0: number; x1: number; y1: number };
     const bounds = (
