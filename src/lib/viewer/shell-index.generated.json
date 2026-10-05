@@ -1,0 +1,142 @@
+{
+  "shells": [
+    {
+      "slug": "logitech-ergo-m575",
+      "path": "shells/logitech-ergo-m575.glb"
+    },
+    {
+      "slug": "logitech-ergo-m575s",
+      "path": "shells/logitech-ergo-m575.glb"
+    },
+    {
+      "slug": "logitech-g-pro-2-lightspeed",
+      "path": "shells/logitech-g-pro-2-lightspeed.glb"
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2",
+      "path": "shells/logitech-g-pro-x-superlight-2.glb"
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2-dex",
+      "path": "shells/logitech-g-pro-x-superlight-2-dex.glb"
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2-se",
+      "path": "shells/logitech-g-pro-x-superlight-2-se.glb"
+    },
+    {
+      "slug": "logitech-g-pro-x-superlight-2c",
+      "path": "shells/logitech-g-pro-x-superlight-2c.glb"
+    },
+    {
+      "slug": "logitech-g203-lightsync",
+      "path": "shells/logitech-g203-lightsync.glb"
+    },
+    {
+      "slug": "logitech-g305-lightspeed",
+      "path": "shells/logitech-g305-lightspeed.glb"
+    },
+    {
+      "slug": "logitech-g309",
+      "path": "shells/logitech-g309.glb"
+    },
+    {
+      "slug": "logitech-g403-hero",
+      "path": "shells/logitech-g403-hero.glb"
+    },
+    {
+      "slug": "logitech-g502-hero",
+      "path": "shells/logitech-g502-hero.glb"
+    },
+    {
+      "slug": "logitech-g502-x",
+      "path": "shells/logitech-g502-x.glb"
+    },
+    {
+      "slug": "logitech-g502-x-lightspeed",
+      "path": "shells/logitech-g502-x-lightspeed.glb"
+    },
+    {
+      "slug": "logitech-g502-x-plus",
+      "path": "shells/logitech-g502-x-plus.glb"
+    },
+    {
+      "slug": "logitech-g703-lightspeed",
+      "path": "shells/logitech-g703-lightspeed.glb"
+    },
+    {
+      "slug": "logitech-g903-hero",
+      "path": "shells/logitech-g903-hero.glb"
+    },
+    {
+      "slug": "logitech-lift-vertical",
+      "path": "shells/logitech-lift-vertical.glb"
+    },
+    {
+      "slug": "logitech-m190",
+      "path": "shells/logitech-m190.glb"
+    },
+    {
+      "slug": "logitech-m196",
+      "path": "shells/logitech-m196.glb"
+    },
+    {
+      "slug": "logitech-m240",
+      "path": "shells/logitech-m240.glb"
+    },
+    {
+      "slug": "logitech-m550",
+      "path": "shells/logitech-m550.glb"
+    },
+    {
+      "slug": "logitech-m650",
+      "path": "shells/logitech-m650.glb"
+    },
+    {
+      "slug": "logitech-m720-triathlon",
+      "path": "shells/logitech-m720-triathlon.glb"
+    },
+    {
+      "slug": "logitech-m750",
+      "path": "shells/logitech-m750.glb"
+    },
+    {
+      "slug": "logitech-mx-anywhere-3s",
+      "path": "shells/logitech-mx-anywhere-3s.glb"
+    },
+    {
+      "slug": "logitech-mx-master-3s",
+      "path": "shells/logitech-mx-master-3s.glb"
+    },
+    {
+      "slug": "logitech-mx-master-4",
+      "path": "shells/logitech-mx-master-4.glb"
+    },
+    {
+      "slug": "logitech-mx-vertical",
+      "path": "shells/logitech-mx-vertical.glb"
+    },
+    {
+      "slug": "logitech-pebble-2-m350s",
+      "path": "shells/logitech-pebble-2-m350s.glb"
+    },
+    {
+      "slug": "logitech-pop-mouse",
+      "path": "shells/logitech-pop-mouse.glb"
+    }
+  ],
+  "noShell": [
+    {
+      "slug": "logitech-m100"
+    },
+    {
+      "slug": "logitech-mobi-fold"
+    },
+    {
+      "slug": "logitech-signature-comfort-m840l"
+    },
+    {
+      "slug": "logitech-mx-ergo-s"
+    }
+  ]
+}

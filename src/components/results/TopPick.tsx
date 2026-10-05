@@ -3,6 +3,7 @@ import { ConfidenceNote } from "./ConfidenceNote";
 import { TargetDeltas } from "./TargetDeltas";
 import { SUBSCORES } from "@/lib/contracts/fit";
 import { SubscoreBar } from "./SubscoreBar";
+import { ViewerRegion } from "@/components/viewer/ViewerRegion";
 
 /**
  * The top recommendation, per docs/design-guidelines.md ("Hierarchy: the top
@@ -14,8 +15,18 @@ import { SubscoreBar } from "./SubscoreBar";
  * don't fully know this mouse's shape yet", so only one renders per entry
  * (docs/design/journey-2026-09-23/04-results.png shows one statement, not
  * two).
+ *
+ * `viewer` mounts the 3D size illustration between the header and the
+ * confidence note, for this top-ranked mouse only. Off by default: the demo
+ * page has no real scan to read measurements from.
  */
-export function TopPick({ response }: { response: FitResponse }) {
+export function TopPick({
+  response,
+  viewer = false,
+}: {
+  response: FitResponse;
+  viewer?: boolean;
+}) {
   const entry = response.results[0];
   if (!entry) return null;
 
@@ -40,6 +51,14 @@ export function TopPick({ response }: { response: FitResponse }) {
           <span className="results-topPick-scoreLabel">fit score / 100</span>
         </div>
       </div>
+
+      {viewer && (
+        <ViewerRegion
+          scanId={response.scanId}
+          mouseSlug={mouse.slug}
+          mouseName={`${mouse.brand} ${mouse.model}`}
+        />
+      )}
 
       {!shapeUnrated && <ConfidenceNote confidence={entry.confidence} />}
 

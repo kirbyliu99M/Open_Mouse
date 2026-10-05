@@ -17,4 +17,6 @@ docs/shape-rubric.md
 
 # Vendored, unmodified third-party build output.
 public/mediapipe/
+public/draco/
 src/lib/particles/targets.generated.json
+src/lib/viewer/shell-index.generated.json
