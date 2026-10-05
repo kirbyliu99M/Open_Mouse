@@ -7,7 +7,10 @@
  * no-new-numerals violation.
  */
 import { isLowConfidence } from "../../components/results/format";
+import type { FitBand } from "../../lib/contracts/fit-bands";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
+import { en as bandCopy } from "../../lib/copy/fit-bands";
+import { bandOf } from "../../lib/fit/bands";
 import { ENGINE_IS_PROVISIONAL } from "../fit/coefficients";
 import type {
   FitEntry,
@@ -18,7 +21,15 @@ import type {
 
 export interface AnalysisInputSubscore {
   score: number | null;
+  /** Where the score falls; `null` for an unrated sub-score (not a band). */
+  band: FitBand | null;
   reasonCode: ReasonCode;
+  /**
+   * What the reason means for how the mouse feels in use, from the fit-band
+   * copy (candidate wording, 未拍板). English, because the prompt is English;
+   * carries no digit, so it adds no numeral to what the model may repeat.
+   */
+  impact: string;
   params: Record<string, number>;
 }
 
@@ -32,6 +43,10 @@ export interface AnalysisInputEntry {
   heightMm: number;
   weightG: number | null;
   total: number;
+  /** The band `total` falls in (`../../lib/fit/bands`; thresholds are candidates). */
+  band: FitBand;
+  /** What that band means for using the mouse. English, no digit. */
+  bandMeaning: string;
   confidencePercent: number;
   /**
    * Decided on the raw 0..1 confidence with the results UI's own threshold,
@@ -44,6 +59,11 @@ export interface AnalysisInputEntry {
 
 export interface AnalysisInput {
   rankingProvisional: boolean;
+  /**
+   * One caveat that goes with any band: an estimate, method still being tuned.
+   * English, no digit.
+   */
+  estimateNote: string;
   gripStyle: FitResponse["gripStyle"];
   targets: FitResponse["targets"];
   /** Only the hand numbers guaranteed present on every submission. */
@@ -69,17 +89,27 @@ function roundedParams(params: Record<string, number>): Record<string, number> {
   );
 }
 
+/** `total` is always a whole number from 0 to 100 (the contract), so it has a band. */
+function bandOfTotal(total: number): FitBand {
+  const band = bandOf(total);
+  if (band === null) throw new RangeError("A fit total is never null.");
+  return band;
+}
+
 function toInputEntry(entry: FitEntry): AnalysisInputEntry {
   const subscores = Object.fromEntries(
     Object.entries(entry.subscores).map(([key, sub]) => [
       key,
       {
         score: sub.score,
+        band: bandOf(sub.score),
         reasonCode: sub.reason.code,
+        impact: bandCopy.impact[sub.reason.code],
         params: roundedParams(sub.reason.params),
       } satisfies AnalysisInputSubscore,
     ]),
   ) as Record<Subscore, AnalysisInputSubscore>;
+  const band = bandOfTotal(entry.total);
   return {
     rank: entry.rank,
     slug: entry.mouse.slug,
@@ -90,6 +120,8 @@ function toInputEntry(entry: FitEntry): AnalysisInputEntry {
     heightMm: oneDecimal(entry.mouse.heightMm),
     weightG: entry.mouse.weightG,
     total: entry.total,
+    band,
+    bandMeaning: bandCopy.bands[band].meaning,
     confidencePercent: Math.round(entry.confidence * 100),
     lowConfidence: isLowConfidence(entry.confidence),
     subscores,
@@ -102,6 +134,7 @@ export function buildAnalysisInput(
 ): AnalysisInput {
   return {
     rankingProvisional: ENGINE_IS_PROVISIONAL,
+    estimateNote: bandCopy.provisional,
     gripStyle: fit.gripStyle,
     targets: {
       lengthMm: oneDecimal(fit.targets.lengthMm),

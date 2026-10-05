@@ -285,7 +285,11 @@ describe("analyse — no-new-numerals rule", () => {
       expect(data).not.toContain(`"${code}"`);
     }
     expect(data).toContain("Fit settings have not yet been validated");
-    expect(data).toContain("its length matches your hand well");
+    // The sub-score's impact sentence (what the reason means for use), which
+    // replaced the old third-person reason text in the prompt data.
+    expect(data).toContain(
+      "The length lets your palm and fingers rest where they naturally fall.",
+    );
     expect(prompt).toContain("Never mention internal identifiers");
   });
 

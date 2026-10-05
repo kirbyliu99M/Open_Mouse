@@ -49,8 +49,13 @@ import type { AnalysisOutput } from "./schema";
  * no thumb rest now shows the model the `thumb_rest_missing` text instead of
  * `thumb_neutral`. Prose accepted under the old rules must not be served as if
  * it had passed the new ones.
+ *
+ * Bumped to 6 (fit bands): the prompt now asks for how the mouse will feel to
+ * use, and the data carries each top pick's band and meaning and each
+ * sub-score's band and impact sentence, in place of the old reason text. Prose
+ * written for the old prompt must not be served for the new one.
  */
-export const ANALYSIS_PROMPT_VERSION = 5;
+export const ANALYSIS_PROMPT_VERSION = 6;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s

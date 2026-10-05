@@ -29,8 +29,8 @@ const CACHED: CachedAnalysis = {
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 describe("computeCacheKey", () => {
-  it("uses prompt version 5", () => {
-    expect(ANALYSIS_PROMPT_VERSION).toBe(5);
+  it("uses prompt version 6", () => {
+    expect(ANALYSIS_PROMPT_VERSION).toBe(6);
   });
   it("is deterministic for the same fit and measurements (identical input -> same key)", () => {
     const fit = makeFit();
