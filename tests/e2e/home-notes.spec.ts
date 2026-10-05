@@ -245,8 +245,13 @@ test.describe("the annotations on the animated page", () => {
       await waitForAnimated(page);
       for (const [i, p] of MIDDLES.entries()) {
         await scrollToProgress(page, p);
-        const { hand, notes, width: w, height: h } = await boxes(page);
+        const { hand, sheet, notes, width: w, height: h } = await boxes(page);
         const note = notes[i]!;
+        // Never across the A4 sheet's bottom edge or its corner marks: 10 px under it, at least.
+        expect(
+          note.top,
+          `note ${i + 1} under the sheet's bottom edge`,
+        ).toBeGreaterThanOrEqual(sheet.bottom + 10 - 0.5);
         expect(
           Math.abs(note.left - hand.left),
           `note ${i + 1} left`,
@@ -276,6 +281,7 @@ test.describe("the annotations on the animated page", () => {
       await page.setViewportSize({ width, height });
       await page.goto("/");
       await waitForAnimated(page);
+      await expect(page.locator(STORY)).toHaveAttribute("data-notes", "beside");
       for (const [i, p] of MIDDLES.entries()) {
         await scrollToProgress(page, p);
         const { hand, notes, width: w, height: h } = await boxes(page);
@@ -313,21 +319,36 @@ test.describe("the annotations on the animated page", () => {
     await page.goto("/");
     await waitForAnimated(page);
     await scrollToProgress(page, 0.5);
-    let { hand, notes } = await boxes(page);
-    expect(notes[2]!.left).toBeGreaterThanOrEqual(hand.right + 20);
+    const wide = await boxes(page);
+    expect(wide.notes[2]!.left).toBeGreaterThanOrEqual(wide.hand.right + 20);
 
-    // Narrower: the hand shrinks with the window, there is no room at its
-    // sides, and the text goes below it, as wide as the image.
-    await page.setViewportSize({ width: 1000, height: 800 });
+    // Narrower and tall: the hand shrinks with the window, there is no room at
+    // its sides, and the text goes below it, as wide as the image and under
+    // the A4 sheet's bottom edge.
+    await page.setViewportSize({ width: 900, height: 1000 });
     await expect
       .poll(async () => {
         const b = await boxes(page);
         return Math.abs(b.notes[2]!.left - b.hand.left) < 1;
       })
       .toBe(true);
-    ({ hand, notes } = await boxes(page));
-    expect(Math.abs(notes[2]!.width - hand.width)).toBeLessThan(1);
-    expect(notes[2]!.top).toBeGreaterThanOrEqual(wristBottom(hand) + 10);
+    const narrow = await boxes(page);
+    expect(Math.abs(narrow.notes[2]!.width - narrow.hand.width)).toBeLessThan(
+      1,
+    );
+    expect(narrow.notes[2]!.top).toBeGreaterThanOrEqual(
+      wristBottom(narrow.hand) + 10,
+    );
+    expect(narrow.notes[2]!.top).toBeGreaterThanOrEqual(
+      narrow.sheet.bottom + 10 - 0.5,
+    );
+    await expect(page.locator(STORY)).toHaveAttribute("data-notes", "below");
+
+    // Shorter at the same width (900x700), the text has no room under the
+    // sheet without crossing its edge: no note is shown, and no ring or leader.
+    await page.setViewportSize({ width: 900, height: 700 });
+    await expect(page.locator(STORY)).toHaveAttribute("data-notes", "off");
+    expect(await opacities(page)).toEqual([0, 0, 0, 0, 0]);
 
     // And back to a wide window.
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -337,6 +358,75 @@ test.describe("the annotations on the animated page", () => {
         return b.notes[2]!.left >= b.hand.right + 20;
       })
       .toBe(true);
+  });
+
+  test("never cross the A4 sheet's bottom edge: below the hand they sit 10 px or more under it, and in a window with no room for that they are left out", async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "chromium", "Desktop and tablet windows.");
+    test.setTimeout(180_000);
+    // These five windows used to put the first line over the sheet's bottom
+    // edge and its corner marks (by 38, 28, 28, 19 and 19 px). The text has
+    // no place there that clears it and fits, so no note is shown.
+    for (const [width, height] of [
+      [800, 600],
+      [900, 700],
+      [800, 700],
+      [700, 600],
+      [1000, 800],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      await expect(page.locator(STORY)).toHaveAttribute("data-notes", "off");
+      for (const p of MIDDLES) {
+        await scrollToProgress(page, p);
+        expect(await opacities(page), `${width}x${height} p=${p}`).toEqual([
+          0, 0, 0, 0, 0,
+        ]);
+      }
+      // The text is still in the DOM for a screen reader, and nothing of the
+      // stage's is written on it: no position, no opacity.
+      const inline = await page
+        .locator(NOTES)
+        .evaluateAll((els) =>
+          els.map((el) => [
+            (el as HTMLElement).style.left,
+            (el as HTMLElement).style.top,
+            (el as HTMLElement).style.opacity,
+          ]),
+        );
+      expect(inline, `${width}x${height}`).toEqual(
+        Array.from({ length: 5 }, () => ["", "", ""]),
+      );
+    }
+    // These four always worked: the text is under the sheet, with 10 px or more
+    // between them, and inside the window.
+    for (const [width, height] of [
+      [375, 667],
+      [390, 844],
+      [768, 1024],
+      [820, 1180],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      await expect(page.locator(STORY)).toHaveAttribute("data-notes", "below");
+      for (const [i, p] of MIDDLES.entries()) {
+        await scrollToProgress(page, p);
+        const { sheet, notes, height: h } = await boxes(page);
+        const want = [0, 0, 0, 0, 0];
+        want[i] = 1;
+        expect(await opacities(page), `${width}x${height} p=${p}`).toEqual(
+          want,
+        );
+        expect(
+          notes[i]!.top,
+          `${width}x${height} note ${i + 1}`,
+        ).toBeGreaterThanOrEqual(sheet.bottom + 10 - 0.5);
+        expect(notes[i]!.bottom).toBeLessThanOrEqual(h - 8);
+      }
+    }
   });
 
   test("have text contrast of at least 4.5:1 on the page background, and no glow behind them", async ({
@@ -597,7 +687,8 @@ test.describe("the same five blocks as a list, where the stage is off", () => {
     await expect(page.locator(STORY)).not.toHaveClass(/story--animated/, {
       timeout: 10_000,
     });
-    // No inline style from the stage remains: it is the static list again.
+    // No inline style or diagnostic from the stage remains: it is the static list again.
+    await expect(page.locator(STORY)).not.toHaveAttribute("data-notes", /.*/);
     const inline = await page
       .locator(NOTES)
       .evaluateAll((els) => els.map((el) => el.getAttribute("style")));

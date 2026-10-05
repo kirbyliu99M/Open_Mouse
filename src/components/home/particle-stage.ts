@@ -175,6 +175,8 @@ class Stage {
   private outline: OutlineLayer | null = null;
   private outlineKey = "";
   private noteShapes: readonly NoteShape[] = [];
+  /** False when the notes have no place that keeps clear of the sheet's bottom edge: none of them is shown. */
+  private notesShown = false;
 
   private rafId = 0;
   private reflowId = 0;
@@ -421,6 +423,7 @@ class Stage {
     }
     this.closeOutline();
     this.noteShapes = [];
+    this.notesShown = false;
     for (const control of this.controls)
       control.toggleAttribute("inert", false);
     if (this.headingTabindexSet) {
@@ -432,6 +435,7 @@ class Stage {
       if (mouse.caption) mouse.caption.style.opacity = "";
     delete section.dataset.progress;
     delete section.dataset.story;
+    delete section.dataset.notes;
     this.written = {};
     this.animated = false;
   }
@@ -511,10 +515,11 @@ class Stage {
    * here: opacity and transform are the frame's.
    */
   private layoutNotes(handRect: Rect, origin: DOMRect): void {
-    const { notes } = this.parts;
+    const { notes, section } = this.parts;
     const box = this.layout?.hand;
     if (notes.length !== NOTE_COUNT || !box) {
       this.noteShapes = [];
+      this.notesShown = false;
       return;
     }
     const room = sideRoom(
@@ -536,6 +541,20 @@ class Stage {
       widths,
       texts,
     });
+    if (!shapes) {
+      // No place for the text that clears the A4 sheet's bottom edge and fits
+      // the panel (a window about 700 to 1000 px wide and under about 800 px
+      // tall): show no note, ring or leader. The text is still in the DOM, at
+      // opacity 0, for a screen reader.
+      for (const { block } of notes) {
+        block.style.removeProperty("left");
+        block.style.removeProperty("top");
+      }
+      this.noteShapes = [];
+      this.notesShown = false;
+      section.dataset.notes = "off";
+      return;
+    }
     notes.forEach(({ block }, i) => {
       const { text } = shapes[i]!;
       block.style.left = `${round3(text.left)}px`;
@@ -543,6 +562,8 @@ class Stage {
       block.style.textAlign = text.align;
     });
     this.noteShapes = shapes;
+    this.notesShown = true;
+    section.dataset.notes = mode;
   }
 
   private buildSet(logo: Rect, hand: Rect, mice: readonly Rect[]): void {
@@ -724,7 +745,9 @@ class Stage {
     // The annotations' text: opacity, and a small rise while one fades. A note
     // at 0 is left to its stylesheet (hidden), and is still in the DOM, in
     // order, for a screen reader.
-    const noteOpacities = phase.notes.map((n) => round3(n));
+    const noteOpacities = phase.notes.map((n) =>
+      this.notesShown ? round3(n) : 0,
+    );
     const noteKey = noteOpacities.join(",");
     if (noteKey !== w.notes) {
       this.parts.notes.forEach(({ block }, i) => {

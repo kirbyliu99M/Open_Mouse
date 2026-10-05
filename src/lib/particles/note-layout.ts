@@ -1,5 +1,5 @@
 import type { Vec } from "./geometry";
-import { DEMO_STAGE_SCALE, OUTLINE_PALM } from "./hand-outline";
+import { DEMO_STAGE_SCALE } from "./hand-outline";
 import type { Rect, StageBox } from "./particle-set";
 import {
   A4_MM,
@@ -44,9 +44,18 @@ export const LEADER_GAP_SIDE = 20;
 export const LEADER_GAP_BELOW = 4;
 /** In the demo, a text block below the hand starts this far under the A4 sheet's bottom edge (px). */
 export const BELOW_FROM_SHEET = 73;
-/** A text block never sits closer than this to the panel's bottom edge, or to the wrist's outline above it (px). */
+/**
+ * A text block below the hand never comes closer than this to the A4 sheet's
+ * bottom edge (and so to its two bottom corner marks), whatever the window:
+ * it is a hard floor, not a preference (px). The sheet's bottom is always
+ * well under the wrist's outline (about 65 px at the hand's smallest), so
+ * this also keeps the text clear of the hand.
+ */
+export const SHEET_CLEARANCE = 10;
+/** A text block prefers to stay this far from the panel's bottom edge (px). */
 export const PANEL_MARGIN = 16;
-export const WRIST_CLEARANCE = 20;
+/** ...and, at the least, this far: below it the block does not fit and the notes are left out (px). */
+export const PANEL_MIN_MARGIN = 8;
 
 /** Ring and line sizes, in the demo's pixels: they scale with the hand. */
 const RING_RADIUS_DEMO = 12;
@@ -153,8 +162,15 @@ export interface NoteLayoutInput {
   readonly texts: readonly NoteText[];
 }
 
-/** The five notes' shapes, in the story's order. */
-export function placeNotes(input: NoteLayoutInput): NoteShape[] {
+/**
+ * The five notes' shapes, in the story's order, or null when there is no place
+ * for the text that keeps clear of the A4 sheet's bottom edge and inside the
+ * panel. That happens in a window about 700 to 1000 px wide and under about
+ * 800 px tall: no room at the hand's sides and not enough under the sheet. The
+ * caller then shows no note at all (the text stays in the DOM, for a screen
+ * reader) rather than let the text cross the sheet.
+ */
+export function placeNotes(input: NoteLayoutInput): NoteShape[] | null {
   const { box, rect, panel, mode, widths, texts } = input;
   const k = box.scale;
   const s = k / DEMO_STAGE_SCALE;
@@ -170,18 +186,21 @@ export function placeNotes(input: NoteLayoutInput): NoteShape[] {
       return { x, y, r: RING_RADIUS_DEMO * s };
     });
 
-  // The one row of text below the hand: under the A4 sheet, clear of the wrist
-  // above it and of the panel's bottom edge below it.
+  // The one row of text below the hand: 73 px under the A4 sheet as in the
+  // demo, pulled up on a short panel to keep the preferred margin at the
+  // bottom, but never above the floor under the sheet's bottom edge.
   const sheetBottom = Y(A4_MM.height);
-  const wristBottom = Y(246 + OUTLINE_PALM.width / 2);
   const tallest = Math.max(...texts.map((t) => t.height), 0);
   const belowTop = Math.max(
     Math.min(
       sheetBottom + BELOW_FROM_SHEET,
       panel.height - PANEL_MARGIN - tallest,
     ),
-    wristBottom + WRIST_CLEARANCE,
+    sheetBottom + SHEET_CLEARANCE,
   );
+  const room = panel.height - PANEL_MIN_MARGIN;
+  if (mode === "below" && belowTop + tallest > room) return null;
+  if (mode === "beside" && tallest > room - PANEL_MIN_MARGIN) return null;
 
   const rightEdge = rect.x + rect.width;
   const shape = (
