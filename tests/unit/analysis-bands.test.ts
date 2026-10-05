@@ -220,7 +220,10 @@ describe("buildPrompt — how it will feel to use", () => {
     expect(text).toMatch(/"impact"/);
     expect(text).toMatch(/the one or two things that matter most/i);
     expect(text).toMatch(/what to look for in another mouse/i);
-    expect(text).toMatch(/"estimateNote"/);
+    expect(text).toMatch(
+      /"caveats": include one short line saying this is an estimate/,
+    );
+    expect(text).toMatch(/"estimateNote" wording/);
   });
 
   it("forbids health claims, accuracy and certainty claims, comparisons with other people, own grades and made-up numbers", () => {
