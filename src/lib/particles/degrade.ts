@@ -9,27 +9,39 @@
  * slow: gaps over `MAX_GAP_MS` are thrown away. Of the rest, the last
  * `WINDOW` are kept; the screen's own refresh interval is estimated as the
  * median of the first `REFRESH_SAMPLES` of them (the shimmer draws every
- * frame, so those are the screen's frames); and when the 95th percentile of
- * the window is more than `SLOW_RATIO` times that interval, the draw count
- * drops by `STEP`, down to `FLOOR` of the budget. The window starts empty once
- * the interval is known: the first frames after the layout switches on (the
- * first one measures the page, the first draw warms the GPU up) are slow on a
- * phone, and three such frames in 45 would otherwise be enough to step down
- * for good (seen at 4x CPU throttle, where the screen had no trouble at all).
+ * frame, so those are the screen's frames); and when at least `SLOW_COUNT` of
+ * the window's gaps are more than `SLOW_RATIO` times that interval (8 of 60,
+ * about 13 % of the frames), the draw count drops by `STEP`, down to `FLOOR`
+ * of the budget. After a step the window starts empty and has to fill again,
+ * all 60 gaps, before the next step is allowed: a cooldown, so one slow spell
+ * is answered once, and the new count is judged on its own frames.
+ *
+ * The rule counts misses rather than reading a percentile on purpose. On a
+ * 165 Hz screen a frame is 6.1 ms and one missed vsync is 12.2 ms, over the
+ * 1.7 line; a device that is not struggling misses one now and then (a layout
+ * pass, a garbage collection), and must not lose particles for it. A rule that
+ * stepped down at 3 misses in 45 (6.7 %) did, so the bar is 8 in 60.
+ *
+ * The window also starts empty once the interval is known: the first frames
+ * after the layout switches on (the first one measures the page, the first
+ * draw warms the GPU up) are slow on a phone, and they must not count either
+ * (seen at 4x CPU throttle, where the screen had no trouble at all).
  *
  * All of the numbers are Claude's candidates (未拍板) until they are measured
- * on a real phone. Pure: no DOM, no clock.
+ * on a real 60 Hz phone. Pure: no DOM, no clock.
  */
 export const DEGRADE = {
   /** A gap between two draws longer than this (ms) is the reader pausing, not a slow frame. */
   MAX_GAP_MS: 50,
-  /** How many of the latest gaps the 95th percentile is taken over. */
-  WINDOW: 45,
+  /** How many of the latest gaps the slow ones are counted in. */
+  WINDOW: 60,
   /** How many of the first gaps give the screen's refresh interval. */
   REFRESH_SAMPLES: 40,
-  /** The window's 95th percentile must exceed the refresh interval by this factor to count as slow. */
+  /** A gap is slow when it is more than this many times the refresh interval. */
   SLOW_RATIO: 1.7,
-  /** A slow window takes this share off the draw count. */
+  /** This many slow gaps in the window (of `WINDOW`) are enough to step down. */
+  SLOW_COUNT: 8,
+  /** A step takes this share off the draw count. */
   STEP: 0.25,
   /** The draw count never goes below this share of the budget. */
   FLOOR: 0.25,
@@ -48,14 +60,6 @@ export function median(values: readonly number[]): number {
   return sorted.length % 2 === 1
     ? sorted[mid]!
     : (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
-/** The nearest-rank percentile (q from 0 to 1) of a list. NaN for an empty list. */
-export function percentile(values: readonly number[], q: number): number {
-  if (values.length === 0) return Number.NaN;
-  const sorted = [...values].sort((a, b) => a - b);
-  const rank = Math.ceil(Math.min(Math.max(q, 0), 1) * sorted.length);
-  return sorted[Math.max(0, rank - 1)]!;
 }
 
 /**
@@ -83,10 +87,18 @@ export interface DegradeInput {
   readonly refreshMs: number | null;
 }
 
+/** How many of `gaps` are slow: more than `SLOW_RATIO` times the refresh interval. */
+export function slowGaps(gaps: readonly number[], refreshMs: number): number {
+  const limit = DEGRADE.SLOW_RATIO * refreshMs;
+  let slow = 0;
+  for (const gap of gaps) if (gap > limit) slow += 1;
+  return slow;
+}
+
 /**
  * How many particles to draw next. The same as `current` until the window is
- * full and slow; then 25 % fewer, never below a quarter of the budget, and
- * never more than `current` (it only steps down).
+ * full (60 gaps) and 8 or more of them are slow; then 25 % fewer, never below
+ * a quarter of the budget, and never more than `current` (it only steps down).
  */
 export function nextDrawCount({
   current,
@@ -98,8 +110,7 @@ export function nextDrawCount({
   if (current <= floor) return Math.min(current, budget);
   if (refreshMs === null || !(refreshMs > 0)) return current;
   if (gaps.length < DEGRADE.WINDOW) return current;
-  const recent = gaps.slice(-DEGRADE.WINDOW);
-  if (!(percentile(recent, 0.95) > DEGRADE.SLOW_RATIO * refreshMs)) {
+  if (slowGaps(gaps.slice(-DEGRADE.WINDOW), refreshMs) < DEGRADE.SLOW_COUNT) {
     return current;
   }
   return Math.max(floor, Math.round(current * (1 - DEGRADE.STEP)));
@@ -109,7 +120,7 @@ export function nextDrawCount({
 export interface GuardState {
   /** When the last frame was drawn (ms), or 0 before the first. */
   readonly lastAt: number;
-  /** The latest gaps, once the screen's interval is known (the window the 95th percentile is taken over). */
+  /** The latest gaps, once the screen's interval is known (the window the slow ones are counted in). */
   readonly gaps: readonly number[];
   /** The first gaps, until there are enough to estimate the screen's interval from. */
   readonly firstGaps: readonly number[];

@@ -60,41 +60,65 @@ const rendererOf = (page: Page) =>
   page.locator(STORY).getAttribute("data-renderer");
 
 /**
- * The page's frame clock, made slow on purpose, from before its own scripts
- * run: once `slowDown` is called, the timestamps requestAnimationFrame hands to
- * its callbacks run `factor` times faster than the real ones, so the gaps
- * between the stage's frames are `factor` times as long. (The guard only reads
- * those timestamps; what the screen really does is not touched.)
+ * The page's frame clock, made to miss frames on purpose, from before its own
+ * scripts run. Once `missFrames` is called, the timestamp every
+ * requestAnimationFrame callback of a frame is handed is made up: the made-up
+ * clock moves by `normal` ms on a frame that is on time and by `slow` ms on one
+ * that is missed, as the plan says. (The guard only reads those timestamps; what
+ * the screen really does is not touched.)
  */
-async function installSlowClock(page: Page) {
+async function installFrameClock(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as Record<string, number>;
-    w.__slowFactor = 0;
-    w.__slowFrom = 0;
-    w.__slowAt = 0;
+    const w = window as unknown as Record<string, unknown>;
+    w.__plan = null;
+    w.__fake = 0;
+    w.__lastReal = -1;
+    w.__frame = 0;
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (callback) =>
-      raf((time) =>
-        callback(
-          w.__slowFactor > 0
-            ? w.__slowAt + (time - w.__slowFrom) * w.__slowFactor
-            : time,
-        ),
-      );
+      raf((time) => {
+        const plan = w.__plan as ((frame: number) => number) | null;
+        if (!plan) return callback(time);
+        // One step of the made-up clock per frame, however many callbacks it has.
+        if (time !== w.__lastReal) {
+          w.__lastReal = time;
+          w.__fake = (w.__fake as number) + plan(w.__frame as number);
+          w.__frame = (w.__frame as number) + 1;
+        }
+        return callback(w.__fake as number);
+      });
   });
 }
 
-const slowDown = (page: Page, factor: number) =>
-  page.evaluate((f) => {
-    const w = window as unknown as Record<string, number>;
-    w.__slowFrom = performance.now();
-    w.__slowAt = performance.now();
-    w.__slowFactor = f;
-  }, factor);
+/** Which frames of the plan are missed. */
+type Misses = "all" | "none" | { every: number } | { twoInFive: true };
 
-const speedUp = (page: Page) =>
+const missFrames = (
+  page: Page,
+  { normal, slow, misses }: { normal: number; slow: number; misses: Misses },
+) =>
+  page.evaluate(
+    ([n, sl, m]) => {
+      const w = window as unknown as Record<string, unknown>;
+      const missed = (i: number) =>
+        m === "all"
+          ? true
+          : m === "none"
+            ? false
+            : typeof m === "object" && "every" in m
+              ? i % m.every === 0
+              : i % 5 < 2;
+      w.__fake = performance.now();
+      w.__lastReal = -1;
+      w.__frame = 0;
+      w.__plan = (i: number) => (missed(i) ? (sl as number) : (n as number));
+    },
+    [normal, slow, misses] as const,
+  );
+
+const restoreClock = (page: Page) =>
   page.evaluate(() => {
-    (window as unknown as Record<string, number>).__slowFactor = 0;
+    (window as unknown as Record<string, unknown>).__plan = null;
   });
 
 /** Scroll by 4 px on each of `frames` frames: the stage draws on every one. */
@@ -476,10 +500,9 @@ test.describe("the WebGL path", () => {
     expect(await rendererOf(page)).toBe("webgl");
   });
 
-  test("when frames come slowly it draws fewer particles, a quarter at a time, never fewer than a quarter of the budget, and never more again", async ({
-    page,
-  }) => {
-    await installSlowClock(page);
+  /** A page on the WebGL path with the made-up frame clock, past its shimmer, whose refresh interval is known. */
+  async function guardPage(page: Page) {
+    await installFrameClock(page);
     await page.goto("/");
     await waitForAnimated(page);
     test.skip(
@@ -488,87 +511,109 @@ test.describe("the WebGL path", () => {
     );
     await waitForShimmerOver(page);
     const canvas = page.locator(CANVAS);
-    const budget = Number(await canvas.getAttribute("data-particles"));
-    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
-    // The screen's refresh interval is known from the shimmer's frames.
     await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
     const refresh = Number(await canvas.getAttribute("data-refresh-ms"));
+    // A missed frame: 2.2 times the interval, over the 1.7 line and not a pause (50 ms).
+    const slow = Math.round(refresh * 2.2);
     test.skip(
-      refresh * 2.2 > 48,
+      slow > 48,
       `This machine's frames take ${refresh} ms: twice that is a pause to the guard (over 50 ms), not a slow frame.`,
     );
-    const drawn = async () => Number(await canvas.getAttribute("data-drawn"));
+    return {
+      canvas,
+      refresh,
+      slow,
+      budget: Number(await canvas.getAttribute("data-particles")),
+      drawn: async () => Number(await canvas.getAttribute("data-drawn")),
+    };
+  }
 
-    // Frames 2.2 times as slow as the screen's: over the 1.7 line. 45 of them
-    // fill the window, so a few hundred frames take it down several steps.
-    await slowDown(page, 2.2);
-    const steps: number[] = [budget];
-    for (let i = 0; i < 4; i += 1) {
-      await scrollFrames(page, 50);
+  test("when every frame is missed it draws fewer particles, a quarter at a time, then waits for 60 fresh frames before the next step, never goes under a quarter of the budget, and never comes back", async ({
+    page,
+  }) => {
+    const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
+    expect(await drawn()).toBe(budget);
+    await missFrames(page, { normal: refresh, slow, misses: "all" });
+    // The window was full of steady frames: 8 missed ones are enough, so the
+    // first step comes within a few frames.
+    await scrollFrames(page, 30);
+    expect(await drawn()).toBe(Math.round(budget * 0.75));
+    // The cooldown: the window starts empty and fills again before a second step. 55 frames in, nothing has moved.
+    await scrollFrames(page, 25);
+    expect(await drawn()).toBe(Math.round(budget * 0.75));
+    // 60 fresh frames after the first step (and the 8 before it): the second step.
+    await scrollFrames(page, 30);
+    expect(await drawn()).toBe(Math.round(Math.round(budget * 0.75) * 0.75));
+    // On and on it goes down, never below a quarter of the budget.
+    const steps: number[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      await scrollFrames(page, 70, 2);
       steps.push(await drawn());
     }
-    // It stepped down (never up), by a quarter of what was drawn, until the floor.
     for (let i = 1; i < steps.length; i += 1) {
       expect(steps[i]!, steps.join(" ")).toBeLessThanOrEqual(steps[i - 1]!);
     }
-    expect(steps[1], steps.join(" ")).toBe(Math.round(budget * 0.75));
     expect(Math.min(...steps)).toBeGreaterThanOrEqual(Math.ceil(budget * 0.25));
-    expect(steps.at(-1)!, steps.join(" ")).toBeLessThan(budget * 0.6);
+    expect(steps.at(-1)!, steps.join(" ")).toBe(Math.ceil(budget * 0.25));
     // The budget the page reports is unchanged: it is the ceiling.
     expect(Number(await canvas.getAttribute("data-particles"))).toBe(budget);
 
     // Quick frames again: nothing comes back.
-    await speedUp(page);
+    await restoreClock(page);
     const low = await drawn();
-    await scrollFrames(page, 120);
+    await scrollFrames(page, 150, 1);
     expect(await drawn()).toBeLessThanOrEqual(low);
+  });
+
+  test("when 40 % of the frames are missed it draws fewer particles", async ({
+    page,
+  }) => {
+    const { refresh, slow, budget, drawn } = await guardPage(page);
+    await missFrames(page, {
+      normal: refresh,
+      slow,
+      misses: { twoInFive: true },
+    });
+    await scrollFrames(page, 150);
+    const after = await drawn();
+    expect(after).toBeLessThan(budget);
+    expect(after).toBeGreaterThanOrEqual(Math.ceil(budget * 0.25));
+  });
+
+  test("a frame missed now and then is not a slow device: 1 in 15, and 1 in 9, over 400 frames each, change nothing", async ({
+    page,
+  }) => {
+    const { refresh, slow, budget, drawn } = await guardPage(page);
+    // 4, and 6 or 7, missed frames in any 60: under the 8 it takes.
+    for (const every of [15, 9]) {
+      await missFrames(page, { normal: refresh, slow, misses: { every } });
+      await scrollFrames(page, 400, 1);
+      expect(await drawn(), `1 in ${every}`).toBe(budget);
+    }
   });
 
   test("a pause is not a slow frame: frames that are far apart (the reader stopping and starting) do not lower the count", async ({
     page,
   }) => {
-    await installSlowClock(page);
-    await page.goto("/");
-    await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "The guard belongs to the WebGL path.",
-    );
-    await waitForShimmerOver(page);
-    const canvas = page.locator(CANVAS);
-    const budget = Number(await canvas.getAttribute("data-particles"));
-    await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
-    // Every gap over 50 ms: factor 6 on a 16.7 ms frame is 100 ms.
-    await slowDown(page, 6);
-    await scrollFrames(page, 200);
-    await speedUp(page);
-    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
+    const { refresh, budget, drawn } = await guardPage(page);
+    // Every gap over 50 ms: 100 ms.
+    await missFrames(page, { normal: refresh, slow: 100, misses: "all" });
+    await scrollFrames(page, 300, 1);
+    await restoreClock(page);
+    expect(await drawn()).toBe(budget);
   });
 
   test("with the guard stepped down the drawing is still whole: the logo, at p = 0, is on its mark", async ({
     page,
   }) => {
-    await installSlowClock(page);
-    await page.goto("/");
-    await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "The guard belongs to the WebGL path.",
-    );
-    await waitForShimmerOver(page);
-    const canvas = page.locator(CANVAS);
-    await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
-    const refresh = Number(await canvas.getAttribute("data-refresh-ms"));
-    test.skip(refresh * 2.2 > 48, "Frames too slow to fake a slow window.");
-    await slowDown(page, 2.2);
+    const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
+    await missFrames(page, { normal: refresh, slow, misses: "all" });
     await scrollFrames(page, 200);
-    await speedUp(page);
+    await restoreClock(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page.locator(STORY)).toHaveAttribute("data-progress", "0.000");
-    const budget = Number(await canvas.getAttribute("data-particles"));
-    expect(Number(await canvas.getAttribute("data-drawn"))).toBeLessThan(
-      budget,
-    );
+    expect(await drawn()).toBeLessThan(budget);
+    expect(Number(await canvas.getAttribute("data-particles"))).toBe(budget);
     const ink = await logoInk(page);
     expect(ink.empty).toBe(false);
     // Every edge of the mark is where the image's is: a fraction of the

@@ -222,6 +222,12 @@ export function createGlRenderer(
 ): GlRenderer | null {
   let gl: WebGLRenderingContext | null = null;
   try {
+    // `failIfMajorPerformanceCaveat` is left off on purpose (Claude, 2026-10-06):
+    // a browser that only has software WebGL still gets this path, and the
+    // slow-frame guard (degrade.ts) is what protects it, by drawing fewer
+    // particles. Asking for the caveat to fail would send the headless
+    // software WebGL of the e2e runs to Canvas 2D too, and the WebGL path
+    // would go untested.
     gl = canvas.getContext("webgl", {
       antialias: false,
       depth: false,

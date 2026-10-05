@@ -436,7 +436,11 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   stage calls `preventDefault()`, rebuilds for the 2D path at once and does not
   try WebGL again that visit). `data-renderer` on the section says `webgl` or
   `2d`. The static layout (reduced motion, no JS, a short window, a module that
-  fails to load) is unchanged.
+  fails to load) is unchanged. `failIfMajorPerformanceCaveat` is **not** set
+  (decided 2026-10-06): a browser with only software WebGL still takes the
+  WebGL path, and the slow-frame guard below is what protects it; asking for the
+  caveat would also send the headless software WebGL of the e2e runs to 2D and
+  leave this path untested.
 - **Particle budget, shared by all states** (candidate):
 
   | Path                 | Phone | Desktop | Halved when `hardwareConcurrency <= 4` |
@@ -465,13 +469,20 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
 - **Slow-frame guard** (candidate, `src/lib/particles/degrade.ts`). The WebGL
   path watches the time between two consecutive draws; a gap over 50 ms is the
   reader pausing and does not count. The screen's refresh interval is the
-  median of the first 40 gaps (the shimmer draws every frame). When the 95th
-  percentile of the last 45 gaps is over 1.7 times that, the count drawn drops
-  by 25 %, to at most a quarter of the budget, and never rises again. The
-  particles are uploaded in a shuffled order, so the first N are a fair sample
-  and nothing is missing from the logo, the hand or a mouse when fewer are
-  drawn. `data-particles` is the budget, `data-drawn` what is drawn now and
-  `data-refresh-ms` the estimate.
+  median of the first 40 gaps (the shimmer draws every frame); the window the
+  guard judges starts empty once it is known, so the first frames after the
+  layout switches on (a measure, a GPU warm-up) are not in it. When **at least
+  8 of the last 60 gaps are over 1.7 times that interval** (about 13 % of the
+  frames) the count drawn drops by 25 %, to at most a quarter of the budget, and
+  never rises again. After a step the window is cleared and has to fill again,
+  all 60 gaps, before the next step is allowed. Counting misses, not reading a
+  percentile, is on purpose: a 165 Hz screen that is not struggling still
+  misses a vsync now and then (12.2 ms, over the 1.7 line), and 3 misses in 45
+  was enough to take particles from it. **The 8-in-60 bar is a candidate, to be
+  checked on a real 60 Hz phone.** The particles are uploaded in a shuffled
+  order, so the first N are a fair sample and nothing is missing from the logo,
+  the hand or a mouse when fewer are drawn. `data-particles` is the budget,
+  `data-drawn` what is drawn now and `data-refresh-ms` the estimate.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
   stage is off-screen (IntersectionObserver) or the tab is hidden. There is no
   idle loop.
