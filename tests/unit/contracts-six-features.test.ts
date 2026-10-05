@@ -23,8 +23,8 @@ import {
   CONTRIBUTION_BIN_MM,
   MAIN_USES,
   MAX_FEEDBACK_CHARS,
-  MAX_OTHER_BRAND_CHARS,
   MAX_RATED_MICE,
+  OTHER_MOUSE_BRANDS,
   PAIN_POINTS,
   SIZE_FEELS,
   SURVEY_CONSENT_VERSION,
@@ -64,8 +64,7 @@ describe("pinned numbers", () => {
     expect(CONTRIBUTION_BIN_MM).toBe(5);
   });
 
-  it("keeps the candidate free-text limits (未拍板)", () => {
-    expect(MAX_OTHER_BRAND_CHARS).toBe(60);
+  it("keeps the candidate comment limit (未拍板)", () => {
     expect(MAX_FEEDBACK_CHARS).toBe(500);
   });
 
@@ -234,7 +233,7 @@ describe("surveySubmissionSchema", () => {
 });
 
 describe("surveySubmissionSchema v2 fields", () => {
-  const other = { brand: "Razer", sizeFeel: "slightly_large" };
+  const other = { brand: "razer", sizeFeel: "large" };
 
   it("accepts a person who names only a mouse that is not in the catalogue", () => {
     const noRatings: Record<string, unknown> = {
@@ -248,21 +247,19 @@ describe("surveySubmissionSchema v2 fields", () => {
     );
   });
 
-  it("lists the candidate answers (未拍板)", () => {
-    expect(MAIN_USES).toEqual([
-      "office",
-      "gaming",
-      "creative",
-      "development",
-      "mixed",
-    ]);
-    expect(SIZE_FEELS).toEqual([
-      "too_small",
-      "slightly_small",
-      "just_right",
-      "slightly_large",
-      "too_large",
-    ]);
+  it("lists the answers Kirby chose: three uses and three size feels (2026-10-06)", () => {
+    expect(MAIN_USES).toEqual(["office", "gaming", "mixed"]);
+    expect(SIZE_FEELS).toEqual(["small", "just_right", "large"]);
+  });
+
+  it("lists the candidate brands (未拍板), each a slug, ending with other", () => {
+    expect(OTHER_MOUSE_BRANDS.length).toBe(25);
+    expect(OTHER_MOUSE_BRANDS[0]).toBe("logitech");
+    expect(OTHER_MOUSE_BRANDS.at(-1)).toBe("other");
+    expect(new Set(OTHER_MOUSE_BRANDS).size).toBe(OTHER_MOUSE_BRANDS.length);
+    for (const brand of OTHER_MOUSE_BRANDS) {
+      expect(brand).toMatch(/^[a-z_]+$/);
+    }
   });
 
   it("takes a main use from the list, or none", () => {
@@ -306,47 +303,51 @@ describe("surveySubmissionSchema v2 fields", () => {
     expect(parsed.otherMouse?.current).toBe(false);
   });
 
-  it("bounds the other mouse: a brand of 1 to 60 characters and a listed size feel", () => {
-    expect(survey({ ...submission, otherMouse: { ...other, brand: "" } })).toBe(
-      false,
-    );
-    expect(
-      survey({ ...submission, otherMouse: { ...other, brand: "   " } }),
-    ).toBe(false);
-    expect(
-      survey({
-        ...submission,
-        otherMouse: { ...other, brand: "x".repeat(60) },
-      }),
-    ).toBe(true);
-    expect(
-      survey({
-        ...submission,
-        otherMouse: { ...other, brand: "x".repeat(61) },
-      }),
-    ).toBe(false);
-    expect(
-      survey({ ...submission, otherMouse: { ...other, sizeFeel: "huge" } }),
-    ).toBe(false);
+  it("takes the other mouse's brand from the list and its size feel from the three", () => {
+    for (const brand of OTHER_MOUSE_BRANDS) {
+      expect(survey({ ...submission, otherMouse: { ...other, brand } })).toBe(
+        true,
+      );
+    }
+    for (const sizeFeel of SIZE_FEELS) {
+      expect(
+        survey({ ...submission, otherMouse: { ...other, sizeFeel } }),
+      ).toBe(true);
+    }
+    for (const brand of [
+      "Razer",
+      "",
+      "   ",
+      "unlisted",
+      "razer ",
+      "x".repeat(60),
+    ]) {
+      expect(survey({ ...submission, otherMouse: { ...other, brand } })).toBe(
+        false,
+      );
+    }
+    for (const sizeFeel of ["huge", "slightly_large", "too_small", ""]) {
+      expect(
+        survey({ ...submission, otherMouse: { ...other, sizeFeel } }),
+      ).toBe(false);
+    }
     const missing: Record<string, unknown> = { ...other };
     delete missing.sizeFeel;
     expect(survey({ ...submission, otherMouse: missing })).toBe(false);
+    const noBrand: Record<string, unknown> = { ...other };
+    delete noBrand.brand;
+    expect(survey({ ...submission, otherMouse: noBrand })).toBe(false);
   });
 
-  it("trims the brand and the feedback before counting them", () => {
+  it("trims the comment before counting it", () => {
     const parsed = surveySubmissionSchema.parse({
       ...submission,
-      otherMouse: { ...other, brand: "  Razer  " },
       feedback: "  Nice.  ",
     });
-    expect(parsed.otherMouse?.brand).toBe("Razer");
     expect(parsed.feedback).toBe("Nice.");
-    expect(
-      survey({
-        ...submission,
-        otherMouse: { ...other, brand: `  ${"x".repeat(60)}  ` },
-      }),
-    ).toBe(true);
+    expect(survey({ ...submission, feedback: `  ${"x".repeat(500)}  ` })).toBe(
+      true,
+    );
   });
 
   it("allows one open comment of 1 to 500 characters, or none", () => {
@@ -364,7 +365,7 @@ describe("surveySubmissionSchema v2 fields", () => {
     expect(survey(noGrip)).toBe(true);
   });
 
-  it("refuses control characters and unpaired surrogates in free text", () => {
+  it("refuses control characters and unpaired surrogates in the comment", () => {
     for (const bad of [
       "a\u0000b",
       "\u0000",
@@ -373,23 +374,17 @@ describe("surveySubmissionSchema v2 fields", () => {
       "a\ud800b",
     ]) {
       expect(survey({ ...submission, feedback: bad })).toBe(false);
-      expect(
-        survey({ ...submission, otherMouse: { ...other, brand: bad } }),
-      ).toBe(false);
     }
   });
 
-  it("lets the comment run over several lines, but not the brand", () => {
+  it("lets the comment run over several lines", () => {
     expect(survey({ ...submission, feedback: "line one\nline two\ttab" })).toBe(
       true,
     );
-    expect(
-      survey({ ...submission, otherMouse: { ...other, brand: "Ra\nzer" } }),
-    ).toBe(false);
     expect(survey({ ...submission, feedback: "great 👍 mouse" })).toBe(true);
   });
 
-  it("refuses an email address or a phone number in free text", () => {
+  it("refuses an email address or a phone number in the comment", () => {
     for (const bad of [
       "write to me at someone@example.com",
       "call 0912 345 678",
@@ -397,9 +392,6 @@ describe("surveySubmissionSchema v2 fields", () => {
       "(02) 2345 6789",
     ]) {
       expect(survey({ ...submission, feedback: bad })).toBe(false);
-      expect(
-        survey({ ...submission, otherMouse: { ...other, brand: bad } }),
-      ).toBe(false);
     }
     expect(
       survey({ ...submission, feedback: "used it from 2026-10-02, 3000 dpi" }),
