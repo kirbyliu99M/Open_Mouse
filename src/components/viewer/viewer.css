@@ -19,12 +19,8 @@
   height: clamp(15rem, 62vw, 22rem);
   border-radius: 1rem;
   border: 1px solid var(--hairline);
-  background: radial-gradient(
-    120% 90% at 50% 38%,
-    #1a1d24 0%,
-    #101216 55%,
-    #0a0b0e 100%
-  );
+  /* One solid fill: text on it has a measurable contrast. */
+  background: #0e1014;
   overflow: hidden;
   /* A vertical swipe scrolls the page; a horizontal drag turns the model. */
   touch-action: pan-y;

@@ -35,6 +35,7 @@ import {
   Scene,
   SkinnedMesh,
   Texture,
+  TextureLoader,
   WebGLRenderer,
 } from "three";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
@@ -91,7 +92,7 @@ const HAND_URL = "/models/hand.glb";
 const DRACO_PATH = "/draco/";
 const FOV_DEG = 32;
 /** The hand is drawn see-through, so the mouse stays visible under it from any side. */
-const HAND_OPACITY = 0.55;
+const HAND_OPACITY = 0.45;
 const MAX_PIXEL_RATIO = 2;
 
 function disposeMaterial(material: Material): void {
@@ -140,15 +141,23 @@ export function startViewer(options: ViewerOptions): ViewerHandle {
     }
   };
 
-  // No WebGL: the one thing that is decided before anything is downloaded.
+  // No WebGL: the one thing that is decided before anything is downloaded. The
+  // context is asked for here, not by three.js, so that a browser without WebGL
+  // gets the calm line and not a console error from the library.
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("webgl2", {
+    alpha: true,
+    antialias: true,
+    powerPreference: "default",
+  });
   let renderer: WebGLRenderer;
   try {
-    renderer = new WebGLRenderer({ antialias: true, alpha: true });
+    if (!context) throw new Error("no WebGL");
+    renderer = new WebGLRenderer({ canvas, context });
   } catch {
     options.onUnsupported();
     return { dispose };
   }
-  const canvas = renderer.domElement;
   canvas.setAttribute("aria-hidden", "true");
   host.appendChild(canvas);
   teardown.push(() => {
@@ -185,6 +194,20 @@ export function startViewer(options: ViewerOptions): ViewerHandle {
   teardown.push(() => draco.dispose());
   const gltf = new GLTFLoader();
   gltf.setDRACOLoader(draco);
+  // GLTFLoader reads a GLB's embedded textures with ImageBitmapLoader, which
+  // fetch()es a blob: URL, and the page's Content-Security-Policy
+  // (`connect-src 'self'`, next.config.ts) refuses that: the textures would
+  // silently be missing. An <img> may use a blob: URL (`img-src` allows it), so
+  // the textures go through TextureLoader. The policy stays as it is.
+  gltf.register((parser) => ({
+    name: "OPEN_MOUSE_image_textures",
+    beforeRoot() {
+      const loader = new TextureLoader(parser.options.manager);
+      loader.setCrossOrigin(parser.options.crossOrigin);
+      parser.textureLoader = loader;
+      return null;
+    },
+  }));
 
   const reducedMotionQuery = window.matchMedia(
     "(prefers-reduced-motion: reduce)",
