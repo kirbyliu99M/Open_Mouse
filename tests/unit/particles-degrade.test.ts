@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEGRADE,
+  SCROLL_TAIL_MS,
+  breakChain,
   estimateRefreshMs,
   guardForBudget,
-  isFrameGap,
+  isGap,
   median,
   minDrawCount,
   newGuard,
@@ -23,20 +25,22 @@ const pattern = (
   isSlow: (i: number) => boolean,
 ) => Array.from({ length: n }, (_, i) => (isSlow(i) ? slowMs : ms));
 
-describe("which gaps between draws count", () => {
-  it("drops a pause: a gap over 50 ms is the reader stopping and starting again, not a slow frame", () => {
-    expect(DEGRADE.MAX_GAP_MS).toBe(50);
-    expect(isFrameGap(6.1)).toBe(true);
-    expect(isFrameGap(50)).toBe(true);
-    expect(isFrameGap(50.01)).toBe(false);
-    expect(isFrameGap(900)).toBe(false);
+describe("which gaps count", () => {
+  it("counts every gap between two frames of a run, a long one too: it is a real hitch, not the reader pausing (the loop ending is what tells the two apart)", () => {
+    expect(isGap(6.1)).toBe(true);
+    expect(isGap(50.01)).toBe(true);
+    expect(isGap(900)).toBe(true);
   });
 
   it("drops what is not a time", () => {
-    expect(isFrameGap(0)).toBe(false);
-    expect(isFrameGap(-3)).toBe(false);
-    expect(isFrameGap(Number.NaN)).toBe(false);
-    expect(isFrameGap(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(isGap(0)).toBe(false);
+    expect(isGap(-3)).toBe(false);
+    expect(isGap(Number.NaN)).toBe(false);
+    expect(isGap(Number.POSITIVE_INFINITY)).toBe(false);
+  });
+
+  it("keeps the frame loop running for 200 ms after the last scroll event, and no longer", () => {
+    expect(SCROLL_TAIL_MS).toBe(200);
   });
 });
 
@@ -60,11 +64,19 @@ describe("the screen's refresh interval", () => {
     expect(DEGRADE.REFRESH_SAMPLES).toBe(40);
     expect(estimateRefreshMs(flat(39, 16.7))).toBeNull();
     expect(estimateRefreshMs(flat(40, 16.7))).toBeCloseTo(16.7, 9);
+    expect(estimateRefreshMs(flat(40, 6.06))).toBeCloseTo(6.06, 9);
   });
 
   it("ignores everything after the first 40, and shrugs off a few slow frames among them", () => {
     const first = [...flat(37, 6.1), 30, 30, 30];
     expect(estimateRefreshMs([...first, ...flat(100, 50)])).toBeCloseTo(6.1, 9);
+  });
+
+  it("is never more than 16.7 ms: a device that is slow from its first frame does not make its own slow frames the screen's pace", () => {
+    expect(DEGRADE.MAX_REFRESH_MS).toBe(16.7);
+    for (const slow of [20, 33, 33.3, 45, 70, 400]) {
+      expect(estimateRefreshMs(flat(40, slow)), `${slow} ms`).toBe(16.7);
+    }
   });
 });
 
@@ -190,9 +202,13 @@ describe("the guard frame by frame", () => {
   const budget = 12000;
   const refresh = 6.1;
   const missed = 12.2;
-  /** Feed a guard frames whose gaps are `gaps`, starting at time `startAt`; returns the state after each. */
+  /**
+   * Feed a guard frames whose gaps are `gaps`, as a new run of frames starting
+   * at time `startAt` (the guard is told the last run has stopped, so the time
+   * since it is not a gap); returns the state after each.
+   */
   const feed = (gaps: number[], from = newGuard(budget), startAt = 1000) => {
-    let state = observeFrame(from, startAt, budget);
+    let state = observeFrame(breakChain(from), startAt, budget);
     let at = startAt;
     const states: ReturnType<typeof observeFrame>[] = [];
     for (const gap of gaps) {
@@ -302,15 +318,45 @@ describe("the guard frame by frame", () => {
     expect(feed(gaps, stepped, at + refresh).state.drawCount).toBe(9000);
   });
 
-  it("does not count a pause: a gap over 50 ms only moves the clock", () => {
+  it("counts a long gap inside a run as one slow frame: a single stall can not step down alone, and eight of them in 60 do", () => {
+    const { state: known } = settled();
+    // One 400 ms stall among steady frames: one of the eight it takes.
+    const one = pattern(200, refresh, 400, (i) => i === 30);
+    expect(feed(one, known, 5000).state.drawCount).toBe(budget);
+    // Seven are not enough either; eight are.
+    const seven = pattern(200, refresh, 400, (i) => i < 7);
+    expect(feed(seven, known, 5000).state.drawCount).toBe(budget);
+    const eight = pattern(200, refresh, 400, (i) => i < 8);
+    expect(feed(eight, known, 5000).state.drawCount).toBe(9000);
+  });
+
+  it("does not count the time between two runs of frames: when the loop stops and starts again (the reader stood still), the first frame of the next run has no gap", () => {
     const { state: known } = settled();
     const before = known.gaps.length;
-    const paused = observeFrame(known, known.lastAt + 900, budget);
-    expect(paused.gaps).toHaveLength(before);
-    expect(paused.lastAt).toBe(known.lastAt + 900);
-    expect(paused.drawCount).toBe(budget);
-    // Many pauses never lower the count.
-    expect(feed(flat(300, 400), known, 20000).state.drawCount).toBe(budget);
+    const stopped = breakChain(known);
+    expect(stopped.lastAt).toBe(0);
+    expect(stopped.gaps).toHaveLength(before);
+    expect(stopped.refreshMs).toBe(known.refreshMs);
+    // The next frame, a second later, adds no gap.
+    const restarted = observeFrame(stopped, known.lastAt + 1000, budget);
+    expect(restarted.gaps).toHaveLength(before);
+    expect(restarted.lastAt).toBe(known.lastAt + 1000);
+    // Without the break the same second would be a slow frame.
+    const unbroken = observeFrame(known, known.lastAt + 1000, budget);
+    expect(unbroken.gaps.length).toBeGreaterThan(0);
+    expect(unbroken.gaps.at(-1)).toBe(1000);
+    // Stop and go for a long time, a handful of frames each: nothing is lost.
+    let state = known;
+    let at = known.lastAt;
+    for (let burst = 0; burst < 100; burst += 1) {
+      state = breakChain(state);
+      at += 600; // the reader stood still
+      for (let frame = 0; frame < 5; frame += 1) {
+        at += refresh;
+        state = observeFrame(state, at, budget);
+      }
+    }
+    expect(state.drawCount).toBe(budget);
   });
 
   it("never goes back up, and never under a quarter of the budget", () => {
@@ -335,5 +381,84 @@ describe("the guard frame by frame", () => {
     const copy = JSON.stringify(known);
     observeFrame(known, known.lastAt + refresh, budget);
     expect(JSON.stringify(known)).toBe(copy);
+  });
+});
+
+describe("four devices, from the first frame to a long scroll", () => {
+  const budget = 12000;
+  /** A guard fed `gaps`, with the first frame at time 1000. */
+  const live = (gaps: number[]) => {
+    let state = observeFrame(newGuard(budget), 1000, budget);
+    let at = 1000;
+    let firstStep = -1;
+    gaps.forEach((gap, i) => {
+      at += gap;
+      state = observeFrame(state, at, budget);
+      if (firstStep < 0 && state.drawCount < budget) firstStep = i + 1;
+    });
+    return { state, firstStep };
+  };
+
+  it("a steady 165 Hz screen (6.06 ms), 600 frames: nothing is taken", () => {
+    const { state, firstStep } = live(flat(600, 6.06));
+    expect(state.drawCount).toBe(budget);
+    expect(firstStep).toBe(-1);
+    expect(state.refreshMs).toBeCloseTo(6.06, 9);
+  });
+
+  it("a steady 144, 120 and 60 Hz screen: nothing is taken", () => {
+    for (const ms of [6.94, 8.33, 16.67]) {
+      expect(live(flat(600, ms)).state.drawCount, `${ms} ms`).toBe(budget);
+    }
+  });
+
+  it("a 165 Hz screen that misses a vsync now and then (1 frame in 15, in 9): nothing is taken", () => {
+    for (const every of [15, 9]) {
+      const gaps = pattern(600, 6.06, 12.12, (i) => i % every === 0);
+      expect(live(gaps).state.drawCount, `1 in ${every}`).toBe(budget);
+    }
+  });
+
+  it("a device that runs at 33 ms from its first frame: the estimate is capped at 16.7, so its frames are slow, and it steps down (the first step once the window has filled: 40 + 60 frames in)", () => {
+    const { state, firstStep } = live(flat(600, 33));
+    expect(state.refreshMs).toBe(16.7);
+    expect(firstStep).toBe(DEGRADE.REFRESH_SAMPLES + DEGRADE.WINDOW);
+    expect(state.drawCount).toBeLessThan(budget);
+    expect(state.drawCount).toBeGreaterThanOrEqual(minDrawCount(budget));
+  });
+
+  it("a device at 70 ms from its first frame (14 fps, gaps a rule that dropped the long ones never saw): it steps down too", () => {
+    const { state, firstStep } = live(flat(600, 70));
+    expect(firstStep).toBe(DEGRADE.REFRESH_SAMPLES + DEGRADE.WINDOW);
+    expect(state.drawCount).toBeLessThan(budget);
+  });
+
+  it("a screen at 30 Hz (33.3 ms, a phone in low-power mode): it steps down, which is accepted", () => {
+    const { state, firstStep } = live(flat(600, 33.3));
+    expect(firstStep).toBe(DEGRADE.REFRESH_SAMPLES + DEGRADE.WINDOW);
+    expect(state.drawCount).toBeLessThan(budget);
+  });
+
+  it("a device that starts well and then slows to 33 ms: it steps down (the first step at the 8th slow frame, the window being full)", () => {
+    const { state, firstStep } = live([...flat(200, 16.7), ...flat(200, 33)]);
+    expect(firstStep).toBe(200 + 8);
+    expect(state.drawCount).toBeLessThan(budget);
+  });
+
+  it("sparse input does not change what the guard sees: the loop runs a frame at a time whether or not the picture changes (a wheel click every 30 ms is the same 16.7 ms frames), so nothing is taken", () => {
+    // The guard is fed one gap per animation frame, not per draw: what the
+    // input does between frames is not in it. Draws at every second frame
+    // would have been 33 ms apart; the frames are 16.7 ms apart.
+    const frames = flat(600, 16.7);
+    expect(live(frames).state.drawCount).toBe(budget);
+  });
+
+  it("that is why it times frames and not draws: the same sparse scroll, timed between its draws (every second frame, 33.4 ms apart, what the first version of the guard saw), would take particles from a screen with nothing wrong", () => {
+    const between = flat(300, 33.4);
+    const { state, firstStep } = live(between);
+    expect(state.drawCount).toBeLessThan(budget);
+    expect(firstStep).toBeGreaterThan(0);
+    // The 600 frames themselves are what the stage times now: nothing is taken.
+    expect(live(flat(600, 16.7)).state.drawCount).toBe(budget);
   });
 });

@@ -511,3 +511,95 @@ describe("what the stage ships", () => {
     expect(gzip).toBeLessThan(30_000);
   });
 });
+
+describe("the packed-key sort is exactly the comparator's order", () => {
+  /** What `sortByX` was before the packed keys: a comparator sort by x, then y, then input order. */
+  const byComparator = <T extends { x: number; y: number }>(points: T[]) =>
+    points
+      .map((point, index) => ({ point, index }))
+      .sort(
+        (a, b) =>
+          a.point.x - b.point.x || a.point.y - b.point.y || a.index - b.index,
+      )
+      .map(({ point }) => point);
+
+  it("on 12,000 jittered points, where many are closer than the keys' resolution, the objects come out in the same order", () => {
+    const dense = densifyStrokes(
+      targets.logo.points,
+      targets.logo.runs,
+      12000,
+      3,
+    );
+    const sorted = sortByX(dense);
+    const reference = byComparator(dense);
+    expect(sorted.every((p, i) => p === reference[i])).toBe(true);
+  });
+
+  it("on points closer together than the resolution (the same x to 1e-9, y apart by 1e-4), it is still x, then y", () => {
+    const random = mulberry32(5);
+    const points: TargetPoint[] = Array.from({ length: 5000 }, () => ({
+      x: 100 + Math.floor(random() * 4) * 1e-9,
+      y: Math.floor(random() * 50) * 1e-4,
+      tone: 0,
+    }));
+    const sorted = sortByX(points);
+    const reference = byComparator(points);
+    expect(sorted.every((p, i) => p === reference[i])).toBe(true);
+  });
+
+  it("the Canvas 2D fallback's pairing, at its budgets, is the one the comparator sorts made: particle for particle, as on main", () => {
+    for (const [count, layout] of [
+      [1299, "row"],
+      [900, "stacked"],
+      [648, "row"],
+      [450, "stacked"],
+    ] as const) {
+      const seed = 20261003;
+      const got = buildPairing(targets, { count, layout, seed, mice });
+      // The same steps as before the packed keys, with comparator sorts.
+      const perMouse = count / 3;
+      const logo = byComparator(
+        resampleToCount(targets.logo.points, count, seed),
+      );
+      const hand = byComparator(
+        resampleToCount(targets.hand.points, count, seed + 1),
+      );
+      const miceSorted = mice.map((name, slot) =>
+        byComparator(
+          resampleToCount(
+            targets.mice[name]!.points,
+            perMouse,
+            seed + 2 + slot,
+          ),
+        ),
+      );
+      const axis = layout === "stacked" ? "y" : "x";
+      const other = axis === "x" ? "y" : "x";
+      const ranked = hand
+        .map((point, index) => ({ point, index }))
+        .sort(
+          (a, b) =>
+            a.point[axis] - b.point[axis] ||
+            a.point[other] - b.point[other] ||
+            a.index - b.index,
+        );
+      const groupOf = new Array<number>(count);
+      ranked.forEach(({ index }, rank) => {
+        groupOf[index] = Math.floor(rank / perMouse);
+      });
+      const next = [0, 0, 0];
+      const mouse: TargetPoint[] = [];
+      const slot: number[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const g = groupOf[i]!;
+        mouse.push(miceSorted[g]![next[g]!]!);
+        slot.push(g);
+        next[g] = next[g]! + 1;
+      }
+      expect(got.logo, `${count} ${layout}: logo`).toEqual(logo);
+      expect(got.hand, `${count} ${layout}: hand`).toEqual(hand);
+      expect(got.mouse, `${count} ${layout}: mouse`).toEqual(mouse);
+      expect(got.slot, `${count} ${layout}: slot`).toEqual(slot);
+    }
+  });
+});

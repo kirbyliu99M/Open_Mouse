@@ -49,6 +49,7 @@ uniform float uBandOn;
 uniform float uGrow;
 uniform vec4 uLook;
 uniform vec2 uGain;
+uniform float uFlat;
 
 varying float vBright;
 varying float vAlpha;
@@ -72,12 +73,18 @@ void main() {
   float lit = smoothstep(0.12, 0.5, boost);
   // A state that is sparser on screen than another is drawn stronger: its gain.
   float gain = mix(uGain.x, uGain.y, uE);
+  // prefers-contrast: more is for seeing better: no state is drawn fainter
+  // than the look says, and a dot is a solid disc no smaller than the 2D
+  // look's (a core 1.7 px across for a bright one, 1.4 px for a dim one).
+  if (uFlat > 0.5) gain = max(gain, 1.0);
   float size = mix(uLook.y, uLook.x, tone);
   size = max(size, uLook.x * 0.55 * lit);
+  if (uFlat > 0.5) size = max(size, mix(1.7, 2.1, tone));
   size *= (1.0 + uGrow * boost) * pow(gain, ${GAIN_SIZE_POWER.toFixed(2)});
   float alpha = mix(uLook.w, uLook.z, tone);
   alpha = max(alpha, uLook.z * min(1.0, 0.35 + boost) * lit);
   alpha = min(1.0, alpha * gain);
+  if (uFlat > 0.5) alpha = max(alpha, mix(0.72, 1.0, tone));
 
   vBright = max(tone, lit);
   vAlpha = alpha;
@@ -123,15 +130,20 @@ vec4 withGlow(float r) {
   return vec4(c * a, a);
 }
 
-vec4 withoutGlow(float r) {
-  float a = r < 0.2 ? mix(1.0, 0.95, r / 0.2) : max(0.0, 0.95 * (1.0 - (r - 0.2) / 0.08));
-  return vec4(PRIMARY * a, a);
+// With the halo off: a solid disc with a soft edge, bright or dim.
+vec4 solidDot(float r, float bright) {
+  float a = 1.0 - smoothstep(0.7, 0.98, r);
+  return vec4(mix(DETAIL, PRIMARY, bright) * a, a);
 }
 
 void main() {
   float r = length(gl_PointCoord * 2.0 - 1.0);
   if (r >= 1.0) discard;
-  vec4 bright = uGlow > 0.5 ? withGlow(r) : withoutGlow(r);
+  if (uGlow < 0.5) {
+    gl_FragColor = solidDot(r, vBright) * vAlpha;
+    return;
+  }
+  vec4 bright = withGlow(r);
   float soft = 1.0 - r * r;
   float da = soft * soft;
   vec4 dim = vec4(DETAIL * da, da);
@@ -150,7 +162,7 @@ export interface GlFrame {
   readonly band: number | null;
   /** How many particles to draw: the first `count` of the uploaded buffer. */
   readonly count: number;
-  /** The halo round a bright particle; off for `prefers-contrast: more`. */
+  /** The halo round a bright particle; off for `prefers-contrast: more`, which draws solid discs no smaller or fainter than the 2D look's. */
   readonly glow: boolean;
   readonly look: GlLook;
   /** The gain of the state the leg starts in and of the one it ends in (`legGain`). */
@@ -198,6 +210,7 @@ const UNIFORMS = [
   "uGrow",
   "uLook",
   "uGain",
+  "uFlat",
   "uGlow",
 ] as const;
 
@@ -293,11 +306,12 @@ export function createGlRenderer(
   let width = 1;
   let height = 1;
   let pixel = 1;
-  const handleLost = (event: Event) => {
-    // Without this the browser would never give the context back; the stage
-    // does not want it back: it takes the Canvas 2D path for the rest of the
-    // visit.
-    event.preventDefault();
+  const handleLost = () => {
+    // `preventDefault()` is NOT called: calling it asks the browser to restore
+    // the context, and the stage has decided the opposite (it takes the Canvas
+    // 2D path for the rest of the visit and never uses this context again), so
+    // a context that came back would belong to nobody. Left alone, the browser
+    // does not restore it.
     lost = true;
     onLost();
   };
@@ -343,6 +357,7 @@ export function createGlRenderer(
       );
       context.uniform2f(uniform.uGain, frame.gain[0], frame.gain[1]);
       context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
+      context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
       context.drawArrays(context.POINTS, 0, frame.count);
     },
     dispose() {

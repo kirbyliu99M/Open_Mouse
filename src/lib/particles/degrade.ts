@@ -1,20 +1,36 @@
 /**
  * The WebGL stage's guard against a phone that can not keep up (Home v3, the
- * WebGL stage). It only ever draws fewer particles, never more: the budget is
- * the ceiling, and the guard steps down from it when the frames come slowly.
+ * WebGL stage). It only ever draws fewer particles, never more (until the
+ * budget itself changes): the budget is the ceiling, and the guard steps down
+ * from it when the frames come slowly.
  *
- * What it watches is the time between two consecutive draws. A draw happens
- * when the reader scrolls (and during the one-time shimmer), so a long gap
- * usually means the reader stopped and started again, not that the GPU was
- * slow: gaps over `MAX_GAP_MS` are thrown away. Of the rest, the last
- * `WINDOW` are kept; the screen's own refresh interval is estimated as the
- * median of the first `REFRESH_SAMPLES` of them (the shimmer draws every
- * frame, so those are the screen's frames); and when at least `SLOW_COUNT` of
- * the window's gaps are more than `SLOW_RATIO` times that interval (8 of 60,
- * about 13 % of the frames), the draw count drops by `STEP`, down to `FLOOR`
- * of the budget. After a step the window starts empty and has to fill again,
- * all 60 gaps, before the next step is allowed: a cooldown, so one slow spell
- * is answered once, and the new count is judged on its own frames.
+ * What it watches is the time between two consecutive animation frames of the
+ * stage, not between two draws. A draw only happens when the picture changes,
+ * so with sparse input (a mouse wheel clicking every 30 ms) or a reader who
+ * scrolls, stops and scrolls again, the time between draws says nothing about
+ * the screen. The stage therefore keeps its animation-frame loop running for a
+ * short tail after the last scroll event: during a scroll every frame has a
+ * callback, and the gap between two callbacks is the screen's own frame time,
+ * however sparse the input. When the loop stops, the guard is told
+ * (`breakChain`) and the first frame of the next scroll has no gap: the time
+ * the reader stood still is never a slow frame. A long gap inside a running
+ * loop is a real hitch and counts, as one slow frame (a single stall is one of
+ * the eight it takes, so it can not step down alone).
+ *
+ * The screen's own refresh interval is estimated as the median of the first
+ * `REFRESH_SAMPLES` gaps (the shimmer runs every frame, so those are the
+ * screen's frames), and never as more than `MAX_REFRESH_MS`: a device that is
+ * slow from the very first frame would otherwise take its own slow frames for
+ * the screen's pace, and no frame would ever be slower than 1.7 times that. A
+ * screen that really runs at 30 Hz (a phone in low-power mode) is therefore
+ * stepped down too, which is acceptable.
+ *
+ * When at least `SLOW_COUNT` of the window's last `WINDOW` gaps are more than
+ * `SLOW_RATIO` times the interval (8 of 60, about 13 % of the frames), the draw
+ * count drops by `STEP`, down to `FLOOR` of the budget. After a step the window
+ * starts empty and has to fill again, all 60 gaps, before the next step is
+ * allowed: a cooldown, so one slow spell is answered once, and the new count is
+ * judged on its own frames.
  *
  * The rule counts misses rather than reading a percentile on purpose. On a
  * 165 Hz screen a frame is 6.1 ms and one missed vsync is 12.2 ms, over the
@@ -31,8 +47,8 @@
  * on a real 60 Hz phone. Pure: no DOM, no clock.
  */
 export const DEGRADE = {
-  /** A gap between two draws longer than this (ms) is the reader pausing, not a slow frame. */
-  MAX_GAP_MS: 50,
+  /** The screen is taken to run at 60 Hz at the least: the refresh interval estimate is never more than this (ms). */
+  MAX_REFRESH_MS: 16.7,
   /** How many of the latest gaps the slow ones are counted in. */
   WINDOW: 60,
   /** How many of the first gaps give the screen's refresh interval. */
@@ -47,9 +63,12 @@ export const DEGRADE = {
   FLOOR: 0.25,
 } as const;
 
-/** Whether a gap between two draws (ms) counts: more than nothing, and not a pause. */
-export function isFrameGap(ms: number): boolean {
-  return Number.isFinite(ms) && ms > 0 && ms <= DEGRADE.MAX_GAP_MS;
+/** How long the stage's animation-frame loop keeps running after the last scroll event (ms), so every frame of a scroll is observed. Not an idle loop: it ends by itself. */
+export const SCROLL_TAIL_MS = 200;
+
+/** Whether a gap between two frames (ms) is a time: more than nothing, and finite. */
+export function isGap(ms: number): boolean {
+  return Number.isFinite(ms) && ms > 0;
 }
 
 /** The median of a list (the mean of the two middle values when it has an even length). NaN for an empty list. */
@@ -63,12 +82,16 @@ export function median(values: readonly number[]): number {
 }
 
 /**
- * The screen's refresh interval (ms) from the first gaps between draws: the
- * median of the first `REFRESH_SAMPLES`, once there are that many; null before.
+ * The screen's refresh interval (ms) from the first gaps between frames: the
+ * median of the first `REFRESH_SAMPLES`, once there are that many (null
+ * before), and at most `MAX_REFRESH_MS`.
  */
 export function estimateRefreshMs(firstGaps: readonly number[]): number | null {
   if (firstGaps.length < DEGRADE.REFRESH_SAMPLES) return null;
-  return median(firstGaps.slice(0, DEGRADE.REFRESH_SAMPLES));
+  return Math.min(
+    median(firstGaps.slice(0, DEGRADE.REFRESH_SAMPLES)),
+    DEGRADE.MAX_REFRESH_MS,
+  );
 }
 
 /** The fewest particles the guard ever draws for a budget. */
@@ -81,7 +104,7 @@ export interface DegradeInput {
   readonly current: number;
   /** The budget: the most that was ever drawn. */
   readonly budget: number;
-  /** The latest gaps between draws (ms), already filtered with `isFrameGap`; only the last `WINDOW` are read. */
+  /** The latest gaps between frames (ms); only the last `WINDOW` are read. */
   readonly gaps: readonly number[];
   /** The screen's refresh interval (ms), or null while it is not known yet. */
   readonly refreshMs: number | null;
@@ -118,7 +141,7 @@ export function nextDrawCount({
 
 /** What the guard remembers between frames. Plain data: `observeFrame` returns the next one. */
 export interface GuardState {
-  /** When the last frame was drawn (ms), or 0 before the first. */
+  /** When the last frame was observed (ms), or 0 before the first and after the loop has stopped. */
   readonly lastAt: number;
   /** The latest gaps, once the screen's interval is known (the window the slow ones are counted in). */
   readonly gaps: readonly number[];
@@ -149,10 +172,19 @@ export function guardForBudget(state: GuardState, budget: number): GuardState {
 }
 
 /**
- * A frame was drawn at `now` (ms, the animation frame's timestamp). Returns the
- * guard after it: the gap since the last frame is kept if it counts, the
- * screen's interval is estimated from the first 40, and once the window is full
- * and slow the draw count steps down (and the window starts again).
+ * The stage's frame loop has stopped (the scroll ended, the tab was hidden, the
+ * stage went off screen): the next frame has no gap to the last one.
+ */
+export function breakChain(state: GuardState): GuardState {
+  return { ...state, lastAt: 0 };
+}
+
+/**
+ * A frame of the loop ran at `now` (ms, the animation frame's timestamp).
+ * Returns the guard after it: the gap since the last frame of the same run of
+ * frames is kept, the screen's interval is estimated from the first 40, and
+ * once the window is full and slow the draw count steps down (and the window
+ * starts again).
  */
 export function observeFrame(
   state: GuardState,
@@ -160,7 +192,7 @@ export function observeFrame(
   budget: number,
 ): GuardState {
   const gap = now - state.lastAt;
-  if (!(state.lastAt > 0) || !isFrameGap(gap)) return { ...state, lastAt: now };
+  if (!(state.lastAt > 0) || !isGap(gap)) return { ...state, lastAt: now };
 
   if (state.refreshMs === null) {
     const firstGaps = [...state.firstGaps, gap];

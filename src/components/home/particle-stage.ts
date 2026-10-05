@@ -10,6 +10,8 @@ import {
 } from "@/lib/particles/budget";
 import {
   type GuardState,
+  SCROLL_TAIL_MS,
+  breakChain,
   guardForBudget,
   newGuard,
   observeFrame,
@@ -251,6 +253,8 @@ class Stage {
   private glData: Float32Array | null = null;
 
   private rafId = 0;
+  /** When the last scroll event came (ms): the WebGL path keeps its frame loop running for a short tail after it. */
+  private lastScrollAt = 0;
   private reflowId = 0;
   private dirty = true;
   private lastP = -1;
@@ -430,6 +434,7 @@ class Stage {
     this.lastP = -1;
     this.intersection = new IntersectionObserver((entries) => {
       this.visible = entries[entries.length - 1]?.isIntersecting ?? true;
+      this.guard = breakChain(this.guard);
       if (this.visible) {
         this.dirty = true;
         this.schedule();
@@ -808,9 +813,14 @@ class Stage {
     void (async () => {
       let done = false;
       try {
+        // The stage can be destroyed (the page navigated away) at any of the
+        // awaits below: each one is followed by a check, so no WebGL context is
+        // made, or kept, after `destroy`.
         await pause();
+        if (this.destroyed) return;
         this.chooseRenderer();
         await pause();
+        if (this.destroyed) return;
         const layoutKind: MiceLayout = this.queries.wide.matches
           ? "row"
           : "stacked";
@@ -827,7 +837,10 @@ class Stage {
             mice: sketches,
             density: renderer === "webgl" ? "dense" : "sparse",
           },
-          pause,
+          async () => {
+            await pause();
+            if (this.destroyed) throw new Error("the stage was destroyed");
+          },
         );
         // The context may have been lost meanwhile: the pairing is then not
         // for the path in use, and `buildSet` makes its own.
@@ -839,6 +852,7 @@ class Stage {
         // own slice, so building the first layout's particles is not long.
         if (this.pairing) pairingTables(this.pairing, PARTICLE_SEED);
         await pause();
+        if (this.destroyed) return;
         // The first frame's set-up, in slices of its own (the WebGL canvas's
         // first resize alone can take a long while on a slow phone), while the
         // page is still the static one: nothing here is visible.
@@ -858,6 +872,7 @@ class Stage {
 
   /** WebGL if the browser has it and the GPU can draw the points; otherwise the 2D path, for good. */
   private chooseRenderer(): void {
+    if (this.destroyed) return;
     if (!this.gl && !this.glFailed) {
       let gl: GlRenderer | null = null;
       try {
@@ -899,6 +914,7 @@ class Stage {
     this.cssHeight = panelHeight;
     this.fitTwoD();
     await pause();
+    if (this.destroyed) return;
     this.fitGl();
     await pause();
     if (this.destroyed) return;
@@ -939,8 +955,10 @@ class Stage {
   // ── Drawing ─────────────────────────────────────────────────────────────
 
   private readonly onScroll = (): void => {
-    if (this.animated) this.schedule();
-    else if (
+    if (this.animated) {
+      this.lastScrollAt = performance.now();
+      this.schedule();
+    } else if (
       this.waitingForTop &&
       this.parts.section.getBoundingClientRect().top >= 0
     ) {
@@ -949,6 +967,9 @@ class Stage {
   };
 
   private readonly onVisibility = (): void => {
+    // The frames stop while a tab is hidden and start again when it is shown:
+    // the time in between is nobody's slow frame.
+    this.guard = breakChain(this.guard);
     if (!document.hidden) {
       this.dirty = true;
       this.schedule();
@@ -967,8 +988,11 @@ class Stage {
     // Off screen or in a hidden tab: draw nothing, and remember to catch up.
     if (!this.visible || document.hidden) {
       this.dirty = true;
+      this.endRun();
       return;
     }
+    // The guard sees every frame of a run of frames, drawn or not.
+    this.watchFrame(now);
     if (this.needsMeasure) {
       // The first frame of the animated layout is rendered (style, layout,
       // paint of the 400 svh section) in the task this callback is in. The
@@ -991,7 +1015,10 @@ class Stage {
       this.dirty = true;
     }
     const p = this.currentProgress();
-    if (!this.dirty && p === this.lastP && this.shimmerOver) return;
+    if (!this.dirty && p === this.lastP && this.shimmerOver) {
+      this.keepGoing();
+      return;
+    }
     try {
       this.draw(p, now);
     } catch {
@@ -1001,17 +1028,35 @@ class Stage {
     }
     this.lastP = p;
     this.dirty = false;
-    this.noteFrame(now);
-    // Only the one-time shimmer keeps frames coming; a scroll asks for its own.
-    if (!this.shimmerOver) this.schedule();
+    this.keepGoing();
   };
 
   /**
-   * The guard (degrade.ts): on the WebGL path, watch the gaps between frames
-   * and draw fewer particles when they run long. Pauses (a gap over 50 ms) are
-   * not counted. It never draws more again.
+   * After a frame: ask for the next one only while there is a reason. The
+   * one-time shimmer is one; a scroll is another (it asks for its own frames),
+   * and on the WebGL path the loop also runs for `SCROLL_TAIL_MS` after the
+   * last scroll event, so that every frame of a scroll has a callback for the
+   * guard to time, however sparse the input. Then it stops: there is no idle
+   * loop.
    */
-  private noteFrame(now: number): void {
+  private keepGoing(): void {
+    const inTail =
+      this.renderer === "webgl" &&
+      performance.now() - this.lastScrollAt < SCROLL_TAIL_MS;
+    if (!this.shimmerOver || inTail) this.schedule();
+    else this.endRun();
+  }
+
+  /** The frame loop has stopped: the guard's next frame has no gap to this one. */
+  private endRun(): void {
+    if (this.renderer === "webgl") this.guard = breakChain(this.guard);
+  }
+
+  /**
+   * The guard (degrade.ts): on the WebGL path, time the gaps between the
+   * frames of a run and draw fewer particles when too many of them run long.
+   */
+  private watchFrame(now: number): void {
     if (this.renderer !== "webgl") return;
     const before = this.guard;
     this.guard = observeFrame(before, now, this.budget);
@@ -1020,10 +1065,9 @@ class Stage {
       this.canvas.dataset.refreshMs = this.guard.refreshMs.toFixed(1);
     }
     if (this.guard.drawCount === before.drawCount) return;
-    // The picture follows in the next frame.
+    // The picture follows in this very frame.
     this.canvas.dataset.drawn = String(this.guard.drawCount);
     this.dirty = true;
-    this.schedule();
   }
 
   private draw(p: number, now: number): void {

@@ -61,46 +61,64 @@ const rendererOf = (page: Page) =>
   page.locator(STORY).getAttribute("data-renderer");
 
 /**
- * The page's frame clock, made to miss frames on purpose, from before its own
- * scripts run. Once `missFrames` is called, the timestamp every
- * requestAnimationFrame callback is handed is made up: the made-up clock moves
- * once for each frame that follows a draw of the stage, by `normal` ms when
- * that draw is on time and by `slow` ms when it is a missed one, as the plan
- * says. So the gap the guard sees between two draws is the plan's, whatever the
- * browser does between them (a frame with no scroll, and so no draw, does not
- * count as a miss). The guard only reads those timestamps; what the screen
- * really does is not touched.
+ * E2E_NO_WEBGL=1 says this machine really has no WebGL: the tests that need it
+ * are skipped, and the fallback group (which blocks WebGL itself) is what
+ * covers the page. Without it, a page that is not on WebGL is a failure, and
+ * the canary test below says so.
  */
-async function installFrameClock(page: Page) {
-  await page.addInitScript(() => {
+const NO_WEBGL = process.env.E2E_NO_WEBGL === "1";
+
+/** Skip a WebGL-only test when the page is not on WebGL. The reason points at the canary, which fails in that case. */
+async function requireWebGL(page: Page) {
+  test.skip(
+    (await rendererOf(page)) !== "webgl",
+    NO_WEBGL
+      ? "E2E_NO_WEBGL=1: this machine has no WebGL, so the WebGL tests are skipped and the fallback group covers it."
+      : 'data-renderer is not "webgl" in this environment: the canary test "WebGL is on in this environment" fails for the same reason. Fix WebGL here (or set E2E_NO_WEBGL=1 on a machine that really has none).',
+  );
+}
+
+/**
+ * The page's frame clock, made to miss frames on purpose, from before its own
+ * scripts run. While a plan is set, the timestamp every requestAnimationFrame
+ * callback is handed is made up: the made-up clock moves once for each real
+ * frame (a loop of the test's own steps it, so frames in which the page has no
+ * callback count too), by `normal` ms when the frame is on time and by `slow`
+ * ms when the plan says it is missed. The guard only reads those timestamps;
+ * what the screen really does is not touched. `__frame` counts the frames since
+ * the plan was set. (The test's own loop is a frame callback of its own, so
+ * `__raf` is not meaningful in a page that uses this clock.)
+ */
+async function installFrameClock(page: Page, fromStart?: { gap: number }) {
+  await page.addInitScript((start) => {
     const w = window as unknown as Record<string, unknown>;
-    w.__plan = null;
+    w.__plan = start ? () => start.gap : null;
     w.__fake = 0;
     w.__lastReal = -1;
     w.__frame = 0;
-    w.__drawsSeen = -1;
     const raf = window.requestAnimationFrame.bind(window);
+    const step = (time: number) => {
+      const plan = w.__plan as ((frame: number) => number) | null;
+      if (plan && time !== w.__lastReal) {
+        w.__lastReal = time;
+        w.__fake = (w.__fake as number) + plan(w.__frame as number);
+        w.__frame = (w.__frame as number) + 1;
+      }
+      raf(step);
+    };
+    raf(step);
     window.requestAnimationFrame = (callback) =>
       raf((time) => {
         const plan = w.__plan as ((frame: number) => number) | null;
         if (!plan) return callback(time);
-        if (time !== w.__lastReal) {
-          w.__lastReal = time;
-          const draws = Number(
-            document.querySelector(".story-canvas")?.getAttribute("data-draws"),
-          );
-          if (draws !== w.__drawsSeen) {
-            w.__drawsSeen = draws;
-            w.__fake = (w.__fake as number) + plan(w.__frame as number);
-            w.__frame = (w.__frame as number) + 1;
-          }
-        }
+        // The loop above has stepped the clock for this frame (it was asked
+        // for first, so it runs first).
         return callback(w.__fake as number);
       });
-  });
+  }, fromStart ?? null);
 }
 
-/** Which draws of the plan are missed. */
+/** Which frames of the plan are missed. */
 type Misses = "all" | "none" | { every: number } | { twoInFive: true };
 
 const missFrames = (
@@ -121,9 +139,6 @@ const missFrames = (
       w.__fake = performance.now();
       w.__lastReal = -1;
       w.__frame = 0;
-      w.__drawsSeen = Number(
-        document.querySelector(".story-canvas")?.getAttribute("data-draws"),
-      );
       w.__plan = (i: number) => (missed(i) ? (sl as number) : (n as number));
     },
     [normal, slow, misses] as const,
@@ -152,6 +167,28 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
   );
 
 test.describe("the WebGL path", () => {
+  test("WebGL is on in this environment: data-renderer is webgl (the WebGL tests below skip when it is not; this one does not, so a WebGL that is quietly broken turns the run red)", async ({
+    page,
+  }) => {
+    test.skip(
+      NO_WEBGL,
+      "E2E_NO_WEBGL=1: this machine has no WebGL, declared on purpose. The fallback group covers it.",
+    );
+    await page.goto("/");
+    await waitForAnimated(page);
+    expect(
+      await rendererOf(page),
+      "The stage is not on WebGL. Either WebGL is broken in this environment (the stage fell back to Canvas 2D: no context, a shader that does not compile, a point-size limit, a lost context), or this machine really has no WebGL, and E2E_NO_WEBGL=1 says so.",
+    ).toBe("webgl");
+    // It is drawing on the WebGL canvas, and that canvas is shown.
+    const facts = await layoutFacts(page);
+    expect(facts.glCanvasDisplay).toBe("block");
+    expect(
+      (await read<number[]>(page, "__glDraws")).length,
+      "no draw call on the WebGL canvas",
+    ).toBeGreaterThan(0);
+  });
+
   test("makes its context as asked (no antialiasing, no depth buffer, premultiplied alpha, the high-performance GPU), and gives the 2D canvas only a 2D context", async ({
     page,
   }) => {
@@ -201,15 +238,119 @@ test.describe("the WebGL path", () => {
     }
   });
 
+  test("destroying the stage while it is still preparing leaves no WebGL context and no listener behind (the page navigates away in the middle of the first slices)", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const contexts: WebGLRenderingContext[] = [];
+      w.__contexts = contexts;
+      w.__slices = 0;
+      let added = 0;
+      let removed = 0;
+      w.__listeners = () => ({ added, removed });
+      // Make the stage's own slices slow (800 ms each), and only those: its
+      // `pause()` is a MessageChannel made from the stage's code. (React's
+      // scheduler uses MessageChannel too, and must not be slowed.)
+      const Native = window.MessageChannel;
+      window.MessageChannel = class extends Native {
+        constructor() {
+          super();
+          if (new Error().stack?.includes("particle-stage")) {
+            w.__slices = (w.__slices as number) + 1;
+            const port = this.port2;
+            const post = port.postMessage.bind(port) as (
+              ...args: unknown[]
+            ) => void;
+            port.postMessage = (...args: unknown[]) => {
+              setTimeout(() => post(...args), 800);
+            };
+          }
+        }
+      };
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        const made = (getContext as (...args: unknown[]) => unknown).call(
+          this,
+          type,
+          ...rest,
+        );
+        if (/webgl/i.test(type) && this.className === "story-canvas-gl") {
+          contexts.push(made as WebGLRenderingContext);
+        }
+        return made;
+      } as typeof getContext;
+      const add = EventTarget.prototype.addEventListener;
+      const remove = EventTarget.prototype.removeEventListener;
+      const ours = (target: EventTarget, type: string) =>
+        type === "webglcontextlost" &&
+        (target as HTMLElement).className === "story-canvas-gl";
+      EventTarget.prototype.addEventListener = function (
+        this: EventTarget,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (ours(this, type)) added += 1;
+        return (add as (...args: unknown[]) => void).call(this, type, ...rest);
+      } as typeof add;
+      EventTarget.prototype.removeEventListener = function (
+        this: EventTarget,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (ours(this, type)) removed += 1;
+        return (remove as (...args: unknown[]) => void).call(
+          this,
+          type,
+          ...rest,
+        );
+      } as typeof remove;
+    });
+    // The page it navigates to is compiled already, so the navigation is quick
+    // (the dev server compiles a route on its first request).
+    await page.request.get("/sheet");
+    await page.goto("/");
+    // The stage has started (it asked for its first slice) and is waiting for it.
+    await page.waitForFunction(
+      () => ((window as unknown as Record<string, number>).__slices ?? 0) > 0,
+    );
+    // Navigate away from the page, client side: the component unmounts and destroys the stage.
+    await page.evaluate(() =>
+      (
+        window as unknown as { next: { router: { push(url: string): void } } }
+      ).next.router.push("/sheet"),
+    );
+    await expect(page).toHaveURL(/\/sheet/);
+    // Long enough for every slice it was waiting for to have come.
+    await page.waitForTimeout(2500);
+    const left = await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const contexts = w.__contexts as WebGLRenderingContext[];
+      return {
+        made: contexts.length,
+        alive: contexts.filter((gl) => !gl.isContextLost()).length,
+        listeners: (
+          w.__listeners as () => { added: number; removed: number }
+        )(),
+      };
+    });
+    // Nothing is left: any context it made is lost, and every listener it added is removed.
+    expect(left.alive, JSON.stringify(left)).toBe(0);
+    expect(left.listeners.added, JSON.stringify(left)).toBe(
+      left.listeners.removed,
+    );
+  });
+
   test("the first frame is on the WebGL canvas and the layout switches after it", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "No WebGL here: the fallback group covers this machine.",
-    );
+    await requireWebGL(page);
     // The first draw call came before `story--animated` was added.
     expect(await read<number>(page, "__glDrawsAtSwitch")).toBeGreaterThan(0);
     // One draw call a frame, and it is a POINTS draw of the whole budget at rest.
@@ -223,10 +364,7 @@ test.describe("the WebGL path", () => {
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "No WebGL here: the fallback group covers this machine.",
-    );
+    await requireWebGL(page);
     await waitForShimmerOver(page);
     const uploads = () => read<number>(page, "__bufferUploads");
     const before = await uploads();
@@ -248,10 +386,7 @@ test.describe("the WebGL path", () => {
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "No WebGL here: the fallback group covers this machine.",
-    );
+    await requireWebGL(page);
     await waitForShimmerOver(page);
     await scrollToProgress(page, 0);
 
@@ -475,15 +610,12 @@ test.describe("the WebGL path", () => {
     });
   });
 
-  test("with prefers-contrast: more the halo round a particle is off: much less of the picture is lit, and the drawing is still there", async ({
+  test("with prefers-contrast: more the halo round a particle is off: what is lit is solid (a smaller share of it is faint), and there is at least as much of it solid as with the halo", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "No WebGL here: the fallback group covers this machine.",
-    );
+    await requireWebGL(page);
     await waitForShimmerOver(page);
     await scrollToProgress(page, 0.5);
     /** How many pixels of the WebGL canvas are lit at all (alpha 5 % or more), and how many are solid (alpha 40 % or more). */
@@ -504,34 +636,117 @@ test.describe("the WebGL path", () => {
       });
     const glow = await lit();
     await page.emulateMedia({ contrast: "more" });
-    // The change redraws the frame in the task that handles it.
-    await expect.poll(async () => (await lit()).some).toBeLessThan(glow.some);
+    // The change redraws the frame in the task that handles it: the share of
+    // what is lit that is only faint (the halo) falls.
+    const faint = (v: { some: number; solid: number }) =>
+      (v.some - v.solid) / v.some;
+    await expect
+      .poll(async () => faint(await lit()))
+      .toBeLessThan(faint(glow) * 0.8);
     const flat = await lit();
-    // The soft halo goes: the lit area shrinks by a good share, and the solid cores stay.
-    expect(flat.some).toBeLessThan(glow.some * 0.8);
-    expect(flat.solid).toBeGreaterThan(glow.solid * 0.5);
+    // Never less solid than with the halo: this mode is for seeing better.
+    expect(flat.solid).toBeGreaterThanOrEqual(glow.solid);
     expect(await rendererOf(page)).toBe("webgl");
   });
 
-  /** A page on the WebGL path with the made-up frame clock, past its shimmer, whose refresh interval is known. */
-  async function guardPage(page: Page) {
-    await installFrameClock(page);
+  test("with prefers-contrast: more the particles are no fainter and no thinner than the Canvas 2D look's: at the logo and at the mice, the solid area is at least the 2D path's (the mode is for seeing better)", async ({
+    page,
+    context,
+  }) => {
+    await page.emulateMedia({ contrast: "more" });
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "The guard belongs to the WebGL path.",
-    );
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+
+    // The same page on the Canvas 2D fallback, in the same window.
+    const flat = await context.newPage();
+    await recordStage(flat);
+    await flat.addInitScript(() => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (/webgl/i.test(type)) return null;
+        return (getContext as (...args: unknown[]) => unknown).call(
+          this,
+          type,
+          ...rest,
+        );
+      } as typeof getContext;
+    });
+    await flat.emulateMedia({ contrast: "more" });
+    await flat.setViewportSize(page.viewportSize()!);
+    await flat.goto("/");
+    await waitForAnimated(flat);
+    await expect(flat.locator(STORY)).toHaveAttribute("data-renderer", "2d");
+    await expect(page.locator(STORY)).toHaveAttribute("data-renderer", "webgl");
+    await waitForShimmerOver(flat);
+
+    /** Solid pixels (alpha 80 % or more) per CSS px squared of the canvas that draws the particles, and the brightest alpha. */
+    const solid = (target: Page, webgl: boolean) =>
+      target.evaluate((useSnapshot) => {
+        const canvas = useSnapshot
+          ? ((window as unknown as Record<string, unknown>)
+              .__glSnapshot as HTMLCanvasElement)
+          : document.querySelector<HTMLCanvasElement>(".story-canvas")!;
+        const css = document
+          .querySelector(".story-canvas")!
+          .getBoundingClientRect();
+        const scale = canvas.width / css.width;
+        const { data } = canvas
+          .getContext("2d")!
+          .getImageData(0, 0, canvas.width, canvas.height);
+        let count = 0;
+        let brightest = 0;
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i]! >= 204) count += 1;
+          brightest = Math.max(brightest, data[i]!);
+        }
+        return { area: count / (scale * scale), brightest };
+      }, webgl);
+
+    const seen: string[] = [];
+    // The logo at the top, and the three mice at the end: no overlay is on the 2D canvas at either.
+    for (const p of [0, 0.95]) {
+      await scrollToProgress(page, p);
+      await scrollToProgress(flat, p);
+      await page.waitForTimeout(150);
+      const gl = await solid(page, true);
+      const old = await solid(flat, false);
+      seen.push(`p=${p} webgl ${JSON.stringify(gl)} 2d ${JSON.stringify(old)}`);
+      expect(old.area, seen.at(-1)).toBeGreaterThan(50);
+      expect(gl.area, seen.at(-1)).toBeGreaterThanOrEqual(old.area);
+      expect(gl.brightest, seen.at(-1)).toBeGreaterThanOrEqual(
+        old.brightest * 0.95,
+      );
+    }
+    test.info().annotations.push({
+      type: "solid area (css px squared)",
+      description: seen.join("; "),
+    });
+  });
+
+  /** A page on the WebGL path with the made-up frame clock, past its shimmer, whose refresh interval is known. */
+  async function guardPage(page: Page, fromStart?: { gap: number }) {
+    await installFrameClock(page, fromStart);
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
     await waitForShimmerOver(page);
     const canvas = page.locator(CANVAS);
-    await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
-    const refresh = Number(await canvas.getAttribute("data-refresh-ms"));
-    // A missed frame: 2.2 times the interval, over the 1.7 line and not a pause (50 ms).
-    const slow = Math.round(refresh * 2.2);
-    test.skip(
-      slow > 48,
-      `This machine's frames take ${refresh} ms: twice that is a pause to the guard (over 50 ms), not a slow frame.`,
-    );
+    // A device slower than about 15 frames a second has fewer than 40 frames in
+    // its 2.6 s shimmer: its interval is then learnt from the scroll's frames.
+    if (!fromStart) {
+      await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
+    }
+    const refresh = fromStart
+      ? 16.7
+      : Number(await canvas.getAttribute("data-refresh-ms"));
+    // A missed frame: 2.2 times the interval, over the 1.7 line.
+    const slow = Math.round(refresh * 2.2 * 10) / 10;
     return {
       canvas,
       refresh,
@@ -541,14 +756,9 @@ test.describe("the WebGL path", () => {
     };
   }
 
-  test("when every frame is missed it draws fewer particles, a quarter at a time, then waits for 60 fresh frames before the next step, never goes under a quarter of the budget, and never comes back", async ({
-    page,
-  }) => {
-    const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
-    expect(await drawn()).toBe(budget);
-    // Note, in the page, the draw at which the count changes (the stage sets
-    // `data-drawn` right after the draw that decided it).
-    await page.evaluate(() => {
+  /** In the page: every change of `data-drawn`, with the frame it came at (the plan's frame counter). */
+  const watchSteps = (page: Page) =>
+    page.evaluate(() => {
       const w = window as unknown as Record<string, unknown>;
       const steps: { count: number; at: number }[] = [];
       w.__steps = steps;
@@ -556,13 +766,20 @@ test.describe("the WebGL path", () => {
       new MutationObserver(() => {
         steps.push({
           count: Number(element.dataset.drawn),
-          at: Number(element.dataset.draws),
+          at: w.__frame as number,
         });
       }).observe(element, {
         attributes: true,
         attributeFilter: ["data-drawn"],
       });
     });
+
+  test("when every frame is missed it draws fewer particles, a quarter at a time, then waits for 60 fresh frames before the next step, never goes under a quarter of the budget, and never comes back", async ({
+    page,
+  }) => {
+    const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
+    expect(await drawn()).toBe(budget);
+    await watchSteps(page);
     await missFrames(page, { normal: refresh, slow, misses: "all" });
     const floor = Math.ceil(budget * 0.25);
     for (let chunk = 0; chunk < 80 && (await drawn()) > floor; chunk += 1) {
@@ -582,8 +799,8 @@ test.describe("the WebGL path", () => {
     }
     expect(counts, JSON.stringify(changes)).toEqual(ladder);
     // The cooldown: after a step the window starts empty and has to fill all
-    // 60 gaps before the next one, so steps are 60 draws apart (the first came
-    // after only the 8 missed frames the full window needed). Without the
+    // 60 gaps before the next one, so steps are 60 frames apart (the first
+    // came after only the 8 missed frames the full window needed). Without the
     // cooldown they would come every 8.
     for (let i = 1; i < changes.length; i += 1) {
       expect(changes[i]!.at - changes[i - 1]!.at, JSON.stringify(changes)).toBe(
@@ -610,7 +827,7 @@ test.describe("the WebGL path", () => {
       slow,
       misses: { twoInFive: true },
     });
-    await scrollFrames(page, 150);
+    await scrollFrames(page, 150, 2);
     const after = await drawn();
     expect(after).toBeLessThan(budget);
     expect(after).toBeGreaterThanOrEqual(Math.ceil(budget * 0.25));
@@ -628,15 +845,108 @@ test.describe("the WebGL path", () => {
     }
   });
 
-  test("a pause is not a slow frame: frames that are far apart (the reader stopping and starting) do not lower the count", async ({
+  for (const gap of [33.3, 70]) {
+    test(`a device that is slow from its very first frame is stepped down too: ${gap} ms frames from the page load (the screen's interval is taken to be 16.7 ms at the most, and a gap over 50 ms is a slow frame, not a pause)`, async ({
+      page,
+    }) => {
+      const { canvas, budget, drawn } = await guardPage(page, { gap });
+      for (
+        let chunk = 0;
+        chunk < 60 && (await drawn()) === budget;
+        chunk += 1
+      ) {
+        await scrollFrames(page, 10, 2);
+      }
+      // The estimate was capped at 16.7 ms, and the window filled with slow frames.
+      await expect(canvas).toHaveAttribute("data-refresh-ms", "16.7");
+      const after = await drawn();
+      expect(after, `${gap} ms frames`).toBeLessThan(budget);
+      expect(after).toBeGreaterThanOrEqual(Math.ceil(budget * 0.25));
+    });
+  }
+
+  test("sparse input is not a slow device: a scroll step every 30 ms, or every 100 ms, over 150 frames each, changes nothing (the guard times the animation frames, which the loop keeps coming for the whole scroll, not the draws)", async ({
     page,
   }) => {
     const { refresh, budget, drawn } = await guardPage(page);
-    // Every gap over 50 ms: 100 ms.
-    await missFrames(page, { normal: refresh, slow: 100, misses: "all" });
-    await scrollFrames(page, 300, 1);
-    await restoreClock(page);
-    expect(await drawn()).toBe(budget);
+    for (const every of [30, 100]) {
+      await missFrames(page, {
+        normal: refresh,
+        slow: refresh,
+        misses: "none",
+      });
+      await page.evaluate(
+        ([ms]) =>
+          new Promise<void>((resolve) => {
+            const w = window as unknown as Record<string, number>;
+            const from = w.__frame!;
+            const timer = setInterval(() => {
+              window.scrollBy(0, 2);
+              if (w.__frame! - from >= 150) {
+                clearInterval(timer);
+                resolve();
+              }
+            }, ms);
+          }),
+        [every],
+      );
+      expect(await drawn(), `a step every ${every} ms`).toBe(budget);
+    }
+  });
+
+  test("a reader who scrolls, stops and scrolls again is not a slow device: 30 bursts of 5 frames with 300 ms between them change nothing (the time they stood still is not a frame)", async ({
+    page,
+  }) => {
+    // The real clock: the time between two runs of frames is real here.
+    await installFrameClock(page);
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    const canvas = page.locator(CANVAS);
+    await expect(canvas).toHaveAttribute("data-refresh-ms", /^\d/);
+    const refresh = Number(await canvas.getAttribute("data-refresh-ms"));
+    test.skip(
+      refresh > 20,
+      `This machine's frames take ${refresh} ms: its real frames are not steady enough for this test.`,
+    );
+    const budget = Number(await canvas.getAttribute("data-particles"));
+    for (let burst = 0; burst < 30; burst += 1) {
+      await scrollFrames(page, 5, 4);
+      await page.waitForTimeout(320);
+    }
+    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
+  });
+
+  test("the frame loop runs for 200 ms after the last scroll event so every frame of a scroll is timed, and then stops: nothing is scheduled while the page is still (no idle loop)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    const raf = () => read<number>(page, "__raf");
+    const draws = () => read<number[]>(page, "__draws").then((d) => d.length);
+    await page.evaluate(() => window.scrollBy(0, 40));
+    // The scroll draws once (the picture changed); the loop then goes on for
+    // the tail: frames, but no draws.
+    await expect.poll(draws).toBeGreaterThan(0);
+    const during = await raf();
+    await page.waitForTimeout(150);
+    const tail = await raf();
+    expect(
+      tail,
+      "the loop is still running 150 ms after the scroll",
+    ).toBeGreaterThan(during);
+    // After the tail it is over, and stays over.
+    await page.waitForTimeout(500);
+    const stopped = await raf();
+    const drawsAtRest = await draws();
+    await page.waitForTimeout(1500);
+    expect(await raf()).toBe(stopped);
+    expect(await draws()).toBe(drawsAtRest);
+    // The tail is about 200 ms of frames: a dozen or so at 60 Hz, far from a loop.
+    expect(stopped - during).toBeLessThan(60);
   });
 
   test("with the guard stepped down the drawing is still whole: the logo, at p = 0, is on its mark", async ({
@@ -644,7 +954,7 @@ test.describe("the WebGL path", () => {
   }) => {
     const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
     await missFrames(page, { normal: refresh, slow, misses: "all" });
-    await scrollFrames(page, 200);
+    await scrollFrames(page, 200, 2);
     await restoreClock(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page.locator(STORY)).toHaveAttribute("data-progress", "0.000");
@@ -778,16 +1088,13 @@ test.describe("the fallback to Canvas 2D", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
     await waitForAnimated(page);
-    test.skip(
-      (await rendererOf(page)) !== "webgl",
-      "No WebGL here: the blocked-context test above covers this machine.",
-    );
+    await requireWebGL(page);
     await waitForShimmerOver(page);
     await scrollToProgress(page, 0.5);
     const lost = await page.evaluate(() => {
       const canvas =
         document.querySelector<HTMLCanvasElement>(".story-canvas-gl")!;
-      let prevented = false;
+      let prevented = true;
       canvas.addEventListener("webglcontextlost", (event) => {
         // Listeners run in order: the stage's came first, so this sees its decision.
         prevented = event.defaultPrevented;
@@ -798,9 +1105,20 @@ test.describe("the fallback to Canvas 2D", () => {
         setTimeout(() => resolve(prevented), 100),
       );
     });
-    // The stage took over the event (preventDefault), so the browser does not
-    // restore the context on its own.
-    expect(lost).toBe(true);
+    // The stage did not call preventDefault(): that would ask the browser to
+    // restore the context, and the stage has decided it never uses WebGL again
+    // this visit. Left alone, the browser does not restore it.
+    expect(lost).toBe(false);
+    await page.waitForTimeout(500);
+    expect(
+      await page.evaluate(() =>
+        document
+          .querySelector<HTMLCanvasElement>(".story-canvas-gl")!
+          .getContext("webgl")!
+          .isContextLost(),
+      ),
+      "the lost context stayed lost",
+    ).toBe(true);
     await expectCanvas2dStage(page, false);
     expect(errors).toEqual([]);
   });

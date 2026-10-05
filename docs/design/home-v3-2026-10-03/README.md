@@ -127,7 +127,8 @@ DOM order:
       `h1`, the subhead, the two buttons and the Early preview note;
    2. the hand (a static SVG);
    3. the three mice (static SVGs), each with its caption as real text;
-   4. the `<canvas>` (PR B only).
+   4. the two `<canvas>` elements (PR B only): the WebGL one first, then the
+      2D overlay last (see Layers below).
 3. Final section: both buttons again and the Early preview note again.
 4. Footer disclaimer: left-aligned on mobile, centred on desktop.
 
@@ -415,7 +416,10 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     come from the same `legOf` and `legWeights` the Canvas 2D path uses, passed
     as uniforms.
   - A point is a soft round dot: a bright core with a halo, drawn over what is
-    there (premultiplied alpha). With `prefers-contrast: more` the halo is off.
+    there (premultiplied alpha). With `prefers-contrast: more` the halo is
+    off and each particle is a solid disc, never fainter or smaller than the
+    2D look's (a core at least 1.7 px across for a bright one, 1.4 px for a
+    dim one, and no state drawn below its look): the mode is for seeing better.
     The shimmer is in the shader too: it plays once, for at most 2.6 s (the
     `shimmerAt` timing, unchanged), and after it nothing is drawn or scheduled.
   - **Look.** With five to ten times as many particles, a particle is smaller
@@ -433,8 +437,9 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   (`ALIASED_POINT_SIZE_RANGE`) is under the biggest point the stage draws (a
   bright particle at the top of the shimmer's swell and the biggest gain, times
   the pixel ratio) plus 24 px of room; a `webglcontextlost` while running (the
-  stage calls `preventDefault()`, rebuilds for the 2D path at once and does not
-  try WebGL again that visit). `data-renderer` on the section says `webgl` or
+  stage does not call `preventDefault()`, which would ask the browser to
+  restore the context and leave a context nobody uses; it rebuilds for the 2D
+  path at once and does not try WebGL again that visit). `data-renderer` on the section says `webgl` or
   `2d`. The static layout (reduced motion, no JS, a short window, a module that
   fails to load) is unchanged. `failIfMajorPerformanceCaveat` is **not** set
   (decided 2026-10-06): a browser with only software WebGL still takes the
@@ -465,27 +470,47 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   - the hand is a fill: `fillTemplateHand` continues, with the generator's own
     seed, past the 1,400 committed points;
   - the pairing (sort by x, pair by index) sorts packed integer keys, not
-    objects, so it takes a few ms for 12,000 particles instead of 25.
+    objects, and then puts any two points the keys could not tell apart in
+    order with the exact comparison, so the order is exactly the comparator's
+    (x, then y, then input order, which is what the Canvas 2D fallback has
+    always had) and a 12,000-particle pairing takes about 8 ms of sorting
+    instead of 14.
 - **Slow-frame guard** (candidate, `src/lib/particles/degrade.ts`). The WebGL
-  path watches the time between two consecutive draws; a gap over 50 ms is the
-  reader pausing and does not count. The screen's refresh interval is the
-  median of the first 40 gaps (the shimmer draws every frame); the window the
-  guard judges starts empty once it is known, so the first frames after the
-  layout switches on (a measure, a GPU warm-up) are not in it. When **at least
-  8 of the last 60 gaps are over 1.7 times that interval** (about 13 % of the
-  frames) the count drawn drops by 25 %, to at most a quarter of the budget, and
-  never rises again. After a step the window is cleared and has to fill again,
-  all 60 gaps, before the next step is allowed. Counting misses, not reading a
-  percentile, is on purpose: a 165 Hz screen that is not struggling still
-  misses a vsync now and then (12.2 ms, over the 1.7 line), and 3 misses in 45
-  was enough to take particles from it. **The 8-in-60 bar is a candidate, to be
-  checked on a real 60 Hz phone.** The particles are uploaded in a shuffled
-  order, so the first N are a fair sample and nothing is missing from the logo,
-  the hand or a mouse when fewer are drawn. `data-particles` is the budget,
-  `data-drawn` what is drawn now and `data-refresh-ms` the estimate.
+  path times the gap between two consecutive **animation frames**, not between
+  two draws: a draw only happens when the picture changes, so a mouse wheel
+  clicking every 30 ms, or a reader who scrolls, stops and scrolls again, would
+  look slow. To have a callback on every frame of a scroll, the stage keeps its
+  `requestAnimationFrame` loop running for **200 ms after the last scroll
+  event** and then stops it: this is not an idle loop (nothing is scheduled
+  once the page has been still for 200 ms, and during the shimmer the loop runs
+  by itself for at most 2.6 s, as before). When the loop stops the guard is
+  told, and the first frame of the next run has no gap, so the time the reader
+  stood still is never a slow frame; a long gap inside a running loop is a
+  real hitch and counts as one slow frame (a single stall is one of the eight
+  it takes). The screen's refresh interval is the median of the first 40 gaps
+  (the shimmer runs every frame) **and never more than 16.7 ms**, so a device
+  that is slow from its first frame does not take its own slow frames for the
+  screen's pace (a screen that truly runs at 30 Hz, a phone in low-power mode,
+  is stepped down, which is accepted). The window the guard judges starts empty
+  once the interval is known, so the first frames after the layout switches on
+  (a measure, a GPU warm-up) are not in it. When **at least 8 of the last 60
+  gaps are over 1.7 times that interval** (about 13 % of the frames) the count
+  drawn drops by 25 %, to at most a quarter of the budget; it does not rise
+  again until the budget itself changes (the layout crosses 48 rem), which
+  starts the count over. After a step the window is cleared and has to fill
+  again, all 60 gaps, before the next step is allowed. Counting misses, not
+  reading a percentile, is on purpose: a 165 Hz screen that is not struggling
+  still misses a vsync now and then (12.2 ms, over the 1.7 line), and 3 misses
+  in 45 was enough to take particles from it. **The 8-in-60 bar is a candidate,
+  to be checked on a real 60 Hz phone.** The particles are uploaded in a
+  shuffled order, so the first N are a fair sample and nothing is missing from
+  the logo, the hand or a mouse when fewer are drawn. `data-particles` is the
+  budget, `data-drawn` what is drawn now and `data-refresh-ms` the estimate.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
   stage is off-screen (IntersectionObserver) or the tab is hidden. There is no
-  idle loop.
+  idle loop: on the WebGL path the frame loop runs for 200 ms after the last
+  scroll event (so the guard can time every frame of a scroll) and then
+  stops; those frames draw nothing unless the picture changed.
 - First paint is the static placeholder logo SVG plus the text. The particle
   module is a dynamic import after first paint, so it doesn't delay LCP. The
   LCP element is the logo `<img>` or the h1; both are in the initial HTML, and
@@ -557,9 +582,9 @@ change in PR A. Rewrite them; don't delete them silently.
 - [ ] Home-page text uses only the token colours; no `#6E6E73` text.
 - [ ] Every control has a hit area of at least 44 × 44 px; the focus ring is
       visible on dark.
-- [ ] The h1 comes before the stage in reading order. The canvas and the hero
-      logo are decorative (`aria-hidden`, empty alt); the wordmark in the nav
-      names the site. Each mouse in the last step has its model name as text.
+- [ ] The h1 comes before the stage in reading order. Both canvases and the
+      hero logo are decorative (`aria-hidden`, empty alt); the wordmark in the
+      nav names the site. Each mouse in the last step has its model name as text.
 - [ ] Reduced motion and no-JS show the static end states.
 - [ ] The only automatic motion ends within 3 s (WCAG 2.2.2).
 - [ ] `prefers-contrast: more` and forced colours keep borders visible.

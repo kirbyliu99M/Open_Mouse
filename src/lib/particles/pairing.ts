@@ -33,8 +33,11 @@ type Xy = { readonly x: number; readonly y: number };
  * point's two coordinates and its index into one integer below 2^52 and lets
  * the engine sort those numbers, which takes a few ms. The coordinates are
  * quantised to the room left (23 bits for the primary one at 20,000 points,
- * a resolution of about 0.00006 px over a 480 px range), so two points are
- * only ordered by their index when their coordinates agree to that precision.
+ * a resolution of about 0.00006 px over a 480 px range); points that differ by
+ * less than that can come out swapped, and a final insertion pass with the
+ * exact comparison puts them right. The result is the same order as the
+ * comparator sort: by the primary coordinate, then the secondary, then the
+ * input order.
  */
 function rankedIndices(
   points: readonly Xy[],
@@ -70,6 +73,29 @@ function rankedIndices(
   keys.sort();
   const order = new Array<number>(n);
   for (let i = 0; i < n; i += 1) order[i] = keys[i]! % indexRange;
+  // The packed keys put the points in order to within the quantisation: two
+  // points closer than that may be swapped. One insertion pass with the exact
+  // comparison puts those right, so the order is exactly (primary, secondary,
+  // input order), the same as the comparator sort it replaced. The list is
+  // nearly sorted, so the pass moves almost nothing.
+  const before = (a: number, b: number): boolean => {
+    const pa = points[a]![primary];
+    const pb = points[b]![primary];
+    if (pa !== pb) return pa < pb;
+    const sa = points[a]![secondary];
+    const sb = points[b]![secondary];
+    if (sa !== sb) return sa < sb;
+    return a < b;
+  };
+  for (let i = 1; i < n; i += 1) {
+    const held = order[i]!;
+    let j = i - 1;
+    while (j >= 0 && before(held, order[j]!)) {
+      order[j + 1] = order[j]!;
+      j -= 1;
+    }
+    order[j + 1] = held;
+  }
   return order;
 }
 
