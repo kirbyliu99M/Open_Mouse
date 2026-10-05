@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FIT_BANDS } from "../../src/lib/contracts/fit-bands";
 import {
@@ -110,5 +111,42 @@ describe("the results page's poor-fit notice", () => {
     expect(POOR_FIT_THRESHOLD).toBe(FAIR_MIN);
     expect(bandOf(POOR_FIT_THRESHOLD - 1)).toBe("poor");
     expect(bandOf(POOR_FIT_THRESHOLD)).toBe("fair");
+  });
+
+  // The value test above passes for ANY constant that happens to be 50, so a
+  // later edit that types the number back in would go unnoticed and the notice
+  // could drift away from the bands. This reads the source: the threshold must
+  // be the bands module's `FAIR_MIN`, imported, with no number of its own.
+  const source = readFileSync(
+    new URL("../../src/components/results/fitNotice.ts", import.meta.url),
+    "utf8",
+  );
+  const stripComments = (text: string) =>
+    text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const code = stripComments(source);
+
+  it("imports FAIR_MIN from the bands module", () => {
+    expect(code).toMatch(
+      /import\s*\{\s*FAIR_MIN\s*\}\s*from\s*["'](?:@\/|(?:\.\.\/)+)lib\/fit\/bands["']/,
+    );
+  });
+
+  it("is exactly that constant, and defines no FAIR_MIN of its own", () => {
+    expect(code).toMatch(
+      /export\s+const\s+POOR_FIT_THRESHOLD\s*=\s*FAIR_MIN\s*;/,
+    );
+    expect(code).not.toMatch(/\b(?:const|let|var|function)\s+FAIR_MIN\b/);
+  });
+
+  it("has no number written in the code", () => {
+    expect(code).not.toMatch(/\d/);
+  });
+
+  it("reads the comments out of the code it checks (the check itself is not fooled by one)", () => {
+    const fooled =
+      "// export const POOR_FIT_THRESHOLD = FAIR_MIN;\nconst x = 50;";
+    const stripped = stripComments(fooled);
+    expect(stripped).not.toMatch(/POOR_FIT_THRESHOLD/);
+    expect(stripped).toMatch(/\d/);
   });
 });
