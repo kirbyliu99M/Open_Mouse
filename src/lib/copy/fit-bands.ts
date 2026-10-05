@@ -15,6 +15,10 @@
  * - it describes how a mouse tends to feel ("may", "tends to"), never a health
  *   outcome, and never how accurate the estimate is. The engine is still
  *   provisional (`fit-v0-provisional`): a band says how an estimate reads.
+ *   The tests hold every string to a list of accuracy and certainty words
+ *   (accurate, precise, reliable, certain, guarantee, exact, 準確, 保證 ...)
+ *   and of comparisons with other people (most people, percentile, better
+ *   than, average, 多數人, 別人, 百分位 ...), in both languages.
  */
 import type { FitBand } from "../contracts/fit-bands";
 import type { ReasonCode } from "../contracts/fit";

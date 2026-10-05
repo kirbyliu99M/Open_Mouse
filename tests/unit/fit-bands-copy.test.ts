@@ -166,3 +166,144 @@ describe("fit-band copy — word lists beyond the guard", () => {
     expect(findUnknownNumeral("長了十二毫米。", new Set())).not.toBeNull();
   });
 });
+
+describe("fit-band copy — no accuracy or comparison claims", () => {
+  // The header of the copy file promises a band says how an estimate reads,
+  // "never how accurate the estimate is", and the prompt forbids comparing a
+  // person with anyone else. These word lists hold every string, in both
+  // languages, to it. A word is a pair with a sample sentence, so the test
+  // below can show each one fires. The agreed caveat ("treat it as a guide")
+  // passes all of them: none of its words is on a list.
+  const EN_ACCURACY: [RegExp, string][] = [
+    [/\baccura(?:te|tely|cy)\b/i, "It is an accurate fit."],
+    [/\bprecis(?:e|ely|ion)\b/i, "A precisely sized fit."],
+    [/\breliab(?:le|ly|ility)\b/i, "A reliable fit."],
+    [/\bcertain(?:ly|ty)?\b/i, "It is certain to suit you."],
+    [/\bguarantee[sd]?\b/i, "We guarantee the fit."],
+    [/\bexact(?:ly)?\b/i, "An exact fit."],
+    [/\bdefinite(?:ly)?\b/i, "It will definitely suit you."],
+  ];
+  const ZH_ACCURACY = [
+    "準確",
+    "精準",
+    "精確",
+    "可靠",
+    "保證",
+    "一定",
+    "確定",
+    "准确",
+    "精准",
+    "精确",
+    "保证",
+    "确定",
+  ];
+  const EN_COMPARISON: [RegExp, string][] = [
+    [/\bmost (?:people|users)\b/i, "It suits most people."],
+    [/\bother (?:people|users)\b/i, "Other users rate it highly."],
+    [/\bpercentile\w*/i, "In the top percentile."],
+    [/\bbetter than\b/i, "A fit better than the rest."],
+    [/\baverage\b/i, "Like the average person's grip."],
+    [/\btypical\w*/i, "A typical grip."],
+  ];
+  const ZH_COMPARISON = [
+    "多數人",
+    "大多數",
+    "其他人",
+    "別人",
+    "他人",
+    "一般人",
+    "百分位",
+    "平均",
+    "多数人",
+    "别人",
+  ];
+
+  it("keeps every accuracy and certainty word out of every English string", () => {
+    for (const [key, text] of allStrings(en)) {
+      for (const [word] of EN_ACCURACY) {
+        expect(text, `${key} must not match ${word}`).not.toMatch(word);
+      }
+    }
+  });
+
+  it("keeps every accuracy and certainty word out of every zh-TW string", () => {
+    for (const [key, text] of allStrings(zhTW)) {
+      for (const word of ZH_ACCURACY) {
+        expect(text, `${key} must not contain ${word}`).not.toContain(word);
+      }
+    }
+  });
+
+  it("keeps every comparison with other people out of every English string", () => {
+    for (const [key, text] of allStrings(en)) {
+      for (const [word] of EN_COMPARISON) {
+        expect(text, `${key} must not match ${word}`).not.toMatch(word);
+      }
+    }
+  });
+
+  it("keeps every comparison with other people out of every zh-TW string", () => {
+    for (const [key, text] of allStrings(zhTW)) {
+      for (const word of ZH_COMPARISON) {
+        expect(text, `${key} must not contain ${word}`).not.toContain(word);
+      }
+    }
+  });
+
+  it("lets the agreed caveat through, in both languages", () => {
+    expect(en.provisional).toContain("treat it as a guide");
+    for (const [word] of [...EN_ACCURACY, ...EN_COMPARISON]) {
+      expect(en.provisional).not.toMatch(word);
+    }
+    for (const word of [...ZH_ACCURACY, ...ZH_COMPARISON]) {
+      expect(zhTW.provisional).not.toContain(word);
+    }
+  });
+
+  it("proves each English word fires on a sentence that uses it, and the lists cover every word the brief named", () => {
+    for (const [word, sample] of [...EN_ACCURACY, ...EN_COMPARISON]) {
+      expect(sample, String(word)).toMatch(word);
+    }
+    // The list covers every word the brief named.
+    for (const named of [
+      "accurate",
+      "accuracy",
+      "precise",
+      "precisely",
+      "reliable",
+      "certain",
+      "guarantee",
+      "exact",
+      "most people",
+      "other people",
+      "other users",
+      "percentile",
+      "better than",
+      "average person",
+      "typical",
+    ]) {
+      expect(
+        [...EN_ACCURACY, ...EN_COMPARISON].some(([w]) => w.test(named)),
+        named,
+      ).toBe(true);
+    }
+    for (const named of [
+      "準確",
+      "精準",
+      "精確",
+      "可靠",
+      "保證",
+      "一定",
+      "確定",
+      "多數人",
+      "其他人",
+      "別人",
+      "百分位",
+      "平均",
+    ]) {
+      expect([...ZH_ACCURACY, ...ZH_COMPARISON].includes(named), named).toBe(
+        true,
+      );
+    }
+  });
+});
