@@ -63,7 +63,7 @@ describe("the home story's annotation copy", () => {
       for (const key of HOME_STORY_NOTE_KEYS) {
         const { title, why } = HOME_STORY_COPY[language][key];
         expect(title.length).toBeLessThanOrEqual(20);
-        expect(why.length).toBeLessThanOrEqual(60);
+        expect(why.length).toBeLessThanOrEqual(70);
       }
     }
   });
@@ -79,6 +79,14 @@ describe("the home story's annotation copy", () => {
       "Knuckles",
       "Fingertips",
       "Thumb",
+    ]);
+    // The small lines Kirby confirmed (spelling and grammar only touched).
+    expect(homeStoryNotes().map((note) => note.why)).toEqual([
+      "The right length can reduce hand fatigue.",
+      "A close match with the palm means a better grip.",
+      "A pressing force at the best intensity reduces stiff fingers.",
+      "Easier clicking, with less strain.",
+      "Better control and grip.",
     ]);
     expect(homeStoryNotes("zh-TW").map((note) => note.title)).toEqual([
       "手長",

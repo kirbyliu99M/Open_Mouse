@@ -4,9 +4,11 @@
  * measured) and a small line (why it matters). The order is the order they
  * appear in while the hand is measured.
  *
- * 未拍板 (candidate): all of this wording waits for Kirby's confirmation. The
- * English lines are new translations and need his separate check. The zh-TW
- * lines are the ones in the demo.
+ * English small lines: confirmed by Kirby (relayed by Claude, 2026-10-05), with
+ * only spelling and grammar touched here and the meaning unchanged. The large
+ * lines and the zh-TW lines are unchanged: the English titles are the first
+ * translations, and the zh-TW lines are the ones in the demo. Anything not yet
+ * decided in a formal meeting stays 未拍板 (candidate).
  *
  * No numbers anywhere in these lines, or on the stage: the template hand is an
  * illustration, and a demo value must never read as a user's result. A unit
@@ -49,23 +51,23 @@ export const HOME_STORY_COPY: Readonly<
   en: {
     length: {
       title: "Hand length",
-      why: "The right length means less hand fatigue.",
+      why: "The right length can reduce hand fatigue.",
     },
     width: {
       title: "Palm width",
-      why: "A snug palm fit makes the grip more comfortable.",
+      why: "A close match with the palm means a better grip.",
     },
     knuckles: {
       title: "Knuckles",
-      why: "Power from the right place, without stiff fingers.",
+      why: "A pressing force at the best intensity reduces stiff fingers.",
     },
     fingertips: {
       title: "Fingertips",
-      why: "Click easily, with no strain.",
+      why: "Easier clicking, with less strain.",
     },
     thumb: {
       title: "Thumb",
-      why: "A relaxed, controlled grip for smoother glides.",
+      why: "Better control and grip.",
     },
   },
   "zh-TW": {

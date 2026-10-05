@@ -179,6 +179,12 @@ export interface NoteLayoutInput {
  *   wide again from 950 px tall up (and every phone size).
  * - Beside the hand: from about 900 px wide at 600 px tall, 950 at 650 to 700,
  *   1000 at 750, 1050 at 800 to 850 and 1100 at 900.
+ * Measured again with the confirmed English small lines, which differ in
+ * length from the first wording: the same windows, at 50 px steps over 600 to
+ * 1100 wide by 600 to 1000 tall (99 windows) and at 10 px steps of height around
+ * the boundaries (182 windows). On a phone the knuckles line now wraps to two
+ * lines at 390 px wide, so the tallest block is 83 px there and not 60; the
+ * row's place does not move.
  * So 1000x850 and 1050x900 lose their notes, while 1024x768, 1280x720 and
  * 1366x768 get them beside the hand and 1024x1366, 912x1368 and 853x1280 get
  * them below it. The numbers move with the text's measured height (its font),
