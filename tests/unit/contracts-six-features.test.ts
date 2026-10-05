@@ -9,7 +9,10 @@ import {
   SIMILAR_MIN_PEOPLE,
   similarResponseSchema,
 } from "../../src/lib/contracts/recommend";
-import { scanMeasurementsResponseSchema } from "../../src/lib/contracts/measurement";
+import {
+  handMeasurementsSchema,
+  scanMeasurementsResponseSchema,
+} from "../../src/lib/contracts/measurement";
 import {
   HOME_TOP_MICE_PATH,
   SURVEY_PATH,
@@ -59,11 +62,14 @@ describe("pinned numbers", () => {
     expect(MAX_SIMILAR_MICE).toBe(5);
     expect(SIMILAR_MIN_PEOPLE).toBe(2);
     expect(CONTRIBUTION_BIN_MM).toBe(5);
+  });
+
+  it("keeps the candidate free-text limits (未拍板)", () => {
     expect(MAX_OTHER_BRAND_CHARS).toBe(60);
     expect(MAX_FEEDBACK_CHARS).toBe(500);
   });
 
-  it("names the consent version the free-text survey needs", () => {
+  it("names the consent version the free-text survey needs (candidate)", () => {
     expect(SURVEY_CONSENT_VERSION).toBe("survey-consent-v2-draft");
   });
 });
@@ -242,7 +248,7 @@ describe("surveySubmissionSchema v2 fields", () => {
     );
   });
 
-  it("lists the agreed answers", () => {
+  it("lists the candidate answers (未拍板)", () => {
     expect(MAIN_USES).toEqual([
       "office",
       "gaming",
@@ -352,6 +358,54 @@ describe("surveySubmissionSchema v2 fields", () => {
     expect(survey({ ...submission, feedback: 5 })).toBe(false);
   });
 
+  it("lets the grip be left out, for the server to fill in", () => {
+    const noGrip: Record<string, unknown> = { ...submission };
+    delete noGrip.gripStyle;
+    expect(survey(noGrip)).toBe(true);
+  });
+
+  it("refuses control characters and unpaired surrogates in free text", () => {
+    for (const bad of [
+      "a\u0000b",
+      "\u0000",
+      "a\u0001b",
+      "a\u007fb",
+      "a\ud800b",
+    ]) {
+      expect(survey({ ...submission, feedback: bad })).toBe(false);
+      expect(
+        survey({ ...submission, otherMouse: { ...other, brand: bad } }),
+      ).toBe(false);
+    }
+  });
+
+  it("lets the comment run over several lines, but not the brand", () => {
+    expect(survey({ ...submission, feedback: "line one\nline two\ttab" })).toBe(
+      true,
+    );
+    expect(
+      survey({ ...submission, otherMouse: { ...other, brand: "Ra\nzer" } }),
+    ).toBe(false);
+    expect(survey({ ...submission, feedback: "great 👍 mouse" })).toBe(true);
+  });
+
+  it("refuses an email address or a phone number in free text", () => {
+    for (const bad of [
+      "write to me at someone@example.com",
+      "call 0912 345 678",
+      "+886 912 345 678",
+      "(02) 2345 6789",
+    ]) {
+      expect(survey({ ...submission, feedback: bad })).toBe(false);
+      expect(
+        survey({ ...submission, otherMouse: { ...other, brand: bad } }),
+      ).toBe(false);
+    }
+    expect(
+      survey({ ...submission, feedback: "used it from 2026-10-02, 3000 dpi" }),
+    ).toBe(true);
+  });
+
   it("refuses an extra field inside the other mouse", () => {
     expect(
       survey({ ...submission, otherMouse: { ...other, model: "Viper" } }),
@@ -380,11 +434,32 @@ describe("scanMeasurementsResponseSchema", () => {
     ).toBe(true);
   });
 
-  it("holds the same invariants as the stored scan", () => {
+  it("is the stored scan's own measurements schema, not a copy", () => {
+    expect(scanMeasurementsResponseSchema.shape.measurements).toBe(
+      handMeasurementsSchema,
+    );
+  });
+
+  it("holds the same cross-field invariants as the stored scan", () => {
+    // Each value is inside its own field's range, so only the invariant can refuse it.
     expect(
       measured({
         ...body,
-        measurements: { ...body.measurements, palmLengthMm: 190 },
+        measurements: {
+          handLengthMm: 100,
+          palmLengthMm: 105,
+          palmWidthMm: 84,
+        },
+      }),
+    ).toBe(false);
+    expect(
+      measured({
+        ...body,
+        measurements: {
+          ...body.measurements,
+          handLengthMm: 120,
+          middleLengthMm: 125,
+        },
       }),
     ).toBe(false);
     expect(
@@ -393,20 +468,23 @@ describe("scanMeasurementsResponseSchema", () => {
         measurements: { ...body.measurements, handLengthMm: 300 },
       }),
     ).toBe(false);
+  });
+
+  it("needs a UUID scan id, a hand and measurements, and carries nothing else", () => {
+    expect(measured({ ...body, scanId: "not-a-uuid" })).toBe(false);
+    expect(measured({ ...body, hand: "both" })).toBe(false);
+    for (const key of ["scanId", "hand", "measurements"]) {
+      const without: Record<string, unknown> = { ...body };
+      delete without[key];
+      expect(measured(without)).toBe(false);
+    }
+    expect(measured({ ...body, measurements: null })).toBe(false);
     expect(
       measured({
         ...body,
-        measurements: { ...body.measurements, middleLengthMm: 190 },
+        measurements: { ...body.measurements, indexLengthMm: null },
       }),
     ).toBe(false);
-  });
-
-  it("needs a UUID scan id and a hand, and carries nothing else", () => {
-    expect(measured({ ...body, scanId: "not-a-uuid" })).toBe(false);
-    expect(measured({ ...body, hand: "both" })).toBe(false);
-    const noHand: Record<string, unknown> = { ...body };
-    delete noHand.hand;
-    expect(measured(noHand)).toBe(false);
     expect(measured({ ...body, gripStyleStated: "claw" })).toBe(false);
     expect(
       measured({
@@ -426,6 +504,20 @@ describe("surveySubmitResponseSchema", () => {
     expect(ok({ stored: true, withdrawable: true, contributionId: "x" })).toBe(
       false,
     );
+  });
+
+  it("never echoes what the person typed or chose", () => {
+    const ok = accepts(surveySubmitResponseSchema);
+    const base = { stored: true, withdrawable: true };
+    for (const extra of [
+      { feedback: "great" },
+      { otherMouse: { brand: "Razer", sizeFeel: "just_right" } },
+      { brand: "Razer" },
+      { mainUse: "gaming" },
+      { ratings: [] },
+    ]) {
+      expect(ok({ ...base, ...extra })).toBe(false);
+    }
   });
 });
 

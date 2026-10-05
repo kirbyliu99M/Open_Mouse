@@ -308,8 +308,8 @@ export const scanSubmissionSchema = z
 
 /**
  * `GET /api/scans/{scanId}/measurements` (routes.ts): what the 3D viewer needs
- * to scale the hand model. The same validated values the scan was stored with;
- * optional fields the scan never had are absent, never null.
+ * to scale the hand model. The values the scan stored, to 0.1 mm; optional
+ * fields the scan never had are absent, never null.
  */
 export const scanMeasurementsResponseSchema = z.strictObject({
   scanId: z.string().uuid(),
