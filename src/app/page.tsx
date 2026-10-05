@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import "./home.css";
 
@@ -71,6 +72,22 @@ export default function HomePage() {
               }}
             />
           </div>
+
+          {/* Five short annotations on the hand's landmarks and lines (Home
+              v3.1; candidate wording). Real text, in reading order after the
+              hand. The static layout, reduced motion and no JS show them as
+              this list; the particle stage places each beside or below the
+              hand and fades them in and out over the hand's measured step.
+              The canvas's rings and leaders are decoration and not part of
+              this. */}
+          <ul className="story-notes">
+            {homeStoryNotes().map((note) => (
+              <li key={note.key} className="story-note" data-note={note.key}>
+                <p className="story-note-title">{note.title}</p>
+                <p className="story-note-why">{note.why}</p>
+              </li>
+            ))}
+          </ul>
 
           {/* Only G Pro exists, so all three are placeholders until more
               sketches do. Each mouse's name is real text. */}
