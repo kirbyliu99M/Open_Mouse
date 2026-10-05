@@ -165,10 +165,24 @@ export interface NoteLayoutInput {
 /**
  * The five notes' shapes, in the story's order, or null when there is no place
  * for the text that keeps clear of the A4 sheet's bottom edge and inside the
- * panel. That happens in a window about 700 to 1000 px wide and under about
- * 800 px tall: no room at the hand's sides and not enough under the sheet. The
- * caller then shows no note at all (the text stays in the DOM, for a screen
- * reader) rather than let the text cross the sheet.
+ * panel: not enough room at the hand's sides for the text to sit beside it,
+ * and not enough under the sheet for it to sit below. The caller then shows no
+ * note at all (the text stays in the DOM, for a screen reader) rather than let
+ * the text cross the sheet.
+ *
+ * Which windows those are, as measured in the page (Chromium, device pixel
+ * ratio 1, windows in 50 px steps, no visible scrollbar; with one the widths
+ * move by about 15 px), by window width and height:
+ * - No note ("off"): about 800 to 1000 px wide at 650 to 850 px tall, reaching
+ *   1050 px wide at 900 px tall; at 600 px tall, 600 to 850 px wide.
+ * - Below the hand: 600 to 750 px wide from 650 px tall up, and 800 to 1050 px
+ *   wide again from 950 px tall up (and every phone size).
+ * - Beside the hand: from about 900 px wide at 600 px tall, 950 at 650 to 700,
+ *   1000 at 750, 1050 at 800 to 850 and 1100 at 900.
+ * So 1000x850 and 1050x900 lose their notes, while 1024x768, 1280x720 and
+ * 1366x768 get them beside the hand and 1024x1366, 912x1368 and 853x1280 get
+ * them below it. The numbers move with the text's measured height (its font),
+ * so they are a measurement, not a rule.
  */
 export function placeNotes(input: NoteLayoutInput): NoteShape[] | null {
   const { box, rect, panel, mode, widths, texts } = input;

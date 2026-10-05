@@ -117,7 +117,7 @@ describe("beside or below", () => {
       right: 1440 - 24 - 1024 - 28,
     });
     expect(noteMode(sideRoom(416, 1024, 1440))).toBe("beside");
-    // A phone, a tablet and a narrow laptop: no room, text below.
+    // A phone and a 768 px wide window: no room at the sides, text below.
     expect(noteMode(sideRoom(24, 366, 390))).toBe("below");
     expect(noteMode(sideRoom(80, 688, 768))).toBe("below");
   });
@@ -295,7 +295,7 @@ describe("the text never crosses the A4 sheet's bottom edge, or its corner marks
     };
   }
 
-  it("has no place for them in the five windows where it used to cross: below mode, and 21 px or more short", () => {
+  it("has no place for them in the five windows where it used to cross: below mode, and more than 15 px short of fitting", () => {
     for (const [width, height, wasOver] of crossed) {
       const { mode, given } = scene(width, height);
       expect(mode, `${width}x${height} is below the hand`).toBe("below");

@@ -543,9 +543,12 @@ class Stage {
     });
     if (!shapes) {
       // No place for the text that clears the A4 sheet's bottom edge and fits
-      // the panel (a window about 700 to 1000 px wide and under about 800 px
-      // tall): show no note, ring or leader. The text is still in the DOM, at
-      // opacity 0, for a screen reader.
+      // the panel (no room beside the hand and not enough under the sheet: in
+      // Chromium at device pixel ratio 1, about 800 to 1000 px wide at 650 to
+      // 850 px tall, to 1050 wide at 900 tall, and 600 to 850 wide at 600 tall;
+      // the exact windows are in placeNotes' comment in note-layout.ts): show
+      // no note, ring or leader. The text is still in the DOM, at opacity 0,
+      // for a screen reader.
       for (const { block } of notes) {
         block.style.removeProperty("left");
         block.style.removeProperty("top");
