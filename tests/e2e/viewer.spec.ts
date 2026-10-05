@@ -245,12 +245,20 @@ test.describe("fallbacks", () => {
     await page.goto(`/results/${SCAN_ID}`);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "loading");
     await expect(page.locator(".viewer-caption")).toHaveText(CAPTION);
-    await expect(page.locator(".viewer-fallback")).toHaveCount(0);
+    // While it loads: a text-less placeholder, and the status line is there but empty.
+    await expect(page.locator(".viewer-skeleton")).toBeVisible();
+    await expect(page.locator(".viewer-fallback")).toBeEmpty();
     const before = await layoutBelow(page);
 
     const t = await now(page);
     release();
     await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
+    // A live region, so the line is announced.
+    await expect(page.locator(".viewer-fallback")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    await expect(page.locator(".viewer-skeleton")).toHaveCount(0);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "failed");
     const after = await layoutBelow(page);
 

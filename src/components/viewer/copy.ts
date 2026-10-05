@@ -1,8 +1,11 @@
 /**
  * The viewer's on-screen strings. English until i18n lands, and CANDIDATES
- * (未拍板): Kirby has not approved the results-page UI. The first two are the
- * exact strings of his Pencil demo (design-exports/results-v2-demo-2026-10-06);
- * the third is the accessible name, which describes what is shown.
+ * (未拍板): Kirby has not approved the results-page UI. The caption and the
+ * fallback line follow the first v2 Pencil demo
+ * (design-exports/results-v2-demo-2026-10-06). Kirby's later, simplified demo
+ * shortens the caption and gives the fallback a second line; neither is
+ * implemented here, and the final wording is Kirby's. The third string is the
+ * accessible name, which describes what is shown.
  */
 
 /** Shown under the viewer while a model is, or is about to be, on screen. */

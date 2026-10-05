@@ -32,15 +32,26 @@ const NEAR_MARGIN = "300px 0px";
  * found) ends in the one calm line, never a raw error, and the rest of the
  * page is unaffected.
  */
-export function ViewerRegion({
-  scanId,
-  mouseSlug,
-  mouseName,
-}: {
+interface ViewerRegionProps {
   scanId: string;
   mouseSlug: string;
   mouseName: string;
-}) {
+}
+
+/**
+ * Keyed by scan and mouse, so a region that is handed another mouse starts
+ * again instead of keeping the previous mouse's state: the initial state (idle
+ * or "no shell") is worked out once per mount, and a viewer that is already
+ * running holds the old model. No hooks here, so a unit test can call it and
+ * read the key.
+ */
+export function ViewerRegion(props: ViewerRegionProps) {
+  return (
+    <ViewerRegionBody key={`${props.scanId}:${props.mouseSlug}`} {...props} />
+  );
+}
+
+function ViewerRegionBody({ scanId, mouseSlug, mouseName }: ViewerRegionProps) {
   const url = shellUrl(mouseSlug, shellIndex);
   const [status, dispatch] = useReducer(
     viewerReducer,
@@ -126,9 +137,17 @@ export function ViewerRegion({
           : {})}
       >
         <div ref={hostRef} className="viewer-host" />
-        {isFallback(status) && (
-          <p className="viewer-fallback">{VIEWER_FALLBACK}</p>
+        {/* Before there is a model: a quiet shape, so the box is not an empty
+            rectangle. No text of its own; `aria-busy` on the box says it is
+            working. */}
+        {(status === "idle" || status === "loading") && (
+          <div className="viewer-skeleton" aria-hidden="true" />
         )}
+        {/* A status region that is always there, so the line is announced when
+            it appears, not only found by someone reading the page through. */}
+        <p className="viewer-fallback" role="status">
+          {isFallback(status) ? VIEWER_FALLBACK : null}
+        </p>
       </div>
       {url !== null && (
         <p id={captionId} className="viewer-caption">

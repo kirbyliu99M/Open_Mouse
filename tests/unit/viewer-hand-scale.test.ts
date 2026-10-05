@@ -112,7 +112,7 @@ describe("handScale", () => {
     },
   );
 
-  it("is exact to 0.05 mm over the whole measurement ranges the contract accepts, at 0.1 mm steps", () => {
+  it("is exact to 0.05 mm across the whole measurement ranges the contract accepts (sampled every 7.3 mm of hand length and 6.1 mm of palm width)", () => {
     let worst = 0;
     for (let length = 100; length <= 280; length += 7.3) {
       for (let width = 50; width <= 150; width += 6.1) {

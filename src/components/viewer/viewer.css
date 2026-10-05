@@ -22,8 +22,10 @@
   /* One solid fill: text on it has a measurable contrast. */
   background: #0e1014;
   overflow: hidden;
-  /* A vertical swipe scrolls the page; a horizontal drag turns the model. */
-  touch-action: pan-y;
+  /* A vertical swipe scrolls the page and a pinch still zooms it; a horizontal
+     drag turns the model. A pan or a pinch the browser takes ends the drag with
+     a pointercancel, which the viewer treats as the end of it. */
+  touch-action: pan-y pinch-zoom;
   cursor: grab;
   -webkit-user-select: none;
   user-select: none;
@@ -58,6 +60,8 @@
 }
 
 .viewer-fallback {
+  /* The live region itself is always present and often empty. */
+  pointer-events: none;
   position: absolute;
   inset: 0;
   margin: 0;
@@ -69,6 +73,38 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   color: #b5b5bd;
+}
+
+/* A quiet, text-less stand-in while the model loads: a soft rounded shape that
+   slowly breathes. Opacity only; still under reduced motion. */
+.viewer-skeleton {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 38%;
+  height: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 45% 45% 40% 40% / 55% 55% 45% 45%;
+  background: #1a1d24;
+  opacity: 0.55;
+  animation: viewer-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes viewer-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-skeleton {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 
 .viewer-caption {
@@ -88,6 +124,12 @@
   .viewer-box {
     border: 2px solid currentColor;
     background: #000;
+  }
+  .viewer-skeleton {
+    background: transparent;
+    border: 2px dashed currentColor;
+    opacity: 1;
+    animation: none;
   }
 }
 
