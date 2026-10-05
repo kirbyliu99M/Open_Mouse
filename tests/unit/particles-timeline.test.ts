@@ -295,8 +295,10 @@ describe("the five annotations' windows", () => {
   it("leave every other part of the phase alone: the notes are only a layer over the story", () => {
     // The same particle phase, hero, sheet, captions and overlay as before the notes.
     for (const p of [0, 0.1, 0.2, 0.38, 0.4, 0.5, 0.55, 0.6, 0.8, 1]) {
-      const { notes: _notes, outline: _outline, ...rest } = phaseAt(p);
-      expect(Object.keys(rest).sort()).toEqual(
+      const keys = Object.keys(phaseAt(p)).filter(
+        (key) => key !== "notes" && key !== "outline",
+      );
+      expect(keys.sort()).toEqual(
         [
           "captions",
           "formT",

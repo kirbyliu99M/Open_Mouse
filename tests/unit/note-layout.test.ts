@@ -23,6 +23,7 @@ import {
   LANDMARKS_MM,
   LENGTH_LINE_MM,
   STAGE_SCALE,
+  TICK_MM,
   WIDTH_LINE_MM,
 } from "@/lib/particles/template-hand";
 
@@ -151,11 +152,13 @@ describe("the five annotations' shapes: below the hand (a phone)", () => {
     expect(shapes[0]!.emphasis).toEqual({
       from: canvasPoint(box, [L.x, L.top]),
       to: canvasPoint(box, [L.x, L.bottom]),
+      tick: TICK_MM * STAGE_SCALE * k,
     });
     const W = WIDTH_LINE_MM;
     expect(shapes[1]!.emphasis).toEqual({
       from: canvasPoint(box, [W.left, W.y]),
       to: canvasPoint(box, [W.right, W.y]),
+      tick: TICK_MM * STAGE_SCALE * k,
     });
   });
 

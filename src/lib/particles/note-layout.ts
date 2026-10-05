@@ -6,6 +6,7 @@ import {
   LANDMARKS_MM,
   LENGTH_LINE_MM,
   STAGE_SCALE,
+  TICK_MM,
   WIDTH_LINE_MM,
 } from "./template-hand";
 import { NOTE_COUNT } from "./timeline";
@@ -116,8 +117,15 @@ export interface NoteRing {
 export interface NoteShape {
   /** The rings around the anchor landmarks. */
   readonly rings: readonly NoteRing[];
-  /** The measurement line drawn heavier, where the note is about a measurement. */
-  readonly emphasis: { readonly from: Vec; readonly to: Vec } | null;
+  /**
+   * The measurement line drawn heavier, where the note is about a measurement,
+   * with its end ticks (`tick` is a tick's half-length, as in the base lines).
+   */
+  readonly emphasis: {
+    readonly from: Vec;
+    readonly to: Vec;
+    readonly tick: number;
+  } | null;
   /** The thin leader: from the anchor to just short of the text. */
   readonly leader: readonly Vec[];
   /** Where the text block goes, in the panel's px. */
@@ -221,6 +229,7 @@ export function placeNotes(input: NoteLayoutInput): NoteShape[] {
   const L = LENGTH_LINE_MM;
   const W = WIDTH_LINE_MM;
   const rulerX = X(L.x);
+  const tick = TICK_MM * STAGE_SCALE * k;
   return [
     // 1 Hand length: the ruler beside the hand, wrist to middle fingertip. The
     // leader goes on down the ruler's own line (below), or out from its middle.
@@ -232,13 +241,21 @@ export function placeNotes(input: NoteLayoutInput): NoteShape[] {
       rulerX,
       {
         rings: [],
-        emphasis: { from: [rulerX, Y(L.top)], to: [rulerX, Y(L.bottom)] },
+        emphasis: {
+          from: [rulerX, Y(L.top)],
+          to: [rulerX, Y(L.bottom)],
+          tick,
+        },
       },
     ),
     // 2 Palm width: the line across the palm, from its right end.
     shape(1, [X(W.right), Y(W.y)], X(TURN_X_MM.width), {
       rings: [],
-      emphasis: { from: [X(W.left), Y(W.y)], to: [X(W.right), Y(W.y)] },
+      emphasis: {
+        from: [X(W.left), Y(W.y)],
+        to: [X(W.right), Y(W.y)],
+        tick,
+      },
     }),
     // 3 Knuckles: the four finger bases (5, 9, 13, 17), from the last.
     shape(2, landmark(17), X(TURN_X_MM.knuckles), {

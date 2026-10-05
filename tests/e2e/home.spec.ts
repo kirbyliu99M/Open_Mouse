@@ -248,12 +248,16 @@ test("print: text that takes its colour from a token prints dark on the white pa
   }
   // The light-on-dark drawings and the menu icon are left off the page.
   const hidden = await page.evaluate(() =>
-    [".story-logo", ".story-hand", ".story-mice", ".navMenuTrigger"].map(
-      (selector) => [
-        selector,
-        getComputedStyle(document.querySelector(selector)!).display,
-      ],
-    ),
+    [
+      ".story-logo",
+      ".story-hand",
+      ".story-notes",
+      ".story-mice",
+      ".navMenuTrigger",
+    ].map((selector) => [
+      selector,
+      getComputedStyle(document.querySelector(selector)!).display,
+    ]),
   );
   for (const [selector, display] of hidden) {
     expect(display, `${selector} is not printed`).toBe("none");

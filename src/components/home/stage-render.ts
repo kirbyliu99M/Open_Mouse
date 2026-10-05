@@ -462,10 +462,23 @@ function drawNotes(ctx: CanvasRenderingContext2D, s: DrawState): void {
     }
     ctx.strokeStyle = NOTE_RING;
     if (note.emphasis) {
+      const { from, to, tick } = note.emphasis;
       ctx.lineWidth = note.emphasisWidth;
       ctx.beginPath();
-      ctx.moveTo(note.emphasis.from[0], note.emphasis.from[1]);
-      ctx.lineTo(note.emphasis.to[0], note.emphasis.to[1]);
+      ctx.moveTo(from[0], from[1]);
+      ctx.lineTo(to[0], to[1]);
+      ctx.stroke();
+      // The end ticks, across each end (the base lines have them too, but
+      // not yet while the first notes are on).
+      const length = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
+      const nx = (-(to[1] - from[1]) / length) * tick;
+      const ny = ((to[0] - from[0]) / length) * tick;
+      ctx.lineWidth = Math.max(1, note.emphasisWidth * 0.6);
+      ctx.beginPath();
+      for (const [x, y] of [from, to]) {
+        ctx.moveTo(x - nx, y - ny);
+        ctx.lineTo(x + nx, y + ny);
+      }
       ctx.stroke();
     }
     if (note.rings.length > 0) {
