@@ -189,6 +189,10 @@ class Stage {
   /** The pairing is built (in slices, off the activation task) and the drawing path is chosen. */
   private ready = false;
   private preparing = false;
+  /** What the pre-activation slices set up (canvas sizes, the first set of particles), and for which layout; `activate` reuses it when nothing moved. */
+  private warmKey = "";
+  /** The layout was measured for the first frame only: measure it for real in the first frame of the animated layout. */
+  private needsMeasure = false;
   /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
   private budget = 0;
   private drawCount = 0;
@@ -353,22 +357,12 @@ class Stage {
    * the page never shows two logos (or none).
    */
   private activate(panelHeight: number): void {
-    const { section, panel, logo } = this.parts;
-    const ctx = this.canvas.getContext("2d");
-    if (!ctx) return;
-    this.ctx = ctx;
-    this.cssWidth = panel.clientWidth;
-    this.cssHeight = panelHeight;
+    const { section, logo } = this.parts;
+    // Everything the first frame needs was normally made in the slices of
+    // `prepare` (the canvases' sizes, the particles): this task only has to
+    // draw it and switch the layout. If the page moved since, make it again.
+    if (!this.warm(panelHeight)) return;
     section.dataset.renderer = this.renderer;
-    this.fitCanvas();
-
-    // The hero is in the same place in both layouts, so the logo's rect now
-    // is where the canvas draws the logo. The hand and the mice have no place
-    // in the static flow that matches the animated one, so the first frame
-    // (only the logo is on it: p = 0) borrows the logo's box for them.
-    const origin = panel.getBoundingClientRect();
-    const logoRect = relative(logo.getBoundingClientRect(), origin);
-    this.buildSet(logoRect, logoRect, [logoRect, logoRect, logoRect]);
     this.shimmerOver = this.everActivated;
     this.shimmerStart = performance.now();
     this.draw(0, this.shimmerStart);
@@ -381,8 +375,11 @@ class Stage {
     this.visible = true;
 
     // Now the animated layout exists: measure it, and redraw with the hand and
-    // the mice where the page puts them.
-    this.measureAndBuild();
+    // the mice where the page puts them. That is the first frame's job (the
+    // layout pass it forces and the particles it rebuilds would make this task
+    // long on a slow phone); the first frame only shows the logo, which is
+    // already where it belongs.
+    this.needsMeasure = true;
     this.dirty = true;
     this.lastP = -1;
     this.intersection = new IntersectionObserver((entries) => {
@@ -404,6 +401,7 @@ class Stage {
     // while a window is being dragged that is nearly every frame.
     this.fitCanvas();
     this.measureAndBuild();
+    this.needsMeasure = false;
     this.dirty = true;
     this.redrawNow();
   }
@@ -460,6 +458,12 @@ class Stage {
   // ── Measuring ───────────────────────────────────────────────────────────
 
   private fitCanvas(): void {
+    this.fitTwoD();
+    this.fitGl();
+  }
+
+  /** The 2D canvas: its size and the sprites (the overlay's halos, and the particles on the 2D path). */
+  private fitTwoD(): void {
     const ctx = this.ctx!;
     this.dpr = canvasScale(window.devicePixelRatio);
     const width = Math.max(1, Math.round(this.cssWidth * this.dpr));
@@ -469,28 +473,74 @@ class Stage {
       this.canvas.height = height;
     }
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // The sprites: the halos of the overlay, and the particles themselves on
-    // the 2D path.
     const glow = !this.queries.contrast.matches;
     const key = `${this.dpr}:${glow}`;
     if (key !== this.spritesKey) {
       this.sprites = createSprites(this.dpr, glow);
       this.spritesKey = key;
     }
-    if (this.renderer === "webgl" && this.gl) {
-      // The pixel ratio can change under a running page (a window dragged to
-      // another screen, the browser's zoom): the biggest point the GPU must
-      // draw changes with it.
-      const pixelRatio = glCanvasScale(
-        window.devicePixelRatio,
-        this.queries.wide.matches,
-      );
-      if (this.gl.isLost() || !this.gl.fits(pixelRatio)) {
-        this.useTwoD();
-        return;
-      }
-      this.gl.resize(this.cssWidth, this.cssHeight, pixelRatio);
+  }
+
+  /** The WebGL canvas: its size, if the GPU can still draw the points at this pixel ratio (else the stage moves to the 2D path). */
+  private fitGl(): void {
+    if (this.renderer !== "webgl" || !this.gl) return;
+    // The pixel ratio can change under a running page (a window dragged to
+    // another screen, the browser's zoom): the biggest point the GPU must
+    // draw changes with it.
+    const pixelRatio = glCanvasScale(
+      window.devicePixelRatio,
+      this.queries.wide.matches,
+    );
+    if (this.gl.isLost() || !this.gl.fits(pixelRatio)) {
+      this.useTwoD();
+      return;
     }
+    this.gl.resize(this.cssWidth, this.cssHeight, pixelRatio);
+  }
+
+  /** What a set-up of the first frame depends on: the drawing path, the sizes, the pixel ratio, the breakpoint, the contrast setting, and where the logo is. */
+  private warmKeyFor(width: number, height: number, logo: Rect): string {
+    return [
+      this.renderer,
+      width,
+      height,
+      window.devicePixelRatio,
+      this.queries.wide.matches,
+      this.queries.contrast.matches,
+      logo.x,
+      logo.y,
+      logo.width,
+      logo.height,
+    ].join("|");
+  }
+
+  /**
+   * Set up the first frame: the canvases' sizes and the particles for it, whose
+   * logo is where the static image is (the hero is in the same place in both
+   * layouts). The hand and the mice have no place in the static flow that
+   * matches the animated one, so the first frame (only the logo is on it:
+   * p = 0) borrows the logo's box for them. Returns false when there is no 2D
+   * context. When `prepare`'s slices (`warmInSlices`) have done it for this
+   * very layout it does nothing, so the activating task stays short.
+   */
+  private warm(panelHeight: number): boolean {
+    const { panel, logo } = this.parts;
+    const ctx = this.ctx ?? this.canvas.getContext("2d");
+    if (!ctx) return false;
+    this.ctx = ctx;
+    const width = panel.clientWidth;
+    const origin = panel.getBoundingClientRect();
+    const logoRect = relative(logo.getBoundingClientRect(), origin);
+    if (this.warmKeyFor(width, panelHeight, logoRect) === this.warmKey) {
+      return true;
+    }
+    this.cssWidth = width;
+    this.cssHeight = panelHeight;
+    this.fitCanvas();
+    this.buildSet(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    // (`fitCanvas` may have fallen back to the 2D path: the key says which.)
+    this.warmKey = this.warmKeyFor(width, panelHeight, logoRect);
+    return true;
   }
 
   /** Read where the logo, the hand and the three mice are on the page now, and rebuild the particles for them. */
@@ -620,6 +670,10 @@ class Stage {
           this.pairing = pairing;
           this.pairingKey = key;
         }
+        // The first frame's set-up, in slices of its own (the WebGL canvas's
+        // first resize alone can take a long while on a slow phone), while the
+        // page is still the static one: nothing here is visible.
+        await this.warmInSlices();
         done = true;
       } catch {
         // The page stays as it is: the static layout.
@@ -664,6 +718,28 @@ class Stage {
     this.glFailed = true;
     this.useTwoD();
   };
+
+  /** `warm`, one step a task. Whatever it did not finish, `activate` finishes. */
+  private async warmInSlices(): Promise<void> {
+    const { panel, logo } = this.parts;
+    const panelHeight = this.probe.offsetHeight;
+    const ctx = this.canvas.getContext("2d");
+    if (!ctx || this.destroyed) return;
+    this.ctx = ctx;
+    this.cssWidth = panel.clientWidth;
+    this.cssHeight = panelHeight;
+    this.fitTwoD();
+    await pause();
+    this.fitGl();
+    await pause();
+    if (this.destroyed) return;
+    const origin = panel.getBoundingClientRect();
+    const logoRect = relative(logo.getBoundingClientRect(), origin);
+    this.buildSet(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    // `activate` reuses this when the layout has not moved since: the same key.
+    this.warmKey = this.warmKeyFor(this.cssWidth, this.cssHeight, logoRect);
+    await pause();
+  }
 
   /**
    * Leave WebGL for good and carry on on the 2D path with the 2D budget: the
@@ -720,6 +796,16 @@ class Stage {
     if (!this.visible || document.hidden) {
       this.dirty = true;
       return;
+    }
+    if (this.needsMeasure) {
+      this.needsMeasure = false;
+      try {
+        this.measureAndBuild();
+      } catch {
+        this.deactivate();
+        return;
+      }
+      this.dirty = true;
     }
     const p = this.currentProgress();
     if (!this.dirty && p === this.lastP && this.shimmerOver) return;
