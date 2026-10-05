@@ -4,10 +4,15 @@
  *
  * Aggregates only. Nothing here lets a caller work back to one contributor:
  * the response carries counts and means, and the server withholds a mouse, or
- * the whole block, when too few people stand behind it. The real minimums are
- * engine code and candidates (未拍板) until real data exists; this file fixes
- * only a floor the shape itself enforces, `SIMILAR_MIN_PEOPLE`, below which a
- * count or a mean would be one person's answer. Until the minimums are met the
+ * the whole block, when too few people stand behind it. Kirby (2026-10-06):
+ * in the test phase there is no minimum of its own, because there is no volume
+ * of data; so the engine sets none beyond the floor the shape itself enforces,
+ * `SIMILAR_MIN_PEOPLE`, below which a count or a mean would be one person's
+ * answer. Keeping that floor is Claude's reading, not Kirby's decision
+ * (未拍板): Kirby may remove it. At a floor of two it is not airtight either:
+ * a caller who is one of two raters could work the other's rating out from a
+ * mean, so the server must leave the caller's own contribution out of what it
+ * counts, and that is for the server PR to settle. Until the floor is met the
  * answer is `available: false`, never a guess. Every number is made in
  * TypeScript (AGENTS.md hard rule 2).
  *
