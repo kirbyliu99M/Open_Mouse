@@ -425,6 +425,98 @@ describe("buildFallbackOutput — use-experience wording", () => {
     ]);
   });
 
+  it("says what the results page says for a poor top pick, with the name", () => {
+    const poor = buildFallbackOutput(
+      inputFor(entryWith("length_ideal", { total: 30 })),
+    );
+    expect(poor.headline).toBe(
+      "None of these fits your hand well. The closest is Example Mouse.",
+    );
+  });
+
+  // The headline follows the band: only `poor` stops saying "top match".
+  // `fair` keeps it: its meaning ("Several things do not line up...") does not
+  // tell the reader to look at other mice first. Written as literals on purpose.
+  it.each([
+    [100, "very_good", "Example Mouse is the top match for your hand."],
+    [85, "very_good", "Example Mouse is the top match for your hand."],
+    [84, "good", "Example Mouse is the top match for your hand."],
+    [70, "good", "Example Mouse is the top match for your hand."],
+    [69, "fair", "Example Mouse is the top match for your hand."],
+    [50, "fair", "Example Mouse is the top match for your hand."],
+    [
+      49,
+      "poor",
+      "None of these fits your hand well. The closest is Example Mouse.",
+    ],
+    [
+      0,
+      "poor",
+      "None of these fits your hand well. The closest is Example Mouse.",
+    ],
+  ] as const)(
+    "a total of %i (%s) has the headline %j",
+    (total, band, headline) => {
+      const input = inputFor(entryWith("length_ideal", { total }));
+      expect(input.topPicks[0]!.band).toBe(band);
+      expect(buildFallbackOutput(input).headline).toBe(headline);
+    },
+  );
+
+  it("agrees with its own whyTopPick: the headline never says top match when the meaning says look elsewhere", () => {
+    for (let total = 0; total <= 100; total++) {
+      const out = buildFallbackOutput(
+        inputFor(entryWith("length_ideal", { total })),
+      );
+      const saysLookElsewhere = out.whyTopPick.includes("look at other mice");
+      expect(out.headline.includes("top match"), `total ${total}`).toBe(
+        !saysLookElsewhere,
+      );
+    }
+  });
+
+  it("keeps the real model name in a poor headline, digits and all, and it passes both output checks", () => {
+    const input = inputFor(makeEntry({ total: 30 }));
+    const { headline } = buildFallbackOutput(input);
+    expect(headline).toBe(
+      "None of these fits your hand well. The closest is Logitech G Pro X Superlight 2.",
+    );
+    expect(headline.length).toBeLessThanOrEqual(160);
+    expect(findMedicalClaimTerm(headline)).toBeNull();
+    expect(
+      findUnknownNumeral(
+        headline,
+        collectNumbers(input),
+        exemptTokensOf(input),
+      ),
+    ).toBeNull();
+  });
+
+  it("gives the poor headline with no model at all, and after a model breaks the rules twice", async () => {
+    const input = inputFor(makeEntry({ total: 30 }));
+    const none = await analyse(input, null);
+    expect(none.source).toBe("fallback");
+    expect(none.output.headline).toMatch(
+      /^None of these fits your hand well\./,
+    );
+    const broken = new FakeTextModel({
+      answer: () =>
+        JSON.stringify({
+          headline: "A 130 mm mouse for your hand.",
+          whyTopPick: "It fits.",
+          tradeoffs: [],
+          whatToAvoid: [],
+          caveats: [],
+        }),
+    });
+    const second = await analyse(input, broken);
+    expect(broken.calls).toHaveLength(2);
+    expect(second.source).toBe("fallback");
+    expect(second.output.headline).toMatch(
+      /^None of these fits your hand well\./,
+    );
+  });
+
   it("adds the estimate note to the caveats, after the provisional note at low confidence", () => {
     const high = buildFallbackOutput(inputFor(entryWith("length_ideal")));
     expect(high.caveats).toEqual([en.provisional]);
@@ -436,26 +528,70 @@ describe("buildFallbackOutput — use-experience wording", () => {
     expect(low.caveats[1]).toBe(en.provisional);
   });
 
+  // Which side of the fallback each reason code belongs on, written out by hand.
+  // It is the oracle: it is NOT built from POSITIVE_REASON_CODES or
+  // NEGATIVE_REASON_CODES, so a code that moves to the wrong side (or is added
+  // to neither) fails here instead of being checked against itself.
+  // "helpful" = it goes in whyTopPick; "tradeoff" = it goes in tradeoffs;
+  // "neither" = the fallback does not say it.
+  const SIDE_OF = {
+    length_ideal: "helpful",
+    length_short: "tradeoff",
+    length_long: "tradeoff",
+    width_ideal: "helpful",
+    width_narrow: "tradeoff",
+    width_wide: "tradeoff",
+    height_low: "tradeoff",
+    height_ideal: "helpful",
+    height_high: "tradeoff",
+    hump_matches_grip: "helpful",
+    hump_mismatch_grip: "tradeoff",
+    flare_supports_fingers: "helpful",
+    flare_neutral: "neither",
+    flare_crowds_fingers: "tradeoff",
+    thumb_rest_supports: "helpful",
+    thumb_neutral: "neither",
+    thumb_rest_missing: "tradeoff",
+    thumb_rest_unneeded: "neither",
+    weight_in_range: "helpful",
+    weight_heavier: "tradeoff",
+    weight_lighter: "tradeoff",
+    descriptor_unknown: "neither",
+    no_preference: "neither",
+  } as const satisfies Record<ReasonCode, "helpful" | "tradeoff" | "neither">;
+
+  it("has a side for every reason code and no other, and the engine's two sets say the same", () => {
+    expect(Object.keys(SIDE_OF).sort()).toEqual([...REASON_CODES].sort());
+    const entries = Object.entries(SIDE_OF);
+    const helpful = entries.filter(([, s]) => s === "helpful").map(([c]) => c);
+    const tradeoff = entries
+      .filter(([, s]) => s === "tradeoff")
+      .map(([c]) => c);
+    expect(helpful).toHaveLength(7);
+    expect(tradeoff).toHaveLength(11);
+    expect(entries.filter(([, s]) => s === "neither")).toHaveLength(5);
+    expect([...POSITIVE_REASON_CODES].sort()).toEqual([...helpful].sort());
+    expect([...NEGATIVE_REASON_CODES].sort()).toEqual([...tradeoff].sort());
+  });
+
   it.each(REASON_CODES)(
-    "for reason code %s: fits the schema, files the sentence where it belongs, and passes both output checks",
+    "for reason code %s: fits the schema, files the sentence on its side, and passes both output checks",
     (code) => {
       for (const total of [20, 60, 75, 95]) {
         const input = inputFor(entryWith(code, { total }));
         const out = buildFallbackOutput(input);
+        const meaning = en.bands[input.topPicks[0]!.band].meaning;
         expect(analysisOutputSchema.safeParse(out).success).toBe(true);
-        if (POSITIVE_REASON_CODES.has(code)) {
-          expect(out.whyTopPick).toContain(en.impact[code]);
+        const side = SIDE_OF[code];
+        if (side === "helpful") {
+          expect(out.whyTopPick).toBe(`${meaning} ${en.impact[code]}`);
           expect(out.tradeoffs).toEqual([]);
-        } else if (NEGATIVE_REASON_CODES.has(code)) {
+        } else if (side === "tradeoff") {
           expect(out.tradeoffs).toEqual([en.impact[code]]);
-          expect(out.whyTopPick).toBe(
-            en.bands[input.topPicks[0]!.band].meaning,
-          );
+          expect(out.whyTopPick).toBe(meaning);
         } else {
           expect(out.tradeoffs).toEqual([]);
-          expect(out.whyTopPick).toBe(
-            en.bands[input.topPicks[0]!.band].meaning,
-          );
+          expect(out.whyTopPick).toBe(meaning);
         }
         for (const text of [
           out.headline,
@@ -479,4 +615,81 @@ describe("buildFallbackOutput — use-experience wording", () => {
       }
     },
   );
+
+  // The fallback says nothing about the grip, on purpose: it used to say "based
+  // on your measurements and grip style" only when the user had stated one. This
+  // pins the protection that old wording gave: a grip the engine PREDICTED is
+  // never described as something the user chose or stated.
+  const GRIP_AS_THE_USERS_CHOICE: RegExp[] = [
+    /\bgrip\b[^.]{0,40}\b(?:you|your)\s+(?:chose|choose|picked|pick|selected|select|stated|state|said|specified|preferred|prefer|told)\b/i,
+    /\b(?:you|your)\s+(?:chose|choose|picked|selected|stated|said|specified|preferred|told)\b[^.]{0,40}\bgrip\b/i,
+    /\b(?:chosen|stated|selected|picked|preferred|specified)\s+grip\b/i,
+    /\bgrip\s+(?:choice|preference)\b/i,
+    /\byour choice\b/i,
+    /\bgrip style\b/i,
+  ];
+
+  it("never describes a predicted grip as chosen or stated by the user", () => {
+    const base = makeFit();
+    for (const used of ["palm", "claw", "fingertip"] as const) {
+      for (const code of REASON_CODES) {
+        for (const total of [10, 60, 75, 95]) {
+          const input = buildAnalysisInput(
+            makeFit({
+              gripStyle: { stated: null, predicted: used, used },
+              excluded: base.excluded,
+              results: [entryWith(code, { total })],
+            }),
+            makeMeasurements(),
+          );
+          const out = buildFallbackOutput(input);
+          for (const text of [
+            out.headline,
+            out.whyTopPick,
+            ...out.tradeoffs,
+            ...out.whatToAvoid,
+            ...out.caveats,
+          ]) {
+            for (const pattern of GRIP_AS_THE_USERS_CHOICE) {
+              expect(text, `${used} ${code} ${total}`).not.toMatch(pattern);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("proves the grip patterns fire on the wordings they exist to catch", () => {
+    for (const text of [
+      "It suits the grip you chose.",
+      "Based on your measurements and grip style.",
+      "It matches your stated grip.",
+      "A good match for the grip you picked.",
+      "Your grip choice works well here.",
+      "This is the best pick for your choice.",
+      "You told us your grip, and it fits.",
+    ]) {
+      expect(
+        GRIP_AS_THE_USERS_CHOICE.some((p) => p.test(text)),
+        text,
+      ).toBe(true);
+    }
+    // And they leave the real wording alone.
+    for (const code of REASON_CODES) {
+      for (const text of [en.impact[code]]) {
+        expect(
+          GRIP_AS_THE_USERS_CHOICE.some((p) => p.test(text)),
+          text,
+        ).toBe(false);
+      }
+    }
+    for (const band of FIT_BANDS) {
+      expect(
+        GRIP_AS_THE_USERS_CHOICE.some((p) => p.test(en.bands[band].meaning)),
+      ).toBe(false);
+    }
+    expect(GRIP_AS_THE_USERS_CHOICE.some((p) => p.test(en.provisional))).toBe(
+      false,
+    );
+  });
 });

@@ -285,7 +285,15 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   }
   const positives = describeReasons(top, POSITIVE_REASON_CODES, 2);
   const tradeoffs = describeReasons(top, NEGATIVE_REASON_CODES, 3);
-  const headline = `${top.brand} ${top.model} is the top match for your hand.`;
+  // A `poor` top pick is still rank 1, but "the top match" next to "look at
+  // other mice first" contradicts itself. It says what the results page says
+  // ("None of these fits your hand well. The closest is below."), with the
+  // name. `fair` keeps "top match": its meaning does not tell the reader to
+  // look elsewhere. Candidate wording (未拍板).
+  const headline =
+    top.band === "poor"
+      ? `None of these fits your hand well. The closest is ${top.brand} ${top.model}.`
+      : `${top.brand} ${top.model} is the top match for your hand.`;
   const whyTopPick = [top.bandMeaning, ...positives].join(" ");
   const whatToAvoid = input.excluded
     .map(
