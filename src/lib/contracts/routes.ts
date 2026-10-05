@@ -92,6 +92,18 @@ export const scanPath = (scanId: string): string => {
   return `/api/scans/${scanId}`;
 };
 
+/**
+ * `GET` — the millimetres this scan stored, for the 3D viewer to scale the
+ * hand model. 200 → `scanMeasurementsResponseSchema` (measurement.ts); 404
+ * unknown, foreign or expired scan (ownership rule above); 429 rate limited
+ * per client IP. These are the person's own derived values as the scan stored
+ * them (millimetres to 0.1 mm, so they can differ from what was POSTed by up to
+ * 0.05 mm): no image and nothing the scan did not already hold. The answer
+ * depends on the caller, so it carries `Cache-Control: no-store`.
+ */
+export const scanMeasurementsPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/measurements`;
+
 /** The results page for a submitted scan. */
 export const resultsPagePath = (scanId: string): string =>
   `/results/${encodeURIComponent(scanId)}`;
@@ -100,7 +112,9 @@ export const resultsPagePath = (scanId: string): string =>
  * `POST` — body: `surveySubmissionSchema` (survey.ts). Needs the consent tick
  * in the body; the scan named by `scanId` follows the ownership rule above
  * (anyone else: 404). The hand profile is read from that scan on the server.
- * 201 → `surveySubmitResponseSchema`; 400 invalid body or unknown mouse slug;
+ * 201 → `surveySubmitResponseSchema`; 400 invalid body (including a body that
+ * names no mouse, marks two as current, or has free text with control
+ * characters, an email address or a phone number) or unknown mouse slug;
  * 404 unknown, foreign or expired scan; 409 this scan has already contributed
  * (one contribution per scan; nothing is stored or replaced); 413 body too
  * large; 429 rate limited per client IP (`errorResponseSchema`; nothing is
@@ -108,7 +122,8 @@ export const resultsPagePath = (scanId: string): string =>
  * of the same mouse and is still 201. The full repeat rules are in survey.ts.
  *
  * `DELETE` — signed-in callers only: withdraws everything the caller has
- * contributed (ratings, consent record and hand profile). 204 → no body, also
+ * contributed (ratings, other mice, main use, free text, consent record and
+ * hand profile). 204 → no body, also
  * when there was nothing to withdraw; 401 when not signed in; 429 rate limited
  * per client IP. An anonymous contribution cannot be withdrawn: it is tied to
  * no account. The account's "Delete everything" must withdraw it too (survey.ts).
