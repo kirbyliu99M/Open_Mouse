@@ -82,13 +82,14 @@ motion can be grabbed mid-flight.
 - **Spatial consistency:** things leave the way they came; popovers and sheets
   grow from the control that opened them (`transform-origin`).
 - Animate only `transform` and `opacity`. The one exception is the home
-  page's canvas particle stage below, which redraws its own pixels.
+  page's canvas particle stage below (WebGL, with Canvas 2D as its fallback and
+  for its overlay), which redraws its own pixels.
 - **Signature motion (home page):** the particle stage in
   `docs/design/home-v3-2026-10-03/README.md`. Its rules:
   - it is driven by native scroll, with no snapping or scroll hijacking, and
     is reversible at any point;
-  - the canvas is `aria-hidden`, and any text a step needs is real text in the
-    DOM;
+  - the canvases are `aria-hidden`, and any text a step needs is real text in
+    the DOM;
   - motion that starts on its own ends within 3 s (WCAG 2.2.2);
   - it pauses off-screen;
   - reduced motion and no-JS show static end states.

@@ -41,7 +41,10 @@ Still **not decided (未拍板, candidate)**:
 - Whether to add the copy "Find your best mouse".
 - A sticky "Scan" bar on mobile once the hero scrolls away.
 - The particle-count and performance numbers below. They are Claude's targets
-  and must be measured on a real phone before they are treated as fixed.
+  and must be measured on a real phone before they are treated as fixed. That
+  includes the WebGL stage's budgets (6,000 on a phone and 12,000 on a desktop),
+  its slow-frame guard and its pixel-ratio caps (see
+  [Rendering and performance](#rendering-and-performance-targets-未拍板-until-measured)).
 
 ## Delivery: two PRs
 
@@ -151,14 +154,20 @@ are ordinary blocks, and their parts stack in flow, as in
   both layouts, so switching causes no layout shift. The section grows to
   about 400 svh (to be tuned). The panel becomes
   `position: sticky; top: 0; height: 100svh`.
-- **Layers.** The canvas is `aria-hidden="true"` and positioned
-  `absolute; inset: 0; z-index: 0`, with `pointer-events: none`. The hero and
-  the captions sit above it (`position: relative; z-index: 1`), so every
-  button stays clickable.
+- **Layers.** The panel holds two canvases, one on the other: the WebGL canvas
+  (`.story-canvas-gl`, the particles) under the 2D canvas (`.story-canvas`,
+  the overlay, and the particles too when WebGL is not available). Both are
+  `aria-hidden="true"` and positioned `absolute; inset: 0; z-index: 0`, with
+  `pointer-events: none`; the 2D one is later in the markup, so it is on top.
+  The hero and the captions sit above them (`position: relative; z-index: 1`),
+  so every button stays clickable. One canvas can not give both a 2D and a
+  WebGL context, hence two. The lower one is shown only while the section's
+  `data-renderer` is `webgl`.
 - **Progress.** `p` is clamped to [0, 1]. It is 0 when the panel pins (the
   nav has scrolled away by then) and 1 when the section's bottom reaches the
   panel's bottom.
-- **Logo handoff.** The canvas draws the logo at the static `<img>`'s rect
+- **Logo handoff.** The stage draws the logo (on the WebGL canvas, or the 2D
+  one on the fallback path) at the static `<img>`'s rect
   (`getBoundingClientRect`). Once that frame is drawn, it hides the `<img>`
   with `visibility: hidden`, so there is never a double logo.
 - **Hero text.** From p = 0 to 0.10 the hero text fades and moves up, using
@@ -364,7 +373,10 @@ Everything else follows scroll.
     real logo exists.
 - **Resampling.** The same particles move through every state, so the
   particle count is fixed by the budget below. Each target list is resampled
-  to that count. Three mice share it, about a third each.
+  to that count. Three mice share it, about a third each. The committed file
+  only holds a few hundred to a few thousand points per shape, so with the
+  WebGL budgets the browser grows them (see "Source density" below); the
+  Canvas 2D fallback resamples exactly as before.
 - **Pairing.** Sort both point lists by x and pair by index. This gives a
   coherent sideways flow instead of random crossings.
   - Logo → hand: one list to one list.
@@ -380,20 +392,101 @@ Everything else follows scroll.
 
 ### Rendering and performance (targets, 未拍板 until measured)
 
-- One Canvas 2D `requestAnimationFrame` loop. Draw a pre-rendered glow sprite
-  per bright point; never use CSS `filter` per particle.
-- Particle budget, shared by all states:
-  - about 900 on mobile and 1,300 on desktop;
-  - halve it when `navigator.hardwareConcurrency <= 4`.
-- Device pixel ratio capped at 2.
+The WebGL stage (2026-10-05) moved the particles' drawing to the GPU. **Every
+number in this section is Claude's candidate (未拍板)**: the budgets, the
+pixel-ratio caps, the slow-frame guard and the point-size margin wait for
+Kirby's pick from the screenshots in `gl/` and for a measurement on a real
+phone. The measured numbers (in the PR description) are from a desktop GPU (an
+RTX 5060 laptop) with the CPU throttled, so the CPU side and the shader's logic
+are measured and **a phone GPU's cost of filling the soft points is not**.
+
+- **WebGL path.** Plain WebGL 1, no library (`src/components/home/stage-gl.ts`).
+  - The context is made with `antialias: false`, `depth: false`,
+    `premultipliedAlpha: true`, `powerPreference: "high-performance"`.
+  - Each particle's three resting positions, its two swirl vectors, its tone at
+    each resting state and its shimmer x are made once per layout into one
+    interleaved `Float32Array` and sent with `STATIC_DRAW`
+    (`src/lib/particles/gl-buffers.ts`). **Scrolling uploads nothing**: a frame
+    sets a few uniforms and makes one `drawArrays(POINTS)`. A new layout (a
+    resize) uploads again.
+  - The vertex shader computes `pos = a + (b − a)·e + sin(π·e)·A` with the ends
+    exact (`e ≤ 0` is `a`, `e ≥ 1` is `b`), the same as `interpolateAxis`. The
+    leg (logo to hand, or hand to mice) and the weights `e(t)` and `sin(π·e)`
+    come from the same `legOf` and `legWeights` the Canvas 2D path uses, passed
+    as uniforms.
+  - A point is a soft round dot: a bright core with a halo, drawn over what is
+    there (premultiplied alpha). With `prefers-contrast: more` the halo is off.
+    The shimmer is in the shader too: it plays once, for at most 2.6 s (the
+    `shimmerAt` timing, unchanged), and after it nothing is drawn or scheduled.
+  - **Look.** With five to ten times as many particles, a particle is smaller
+    and fainter (`glLook`, by how crowded the sheet is, not by the count), and
+    each state has a gain (the logo, one thin outline of all the particles,
+    fainter; a mouse, a third of them on a long sketch, stronger:
+    `STATE_GAIN`). The trade: the picture keeps its weight and gains
+    fineness, and the single sparks of the 2D look become strokes of beads. At
+    6,000 and above the logo and the mice read as continuous lines.
+- **Overlay.** The A4 corners, the skeleton, the measurement lines with their
+  end ticks and the 21 landmarks stay on Canvas 2D, on the canvas above the
+  WebGL one: there are few of them.
+- **Fallback to Canvas 2D** (with the **old budget** and the old look): no
+  WebGL; a shader that does not compile or link; a GPU whose largest point
+  (`ALIASED_POINT_SIZE_RANGE`) is under the biggest point the stage draws (a
+  bright particle at the top of the shimmer's swell and the biggest gain, times
+  the pixel ratio) plus 24 px of room; a `webglcontextlost` while running (the
+  stage calls `preventDefault()`, rebuilds for the 2D path at once and does not
+  try WebGL again that visit). `data-renderer` on the section says `webgl` or
+  `2d`. The static layout (reduced motion, no JS, a short window, a module that
+  fails to load) is unchanged.
+- **Particle budget, shared by all states** (candidate):
+
+  | Path                 | Phone | Desktop | Halved when `hardwareConcurrency <= 4` |
+  | -------------------- | ----: | ------: | -------------------------------------- |
+  | WebGL                | 6,000 |  12,000 | yes                                    |
+  | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
+
+  Each is rounded down to a multiple of three (a third per mouse). Kirby picks
+  from three WebGL pairs, shown at p = 0.5 and 0.95 in `gl/budget-*.png`:
+  4,000 / 8,000, **6,000 / 12,000 (the default)** and 10,000 / 20,000.
+
+- **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
+  capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
+- **Source density.** The committed `targets.generated.json` stays small (about
+  14 KB gzip): the logo has 262 points, the hand 1,400, a mouse 1,134. The
+  browser grows them from the same seed, so the result is reproducible:
+  - a stroke (the logo, a mouse) is walked at an even step, and each particle is
+    nudged a fraction of a pixel across it (a bell-shaped spread of 0.3 stage
+    px, at most 2.5 deviations), so a line gets width and stays on the shape;
+    an open stroke's first and last particle are its own end points; the file
+    says which points make up each stroke (`runs`);
+  - the hand is a fill: `fillTemplateHand` continues, with the generator's own
+    seed, past the 1,400 committed points;
+  - the pairing (sort by x, pair by index) sorts packed integer keys, not
+    objects, so it takes a few ms for 12,000 particles instead of 25.
+- **Slow-frame guard** (candidate, `src/lib/particles/degrade.ts`). The WebGL
+  path watches the time between two consecutive draws; a gap over 50 ms is the
+  reader pausing and does not count. The screen's refresh interval is the
+  median of the first 40 gaps (the shimmer draws every frame). When the 95th
+  percentile of the last 45 gaps is over 1.7 times that, the count drawn drops
+  by 25 %, to at most a quarter of the budget, and never rises again. The
+  particles are uploaded in a shuffled order, so the first N are a fair sample
+  and nothing is missing from the logo, the hand or a mouse when fewer are
+  drawn. `data-particles` is the budget, `data-drawn` what is drawn now and
+  `data-refresh-ms` the estimate.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
-  stage is off-screen (IntersectionObserver) or the tab is hidden.
+  stage is off-screen (IntersectionObserver) or the tab is hidden. There is no
+  idle loop.
 - First paint is the static placeholder logo SVG plus the text. The particle
-  module is a dynamic import after first paint, so it doesn't delay LCP.
-  The LCP element is the logo `<img>` or the h1; both are in the initial
-  HTML, and the logo SVG is small and not lazy-loaded.
-- Main-thread work under about 8 ms per frame on a mid-range phone. Measure
-  this on a real phone and post the number in PR B.
+  module is a dynamic import after first paint, so it doesn't delay LCP. The
+  LCP element is the logo `<img>` or the h1; both are in the initial HTML, and
+  the logo SVG is small and not lazy-loaded. The first frame is set up in
+  slices (the drawing path, the pairing, the canvases' sizes, the first
+  particles), one task each, while the page is still the static one; the task
+  that switches the layout only draws the first frame and flips the class. The
+  real measure of the animated layout is the first frame's job.
+- Main-thread work under about 8 ms per frame on a mid-range phone. The WebGL
+  path takes well under 1 ms per frame on the CPU (measured on a desktop with
+  the CPU throttled 4×, see the PR description). Measure this on a real phone
+  and post the number.
 
 ### Reduced motion and no JS
 
