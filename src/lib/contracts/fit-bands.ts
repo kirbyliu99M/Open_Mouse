@@ -6,7 +6,9 @@
  * confirms it: the coefficients behind `total` are still provisional
  * (`fit-v0-provisional`), so a band says "how this estimate reads", never
  * "how accurate it is". The words a band is shown with are UI copy, also not
- * decided here. Change this file only in a PR of its own.
+ * decided here. No response carries a band yet (`fitEntrySchema` is
+ * unchanged): the band is derived from `total` by a pure function, and a field
+ * would need a later contract PR. Change this file only in a PR of its own.
  */
 import { z } from "zod";
 
