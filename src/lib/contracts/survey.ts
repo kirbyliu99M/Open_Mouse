@@ -14,11 +14,12 @@
  *     the client, and it is stored apart from the scan: it does not expire
  *     with the anonymous session and does not point back to the scan.
  *   - Free text, ONE field (Kirby, 2026-10-05: an ordinary questionnaire may
- *     have an open box): one open comment (`MAX_FEEDBACK_CHARS`). The brand of
- *     another mouse was free text in the first v2 draft and is a pick from a
- *     list since 2026-10-06. No response schema in the contracts carries the
- *     comment: it is read by the maintainers only, never shown to other
- *     visitors. A signed-in contributor's withdrawal removes it too.
+ *     have an open box): one open comment (`MAX_FEEDBACK_CHARS`). No response
+ *     schema in the contracts carries the comment, nor the brand and size feel
+ *     of another mouse: they are read by the maintainers only, never shown to
+ *     other visitors. Showing an aggregate of the brands later would need a
+ *     contract PR of its own and Kirby's say. A signed-in contributor's
+ *     withdrawal removes all of it.
  *   - What the schema refuses in the comment: control characters other than
  *     line breaks and tabs, and unpaired surrogates (a NUL cannot be stored in
  *     a Postgres text column, so it must be a 400, not a failed write), and
@@ -58,9 +59,10 @@
  *   - The v2 answers of a signed-in person across submissions (candidate rules,
  *     Kirby decides): at most one mouse is `current` for the account, so a
  *     later submission that marks one moves the marker and one that marks none
- *     leaves it where it was; an `otherMouse` is matched on its brand, so the
- *     same brand replaces the earlier answer and a new brand is added;
- *     `mainUse` is replaced by the latest
+ *     leaves it where it was; an `otherMouse` is matched on its brand slug, so
+ *     the same slug replaces the earlier answer and a new slug is added (every
+ *     brand that is not listed is the one slug `other`, so a person keeps at
+ *     most one unlisted-brand answer); `mainUse` is replaced by the latest
  *     answer, and kept when the later body gives none; each `feedback` is kept
  *     as written, since it is a message and not a profile. Withdrawal removes
  *     all of it.

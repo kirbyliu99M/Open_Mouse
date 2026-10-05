@@ -253,20 +253,43 @@ describe("surveySubmissionSchema v2 fields", () => {
   });
 
   it("lists the candidate brands (未拍板), each a slug, ending with other", () => {
-    expect(OTHER_MOUSE_BRANDS.length).toBe(25);
-    expect(OTHER_MOUSE_BRANDS[0]).toBe("logitech");
-    expect(OTHER_MOUSE_BRANDS.at(-1)).toBe("other");
-    expect(new Set(OTHER_MOUSE_BRANDS).size).toBe(OTHER_MOUSE_BRANDS.length);
-    for (const brand of OTHER_MOUSE_BRANDS) {
-      expect(brand).toMatch(/^[a-z_]+$/);
-    }
+    // Literal on purpose: a change to the list is a contract PR and must fail here.
+    expect(OTHER_MOUSE_BRANDS).toEqual([
+      "logitech",
+      "razer",
+      "steelseries",
+      "corsair",
+      "hyperx",
+      "asus",
+      "msi",
+      "acer",
+      "zowie",
+      "glorious",
+      "pulsar",
+      "finalmouse",
+      "vaxee",
+      "endgame_gear",
+      "cooler_master",
+      "microsoft",
+      "apple",
+      "hp",
+      "dell",
+      "lenovo",
+      "xiaomi",
+      "anker",
+      "elecom",
+      "kensington",
+      "other",
+    ]);
   });
 
   it("takes a main use from the list, or none", () => {
     for (const use of MAIN_USES) {
       expect(survey({ ...submission, mainUse: use })).toBe(true);
     }
-    expect(survey({ ...submission, mainUse: "streaming" })).toBe(false);
+    for (const bad of ["streaming", "creative", "development", "", null, 1]) {
+      expect(survey({ ...submission, mainUse: bad })).toBe(false);
+    }
     expect(survey(submission)).toBe(true);
   });
 
@@ -321,12 +344,24 @@ describe("surveySubmissionSchema v2 fields", () => {
       "unlisted",
       "razer ",
       "x".repeat(60),
+      null,
+      0,
+      ["razer"],
     ]) {
       expect(survey({ ...submission, otherMouse: { ...other, brand } })).toBe(
         false,
       );
     }
-    for (const sizeFeel of ["huge", "slightly_large", "too_small", ""]) {
+    // The old five-level values: only just_right is still a size feel.
+    for (const sizeFeel of [
+      "huge",
+      "too_small",
+      "slightly_small",
+      "slightly_large",
+      "too_large",
+      "",
+      null,
+    ]) {
       expect(
         survey({ ...submission, otherMouse: { ...other, sizeFeel } }),
       ).toBe(false);
@@ -370,8 +405,14 @@ describe("surveySubmissionSchema v2 fields", () => {
       "a\u0000b",
       "\u0000",
       "a\u0001b",
+      "a\u000bb",
+      "a\u000cb",
+      "a\u001fb",
       "a\u007fb",
+      "a\u0085b",
+      "a\u009fb",
       "a\ud800b",
+      "a\udc00b",
     ]) {
       expect(survey({ ...submission, feedback: bad })).toBe(false);
     }
@@ -379,6 +420,9 @@ describe("surveySubmissionSchema v2 fields", () => {
 
   it("lets the comment run over several lines", () => {
     expect(survey({ ...submission, feedback: "line one\nline two\ttab" })).toBe(
+      true,
+    );
+    expect(survey({ ...submission, feedback: "line one\r\nline two" })).toBe(
       true,
     );
     expect(survey({ ...submission, feedback: "great 👍 mouse" })).toBe(true);

@@ -8,9 +8,13 @@
  * in the test phase there is no minimum of its own, because there is no volume
  * of data; so the engine sets none beyond the floor the shape itself enforces,
  * `SIMILAR_MIN_PEOPLE`, below which a count or a mean would be one person's
- * answer. That floor is a privacy rule, not a threshold, and stays unless
- * Kirby says otherwise. Until it is met the answer is `available: false`,
- * never a guess. Every number is made in TypeScript (AGENTS.md hard rule 2).
+ * answer. Keeping that floor is Claude's reading, not Kirby's decision
+ * (未拍板): Kirby may remove it. At a floor of two it is not airtight either:
+ * a caller who is one of two raters could work the other's rating out from a
+ * mean, so the server must leave the caller's own contribution out of what it
+ * counts, and that is for the server PR to settle. Until the floor is met the
+ * answer is `available: false`, never a guess. Every number is made in
+ * TypeScript (AGENTS.md hard rule 2).
  *
  * Never cached by a shared cache: like the other endpoints that answer from a
  * person's hand, the response carries `Cache-Control: no-store` (see routes.ts).
