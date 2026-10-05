@@ -9,10 +9,10 @@ import {
   shimmerAt,
 } from "@/lib/particles/budget";
 import {
-  DEGRADE,
-  estimateRefreshMs,
-  isFrameGap,
-  nextDrawCount,
+  type GuardState,
+  guardForBudget,
+  newGuard,
+  observeFrame,
 } from "@/lib/particles/degrade";
 import {
   GL_FLOATS_PER_PARTICLE,
@@ -196,15 +196,10 @@ class Stage {
   private needsMeasure = false;
   /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
   private budget = 0;
-  private drawCount = 0;
+  private guard: GuardState = newGuard(0);
   /** The order the particles are uploaded in (shuffled, so the first N are a fair sample), and the buffer they are packed into. */
   private order: Uint32Array | null = null;
   private glData: Float32Array | null = null;
-  /** The guard's state: when the last frame was drawn, the latest gaps between frames, the first ones, and the screen's refresh interval from them. */
-  private lastFrameAt = 0;
-  private gaps: number[] = [];
-  private firstGaps: number[] = [];
-  private refreshMs: number | null = null;
 
   private rafId = 0;
   private reflowId = 0;
@@ -589,9 +584,7 @@ class Stage {
     }
     if (count !== this.budget) {
       this.budget = count;
-      this.drawCount = count;
-      this.gaps = [];
-      this.lastFrameAt = 0;
+      this.guard = guardForBudget(this.guard, count);
       this.frame = this.renderer === "2d" ? createFrame(count) : null;
       this.order =
         this.renderer === "webgl" ? shuffleOrder(count, SHUFFLE_SEED) : null;
@@ -847,33 +840,15 @@ class Stage {
    */
   private noteFrame(now: number): void {
     if (this.renderer !== "webgl") return;
-    const gap = now - this.lastFrameAt;
-    const counts = this.lastFrameAt > 0 && isFrameGap(gap);
-    this.lastFrameAt = now;
-    if (!counts) return;
-    this.gaps.push(gap);
-    if (this.gaps.length > DEGRADE.WINDOW) this.gaps.shift();
-    if (this.firstGaps.length < DEGRADE.REFRESH_SAMPLES) {
-      this.firstGaps.push(gap);
+    const before = this.guard;
+    this.guard = observeFrame(before, now, this.budget);
+    if (before.refreshMs === null && this.guard.refreshMs !== null) {
+      // For the e2e suite and for anyone checking the guard in the inspector.
+      this.canvas.dataset.refreshMs = this.guard.refreshMs.toFixed(1);
     }
-    if (this.refreshMs === null) {
-      this.refreshMs = estimateRefreshMs(this.firstGaps);
-      if (this.refreshMs !== null) {
-        // For the e2e suite and for anyone checking the guard in the inspector.
-        this.canvas.dataset.refreshMs = this.refreshMs.toFixed(1);
-      }
-    }
-    const next = nextDrawCount({
-      current: this.drawCount,
-      budget: this.budget,
-      gaps: this.gaps,
-      refreshMs: this.refreshMs,
-    });
-    if (next === this.drawCount) return;
-    this.drawCount = next;
-    // A new window for the new count; the picture follows in the next frame.
-    this.gaps = [];
-    this.canvas.dataset.drawn = String(next);
+    if (this.guard.drawCount === before.drawCount) return;
+    // The picture follows in the next frame.
+    this.canvas.dataset.drawn = String(this.guard.drawCount);
     this.dirty = true;
     this.schedule();
   }
@@ -902,9 +877,9 @@ class Stage {
         e: leg.weights.e,
         swing: leg.weights.swing,
         band,
-        count: this.drawCount,
+        count: this.guard.drawCount,
         glow: !this.queries.contrast.matches,
-        look: glLook(this.drawCount, layout.hand.scale),
+        look: glLook(this.guard.drawCount, layout.hand.scale),
         gain: legGain(leg.split),
       });
     } else if (this.frame) {

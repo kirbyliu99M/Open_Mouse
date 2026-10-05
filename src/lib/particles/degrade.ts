@@ -11,7 +11,11 @@
  * median of the first `REFRESH_SAMPLES` of them (the shimmer draws every
  * frame, so those are the screen's frames); and when the 95th percentile of
  * the window is more than `SLOW_RATIO` times that interval, the draw count
- * drops by `STEP`, down to `FLOOR` of the budget.
+ * drops by `STEP`, down to `FLOOR` of the budget. The window starts empty once
+ * the interval is known: the first frames after the layout switches on (the
+ * first one measures the page, the first draw warms the GPU up) are slow on a
+ * phone, and three such frames in 45 would otherwise be enough to step down
+ * for good (seen at 4x CPU throttle, where the screen had no trouble at all).
  *
  * All of the numbers are Claude's candidates (未拍板) until they are measured
  * on a real phone. Pure: no DOM, no clock.
@@ -99,4 +103,72 @@ export function nextDrawCount({
     return current;
   }
   return Math.max(floor, Math.round(current * (1 - DEGRADE.STEP)));
+}
+
+/** What the guard remembers between frames. Plain data: `observeFrame` returns the next one. */
+export interface GuardState {
+  /** When the last frame was drawn (ms), or 0 before the first. */
+  readonly lastAt: number;
+  /** The latest gaps, once the screen's interval is known (the window the 95th percentile is taken over). */
+  readonly gaps: readonly number[];
+  /** The first gaps, until there are enough to estimate the screen's interval from. */
+  readonly firstGaps: readonly number[];
+  readonly refreshMs: number | null;
+  /** How many particles are drawn now. */
+  readonly drawCount: number;
+}
+
+/** The guard at the start of a layout whose budget is `budget`, drawing all of them. */
+export function newGuard(budget: number): GuardState {
+  return {
+    lastAt: 0,
+    gaps: [],
+    firstGaps: [],
+    refreshMs: null,
+    drawCount: budget,
+  };
+}
+
+/**
+ * The guard for a new budget (the layout crossed a breakpoint): everything is
+ * drawn again, and what is known about the screen is kept.
+ */
+export function guardForBudget(state: GuardState, budget: number): GuardState {
+  return { ...state, lastAt: 0, gaps: [], drawCount: budget };
+}
+
+/**
+ * A frame was drawn at `now` (ms, the animation frame's timestamp). Returns the
+ * guard after it: the gap since the last frame is kept if it counts, the
+ * screen's interval is estimated from the first 40, and once the window is full
+ * and slow the draw count steps down (and the window starts again).
+ */
+export function observeFrame(
+  state: GuardState,
+  now: number,
+  budget: number,
+): GuardState {
+  const gap = now - state.lastAt;
+  if (!(state.lastAt > 0) || !isFrameGap(gap)) return { ...state, lastAt: now };
+
+  if (state.refreshMs === null) {
+    const firstGaps = [...state.firstGaps, gap];
+    const refreshMs = estimateRefreshMs(firstGaps);
+    // Known now: the window starts empty, so the warm-up frames above are not in it.
+    return { ...state, lastAt: now, firstGaps, refreshMs, gaps: [] };
+  }
+
+  const gaps = [...state.gaps, gap].slice(-DEGRADE.WINDOW);
+  const next = nextDrawCount({
+    current: state.drawCount,
+    budget,
+    gaps,
+    refreshMs: state.refreshMs,
+  });
+  return {
+    ...state,
+    lastAt: now,
+    gaps: next === state.drawCount ? gaps : [],
+    drawCount: next,
+  };
 }

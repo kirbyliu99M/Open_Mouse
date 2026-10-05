@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   DEGRADE,
   estimateRefreshMs,
+  guardForBudget,
   isFrameGap,
   median,
   minDrawCount,
+  newGuard,
   nextDrawCount,
+  observeFrame,
   percentile,
 } from "@/lib/particles/degrade";
 
@@ -155,5 +158,109 @@ describe("how many particles to draw next", () => {
     const gaps = [...slow];
     expect(draw({ gaps })).toBe(draw({ gaps }));
     expect(gaps).toEqual(slow);
+  });
+});
+
+describe("the guard frame by frame", () => {
+  const budget = 12000;
+  /** Feed a guard frames whose gaps are `gaps`, starting at time 1000. */
+  const feed = (gaps: number[], from = newGuard(budget), startAt = 1000) => {
+    let state = observeFrame(from, startAt, budget);
+    let at = startAt;
+    for (const gap of gaps) {
+      at += gap;
+      state = observeFrame(state, at, budget);
+    }
+    return { state, at };
+  };
+
+  it("starts drawing everything, knowing nothing about the screen", () => {
+    const g = newGuard(budget);
+    expect(g).toMatchObject({
+      lastAt: 0,
+      refreshMs: null,
+      drawCount: budget,
+    });
+    expect(g.gaps).toEqual([]);
+    expect(g.firstGaps).toEqual([]);
+  });
+
+  it("learns the refresh interval from the first 40 gaps, and not before", () => {
+    expect(feed(flat(39, 6.1)).state.refreshMs).toBeNull();
+    const { state } = feed(flat(40, 6.1));
+    expect(state.refreshMs).toBeCloseTo(6.1, 9);
+    expect(state.drawCount).toBe(budget);
+  });
+
+  it("is not moved by steady frames, however many", () => {
+    const { state } = feed(flat(40 + 400, 6.1));
+    expect(state.drawCount).toBe(budget);
+  });
+
+  it("is not moved by a few slow frames among the first ones: the warm-up is not in the window", () => {
+    // Three hiccups in the first 40 (the first frame measures the page, the
+    // first draw warms the GPU up), then steady. Three slow frames in a window
+    // of 45 would take a quarter off; these are not in it.
+    const warmUp = [24.2, 12.1, 18.3, ...flat(37, 6.1)];
+    const { state } = feed([...warmUp, ...flat(200, 6.1)]);
+    expect(state.refreshMs).toBeCloseTo(6.1, 9);
+    expect(state.drawCount).toBe(budget);
+  });
+
+  it("is moved by the same three slow frames once the window is open: 3 in 45 is slow", () => {
+    const { state: known } = feed(flat(40, 6.1));
+    const { state } = feed([...flat(42, 6.1), 18, 18, 18], known, 5000);
+    expect(state.drawCount).toBe(9000);
+  });
+
+  it("steps down a quarter at a time for frames that stay slow, and starts a new window after each step", () => {
+    const { state: known } = feed(flat(40, 6.1));
+    let at = 10000;
+    let state = known;
+    const counts: number[] = [];
+    for (let i = 0; i < 4 * 45 + 1; i += 1) {
+      at += 12.2;
+      state = observeFrame(state, at, budget);
+      if (counts.at(-1) !== state.drawCount) counts.push(state.drawCount);
+    }
+    expect(counts).toEqual([12000, 9000, 6750, 5063, 3797]);
+    // The window was cleared at each step, so a step needs 45 fresh slow frames.
+    expect(state.gaps.length).toBeLessThan(45);
+  });
+
+  it("does not count a pause: a gap over 50 ms only moves the clock", () => {
+    const { state: known } = feed(flat(40, 6.1));
+    const before = known.gaps.length;
+    const paused = observeFrame(known, known.lastAt + 900, budget);
+    expect(paused.gaps).toHaveLength(before);
+    expect(paused.lastAt).toBe(known.lastAt + 900);
+    expect(paused.drawCount).toBe(budget);
+    // Many pauses never lower the count.
+    const { state } = feed(flat(300, 400), known, 20000);
+    expect(state.drawCount).toBe(budget);
+  });
+
+  it("never goes back up, and never under a quarter of the budget", () => {
+    const { state: known } = feed(flat(40, 6.1));
+    const { state: low, at } = feed(flat(45 * 20, 12.2), known, 10000);
+    expect(low.drawCount).toBe(minDrawCount(budget));
+    const { state: later } = feed(flat(500, 6.1), low, at + 6.1);
+    expect(later.drawCount).toBe(minDrawCount(budget));
+  });
+
+  it("keeps what it knows about the screen when the budget changes, and draws everything again", () => {
+    const { state: known } = feed(flat(40 + 45 + 3, 6.1));
+    const next = guardForBudget({ ...known, drawCount: 5000 }, 6000);
+    expect(next.refreshMs).toBe(known.refreshMs);
+    expect(next.drawCount).toBe(6000);
+    expect(next.gaps).toEqual([]);
+    expect(next.lastAt).toBe(0);
+  });
+
+  it("does not change the state it is given", () => {
+    const { state: known } = feed(flat(40, 6.1));
+    const copy = JSON.stringify(known);
+    observeFrame(known, known.lastAt + 6.1, budget);
+    expect(JSON.stringify(known)).toBe(copy);
   });
 });
