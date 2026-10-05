@@ -438,6 +438,44 @@ test.describe("the WebGL path", () => {
     });
   });
 
+  test("with prefers-contrast: more the halo round a particle is off: much less of the picture is lit, and the drawing is still there", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    test.skip(
+      (await rendererOf(page)) !== "webgl",
+      "No WebGL here: the fallback group covers this machine.",
+    );
+    await waitForShimmerOver(page);
+    await scrollToProgress(page, 0.5);
+    /** How many pixels of the WebGL canvas are lit at all (alpha 5 % or more), and how many are solid (alpha 40 % or more). */
+    const lit = () =>
+      page.evaluate(() => {
+        const snapshot = (window as unknown as Record<string, unknown>)
+          .__glSnapshot as HTMLCanvasElement;
+        const { data } = snapshot
+          .getContext("2d")!
+          .getImageData(0, 0, snapshot.width, snapshot.height);
+        let some = 0;
+        let solid = 0;
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i]! >= 13) some += 1;
+          if (data[i]! >= 102) solid += 1;
+        }
+        return { some, solid };
+      });
+    const glow = await lit();
+    await page.emulateMedia({ contrast: "more" });
+    // The change redraws the frame in the task that handles it.
+    await expect.poll(async () => (await lit()).some).toBeLessThan(glow.some);
+    const flat = await lit();
+    // The soft halo goes: the lit area shrinks by a good share, and the solid cores stay.
+    expect(flat.some).toBeLessThan(glow.some * 0.8);
+    expect(flat.solid).toBeGreaterThan(glow.solid * 0.5);
+    expect(await rendererOf(page)).toBe("webgl");
+  });
+
   test("when frames come slowly it draws fewer particles, a quarter at a time, never fewer than a quarter of the budget, and never more again", async ({
     page,
   }) => {
