@@ -85,8 +85,8 @@ export function ViewerRegion({
     if (!box || !host) return;
     let disposed = false;
     let handle: { dispose: () => void } | null = null;
-    import("./mouse-viewer").then(
-      ({ startViewer }) => {
+    import("./mouse-viewer")
+      .then(({ startViewer }) => {
         if (disposed) return;
         handle = startViewer({
           box,
@@ -97,11 +97,11 @@ export function ViewerRegion({
           onFailed: () => dispatch({ type: "failed" }),
           onUnsupported: () => dispatch({ type: "unsupported" }),
         });
-      },
-      () => {
+      })
+      // The chunk could not be fetched, or starting the viewer threw.
+      .catch(() => {
         if (!disposed) dispatch({ type: "failed" });
-      },
-    );
+      });
     return () => {
       disposed = true;
       handle?.dispose();

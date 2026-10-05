@@ -92,6 +92,20 @@ describe("shellUrl", () => {
     },
   );
 
+  it("refuses a slug of the wrong shape even when a (corrupt) manifest lists it", () => {
+    const odd: ShellManifest = {
+      shells: [
+        { slug: "../x", path: "shells/logitech-g309.glb" },
+        { slug: "Logitech G309", path: "shells/logitech-g309.glb" },
+        { slug: "logitech_g309", path: "shells/logitech-g309.glb" },
+      ],
+      noShell: [],
+    };
+    for (const slug of ["../x", "Logitech G309", "logitech_g309"]) {
+      expect(shellUrl(slug, odd), slug).toBeNull();
+    }
+  });
+
   it("refuses a manifest entry whose path is not a plain shells/<name>.glb", () => {
     const bad = (path: string): ShellManifest => ({
       shells: [{ slug: "logitech-g309", path }],

@@ -341,6 +341,24 @@ test.describe("fallbacks", () => {
     expect(errors).toEqual([]);
   });
 
+  test("a GPU that throws while the scene is set up ends in the calm line instead of waiting for ever", async ({
+    page,
+  }) => {
+    const errors = watchErrors(page);
+    await page.addInitScript(() => {
+      // Some drivers cannot build a shader program (the environment map needs several).
+      WebGL2RenderingContext.prototype.createProgram = () => {
+        throw new Error("driver says no");
+      };
+    });
+    await stubResults(page);
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
+    await expect(region(page)).toHaveAttribute("data-viewer-state", "failed");
+    await expect(page.locator(".viewer-host canvas")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
   test("no WebGL ends in the calm line before any model is requested", async ({
     page,
   }) => {
@@ -590,20 +608,52 @@ test.describe("with WebGL", () => {
     expect(await brightShare(box(page))).toBeGreaterThan(0.01);
   });
 
-  test("leaving the page disposes the context: no error and no leaked canvas after navigating away", async ({
+  test("leaving the page disposes the GL context and leaves no canvas, no error", async ({
     page,
   }) => {
+    // Remember every WebGL context the page creates, to ask each one afterwards.
+    await page.addInitScript(() => {
+      const made: WebGL2RenderingContext[] = [];
+      (window as unknown as Record<string, unknown>).__gl = made;
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        const context = (original as (...a: unknown[]) => unknown).call(
+          this,
+          type,
+          ...rest,
+        );
+        if (type === "webgl2" && context)
+          made.push(context as WebGL2RenderingContext);
+        return context;
+      } as typeof HTMLCanvasElement.prototype.getContext;
+    });
     const errors = watchErrors(page);
     await stubResults(page);
     await page.goto(`/results/${SCAN_ID}`);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
+    const contexts = () =>
+      page.evaluate(() =>
+        (
+          (window as unknown as Record<string, unknown>)
+            .__gl as WebGL2RenderingContext[]
+        ).map((gl) => gl.isContextLost()),
+      );
+    expect(await contexts()).toEqual([false]);
+
+    // A client-side navigation: the document stays, so only the viewer's own
+    // disposal can release the context.
     await page
       .getByRole("link", { name: /Scan again/ })
       .first()
       .click();
     await expect(page).toHaveURL(/\/scan\/easy/);
+    await expect.poll(contexts).toEqual([true]);
     expect(
       await page.locator("canvas.viewer-canvas, .viewer-host canvas").count(),
     ).toBe(0);
@@ -639,5 +689,64 @@ test.describe("with WebGL", () => {
         (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" "))}`,
       ),
     ).toEqual([]);
+  });
+});
+
+// ── A phone: a horizontal drag turns it, a vertical swipe scrolls the page ───
+
+test.describe("touch", () => {
+  test("a horizontal touch drag turns the model and a vertical swipe scrolls the page instead", async ({
+    page,
+    context,
+  }, info) => {
+    test.skip(info.project.name !== "mobile", "A phone project only.");
+    await page.goto("/");
+    test.skip(!(await hasWebGL(page)), "No WebGL on this machine.");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await stubResults(page);
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
+      timeout: 30_000,
+    });
+    await box(page).scrollIntoViewIfNeeded();
+    const rect = (await box(page).boundingBox())!;
+    const cdp = await context.newCDPSession(page);
+    const swipe = async (
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+    ) => {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [from],
+      });
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            {
+              x: from.x + ((to.x - from.x) * i) / 10,
+              y: from.y + ((to.y - from.y) * i) / 10,
+            },
+          ],
+        });
+      }
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    };
+
+    const before = await box(page).screenshot();
+    const centre = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    await swipe(centre, { x: centre.x + 110, y: centre.y });
+    await page.waitForTimeout(250);
+    expect(
+      await differenceShare(before, await box(page).screenshot()),
+    ).toBeGreaterThan(0.02);
+
+    const scrolled = await page.evaluate(() => window.scrollY);
+    await swipe(centre, { x: centre.x, y: centre.y - 140 });
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(scrolled);
   });
 });
