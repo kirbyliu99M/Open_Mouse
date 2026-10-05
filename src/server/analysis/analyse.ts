@@ -15,11 +15,7 @@ import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import { findMedicalClaimTerm } from "./medicalClaims";
 import { mentionsProvisional } from "./provisional";
-import {
-  NEGATIVE_REASON_CODES,
-  POSITIVE_REASON_CODES,
-  REASON_TEXT,
-} from "./reasonText";
+import { NEGATIVE_REASON_CODES, POSITIVE_REASON_CODES } from "./reasonText";
 
 /** `analyse()`'s result: the prose plus who actually wrote it. */
 export interface AnalyseResult {
@@ -103,7 +99,15 @@ function isLowConfidence(input: AnalysisInput): boolean {
   return top !== undefined && top.lowConfidence;
 }
 
-/** Only display facts go into the prompt; identifiers stay in the engine data. */
+/**
+ * Only display facts go into the prompt; identifiers stay in the engine data.
+ *
+ * Each top pick carries its band and what that band means for using the mouse
+ * (`meaning`), and each sub-score its band and what its reason means for how
+ * the mouse feels (`impact`). That wording is the anchor the prompt tells the
+ * model to explain from. All of it is candidate copy (未拍板) from
+ * `src/lib/copy/fit-bands.ts`, English and free of digits.
+ */
 function promptData(input: AnalysisInput) {
   return {
     rankingStatus: input.rankingProvisional
@@ -114,6 +118,9 @@ function promptData(input: AnalysisInput) {
         // version of this sentence must avoid 暫定 / 暂定 / 初步 too.
         "Fit settings have not yet been validated against owner ratings."
       : undefined,
+    // Same rule for this one: it must not contain a provisional marker either
+    // (a test pins that), or copying it would satisfy the low-confidence check.
+    estimateNote: input.estimateNote,
     gripStyle: input.gripStyle,
     targets: input.targets,
     hand: input.hand,
@@ -131,13 +138,16 @@ function promptData(input: AnalysisInput) {
       heightMm: entry.heightMm,
       weightG: entry.weightG,
       total: entry.total,
+      band: entry.band,
+      meaning: entry.bandMeaning,
       confidencePercent: entry.confidencePercent,
       subscores: Object.fromEntries(
         Object.entries(entry.subscores).map(([key, sub]) => [
           key,
           {
             score: sub.score,
-            reason: REASON_TEXT[sub.reasonCode],
+            band: sub.band,
+            impact: sub.impact,
             params: sub.params,
           },
         ]),
@@ -154,15 +164,25 @@ function promptData(input: AnalysisInput) {
 export function buildPrompt(input: AnalysisInput): string {
   const lines = [
     "You are writing a short analysis of a mouse-fit ranking for a user, from the JSON data below.",
+    "Explain how the top pick will feel to use for this hand. Do not just restate the scores.",
     "Rules:",
-    "- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number.",
-    "- Be concise: a one-sentence headline, one sentence on why the top pick fits, up to 3 tradeoffs, up to 2 things to avoid, and any caveats.",
+    '- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number. Number words count as numbers (for example "two" or "half").',
+    '- Anchor on the wording in the data: each top pick has a "meaning" for its overall band, and each sub-score has an "impact" sentence. Say what they say, in plain words of your own, and do not add claims they do not make.',
+    '- "headline": one short sentence on how the top pick will feel overall, starting from its band meaning.',
+    '- "whyTopPick": one or two short sentences on the one or two things that matter most for this hand and this mouse, taken from the sub-scores with the most to say, and what to expect when using it.',
+    '- "tradeoffs" (up to three): what may take getting used to, taken from the sub-scores in a lower band.',
+    '- "whatToAvoid" (up to two): what to look for in another mouse, or an excluded mouse and why it was left out. Name a mouse only if it is in the data.',
+    '- "caveats": include one short line saying this is an estimate from the hand measurements, using the "estimateNote" wording as written or close to it.',
+    '- Keep every line short. Describe use experience only (reach, grip, where the palm and fingers rest, how a long session may feel), with "may" and "tends to". Never state a certainty.',
+    "- Do not say how accurate or reliable the estimate is, and do not promise an outcome.",
+    "- Do not compare with other people, other users' scores, averages, or percentiles.",
+    '- Do not grade the fit in your own words (no "good fit", "bad fit", "excellent", "poor", "high score", "low score"). Use only the band meaning and impact wording supplied.',
     "- Write plainly for someone who has not seen the JSON.",
-    "- Never mention internal identifiers, reason codes, or version strings. Describe the facts in plain language.",
+    "- Never mention internal identifiers, reason codes, band names, or version strings. Describe the facts in plain language.",
     "- If a grip style was stated, describe it as the user's choice, not a prediction.",
     "- Never make medical, diagnostic, therapeutic, or injury-prevention claims. Do not claim a mouse prevents or reduces strain or injury, or relieves pain.",
     "- Do not mention carpal tunnel syndrome, CTS, RSI, tendinitis, tendonitis, pain relief, or other health conditions. Do not call a mouse ergonomic, wrist-friendly, healthier, or safer for the body.",
-    "- Describe shape facts only, such as vertical grip, taller hump, or wider shell. Never repeat vendor marketing copy about wrist health.",
+    "- Describe shape facts and how they affect use, such as vertical grip, taller hump, or wider shell. Never repeat vendor marketing copy about wrist health.",
     '- For an asymmetric, right-hand sculpted shape, say "asymmetric right-hand shape", not "ergonomic".',
   ];
   if (isLowConfidence(input)) {
@@ -221,6 +241,11 @@ function findViolation(
   return null;
 }
 
+/**
+ * The impact sentences (what a reason means for how the mouse feels) of the
+ * top pick's sub-scores whose reason is in `codes`, in sub-score order, each
+ * sentence once.
+ */
 function describeReasons(
   entry: AnalysisInputEntry,
   codes: ReadonlySet<string>,
@@ -230,19 +255,22 @@ function describeReasons(
   const out: string[] = [];
   for (const sub of Object.values(entry.subscores)) {
     if (!codes.has(sub.reasonCode)) continue;
-    const text = REASON_TEXT[sub.reasonCode];
-    if (seen.has(text)) continue;
-    seen.add(text);
-    out.push(text);
+    if (seen.has(sub.impact)) continue;
+    seen.add(sub.impact);
+    out.push(sub.impact);
     if (out.length >= limit) break;
   }
   return out;
 }
 
 /**
- * Deterministic, non-LLM answer built purely from reason codes already in
- * the input. Used when the model can't produce output that respects the
- * no-new-numerals rule after a retry. Never invents a number.
+ * Deterministic, non-LLM answer built purely from what is already in the
+ * input: the top pick's band meaning and the impact sentences of its reason
+ * codes, so the fallback reads in use-experience terms like the prompt asks
+ * the model to. Used when no model is configured, the call fails, or the model
+ * can't produce output that respects the no-new-numerals and no-medical-claims
+ * rules after a retry. Never invents a number: every sentence comes from
+ * `src/lib/copy/fit-bands.ts` and carries no digit (a test pins that).
  */
 export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   const top = input.topPicks[0];
@@ -256,17 +284,9 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
     };
   }
   const positives = describeReasons(top, POSITIVE_REASON_CODES, 2);
-  const negatives = describeReasons(top, NEGATIVE_REASON_CODES, 3);
+  const tradeoffs = describeReasons(top, NEGATIVE_REASON_CODES, 3);
   const headline = `${top.brand} ${top.model} is the top match for your hand.`;
-  const whyTopPick =
-    positives.length > 0
-      ? `It's the top pick because ${positives.join(" and ")}.`
-      : input.gripStyle.stated !== null
-        ? "It's the top pick based on your measurements and grip style."
-        : "It's the top pick based on your measurements.";
-  const tradeoffs = negatives
-    .slice(0, 3)
-    .map((t) => t[0]!.toUpperCase() + t.slice(1));
+  const whyTopPick = [top.bandMeaning, ...positives].join(" ");
   const whatToAvoid = input.excluded
     .map(
       ({ brand, model, reason }) =>
@@ -277,6 +297,7 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   if (top.lowConfidence) {
     caveats.push(PROVISIONAL_NOTE);
   }
+  caveats.push(input.estimateNote);
   return { headline, whyTopPick, tradeoffs, whatToAvoid, caveats };
 }
 
