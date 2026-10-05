@@ -1,7 +1,15 @@
 import { PALETTE, shimmerBoost } from "@/lib/particles/budget";
+import {
+  OUTLINE_ALPHA,
+  OUTLINE_COLOUR,
+  OUTLINE_EDGE_PX,
+  outlineInStagePx,
+} from "@/lib/particles/hand-outline";
+import type { NoteShape } from "@/lib/particles/note-layout";
 import type {
   Frame,
   ParticleSet,
+  Rect,
   StageBox,
 } from "@/lib/particles/particle-set";
 import type { HandTarget } from "@/lib/particles/targets";
@@ -104,6 +112,130 @@ export function createSprites(dpr: number, glow: boolean): Sprites {
   };
 }
 
+/** The annotations' rings and emphasised lines (the demo's #9CC2FF), and their leaders (#7FB0FF at 60 %). */
+const NOTE_RING = "#9CC2FF";
+const NOTE_LEADER = "rgba(127, 176, 255, 0.6)";
+
+/** The hand's outline, drawn once per size on its own layer (see `createOutlineLayer`). */
+export interface OutlineLayer {
+  readonly image: CanvasImageSource;
+  /** Where it goes on the canvas, in CSS px. */
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+type AnyContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+function makeLayerCanvas(
+  width: number,
+  height: number,
+): { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: AnyContext } | null {
+  const canvas =
+    typeof OffscreenCanvas === "undefined"
+      ? document.createElement("canvas")
+      : new OffscreenCanvas(width, height);
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d") as AnyContext | null;
+  return ctx ? { canvas, ctx } : null;
+}
+
+/**
+ * The outline around the template hand: the union of five finger strokes and
+ * the palm (a polygon, filled and stroked with round joins, down to a rounded
+ * flat wrist base), reduced to its edge, `OUTLINE_EDGE_PX` thick. The union is
+ * drawn solid on one offscreen layer, then eroded by that thickness: a copy of
+ * it is intersected with itself shifted one edge-width in eight directions
+ * (`destination-in`), and that smaller shape is cut out of the first
+ * (`destination-out`), which leaves the band along the boundary. Done once per
+ * size change, never per frame; a frame draws the layer with one drawImage.
+ */
+export function createOutlineLayer(
+  box: StageBox,
+  bounds: Rect,
+  dpr: number,
+): OutlineLayer | null {
+  const pad = 4;
+  const x = bounds.x - pad;
+  const y = bounds.y - pad;
+  const width = Math.ceil(bounds.width + 2 * pad);
+  const height = Math.ceil(bounds.height + 2 * pad);
+  const pxWidth = Math.max(1, Math.ceil(width * dpr));
+  const pxHeight = Math.max(1, Math.ceil(height * dpr));
+  const union = makeLayerCanvas(pxWidth, pxHeight);
+  const inner = makeLayerCanvas(pxWidth, pxHeight);
+  if (!union || !inner) return null;
+  const { ctx } = union;
+  const k = box.scale;
+  const shapes = outlineInStagePx();
+  const at = ([cx, cy]: readonly [number, number]): [number, number] => [
+    box.x + cx * k,
+    box.y + cy * k,
+  ];
+
+  ctx.setTransform(dpr, 0, 0, dpr, -x * dpr, -y * dpr);
+  ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const { chain, width: stroke } of shapes.fingers) {
+    ctx.lineWidth = stroke * k;
+    ctx.beginPath();
+    chain.forEach((point, i) => {
+      const [px, py] = at(point);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+  }
+  ctx.lineWidth = shapes.palm.width * k;
+  ctx.beginPath();
+  shapes.palm.polygon.forEach((point, i) => {
+    const [px, py] = at(point);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // The union, eroded: what is left of it after intersecting eight shifted copies.
+  const e = OUTLINE_EDGE_PX * dpr;
+  const d = e * Math.SQRT1_2;
+  const core = inner.ctx;
+  core.setTransform(1, 0, 0, 1, 0, 0);
+  core.drawImage(union.canvas, 0, 0);
+  core.globalCompositeOperation = "destination-in";
+  for (const [dx, dy] of [
+    [e, 0],
+    [-e, 0],
+    [0, e],
+    [0, -e],
+    [d, d],
+    [-d, d],
+    [d, -d],
+    [-d, -d],
+  ] as const) {
+    core.drawImage(union.canvas, dx, dy);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.drawImage(inner.canvas, 0, 0);
+  // The band, in the outline's colour.
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = OUTLINE_COLOUR;
+  ctx.fillRect(0, 0, pxWidth, pxHeight);
+  ctx.globalCompositeOperation = "source-over";
+
+  const image =
+    union.canvas instanceof HTMLCanvasElement
+      ? union.canvas
+      : union.canvas.transferToImageBitmap();
+  return { image, x, y, width, height };
+}
+
 export interface DrawState {
   /** The canvas's size in CSS px. */
   readonly width: number;
@@ -114,6 +246,10 @@ export interface DrawState {
   readonly sprites: Sprites;
   readonly hand: HandTarget;
   readonly handBox: StageBox;
+  /** The hand's outline, or null when it could not be made. */
+  readonly outline: OutlineLayer | null;
+  /** The five annotations' shapes for the current layout (empty when there are none to draw). */
+  readonly notes: readonly NoteShape[];
   /** Where the shimmer's band is (0 to 1 across the logo), or null when it is not playing. */
   readonly shimmer: number | null;
 }
@@ -124,6 +260,7 @@ export function drawStage(ctx: CanvasRenderingContext2D, s: DrawState): void {
   drawSheetCorners(ctx, s);
   drawParticles(ctx, s);
   drawHandOverlay(ctx, s);
+  drawNotes(ctx, s);
   ctx.globalAlpha = 1;
 }
 
@@ -209,6 +346,14 @@ function drawHandOverlay(ctx: CanvasRenderingContext2D, s: DrawState): void {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  // The hand's outline fades in with the skeleton and goes with the overlay,
+  // at the skeleton's own opacity.
+  if (s.outline && phase.outline > 0) {
+    ctx.globalAlpha = phase.overlay * phase.outline * OUTLINE_ALPHA;
+    const { image, x, y, width, height } = s.outline;
+    ctx.drawImage(image, x, y, width, height);
+  }
+
   // The skeleton, one edge after another.
   const edges = hand.skeleton;
   const reach = phase.skeleton * edges.length;
@@ -287,4 +432,64 @@ function drawHandOverlay(ctx: CanvasRenderingContext2D, s: DrawState): void {
       ctx.fill();
     });
   }
+}
+
+/**
+ * The annotations' rings, emphasised line and leader, one note at a time at
+ * its own opacity (the text itself is in the DOM). No numbers: this is an
+ * illustration.
+ */
+function drawNotes(ctx: CanvasRenderingContext2D, s: DrawState): void {
+  const { notes, phase } = s;
+  for (let i = 0; i < notes.length; i += 1) {
+    const alpha = phase.notes[i] ?? 0;
+    const note = notes[i];
+    if (!note || alpha <= 0) continue;
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "round";
+
+    // The leader first, so a ring over its start is clean.
+    if (note.leader.length > 1) {
+      ctx.strokeStyle = NOTE_LEADER;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      note.leader.forEach(([x, y], index) => {
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    ctx.strokeStyle = NOTE_RING;
+    if (note.emphasis) {
+      const { from, to, tick } = note.emphasis;
+      ctx.lineWidth = note.emphasisWidth;
+      ctx.beginPath();
+      ctx.moveTo(from[0], from[1]);
+      ctx.lineTo(to[0], to[1]);
+      ctx.stroke();
+      // The end ticks, across each end (the base lines have them too, but
+      // not yet while the first notes are on).
+      const length = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
+      const nx = (-(to[1] - from[1]) / length) * tick;
+      const ny = ((to[0] - from[0]) / length) * tick;
+      ctx.lineWidth = Math.max(1, note.emphasisWidth * 0.6);
+      ctx.beginPath();
+      for (const [x, y] of [from, to]) {
+        ctx.moveTo(x - nx, y - ny);
+        ctx.lineTo(x + nx, y + ny);
+      }
+      ctx.stroke();
+    }
+    if (note.rings.length > 0) {
+      ctx.lineWidth = note.ringWidth;
+      ctx.beginPath();
+      for (const ring of note.rings) {
+        ctx.moveTo(ring.x + ring.r, ring.y);
+        ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
 }

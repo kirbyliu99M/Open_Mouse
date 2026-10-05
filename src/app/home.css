@@ -242,6 +242,42 @@
   pointer-events: none;
 }
 
+/* The five annotations (Home v3.1): rule-less two-line blocks, a large line
+   (what is measured) and a small one (why). Without the stage (no JS, reduced
+   motion, a short window, a module that failed) they are this ordinary list
+   under the hand. The stage places each one beside or below the hand and fades
+   it in and out (see the animated layout below). Real text in the DOM, in the
+   token colours: --text-primary 18.5:1 and --text-secondary 7.8:1 on --bg. */
+.story-notes {
+  list-style: none;
+  display: grid;
+  gap: 1.5rem;
+  width: min(100%, 26rem);
+  margin: 2rem auto 0;
+  padding: 0;
+}
+.story-note {
+  margin: 0;
+}
+.story-note-title,
+.story-note-why {
+  margin: 0;
+  text-wrap: balance;
+}
+.story-note-title {
+  color: var(--text-primary);
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.story-note-why {
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
 /* The three mice: stacked on a phone, side by side from 48rem. */
 .story-mice {
   list-style: none;
@@ -398,6 +434,9 @@
     width: min(100%, 38rem);
     margin-top: 4rem;
   }
+  .story-notes {
+    width: min(100%, 38rem);
+  }
   .story-mice {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2.5rem;
@@ -470,6 +509,26 @@
 .story--animated .story-hand-sheet {
   opacity: 0;
 }
+/* The annotations are a layer over the panel: each block is placed by the stage
+   (left, top and width, set when the page is measured, so they follow a resize)
+   and hidden until its window in the story. Only opacity and transform change
+   while scrolling. They take no clicks. */
+.story--animated .story-notes {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: auto;
+  margin: 0;
+  pointer-events: none;
+}
+.story--animated .story-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  will-change: opacity, transform;
+}
 .story--animated .story-mice {
   position: absolute;
   inset: 0;
@@ -491,6 +550,13 @@
 @media (min-width: 48rem) {
   .story--animated .story-hand {
     --hand-max: 38rem;
+  }
+  /* The demo's desktop callout: a 32 px large line and an 18 px small one. */
+  .story--animated .story-note-title {
+    font-size: 2rem;
+  }
+  .story--animated .story-note-why {
+    font-size: 1.125rem;
   }
   .story--animated .story-mice {
     gap: 2.5rem;
@@ -738,7 +804,8 @@
    filled button would print as white text on white paper: on paper it is a
    dark label with an outline, and its glow is gone. The drawings (the logo, the
    hand on A4, the three sketches) are decorative and light-on-dark, so they
-   are left off the page; the mice's captions go with them. The How it works
+   are left off the page; the mice's captions and the five hand annotations go
+   with them. The How it works
    page is printed too: its muted text takes the print tokens, the numbered
    squares and the privacy card lose their dark fills, and the camera-UI badge
    over the photo (white on a translucent black pill) is left off like the
@@ -756,6 +823,7 @@
   }
   .story-logo,
   .story-hand,
+  .story-notes,
   .story-mice,
   .story-canvas,
   .home-hero-badge {

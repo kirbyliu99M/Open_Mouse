@@ -8,6 +8,14 @@ import {
 } from "@/lib/particles/budget";
 import { parseTargets } from "@/lib/particles/load-targets";
 import {
+  type NoteShape,
+  type NoteText,
+  noteMode,
+  noteTextWidths,
+  placeNotes,
+  sideRoom,
+} from "@/lib/particles/note-layout";
+import {
   type MiceLayout,
   type Pairing,
   MOUSE_COUNT,
@@ -25,8 +33,19 @@ import {
   mouseBox,
   writeParticles,
 } from "@/lib/particles/particle-set";
-import { type Phase, phaseAt, sectionProgress } from "@/lib/particles/timeline";
-import { type Sprites, createSprites, drawStage } from "./stage-render";
+import {
+  NOTE_COUNT,
+  type Phase,
+  phaseAt,
+  sectionProgress,
+} from "@/lib/particles/timeline";
+import {
+  type OutlineLayer,
+  type Sprites,
+  createOutlineLayer,
+  createSprites,
+  drawStage,
+} from "./stage-render";
 
 /**
  * The home page's particle stage (Home v3, PR B; spec: docs/design/
@@ -53,6 +72,8 @@ const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MORE_CONTRAST = "(prefers-contrast: more)";
 /** How far the hero text moves up while it fades, in CSS px. */
 const HERO_SHIFT_PX = 40;
+/** How far an annotation's text sits below its place while it is fading in or out, in CSS px. */
+const NOTE_SHIFT_PX = 8;
 
 export interface StageHandle {
   destroy(): void;
@@ -71,7 +92,26 @@ interface Parts {
   readonly logo: HTMLElement;
   readonly handImg: HTMLElement;
   readonly sheet: HTMLElement | null;
+  /** The five annotations' text blocks, in order: each its own element, with a small line inside. Empty when the page has not got exactly five. */
+  readonly notes: readonly NoteParts[];
   readonly mice: readonly MouseParts[];
+}
+
+interface NoteParts {
+  readonly block: HTMLElement;
+  readonly why: HTMLElement;
+}
+
+function findNotes(section: HTMLElement): NoteParts[] {
+  const notes = [...section.querySelectorAll<HTMLElement>(".story-note")].map(
+    (block): NoteParts | null => {
+      const why = block.querySelector<HTMLElement>(".story-note-why");
+      return why ? { block, why } : null;
+    },
+  );
+  return notes.length === NOTE_COUNT && notes.every((n) => n !== null)
+    ? (notes as NoteParts[])
+    : [];
 }
 
 function findParts(canvas: HTMLCanvasElement): Parts | null {
@@ -100,6 +140,7 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
     logo,
     handImg,
     sheet: section.querySelector<HTMLElement>(".story-hand-sheet"),
+    notes: findNotes(section),
     mice: mice as MouseParts[],
   };
 }
@@ -130,6 +171,12 @@ class Stage {
   private layout: StageLayout | null = null;
   private set: ParticleSet | null = null;
   private frame: Frame | null = null;
+  /** The hand's outline layer and the size it was drawn for; the annotations' shapes for the current layout. */
+  private outline: OutlineLayer | null = null;
+  private outlineKey = "";
+  private noteShapes: readonly NoteShape[] = [];
+  /** False when the notes have no place that keeps clear of the sheet's bottom edge: none of them is shown. */
+  private notesShown = false;
 
   private rafId = 0;
   private reflowId = 0;
@@ -149,6 +196,7 @@ class Stage {
     inert?: boolean;
     sheet?: string;
     captions?: string;
+    notes?: string;
   } = {};
 
   /** True while the h1 carries the tabindex this stage gave it. */
@@ -355,11 +403,27 @@ class Stage {
     this.rafId = 0;
     this.intersection?.disconnect();
     this.intersection = null;
-    const { section, hero, logo, sheet, mice } = this.parts;
+    const { section, hero, logo, sheet, mice, notes } = this.parts;
     section.classList.remove(ANIMATED);
     logo.style.visibility = "";
     hero.style.opacity = "";
     hero.style.transform = "";
+    // The annotations go back to the static list: nothing of the stage's is left on them.
+    for (const { block } of notes) {
+      for (const property of [
+        "left",
+        "top",
+        "width",
+        "text-align",
+        "opacity",
+        "transform",
+      ]) {
+        block.style.removeProperty(property);
+      }
+    }
+    this.closeOutline();
+    this.noteShapes = [];
+    this.notesShown = false;
     for (const control of this.controls)
       control.toggleAttribute("inert", false);
     if (this.headingTabindexSet) {
@@ -371,6 +435,7 @@ class Stage {
       if (mouse.caption) mouse.caption.style.opacity = "";
     delete section.dataset.progress;
     delete section.dataset.story;
+    delete section.dataset.notes;
     this.written = {};
     this.animated = false;
   }
@@ -404,11 +469,104 @@ class Stage {
     hero.style.transform = "";
     const logoRect = relative(logo.getBoundingClientRect(), origin);
     hero.style.transform = transform;
+    const handRect = relative(handImg.getBoundingClientRect(), origin);
     this.buildSet(
       logoRect,
-      relative(handImg.getBoundingClientRect(), origin),
+      handRect,
       mice.map((m) => relative(m.img.getBoundingClientRect(), origin)),
     );
+    this.buildOutline(handRect);
+    this.layoutNotes(handRect, origin);
+  }
+
+  /** The hand's outline, drawn once for this size of hand and device pixel ratio. */
+  private buildOutline(handRect: Rect): void {
+    const box = this.layout?.hand;
+    if (!box) return;
+    const key = [
+      box.scale.toFixed(4),
+      box.x.toFixed(1),
+      box.y.toFixed(1),
+      handRect.width.toFixed(1),
+      handRect.height.toFixed(1),
+      this.dpr,
+    ].join(":");
+    if (key === this.outlineKey && this.outline) return;
+    this.closeOutline();
+    this.outline = createOutlineLayer(box, handRect, this.dpr);
+    this.outlineKey = key;
+  }
+
+  private closeOutline(): void {
+    const image = this.outline?.image;
+    if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) {
+      image.close();
+    }
+    this.outline = null;
+    this.outlineKey = "";
+  }
+
+  /**
+   * Where the five annotations go for this layout: beside the hand when the
+   * page has room at both its sides, below it otherwise. The text blocks get
+   * their width first and are then measured (the height depends on the width);
+   * the shapes (rings, leaders, positions) come from the pure layout in
+   * src/lib/particles/note-layout.ts. Only left, top and width are written
+   * here: opacity and transform are the frame's.
+   */
+  private layoutNotes(handRect: Rect, origin: DOMRect): void {
+    const { notes, section } = this.parts;
+    const box = this.layout?.hand;
+    if (notes.length !== NOTE_COUNT || !box) {
+      this.noteShapes = [];
+      this.notesShown = false;
+      return;
+    }
+    const room = sideRoom(
+      origin.left + handRect.x,
+      origin.left + handRect.x + handRect.width,
+      document.documentElement.clientWidth,
+    );
+    const mode = noteMode(room);
+    const widths = noteTextWidths(mode, handRect.width, room);
+    const texts: NoteText[] = notes.map(({ block, why }, i) => {
+      block.style.width = `${widths[i]}px`;
+      return { height: block.offsetHeight, smallTop: why.offsetTop };
+    });
+    const shapes = placeNotes({
+      box,
+      rect: handRect,
+      panel: { width: this.cssWidth, height: this.cssHeight },
+      mode,
+      widths,
+      texts,
+    });
+    if (!shapes) {
+      // No place for the text that clears the A4 sheet's bottom edge and fits
+      // the panel (no room beside the hand and not enough under the sheet: in
+      // Chromium at device pixel ratio 1, about 800 to 1000 px wide at 650 to
+      // 850 px tall, to 1050 wide at 900 tall, and 600 to 850 wide at 600 tall;
+      // the exact windows are in placeNotes' comment in note-layout.ts): show
+      // no note, ring or leader. The text is still in the DOM, at opacity 0,
+      // for a screen reader.
+      for (const { block } of notes) {
+        block.style.removeProperty("left");
+        block.style.removeProperty("top");
+      }
+      this.noteShapes = [];
+      this.notesShown = false;
+      section.dataset.notes = "off";
+      return;
+    }
+    notes.forEach(({ block }, i) => {
+      const { text } = shapes[i]!;
+      block.style.left = `${round3(text.left)}px`;
+      block.style.top = `${round3(text.top)}px`;
+      block.style.textAlign = text.align;
+    });
+    this.noteShapes = shapes;
+    this.notesShown = true;
+    section.dataset.notes = mode;
   }
 
   private buildSet(logo: Rect, hand: Rect, mice: readonly Rect[]): void {
@@ -516,6 +674,8 @@ class Stage {
       sprites,
       hand: targets.hand,
       handBox: layout.hand,
+      outline: this.outline,
+      notes: this.noteShapes,
       shimmer: band,
     });
     this.applyDom(phase);
@@ -584,6 +744,24 @@ class Stage {
         if (mouse.caption) mouse.caption.style.opacity = captions;
       }
       w.captions = captions;
+    }
+    // The annotations' text: opacity, and a small rise while one fades. A note
+    // at 0 is left to its stylesheet (hidden), and is still in the DOM, in
+    // order, for a screen reader.
+    const noteOpacities = phase.notes.map((n) =>
+      this.notesShown ? round3(n) : 0,
+    );
+    const noteKey = noteOpacities.join(",");
+    if (noteKey !== w.notes) {
+      this.parts.notes.forEach(({ block }, i) => {
+        const opacity = noteOpacities[i] ?? 0;
+        block.style.opacity = opacity <= 0 ? "" : String(opacity);
+        block.style.transform =
+          opacity <= 0 || opacity >= 1
+            ? ""
+            : `translate3d(0, ${round3((1 - opacity) * NOTE_SHIFT_PX)}px, 0)`;
+      });
+      w.notes = noteKey;
     }
   }
 }

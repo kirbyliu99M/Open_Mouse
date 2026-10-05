@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   HERO_INERT_BELOW,
   MARKS,
+  NOTE_BOUNDS,
+  NOTE_COUNT,
+  NOTE_FADE,
   STORY_RANGES,
   clampProgress,
   phaseAt,
@@ -183,9 +186,145 @@ describe("phaseAt", () => {
     expect(phaseAt(0.9).sheet).toBe(0);
   });
 
+  it("the hand's outline fades in with the skeleton and goes with the overlay", () => {
+    expect(phaseAt(0.4).outline).toBe(0);
+    expect(phaseAt(0.42).outline).toBe(0);
+    expect(phaseAt(0.46).outline).toBeCloseTo(0.5, 12);
+    expect(phaseAt(0.5).outline).toBe(1);
+    // It is the skeleton's own window; the overlay's multiplier takes it out.
+    for (let i = 0; i <= 100; i += 1) {
+      const p = i / 100;
+      expect(phaseAt(p).outline).toBeCloseTo(phaseAt(p).skeleton, 12);
+    }
+    expect(phaseAt(0.55).overlay).toBe(1);
+    expect(phaseAt(0.6).overlay).toBe(0);
+  });
+
   it("segment is 0 before, 1 after, linear between", () => {
     expect(segment(0.1, 0.2, 0.4)).toBe(0);
     expect(segment(0.5, 0.2, 0.4)).toBe(1);
     expect(segment(0.3, 0.2, 0.4)).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe("the five annotations' windows", () => {
+  const notes = (p: number) => phaseAt(p).notes;
+  const visible = (p: number) => notes(p).filter((n) => n > 0).length;
+
+  it("are five, in the story's order, five equal windows inside p = 0.40 to 0.60 that touch and never overlap", () => {
+    expect(NOTE_COUNT).toBe(5);
+    expect(NOTE_BOUNDS).toEqual([0.4, 0.44, 0.48, 0.52, 0.56, 0.6]);
+    expect(NOTE_BOUNDS).toHaveLength(NOTE_COUNT + 1);
+    for (let i = 1; i < NOTE_BOUNDS.length; i += 1) {
+      expect(NOTE_BOUNDS[i]! - NOTE_BOUNDS[i - 1]!).toBeCloseTo(0.04, 12);
+    }
+    expect(notes(0)).toHaveLength(5);
+    // The window's middle is where its note is whole, and the order is the story's.
+    for (let i = 0; i < NOTE_COUNT; i += 1) {
+      const middle = (NOTE_BOUNDS[i]! + NOTE_BOUNDS[i + 1]!) / 2;
+      expect(notes(middle)[i], `note ${i + 1} at p=${middle}`).toBe(1);
+      expect(
+        notes(middle).filter((_, j) => j !== i),
+        `the others at p=${middle}`,
+      ).toEqual([0, 0, 0, 0]);
+    }
+  });
+
+  it("are all 0 outside p = 0.40 to 0.60, at both ends and everywhere between", () => {
+    for (const p of [
+      0, 0.05, 0.2, 0.3, 0.38, 0.399, 0.4, 0.6, 0.601, 0.7, 0.9, 1,
+    ]) {
+      expect(notes(p), `p=${p}`).toEqual([0, 0, 0, 0, 0]);
+    }
+    for (let i = 0; i <= 4000; i += 1) {
+      const p = i / 10000; // 0 to 0.4
+      expect(Math.max(...notes(p)), `p=${p}`).toBe(0);
+    }
+    for (let i = 6000; i <= 10000; i += 1) {
+      const p = i / 10000; // 0.6 to 1
+      expect(Math.max(...notes(p)), `p=${p}`).toBe(0);
+    }
+  });
+
+  it("never show two at once: at any p at most one note is above 0, and always within 0 to 1", () => {
+    for (let i = 0; i <= 10000; i += 1) {
+      const p = i / 10000;
+      expect(visible(p), `p=${p}`).toBeLessThanOrEqual(1);
+      for (const n of notes(p)) {
+        expect(n).toBeGreaterThanOrEqual(0);
+        expect(n).toBeLessThanOrEqual(1);
+      }
+    }
+    // Exactly on a boundary neither neighbour is visible.
+    for (const boundary of NOTE_BOUNDS) {
+      expect(visible(boundary), `p=${boundary}`).toBe(0);
+    }
+  });
+
+  it("each fades in, holds, and fades out: linear fades of NOTE_FADE, a hold in between", () => {
+    expect(NOTE_FADE).toBe(0.01);
+    for (let i = 0; i < NOTE_COUNT; i += 1) {
+      const from = NOTE_BOUNDS[i]!;
+      const to = NOTE_BOUNDS[i + 1]!;
+      expect(notes(from)[i]).toBe(0);
+      expect(notes(from + NOTE_FADE / 2)[i]).toBeCloseTo(0.5, 9);
+      expect(notes(from + NOTE_FADE)[i]).toBe(1);
+      expect(notes(to - NOTE_FADE)[i]).toBe(1);
+      expect(notes(to - NOTE_FADE / 2)[i]).toBeCloseTo(0.5, 9);
+      expect(notes(to)[i]).toBe(0);
+      // Whole through the hold.
+      for (let k = 0; k <= 10; k += 1) {
+        const p = from + NOTE_FADE + ((to - from - 2 * NOTE_FADE) * k) / 10;
+        expect(notes(p)[i], `note ${i + 1} at p=${p}`).toBeCloseTo(1, 9);
+      }
+    }
+  });
+
+  it("rise through their window in order, one after another, as p rises", () => {
+    let last = -1;
+    for (let i = 0; i <= 10000; i += 1) {
+      const n = notes(i / 10000);
+      const on = n.findIndex((v) => v > 0);
+      if (on === -1) continue;
+      expect(on).toBeGreaterThanOrEqual(last);
+      last = on;
+    }
+    expect(last).toBe(4);
+  });
+
+  it("leave every other part of the phase alone: the notes are only a layer over the story", () => {
+    // The same particle phase, hero, sheet, captions and overlay as before the notes.
+    for (const p of [0, 0.1, 0.2, 0.38, 0.4, 0.5, 0.55, 0.6, 0.8, 1]) {
+      const keys = Object.keys(phaseAt(p)).filter(
+        (key) => key !== "notes" && key !== "outline",
+      );
+      expect(keys.sort()).toEqual(
+        [
+          "captions",
+          "formT",
+          "hero",
+          "landmarks",
+          "lines",
+          "mouseT",
+          "overlay",
+          "progress",
+          "sheet",
+          "skeleton",
+          "story",
+        ].sort(),
+      );
+    }
+    // Spot values pinned before this change: the particles' timing is untouched.
+    expect(phaseAt(0.2).formT).toBeCloseTo(0.2 / 0.38, 12);
+    expect(phaseAt(0.58).mouseT).toBeCloseTo((0.58 - 0.55) / 0.35, 12);
+    expect(phaseAt(0.4).landmarks).toBeCloseTo(((0.4 - 0.38) / 0.09) * 21, 9);
+  });
+
+  it("scrolling back restores them: a function of p alone", () => {
+    const down = [0.41, 0.46, 0.5, 0.54, 0.58].map((p) => phaseAt(p).notes);
+    const up = [0.58, 0.54, 0.5, 0.46, 0.41]
+      .map((p) => phaseAt(p).notes)
+      .reverse();
+    expect(up).toEqual(down);
   });
 });

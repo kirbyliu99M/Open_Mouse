@@ -54,6 +54,20 @@ export const MARKS = {
   miceSettled: 0.9,
 } as const;
 
+/**
+ * The five annotations' windows (Home v3.1), in the order the hand is
+ * annotated: length, width, knuckles, fingertips, thumb. They sit in
+ * p = 0.40 to 0.60, five equal windows that touch and never overlap, so at
+ * most one note is visible at a time. A window is a fade in, a hold, and a
+ * fade out. 未拍板 (candidate) like the rest of the timing: each number is one
+ * value here. The notes never move a particle and never change a section's
+ * height: they are a separate layer over the story.
+ */
+export const NOTE_BOUNDS = [0.4, 0.44, 0.48, 0.52, 0.56, 0.6] as const;
+export const NOTE_COUNT = NOTE_BOUNDS.length - 1;
+/** How long a note takes to fade in, and again to fade out, in p. The hold between is the window less twice this. */
+export const NOTE_FADE = 0.01;
+
 /** The hero's controls are inert below this opacity. */
 export const HERO_INERT_BELOW = 0.05;
 
@@ -101,6 +115,10 @@ export interface Phase {
   readonly lines: number;
   /** and its overall opacity (it fades out as the hand loosens). */
   readonly overlay: number;
+  /** The hand's outline fades in with the skeleton, and goes with the overlay. */
+  readonly outline: number;
+  /** The five annotations' opacities, 0 to 1, in order. At most one is above 0 at any p, and all are 0 outside p = 0.40 to 0.60. */
+  readonly notes: readonly number[];
 }
 
 export function phaseAt(progress: number): Phase {
@@ -123,5 +141,14 @@ export function phaseAt(progress: number): Phase {
     skeleton: segment(p, 0.42, 0.5),
     lines: segment(p, 0.47, MARKS.measured),
     overlay: 1 - segment(p, MARKS.measured, 0.6),
+    outline: segment(p, 0.42, 0.5),
+    notes: Array.from({ length: NOTE_COUNT }, (_, i) => {
+      const from = NOTE_BOUNDS[i]!;
+      const to = NOTE_BOUNDS[i + 1]!;
+      return (
+        segment(p, from, from + NOTE_FADE) *
+        (1 - segment(p, to - NOTE_FADE, to))
+      );
+    }),
   };
 }
