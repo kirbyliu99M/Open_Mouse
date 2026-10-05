@@ -273,6 +273,7 @@ export function* pairingSteps(
     yield;
   }
   checkCounts(count, handSorted.length, miceSorted);
+  yield;
   return pairSorted(logoSorted, handSorted, miceSorted, layout);
 }
 

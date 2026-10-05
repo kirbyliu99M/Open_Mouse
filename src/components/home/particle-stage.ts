@@ -40,6 +40,7 @@ import {
   legOf,
   logoBox,
   mouseBox,
+  pairingTables,
   writeParticles,
 } from "@/lib/particles/particle-set";
 import { type Phase, phaseAt, sectionProgress } from "@/lib/particles/timeline";
@@ -561,6 +562,12 @@ class Stage {
   }
 
   private buildSet(logo: Rect, hand: Rect, mice: readonly Rect[]): void {
+    this.buildSetData(logo, hand, mice);
+    this.uploadSet();
+  }
+
+  /** The particles for this layout, in canvas CSS px (and the pairing, if it is not built yet). */
+  private buildSetData(logo: Rect, hand: Rect, mice: readonly Rect[]): void {
     const layoutKind: MiceLayout = this.queries.wide.matches
       ? "row"
       : "stacked";
@@ -602,15 +609,17 @@ class Stage {
       ),
     };
     this.set = buildParticleSet(this.pairing, this.layout, PARTICLE_SEED);
-    if (this.renderer === "webgl" && this.gl && this.order) {
-      // Once per layout, and never while scrolling.
-      this.glData = packParticles(
-        this.set,
-        this.order,
-        this.glData ?? undefined,
-      );
-      this.gl.upload(this.glData.subarray(0, count * GL_FLOATS_PER_PARTICLE));
+  }
+
+  /** WebGL: pack the particles and send them to the GPU. Once per layout, and never while scrolling. */
+  private uploadSet(): void {
+    if (this.renderer !== "webgl" || !this.gl || !this.order || !this.set) {
+      return;
     }
+    this.glData = packParticles(this.set, this.order, this.glData ?? undefined);
+    this.gl.upload(
+      this.glData.subarray(0, this.set.count * GL_FLOATS_PER_PARTICLE),
+    );
   }
 
   private countFor(renderer: Renderer): number {
@@ -671,6 +680,10 @@ class Stage {
           this.pairing = pairing;
           this.pairingKey = key;
         }
+        // Each particle's swing and direction, which no layout changes: its
+        // own slice, so building the first layout's particles is not long.
+        if (this.pairing) pairingTables(this.pairing, PARTICLE_SEED);
+        await pause();
         // The first frame's set-up, in slices of its own (the WebGL canvas's
         // first resize alone can take a long while on a slow phone), while the
         // page is still the static one: nothing here is visible.
@@ -736,7 +749,10 @@ class Stage {
     if (this.destroyed) return;
     const origin = panel.getBoundingClientRect();
     const logoRect = relative(logo.getBoundingClientRect(), origin);
-    this.buildSet(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    this.buildSetData(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    await pause();
+    if (this.destroyed) return;
+    this.uploadSet();
     // `activate` reuses this when the layout has not moved since: the same key.
     this.warmKey = this.warmKeyFor(this.cssWidth, this.cssHeight, logoRect);
     await pause();

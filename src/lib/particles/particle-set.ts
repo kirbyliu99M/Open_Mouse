@@ -96,25 +96,44 @@ export interface ParticleSet {
   readonly shimmerX: Float32Array;
 }
 
-export function buildParticleSet(
-  pairing: Pairing,
-  layout: StageLayout,
-  seed: number,
-): ParticleSet {
+/**
+ * What a pairing fixes whatever the layout: the tones, the shimmer's x, and
+ * each particle's swing and direction (the golden-angle swirl and the seeded
+ * swing, before the canvas's reach scales them). A resize changes only where
+ * things are, so these are made once per pairing and seed: with 20,000
+ * particles the trigonometry and the random numbers were most of a rebuild.
+ * The stage asks for them in a slice of their own, before the first layout.
+ */
+export interface PairingTables {
+  readonly seed: number;
+  readonly toneLogo: Uint8Array;
+  readonly toneHand: Uint8Array;
+  readonly toneMouse: Uint8Array;
+  readonly shimmerX: Float32Array;
+  /** direction * swing, x and y, for logo to hand and for hand to mice (doubles: the maths below is the same as it always was). */
+  readonly formX: Float64Array;
+  readonly formY: Float64Array;
+  readonly splitX: Float64Array;
+  readonly splitY: Float64Array;
+}
+
+const tablesOf = new WeakMap<Pairing, PairingTables>();
+
+export function pairingTables(pairing: Pairing, seed: number): PairingTables {
+  const known = tablesOf.get(pairing);
+  if (known && known.seed === seed) return known;
   const n = pairing.count;
   const random = mulberry32(seed);
-  const reach = Math.min(layout.width, layout.height);
-  const set: ParticleSet = {
-    count: n,
-    logo: new Float32Array(2 * n),
-    hand: new Float32Array(2 * n),
-    mouse: new Float32Array(2 * n),
+  const tables: PairingTables = {
+    seed,
     toneLogo: new Uint8Array(n),
     toneHand: new Uint8Array(n),
     toneMouse: new Uint8Array(n),
-    swirlForm: new Float32Array(2 * n),
-    swirlSplit: new Float32Array(2 * n),
     shimmerX: new Float32Array(n),
+    formX: new Float64Array(n),
+    formY: new Float64Array(n),
+    splitX: new Float64Array(n),
+    splitY: new Float64Array(n),
   };
   let minX = Infinity;
   let maxX = -Infinity;
@@ -123,6 +142,48 @@ export function buildParticleSet(
     maxX = Math.max(maxX, p.x);
   }
   const span = maxX - minX || 1;
+  for (let i = 0; i < n; i += 1) {
+    const l = pairing.logo[i]!;
+    tables.toneLogo[i] = l.tone;
+    tables.toneHand[i] = pairing.hand[i]!.tone;
+    tables.toneMouse[i] = pairing.mouse[i]!.tone;
+    tables.shimmerX[i] = (l.x - minX) / span;
+    // A golden-angle direction per particle; the second leg is turned by a
+    // fixed angle so it does not retrace the first one's swings.
+    const swing = MIN_SWING + (1 - MIN_SWING) * random();
+    const form = swirlDirection(i);
+    const split = swirlDirection(i, 1.9);
+    tables.formX[i] = form[0] * swing;
+    tables.formY[i] = form[1] * swing;
+    tables.splitX[i] = split[0] * swing;
+    tables.splitY[i] = split[1] * swing;
+  }
+  tablesOf.set(pairing, tables);
+  return tables;
+}
+
+export function buildParticleSet(
+  pairing: Pairing,
+  layout: StageLayout,
+  seed: number,
+): ParticleSet {
+  const n = pairing.count;
+  const tables = pairingTables(pairing, seed);
+  const reach = Math.min(layout.width, layout.height);
+  const form = SWIRL.form;
+  const split = SWIRL.split;
+  const set: ParticleSet = {
+    count: n,
+    logo: new Float32Array(2 * n),
+    hand: new Float32Array(2 * n),
+    mouse: new Float32Array(2 * n),
+    toneLogo: tables.toneLogo,
+    toneHand: tables.toneHand,
+    toneMouse: tables.toneMouse,
+    swirlForm: new Float32Array(2 * n),
+    swirlSplit: new Float32Array(2 * n),
+    shimmerX: tables.shimmerX,
+  };
   for (let i = 0; i < n; i += 1) {
     const l = pairing.logo[i]!;
     const h = pairing.hand[i]!;
@@ -134,19 +195,10 @@ export function buildParticleSet(
     set.hand[2 * i + 1] = layout.hand.y + h.y * layout.hand.scale;
     set.mouse[2 * i] = box.x + m.x * box.scale;
     set.mouse[2 * i + 1] = box.y + m.y * box.scale;
-    set.toneLogo[i] = l.tone;
-    set.toneHand[i] = h.tone;
-    set.toneMouse[i] = m.tone;
-    set.shimmerX[i] = (l.x - minX) / span;
-    // A golden-angle direction per particle; the second leg is turned by a
-    // fixed angle so it does not retrace the first one's swings.
-    const swing = MIN_SWING + (1 - MIN_SWING) * random();
-    const form = swirlDirection(i);
-    const split = swirlDirection(i, 1.9);
-    set.swirlForm[2 * i] = form[0] * swing * SWIRL.form * reach;
-    set.swirlForm[2 * i + 1] = form[1] * swing * SWIRL.form * reach;
-    set.swirlSplit[2 * i] = split[0] * swing * SWIRL.split * reach;
-    set.swirlSplit[2 * i + 1] = split[1] * swing * SWIRL.split * reach;
+    set.swirlForm[2 * i] = tables.formX[i]! * form * reach;
+    set.swirlForm[2 * i + 1] = tables.formY[i]! * form * reach;
+    set.swirlSplit[2 * i] = tables.splitX[i]! * split * reach;
+    set.swirlSplit[2 * i + 1] = tables.splitY[i]! * split * reach;
   }
   return set;
 }
