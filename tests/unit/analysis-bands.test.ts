@@ -693,3 +693,133 @@ describe("buildFallbackOutput — use-experience wording", () => {
     );
   });
 });
+
+describe("buildPrompt — every instruction line is pinned", () => {
+  // One entry per rule the prompt gives the model: the name says what it is
+  // for, the text is the sentence itself, copied by hand. Delete or reword any
+  // one of them in `buildPrompt` and its test fails. The wording is a candidate
+  // (未拍板): changing a sentence on purpose means changing it here too.
+  const RULES: [string, string][] = [
+    [
+      "the task",
+      "You are writing a short analysis of a mouse-fit ranking for a user, from the JSON data below.",
+    ],
+    [
+      "how it will feel to use",
+      "Explain how the top pick will feel to use for this hand. Do not just restate the scores.",
+    ],
+    [
+      "numbers only from the data (and number words are numbers)",
+      '- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number. Number words count as numbers (for example "two" or "half").',
+    ],
+    [
+      "anchor on the supplied wording",
+      '- Anchor on the wording in the data: each top pick has a "meaning" for its overall band, and each sub-score has an "impact" sentence. Say what they say, in plain words of your own, and do not add claims they do not make.',
+    ],
+    [
+      "headline",
+      '- "headline": one short sentence on how the top pick will feel overall, starting from its band meaning.',
+    ],
+    [
+      "whyTopPick",
+      '- "whyTopPick": one or two short sentences on the one or two things that matter most for this hand and this mouse, taken from the sub-scores with the most to say, and what to expect when using it.',
+    ],
+    [
+      "tradeoffs",
+      '- "tradeoffs" (up to three): what may take getting used to, taken from the sub-scores in a lower band.',
+    ],
+    [
+      "whatToAvoid",
+      '- "whatToAvoid" (up to two): what to look for in another mouse, or an excluded mouse and why it was left out. Name a mouse only if it is in the data.',
+    ],
+    [
+      "caveats and the estimate note",
+      '- "caveats": include one short line saying this is an estimate from the hand measurements, using the "estimateNote" wording as written or close to it.',
+    ],
+    [
+      "use experience only, no certainty",
+      '- Keep every line short. Describe use experience only (reach, grip, where the palm and fingers rest, how a long session may feel), with "may" and "tends to". Never state a certainty.',
+    ],
+    [
+      "no claim about accuracy",
+      "- Do not say how accurate or reliable the estimate is, and do not promise an outcome.",
+    ],
+    [
+      "no comparison with other people",
+      "- Do not compare with other people, other users' scores, averages, or percentiles.",
+    ],
+    [
+      "no grading of its own",
+      '- Do not grade the fit in your own words (no "good fit", "bad fit", "excellent", "poor", "high score", "low score"). Use only the band meaning and impact wording supplied.',
+    ],
+    ["write plainly", "- Write plainly for someone who has not seen the JSON."],
+    [
+      "no internal identifiers",
+      "- Never mention internal identifiers, reason codes, band names, or version strings. Describe the facts in plain language.",
+    ],
+    [
+      "a stated grip is the user's choice",
+      "- If a grip style was stated, describe it as the user's choice, not a prediction.",
+    ],
+    [
+      "no medical claims",
+      "- Never make medical, diagnostic, therapeutic, or injury-prevention claims. Do not claim a mouse prevents or reduces strain or injury, or relieves pain.",
+    ],
+    [
+      "no named conditions, no ergonomic or wrist-friendly",
+      "- Do not mention carpal tunnel syndrome, CTS, RSI, tendinitis, tendonitis, pain relief, or other health conditions. Do not call a mouse ergonomic, wrist-friendly, healthier, or safer for the body.",
+    ],
+    [
+      "only shape facts and how they affect use, no vendor copy",
+      "- Describe only shape facts and how they affect use, such as vertical grip, taller hump, or wider shell. Never repeat vendor marketing copy about wrist health.",
+    ],
+    [
+      "the asymmetric right-hand shape",
+      '- For an asymmetric, right-hand sculpted shape, say "asymmetric right-hand shape", not "ergonomic".',
+    ],
+  ];
+
+  const LOW_CONFIDENCE_RULE =
+    '- The top pick has low confidence: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.';
+
+  const instructionsOf = (input: ReturnType<typeof inputFor>) =>
+    buildPrompt(input).split("\n\nData:")[0]!;
+  const high = () => instructionsOf(inputFor());
+  const low = () =>
+    instructionsOf(inputFor(entryWith("length_ideal", { confidence: 0.4 })));
+
+  it.each(RULES)("says %s", (_name, sentence) => {
+    expect(high()).toContain(sentence);
+    expect(low()).toContain(sentence);
+  });
+
+  it("gives each rule its own line, in order", () => {
+    const lines = high().split("\n");
+    let from = 0;
+    for (const [name, sentence] of RULES) {
+      const at = lines.findIndex((line, i) => i >= from && line === sentence);
+      // Each rule is a whole line of its own.
+      expect(at, name).toBeGreaterThanOrEqual(0);
+      from = at + 1;
+    }
+  });
+
+  it("has no instruction line this list does not know: 18 rules at high confidence, one more at low", () => {
+    const rules = (text: string) =>
+      text.split("\n").filter((line) => line.startsWith("- "));
+    // 20 entries: the task and the framing are plain lines, the other 18 are
+    // bullets.
+    expect(RULES).toHaveLength(20);
+    expect(rules(high())).toHaveLength(18);
+    expect(rules(low())).toHaveLength(19);
+    expect(low()).toContain(LOW_CONFIDENCE_RULE);
+    expect(high()).not.toContain(LOW_CONFIDENCE_RULE);
+  });
+
+  it("opens with the task and the framing, then the word Rules", () => {
+    const lines = high().split("\n");
+    expect(lines[0]).toBe(RULES[0]![1]);
+    expect(lines[1]).toBe(RULES[1]![1]);
+    expect(lines[2]).toBe("Rules:");
+  });
+});
