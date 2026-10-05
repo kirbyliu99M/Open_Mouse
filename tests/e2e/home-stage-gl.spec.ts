@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { PARTICLE_SEED } from "../../src/lib/particles/budget";
+import { DEGRADE } from "../../src/lib/particles/degrade";
 import { SHUFFLE_SEED, shuffleOrder } from "../../src/lib/particles/gl-buffers";
 import { parseTargets } from "../../src/lib/particles/load-targets";
 import { buildPairing } from "../../src/lib/particles/pairing";
@@ -62,10 +63,13 @@ const rendererOf = (page: Page) =>
 /**
  * The page's frame clock, made to miss frames on purpose, from before its own
  * scripts run. Once `missFrames` is called, the timestamp every
- * requestAnimationFrame callback of a frame is handed is made up: the made-up
- * clock moves by `normal` ms on a frame that is on time and by `slow` ms on one
- * that is missed, as the plan says. (The guard only reads those timestamps; what
- * the screen really does is not touched.)
+ * requestAnimationFrame callback is handed is made up: the made-up clock moves
+ * once for each frame that follows a draw of the stage, by `normal` ms when
+ * that draw is on time and by `slow` ms when it is a missed one, as the plan
+ * says. So the gap the guard sees between two draws is the plan's, whatever the
+ * browser does between them (a frame with no scroll, and so no draw, does not
+ * count as a miss). The guard only reads those timestamps; what the screen
+ * really does is not touched.
  */
 async function installFrameClock(page: Page) {
   await page.addInitScript(() => {
@@ -74,23 +78,29 @@ async function installFrameClock(page: Page) {
     w.__fake = 0;
     w.__lastReal = -1;
     w.__frame = 0;
+    w.__drawsSeen = -1;
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (callback) =>
       raf((time) => {
         const plan = w.__plan as ((frame: number) => number) | null;
         if (!plan) return callback(time);
-        // One step of the made-up clock per frame, however many callbacks it has.
         if (time !== w.__lastReal) {
           w.__lastReal = time;
-          w.__fake = (w.__fake as number) + plan(w.__frame as number);
-          w.__frame = (w.__frame as number) + 1;
+          const draws = Number(
+            document.querySelector(".story-canvas")?.getAttribute("data-draws"),
+          );
+          if (draws !== w.__drawsSeen) {
+            w.__drawsSeen = draws;
+            w.__fake = (w.__fake as number) + plan(w.__frame as number);
+            w.__frame = (w.__frame as number) + 1;
+          }
         }
         return callback(w.__fake as number);
       });
   });
 }
 
-/** Which frames of the plan are missed. */
+/** Which draws of the plan are missed. */
 type Misses = "all" | "none" | { every: number } | { twoInFive: true };
 
 const missFrames = (
@@ -111,6 +121,9 @@ const missFrames = (
       w.__fake = performance.now();
       w.__lastReal = -1;
       w.__frame = 0;
+      w.__drawsSeen = Number(
+        document.querySelector(".story-canvas")?.getAttribute("data-draws"),
+      );
       w.__plan = (i: number) => (missed(i) ? (sl as number) : (n as number));
     },
     [normal, slow, misses] as const,
@@ -533,28 +546,51 @@ test.describe("the WebGL path", () => {
   }) => {
     const { canvas, refresh, slow, budget, drawn } = await guardPage(page);
     expect(await drawn()).toBe(budget);
+    // Note, in the page, the draw at which the count changes (the stage sets
+    // `data-drawn` right after the draw that decided it).
+    await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const steps: { count: number; at: number }[] = [];
+      w.__steps = steps;
+      const element = document.querySelector<HTMLElement>(".story-canvas")!;
+      new MutationObserver(() => {
+        steps.push({
+          count: Number(element.dataset.drawn),
+          at: Number(element.dataset.draws),
+        });
+      }).observe(element, {
+        attributes: true,
+        attributeFilter: ["data-drawn"],
+      });
+    });
     await missFrames(page, { normal: refresh, slow, misses: "all" });
-    // The window was full of steady frames: 8 missed ones are enough, so the
-    // first step comes within a few frames.
-    await scrollFrames(page, 30);
-    expect(await drawn()).toBe(Math.round(budget * 0.75));
-    // The cooldown: the window starts empty and fills again before a second step. 55 frames in, nothing has moved.
-    await scrollFrames(page, 25);
-    expect(await drawn()).toBe(Math.round(budget * 0.75));
-    // 60 fresh frames after the first step (and the 8 before it): the second step.
-    await scrollFrames(page, 30);
-    expect(await drawn()).toBe(Math.round(Math.round(budget * 0.75) * 0.75));
-    // On and on it goes down, never below a quarter of the budget.
-    const steps: number[] = [];
-    for (let i = 0; i < 6; i += 1) {
-      await scrollFrames(page, 70, 2);
-      steps.push(await drawn());
+    const floor = Math.ceil(budget * 0.25);
+    for (let chunk = 0; chunk < 80 && (await drawn()) > floor; chunk += 1) {
+      await scrollFrames(page, 10, 2);
     }
-    for (let i = 1; i < steps.length; i += 1) {
-      expect(steps[i]!, steps.join(" ")).toBeLessThanOrEqual(steps[i - 1]!);
+    const changes = await read<{ count: number; at: number }[]>(
+      page,
+      "__steps",
+    );
+    const counts = changes.map((c) => c.count);
+    // A quarter of what was drawn each time, down to the floor.
+    let want = budget;
+    const ladder: number[] = [];
+    while (want > floor) {
+      want = Math.max(floor, Math.round(want * 0.75));
+      ladder.push(want);
     }
-    expect(Math.min(...steps)).toBeGreaterThanOrEqual(Math.ceil(budget * 0.25));
-    expect(steps.at(-1)!, steps.join(" ")).toBe(Math.ceil(budget * 0.25));
+    expect(counts, JSON.stringify(changes)).toEqual(ladder);
+    // The cooldown: after a step the window starts empty and has to fill all
+    // 60 gaps before the next one, so steps are 60 draws apart (the first came
+    // after only the 8 missed frames the full window needed). Without the
+    // cooldown they would come every 8.
+    for (let i = 1; i < changes.length; i += 1) {
+      expect(changes[i]!.at - changes[i - 1]!.at, JSON.stringify(changes)).toBe(
+        DEGRADE.WINDOW,
+      );
+    }
+    expect(Math.min(...counts)).toBeGreaterThanOrEqual(floor);
     // The budget the page reports is unchanged: it is the ceiling.
     expect(Number(await canvas.getAttribute("data-particles"))).toBe(budget);
 
