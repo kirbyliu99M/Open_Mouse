@@ -95,3 +95,36 @@ export const scanPath = (scanId: string): string => {
 /** The results page for a submitted scan. */
 export const resultsPagePath = (scanId: string): string =>
   `/results/${encodeURIComponent(scanId)}`;
+
+/**
+ * `POST` — body: `surveySubmissionSchema` (survey.ts). Needs the consent tick
+ * in the body; the scan named by `scanId` follows the ownership rule above
+ * (anyone else: 404). The hand profile is read from that scan on the server.
+ * 201 → `surveySubmitResponseSchema`; 400 invalid body or unknown mouse slug;
+ * 404 unknown, foreign or expired scan; 413 body too large; 429 rate limited
+ * per client IP (`errorResponseSchema`; nothing is stored).
+ *
+ * `DELETE` — signed-in callers only: withdraws everything the caller has
+ * contributed (ratings, consent record and hand profile). 204 → no body;
+ * 401 when not signed in. An anonymous contribution cannot be withdrawn: it is
+ * tied to no account.
+ */
+export const SURVEY_PATH = "/api/survey";
+
+/**
+ * `GET` — 200 → `similarResponseSchema` (recommend.ts), which says
+ * `available: false` until enough people stand behind the answer; 404 unknown,
+ * foreign or expired scan (ownership rule above); 429 rate limited per client
+ * IP.
+ */
+export const similarPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/similar`;
+
+/**
+ * `GET` — the home page's own best matches, from the caller's live scan.
+ * 200 → `homeTopMiceResponseSchema` (home.ts); 404 when the caller has no live
+ * scan. The caller is identified the same two ways as the ownership rule above
+ * (a signed-in user's latest scan, else the session cookie's latest scan).
+ * Names only; see home.ts.
+ */
+export const HOME_TOP_MICE_PATH = "/api/home/top-mice";
