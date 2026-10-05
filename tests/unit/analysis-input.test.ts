@@ -40,7 +40,10 @@ describe("buildAnalysisInput", () => {
     expect(input.topPicks.map((p) => p.rank)).toEqual([1, 2, 3]);
     expect(input.topPicks[0]!.subscores.length).toEqual({
       score: 90,
+      band: "very_good",
       reasonCode: "length_ideal",
+      impact:
+        "The length lets your palm and fingers rest where they naturally fall.",
       params: { deltaMm: 1.5 },
     });
   });

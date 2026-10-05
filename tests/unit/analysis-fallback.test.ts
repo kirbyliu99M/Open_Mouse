@@ -69,7 +69,7 @@ describe("buildFallbackOutput", () => {
     const input = inputWith();
     const output = buildFallbackOutput(input);
     expect(output.tradeoffs).toContain(
-      "Its front flare may crowd your fingertips",
+      "The front shape may crowd your fingers.",
     );
     expect(output.whatToAvoid).toEqual([
       "Logitech Lift Vertical: vertical shape, excluded from this comparison.",
@@ -166,7 +166,7 @@ describe("buildFallbackOutput", () => {
 
     const missing = withThumb("thumb_rest_missing");
     expect(buildFallbackOutput(missing).tradeoffs).toEqual([
-      "It has no thumb rest, which a palm grip would normally use",
+      "Your grip would rest the thumb on a thumb rest, and this mouse has none.",
     ]);
     await expectAcceptedByModelChecks(missing);
 
@@ -175,17 +175,18 @@ describe("buildFallbackOutput", () => {
     );
   });
 
-  it("omits the grip clause when grip style was predicted", async () => {
+  it("says only what the band means when no reason works in the mouse's favour, whatever the grip", async () => {
     const input = inputWith(
       makeFit({ excluded: [], results: [entryWithoutPositiveReasons()] }),
     );
+    // Total 88 is `very_good`.
     expect(buildFallbackOutput(input).whyTopPick).toBe(
-      "It's the top pick based on your measurements.",
+      "Size and grip line up closely, so everyday use should feel comfortable.",
     );
     await expectAcceptedByModelChecks(input);
   });
 
-  it("keeps the existing grip clause when grip style was stated", async () => {
+  it("gives the same band meaning when the grip style was stated", async () => {
     const input = inputWith(
       makeFit({
         gripStyle: { stated: "claw", predicted: "palm", used: "claw" },
@@ -193,7 +194,7 @@ describe("buildFallbackOutput", () => {
       }),
     );
     expect(buildFallbackOutput(input).whyTopPick).toBe(
-      "It's the top pick based on your measurements and grip style.",
+      "Size and grip line up closely, so everyday use should feel comfortable.",
     );
     await expectAcceptedByModelChecks(input);
   });
