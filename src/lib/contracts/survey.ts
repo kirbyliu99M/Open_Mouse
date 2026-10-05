@@ -4,13 +4,24 @@
  * Kirby confirms the questions and the consent copy.
  *
  * What is kept, and what is not:
- *   - Kept only after an explicit tick: which mice the person has used, how
- *     satisfied they are, and a coarse hand profile (hand length and palm width
- *     rounded DOWN to `CONTRIBUTION_BIN_MM`, plus the grip). The profile is
+ *   - Kept only after an explicit tick: which mice the person has used (and
+ *     which one they use now), how satisfied they are, what they mainly use a
+ *     mouse for, and a coarse hand profile (hand length and palm width rounded
+ *     DOWN to `CONTRIBUTION_BIN_MM`, plus the grip). The profile is
  *     read by the server from the scan named in the request, never taken from
  *     the client, and it is stored apart from the scan: it does not expire
  *     with the anonymous session and does not point back to the scan.
- *   - Never kept: photos, names, email, free text.
+ *   - Free text, two fields only (v2; Kirby, 2026-10-05: an ordinary
+ *     questionnaire may have an open box): the brand of a mouse that is not in
+ *     the catalogue (`MAX_OTHER_BRAND_CHARS`) and one open comment
+ *     (`MAX_FEEDBACK_CHARS`).
+ *     Free text cannot be screened for personal details, so the consent copy
+ *     must say so before the tick, and no response schema in the contracts
+ *     carries either field: they are read by the maintainers only, never shown
+ *     to other visitors. A signed-in contributor's withdrawal removes them too.
+ *   - Never kept: photos, names, email. No question asks about health or
+ *     discomfort (Kirby): `PAIN_POINTS` is about what bothered the person
+ *     in the mouse, not about their body.
  *
  * The grip that is stored: `gripStyle` from the body when given, else the
  * scan's stated grip, else the grip the fit engine used for that scan. It is
@@ -44,8 +55,13 @@
 import { z } from "zod";
 import { GRIP_STYLES } from "./fit";
 
-/** Version of the consent text the person ticked. Bump it when the copy changes. */
-export const SURVEY_CONSENT_VERSION = "survey-consent-v1-draft";
+/**
+ * Version of the consent text the person ticked. Bump it when the copy changes.
+ * v2 (candidate): the survey gained free text, so the consent copy changed.
+ * The server stores the version it was given; nothing is migrated by this
+ * contract, and a v1 body is refused.
+ */
+export const SURVEY_CONSENT_VERSION = "survey-consent-v2-draft";
 
 /** A contributed hand profile is rounded down to this many millimetres. */
 export const CONTRIBUTION_BIN_MM = 5;
@@ -71,7 +87,29 @@ export const PAIN_POINTS = [
 ] as const;
 export type PainPoint = (typeof PAIN_POINTS)[number];
 
+/** What the person mainly uses a mouse for. The list is a candidate (未拍板). */
+export const MAIN_USES = [
+  "office",
+  "gaming",
+  "creative",
+  "development",
+  "mixed",
+] as const;
+export type MainUse = (typeof MAIN_USES)[number];
+
+/** How the size of a mouse felt in the hand, from too small to too large. */
+export const SIZE_FEELS = [
+  "too_small",
+  "slightly_small",
+  "just_right",
+  "slightly_large",
+  "too_large",
+] as const;
+export type SizeFeel = (typeof SIZE_FEELS)[number];
+
 export const MAX_RATED_MICE = 5;
+export const MAX_OTHER_BRAND_CHARS = 60;
+export const MAX_FEEDBACK_CHARS = 500;
 
 const ratingSchema = z.strictObject({
   /** A catalogue slug; the server rejects one that is not in the catalogue. */
@@ -85,26 +123,66 @@ const ratingSchema = z.strictObject({
       message: "each pain point can be named once",
     })
     .default([]),
+  /** True when this is the mouse the person uses now. At most one per body. */
+  current: z.boolean().default(false),
 });
 
-/** `POST /api/survey` body. */
-export const surveySubmissionSchema = z.strictObject({
-  /** The scan whose hand profile is contributed. Ownership rule: routes.ts. */
-  scanId: z.string().uuid(),
-  consent: z.strictObject({
-    accepted: z.literal(true),
-    version: z.literal(SURVEY_CONSENT_VERSION),
-  }),
-  /** The grip the person says they use, if they say. */
-  gripStyle: z.enum(GRIP_STYLES).optional(),
-  ratings: z
-    .array(ratingSchema)
-    .min(1)
-    .max(MAX_RATED_MICE)
-    .refine((rows) => new Set(rows.map((r) => r.slug)).size === rows.length, {
-      message: "each mouse can be rated once",
-    }),
+/**
+ * A mouse that is not in the catalogue: brand as typed, and how its size felt.
+ * Kept only for the maintainers' own reading (see the header on free text).
+ */
+const otherMouseSchema = z.strictObject({
+  brand: z.string().trim().min(1).max(MAX_OTHER_BRAND_CHARS),
+  sizeFeel: z.enum(SIZE_FEELS),
+  /** True when this is the mouse the person uses now. */
+  current: z.boolean().default(false),
 });
+
+/**
+ * `POST /api/survey` body. At least one mouse is named, either as a catalogue
+ * rating or as `otherMouse`; at most one of all of them is marked `current`.
+ */
+export const surveySubmissionSchema = z
+  .strictObject({
+    /** The scan whose hand profile is contributed. Ownership rule: routes.ts. */
+    scanId: z.string().uuid(),
+    consent: z.strictObject({
+      accepted: z.literal(true),
+      version: z.literal(SURVEY_CONSENT_VERSION),
+    }),
+    /** The grip the person says they use, if they say. */
+    gripStyle: z.enum(GRIP_STYLES).optional(),
+    mainUse: z.enum(MAIN_USES).optional(),
+    ratings: z
+      .array(ratingSchema)
+      .max(MAX_RATED_MICE)
+      .refine((rows) => new Set(rows.map((r) => r.slug)).size === rows.length, {
+        message: "each mouse can be rated once",
+      })
+      .default([]),
+    otherMouse: otherMouseSchema.optional(),
+    /** One open comment. Never returned to other visitors. */
+    feedback: z.string().trim().min(1).max(MAX_FEEDBACK_CHARS).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.ratings.length === 0 && body.otherMouse === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratings"],
+        message: "name at least one mouse",
+      });
+    }
+    const current =
+      body.ratings.filter((r) => r.current).length +
+      (body.otherMouse?.current ? 1 : 0);
+    if (current > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratings"],
+        message: "only one mouse can be the current one",
+      });
+    }
+  });
 
 /** `201` body: what the page may truthfully tell the person afterwards. */
 export const surveySubmitResponseSchema = z.strictObject({

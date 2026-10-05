@@ -92,6 +92,17 @@ export const scanPath = (scanId: string): string => {
   return `/api/scans/${scanId}`;
 };
 
+/**
+ * `GET` — the millimetres this scan stored, for the 3D viewer to scale the
+ * hand model. 200 → `scanMeasurementsResponseSchema` (measurement.ts); 404
+ * unknown, foreign or expired scan (ownership rule above); 429 rate limited
+ * per client IP. These are the person's own derived values, the same ones they
+ * POSTed: no image and nothing the scan did not already hold. The answer
+ * depends on the caller, so it carries `Cache-Control: no-store`.
+ */
+export const scanMeasurementsPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/measurements`;
+
 /** The results page for a submitted scan. */
 export const resultsPagePath = (scanId: string): string =>
   `/results/${encodeURIComponent(scanId)}`;
@@ -100,7 +111,8 @@ export const resultsPagePath = (scanId: string): string =>
  * `POST` — body: `surveySubmissionSchema` (survey.ts). Needs the consent tick
  * in the body; the scan named by `scanId` follows the ownership rule above
  * (anyone else: 404). The hand profile is read from that scan on the server.
- * 201 → `surveySubmitResponseSchema`; 400 invalid body or unknown mouse slug;
+ * 201 → `surveySubmitResponseSchema`; 400 invalid body (including a body that
+ * names no mouse, or marks two as current) or unknown mouse slug;
  * 404 unknown, foreign or expired scan; 409 this scan has already contributed
  * (one contribution per scan; nothing is stored or replaced); 413 body too
  * large; 429 rate limited per client IP (`errorResponseSchema`; nothing is

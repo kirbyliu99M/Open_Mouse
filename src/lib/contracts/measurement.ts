@@ -306,7 +306,21 @@ export const scanSubmissionSchema = z
     }
   });
 
+/**
+ * `GET /api/scans/{scanId}/measurements` (routes.ts): what the 3D viewer needs
+ * to scale the hand model. The same validated values the scan was stored with;
+ * optional fields the scan never had are absent, never null.
+ */
+export const scanMeasurementsResponseSchema = z.strictObject({
+  scanId: z.string().uuid(),
+  hand: z.enum(["left", "right"]),
+  measurements: handMeasurementsSchema,
+});
+
 export type HandMeasurements = z.infer<typeof handMeasurementsSchema>;
+export type ScanMeasurementsResponse = z.infer<
+  typeof scanMeasurementsResponseSchema
+>;
 export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
 export type PrintedSheetEvidence = z.infer<typeof printedSheetEvidenceSchema>;
 export type PaperEdgeEvidence = z.infer<typeof paperEdgeEvidenceSchema>;
