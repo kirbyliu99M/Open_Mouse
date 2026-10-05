@@ -252,6 +252,7 @@ export function ResultsPageClient({
     <main className="resultsMain">
       <ResultsView
         enteredLengthMm={enteredLength}
+        showViewer
         response={pageState.response}
         analysisState={analysisState}
         onRetryAnalysis={() => void runAnalysis()}

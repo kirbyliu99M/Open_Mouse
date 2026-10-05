@@ -1,0 +1,103 @@
+/*
+ * The results page's 3D viewer region. Dark theme tokens from tokens.css.
+ *
+ * The box has the same height in every state (loading, ready, fallback), so the
+ * page below it never moves. rem plus vw: it follows the reader's text size and
+ * the window. The canvas is absolutely positioned inside it and takes its size
+ * from the box, never the other way round.
+ */
+.viewer {
+  margin: 1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.viewer-box {
+  position: relative;
+  width: 100%;
+  height: clamp(15rem, 62vw, 22rem);
+  border-radius: 1rem;
+  border: 1px solid var(--hairline);
+  background: radial-gradient(
+    120% 90% at 50% 38%,
+    #1a1d24 0%,
+    #101216 55%,
+    #0a0b0e 100%
+  );
+  overflow: hidden;
+  /* A vertical swipe scrolls the page; a horizontal drag turns the model. */
+  touch-action: pan-y;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.viewer-box:active {
+  cursor: grabbing;
+}
+
+/* Only a box that holds a model can take focus (tabindex is set then). */
+.viewer-box:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.viewer[data-viewer-state="idle"] .viewer-box,
+.viewer[data-viewer-state="loading"] .viewer-box,
+.viewer[data-viewer-state="failed"] .viewer-box,
+.viewer[data-viewer-state="unsupported"] .viewer-box {
+  cursor: default;
+}
+
+.viewer-host {
+  position: absolute;
+  inset: 0;
+}
+
+.viewer-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.viewer-fallback {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #b5b5bd;
+}
+
+.viewer-caption {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #b5b5bd;
+}
+
+/* The caption keeps its space when there is no model, so nothing moves. */
+.viewer[data-viewer-state="failed"] .viewer-caption,
+.viewer[data-viewer-state="unsupported"] .viewer-caption {
+  visibility: hidden;
+}
+
+@media (prefers-contrast: more) {
+  .viewer-box {
+    border: 2px solid currentColor;
+    background: #000;
+  }
+}
+
+/* A canvas does not print; the printed results page has no use for the box. */
+@media print {
+  .viewer {
+    display: none;
+  }
+}
