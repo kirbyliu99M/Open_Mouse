@@ -114,12 +114,16 @@ export const resultsPagePath = (scanId: string): string =>
  * (anyone else: 404). The hand profile is read from that scan on the server.
  * 201 → `surveySubmitResponseSchema`; 400 invalid body (including a body that
  * names no mouse, marks two as current, or has free text with control
- * characters, an email address or a phone number) or unknown mouse slug;
- * 404 unknown, foreign or expired scan; 409 this scan has already contributed
+ * characters, an email address or a phone number, or a `scanId` that is not a
+ * well-formed id: it is a field of the body, so it is 400 and never looks the
+ * scan up) or unknown mouse slug;
+ * 404 a well-formed id that names an unknown, foreign or expired scan; 409 this scan has already contributed
  * (one contribution per scan; nothing is stored or replaced); 413 body too
  * large; 429 rate limited per client IP (`errorResponseSchema`; nothing is
  * stored). A signed-in person's later submission replaces their earlier rating
- * of the same mouse and is still 201. The full repeat rules are in survey.ts.
+ * of the same mouse (the current marker aside, it is replaced by the new
+ * answer) and is still 201. The full repeat rules are in
+ * survey.ts.
  *
  * `DELETE` — signed-in callers only: withdraws everything the caller has
  * contributed (ratings, other mice, main use, free text, consent record and
