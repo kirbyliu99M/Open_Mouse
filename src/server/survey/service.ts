@@ -13,10 +13,18 @@ import { buildContributionWrite } from "./profile";
 import type { SurveyRepo } from "./repo";
 
 /**
- * Body cap for `POST /api/survey` (a candidate, 未拍板). The largest valid body
- * is five ratings, one other mouse and 500 characters of comment: under 3 KiB
- * even with every character written as a JSON escape. 8 KiB leaves room and
- * still refuses anything that is not a questionnaire.
+ * Body cap for `POST /api/survey` (a candidate, 未拍板). The largest body the
+ * schema accepts is five ratings with every pain point, one other mouse and a
+ * 500-character comment. As JSON, compact:
+ *  - about 2.7 KB as our own page sends it (`JSON.stringify`; the comment in
+ *    three-byte characters, 1500 bytes);
+ *  - about 4.2 KB when every character of the comment is written as a
+ *    `\uXXXX` escape (6 bytes each, 3000 for 500) and the slugs are 40
+ *    characters; 4.5 KB with the schema's longest slug (100) on all five.
+ * 8 KiB leaves room over both and still refuses anything that is not a
+ * questionnaire. Only a body that also escapes every key and value (8.5 to
+ * 10 KB) passes the schema yet exceeds it; no client sends that, and its 413
+ * costs nothing.
  */
 export const MAX_SURVEY_BODY_BYTES = 8 * 1024;
 
@@ -65,9 +73,14 @@ async function isRateLimited(
  * What a log line may say about a failure: the route, the operation and the
  * error's class (log.ts reduces an Error to its name and a short code). Never
  * the body, an answer, a brand, a bin or a message: a thrown error can carry
- * any of them.
+ * any of them. Also the route's answer when it cannot even build its
+ * dependencies (a missing or malformed `DATABASE_URL`), so that failure is the
+ * same plain 500 and the same log line.
  */
-function logFailure(op: "submit" | "withdraw", error: unknown): Response {
+export function logFailure(
+  op: "submit" | "withdraw",
+  error: unknown,
+): Response {
   log.error("survey.failed", { route: SURVEY_LOG_ROUTE, op, error });
   return json(500, { error: "Something went wrong. Try again in a moment." });
 }

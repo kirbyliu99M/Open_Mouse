@@ -11,12 +11,16 @@ import type { ContributionWrite } from "./repo";
  * Rounds `mm` DOWN to a multiple of `bin`: the whole of what a contribution
  * keeps of a hand measurement (src/lib/contracts/survey.ts). Never above the
  * real value, never more than `bin` below it.
+ *
+ * `bin` is a whole number of millimetres (`CONTRIBUTION_BIN_MM`, 5; the
+ * column's CHECK holds multiples of 5). For such a bin the product is exact and
+ * `mm / bin` never rounds up to the next whole number, so nothing needs
+ * correcting afterwards; the test checks the float on either side of every
+ * multiple of 5 up to 300. A fractional bin is not safe (17 * 0.1 is
+ * 1.7000000000000002, above 1.7): do not pass one without guarding the product.
  */
 export function binDown(mm: number, bin: number = CONTRIBUTION_BIN_MM): number {
-  const floored = Math.floor(mm / bin) * bin;
-  // A quotient that rounds up to a whole number in floating point must not
-  // push the bin above the value.
-  return floored > mm ? floored - bin : floored;
+  return Math.floor(mm / bin) * bin;
 }
 
 /**

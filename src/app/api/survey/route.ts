@@ -9,6 +9,7 @@ import { createDrizzleSurveyRepo } from "../../../server/survey/drizzle-repo";
 import {
   handleSurveySubmission,
   handleSurveyWithdrawal,
+  logFailure,
   type SurveyDeps,
 } from "../../../server/survey/service";
 
@@ -28,10 +29,31 @@ function deps(): SurveyDeps {
   };
 }
 
+/**
+ * Building the dependencies can throw: each of the repos and the limiter opens
+ * the database with `getDb()`, which refuses a missing or malformed
+ * `DATABASE_URL`. That has to be the survey's own 500 (the plain sentence, no
+ * body of an error, a log line that names only the error's class), not a
+ * framework error page, so it is built inside a try/catch of its own.
+ */
+async function run(
+  op: "submit" | "withdraw",
+  handle: (request: Request, deps: SurveyDeps) => Promise<Response>,
+  request: Request,
+): Promise<Response> {
+  let built: SurveyDeps;
+  try {
+    built = deps();
+  } catch (error) {
+    return logFailure(op, error);
+  }
+  return handle(request, built);
+}
+
 export async function POST(request: Request): Promise<Response> {
-  return handleSurveySubmission(request, deps());
+  return run("submit", handleSurveySubmission, request);
 }
 
 export async function DELETE(request: Request): Promise<Response> {
-  return handleSurveyWithdrawal(request, deps());
+  return run("withdraw", handleSurveyWithdrawal, request);
 }

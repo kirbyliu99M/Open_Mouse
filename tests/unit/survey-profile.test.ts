@@ -50,13 +50,25 @@ describe("binDown", () => {
     expect(binDown(mm)).toBe(expected);
   });
 
-  it("holds for values that are not tidy decimals, never rounding up", () => {
-    for (const mm of [
-      4.999999999999999, 14.999999999999998, 184.99999999999997,
-    ]) {
-      expect(binDown(mm)).toBeLessThanOrEqual(mm);
+  it("never rounds up, for the float on either side of every multiple of the bin", () => {
+    const next = (x: number, steps: number) => {
+      // The float `steps` places above (or, negative, below) `x`.
+      const view = new DataView(new ArrayBuffer(8));
+      view.setFloat64(0, x);
+      view.setBigUint64(0, view.getBigUint64(0) + BigInt(steps));
+      return view.getFloat64(0);
+    };
+    for (let multiple = 5; multiple <= 300; multiple += 5) {
+      for (const steps of [-3, -2, -1, 0, 1, 2, 3]) {
+        const mm = next(multiple, steps);
+        const bin = binDown(mm);
+        expect(bin, `${mm}`).toBeLessThanOrEqual(mm);
+        // Exactly the multiple at and above it, the one before just below it.
+        expect(bin, `${mm}`).toBe(steps >= 0 ? multiple : multiple - 5);
+      }
     }
-    expect(binDown(7.5, 2.5)).toBe(7.5);
+    // The bin is a parameter, not a constant 5.
+    expect(binDown(37, 10)).toBe(30);
   });
 });
 
