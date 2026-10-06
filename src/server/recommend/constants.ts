@@ -68,6 +68,13 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  *
  * The score only orders the list. The mean a visitor sees is always the plain
  * mean of the neighbours' ratings, never this score.
+ *
+ * Known limit of the prior as specified: when nobody outside the neighbourhood
+ * rated a mouse, everyoneMean IS neighbourMean and the score equals the plain
+ * mean, so two 5s still beat ten 4.6s. In a small pool that is the common case.
+ * The usual remedy is a prior that does not come from the same few people, such
+ * as the mean of all ratings of all mice; it is a one-line change in
+ * `neighbours.ts`, and Kirby's call (未拍板).
  */
 export const SIMILAR_PRIOR_WEIGHT = 4;
 
