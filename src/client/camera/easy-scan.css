@@ -1541,3 +1541,12 @@ main.easyScanShell {
     opacity: 0;
   }
 }
+
+/* The attempt list in the debug panel (?debug=1): newest first, one line each. */
+.easyDebugAttempts {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+.easyDebugAttempts li {
+  overflow-wrap: anywhere;
+}

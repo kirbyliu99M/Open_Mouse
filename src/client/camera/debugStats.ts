@@ -7,6 +7,7 @@
  * plain numbers and short strings, and the only way out of the device is
  * Kirby copying the JSON himself.
  */
+import type { AttemptRecord } from "./attemptLog";
 import type { CueCode } from "./cues";
 
 /** How many of the latest samples the timing statistics look at. */
@@ -72,6 +73,34 @@ export interface DebugFocusEntry {
   readonly reason?: string;
 }
 
+/**
+ * The preview's shape against the photo's: what the stream was asked for, what
+ * the camera said the photo would be, and whether the two show the same field
+ * of view (previewConstraints.ts). `fovMismatch` is the flag the 2026-10-06
+ * report is about: a preview 16:9 against a photo 4:3.
+ */
+export interface DebugPreviewInfo {
+  readonly requested: {
+    readonly width: number | null;
+    readonly height: number | null;
+    readonly aspectRatio: number | null;
+  } | null;
+  /** The photo's long over short that the preview was compared with. */
+  readonly stillAspect: number | null;
+  readonly stillAspectSource: "photoCapabilities" | "default" | null;
+  /** The largest photo size `getPhotoCapabilities()` reported. */
+  readonly photoMax: {
+    readonly width: number;
+    readonly height: number;
+  } | null;
+  readonly previewAspect: number | null;
+  /** (preview - photo) / photo, long over short. */
+  readonly aspectDiff: number | null;
+  readonly fovMismatch: boolean | null;
+  /** The second request made to the running track once the photo's shape was known. */
+  readonly reapplied: DebugFocusEntry | null;
+}
+
 export interface ScanDebugSnapshot {
   readonly userAgent: string;
   readonly track: {
@@ -120,14 +149,27 @@ export interface ScanDebugSnapshot {
     /** From the ring completing to the frozen picture being on screen. */
     readonly ringCompleteToFrozenMs: number | null;
   };
+  readonly preview: DebugPreviewInfo;
+  /** The last 20 scan attempts kept on this device (attemptLog.ts), oldest first. Numbers and codes only. */
+  readonly attempts: readonly AttemptRecord[];
 }
 
 /** The snapshot as pasted back: rounded, stable key order. */
 export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
-  const { live, capture } = snapshot;
+  const { live, capture, preview } = snapshot;
   return JSON.stringify(
     {
       ...snapshot,
+      preview: {
+        ...preview,
+        stillAspect: round(preview.stillAspect, 4),
+        previewAspect: round(preview.previewAspect, 4),
+        aspectDiff: round(preview.aspectDiff, 4),
+        requested: preview.requested && {
+          ...preview.requested,
+          aspectRatio: round(preview.requested.aspectRatio, 4),
+        },
+      },
       live: {
         ...live,
         samplesPerSecond: round(live.samplesPerSecond, 1),

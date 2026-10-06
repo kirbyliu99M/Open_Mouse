@@ -107,11 +107,27 @@ export const CAMERA_CONSTANTS = {
     /** A corner found again within this long of being lost does not pop in again. */
     repopAfterLostMs: 500,
   },
+  /**
+   * The preview stream's shape (scan v2 field-of-view fix, candidates). The
+   * preview used to ask for 1920x1080, which a phone answers with its 16:9
+   * video mode; that mode crops the sensor's left and right (in portrait), so
+   * the photo from takePhoto() (the whole 4:3 sensor) shows about a third
+   * more across than the preview did, and a sheet that filled the preview
+   * filled only three quarters of the photo. The preview is now asked for in
+   * the shape of the photo (previewConstraints.ts).
+   */
+  preview: {
+    /** Long edge over short edge of the photo when the camera will not say (a 4:3 sensor: nearly every phone). */
+    defaultStillAspect: 4 / 3,
+    /** The preview's short edge, asked for as an ideal... */
+    shortEdgePx: 1080,
+    /** ...and never asked for below this. */
+    minShortEdgePx: 720,
+    /** The preview and the photo differ in field of view once their aspect ratios differ by more than this fraction of the photo's. */
+    fovMismatchTolerance: 0.02,
+  },
   /** Focus (scan v2). */
   focus: {
-    /** Preview stream size the camera is asked for; the photo still comes from takePhoto. */
-    previewIdealWidth: 1920,
-    previewIdealHeight: 1080,
     /** After a tap's single-shot focus, continuous focus is asked for again. */
     tapRefocusMs: 1200,
   },

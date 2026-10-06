@@ -239,9 +239,11 @@ describe("applyTapFocus", () => {
 });
 
 describe("the preview stream", () => {
-  it("asks for 1920x1080 for the preview; the 4K still is takePhoto's job", () => {
-    expect(CAMERA_CONSTANTS.focus.previewIdealWidth).toBe(1920);
-    expect(CAMERA_CONSTANTS.focus.previewIdealHeight).toBe(1080);
+  it("is asked for in the photo's shape, not 16:9 (previewConstraints.ts); the full-size still is takePhoto's job", () => {
+    expect(CAMERA_CONSTANTS.preview.defaultStillAspect).toBeCloseTo(4 / 3, 10);
+    expect(CAMERA_CONSTANTS.preview.shortEdgePx).toBe(1080);
+    expect(CAMERA_CONSTANTS.preview.minShortEdgePx).toBe(720);
+    expect(CAMERA_CONSTANTS.preview.fovMismatchTolerance).toBe(0.02);
     expect(CAMERA_CONSTANTS.focus.tapRefocusMs).toBe(1200);
   });
 });

@@ -121,16 +121,29 @@ describe("debugSnapshotJson", () => {
       stillKb: 2412.7,
       ringCompleteToFrozenMs: 183.4,
     },
+    preview: {
+      requested: { width: 1080, height: 1440, aspectRatio: 0.7500001 },
+      stillAspect: 1.3333333,
+      stillAspectSource: "photoCapabilities",
+      photoMax: { width: 4000, height: 3000 },
+      previewAspect: 1.7777778,
+      aspectDiff: 0.3333334,
+      fovMismatch: true,
+      reapplied: null,
+    },
+    attempts: [],
   };
 
   it("is JSON that parses back, with every key the panel promises", () => {
     const parsed = JSON.parse(debugSnapshotJson(snapshot));
     expect(Object.keys(parsed).sort()).toEqual(
       [
+        "attempts",
         "capabilities",
         "capture",
         "focusApplied",
         "live",
+        "preview",
         "track",
         "userAgent",
       ].sort(),
@@ -170,6 +183,29 @@ describe("debugSnapshotJson", () => {
     expect(parsed.live.maxCornerMovementFractionOfDiagonal).toBe(0.0081);
     expect(parsed.capture.stillKb).toBe(2413);
     expect(parsed.capture.ringCompleteToFrozenMs).toBe(183);
+    expect(parsed.preview.stillAspect).toBe(1.3333);
+    expect(parsed.preview.previewAspect).toBe(1.7778);
+    expect(parsed.preview.aspectDiff).toBe(0.3333);
+    expect(parsed.preview.requested.aspectRatio).toBe(0.75);
+  });
+
+  it("carries the attempts array, and keeps the preview flag as it is", () => {
+    const parsed = JSON.parse(debugSnapshotJson(snapshot));
+    expect(parsed.attempts).toEqual([]);
+    expect(parsed.preview.fovMismatch).toBe(true);
+    expect(parsed.preview.stillAspectSource).toBe("photoCapabilities");
+    expect(Object.keys(parsed.preview).sort()).toEqual(
+      [
+        "aspectDiff",
+        "fovMismatch",
+        "photoMax",
+        "previewAspect",
+        "reapplied",
+        "requested",
+        "stillAspect",
+        "stillAspectSource",
+      ].sort(),
+    );
   });
 
   it("keeps null as null (nothing measured yet)", () => {

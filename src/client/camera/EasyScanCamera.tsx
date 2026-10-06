@@ -123,6 +123,21 @@ import {
   shortUserAgent,
   type ScanDebugSnapshot,
 } from "./debugStats";
+import {
+  alignPreviewToStill,
+  isPortraitViewport,
+  previewConstraintsFor,
+  type PreviewAlignment,
+  type PreviewTrackLike,
+} from "./previewConstraints";
+import {
+  buildAttemptRecord,
+  readAttempts,
+  recordAttempt,
+  type AttemptCapture,
+  type AttemptOutcome,
+  type AttemptRecord,
+} from "./attemptLog";
 import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
 import {
   INITIAL_HAND_CHIP_STATE,
@@ -186,6 +201,25 @@ function asFocusTrack(track: MediaStreamTrack): FocusTrackLike {
   };
 }
 
+/** The track as the preview alignment sees it (previewConstraints.ts). */
+function asPreviewTrack(track: MediaStreamTrack): PreviewTrackLike {
+  return {
+    getSettings: () => track.getSettings?.() ?? {},
+    applyConstraints: (constraints) =>
+      track.applyConstraints(constraints as MediaTrackConstraints),
+  };
+}
+
+/**
+ * What a capture or an upload knew about itself when it was made, kept for the
+ * attempt log (attemptLog.ts). An uploaded file's size arrives when the
+ * browser has decoded it, which can be after the analysis starts, so that part
+ * is a promise the log waits for.
+ */
+interface CaptureInfo extends AttemptCapture {
+  stillSize?: Promise<Size | null>;
+}
+
 /** The stream's frame size: the <video>'s own (what `object-fit: cover` cropped), else the track's settings. */
 function readStreamSize(
   video: HTMLVideoElement | null,
@@ -238,6 +272,7 @@ interface DebugCapture {
 
 interface ImageCaptureLike {
   takePhoto(): Promise<Blob>;
+  getPhotoCapabilities(): Promise<unknown>;
 }
 interface ImageCaptureConstructor {
   new (track: MediaStreamTrack): ImageCaptureLike;
@@ -514,6 +549,11 @@ export default function EasyScanCamera({
     continuous: FocusApplyResult | null;
     lastTap: FocusApplyResult | null;
   }>({ continuous: null, lastTap: null });
+  // What the preview was asked for and what the camera gave against the
+  // photo's shape (previewConstraints.ts), and the attempts kept on this device.
+  const previewAlignmentRef = useRef<PreviewAlignment | null>(null);
+  const attemptsRef = useRef<readonly AttemptRecord[]>([]);
+  const captureInfoRef = useRef<CaptureInfo | null>(null);
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -538,6 +578,12 @@ export default function EasyScanCamera({
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
   const tryAgainRef = useRef<HTMLButtonElement>(null);
+
+  // The attempts kept on this device (attemptLog.ts), read once so the debug
+  // panel shows the earlier ones too.
+  useEffect(() => {
+    attemptsRef.current = readAttempts(getBrowserStorage()) ?? [];
+  }, []);
 
   // Load persisted paper size + first-run-tip flag once, client-side only
   // (no hydration mismatch: both start at their SSR-safe defaults above).
@@ -748,20 +794,24 @@ export default function EasyScanCamera({
     resetLoopState();
     setCamState({ kind: "requesting" });
     try {
+      // The preview is asked for in the shape of the photo, not 16:9: a
+      // phone answers a 1920x1080 request with its video mode, which crops the
+      // sensor's sides, while takePhoto() reads the whole sensor, so a sheet
+      // that filled the preview filled only about three quarters of the photo
+      // (previewConstraints.ts). The photo's real shape is only known once a
+      // track exists, so the first request is the usual 4:3 and the track is
+      // re-asked below if the camera says otherwise.
+      const portrait = isPortraitViewport(
+        window.innerWidth,
+        window.innerHeight,
+      );
       const stream = await requestCameraStream(
         navigator.mediaDevices,
         {
-          video: {
-            facingMode: "environment",
-            // The preview only needs to be smooth to analyse; the photo itself
-            // comes from takePhoto(), at the sensor's full size.
-            width: { ideal: CAMERA_CONSTANTS.focus.previewIdealWidth },
-            height: { ideal: CAMERA_CONSTANTS.focus.previewIdealHeight },
-            // Prefer the camera's own frame sizes over a browser crop-and-
-            // scale to the requested shape: a crop would quietly narrow the
-            // field of view and could cut the paper's corners off.
-            resizeMode: { ideal: "none" },
-          } as MediaTrackConstraints & { resizeMode: { ideal: string } },
+          video: previewConstraintsFor(
+            CAMERA_CONSTANTS.preview.defaultStillAspect,
+            portrait,
+          ),
           audio: false,
         },
         () =>
@@ -778,7 +828,26 @@ export default function EasyScanCamera({
         });
       });
       const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) setUpFocus(videoTrack);
+      if (videoTrack) {
+        setUpFocus(videoTrack);
+        previewAlignmentRef.current = null;
+        void alignPreviewToStill({
+          track: asPreviewTrack(videoTrack),
+          ImageCaptureCtor: getImageCaptureCtor(),
+          portrait,
+        }).then((alignment) => {
+          // Not for a stream that has been replaced or stopped meanwhile.
+          if (streamRef.current !== stream) return;
+          previewAlignmentRef.current = alignment;
+          const settings = alignment.settings;
+          if (settings && debugTrackRef.current)
+            debugTrackRef.current = {
+              width: settings.width,
+              height: settings.height,
+              frameRate: settings.frameRate ?? debugTrackRef.current.frameRate,
+            };
+        });
+      }
       setVideoReady(false);
       resetLoopState();
       lastDetectionAtRef.current = performance.now();
@@ -840,11 +909,43 @@ export default function EasyScanCamera({
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [camState.kind, stopStream]);
 
+  // Keeps one record of an analysis on this device (attemptLog.ts): numbers
+  // and codes only, no image, never sent anywhere. Always on, not only with
+  // ?debug=1: the record is the only trace a failed scan leaves, and what it
+  // holds is the same few numbers the debug panel shows.
+  const logAttempt = useCallback(async (outcome: AttemptOutcome) => {
+    try {
+      const info = captureInfoRef.current;
+      const size = info?.stillSize ? await info.stillSize : null;
+      const capture: AttemptCapture = {
+        method: info?.method ?? null,
+        photoWidth: size?.width ?? info?.photoWidth ?? null,
+        photoHeight: size?.height ?? info?.photoHeight ?? null,
+        photoKb: info?.photoKb ?? null,
+        previewWidth: info?.previewWidth ?? null,
+        previewHeight: info?.previewHeight ?? null,
+      };
+      attemptsRef.current = recordAttempt(
+        getBrowserStorage(),
+        buildAttemptRecord({
+          at: new Date(),
+          userAgent: shortUserAgent(navigator.userAgent),
+          capture,
+          outcome,
+        }),
+        attemptsRef.current,
+      );
+    } catch {
+      // The log is a convenience: it must never break a scan.
+    }
+  }, []);
+
   const runPipeline = useCallback(
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
       setResult({ kind: "processing", previewUrl });
       try {
+        const info = captureInfoRef.current;
         const pipelineResult = await runPhotoPipelineImpl({
           file,
           hand: handChipRef.current.hand,
@@ -855,7 +956,17 @@ export default function EasyScanCamera({
             userLengthRef.current !== null
               ? { method: "user-length", handLengthMm: userLengthRef.current }
               : { method: "paper-edge", paperSize: paperSizeRef.current },
+          // A photo from takePhoto() that shows more than its preview did is
+          // cut down to the preview's field of view before analysis
+          // (fovCrop.ts); a canvas frame and an upload have nothing to match.
+          previewFrame:
+            info?.method === "takePhoto" &&
+            info.previewWidth &&
+            info.previewHeight
+              ? { width: info.previewWidth, height: info.previewHeight }
+              : undefined,
         });
+        void logAttempt({ kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
         if (pipelineResult.status === "ok") {
           setHandChip((prev) =>
@@ -899,10 +1010,15 @@ export default function EasyScanCamera({
           });
         }
       } catch (error) {
-        if (runId !== runIdRef.current) return;
         // Only a genuine detector load failure says so; anything else keeps
         // the message that does not claim a cause it does not know.
         const detectorFailed = error instanceof HandLandmarkerLoadError;
+        void logAttempt({
+          kind: "thrown",
+          code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          message: error instanceof Error ? error.message : "",
+        });
+        if (runId !== runIdRef.current) return;
         setResult({
           kind: "gateFailure",
           previewUrl,
@@ -924,7 +1040,7 @@ export default function EasyScanCamera({
         });
       }
     },
-    [runPhotoPipelineImpl],
+    [runPhotoPipelineImpl, logAttempt],
   );
 
   const captureNow = useCallback(async () => {
@@ -986,6 +1102,14 @@ export default function EasyScanCamera({
     setAnnounced("Photo taken");
     fileRef.current = file;
     setPhotoInfo(still ? { url: previewUrl, still, stream: streamSize } : null);
+    captureInfoRef.current = {
+      method,
+      photoWidth: still?.width ?? null,
+      photoHeight: still?.height ?? null,
+      photoKb: file.size / 1024,
+      previewWidth: streamSize?.width ?? null,
+      previewHeight: streamSize?.height ?? null,
+    };
     debugCaptureRef.current = {
       method,
       stillWidth: still?.width ?? null,
@@ -1020,7 +1144,17 @@ export default function EasyScanCamera({
         stillKb: file.size / 1024,
         ringCompleteToFrozenMs: null,
       };
-      void loadStillSize(previewUrl).then((still) => {
+      const stillSize = loadStillSize(previewUrl);
+      captureInfoRef.current = {
+        method: "upload",
+        photoWidth: null,
+        photoHeight: null,
+        photoKb: file.size / 1024,
+        previewWidth: null,
+        previewHeight: null,
+        stillSize,
+      };
+      void stillSize.then((still) => {
         if (still) setPhotoInfo({ url: previewUrl, still, stream: null });
       });
       void runPipeline(file, previewUrl);
@@ -1361,6 +1495,7 @@ export default function EasyScanCamera({
     const support = focusSupportRef.current;
     const videoSize = debugVideoSizeRef.current;
     const trackInfo = debugTrackRef.current;
+    const alignment = previewAlignmentRef.current;
     return {
       userAgent: shortUserAgent(navigator.userAgent),
       track: trackInfo
@@ -1408,6 +1543,23 @@ export default function EasyScanCamera({
         stillKb: capture.stillKb,
         ringCompleteToFrozenMs: capture.ringCompleteToFrozenMs,
       },
+      preview: {
+        requested: alignment
+          ? {
+              width: alignment.requested.width.ideal,
+              height: alignment.requested.height.ideal,
+              aspectRatio: alignment.requested.aspectRatio.ideal,
+            }
+          : null,
+        stillAspect: alignment?.stillAspect ?? null,
+        stillAspectSource: alignment?.stillAspectSource ?? null,
+        photoMax: alignment?.photoMax ?? null,
+        previewAspect: alignment?.comparison.previewAspect ?? null,
+        aspectDiff: alignment?.comparison.aspectDiff ?? null,
+        fovMismatch: alignment?.comparison.fovMismatch ?? null,
+        reapplied: alignment?.reapplied ?? null,
+      },
+      attempts: attemptsRef.current,
     };
   }, []);
   useEffect(() => {
