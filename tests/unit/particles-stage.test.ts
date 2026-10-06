@@ -413,3 +413,18 @@ describe("the particles", () => {
     expect(counts).toEqual([300, 300, 300]);
   });
 });
+
+describe("the stage's scroll handler and the guard", () => {
+  const source = readFileSync("src/components/home/particle-stage.ts", "utf8");
+
+  it("arms the guard through armOnScroll with the page's scrollY, and not with armGuard directly (a scroll event at the top does not arm it)", () => {
+    expect(source).toContain("armOnScroll(this.guard, window.scrollY)");
+    // armGuard may be named in a comment, but never called.
+    expect(source).not.toMatch(/armGuard\(/);
+  });
+
+  it("hands a context back when the stage is closed between two slices of the renderer's setup", () => {
+    expect(source).toContain("steps.return(null)");
+    expect(source).toContain("createGlRendererSteps(");
+  });
+});

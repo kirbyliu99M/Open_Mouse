@@ -228,6 +228,17 @@ export function armGuard(state: GuardState): GuardState {
 }
 
 /**
+ * A scroll event arrived with the page at `scrollY`: it arms the guard when the
+ * page has moved off the top, and does nothing for an event with the page still
+ * at the top (scroll restoration, the bounce of an overscroll, a `scroll` event
+ * sent by code), which has moved nothing. The stage calls this and not
+ * `armGuard`.
+ */
+export function armOnScroll(state: GuardState, scrollY: number): GuardState {
+  return scrollY > 0 ? armGuard(state) : state;
+}
+
+/**
  * A frame of the loop ran at `now` (ms, the animation frame's timestamp).
  * Returns the guard after it: the gap since the last frame of the same run of
  * frames is kept (but not the first few after a restart), the screen's interval

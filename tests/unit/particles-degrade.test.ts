@@ -3,6 +3,7 @@ import {
   DEGRADE,
   SCROLL_TAIL_MS,
   armGuard,
+  armOnScroll,
   breakChain,
   estimateRefreshMs,
   guardForBudget,
@@ -703,6 +704,31 @@ describe("before the first scroll: the page's own frames are not judged", () => 
     }
     expect(state.drawCount).toBe(budget);
     expect(armedFromStart.drawCount).toBeLessThan(budget);
+  });
+});
+
+describe("a scroll event arms the guard only when the page has moved off the top", () => {
+  const budget = 12000;
+
+  it("arms for a page that has scrolled (scrollY over 0), however little", () => {
+    for (const y of [1, 0.5, 4, 600, 12345]) {
+      const armed = armOnScroll(newGuard(budget), y);
+      expect(armed.armed, `scrollY ${y}`).toBe(true);
+      expect(armed.grace).toBe(DEGRADE.RESTART_GRACE);
+    }
+  });
+
+  it("does nothing for a scroll event with the page at the top: scroll restoration, an overscroll bounce, an event sent by code", () => {
+    const g = newGuard(budget);
+    for (const y of [0, -0, -1, -40.5, Number.NaN, Number.NEGATIVE_INFINITY]) {
+      expect(armOnScroll(g, y), `scrollY ${y}`).toBe(g);
+    }
+  });
+
+  it("is armGuard from then on: a guard that is armed already is not restarted", () => {
+    const armed = armOnScroll(newGuard(budget), 10);
+    expect(armOnScroll(armed, 20)).toBe(armed);
+    expect(armOnScroll(armed, 0)).toBe(armed);
   });
 });
 

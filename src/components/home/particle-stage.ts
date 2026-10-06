@@ -10,7 +10,7 @@ import {
 } from "@/lib/particles/budget";
 import {
   type GuardState,
-  armGuard,
+  armOnScroll,
   SCROLL_TAIL_MS,
   breakChain,
   guardForBudget,
@@ -1037,7 +1037,7 @@ class Stage {
       // The first scroll starts the guard's counting (degrade.ts): until then
       // only the page's own frames, with the shimmer, have run. A scroll event
       // with the page still at the top has moved nothing, and does not start it.
-      if (window.scrollY > 0) this.guard = armGuard(this.guard);
+      this.guard = armOnScroll(this.guard, window.scrollY);
       this.schedule();
     } else if (
       this.waitingForTop &&
