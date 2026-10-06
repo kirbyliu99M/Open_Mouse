@@ -1,5 +1,5 @@
 import type { Vec } from "./geometry";
-import type { TargetPoint } from "./sampling";
+import type { StrokeRun, TargetPoint } from "./sampling";
 import type { Line, ParticleTargets, ShapeTarget } from "./targets";
 
 /**
@@ -44,12 +44,38 @@ function points(value: Json, what: string): TargetPoint[] {
   });
 }
 
+/** [start, count, closed] triples, each inside the point list and in order. */
+function runs(value: Json, size: number, what: string): StrokeRun[] {
+  if (!Array.isArray(value) || value.length === 0) fail(`${what}: runs`);
+  let next = 0;
+  return value.map((triple) => {
+    if (!Array.isArray(triple) || triple.length !== 3) fail(`${what}: runs`);
+    const [start, count, closed] = triple as unknown[];
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(count) ||
+      (closed !== 0 && closed !== 1)
+    ) {
+      fail(`${what}: a run is [start, count, 0 or 1]`);
+    }
+    const from = start as number;
+    const length = count as number;
+    if (from < next || length < 1 || from + length > size) {
+      fail(`${what}: a run lies outside the points or overlaps another`);
+    }
+    next = from + length;
+    return { start: from, count: length, closed: closed === 1 };
+  });
+}
+
 function shape(value: Json, what: string): ShapeTarget {
   if (!isRecord(value)) fail(what);
+  const list = points(value.points, what);
   return {
     width: num(value.width, what),
     height: num(value.height, what),
-    points: points(value.points, what),
+    points: list,
+    runs: runs(value.runs, list.length, what),
   };
 }
 

@@ -7,7 +7,10 @@ import {
   waitForAnimated,
 } from "./helpers/home-stage";
 
-const OUTPUT = "docs/design/home-v3-2026-10-03/pr-b";
+// SCREENSHOT_DIR points a run somewhere else (the WebGL stage's shots live in
+// docs/design/home-v3-2026-10-03/gl), so the pr-b originals stay as they were.
+const OUTPUT =
+  process.env.SCREENSHOT_DIR ?? "docs/design/home-v3-2026-10-03/pr-b";
 const SHORT_OUTPUT = "docs/design/home-v3-2026-10-03/short-desktop";
 
 // Opt-in only (the same convention as easy-scan-screenshots.spec.ts): a normal

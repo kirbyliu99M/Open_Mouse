@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   CANVAS,
   CAPTION,
+  GL_CANVAS,
   HERO,
   STORY,
   heroGeometry,
@@ -20,6 +21,13 @@ import { expectPrintsDark } from "./fixtures/print-text";
  * (reduced motion, no JS, small screens, a module that fails to load), which
  * must be exactly PR A's page with no extra height. The static layout's own
  * facts (buttons, sizes, colours) are pinned in home.spec.ts.
+ *
+ * The stage draws the particles with WebGL where it can and on Canvas 2D where
+ * it can not (`data-renderer` on the section says which). Playwright's headless
+ * Chromium has software WebGL (SwiftShader), so the animated tests below run on
+ * the WebGL path; the last group blocks WebGL, and loses the context, to run the
+ * fallback. Where a check differs between the two it reads `data-renderer`, so
+ * none of them is weaker on either path.
  */
 
 // The desktop project's default window is 1280x720. The animated tests below
@@ -57,19 +65,39 @@ test.describe("the animated layout", () => {
     );
     expect(events[1]).toMatch(/^logo hidden, draws=[1-9]\d*$/);
 
-    // Frame by frame: exactly one logo on show, before, during and after.
+    // Frame by frame: exactly one logo on show, before, during and after. On
+    // the WebGL path the logo is on the WebGL canvas, so that one has to be on
+    // show and drawn too; the 2D canvas on top of it only carries the overlay.
+    const renderer = await page.locator(STORY).getAttribute("data-renderer");
     const frames = await read<
-      { logo: boolean; canvas: boolean; drawn: number }[]
+      {
+        logo: boolean;
+        canvas: boolean;
+        drawn: number;
+        gl: boolean;
+        glDrawn: number;
+      }[]
     >(page, "__frames");
     expect(frames.length).toBeGreaterThan(10);
     const shown = frames.map(
-      (f) => Number(f.logo) + Number(f.canvas && f.drawn > 0),
+      (f) =>
+        Number(f.logo) +
+        Number(
+          f.canvas &&
+            f.drawn > 0 &&
+            (renderer === "webgl" ? f.gl && f.glDrawn > 0 : true),
+        ),
     );
     expect(shown.filter((n) => n !== 1)).toEqual([]);
     // It did switch: the first frames show the image, the last the canvas.
     expect(frames[0]!.logo).toBe(true);
     expect(frames.at(-1)!.logo).toBe(false);
     expect(frames.at(-1)!.canvas).toBe(true);
+    if (renderer === "webgl") {
+      expect(frames.at(-1)!.gl).toBe(true);
+      // The WebGL canvas had drawn the logo before the class was added.
+      expect(await read<number>(page, "__glDrawsAtSwitch")).toBeGreaterThan(0);
+    }
 
     const logo = page.locator(".story-logo img");
     await expect(logo).toHaveCSS("visibility", "hidden");
@@ -436,11 +464,48 @@ test.describe("the animated layout", () => {
     });
   });
 
-  test("the canvas is decorative: aria-hidden, under the hero, and it takes no clicks", async ({
+  test("the canvases are decorative: aria-hidden, under the hero, and they take no clicks", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
+    const renderer = await page.locator(STORY).getAttribute("data-renderer");
+    // The WebGL layer is under the 2D one, the same size, in the same place, and just as inert.
+    if (renderer === "webgl") {
+      const gl = page.locator(GL_CANVAS);
+      await expect(gl).toHaveAttribute("aria-hidden", "true");
+      const layer = await gl.evaluate((el) => {
+        const style = getComputedStyle(el);
+        const panel = el.closest(".story-panel")!.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
+        return {
+          position: style.position,
+          zIndex: style.zIndex,
+          pointerEvents: style.pointerEvents,
+          sameAsPanel:
+            Math.abs(rect.x - panel.x) < 1 &&
+            Math.abs(rect.y - panel.y) < 1 &&
+            Math.abs(rect.width - panel.width) < 1 &&
+            Math.abs(rect.height - panel.height) < 1,
+          // Under the 2D canvas: the one just before it, with the same z-index.
+          isBelowTheOverlay:
+            el.nextElementSibling?.classList.contains("story-canvas") ?? false,
+          heroZ: getComputedStyle(document.querySelector(".story-hero")!)
+            .zIndex,
+        };
+      });
+      expect(layer).toMatchObject({
+        position: "absolute",
+        zIndex: "0",
+        pointerEvents: "none",
+        sameAsPanel: true,
+        isBelowTheOverlay: true,
+        heroZ: "1",
+      });
+    } else {
+      // On the 2D path the lower canvas stays hidden.
+      expect((await layoutFacts(page)).glCanvasDisplay).toBe("none");
+    }
     const canvas = page.locator(CANVAS);
     await expect(canvas).toHaveAttribute("aria-hidden", "true");
     const css = await canvas.evaluate((el) => {
@@ -501,6 +566,7 @@ test.describe("the animated layout", () => {
         low: probe(c.x + c.width / 2, c.y + c.height - 4),
       };
     });
+    // "story-canvas" is also in "story-canvas-gl": neither layer is hit.
     expect(hit.middle).not.toContain("story-canvas");
     expect(hit.low).not.toContain("story-canvas");
     // The three captions (and everything else in the stage) take no clicks either.
@@ -716,8 +782,14 @@ test.describe("the animated layout", () => {
       { timeout: 10_000 },
     );
     const draws = await read<number[]>(page, "__draws");
-    // It really played: dozens of frames in its first seconds.
+    // It really played: dozens of frames in its first seconds. On the WebGL
+    // path every one of them is a draw call, and the last is inside 3 s too.
     expect(draws.length).toBeGreaterThan(30);
+    if ((await page.locator(STORY).getAttribute("data-renderer")) === "webgl") {
+      const glDraws = await read<number[]>(page, "__glDraws");
+      expect(glDraws.length).toBeGreaterThan(30);
+      expect(Math.max(...glDraws) - activatedAt).toBeLessThan(3000);
+    }
     // And it ended inside 3 s (WCAG 2.2.2): the last draw is before activation + 3 s.
     const lastOffset = Math.max(...draws) - activatedAt;
     expect(lastOffset).toBeLessThan(3000);
@@ -726,11 +798,16 @@ test.describe("the animated layout", () => {
     // Then it is still: no draw and no requestAnimationFrame call for 2 s.
     const settled = {
       draws: (await read<number[]>(page, "__draws")).length,
+      glDraws: (await read<number[]>(page, "__glDraws")).length,
       raf: await read<number>(page, "__raf"),
       attr: await page.locator(CANVAS).getAttribute("data-draws"),
     };
     await page.waitForTimeout(2000);
     expect((await read<number[]>(page, "__draws")).length).toBe(settled.draws);
+    // The WebGL canvas is still too: no draw call, no frame requested.
+    expect((await read<number[]>(page, "__glDraws")).length).toBe(
+      settled.glDraws,
+    );
     expect(await read<number>(page, "__raf")).toBe(settled.raf);
     await expect(page.locator(CANVAS)).toHaveAttribute(
       "data-draws",
@@ -784,6 +861,20 @@ test.describe("the animated layout", () => {
       if (next !== "draw") empty.push(i);
     });
     expect(empty).toEqual([]);
+    // The WebGL canvas, too, is redrawn in the task that resizes it.
+    if ((await page.locator(STORY).getAttribute("data-renderer")) === "webgl") {
+      const glLog = await read<string[]>(page, "__glLog");
+      expect(
+        glLog.filter((entry) => entry === "resize").length,
+      ).toBeGreaterThan(0);
+      const glEmpty: number[] = [];
+      glLog.forEach((entry, i) => {
+        if (entry !== "resize") return;
+        const next = glLog.slice(i + 1).find((e) => e !== "resize");
+        if (next !== "draw") glEmpty.push(i);
+      });
+      expect(glEmpty).toEqual([]);
+    }
     await expect(page.locator(STORY)).toHaveAttribute("data-progress", /^0\.5/);
   });
 
@@ -851,6 +942,7 @@ test.describe("the animated layout", () => {
       expect(facts.sectionHeight, `p=${p}`).toBe(facts.panelHeight);
       expect(facts.heroOpacity, `p=${p}`).toBe("1");
       expect(facts.canvasDisplay, `p=${p}`).toBe("none");
+      expect(facts.glCanvasDisplay, `p=${p}`).toBe("none");
       await expectPrintsDark(page, `home printed after p=${p}`, {
         root: "body",
         minSamples: 2,
@@ -875,6 +967,7 @@ test.describe("the animated layout", () => {
     expect(facts.panelPosition).toBe("static");
     expect(facts.sectionHeight).toBe(facts.panelHeight);
     expect(facts.canvasDisplay).toBe("none");
+    expect(facts.glCanvasDisplay).toBe("none");
     expect(facts.heroOpacity).toBe("1");
     expect(facts.heroTransform).toBe("none");
   });
@@ -896,6 +989,31 @@ test.describe("the canvas follows the device", () => {
       expect(size.w).toBe(Math.round(size.cssW * 2));
       expect(size.h).toBe(Math.round(size.cssH * 2));
     });
+
+    test("the WebGL canvas's is at most twice on a wide screen and 1.5 times on a narrow one", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForAnimated(page);
+      test.skip(
+        (await page.locator(STORY).getAttribute("data-renderer")) !== "webgl",
+        "The 2D path has no WebGL canvas.",
+      );
+      const size = await page.locator(GL_CANVAS).evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const rect = c.getBoundingClientRect();
+        return {
+          w: c.width,
+          h: c.height,
+          cssW: rect.width,
+          cssH: rect.height,
+          wide: matchMedia("(min-width: 48rem)").matches,
+        };
+      });
+      const scale = size.wide ? 2 : 1.5;
+      expect(size.w).toBe(Math.round(size.cssW * scale));
+      expect(size.h).toBe(Math.round(size.cssH * scale));
+    });
   });
 
   test("the backing store is the CSS size times the device's ratio, never more than 2", async ({
@@ -910,6 +1028,19 @@ test.describe("the canvas follows the device", () => {
       return { w: c.width, cssW: rect.width };
     });
     expect(size.w).toBe(Math.round(size.cssW * Math.min(Math.max(dpr, 1), 2)));
+    // The WebGL canvas: the ratio capped at 2 (wide) or 1.5 (narrow).
+    if ((await page.locator(STORY).getAttribute("data-renderer")) === "webgl") {
+      const gl = await page.locator(GL_CANVAS).evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        return {
+          w: c.width,
+          cssW: c.getBoundingClientRect().width,
+          wide: matchMedia("(min-width: 48rem)").matches,
+        };
+      });
+      const cap = gl.wide ? 2 : 1.5;
+      expect(gl.w).toBe(Math.round(gl.cssW * Math.min(Math.max(dpr, 1), cap)));
+    }
   });
 
   for (const [cores, label] of [
@@ -917,7 +1048,7 @@ test.describe("the canvas follows the device", () => {
     [4, "4 cores"],
     [2, "2 cores"],
   ] as const) {
-    test(`the particle budget with ${label}: about 900 on a phone and 1,300 on a desktop, halved at 4 or fewer`, async ({
+    test(`the particle budget with ${label}: 6,000 on a phone and 12,000 on a desktop with WebGL (900 and 1,300 on Canvas 2D), halved at 4 or fewer`, async ({
       page,
     }) => {
       await page.addInitScript((n) => {
@@ -930,9 +1061,30 @@ test.describe("the canvas follows the device", () => {
       const wide = await page.evaluate(
         () => matchMedia("(min-width: 48rem)").matches,
       );
-      const expected = cores <= 4 ? (wide ? 648 : 450) : wide ? 1299 : 900;
+      const webgl =
+        (await page.locator(STORY).getAttribute("data-renderer")) === "webgl";
+      const expected = webgl
+        ? cores <= 4
+          ? wide
+            ? 6000
+            : 3000
+          : wide
+            ? 12000
+            : 6000
+        : cores <= 4
+          ? wide
+            ? 648
+            : 450
+          : wide
+            ? 1299
+            : 900;
       await expect(page.locator(CANVAS)).toHaveAttribute(
         "data-particles",
+        String(expected),
+      );
+      // Nothing has been slow yet, so all of them are drawn.
+      await expect(page.locator(CANVAS)).toHaveAttribute(
+        "data-drawn",
         String(expected),
       );
     });
@@ -961,6 +1113,7 @@ test.describe("the layout follows what the page can hold", () => {
     expect(facts.heroOpacity).toBe("1");
     expect(facts.inert).toBe(0);
     expect(facts.canvasDisplay).toBe("none");
+    expect(facts.glCanvasDisplay).toBe("none");
     // Text back to normal: it fits again and the stage comes back.
     await page.evaluate(() => document.getElementById("zoom")!.remove());
     await waitForAnimated(page);
@@ -1009,6 +1162,7 @@ test.describe("the layout follows what the page can hold", () => {
     expect(facts.logoVisibility).toBe("visible");
     expect(facts.heroOpacity).toBe("1");
     expect(facts.canvasDisplay).toBe("none");
+    expect(facts.glCanvasDisplay).toBe("none");
     // And on again.
     await page.setViewportSize({ width: 700, height: 600 });
     await waitForAnimated(page);
@@ -1060,6 +1214,7 @@ test.describe("the layout follows what the page can hold", () => {
     });
     expect((await measure()).hero).toBeGreaterThan(800 + 100);
     expect((await layoutFacts(page)).canvasDisplay).toBe("none");
+    expect((await layoutFacts(page)).glCanvasDisplay).toBe("none");
     // Tall enough again: on. Too short again: off.
     await page.setViewportSize({ width: 1280, height: 1600 });
     await waitForAnimated(page);
@@ -1140,6 +1295,7 @@ test.describe("the static layout is kept, with no extra height", () => {
       const facts = await layoutFacts(page);
       expect(facts.animated).toBe(false);
       expect(facts.canvasDisplay).toBe("none");
+      expect(facts.glCanvasDisplay).toBe("none");
       expect(facts.logoVisibility).toBe("visible");
       expect(facts.sectionHeight).toBe(facts.panelHeight);
       expect(await page.locator(CANVAS).getAttribute("data-draws")).toBeNull();
@@ -1187,6 +1343,7 @@ test.describe("the static layout is kept, with no extra height", () => {
       const facts = await layoutFacts(page);
       expect(facts.animated).toBe(false);
       expect(facts.canvasDisplay).toBe("none");
+      expect(facts.glCanvasDisplay).toBe("none");
       expect(facts.sectionHeight).toBe(facts.panelHeight);
       expect(facts.logoVisibility).toBe("visible");
       expect(facts.heroOpacity).toBe("1");
@@ -1221,6 +1378,7 @@ test.describe("the static layout is kept, with no extra height", () => {
       const facts = await layoutFacts(page);
       expect(facts.animated).toBe(false);
       expect(facts.canvasDisplay).toBe("none");
+      expect(facts.glCanvasDisplay).toBe("none");
       expect(facts.logoVisibility).toBe("visible");
       expect(facts.sectionHeight).toBe(facts.panelHeight);
       const plain = await baseline(browser, width, height);
@@ -1250,6 +1408,7 @@ test.describe("the static layout is kept, with no extra height", () => {
     const facts = await layoutFacts(page);
     expect(facts.animated).toBe(false);
     expect(facts.canvasDisplay).toBe("none");
+    expect(facts.glCanvasDisplay).toBe("none");
     expect(facts.logoVisibility).toBe("visible");
     expect(facts.sectionHeight).toBe(facts.panelHeight);
     expect(await page.locator(CANVAS).getAttribute("data-draws")).toBeNull();
@@ -1272,7 +1431,7 @@ test.describe("the static layout is kept, with no extra height", () => {
   });
 });
 
-test("the story section's markup: the hero first, the canvas last, one h1", async ({
+test("the story section's markup: the hero first, the two canvases last (WebGL under the 2D one), one h1", async ({
   page,
 }) => {
   await page.goto("/");
@@ -1290,6 +1449,7 @@ test("the story section's markup: the hero first, the canvas last, one h1", asyn
     "story-hand",
     "story-notes",
     "story-mice",
+    "story-canvas-gl",
     "story-canvas",
   ]);
   expect(order.h1).toBe(1);

@@ -41,7 +41,10 @@ Still **not decided (未拍板, candidate)**:
 - Whether to add the copy "Find your best mouse".
 - A sticky "Scan" bar on mobile once the hero scrolls away.
 - The particle-count and performance numbers below. They are Claude's targets
-  and must be measured on a real phone before they are treated as fixed.
+  and must be measured on a real phone before they are treated as fixed. That
+  includes the WebGL stage's budgets (6,000 on a phone and 12,000 on a desktop),
+  its slow-frame guard and its pixel-ratio caps (see
+  [Rendering and performance](#rendering-and-performance-targets-未拍板-until-measured)).
 
 ## Delivery: two PRs
 
@@ -124,7 +127,8 @@ DOM order:
       `h1`, the subhead, the two buttons and the Early preview note;
    2. the hand (a static SVG);
    3. the three mice (static SVGs), each with its caption as real text;
-   4. the `<canvas>` (PR B only).
+   4. the two `<canvas>` elements (PR B only): the WebGL one first, then the
+      2D overlay last (see Layers below).
 3. Final section: both buttons again and the Early preview note again.
 4. Footer disclaimer: left-aligned on mobile, centred on desktop.
 
@@ -151,14 +155,20 @@ are ordinary blocks, and their parts stack in flow, as in
   both layouts, so switching causes no layout shift. The section grows to
   about 400 svh (to be tuned). The panel becomes
   `position: sticky; top: 0; height: 100svh`.
-- **Layers.** The canvas is `aria-hidden="true"` and positioned
-  `absolute; inset: 0; z-index: 0`, with `pointer-events: none`. The hero and
-  the captions sit above it (`position: relative; z-index: 1`), so every
-  button stays clickable.
+- **Layers.** The panel holds two canvases, one on the other: the WebGL canvas
+  (`.story-canvas-gl`, the particles) under the 2D canvas (`.story-canvas`,
+  the overlay, and the particles too when WebGL is not available). Both are
+  `aria-hidden="true"` and positioned `absolute; inset: 0; z-index: 0`, with
+  `pointer-events: none`; the 2D one is later in the markup, so it is on top.
+  The hero and the captions sit above them (`position: relative; z-index: 1`),
+  so every button stays clickable. One canvas can not give both a 2D and a
+  WebGL context, hence two. The lower one is shown only while the section's
+  `data-renderer` is `webgl`.
 - **Progress.** `p` is clamped to [0, 1]. It is 0 when the panel pins (the
   nav has scrolled away by then) and 1 when the section's bottom reaches the
   panel's bottom.
-- **Logo handoff.** The canvas draws the logo at the static `<img>`'s rect
+- **Logo handoff.** The stage draws the logo (on the WebGL canvas, or the 2D
+  one on the fallback path) at the static `<img>`'s rect
   (`getBoundingClientRect`). Once that frame is drawn, it hides the `<img>`
   with `visibility: hidden`, so there is never a double logo.
 - **Hero text.** From p = 0 to 0.10 the hero text fades and moves up, using
@@ -364,7 +374,10 @@ Everything else follows scroll.
     real logo exists.
 - **Resampling.** The same particles move through every state, so the
   particle count is fixed by the budget below. Each target list is resampled
-  to that count. Three mice share it, about a third each.
+  to that count. Three mice share it, about a third each. The committed file
+  only holds a few hundred to a few thousand points per shape, so with the
+  WebGL budgets the browser grows them (see "Source density" below); the
+  Canvas 2D fallback resamples exactly as before.
 - **Pairing.** Sort both point lists by x and pair by index. This gives a
   coherent sideways flow instead of random crossings.
   - Logo → hand: one list to one list.
@@ -380,20 +393,273 @@ Everything else follows scroll.
 
 ### Rendering and performance (targets, 未拍板 until measured)
 
-- One Canvas 2D `requestAnimationFrame` loop. Draw a pre-rendered glow sprite
-  per bright point; never use CSS `filter` per particle.
-- Particle budget, shared by all states:
-  - about 900 on mobile and 1,300 on desktop;
-  - halve it when `navigator.hardwareConcurrency <= 4`.
-- Device pixel ratio capped at 2.
+The WebGL stage (2026-10-05) moved the particles' drawing to the GPU. **Every
+number in this section is Claude's candidate (未拍板)**: the budgets, the
+pixel-ratio caps, the lit shares of the stars, the slow-frame guard and the
+point-size margin wait for Kirby's pick from the screenshots in `gl/` and for a
+measurement on a real phone. The measured numbers (in the PR description) are from a desktop GPU (an
+RTX 5060 laptop) with the CPU throttled, so the CPU side and the shader's logic
+are measured and **a phone GPU's cost of filling the soft points is not**.
+
+- **WebGL path.** Plain WebGL 1, no library (`src/components/home/stage-gl.ts`).
+  - The context is made with `antialias: false`, `depth: false`,
+    `premultipliedAlpha: true`, `powerPreference: "high-performance"`.
+  - Each particle's three resting positions, its two swirl vectors, its tone at
+    each resting state, its shimmer x and its rank (below) are made once per
+    layout into one interleaved `Float32Array` and sent with `STATIC_DRAW`
+    (`src/lib/particles/gl-buffers.ts`). **Scrolling uploads nothing**: a frame
+    sets a few uniforms and makes one `drawArrays(POINTS)`. A new layout (a
+    resize) uploads again.
+  - The vertex shader computes `pos = a + (b − a)·e + sin(π·e)·A` with the ends
+    exact (`e ≤ 0` is `a`, `e ≥ 1` is `b`), the same as `interpolateAxis`. The
+    leg (logo to hand, or hand to mice) and the weights `e(t)` and `sin(π·e)`
+    come from the same `legOf` and `legWeights` the Canvas 2D path uses, passed
+    as uniforms.
+  - A point is a soft round dot: a bright core with a halo, drawn over what is
+    there (premultiplied alpha). With `prefers-contrast: more` the halo is
+    off and each particle is a solid disc, never fainter or smaller than the
+    2D look's (a core at least 1.7 px across for a bright one, 1.4 px for a
+    dim one, and no state drawn below its look): the mode is for seeing better.
+    The shimmer is in the shader too: it plays once, for at most 2.6 s (the
+    `shimmerAt` timing, unchanged), and after it nothing is drawn or scheduled.
+  - **Stars and dust (2026-10-06, Kirby's pick).** The drawings are not dust:
+    the logo and the three mice are **a few hundred glowing stars each**, as
+    in the Canvas 2D version, and only **the hand keeps every particle**, as
+    a fine dust. A state lights a share of the particles, its **lit share**
+    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.06, the mice
+    0.15, the hand 1 (candidate, 未拍板). Every particle has a stable
+    **rank** (its place in the uploaded order as a share of the count, taken
+    at the middle of the place); a state lights the particles whose rank is
+    under its share, so a smaller share is a subset of a bigger one. On a
+    desktop's 12,000 particles that is 720 stars on the logo and 1,800 on the
+    mice (600 to a mouse); a phone's 6,000 has half as many. The
+    2D version drew about 1,300 particles on a desktop (433 to a mouse) and
+    900 on a phone, so 0.15 is about a third denser than the accepted picture
+    on a desktop and the same on a phone; 0.11 would match it on a desktop.
+    Kirby picks the share from the screenshots `gl/lit-options-*.png`: mice
+    0.08, **0.15 (the default)** and 0.25, with the logo at 0.03, 0.06 and 0.10.
+    The logo's share is lower because its stars sit on a short line (the 2D
+    version drew the logo as about 260 points).
+  - **Over a leg** a particle's visibility goes in a straight line, by the same
+    `e(t)` that moves it, from 1 or 0 (lit or not at the start of the leg) to
+    1 or 0 (at the end), with the ends exact: at `e ≤ 0` it is the start
+    state's value and at `e ≥ 1` the end state's (`litness`, the same formula
+    in TypeScript and in the shader). So in hand to mice about 85 % of the
+    dust fades out as it flows, and the rest condenses into the stars; in logo
+    to hand the dust fades in around the logo's stars as they spread. A
+    particle keeps the look of the end where it is lit (a particle that fades
+    out stays the dust it was; one that fades in is already the star it will
+    be), and one that is lit at both ends grows from dust to star by `e`.
+    A particle that is lit in neither end of a leg is not drawn at all.
+  - **Order.** The uploaded order is not a shuffle: it is built by
+    best-candidate sampling (`src/lib/particles/star-order.ts`; the leading
+    30 % of the order, the rest is a seeded shuffle): each next particle is
+    the farthest, of eight random candidates, from the particles already
+    chosen, on the logo and on its mouse at once. Every prefix of the order is
+    then an even scatter on the logo and on each mouse, so the stars at any
+    share are evenly spaced beads and not clumps and gaps (the nearest
+    neighbour's distance varies by 0.3 to 0.4 of its mean, against 0.6 to 0.9
+    for a random pick). It is made in slices of 150 picks, while the page is
+    still static, once per layout kind and budget. Measured in the browser
+    with those slices (the dev server, headless Chromium, one run each, so a
+    rough figure): 12,000 particles take 58 ms of CPU in 35 slices, the
+    longest 14 ms (the first: its arrays and a cold start; the rest are 6 ms
+    or less); a phone-sized window's 6,000 take 35 ms in 23 slices, the
+    longest 9 ms; with the CPU throttled 4× they take 0.31 s and 0.18 s, in
+    slices of at most 28 ms and 25 ms.
+  - **Look.** A star has the 2D look: a bright one about 6 px across with the
+    soft glow of the 2D sprite, a dim one a small soft dot (`glLook`, which
+    gets smaller and fainter the more particles crowd the sheet, applied to
+    **the number of particles the state lights**, not to the total: about
+    1,800 on a desktop's mice, close to the 1,300 the 2D look was tuned for,
+    so a star is not shrunk). The hand's dust is the same function with every
+    particle: about 2.7 px, faint. The logo's stars are a third bigger
+    (`STAR_SIZE.logo`, 1.35, candidate): the 2D version topped the logo up
+    with copies nudged by a pixel, five on every point, so a logo point
+    glowed as a small clump; a single star of the same size reads thinner.
+  - **The first frame's stars.** The first frame is drawn before the hand's
+    and the mice's places are measured, so its look is worked out with the
+    hand's scale taken from the logo's box. After the first measure the scale
+    is the real one, and the logo's stars can change size once, by about 12 %
+    on a desktop's 12,000 particles (a review's estimate, not a figure I
+    measured; the pixel sizes it gave for a phone-sized window are 5.8 → 7.7
+    px). Whether that jump can be seen has not been looked at. It has been so
+    since the stars were first drawn, and has not been changed.
+  - **Guard.** The lit particles come first in the order, so when the guard
+    draws only the first N, the dust thins and the stars stay (until N is
+    smaller than the stars: at the floor of a quarter of the budget, 3,000 of
+    12,000, the 1,800 stars of the mice are all still there).
+- **Overlay.** The A4 corners, the skeleton, the measurement lines with their
+  end ticks and the 21 landmarks stay on Canvas 2D, on the canvas above the
+  WebGL one: there are few of them.
+- **Fallback to Canvas 2D** (with the **old budget** and the old look): no
+  WebGL; a shader that does not compile or link; a GPU whose largest point
+  (`ALIASED_POINT_SIZE_RANGE`) is under the biggest point the stage draws (a
+  logo star at the top of the shimmer's swell, times the pixel ratio) plus 24
+  px of room; a `webglcontextlost` while running (the
+  stage does not call `preventDefault()`, which would ask the browser to
+  restore the context and leave a context nobody uses; it rebuilds for the 2D
+  path at once and does not try WebGL again that visit). `data-renderer` on the section says `webgl` or
+  `2d`. The static layout (reduced motion, no JS, a short window, a module that
+  fails to load) is unchanged. `failIfMajorPerformanceCaveat` is **not** set
+  (decided 2026-10-06): a browser with only software WebGL still takes the
+  WebGL path, and the slow-frame guard below is what protects it; asking for the
+  caveat would also send the headless software WebGL of the e2e runs to 2D and
+  leave this path untested.
+- **Particle budget, shared by all states** (candidate):
+
+  | Path                 | Phone | Desktop | Halved when `hardwareConcurrency <= 4` |
+  | -------------------- | ----: | ------: | -------------------------------------- |
+  | WebGL                | 6,000 |  12,000 | yes                                    |
+  | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
+
+  Each is rounded down to a multiple of three (a third per mouse). The
+  budget is the number of particles in the whole story. The hand's dust
+  draws all of them, and the stars are a share of them (the lit count is the
+  share times the budget, rounded), so a bigger budget makes the hand's dust
+  finer and makes the stars proportionally more numerous: at the default shares
+  a mouse has 300 stars on a phone's 6,000 particles and 600 on a desktop's
+  12,000 (the logo 360 and 720). The earlier pick between 4,000 / 8,000,
+  **6,000 / 12,000 (the default)** and 10,000 / 20,000 was made on the picture
+  of continuous lines and is still open: it now sets how many stars there are as
+  well as how fine the dust is. (A star's look follows the number of lit
+  particles, so a much bigger budget also makes the stars a little smaller.)
+
+- **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
+  capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
+- **Source density.** The committed `targets.generated.json` stays small (about
+  14 KB gzip): the logo has 262 points, the hand 1,400, a mouse 1,134. The
+  browser grows them from the same seed, so the result is reproducible:
+  - a stroke (the logo, a mouse) is walked at an even step, and each particle is
+    nudged a fraction of a pixel across it (a bell-shaped spread of 0.3 stage
+    px, at most 2.5 deviations), so a line gets width and stays on the shape;
+    an open stroke's first and last particle are its own end points; the file
+    says which points make up each stroke (`runs`);
+  - the hand is a fill: `fillTemplateHand` continues, with the generator's own
+    seed, past the 1,400 committed points;
+  - the pairing (sort by x, pair by index) sorts packed integer keys, not
+    objects, and then puts any two points the keys could not tell apart in
+    order with the exact comparison, so the order is exactly the comparator's
+    (x, then y, then input order, which is what the Canvas 2D fallback has
+    always had) and a 12,000-particle pairing takes about 8 ms of sorting
+    instead of 14.
+- **Slow-frame guard** (candidate, `src/lib/particles/degrade.ts`). The WebGL
+  path times the gap between two consecutive **animation frames**, not between
+  two draws: a draw only happens when the picture changes, so a mouse wheel
+  clicking every 30 ms, or a reader who scrolls, stops and scrolls again, would
+  look slow. To have a callback on every frame of a scroll, the stage keeps its
+  `requestAnimationFrame` loop running for **200 ms after the last scroll
+  event** and then stops it: this is not an idle loop (nothing is scheduled
+  once the page has been still for 200 ms, and during the shimmer the loop runs
+  by itself for at most 2.6 s, as before). When the loop stops the guard is
+  told, and the first frame of the next run has no gap, so the time the reader
+  stood still is never a slow frame, **and the first five gaps after it are
+  not counted either** (`DEGRADE.RESTART_GRACE`, candidate): measured with the
+  CPU throttled 4 and 6 times (production build, bursts of 5 scroll frames with
+  320 ms of rest between), the gaps after the first four frames of a run were
+  slow 35 to 90 % of the time, the fifth 10 to 15 %, the sixth never (with no
+  throttling none), which would be four slow gaps in every burst and step down
+  a reader who scrolls in short bursts; a device that is slow all the time is
+  still slow in every gap after those five. A long gap inside a running loop is
+  a real hitch and counts as one slow frame (a single stall is one of the eight
+  it takes). **Nothing is counted before the first scroll** (`armGuard`, called
+  by the stage's scroll handler once the page has moved): the page's own first
+  frames, with the shimmer at the top, are not the reader's (the browser is
+  still starting the page, a dev server may be compiling beside it); they still
+  teach the guard the screen's interval and set its clock, but are not in its
+  window. Arming is a restart, so the grace above applies to it too. The screen's refresh interval is the median of the first 40 gaps
+  (the shimmer runs every frame) **and never more than 16.7 ms**, so a device
+  that is slow from its first frame does not take its own slow frames for the
+  screen's pace (a screen that truly runs at 30 Hz, a phone in low-power mode,
+  is stepped down, which is accepted). The window the guard judges starts empty
+  once the interval is known, so the first frames after the layout switches on
+  (a measure, a GPU warm-up) are not in it. When **at least 8 of the last 60
+  gaps are over 1.7 times that interval** (about 13 % of the frames) the count
+  drawn drops by 25 %, to at most a quarter of the budget; it does not rise
+  again until the budget itself changes (the layout crosses 48 rem), which
+  starts the count over. After a step the window is cleared and has to fill
+  again, all 60 gaps, before the next step is allowed. Counting misses, not
+  reading a percentile, is on purpose: a 165 Hz screen that is not struggling
+  still misses a vsync now and then (12.2 ms, over the 1.7 line), and 3 misses
+  in 45 was enough to take particles from it. **The 8-in-60 bar is a candidate,
+  to be checked on a real 60 Hz phone.** The particles are uploaded in a
+  star order (above), so the first N are an even scatter on the logo and on every
+  mouse, and nothing is missing from the logo, the hand or a mouse when fewer
+  are drawn. `data-particles` is the
+  budget, `data-drawn` what is drawn now and `data-refresh-ms` the estimate.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
-  stage is off-screen (IntersectionObserver) or the tab is hidden.
+  stage is off-screen (IntersectionObserver) or the tab is hidden. There is no
+  idle loop: on the WebGL path the frame loop runs for 200 ms after the last
+  scroll event (so the guard can time every frame of a scroll) and then
+  stops; those frames draw nothing unless the picture changed.
 - First paint is the static placeholder logo SVG plus the text. The particle
-  module is a dynamic import after first paint, so it doesn't delay LCP.
-  The LCP element is the logo `<img>` or the h1; both are in the initial
-  HTML, and the logo SVG is small and not lazy-loaded.
-- Main-thread work under about 8 ms per frame on a mid-range phone. Measure
-  this on a real phone and post the number in PR B.
+  module is a dynamic import after first paint, so it doesn't delay LCP. The
+  LCP element is the logo `<img>` or the h1; both are in the initial HTML, and
+  the logo SVG is small and not lazy-loaded. The first frame is set up in
+  slices, one task each, while the page is still the static one: the WebGL
+  context, each shader and the link; the densifying of the logo and of each
+  mouse (every 1,500 particles), their sorts, the hand's fill (every 1,500),
+  the pairing's own steps, the swing tables (every 2,000), the star order
+  (every 150 picks), the canvases' sizes and the first particles; the task that
+  switches the layout only draws the first frame and flips the class. The real
+  measure of the animated layout is the first frame's job, and while the reader
+  has not scrolled it is spread over three frames (the rects and the particles;
+  the upload; the hand's outline and the notes), so none of its parts is a long
+  task on a slow phone.
+- **Load-time long tasks, A/B against main (2026-10-07).** The same page load,
+  alternately main (`68cbf60`) and this branch, 16 loads each, one after the
+  other (main first on the odd, this branch first on the even), production
+  builds, the same headed Chromium window (1280×800, device pixel ratio 1, the
+  CPU throttled 4×, a 165 Hz screen in every run, 6.1 ms a frame), a long task
+  being a task of 50 ms or more (`PerformanceObserver`, from the start of the
+  document to 2.5 s after the network went idle):
+
+  |                                                                           |      main | this branch |
+  | ------------------------------------------------------------------------- | --------: | ----------: |
+  | long tasks, count: median / p95                                           |     3 / 4 |       4 / 5 |
+  | long tasks, total ms: median / p95                                        | 710 / 795 |   692 / 782 |
+  | the first one (the page's own hydration, 400 to 550 ms), ms: median / p95 | 438 / 500 |   418 / 507 |
+  | long tasks after it, count: median / p95                                  |     2 / 3 |       3 / 4 |
+  | long tasks after it, total ms: median / p95                               | 275 / 347 |   256 / 293 |
+  | the longest one after it, ms: median / p95                                | 214 / 231 |    93 / 100 |
+
+  **One more long task than main** (4 against 3), and together they weigh about
+  the same (a little less). What changed is their shape: main has one task of
+  190 to 235 ms (its stage chunk, with 42 to 78 ms of forced layout) and one or
+  two of 50 to 60 ms; this branch has none over about 100 ms, and three of 50 to
+  100 ms. Where the three come from (Long Animation Frames): the WebGL canvas's
+  first resize (a `MessagePort` slice of 93 to 95 ms, which cannot be cut: it is
+  one assignment of the canvas's size), a frame whose style and layout take 50
+  ms with a 13 ms callback (the layout switch, which main has too), and a frame
+  callback of 70 ms with 8 ms of forced layout (the first draw after the
+  measure). The chunk's own evaluation is a 48 to 62 ms task in some loads
+  (main's is the 190 to 235 ms one). The loads before the slicing (6 to 8 long
+  tasks of 50 to 135 ms against main's 3 to 4) are why the start-up work is cut
+  into the slices above. Not measured: a phone, other browsers, the loads of a
+  page with a warm cache.
+
+- Main-thread work under about 8 ms per frame on a mid-range phone (the
+  target); not measured on a real phone. The probe script reports a rough
+  figure only: the page's main-thread task time (CDP `TaskDuration`) between
+  the start and the end of a scroll window of about 3 s, divided by the number
+  of animation frames the probe's own loop logged in that window. The task
+  time is everything the main thread did in the window (the page's own work,
+  layout, compositing and the probe's script, which cannot be told apart), and
+  the frame count differs by up to 2x between runs of the same build (the
+  probe's loop seems at times to have been started twice; not confirmed), so
+  the per-frame figures are not comparable between runs and are not given.
+  The total task time over the window is: desktop-sized window, no CPU
+  throttle, 233 to 334 ms; with the CPU throttled 4x, 906 and 919 ms (165 Hz
+  screen, before the stars) and 1,898 and 1,912 ms (119 Hz screen, with the
+  stars; main's Canvas 2D version measured 1,878 ms); phone-sized window,
+  throttled 4x, 843 to 1,157 ms (before the stars) and 1,707 and 1,755 ms (with
+  the stars; main's Canvas 2D 1,640 to 1,786 ms). The runs with the stars are
+  about twice the earlier ones at 4x, with no cause found yet (known
+  differences: a 119 Hz screen against 165 Hz, the state of the machine that
+  day). So there is no evidence that the WebGL path does less main-thread work
+  than main's Canvas 2D version; it draws about nine times the particles
+  (12,000 against 1,300) for a similar total. Measure on a real phone and post
+  the number.
 
 ### Reduced motion and no JS
 
@@ -453,9 +719,9 @@ change in PR A. Rewrite them; don't delete them silently.
 - [ ] Home-page text uses only the token colours; no `#6E6E73` text.
 - [ ] Every control has a hit area of at least 44 × 44 px; the focus ring is
       visible on dark.
-- [ ] The h1 comes before the stage in reading order. The canvas and the hero
-      logo are decorative (`aria-hidden`, empty alt); the wordmark in the nav
-      names the site. Each mouse in the last step has its model name as text.
+- [ ] The h1 comes before the stage in reading order. Both canvases and the
+      hero logo are decorative (`aria-hidden`, empty alt); the wordmark in the
+      nav names the site. Each mouse in the last step has its model name as text.
 - [ ] Reduced motion and no-JS show the static end states.
 - [ ] The only automatic motion ends within 3 s (WCAG 2.2.2).
 - [ ] `prefers-contrast: more` and forced colours keep borders visible.

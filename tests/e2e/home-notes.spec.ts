@@ -120,7 +120,8 @@ test.describe("the annotations on the animated page", () => {
     // No number anywhere in them.
     const text = (await page.locator(".story-notes").textContent()) ?? "";
     expect(text).not.toMatch(/\d/);
-    // After the hand, before the mice, canvas last and still decorative.
+    // After the hand, before the mice, the two canvases last (WebGL under the
+    // 2D one) and still decorative.
     const order = await page.evaluate(() =>
       [...document.querySelector(".story-panel")!.children].map(
         (el) => el.className,
@@ -131,6 +132,7 @@ test.describe("the annotations on the animated page", () => {
       "story-hand",
       "story-notes",
       "story-mice",
+      "story-canvas-gl",
       "story-canvas",
     ]);
     await expect(page.locator(CANVAS)).toHaveAttribute("aria-hidden", "true");

@@ -20,6 +20,11 @@ import type { Phase } from "@/lib/particles/timeline";
  * context, no CSS filters: a bright particle is a pre-rendered glow sprite
  * stamped with drawImage, and the dim ones are one batched path. The numbers
  * here (sizes, alphas) are looks, not budgets.
+ *
+ * It draws two things: the particles, when the stage has fallen back to Canvas
+ * 2D (or never had WebGL), and the overlay, always. When WebGL draws the
+ * particles (stage-gl.ts) this canvas is the layer on top of it and carries the
+ * overlay alone.
  */
 
 /** The key light and the landmark halos (the `--glow` token; decorative). */
@@ -240,8 +245,16 @@ export interface DrawState {
   /** The canvas's size in CSS px. */
   readonly width: number;
   readonly height: number;
-  readonly set: ParticleSet;
-  readonly frame: Frame;
+  /**
+   * The particles to draw on this canvas. Null when the WebGL stage draws
+   * them on its own canvas underneath: this canvas then only carries the
+   * overlay (the A4 corners, the skeleton, the measurement lines, the 21
+   * landmarks).
+   */
+  readonly particles: {
+    readonly set: ParticleSet;
+    readonly frame: Frame;
+  } | null;
   readonly phase: Phase;
   readonly sprites: Sprites;
   readonly hand: HandTarget;
@@ -258,7 +271,7 @@ export function drawStage(ctx: CanvasRenderingContext2D, s: DrawState): void {
   ctx.clearRect(0, 0, s.width, s.height);
   ctx.globalAlpha = 1;
   drawSheetCorners(ctx, s);
-  drawParticles(ctx, s);
+  if (s.particles) drawParticles(ctx, s, s.particles);
   drawHandOverlay(ctx, s);
   drawNotes(ctx, s);
   ctx.globalAlpha = 1;
@@ -291,9 +304,13 @@ function drawSheetCorners(ctx: CanvasRenderingContext2D, s: DrawState): void {
   ctx.stroke();
 }
 
-function drawParticles(ctx: CanvasRenderingContext2D, s: DrawState): void {
-  const { xy, bright } = s.frame;
-  const { shimmerX, count } = s.set;
+function drawParticles(
+  ctx: CanvasRenderingContext2D,
+  s: DrawState,
+  particles: NonNullable<DrawState["particles"]>,
+): void {
+  const { xy, bright } = particles.frame;
+  const { shimmerX, count } = particles.set;
   const { particle } = s.sprites;
   const band = s.shimmer;
   const lit = (i: number) =>

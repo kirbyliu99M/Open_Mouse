@@ -457,7 +457,8 @@
 
    The hero sits in the same place in both layouts (it is the panel's first
    child, and nothing here moves it), so switching shifts nothing in view. */
-.story-canvas {
+.story-canvas,
+.story-canvas-gl {
   display: none;
 }
 
@@ -473,9 +474,14 @@
   height: 100vh;
   height: 100svh;
 }
-/* The canvas is a decorative layer under the hero and the captions: it takes
-   no pointer events, so every button stays clickable. */
-.story--animated .story-canvas {
+/* The canvases are decorative layers under the hero and the captions: they
+   take no pointer events, so every button stays clickable. There are two, one
+   on the other (the same z-index, so the later one in the markup is on top):
+   WebGL draws the particles underneath, and the 2D canvas above it carries the
+   overlay. With no WebGL the 2D canvas draws everything and the lower one stays
+   hidden (the section's data-renderer says which path is on). */
+.story--animated .story-canvas,
+.story--animated[data-renderer="webgl"] .story-canvas-gl {
   display: block;
   position: absolute;
   inset: 0;
@@ -826,6 +832,7 @@
   .story-notes,
   .story-mice,
   .story-canvas,
+  .story-canvas-gl,
   .home-hero-badge {
     display: none !important;
   }

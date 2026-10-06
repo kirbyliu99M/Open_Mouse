@@ -1,4 +1,4 @@
-import { type Vec, distance } from "./geometry";
+import type { Vec } from "./geometry";
 import { mulberry32 } from "./random";
 import type { TargetPoint } from "./sampling";
 
@@ -174,19 +174,49 @@ export const WIDTH_LINE_MM = { y: 170, left: 70, right: 170 } as const;
 /** Half the length of an end tick, in mm. */
 export const TICK_MM = 3;
 
-function insideCapsule([x, y]: Vec, { a, b, ra, rb }: Capsule): boolean {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const lengthSquared = dx * dx + dy * dy;
+/** What a capsule test needs, worked out once: the segment, its squared length, and the radius at the start and its change along it. */
+interface CapsuleTest {
+  readonly ax: number;
+  readonly ay: number;
+  readonly dx: number;
+  readonly dy: number;
+  readonly lengthSquared: number;
+  readonly ra: number;
+  readonly dr: number;
+}
+
+const CAPSULE_TESTS: readonly CapsuleTest[] = CAPSULES_MM.map(
+  ({ a, b, ra, rb }) => {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    return {
+      ax: a[0],
+      ay: a[1],
+      dx,
+      dy,
+      lengthSquared: dx * dx + dy * dy,
+      ra,
+      dr: rb - ra,
+    };
+  },
+);
+
+/** Squared distances, so the 50,000 tests a dense fill makes need no square root. */
+function insideCapsule(x: number, y: number, c: CapsuleTest): boolean {
   const t =
-    lengthSquared === 0
+    c.lengthSquared === 0
       ? 0
       : Math.max(
           0,
-          Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / lengthSquared),
+          Math.min(
+            1,
+            ((x - c.ax) * c.dx + (y - c.ay) * c.dy) / c.lengthSquared,
+          ),
         );
-  const nearest: Vec = [a[0] + dx * t, a[1] + dy * t];
-  return distance([x, y], nearest) <= ra + (rb - ra) * t;
+  const ex = c.ax + c.dx * t - x;
+  const ey = c.ay + c.dy * t - y;
+  const radius = c.ra + c.dr * t;
+  return ex * ex + ey * ey <= radius * radius;
 }
 
 function insidePolygon([x, y]: Vec, polygon: readonly Vec[]): boolean {
@@ -205,7 +235,7 @@ function insidePolygon([x, y]: Vec, polygon: readonly Vec[]): boolean {
 export function insideTemplateHand(point: Vec): boolean {
   return (
     insidePolygon(point, PALM_POLYGON_MM) ||
-    CAPSULES_MM.some((capsule) => insideCapsule(point, capsule))
+    CAPSULE_TESTS.some((capsule) => insideCapsule(point[0], point[1], capsule))
   );
 }
 
@@ -232,22 +262,36 @@ const BOUNDS_MM = (() => {
 const BRIGHT_SHARE = 0.3;
 
 /**
- * `count` points filling the template hand, in stage px (A4 340 px wide),
+ * A source of fill points for the template hand, in stage px (A4 340 px wide),
  * by seeded rejection sampling. Every point is inside a capsule or the palm.
+ * `next(n)` continues where the last call stopped, so a big fill can be made in
+ * slices (the stage yields to the browser between them) and still be the same
+ * points: the first n of a longer fill are the n of a shorter one.
  */
-export function fillTemplateHand(count: number, seed: number): TargetPoint[] {
+export function createHandFiller(seed: number): {
+  next(count: number): TargetPoint[];
+} {
   const random = mulberry32(seed);
-  const out: TargetPoint[] = [];
   const { x0, x1, y0, y1 } = BOUNDS_MM;
-  while (out.length < count) {
-    const x = x0 + random() * (x1 - x0);
-    const y = y0 + random() * (y1 - y0);
-    if (!insideTemplateHand([x, y])) continue;
-    out.push({
-      x: x * STAGE_SCALE,
-      y: y * STAGE_SCALE,
-      tone: random() < BRIGHT_SHARE ? 1 : 0,
-    });
-  }
-  return out;
+  return {
+    next(count: number): TargetPoint[] {
+      const out: TargetPoint[] = [];
+      while (out.length < count) {
+        const x = x0 + random() * (x1 - x0);
+        const y = y0 + random() * (y1 - y0);
+        if (!insideTemplateHand([x, y])) continue;
+        out.push({
+          x: x * STAGE_SCALE,
+          y: y * STAGE_SCALE,
+          tone: random() < BRIGHT_SHARE ? 1 : 0,
+        });
+      }
+      return out;
+    },
+  };
+}
+
+/** `count` points filling the template hand, in stage px (A4 340 px wide). */
+export function fillTemplateHand(count: number, seed: number): TargetPoint[] {
+  return createHandFiller(seed).next(count);
 }
