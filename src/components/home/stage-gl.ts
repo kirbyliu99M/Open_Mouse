@@ -31,8 +31,8 @@ import {
  * that fades out stays the dust it was and one that fades in is already the
  * star it will be. `litness` in look.ts is the same formula.
  *
- * `createGlRenderer` returns null for anything that should send the stage back
- * to Canvas 2D: no WebGL, a shader that does not compile or link, or a GPU
+ * `createGlRendererSteps` ends with null for anything that should send the stage
+ * back to Canvas 2D: no WebGL, a shader that does not compile or link, or a GPU
  * whose largest point is too small. Everything that touches the DOM, and the
  * overlay, stays in particle-stage.ts.
  */
@@ -250,27 +250,14 @@ const ATTRIBUTES: readonly (readonly [string, number, number])[] = [
 ];
 
 /**
- * Make the renderer on `canvas`, or null when WebGL can not be used. `onLost`
- * is called when the browser takes the context away; the stage then moves to
- * Canvas 2D for good.
- */
-export function createGlRenderer(
-  canvas: HTMLCanvasElement,
-  onLost: () => void,
-): GlRenderer | null {
-  const steps = createGlRendererSteps(canvas, onLost);
-  for (;;) {
-    const next = steps.next();
-    if (next.done) return next.value;
-  }
-}
-
-/**
- * `createGlRenderer` as a generator that yields after the context is made and
- * after the shaders are compiled (making the context alone took 13 to 19 ms
- * on a desktop GPU, and compiling and linking a good deal more: one long task
- * at 4 times the CPU). If the generator is closed before it is done (the stage
- * was destroyed between two slices), the context is handed back at once.
+ * Make the renderer on `canvas`, a slice at a time (the stage awaits a task
+ * between slices), or null when WebGL can not be used. `onLost` is called when
+ * the browser takes the context away; the stage then moves to Canvas 2D for
+ * good. The generator yields after the context is made and after each shader
+ * is compiled (making the context alone took 13 to 19 ms on a desktop GPU, and
+ * compiling and linking a good deal more: one long task at 4 times the CPU).
+ * If the generator is closed before it is done (the stage was destroyed
+ * between two slices), the context is handed back at once.
  */
 export function* createGlRendererSteps(
   canvas: HTMLCanvasElement,

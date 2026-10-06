@@ -1059,8 +1059,9 @@ test.describe("the WebGL path", () => {
     expect(counts, JSON.stringify(changes)).toEqual(ladder);
     // The cooldown: after a step the window starts empty and has to fill all
     // 60 gaps before the next one, so steps are 60 frames apart (the first
-    // came after only the 8 missed frames the full window needed). Without the
-    // cooldown they would come every 8.
+    // comes later still: nothing is counted before the first scroll, the first
+    // DEGRADE.RESTART_GRACE gaps after it are forgiven, and the window has to
+    // fill). Without the cooldown they would come every 8.
     for (let i = 1; i < changes.length; i += 1) {
       expect(changes[i]!.at - changes[i - 1]!.at, JSON.stringify(changes)).toBe(
         DEGRADE.WINDOW,
