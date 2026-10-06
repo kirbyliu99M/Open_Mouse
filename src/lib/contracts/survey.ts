@@ -35,7 +35,9 @@
  *
  * The grip that is stored: `gripStyle` from the body when given, else the
  * scan's stated grip, else the grip the fit engine used for that scan. It is
- * therefore never empty, which is what the similar-hand answer matches on.
+ * therefore never empty. The similar-hand answer reports it as its basis
+ * (recommend.ts); whether it also narrows who counts as similar is a rule of
+ * that engine, and a candidate (as built, it does not: hand size alone decides).
  *
  * Who can take a contribution back, and what removes it:
  *   - A signed-in contributor can withdraw everything they contributed
@@ -66,6 +68,12 @@
  *     answer, and kept when the later body gives none; each `feedback` is kept
  *     as written, since it is a message and not a profile. Withdrawal removes
  *     all of it.
+ *   - Two edges of those rules, spelled out because the body cannot say more:
+ *     a body cannot say "I have no current mouse", and rating the current mouse
+ *     again with `current: false` does not clear its marker; the marker moves
+ *     only when a later submission marks another mouse. A replaced rating is
+ *     replaced whole: its `duration` and `painPoints` become the new answer's
+ *     (an absent `duration` clears the old one), never a merge of old and new.
  *   - An anonymous person scanning twice can contribute twice. Nothing ties
  *     those scans together; the per-IP rate limit and the minimum number of
  *     raters the similar-hand answer needs (recommend.ts) are the only
