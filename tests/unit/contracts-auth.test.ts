@@ -230,6 +230,49 @@ describe("signInSchema", () => {
 
   it("accepts a 128-character password written in emoji", () => {
     expect(signIn({ username: "abc", password: "😀".repeat(128) })).toBe(true);
+    // The sanity limit counts characters, as the password schema does.
+    expect(signIn({ username: "abc", password: "😀".repeat(256) })).toBe(true);
+    expect(signIn({ username: "abc", password: "😀".repeat(257) })).toBe(false);
+  });
+
+  it("never changes the password it is given", () => {
+    for (const p of ["  Pass Word  ", "MiXeD Case\t", " lead", "trail "]) {
+      expect(
+        signInSchema.parse({ username: "abc", password: p }).password,
+      ).toBe(p);
+    }
+  });
+
+  it("drops keys it does not know, because Auth.js sends them", () => {
+    const parsed = signInSchema.parse({
+      username: "Kirby",
+      password: "secret-ish",
+      callbackUrl: "http://localhost:3000/account",
+      csrfToken: "abc",
+    });
+    expect(parsed).toEqual({ username: "kirby", password: "secret-ish" });
+  });
+
+  it("refuses a username that cannot exist, whatever its look", () => {
+    for (const bad of [
+      "a\u0000b",
+      "a\u001bb",
+      "a\nb",
+      "a‮b",
+      "a​b",
+      "a b",
+      "a\ud800b",
+    ]) {
+      expect(
+        signIn({ username: bad, password: "x" }),
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+  });
+
+  it("refuses a lone surrogate in a password, as sign-up does", () => {
+    expect(signIn({ username: "abc", password: "abc\ud800" })).toBe(false);
+    expect(signIn({ username: "abc", password: "abc😀" })).toBe(true);
   });
 });
 
@@ -250,6 +293,110 @@ describe("resetRequestSchema", () => {
     expect(
       resetRequestSchema.safeParse({ identifier: "x", extra: 1 }).success,
     ).toBe(false);
+  });
+
+  it("counts the 254 characters after the trim", () => {
+    const edge = `  ${"a".repeat(254)}  `;
+    expect(resetRequestSchema.safeParse({ identifier: edge }).success).toBe(
+      true,
+    );
+  });
+
+  it("accepts what a person really types, in any script", () => {
+    for (const ok of ["kirby", "Kirby.Liu@Example.com", "josé@exämple.de"]) {
+      expect(resetRequestSchema.safeParse({ identifier: ok }).success, ok).toBe(
+        true,
+      );
+    }
+  });
+
+  it("refuses control, format and separator characters and lone surrogates", () => {
+    // A NUL cannot be stored in a Postgres text column; the others would let
+    // a stranger put an escape sequence or a forged line on the operator's
+    // terminal when the requests are listed.
+    for (const bad of [
+      "a\u0000b",
+      "\u001b[2J\u001b[Hfake",
+      "line1\nforged-id 2026 matched=yes",
+      "line1\rforged",
+      "tab\there",
+      "a‮b",
+      "a​b",
+      "a b",
+      "a b",
+      "x\ud800y",
+      "\u0000",
+    ]) {
+      expect(
+        resetRequestSchema.safeParse({ identifier: bad }).success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+  });
+});
+
+describe("no schema message carries what was typed", () => {
+  // The contract says a handler maps issues to its own fixed strings, and the
+  // schemas' own messages are static. Zod's message for an unknown KEY repeats
+  // the key, which is why a handler never returns those messages as they are.
+  const SENTINEL = "SENTINEL-8f3a";
+  const bad: Array<[string, { safeParse: (v: unknown) => unknown }, unknown]> =
+    [
+      ["username", usernameSchema, `${SENTINEL}!`],
+      ["reserved username", usernameSchema, "ADMIN"],
+      ["short password", passwordSchema, SENTINEL.slice(0, 8)],
+      [
+        "sign-up email",
+        signUpSchema,
+        {
+          username: "sentinel-user1",
+          password: "sentinel-user1",
+          email: SENTINEL,
+        },
+      ],
+      [
+        "sign-in username",
+        signInSchema,
+        { username: `${SENTINEL}\u0000`, password: "x" },
+      ],
+      [
+        "sign-in password",
+        signInSchema,
+        { username: "abc", password: `${SENTINEL}\ud800` },
+      ],
+      [
+        "reset identifier",
+        resetRequestSchema,
+        { identifier: `${SENTINEL}\u0000` },
+      ],
+      [
+        "reset token",
+        resetCompleteSchema,
+        { token: SENTINEL, password: "a new password!" },
+      ],
+      [
+        "reset password",
+        resetCompleteSchema,
+        { token: TOKEN, password: SENTINEL.slice(0, 8) },
+      ],
+    ];
+
+  it("a reserved username is not repeated back", () => {
+    const r = usernameSchema.safeParse("ADMIN");
+    expect(r.success).toBe(false);
+    const text = JSON.stringify(r.error?.issues ?? []).toLowerCase();
+    expect(text).not.toContain("admin");
+  });
+
+  it.each(bad)("%s", (_name, schema, input) => {
+    const result = schema.safeParse(input) as {
+      success: boolean;
+      error?: { issues: unknown[] };
+    };
+    expect(result.success).toBe(false);
+    const text = JSON.stringify(result.error?.issues ?? []);
+    expect(text).not.toContain(SENTINEL);
+    expect(text.toLowerCase()).not.toContain("sentinel");
   });
 });
 
@@ -289,5 +436,13 @@ describe("resetCompleteSchema", () => {
       resetCompleteSchema.safeParse({ ...good, password: "short" }).success,
     ).toBe(false);
     expect(resetCompleteSchema.safeParse({ token: TOKEN }).success).toBe(false);
+  });
+
+  it("refuses keys it does not know", () => {
+    const r = resetCompleteSchema.safeParse({ ...good, role: "admin" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.map((i) => i.code)).toEqual(["unrecognized_keys"]);
+    }
   });
 });

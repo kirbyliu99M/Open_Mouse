@@ -19,14 +19,25 @@
  *     only the characters and the length);
  *   - the shape of the reset token (`RESET_TOKEN_PATTERN`: the spec says a
  *     random token of at least 32 bytes, stored only as its SHA-256; the
- *     encoding is Claude's choice, base64url).
+ *     encoding, base64url, and the upper bound of 128 characters are Claude's
+ *     choice).
  *
  * What the schemas do, so that nobody re-implements it:
  *   - A username is trimmed and lower-cased by the schema: the parsed value is
  *     the one that is stored and compared. Sign-in uses a looser schema
  *     (`signInSchema`) on purpose: a username that could never exist must fail
  *     like a wrong password does, with the one message the spec requires, and
- *     not with a message about the username's shape.
+ *     not with a message about the username's shape. So a handler maps EVERY
+ *     failure of `signInSchema` to that one message, and never to a schema
+ *     message.
+ *   - `signInSchema` drops keys it does not know instead of refusing them: the
+ *     installed Auth.js hands `authorize()` the whole request body, which
+ *     carries `callbackUrl` (and `csrfToken` from a browser). The other form
+ *     schemas refuse unknown keys.
+ *   - No schema message carries the input, and a handler still never returns or
+ *     logs a message from these schemas as it is: Zod's own message for an
+ *     unrecognised key repeats the key's name, which is the caller's text. A
+ *     handler maps issues to fixed strings of its own.
  *   - A password is never trimmed or changed. It is counted in characters
  *     (Unicode code points), not UTF-16 units, so five emoji are five. Lone
  *     surrogates are refused: they cannot round-trip through UTF-8, and two
@@ -37,6 +48,14 @@
  *   - An email is optional; an empty string counts as absent (a form sends one).
  *     It is trimmed, lower-cased and limited to 254 characters, the spec's and
  *     the standard's maximum.
+ *   - The two free-text fields that reach the database or an operator's
+ *     terminal without a character set (the sign-in username and the reset
+ *     request's identifier) refuse control, format (bidirectional marks,
+ *     zero-width characters), line and paragraph separator characters and
+ *     lone surrogates: a NUL cannot be stored in a Postgres text column, so it
+ *     must fail in the schema and not as a failed write (the survey contract
+ *     does the same), and `npm run auth:reset-requests` prints the identifier,
+ *     so it must not hold a terminal escape or a forged line.
  * Change this file only in a PR of its own.
  */
 import { z } from "zod";
@@ -76,8 +95,11 @@ export const RESERVED_USERNAMES = [
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]+$/;
 
-/** Shown to nobody: the schema's own messages are for tests and logs. */
 const normaliseUsername = (s: string): string => s.trim().toLowerCase();
+
+/** Control, format, line/paragraph separator and lone-surrogate characters. */
+const UNSAFE_TEXT = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
+const isSafeText = (s: string): boolean => !UNSAFE_TEXT.test(s);
 
 /** The username a person picks at sign-up. Parsed value = stored value. */
 export const usernameSchema = z
@@ -154,25 +176,41 @@ export const signUpSchema = z
  * or password that cannot exist fails here or in the check the same way, so a
  * caller learns nothing about which part was wrong.
  */
-export const signInSchema = z.strictObject({
+export const signInSchema = z.object({
   username: z
     .string()
     .transform(normaliseUsername)
-    .pipe(z.string().min(1).max(USERNAME_MAX_CHARS)),
-  // `max` counts UTF-16 units, and a password of 128 characters is at most 256.
+    .pipe(
+      z
+        .string()
+        .min(1)
+        .max(USERNAME_MAX_CHARS)
+        .refine(isSafeText, { message: "that username cannot exist" }),
+    ),
+  // Zod counts characters, as `passwordSchema` does, so this is twice the
+  // maximum a password can have: a loose limit that no set password reaches.
   password: z
     .string()
     .min(1)
-    .max(PASSWORD_MAX_CHARS * 2),
+    .max(PASSWORD_MAX_CHARS * 2)
+    .refine((s) => !/\p{Cs}/u.test(s), {
+      message: "that password cannot exist",
+    }),
 });
 
 /**
  * "Forgot password": whatever the person typed to identify themselves, a
- * username or an email. Stored as typed (at most 254 characters); matching is
- * the server's. The answer is always "received".
+ * username or an email. Trimmed, then stored as typed (at most 254 characters,
+ * counted after the trim); matching is the server's. The answer is always
+ * "received". Control and similar characters are refused (see the header).
  */
 export const resetRequestSchema = z.strictObject({
-  identifier: z.string().trim().min(1).max(EMAIL_MAX_CHARS),
+  identifier: z
+    .string()
+    .trim()
+    .min(1)
+    .max(EMAIL_MAX_CHARS)
+    .refine(isSafeText, { message: "that cannot be an identifier" }),
 });
 
 /** Random bytes in a reset token (the spec: at least 32). */
