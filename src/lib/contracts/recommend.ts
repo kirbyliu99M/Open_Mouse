@@ -16,11 +16,11 @@
  * answer is `available: false`, never a guess. Every number is made in
  * TypeScript (AGENTS.md hard rule 2).
  *
- * `basis.gripStyle` is the grip the caller's profile carries, reported so the
- * reader knows what the answer was built on. Whether the engine also requires
- * neighbours to share it is a rule of the engine and a candidate (未拍板); as
- * built it does not, because with little data one more filter only empties the
- * answer, so hand size alone decides who is similar.
+ * `basis.gripStyle` is the caller's own grip, reported for context only. Whether
+ * the engine also requires neighbours to share it is a rule of the engine and a
+ * candidate (未拍板); the first engine draft does not, because one more filter
+ * takes people away from a count that already has a floor, so hand size alone
+ * decides who is similar.
  *
  * Never cached by a shared cache: like the other endpoints that answer from a
  * person's hand, the response carries `Cache-Control: no-store` (see routes.ts).
@@ -57,7 +57,8 @@ export const similarResponseSchema = z.discriminatedUnion("available", [
       available: z.literal(true),
       /** Contributors whose hand profile is close to this one. */
       neighbours: z.number().int().min(SIMILAR_MIN_PEOPLE),
-      /** The hand profile the comparison used: the caller's own, in bins. */
+      /** The caller's own profile, in bins: hand size is what the comparison
+       *  used; the grip is reported, not matched on (candidate, see above). */
       basis: z.strictObject({
         handLengthBinMm: z.number().int().refine(onBin, {
           message: "must be a multiple of CONTRIBUTION_BIN_MM",

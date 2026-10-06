@@ -121,7 +121,8 @@ export const resultsPagePath = (scanId: string): string =>
  * (one contribution per scan; nothing is stored or replaced); 413 body too
  * large; 429 rate limited per client IP (`errorResponseSchema`; nothing is
  * stored). A signed-in person's later submission replaces their earlier rating
- * of the same mouse, whole, and is still 201. The full repeat rules are in
+ * of the same mouse (the current marker aside, it is replaced by the new
+ * answer) and is still 201. The full repeat rules are in
  * survey.ts.
  *
  * `DELETE` — signed-in callers only: withdraws everything the caller has
