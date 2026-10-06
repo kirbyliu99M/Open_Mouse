@@ -535,6 +535,16 @@ async function runPaperEdgePipeline(
   const frames = analysisFrames({ width: fullWidth, height: fullHeight }, crop);
   const toFull = (p: Point2): Point2 => toFullFrame(p, crop);
   const imageData = getImageData(bitmap, width, height);
+  // The sharpness is worked out first, so a photo that is turned back before
+  // it reaches the hand gates (no sheet, no hand) still has one in its record
+  // (diagnostics.ts). If it cannot be worked out here it is tried again below,
+  // exactly as before.
+  const gray = rgbaToGrayscale(imageData.data, width * height);
+  try {
+    trace.laplacianVariance = computeLaplacianVariance(gray, width, height);
+  } catch {
+    trace.laplacianVariance = null;
+  }
 
   const paperStartedAt = performance.now();
   const quad = detectPaperQuad(imageData, paperSize);
@@ -639,8 +649,8 @@ async function runPaperEdgePipeline(
     { x: 0, y: paperHeightMm },
   ];
 
-  const gray = rgbaToGrayscale(imageData.data, width * height);
-  const laplacianVariance = computeLaplacianVariance(gray, width, height);
+  const laplacianVariance =
+    trace.laplacianVariance ?? computeLaplacianVariance(gray, width, height);
   trace.laplacianVariance = laplacianVariance;
 
   // Paper gates ran once, inside evaluatePaperEdgeCalibration; only the hand
