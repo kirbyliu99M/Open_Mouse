@@ -509,6 +509,14 @@ test.describe("AC5: only transform and opacity move", () => {
 /**
  * A camera that reports focus support (Android Chrome does; the fake device
  * does not) and records every constraint it is asked to apply.
+ *
+ * `constraintsSeen` returns the FOCUS constraints only (the ones with an
+ * `advanced` list). Since the preview is asked for in the photo's shape
+ * (previewConstraints.ts) the running track is also asked for a size now and
+ * then (a photo that is not 4:3, or the one swapped retry on a mismatch; the
+ * fake camera's 1000x1300 is 2.5 % off 4:3, so it gets that retry). Those
+ * are size requests, not focus ones, and their timing is not what these focus
+ * tests are about; scan-fov.spec.ts covers them.
  */
 async function fakeFocusSupport(page: Page, supported: boolean) {
   await page.addInitScript((supported) => {
@@ -535,9 +543,10 @@ async function fakeFocusSupport(page: Page, supported: boolean) {
   }, supported);
 }
 const constraintsSeen = (page: Page) =>
-  page.evaluate(
-    () =>
-      (window as Window & { __constraints?: unknown[] }).__constraints ?? [],
+  page.evaluate(() =>
+    (
+      (window as Window & { __constraints?: object[] }).__constraints ?? []
+    ).filter((constraints) => "advanced" in constraints),
   );
 
 /**
