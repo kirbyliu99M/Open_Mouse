@@ -130,7 +130,9 @@ const compareText = (a: string, b: string): number =>
 
 /**
  * Sum in ascending order, so the same numbers give the same float whatever
- * order the contributors came in.
+ * order the contributors came in. Ratings are whole numbers (a fraction is
+ * ignored), so a sum is exact in any order anyway; the sort is a guard that
+ * costs nothing.
  */
 function orderFreeSum(values: readonly number[]): number {
   return [...values].sort((a, b) => a - b).reduce((sum, v) => sum + v, 0);
