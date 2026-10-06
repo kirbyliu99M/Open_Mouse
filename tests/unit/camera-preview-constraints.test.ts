@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alignAndSettle,
+  framePreviewConstraints,
   alignPreviewToStill,
   aspectOfSize,
   compareFov,
@@ -775,5 +776,24 @@ describe("alignAndSettle — the shutter never waits for ever", () => {
       portrait: true,
     });
     expect(await settled).toEqual({ settleTimedOut: false });
+  });
+});
+
+describe("framePreviewConstraints — the request while the capture is a frame of the video", () => {
+  it("is the request that worked on the S25 before the photo-shaped one: 1920x1080 ideal in the camera's landscape terms, no aspectRatio, resizeMode none", () => {
+    expect(framePreviewConstraints()).toEqual({
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      resizeMode: { ideal: "none" },
+    });
+  });
+
+  it("has no aspectRatio (the photo-shaped request that came back as a 1088x1088 square) and does not depend on the way the phone is held", () => {
+    const constraints = framePreviewConstraints() as Record<string, unknown>;
+    expect("aspectRatio" in constraints).toBe(false);
+    expect(JSON.stringify(framePreviewConstraints())).toBe(
+      JSON.stringify(framePreviewConstraints()),
+    );
   });
 });

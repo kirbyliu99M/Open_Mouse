@@ -101,7 +101,7 @@ test.describe("AC1: the stage never changes shape", () => {
       expect(delta, name).toBeLessThanOrEqual(1);
   });
 
-  test("the frozen photo is drawn in the live frame's own shape, not the still's", async ({
+  test("the frozen photo is drawn exactly where the live picture was: it is the part of the video that was on screen, so it fills the stage", async ({
     page,
   }) => {
     await holdPipeline(page);
@@ -141,14 +141,17 @@ test.describe("AC1: the stage never changes shape", () => {
       { timeout: 20_000 },
     );
     const photo = await box(page, "svg.easyFrozenSvg");
-    // object-fit: cover of the stream in the stage: the same aspect ratio as
-    // the stream, wider or taller than the stage, and centred on it.
-    expect(photo.width / photo.height).toBeCloseTo(
-      video.width / video.height,
-      2,
-    );
+    // The shutter takes the part of the stream the stage showed (object-fit:
+    // cover), so the frozen photo has the stage's own shape and covers it to
+    // the pixel: no jump between the live picture and the frozen one. (Before
+    // frame capture the photo was the whole stream and was drawn wider or
+    // taller than the stage.)
+    expect(Math.abs(photo.width - 390)).toBeLessThanOrEqual(1);
+    expect(Math.abs(photo.height - 844)).toBeLessThanOrEqual(1);
     expect(photo.x + photo.width / 2).toBeCloseTo(195, 0);
     expect(photo.y + photo.height / 2).toBeCloseTo(422, 0);
+    // ...while the stream behind it is not that shape.
+    expect(video.width / video.height).not.toBeCloseTo(390 / 844, 1);
     await release(page);
   });
 });
@@ -232,7 +235,9 @@ test.describe("AC6: the debug panel", () => {
       json.live.detectionMsAverage * 0.5,
     );
     expect(json.live.cornersSeen).toBe(4);
-    expect(["takePhoto", "canvas"]).toContain(json.capture.method);
+    // A frame of the video cut to the part on screen, not the camera's photo.
+    expect(json.capture.method).toBe("canvas");
+    expect(json.capture.source).toBe("frame");
     expect(json.capture.stillWidth).toBeGreaterThan(0);
     expect(json.capture.stillKb).toBeGreaterThan(0);
     expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
@@ -812,7 +817,9 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
     const json = JSON.parse(
       await page.evaluate(() => navigator.clipboard.readText()),
     );
-    expect(["takePhoto", "canvas"]).toContain(json.capture.method);
+    // A frame of the video cut to the part on screen, not the camera's photo.
+    expect(json.capture.method).toBe("canvas");
+    expect(json.capture.source).toBe("frame");
     expect(json.capture.stillWidth).toBeGreaterThan(0);
     expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
     expect(json.track.videoWidth).toBeGreaterThan(0);

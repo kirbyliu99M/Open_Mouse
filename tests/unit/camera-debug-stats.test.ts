@@ -118,6 +118,7 @@ describe("debugSnapshotJson", () => {
     },
     capture: {
       method: "takePhoto",
+      source: "takePhoto",
       stillWidth: 4000,
       stillHeight: 3000,
       stillKb: 2412.7,
@@ -173,6 +174,7 @@ describe("debugSnapshotJson", () => {
     expect(Object.keys(parsed.capture).sort()).toEqual(
       [
         "method",
+        "source",
         "ringCompleteToFrozenMs",
         "stillHeight",
         "stillKb",

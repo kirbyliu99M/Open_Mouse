@@ -42,6 +42,7 @@
 import { CAMERA_CONSTANTS } from "./constants";
 import { computeCoverRect } from "./quad";
 import { assumedFocalPxFromFov } from "../paper/orientation";
+import { computeDownscaleSize } from "../photo/decode";
 
 export interface FrameSize {
   readonly width: number;
@@ -110,6 +111,55 @@ export function visibleRectInStream(
     y,
     width: Math.min(stream.width - x, container.width * unit),
     height: Math.min(stream.height - y, container.height * unit),
+  };
+}
+
+export interface VisibleRegion {
+  /** On screen, in the stream's pixels (fractional): what the live detector samples. */
+  readonly visible: PixelRect;
+  /** The same region in whole pixels, inside the stream: what a captured frame is cut to. */
+  readonly capture: PixelRect;
+}
+
+/**
+ * The on-screen part of the stream, for the two things that must use the SAME
+ * one: the live detector's sample (`visible`, fractional) and the frame the
+ * shutter takes (`capture`, whole pixels, each edge rounded to the nearest
+ * pixel and kept inside the stream). Both come from this one call, so what is
+ * analysed is exactly what was approved. `null` for a size that is missing.
+ */
+export function visibleRegionInStream(
+  stream: FrameSize | null | undefined,
+  container: FrameSize | null | undefined,
+): VisibleRegion | null {
+  const visible = visibleRectInStream(stream, container);
+  if (!visible || !stream) return null;
+  const left = Math.min(stream.width - 1, Math.max(0, Math.round(visible.x)));
+  const top = Math.min(stream.height - 1, Math.max(0, Math.round(visible.y)));
+  const right = Math.min(
+    stream.width,
+    Math.max(left + 1, Math.round(visible.x + visible.width)),
+  );
+  const bottom = Math.min(
+    stream.height,
+    Math.max(top + 1, Math.round(visible.y + visible.height)),
+  );
+  return {
+    visible,
+    capture: { x: left, y: top, width: right - left, height: bottom - top },
+  };
+}
+
+/** The arguments of `drawImage(video, sx, sy, sw, sh, dx, dy, dw, dh)` that copy a capture rectangle 1:1 onto a canvas of its own size. */
+export function frameDrawArgs(capture: PixelRect): {
+  readonly source: readonly [number, number, number, number];
+  readonly destination: readonly [number, number, number, number];
+  readonly canvas: FrameSize;
+} {
+  return {
+    source: [capture.x, capture.y, capture.width, capture.height],
+    destination: [0, 0, capture.width, capture.height],
+    canvas: { width: capture.width, height: capture.height },
   };
 }
 
@@ -287,11 +337,48 @@ export function analysisFrames(
  * of its own (a 70 degree horizontal field of view over the frame's width),
  * taken from the whole decoded photo's width and not the cropped one's: a crop
  * narrows the picture, not the lens.
+ *
+ * `focalReferenceWidthPx` is for an image that was cut BEFORE it reached the
+ * pipeline (a frame of the video cut to the part on screen, so the pipeline
+ * sees the cut and cannot know it): the width, in this image's own pixels, of
+ * the whole picture the lens made (the stream's width, for a frame drawn at the
+ * stream's resolution). The live loop works its assumption out from that same
+ * width (`assumedSampleFocalPx`), so both look at the same pixels with the same
+ * number. Left out, or not a positive number, the photo's own width is used,
+ * exactly as before: uploads, the printed sheet and the camera's photo do not
+ * pass it.
  */
-export function assumedDetectionFocalPx(frames: {
-  focalFrame: FrameSize;
-}): number {
-  return assumedFocalPxFromFov(frames.focalFrame.width);
+export function assumedDetectionFocalPx(
+  frames: {
+    focalFrame: FrameSize;
+  },
+  focalReferenceWidthPx?: number,
+): number {
+  const referenceWidth =
+    typeof focalReferenceWidthPx === "number" &&
+    Number.isFinite(focalReferenceWidthPx) &&
+    focalReferenceWidthPx > 0
+      ? focalReferenceWidthPx
+      : frames.focalFrame.width;
+  return assumedFocalPxFromFov(referenceWidth);
+}
+
+/**
+ * The `focalReferenceWidthPx` to hand the pipeline with a frame of the video
+ * (`assumedDetectionFocalPx`): the stream's width in the pixels the pipeline
+ * will analyse. A frame is drawn at the stream's own resolution, so that is the
+ * stream's width, unless the frame is so large that the decoder scales it down
+ * (a long edge over `MAX_LONG_EDGE_PX`, decode.ts): then the stream's width is
+ * scaled by the same factor, from the same function. `frame` is the frame's size
+ * as made; unknown (`null`), no scaling is assumed.
+ */
+export function frameFocalReferenceWidthPx(
+  stream: FrameSize,
+  frame: FrameSize | null,
+): number {
+  if (!usable(frame)) return stream.width;
+  const decoded = computeDownscaleSize(frame.width, frame.height);
+  return (stream.width * decoded.width) / frame.width;
 }
 
 /**

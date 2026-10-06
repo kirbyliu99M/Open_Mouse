@@ -38,6 +38,13 @@ const MAX_MODEL_LENGTH = 32;
 
 export type AttemptMethod = "takePhoto" | "canvas" | "upload";
 
+/**
+ * What the picture came from: a frame of the video cut to the part on screen
+ * ("frame", the shutter's default, method "canvas"), the camera's photo
+ * ("takePhoto", off by default), or a file the person chose ("upload").
+ */
+export type AttemptCaptureSource = "frame" | "takePhoto" | "upload";
+
 export interface AttemptError {
   readonly code: string;
   readonly message: string;
@@ -49,6 +56,7 @@ export interface AttemptRecord {
   /** ISO 8601, UTC. */
   readonly at: string;
   readonly method: AttemptMethod | null;
+  readonly captureSource: AttemptCaptureSource | null;
   /** The photo as it came from the camera or the file. */
   readonly photo: {
     readonly width: number | null;
@@ -206,6 +214,12 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     method:
       method === "takePhoto" || method === "canvas" || method === "upload"
         ? method
+        : null,
+    captureSource:
+      raw.captureSource === "frame" ||
+      raw.captureSource === "takePhoto" ||
+      raw.captureSource === "upload"
+        ? raw.captureSource
         : null,
     settleTimedOut: cleanBool(raw.settleTimedOut),
     photo: {
@@ -408,6 +422,21 @@ export function recordAttempt(
 
 export interface AttemptCapture {
   readonly method: AttemptMethod | null;
+  /** Where the picture came from; absent is read as unknown. */
+  readonly captureSource?: AttemptCaptureSource | null;
+  /**
+   * For a frame of the video: the stream's size and the part of it that was on
+   * screen, which is the whole of the picture analysed.
+   */
+  readonly frame?: {
+    readonly stream: { readonly width: number; readonly height: number };
+    readonly visibleInStream: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    };
+  };
   readonly photoWidth: number | null;
   readonly photoHeight: number | null;
   readonly photoKb: number | null;
@@ -441,7 +470,10 @@ export function buildAttemptRecord(input: {
   const at = input.at instanceof Date ? input.at.toISOString() : input.at;
 
   const photoAspect = aspectOfSize(capture.photoWidth, capture.photoHeight);
+  // A frame of the video IS the preview (cut to the screen's part): there is
+  // no second image source to compare it with.
   const fov =
+    capture.captureSource !== "frame" &&
     photoAspect !== null &&
     capture.previewWidth !== null &&
     capture.previewHeight !== null
@@ -478,6 +510,7 @@ export function buildAttemptRecord(input: {
     v: 1,
     at,
     method: capture.method,
+    captureSource: capture.captureSource ?? null,
     settleTimedOut: capture.settleTimedOut ?? null,
     photo: {
       width: capture.photoWidth,
@@ -500,7 +533,17 @@ export function buildAttemptRecord(input: {
       confidence: null,
       handedness: null,
     },
-    view: diagnostics?.view ?? null,
+    view:
+      diagnostics?.view ??
+      (capture.frame
+        ? {
+            stream: capture.frame.stream,
+            visibleInStream: capture.frame.visibleInStream,
+            model: "frame",
+            modelApplies: true,
+            aspectDiff: 0,
+          }
+        : null),
     analysed: {
       width: diagnostics?.analysed?.width ?? null,
       height: diagnostics?.analysed?.height ?? null,
@@ -522,6 +565,7 @@ export function buildAttemptRecord(input: {
       v: 1,
       at: new Date(0).toISOString(),
       method: null,
+      captureSource: null,
       settleTimedOut: null,
       photo: { width: null, height: null, kb: null },
       preview: {
@@ -564,7 +608,12 @@ export function describeAttempt(record: AttemptRecord): string {
     record.result === "ok"
       ? "ok"
       : record.errors.map((error) => error.code).join("+") || "error";
-  const parts = [time, record.method ?? "?", photo, outcome];
+  const parts = [
+    time,
+    record.captureSource === "frame" ? "frame" : (record.method ?? "?"),
+    photo,
+    outcome,
+  ];
   if (record.paper)
     parts.push(
       `paper ${pct(record.paper.widthFraction)}×${pct(record.paper.heightFraction)}`,

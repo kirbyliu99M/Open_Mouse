@@ -166,6 +166,17 @@ export interface RunPhotoPipelineInput {
     readonly stream: FrameSize;
     readonly visibleInStream: PixelRect;
   };
+  /**
+   * For an image that was already cut to the part on screen before it was
+   * handed over (a frame of the video: nothing here is cropped, so the
+   * pipeline cannot tell): the width, in this image's pixels, of the whole
+   * stream it was cut from. The paper detector's assumed focal length (when the
+   * photo has no EXIF) is worked out from it, as the live loop's is, because a
+   * cut narrows the picture, not the lens (`assumedDetectionFocalPx`). Omitted,
+   * the image's own width is used, as before: uploads, the printed sheet and
+   * the camera's photo never pass it. Not used by any gate.
+   */
+  readonly focalReferenceWidthPx?: number;
 }
 
 /**
@@ -558,9 +569,10 @@ async function runPaperEdgePipeline(
   const paperStartedAt = performance.now();
   // The assumed focal length is the whole photo's, not the crop's: a crop
   // narrows the picture, not the lens (visibleView.ts). Without a crop it is
-  // what the detector would have assumed anyway.
+  // what the detector would have assumed anyway. A frame that was cut before
+  // it got here says how wide the picture it was cut from was.
   const quad = detectPaperQuad(imageData, paperSize, {
-    focalPxHint: assumedDetectionFocalPx(frames),
+    focalPxHint: assumedDetectionFocalPx(frames, input.focalReferenceWidthPx),
   });
   trace.paperMs = performance.now() - paperStartedAt;
   const quadSize = quad.corners

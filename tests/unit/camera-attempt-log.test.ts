@@ -731,6 +731,101 @@ describe("settleTimedOut — the shutter opened because the camera did not answe
   });
 });
 
+describe("a frame of the video (captureSource frame)", () => {
+  const FRAME_CAPTURE: AttemptCapture = {
+    method: "canvas",
+    captureSource: "frame",
+    photoWidth: 580,
+    photoHeight: 1088,
+    photoKb: 210,
+    previewWidth: 1088,
+    previewHeight: 1088,
+    frame: {
+      stream: { width: 1088, height: 1088 },
+      visibleInStream: { x: 253.67, y: 0, width: 580.66, height: 1088 },
+    },
+  };
+  const frameRecord = (diagnostics: PipelineDiagnostics | undefined) =>
+    buildAttemptRecord({
+      at: "2026-10-06T10:20:30.000Z",
+      userAgent: "x",
+      capture: FRAME_CAPTURE,
+      outcome: {
+        kind: "result",
+        result: { ...ERROR_RESULT, diagnostics },
+      },
+    });
+
+  it("is recorded as a canvas frame from the frame source, with the stream, the part on screen and the picture's own size", () => {
+    const r = frameRecord({ ...DIAGNOSTICS, view: null, fovCrop: null });
+    expect(r.method).toBe("canvas");
+    expect(r.captureSource).toBe("frame");
+    expect(r.photo).toEqual({ width: 580, height: 1088, kb: 210 });
+    expect(r.view).toEqual({
+      stream: { width: 1088, height: 1088 },
+      visibleInStream: { x: 253.7, y: 0, width: 580.7, height: 1088 },
+      model: "frame",
+      modelApplies: true,
+      aspectDiff: 0,
+    });
+    expect(r.analysed.crop).toBeNull();
+  });
+
+  it("does not compare the frame with a photo: the stream is recorded, the mismatch flag is not", () => {
+    const r = frameRecord({ ...DIAGNOSTICS, view: null, fovCrop: null });
+    expect(r.preview).toEqual({
+      width: 1088,
+      height: 1088,
+      aspectDiff: null,
+      fovMismatch: null,
+    });
+    expect(describeAttempt(r)).not.toContain("FOV mismatch");
+  });
+
+  it("the line for the panel calls it a frame", () => {
+    const r = frameRecord(undefined);
+    expect(describeAttempt(r)).toContain("· frame ·");
+    expect(describeAttempt(r)).toContain("580×1088");
+  });
+
+  it("the camera's photo and an upload keep their own source; an unknown value is not trusted", () => {
+    const takePhoto = buildAttemptRecord({
+      at: "2026-10-06T10:20:30.000Z",
+      userAgent: "x",
+      capture: { ...CAPTURE, captureSource: "takePhoto" },
+      outcome: { kind: "result", result: ERROR_RESULT },
+    });
+    expect(takePhoto.captureSource).toBe("takePhoto");
+    // The photo-versus-preview comparison still runs for the camera's photo.
+    expect(takePhoto.preview.fovMismatch).toBe(true);
+    expect(record().captureSource).toBeNull();
+    expect(
+      sanitizeAttempt({
+        at: "2026-10-06T10:20:30.000Z",
+        result: "ok",
+        captureSource: "satellite",
+      })!.captureSource,
+    ).toBeNull();
+    expect(
+      sanitizeAttempt({
+        at: "2026-10-06T10:20:30.000Z",
+        result: "ok",
+        captureSource: "upload",
+      })!.captureSource,
+    ).toBe("upload");
+  });
+
+  it("a view that the pipeline reported (the camera's photo, cropped) is not replaced by the frame's", () => {
+    const r = buildAttemptRecord({
+      at: "2026-10-06T10:20:30.000Z",
+      userAgent: "x",
+      capture: { ...FRAME_CAPTURE, captureSource: "takePhoto" },
+      outcome: { kind: "result", result: ERROR_RESULT },
+    });
+    expect(r.view?.model).toBe("stream-in-still");
+  });
+});
+
 describe("what the person saw (view) in a record", () => {
   it("carries the stream, the part of it on screen and how it was carried over to the photo", () => {
     expect(record().view).toEqual({
