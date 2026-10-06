@@ -536,8 +536,15 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   once the page has been still for 200 ms, and during the shimmer the loop runs
   by itself for at most 2.6 s, as before). When the loop stops the guard is
   told, and the first frame of the next run has no gap, so the time the reader
-  stood still is never a slow frame; a long gap inside a running loop is a
-  real hitch and counts as one slow frame (a single stall is one of the eight
+  stood still is never a slow frame, **and the first five gaps after it are
+  not counted either** (`DEGRADE.RESTART_GRACE`, candidate): measured with the
+  CPU throttled 4 and 6 times (production build, bursts of 5 scroll frames with
+  320 ms of rest between), the gaps after the first four frames of a run were
+  slow 35 to 90 % of the time, the fifth 10 to 15 %, the sixth never (with no
+  throttling none), which would be four slow gaps in every burst and step down
+  a reader who scrolls in short bursts; a device that is slow all the time is
+  still slow in every gap after those five. A long gap inside a running loop is
+  a real hitch and counts as one slow frame (a single stall is one of the eight
   it takes). The screen's refresh interval is the median of the first 40 gaps
   (the shimmer runs every frame) **and never more than 16.7 ms**, so a device
   that is slow from its first frame does not take its own slow frames for the
