@@ -514,11 +514,16 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
 
   Each is rounded down to a multiple of three (a third per mouse). The
-  budget feeds the hand's dust (every particle) and, through the lit shares
-  above, the number of stars. The earlier pick between 4,000 / 8,000,
+  budget is the number of particles in the whole story. The hand's dust
+  draws all of them, and the stars are a share of them (the lit count is the
+  share times the budget, rounded), so a bigger budget makes the hand's dust
+  finer and makes the stars proportionally more numerous: at the default shares
+  a mouse has 300 stars on a phone's 6,000 particles and 600 on a desktop's
+  12,000 (the logo 360 and 720). The earlier pick between 4,000 / 8,000,
   **6,000 / 12,000 (the default)** and 10,000 / 20,000 was made on the picture
-  of continuous lines; with stars it is a pick of how fine the hand's dust is
-  (the stars follow the lit share, not the budget) and is still open.
+  of continuous lines and is still open: it now sets how many stars there are as
+  well as how fine the dust is. (A star's look follows the number of lit
+  particles, so a much bigger budget also makes the stars a little smaller.)
 
 - **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
   capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
@@ -634,16 +639,27 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   page with a warm cache.
 
 - Main-thread work under about 8 ms per frame on a mid-range phone (the
-  target). What the probe script measured is the main thread's total task time
-  divided by the frames of a 2.4 s scroll: it includes the probe's own load
-  (about 1.9 ms a frame) and the page's layout and compositing, and it moves
-  with the number of frames, so it is a rough figure and not the WebGL path's
-  own cost. Desktop window: 0.23 ms a frame (165 Hz screen, before the stars)
-  and 0.45 to 0.86 ms (119 Hz screen, with the stars); with the CPU throttled
-  4×, 0.91 ms (165 Hz, before the stars). Phone-sized window, CPU throttled
-  4×: 0.65 to 1.64 ms (165 Hz, before the stars) and 4.6 to 4.7 ms (119 Hz,
-  with the stars). Not measured on a real phone: measure it there and post the
-  number.
+  target); not measured on a real phone. The probe script reports a rough
+  figure only: the page's main-thread task time (CDP `TaskDuration`) between
+  the start and the end of a scroll window of about 3 s, divided by the number
+  of animation frames the probe's own loop logged in that window. The task
+  time is everything the main thread did in the window (the page's own work,
+  layout, compositing and the probe's script, which cannot be told apart), and
+  the frame count differs by up to 2x between runs of the same build (the
+  probe's loop seems at times to have been started twice; not confirmed), so
+  the per-frame figures are not comparable between runs and are not given.
+  The total task time over the window is: desktop-sized window, no CPU
+  throttle, 233 to 334 ms; with the CPU throttled 4x, 906 and 919 ms (165 Hz
+  screen, before the stars) and 1,898 and 1,912 ms (119 Hz screen, with the
+  stars; main's Canvas 2D version measured 1,878 ms); phone-sized window,
+  throttled 4x, 843 to 1,157 ms (before the stars) and 1,707 and 1,755 ms (with
+  the stars; main's Canvas 2D 1,640 to 1,786 ms). The runs with the stars are
+  about twice the earlier ones at 4x, with no cause found yet (known
+  differences: a 119 Hz screen against 165 Hz, the state of the machine that
+  day). So there is no evidence that the WebGL path does less main-thread work
+  than main's Canvas 2D version; it draws about nine times the particles
+  (12,000 against 1,300) for a similar total. Measure on a real phone and post
+  the number.
 
 ### Reduced motion and no JS
 

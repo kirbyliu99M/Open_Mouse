@@ -28,12 +28,15 @@ export type Renderer = "webgl" | "2d";
  *   is small (about 900 on a phone, 1,300 on a desktop): it is also what a
  *   device without WebGL, or whose WebGL fails, falls back to.
  * - The WebGL path moves the maths to the GPU and draws with one call. The
- *   numbers are Claude's candidate (未拍板): the budget now feeds the hand's
- *   dust (the logo's and the mice's stars follow the lit shares in look.ts, not
- *   the budget); the choice between 4,000 / 8,000, 6,000 / 12,000 and 10,000 /
- *   20,000 is still open (the screenshots that were to decide it showed
- *   continuous lines and are gone); and the GPU's fill cost on a phone has not
- *   been measured.
+ *   numbers are Claude's candidate (未拍板). The budget is the number of
+ *   particles in the whole story: the hand's dust uses all of them, and the
+ *   logo's and the mice's stars are a share of them (the lit shares in
+ *   look.ts), so a bigger budget gives a finer dust and, in proportion, more
+ *   stars (at the default shares a mouse has 300 stars on a 6,000 budget and
+ *   600 on a 12,000 one). The choice between 4,000 / 8,000, 6,000 / 12,000 and
+ *   10,000 / 20,000 is still open (the screenshots that were to decide it
+ *   showed continuous lines and are gone), and the GPU's fill cost on a phone
+ *   has not been measured.
  */
 export const PARTICLE_BUDGET_2D = { mobile: 900, desktop: 1300 } as const;
 export const PARTICLE_BUDGET_GL = { mobile: 6000, desktop: 12000 } as const;
