@@ -815,6 +815,79 @@ test.describe("/results/[scanId] — delete this scan now (issue #42)", () => {
     // Still open, and the ranking underneath is untouched.
     await expect(page.getByRole("alertdialog")).toBeVisible();
   });
+
+  test("deleting a scan also forgets the scan attempt log kept on this device, and only that", async ({
+    page,
+  }) => {
+    await page.route(SCAN_URL, (route) => route.fulfill({ status: 204 }));
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "openMouse.easyScan.attempts.v1",
+        JSON.stringify([
+          {
+            v: 1,
+            at: "2026-10-06T10:20:30.000Z",
+            method: "upload",
+            result: "error",
+          },
+        ]),
+      );
+      localStorage.setItem("openMouse.easyScan.paperSize", "letter");
+      localStorage.setItem("unrelated", "x");
+    });
+    await page.goto(`/results/${SCAN_ID}`);
+    await page.getByRole("button", { name: "Delete this scan now" }).click();
+    await page.getByRole("button", { name: "Delete scan" }).click();
+    await expect(
+      page.getByRole("heading", { name: "This scan has been deleted" }),
+    ).toBeVisible();
+    const kept = await page.evaluate(() => ({
+      attempts: localStorage.getItem("openMouse.easyScan.attempts.v1"),
+      paperSize: localStorage.getItem("openMouse.easyScan.paperSize"),
+      unrelated: localStorage.getItem("unrelated"),
+    }));
+    expect(kept).toEqual({
+      attempts: null,
+      paperSize: "letter",
+      unrelated: "x",
+    });
+  });
+
+  test("a delete that fails leaves the attempt log alone", async ({ page }) => {
+    await page.route(SCAN_URL, (route) => route.fulfill({ status: 500 }));
+    await stubHappyFit(page);
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 200, READY_ANALYSIS_MODEL),
+    );
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "openMouse.easyScan.attempts.v1",
+        JSON.stringify([
+          {
+            v: 1,
+            at: "2026-10-06T10:20:30.000Z",
+            method: "upload",
+            result: "error",
+          },
+        ]),
+      );
+    });
+    await page.goto(`/results/${SCAN_ID}`);
+    await page.getByRole("button", { name: "Delete this scan now" }).click();
+    await page.getByRole("button", { name: "Delete scan" }).click();
+    await expect(
+      page.getByRole("alertdialog").getByRole("alert"),
+    ).toContainText("Couldn't delete");
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("openMouse.easyScan.attempts.v1"),
+      ),
+    ).not.toBeNull();
+  });
 });
 
 test("a results page sweeps every leftover hand key, not just its own scan's", async ({

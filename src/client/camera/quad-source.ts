@@ -22,7 +22,7 @@
  */
 import type { Point2 } from "../geometry/homography";
 import { detectMarkers, type DetectedMarker } from "../photo/markers";
-import { detectPaperQuad } from "../paper/detect";
+import { detectPaperQuad, type DetectPaperQuadOptions } from "../paper/detect";
 import { SHEET, type PaperSize } from "../../lib/contracts/measurement";
 import { buildTrackedQuad, centroid } from "./quad";
 
@@ -50,6 +50,8 @@ export interface SheetQuadDetection {
 export type SheetQuadSource = (
   frame: ImageData,
   paperSize: PaperSize,
+  /** Passed to the paper detector (a focal length to assume); the marker-based source ignores it. */
+  options?: DetectPaperQuadOptions,
 ) => SheetQuadDetection;
 
 const NO_CORNERS: readonly [boolean, boolean, boolean, boolean] = [
@@ -149,11 +151,12 @@ export function createPaperEdgeQuadSource(
   detectPaperQuadImpl: (
     frame: ImageData,
     paperSize: PaperSize,
+    options?: DetectPaperQuadOptions,
   ) => SheetQuadDetection = detectPaperQuad,
 ): SheetQuadSource {
-  return (frame, paperSize) => {
+  return (frame, paperSize, options) => {
     try {
-      return detectPaperQuadImpl(frame, paperSize);
+      return detectPaperQuadImpl(frame, paperSize, options);
     } catch {
       return NONE;
     }

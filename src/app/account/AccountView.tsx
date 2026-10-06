@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AccountScan } from "../../server/account/repo";
 import { clearScanDisclosures } from "../../components/results/userLengthDisclosure";
+import { clearAttempts } from "../../client/camera/easyScanPreferences";
 
 type Status = "idle" | "working" | "done" | "error";
 
@@ -81,6 +82,8 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
           localStorage,
           visibleScans.map((scan) => scan.scanId),
         );
+        // The scan attempt log kept on this device goes with the rest.
+        clearAttempts(localStorage);
       } catch {
         // Browser storage may be unavailable; server deletion succeeded.
       }
