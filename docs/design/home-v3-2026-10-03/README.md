@@ -459,9 +459,10 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     then an even scatter on the logo and on each mouse, so the stars at any
     share are evenly spaced beads and not clumps and gaps (the nearest
     neighbour's distance varies by 0.3 to 0.4 of its mean, against 0.6 to 0.9
-    for a random pick). It costs about 30 to 60 ms of CPU for 12,000 particles
-    on a desktop, in slices of a few ms while the page is still static, once
-    per layout kind and budget.
+    for a random pick). It costs about 40 ms of CPU for 12,000 particles on a
+    desktop (30 ms for a phone's 6,000), in 300-pick slices of 7 ms or less,
+    while the page is still static, once per layout kind and budget; with the
+    CPU throttled 4× it is 0.2 to 0.3 s in slices of up to about 50 ms.
   - **Look.** A star has the 2D look: a bright one about 6 px across with the
     soft glow of the 2D sprite, a dim one a small soft dot (`glLook`, which
     gets smaller and fainter the more particles crowd the sheet, applied to
