@@ -493,9 +493,14 @@ test.describe("the WebGL path", () => {
     // (the dev server compiles a route on its first request).
     await page.request.get("/sheet");
     await page.goto("/");
-    // The stage has started (it asked for its first slice) and is waiting for it.
+    // The stage has made its WebGL context and is waiting for the next slice of
+    // the renderer's setup (the shaders): the context exists, and what is
+    // suspended is `createGlRendererSteps`, which the stage closes when it is
+    // destroyed. (Navigating away at the first slice would not reach it.)
     await page.waitForFunction(
-      () => ((window as unknown as Record<string, number>).__slices ?? 0) > 0,
+      () =>
+        ((window as unknown as Record<string, unknown>).__contexts as unknown[])
+          .length > 0,
     );
     // Navigate away from the page, client side: the component unmounts and destroys the stage.
     await page.evaluate(() =>
@@ -517,7 +522,10 @@ test.describe("the WebGL path", () => {
         )(),
       };
     });
-    // Nothing is left: any context it made is lost, and every listener it added is removed.
+    // The context was made, so the path that closes the setup half way was
+    // taken; nothing is left: it is lost, and every listener the stage added is
+    // removed.
+    expect(left.made, JSON.stringify(left)).toBeGreaterThan(0);
     expect(left.alive, JSON.stringify(left)).toBe(0);
     expect(left.listeners.added, JSON.stringify(left)).toBe(
       left.listeners.removed,
