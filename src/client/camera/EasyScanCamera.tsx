@@ -992,6 +992,8 @@ export default function EasyScanCamera({
         const size = info?.stillSize ? await info.stillSize : null;
         const capture: AttemptCapture = {
           method: info?.method ?? null,
+          captureSource: info?.captureSource ?? null,
+          frame: info?.frame,
           settleTimedOut: info?.settleTimedOut ?? null,
           photoWidth: size?.width ?? info?.photoWidth ?? null,
           photoHeight: size?.height ?? info?.photoHeight ?? null,
