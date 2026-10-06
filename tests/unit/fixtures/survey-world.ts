@@ -104,12 +104,6 @@ let counter = 0;
 const uuid = (prefix: string) =>
   `${prefix}0000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
 
-/**
- * The brand key the database matches on: `lower(btrim(brand))`. ASCII-only
- * test brands keep the fake and Postgres in agreement whatever the locale.
- */
-const brandKey = (brand: string) => brand.trim().toLowerCase();
-
 const DEFAULT_SCAN = {
   hand: "right" as const,
   gripStated: null,
@@ -196,22 +190,34 @@ export function createFakeSurveyWorld(): SurveyWorld {
       if (marks.has(write.scanId)) return "already_contributed";
       const mine = (c: FakeContribution) =>
         write.userId !== null && c.write.userId === write.userId;
+      // What a replaced row hands on: a marker that was on it, when this write
+      // marks no mouse as current (the real repo's `excluded.is_current OR
+      // is_current`).
+      const carriedRatings = new Set<string>();
+      let carriedOther = false;
       if (write.userId !== null) {
         const rated = new Set(write.ratings.map((r) => r.mouseId));
         const marksCurrent =
           write.ratings.some((r) => r.isCurrent) ||
           write.otherMouse?.isCurrent === true;
         for (const c of stored.filter(mine)) {
-          c.ratings = c.ratings.filter((r) => !rated.has(r.mouseId));
           if (marksCurrent) {
             for (const r of c.ratings) r.isCurrent = false;
             for (const o of c.otherMice) o.isCurrent = false;
           }
+          for (const r of c.ratings) {
+            if (rated.has(r.mouseId) && r.isCurrent) {
+              carriedRatings.add(r.mouseId);
+            }
+          }
+          c.ratings = c.ratings.filter((r) => !rated.has(r.mouseId));
           if (write.mainUse !== null) c.mainUse = null;
           if (write.otherMouse) {
-            c.otherMice = c.otherMice.filter(
-              (o) => brandKey(o.brand) !== brandKey(write.otherMouse!.brand),
-            );
+            const brand = write.otherMouse.brand;
+            if (c.otherMice.some((o) => o.brand === brand && o.isCurrent)) {
+              carriedOther = true;
+            }
+            c.otherMice = c.otherMice.filter((o) => o.brand !== brand);
           }
         }
       }
@@ -221,9 +227,19 @@ export function createFakeSurveyWorld(): SurveyWorld {
       stored.push({
         id: uuid("3"),
         write: kept,
-        ratings: write.ratings.map((r) => ({ ...r, userId: write.userId })),
+        ratings: write.ratings.map((r) => ({
+          ...r,
+          isCurrent: r.isCurrent || carriedRatings.has(r.mouseId),
+          userId: write.userId,
+        })),
         otherMice: write.otherMouse
-          ? [{ ...write.otherMouse, userId: write.userId }]
+          ? [
+              {
+                ...write.otherMouse,
+                isCurrent: write.otherMouse.isCurrent || carriedOther,
+                userId: write.userId,
+              },
+            ]
           : [],
         mainUse: write.mainUse,
       });

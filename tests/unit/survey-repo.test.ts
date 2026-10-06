@@ -3,7 +3,7 @@
  * against the real drizzle repo on PGlite (a real Postgres with the repo's own
  * migrations): one contribution per scan, a signed-in person's repeat rules
  * (replace a rating, move the current marker, replace main use, replace an
- * other mouse by brand), anonymous contributions that replace nothing,
+ * other mouse by its brand slug), anonymous contributions that replace nothing,
  * withdrawal, and, on PGlite only, that a failed write leaves nothing behind.
  */
 import {
@@ -270,8 +270,10 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
           handLengthBinMm: 190,
           mainUse: USE_B,
           ratings: [rate(mouseA, 1, { isCurrent: true })],
+          // The very same slug as the signed-in person's: an anonymous
+          // contribution replaces nothing, so both stay.
           otherMouse: {
-            brand: BRAND_A.toUpperCase(),
+            brand: BRAND_A,
             sizeFeel: FEEL_LARGE,
             isCurrent: true,
           },
@@ -283,11 +285,16 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
         satisfaction: 5,
         isCurrent: true,
       });
-      expect(first!.otherMice).toHaveLength(1);
+      expect(first!.otherMice).toEqual([
+        expect.objectContaining({ brand: BRAND_A, sizeFeel: FEEL_RIGHT }),
+      ]);
       expect(second!.ratings[0]).toMatchObject({
         satisfaction: 1,
         userId: null,
       });
+      expect(second!.otherMice).toEqual([
+        expect.objectContaining({ brand: BRAND_A, sizeFeel: FEEL_LARGE }),
+      ]);
     });
 
     it("says the scan is gone when it no longer exists, and stores nothing", async () => {
@@ -469,7 +476,7 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
       expect(await mainUses()).toEqual([USE_B]);
     });
 
-    it("replaces an other mouse with the same brand ignoring case and spaces, and adds a new brand", async () => {
+    it("replaces an other mouse with the same brand slug, and adds a new slug", async () => {
       const s = await Promise.all(
         [181, 192, 203].map((h) =>
           world.addScan({ userId: "user-1", handLengthMm: h }),
@@ -497,13 +504,13 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
           userId: "user-1",
           handLengthBinMm: 190,
           otherMouse: {
-            brand: BRAND_A.toUpperCase(),
+            brand: BRAND_A,
             sizeFeel: FEEL_RIGHT,
             isCurrent: false,
           },
         }),
       );
-      expect(await others()).toEqual([[BRAND_A.toUpperCase(), FEEL_RIGHT]]);
+      expect(await others()).toEqual([[BRAND_A, FEEL_RIGHT]]);
 
       await world.surveyRepo.recordContribution(
         aWrite(s[2]!, {
@@ -516,10 +523,242 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
           },
         }),
       );
-      expect(await others()).toEqual([
-        [BRAND_B, FEEL_LARGE],
-        [BRAND_A.toUpperCase(), FEEL_RIGHT],
-      ]);
+      expect(await others()).toEqual(
+        [
+          [BRAND_B, FEEL_LARGE],
+          [BRAND_A, FEEL_RIGHT],
+        ].sort(),
+      );
+    });
+
+    it("keeps at most one answer for 'other': every brand that is not listed is the same slug", async () => {
+      const s = await Promise.all(
+        [181, 192, 203].map((h) =>
+          world.addScan({ userId: "user-1", handLengthMm: h }),
+        ),
+      );
+      const others = async () =>
+        (await world.contributions())
+          .filter((c) => c.userId === "user-1")
+          .flatMap((c) => c.otherMice)
+          .map((o) => [o.brand, o.sizeFeel])
+          .sort();
+
+      await world.surveyRepo.recordContribution(
+        aWrite(s[0]!, {
+          userId: "user-1",
+          otherMouse: {
+            brand: BRAND_OTHER,
+            sizeFeel: FEEL_SMALL,
+            isCurrent: false,
+          },
+        }),
+      );
+      await world.surveyRepo.recordContribution(
+        aWrite(s[1]!, {
+          userId: "user-1",
+          handLengthBinMm: 190,
+          otherMouse: {
+            brand: BRAND_OTHER,
+            sizeFeel: FEEL_LARGE,
+            isCurrent: false,
+          },
+        }),
+      );
+      expect(await others()).toEqual([[BRAND_OTHER, FEEL_LARGE]]);
+
+      // A listed brand is a different slug: it is added, not a replacement.
+      await world.surveyRepo.recordContribution(
+        aWrite(s[2]!, {
+          userId: "user-1",
+          handLengthBinMm: 200,
+          otherMouse: {
+            brand: BRAND_A,
+            sizeFeel: FEEL_RIGHT,
+            isCurrent: false,
+          },
+        }),
+      );
+      expect(await others()).toEqual(
+        [
+          [BRAND_A, FEEL_RIGHT],
+          [BRAND_OTHER, FEEL_LARGE],
+        ].sort(),
+      );
+    });
+
+    it("compares brand slugs exactly: no case-folding or trimming survives from the free-text days", async () => {
+      // The body schema only lets a listed slug through, so this is the
+      // repo-level pin that a value is stored and compared as given.
+      const s = await Promise.all(
+        [181, 192].map((h) =>
+          world.addScan({ userId: "user-1", handLengthMm: h }),
+        ),
+      );
+      const brands = async () =>
+        (await world.contributions())
+          .filter((c) => c.userId === "user-1")
+          .flatMap((c) => c.otherMice)
+          .map((o) => o.brand)
+          .sort();
+      await world.surveyRepo.recordContribution(
+        aWrite(s[0]!, {
+          userId: "user-1",
+          otherMouse: {
+            brand: BRAND_A,
+            sizeFeel: FEEL_SMALL,
+            isCurrent: false,
+          },
+        }),
+      );
+      await world.surveyRepo.recordContribution(
+        aWrite(s[1]!, {
+          userId: "user-1",
+          handLengthBinMm: 190,
+          otherMouse: {
+            brand: BRAND_A.toUpperCase() as typeof BRAND_A,
+            sizeFeel: FEEL_RIGHT,
+            isCurrent: false,
+          },
+        }),
+      );
+      expect(await brands()).toEqual([BRAND_A.toUpperCase(), BRAND_A].sort());
+    });
+
+    describe("a later body that marks no mouse as current leaves the marker where it was", () => {
+      const scans = async () =>
+        Promise.all(
+          [181, 192].map((h) =>
+            world.addScan({ userId: "user-1", handLengthMm: h }),
+          ),
+        );
+      const currentRatings = async () =>
+        (await ratingsOf("user-1"))
+          .filter((r) => r.isCurrent)
+          .map((r) => r.slug);
+      const currentOthers = async () =>
+        (await world.contributions())
+          .filter((c) => c.userId === "user-1")
+          .flatMap((c) => c.otherMice)
+          .filter((o) => o.isCurrent)
+          .map((o) => o.brand);
+
+      it("also when it re-rates the very mouse that carries the marker", async () => {
+        const s = await scans();
+        await world.surveyRepo.recordContribution(
+          aWrite(s[0]!, {
+            userId: "user-1",
+            ratings: [rate(mouseA, 5, { isCurrent: true })],
+          }),
+        );
+        await world.surveyRepo.recordContribution(
+          aWrite(s[1]!, {
+            userId: "user-1",
+            handLengthBinMm: 190,
+            // A is replaced (its satisfaction changes) and not re-ticked; B is new.
+            ratings: [rate(mouseA, 2), rate(mouseB, 3)],
+          }),
+        );
+        expect(await currentRatings()).toEqual(["mouse-a"]);
+        expect(
+          (await ratingsOf("user-1"))
+            .map((r) => [r.slug, r.satisfaction])
+            .sort(),
+        ).toEqual([
+          ["mouse-a", 2],
+          ["mouse-b", 3],
+        ]);
+      });
+
+      it("also when it gives the same brand slug as the other mouse that carries the marker", async () => {
+        const s = await scans();
+        await world.surveyRepo.recordContribution(
+          aWrite(s[0]!, {
+            userId: "user-1",
+            otherMouse: {
+              brand: BRAND_A,
+              sizeFeel: FEEL_SMALL,
+              isCurrent: true,
+            },
+          }),
+        );
+        await world.surveyRepo.recordContribution(
+          aWrite(s[1]!, {
+            userId: "user-1",
+            handLengthBinMm: 190,
+            otherMouse: {
+              brand: BRAND_A,
+              sizeFeel: FEEL_LARGE,
+              isCurrent: false,
+            },
+          }),
+        );
+        expect(await currentOthers()).toEqual([BRAND_A]);
+        expect(
+          (await world.contributions())
+            .flatMap((c) => c.otherMice)
+            .map((o) => o.sizeFeel),
+        ).toEqual([FEEL_LARGE]);
+      });
+
+      it("but a later body that marks another mouse takes it, even when it re-rates the marked one", async () => {
+        const s = await scans();
+        await world.surveyRepo.recordContribution(
+          aWrite(s[0]!, {
+            userId: "user-1",
+            ratings: [rate(mouseA, 5, { isCurrent: true })],
+          }),
+        );
+        await world.surveyRepo.recordContribution(
+          aWrite(s[1]!, {
+            userId: "user-1",
+            handLengthBinMm: 190,
+            ratings: [rate(mouseA, 2), rate(mouseB, 3, { isCurrent: true })],
+          }),
+        );
+        expect(await currentRatings()).toEqual(["mouse-b"]);
+      });
+
+      it("and a body that re-ticks the same mouse leaves exactly one marker", async () => {
+        const s = await scans();
+        await world.surveyRepo.recordContribution(
+          aWrite(s[0]!, {
+            userId: "user-1",
+            ratings: [rate(mouseA, 5, { isCurrent: true })],
+          }),
+        );
+        await world.surveyRepo.recordContribution(
+          aWrite(s[1]!, {
+            userId: "user-1",
+            handLengthBinMm: 190,
+            ratings: [rate(mouseA, 3, { isCurrent: true })],
+          }),
+        );
+        expect(await currentRatings()).toEqual(["mouse-a"]);
+      });
+
+      it("and a marker on a catalogue mouse survives a body that gives only an unmarked other mouse", async () => {
+        const s = await scans();
+        await world.surveyRepo.recordContribution(
+          aWrite(s[0]!, {
+            userId: "user-1",
+            ratings: [rate(mouseA, 5, { isCurrent: true })],
+          }),
+        );
+        await world.surveyRepo.recordContribution(
+          aWrite(s[1]!, {
+            userId: "user-1",
+            handLengthBinMm: 190,
+            otherMouse: {
+              brand: BRAND_B,
+              sizeFeel: FEEL_RIGHT,
+              isCurrent: false,
+            },
+          }),
+        );
+        expect(await currentRatings()).toEqual(["mouse-a"]);
+        expect(await currentOthers()).toEqual([]);
+      });
     });
 
     it("keeps every comment as written", async () => {

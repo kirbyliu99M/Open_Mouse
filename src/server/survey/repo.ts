@@ -1,6 +1,7 @@
 import type { GripStyle } from "../../lib/contracts/fit";
 import type {
   MainUse,
+  OtherMouseBrand,
   PainPoint,
   SizeFeel,
   UseDuration,
@@ -15,9 +16,13 @@ export interface ContributionRating {
   isCurrent: boolean;
 }
 
-/** A mouse outside the catalogue; the brand is the person's own free text. */
+/**
+ * A mouse outside the catalogue. The brand is a slug from the contract's
+ * `OTHER_MOUSE_BRANDS`, already validated by the body schema, and is stored and
+ * compared exactly as given (every brand that is not listed is `other`).
+ */
 export interface ContributionOtherMouse {
-  brand: string;
+  brand: OtherMouseBrand;
   sizeFeel: SizeFeel;
   isCurrent: boolean;
 }
@@ -87,12 +92,14 @@ export interface SurveyRepo {
    *  - a rating of a catalogue mouse the person already rated replaces it;
    *  - when this write marks a mouse as current (a rating or the other mouse),
    *    the person's earlier current marker, on a rating or an other mouse, is
-   *    cleared; when it marks none, the earlier one stays;
+   *    cleared; when it marks none, the earlier one stays, also when it sits on
+   *    the very rating or other mouse this write replaces (the replacement does
+   *    not take the marker away: survey.ts, "marks none leaves it where it was");
    *  - `mainUse`, when given, replaces the person's earlier answer (which is
    *    emptied); when this write gives none, the earlier answer stays;
-   *  - an other mouse whose brand matches an earlier one of theirs, ignoring
-   *    case and surrounding spaces, replaces it; a new brand is added (the
-   *    same brand slug, once the contract makes the brand a pick from a list);
+   *  - an other mouse whose brand slug equals an earlier one of theirs (an
+   *    exact match) replaces it; a new slug is added, so a person keeps at most
+   *    one answer for `other`;
    *  - `feedback` is kept as written, every time.
    * An anonymous contribution replaces nothing.
    */

@@ -65,8 +65,11 @@ function cast<T>(value: unknown, type: string, alias: string) {
  * Any statement that errors (a rating for a mouse that is gone, say) aborts the
  * whole batch, so the contribution and the mark are never half-written.
  *
- * The repeat rules for a signed-in person (see `SurveyRepo.recordContribution`)
- * run before the new rows go in, so they never touch what this write adds.
+ * The repeat rules for a signed-in person (see `SurveyRepo.recordContribution`):
+ * the current marker is cleared and the earlier main use emptied BEFORE the new
+ * rows go in, so those rules never touch what this write adds; a rating or an
+ * other mouse the person gave before is replaced by the upsert that adds the
+ * new one (the comment above the rating statements says why).
  */
 export function buildContributionStatements(
   db: Db,
@@ -130,20 +133,6 @@ export function buildContributionStatements(
 
   const { userId } = write;
   if (userId !== null) {
-    if (write.ratings.length > 0) {
-      statements.push(
-        db.delete(surveyRatings).where(
-          and(
-            eq(surveyRatings.userId, userId),
-            inArray(
-              surveyRatings.mouseId,
-              write.ratings.map((rating) => rating.mouseId),
-            ),
-            thisContributionExists(),
-          ),
-        ),
-      );
-    }
     if (
       write.ratings.some((rating) => rating.isCurrent) ||
       write.otherMouse?.isCurrent === true
@@ -186,72 +175,93 @@ export function buildContributionStatements(
           ),
       );
     }
-    if (write.otherMouse !== null) {
-      statements.push(
-        db
-          .delete(surveyOtherMice)
-          .where(
-            and(
-              eq(surveyOtherMice.userId, userId),
-              sql`lower(btrim(${surveyOtherMice.brand})) = lower(btrim(${write.otherMouse.brand}))`,
-              thisContributionExists(),
-            ),
-          ),
-      );
-    }
   }
 
+  // A signed-in person's rating of a mouse, or answer for a brand slug, they
+  // gave before is REPLACED by `ON CONFLICT ... DO UPDATE` on the partial unique
+  // index (user_id, mouse_id) / (user_id, brand), and the earlier row moves to
+  // this contribution. An upsert, not a delete and an insert, because of the
+  // current marker: a write that marks no mouse as current leaves the person's
+  // marker where it was (survey.ts), and that includes a marker sitting on the
+  // very row this write replaces, which a delete would lose. When the write DOES
+  // mark one, the clearing UPDATEs above have already emptied the old markers,
+  // so `excluded.is_current OR is_current` is just the new value. An anonymous
+  // write has no conflict to resolve: NULL user ids are outside both indexes.
   for (const rating of write.ratings) {
+    const insertRating = db.insert(surveyRatings).select(
+      db
+        .select({
+          contributionId: cast<string>(
+            contributionId,
+            "uuid",
+            "contributionId",
+          ),
+          mouseId: cast<string>(rating.mouseId, "uuid", "mouseId"),
+          userId: cast<string | null>(write.userId, "text", "userId"),
+          satisfaction: cast<number>(
+            rating.satisfaction,
+            "smallint",
+            "satisfaction",
+          ),
+          duration: cast<string | null>(rating.duration, "text", "duration"),
+          painPoints: cast<PainPoint[]>(
+            JSON.stringify(rating.painPoints),
+            "jsonb",
+            "painPoints",
+          ),
+          isCurrent: cast<boolean>(rating.isCurrent, "boolean", "isCurrent"),
+        })
+        .from(surveyContributions)
+        .where(eq(surveyContributions.id, contributionId)),
+    );
     statements.push(
-      db.insert(surveyRatings).select(
-        db
-          .select({
-            contributionId: cast<string>(
-              contributionId,
-              "uuid",
-              "contributionId",
-            ),
-            mouseId: cast<string>(rating.mouseId, "uuid", "mouseId"),
-            userId: cast<string | null>(write.userId, "text", "userId"),
-            satisfaction: cast<number>(
-              rating.satisfaction,
-              "smallint",
-              "satisfaction",
-            ),
-            duration: cast<string | null>(rating.duration, "text", "duration"),
-            painPoints: cast<PainPoint[]>(
-              JSON.stringify(rating.painPoints),
-              "jsonb",
-              "painPoints",
-            ),
-            isCurrent: cast<boolean>(rating.isCurrent, "boolean", "isCurrent"),
-          })
-          .from(surveyContributions)
-          .where(eq(surveyContributions.id, contributionId)),
-      ),
+      userId === null
+        ? insertRating
+        : insertRating.onConflictDoUpdate({
+            target: [surveyRatings.userId, surveyRatings.mouseId],
+            targetWhere: isNotNull(surveyRatings.userId),
+            set: {
+              contributionId: sql`excluded.contribution_id`,
+              satisfaction: sql`excluded.satisfaction`,
+              duration: sql`excluded.duration`,
+              painPoints: sql`excluded.pain_points`,
+              isCurrent: sql`excluded.is_current OR ${surveyRatings.isCurrent}`,
+            },
+          }),
     );
   }
 
   if (write.otherMouse !== null) {
     const other = write.otherMouse;
+    const insertOther = db.insert(surveyOtherMice).select(
+      db
+        .select({
+          id: sql<string>`gen_random_uuid()`.as("id"),
+          contributionId: cast<string>(
+            contributionId,
+            "uuid",
+            "contributionId",
+          ),
+          userId: cast<string | null>(write.userId, "text", "userId"),
+          brand: cast<string>(other.brand, "text", "brand"),
+          sizeFeel: cast<string>(other.sizeFeel, "text", "sizeFeel"),
+          isCurrent: cast<boolean>(other.isCurrent, "boolean", "isCurrent"),
+        })
+        .from(surveyContributions)
+        .where(eq(surveyContributions.id, contributionId)),
+    );
     statements.push(
-      db.insert(surveyOtherMice).select(
-        db
-          .select({
-            id: sql<string>`gen_random_uuid()`.as("id"),
-            contributionId: cast<string>(
-              contributionId,
-              "uuid",
-              "contributionId",
-            ),
-            userId: cast<string | null>(write.userId, "text", "userId"),
-            brand: cast<string>(other.brand, "text", "brand"),
-            sizeFeel: cast<string>(other.sizeFeel, "text", "sizeFeel"),
-            isCurrent: cast<boolean>(other.isCurrent, "boolean", "isCurrent"),
-          })
-          .from(surveyContributions)
-          .where(eq(surveyContributions.id, contributionId)),
-      ),
+      userId === null
+        ? insertOther
+        : insertOther.onConflictDoUpdate({
+            target: [surveyOtherMice.userId, surveyOtherMice.brand],
+            targetWhere: isNotNull(surveyOtherMice.userId),
+            set: {
+              contributionId: sql`excluded.contribution_id`,
+              sizeFeel: sql`excluded.size_feel`,
+              isCurrent: sql`excluded.is_current OR ${surveyOtherMice.isCurrent}`,
+            },
+          }),
     );
   }
 

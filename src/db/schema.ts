@@ -391,9 +391,9 @@ export const rateLimits = pgTable("rate_limits", {
 //     match the contribution to the scan by time. `consented_at` is therefore
 //     the start of the UTC day (a CHECK enforces it) and there is no
 //     `created_at`.
-//   - `feedback` (free text) and `survey_other_mice.brand` (free text in
-//     contract v2, a pick from a fixed list in v3) are read by the maintainers
-//     only; no response schema carries either.
+//   - `feedback` (the one free-text field) and `survey_other_mice.brand` (a
+//     slug picked from the contract's `OTHER_MOUSE_BRANDS`, contract v3) are
+//     read by the maintainers only; no response schema carries either.
 //   - the answer lists (duration, pain points, main use, size feel) are plain
 //     text, not enums or CHECKs: the lists are candidates, and the contract's
 //     schema is what refuses a value outside them, so a list change is not a
@@ -401,10 +401,12 @@ export const rateLimits = pgTable("rate_limits", {
 //     are CHECKed here. The comment length imports the contract's constant, so
 //     a contract change shows up as drift in `db:check`; the brand and the
 //     other short text columns have a sane length bound of their own that does
-//     not follow the contract (a brand is a short label whatever the contract
-//     says it is: free text up to 60 characters, or a slug).
+//     not follow the contract (a brand is a short slug, so 32 characters is
+//     room for any list the contract is likely to grow into; the list itself
+//     is the schema's to enforce, not a CHECK, so adding a brand is not a
+//     migration).
 const BIN = sql.raw(String(CONTRIBUTION_BIN_MM));
-const SHORT_TEXT_MAX_CHARS = 60;
+const BRAND_SLUG_MAX_CHARS = 32;
 
 export const surveyContributions = pgTable(
   "survey_contributions",
@@ -493,9 +495,10 @@ export const surveyRatings = pgTable(
 );
 
 /**
- * A mouse that is not in the catalogue, as the person typed its brand. A
- * signed-in person has one row per brand, matched ignoring case and
- * surrounding spaces (partial unique index on the expression).
+ * A mouse that is not in the catalogue: the brand slug the person picked from
+ * the contract's `OTHER_MOUSE_BRANDS`, and how its size felt. A signed-in person
+ * has one row per brand slug (partial unique index), so every brand that is not
+ * listed, being the one slug `other`, is one row.
  */
 export const surveyOtherMice = pgTable(
   "survey_other_mice",
@@ -512,11 +515,11 @@ export const surveyOtherMice = pgTable(
   (t) => [
     index("survey_other_mice_contribution_id_idx").on(t.contributionId),
     uniqueIndex("survey_other_mice_user_brand_unique")
-      .on(t.userId, sql`lower(btrim(${t.brand}))`)
+      .on(t.userId, t.brand)
       .where(sql`${t.userId} IS NOT NULL`),
     check(
       "survey_other_mice_brand_length",
-      sql`char_length(${t.brand}) BETWEEN 1 AND ${sql.raw(String(SHORT_TEXT_MAX_CHARS))}`,
+      sql`char_length(${t.brand}) BETWEEN 1 AND ${sql.raw(String(BRAND_SLUG_MAX_CHARS))}`,
     ),
     check(
       "survey_other_mice_size_feel_length",

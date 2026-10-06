@@ -80,6 +80,13 @@ function logFailure(op: "submit" | "withdraw", error: unknown): Response {
  *
  * The hand profile is read from the scan on the server (`buildContributionWrite`)
  * and never taken from the body. Nothing in any response echoes an answer.
+ *
+ * A malformed `scanId` is a failure of the body schema, so it is a 400 naming
+ * `scanId`, and the scan repo is never asked: `scanId` is a field of the body
+ * the contract validates (routes.ts, SURVEY_PATH: "400 invalid body"), unlike
+ * the id in a path (`/api/scans/{id}/...`), where a malformed id is the same
+ * 404 as an unknown one. A well-formed id that is unknown, foreign or expired
+ * is the 404.
  */
 export async function handleSurveySubmission(
   request: Request,

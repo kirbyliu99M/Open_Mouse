@@ -127,7 +127,7 @@ describe("buildContributionWrite", () => {
       },
       { slug: "mouse-b", satisfaction: 2 },
     ],
-    otherMouse: { brand: `  ${BRAND_A} `, sizeFeel: FEEL_SMALL },
+    otherMouse: { brand: BRAND_A, sizeFeel: FEEL_SMALL },
     feedback: "  too light  ",
   });
   const scan = {

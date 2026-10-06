@@ -1,5 +1,5 @@
 {
-  "id": "a992c412-4f8a-4a2e-ab07-9d8beb31d25e",
+  "id": "b4df7a10-53a6-4bf3-9edb-7b1634643d28",
   "prevId": "638acdb3-96e6-4574-8a38-e9250f2da984",
   "version": "7",
   "dialect": "postgresql",
@@ -1127,9 +1127,9 @@
               "nulls": "last"
             },
             {
-              "expression": "lower(btrim(\"brand\"))",
+              "expression": "brand",
+              "isExpression": false,
               "asc": true,
-              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -1174,7 +1174,7 @@
       "checkConstraints": {
         "survey_other_mice_brand_length": {
           "name": "survey_other_mice_brand_length",
-          "value": "char_length(\"survey_other_mice\".\"brand\") BETWEEN 1 AND 60"
+          "value": "char_length(\"survey_other_mice\".\"brand\") BETWEEN 1 AND 32"
         },
         "survey_other_mice_size_feel_length": {
           "name": "survey_other_mice_size_feel_length",

@@ -5,8 +5,9 @@
  * survey-repo.test.ts on a real Postgres; this pins the shape the HTTP driver
  * sees: ONE transaction request carrying every statement, nothing sent outside
  * it, the scan row locked first and its mark set last, every statement after
- * the contribution insert guarded by it, and the scan id never written into a
- * contribution row.
+ * the contribution insert guarded by it, a signed-in person's earlier rating or
+ * other mouse replaced by an upsert on the partial unique index, and the scan id
+ * never written into a contribution row.
  */
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -128,8 +129,7 @@ describe("recordContribution over the neon-http driver", () => {
     expect(mark).toMatch(/^update "scans" set "survey_contributed_at" = /);
     expect(mark).toMatch(/"survey_contributed_at" is null/);
     expect(mark).toMatch(/returning "id"$/);
-    // The other statements, in the order that lets the repeat rules run before
-    // the new rows go in: 2 ratings and 1 other mouse are 3 inserts.
+    // The contribution, 2 ratings and 1 other mouse are 4 inserts.
     expect(sql.filter((s) => s.startsWith("insert into"))).toHaveLength(4);
   });
 
@@ -147,17 +147,47 @@ describe("recordContribution over the neon-http driver", () => {
     for (const statement of between) {
       expect(statement.params, statement.sql).toContain(contributionId);
     }
-    // And a signed-in write ran every repeat rule: replace ratings, clear the
-    // current marker on ratings and other mice, replace main use, replace brand.
+    // And a signed-in write ran every repeat rule: clear the current marker on
+    // ratings and other mice, replace main use, and replace an earlier rating
+    // or other mouse through the upsert, never through a delete (a delete would
+    // take a current marker away with the row it replaces).
     const text = between.map((s) => s.sql.toLowerCase()).join("\n");
-    expect(text).toMatch(/delete from "survey_ratings"/);
     expect(text).toMatch(/update "survey_ratings" set "is_current" = /);
     expect(text).toMatch(/update "survey_other_mice" set "is_current" = /);
     expect(text).toMatch(/update "survey_contributions" set "main_use" = /);
-    expect(text).toMatch(/delete from "survey_other_mice"/);
-    expect(text).toMatch(
-      /lower\(btrim\("survey_other_mice"\."brand"\)\) = lower\(btrim\(\$\d+\)\)/,
+    expect(text).not.toMatch(/delete from/);
+  });
+
+  it("a signed-in write replaces by upsert on the partial unique indexes, exact on the brand slug, and carries the marker", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.recordContribution(aWrite({ userId: "user-1" }));
+    const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
+    const ratings = sql.filter((s) =>
+      s.startsWith('insert into "survey_ratings"'),
     );
+    const others = sql.filter((s) =>
+      s.startsWith('insert into "survey_other_mice"'),
+    );
+    expect(ratings).toHaveLength(2);
+    expect(others).toHaveLength(1);
+    for (const statement of ratings) {
+      expect(statement).toMatch(
+        /on conflict \("user_id","mouse_id"\) where "survey_ratings"\."user_id" is not null do update set /,
+      );
+      // The marker of the row being replaced is kept unless this write moved it
+      // (the moving statements ran first and emptied it).
+      expect(statement).toMatch(
+        /"is_current" = excluded\.is_current or "survey_ratings"\."is_current"/,
+      );
+    }
+    expect(others[0]).toMatch(
+      /on conflict \("user_id","brand"\) where "survey_other_mice"\."user_id" is not null do update set /,
+    );
+    expect(others[0]).toMatch(
+      /"is_current" = excluded\.is_current or "survey_other_mice"\."is_current"/,
+    );
+    // Exact on the slug: nothing is lowercased or trimmed on either side.
+    expect(sql.join("\n")).not.toMatch(/lower\(|btrim\(/);
   });
 
   it("an anonymous write runs no repeat rule at all", async () => {
@@ -166,6 +196,8 @@ describe("recordContribution over the neon-http driver", () => {
     const text = transactions[0]!.map((s) => s.sql.toLowerCase()).join("\n");
     expect(text).not.toMatch(/delete from/);
     expect(text).not.toMatch(/update "survey_/);
+    // NULL user ids sit outside both unique indexes: a plain insert is enough.
+    expect(text).not.toMatch(/on conflict/);
   });
 
   it("never writes the scan id into a row: it appears only in the lock, the guard of the insert, and the mark", async () => {

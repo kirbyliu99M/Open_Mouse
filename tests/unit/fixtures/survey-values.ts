@@ -3,22 +3,22 @@
  *
  * The value lists (main use, size feel, duration, pain points) are IMPORTED from
  * the contract and picked by position, never written out in a test, so a
- * contract change to a list (Kirby's v3 narrows `MAIN_USES` to three values and
- * `SIZE_FEELS` to three) does not touch the tests. Positions are chosen to give
- * distinct values whether a list has the v2 length or the v3 one.
+ * contract change to a list does not touch the tests. Contract v3 narrowed
+ * `MAIN_USES` and `SIZE_FEELS` to three values each, so the positions below must
+ * stay within the first three: no test may assume a fourth value exists.
  *
- * The brands are the one thing the contract cannot supply yet: in v2 a brand is
- * free text (`otherMouse.brand`), in v3 it is a pick from a fixed list that
- * `survey.ts` will export. When v3 lands, change these four constants to
- * entries of that list and nothing else in the tests needs to move (the one v2
- * only case, a control character in the brand, is marked in
- * survey-service.test.ts).
+ * The brands are slugs of the contract's `OTHER_MOUSE_BRANDS` (v3: a pick from a
+ * list, not free text). They are written as literals that `satisfies` the
+ * contract's type, so a list that drops one fails the typecheck on this file
+ * and names what to change. Nothing here relies on a brand being matched
+ * loosely: a slug is stored and compared exactly as given.
  */
 import {
   MAIN_USES,
   PAIN_POINTS,
   SIZE_FEELS,
   USE_DURATIONS,
+  type OtherMouseBrand,
 } from "../../../src/lib/contracts/survey";
 
 /** Two different main uses. */
@@ -39,8 +39,12 @@ export const PAIN_A = PAIN_POINTS[3];
 export const PAIN_B = PAIN_POINTS[4];
 
 /** Brands of a mouse that is not in the catalogue (see the header). */
-export const BRAND_A = "Glorious";
-export const BRAND_B = "Finalmouse";
-export const BRAND_OTHER = "Other";
-/** A brand no catalogue seed or copy uses, to prove it is never echoed or logged. */
-export const BRAND_PRIVATE = "Zorbatron";
+export const BRAND_A = "glorious" satisfies OtherMouseBrand;
+export const BRAND_B = "finalmouse" satisfies OtherMouseBrand;
+/** The catch-all slug: every brand that is not listed is this one. */
+export const BRAND_OTHER = "other" satisfies OtherMouseBrand;
+/**
+ * A brand no catalogue seed or copy uses, with an underscore no sentence of
+ * ours has, to prove it is never echoed or logged.
+ */
+export const BRAND_PRIVATE = "endgame_gear" satisfies OtherMouseBrand;

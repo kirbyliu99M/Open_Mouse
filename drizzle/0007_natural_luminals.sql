@@ -1,5 +1,7 @@
--- Survey contributions (contract v2, src/lib/contracts/survey.ts): three new
+-- Survey contributions (contract v3, src/lib/contracts/survey.ts): three new
 -- tables and one nullable column on scans. Candidate shape (未拍板).
+-- survey_other_mice.brand holds a slug from the contract's OTHER_MOUSE_BRANDS (v3),
+-- so a signed-in person's unique index is on (user_id, brand), matched exactly.
 --
 -- Additive only: nothing existing is dropped or altered, and the one column
 -- added to an existing table (scans.survey_contributed_at) is nullable with no
@@ -11,7 +13,7 @@
 -- One DO block, i.e. one statement, for the same reason as 0005 and 0006: the
 -- neon-http migrator sends each statement as its own HTTP request with no
 -- surrounding transaction, so a multi-statement migration that fails half-way
--- (the generated file has twenty statements) would leave tables without their
+-- (the generated file has fifteen statements) would leave tables without their
 -- constraints and could not re-run. A single statement is atomic in Postgres.
 -- Every step is guarded, so a re-run completes without error. The statements
 -- are the ones drizzle-kit generated, only wrapped; tests/unit/survey-schema-db.test.ts
@@ -44,7 +46,7 @@ BEGIN
     "brand" text NOT NULL,
     "size_feel" text NOT NULL,
     "is_current" boolean DEFAULT false NOT NULL,
-    CONSTRAINT "survey_other_mice_brand_length" CHECK (char_length("survey_other_mice"."brand") BETWEEN 1 AND 60),
+    CONSTRAINT "survey_other_mice_brand_length" CHECK (char_length("survey_other_mice"."brand") BETWEEN 1 AND 32),
     CONSTRAINT "survey_other_mice_size_feel_length" CHECK (char_length("survey_other_mice"."size_feel") BETWEEN 1 AND 40),
     CONSTRAINT "survey_other_mice_contribution_id_survey_contributions_id_fk" FOREIGN KEY ("contribution_id") REFERENCES "public"."survey_contributions"("id") ON DELETE cascade ON UPDATE no action,
     CONSTRAINT "survey_other_mice_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action
@@ -70,7 +72,7 @@ BEGIN
 
   CREATE INDEX IF NOT EXISTS "survey_contributions_user_id_idx" ON "survey_contributions" USING btree ("user_id");
   CREATE INDEX IF NOT EXISTS "survey_other_mice_contribution_id_idx" ON "survey_other_mice" USING btree ("contribution_id");
-  CREATE UNIQUE INDEX IF NOT EXISTS "survey_other_mice_user_brand_unique" ON "survey_other_mice" USING btree ("user_id",lower(btrim("brand"))) WHERE "survey_other_mice"."user_id" IS NOT NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS "survey_other_mice_user_brand_unique" ON "survey_other_mice" USING btree ("user_id","brand") WHERE "survey_other_mice"."user_id" IS NOT NULL;
   CREATE UNIQUE INDEX IF NOT EXISTS "survey_ratings_user_mouse_unique" ON "survey_ratings" USING btree ("user_id","mouse_id") WHERE "survey_ratings"."user_id" IS NOT NULL;
   CREATE INDEX IF NOT EXISTS "survey_ratings_mouse_id_idx" ON "survey_ratings" USING btree ("mouse_id");
 END $$;

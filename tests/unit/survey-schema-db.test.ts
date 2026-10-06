@@ -14,7 +14,12 @@ import {
   migratedDatabase,
   migrationStatements,
 } from "./fixtures/pglite";
-import { BRAND_A, BRAND_B, FEEL_RIGHT } from "./fixtures/survey-values";
+import {
+  BRAND_A,
+  BRAND_B,
+  BRAND_OTHER,
+  FEEL_RIGHT,
+} from "./fixtures/survey-values";
 
 // Each case starts a fresh in-process Postgres and applies every migration.
 vi.setConfig({ testTimeout: 30_000 });
@@ -388,7 +393,7 @@ describe("constraints", () => {
     await pg.close();
   });
 
-  it("matches a signed-in person's other mouse by brand ignoring case and surrounding spaces, and bounds the brand", async () => {
+  it("holds a signed-in person to one other mouse per brand slug, matched exactly, and bounds the brand", async () => {
     const { pg } = await migratedDatabase();
     await seed(pg);
     await pg.exec(contribution(C1, { user_id: `'${USER}'` }));
@@ -398,19 +403,36 @@ describe("constraints", () => {
     await accepts(pg, other(C1, BRAND_A));
     await rejects(
       pg,
-      other(C2, ` ${BRAND_A.toUpperCase()} `),
+      other(C2, BRAND_A),
       "survey_other_mice_user_brand_unique",
     );
     await accepts(pg, other(C2, BRAND_B));
+    // Every brand that is not listed is the one slug `other`: once per person.
+    await accepts(pg, other(C1, BRAND_OTHER));
+    await rejects(
+      pg,
+      other(C2, BRAND_OTHER),
+      "survey_other_mice_user_brand_unique",
+    );
+    // Exact, not the free-text days' lower(btrim(...)): the index holds the two
+    // columns as they are. (The body schema only lets a listed slug through, so
+    // a differently cased value never reaches here; this pins the index.)
+    await accepts(pg, other(C2, BRAND_A.toUpperCase()));
+    const { rows: indexes } = await pg.query<{ indexdef: string }>(
+      `select indexdef from pg_indexes where indexname = 'survey_other_mice_user_brand_unique'`,
+    );
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0]!.indexdef).not.toMatch(/lower|btrim/i);
     // Anonymous: the same brand can be there many times.
     await accepts(pg, other(C1, BRAND_A, "null"));
     await accepts(pg, other(C2, BRAND_A, "null"));
-    // The column's own length bound (1 to 60), which does not follow the
-    // contract: a brand is a short label whatever the contract says it is.
-    await rejects(pg, other(C1, ""), "survey_other_mice_brand_length");
+    // The column's own length bound (1 to 32), which does not follow the
+    // contract: a brand is a short slug, and the list is the schema's to hold.
+    await accepts(pg, other(C1, "x".repeat(32), "null"));
+    await rejects(pg, other(C1, "", "null"), "survey_other_mice_brand_length");
     await rejects(
       pg,
-      other(C1, "x".repeat(61)),
+      other(C1, "x".repeat(33), "null"),
       "survey_other_mice_brand_length",
     );
     await pg.close();

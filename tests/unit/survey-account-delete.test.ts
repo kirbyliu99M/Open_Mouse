@@ -21,7 +21,10 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 import { handleAccountDeleteAll } from "../../src/server/account/handlers";
 import type { AccountRepo } from "../../src/server/account/repo";
-import { SURVEY_CONSENT_VERSION } from "../../src/lib/contracts/survey";
+import {
+  SURVEY_CONSENT_VERSION,
+  type OtherMouseBrand,
+} from "../../src/lib/contracts/survey";
 import {
   NOW,
   createPgliteSurveyWorld,
@@ -55,7 +58,7 @@ describe("account Delete everything on a real Postgres", () => {
     w: SurveyWorld,
     userId: string | null,
     handLengthMm: number,
-    over: { feedback?: string; brand?: string } = {},
+    over: { feedback?: string; brand?: OtherMouseBrand } = {},
   ) {
     const mouse = await w.surveyRepo.findMouseIdsBySlug(["mouse-a"]);
     const mouseId = mouse.get("mouse-a") ?? (await w.addMouse("mouse-a"));

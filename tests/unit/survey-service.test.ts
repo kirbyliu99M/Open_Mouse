@@ -23,6 +23,7 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 import { errorResponseSchema } from "../../src/lib/contracts/routes";
 import {
+  OTHER_MOUSE_BRANDS,
   SURVEY_CONSENT_VERSION,
   surveySubmitResponseSchema,
 } from "../../src/lib/contracts/survey";
@@ -51,6 +52,9 @@ import {
 
 const IP = "203.0.113.7";
 const BRAND = BRAND_PRIVATE;
+const LONGEST_BRAND = [...OTHER_MOUSE_BRANDS].sort(
+  (a, b) => b.length - a.length,
+)[0]!;
 const COMMENT = "The side buttons rattle on my desk.";
 
 const worlds: [string, () => Promise<SurveyWorld>][] = [
@@ -365,16 +369,57 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
         }),
         "feedback",
       ],
+      // Contract v3: the brand is a pick from `OTHER_MOUSE_BRANDS`, not free
+      // text, so only a listed slug gets through, exactly as written.
       [
-        // v2 only: in contract v3 the brand is a pick from a fixed list, not
-        // free text, and this refusal (and the brand's text screening) goes away.
-        "a control character in the brand",
+        "a brand typed as free text",
+        (b: Record<string, unknown>) => ({
+          ...b,
+          ratings: [],
+          otherMouse: { brand: "Zorbatron", sizeFeel: FEEL_RIGHT },
+        }),
+        "otherMouse.brand",
+      ],
+      [
+        "a listed brand in another case",
+        (b: Record<string, unknown>) => ({
+          ...b,
+          ratings: [],
+          otherMouse: { brand: BRAND_A.toUpperCase(), sizeFeel: FEEL_RIGHT },
+        }),
+        "otherMouse.brand",
+      ],
+      [
+        "a listed brand with spaces around it",
+        (b: Record<string, unknown>) => ({
+          ...b,
+          ratings: [],
+          otherMouse: { brand: ` ${BRAND_A} `, sizeFeel: FEEL_RIGHT },
+        }),
+        "otherMouse.brand",
+      ],
+      [
+        "a brand with a control character",
         (b: Record<string, unknown>) => ({
           ...b,
           ratings: [],
           otherMouse: { brand: "Zor\u0000batron", sizeFeel: FEEL_RIGHT },
         }),
         "otherMouse.brand",
+      ],
+      [
+        "a size feel from the five-step list v2 had",
+        (b: Record<string, unknown>) => ({
+          ...b,
+          ratings: [],
+          otherMouse: { brand: BRAND_A, sizeFeel: "too_small" },
+        }),
+        "otherMouse.sizeFeel",
+      ],
+      [
+        "a main use v2 had and v3 dropped",
+        (b: Record<string, unknown>) => ({ ...b, mainUse: "creative" }),
+        "mainUse",
       ],
       [
         "an unpaired surrogate in the comment",
@@ -401,6 +446,38 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
       expect(await world.contributions()).toEqual([]);
       expect(await world.scanMark(scan.scanId)).toBeNull();
     });
+
+    it.each([
+      ["not-a-uuid"],
+      [""],
+      ["10000000-0000-4000-8000-00000000000"],
+      ["10000000-0000-4000-8000-0000000000000"],
+      ["g0000000-0000-4000-8000-000000000001"],
+      [5],
+      [null],
+    ])(
+      "a malformed scan id (%j) is a body-schema 400 naming scanId, never a 404, and the scan repo is not asked",
+      async (scanId) => {
+        const findOwnedScan = vi.fn(world.scanRepo.findOwnedScan);
+        const scan = await world.addScan();
+        const res = await post(
+          { ...validBody(scan), scanId },
+          {
+            cookie: scan.cookieSessionId,
+            deps: { scanRepo: { ...world.scanRepo, findOwnedScan } },
+          },
+        );
+        expect(res.status).toBe(400);
+        expectNoStore(res);
+        expect(
+          errorResponseSchema
+            .parse(await res.json())
+            .issues?.map((i) => i.path),
+        ).toEqual(["scanId"]);
+        expect(findOwnedScan).not.toHaveBeenCalled();
+        expect(await world.contributions()).toEqual([]);
+      },
+    );
 
     it("an unknown mouse slug, naming the field, with nothing stored and the scan unmarked", async () => {
       const scan = await world.addScan();
@@ -566,7 +643,7 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
       expect(await world.contributions()).toEqual([]);
     });
 
-    it("accepts a full-size body: five ratings with every pain point, a brand and a comment at their limits", async () => {
+    it("accepts a full-size body: five ratings with every pain point, the longest listed brand and a comment at their limits", async () => {
       const scan = await world.addScan();
       const slugs = ["mouse-a", "mouse-b", "mouse-c", "mouse-d", "mouse-e"];
       for (const slug of slugs.slice(2)) await world.addMouse(slug);
@@ -588,7 +665,7 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
               "other",
             ],
           })),
-          otherMouse: { brand: BRAND_A, sizeFeel: FEEL_RIGHT },
+          otherMouse: { brand: LONGEST_BRAND, sizeFeel: FEEL_RIGHT },
         }),
       );
       expect(Buffer.byteLength(body)).toBeLessThan(MAX_SURVEY_BODY_BYTES);
@@ -778,7 +855,9 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
         const text = await res.text();
         expect(text).not.toContain(COMMENT);
         expect(text).not.toContain(BRAND);
-        expect(text).not.toMatch(new RegExp(`${USE_B}|${FEEL_LARGE}`));
+        // As JSON values, since the answers are plain words ("large") that
+        // an error sentence ("Request body too large.") also uses.
+        expect(text).not.toMatch(new RegExp(`"(?:${USE_B}|${FEEL_LARGE})"`));
         expect(text).not.toMatch(/\b185\b|\b80\b/);
       }
     });
