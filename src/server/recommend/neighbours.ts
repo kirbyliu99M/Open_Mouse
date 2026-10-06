@@ -14,9 +14,10 @@
  *      `SIMILAR_REQUIRE_SAME_GRIP`, whose grip is the caller's).
  *   2. A mouse's `raters` is the neighbours who rated it and its
  *      `meanSatisfaction` is their plain mean. It is never the ranking score.
- *   3. Mice are ranked by a Bayesian average toward what every contributor
- *      (the caller's own ones left out) said of that mouse; ties go to more
- *      raters, then to the slug in code-unit order.
+ *   3. Mice are ranked by a Bayesian average toward the mean of every rating
+ *      of every mouse by every contributor (the caller's own ones left out),
+ *      one number for the whole list; ties go to more raters, then to the slug
+ *      in code-unit order.
  *   4. The floor `SIMILAR_MIN_PEOPLE` (contract): under it, neighbours are not
  *      enough, a mouse is not listed, and with nothing left to list the answer
  *      is `available: false`, never a guess.
@@ -179,8 +180,9 @@ function tally(
 
 /**
  * The Bayesian average used only to order mice: `n` neighbour raters with plain
- * mean `neighbourMean`, pulled toward `priorMean` (what everyone said) by
- * `priorWeight` people's worth. Never shown to a visitor.
+ * mean `neighbourMean`, pulled toward `priorMean` (the engine passes the mean of
+ * every rating of every mouse, the caller's own left out) by `priorWeight`
+ * people's worth. Never shown to a visitor.
  */
 export function shrunkScore(
   n: number,
@@ -240,6 +242,15 @@ export function similarHands(
   const nearby = tally(neighbours);
   const everyone = tally(others);
 
+  // The prior: one mean over every valid rating of every mouse by every
+  // contributor but the caller. A mean of ratings, not of per-mouse means.
+  // `everyone` already has `tally`'s filtering, so it is not redone here. The
+  // neighbours are among `others`, so every rating in `nearby` is also in
+  // `everyone`: the loop below only runs when `allRatings` is not empty, and
+  // an empty one (a NaN here) is never read.
+  const allRatings = [...everyone.values()].flatMap((entry) => entry.values);
+  const globalMean = orderFreeSum(allRatings) / allRatings.length;
+
   const ranked: Array<{
     mouse: SimilarMouse;
     score: number;
@@ -248,9 +259,6 @@ export function similarHands(
     const raters = near.values.length;
     if (raters < SIMILAR_MIN_PEOPLE) continue;
     const meanSatisfaction = orderFreeSum(near.values) / raters;
-    // Everyone includes the neighbours, so it is never empty here.
-    const all = everyone.get(slug)?.values ?? near.values;
-    const priorMean = orderFreeSum(all) / all.length;
     ranked.push({
       mouse: {
         slug,
@@ -262,7 +270,7 @@ export function similarHands(
       score: shrunkScore(
         raters,
         meanSatisfaction,
-        priorMean,
+        globalMean,
         rules.priorWeight,
       ),
     });

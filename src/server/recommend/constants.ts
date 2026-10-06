@@ -54,11 +54,28 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  * Candidate (未拍板): the weight `m` of the prior in the ranking score, in
  * "people". The score is a Bayesian average,
  *
- *   (n * neighbourMean + m * everyoneMean) / (n + m),
+ *   (n * neighbourMean + m * globalMean) / (n + m),
  *
- * where n is the neighbours who rated the mouse and everyoneMean is the mean of
- * every contributor's rating of it. A mouse with few neighbour raters is pulled
- * toward what everyone said, so two 5s do not outrank eight 4.6s.
+ * where n is the neighbours who rated the mouse and globalMean is the mean of
+ * every rating of every mouse by every contributor but the caller. It is one
+ * number for the whole list: a mean over ratings, not over per-mouse means, and
+ * not the mean the same few neighbours gave this one mouse (that would leave a
+ * small pool with no prior at all). A mouse with few neighbour raters is pulled
+ * toward how mice are rated in general.
+ *
+ * What the pull does to the order of two mice whose plain means are a > b: a
+ * score minus globalMean is n * (mean - globalMean) / (n + m), which has the
+ * sign of (mean - globalMean), so a score sits on the same side of globalMean
+ * as its plain mean. With globalMean between b and a (inclusive), the score of
+ * the first is at or above it and the other's at or below it: their order never
+ * changes. The prior can put a small group's higher mean under a larger
+ * group's lower one only when globalMean is below the lower of the two means.
+ * It does not always do so then: with m = 4, a mouse of n = 2 raters and mean a
+ * falls under one of n = 8 and mean b exactly when a + globalMean < 2b (for
+ * a = 5 and b = 4.6, when globalMean < 4.2). The example worked in the tests:
+ * two 5s against ten 4.6s (six 5s and four 4s) are outranked at globalMean 3.0
+ * (3.667 against 4.143) and are not outranked at globalMean 4.667 (4.778
+ * against 4.619).
  *
  * Why 4: it is twice the floor of two, so a mouse that only just clears the
  * floor gets one third of its weight from its own neighbours, and a mouse with
@@ -68,13 +85,6 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  *
  * The score only orders the list. The mean a visitor sees is always the plain
  * mean of the neighbours' ratings, never this score.
- *
- * Known limit of the prior as specified: when nobody outside the neighbourhood
- * rated a mouse, everyoneMean IS neighbourMean and the score equals the plain
- * mean, so two 5s still beat ten 4.6s. In a small pool that is the common case.
- * The usual remedy is a prior that does not come from the same few people, such
- * as the mean of all ratings of all mice; it is a one-line change in
- * `neighbours.ts`, and Kirby's call (未拍板).
  */
 export const SIMILAR_PRIOR_WEIGHT = 4;
 
