@@ -6,7 +6,7 @@
  * error code alone does not say why (a sheet that fills 65 % of the photo and a
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
-import type { PixelRect } from "../camera/fovCrop";
+import type { FrameSize, PixelRect } from "../camera/visibleView";
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -40,6 +40,20 @@ export interface HandDiagnostics {
   readonly handedness: "left" | "right" | null;
 }
 
+/** What the person saw, and how it was carried over to the photo (visibleView.ts). */
+export interface ViewDiagnostics {
+  /** The stream's size at the moment of capture. */
+  readonly stream: FrameSize;
+  /** The part of the stream that was on screen, in the stream's pixels. */
+  readonly visibleInStream: PixelRect;
+  /** Which relation between the stream and the photo was used. */
+  readonly model: string;
+  /** The centred-part model holds (the stream was no wider a view than the photo). */
+  readonly modelApplies: boolean;
+  /** (stream - photo) / photo, in long over short. */
+  readonly aspectDiff: number;
+}
+
 export interface PipelineDiagnostics {
   readonly decodeMs: number | null;
   /** Looking for the sheet. */
@@ -53,6 +67,8 @@ export interface PipelineDiagnostics {
   readonly analysed: { readonly width: number; readonly height: number } | null;
   /** The crop that was applied, in the decoded photo's pixels; `null` when none was. */
   readonly fovCrop: PixelRect | null;
+  /** `null` for an upload (no viewfinder) or where the region could not be worked out. */
+  readonly view: ViewDiagnostics | null;
   readonly paper: PaperDiagnostics | null;
   /** Laplacian variance of the analysed photo; `null` where the pipeline stopped before it was worked out. */
   readonly laplacianVariance: number | null;

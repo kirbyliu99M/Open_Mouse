@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { deleteScan } from "./fetchResults";
 import { clearScanDisclosures } from "./userLengthDisclosure";
+import { clearAttempts } from "../../client/camera/easyScanPreferences";
 
 type Status = "idle" | "confirming" | "deleting" | "error";
 
@@ -67,6 +68,8 @@ export function DeleteScanAction({
     if (outcome === "deleted" || outcome === "notFound") {
       try {
         clearScanDisclosures(localStorage, [scanId]);
+        // The scan attempt log kept on this device goes with it.
+        clearAttempts(localStorage);
       } catch {
         // Storage may be blocked; deletion on the server still succeeded.
       }

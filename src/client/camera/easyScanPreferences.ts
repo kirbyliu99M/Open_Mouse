@@ -15,10 +15,32 @@ import type { PaperSize } from "../../lib/contracts/measurement";
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  /** Absent on a minimal store; `clearAttempts` then empties the key instead. */
+  removeItem?(key: string): void;
 }
 
 const PAPER_SIZE_KEY = "openMouse.easyScan.paperSize";
 const TIP_SEEN_KEY = "openMouse.easyScan.firstRunTipSeen";
+
+/** Where the scan attempt log is kept (attemptLog.ts). */
+export const ATTEMPT_LOG_KEY = "openMouse.easyScan.attempts.v1";
+
+/**
+ * Forgets the scan attempt log. Called wherever the person deletes their data
+ * (the account page's "Delete everything", the results page's "Delete this
+ * scan now"), because the log is kept on this device whether or not they ever
+ * open the debug panel. Never throws.
+ */
+export function clearAttempts(storage: StorageLike | null): void {
+  try {
+    if (!storage) return;
+    if (typeof storage.removeItem === "function")
+      storage.removeItem(ATTEMPT_LOG_KEY);
+    else storage.setItem(ATTEMPT_LOG_KEY, "[]");
+  } catch {
+    // Storage may be blocked; there is then nothing of ours in it either.
+  }
+}
 
 /** `window.localStorage`, or `null` where it's unavailable/throws (private browsing, SSR). */
 export function getBrowserStorage(): StorageLike | null {

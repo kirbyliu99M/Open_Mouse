@@ -87,7 +87,7 @@ export interface DebugPreviewInfo {
   } | null;
   /** The photo's long over short that the preview was compared with. */
   readonly stillAspect: number | null;
-  readonly stillAspectSource: "photoCapabilities" | "default" | null;
+  readonly stillAspectSource: "photoCapabilities" | "default" | "canvas" | null;
   /** The largest photo size `getPhotoCapabilities()` reported. */
   readonly photoMax: {
     readonly width: number;
@@ -129,6 +129,18 @@ export interface ScanDebugSnapshot {
     readonly lastTap: DebugFocusEntry | null;
   };
   readonly live: {
+    /** The part of the stream the live loop looks at, the part on screen, in the stream's pixels. */
+    readonly visibleInStream: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    } | null;
+    /** The size of the picture the detector is given. */
+    readonly sample: {
+      readonly width: number;
+      readonly height: number;
+    } | null;
     readonly samplesPerSecond: number | null;
     readonly detectionMsAverage: number | null;
     readonly detectionMsP95: number | null;
@@ -175,6 +187,12 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
       },
       live: {
         ...live,
+        visibleInStream: live.visibleInStream && {
+          x: round(live.visibleInStream.x, 1),
+          y: round(live.visibleInStream.y, 1),
+          width: round(live.visibleInStream.width, 1),
+          height: round(live.visibleInStream.height, 1),
+        },
         samplesPerSecond: round(live.samplesPerSecond, 1),
         detectionMsAverage: round(live.detectionMsAverage, 1),
         detectionMsP95: round(live.detectionMsP95, 1),

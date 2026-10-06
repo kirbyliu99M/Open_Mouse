@@ -71,16 +71,18 @@ import type {
 } from "../../lib/contracts/measurement";
 import {
   analysisFrames,
-  computeFovCrop,
-  toFullFrame,
+  assumedDetectionFocalPx,
+  visibleRectInStill,
   type FrameSize,
   type PixelRect,
-} from "../camera/fovCrop";
+} from "../camera/visibleView";
+import { finishPaperEdge } from "./paperEdgeFinish";
 import {
   paperSizeFractions,
   type HandDiagnostics,
   type PaperDiagnostics,
   type PipelineDiagnostics,
+  type ViewDiagnostics,
 } from "./diagnostics";
 
 export interface PipelineIssue {
@@ -164,13 +166,16 @@ export interface RunPhotoPipelineInput {
   /** Defaults to `{ method: "printed-sheet" }` — every existing caller keeps working unchanged. */
   readonly calibration?: CalibrationInput;
   /**
-   * The live preview's frame size, for a photo taken from it with
-   * `takePhoto()`. When the preview was a narrower view than the photo (a
-   * phone's 16:9 video frame against its 4:3 sensor), a paper-edge photo is
-   * cropped to the preview's field of view before it is looked at
-   * (`computeFovCrop`). Omitted for an uploaded photo, which has no preview.
+   * What the person saw when this photo was taken from the live viewfinder
+   * (`takePhoto()` or a canvas frame): the stream's size and the part of it
+   * that was on screen. A paper-edge photo is cropped to that part before it
+   * is looked at (`visibleRectInStill`, visibleView.ts). Omitted for an
+   * uploaded photo, which has no viewfinder.
    */
-  readonly previewFrame?: FrameSize;
+  readonly previewView?: {
+    readonly stream: FrameSize;
+    readonly visibleInStream: PixelRect;
+  };
 }
 
 /**
@@ -184,6 +189,7 @@ interface PipelineTrace {
   decoded: FrameSize | null;
   analysed: FrameSize | null;
   fovCrop: PixelRect | null;
+  view: ViewDiagnostics | null;
   paper: PaperDiagnostics | null;
   laplacianVariance: number | null;
   hand: HandDiagnostics;
@@ -198,6 +204,7 @@ function newTrace(): PipelineTrace {
     decoded: null,
     analysed: null,
     fovCrop: null,
+    view: null,
     paper: null,
     laplacianVariance: null,
     hand: { detected: null, confidence: null, handedness: null },
@@ -281,6 +288,7 @@ export async function runPhotoPipeline(
     decoded: trace.decoded,
     analysed: trace.analysed,
     fovCrop: trace.fovCrop,
+    view: trace.view,
     paper: trace.paper,
     laplacianVariance: trace.laplacianVariance,
     hand: trace.hand,
@@ -488,15 +496,14 @@ async function runPhotoPipelineTraced(
  * actually ran, instead of the printed-sheet builder's hardcoded `false`.
  * Never returns `"needsManualCard"` — there is no card in this flow.
  *
- * A photo taken from the live preview (`input.previewFrame`) that shows more
- * than the preview did is cropped to the preview's field of view first, right
- * after decoding and before anything is detected (fovCrop.ts says why and what
- * it must not damage). Two things keep the parallax correction right: the
- * focal length in pixels is worked out from the whole decoded photo's size, not
- * the cropped one (cropping does not change it), and the crop is centred, so
- * the cropped image's centre, which is the principal point the correction
- * uses, is the whole photo's centre. Everything the overlay reports (corners,
- * landmarks) is moved back into the whole photo's pixels.
+ * A photo taken from the live viewfinder (`input.previewView`) is cropped to
+ * the part the person saw on screen first, right after decoding and before
+ * anything is detected (visibleView.ts says why and what it must not damage).
+ * The paper gates, the hand and the sharpness all look at that part and the
+ * result is worked out by `finishPaperEdge` (paperEdgeFinish.ts), which keeps
+ * the parallax correction right: the focal length comes from the whole decoded
+ * photo's size, the principal point from the cropped image's centre, and the
+ * overlay is reported in the whole photo's pixels.
  */
 async function runPaperEdgePipeline(
   decoded: DecodedPhoto,
@@ -509,10 +516,23 @@ async function runPaperEdgePipeline(
   let bitmap = decoded.bitmap;
   let width = decoded.width;
   let height = decoded.height;
-  let crop: PixelRect | null = computeFovCrop(
-    { width: fullWidth, height: fullHeight },
-    input.previewFrame,
-  );
+  const view = input.previewView
+    ? visibleRectInStill(
+        { width: fullWidth, height: fullHeight },
+        input.previewView.stream,
+        input.previewView.visibleInStream,
+      )
+    : null;
+  let crop: PixelRect | null = view?.crop ?? null;
+  if (input.previewView && view) {
+    trace.view = {
+      stream: input.previewView.stream,
+      visibleInStream: input.previewView.visibleInStream,
+      model: view.model,
+      modelApplies: view.modelApplies,
+      aspectDiff: view.aspectDiff,
+    };
+  }
   if (crop) {
     try {
       bitmap = await createImageBitmap(
@@ -533,7 +553,6 @@ async function runPaperEdgePipeline(
   trace.fovCrop = crop;
   trace.analysed = { width, height };
   const frames = analysisFrames({ width: fullWidth, height: fullHeight }, crop);
-  const toFull = (p: Point2): Point2 => toFullFrame(p, crop);
   const imageData = getImageData(bitmap, width, height);
   // The sharpness is worked out first, so a photo that is turned back before
   // it reaches the hand gates (no sheet, no hand) still has one in its record
@@ -547,7 +566,12 @@ async function runPaperEdgePipeline(
   }
 
   const paperStartedAt = performance.now();
-  const quad = detectPaperQuad(imageData, paperSize);
+  // The assumed focal length is the whole photo's, not the crop's: a crop
+  // narrows the picture, not the lens (visibleView.ts). Without a crop it is
+  // what the detector would have assumed anyway.
+  const quad = detectPaperQuad(imageData, paperSize, {
+    focalPxHint: assumedDetectionFocalPx(frames),
+  });
   trace.paperMs = performance.now() - paperStartedAt;
   const quadSize = quad.corners
     ? paperSizeFractions(quad.corners, width, height)
@@ -568,14 +592,6 @@ async function runPaperEdgePipeline(
     markers: [] as DetectedMarker[],
     card: null,
   };
-  const paperCornersFull = quad.corners
-    ? (quad.corners.map(toFull) as unknown as readonly [
-        Point2,
-        Point2,
-        Point2,
-        Point2,
-      ])
-    : undefined;
 
   if (!quad.corners) {
     const failure = checkPaperFound(quad.paperRegionFound) ??
@@ -600,8 +616,8 @@ async function runPaperEdgePipeline(
   // The shipped path goes through the same pure chain the tests exercise
   // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
   // calibration fields all come from this one call. parallaxCorrected is
-  // only known after EXIF is read below, so it is set on the submission
-  // from the real flag there; the placeholder here never reaches it.
+  // only known after EXIF is read (finishPaperEdge), so it is set on the
+  // submission from the real flag there; the placeholder here never reaches it.
   const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
   // Which paper gates failed, even where the result below goes on to report
   // another error first (a photo with no hand reports only that).
@@ -617,7 +633,6 @@ async function runPaperEdgePipeline(
       overlay: { ...overlayBase, landmarksPx: null },
     };
   }
-  const { homography } = paperEval.geometry;
 
   const hand = await detectHandTraced(bitmap, trace);
   if (!hand) {
@@ -633,138 +648,24 @@ async function runPaperEdgePipeline(
       overlay: { ...overlayBase, landmarksPx: null },
     };
   }
-  const handFull = hand.landmarksPx.map(toFull);
-
-  const handDecision = decideHand(input, hand.handedness);
-
-  const landmarksMm = hand.landmarksPx.map((p) =>
-    applyHomography(homography, p),
-  );
-  const { width: paperWidthMm, height: paperHeightMm } =
-    PAPER_SIZES_MM[paperSize];
-  const paperCornersMm: Point2[] = [
-    { x: 0, y: 0 },
-    { x: paperWidthMm, y: 0 },
-    { x: paperWidthMm, y: paperHeightMm },
-    { x: 0, y: paperHeightMm },
-  ];
 
   const laplacianVariance =
     trace.laplacianVariance ?? computeLaplacianVariance(gray, width, height);
   trace.laplacianVariance = laplacianVariance;
 
-  // Paper gates ran once, inside evaluatePaperEdgeCalibration; only the hand
-  // gates run here, and both sets of failures are reported together.
-  const handReport = runPaperEdgeHandGates({
-    paperFound: quad.paperRegionFound,
-    landmarkCount: hand.landmarksPx.length,
-    handedness: hand.handedness,
-    handStated: handDecision.stated,
-    handednessFixInstruction: input.handednessFixInstruction,
-    landmarkConfidence: hand.confidence,
-    landmarksMm,
-    paperCornersMm,
+  const finish = await finishPaperEdge({
+    quad,
+    paperEval,
+    paperSize,
+    hand,
+    request: input,
     laplacianVariance,
+    decoded: { width: fullWidth, height: fullHeight },
+    crop,
+    readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
   });
-  const report = {
-    errors: [...paperEval.errors, ...handReport.errors],
-    warnings: handReport.warnings,
-    ok: paperEval.ok && handReport.ok,
-  };
-
-  if (!report.ok) {
-    return {
-      status: "error",
-      errors: report.errors,
-      overlay: {
-        ...overlayBase,
-        landmarksPx: handFull,
-        handedness: hand.handedness,
-        paperCorners: paperCornersFull,
-      },
-    };
-  }
-
-  let exifFocalPx: number | null = null;
-  try {
-    const jpegBytes = new Uint8Array(await input.file.arrayBuffer());
-    // The WHOLE decoded photo's size, even when it was cropped above: the
-    // focal length in pixels comes from the diagonal of the frame the EXIF's
-    // 35 mm equivalent refers to, and cropping does not change a lens's focal
-    // length in pixels (analysisFrames, fovCrop.ts).
-    exifFocalPx =
-      estimateFocalFromExif(jpegBytes, {
-        widthPx: frames.focalFrame.width,
-        heightPx: frames.focalFrame.height,
-      })?.fPx ?? null;
-  } catch {
-    // A malformed/unreadable EXIF block must not fail the scan — it just
-    // means no parallax correction (same as no EXIF at all).
-    exifFocalPx = null;
-  }
-
-  let corrected;
-  try {
-    // The analysed image's size gives the principal point (its centre), which
-    // a centred crop leaves where it was.
-    corrected = computeCorrectedHandMeasurements(hand.landmarksPx, homography, {
-      exifFocalPx,
-      widthPx: frames.principalFrame.width,
-      heightPx: frames.principalFrame.height,
-    });
-  } catch {
-    return {
-      status: "error",
-      errors: [
-        {
-          code: "MEASUREMENT_OUT_OF_RANGE",
-          message:
-            "These measurements look implausible — retake with your whole hand flat on the sheet and the camera directly overhead.",
-        },
-      ],
-      overlay: {
-        ...overlayBase,
-        landmarksPx: handFull,
-        handedness: hand.handedness,
-        paperCorners: paperCornersFull,
-      },
-    };
-  }
-  trace.parallaxCorrected = corrected.parallaxCorrected;
-
-  // Type narrowing only: report.ok required paperEval.ok, and a passing
-  // evaluation always carries its calibration. Its fields are what gets
-  // submitted.
-  const calibration = paperEval.calibration;
-  if (!calibration) {
-    return {
-      status: "error",
-      errors: paperEval.errors,
-      overlay: { ...overlayBase, landmarksPx: handFull },
-    };
-  }
-  const submission = assemblePaperEdgeSubmission({
-    hand: handDecision.submitted,
-    gripStyleStated: input.gripStyleStated,
-    measurements: corrected.measurements,
-    paperSize: calibration.paperSize,
-    edgeFitResidualMm: calibration.edgeFitResidualMm,
-    minSideCoverage: calibration.minSideCoverage,
-    parallaxCorrected: corrected.parallaxCorrected,
-  });
-
-  return {
-    status: "ok",
-    measurements: corrected.measurements,
-    submission,
-    warnings: report.warnings,
-    overlay: {
-      ...overlayBase,
-      landmarksPx: handFull,
-      handedness: hand.handedness,
-      paperCorners: paperCornersFull,
-    },
-  };
+  trace.parallaxCorrected = finish.parallaxCorrected;
+  return finish.result;
 }
 
 async function runUserLengthPipeline(

@@ -212,8 +212,13 @@ export interface PreviewAlignment {
   readonly requested: PreviewSizing;
   /** The photo's shape that the preview was compared with, long over short. */
   readonly stillAspect: number;
-  /** Where that shape came from. */
-  readonly stillAspectSource: "photoCapabilities" | "default";
+  /**
+   * Where that shape came from: the camera's `getPhotoCapabilities()`; the
+   * 4:3 assumed because `ImageCapture` exists but would not say; or "canvas",
+   * where there is no `ImageCapture` at all, so the photo is a frame grabbed
+   * from the preview and is, by construction, the same field of view.
+   */
+  readonly stillAspectSource: "photoCapabilities" | "default" | "canvas";
   /** The largest photo size the camera reported, if it did. */
   readonly photoMax: { readonly width: number; readonly height: number } | null;
   /** The second request to the running track, when the photo was not 4:3. `null` when none was needed. */
@@ -224,17 +229,20 @@ export interface PreviewAlignment {
   /**
    * A phone's browser may read a size request in the sensor's own (wide)
    * orientation rather than the screen's, and so answer an upright 3:4 request
-   * with the wrong shape. When the first answer was a mismatch, the same shape
-   * was asked for once more with width and height swapped. `kept` says
-   * whether that answer was better (and the right way round) and stayed;
-   * otherwise the first request was put back. `null` when there was no
-   * mismatch to try it on.
+   * with the wrong shape. When the first answer was a mismatch (and no second
+   * request had been made, so the track is asked for a size at most twice in
+   * all), the same shape was asked for with width and height swapped. `kept`
+   * says whether that answer was better (and the right way round) and stayed;
+   * otherwise the first request was put back. `null` when there was nothing to
+   * try it on.
    */
   readonly orientationRetry: {
     readonly applied: boolean;
     readonly kept: boolean;
     readonly reason?: string;
   } | null;
+  /** How many times the running track was asked for a size: 0, 1 or 2. */
+  readonly sizeRequests: number;
   /** What the track reports after that. */
   readonly settings: {
     readonly width: number | null;
@@ -259,14 +267,47 @@ function readSettings(track: PreviewTrackLike): PreviewAlignment["settings"] {
   }
 }
 
+/** How long the camera is given to say what size its photos are, before the preview is taken as it is. */
+export const PHOTO_CAPABILITIES_TIMEOUT_MS = 2500;
+
+/** `promise`, or `null` if it has not settled within `ms` (or rejects). */
+async function orNullAfter<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ms);
+      }),
+    ]);
+  } catch {
+    return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+const errorName = (error: unknown) =>
+  error instanceof Error && error.name ? error.name : "error";
+
 /**
  * Once the stream is running (it was first asked for in the default 4:3 shape,
  * because `ImageCapture` needs a track to ask the camera anything): read the
  * photo's real shape and, when it is not 4:3, ask the running track for that
- * shape instead. Then report what the track gave. Never throws: an
- * `ImageCapture` that is missing, a camera that refuses the question or a track
+ * shape instead. Then report what the track gave. At most two size requests are
+ * made to the track in all: one for a photo that is not 4:3, or, on a mismatch
+ * of a 4:3 photo, the swapped-orientation try and (if it did no better) the
+ * request that puts the first one back. Never throws: an `ImageCapture` that is
+ * missing, a camera that refuses or does not answer the question or a track
  * that refuses the constraint all leave the stream as it was and say so in the
  * result.
+ *
+ * Without an `ImageCapture` (the browser takes its photo from the preview with
+ * a canvas) the photo can only be the preview's own field of view, so nothing is
+ * compared, asked or retried and the result is a match.
  */
 export async function alignPreviewToStill<
   T extends ImageCaptureLikeForCapabilities,
@@ -274,21 +315,49 @@ export async function alignPreviewToStill<
   readonly track: PreviewTrackLike;
   readonly ImageCaptureCtor: ImageCaptureCtorLike<T> | null;
   readonly portrait: boolean;
+  readonly capabilitiesTimeoutMs?: number;
 }): Promise<PreviewAlignment> {
   const { track, ImageCaptureCtor, portrait } = input;
+  const first = previewSizingFor(PREVIEW.defaultStillAspect, portrait);
+
+  if (!ImageCaptureCtor) {
+    const settings = readSettings(track);
+    const previewAspect = settings
+      ? aspectOfSize(settings.width, settings.height)
+      : null;
+    return {
+      requested: first,
+      stillAspect: previewAspect ?? PREVIEW.defaultStillAspect,
+      stillAspectSource: "canvas",
+      photoMax: null,
+      reapplied: null,
+      orientationRetry: null,
+      sizeRequests: 0,
+      settings,
+      comparison: {
+        previewAspect,
+        stillAspect: previewAspect ?? PREVIEW.defaultStillAspect,
+        aspectDiff: 0,
+        fovMismatch: false,
+      },
+    };
+  }
+
   let capabilities: ReturnType<typeof stillAspectFromCapabilities> = null;
-  if (ImageCaptureCtor) {
-    try {
-      const capture = new ImageCaptureCtor(input.track as never);
-      capabilities = stillAspectFromCapabilities(
-        await capture.getPhotoCapabilities(),
-      );
-    } catch {
-      capabilities = null;
-    }
+  try {
+    const capture = new ImageCaptureCtor(track as never);
+    capabilities = stillAspectFromCapabilities(
+      await orNullAfter(
+        capture.getPhotoCapabilities(),
+        input.capabilitiesTimeoutMs ?? PHOTO_CAPABILITIES_TIMEOUT_MS,
+      ),
+    );
+  } catch {
+    capabilities = null;
   }
   const stillAspect = capabilities?.aspect ?? PREVIEW.defaultStillAspect;
-  let requested = previewSizingFor(PREVIEW.defaultStillAspect, portrait);
+  let requested = first;
+  let sizeRequests = 0;
   let reapplied: PreviewAlignment["reapplied"] = null;
   if (
     capabilities &&
@@ -297,24 +366,28 @@ export async function alignPreviewToStill<
       PREVIEW.fovMismatchTolerance
   ) {
     const sizing = previewSizingFor(capabilities.aspect, portrait);
+    sizeRequests += 1;
     try {
       await track.applyConstraints(sizing);
       requested = sizing;
       reapplied = { applied: true };
     } catch (error) {
-      reapplied = {
-        applied: false,
-        reason: error instanceof Error && error.name ? error.name : "error",
-      };
+      reapplied = { applied: false, reason: errorName(error) };
     }
   }
   let settings = readSettings(track);
   let comparison = compareFov(settings, stillAspect);
   let orientationRetry: PreviewAlignment["orientationRetry"] = null;
-  if (comparison.fovMismatch === true && comparison.aspectDiff !== null) {
+  // Only when the track has not been asked for a size already: two requests at
+  // most (each one can make a phone's camera blink).
+  if (
+    sizeRequests === 0 &&
+    comparison.fovMismatch === true &&
+    comparison.aspectDiff !== null
+  ) {
     const firstDiff = Math.abs(comparison.aspectDiff);
-    const first = requested;
     const swapped = previewSizingFor(stillAspect, !portrait);
+    sizeRequests += 1;
     try {
       await track.applyConstraints(swapped);
       const retrySettings = readSettings(track);
@@ -333,6 +406,7 @@ export async function alignPreviewToStill<
         orientationRetry = { applied: true, kept: true };
       } else {
         // No better: the first request goes back, so the preview is what it was.
+        sizeRequests += 1;
         try {
           await track.applyConstraints(first);
         } catch {
@@ -346,7 +420,7 @@ export async function alignPreviewToStill<
       orientationRetry = {
         applied: false,
         kept: false,
-        reason: error instanceof Error && error.name ? error.name : "error",
+        reason: errorName(error),
       };
     }
   }
@@ -359,6 +433,7 @@ export async function alignPreviewToStill<
       : null,
     reapplied,
     orientationRetry,
+    sizeRequests,
     settings,
     comparison,
   };

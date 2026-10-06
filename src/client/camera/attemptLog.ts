@@ -22,10 +22,10 @@
  * between reloads.
  */
 import type { PipelineResult } from "../photo/pipeline";
-import type { StorageLike } from "./easyScanPreferences";
+import { ATTEMPT_LOG_KEY, type StorageLike } from "./easyScanPreferences";
 import { aspectOfSize, compareFov } from "./previewConstraints";
 
-export const ATTEMPT_LOG_KEY = "openMouse.easyScan.attempts.v1";
+export { ATTEMPT_LOG_KEY };
 export const MAX_ATTEMPTS = 20;
 
 const MAX_ERRORS = 8;
@@ -34,6 +34,7 @@ const MAX_CODE_LENGTH = 48;
 const MAX_MESSAGE_LENGTH = 200;
 const MAX_USER_AGENT_LENGTH = 80;
 const MAX_TIME_LENGTH = 40;
+const MAX_MODEL_LENGTH = 32;
 
 export type AttemptMethod = "takePhoto" | "canvas" | "upload";
 
@@ -85,7 +86,29 @@ export interface AttemptRecord {
     readonly confidence: number | null;
     readonly handedness: "left" | "right" | null;
   };
-  /** The picture the gates looked at; `crop` is set when the photo was cut down to the preview's field of view. */
+  /**
+   * What the person saw and how it was carried over to the photo
+   * (visibleView.ts): the stream's size, the part of it that was on screen, the
+   * relation used between the stream and the photo, and whether that relation
+   * holds (the stream was no wider a view than the photo). `null` for an
+   * upload.
+   */
+  readonly view: {
+    readonly stream: {
+      readonly width: number | null;
+      readonly height: number | null;
+    };
+    readonly visibleInStream: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    } | null;
+    readonly model: string | null;
+    readonly modelApplies: boolean | null;
+    readonly aspectDiff: number | null;
+  } | null;
+  /** The picture the gates looked at; `crop` is set when the photo was cut down to the part the person saw. */
   readonly analysed: {
     readonly width: number | null;
     readonly height: number | null;
@@ -164,6 +187,9 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
   const hand = asObject(raw.hand);
   const analysed = asObject(raw.analysed);
   const crop = asObject(analysed?.crop);
+  const view = asObject(raw.view);
+  const viewStream = asObject(view?.stream);
+  const viewVisible = asObject(view?.visibleInStream);
   const timing = asObject(raw.timingMs);
   const handedness = hand?.handedness;
   const method = raw.method;
@@ -218,6 +244,25 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       handedness:
         handedness === "left" || handedness === "right" ? handedness : null,
     },
+    view: view
+      ? {
+          stream: {
+            width: cleanNumber(viewStream?.width, 0),
+            height: cleanNumber(viewStream?.height, 0),
+          },
+          visibleInStream: viewVisible
+            ? {
+                x: cleanNumber(viewVisible.x, 1) ?? 0,
+                y: cleanNumber(viewVisible.y, 1) ?? 0,
+                width: cleanNumber(viewVisible.width, 1) ?? 0,
+                height: cleanNumber(viewVisible.height, 1) ?? 0,
+              }
+            : null,
+          model: cleanString(view.model, MAX_MODEL_LENGTH),
+          modelApplies: cleanBool(view.modelApplies),
+          aspectDiff: cleanNumber(view.aspectDiff, 4),
+        }
+      : null,
     analysed: {
       width: cleanNumber(analysed?.width, 0),
       height: cleanNumber(analysed?.height, 0),
@@ -302,17 +347,45 @@ export function writeAttempts(
 }
 
 /**
+ * What is stored and what this page has recorded this session, as one list in
+ * time order, without repeats, the newest 20. The two differ when another tab
+ * has written (the store has records this page lacks) and when the store cannot
+ * be written (this page has records the store lacks).
+ */
+export function mergeAttempts(
+  stored: readonly AttemptRecord[],
+  session: readonly AttemptRecord[],
+  max: number = MAX_ATTEMPTS,
+): AttemptRecord[] {
+  const seen = new Set<string>();
+  const all: { record: AttemptRecord; order: number }[] = [];
+  for (const record of [...stored, ...session]) {
+    const key = JSON.stringify(record);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push({ record, order: all.length });
+  }
+  all.sort(
+    (a, b) =>
+      Date.parse(a.record.at) - Date.parse(b.record.at) || a.order - b.order,
+  );
+  const list = all.map((entry) => entry.record);
+  return list.length > max ? list.slice(list.length - max) : list;
+}
+
+/**
  * Adds `record` to what is stored (read again each time, so two tabs do not
- * overwrite each other) and returns the new list. Where storage is not
- * available `fallback`, the page's own copy, is what is added to, so the debug
- * panel still shows this session's attempts.
+ * overwrite each other) and returns the new list. `session` is the page's own
+ * list: the result always contains it, so the debug panel shows every attempt
+ * of this session even where the store cannot be read or cannot be written (a
+ * full quota lets the page read and refuse the write).
  */
 export function recordAttempt(
   storage: StorageLike | null,
   record: unknown,
-  fallback: readonly AttemptRecord[] = [],
+  session: readonly AttemptRecord[] = [],
 ): AttemptRecord[] {
-  const base = readAttempts(storage) ?? fallback;
+  const base = mergeAttempts(readAttempts(storage) ?? [], session);
   const next = appendAttempt(base, record);
   writeAttempts(storage, next);
   return next;
@@ -411,6 +484,7 @@ export function buildAttemptRecord(input: {
       confidence: null,
       handedness: null,
     },
+    view: diagnostics?.view ?? null,
     analysed: {
       width: diagnostics?.analysed?.width ?? null,
       height: diagnostics?.analysed?.height ?? null,
@@ -445,6 +519,7 @@ export function buildAttemptRecord(input: {
       paper: null,
       sharpness: null,
       hand: { detected: null, confidence: null, handedness: null },
+      view: null,
       analysed: { width: null, height: null, crop: null },
       parallaxCorrected: null,
       timingMs: { decode: null, paper: null, hand: null, total: null },
@@ -462,7 +537,8 @@ const pct = (value: number | null) =>
 
 /** One line for the panel: when, how, what happened and the numbers that matter. */
 export function describeAttempt(record: AttemptRecord): string {
-  const time = record.at.slice(11, 19);
+  // The record's time is UTC; the Z says so.
+  const time = `${record.at.slice(11, 19)}Z`;
   const photo =
     record.photo.width && record.photo.height
       ? `${record.photo.width}×${record.photo.height}`
@@ -478,6 +554,8 @@ export function describeAttempt(record: AttemptRecord): string {
       `resid ${record.paper.edgeFitResidualMm ?? "?"} mm`,
     );
   if (record.preview.fovMismatch) parts.push("FOV mismatch");
+  if (record.view && record.view.modelApplies === false)
+    parts.push("view model n/a");
   if (record.analysed.crop) parts.push("cropped");
   return parts.join(" · ");
 }

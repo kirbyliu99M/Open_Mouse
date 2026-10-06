@@ -392,7 +392,9 @@ describe("alignPreviewToStill", () => {
     expect(result.comparison.fovMismatch).toBe(false);
   });
 
-  it("no ImageCapture (Safari, Firefox): the default shape, and the mismatch is still found", async () => {
+  it("no ImageCapture (Safari, Firefox): the photo is a canvas frame of the preview, so it is a match: nothing is asked, retried or flagged", async () => {
+    // Whatever shape the browser answered, a frame grabbed from the preview has
+    // the preview's own field of view: there is nothing to compare it with.
     const { track, applied } = fakeTrack({
       settings: { width: 1080, height: 1920 },
     });
@@ -401,18 +403,32 @@ describe("alignPreviewToStill", () => {
       ImageCaptureCtor: null,
       portrait: true,
     });
-    expect(result.stillAspectSource).toBe("default");
+    expect(applied).toEqual([]);
+    expect(result.sizeRequests).toBe(0);
+    expect(result.stillAspectSource).toBe("canvas");
     expect(result.photoMax).toBeNull();
-    expect(result.stillAspect).toBeCloseTo(4 / 3, 10);
-    // The browser answered 16:9 anyway: that is what the flag is for. The
-    // width-and-height swap was tried once, did no better, and was put back.
-    expect(applied).toEqual([
-      previewSizingFor(4 / 3, false),
-      previewSizingFor(4 / 3, true),
-    ]);
-    expect(result.orientationRetry).toEqual({ applied: true, kept: false });
+    expect(result.reapplied).toBeNull();
+    expect(result.orientationRetry).toBeNull();
+    expect(result.stillAspect).toBeCloseTo(16 / 9, 10);
+    expect(result.comparison).toMatchObject({
+      aspectDiff: 0,
+      fovMismatch: false,
+    });
+    expect(result.comparison.previewAspect).toBeCloseTo(16 / 9, 10);
     expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
-    expect(result.comparison.fovMismatch).toBe(true);
+  });
+
+  it("no ImageCapture and a track whose settings cannot be read: still a match, with the preview's shape unknown", async () => {
+    const { track, applied } = fakeTrack({ settingsThrow: true });
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: null,
+      portrait: true,
+    });
+    expect(applied).toEqual([]);
+    expect(result.comparison.fovMismatch).toBe(false);
+    expect(result.comparison.previewAspect).toBeNull();
+    expect(result.settings).toBeNull();
   });
 
   it("an ImageCapture that throws or rejects leaves the default shape in place", async () => {
@@ -428,6 +444,46 @@ describe("alignPreviewToStill", () => {
       expect(result.stillAspectSource, mode).toBe("default");
       expect(result.reapplied, mode).toBeNull();
     }
+  });
+
+  it("an ImageCapture that will not say what size its photos are: 4:3 is assumed, a mismatch is flagged, and the swap is tried once", async () => {
+    const { track, applied } = fakeTrack({
+      settings: { width: 1080, height: 1920 },
+    });
+    const { Ctor } = fakeImageCapture(CAPS_43, "rejects");
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: Ctor,
+      portrait: true,
+    });
+    expect(result.stillAspectSource).toBe("default");
+    expect(result.comparison.fovMismatch).toBe(true);
+    expect(applied).toEqual([
+      previewSizingFor(4 / 3, false),
+      previewSizingFor(4 / 3, true),
+    ]);
+    expect(result.orientationRetry).toEqual({ applied: true, kept: false });
+    expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
+    expect(result.sizeRequests).toBe(2);
+  });
+
+  it("a camera that never answers the photo-size question: the preview is taken as it is after the timeout", async () => {
+    const { track, applied } = fakeTrack({});
+    class NeverAnswers {
+      getPhotoCapabilities() {
+        return new Promise<never>(() => undefined);
+      }
+    }
+    const started = Date.now();
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: NeverAnswers,
+      portrait: true,
+      capabilitiesTimeoutMs: 30,
+    });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(result.stillAspectSource).toBe("default");
+    expect(applied).toEqual([]);
   });
 
   it("capabilities that are nonsense are ignored", async () => {
@@ -456,17 +512,15 @@ describe("alignPreviewToStill", () => {
       ImageCaptureCtor: Ctor,
       portrait: true,
     });
-    // The 16:9 request, then the swapped retry on the mismatch: both refused.
-    expect(applied).toHaveLength(2);
+    // The 16:9 request was refused. The track has been asked once, so the
+    // swapped retry is not made: two size requests at most in all.
+    expect(applied).toHaveLength(1);
+    expect(result.sizeRequests).toBe(1);
     expect(result.reapplied).toEqual({
       applied: false,
       reason: "OverconstrainedError",
     });
-    expect(result.orientationRetry).toEqual({
-      applied: false,
-      kept: false,
-      reason: "OverconstrainedError",
-    });
+    expect(result.orientationRetry).toBeNull();
     expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
     expect(result.comparison.fovMismatch).toBe(true);
   });
@@ -556,5 +610,71 @@ describe("alignPreviewToStill", () => {
     });
     expect(applied[0].width.ideal).toBe(1920);
     expect(applied[0].height.ideal).toBe(1080);
+  });
+
+  describe("how many times the running track is asked for a size", () => {
+    it("never more than twice, whatever the camera answers", async () => {
+      const cases = [
+        { caps: CAPS_43, settings: { width: 1080, height: 1920 } },
+        { caps: CAPS_169, settings: { width: 1080, height: 1440 } },
+        { caps: CAPS_169, settings: { width: 1080, height: 1200 } },
+        { caps: CAPS_43, settings: { width: 1080, height: 1440 } },
+      ];
+      for (const [i, c] of cases.entries()) {
+        for (const respond of [
+          undefined,
+          () => ({ width: 1080, height: 1920 }),
+          () => ({ width: 1440, height: 1080 }),
+        ]) {
+          const { track, applied } = fakeTrack({
+            settings: c.settings,
+            respond,
+          });
+          const { Ctor } = fakeImageCapture(c.caps);
+          const result = await alignPreviewToStill({
+            track,
+            ImageCaptureCtor: Ctor,
+            portrait: true,
+          });
+          expect(applied.length, `case ${i}`).toBeLessThanOrEqual(2);
+          expect(result.sizeRequests, `case ${i}`).toBe(applied.length);
+        }
+      }
+    });
+
+    it("a 4:3 photo that matches costs none; one that does not costs the swap and, if that did no better, putting the first request back", async () => {
+      const match = fakeTrack({});
+      await alignPreviewToStill({
+        track: match.track,
+        ImageCaptureCtor: fakeImageCapture(CAPS_43).Ctor,
+        portrait: true,
+      });
+      expect(match.applied).toHaveLength(0);
+
+      const mismatch = fakeTrack({ settings: { width: 1080, height: 1920 } });
+      const result = await alignPreviewToStill({
+        track: mismatch.track,
+        ImageCaptureCtor: fakeImageCapture(CAPS_43).Ctor,
+        portrait: true,
+      });
+      expect(mismatch.applied).toHaveLength(2);
+      expect(result.sizeRequests).toBe(2);
+    });
+
+    it("a photo that is not 4:3 costs one request, and the swap is not tried on top of it", async () => {
+      const { track, applied } = fakeTrack({
+        settings: { width: 1080, height: 1440 },
+        respond: () => ({ width: 1080, height: 1440 }),
+      });
+      const result = await alignPreviewToStill({
+        track,
+        ImageCaptureCtor: fakeImageCapture(CAPS_169).Ctor,
+        portrait: true,
+      });
+      expect(applied).toEqual([previewSizingFor(16 / 9, true)]);
+      expect(result.sizeRequests).toBe(1);
+      expect(result.comparison.fovMismatch).toBe(true);
+      expect(result.orientationRetry).toBeNull();
+    });
   });
 });

@@ -101,6 +101,8 @@ describe("debugSnapshotJson", () => {
       lastTap: { applied: false, reason: "TypeError" },
     },
     live: {
+      visibleInStream: { x: 207.31, y: 0, width: 665.38, height: 1440.04 },
+      sample: { width: 296, height: 640 },
       samplesPerSecond: 7.912345,
       detectionMsAverage: 41.2345,
       detectionMsP95: 66.66,
@@ -151,6 +153,8 @@ describe("debugSnapshotJson", () => {
     );
     expect(Object.keys(parsed.live).sort()).toEqual(
       [
+        "sample",
+        "visibleInStream",
         "consecutiveFailures",
         "cornersSeen",
         "cueCode",
@@ -182,6 +186,13 @@ describe("debugSnapshotJson", () => {
     expect(parsed.live.detectionMsAverage).toBe(41.2);
     expect(parsed.live.laplacianVariance).toBe(23.46);
     expect(parsed.live.maxCornerMovementFractionOfDiagonal).toBe(0.0081);
+    expect(parsed.live.visibleInStream).toEqual({
+      x: 207.3,
+      y: 0,
+      width: 665.4,
+      height: 1440,
+    });
+    expect(parsed.live.sample).toEqual({ width: 296, height: 640 });
     expect(parsed.capture.stillKb).toBe(2413);
     expect(parsed.capture.ringCompleteToFrozenMs).toBe(183);
     expect(parsed.preview.stillAspect).toBe(1.3333);

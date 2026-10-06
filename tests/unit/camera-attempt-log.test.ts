@@ -4,6 +4,7 @@ import {
   MAX_ATTEMPTS,
   appendAttempt,
   buildAttemptRecord,
+  mergeAttempts,
   describeAttempt,
   parseAttempts,
   readAttempts,
@@ -35,6 +36,13 @@ const DIAGNOSTICS: PipelineDiagnostics = {
   decoded: { width: 2250, height: 3000 },
   analysed: { width: 1686, height: 3000 },
   fovCrop: { x: 282, y: 0, width: 1686, height: 3000 },
+  view: {
+    stream: { width: 1080, height: 1920 },
+    visibleInStream: { x: 96.4, y: 0, width: 887.2, height: 1920 },
+    model: "stream-in-still",
+    modelApplies: true,
+    aspectDiff: 0.33333,
+  },
   paper: {
     cornersSeen: 4,
     paperRegionFound: true,
@@ -455,6 +463,49 @@ describe("storage that is missing or broken", () => {
     expect(second).toHaveLength(2);
   });
 
+  it("a store that can be read but not written (a full quota) still gives back every attempt of the session", () => {
+    // The panel shows what recordAttempt returns: with the store refusing every
+    // write, the stored list stays empty, and the session's list must not
+    // shrink to the newest record.
+    const { storage } = fakeStorage({ setThrows: true });
+    let session: AttemptRecord[] = [];
+    for (let i = 0; i < 3; i++)
+      session = recordAttempt(
+        storage,
+        record({ at: `2026-10-06T10:00:0${i}.000Z` }),
+        session,
+      );
+    expect(session.map((r) => r.at)).toEqual([
+      "2026-10-06T10:00:00.000Z",
+      "2026-10-06T10:00:01.000Z",
+      "2026-10-06T10:00:02.000Z",
+    ]);
+    expect(readAttempts(storage)).toEqual([]);
+  });
+
+  it("a store that is written by another tab as well adds its records to the session's, in time order, without repeats", () => {
+    const { storage } = fakeStorage();
+    const mine = recordAttempt(
+      storage,
+      record({ at: "2026-10-06T10:00:00.000Z" }),
+    );
+    // Another tab writes a record and this page does not know.
+    writeAttempts(storage, [
+      ...mine,
+      record({ at: "2026-10-06T10:00:05.000Z", method: "canvas" }),
+    ]);
+    const next = recordAttempt(
+      storage,
+      record({ at: "2026-10-06T10:00:09.000Z" }),
+      mine,
+    );
+    expect(next.map((r) => r.at)).toEqual([
+      "2026-10-06T10:00:00.000Z",
+      "2026-10-06T10:00:05.000Z",
+      "2026-10-06T10:00:09.000Z",
+    ]);
+  });
+
   it("a store that throws on read falls back to the page's copy, and a throwing write loses nothing in memory", () => {
     const { storage } = fakeStorage({ getThrows: true, setThrows: true });
     const first = recordAttempt(
@@ -576,10 +627,111 @@ describe("no image can be in a record", () => {
   });
 });
 
+describe("mergeAttempts", () => {
+  const at = (s: number) =>
+    record({ at: new Date(Date.UTC(2026, 9, 6, 10, 0, s)).toISOString() });
+
+  it("is the two lists in time order, without a record twice", () => {
+    const a = at(1);
+    const b = at(2);
+    const c = at(3);
+    expect(mergeAttempts([a, c], [b, c]).map((r) => r.at)).toEqual([
+      a.at,
+      b.at,
+      c.at,
+    ]);
+  });
+
+  it("keeps the newest 20", () => {
+    const stored = Array.from({ length: 15 }, (_, i) => at(i));
+    const session = Array.from({ length: 15 }, (_, i) => at(100 + i));
+    const merged = mergeAttempts(stored, session);
+    expect(merged).toHaveLength(20);
+    expect(merged[19].at).toBe(session[14].at);
+    expect(merged[0].at).toBe(stored[10].at);
+  });
+
+  it("keeps two records that differ only a little, and records with the same time in the order given", () => {
+    const first = record({ at: "2026-10-06T10:00:00.000Z", method: "upload" });
+    const second = record({ at: "2026-10-06T10:00:00.000Z", method: "canvas" });
+    expect(mergeAttempts([first], [second])).toEqual([first, second]);
+  });
+
+  it("does not change the lists it was given", () => {
+    const stored = [at(2)];
+    const session = [at(1)];
+    mergeAttempts(stored, session);
+    expect(stored).toHaveLength(1);
+    expect(session).toHaveLength(1);
+  });
+});
+
+describe("what the person saw (view) in a record", () => {
+  it("carries the stream, the part of it on screen and how it was carried over to the photo", () => {
+    expect(record().view).toEqual({
+      stream: { width: 1080, height: 1920 },
+      visibleInStream: { x: 96.4, y: 0, width: 887.2, height: 1920 },
+      model: "stream-in-still",
+      modelApplies: true,
+      aspectDiff: 0.3333,
+    });
+  });
+
+  it("is null for an upload (no viewfinder) and for a run with no diagnostics", () => {
+    const bare = buildAttemptRecord({
+      at: "2026-10-06T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: {
+        kind: "result",
+        result: {
+          ...ERROR_RESULT,
+          diagnostics: { ...DIAGNOSTICS, view: null },
+        },
+      },
+    });
+    expect(bare.view).toBeNull();
+  });
+
+  it("is rebuilt from numbers and a short model name: wrong types and long strings do not survive", () => {
+    const r = sanitizeAttempt({
+      at: "2026-10-06T10:20:30.000Z",
+      result: "ok",
+      view: {
+        stream: { width: "1080", height: 1920.4 },
+        visibleInStream: { x: 1.234, y: NaN, width: 5, height: 6 },
+        model: "m".repeat(500),
+        modelApplies: "yes",
+        aspectDiff: Infinity,
+        extra: "data:image/png;base64,AAAA",
+      },
+    })!;
+    expect(r.view!.stream).toEqual({ width: null, height: 1920 });
+    expect(r.view!.visibleInStream).toEqual({
+      x: 1.2,
+      y: 0,
+      width: 5,
+      height: 6,
+    });
+    expect(r.view!.model).toHaveLength(32);
+    expect(r.view!.modelApplies).toBeNull();
+    expect(r.view!.aspectDiff).toBeNull();
+    expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
+  });
+
+  it("the line for the panel says when the model did not hold", () => {
+    const wider = record({
+      view: { ...record().view!, model: "stream-wider", modelApplies: false },
+    });
+    expect(describeAttempt(wider)).toContain("view model n/a");
+    expect(describeAttempt(record())).not.toContain("view model n/a");
+  });
+});
+
 describe("describeAttempt", () => {
   it("is one line: the time, how, the size, what happened, the sheet's share and the residual", () => {
     expect(describeAttempt(record())).toBe(
-      "10:20:30 · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · FOV mismatch · cropped",
+      "10:20:30Z · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · FOV mismatch · cropped",
     );
   });
 

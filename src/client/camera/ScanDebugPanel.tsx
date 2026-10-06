@@ -58,7 +58,7 @@ export function ScanDebugPanel({
         <dd data-testid="debug-fov">
           {preview.stillAspect === null
             ? "–"
-            : `photo ${fixed(preview.stillAspect, 3)} (${preview.stillAspectSource === "photoCapabilities" ? `max ${preview.photoMax?.width}×${preview.photoMax?.height}` : "assumed"}) · preview ${fixed(preview.previewAspect, 3)} · diff ${fixed(preview.aspectDiff === null ? null : preview.aspectDiff * 100, 1)}% · ${preview.fovMismatch === null ? "?" : preview.fovMismatch ? "FOV MISMATCH" : "same field of view"}`}
+            : `photo ${fixed(preview.stillAspect, 3)} (${preview.stillAspectSource === "photoCapabilities" ? `max ${preview.photoMax?.width}×${preview.photoMax?.height}` : preview.stillAspectSource === "canvas" ? "canvas frame, no ImageCapture" : "assumed"}) · preview ${fixed(preview.previewAspect, 3)} · diff ${fixed(preview.aspectDiff === null ? null : preview.aspectDiff * 100, 1)}% · ${preview.fovMismatch === null ? "?" : preview.fovMismatch ? "FOV MISMATCH" : "same field of view"}`}
           {preview.requested
             ? ` · asked ${preview.requested.width ?? "?"}×${preview.requested.height ?? "?"} (${fixed(preview.requested.aspectRatio, 3)})`
             : ""}
@@ -72,6 +72,12 @@ export function ScanDebugPanel({
               ? ` · swapped retry ${preview.orientationRetry.kept ? "kept" : "dropped"}`
               : ` · swapped retry no (${preview.orientationRetry.reason ?? "?"})`
             : ""}
+        </dd>
+        <dt>Live view</dt>
+        <dd data-testid="debug-live-view">
+          {live.visibleInStream && live.sample
+            ? `on screen ${fixed(live.visibleInStream.width, 0)}×${fixed(live.visibleInStream.height, 0)} of the stream at ${fixed(live.visibleInStream.x, 0)},${fixed(live.visibleInStream.y, 0)} · detector sees ${live.sample.width}×${live.sample.height}`
+            : "–"}
         </dd>
         <dt>Focus modes</dt>
         <dd>
