@@ -42,11 +42,11 @@ export const SIMILAR_PALM_WIDTH_RADIUS_MM =
  * Candidate (未拍板): whether a neighbour must use the caller's grip.
  *
  * Off: the pool is small, and each extra filter takes people away from a count
- * that has a floor of two. Turning it on is this one flag. Note that the
- * response's `basis.gripStyle` is the caller's grip either way, and that
- * `survey.ts` says the grip "is what the similar-hand answer matches on", which
- * reads as if the grip were a filter. If it stays off, one of the two texts
- * should change (a contract PR, Kirby's call).
+ * that has a floor of two. Turning it on is this one flag. The response's
+ * `basis.gripStyle` is the caller's own grip either way, reported for context
+ * only, and the contract texts (`recommend.ts`, `survey.ts`) say the same: the
+ * grip stored with a contribution is compared only if this flag is on. Whether
+ * to turn it on is Kirby's decision (未拍板).
  */
 export const SIMILAR_REQUIRE_SAME_GRIP = false;
 
@@ -57,25 +57,43 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  *   (n * neighbourMean + m * globalMean) / (n + m),
  *
  * where n is the neighbours who rated the mouse and globalMean is the mean of
- * every rating of every mouse by every contributor but the caller. It is one
- * number for the whole list: a mean over ratings, not over per-mouse means, and
- * not the mean the same few neighbours gave this one mouse (that would leave a
+ * every neighbour rating of every mouse that at least `SIMILAR_MIN_PEOPLE`
+ * neighbours rated (whether or not it makes the top five). It is one number
+ * for the whole list: a mean over ratings, not over per-mouse means, and not
+ * the mean the same few neighbours gave this one mouse (that would leave a
  * small pool with no prior at all). A mouse with few neighbour raters is pulled
- * toward how mice are rated in general.
+ * toward how the neighbours rate the mice that clear the floor.
  *
- * What the pull does to the order of two mice whose plain means are a > b: a
- * score minus globalMean is n * (mean - globalMean) / (n + m), which has the
- * sign of (mean - globalMean), so a score sits on the same side of globalMean
- * as its plain mean. With globalMean between b and a (inclusive), the score of
- * the first is at or above it and the other's at or below it: their order never
- * changes. The prior can put a small group's higher mean under a larger
- * group's lower one only when globalMean is below the lower of the two means.
- * It does not always do so then: with m = 4, a mouse of n = 2 raters and mean a
- * falls under one of n = 8 and mean b exactly when a + globalMean < 2b (for
- * a = 5 and b = 4.6, when globalMean < 4.2). The example worked in the tests:
- * two 5s against ten 4.6s (six 5s and four 4s) are outranked at globalMean 3.0
- * (3.667 against 4.143) and are not outranked at globalMean 4.667 (4.778
- * against 4.619).
+ * Why not every rating of every mouse by everyone: a mouse under the floor is
+ * never shown, and a person who is not a neighbour is in no neighbour count, so
+ * letting either move globalMean would let a hidden rating change the order of
+ * what is shown. Everything that orders the list is an aggregate of two or more
+ * neighbours.
+ *
+ * What the pull does to the order of two mice with plain means a > b. In
+ * general, a score minus globalMean is n * (mean - globalMean) / (n + m), which
+ * has the sign of (mean - globalMean): a score sits on the same side of
+ * globalMean as its plain mean. When globalMean lies between b and a
+ * (inclusive), the score of a is at or above it and the score of b at or below
+ * it, so their order never changes, whatever the two group sizes. Otherwise
+ * the order can reverse, and the direction depends on the side:
+ *   - globalMean below both: the smaller group is pulled toward it harder (m /
+ *     (n + m) of its score is the prior), so a small group's higher mean can
+ *     fall under a larger group's lower one. With m = 4, n = 2 raters at mean a
+ *     against n = 8 raters at mean b, that is exactly when a + globalMean < 2b
+ *     (a = 5, b = 4.6: globalMean < 4.2). With n = 10 for the larger group
+ *     instead (six 5s and four 4s, mean 4.6) against two 5s, it is when
+ *     globalMean < 4.25. The tests work that pair: outranked at globalMean 3.0
+ *     (3.667 against 4.143), not at 4.667 (4.778 against 4.619).
+ *   - globalMean above both: the same pull works the other way, and a small
+ *     group's lower mean can pass a larger group's higher one. With m = 4 and
+ *     globalMean 5: 100 raters at 4.5 score 4.519 and 2 raters at 4.4 score
+ *     4.8. With globalMean 4.3: 50 raters at 4.2 score 4.207 and 2 raters at
+ *     4.1 score 4.233.
+ * globalMean is a weighted mean of the plain means of the mice that clear the
+ * floor, so it is between the lowest and highest of them: with exactly two such
+ * mice it is between their two means and the order never reverses; a reversal
+ * needs a third mouse.
  *
  * Why 4: it is twice the floor of two, so a mouse that only just clears the
  * floor gets one third of its weight from its own neighbours, and a mouse with

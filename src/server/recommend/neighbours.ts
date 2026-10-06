@@ -14,15 +14,28 @@
  *      `SIMILAR_REQUIRE_SAME_GRIP`, whose grip is the caller's).
  *   2. A mouse's `raters` is the neighbours who rated it and its
  *      `meanSatisfaction` is their plain mean. It is never the ranking score.
- *   3. Mice are ranked by a Bayesian average toward the mean of every rating
- *      of every mouse by every contributor (the caller's own ones left out),
- *      one number for the whole list; ties go to more raters, then to the slug
- *      in code-unit order.
+ *   3. Mice are ranked by a Bayesian average toward one number for the whole
+ *      list: the mean of every neighbour rating of every mouse that at least
+ *      `SIMILAR_MIN_PEOPLE` neighbours rated (a plain mean over ratings,
+ *      whether or not that mouse makes the top `MAX_SIMILAR_MICE`). So every
+ *      number that orders the list comes from an aggregate of two or more
+ *      neighbours: the ratings of a mouse that is never listed, and of people
+ *      who are not neighbours, move nothing. Ties go to more raters, then to
+ *      the slug in code-unit order.
  *   4. The floor `SIMILAR_MIN_PEOPLE` (contract): under it, neighbours are not
  *      enough, a mouse is not listed, and with nothing left to list the answer
  *      is `available: false`, never a guess.
  *   5. The caller's own contributions are left out of everything, the prior
  *      too, so the answer cannot depend on, or give back, what the caller said.
+ *
+ * Known limit (a later server PR and Kirby decide): the windows (hand length
+ * +-10 mm, palm width +-5 mm) overlap and the mean is not coarsened, so a caller
+ * who picks their own outline can subtract two answers one bin apart and
+ * recover one rating (hands of 170, 175, 180, 190 mm rate 4, 5, 2, 1: at 180 mm
+ * 4 raters, mean 3; at 175 mm 3 raters, mean 3.6667; 4*3 - 3*3.6667 = 1). The
+ * floor does not stop it and the prior is not the cause. Options: probe limits,
+ * fixed cells, a higher floor, a coarser mean. Until one is chosen, never claim
+ * that a single contributor cannot be worked out.
  */
 import type { GripStyle } from "../../lib/contracts/fit";
 import {
@@ -45,7 +58,10 @@ export interface ContributedRating {
   slug: string;
   brand: string;
   model: string;
-  /** The survey's 1 to 5 scale. Anything else is ignored, not clamped. */
+  /**
+   * The survey's whole numbers 1 to 5 (`satisfaction` in `survey.ts`). Anything
+   * else, a fraction included, is ignored, not clamped or rounded.
+   */
   satisfaction: number;
 }
 
@@ -121,8 +137,9 @@ function orderFreeSum(values: readonly number[]): number {
 }
 
 /**
- * The ratings of one contribution, one per slug. A rating off the 1 to 5 scale
- * is ignored. A slug named twice in one contribution is ambiguous (the survey
+ * The ratings of one contribution, one per slug. A rating that is not a whole
+ * number from 1 to 5 is ignored (`Number.isInteger` is false for NaN and the
+ * infinities). A slug named twice in one contribution is ambiguous (the survey
  * contract allows one rating per mouse), and picking one of the two would be a
  * guess, so that contributor's answer for that mouse is left out.
  */
@@ -133,7 +150,7 @@ function ratingsBySlug(
   const ambiguous = new Set<string>();
   for (const rating of contribution.ratings) {
     if (
-      !Number.isFinite(rating.satisfaction) ||
+      !Number.isInteger(rating.satisfaction) ||
       rating.satisfaction < 1 ||
       rating.satisfaction > 5
     ) {
@@ -181,8 +198,8 @@ function tally(
 /**
  * The Bayesian average used only to order mice: `n` neighbour raters with plain
  * mean `neighbourMean`, pulled toward `priorMean` (the engine passes the mean of
- * every rating of every mouse, the caller's own left out) by `priorWeight`
- * people's worth. Never shown to a visitor.
+ * every neighbour rating of every mouse that cleared the floor) by
+ * `priorWeight` people's worth. Never shown to a visitor.
  */
 export function shrunkScore(
   n: number,
@@ -193,24 +210,27 @@ export function shrunkScore(
   return (n * neighbourMean + priorWeight * priorMean) / (n + priorWeight);
 }
 
-/** True when `candidate` is a neighbour of `caller` under the rules above. */
+/**
+ * True when `candidate` is a neighbour of `caller` under the rules above.
+ *
+ * Each size is tested as "within the radius", never as "not beyond it": a bin
+ * that is NaN or missing makes the difference NaN, and `NaN <= radius` is false
+ * (out), while `NaN > radius` is false too, so testing "beyond the radius" and
+ * excluding on that would take such a contributor in as a neighbour.
+ */
 function isNeighbour(
   caller: Caller,
   candidate: Contribution,
   rules: SimilarRules,
 ): boolean {
-  if (
-    Math.abs(candidate.handLengthBinMm - caller.handLengthBinMm) >
-    rules.handLengthRadiusMm
-  ) {
-    return false;
-  }
-  if (
-    Math.abs(candidate.palmWidthBinMm - caller.palmWidthBinMm) >
-    rules.palmWidthRadiusMm
-  ) {
-    return false;
-  }
+  const handClose =
+    Math.abs(candidate.handLengthBinMm - caller.handLengthBinMm) <=
+    rules.handLengthRadiusMm;
+  if (!handClose) return false;
+  const palmClose =
+    Math.abs(candidate.palmWidthBinMm - caller.palmWidthBinMm) <=
+    rules.palmWidthRadiusMm;
+  if (!palmClose) return false;
   return !rules.requireSameGrip || candidate.gripStyle === caller.gripStyle;
 }
 
@@ -239,25 +259,30 @@ export function similarHands(
   const neighbours = others.filter((c) => isNeighbour(caller, c, rules));
   if (neighbours.length < SIMILAR_MIN_PEOPLE) return unavailable();
 
-  const nearby = tally(neighbours);
-  const everyone = tally(others);
+  // The mice that enough neighbours rated, whether or not they make the top
+  // `MAX_SIMILAR_MICE`. A mouse under the floor is never shown, so what its one
+  // rater said must not move anything that is.
+  const listable = [...tally(neighbours)].filter(
+    ([, near]) => near.values.length >= SIMILAR_MIN_PEOPLE,
+  );
+  if (listable.length === 0) return unavailable();
 
-  // The prior: one mean over every valid rating of every mouse by every
-  // contributor but the caller. A mean of ratings, not of per-mouse means.
-  // `everyone` already has `tally`'s filtering, so it is not redone here. The
-  // neighbours are among `others`, so every rating in `nearby` is also in
-  // `everyone`: the loop below only runs when `allRatings` is not empty, and
-  // an empty one (a NaN here) is never read.
-  const allRatings = [...everyone.values()].flatMap((entry) => entry.values);
-  const globalMean = orderFreeSum(allRatings) / allRatings.length;
+  // The prior: one mean over every valid neighbour rating of those mice, so a
+  // mean of ratings, not of per-mouse means. It is made of aggregates of two or
+  // more neighbours only: the ratings of a mouse under the floor, of someone
+  // who is not a neighbour, and of the caller are all outside it. `tally`'s
+  // filter is the only one, so what counts as a valid rating is the same here
+  // as in the per-mouse numbers. `listable` is not empty and each of its mice
+  // has at least two ratings, so the division below is never by zero.
+  const priorRatings = listable.flatMap(([, near]) => near.values);
+  const globalMean = orderFreeSum(priorRatings) / priorRatings.length;
 
   const ranked: Array<{
     mouse: SimilarMouse;
     score: number;
   }> = [];
-  for (const [slug, near] of nearby) {
+  for (const [slug, near] of listable) {
     const raters = near.values.length;
-    if (raters < SIMILAR_MIN_PEOPLE) continue;
     const meanSatisfaction = orderFreeSum(near.values) / raters;
     ranked.push({
       mouse: {
@@ -284,9 +309,8 @@ export function similarHands(
     );
   });
 
-  const mice = ranked.slice(0, MAX_SIMILAR_MICE).map((r) => r.mouse);
-  if (mice.length === 0) return unavailable();
-
+  // `ranked` has every listable mouse, so it is not empty, and the answer has
+  // at least one mouse (the schema's minimum).
   return {
     available: true,
     neighbours: neighbours.length,
@@ -295,6 +319,6 @@ export function similarHands(
       palmWidthBinMm: caller.palmWidthBinMm,
       gripStyle: caller.gripStyle,
     },
-    mice,
+    mice: ranked.slice(0, MAX_SIMILAR_MICE).map((r) => r.mouse),
   };
 }

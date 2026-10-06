@@ -92,10 +92,11 @@ function shuffled<T>(items: readonly T[], next: () => number): T[] {
 /**
  * Two mice, both rated only by neighbours: "few" by 2 people (5, 5) and "ten"
  * by 10 (six 5s and four 4s: mean exactly 4.6). With m = 4, "few" is outranked
- * by "ten" exactly when the overall mean g is under 4.25:
+ * by "ten" exactly when the prior g is under 4.25:
  *   (10 + 4g) / 6 < (46 + 4g) / 14  <=>  140 + 56g < 276 + 24g  <=>  g < 4.25.
- * On their own the pool's overall mean is (10 + 46) / 12 = 4.667, so "few"
- * leads, as it does by plain mean.
+ * On their own the prior is (10 + 46) / 12 = 4.667, so "few" leads, as it does
+ * by plain mean. (With only two mice that clear the floor the prior is always
+ * between their means, so nothing can reverse them: it takes a third.)
  */
 function fewAndTen(): Contribution[] {
   return [
@@ -105,11 +106,21 @@ function fewAndTen(): Contribution[] {
 }
 
 /**
- * One person's five ratings of 1, each for a mouse nobody else rated. Added to
- * `fewAndTen`, the overall mean falls to (56 + 5) / 17 = 3.588, under 4.25, so
- * "ten" leads: the only thing these ratings change is the order.
+ * A third mouse that four neighbours rate 1. It clears the floor, so its ratings
+ * are in the prior: added to `fewAndTen` the prior falls to (56 + 4) / 16 =
+ * 3.75, under 4.25, so "ten" leads "few". It is listed too, last.
  */
-function fiveLows(id: string, over: Partial<Contribution> = {}): Contribution {
+function lowCrowd(): Contribution[] {
+  return crowd("low", "low", [1, 1, 1, 1]);
+}
+
+/**
+ * One person's five ratings of 1, each for a mouse nobody else rated, so each
+ * of those mice has one rater at most and is never listed. Under the old rule
+ * (a prior over every rating of every mouse) these ratings pulled the prior
+ * from 4.667 to 3.588 and put "ten" ahead of "few"; they must move nothing.
+ */
+function soloLows(id: string, over: Partial<Contribution> = {}): Contribution {
   return person(
     id,
     ["z1", "z2", "z3", "z4", "z5"].map((slug) => rate(slug, 1)),
@@ -181,6 +192,58 @@ describe("neighbours: who counts", () => {
         palmWidthBinMm: PALM + 10,
       }),
     ).toBe(2);
+  });
+
+  const BAD_BINS: Array<[string, number]> = [
+    ["NaN", Number.NaN],
+    ["missing", undefined as unknown as number],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["-Infinity", Number.NEGATIVE_INFINITY],
+  ];
+
+  it.each(BAD_BINS)(
+    "a hand length bin that is %s is not a neighbour",
+    (_name, bad) => {
+      expect(neighboursWithProbe({ handLengthBinMm: bad })).toBe(2);
+    },
+  );
+
+  it.each(BAD_BINS)(
+    "a palm width bin that is %s is not a neighbour",
+    (_name, bad) => {
+      expect(neighboursWithProbe({ palmWidthBinMm: bad })).toBe(2);
+    },
+  );
+
+  it("people with a bad bin cannot make up the floor between them", () => {
+    // Each of these is "close" on the other dimension. Two of them are not two
+    // neighbours: no answer.
+    const nan = Number.NaN;
+    const gone = undefined as unknown as number;
+    const pairs: Array<[Partial<Contribution>, Partial<Contribution>]> = [
+      [{ handLengthBinMm: nan }, { handLengthBinMm: nan }],
+      [{ palmWidthBinMm: nan }, { palmWidthBinMm: nan }],
+      [{ handLengthBinMm: gone }, { palmWidthBinMm: gone }],
+      [{ handLengthBinMm: nan }, { palmWidthBinMm: Number.POSITIVE_INFINITY }],
+      [
+        { handLengthBinMm: Number.NEGATIVE_INFINITY },
+        { palmWidthBinMm: Number.NEGATIVE_INFINITY },
+      ],
+    ];
+    for (const [one, two] of pairs) {
+      const pool = [
+        person("bad1", [rate("m", 4)], one),
+        person("bad2", [rate("m", 4)], two),
+      ];
+      expect(similarHands(caller(), pool)).toEqual(UNAVAILABLE);
+    }
+    // With a good neighbour beside them they are still not counted.
+    const pool = [
+      person("good", [rate("m", 4)]),
+      person("bad1", [rate("m", 4)], { handLengthBinMm: nan }),
+      person("bad2", [rate("m", 4)], { palmWidthBinMm: gone }),
+    ];
+    expect(similarHands(caller(), pool)).toEqual(UNAVAILABLE);
   });
 
   it("does not ask for the same grip by default", () => {
@@ -290,6 +353,15 @@ describe("floor: how few people can stand behind an answer", () => {
     expect(slugs(res)).toEqual(["shared"]);
     expect(res).toMatchObject({ available: true, neighbours: 3 });
     expect(JSON.stringify(res)).not.toContain("solo-secret");
+    // No trace: the whole answer is the one given when that rating is not there.
+    const without = [
+      person("a", [rate("shared", 4)]),
+      person("b", [rate("shared", 2)]),
+      person("c", []),
+    ];
+    expect(res).toEqual(similarHands(caller(), without));
+    // (A pool in which that rating could change the order, so that this
+    // equality has teeth, is in "what a hidden rating cannot do" below.)
   });
 
   it("a mouse with exactly 2 neighbour raters is listed", () => {
@@ -363,20 +435,25 @@ describe("the caller's own contributions", () => {
   });
 
   it("are left out of the prior too", () => {
-    // `fewAndTen` alone: "few" leads. `mine` is five ratings of 1 for mice
-    // nobody else rated. Counted, they would pull the overall mean from 4.667
-    // down to 3.588 and put "ten" ahead (see `fiveLows`). `mine` is far from the
-    // caller (another scan, another hand size), so it is no neighbour either
-    // way: it can only act through the prior.
-    const base = fewAndTen();
-    const own = fiveLows("mine", { handLengthBinMm: HAND + 50 });
+    // `fewAndTen` alone: "few" leads. Another neighbour, "other", rated five
+    // mice 1 each, and so did the caller ("mine", a neighbour by hand size too).
+    // Each of those five mice has "other" as its only rater, so none is listed
+    // and none is in the prior. If "mine" were counted, each would have two
+    // raters, clear the floor and enter the prior, which would fall from 4.667
+    // to (56 + 10) / 22 = 3.0 and put "ten" ahead.
+    const base = [...fewAndTen(), soloLows("other")];
+    const own = soloLows("mine");
     const c = caller({ ownContributionIds: new Set(["mine"]) });
     expect(slugs(similarHands(c, [own, ...base]))).toEqual(["few", "ten"]);
     expect(similarHands(c, [own, ...base])).toEqual(similarHands(c, base));
-    // The contrast: had `mine` been someone else's, the prior would put "ten" ahead.
+    // The contrast: had "mine" been someone else's, it would count, and the
+    // five mice would be listed and drag the prior down.
     expect(slugs(similarHands(caller(), [own, ...base]))).toEqual([
       "ten",
       "few",
+      "z1",
+      "z2",
+      "z3",
     ]);
   });
 
@@ -410,14 +487,22 @@ describe("per-mouse numbers", () => {
   });
 
   it("returns the real mean even when the ranking score differs from it", () => {
-    // 2 raters at 5; five far-away people at 1 pull the prior down, so the
-    // score is far below 5. The visitor still sees 5.
+    // "m": 2 neighbours at 5. "dud": four neighbours at 1. The prior is
+    // (10 + 4) / 6 = 2.33, so the score of "m" is (10 + 4 * 2.33) / 6 = 3.22,
+    // far below 5. The visitor still sees 5. Five far-away people at 1 are
+    // there too, and are in nobody's count.
     const pool = [
       ...crowd("n", "m", [5, 5]),
+      ...crowd("d", "dud", [1, 1, 1, 1]),
       ...crowd("f", "m", [1, 1, 1, 1, 1], { handLengthBinMm: HAND + 40 }),
     ];
+    expect(shrunkScore(2, 5, 14 / 6)).toBeCloseTo(3.2222, 3);
     const res = parsed(similarHands(caller(), pool));
-    expect(res.available && res.mice[0]?.meanSatisfaction).toBe(5);
+    expect(res.available && res.mice[0]).toMatchObject({
+      slug: "m",
+      raters: 2,
+      meanSatisfaction: 5,
+    });
   });
 
   it("is exactly sum / n for a mean with no short decimal", () => {
@@ -427,18 +512,36 @@ describe("per-mouse numbers", () => {
     expect(res.available && res.mice[0]?.meanSatisfaction).toBe(22 / 5);
   });
 
-  it("ignores a rating off the 1 to 5 scale, and does not clamp it", () => {
+  it("ignores a rating that is not a whole number from 1 to 5, and does not clamp or round it", () => {
+    // The survey's `satisfaction` is an integer, 1 to 5 (survey.ts).
+    const bad = [
+      6,
+      0,
+      -1,
+      0.9,
+      5.1,
+      2.5,
+      4.5,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ];
     const pool = [
       ...crowd("ok", "m", [4, 4]),
-      person("bad1", [rate("m", 6)]),
-      person("bad2", [rate("m", 0)]),
-      person("bad3", [rate("m", Number.NaN)]),
-      person("bad4", [rate("m", Number.POSITIVE_INFINITY)]),
+      ...bad.map((v, i) => person(`bad${i}`, [rate("m", v)])),
     ];
     const res = parsed(similarHands(caller(), pool));
-    expect(res).toMatchObject({ available: true, neighbours: 6 });
+    expect(res).toMatchObject({ available: true, neighbours: 2 + bad.length });
     expect(res.available && res.mice).toEqual([
       expect.objectContaining({ raters: 2, meanSatisfaction: 4 }),
+    ]);
+  });
+
+  it("takes 1 and 5, the ends of the scale", () => {
+    const res = parsed(similarHands(caller(), crowd("e", "m", [1, 5])));
+    expect(res.available && res.mice).toEqual([
+      expect.objectContaining({ raters: 2, meanSatisfaction: 3 }),
     ]);
   });
 
@@ -477,12 +580,12 @@ describe("per-mouse numbers", () => {
 // ------------------------------------------------------------- the ranking
 
 describe("ranking", () => {
-  it("shrunkScore: one 5 does not beat eight 4.6s when the prior is below both", () => {
-    // With weight 4 the two cross at a prior of about 4.43: above it the lone 5
-    // is pulled up by the prior nearly as much as the eight 4.6s are, and leads
-    // (28g < 124 is the condition for it to trail). The prior is the overall
-    // mean of the ratings, so a prior that high means people rate every mouse
-    // high, and then a 5 should lead.
+  it("shrunkScore: one 5 does not beat eight 4.6s when the prior is under about 4.43", () => {
+    // With weight 4 the two cross at a prior of about 4.43 (the lone 5 trails
+    // exactly when 28g < 124, g < 4.4286): above it the lone 5 is pulled up by
+    // the prior more than the eight 4.6s are, and leads. The prior is the
+    // neighbours' mean over the mice that clear the floor, so a prior that high
+    // means they rate those mice high, and then a 5 should lead.
     for (const prior of [1, 2, 3, 4, 4.2, 4.4]) {
       expect(shrunkScore(1, 5, prior)).toBeLessThan(shrunkScore(8, 4.6, prior));
     }
@@ -547,28 +650,30 @@ describe("ranking", () => {
 
   /**
    * 10 neighbours rate "steady" (6 fives, 4 fours: mean exactly 4.6). Two of
-   * them also rate "flashy" at 5; six people far away rated it 2. The
+   * them also rate "flashy" at 5, and four of them rate "dud" at 1. The
    * neighbours' plain mean for flashy is higher (5 against 4.6), but only two
-   * of them say so and the world disagrees. Overall mean g = (46 + 10 + 12) /
-   * 18 = 3.778, under the 4.25 at which two 5s fall under ten 4.6s, so
-   * flashy = (10 + 4g) / 6 = 4.185 and steady = (46 + 4g) / 14 = 4.365.
+   * of them say so, and these neighbours rate mice low in general: prior g =
+   * (46 + 10 + 4) / 16 = 3.75, under the 4.25 at which two 5s fall under ten
+   * 4.6s, so flashy = (10 + 4g) / 6 = 4.167 and steady = (46 + 4g) / 14 =
+   * 4.357. The ones who disagree are neighbours: ratings from far away do not
+   * count (see "what a hidden rating cannot do").
    */
   function steadyVsFlashy(): Contribution[] {
-    const steady = crowd("s", "steady", [5, 5, 5, 5, 5, 5, 4, 4, 4, 4]);
-    const flashyNear = [
-      person("s0", [rate("steady", 5), rate("flashy", 5)]),
-      person("s1", [rate("steady", 5), rate("flashy", 5)]),
-    ];
-    const rest = steady.slice(2);
-    const flashyFar = crowd("f", "flashy", [2, 2, 2, 2, 2, 2], {
-      handLengthBinMm: HAND + 50,
+    const people = crowd("s", "steady", [5, 5, 5, 5, 5, 5, 4, 4, 4, 4]);
+    const rated = (c: Contribution, extra: ContributedRating[]) => ({
+      ...c,
+      ratings: [...c.ratings, ...extra],
     });
-    return [...flashyNear, ...rest, ...flashyFar];
+    return people.map((c, i) => {
+      if (i < 2) return rated(c, [rate("flashy", 5)]);
+      if (i < 6) return rated(c, [rate("dud", 1)]);
+      return c;
+    });
   }
 
-  it("two 5s that everyone else disputes do not outrank ten 4.6s", () => {
+  it("two 5s that the neighbours' other ratings put in doubt do not outrank ten 4.6s", () => {
     const res = parsed(similarHands(caller(), steadyVsFlashy()));
-    expect(slugs(res)).toEqual(["steady", "flashy"]);
+    expect(slugs(res)).toEqual(["steady", "flashy", "dud"]);
     // The numbers shown are the plain ones, not the shrunk ones.
     expect(res.available && res.mice).toEqual([
       expect.objectContaining({
@@ -581,6 +686,11 @@ describe("ranking", () => {
         raters: 2,
         meanSatisfaction: 5,
       }),
+      expect.objectContaining({
+        slug: "dud",
+        raters: 4,
+        meanSatisfaction: 1,
+      }),
     ]);
   });
 
@@ -589,7 +699,7 @@ describe("ranking", () => {
       ...DEFAULT_SIMILAR_RULES,
       priorWeight: 0,
     });
-    expect(slugs(res)).toEqual(["flashy", "steady"]);
+    expect(slugs(res)).toEqual(["flashy", "steady", "dud"]);
   });
 
   it("a mouse everyone loves keeps its lead", () => {
@@ -644,6 +754,33 @@ describe("ranking", () => {
     expect(slugs(similarHands(caller(), pool))).toEqual(["b-many", "a-few"]);
   });
 
+  it("scores a hair apart (a millionth) are not a tie: the higher one leads, with fewer raters", () => {
+    // "x": two 5s. "y": 5, 5, 4 (more raters, lower mean). Both people who rate
+    // "x" rate "y" too, and a third rates "y" alone, so the prior is
+    // (10 + 14) / 5 = 4.8. A prior weight of 1e6 (a positive number is all the
+    // rule asks for) squeezes both scores to within a millionth of 4.8, and "x"
+    // scores about 8e-7 above "y": far over the 1e-9 tie guard, far under 1e-3.
+    // A guard as wide as 1e-3 or 0.01 would call it a tie and put "y" first, as
+    // it has more raters.
+    const weight = 1e6;
+    const gap =
+      shrunkScore(2, 5, 4.8, weight) - shrunkScore(3, 14 / 3, 4.8, weight);
+    expect(gap).toBeGreaterThan(1e-7);
+    expect(gap).toBeLessThan(1e-5);
+    const pool = [
+      person("p1", [rate("x", 5), rate("y", 5)]),
+      person("p2", [rate("x", 5), rate("y", 5)]),
+      person("p3", [rate("y", 4)]),
+    ];
+    const rules = { ...DEFAULT_SIMILAR_RULES, priorWeight: weight };
+    const next = prng(13);
+    for (let i = 0; i < 10; i++) {
+      expect(
+        slugs(similarHands(caller(), shuffled(pool, next), rules)),
+      ).toEqual(["x", "y"]);
+    }
+  });
+
   it("lists at most MAX_SIMILAR_MICE, the best of them", () => {
     // Seven mice, each rated by the same two neighbours with the stars above,
     // so the order is known.
@@ -656,16 +793,16 @@ describe("ranking", () => {
   });
 });
 
-// ------------------------------------------- the prior: one overall mean
+// ------------------------------------------- the prior: one neighbour mean
 
-describe("ranking: the prior is the mean of every rating", () => {
+describe("ranking: the prior is the neighbours' mean over the mice that clear the floor", () => {
   const ids = (res: SimilarResponse) => slugs(res);
 
   it("works in a small pool where everybody is a neighbour", () => {
     // A: 2 people rate 5. B: 10 people rate 4.6 on average (six 5s, four 4s).
-    // C: 20 people rate 2. Nobody is outside the neighbourhood, so a prior that
-    // is a mouse's own mean among everyone would be its plain mean.
-    //   overall mean g = (2*5 + 10*4.6 + 20*2) / 32 = (10 + 46 + 40) / 32 = 3.0
+    // C: 20 people rate 2. Everyone is a neighbour and all three mice clear the
+    // floor, so a prior that is a mouse's own mean would be its plain mean.
+    //   prior g = (2*5 + 10*4.6 + 20*2) / 32 = (10 + 46 + 40) / 32 = 3.0
     //   A = (2*5 + 4*3) / (2 + 4)   = 22 / 6  = 3.667
     //   B = (10*4.6 + 4*3) / (10+4) = 58 / 14 = 4.143
     //   C = (20*2 + 4*3) / (20 + 4) = 52 / 24 = 2.167
@@ -733,6 +870,49 @@ describe("ranking: the prior is the mean of every rating", () => {
     );
   });
 
+  it("a third mouse that clears the floor can reverse the two", () => {
+    // `fewAndTen` plus "low", four 1s: prior (56 + 4) / 16 = 3.75, under 4.25.
+    const pool = [...fewAndTen(), ...lowCrowd()];
+    expect(ids(similarHands(caller(), pool))).toEqual(["ten", "few", "low"]);
+    expect(
+      ids(
+        similarHands(caller(), pool, {
+          ...DEFAULT_SIMILAR_RULES,
+          priorWeight: 0,
+        }),
+      ),
+    ).toEqual(["few", "ten", "low"]);
+  });
+
+  it("with only two mice that clear the floor, the prior never reverses them", () => {
+    // The prior is a weighted mean of the two plain means, so it lies between
+    // them, and a prior between two means leaves their order alone. Random
+    // pairs of mice (whole-number ratings, 2 to 12 raters each).
+    const next = prng(77);
+    let checked = 0;
+    for (let i = 0; i < 300; i++) {
+      const ratingsOf = (): number[] =>
+        Array.from(
+          { length: 2 + Math.floor(next() * 11) },
+          () => 1 + Math.floor(next() * 5),
+        );
+      const a = ratingsOf();
+      const b = ratingsOf();
+      const sum = (v: number[]) => v.reduce((x, y) => x + y, 0);
+      // Means must differ by more than the tie guard for the order to be defined.
+      if (sum(a) * b.length === sum(b) * a.length) continue;
+      const pool = [...crowd("a", "mouse-a", a), ...crowd("b", "mouse-b", b)];
+      const res = similarHands(caller(), pool);
+      const plain = similarHands(caller(), pool, {
+        ...DEFAULT_SIMILAR_RULES,
+        priorWeight: 0,
+      });
+      expect(ids(res)).toEqual(ids(plain));
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(200);
+  });
+
   it("is a mean over ratings, not a mean of the mice's means", () => {
     // `fewAndTen` plus "twenty": 20 people, ten 3s and ten 4s (mean 3.5).
     //   over ratings: g = (10 + 46 + 70) / 32 = 3.9375
@@ -759,46 +939,64 @@ describe("ranking: the prior is the mean of every rating", () => {
     expect(ids(similarHands(caller(), pool))).toEqual(["ten", "few", "twenty"]);
   });
 
-  it("includes the ratings of people who are not neighbours", () => {
-    // Someone far away rated five mice nobody near rated, all with 1. Nobody
-    // near is told anything about those mice, but the overall mean falls from
-    // 4.667 to 3.588, so "ten" now leads "few".
-    const far = fiveLows("far", { handLengthBinMm: HAND + 50 });
-    const alone = parsed(similarHands(caller(), fewAndTen()));
-    const withFar = parsed(similarHands(caller(), [far, ...fewAndTen()]));
-    expect(ids(alone)).toEqual(["few", "ten"]);
-    expect(ids(withFar)).toEqual(["ten", "few"]);
-    // Only the order moved: the same neighbours, raters and means.
-    expect(withFar.available && withFar.neighbours).toBe(12);
-    expect(withFar.available && [...withFar.mice].reverse()).toEqual(
-      alone.available && alone.mice,
+  it("a mouse with exactly the floor of raters is in the prior", () => {
+    // `fewAndTen` plus "pair", two neighbours at 1: the prior falls from 4.667
+    // to (56 + 2) / 14 = 4.143, under 4.25, and "ten" leads. With one rater it
+    // would be hidden and would move nothing (next section).
+    const pool = [...fewAndTen(), ...crowd("pair", "pair", [1, 1])];
+    expect(SIMILAR_MIN_PEOPLE).toBe(2);
+    expect(ids(similarHands(caller(), pool))).toEqual(["ten", "few", "pair"]);
+  });
+
+  it("a mouse that falls outside the top five is still in the prior", () => {
+    // Five mice that every ranking puts at the top, "few", "p1".."p3" (two 5s
+    // each) and "ten" (mean 4.6), and "low", twenty 1s, which ranks sixth and is
+    // not listed. The prior with "low" is (86 + 20) / 38 = 2.79, and with it
+    // "ten" leads; without it the prior is 86 / 18 = 4.78 and "ten" is last.
+    const top = [
+      ...fewAndTen(),
+      ...crowd("p1", "p1", [5, 5]),
+      ...crowd("p2", "p2", [5, 5]),
+      ...crowd("p3", "p3", [5, 5]),
+    ];
+    const low = crowd(
+      "low",
+      "low",
+      Array.from({ length: 20 }, () => 1),
     );
-    expect(JSON.stringify(withFar)).not.toContain("z1");
+    const without = parsed(similarHands(caller(), top));
+    const withLow = parsed(similarHands(caller(), [...top, ...low]));
+    expect(ids(without)).toEqual(["few", "p1", "p2", "p3", "ten"]);
+    expect(ids(withLow)).toEqual(["ten", "few", "p1", "p2", "p3"]);
+    expect(MAX_SIMILAR_MICE).toBe(5);
   });
 
   it.each([
+    ["off the 1 to 5 scale", () => [rate("few", 0), rate("ten", 6)]],
     [
-      "off the 1 to 5 scale",
-      () => ["z1", "z2", "z3", "z4", "z5"].map((s) => rate(s, 0)),
+      "below 1 or above 5 by a fraction",
+      () => [rate("few", 0.9), rate("ten", 5.1)],
     ],
+    ["between two whole numbers", () => [rate("few", 2.5), rate("ten", 4.5)]],
     [
       "not a number or infinite",
-      () => [
-        rate("z1", Number.NaN),
-        rate("z2", Number.POSITIVE_INFINITY),
-        rate("z3", Number.NEGATIVE_INFINITY),
-      ],
+      () => [rate("few", Number.NaN), rate("ten", Number.POSITIVE_INFINITY)],
     ],
     [
       "named twice by the same person",
-      () =>
-        ["z1", "z2", "z3", "z4", "z5"].flatMap((s) => [rate(s, 1), rate(s, 1)]),
+      () => [rate("few", 1), rate("few", 1), rate("ten", 1), rate("ten", 1)],
     ],
   ])("leaves out a rating that is %s", (_name, ratings) => {
-    // The same filter as everywhere else: if these were counted, the overall
-    // mean would fall under 4.25 (or turn into NaN) and "ten" would lead.
-    const pool = [...fewAndTen(), person("odd", ratings())];
-    expect(ids(similarHands(caller(), pool))).toEqual(["few", "ten"]);
+    // The same filter as everywhere else. Somebody who is a neighbour and whose
+    // every rating is one of these is a neighbour who rated nothing: the answer
+    // is the one for the same pool where they rated nothing.
+    const base = [...fewAndTen(), ...lowCrowd()];
+    const withOdd = [...base, person("odd", ratings())];
+    const withNothing = [...base, person("odd", [])];
+    expect(similarHands(caller(), withOdd)).toEqual(
+      similarHands(caller(), withNothing),
+    );
+    expect(ids(similarHands(caller(), withOdd))).toEqual(["ten", "few", "low"]);
   });
 
   it("does not depend on the order of the pool", () => {
@@ -811,18 +1009,138 @@ describe("ranking: the prior is the mean of every rating", () => {
         Array.from({ length: 20 }, () => 2),
       ),
     ];
-    const withFar = [
-      fiveLows("far", { handLengthBinMm: HAND + 50 }),
+    const withExtras = [
       ...fewAndTen(),
+      ...lowCrowd(),
+      soloLows("other"),
+      soloLows("far", { handLengthBinMm: HAND + 50 }),
     ];
     const next = prng(31);
-    for (const pool of [small, withFar]) {
+    for (const pool of [small, withExtras]) {
       const expected = JSON.stringify(similarHands(caller(), pool));
       for (let i = 0; i < 25; i++) {
         expect(
           JSON.stringify(similarHands(caller(), shuffled(pool, next))),
         ).toBe(expected);
       }
+    }
+  });
+});
+
+// ------------------------------------------- what a hidden rating cannot do
+
+describe("what a hidden rating cannot do", () => {
+  const far = { handLengthBinMm: HAND + 50 };
+
+  /**
+   * `fewAndTen`, with one of its ten raters also rating "secret", a mouse nobody
+   * else rated, as `s` (or not at all, for `null`).
+   */
+  function poolWithVictim(s: number | null): Contribution[] {
+    return fewAndTen().map((c) =>
+      c.id === "ten0" && s !== null
+        ? { ...c, ratings: [...c.ratings, rate("secret", s)] }
+        : c,
+    );
+  }
+
+  /** `k` people, each rating a mouse of their own with 4: nobody else rates it. */
+  function probes(k: number, over: Partial<Contribution>): Contribution[] {
+    return Array.from({ length: k }, (_, i) =>
+      person(`probe${i}`, [rate(`probe-mouse-${i}`, 4)], over),
+    );
+  }
+
+  it.each([
+    ["near the caller", {}],
+    ["far from the caller", far],
+  ])(
+    "the answer is the same whatever a hidden mouse's one rater said, with probes %s",
+    (_name, over) => {
+      // The attack: a victim rates "secret" with s; the attacker adds k people
+      // who each rate a mouse of their own with 4, and watches the order of
+      // "few" and "ten" (the response never contains "secret"). Under a prior
+      // over every rating of every mouse, the order flips at the first k that
+      // is 4s + 4 (4s + 3 is an exact tie, which goes to "ten", more raters),
+      // so each s has its own k, and the flip point gives s away. Here, for
+      // every s and every k, the whole answer must be the one for the pool
+      // where "secret" was never rated.
+      const premise = (s: number, k: number): number =>
+        (56 + s + 4 * k) / (13 + k); // the prior under that rule
+      for (let s = 1; s <= 5; s++) {
+        const k = 4 * s + 4;
+        expect(shrunkScore(2, 5, premise(s, k))).toBeLessThan(
+          shrunkScore(10, 4.6, premise(s, k)),
+        );
+        expect(shrunkScore(2, 5, premise(s, k - 2))).toBeGreaterThan(
+          shrunkScore(10, 4.6, premise(s, k - 2)),
+        );
+      }
+      for (let s = 1; s <= 5; s++) {
+        for (let k = 0; k <= 30; k++) {
+          const extra = probes(k, over);
+          const without = similarHands(caller(), [
+            ...poolWithVictim(null),
+            ...extra,
+          ]);
+          expect(slugs(without)).toEqual(["few", "ten"]);
+          expect(
+            similarHands(caller(), [...poolWithVictim(s), ...extra]),
+          ).toEqual(without);
+        }
+      }
+    },
+  );
+
+  it("a mouse with one neighbour rater is not in the prior, whatever the rater gave it", () => {
+    // `soloLows`: one neighbour rates five mice 1 each, and nobody else rates
+    // them. They are never listed. Counted, they would pull the prior from
+    // 4.667 to 3.588 and put "ten" ahead of "few"; the answer must be the one
+    // where that person rated nothing.
+    const base = fewAndTen();
+    const hidden = similarHands(caller(), [...base, soloLows("other")]);
+    const nothing = similarHands(caller(), [...base, person("other", [])]);
+    expect(slugs(nothing)).toEqual(["few", "ten"]);
+    expect(hidden).toEqual(nothing);
+  });
+
+  it("people who are not neighbours move nothing, whatever they rated", () => {
+    // Far away: five solo mice rated 1, three unrelated mice rated 1 and 5, and
+    // a crowd that rated the listed mice themselves 1. None of it is in any
+    // neighbour count, so none of it is in the prior or the means.
+    const base = [...fewAndTen(), ...lowCrowd()];
+    const noise = [
+      soloLows("far-solo", far),
+      person("far-one", [rate("u1", 1), rate("u2", 1), rate("u3", 1)], far),
+      person("far-five", [rate("u1", 5), rate("u2", 5), rate("u3", 5)], far),
+      ...crowd(
+        "far-few",
+        "few",
+        Array.from({ length: 10 }, () => 1),
+        far,
+      ),
+      ...crowd(
+        "far-ten",
+        "ten",
+        Array.from({ length: 10 }, () => 5),
+        far,
+      ),
+    ];
+    expect(similarHands(caller(), [...base, ...noise])).toEqual(
+      similarHands(caller(), base),
+    );
+    expect(slugs(similarHands(caller(), base))).toEqual(["ten", "few", "low"]);
+    // Whatever they say, 1 or 5.
+    for (const stars of [1, 5]) {
+      const crowdFar = crowd(
+        "far-all",
+        "ten",
+        Array.from({ length: 12 }, () => stars),
+        far,
+      );
+      expect(similarHands(caller(), [...base, ...crowdFar])).toEqual(
+        similarHands(caller(), base),
+      );
     }
   });
 });
@@ -878,9 +1196,12 @@ describe("determinism", () => {
     }
   });
 
-  it("gives the same mean for any order of values a float sum would feel", () => {
-    // These six values add to four different floats depending on the order.
-    const values = [1.1, 2.2, 3.3, 4.4, 1.7, 2.9];
+  it("gives the same mean for any order of the values", () => {
+    // Ratings are whole numbers (a fraction is ignored), so a sum is exact in
+    // any order and the ascending sort is only a guard: this checks the visible
+    // result, not the sort. Values of 1.1 and its kin, whose float sums depend
+    // on the order, can no longer get in.
+    const values = [1, 2, 3, 4, 5, 4, 3, 5, 2, 4, 4, 3, 1];
     const base = values.map((v, i) => person(`v${i}`, [rate("m", v)]));
     const shuffler = prng(3);
     const means = new Set<number>();
@@ -899,11 +1220,30 @@ describe("determinism", () => {
       }),
     );
     Object.freeze(frozen);
-    const own = Object.freeze(new Set(["c1"]));
+    // `Object.freeze` does not stop a Set from changing (add, delete and clear
+    // still work on a frozen Set), so this one throws when they are called.
+    class ReadOnlySet extends Set<string> {
+      constructor(values: readonly string[]) {
+        super();
+        for (const value of values) super.add(value);
+      }
+      override add(value: string): this {
+        throw new Error(`add(${value}) on the caller's ownContributionIds`);
+      }
+      override delete(value: string): boolean {
+        throw new Error(`delete(${value}) on the caller's ownContributionIds`);
+      }
+      override clear(): void {
+        throw new Error("clear() on the caller's ownContributionIds");
+      }
+    }
+    const own = new ReadOnlySet(["c1"]);
+    expect(() => own.add("x")).toThrow();
     expect(() =>
       similarHands(caller({ ownContributionIds: own }), frozen),
     ).not.toThrow();
     expect(frozen).toEqual(pool);
+    expect([...own]).toEqual(["c1"]);
   });
 
   it("returns a fresh object each time", () => {
@@ -937,8 +1277,8 @@ function population(): Contribution[] {
 /**
  * A plain, differently-shaped restatement of the rules, to compare the engine
  * with. It uses integer sums, so its means are exact. The prior is one mean
- * over every rating of every mouse by everyone but the caller (the population
- * below has no rating off the scale and none named twice).
+ * over the neighbours' ratings of the mice that at least two neighbours rated
+ * (the population below has no rating off the scale and none named twice).
  */
 function oracle(c: Caller, pool: readonly Contribution[]) {
   const others = pool.filter((p) => !c.ownContributionIds.has(p.id));
@@ -948,24 +1288,23 @@ function oracle(c: Caller, pool: readonly Contribution[]) {
       Math.abs(p.palmWidthBinMm - c.palmWidthBinMm) <= 5,
   );
   const rows = new Map<string, { nearSum: number; nearN: number }>();
-  let allSum = 0;
-  let allN = 0;
-  for (const p of others) {
-    const isNear = near.includes(p);
+  for (const p of near) {
     for (const r of p.ratings) {
       const row = rows.get(r.slug) ?? { nearSum: 0, nearN: 0 };
-      allSum += r.satisfaction;
-      allN += 1;
-      if (isNear) {
-        row.nearSum += r.satisfaction;
-        row.nearN += 1;
-      }
+      row.nearSum += r.satisfaction;
+      row.nearN += 1;
       rows.set(r.slug, row);
     }
   }
-  const globalMean = allSum / allN;
-  const listed = [...rows.entries()]
-    .filter(([, row]) => row.nearN >= 2)
+  const clearing = [...rows.entries()].filter(([, row]) => row.nearN >= 2);
+  let priorSum = 0;
+  let priorN = 0;
+  for (const [, row] of clearing) {
+    priorSum += row.nearSum;
+    priorN += row.nearN;
+  }
+  const globalMean = priorSum / priorN;
+  const listed = clearing
     .map(([slug, row]) => ({
       slug,
       raters: row.nearN,
