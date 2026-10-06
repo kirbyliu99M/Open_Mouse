@@ -258,6 +258,24 @@ export function createGlRenderer(
   canvas: HTMLCanvasElement,
   onLost: () => void,
 ): GlRenderer | null {
+  const steps = createGlRendererSteps(canvas, onLost);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/**
+ * `createGlRenderer` as a generator that yields after the context is made and
+ * after the shaders are compiled (making the context alone took 13 to 19 ms
+ * on a desktop GPU, and compiling and linking a good deal more: one long task
+ * at 4 times the CPU). If the generator is closed before it is done (the stage
+ * was destroyed between two slices), the context is handed back at once.
+ */
+export function* createGlRendererSteps(
+  canvas: HTMLCanvasElement,
+  onLost: () => void,
+): Generator<void, GlRenderer | null, void> {
   let gl: WebGLRenderingContext | null = null;
   try {
     // `failIfMajorPerformanceCaveat` is left off on purpose (Claude, 2026-10-06):
@@ -288,120 +306,140 @@ export function createGlRenderer(
     return null;
   };
 
-  const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
-  const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
-  const program = gl.createProgram();
-  if (!vertex || !fragment || !program) return giveUp();
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return giveUp();
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  gl.useProgram(program);
+  let finished = false;
+  try {
+    yield;
+    const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
+    yield;
+    const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
+    yield;
+    const program = gl.createProgram();
+    if (!vertex || !fragment || !program) return giveUp();
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return giveUp();
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    gl.useProgram(program);
 
-  const uniform = {} as Record<(typeof UNIFORMS)[number], WebGLUniformLocation>;
-  for (const name of UNIFORMS) {
-    const location = gl.getUniformLocation(program, name);
-    if (!location) return giveUp();
-    uniform[name] = location;
-  }
-  const buffer = gl.createBuffer();
-  if (!buffer) return giveUp();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  const stride = GL_FLOATS_PER_PARTICLE * 4;
-  for (const [name, size, offset] of ATTRIBUTES) {
-    const location = gl.getAttribLocation(program, name);
-    if (location < 0) return giveUp();
-    gl.enableVertexAttribArray(location);
-    gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * 4);
-  }
-  gl.disable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);
-  // Premultiplied colour, drawn over what is there: a dense stroke settles on
-  // its own colour instead of burning out to white, and the order of the
-  // particles does not change the picture much.
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  gl.clearColor(0, 0, 0, 0);
-
-  const range = gl.getParameter(
-    gl.ALIASED_POINT_SIZE_RANGE,
-  ) as Float32Array | null;
-  let lost = false;
-  let width = 1;
-  let height = 1;
-  let pixel = 1;
-  const handleLost = () => {
-    // `preventDefault()` is NOT called: calling it asks the browser to restore
-    // the context, and the stage has decided the opposite (it takes the Canvas
-    // 2D path for the rest of the visit and never uses this context again), so
-    // a context that came back would belong to nobody. Left alone, the browser
-    // does not restore it.
-    lost = true;
-    onLost();
-  };
-  canvas.addEventListener("webglcontextlost", handleLost);
-  const context = gl;
-
-  return {
-    canvas,
-    isLost: () => lost || context.isContextLost(),
-    fits: (pixelRatio) => pointSizeFits(range, maxPointCssPx() * pixelRatio),
-    resize(cssWidth, cssHeight, pixelRatio) {
-      width = cssWidth;
-      height = cssHeight;
-      pixel = pixelRatio;
-      const w = Math.max(1, Math.round(cssWidth * pixelRatio));
-      const h = Math.max(1, Math.round(cssHeight * pixelRatio));
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-      }
-      context.viewport(0, 0, w, h);
-    },
-    upload(data) {
-      context.bindBuffer(context.ARRAY_BUFFER, buffer);
-      context.bufferData(context.ARRAY_BUFFER, data, context.STATIC_DRAW);
-    },
-    draw(frame) {
-      context.clear(context.COLOR_BUFFER_BIT);
-      context.uniform2f(uniform.uView, width, height);
-      context.uniform1f(uniform.uPixel, pixel);
-      context.uniform1f(uniform.uSplit, frame.split ? 1 : 0);
-      context.uniform1f(uniform.uE, frame.e);
-      context.uniform1f(uniform.uSwing, frame.swing);
-      context.uniform1f(uniform.uBand, frame.band ?? 0);
-      context.uniform1f(uniform.uBandOn, frame.band === null ? 0 : 1);
-      context.uniform1f(uniform.uGrow, SHIMMER_GROWTH);
-      context.uniform2f(
-        uniform.uFraction,
-        frame.fractions[0],
-        frame.fractions[1],
+    const uniform = {} as Record<
+      (typeof UNIFORMS)[number],
+      WebGLUniformLocation
+    >;
+    for (const name of UNIFORMS) {
+      const location = gl.getUniformLocation(program, name);
+      if (!location) return giveUp();
+      uniform[name] = location;
+    }
+    const buffer = gl.createBuffer();
+    if (!buffer) return giveUp();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    const stride = GL_FLOATS_PER_PARTICLE * 4;
+    for (const [name, size, offset] of ATTRIBUTES) {
+      const location = gl.getAttribLocation(program, name);
+      if (location < 0) return giveUp();
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(
+        location,
+        size,
+        gl.FLOAT,
+        false,
+        stride,
+        offset * 4,
       );
-      for (const [location, look] of [
-        [uniform.uLookFrom, frame.looks[0]],
-        [uniform.uLookTo, frame.looks[1]],
-      ] as const) {
-        context.uniform4f(
-          location,
-          look.brightPx,
-          look.dimPx,
-          look.brightAlpha,
-          look.dimAlpha,
-        );
-      }
-      context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
-      context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
-      context.drawArrays(context.POINTS, 0, frame.count);
-    },
-    dispose() {
-      canvas.removeEventListener("webglcontextlost", handleLost);
+    }
+    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    // Premultiplied colour, drawn over what is there: a dense stroke settles on
+    // its own colour instead of burning out to white, and the order of the
+    // particles does not change the picture much.
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearColor(0, 0, 0, 0);
+
+    const range = gl.getParameter(
+      gl.ALIASED_POINT_SIZE_RANGE,
+    ) as Float32Array | null;
+    let lost = false;
+    let width = 1;
+    let height = 1;
+    let pixel = 1;
+    const handleLost = () => {
+      // `preventDefault()` is NOT called: calling it asks the browser to restore
+      // the context, and the stage has decided the opposite (it takes the Canvas
+      // 2D path for the rest of the visit and never uses this context again), so
+      // a context that came back would belong to nobody. Left alone, the browser
+      // does not restore it.
       lost = true;
-      if (context.isContextLost()) return;
-      context.deleteBuffer(buffer);
-      context.deleteProgram(program);
-      // Hand the context back at once: a page may hold only a few.
-      context.getExtension("WEBGL_lose_context")?.loseContext();
-    },
-  };
+      onLost();
+    };
+    canvas.addEventListener("webglcontextlost", handleLost);
+    const context = gl;
+
+    const renderer: GlRenderer = {
+      canvas,
+      isLost: () => lost || context.isContextLost(),
+      fits: (pixelRatio) => pointSizeFits(range, maxPointCssPx() * pixelRatio),
+      resize(cssWidth, cssHeight, pixelRatio) {
+        width = cssWidth;
+        height = cssHeight;
+        pixel = pixelRatio;
+        const w = Math.max(1, Math.round(cssWidth * pixelRatio));
+        const h = Math.max(1, Math.round(cssHeight * pixelRatio));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+        context.viewport(0, 0, w, h);
+      },
+      upload(data) {
+        context.bindBuffer(context.ARRAY_BUFFER, buffer);
+        context.bufferData(context.ARRAY_BUFFER, data, context.STATIC_DRAW);
+      },
+      draw(frame) {
+        context.clear(context.COLOR_BUFFER_BIT);
+        context.uniform2f(uniform.uView, width, height);
+        context.uniform1f(uniform.uPixel, pixel);
+        context.uniform1f(uniform.uSplit, frame.split ? 1 : 0);
+        context.uniform1f(uniform.uE, frame.e);
+        context.uniform1f(uniform.uSwing, frame.swing);
+        context.uniform1f(uniform.uBand, frame.band ?? 0);
+        context.uniform1f(uniform.uBandOn, frame.band === null ? 0 : 1);
+        context.uniform1f(uniform.uGrow, SHIMMER_GROWTH);
+        context.uniform2f(
+          uniform.uFraction,
+          frame.fractions[0],
+          frame.fractions[1],
+        );
+        for (const [location, look] of [
+          [uniform.uLookFrom, frame.looks[0]],
+          [uniform.uLookTo, frame.looks[1]],
+        ] as const) {
+          context.uniform4f(
+            location,
+            look.brightPx,
+            look.dimPx,
+            look.brightAlpha,
+            look.dimAlpha,
+          );
+        }
+        context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
+        context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
+        context.drawArrays(context.POINTS, 0, frame.count);
+      },
+      dispose() {
+        canvas.removeEventListener("webglcontextlost", handleLost);
+        lost = true;
+        if (context.isContextLost()) return;
+        context.deleteBuffer(buffer);
+        context.deleteProgram(program);
+        // Hand the context back at once: a page may hold only a few.
+        context.getExtension("WEBGL_lose_context")?.loseContext();
+      },
+    };
+    finished = true;
+    return renderer;
+  } finally {
+    if (!finished) giveUp();
+  }
 }

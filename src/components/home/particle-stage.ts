@@ -62,7 +62,7 @@ import {
   phaseAt,
   sectionProgress,
 } from "@/lib/particles/timeline";
-import { type GlRenderer, createGlRenderer } from "./stage-gl";
+import { type GlRenderer, createGlRendererSteps } from "./stage-gl";
 import {
   type OutlineLayer,
   type Sprites,
@@ -248,6 +248,10 @@ class Stage {
   private needsMeasure = false;
   /** The first frame of the animated layout has gone by since `needsMeasure` was set (see `tick`). */
   private measureWaited = false;
+  /** How many of the measure's three parts (the rects and the particles; the upload; the outline and the notes) the frames since have done: while the reader has not scrolled they are one frame each. */
+  private measureStep = 0;
+  /** What the first part measured, for the third. */
+  private measured: { origin: DOMRect; handRect: Rect } | null = null;
   /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
   private budget = 0;
   private guard: GuardState = newGuard(0);
@@ -457,6 +461,7 @@ class Stage {
     this.measureAndBuild();
     this.needsMeasure = false;
     this.measureWaited = false;
+    this.measureStep = 0;
     this.dirty = true;
     this.redrawNow();
   }
@@ -526,6 +531,7 @@ class Stage {
     this.written = {};
     this.needsMeasure = false;
     this.measureWaited = false;
+    this.measureStep = 0;
     this.animated = false;
   }
 
@@ -619,6 +625,13 @@ class Stage {
 
   /** Read where the logo, the hand and the three mice are on the page now, and rebuild the particles for them. */
   private measureAndBuild(): void {
+    this.measureRects();
+    this.uploadSet();
+    this.measureLayout();
+  }
+
+  /** The first part of the measure: where the logo, the hand and the mice are, and the particles for them. */
+  private measureRects(): void {
     const { panel, hero, logo, handImg, mice } = this.parts;
     const origin = panel.getBoundingClientRect();
     // The hero moves up as it fades; the logo's place is where it rests.
@@ -627,13 +640,20 @@ class Stage {
     const logoRect = relative(logo.getBoundingClientRect(), origin);
     hero.style.transform = transform;
     const handRect = relative(handImg.getBoundingClientRect(), origin);
-    this.buildSet(
+    this.buildSetData(
       logoRect,
       handRect,
       mice.map((m) => relative(m.img.getBoundingClientRect(), origin)),
     );
-    this.buildOutline(handRect);
-    this.layoutNotes(handRect, origin);
+    this.measured = { origin, handRect };
+  }
+
+  /** The third part of the measure: the hand's outline and the notes' places, for the rects the first part found. */
+  private measureLayout(): void {
+    const measured = this.measured;
+    if (!measured) return;
+    this.buildOutline(measured.handRect);
+    this.layoutNotes(measured.handRect, measured.origin);
   }
 
   /** The hand's outline, drawn once for this size of hand and device pixel ratio. */
@@ -823,7 +843,10 @@ class Stage {
         // made, or kept, after `destroy`.
         await pause();
         if (this.destroyed) return;
-        this.chooseRenderer();
+        await this.chooseRenderer(async () => {
+          await pause();
+          if (this.destroyed) throw new Error("the stage was destroyed");
+        });
         await pause();
         if (this.destroyed) return;
         const layoutKind: MiceLayout = this.queries.wide.matches
@@ -899,18 +922,42 @@ class Stage {
     })();
   }
 
-  /** WebGL if the browser has it and the GPU can draw the points; otherwise the 2D path, for good. */
-  private chooseRenderer(): void {
+  /**
+   * WebGL if the browser has it and the GPU can draw the points; otherwise the
+   * 2D path, for good. The context, the shaders and the program are made a
+   * slice at a time (`pause` is awaited between them, and throws when the
+   * stage was destroyed: the context made so far goes back at once).
+   */
+  private async chooseRenderer(pause: () => Promise<void>): Promise<void> {
     if (this.destroyed) return;
     if (!this.gl && !this.glFailed) {
       let gl: GlRenderer | null = null;
-      try {
-        gl = this.glCanvas
-          ? createGlRenderer(this.glCanvas, this.onContextLost)
-          : null;
-      } catch {
-        // Anything the GL calls throw is the same as having no WebGL.
-        gl = null;
+      if (this.glCanvas) {
+        const steps = createGlRendererSteps(this.glCanvas, this.onContextLost);
+        try {
+          for (;;) {
+            let next: IteratorResult<void, GlRenderer | null>;
+            try {
+              next = steps.next();
+            } catch {
+              // Anything the GL calls throw is the same as having no WebGL.
+              break;
+            }
+            if (next.done) {
+              gl = next.value;
+              break;
+            }
+            await pause();
+          }
+        } finally {
+          // Closed before it was done (destroyed between two slices): the
+          // context made so far is handed back. A no-op once it is done.
+          steps.return(null);
+        }
+      }
+      if (this.destroyed) {
+        gl?.dispose();
+        return;
       }
       const pixelRatio = glCanvasScale(
         window.devicePixelRatio,
@@ -1028,15 +1075,39 @@ class Stage {
       // measure and the particles it rebuilds are a task of their own, one
       // frame later, so neither is long on a slow phone, unless the reader has
       // already scrolled: then the hand and the mice are wanted now.
-      if (!this.measureWaited && this.currentProgress() === 0) {
+      const idle = this.currentProgress() === 0;
+      if (!this.measureWaited && idle) {
         this.measureWaited = true;
         this.schedule();
         return;
       }
+      // Still at the top: the measure is spread over three frames, one part
+      // each (rects and particles; the upload; the outline and the notes), so
+      // no task of them is long on a slow phone (they were 85 to 110 ms in one
+      // go at 4 times the CPU). Nothing is drawn meanwhile: the canvas shows
+      // the logo, which is where it was. If the reader scrolls, what is left
+      // is done at once and drawn.
+      if (idle && this.measureStep < 3) {
+        try {
+          if (this.measureStep === 0) this.measureRects();
+          else if (this.measureStep === 1) this.uploadSet();
+          else this.measureLayout();
+        } catch {
+          this.deactivate();
+          return;
+        }
+        this.measureStep += 1;
+        this.schedule();
+        return;
+      }
+      const done = this.measureStep;
       this.needsMeasure = false;
       this.measureWaited = false;
+      this.measureStep = 0;
       try {
-        this.measureAndBuild();
+        if (done < 1) this.measureRects();
+        if (done < 2) this.uploadSet();
+        if (done < 3) this.measureLayout();
       } catch {
         this.deactivate();
         return;
