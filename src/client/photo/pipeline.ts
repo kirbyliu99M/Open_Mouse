@@ -7,26 +7,18 @@
  * rather than Vitest.
  */
 import { computeSheetLayout } from "../sheet/layout";
-import {
-  SHEET,
-  PAPER_SIZES_MM,
-  type PaperSize,
-} from "../../lib/contracts/measurement";
+import { SHEET, type PaperSize } from "../../lib/contracts/measurement";
 import {
   estimateHomography,
   reprojectionErrorMm as computeReprojectionErrorMm,
   applyHomography,
   type Point2,
 } from "../geometry/homography";
-import {
-  computeHandMeasurements,
-  computeCorrectedHandMeasurements,
-} from "../geometry/measurements";
+import { computeHandMeasurements } from "../geometry/measurements";
 import {
   computeCardScaleRatio,
   type CardCorners,
 } from "../geometry/card-scale";
-import { estimateFocalFromExif } from "../geometry/exif-focal";
 import { decodePhoto, PhotoDecodeError, HEIC_RETAKE_MESSAGE } from "./decode";
 import type { DecodedPhoto } from "./decode";
 import {
@@ -39,7 +31,6 @@ import { detectHandLandmarks } from "./landmarks";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
 import {
   runPhotoGates,
-  runPaperEdgeHandGates,
   checkMarkers,
   checkPaperFound,
   checkPaperCornersSeen,
@@ -48,7 +39,6 @@ import {
 } from "./gates";
 import {
   assembleScanSubmission,
-  assemblePaperEdgeSubmission,
   assembleUserLengthSubmission,
 } from "./submission";
 import { resolvePipelineHand, type HandDecision } from "./hand";

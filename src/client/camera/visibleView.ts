@@ -113,10 +113,9 @@ export function visibleRectInStream(
   };
 }
 
-/** `target` clamped to 1..`full`, and one pixel less when `full - target` is odd, so both margins are the same whole number. */
-function evenMarginSize(full: number, target: number): number {
-  const size = Math.min(full, Math.max(1, Math.floor(target)));
-  return (full - size) % 2 === 0 ? size : Math.max(1, size - 1);
+/** `target` rounded down and kept within 1..`full`. */
+function clampedSize(full: number, target: number): number {
+  return Math.min(full, Math.max(1, Math.floor(target)));
 }
 
 /**
@@ -198,7 +197,7 @@ export function visibleRectInStill(
       // The photo's middle with the stream's shape.
       const streamWide = stream.width / stream.height;
       if (still.width / still.height > streamWide) {
-        const width = evenMarginSize(still.width, still.height * streamWide);
+        const width = clampedSize(still.width, still.height * streamWide);
         container = {
           x: (still.width - width) / 2,
           y: 0,
@@ -206,7 +205,7 @@ export function visibleRectInStill(
           height: still.height,
         };
       } else {
-        const height = evenMarginSize(still.height, still.width / streamWide);
+        const height = clampedSize(still.height, still.width / streamWide);
         container = {
           x: 0,
           y: (still.height - height) / 2,

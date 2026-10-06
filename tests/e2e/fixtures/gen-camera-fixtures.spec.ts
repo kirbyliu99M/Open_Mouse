@@ -71,7 +71,17 @@ const HOMOGRAPHY: Homography = [
 // loop's 640px long edge) to land all 4 corners with the hand occluder in
 // place; see this file's own generation run for the numbers reported in
 // the PR.
-const PAPER_SCALE = 3.6;
+//
+// The easy scan looks only at the part of the stream that is ON SCREEN (the
+// stage shows it with object-fit: cover; src/client/camera/visibleView.ts):
+// on the fake phone's 390x844 screen that is the middle 601 columns of this
+// 1000x1300 frame (x 200 to 801), the whole height. So the sheet is drawn
+// 85 % as wide as that, the guide rectangle's own width (GUIDE_INSETS), and
+// not wider: 210 mm x 2.45 = 514 px of 601 (before this change it was 3.6,
+// 756 px, a sheet that is wider than what the screen shows and could be found
+// by a detector that looked at the whole frame, but not by one that looks at
+// the screen).
+const PAPER_SCALE = 2.45;
 const PAPER_TX = (CANVAS_WIDTH - A4_MM.width * PAPER_SCALE) / 2;
 const PAPER_TY = (CANVAS_HEIGHT - A4_MM.height * PAPER_SCALE) / 2 - 20;
 const PAPER_HOMOGRAPHY: Homography = [

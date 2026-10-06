@@ -87,7 +87,7 @@ test.describe("the camera is asked for the photo's shape", () => {
     expect(JSON.stringify(video)).not.toContain("1920");
   });
 
-  test("the debug panel says what the preview was compared with, and a takePhoto capture hands its preview's size to the pipeline", async ({
+  test("the live loop looks only at the part of the stream that is on screen, and a capture hands that part to the pipeline", async ({
     page,
   }, testInfo) => {
     test.skip(
@@ -106,8 +106,17 @@ test.describe("the camera is asked for the photo's shape", () => {
     });
     await page.goto("/scan/easy/live-measured-demo?debug=1");
     await page.getByRole("button", { name: "Got it" }).click();
+
+    // The fake camera's frame is 1000x1300 (paper-edge-full.y4m); the 390x844
+    // screen shows the middle 601 columns of it (390 / (844 / 1300)), x 200 to
+    // 801, the whole height. The detector is given exactly that, shrunk to 640
+    // on the long edge: 296x640. (Before, it was given the whole frame, 492x640.)
+    const live = page.getByTestId("debug-live-view");
+    await expect(live).toContainText(
+      "on screen 601×1300 of the stream at 200,0 · detector sees 296×640",
+      { timeout: 15_000 },
+    );
     const row = page.getByTestId("debug-fov");
-    // Filled in once the camera has answered the photo-size question.
     await expect(row).toContainText("preview", { timeout: 15_000 });
     await expect(row).toContainText(/photo \d\.\d{3}/);
     await expect(row).toContainText(/asked 1080×1440 \(0\.750\)/);
@@ -123,43 +132,147 @@ test.describe("the camera is asked for the photo's shape", () => {
     await expect
       .poll(async () => (await panel.textContent()) ?? "", { timeout: 5_000 })
       .toMatch(/Capture(takePhoto|canvas)/);
-    const method = /Capture(takePhoto|canvas)/.exec(
-      (await panel.textContent()) ?? "",
-    )![1];
     const input = (await page.evaluate(
       () =>
         (
           window as Window & {
-            __easyScanLiveCalls?: { previewFrame?: unknown }[];
+            __easyScanLiveCalls?: { previewView?: unknown }[];
           }
         ).__easyScanLiveCalls?.[0],
-    )) as { previewFrame?: { width: number; height: number } } | undefined;
+    )) as
+      | {
+          previewView?: {
+            stream: { width: number; height: number };
+            visibleInStream: {
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            };
+          };
+        }
+      | undefined;
     expect(input).toBeDefined();
-    if (method === "takePhoto") {
-      // The fake camera's frame is 1000x1300 (paper-edge-full.y4m).
-      expect(input!.previewFrame).toEqual({ width: 1000, height: 1300 });
-    } else {
-      // A canvas frame IS the preview: nothing to match.
-      expect(input!.previewFrame).toBeUndefined();
-    }
+    // For a takePhoto capture and for a canvas frame alike: both show the
+    // screen's part of the stream, and the pipeline crops to it.
+    expect(input!.previewView?.stream).toEqual({ width: 1000, height: 1300 });
+    const visible = input!.previewView!.visibleInStream;
+    expect(visible.x).toBeCloseTo(199.6, 0);
+    expect(visible.y).toBe(0);
+    expect(visible.width).toBeCloseTo(600.7, 0);
+    expect(visible.height).toBe(1300);
     await page.evaluate(() =>
       (window as Window & { __release?: () => void }).__release?.(),
     );
   });
-});
 
-test.describe("a photo that shows more than its preview did", () => {
-  test("is cropped to the preview's field of view inside the pipeline, and the paper is found in the crop", async ({
+  test("the auto-shutter waits until the preview has been asked for the photo's shape, and focus is asked for again after the size request", async ({
     page,
   }, testInfo) => {
     test.skip(
       testInfo.project.name !== "chromium-camera-paper-edge",
       "Needs the fake-camera project.",
     );
-    // The fake camera's preview is 1000x1300 (paper-edge-full.y4m). takePhoto
-    // is replaced by a still that is 2000x2100: much less elongated than the
-    // preview, so it shows more across. The sheet fills the middle of it, the
-    // part a 1000x1300 view of the same scene would show; the sides are desk.
+    // A camera that takes 2.2 s to say its photos are 16:9 (so the preview is
+    // asked again, in 16:9), supports continuous focus, and whose takePhoto
+    // fails (so the capture is a canvas frame). Everything the page does is
+    // written down with its time.
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __events?: { t: number; kind: string }[];
+      };
+      const events: { t: number; kind: string }[] = (w.__events = []);
+      const mark = (kind: string) =>
+        events.push({ t: performance.now(), kind });
+      class StubImageCapture {
+        async getPhotoCapabilities() {
+          await new Promise((resolve) => setTimeout(resolve, 2200));
+          mark("capabilities");
+          return { imageWidth: { max: 3840 }, imageHeight: { max: 2160 } };
+        }
+        async takePhoto(): Promise<Blob> {
+          throw new Error("use the canvas");
+        }
+      }
+      (window as unknown as { ImageCapture: unknown }).ImageCapture =
+        StubImageCapture;
+      const proto = MediaStreamTrack.prototype;
+      const realApply = proto.applyConstraints;
+      proto.applyConstraints = function (constraints) {
+        mark(constraints && "advanced" in constraints ? "focus" : "size");
+        return realApply.call(this, constraints).catch(() => undefined);
+      };
+      proto.getCapabilities = function () {
+        return {
+          focusMode: ["single-shot", "continuous"],
+        } as MediaTrackCapabilities;
+      };
+      const realSettings = proto.getSettings;
+      proto.getSettings = function () {
+        return { ...realSettings.call(this), pointsOfInterest: [] };
+      };
+      new MutationObserver(() => {
+        const stage = document.querySelector(".easyStage");
+        if (
+          stage?.getAttribute("data-phase") === "processing" &&
+          !events.some((event) => event.kind === "processing")
+        )
+          mark("processing");
+      }).observe(document, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["data-phase"],
+      });
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 30_000 },
+    );
+    const events = (await page.evaluate(
+      () =>
+        (window as Window & { __events?: { t: number; kind: string }[] })
+          .__events,
+    )) as { t: number; kind: string }[];
+    const at = (kind: string) => events.filter((e) => e.kind === kind);
+    const capabilities = at("capabilities")[0];
+    const processing = at("processing")[0];
+    expect(capabilities).toBeDefined();
+    expect(processing).toBeDefined();
+    // The shutter did not fire while the preview was still being set up: the
+    // scene is perfect from the first second and the ring needs 0.8 s, so
+    // without the wait the photo would be taken at about 1.2 s, not after 2.2 s.
+    expect(processing.t).toBeGreaterThan(capabilities.t);
+    // The track was asked for a size, once (16:9 is not 4:3; no swapped retry
+    // on top of that)...
+    const sizes = at("size");
+    expect(sizes).toHaveLength(1);
+    expect(sizes[0].t).toBeGreaterThan(capabilities.t);
+    // ...and then asked for continuous focus again, after it.
+    const focus = at("focus");
+    expect(focus.length).toBeGreaterThanOrEqual(2);
+    expect(focus[focus.length - 1].t).toBeGreaterThan(sizes[0].t);
+    expect(focus[0].t).toBeLessThan(capabilities.t);
+  });
+});
+
+test.describe("a photo that shows more than its preview did", () => {
+  test("is cropped to the part that was on screen inside the pipeline, and the paper is found in the crop", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-camera project.",
+    );
+    // The fake camera's preview is 1000x1300 (paper-edge-full.y4m) and the 390x844
+    // screen shows its middle 601 columns. takePhoto is replaced by a still that
+    // is 2000x2100: much less elongated than the preview, so it shows more
+    // across (the preview is the middle 1615 of its 2000 columns). The part on
+    // screen is therefore the middle 970 columns of the still, 515 in from each
+    // side; the sheet is drawn 85 % as wide as THAT (824 px), and the sides are desk.
     await page.addInitScript(() => {
       class StubImageCapture {
         async getPhotoCapabilities() {
@@ -173,8 +286,7 @@ test.describe("a photo that shows more than its preview did", () => {
           ctx.fillStyle = "#3a3a3d";
           ctx.fillRect(0, 0, 2000, 2100);
           ctx.fillStyle = "#f6f6f2";
-          // 1372 wide (85 % of the 1614-wide middle), A4-shaped, centred.
-          const w = 1372;
+          const w = 824;
           const h = Math.round((w * 297) / 210);
           ctx.fillRect((2000 - w) / 2, (2100 - h) / 2, w, h);
           return await new Promise<Blob>((resolve, reject) =>
@@ -200,20 +312,26 @@ test.describe("a photo that shows more than its preview did", () => {
     expect(attempt.method).toBe("takePhoto");
     expect(attempt.photo).toMatchObject({ width: 2000, height: 2100 });
     expect(attempt.preview).toMatchObject({ width: 1000, height: 1300 });
-    // The photo is much less elongated than the preview: a field-of-view mismatch.
+    // The photo is much less elongated than the preview: a field-of-view mismatch...
     expect(attempt.preview.fovMismatch).toBe(true);
     expect(attempt.preview.aspectDiff).toBeGreaterThan(0.2);
-    // Cropped to the preview's shape: 1000x1300 over a 2000x2100 photo is the
-    // middle 1614 columns (2100 / 1.3 = 1615, less the odd pixel), 193 in from each side.
+    // ...so the screen's part of the stream is carried over through the
+    // "the stream is a centred part of the photo" model, which holds here.
+    expect(attempt.view).toMatchObject({
+      stream: { width: 1000, height: 1300 },
+      model: "stream-in-still",
+      modelApplies: true,
+    });
+    expect(attempt.view!.visibleInStream!.width).toBeCloseTo(600.7, 0);
     expect(attempt.analysed.crop).toEqual({
-      x: 193,
+      x: 515,
       y: 0,
-      width: 1614,
+      width: 970,
       height: 2100,
     });
-    expect(attempt.analysed).toMatchObject({ width: 1614, height: 2100 });
+    expect(attempt.analysed).toMatchObject({ width: 970, height: 2100 });
     // The sheet was found in the crop, where it is 85 % of the width (it is
-    // 69 % of the whole photo's).
+    // 41 % of the whole photo's).
     expect(attempt.paper?.cornersSeen).toBe(4);
     expect(attempt.paper!.widthFraction).toBeGreaterThan(0.82);
     expect(attempt.paper!.widthFraction).toBeLessThan(0.88);
