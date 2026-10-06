@@ -211,13 +211,16 @@ test.describe("AC6: the debug panel", () => {
     );
     console.log(`AC6 debug JSON: ${JSON.stringify(json)}`);
     expect(Object.keys(json).sort()).toEqual([
+      "attempts",
       "capabilities",
       "capture",
       "focusApplied",
       "live",
+      "preview",
       "track",
       "userAgent",
     ]);
+    expect(Array.isArray(json.attempts)).toBe(true);
     expect(json.userAgent).toMatch(/Chrome/);
     expect(json.track).toMatchObject({ width: 1000, height: 1300 });
     expect(json.capabilities.focusMode).toEqual([]);
