@@ -459,10 +459,14 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     then an even scatter on the logo and on each mouse, so the stars at any
     share are evenly spaced beads and not clumps and gaps (the nearest
     neighbour's distance varies by 0.3 to 0.4 of its mean, against 0.6 to 0.9
-    for a random pick). It costs about 40 ms of CPU for 12,000 particles on a
-    desktop (30 ms for a phone's 6,000), in 300-pick slices of 7 ms or less,
-    while the page is still static, once per layout kind and budget; with the
-    CPU throttled 4× it is 0.2 to 0.3 s in slices of up to about 50 ms.
+    for a random pick). It is made in slices of 150 picks, while the page is
+    still static, once per layout kind and budget. Measured in the browser
+    with those slices (the dev server, headless Chromium, one run each, so a
+    rough figure): 12,000 particles take 58 ms of CPU in 35 slices, the
+    longest 14 ms (the first: its arrays and a cold start; the rest are 6 ms
+    or less); a phone-sized window's 6,000 take 35 ms in 23 slices, the
+    longest 9 ms; with the CPU throttled 4× they take 0.31 s and 0.18 s, in
+    slices of at most 28 ms and 25 ms.
   - **Look.** A star has the 2D look: a bright one about 6 px across with the
     soft glow of the 2D sprite, a dim one a small soft dot (`glLook`, which
     gets smaller and fainter the more particles crowd the sheet, applied to
@@ -473,6 +477,14 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     (`STAR_SIZE.logo`, 1.35, candidate): the 2D version topped the logo up
     with copies nudged by a pixel, five on every point, so a logo point
     glowed as a small clump; a single star of the same size reads thinner.
+  - **The first frame's stars.** The first frame is drawn before the hand's
+    and the mice's places are measured, so its look is worked out with the
+    hand's scale taken from the logo's box. After the first measure the scale
+    is the real one, and the logo's stars can change size once, by about 12 %
+    on a desktop's 12,000 particles (a review's estimate, not a figure I
+    measured; the pixel sizes it gave for a phone-sized window are 5.8 → 7.7
+    px). Whether that jump can be seen has not been looked at. It has been so
+    since the stars were first drawn, and has not been changed.
   - **Guard.** The lit particles come first in the order, so when the guard
     draws only the first N, the dust thins and the stars stay (until N is
     smaller than the stars: at the floor of a quarter of the budget, 3,000 of
@@ -621,10 +633,17 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   into the slices above. Not measured: a phone, other browsers, the loads of a
   page with a warm cache.
 
-- Main-thread work under about 8 ms per frame on a mid-range phone. The WebGL
-  path takes well under 1 ms per frame on the CPU (measured on a desktop with
-  the CPU throttled 4×, see the PR description). Measure this on a real phone
-  and post the number.
+- Main-thread work under about 8 ms per frame on a mid-range phone (the
+  target). What the probe script measured is the main thread's total task time
+  divided by the frames of a 2.4 s scroll: it includes the probe's own load
+  (about 1.9 ms a frame) and the page's layout and compositing, and it moves
+  with the number of frames, so it is a rough figure and not the WebGL path's
+  own cost. Desktop window: 0.23 ms a frame (165 Hz screen, before the stars)
+  and 0.45 to 0.86 ms (119 Hz screen, with the stars); with the CPU throttled
+  4×, 0.91 ms (165 Hz, before the stars). Phone-sized window, CPU throttled
+  4×: 0.65 to 1.64 ms (165 Hz, before the stars) and 4.6 to 4.7 ms (119 Hz,
+  with the stars). Not measured on a real phone: measure it there and post the
+  number.
 
 ### Reduced motion and no JS
 

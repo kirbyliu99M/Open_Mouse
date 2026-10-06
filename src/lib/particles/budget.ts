@@ -28,9 +28,12 @@ export type Renderer = "webgl" | "2d";
  *   is small (about 900 on a phone, 1,300 on a desktop): it is also what a
  *   device without WebGL, or whose WebGL fails, falls back to.
  * - The WebGL path moves the maths to the GPU and draws with one call. The
- *   numbers are Claude's candidate (未拍板) until Kirby picks from the 4,000 /
- *   8,000, 6,000 / 12,000 and 10,000 / 20,000 screenshots, and until a real
- *   phone has been measured: the GPU's fill cost on a phone is not measured.
+ *   numbers are Claude's candidate (未拍板): the budget now feeds the hand's
+ *   dust (the logo's and the mice's stars follow the lit shares in look.ts, not
+ *   the budget); the choice between 4,000 / 8,000, 6,000 / 12,000 and 10,000 /
+ *   20,000 is still open (the screenshots that were to decide it showed
+ *   continuous lines and are gone); and the GPU's fill cost on a phone has not
+ *   been measured.
  */
 export const PARTICLE_BUDGET_2D = { mobile: 900, desktop: 1300 } as const;
 export const PARTICLE_BUDGET_GL = { mobile: 6000, desktop: 12000 } as const;
