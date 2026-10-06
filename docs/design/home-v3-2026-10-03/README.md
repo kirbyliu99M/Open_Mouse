@@ -395,9 +395,9 @@ Everything else follows scroll.
 
 The WebGL stage (2026-10-05) moved the particles' drawing to the GPU. **Every
 number in this section is Claude's candidate (未拍板)**: the budgets, the
-pixel-ratio caps, the slow-frame guard and the point-size margin wait for
-Kirby's pick from the screenshots in `gl/` and for a measurement on a real
-phone. The measured numbers (in the PR description) are from a desktop GPU (an
+pixel-ratio caps, the lit shares of the stars, the slow-frame guard and the
+point-size margin wait for Kirby's pick from the screenshots in `gl/` and for a
+measurement on a real phone. The measured numbers (in the PR description) are from a desktop GPU (an
 RTX 5060 laptop) with the CPU throttled, so the CPU side and the shader's logic
 are measured and **a phone GPU's cost of filling the soft points is not**.
 
@@ -405,8 +405,8 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   - The context is made with `antialias: false`, `depth: false`,
     `premultipliedAlpha: true`, `powerPreference: "high-performance"`.
   - Each particle's three resting positions, its two swirl vectors, its tone at
-    each resting state and its shimmer x are made once per layout into one
-    interleaved `Float32Array` and sent with `STATIC_DRAW`
+    each resting state, its shimmer x and its rank (below) are made once per
+    layout into one interleaved `Float32Array` and sent with `STATIC_DRAW`
     (`src/lib/particles/gl-buffers.ts`). **Scrolling uploads nothing**: a frame
     sets a few uniforms and makes one `drawArrays(POINTS)`. A new layout (a
     resize) uploads again.
@@ -422,21 +422,68 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     dim one, and no state drawn below its look): the mode is for seeing better.
     The shimmer is in the shader too: it plays once, for at most 2.6 s (the
     `shimmerAt` timing, unchanged), and after it nothing is drawn or scheduled.
-  - **Look.** With five to ten times as many particles, a particle is smaller
-    and fainter (`glLook`, by how crowded the sheet is, not by the count), and
-    each state has a gain (the logo, one thin outline of all the particles,
-    fainter; a mouse, a third of them on a long sketch, stronger:
-    `STATE_GAIN`). The trade: the picture keeps its weight and gains
-    fineness, and the single sparks of the 2D look become strokes of beads. At
-    6,000 and above the logo and the mice read as continuous lines.
+  - **Stars and dust (2026-10-06, Kirby's pick).** The drawings are not dust:
+    the logo and the three mice are **a few hundred glowing stars each**, as
+    in the Canvas 2D version, and only **the hand keeps every particle**, as
+    a fine dust. A state lights a share of the particles, its **lit share**
+    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.06, the mice
+    0.15, the hand 1 (candidate, 未拍板). Every particle has a stable
+    **rank** (its place in the uploaded order as a share of the count, taken
+    at the middle of the place); a state lights the particles whose rank is
+    under its share, so a smaller share is a subset of a bigger one. On a
+    desktop's 12,000 particles that is 720 stars on the logo and 1,800 on the
+    mice (600 to a mouse); a phone's 6,000 has half as many. The
+    2D version drew about 1,300 particles on a desktop (433 to a mouse) and
+    900 on a phone, so 0.15 is about a third denser than the accepted picture
+    on a desktop and the same on a phone; 0.11 would match it on a desktop.
+    Kirby picks the share from the screenshots `gl/lit-options-*.png`: mice
+    0.08, **0.15 (the default)** and 0.25, with the logo at 0.03, 0.06 and 0.10.
+    The logo's share is lower because its stars sit on a short line (the 2D
+    version drew the logo as about 260 points).
+  - **Over a leg** a particle's visibility goes in a straight line, by the same
+    `e(t)` that moves it, from 1 or 0 (lit or not at the start of the leg) to
+    1 or 0 (at the end), with the ends exact: at `e ≤ 0` it is the start
+    state's value and at `e ≥ 1` the end state's (`litness`, the same formula
+    in TypeScript and in the shader). So in hand to mice about 85 % of the
+    dust fades out as it flows, and the rest condenses into the stars; in logo
+    to hand the dust fades in around the logo's stars as they spread. A
+    particle keeps the look of the end where it is lit (a particle that fades
+    out stays the dust it was; one that fades in is already the star it will
+    be), and one that is lit at both ends grows from dust to star by `e`.
+    A particle that is lit in neither end of a leg is not drawn at all.
+  - **Order.** The uploaded order is not a shuffle: it is built by
+    best-candidate sampling (`src/lib/particles/star-order.ts`; the leading
+    30 % of the order, the rest is a seeded shuffle): each next particle is
+    the farthest, of eight random candidates, from the particles already
+    chosen, on the logo and on its mouse at once. Every prefix of the order is
+    then an even scatter on the logo and on each mouse, so the stars at any
+    share are evenly spaced beads and not clumps and gaps (the nearest
+    neighbour's distance varies by 0.3 to 0.4 of its mean, against 0.6 to 0.9
+    for a random pick). It costs about 30 to 60 ms of CPU for 12,000 particles
+    on a desktop, in slices of a few ms while the page is still static, once
+    per layout kind and budget.
+  - **Look.** A star has the 2D look: a bright one about 6 px across with the
+    soft glow of the 2D sprite, a dim one a small soft dot (`glLook`, which
+    gets smaller and fainter the more particles crowd the sheet, applied to
+    **the number of particles the state lights**, not to the total: about
+    1,800 on a desktop's mice, close to the 1,300 the 2D look was tuned for,
+    so a star is not shrunk). The hand's dust is the same function with every
+    particle: about 2.7 px, faint. The logo's stars are a third bigger
+    (`STAR_SIZE.logo`, 1.35, candidate): the 2D version topped the logo up
+    with copies nudged by a pixel, five on every point, so a logo point
+    glowed as a small clump; a single star of the same size reads thinner.
+  - **Guard.** The lit particles come first in the order, so when the guard
+    draws only the first N, the dust thins and the stars stay (until N is
+    smaller than the stars: at the floor of a quarter of the budget, 3,000 of
+    12,000, the 1,800 stars of the mice are all still there).
 - **Overlay.** The A4 corners, the skeleton, the measurement lines with their
   end ticks and the 21 landmarks stay on Canvas 2D, on the canvas above the
   WebGL one: there are few of them.
 - **Fallback to Canvas 2D** (with the **old budget** and the old look): no
   WebGL; a shader that does not compile or link; a GPU whose largest point
   (`ALIASED_POINT_SIZE_RANGE`) is under the biggest point the stage draws (a
-  bright particle at the top of the shimmer's swell and the biggest gain, times
-  the pixel ratio) plus 24 px of room; a `webglcontextlost` while running (the
+  logo star at the top of the shimmer's swell, times the pixel ratio) plus 24
+  px of room; a `webglcontextlost` while running (the
   stage does not call `preventDefault()`, which would ask the browser to
   restore the context and leave a context nobody uses; it rebuilds for the 2D
   path at once and does not try WebGL again that visit). `data-renderer` on the section says `webgl` or
@@ -453,9 +500,12 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   | WebGL                | 6,000 |  12,000 | yes                                    |
   | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
 
-  Each is rounded down to a multiple of three (a third per mouse). Kirby picks
-  from three WebGL pairs, shown at p = 0.5 and 0.95 in `gl/budget-*.png`:
-  4,000 / 8,000, **6,000 / 12,000 (the default)** and 10,000 / 20,000.
+  Each is rounded down to a multiple of three (a third per mouse). The
+  budget feeds the hand's dust (every particle) and, through the lit shares
+  above, the number of stars. The earlier pick between 4,000 / 8,000,
+  **6,000 / 12,000 (the default)** and 10,000 / 20,000 was made on the picture
+  of continuous lines; with stars it is a pick of how fine the hand's dust is
+  (the stars follow the lit share, not the budget) and is still open.
 
 - **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
   capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
@@ -503,8 +553,9 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   still misses a vsync now and then (12.2 ms, over the 1.7 line), and 3 misses
   in 45 was enough to take particles from it. **The 8-in-60 bar is a candidate,
   to be checked on a real 60 Hz phone.** The particles are uploaded in a
-  shuffled order, so the first N are a fair sample and nothing is missing from
-  the logo, the hand or a mouse when fewer are drawn. `data-particles` is the
+  star order (above), so the first N are an even scatter on the logo and on every
+  mouse, and nothing is missing from the logo, the hand or a mouse when fewer
+  are drawn. `data-particles` is the
   budget, `data-drawn` what is drawn now and `data-refresh-ms` the estimate.
 - Stop drawing when nothing changes: no scroll and no shimmer. Pause when the
   stage is off-screen (IntersectionObserver) or the tab is hidden. There is no

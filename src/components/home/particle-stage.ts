@@ -18,12 +18,10 @@ import {
 } from "@/lib/particles/degrade";
 import {
   GL_FLOATS_PER_PARTICLE,
-  SHUFFLE_SEED,
   packParticles,
-  shuffleOrder,
 } from "@/lib/particles/gl-buffers";
 import { parseTargets } from "@/lib/particles/load-targets";
-import { glLook, legGain } from "@/lib/particles/look";
+import { legLook } from "@/lib/particles/look";
 import {
   type NoteShape,
   type NoteText,
@@ -53,6 +51,11 @@ import {
   pairingTables,
   writeParticles,
 } from "@/lib/particles/particle-set";
+import {
+  STAR_ORDER_SEED,
+  starOrder,
+  starOrderInSlices,
+} from "@/lib/particles/star-order";
 import {
   NOTE_COUNT,
   type Phase,
@@ -248,7 +251,7 @@ class Stage {
   /** The particle budget of the drawing path in use, and how many of them the WebGL path draws now (the guard only lowers it). */
   private budget = 0;
   private guard: GuardState = newGuard(0);
-  /** The order the particles are uploaded in (shuffled, so the first N are a fair sample), and the buffer they are packed into. */
+  /** The order the particles are uploaded in (the pairing's, evenly spread: the first N are an even scatter on every drawing, and the stars come first), and the buffer they are packed into. */
   private order: Uint32Array | null = null;
   private glData: Float32Array | null = null;
 
@@ -748,13 +751,15 @@ class Stage {
         density: this.renderer === "webgl" ? "dense" : "sparse",
       });
       this.pairingKey = key;
+      this.order =
+        this.renderer === "webgl"
+          ? starOrder(this.pairing, STAR_ORDER_SEED)
+          : null;
     }
     if (count !== this.budget) {
       this.budget = count;
       this.guard = guardForBudget(this.guard, count);
       this.frame = this.renderer === "2d" ? createFrame(count) : null;
-      this.order =
-        this.renderer === "webgl" ? shuffleOrder(count, SHUFFLE_SEED) : null;
       // For the e2e suite and for anyone checking the budget in the inspector.
       this.canvas.dataset.particles = String(count);
       this.canvas.dataset.drawn = String(count);
@@ -847,11 +852,30 @@ class Stage {
         if (renderer === this.renderer) {
           this.pairing = pairing;
           this.pairingKey = key;
+          this.order = null;
         }
         // Each particle's swing and direction, which no layout changes: its
         // own slice, so building the first layout's particles is not long.
         if (this.pairing) pairingTables(this.pairing, PARTICLE_SEED);
         await pause();
+        if (this.destroyed) return;
+        // The order the WebGL path keeps its particles in (the stars come
+        // first, evenly spread): a few slices of its own.
+        if (renderer === "webgl" && this.pairing === pairing) {
+          const order = await starOrderInSlices(
+            pairing,
+            STAR_ORDER_SEED,
+            async () => {
+              await pause();
+              if (this.destroyed) throw new Error("the stage was destroyed");
+            },
+          );
+          // The context may have been lost meanwhile: this order is then for
+          // a pairing the stage no longer uses.
+          if (this.pairing === pairing && this.renderer === "webgl") {
+            this.order = order;
+          }
+        }
         if (this.destroyed) return;
         // The first frame's set-up, in slices of its own (the WebGL canvas's
         // first resize alone can take a long while on a slow phone), while the
@@ -1096,8 +1120,12 @@ class Stage {
         band,
         count: this.guard.drawCount,
         glow: !this.queries.contrast.matches,
-        look: glLook(this.guard.drawCount, layout.hand.scale),
-        gain: legGain(leg.split),
+        ...legLook(
+          leg.split,
+          set.count,
+          this.guard.drawCount,
+          layout.hand.scale,
+        ),
       });
     } else if (this.frame) {
       writeParticles(set, phase, this.frame);

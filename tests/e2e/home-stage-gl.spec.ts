@@ -1,19 +1,27 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PARTICLE_SEED } from "../../src/lib/particles/budget";
 import { DEGRADE } from "../../src/lib/particles/degrade";
-import { SHUFFLE_SEED, shuffleOrder } from "../../src/lib/particles/gl-buffers";
 import { parseTargets } from "../../src/lib/particles/load-targets";
+import {
+  LIT_FRACTION,
+  legFractions,
+  litCount,
+  litness,
+  rankOf,
+} from "../../src/lib/particles/look";
 import { buildPairing } from "../../src/lib/particles/pairing";
 import {
   type StageLayout,
   buildParticleSet,
   createFrame,
   handBox,
+  legOf,
   logoBox,
   mouseBox,
   writeParticles,
 } from "../../src/lib/particles/particle-set";
+import { STAR_ORDER_SEED, starOrder } from "../../src/lib/particles/star-order";
 import { phaseAt } from "../../src/lib/particles/timeline";
 import {
   CANVAS,
@@ -165,6 +173,177 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
       }),
     [frames, dy],
   );
+
+/**
+ * What a lit star adds to the WebGL canvas, measured on this machine's
+ * software WebGL at 1280x800 and on a Pixel 7 (see the test that uses them).
+ * At the mice every star is a blob of its own except for a few that touch:
+ * 0.88 blobs per lit particle on a desktop and 1.00 on a phone. At the logo
+ * the stars sit closer, on a shorter line, and blur into one outline: there
+ * the canvas's total alpha (in px squared of the canvas, divided by the
+ * pixel ratio squared) per lit particle is 5.6 on a desktop and 5.8 on a
+ * phone. A bound is about 10 % either side of what was measured: a share of
+ * stars a quarter or more off (0.08 or 0.25 for the mice, 0.03 or 0.10 for
+ * the logo) is outside it, which the mutation checks of this suite showed.
+ */
+const STAR_BLOBS = { low: 0.8, high: 1.05 };
+/**
+ * The solid area (alpha 80 % or more) of the three mice at p = 0.95 as a
+ * multiple of the Canvas 2D version's. Measured: 1.8 on a desktop (1,800
+ * stars against 1,300 particles) and 0.8 on a phone (900 against 900, drawn
+ * at a pixel ratio of 1.5); the continuous line the stage drew before the
+ * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
+ */
+const MICE_SOLID = { low: 0.5, high: 3 };
+const LOGO_MASS = { low: 5.2, high: 6.2 };
+
+/**
+ * What the TypeScript maths says the WebGL stage draws, built for the layout
+ * the page has now: the particle set, the order and ranks (so which particles
+ * are lit in each state), and `expected(p)`, the positions at progress p.
+ */
+async function stageModel(page: Page) {
+  // Where the page put the logo, the hand and the three mice (at p = 0, where
+  // the hero has not moved): the layout the stage built its particles for.
+  const page_ = await page.evaluate(() => {
+    const panel = document.querySelector(".story-panel") as HTMLElement;
+    const origin = panel.getBoundingClientRect();
+    const rel = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: r.left - origin.left,
+        y: r.top - origin.top,
+        width: r.width,
+        height: r.height,
+      };
+    };
+    const canvas = document.querySelector(".story-canvas") as HTMLElement;
+    return {
+      width: panel.clientWidth,
+      height: panel.offsetHeight,
+      wide: matchMedia("(min-width: 48rem)").matches,
+      logo: rel(document.querySelector(".story-logo img")!),
+      hand: rel(document.querySelector(".story-hand img")!),
+      mice: [...document.querySelectorAll(".story-mouse")].map((figure) => ({
+        rect: rel(figure.querySelector("img")!),
+        sketch: (figure as HTMLElement).dataset.sketch ?? "",
+      })),
+      count: Number(canvas.dataset.particles),
+      drawn: Number(canvas.dataset.drawn),
+    };
+  });
+  const fallback = Object.keys(targets.mice)[0]!;
+  const sketches = page_.mice.map((m) =>
+    m.sketch in targets.mice ? m.sketch : fallback,
+  );
+  const pairing = buildPairing(targets, {
+    count: page_.count,
+    layout: page_.wide ? "row" : "stacked",
+    seed: PARTICLE_SEED,
+    mice: sketches,
+    density: "dense",
+  });
+  const layout: StageLayout = {
+    width: page_.width,
+    height: page_.height,
+    logo: logoBox(page_.logo),
+    hand: handBox(page_.hand, targets.hand.viewBox),
+    mice: page_.mice.map((m, slot) =>
+      mouseBox(m.rect, targets.mice[sketches[slot]!]!.width),
+    ),
+  };
+  const set = buildParticleSet(pairing, layout, PARTICLE_SEED);
+  const frame = createFrame(page_.count);
+  // The first `drawn` of the order are the particles on screen (all of them, unless the guard has stepped in).
+  const order = starOrder(pairing, STAR_ORDER_SEED);
+  const onScreen = Array.from(order.slice(0, page_.drawn));
+  const rankOfParticle = new Float64Array(page_.count);
+  order.forEach((particle, place) => {
+    rankOfParticle[particle] = rankOf(place, page_.count);
+  });
+
+  /**
+   * Where the TypeScript maths puts the particles at p, in CSS px (x, y, x,
+   * y, ...), in two lists: the ones that are all the way lit (`solid`: a
+   * star, or dust that has not begun to fade) and the ones that show at all
+   * (`possible`: lit at the start or at the end of the leg, so at least a
+   * little). At the start and at the end of a leg the two are the same list:
+   * the particles whose rank is under the state's lit share.
+   */
+  const expected = (p: number) => {
+    const phase = phaseAt(p);
+    writeParticles(set, phase, frame);
+    const leg = legOf(phase);
+    const [from, to] = legFractions(leg.split);
+    const solid: number[] = [];
+    const possible: number[] = [];
+    for (const i of onScreen) {
+      const shown = litness(rankOfParticle[i]!, from, to, leg.weights.e);
+      if (shown <= 0) continue;
+      const x = frame.xy[2 * i]!;
+      const y = frame.xy[2 * i + 1]!;
+      // The swirl takes some particles past the edge of the canvas (a phone's is
+      // narrow): they are not seen, so they are not compared.
+      if (x >= 0 && x < page_.width && y >= 0 && y < page_.height) {
+        possible.push(x, y);
+        if (shown >= 0.9) solid.push(x, y);
+      }
+    }
+    return { solid, possible };
+  };
+  return { page_, set, frame, order, onScreen, rankOfParticle, expected };
+}
+
+/** A second page of the same browser window on the Canvas 2D fallback (no WebGL context to be had), at the same size, past its shimmer. */
+async function twoDPage(page: Page, context: BrowserContext, contrast = false) {
+  const old = await context.newPage();
+  await recordStage(old);
+  await old.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...rest: unknown[]
+    ) {
+      if (/webgl/i.test(type)) return null;
+      return (getContext as (...args: unknown[]) => unknown).call(
+        this,
+        type,
+        ...rest,
+      );
+    } as typeof getContext;
+  });
+  if (contrast) await old.emulateMedia({ contrast: "more" });
+  await old.setViewportSize(page.viewportSize()!);
+  await old.goto("/");
+  await waitForAnimated(old);
+  await expect(old.locator(STORY)).toHaveAttribute("data-renderer", "2d");
+  await waitForShimmerOver(old);
+  return old;
+}
+
+/** Solid pixels (alpha 80 % or more) per CSS px squared of the canvas that draws the particles, and the brightest alpha. */
+const solidArea = (target: Page, webgl: boolean) =>
+  target.evaluate((useSnapshot) => {
+    const canvas = useSnapshot
+      ? ((window as unknown as Record<string, unknown>)
+          .__glSnapshot as HTMLCanvasElement)
+      : document.querySelector<HTMLCanvasElement>(".story-canvas")!;
+    const css = document
+      .querySelector(".story-canvas")!
+      .getBoundingClientRect();
+    const scale = canvas.width / css.width;
+    const { data } = canvas
+      .getContext("2d")!
+      .getImageData(0, 0, canvas.width, canvas.height);
+    let count = 0;
+    let brightest = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i]! >= 204) count += 1;
+      brightest = Math.max(brightest, data[i]!);
+    }
+    return { area: count / (scale * scale), brightest };
+  }, webgl);
 
 test.describe("the WebGL path", () => {
   test("WebGL is on in this environment: data-renderer is webgl (the WebGL tests below skip when it is not; this one does not, so a WebGL that is quietly broken turns the run red)", async ({
@@ -390,91 +569,27 @@ test.describe("the WebGL path", () => {
     await waitForShimmerOver(page);
     await scrollToProgress(page, 0);
 
-    // Where the page put the logo, the hand and the three mice (at p = 0, where
-    // the hero has not moved): the layout the stage built its particles for.
-    const page_ = await page.evaluate(() => {
-      const panel = document.querySelector(".story-panel") as HTMLElement;
-      const origin = panel.getBoundingClientRect();
-      const rel = (el: Element) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: r.left - origin.left,
-          y: r.top - origin.top,
-          width: r.width,
-          height: r.height,
-        };
-      };
-      const canvas = document.querySelector(".story-canvas") as HTMLElement;
-      return {
-        width: panel.clientWidth,
-        height: panel.offsetHeight,
-        wide: matchMedia("(min-width: 48rem)").matches,
-        logo: rel(document.querySelector(".story-logo img")!),
-        hand: rel(document.querySelector(".story-hand img")!),
-        mice: [...document.querySelectorAll(".story-mouse")].map((figure) => ({
-          rect: rel(figure.querySelector("img")!),
-          sketch: (figure as HTMLElement).dataset.sketch ?? "",
-        })),
-        count: Number(canvas.dataset.particles),
-        drawn: Number(canvas.dataset.drawn),
-      };
-    });
-    const fallback = Object.keys(targets.mice)[0]!;
-    const sketches = page_.mice.map((m) =>
-      m.sketch in targets.mice ? m.sketch : fallback,
-    );
-    const pairing = buildPairing(targets, {
-      count: page_.count,
-      layout: page_.wide ? "row" : "stacked",
-      seed: PARTICLE_SEED,
-      mice: sketches,
-      density: "dense",
-    });
-    const layout: StageLayout = {
-      width: page_.width,
-      height: page_.height,
-      logo: logoBox(page_.logo),
-      hand: handBox(page_.hand, targets.hand.viewBox),
-      mice: page_.mice.map((m, slot) =>
-        mouseBox(m.rect, targets.mice[sketches[slot]!]!.width),
-      ),
-    };
-    const set = buildParticleSet(pairing, layout, PARTICLE_SEED);
-    const frame = createFrame(page_.count);
-    // The first `drawn` of the shuffled order are the particles on screen (all of them, unless the guard has stepped in).
-    const onScreen = Array.from(
-      shuffleOrder(page_.count, SHUFFLE_SEED).slice(0, page_.drawn),
-    );
-
-    /** Where the TypeScript maths puts the particles on screen at p, in CSS px: x, y, x, y, ... */
-    const expected = (p: number) => {
-      writeParticles(set, phaseAt(p), frame);
-      const xy: number[] = [];
-      for (const i of onScreen) {
-        const x = frame.xy[2 * i]!;
-        const y = frame.xy[2 * i + 1]!;
-        // The swirl takes some particles past the edge of the canvas (a phone's is
-        // narrow): they are not seen, so they are not compared.
-        if (x >= 0 && x < page_.width && y >= 0 && y < page_.height) {
-          xy.push(x, y);
-        }
-      }
-      return xy;
-    };
+    const { page_, expected } = await stageModel(page);
 
     /**
      * What the WebGL canvas shows, read from its pixels (the copy `recordStage`
-     * keeps), set against `xy`. Brightness is left out on purpose: a bright
-     * particle, a dim one and a stack of ten on a stroke all weigh differently
-     * in light, so a centre of light is not a centre of particles. What does
-     * not depend on it is where the picture is lit at all:
+     * keeps), set against `solid` (the particles that are all the way lit) and
+     * `possible` (the ones that show at all). Brightness is left out on
+     * purpose: a bright particle, a dim one and a stack of ten on a stroke all
+     * weigh differently in light, so a centre of light is not a centre of
+     * particles. What does not depend on it is where the picture is lit at all:
      * - the box round everything lit (alpha 10 % or more: a lone dim particle
-     *   at the edge of the cloud is faint, and still has to be where it should);
-     * - the lit area in 4 px cells: its centre, and how well it covers the
-     *   cells the particles are in, and the other way round.
+     *   at the edge of the cloud is faint, and still has to be where it should)
+     *   holds the box round the solid particles and lies inside the possible
+     *   ones';
+     * - the lit area in 4 px cells: how well it covers the cells the solid
+     *   particles are in, the other way round for the possible ones, and (when
+     *   nearly every particle is lit, as in the hand: stars are a few dots of
+     *   different weights, whose centre of light is not the centre of the dots)
+     *   its centre.
      */
-    const compare = (xy: number[]) =>
-      page.evaluate((positions) => {
+    const compare = (lists: { solid: number[]; possible: number[] }) =>
+      page.evaluate(({ solid, possible }) => {
         const CELL = 4;
         const snapshot = (window as unknown as Record<string, unknown>)
           .__glSnapshot as HTMLCanvasElement;
@@ -507,15 +622,20 @@ test.describe("the WebGL path", () => {
             }
           }
         }
-        const made = new Set<number>();
-        for (let i = 0; i < positions.length; i += 2) {
-          made.add(
-            key(
-              Math.floor(positions[i]! / CELL),
-              Math.floor(positions[i + 1]! / CELL),
-            ),
-          );
-        }
+        const cellsOf = (positions: number[]) => {
+          const cells = new Set<number>();
+          for (let i = 0; i < positions.length; i += 2) {
+            cells.add(
+              key(
+                Math.floor(positions[i]! / CELL),
+                Math.floor(positions[i + 1]! / CELL),
+              ),
+            );
+          }
+          return cells;
+        };
+        const made = cellsOf(solid);
+        const could = cellsOf(possible);
         const cellOf = (k: number) =>
           [k % 100000, Math.floor(k / 100000)] as const;
         const centre = (cells: Set<number>) => {
@@ -540,7 +660,7 @@ test.describe("the WebGL path", () => {
         let madeAreLit = 0;
         for (const k of made) if (lit.has(k)) madeAreLit += 1;
         let litAreMade = 0;
-        for (const k of lit) if (near(made, k)) litAreMade += 1;
+        for (const k of lit) if (near(could, k)) litAreMade += 1;
         const [litX, litY] = centre(lit);
         const [madeX, madeY] = centre(made);
         return {
@@ -556,7 +676,7 @@ test.describe("the WebGL path", () => {
           litAreMade: litAreMade / lit.size,
           centreOff: [litX - madeX, litY - madeY] as const,
         };
-      }, xy);
+      }, lists);
 
     // A few CSS px: a particle is a soft dot a few px wide, so the lit area
     // reaches a little past the particles' own box. A wrong formula (a missing
@@ -564,12 +684,7 @@ test.describe("the WebGL path", () => {
     // fails every line below.
     const BOX = 4;
     const CENTRE = 3;
-    const seen: string[] = [];
-    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
-      await scrollToProgress(page, p);
-      await page.waitForTimeout(150);
-      const xy = expected(p);
-      const got = await compare(xy);
+    const boxOf = (xy: number[]) => {
       let x0 = Infinity;
       let y0 = Infinity;
       let x1 = -Infinity;
@@ -580,32 +695,176 @@ test.describe("the WebGL path", () => {
         y0 = Math.min(y0, xy[i + 1]!);
         y1 = Math.max(y1, xy[i + 1]!);
       }
+      return { x0, y0, x1, y1 };
+    };
+    const seen: string[] = [];
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      await scrollToProgress(page, p);
+      await page.waitForTimeout(150);
+      const lists = expected(p);
+      const got = await compare(lists);
+      const inner = boxOf(lists.solid);
+      const outer = boxOf(lists.possible);
+      // Mid-leg, the lit box holds the box of the particles that are all the
+      // way lit and lies inside the box of those that show at all (a particle
+      // that has almost faded is too faint to count); at the start and at the
+      // end of a leg the two boxes are one, and so it is the same box.
       const off = {
-        x0: +(got.box.x0 - x0).toFixed(2),
-        y0: +(got.box.y0 - y0).toFixed(2),
-        x1: +(got.box.x1 - x1).toFixed(2),
-        y1: +(got.box.y1 - y1).toFixed(2),
+        in0: +(got.box.x0 - inner.x0).toFixed(2),
+        in1: +(got.box.y0 - inner.y0).toFixed(2),
+        in2: +(got.box.x1 - inner.x1).toFixed(2),
+        in3: +(got.box.y1 - inner.y1).toFixed(2),
+        out0: +(got.box.x0 - outer.x0).toFixed(2),
+        out1: +(got.box.y0 - outer.y0).toFixed(2),
+        out2: +(got.box.x1 - outer.x1).toFixed(2),
+        out3: +(got.box.y1 - outer.y1).toFixed(2),
         cx: +got.centreOff[0].toFixed(2),
         cy: +got.centreOff[1].toFixed(2),
         madeAreLit: +got.madeAreLit.toFixed(3),
         litAreMade: +got.litAreMade.toFixed(3),
       };
-      const note = `p=${p} ${JSON.stringify(off)}`;
+      // Nearly every particle is lit and fully so: the hand's dust.
+      const dust =
+        lists.solid.length === lists.possible.length &&
+        lists.solid.length / 2 >= page_.drawn * 0.95;
+      const note = `p=${p} solid ${lists.solid.length / 2} of ${lists.possible.length / 2} ${JSON.stringify(off)}`;
       seen.push(note);
       expect(got.litCells, `p=${p}: something is drawn`).toBeGreaterThan(100);
-      for (const key of ["x0", "y0", "x1", "y1"] as const) {
-        expect(Math.abs(off[key]), `${key}: ${note}`).toBeLessThan(BOX);
+      expect(lists.solid.length, `p=${p}: ${note}`).toBeGreaterThan(200);
+      // The lit box starts no later than the solid box (plus a little) and
+      // ends no earlier...
+      expect(off.in0, note).toBeLessThan(BOX);
+      expect(off.in1, note).toBeLessThan(BOX);
+      expect(off.in2, note).toBeGreaterThan(-BOX);
+      expect(off.in3, note).toBeGreaterThan(-BOX);
+      // ...and starts no earlier than the outer box (less a little), and ends no later.
+      expect(off.out0, note).toBeGreaterThan(-BOX);
+      expect(off.out1, note).toBeGreaterThan(-BOX);
+      expect(off.out2, note).toBeLessThan(BOX);
+      expect(off.out3, note).toBeLessThan(BOX);
+      if (dust) {
+        for (const key of ["cx", "cy"] as const) {
+          expect(Math.abs(off[key]), `${key}: ${note}`).toBeLessThan(CENTRE);
+        }
       }
-      for (const key of ["cx", "cy"] as const) {
-        expect(Math.abs(off[key]), `${key}: ${note}`).toBeLessThan(CENTRE);
-      }
-      // Nearly every cell the maths puts a particle in is lit, and nearly
-      // everything lit is next to a particle.
+      // Nearly every cell the maths puts a solid particle in is lit, and
+      // nearly everything lit is next to a particle that shows.
       expect(off.madeAreLit, note).toBeGreaterThan(0.97);
       expect(off.litAreMade, note).toBeGreaterThan(0.98);
     }
     test.info().annotations.push({
       type: "differences (CSS px)",
+      description: seen.join("; "),
+    });
+  });
+
+  /** In the page: how many separate bright blobs the WebGL canvas holds (pixels of alpha 50 % or more that touch, 8 ways), and the sum of all its alpha (in whole pixels). */
+  const blobs = (page: Page) =>
+    page.evaluate(() => {
+      const snapshot = (window as unknown as Record<string, unknown>)
+        .__glSnapshot as HTMLCanvasElement;
+      const { data, width, height } = snapshot
+        .getContext("2d")!
+        .getImageData(0, 0, snapshot.width, snapshot.height);
+      const seen = new Uint8Array(width * height);
+      let count = 0;
+      let mass = 0;
+      for (let i = 0; i < width * height; i += 1) {
+        mass += data[i * 4 + 3]! / 255;
+      }
+      for (let start = 0; start < width * height; start += 1) {
+        if (seen[start] || data[start * 4 + 3]! < 128) continue;
+        count += 1;
+        const stack = [start];
+        seen[start] = 1;
+        while (stack.length) {
+          const at = stack.pop()!;
+          const x = at % width;
+          const y = (at - x) / width;
+          for (let dy = -1; dy <= 1; dy += 1) {
+            for (let dx = -1; dx <= 1; dx += 1) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+              const next = ny * width + nx;
+              if (seen[next] || data[next * 4 + 3]! < 128) continue;
+              seen[next] = 1;
+              stack.push(next);
+            }
+          }
+        }
+      }
+      return {
+        count,
+        mass,
+        scale:
+          width /
+          document.querySelector(".story-canvas-gl")!.getBoundingClientRect()
+            .width,
+      };
+    });
+
+  test("the stars are the particles the formula lights: at the logo and at the mice the number of bright blobs on the canvas follows the number of particles whose rank is under the state's share, so a wrong share (a different count of stars) fails", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    const model = await stageModel(page);
+    const seen: string[] = [];
+    // The mice at rest: each star is a blob of its own (their spacing is wider than a star's core). The logo's stars sit closer on a shorter line, so only the mice are counted blob by blob.
+    for (const p of [0, 0.95, 1]) {
+      await scrollToProgress(page, p);
+      await page.waitForTimeout(150);
+      const lit = model.expected(p).solid.length / 2;
+      const got = await blobs(page);
+      const ratio = got.count / lit;
+      seen.push(
+        `p=${p}: ${got.count} blobs, mass ${got.mass.toFixed(0)}, for ${lit} lit particles, ratio ${ratio.toFixed(3)}, mass per particle ${(got.mass / lit).toFixed(3)}`,
+      );
+      if (p === 0) {
+        const perParticle = got.mass / (got.scale * got.scale) / lit;
+        expect(perParticle, seen.at(-1)).toBeGreaterThan(LOGO_MASS.low);
+        expect(perParticle, seen.at(-1)).toBeLessThan(LOGO_MASS.high);
+        continue;
+      }
+      expect(lit, seen.at(-1)).toBeGreaterThan(400);
+      expect(ratio, seen.at(-1)).toBeGreaterThan(STAR_BLOBS.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(STAR_BLOBS.high);
+    }
+    test.info().annotations.push({
+      type: "star blobs per lit particle",
+      description: seen.join("; "),
+    });
+  });
+
+  test("the mice are stars, not a line: at p = 0.95 the solid area (alpha 80 % or more) is within the bounds measured against the Canvas 2D version's, never the 20 times and more of a continuous line", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    const old = await twoDPage(page, context);
+    const seen: string[] = [];
+    for (const p of [0.95]) {
+      await scrollToProgress(page, p);
+      await scrollToProgress(old, p);
+      await page.waitForTimeout(150);
+      const gl = await solidArea(page, true);
+      const flat = await solidArea(old, false);
+      const ratio = gl.area / flat.area;
+      seen.push(
+        `p=${p} webgl ${JSON.stringify(gl)} 2d ${JSON.stringify(flat)} ratio ${ratio.toFixed(2)}`,
+      );
+      expect(flat.area, seen.at(-1)).toBeGreaterThan(20);
+      expect(ratio, seen.at(-1)).toBeGreaterThan(MICE_SOLID.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(MICE_SOLID.high);
+    }
+    test.info().annotations.push({
+      type: "solid area of the mice, webgl over 2d",
       description: seen.join("; "),
     });
   });
@@ -965,6 +1224,33 @@ test.describe("the WebGL path", () => {
     // Every edge of the mark is where the image's is: a fraction of the
     // particles is a fair sample, not a piece of the logo.
     expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(3);
+  });
+
+  test("with the guard stepped down to its floor the stars are all still there: only the dust is thinner, because the lit particles come first in the order", async ({
+    page,
+  }) => {
+    const { refresh, slow, budget, drawn } = await guardPage(page);
+    const floor = Math.ceil(budget * 0.25);
+    await missFrames(page, { normal: refresh, slow, misses: "all" });
+    for (let chunk = 0; chunk < 80 && (await drawn()) > floor; chunk += 1) {
+      await scrollFrames(page, 10, 2);
+    }
+    await restoreClock(page);
+    expect(await drawn()).toBe(floor);
+    const model = await stageModel(page);
+    await scrollToProgress(page, 0.95);
+    await page.waitForTimeout(150);
+    const lit = model.expected(0.95).solid.length / 2;
+    // A quarter of the particles are drawn, and every star of the mice is among them.
+    expect(lit).toBe(litCount(LIT_FRACTION.mouse, budget, budget));
+    const got = await blobs(page);
+    const ratio = got.count / lit;
+    expect(ratio, `${got.count} blobs for ${lit} stars`).toBeGreaterThan(
+      STAR_BLOBS.low,
+    );
+    expect(ratio, `${got.count} blobs for ${lit} stars`).toBeLessThan(
+      STAR_BLOBS.high,
+    );
   });
 });
 

@@ -4,11 +4,10 @@ import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import {
   GL_FIELD,
   GL_FLOATS_PER_PARTICLE,
-  SHUFFLE_SEED,
   packParticles,
-  shuffleOrder,
 } from "@/lib/particles/gl-buffers";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { LIT_FRACTION, litCount, rankOf } from "@/lib/particles/look";
 import { buildPairing } from "@/lib/particles/pairing";
 import {
   type StageLayout,
@@ -20,6 +19,7 @@ import {
   mouseBox,
   writeParticles,
 } from "@/lib/particles/particle-set";
+import { STAR_ORDER_SEED, starOrder } from "@/lib/particles/star-order";
 import { phaseAt } from "@/lib/particles/timeline";
 
 const targets = parseTargets(
@@ -48,50 +48,15 @@ const pairing = buildPairing(targets, {
 });
 const set = buildParticleSet(pairing, layout, 7);
 
-describe("shuffleOrder", () => {
-  it("is a permutation of 0 to count - 1", () => {
-    const order = shuffleOrder(1000, SHUFFLE_SEED);
-    expect(order).toHaveLength(1000);
-    expect([...order].sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 1000 }, (_, i) => i),
-    );
-  });
-
-  it("is the same for the same seed and another for another seed", () => {
-    expect(Array.from(shuffleOrder(500, 1))).toEqual(
-      Array.from(shuffleOrder(500, 1)),
-    );
-    expect(Array.from(shuffleOrder(500, 1))).not.toEqual(
-      Array.from(shuffleOrder(500, 2)),
-    );
-  });
-
-  it("really shuffles: the first quarter is not the first quarter of the list", () => {
-    const order = shuffleOrder(1000, SHUFFLE_SEED);
-    const firstQuarter = Array.from(order.slice(0, 250));
-    const inPlace = firstQuarter.filter((i) => i < 250).length;
-    // A fair shuffle leaves about a quarter of them in the first quarter.
-    expect(inPlace).toBeGreaterThan(30);
-    expect(inPlace).toBeLessThan(100);
-  });
-
-  it("handles none and one, and refuses a count that is not a whole number", () => {
-    expect(shuffleOrder(0, 1)).toHaveLength(0);
-    expect(Array.from(shuffleOrder(1, 1))).toEqual([0]);
-    expect(() => shuffleOrder(-1, 1)).toThrow(RangeError);
-    expect(() => shuffleOrder(2.5, 1)).toThrow(RangeError);
-  });
-});
-
 describe("packParticles", () => {
-  const order = shuffleOrder(COUNT, SHUFFLE_SEED);
+  const order = starOrder(pairing, STAR_ORDER_SEED);
   const data = packParticles(set, order);
 
-  it("makes one interleaved buffer: 14 floats per particle", () => {
-    expect(GL_FLOATS_PER_PARTICLE).toBe(14);
+  it("makes one interleaved buffer: 15 floats per particle", () => {
+    expect(GL_FLOATS_PER_PARTICLE).toBe(15);
     expect(data).toBeInstanceOf(Float32Array);
-    expect(data).toHaveLength(COUNT * 14);
-    // Every field has its own floats: no two overlap, and they fill the 14.
+    expect(data).toHaveLength(COUNT * 15);
+    // Every field has its own floats: no two overlap, and they fill the 15.
     const fields = [
       [GL_FIELD.logo, 2],
       [GL_FIELD.hand, 2],
@@ -100,16 +65,17 @@ describe("packParticles", () => {
       [GL_FIELD.swirlSplit, 2],
       [GL_FIELD.tone, 3],
       [GL_FIELD.shimmerX, 1],
+      [GL_FIELD.rank, 1],
     ] as const;
     const used = fields.flatMap(([at, size]) =>
       Array.from({ length: size }, (_, i) => at + i),
     );
     expect(used.sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 14 }, (_, i) => i),
+      Array.from({ length: 15 }, (_, i) => i),
     );
   });
 
-  it("puts each particle's fields side by side, in the shuffled order", () => {
+  it("puts each particle's fields side by side, in the star order", () => {
     for (const j of [0, 1, 2, 500, COUNT - 1]) {
       const i = order[j]!;
       const at = j * GL_FLOATS_PER_PARTICLE;
@@ -141,10 +107,46 @@ describe("packParticles", () => {
         set.toneMouse[i],
       ]);
       expect(field(GL_FIELD.shimmerX, 1)).toEqual([set.shimmerX[i]]);
+      expect(field(GL_FIELD.rank, 1)).toEqual([Math.fround(rankOf(j, COUNT))]);
     }
   });
 
-  it("keeps the pairing: shuffling moves whole particles, so a particle is still the same one on the logo, the hand and its mouse", () => {
+  it("gives each particle its rank: its place as a share of the count, rising from the first to the last", () => {
+    let before = 0;
+    for (let j = 0; j < COUNT; j += 1) {
+      const rank = data[j * GL_FLOATS_PER_PARTICLE + GL_FIELD.rank]!;
+      expect(rank).toBeGreaterThan(before);
+      expect(rank).toBeLessThan(1);
+      before = rank;
+    }
+  });
+
+  it("lights the number of particles the look is worked out for: the ranks under each state's share are exactly litCount of them", () => {
+    for (const share of [0.08, 0.15, 0.25, LIT_FRACTION.logo, 1]) {
+      let lit = 0;
+      for (let j = 0; j < COUNT; j += 1) {
+        // The shader compares the float32 rank with the float32 share.
+        if (
+          data[j * GL_FLOATS_PER_PARTICLE + GL_FIELD.rank]! < Math.fround(share)
+        ) {
+          lit += 1;
+        }
+      }
+      expect(lit, `share ${share}`).toBe(litCount(share, COUNT, COUNT));
+    }
+  });
+
+  it("lights the first particles of the buffer, so the guard that draws the first N loses dust before it loses stars", () => {
+    const lit = litCount(LIT_FRACTION.mouse, COUNT, COUNT);
+    for (let j = 0; j < COUNT; j += 1) {
+      const rank = data[j * GL_FLOATS_PER_PARTICLE + GL_FIELD.rank]!;
+      expect(rank < Math.fround(LIT_FRACTION.mouse), `place ${j}`).toBe(
+        j < lit,
+      );
+    }
+  });
+
+  it("keeps the pairing: reordering moves whole particles, so a particle is still the same one on the logo, the hand and its mouse", () => {
     // Every particle of the set appears exactly once, with all of its fields.
     const seen = new Set<string>();
     for (let j = 0; j < COUNT; j += 1) {
@@ -180,7 +182,7 @@ describe("packParticles", () => {
     expect(seen).toEqual(original);
   });
 
-  it("at every progress, the shuffled buffer holds the positions the frame writer makes, particle for particle", () => {
+  it("at every progress, the buffer in star order holds the positions the frame writer makes, particle for particle", () => {
     const frame = createFrame(COUNT);
     for (const p of [0, 0.2, 0.38, 0.6, 0.8, 1]) {
       const phase = phaseAt(p);
@@ -253,13 +255,13 @@ describe("packParticles", () => {
       }
     }
 
-    // Without the shuffle it is not so: the pairing is sorted by x, so the
+    // Without the order it is not so: the pairing is sorted by x, so the
     // first quarter is only the left of the logo.
-    const unshuffled = packParticles(
+    const unordered = packParticles(
       set,
       Uint32Array.from({ length: COUNT }, (_, i) => i),
     );
-    const leftOnly = Math.max(...firstQuarterX(unshuffled, GL_FIELD.logo));
+    const leftOnly = Math.max(...firstQuarterX(unordered, GL_FIELD.logo));
     expect(leftOnly).toBeLessThan(Math.max(...xsOf(set.logo)) - 20);
   });
 

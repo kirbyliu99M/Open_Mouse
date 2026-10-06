@@ -1,0 +1,260 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
+import { parseTargets } from "@/lib/particles/load-targets";
+import { LIT_FRACTION } from "@/lib/particles/look";
+import {
+  type Pairing,
+  buildPairing,
+  MOUSE_COUNT,
+} from "@/lib/particles/pairing";
+import { mulberry32 } from "@/lib/particles/random";
+import {
+  STAR_CANDIDATES,
+  STAR_ORDER_SEED,
+  STAR_ORDER_SHARE,
+  starOrder,
+  starOrderInSlices,
+  starOrderSteps,
+} from "@/lib/particles/star-order";
+
+const targets = parseTargets(
+  JSON.parse(readFileSync(ARTIFACT_PATHS.targets, "utf8")),
+);
+
+const COUNT = 3000;
+const MICE = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+const pairing = buildPairing(targets, {
+  count: COUNT,
+  layout: "stacked",
+  seed: 7,
+  mice: MICE,
+  density: "dense",
+});
+const order = starOrder(pairing, STAR_ORDER_SEED);
+
+/** A seeded Fisher-Yates shuffle: what picking the stars at random would do. */
+function shuffled(count: number, seed: number): number[] {
+  const out = Array.from({ length: count }, (_, i) => i);
+  const random = mulberry32(seed);
+  for (let i = count - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+interface Spread {
+  /** The nearest neighbour's distance: its mean, its spread as a share of the mean, and its 5th percentile as a share of the mean (how close the closest pairs get). */
+  readonly mean: number;
+  readonly cv: number;
+  readonly closest: number;
+}
+
+/** How evenly `points` are spread: by the distance from each to its nearest neighbour. */
+function spreadOf(points: readonly { x: number; y: number }[]): Spread {
+  const nearest = points.map((a, i) => {
+    let best = Infinity;
+    points.forEach((b, j) => {
+      if (i === j) return;
+      const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+      if (d < best) best = d;
+    });
+    return Math.sqrt(best);
+  });
+  const mean = nearest.reduce((sum, d) => sum + d, 0) / nearest.length;
+  const sd = Math.sqrt(
+    nearest.reduce((sum, d) => sum + (d - mean) ** 2, 0) / nearest.length,
+  );
+  const sorted = [...nearest].sort((a, b) => a - b);
+  return {
+    mean,
+    cv: sd / mean,
+    closest: sorted[Math.floor(sorted.length * 0.05)]! / mean,
+  };
+}
+
+/** The first `lit` particles of `placing`, on the logo and on mouse 0 (each mouse is a drawing of its own). */
+function litOn(pairing: Pairing, placing: readonly number[], lit: number) {
+  const logo: { x: number; y: number }[] = [];
+  const mouse: { x: number; y: number }[] = [];
+  for (let place = 0; place < lit; place += 1) {
+    const i = placing[place]!;
+    logo.push(pairing.logo[i]!);
+    if (pairing.slot[i] === 0) mouse.push(pairing.mouse[i]!);
+  }
+  return { logo, mouse };
+}
+
+describe("starOrder", () => {
+  it("lists every particle once", () => {
+    expect(order).toBeInstanceOf(Uint32Array);
+    expect(order).toHaveLength(COUNT);
+    expect([...order].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: COUNT }, (_, i) => i),
+    );
+  });
+
+  it("is the same for the same pairing and seed, and another for another seed", () => {
+    expect(Array.from(starOrder(pairing, STAR_ORDER_SEED))).toEqual(
+      Array.from(order),
+    );
+    const other = starOrder(pairing, STAR_ORDER_SEED + 1);
+    expect(Array.from(other)).not.toEqual(Array.from(order));
+    expect([...other].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: COUNT }, (_, i) => i),
+    );
+  });
+
+  it("spreads the first particles evenly on the logo and on a mouse, much more evenly than a random pick, at every share the stars may use", () => {
+    const random = shuffled(COUNT, 99);
+    for (const share of [0.08, 0.15, 0.25]) {
+      const lit = Math.round(COUNT * share);
+      const stars = litOn(pairing, Array.from(order), lit);
+      const dots = litOn(pairing, random, lit);
+      for (const where of ["logo", "mouse"] as const) {
+        const even = spreadOf(stars[where]);
+        const chance = spreadOf(dots[where]);
+        const label = `${where} at ${share}`;
+        // A random pick's nearest-neighbour distances vary by 0.6 to 0.8 of
+        // their mean and the closest pairs sit at a tenth of it; the evenly
+        // spread order stays under 0.55 (0.3 to 0.5 measured; three
+        // candidates instead of eight give 0.58) and keeps its closest pairs
+        // apart.
+        expect(even.cv, label).toBeLessThan(0.55);
+        expect(even.cv, label).toBeLessThan(chance.cv * 0.8);
+        expect(even.closest, label).toBeGreaterThan(0.3);
+        expect(even.closest, label).toBeGreaterThan(chance.closest * 1.8);
+        // And the stars are not bunched at one end: the mean distance is the
+        // one a random pick would have, or more.
+        expect(even.mean, label).toBeGreaterThan(chance.mean);
+      }
+    }
+  });
+
+  it("gives each mouse its share of the first particles", () => {
+    for (const share of [0.08, 0.15, 0.25]) {
+      const lit = Math.round(COUNT * share);
+      const perSlot = [0, 0, 0];
+      for (let place = 0; place < lit; place += 1) {
+        perSlot[pairing.slot[order[place]!]!] += 1;
+      }
+      for (const count of perSlot) {
+        expect(count).toBeGreaterThan((lit / MOUSE_COUNT) * 0.8);
+        expect(count).toBeLessThan((lit / MOUSE_COUNT) * 1.2);
+      }
+    }
+  });
+
+  it("keeps the lit shares inside the part of the order that is spread evenly", () => {
+    const stars = Object.values(LIT_FRACTION).filter((share) => share < 1);
+    expect(Math.max(...stars)).toBeLessThanOrEqual(STAR_ORDER_SHARE);
+    // The shares the options in the screenshots offer.
+    expect(0.25).toBeLessThanOrEqual(STAR_ORDER_SHARE);
+    expect(STAR_CANDIDATES).toBeGreaterThan(1);
+  });
+
+  it("is also a fair sample of the rest: the guard draws the first N, and the first N reach every part of the logo and of a mouse", () => {
+    const quarter = Math.floor(COUNT / 4);
+    const bins = 10;
+    const histogram = (xs: number[], lo: number, hi: number) => {
+      const counts = new Array<number>(bins).fill(0);
+      for (const x of xs) {
+        const bin = Math.floor(((x - lo) / (hi - lo)) * bins);
+        counts[Math.min(bins - 1, Math.max(0, bin))] += 1;
+      }
+      return counts;
+    };
+    for (const points of [pairing.logo, pairing.mouse, pairing.hand]) {
+      const all = points.map((p) => p.x);
+      const lo = Math.min(...all);
+      const hi = Math.max(...all);
+      const whole = histogram(all, lo, hi);
+      const part = histogram(
+        Array.from(order.slice(0, quarter), (i) => points[i]!.x),
+        lo,
+        hi,
+      );
+      for (let bin = 0; bin < bins; bin += 1) {
+        if (whole[bin]! >= 100) {
+          expect(part[bin]!).toBeGreaterThan(whole[bin]! * 0.25 * 0.6);
+          expect(part[bin]!).toBeLessThan(whole[bin]! * 0.25 * 1.5);
+        }
+      }
+    }
+  });
+
+  it("handles a pairing of none, of one and of a few", () => {
+    for (const n of [0, 1, 3, 7]) {
+      const point = (i: number) => ({
+        x: i * 3,
+        y: (i * 7) % 5,
+        tone: 0 as const,
+      });
+      const small: Pairing = {
+        count: n,
+        layout: "row",
+        logo: Array.from({ length: n }, (_, i) => point(i)),
+        hand: Array.from({ length: n }, (_, i) => point(i)),
+        mouse: Array.from({ length: n }, (_, i) => point(i)),
+        slot: Array.from({ length: n }, (_, i) => i % MOUSE_COUNT),
+      };
+      const got = starOrder(small, 1);
+      expect([...got].sort((a, b) => a - b)).toEqual(
+        Array.from({ length: n }, (_, i) => i),
+      );
+    }
+  });
+
+  it("copes with particles on the same spot", () => {
+    const n = 90;
+    const same = { x: 5, y: 5, tone: 1 as const };
+    const stacked: Pairing = {
+      count: n,
+      layout: "row",
+      logo: Array.from({ length: n }, () => same),
+      hand: Array.from({ length: n }, () => same),
+      mouse: Array.from({ length: n }, () => same),
+      slot: Array.from({ length: n }, (_, i) => i % MOUSE_COUNT),
+    };
+    const got = starOrder(stacked, 1);
+    expect(new Set(got).size).toBe(n);
+  });
+});
+
+describe("starOrderSteps", () => {
+  it("runs in several short slices that add up to the same order", () => {
+    const steps = starOrderSteps(pairing, STAR_ORDER_SEED);
+    let slices = 0;
+    for (;;) {
+      const next = steps.next();
+      if (next.done) {
+        expect(Array.from(next.value)).toEqual(Array.from(order));
+        break;
+      }
+      slices += 1;
+    }
+    // 3,000 particles: 900 picked evenly in slices of 600, and the set-up.
+    expect(slices).toBeGreaterThanOrEqual(4);
+  });
+
+  it("waits for `pause` between the slices and gives the same order", async () => {
+    let pauses = 0;
+    const got = await starOrderInSlices(pairing, STAR_ORDER_SEED, async () => {
+      pauses += 1;
+    });
+    expect(Array.from(got)).toEqual(Array.from(order));
+    expect(pauses).toBeGreaterThanOrEqual(4);
+  });
+
+  it("stops at once when `pause` throws: the stage was destroyed", async () => {
+    let pauses = 0;
+    await expect(
+      starOrderInSlices(pairing, STAR_ORDER_SEED, async () => {
+        pauses += 1;
+        throw new Error("destroyed");
+      }),
+    ).rejects.toThrow("destroyed");
+    expect(pauses).toBe(1);
+  });
+});

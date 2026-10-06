@@ -1,9 +1,8 @@
 import { PALETTE, pointSizeFits } from "@/lib/particles/budget";
 import { GL_FIELD, GL_FLOATS_PER_PARTICLE } from "@/lib/particles/gl-buffers";
 import {
-  GAIN_SIZE_POWER,
-  SHIMMER_GROWTH,
   type GlLook,
+  SHIMMER_GROWTH,
   maxPointCssPx,
 } from "@/lib/particles/look";
 
@@ -24,6 +23,14 @@ import {
  * e >= 1 on `b`), the same as `interpolateAxis` in
  * src/lib/particles/interpolate.ts. Scrolling uploads nothing.
  *
+ * Which particles show: the drawings (the logo, the mice) light only the
+ * particles whose rank is under the state's lit share, and draw them as stars;
+ * the hand lights them all, as dust (look.ts). Over a leg a particle's
+ * visibility goes from its value at the start to its value at the end, by the
+ * same `e`, and it keeps the look of the end where it is lit, so a particle
+ * that fades out stays the dust it was and one that fades in is already the
+ * star it will be. `litness` in look.ts is the same formula.
+ *
  * `createGlRenderer` returns null for anything that should send the stage back
  * to Canvas 2D: no WebGL, a shader that does not compile or link, or a GPU
  * whose largest point is too small. Everything that touches the DOM, and the
@@ -38,6 +45,7 @@ attribute vec2 aSwirlForm;
 attribute vec2 aSwirlSplit;
 attribute vec3 aTone;
 attribute float aShimmerX;
+attribute float aRank;
 
 uniform vec2 uView;
 uniform float uPixel;
@@ -47,14 +55,28 @@ uniform float uSwing;
 uniform float uBand;
 uniform float uBandOn;
 uniform float uGrow;
-uniform vec4 uLook;
-uniform vec2 uGain;
+uniform vec2 uFraction;
+uniform vec4 uLookFrom;
+uniform vec4 uLookTo;
 uniform float uFlat;
 
 varying float vBright;
 varying float vAlpha;
 
 void main() {
+  // Lit at the start and at the end of the leg (rank under the state's share).
+  float litFrom = aRank < uFraction.x ? 1.0 : 0.0;
+  float litTo = aRank < uFraction.y ? 1.0 : 0.0;
+  float shown = uE <= 0.0 ? litFrom : (uE >= 1.0 ? litTo : litFrom + (litTo - litFrom) * uE);
+  if (shown <= 0.0) {
+    // Not lit anywhere on this leg's step: nothing to draw, and nothing to fill.
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 1.0;
+    vBright = 0.0;
+    vAlpha = 0.0;
+    return;
+  }
+
   bool split = uSplit > 0.5;
   vec2 a = split ? aHand : aLogo;
   vec2 b = split ? aMouse : aHand;
@@ -70,24 +92,25 @@ void main() {
     boost = exp(-d * d);
   }
   // A dim particle the band is on turns into a small bright one.
-  float lit = smoothstep(0.12, 0.5, boost);
-  // A state that is sparser on screen than another is drawn stronger: its gain.
-  float gain = mix(uGain.x, uGain.y, uE);
-  // prefers-contrast: more is for seeing better: no state is drawn fainter
-  // than the look says, and a dot is a solid disc no smaller than the 2D
-  // look's (a core 1.7 px across for a bright one, 1.4 px for a dim one).
-  if (uFlat > 0.5) gain = max(gain, 1.0);
-  float size = mix(uLook.y, uLook.x, tone);
-  size = max(size, uLook.x * 0.55 * lit);
+  float shine = smoothstep(0.12, 0.5, boost);
+  // Where a particle is lit it has that end's look; where it is not, it keeps
+  // the look of the other end (it is fading out of, or into, the other state).
+  vec4 lookFrom = litFrom > 0.5 ? uLookFrom : uLookTo;
+  vec4 lookTo = litTo > 0.5 ? uLookTo : uLookFrom;
+  vec4 look = mix(lookFrom, lookTo, uE);
+  // prefers-contrast: more is for seeing better: a dot is a solid disc no
+  // smaller than the 2D look's (a core 1.7 px across for a bright one, 1.4 px
+  // for a dim one), and no fainter.
+  float size = mix(look.y, look.x, tone);
+  size = max(size, look.x * 0.55 * shine);
   if (uFlat > 0.5) size = max(size, mix(1.7, 2.1, tone));
-  size *= (1.0 + uGrow * boost) * pow(gain, ${GAIN_SIZE_POWER.toFixed(2)});
-  float alpha = mix(uLook.w, uLook.z, tone);
-  alpha = max(alpha, uLook.z * min(1.0, 0.35 + boost) * lit);
-  alpha = min(1.0, alpha * gain);
+  size *= 1.0 + uGrow * boost;
+  float alpha = mix(look.w, look.z, tone);
+  alpha = max(alpha, look.z * min(1.0, 0.35 + boost) * shine);
   if (uFlat > 0.5) alpha = max(alpha, mix(0.72, 1.0, tone));
 
-  vBright = max(tone, lit);
-  vAlpha = alpha;
+  vBright = max(tone, shine);
+  vAlpha = alpha * shown;
   gl_PointSize = size * uPixel;
   gl_Position = vec4(pos.x / uView.x * 2.0 - 1.0, 1.0 - pos.y / uView.y * 2.0, 0.0, 1.0);
 }
@@ -160,13 +183,13 @@ export interface GlFrame {
   readonly swing: number;
   /** Where the shimmer's band is across the logo (0 to 1), or null when it is not playing. */
   readonly band: number | null;
-  /** How many particles to draw: the first `count` of the uploaded buffer. */
+  /** How many particles to draw: the first `count` of the uploaded buffer (the lit ones come first, so a thinned picture loses dust before stars). */
   readonly count: number;
   /** The halo round a bright particle; off for `prefers-contrast: more`, which draws solid discs no smaller or fainter than the 2D look's. */
   readonly glow: boolean;
-  readonly look: GlLook;
-  /** The gain of the state the leg starts in and of the one it ends in (`legGain`). */
-  readonly gain: readonly [number, number];
+  /** The share of the particles each end of the leg lights, and each end's look (`legLook`). */
+  readonly fractions: readonly [number, number];
+  readonly looks: readonly [GlLook, GlLook];
 }
 
 export interface GlRenderer {
@@ -208,8 +231,9 @@ const UNIFORMS = [
   "uBand",
   "uBandOn",
   "uGrow",
-  "uLook",
-  "uGain",
+  "uFraction",
+  "uLookFrom",
+  "uLookTo",
   "uFlat",
   "uGlow",
 ] as const;
@@ -222,6 +246,7 @@ const ATTRIBUTES: readonly (readonly [string, number, number])[] = [
   ["aSwirlSplit", 2, GL_FIELD.swirlSplit],
   ["aTone", 3, GL_FIELD.tone],
   ["aShimmerX", 1, GL_FIELD.shimmerX],
+  ["aRank", 1, GL_FIELD.rank],
 ];
 
 /**
@@ -348,14 +373,23 @@ export function createGlRenderer(
       context.uniform1f(uniform.uBand, frame.band ?? 0);
       context.uniform1f(uniform.uBandOn, frame.band === null ? 0 : 1);
       context.uniform1f(uniform.uGrow, SHIMMER_GROWTH);
-      context.uniform4f(
-        uniform.uLook,
-        frame.look.brightPx,
-        frame.look.dimPx,
-        frame.look.brightAlpha,
-        frame.look.dimAlpha,
+      context.uniform2f(
+        uniform.uFraction,
+        frame.fractions[0],
+        frame.fractions[1],
       );
-      context.uniform2f(uniform.uGain, frame.gain[0], frame.gain[1]);
+      for (const [location, look] of [
+        [uniform.uLookFrom, frame.looks[0]],
+        [uniform.uLookTo, frame.looks[1]],
+      ] as const) {
+        context.uniform4f(
+          location,
+          look.brightPx,
+          look.dimPx,
+          look.brightAlpha,
+          look.dimAlpha,
+        );
+      }
       context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
       context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
       context.drawArrays(context.POINTS, 0, frame.count);
