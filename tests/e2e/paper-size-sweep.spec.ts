@@ -71,7 +71,11 @@ async function runStep(
   await page.goto("/scan/easy?debug=1");
   const gotIt = page.getByRole("button", { name: "Got it" });
   if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
-  const before = (await readAttempts(page)).length;
+  // The log keeps 20, so each step starts from an empty one.
+  await page.evaluate(
+    (key) => window.localStorage.removeItem(key),
+    ATTEMPT_LOG_KEY,
+  );
   await page.locator("#easy-scan-upload").setInputFiles({
     name: `sweep-${Math.round(scale * 100)}.${mimeType === "image/png" ? "png" : "jpg"}`,
     mimeType,
@@ -79,7 +83,7 @@ async function runStep(
   });
   await expect
     .poll(async () => (await readAttempts(page)).length, { timeout: 120_000 })
-    .toBe(before + 1);
+    .toBe(1);
   const attempts = await readAttempts(page);
   const a = attempts[attempts.length - 1];
   return {
@@ -127,7 +131,13 @@ async function realScene(
 ): Promise<Buffer> {
   const base64 = await page.evaluate(
     async ({ b64, width, height, scale }) => {
-      const blob = await (await fetch(`data:image/jpeg;base64,${b64}`)).blob();
+      // Not fetch(data:...): the page's connect-src does not allow it.
+      const blob = new Blob(
+        [Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))],
+        {
+          type: "image/jpeg",
+        },
+      );
       const bitmap = await createImageBitmap(blob, {
         imageOrientation: "from-image",
       });
