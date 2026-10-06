@@ -148,6 +148,78 @@ test.describe("the camera is asked for the photo's shape", () => {
   });
 });
 
+test.describe("a photo that shows more than its preview did", () => {
+  test("is cropped to the preview's field of view inside the pipeline, and the paper is found in the crop", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-camera project.",
+    );
+    // The fake camera's preview is 1000x1300 (paper-edge-full.y4m). takePhoto
+    // is replaced by a still that is 2000x2100: much less elongated than the
+    // preview, so it shows more across. The sheet fills the middle of it, the
+    // part a 1000x1300 view of the same scene would show; the sides are desk.
+    await page.addInitScript(() => {
+      class StubImageCapture {
+        async getPhotoCapabilities() {
+          return { imageWidth: { max: 1300 }, imageHeight: { max: 1000 } };
+        }
+        async takePhoto() {
+          const canvas = document.createElement("canvas");
+          canvas.width = 2000;
+          canvas.height = 2100;
+          const ctx = canvas.getContext("2d")!;
+          ctx.fillStyle = "#3a3a3d";
+          ctx.fillRect(0, 0, 2000, 2100);
+          ctx.fillStyle = "#f6f6f2";
+          // 1372 wide (85 % of the 1614-wide middle), A4-shaped, centred.
+          const w = 1372;
+          const h = Math.round((w * 297) / 210);
+          ctx.fillRect((2000 - w) / 2, (2100 - h) / 2, w, h);
+          return await new Promise<Blob>((resolve, reject) =>
+            canvas.toBlob(
+              (blob) => (blob ? resolve(blob) : reject(new Error("no blob"))),
+              "image/jpeg",
+              0.92,
+            ),
+          );
+        }
+      }
+      (window as unknown as { ImageCapture: unknown }).ImageCapture =
+        StubImageCapture;
+    });
+    await page.goto("/scan/easy?debug=1");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 60_000,
+      })
+      .toBe(1);
+    const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    expect(attempt.method).toBe("takePhoto");
+    expect(attempt.photo).toMatchObject({ width: 2000, height: 2100 });
+    expect(attempt.preview).toMatchObject({ width: 1000, height: 1300 });
+    // The photo is much less elongated than the preview: a field-of-view mismatch.
+    expect(attempt.preview.fovMismatch).toBe(true);
+    expect(attempt.preview.aspectDiff).toBeGreaterThan(0.2);
+    // Cropped to the preview's shape: 1000x1300 over a 2000x2100 photo is the
+    // middle 1614 columns (2100 / 1.3 = 1615, less the odd pixel), 193 in from each side.
+    expect(attempt.analysed.crop).toEqual({
+      x: 193,
+      y: 0,
+      width: 1614,
+      height: 2100,
+    });
+    expect(attempt.analysed).toMatchObject({ width: 1614, height: 2100 });
+    // The sheet was found in the crop, where it is 85 % of the width (it is
+    // 69 % of the whole photo's).
+    expect(attempt.paper?.cornersSeen).toBe(4);
+    expect(attempt.paper!.widthFraction).toBeGreaterThan(0.82);
+    expect(attempt.paper!.widthFraction).toBeLessThan(0.88);
+  });
+});
+
 test.describe("the attempt log", () => {
   test.beforeEach(async ({ page }, testInfo) => {
     void page;
