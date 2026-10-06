@@ -41,8 +41,9 @@ export async function handleAccountScansList(
 
 /**
  * `DELETE /api/account/scans`. Deletes every scan this signed-in user owns,
- * across every session/device that was ever claimed into their account.
- * Irreversible; the `/account` UI gates this behind a confirmation dialog
+ * across every session/device that was ever claimed into their account, and
+ * withdraws every survey contribution they made (`repo.deleteAllScans`; the
+ * survey contract says this button must). Irreversible; the `/account` UI gates this behind a confirmation dialog
  * (docs/design-guidelines.md — modal tasks dim the background).
  */
 export async function handleAccountDeleteAll(

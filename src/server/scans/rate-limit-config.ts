@@ -18,6 +18,16 @@ export const FIT_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const FIT_RATE_LIMIT_MAX = 60;
 
 /**
+ * `POST` and `DELETE /api/survey`, one budget per client IP for both methods
+ * (key prefix `survey:`). A candidate (未拍板), like every number here: a person
+ * answers the questionnaire once per scan, so ten in ten minutes is generous
+ * for a household behind one address and still caps a script that tries to
+ * stuff the similar-hand answer with contributions from fresh scans.
+ */
+export const SURVEY_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+export const SURVEY_RATE_LIMIT_MAX = 10;
+
+/**
  * Structurally identical to `../analysis/handler.ts`'s `RateLimiter` —
  * duplicated here (rather than imported) so `scans`/`fit` don't take a
  * dependency on the `analysis` domain for a one-method interface; anything

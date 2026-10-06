@@ -31,6 +31,8 @@ export interface AccountRepo {
   /** Every scan across every `scan_sessions` row this user owns, newest first. */
   listScans(userId: string): Promise<AccountScan[]>;
   /** Deletes all of this user's `scan_sessions` rows (cascades to scans and
-   * measurements). Returns the number of scans removed. */
+   * measurements) AND withdraws every survey contribution they made
+   * (src/lib/contracts/survey.ts: "Delete everything" must withdraw it too),
+   * in one atomic operation. Returns the number of scans removed. */
   deleteAllScans(userId: string): Promise<number>;
 }

@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import {
@@ -30,6 +31,11 @@ import {
   SIZES,
 } from "../lib/contracts/descriptors";
 import { CALIBRATION_METHODS } from "../lib/contracts/measurement";
+import {
+  CONTRIBUTION_BIN_MM,
+  MAX_FEEDBACK_CHARS,
+  type PainPoint,
+} from "../lib/contracts/survey";
 
 // Infrastructure only, from M0. Proves the migration pipeline end to end.
 export const scaffoldChecks = pgTable("scaffold_checks", {
@@ -229,6 +235,17 @@ export const scans = pgTable("scans", {
   hand: handSideEnum("hand").notNull(),
   gripStyleStated: gripStyleEnum("grip_style_stated"),
   gripStylePredicted: gripStyleEnum("grip_style_predicted"),
+  /**
+   * Migration 0007: set once, when this scan's hand profile was contributed to
+   * the survey (`POST /api/survey`), which is what makes a second submission
+   * for the same scan a 409. It lives on the scan and goes with it. The
+   * contribution itself never points back here (see `surveyContributions`).
+   * Only `src/server/survey/drizzle-repo.ts` reads or writes it, so a scan read
+   * made before 0007 is applied does not touch the column.
+   */
+  surveyContributedAt: timestamp("survey_contributed_at", {
+    withTimezone: true,
+  }),
   createdAt: createdAt(),
 });
 
@@ -357,3 +374,153 @@ export const rateLimits = pgTable("rate_limits", {
   windowStart: bigint("window_start", { mode: "number" }).notNull(),
   count: integer("count").notNull(),
 });
+
+// --- Survey (migration 0007, contract: src/lib/contracts/survey.ts) -------
+//
+// Everything about names, lists, wording and thresholds here is a candidate
+// (未拍板) until Kirby confirms it.
+//
+// What these tables hold, and what they deliberately do not:
+//   - no `scan_id`, no `session_id`, no foreign key to `scans` or
+//     `scan_sessions`: a contribution survives the 24 h anonymous expiry and
+//     must not point back to the scan it came from. The only link in either
+//     direction is `scans.survey_contributed_at`, a mark on the scan that goes
+//     with it.
+//   - no timestamp finer than a day. The mark on the scan carries the exact
+//     instant, so an exact instant here would let anyone with database access
+//     match the contribution to the scan by time. `consented_at` is therefore
+//     the start of the UTC day (a CHECK enforces it) and there is no
+//     `created_at`.
+//   - `feedback` (free text) and `survey_other_mice.brand` (free text in
+//     contract v2, a pick from a fixed list in v3) are read by the maintainers
+//     only; no response schema carries either.
+//   - the answer lists (duration, pain points, main use, size feel) are plain
+//     text, not enums or CHECKs: the lists are candidates, and the contract's
+//     schema is what refuses a value outside them, so a list change is not a
+//     migration. The bin sizes, ranges and text lengths are stable shape and
+//     are CHECKed here. The comment length imports the contract's constant, so
+//     a contract change shows up as drift in `db:check`; the brand and the
+//     other short text columns have a sane length bound of their own that does
+//     not follow the contract (a brand is a short label whatever the contract
+//     says it is: free text up to 60 characters, or a slug).
+const BIN = sql.raw(String(CONTRIBUTION_BIN_MM));
+const SHORT_TEXT_MAX_CHARS = 60;
+
+export const surveyContributions = pgTable(
+  "survey_contributions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Set for a signed-in contributor only; null is an anonymous contribution. */
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    consentVersion: text("consent_version").notNull(),
+    /** Start of the UTC day on which the person ticked the consent. */
+    consentedAt: timestamp("consented_at", { withTimezone: true }).notNull(),
+    /** Hand length rounded DOWN to `CONTRIBUTION_BIN_MM`. */
+    handLengthBinMm: smallint("hand_length_bin_mm").notNull(),
+    /** Palm width rounded DOWN to `CONTRIBUTION_BIN_MM`. */
+    palmWidthBinMm: smallint("palm_width_bin_mm").notNull(),
+    gripStyle: gripStyleEnum("grip_style").notNull(),
+    mainUse: text("main_use"),
+    feedback: text("feedback"),
+  },
+  (t) => [
+    index("survey_contributions_user_id_idx").on(t.userId),
+    check(
+      "survey_contributions_bins",
+      // The ranges are the scan's own plausibility ranges
+      // (`scan_measurements_plausible`) rounded down to the bin.
+      sql`${t.handLengthBinMm} BETWEEN 100 AND 280 AND ${t.handLengthBinMm} % ${BIN} = 0 AND ${t.palmWidthBinMm} BETWEEN 50 AND 150 AND ${t.palmWidthBinMm} % ${BIN} = 0`,
+    ),
+    check(
+      "survey_contributions_consented_on_a_day",
+      sql`(${t.consentedAt} AT TIME ZONE 'UTC') = date_trunc('day', ${t.consentedAt} AT TIME ZONE 'UTC')`,
+    ),
+    check(
+      "survey_contributions_consent_version_set",
+      sql`char_length(${t.consentVersion}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      "survey_contributions_main_use_length",
+      sql`${t.mainUse} IS NULL OR char_length(${t.mainUse}) BETWEEN 1 AND 40`,
+    ),
+    check(
+      "survey_contributions_feedback_length",
+      sql`${t.feedback} IS NULL OR char_length(${t.feedback}) BETWEEN 1 AND ${sql.raw(String(MAX_FEEDBACK_CHARS))}`,
+    ),
+  ],
+);
+
+/**
+ * One person's rating of one catalogue mouse. `user_id` repeats the
+ * contribution's, so a signed-in person has at most one rating per mouse across
+ * every contribution (partial unique index) and a later one replaces it.
+ */
+export const surveyRatings = pgTable(
+  "survey_ratings",
+  {
+    contributionId: uuid("contribution_id")
+      .notNull()
+      .references(() => surveyContributions.id, { onDelete: "cascade" }),
+    mouseId: uuid("mouse_id")
+      .notNull()
+      .references(() => mice.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    satisfaction: smallint("satisfaction").notNull(),
+    duration: text("duration"),
+    // jsonb rather than text[]: the same HTTP-driver path `calibration_evidence`
+    // already uses, and the list is a candidate.
+    painPoints: jsonb("pain_points")
+      .$type<PainPoint[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    isCurrent: boolean("is_current").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.contributionId, t.mouseId] }),
+    uniqueIndex("survey_ratings_user_mouse_unique")
+      .on(t.userId, t.mouseId)
+      .where(sql`${t.userId} IS NOT NULL`),
+    index("survey_ratings_mouse_id_idx").on(t.mouseId),
+    check(
+      "survey_ratings_satisfaction_range",
+      sql`${t.satisfaction} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "survey_ratings_pain_points_array",
+      sql`jsonb_typeof(${t.painPoints}) = 'array'`,
+    ),
+  ],
+);
+
+/**
+ * A mouse that is not in the catalogue, as the person typed its brand. A
+ * signed-in person has one row per brand, matched ignoring case and
+ * surrounding spaces (partial unique index on the expression).
+ */
+export const surveyOtherMice = pgTable(
+  "survey_other_mice",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contributionId: uuid("contribution_id")
+      .notNull()
+      .references(() => surveyContributions.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    brand: text("brand").notNull(),
+    sizeFeel: text("size_feel").notNull(),
+    isCurrent: boolean("is_current").notNull().default(false),
+  },
+  (t) => [
+    index("survey_other_mice_contribution_id_idx").on(t.contributionId),
+    uniqueIndex("survey_other_mice_user_brand_unique")
+      .on(t.userId, sql`lower(btrim(${t.brand}))`)
+      .where(sql`${t.userId} IS NOT NULL`),
+    check(
+      "survey_other_mice_brand_length",
+      sql`char_length(${t.brand}) BETWEEN 1 AND ${sql.raw(String(SHORT_TEXT_MAX_CHARS))}`,
+    ),
+    check(
+      "survey_other_mice_size_feel_length",
+      sql`char_length(${t.sizeFeel}) BETWEEN 1 AND 40`,
+    ),
+  ],
+);

@@ -24,6 +24,7 @@ import {
   count,
   migratedDatabase,
   migrationStatements,
+  withSequentialBatch,
 } from "./fixtures/pglite";
 
 type CacheDb = Parameters<typeof createDrizzleAnalysisCache>[0];
@@ -163,9 +164,10 @@ describe("every scan deletion path removes the cached prose", () => {
 
   it("account deletion (deleteAllScans)", async () => {
     const { pg, db } = await withCachedScans();
-    await createDrizzleAccountRepo(db as unknown as AccountDb).deleteAllScans(
-      "user-1",
-    );
+    // `deleteAllScans` is one `db.batch` (it also withdraws survey contributions).
+    await createDrizzleAccountRepo(
+      withSequentialBatch<AccountDb>(db),
+    ).deleteAllScans("user-1");
     expect(await cachedRows(pg, SCAN_CLAIMED)).toBe(0);
     expect(await cachedRows(pg, SCAN_LIVE_1)).toBe(1);
   });
