@@ -849,6 +849,37 @@ describe("ranking: the prior is the neighbours' mean over the mice that clear th
     expect(ids(plain)).toEqual(["mouse-a", "mouse-b", "mouse-c"]);
   });
 
+  it("a prior above both means lets the smaller group's lower mean pass (the other direction)", () => {
+    // H: 50 people (ten 5s, forty 4s: mean 4.2). S: 2 people (4, 4: mean 4.0).
+    // T: 100 people (ninety 5s, ten 4s: mean 4.9), the third mouse that lifts
+    // the prior above both H and S.
+    //   prior g = (210 + 8 + 490) / 152 = 708 / 152 = 4.658
+    //   H = (210 + 4g) / 54 = 4.234   S = (8 + 4g) / 6 = 4.439
+    //   T = (490 + 4g) / 104 = 4.891
+    // so T, S, H, though by plain mean it is T (4.9), H (4.2), S (4.0).
+    const pool = [
+      ...crowd("h", "mouse-h", [...Array(10).fill(5), ...Array(40).fill(4)]),
+      ...crowd("s", "mouse-s", [4, 4]),
+      ...crowd("t", "mouse-t", [...Array(90).fill(5), ...Array(10).fill(4)]),
+    ];
+    const g = 708 / 152;
+    expect(shrunkScore(50, 4.2, g)).toBeCloseTo(4.2339, 4);
+    expect(shrunkScore(2, 4, g)).toBeCloseTo(4.4386, 4);
+    expect(shrunkScore(100, 4.9, g)).toBeCloseTo(4.8907, 4);
+
+    const res = parsed(similarHands(caller(), pool));
+    expect(ids(res)).toEqual(["mouse-t", "mouse-s", "mouse-h"]);
+    // What is shown is still each group's plain mean.
+    expect(res.available && res.mice.map((m) => m.meanSatisfaction)).toEqual([
+      4.9, 4, 4.2,
+    ]);
+    const plain = similarHands(caller(), pool, {
+      ...DEFAULT_SIMILAR_RULES,
+      priorWeight: 0,
+    });
+    expect(ids(plain)).toEqual(["mouse-t", "mouse-h", "mouse-s"]);
+  });
+
   it("a prior between two means leaves their order alone", () => {
     // `fewAndTen` alone: g = 4.667 is between 4.6 and 5.
     //   few = (2*5 + 4*4.667) / 6  = 4.778
@@ -1061,8 +1092,10 @@ describe("what a hidden rating cannot do", () => {
       // who each rate a mouse of their own with 4, and watches the order of
       // "few" and "ten" (the response never contains "secret"). Under a prior
       // over every rating of every mouse, the order flips at the first k that
-      // is 4s + 4 (4s + 3 is an exact tie, which goes to "ten", more raters),
-      // so each s has its own k, and the flip point gives s away. Here, for
+      // is 4s + 3 (there the two scores are an exact tie, and a tie goes to
+      // "ten", the mouse with more raters), so each s has its own k, and the
+      // flip point gives s away. The checks just below take 4s + 4, where "ten"
+      // is strictly ahead, and 4s + 2, where "few" still leads. Here, for
       // every s and every k, the whole answer must be the one for the pool
       // where "secret" was never rated.
       const premise = (s: number, k: number): number =>

@@ -86,10 +86,12 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  *     globalMean < 4.25. The tests work that pair: outranked at globalMean 3.0
  *     (3.667 against 4.143), not at 4.667 (4.778 against 4.619).
  *   - globalMean above both: the same pull works the other way, and a small
- *     group's lower mean can pass a larger group's higher one. With m = 4 and
- *     globalMean 5: 100 raters at 4.5 score 4.519 and 2 raters at 4.4 score
- *     4.8. With globalMean 4.3: 50 raters at 4.2 score 4.207 and 2 raters at
- *     4.1 score 4.233.
+ *     group's lower mean can pass a larger group's higher one. With m = 4: 50
+ *     raters (ten 5s and forty 4s, mean 4.2), two raters (two 4s, mean 4.0)
+ *     and, as a third mouse that lifts the prior, 100 raters (ninety 5s and ten
+ *     4s, mean 4.9). globalMean = 708 / 152 = 4.658; the 50 raters score 4.234
+ *     and the two raters score 4.439, so the group with the lower mean is
+ *     ahead. The tests work this example.
  * globalMean is a weighted mean of the plain means of the mice that clear the
  * floor, so it is between the lowest and highest of them: with exactly two such
  * mice it is between their two means and the order never reverses; a reversal

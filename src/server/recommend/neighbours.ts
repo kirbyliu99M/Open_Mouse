@@ -19,9 +19,9 @@
  *      `SIMILAR_MIN_PEOPLE` neighbours rated (a plain mean over ratings,
  *      whether or not that mouse makes the top `MAX_SIMILAR_MICE`). So every
  *      number that orders the list comes from an aggregate of two or more
- *      neighbours: the ratings of a mouse that is never listed, and of people
- *      who are not neighbours, move nothing. Ties go to more raters, then to
- *      the slug in code-unit order.
+ *      neighbours: the ratings of a mouse that fewer than `SIMILAR_MIN_PEOPLE`
+ *      neighbours rated, and of people who are not neighbours, move nothing.
+ *      Ties go to more raters, then to the slug in code-unit order.
  *   4. The floor `SIMILAR_MIN_PEOPLE` (contract): under it, neighbours are not
  *      enough, a mouse is not listed, and with nothing left to list the answer
  *      is `available: false`, never a guess.
@@ -33,9 +33,12 @@
  * who picks their own outline can subtract two answers one bin apart and
  * recover one rating (hands of 170, 175, 180, 190 mm rate 4, 5, 2, 1: at 180 mm
  * 4 raters, mean 3; at 175 mm 3 raters, mean 3.6667; 4*3 - 3*3.6667 = 1). The
- * floor does not stop it and the prior is not the cause. Options: probe limits,
- * fixed cells, a higher floor, a coarser mean. Until one is chosen, never claim
- * that a single contributor cannot be worked out.
+ * floor does not stop it and the prior is not the cause. A second known case
+ * is a mouse rated by exactly two neighbours, one of them an account the caller
+ * controls: its shown mean gives the other rating away (the contract already
+ * says a floor of two is not airtight). Options: probe limits, fixed cells, a
+ * higher floor, a coarser mean. Until one is chosen, never claim that a single
+ * contributor cannot be worked out.
  */
 import type { GripStyle } from "../../lib/contracts/fit";
 import {
