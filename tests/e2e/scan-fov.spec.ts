@@ -253,6 +253,7 @@ test.describe("the attempt log", () => {
       .toBe(1);
 
     const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    console.log(`ATTEMPT example: ${JSON.stringify(attempt)}`);
     expect(attempt.v).toBe(1);
     expect(attempt.method).toBe("upload");
     expect(attempt.photo).toMatchObject({ width: 1500, height: 2000 });

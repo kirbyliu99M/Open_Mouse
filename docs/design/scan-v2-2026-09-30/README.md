@@ -278,3 +278,144 @@ criterion; each item is a decision the build had to make or a thing it could not
 - **Not built (nice to have):** dragging the sheet to dismiss it; rounded photo corners.
 - **Motion budget.** Only `transform` and `opacity` animate, except the shutter ring's
   `stroke-dashoffset` (existing, unchanged).
+
+## Preview shape and attempt log (2026-10-06)
+
+Added after Kirby's first Android Chrome run (Samsung S25, 2026-10-06). Every number here is a
+**candidate**. The fix could not be run on that phone; Kirby retests after the merge and pastes
+back the debug JSON, which now carries the `attempts` array below.
+
+**What was seen.** The live preview was perfect (four corners, `perfect`, ring full, steady) and the
+analysis of the photo taken from it said Retake: no paper corners, no palm number. The debug numbers:
+preview stream 1080x1920 (9:16) at 60 fps, `takePhoto` photo 3000x4000 (3:4), 4.3 MB.
+
+**What it is thought to be (inferred from those numbers, not confirmed).** The preview asked for
+1920x1080, which a phone answers with its 16:9 video mode. In portrait that mode crops the sensor's
+left and right, while `takePhoto()` reads the whole 4:3 sensor. The photo then shows 4/3 as much across
+as the preview did (2250 of 3000 px): a sheet that fills the preview's width fills about 75 % of the
+photo's. The earlier comment on `resizeMode` only guarded against the browser's own crop-and-scale, not
+this.
+
+**What the build does**
+
+- **The preview is asked for in the photo's shape** (`previewConstraints.ts`, pure and unit tested).
+  The photo's shape is read from `new ImageCapture(track).getPhotoCapabilities()` (the largest
+  `imageWidth` over the largest `imageHeight`, long over short; 4:3 where the camera will not say or says
+  something outside 1:1 to 3:1). The first request is 4:3 (an `ImageCapture` needs a track to ask
+  anything), about 1080 on the short edge and never below 720: upright, `width 1080, height 1440,
+aspectRatio 0.75`; wide, `1440 x 1080, 1.333`. `resizeMode: { ideal: "none" }` stays. If the photo is
+  not 4:3 the running track is asked again with `applyConstraints` in the photo's shape.
+- **A mismatch is flagged.** After the stream starts, the track's own `getSettings()` shape is compared
+  with the photo's (long over short). More than 2 % apart sets `fovMismatch` (debug panel and attempt
+  log). 16:9 against 4:3 is +33 %.
+- **One more request when it still does not match.** A browser may read an upright request in the
+  sensor's wide orientation, so on a mismatch the same shape is asked for once with width and height
+  swapped. It is kept only if it is closer to the photo's shape (by more than half a percent) _and_ the
+  stream is still the right way round; otherwise the first request is put back. The debug panel says which.
+- **Insurance when the shape still does not match** (`fovCrop.ts`, `pipeline.ts`). A photo from
+  `takePhoto()` that shows more than its preview did is cropped, inside the pipeline right after decoding
+  and orientation and before any detection, to the middle of the photo with the preview's shape (the
+  same assumption the frozen photo's crop already makes: the preview is a centred part of the photo's
+  field of view). It is not applied to a canvas frame (that is the preview), an upload (no preview), a
+  preview that was the _wider_ view, or an upright photo with a wide preview. Parallax stays right
+  because (a) the EXIF focal length in pixels is worked out from the whole decoded photo's size, as
+  before (`analysisFrames`), since cropping does not change a focal length in pixels, and (b) the crop's
+  margins are equal to the pixel, so its centre, which is the principal point the correction uses, is the
+  whole photo's centre (tested). The overlay (paper corners, landmarks) is moved back into the whole
+  photo's pixels, so the frozen photo and the sheet are unchanged. For the S25 numbers: a 2250x3000 decoded
+  photo and a 1080x1920 preview crop to x 282, width 1686, the full height. In that crop a sheet that
+  filled the preview fills the crop. If a crop fails the whole photo is analysed.
+- **Gates are untouched.** `PAPER_EDGE_LIMITS`, `gates.ts` and `src/lib/contracts/` are as they were.
+
+**Attempt log** (`attemptLog.ts`, pure and unit tested; storage wrapped in try/catch).
+
+Every analysis, from the camera and from an uploaded file (and a re-run after the hand button), leaves
+one record in `localStorage` (`openMouse.easyScan.attempts.v1`), the newest 20 kept. Always on, not only
+with `?debug=1`: it is the only trace a failed scan leaves, and what it holds is the same few numbers the
+panel shows. A page without storage works the same and remembers nothing between reloads (the panel
+still lists this session's attempts). Nothing is sent anywhere and no image is stored: a record is
+rebuilt field by field from numbers, booleans and short strings (strings cut at 200 characters, data URLs
+taken out, lists capped), so there is no field a photo could go in; a unit test feeds it a 5 MB data URL
+and checks nothing of it survives. One real record (an uploaded synthetic photo, headless Chromium):
+
+```json
+{
+  "v": 1,
+  "at": "2026-10-06T10:46:09.482Z",
+  "method": "upload",
+  "photo": { "width": 1500, "height": 2000, "kb": 71 },
+  "preview": {
+    "width": null,
+    "height": null,
+    "aspectDiff": null,
+    "fovMismatch": null
+  },
+  "result": "error",
+  "errors": [
+    {
+      "code": "HAND_NOT_DETECTED",
+      "message": "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake."
+    }
+  ],
+  "warnings": [],
+  "paper": {
+    "cornersSeen": 4,
+    "widthFraction": 0.8,
+    "heightFraction": 0.8485,
+    "edgeFitResidualMm": 0.005,
+    "minSideCoverage": 0.7,
+    "gateFailures": []
+  },
+  "sharpness": 96.05,
+  "hand": { "detected": false, "confidence": null, "handedness": null },
+  "analysed": { "width": 1500, "height": 2000, "crop": null },
+  "parallaxCorrected": null,
+  "timingMs": { "decode": 62, "paper": 304, "hand": 627, "total": 1203 },
+  "userAgent": "Android 14; Pixel 7 · Chrome/153"
+}
+```
+
+`errors` lists every error the pipeline reported. `paper.gateFailures` lists the paper gates that failed
+even where the result reported another error first (a photo with no hand reports only that).
+`paper.widthFraction` and `heightFraction` are the sheet's share of the analysed picture (the same
+measure as the live cue's width fraction); `edgeFitResidualMm` and `minSideCoverage` are the two numbers
+`PAPER_CURLED` and `PAPER_EDGE_HIDDEN` are decided on. `preview` and `analysed.crop` say whether the photo
+and its preview showed the same field of view and whether the photo was cropped.
+
+**Debug panel.** `Preview vs photo` (what was asked for, the photo's shape and where it came from, the
+preview's shape, the difference, the flag, and whether a second request or the swapped retry was made)
+and `Attempts` (newest first, one line each). "Copy JSON" now carries a `preview` block and the
+`attempts` array, one record to a line.
+
+**Sheet size against the paper gates** (`tests/e2e/paper-size-sweep.spec.ts`, opt-in, run by hand).
+Photos of 3000x4000 (the S25's `takePhoto` size) uploaded through the real `/scan/easy`, the sheet at a
+fraction of the "fills the frame" size ("100 %" is 92 % as tall as the photo, 86.7 % as wide), 100 % down
+to 50 % in 5 % steps. Synthetic scene (`paper-scene.ts`): the paper gates pass at every step (residual
+0.003 to 0.051 mm against a limit of 1.5; coverage 0.70 against 0.4). A drawn "hand" is not detected, so
+every row's reported error is `HAND_NOT_DETECTED`, and no synthetic photo can reach `ok`. A real hand photo
+of Kirby's (not committed), shrunk inside a plain desk-coloured frame, as he did by hand:
+
+| sheet scale | width % of photo | residual mm | min coverage | result                         |
+| ----------- | ---------------- | ----------- | ------------ | ------------------------------ |
+| 100 %       | -                | -           | -            | `PAPER_NOT_FOUND`              |
+| 95 %        | 71.4             | 0.655       | 0.47         | ok                             |
+| 90 %        | 67.6             | 0.517       | 0.47         | ok                             |
+| 85 %        | 63.9             | 0.506       | 0.50         | ok                             |
+| 80 %        | 60.1             | 0.483       | 0.50         | ok                             |
+| 75 %        | 56.4             | 0.365       | 0.35         | `PAPER_EDGE_HIDDEN`            |
+| 70 %        | 52.6             | 0.364       | 0.33         | `PAPER_EDGE_HIDDEN`            |
+| 65 %        | 48.9             | 0.370       | 0.33         | `PAPER_EDGE_HIDDEN`            |
+| 60 %        | -                | -           | -            | `PAPER_NOT_FOUND`              |
+| 55 %        | 41.3             | 0.673       | 0.35         | `PAPER_EDGE_HIDDEN`            |
+| 50 %        | 37.5             | 0.940       | 0.40         | ok (coverage exactly at limit) |
+
+What this does and does not say: with that one photo the result depends on the sheet's share of the
+photo, as Kirby saw (it measures from 95 % down to 80 %, a paper-edge gate fails from 75 % down), but not
+monotonically (50 % passes; 60 % and 100 % do not find the sheet at all), and the minimum side coverage
+sits close to its limit of 0.4 throughout (0.33 to 0.50), because the hand covers one edge. So the
+coverage gate is marginal for this photo at every size, rather than size alone deciding it. It is one
+photo of a printed page, not a blank sheet. The guidance's smallest accepted sheet is 55 % of the preview
+width (`CAMERA_CONSTANTS.size.minWidthFraction`); with the preview and the photo in the same shape that is
+a sheet 55 % as wide as the photo, which in this table is a failing size. Before the fix the same sheet
+was only 41 % as wide in the S25's photo. No gate and no guidance threshold was changed; whether either
+should be is Claude's call.
