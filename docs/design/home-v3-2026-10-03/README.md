@@ -545,7 +545,12 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   a reader who scrolls in short bursts; a device that is slow all the time is
   still slow in every gap after those five. A long gap inside a running loop is
   a real hitch and counts as one slow frame (a single stall is one of the eight
-  it takes). The screen's refresh interval is the median of the first 40 gaps
+  it takes). **Nothing is counted before the first scroll** (`armGuard`, called
+  by the stage's scroll handler once the page has moved): the page's own first
+  frames, with the shimmer at the top, are not the reader's (the browser is
+  still starting the page, a dev server may be compiling beside it); they still
+  teach the guard the screen's interval and set its clock, but are not in its
+  window. Arming is a restart, so the grace above applies to it too. The screen's refresh interval is the median of the first 40 gaps
   (the shimmer runs every frame) **and never more than 16.7 ms**, so a device
   that is slow from its first frame does not take its own slow frames for the
   screen's pace (a screen that truly runs at 30 Hz, a phone in low-power mode,
@@ -574,10 +579,48 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   module is a dynamic import after first paint, so it doesn't delay LCP. The
   LCP element is the logo `<img>` or the h1; both are in the initial HTML, and
   the logo SVG is small and not lazy-loaded. The first frame is set up in
-  slices (the drawing path, the pairing, the canvases' sizes, the first
-  particles), one task each, while the page is still the static one; the task
-  that switches the layout only draws the first frame and flips the class. The
-  real measure of the animated layout is the first frame's job.
+  slices, one task each, while the page is still the static one: the WebGL
+  context, each shader and the link; the densifying of the logo and of each
+  mouse (every 1,500 particles), their sorts, the hand's fill (every 1,500),
+  the pairing's own steps, the swing tables (every 2,000), the star order
+  (every 150 picks), the canvases' sizes and the first particles; the task that
+  switches the layout only draws the first frame and flips the class. The real
+  measure of the animated layout is the first frame's job, and while the reader
+  has not scrolled it is spread over three frames (the rects and the particles;
+  the upload; the hand's outline and the notes), so none of its parts is a long
+  task on a slow phone.
+- **Load-time long tasks, A/B against main (2026-10-07).** The same page load,
+  alternately main (`68cbf60`) and this branch, 16 loads each, one after the
+  other (main first on the odd, this branch first on the even), production
+  builds, the same headed Chromium window (1280×800, device pixel ratio 1, the
+  CPU throttled 4×, a 165 Hz screen in every run, 6.1 ms a frame), a long task
+  being a task of 50 ms or more (`PerformanceObserver`, from the start of the
+  document to 2.5 s after the network went idle):
+
+  |                                                                           |      main | this branch |
+  | ------------------------------------------------------------------------- | --------: | ----------: |
+  | long tasks, count: median / p95                                           |     3 / 4 |       4 / 5 |
+  | long tasks, total ms: median / p95                                        | 710 / 795 |   692 / 782 |
+  | the first one (the page's own hydration, 400 to 550 ms), ms: median / p95 | 438 / 500 |   418 / 507 |
+  | long tasks after it, count: median / p95                                  |     2 / 3 |       3 / 4 |
+  | long tasks after it, total ms: median / p95                               | 275 / 347 |   256 / 293 |
+  | the longest one after it, ms: median / p95                                | 214 / 231 |    93 / 100 |
+
+  **One more long task than main** (4 against 3), and together they weigh about
+  the same (a little less). What changed is their shape: main has one task of
+  190 to 235 ms (its stage chunk, with 42 to 78 ms of forced layout) and one or
+  two of 50 to 60 ms; this branch has none over about 100 ms, and three of 50 to
+  100 ms. Where the three come from (Long Animation Frames): the WebGL canvas's
+  first resize (a `MessagePort` slice of 93 to 95 ms, which cannot be cut: it is
+  one assignment of the canvas's size), a frame whose style and layout take 50
+  ms with a 13 ms callback (the layout switch, which main has too), and a frame
+  callback of 70 ms with 8 ms of forced layout (the first draw after the
+  measure). The chunk's own evaluation is a 48 to 62 ms task in some loads
+  (main's is the 190 to 235 ms one). The loads before the slicing (6 to 8 long
+  tasks of 50 to 135 ms against main's 3 to 4) are why the start-up work is cut
+  into the slices above. Not measured: a phone, other browsers, the loads of a
+  page with a warm cache.
+
 - Main-thread work under about 8 ms per frame on a mid-range phone. The WebGL
   path takes well under 1 ms per frame on the CPU (measured on a desktop with
   the CPU throttled 4×, see the PR description). Measure this on a real phone
