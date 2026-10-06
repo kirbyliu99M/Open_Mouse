@@ -20,7 +20,12 @@
  *   - the shape of the reset token (`RESET_TOKEN_PATTERN`: the spec says a
  *     random token of at least 32 bytes, stored only as its SHA-256; the
  *     encoding, base64url, and the upper bound of 128 characters are Claude's
- *     choice).
+ *     choice);
+ *   - what the spec does not say and these schemas add: the character
+ *     refusals below (control, format and separator characters, lone
+ *     surrogates) in the sign-in username and the reset identifier, the trim
+ *     of the identifier (the spec says "as typed, at most 254 characters"),
+ *     and that sign-in drops unknown keys.
  *
  * What the schemas do, so that nobody re-implements it:
  *   - A username is trimmed and lower-cased by the schema: the parsed value is
@@ -33,11 +38,13 @@
  *   - `signInSchema` drops keys it does not know instead of refusing them: the
  *     installed Auth.js hands `authorize()` the whole request body, which
  *     carries `callbackUrl` (and `csrfToken` from a browser). The other form
- *     schemas refuse unknown keys.
- *   - No schema message carries the input, and a handler still never returns or
- *     logs a message from these schemas as it is: Zod's own message for an
- *     unrecognised key repeats the key's name, which is the caller's text. A
- *     handler maps issues to fixed strings of its own.
+ *     schemas refuse unknown keys, so a handler reads those forms field by
+ *     field and does not pass a whole `FormData` (a submission without
+ *     JavaScript carries `$ACTION_*` fields of its own).
+ *   - No schema MESSAGE carries the input: every message is a fixed string,
+ *     including the one for an unknown key. The `keys` list of such an issue
+ *     does hold the caller's key names, so a handler still never logs or
+ *     returns a whole issue; it maps issues to fixed strings of its own.
  *   - A password is never trimmed or changed. It is counted in characters
  *     (Unicode code points), not UTF-16 units, so five emoji are five. Lone
  *     surrogates are refused: they cannot round-trip through UTF-8, and two
@@ -54,8 +61,11 @@
  *     zero-width characters), line and paragraph separator characters and
  *     lone surrogates: a NUL cannot be stored in a Postgres text column, so it
  *     must fail in the schema and not as a failed write (the survey contract
- *     does the same), and `npm run auth:reset-requests` prints the identifier,
- *     so it must not hold a terminal escape or a forged line.
+ *     refuses control characters and lone surrogates in its comment for the
+ *     same reason), and `npm run auth:reset-requests` prints the identifier,
+ *     so it must not hold a terminal escape or a forged line. Characters that
+ *     only look empty (a Hangul filler, a no-break space) still pass, so that
+ *     script prints the identifier escaped (`JSON.stringify`).
  * Change this file only in a PR of its own.
  */
 import { z } from "zod";
@@ -96,6 +106,16 @@ export const RESERVED_USERNAMES = [
 const USERNAME_PATTERN = /^[a-z0-9_.-]+$/;
 
 const normaliseUsername = (s: string): string => s.trim().toLowerCase();
+
+/**
+ * An object that refuses unknown keys with a fixed message: Zod's own message
+ * for an unknown key would repeat the key, which is the caller's text.
+ */
+const strictForm = <T extends z.ZodRawShape>(shape: T) =>
+  z.strictObject(shape, {
+    error: (iss) =>
+      iss.code === "unrecognized_keys" ? "unexpected field" : undefined,
+  });
 
 /** Control, format, line/paragraph separator and lone-surrogate characters. */
 const UNSAFE_TEXT = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
@@ -154,27 +174,28 @@ export const optionalEmailSchema = z.preprocess(
 );
 
 /** Sign-up: the three fields of the form. */
-export const signUpSchema = z
-  .strictObject({
-    username: usernameSchema,
-    password: passwordSchema,
-    email: optionalEmailSchema,
-  })
-  .superRefine((value, ctx) => {
-    if (passwordEqualsUsername(value.username, value.password)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["password"],
-        message: "a password must not be the username",
-      });
-    }
-  });
+export const signUpSchema = strictForm({
+  username: usernameSchema,
+  password: passwordSchema,
+  email: optionalEmailSchema,
+}).superRefine((value, ctx) => {
+  if (passwordEqualsUsername(value.username, value.password)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["password"],
+      message: "a password must not be the username",
+    });
+  }
+});
 
 /**
- * Sign-in: only the sanity limits that stop an oversized body from reaching
- * the hash (a password past the maximum can never have been set). A username
- * or password that cannot exist fails here or in the check the same way, so a
- * caller learns nothing about which part was wrong.
+ * Sign-in: no judgement of shape or strength, only what stops a body that can
+ * never match an account: an oversized one (a password past the maximum can
+ * never have been set), a username with control, format or separator
+ * characters, and a password with a lone surrogate. The password is never
+ * changed. Unknown keys are dropped (Auth.js sends some). A failure here and a
+ * failure in the check are the same one message, so a caller learns nothing
+ * about which part was wrong.
  */
 export const signInSchema = z.object({
   username: z
@@ -204,7 +225,7 @@ export const signInSchema = z.object({
  * counted after the trim); matching is the server's. The answer is always
  * "received". Control and similar characters are refused (see the header).
  */
-export const resetRequestSchema = z.strictObject({
+export const resetRequestSchema = strictForm({
   identifier: z
     .string()
     .trim()
@@ -219,7 +240,7 @@ export const RESET_TOKEN_BYTES = 32;
 export const RESET_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 
 /** The reset page: the token from the link and the new password. */
-export const resetCompleteSchema = z.strictObject({
+export const resetCompleteSchema = strictForm({
   token: z.string().regex(RESET_TOKEN_PATTERN),
   password: passwordSchema,
 });

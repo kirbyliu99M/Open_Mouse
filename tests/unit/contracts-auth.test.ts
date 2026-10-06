@@ -236,11 +236,37 @@ describe("signInSchema", () => {
   });
 
   it("never changes the password it is given", () => {
-    for (const p of ["  Pass Word  ", "MiXeD Case\t", " lead", "trail "]) {
+    for (const p of [
+      "  Pass Word  ",
+      "MiXeD Case\t",
+      " lead",
+      "trail ",
+      "ｐａｓｓ", // full-width: a normalising schema would turn it into ASCII
+      "cafe\u0301", // decomposed accent: NFC or NFKC would compose it
+      "nul\u0000inside",
+      "esc\u001binside",
+    ]) {
       expect(
         signInSchema.parse({ username: "abc", password: p }).password,
       ).toBe(p);
     }
+  });
+
+  it("accepts a password with format characters, which a username may not have", () => {
+    // Only the username and the reset identifier refuse them. A family emoji
+    // holds zero-width joiners and a Persian word holds a zero-width non-joiner;
+    // both are ordinary passwords, and sign-up accepts them too.
+    for (const p of [
+      "👨\u200d👩\u200d👧\u200d👦pass-word",
+      "می\u200cخواهم-ورود",
+      "\u200dlead-joiner",
+    ]) {
+      expect(signIn({ username: "abc", password: p }), p).toBe(true);
+      expect(
+        signInSchema.parse({ username: "abc", password: p }).password,
+      ).toBe(p);
+    }
+    expect(password("👨\u200d👩\u200d👧\u200d👦pass-word")).toBe(true);
   });
 
   it("drops keys it does not know, because Auth.js sends them", () => {
@@ -258,10 +284,13 @@ describe("signInSchema", () => {
       "a\u0000b",
       "a\u001bb",
       "a\nb",
-      "a‮b",
-      "a​b",
-      "a b",
+      "a\u202eb",
+      "a\u200bb",
+      "a\u2028b",
+      "a\u2029b",
       "a\ud800b",
+      "a\udc00b",
+      "a\udc00\ud800b",
     ]) {
       expect(
         signIn({ username: bad, password: "x" }),
@@ -272,6 +301,10 @@ describe("signInSchema", () => {
 
   it("refuses a lone surrogate in a password, as sign-up does", () => {
     expect(signIn({ username: "abc", password: "abc\ud800" })).toBe(false);
+    expect(signIn({ username: "abc", password: "abc\udc00" })).toBe(false);
+    expect(signIn({ username: "abc", password: "abc\udc00\ud800" })).toBe(
+      false,
+    );
     expect(signIn({ username: "abc", password: "abc😀" })).toBe(true);
   });
 });
@@ -320,10 +353,10 @@ describe("resetRequestSchema", () => {
       "line1\nforged-id 2026 matched=yes",
       "line1\rforged",
       "tab\there",
-      "a‮b",
-      "a​b",
-      "a b",
-      "a b",
+      "a\u202eb",
+      "a\u200bb",
+      "a\u2028b",
+      "a\u2029b",
       "x\ud800y",
       "\u0000",
     ]) {
@@ -380,6 +413,26 @@ describe("no schema message carries what was typed", () => {
         { token: TOKEN, password: SENTINEL.slice(0, 8) },
       ],
     ];
+
+  it.each([
+    [
+      "sign-up",
+      signUpSchema,
+      { username: "abc", password: "a long enough pass", [SENTINEL]: 1 },
+    ],
+    ["reset request", resetRequestSchema, { identifier: "abc", [SENTINEL]: 1 }],
+    [
+      "reset complete",
+      resetCompleteSchema,
+      { token: TOKEN, password: "a new password!", [SENTINEL]: 1 },
+    ],
+  ])("an unknown key gets a fixed message (%s)", (_name, schema, input) => {
+    const r = schema.safeParse(input);
+    expect(r.success).toBe(false);
+    const messages = (r.error?.issues ?? []).map((i) => i.message);
+    // Zod's own message would repeat the key, which is the caller's text.
+    expect(messages).toEqual(["unexpected field"]);
+  });
 
   it("a reserved username is not repeated back", () => {
     const r = usernameSchema.safeParse("ADMIN");
