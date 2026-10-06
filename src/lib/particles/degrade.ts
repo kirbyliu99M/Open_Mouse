@@ -38,6 +38,19 @@
  * pass, a garbage collection), and must not lose particles for it. A rule that
  * stepped down at 3 misses in 45 (6.7 %) did, so the bar is 8 in 60.
  *
+ * The first few frames of a run are not judged either. After the loop has
+ * stopped and the reader scrolls again, the first frames are slow for reasons
+ * that have nothing to do with the device's steady speed: the page wakes from
+ * idle (the browser's frame pipeline ramps up again, the first draw is cold).
+ * Measured with the CPU throttled to 4 and 6 times (production build, scroll
+ * bursts of 5 frames with 320 ms of rest between), the gap after the first,
+ * second, third and fourth frame of a run was slow 35 to 90 % of the time, the
+ * fifth 10 to 15 %, the sixth never; with no throttling none was. Counted, that
+ * is four slow gaps in every burst, and a reader who scrolls in short bursts
+ * would be stepped down for it. So `breakChain` starts a `RESTART_GRACE` of
+ * gaps that are seen (they set the clock for the next) but not counted: a
+ * device that is slow all the time is still slow in every gap after them.
+ *
  * The window also starts empty once the interval is known: the first frames
  * after the layout switches on (the first one measures the page, the first
  * draw warms the GPU up) are slow on a phone, and they must not count either
@@ -61,6 +74,8 @@ export const DEGRADE = {
   STEP: 0.25,
   /** The draw count never goes below this share of the budget. */
   FLOOR: 0.25,
+  /** After the loop has stopped and started again, this many gaps are not counted (the restart transient, see above). */
+  RESTART_GRACE: 5,
 } as const;
 
 /** How long the stage's animation-frame loop keeps running after the last scroll event (ms), so every frame of a scroll is observed. Not an idle loop: it ends by itself. */
@@ -150,6 +165,8 @@ export interface GuardState {
   readonly refreshMs: number | null;
   /** How many particles are drawn now. */
   readonly drawCount: number;
+  /** How many of the next gaps are not counted: the restart transient after the loop has stopped. */
+  readonly grace: number;
 }
 
 /** The guard at the start of a layout whose budget is `budget`, drawing all of them. */
@@ -160,6 +177,7 @@ export function newGuard(budget: number): GuardState {
     firstGaps: [],
     refreshMs: null,
     drawCount: budget,
+    grace: 0,
   };
 }
 
@@ -173,16 +191,18 @@ export function guardForBudget(state: GuardState, budget: number): GuardState {
 
 /**
  * The stage's frame loop has stopped (the scroll ended, the tab was hidden, the
- * stage went off screen): the next frame has no gap to the last one.
+ * stage went off screen): the next frame has no gap to the last one, and the
+ * first `RESTART_GRACE` gaps after it are not counted.
  */
 export function breakChain(state: GuardState): GuardState {
-  return { ...state, lastAt: 0 };
+  return { ...state, lastAt: 0, grace: DEGRADE.RESTART_GRACE };
 }
 
 /**
  * A frame of the loop ran at `now` (ms, the animation frame's timestamp).
  * Returns the guard after it: the gap since the last frame of the same run of
- * frames is kept, the screen's interval is estimated from the first 40, and
+ * frames is kept (but not the first few after a restart), the screen's interval
+ * is estimated from the first 40, and
  * once the window is full and slow the draw count steps down (and the window
  * starts again).
  */
@@ -193,6 +213,11 @@ export function observeFrame(
 ): GuardState {
   const gap = now - state.lastAt;
   if (!(state.lastAt > 0) || !isGap(gap)) return { ...state, lastAt: now };
+  // The restart transient: seen, so the next gap is measured from this frame,
+  // but in neither the window nor the screen's interval.
+  if (state.grace > 0) {
+    return { ...state, lastAt: now, grace: state.grace - 1 };
+  }
 
   if (state.refreshMs === null) {
     const firstGaps = [...state.firstGaps, gap];

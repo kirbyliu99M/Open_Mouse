@@ -205,10 +205,16 @@ describe("the guard frame by frame", () => {
   /**
    * Feed a guard frames whose gaps are `gaps`, as a new run of frames starting
    * at time `startAt` (the guard is told the last run has stopped, so the time
-   * since it is not a gap); returns the state after each.
+   * since it is not a gap), after the restart transient: every gap counts, the
+   * first too (the transient is tested in its own describe below); returns the
+   * state after each.
    */
   const feed = (gaps: number[], from = newGuard(budget), startAt = 1000) => {
-    let state = observeFrame(breakChain(from), startAt, budget);
+    let state = observeFrame(
+      { ...breakChain(from), grace: 0 },
+      startAt,
+      budget,
+    );
     let at = startAt;
     const states: ReturnType<typeof observeFrame>[] = [];
     for (const gap of gaps) {
@@ -381,6 +387,216 @@ describe("the guard frame by frame", () => {
     const copy = JSON.stringify(known);
     observeFrame(known, known.lastAt + refresh, budget);
     expect(JSON.stringify(known)).toBe(copy);
+  });
+});
+
+describe("the restart transient: the first frames after the loop has stopped and started again", () => {
+  const budget = 12000;
+  const refresh = 16.7;
+  /** What a scroll restart looks like to the guard: a slow gap now and then at the start of a run (measured: the first four gaps of a run, 35 to 90 % of them slow at 4 to 6 times the CPU, the fifth 10 to 15 %). */
+  const slow = 33.4;
+
+  /** A guard that knows its screen, past the 40 gaps that tell it. */
+  const known = () => {
+    let state = observeFrame(newGuard(budget), 1000, budget);
+    let at = 1000;
+    for (let i = 0; i < DEGRADE.REFRESH_SAMPLES + DEGRADE.WINDOW; i += 1) {
+      at += refresh;
+      state = observeFrame(state, at, budget);
+    }
+    return { state, at };
+  };
+
+  /**
+   * `bursts` runs of frames the way a reader who scrolls in short bursts makes
+   * them: the loop stops (`breakChain`), the reader stands still for
+   * `rest` ms, the next run's first frame has no gap, then `run` gaps follow
+   * (the first `slowFirst` of them `slowMs`, the rest `refresh`). With `grace`
+   * false the transient is not forgiven (the guard as it was before it).
+   */
+  const burstsOf = ({
+    bursts,
+    run,
+    slowFirst,
+    slowMs = slow,
+    steadyMs = refresh,
+    grace = true,
+    from = known(),
+  }: {
+    bursts: number;
+    run: number;
+    slowFirst: number;
+    slowMs?: number;
+    steadyMs?: number;
+    grace?: boolean;
+    from?: ReturnType<typeof known>;
+  }) => {
+    let state = from.state;
+    let at = from.at;
+    let firstStep = -1;
+    for (let burst = 0; burst < bursts; burst += 1) {
+      state = breakChain(state);
+      if (!grace) state = { ...state, grace: 0 };
+      at += 600;
+      state = observeFrame(state, at, budget);
+      for (let i = 0; i < run; i += 1) {
+        at += i < slowFirst ? slowMs : steadyMs;
+        state = observeFrame(state, at, budget);
+        if (firstStep < 0 && state.drawCount < budget) firstStep = burst;
+      }
+    }
+    return { state, firstStep };
+  };
+
+  it("is a few gaps long: the five gaps after a restart, a candidate set from the measurement", () => {
+    expect(DEGRADE.RESTART_GRACE).toBe(5);
+  });
+
+  it("is started by the loop stopping, and by nothing else", () => {
+    const { state } = known();
+    expect(state.grace).toBe(0);
+    expect(breakChain(state).grace).toBe(DEGRADE.RESTART_GRACE);
+    expect(newGuard(budget).grace).toBe(0);
+    // A new budget keeps what the guard knows about the restart, and starts none.
+    expect(guardForBudget(state, 6000).grace).toBe(0);
+  });
+
+  it("does not count the first gaps of a run: they are seen (the clock moves on) but not kept", () => {
+    const { state: running, at } = known();
+    let state = breakChain(running);
+    const kept = running.gaps.length;
+    state = observeFrame(state, at + 600, budget); // the run's first frame: no gap
+    expect(state.grace).toBe(DEGRADE.RESTART_GRACE);
+    let now = at + 600;
+    for (let i = 1; i <= DEGRADE.RESTART_GRACE; i += 1) {
+      now += 100; // however slow
+      state = observeFrame(state, now, budget);
+      expect(state.grace).toBe(DEGRADE.RESTART_GRACE - i);
+      expect(state.gaps).toHaveLength(kept);
+      expect(state.lastAt).toBe(now);
+    }
+    // The next gap is counted, from the frame before it.
+    state = observeFrame(state, now + 100, budget);
+    expect(state.gaps).toHaveLength(kept);
+    expect(state.gaps.at(-1)).toBe(100);
+    expect(state.drawCount).toBe(budget);
+  });
+
+  it("does not let the transient into the screen's interval either: a slow restart in the first 40 gaps does not move the estimate", () => {
+    let state = observeFrame(newGuard(budget), 1000, budget);
+    let at = 1000;
+    const step = (ms: number) => {
+      at += ms;
+      state = observeFrame(state, at, budget);
+    };
+    for (let i = 0; i < 10; i += 1) step(8.33);
+    state = breakChain(state);
+    at += 400;
+    state = observeFrame(state, at, budget);
+    for (let i = 0; i < DEGRADE.RESTART_GRACE; i += 1) step(120);
+    for (let i = 0; i < 30; i += 1) step(8.33);
+    expect(state.firstGaps).toHaveLength(40);
+    expect(state.refreshMs).toBeCloseTo(8.33, 9);
+  });
+
+  it("a reader who scrolls in bursts of 5 frames, the first 2 gaps of every burst 33 ms (a restart transient), is not stepped down, burst after burst", () => {
+    const { state, firstStep } = burstsOf({
+      bursts: 300,
+      run: 5,
+      slowFirst: 2,
+    });
+    expect(state.drawCount).toBe(budget);
+    expect(firstStep).toBe(-1);
+    // Without the grace the same reader loses particles: 2 slow gaps in every 5 is 40 %.
+    const before = burstsOf({
+      bursts: 300,
+      run: 5,
+      slowFirst: 2,
+      grace: false,
+    });
+    expect(before.state.drawCount).toBeLessThan(budget);
+  });
+
+  it("the measured transient, 4 slow gaps at the start of every 17-frame burst (5 scroll frames and the loop's 200 ms tail), does not step down either, and 5 do not", () => {
+    for (const slowFirst of [1, 2, 3, 4, 5]) {
+      const { state } = burstsOf({ bursts: 300, run: 16, slowFirst });
+      expect(state.drawCount, `${slowFirst} slow gaps`).toBe(budget);
+    }
+    // Without the grace, 4 or 5 slow gaps in 16 is over the 8 in 60.
+    for (const slowFirst of [4, 5]) {
+      const { state } = burstsOf({
+        bursts: 300,
+        run: 16,
+        slowFirst,
+        grace: false,
+      });
+      expect(state.drawCount, `${slowFirst} slow gaps, no grace`).toBeLessThan(
+        budget,
+      );
+    }
+  });
+
+  it("a transient longer than the grace is counted past it: the slow gaps from the sixth on step down, so the grace is not a hole a slow device can hide in", () => {
+    // 12 slow gaps at the start of a 16-gap burst: 7 are counted, a burst; two bursts are 14 in the window.
+    const { state, firstStep } = burstsOf({
+      bursts: 40,
+      run: 16,
+      slowFirst: 12,
+    });
+    expect(state.drawCount).toBeLessThan(budget);
+    expect(firstStep).toBeGreaterThanOrEqual(0);
+  });
+
+  it("a device that is slow all the time still steps down, in bursts too: 33 ms, 70 ms and 30 Hz (33.3 ms) frames, 16 gaps to a burst, 5 of them forgiven", () => {
+    for (const ms of [33, 70, 33.3]) {
+      const { state } = burstsOf({
+        bursts: 60,
+        run: 16,
+        slowFirst: 16,
+        slowMs: ms,
+      });
+      expect(state.drawCount, `${ms} ms`).toBeLessThan(budget);
+      expect(state.drawCount).toBeGreaterThanOrEqual(minDrawCount(budget));
+    }
+  });
+
+  it("a steady 60 Hz and 165 Hz screen, scrolled in bursts, is not stepped down", () => {
+    for (const ms of [16.67, 6.06]) {
+      let state = observeFrame(newGuard(budget), 1000, budget);
+      let at = 1000;
+      for (let i = 0; i < DEGRADE.REFRESH_SAMPLES + 5; i += 1) {
+        at += ms;
+        state = observeFrame(state, at, budget);
+      }
+      const { state: end } = burstsOf({
+        bursts: 300,
+        run: 16,
+        slowFirst: 0,
+        steadyMs: ms,
+        from: { state, at },
+      });
+      expect(end.drawCount, `${ms} ms`).toBe(budget);
+    }
+  });
+
+  it("does not change what a long run does: after the grace every gap counts, so 8 slow in 60 steps down the same", () => {
+    const { state: running, at } = known();
+    let state = breakChain(running);
+    let now = at + 600;
+    state = observeFrame(state, now, budget);
+    for (let i = 0; i < DEGRADE.RESTART_GRACE; i += 1) {
+      now += refresh;
+      state = observeFrame(state, now, budget);
+    }
+    let firstStep = -1;
+    for (let i = 0; i < 30; i += 1) {
+      now += 40;
+      state = observeFrame(state, now, budget);
+      if (firstStep < 0 && state.drawCount < budget) firstStep = i;
+    }
+    // Eight slow gaps, the eighth stepping down (index 7).
+    expect(firstStep).toBe(7);
+    expect(state.drawCount).toBeLessThan(budget);
   });
 });
 
