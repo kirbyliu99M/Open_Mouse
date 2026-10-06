@@ -123,6 +123,24 @@ export function previewConstraintsFor(
   };
 }
 
+/**
+ * The preview request used while the capture is a frame of the video: 1920x1080
+ * ideal in the camera's landscape terms, `resizeMode: none`, no `aspectRatio`.
+ * Chrome on Android reads the size as landscape and returns the stream upright
+ * (1080x1920 on the S25). Nothing here depends on the photo's shape.
+ */
+export function framePreviewConstraints(): Omit<
+  PreviewConstraints,
+  "aspectRatio"
+> {
+  return {
+    facingMode: "environment",
+    width: { ideal: PREVIEW.frameIdealWidth },
+    height: { ideal: PREVIEW.frameIdealHeight },
+    resizeMode: { ideal: "none" },
+  };
+}
+
 /** Which way round the stream will be: a window taller than wide gives an upright stream. */
 export function isPortraitViewport(width: number, height: number): boolean {
   return height >= width;

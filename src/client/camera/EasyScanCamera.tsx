@@ -55,7 +55,11 @@ import {
   type PipelineResult,
 } from "../photo/pipeline";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { CAMERA_CONSTANTS, PAPER_SIZE_LABELS } from "./constants";
+import {
+  CAMERA_CONSTANTS,
+  PAPER_SIZE_LABELS,
+  captureSource,
+} from "./constants";
 import {
   cueFromCode,
   easyCueText,
@@ -125,11 +129,13 @@ import {
 } from "./debugStats";
 import {
   assumedSampleFocalPx,
-  visibleRectInStream,
+  frameDrawArgs,
+  visibleRegionInStream,
   type PixelRect,
 } from "./visibleView";
 import {
   alignAndSettle,
+  framePreviewConstraints,
   isPortraitViewport,
   previewConstraintsFor,
   type PreviewAlignment,
@@ -140,6 +146,7 @@ import {
   readAttempts,
   recordAttempt,
   type AttemptCapture,
+  type AttemptCaptureSource,
   type AttemptOutcome,
   type AttemptRecord,
 } from "./attemptLog";
@@ -278,6 +285,7 @@ interface DebugLive {
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
+  source: AttemptCaptureSource | null;
   stillWidth: number | null;
   stillHeight: number | null;
   stillKb: number | null;
@@ -549,6 +557,7 @@ export default function EasyScanCamera({
   });
   const debugCaptureRef = useRef<DebugCapture>({
     method: null,
+    source: null,
     stillWidth: null,
     stillHeight: null,
     stillKb: null,
@@ -817,13 +826,15 @@ export default function EasyScanCamera({
     resetLoopState();
     setCamState({ kind: "requesting" });
     try {
-      // The preview is asked for in the shape of the photo, not 16:9: a
-      // phone answers a 1920x1080 request with its video mode, which crops the
-      // sensor's sides, while takePhoto() reads the whole sensor, so a sheet
-      // that filled the preview filled only about three quarters of the photo
-      // (previewConstraints.ts). The photo's real shape is only known once a
-      // track exists, so the first request is the usual 4:3 and the track is
-      // re-asked below if the camera says otherwise.
+      // What the shutter takes decides what the preview is asked for.
+      // As a frame of the video (the default, capture.ts in constants) the
+      // preview is asked for in the camera's own landscape terms, 1920x1080
+      // ideal, as it was before #132: the S25 answers that with an upright
+      // 1080x1920 and answered the photo-shaped request with a 1088x1088 square.
+      // Only when the camera's photo is taken instead (takePhoto, off) is the
+      // preview asked for in the photo's shape and re-asked below
+      // (previewConstraints.ts): that code is kept, not used.
+      const frameCapture = captureSource() === "frame";
       const portrait = isPortraitViewport(
         window.innerWidth,
         window.innerHeight,
@@ -831,10 +842,12 @@ export default function EasyScanCamera({
       const stream = await requestCameraStream(
         navigator.mediaDevices,
         {
-          video: previewConstraintsFor(
-            CAMERA_CONSTANTS.preview.defaultStillAspect,
-            portrait,
-          ),
+          video: frameCapture
+            ? framePreviewConstraints()
+            : previewConstraintsFor(
+                CAMERA_CONSTANTS.preview.defaultStillAspect,
+                portrait,
+              ),
           audio: false,
         },
         () =>
@@ -851,7 +864,14 @@ export default function EasyScanCamera({
         });
       });
       const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
+      if (videoTrack && frameCapture) {
+        // Nothing is asked of the camera but focus, and nothing makes the
+        // shutter wait: the picture analysed is the frame being shown.
+        setUpFocus(videoTrack);
+        previewAlignmentRef.current = null;
+        previewSettledRef.current = true;
+        settleTimedOutRef.current = null;
+      } else if (videoTrack) {
         setUpFocus(videoTrack);
         previewAlignmentRef.current = null;
         const alignToken = ++alignTokenRef.current;
@@ -1015,13 +1035,12 @@ export default function EasyScanCamera({
             userLengthRef.current !== null
               ? { method: "user-length", handLengthMm: userLengthRef.current }
               : { method: "paper-edge", paperSize: paperSizeRef.current },
-          // A photo from the camera is cut down to the part the person saw on
-          // screen before analysis (visibleView.ts), whether it came from
-          // takePhoto() or from a canvas frame; an upload has no viewfinder.
+          // A frame of the video is already the part the person saw on
+          // screen, so nothing is cropped (no previewView). The camera's own
+          // photo (takePhoto, off by default) is cut down to that part before
+          // analysis (visibleView.ts); an upload has no viewfinder.
           previewView:
-            info?.method === "takePhoto" || info?.method === "canvas"
-              ? info.previewView
-              : undefined,
+            info?.captureSource === "takePhoto" ? info.previewView : undefined,
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
@@ -1109,52 +1128,78 @@ export default function EasyScanCamera({
     // What the live frame was, read before the stream stops: the photo is
     // drawn with the same crop.
     const streamSize = readStreamSize(video, streamRef.current);
-    // ...and the part of it that was on screen (the stage shows the stream with
-    // object-fit: cover), which is what is analysed.
+    // ...and the part of it that is on screen (the stage shows the stream with
+    // object-fit: cover): the same call, with the same inputs, as the live
+    // loop's sample, so what is analysed is exactly what was approved.
     const stageBox = stageRef.current?.getBoundingClientRect();
-    const visibleInStream =
+    const region =
       streamSize && stageBox
-        ? visibleRectInStream(streamSize, {
+        ? visibleRegionInStream(streamSize, {
             width: stageBox.width,
             height: stageBox.height,
           })
         : null;
+    const source: AttemptCaptureSource = captureSource();
     let file: File;
     let method: "takePhoto" | "canvas" = "takePhoto";
-    try {
-      const track = streamRef.current?.getVideoTracks()[0];
-      const ImageCaptureCtor = getImageCaptureCtor();
-      if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
-      const capture = new ImageCaptureCtor(track);
-      const blob = await capture.takePhoto();
-      file = new File([blob], `capture-${Date.now()}.jpg`, {
-        type: blob.type || "image/jpeg",
-      });
-    } catch {
-      method = "canvas";
-      if (!video || video.videoWidth === 0) {
-        capturingRef.current = false;
-        return;
-      }
+    /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
+    const frameFile = async (rect: PixelRect | null): Promise<File | null> => {
+      if (!video || video.videoWidth === 0) return null;
+      const area: PixelRect = rect ?? {
+        x: 0,
+        y: 0,
+        width: video.videoWidth,
+        height: video.videoHeight,
+      };
+      const draw = frameDrawArgs(area);
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = draw.canvas.width;
+      canvas.height = draw.canvas.height;
       const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        capturingRef.current = false;
-        return;
-      }
-      ctx.drawImage(video, 0, 0);
+      if (!ctx) return null;
+      ctx.drawImage(video, ...draw.source, ...draw.destination);
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.92),
+        canvas.toBlob(
+          resolve,
+          "image/jpeg",
+          CAMERA_CONSTANTS.capture.jpegQuality,
+        ),
       );
-      if (!blob) {
+      return blob
+        ? new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" })
+        : null;
+    };
+    if (source === "frame") {
+      // A frame of the video, cut to the part on screen, at the stream's own
+      // resolution: the pixels the person saw and the detector approved.
+      method = "canvas";
+      const frame = await frameFile(region?.capture ?? null);
+      if (!frame) {
         capturingRef.current = false;
         return;
       }
-      file = new File([blob], `capture-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
+      file = frame;
+    } else {
+      try {
+        const track = streamRef.current?.getVideoTracks()[0];
+        const ImageCaptureCtor = getImageCaptureCtor();
+        if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
+        const capture = new ImageCaptureCtor(track);
+        const blob = await capture.takePhoto();
+        file = new File([blob], `capture-${Date.now()}.jpg`, {
+          type: blob.type || "image/jpeg",
+        });
+      } catch {
+        // No camera photo: the whole frame; the pipeline cuts it to the part
+        // on screen (previewView).
+        method = "canvas";
+        const frame = await frameFile(null);
+        if (!frame) {
+          capturingRef.current = false;
+          return;
+        }
+        file = frame;
+      }
     }
 
     const previewUrl = URL.createObjectURL(file);
@@ -1168,9 +1213,24 @@ export default function EasyScanCamera({
     if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
     setAnnounced("Photo taken");
     fileRef.current = file;
-    setPhotoInfo(still ? { url: previewUrl, still, stream: streamSize } : null);
+    // A frame cut to the screen's part is drawn exactly as the live video's
+    // visible part was: it IS that part, so it is its own "stream" for the layout.
+    setPhotoInfo(
+      still
+        ? {
+            url: previewUrl,
+            still,
+            stream: source === "frame" ? still : streamSize,
+          }
+        : null,
+    );
     captureInfoRef.current = {
       method,
+      captureSource: source,
+      frame:
+        source === "frame" && streamSize && region
+          ? { stream: streamSize, visibleInStream: region.visible }
+          : undefined,
       settleTimedOut: settleTimedOutRef.current,
       photoWidth: still?.width ?? null,
       photoHeight: still?.height ?? null,
@@ -1178,12 +1238,13 @@ export default function EasyScanCamera({
       previewWidth: streamSize?.width ?? null,
       previewHeight: streamSize?.height ?? null,
       previewView:
-        streamSize && visibleInStream
-          ? { stream: streamSize, visibleInStream }
+        source === "takePhoto" && streamSize && region
+          ? { stream: streamSize, visibleInStream: region.visible }
           : undefined,
     };
     debugCaptureRef.current = {
       method,
+      source,
       stillWidth: still?.width ?? null,
       stillHeight: still?.height ?? null,
       stillKb: file.size / 1024,
@@ -1211,6 +1272,7 @@ export default function EasyScanCamera({
       setPhotoInfo(null);
       debugCaptureRef.current = {
         method: "upload",
+        source: "upload",
         stillWidth: null,
         stillHeight: null,
         stillKb: file.size / 1024,
@@ -1219,6 +1281,7 @@ export default function EasyScanCamera({
       const stillSize = loadStillSize(previewUrl);
       captureInfoRef.current = {
         method: "upload",
+        captureSource: "upload",
         photoWidth: null,
         photoHeight: null,
         photoKb: file.size / 1024,
@@ -1308,11 +1371,11 @@ export default function EasyScanCamera({
       if (!stage || !video || video.videoWidth === 0) return null;
       const box = stage.getBoundingClientRect();
       if (box.width <= 0 || box.height <= 0) return null;
-      const visible = visibleRectInStream(
+      const region = visibleRegionInStream(
         { width: video.videoWidth, height: video.videoHeight },
         { width: box.width, height: box.height },
       );
-      return visible ? { box, visible } : null;
+      return region ? { box, visible: region.visible } : null;
     }
 
     function tick(now: number) {
@@ -1654,6 +1717,7 @@ export default function EasyScanCamera({
       },
       capture: {
         method: capture.method,
+        source: capture.source ?? captureSource(),
         stillWidth: capture.stillWidth,
         stillHeight: capture.stillHeight,
         stillKb: capture.stillKb,

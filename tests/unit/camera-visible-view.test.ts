@@ -5,8 +5,10 @@ import {
   assumedSampleFocalPx,
   rectCentre,
   toFullFrame,
+  frameDrawArgs,
   visibleRectInStill,
   visibleRectInStream,
+  visibleRegionInStream,
   type PixelRect,
 } from "../../src/client/camera/visibleView";
 import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
@@ -522,5 +524,149 @@ describe("assumedSampleFocalPx — the live detector's assumed focal length is t
       { width: 412, height: 915 },
     ])
       expect(fromStreamPx(screen)).toBeCloseTo(reference, 6);
+  });
+});
+
+describe("visibleRegionInStream — one region, used by the live detector and by the shutter", () => {
+  // Kirby's S25 after #132 (2026-10-06): the stream was a 1088x1088 square and
+  // the screen showed x 253.7, width 580.6 of it, the whole 1088 height. A
+  // screen of 412x772 CSS px has that shape.
+  const S25_STREAM = { width: 1088, height: 1088 };
+  const S25_SCREEN = { width: 412, height: 772 };
+
+  it("the S25's numbers: the region on screen is x 253.7, width 580.6, the whole height; the capture is the same to the pixel", () => {
+    const region = visibleRegionInStream(S25_STREAM, S25_SCREEN)!;
+    expect(region.visible.x).toBeCloseTo(253.7, 0);
+    expect(region.visible.width).toBeCloseTo(580.6, 0);
+    expect(region.visible.y).toBe(0);
+    expect(region.visible.height).toBeCloseTo(1088, 6);
+    // Whole pixels, each edge rounded: 253.67 -> 254, 834.33 -> 834.
+    expect(region.capture).toEqual({ x: 254, y: 0, width: 580, height: 1088 });
+  });
+
+  it("the shutter's region is the live detector's region: the same function gives both, and the capture is the visible one with each edge rounded", () => {
+    for (const stream of [
+      S25_STREAM,
+      { width: 1080, height: 1920 },
+      { width: 1080, height: 1440 },
+      { width: 1920, height: 1080 },
+      { width: 800, height: 1300 },
+    ])
+      for (const screen of [
+        S25_SCREEN,
+        PHONE,
+        { width: 360, height: 640 },
+        { width: 844, height: 390 },
+        { width: 820, height: 1180 },
+      ]) {
+        const region = visibleRegionInStream(stream, screen)!;
+        const label = `${stream.width}x${stream.height} on ${screen.width}x${screen.height}`;
+        // The detector's rectangle is visibleRectInStream's, untouched.
+        expect(region.visible, label).toEqual(
+          visibleRectInStream(stream, screen),
+        );
+        const { visible, capture } = region;
+        for (const n of [capture.x, capture.y, capture.width, capture.height])
+          expect(Number.isInteger(n), label).toBe(true);
+        // Each edge within half a pixel of the detector's.
+        expect(Math.abs(capture.x - visible.x), label).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(capture.y - visible.y), label).toBeLessThanOrEqual(0.5);
+        expect(
+          Math.abs(capture.x + capture.width - (visible.x + visible.width)),
+          label,
+        ).toBeLessThanOrEqual(0.5 + 1e-9);
+        expect(
+          Math.abs(capture.y + capture.height - (visible.y + visible.height)),
+          label,
+        ).toBeLessThanOrEqual(0.5 + 1e-9);
+        // Inside the stream, never empty.
+        expect(capture.x, label).toBeGreaterThanOrEqual(0);
+        expect(capture.y, label).toBeGreaterThanOrEqual(0);
+        expect(capture.width, label).toBeGreaterThanOrEqual(1);
+        expect(capture.height, label).toBeGreaterThanOrEqual(1);
+        expect(capture.x + capture.width, label).toBeLessThanOrEqual(
+          stream.width,
+        );
+        expect(capture.y + capture.height, label).toBeLessThanOrEqual(
+          stream.height,
+        );
+      }
+  });
+
+  it("is not the whole stream: a tall screen cuts a square or 3:4 stream's sides, a wide screen the top and bottom", () => {
+    const upright = visibleRegionInStream(S25_STREAM, S25_SCREEN)!.capture;
+    expect(upright.width).toBeLessThan(S25_STREAM.width);
+    expect(upright.height).toBe(S25_STREAM.height);
+    const wide = visibleRegionInStream(
+      { width: 1920, height: 1080 },
+      { width: 844, height: 390 },
+    )!.capture;
+    expect(wide.width).toBe(1920);
+    expect(wide.height).toBeLessThan(1080);
+  });
+
+  it("a screen with the stream's own shape shows it all", () => {
+    expect(
+      visibleRegionInStream(
+        { width: 1080, height: 1920 },
+        { width: 360, height: 640 },
+      )!.capture,
+    ).toEqual({ x: 0, y: 0, width: 1080, height: 1920 });
+  });
+
+  it("edges that would round outside the stream are kept inside, and a sliver is still a pixel", () => {
+    const region = visibleRegionInStream(
+      { width: 100, height: 100 },
+      { width: 1, height: 1000 },
+    )!;
+    expect(region.capture.width).toBeGreaterThanOrEqual(1);
+    expect(region.capture.x + region.capture.width).toBeLessThanOrEqual(100);
+  });
+
+  it("is null for sizes that are missing, zero or not numbers", () => {
+    expect(visibleRegionInStream(null, PHONE)).toBeNull();
+    expect(
+      visibleRegionInStream({ width: 100, height: 100 }, undefined),
+    ).toBeNull();
+    expect(visibleRegionInStream({ width: 0, height: 100 }, PHONE)).toBeNull();
+    expect(
+      visibleRegionInStream(
+        { width: 100, height: 100 },
+        { width: NaN, height: 5 },
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("frameDrawArgs — what drawImage is given to copy the region 1:1", () => {
+  it("source is the capture rectangle, destination is the origin at the same size, and the canvas is that size", () => {
+    const capture = { x: 254, y: 0, width: 580, height: 1088 };
+    expect(frameDrawArgs(capture)).toEqual({
+      source: [254, 0, 580, 1088],
+      destination: [0, 0, 580, 1088],
+      canvas: { width: 580, height: 1088 },
+    });
+  });
+
+  it("for any region the source never leaves the stream and nothing is scaled", () => {
+    for (const stream of [
+      { width: 1088, height: 1088 },
+      { width: 1080, height: 1920 },
+      { width: 1920, height: 1080 },
+    ])
+      for (const screen of [
+        { width: 412, height: 772 },
+        PHONE,
+        { width: 844, height: 390 },
+      ]) {
+        const { source, destination, canvas } = frameDrawArgs(
+          visibleRegionInStream(stream, screen)!.capture,
+        );
+        expect(source[0] + source[2]).toBeLessThanOrEqual(stream.width);
+        expect(source[1] + source[3]).toBeLessThanOrEqual(stream.height);
+        expect(destination[2]).toBe(source[2]);
+        expect(destination[3]).toBe(source[3]);
+        expect(canvas).toEqual({ width: source[2], height: source[3] });
+      }
   });
 });

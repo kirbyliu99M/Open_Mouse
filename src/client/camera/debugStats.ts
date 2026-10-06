@@ -160,6 +160,8 @@ export interface ScanDebugSnapshot {
   };
   readonly capture: {
     readonly method: "takePhoto" | "canvas" | "upload" | null;
+    /** What the shutter takes: a frame of the video cut to the part on screen, the camera's photo, or (after a pick) an upload. */
+    readonly source: "frame" | "takePhoto" | "upload" | null;
     readonly stillWidth: number | null;
     readonly stillHeight: number | null;
     readonly stillKb: number | null;

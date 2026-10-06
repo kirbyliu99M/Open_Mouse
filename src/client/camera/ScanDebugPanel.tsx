@@ -54,6 +54,16 @@ export function ScanDebugPanel({
             ? `${track.width ?? "?"}×${track.height ?? "?"} @ ${track.frameRate ?? "?"} fps · video ${track.videoWidth ?? "?"}×${track.videoHeight ?? "?"}`
             : "–"}
         </dd>
+        <dt>Capture source</dt>
+        <dd data-testid="debug-capture-source">
+          {capture.source ?? "–"}
+          {track
+            ? ` · stream ${track.videoWidth ?? "?"}×${track.videoHeight ?? "?"}`
+            : ""}
+          {live.visibleInStream
+            ? ` · on screen ${fixed(live.visibleInStream.width, 0)}×${fixed(live.visibleInStream.height, 0)} at ${fixed(live.visibleInStream.x, 0)},${fixed(live.visibleInStream.y, 0)}`
+            : ""}
+        </dd>
         <dt>Preview vs photo</dt>
         <dd data-testid="debug-fov">
           {preview.stillAspect === null
