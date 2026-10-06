@@ -1127,6 +1127,36 @@ test.describe("the WebGL path", () => {
     });
   }
 
+  test("the page's own frames before the first scroll are not counted: with a slow frame in every 6 from the page load (a machine busy with something else while the page starts: over the 8 in 60) everything is still drawn, and a steady scroll afterwards takes nothing", async ({
+    page,
+  }) => {
+    await installFrameClock(page);
+    // The made-up clock, from the first frame: 33.4 ms in every 6th frame, the
+    // rest 16.7 ms (the shimmer's frames: 95 of them are past the first 40).
+    await page.addInitScript(() => {
+      (window as unknown as Record<string, unknown>).__plan = (
+        frame: number,
+      ) => (frame % 6 === 0 ? 33.4 : 16.7);
+    });
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    const canvas = page.locator(CANVAS);
+    const budget = Number(await canvas.getAttribute("data-particles"));
+    // Nothing scrolled, and the frames were slow often enough to step down if
+    // they were counted.
+    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
+    // The reader scrolls, with steady frames (the made-up clock, 16.7 ms a
+    // frame: software WebGL's own frames at the dust are slow): the budget
+    // stays whole.
+    await missFrames(page, { normal: 16.7, slow: 16.7, misses: "none" });
+    for (let chunk = 0; chunk < 12; chunk += 1) {
+      await scrollFrames(page, 10, 2);
+    }
+    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
+  });
+
   test("sparse input is not a slow device: a scroll step every 30 ms, or every 100 ms, over 150 frames each, changes nothing (the guard times the animation frames, which the loop keeps coming for the whole scroll, not the draws)", async ({
     page,
   }) => {

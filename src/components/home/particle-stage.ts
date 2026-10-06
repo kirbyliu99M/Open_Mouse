@@ -1035,8 +1035,9 @@ class Stage {
     if (this.animated) {
       this.lastScrollAt = performance.now();
       // The first scroll starts the guard's counting (degrade.ts): until then
-      // only the page's own frames, with the shimmer, have run.
-      this.guard = armGuard(this.guard);
+      // only the page's own frames, with the shimmer, have run. A scroll event
+      // with the page still at the top has moved nothing, and does not start it.
+      if (window.scrollY > 0) this.guard = armGuard(this.guard);
       this.schedule();
     } else if (
       this.waitingForTop &&
