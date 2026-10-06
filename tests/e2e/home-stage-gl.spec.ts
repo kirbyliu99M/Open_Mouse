@@ -1109,6 +1109,9 @@ test.describe("the WebGL path", () => {
       page,
     }) => {
       const { canvas, budget, drawn } = await guardPage(page, { gap });
+      // The page's frames before the first scroll are all slow, and none of
+      // them is counted: the whole budget is still drawn.
+      expect(await drawn()).toBe(budget);
       for (
         let chunk = 0;
         chunk < 60 && (await drawn()) === budget;
@@ -1170,24 +1173,15 @@ test.describe("the WebGL path", () => {
       `This machine's frames take ${refresh} ms: its real frames are not steady enough for this test.`,
     );
     const budget = Number(await canvas.getAttribute("data-particles"));
-    // The page's own start-up (the shimmer's frames, with the dev server still
-    // busy compiling beside it on a loaded machine) is not what this test is
-    // about: if the machine's real frames came slowly then, the guard rightly
-    // drew fewer particles before the first burst. What the bursts must not do
-    // is take any more. On a machine whose frames are steady `before` is the
-    // whole budget, and this is the same as asking for the whole budget.
-    const before = Number(await canvas.getAttribute("data-drawn"));
+    // Nothing has been scrolled yet: the page's own frames (the shimmer, with
+    // the dev server perhaps still compiling beside it) are not counted by the
+    // guard, so the whole budget is drawn whatever those frames were like.
+    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
     for (let burst = 0; burst < 30; burst += 1) {
       await scrollFrames(page, 5, 4);
       await page.waitForTimeout(320);
     }
-    if (before < budget) {
-      test.info().annotations.push({
-        type: "start-up",
-        description: `the guard had stepped down to ${before} of ${budget} before the first burst (this machine's frames were slow during the shimmer)`,
-      });
-    }
-    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(before);
+    expect(Number(await canvas.getAttribute("data-drawn"))).toBe(budget);
   });
 
   test("the frame loop runs for 200 ms after the last scroll event so every frame of a scroll is timed, and then stops: nothing is scheduled while the page is still (no idle loop)", async ({

@@ -10,6 +10,7 @@ import {
 } from "@/lib/particles/budget";
 import {
   type GuardState,
+  armGuard,
   SCROLL_TAIL_MS,
   breakChain,
   guardForBudget,
@@ -1033,6 +1034,9 @@ class Stage {
   private readonly onScroll = (): void => {
     if (this.animated) {
       this.lastScrollAt = performance.now();
+      // The first scroll starts the guard's counting (degrade.ts): until then
+      // only the page's own frames, with the shimmer, have run.
+      this.guard = armGuard(this.guard);
       this.schedule();
     } else if (
       this.waitingForTop &&

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEGRADE,
   SCROLL_TAIL_MS,
+  armGuard,
   breakChain,
   estimateRefreshMs,
   guardForBudget,
@@ -205,13 +206,13 @@ describe("the guard frame by frame", () => {
   /**
    * Feed a guard frames whose gaps are `gaps`, as a new run of frames starting
    * at time `startAt` (the guard is told the last run has stopped, so the time
-   * since it is not a gap), after the restart transient: every gap counts, the
-   * first too (the transient is tested in its own describe below); returns the
-   * state after each.
+   * since it is not a gap), after the restart transient and the first scroll:
+   * every gap counts, the first too (the transient and the first scroll are
+   * tested in their own describes below); returns the state after each.
    */
   const feed = (gaps: number[], from = newGuard(budget), startAt = 1000) => {
     let state = observeFrame(
-      { ...breakChain(from), grace: 0 },
+      { ...breakChain(from), grace: 0, armed: true },
       startAt,
       budget,
     );
@@ -398,7 +399,11 @@ describe("the restart transient: the first frames after the loop has stopped and
 
   /** A guard that knows its screen, past the 40 gaps that tell it. */
   const known = () => {
-    let state = observeFrame(newGuard(budget), 1000, budget);
+    let state = observeFrame(
+      { ...newGuard(budget), armed: true },
+      1000,
+      budget,
+    );
     let at = 1000;
     for (let i = 0; i < DEGRADE.REFRESH_SAMPLES + DEGRADE.WINDOW; i += 1) {
       at += refresh;
@@ -562,7 +567,11 @@ describe("the restart transient: the first frames after the loop has stopped and
 
   it("a steady 60 Hz and 165 Hz screen, scrolled in bursts, is not stepped down", () => {
     for (const ms of [16.67, 6.06]) {
-      let state = observeFrame(newGuard(budget), 1000, budget);
+      let state = observeFrame(
+        { ...newGuard(budget), armed: true },
+        1000,
+        budget,
+      );
       let at = 1000;
       for (let i = 0; i < DEGRADE.REFRESH_SAMPLES + 5; i += 1) {
         at += ms;
@@ -600,11 +609,113 @@ describe("the restart transient: the first frames after the loop has stopped and
   });
 });
 
+describe("before the first scroll: the page's own frames are not judged", () => {
+  const budget = 12000;
+  const refresh = 16.7;
+
+  /** A guard fed `gaps` from the page's first frame, never scrolled. */
+  const staticFrames = (gaps: number[]) => {
+    let state = observeFrame(newGuard(budget), 1000, budget);
+    let at = 1000;
+    for (const gap of gaps) {
+      at += gap;
+      state = observeFrame(state, at, budget);
+    }
+    return { state, at };
+  };
+
+  it("starts unarmed, and arming is a restart that forgives the first gaps", () => {
+    const g = newGuard(budget);
+    expect(g.armed).toBe(false);
+    const armed = armGuard(g);
+    expect(armed.armed).toBe(true);
+    expect(armed.grace).toBe(DEGRADE.RESTART_GRACE);
+    expect(armed.lastAt).toBe(0);
+    expect(armed.gaps).toEqual([]);
+  });
+
+  it("arming twice changes nothing: a guard that is running is not restarted by a second scroll", () => {
+    const { state, at } = staticFrames(flat(100, refresh));
+    const once = armGuard(state);
+    let running = observeFrame(once, at + 600, budget);
+    for (let i = 0; i < 10; i += 1) {
+      running = observeFrame(running, at + 600 + (i + 1) * refresh, budget);
+    }
+    expect(armGuard(running)).toBe(running);
+  });
+
+  it("does not step down for slow frames before the first scroll, however many and however slow: 33 ms, 70 ms and 30 Hz frames from the first frame, 600 of them", () => {
+    for (const ms of [33, 70, 33.3, 120]) {
+      const { state } = staticFrames(flat(600, ms));
+      expect(state.drawCount, `${ms} ms`).toBe(budget);
+      expect(state.gaps, `${ms} ms`).toEqual([]);
+    }
+  });
+
+  it("still learns the screen's interval from the static frames (the shimmer is the screen's own frames), capped at 16.7 ms", () => {
+    expect(staticFrames(flat(40, 8.33)).state.refreshMs).toBeCloseTo(8.33, 9);
+    expect(staticFrames(flat(40, 33)).state.refreshMs).toBe(16.7);
+    expect(staticFrames(flat(39, 8.33)).state.refreshMs).toBeNull();
+  });
+
+  it("a machine that was busy while the page started is not stepped down by it: slow static frames, then the reader scrolls on a machine that has settled", () => {
+    // A 33 ms frame every 6 during the shimmer (16 %: over the 8 in 60), then steady.
+    const busy = pattern(300, refresh, 33.4, (i) => i % 6 === 0);
+    const { state, at } = staticFrames(busy);
+    expect(state.drawCount).toBe(budget);
+    let scrolling = armGuard(state);
+    let now = at + 900;
+    scrolling = observeFrame(scrolling, now, budget);
+    for (let i = 0; i < 600; i += 1) {
+      now += refresh;
+      scrolling = observeFrame(scrolling, now, budget);
+    }
+    expect(scrolling.drawCount).toBe(budget);
+  });
+
+  it("counts from the first scroll: a device that is slow all the time steps down once it is scrolled, after the grace and a full window (5 + 60 gaps)", () => {
+    const { state, at } = staticFrames(flat(200, 33));
+    let scrolling = armGuard(state);
+    let now = at + 900;
+    scrolling = observeFrame(scrolling, now, budget);
+    let firstStep = -1;
+    for (let i = 0; i < 300; i += 1) {
+      now += 33;
+      scrolling = observeFrame(scrolling, now, budget);
+      if (firstStep < 0 && scrolling.drawCount < budget) firstStep = i + 1;
+    }
+    expect(firstStep).toBe(DEGRADE.RESTART_GRACE + DEGRADE.WINDOW);
+    expect(scrolling.drawCount).toBeLessThan(budget);
+  });
+
+  it("the guard that was never armed and the same frames after arming differ only in whether they count (without the arming check, the 600 static frames above would step down)", () => {
+    const { state } = staticFrames(flat(600, 33));
+    // The same frames, armed from the start: the old behaviour.
+    let armedFromStart = observeFrame(
+      { ...newGuard(budget), armed: true },
+      1000,
+      budget,
+    );
+    let at = 1000;
+    for (let i = 0; i < 600; i += 1) {
+      at += 33;
+      armedFromStart = observeFrame(armedFromStart, at, budget);
+    }
+    expect(state.drawCount).toBe(budget);
+    expect(armedFromStart.drawCount).toBeLessThan(budget);
+  });
+});
+
 describe("four devices, from the first frame to a long scroll", () => {
   const budget = 12000;
   /** A guard fed `gaps`, with the first frame at time 1000. */
   const live = (gaps: number[]) => {
-    let state = observeFrame(newGuard(budget), 1000, budget);
+    // A reader who has scrolled from the first frame: the guard is armed.
+    let state = observeFrame(
+      { ...newGuard(budget), armed: true },
+      1000,
+      budget,
+    );
     let at = 1000;
     let firstStep = -1;
     gaps.forEach((gap, i) => {

@@ -51,6 +51,16 @@
  * gaps that are seen (they set the clock for the next) but not counted: a
  * device that is slow all the time is still slow in every gap after them.
  *
+ * Nothing is judged before the first scroll. The page's first frames, with
+ * the shimmer playing at the top, are not the reader's scroll: the browser is
+ * still starting the page (hydration, a dev server compiling beside it, the
+ * GPU waking up), and a machine that is only busy then would be stepped down
+ * before the reader has touched anything (seen in the real-clock e2e test:
+ * a 33 ms frame every 5 to 8 during the shimmer). Those frames still teach
+ * the guard the screen's interval, and they still set its clock, but they are
+ * not in the window. `armGuard`, called on the first scroll, starts the
+ * counting (as a restart: the first gaps are forgiven too).
+ *
  * The window also starts empty once the interval is known: the first frames
  * after the layout switches on (the first one measures the page, the first
  * draw warms the GPU up) are slow on a phone, and they must not count either
@@ -167,6 +177,8 @@ export interface GuardState {
   readonly drawCount: number;
   /** How many of the next gaps are not counted: the restart transient after the loop has stopped. */
   readonly grace: number;
+  /** False until the first scroll (`armGuard`): until then the frames teach the guard the screen's interval and set its clock, and nothing else. */
+  readonly armed: boolean;
 }
 
 /** The guard at the start of a layout whose budget is `budget`, drawing all of them. */
@@ -178,6 +190,7 @@ export function newGuard(budget: number): GuardState {
     refreshMs: null,
     drawCount: budget,
     grace: 0,
+    armed: false,
   };
 }
 
@@ -196,6 +209,22 @@ export function guardForBudget(state: GuardState, budget: number): GuardState {
  */
 export function breakChain(state: GuardState): GuardState {
   return { ...state, lastAt: 0, grace: DEGRADE.RESTART_GRACE };
+}
+
+/**
+ * The reader has scrolled for the first time: from now on the frames are
+ * counted. A restart (the first gaps are forgiven). Arming a guard that is
+ * armed already changes nothing.
+ */
+export function armGuard(state: GuardState): GuardState {
+  if (state.armed) return state;
+  return {
+    ...state,
+    armed: true,
+    lastAt: 0,
+    grace: DEGRADE.RESTART_GRACE,
+    gaps: [],
+  };
 }
 
 /**
@@ -225,6 +254,9 @@ export function observeFrame(
     // Known now: the window starts empty, so the warm-up frames above are not in it.
     return { ...state, lastAt: now, firstGaps, refreshMs, gaps: [] };
   }
+
+  // Before the first scroll the frame is seen, not counted.
+  if (!state.armed) return { ...state, lastAt: now };
 
   const gaps = [...state.gaps, gap].slice(-DEGRADE.WINDOW);
   const next = nextDrawCount({
