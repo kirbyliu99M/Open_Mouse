@@ -1,7 +1,12 @@
 import "server-only";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../db/client";
-import { scanMeasurements, scanSessions, scans } from "../../db/schema";
+import {
+  scanMeasurements,
+  scanSessions,
+  scans,
+  surveyContributions,
+} from "../../db/schema";
 import type { AccountRepo, AccountScan } from "./repo";
 
 /** The real `AccountRepo`, over the Neon HTTP driver. */
@@ -69,7 +74,18 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         .from(scans)
         .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
         .where(eq(scanSessions.userId, userId));
-      await db.delete(scanSessions).where(eq(scanSessions.userId, userId));
+      // This does not delete the user row, so the foreign key from
+      // `survey_contributions.user_id` never fires here: the survey answers
+      // are withdrawn by name. One batch (one atomic request), so the button
+      // that promises "everything" never deletes the scans and leaves the
+      // answers, or the other way round. A scan's `survey_contributed_at` mark
+      // goes with the scan; the contributions themselves go with `user_id`.
+      await db.batch([
+        db
+          .delete(surveyContributions)
+          .where(eq(surveyContributions.userId, userId)),
+        db.delete(scanSessions).where(eq(scanSessions.userId, userId)),
+      ]);
       return owned.length;
     },
   };
