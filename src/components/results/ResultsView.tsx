@@ -17,12 +17,15 @@ export function ResultsView({
   analysisState = { status: "idle" },
   onRetryAnalysis,
   enteredLengthMm = null,
+  showViewer = false,
 }: {
   response: FitResponse;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLengthMm?: number | null;
+  /** Mount the 3D size illustration in the top pick (real scans only). */
+  showViewer?: boolean;
 }) {
   return (
     <div className="results-view">
@@ -38,7 +41,7 @@ export function ResultsView({
             None of these fits your hand well. The closest is below.
           </p>
         )}
-      <TopPick response={response} />
+      <TopPick response={response} viewer={showViewer} />
       {enteredLengthMm !== null && (
         <p className="results-handNotice">
           Based on the hand length you entered ({enteredLengthMm}&nbsp;mm).

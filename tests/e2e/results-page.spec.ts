@@ -452,7 +452,11 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
-    await expect(page.getByRole("status")).toContainText(/Preparing/);
+    // The analysis card is a status region. Scoped to it: the page has other
+    // status regions (the confidence note, the viewer's fallback line).
+    const loading = page.locator(".results-analysis-loading");
+    await expect(loading).toHaveAttribute("role", "status");
+    await expect(loading).toContainText(/Preparing/);
   });
 
   test("404 on the fit route (expired or foreign scan, per routes.ts's ownership rule) shows 'scan again', never a raw error", async ({
