@@ -55,6 +55,12 @@ export interface AttemptRecord {
     readonly height: number | null;
     readonly kb: number | null;
   };
+  /**
+   * The wait for the preview to be asked for the photo's shape ran out before
+   * the camera answered (previewConstraints.ts), so the shutter opened anyway;
+   * `null` for an upload.
+   */
+  readonly settleTimedOut: boolean | null;
   /** The live preview it was taken from (`null` sizes for an upload). */
   readonly preview: {
     readonly width: number | null;
@@ -201,6 +207,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       method === "takePhoto" || method === "canvas" || method === "upload"
         ? method
         : null,
+    settleTimedOut: cleanBool(raw.settleTimedOut),
     photo: {
       width: cleanNumber(photo?.width, 0),
       height: cleanNumber(photo?.height, 0),
@@ -404,6 +411,8 @@ export interface AttemptCapture {
   readonly photoWidth: number | null;
   readonly photoHeight: number | null;
   readonly photoKb: number | null;
+  /** The preview settle wait ran out (see `AttemptRecord.settleTimedOut`); `null`/absent for an upload. */
+  readonly settleTimedOut?: boolean | null;
   /** The live preview's frame at the moment of capture; `null` for an upload. */
   readonly previewWidth: number | null;
   readonly previewHeight: number | null;
@@ -469,6 +478,7 @@ export function buildAttemptRecord(input: {
     v: 1,
     at,
     method: capture.method,
+    settleTimedOut: capture.settleTimedOut ?? null,
     photo: {
       width: capture.photoWidth,
       height: capture.photoHeight,
@@ -512,6 +522,7 @@ export function buildAttemptRecord(input: {
       v: 1,
       at: new Date(0).toISOString(),
       method: null,
+      settleTimedOut: null,
       photo: { width: null, height: null, kb: null },
       preview: {
         width: null,
@@ -562,6 +573,7 @@ export function describeAttempt(record: AttemptRecord): string {
   if (record.preview.fovMismatch) parts.push("FOV mismatch");
   if (record.view && record.view.modelApplies === false)
     parts.push("view model n/a");
+  if (record.settleTimedOut) parts.push("settle timed out");
   if (record.analysed.crop) parts.push("cropped");
   return parts.join(" · ");
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alignAndSettle,
   alignPreviewToStill,
   aspectOfSize,
   compareFov,
@@ -676,5 +677,103 @@ describe("alignPreviewToStill", () => {
       expect(result.comparison.fovMismatch).toBe(true);
       expect(result.orientationRetry).toBeNull();
     });
+  });
+});
+
+describe("alignAndSettle — the shutter never waits for ever", () => {
+  it("a camera that answers: settled when the alignment is done, not timed out, and the alignment comes through", async () => {
+    const { track } = fakeTrack({ settings: { width: 1080, height: 1440 } });
+    const { alignment, settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: fakeImageCapture(CAPS_43).Ctor,
+      portrait: true,
+      settleTimeoutMs: 2000,
+    });
+    expect(await settled).toEqual({ settleTimedOut: false });
+    expect((await alignment)?.comparison.fovMismatch).toBe(false);
+  });
+
+  it("applyConstraints that never resolves: it is settled anyway at the limit, with settleTimedOut true", async () => {
+    // A photo that is not 4:3 makes a size request; the track never answers it.
+    const applied: PreviewSizing[] = [];
+    const track: PreviewTrackLike = {
+      getSettings: () => ({ width: 1080, height: 1440 }),
+      applyConstraints: (constraints) => {
+        applied.push(constraints);
+        return new Promise<void>(() => undefined);
+      },
+    };
+    const started = Date.now();
+    const { settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: fakeImageCapture(CAPS_169).Ctor,
+      portrait: true,
+      settleTimeoutMs: 40,
+    });
+    expect(await settled).toEqual({ settleTimedOut: true });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(applied).toHaveLength(1);
+  });
+
+  it("a camera that never answers the photo-size question settles at the limit too", async () => {
+    const { track } = fakeTrack({});
+    class NeverAnswers {
+      getPhotoCapabilities() {
+        return new Promise<never>(() => undefined);
+      }
+    }
+    const { settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: NeverAnswers,
+      portrait: true,
+      settleTimeoutMs: 40,
+      capabilitiesTimeoutMs: 100000,
+    });
+    expect(await settled).toEqual({ settleTimedOut: true });
+  });
+
+  it("an alignment that comes after the limit is still delivered", async () => {
+    const { track } = fakeTrack({ settings: { width: 1080, height: 1440 } });
+    class Slow {
+      async getPhotoCapabilities() {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        return CAPS_43;
+      }
+    }
+    const { alignment, settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: Slow,
+      portrait: true,
+      settleTimeoutMs: 30,
+    });
+    expect(await settled).toEqual({ settleTimedOut: true });
+    expect((await alignment)?.stillAspectSource).toBe("photoCapabilities");
+  });
+
+  it("an alignment that fails is not an error: null, and the shutter is not held", async () => {
+    const track: PreviewTrackLike = {
+      getSettings: () => {
+        throw new Error("gone");
+      },
+      applyConstraints: async () => undefined,
+    };
+    const { alignment, settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: null,
+      portrait: true,
+      settleTimeoutMs: 2000,
+    });
+    expect(await settled).toEqual({ settleTimedOut: false });
+    expect(await alignment).not.toBeUndefined();
+  });
+
+  it("the limit is the candidate in the constants when none is given", async () => {
+    const { track } = fakeTrack({ settings: { width: 1080, height: 1440 } });
+    const { settled } = alignAndSettle({
+      track,
+      ImageCaptureCtor: fakeImageCapture(CAPS_43).Ctor,
+      portrait: true,
+    });
+    expect(await settled).toEqual({ settleTimedOut: false });
   });
 });

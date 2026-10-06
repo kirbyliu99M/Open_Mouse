@@ -699,6 +699,38 @@ describe("mergeAttempts", () => {
   });
 });
 
+describe("settleTimedOut — the shutter opened because the camera did not answer in time", () => {
+  const withCapture = (settleTimedOut: boolean | null | undefined) =>
+    buildAttemptRecord({
+      at: "2026-10-06T10:20:30.000Z",
+      userAgent: "x",
+      capture: { ...CAPTURE, settleTimedOut },
+      outcome: { kind: "result", result: ERROR_RESULT },
+    });
+
+  it("is recorded as it was, and null when the capture says nothing (an upload)", () => {
+    expect(withCapture(true).settleTimedOut).toBe(true);
+    expect(withCapture(false).settleTimedOut).toBe(false);
+    expect(withCapture(null).settleTimedOut).toBeNull();
+    expect(withCapture(undefined).settleTimedOut).toBeNull();
+    expect(record().settleTimedOut).toBeNull();
+  });
+
+  it("a stored value that is not a boolean is not trusted", () => {
+    const r = sanitizeAttempt({
+      at: "2026-10-06T10:20:30.000Z",
+      result: "ok",
+      settleTimedOut: "yes",
+    })!;
+    expect(r.settleTimedOut).toBeNull();
+  });
+
+  it("the line for the panel says so, only when it happened", () => {
+    expect(describeAttempt(withCapture(true))).toContain("settle timed out");
+    expect(describeAttempt(withCapture(false))).not.toContain("settle");
+  });
+});
+
 describe("what the person saw (view) in a record", () => {
   it("carries the stream, the part of it on screen and how it was carried over to the photo", () => {
     expect(record().view).toEqual({

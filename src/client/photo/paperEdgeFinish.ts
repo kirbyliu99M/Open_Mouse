@@ -4,7 +4,8 @@
  * measurements and the result with its overlay. Split out of `pipeline.ts`
  * (which needs a canvas, MediaPipe and a decoded bitmap) so that everything
  * that depends on whether the photo was cropped to the part the person saw is
- * pure and can be run, and tested, in Node (tests/unit/paper-edge-finish.test.ts).
+ * pure and can be run, and tested, in Node (its wiring is tested through the real
+ * pipeline in tests/unit/pipeline-view-crop.test.ts).
  *
  * When the photo was cropped (`visibleView.ts`), the quad and the landmarks are
  * in the CROPPED image's pixels, and three things must stay right:

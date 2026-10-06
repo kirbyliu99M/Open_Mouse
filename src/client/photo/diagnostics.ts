@@ -65,7 +65,13 @@ export interface PipelineDiagnostics {
   readonly decoded: { readonly width: number; readonly height: number } | null;
   /** What was analysed: the same, unless the photo was cropped to the preview's field of view. */
   readonly analysed: { readonly width: number; readonly height: number } | null;
-  /** The crop that was applied, in the decoded photo's pixels; `null` when none was. */
+  /**
+   * The crop that was applied, in the decoded photo's pixels; `null` when none
+   * was. It is now the crop to the part of the photo the person saw on screen
+   * (visibleView.ts); the field keeps its first name, `fovCrop`, so that the
+   * JSON the attempt log and the debug panel produce, and the documents that
+   * describe it, do not change.
+   */
   readonly fovCrop: PixelRect | null;
   /** `null` for an upload (no viewfinder) or where the region could not be worked out. */
   readonly view: ViewDiagnostics | null;

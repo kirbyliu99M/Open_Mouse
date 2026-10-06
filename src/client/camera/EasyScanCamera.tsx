@@ -123,9 +123,13 @@ import {
   shortUserAgent,
   type ScanDebugSnapshot,
 } from "./debugStats";
-import { visibleRectInStream, type PixelRect } from "./visibleView";
 import {
-  alignPreviewToStill,
+  assumedSampleFocalPx,
+  visibleRectInStream,
+  type PixelRect,
+} from "./visibleView";
+import {
+  alignAndSettle,
   isPortraitViewport,
   previewConstraintsFor,
   type PreviewAlignment,
@@ -569,6 +573,8 @@ export default function EasyScanCamera({
   // photo is never taken while the camera is being reconfigured.
   const previewSettledRef = useRef(true);
   const alignTokenRef = useRef(0);
+  // The wait for the preview ran out before the camera answered.
+  const settleTimedOutRef = useRef<boolean | null>(null);
   const attemptsRef = useRef<readonly AttemptRecord[]>([]);
   const captureInfoRef = useRef<CaptureInfo | null>(null);
   const runIdRef = useRef(0);
@@ -850,12 +856,24 @@ export default function EasyScanCamera({
         previewAlignmentRef.current = null;
         const alignToken = ++alignTokenRef.current;
         previewSettledRef.current = false;
-        void alignPreviewToStill({
+        settleTimedOutRef.current = null;
+        // The shutter waits for the alignment, but not for ever: `settled`
+        // opens it after the alignment is done or after the limit, whichever
+        // is first. The alignment's own result is still used when it arrives.
+        const { alignment: alignmentPromise, settled } = alignAndSettle({
           track: asPreviewTrack(videoTrack),
           ImageCaptureCtor: getImageCaptureCtor(),
           portrait,
-        })
+        });
+        void settled.then(({ settleTimedOut }) => {
+          // Only the newest stream's alignment may open the shutter.
+          if (alignToken !== alignTokenRef.current) return;
+          settleTimedOutRef.current = settleTimedOut;
+          previewSettledRef.current = true;
+        });
+        void alignmentPromise
           .then((alignment) => {
+            if (!alignment) return;
             // Not for a stream that has been replaced or stopped meanwhile.
             if (streamRef.current !== stream) return;
             previewAlignmentRef.current = alignment;
@@ -879,12 +897,7 @@ export default function EasyScanCamera({
                   debugFocusRef.current.continuous = applied;
               });
           })
-          .catch(() => undefined)
-          .finally(() => {
-            // Only the newest stream's alignment may open the shutter.
-            if (alignToken === alignTokenRef.current)
-              previewSettledRef.current = true;
-          });
+          .catch(() => undefined);
       } else {
         previewSettledRef.current = true;
       }
@@ -959,6 +972,7 @@ export default function EasyScanCamera({
         const size = info?.stillSize ? await info.stillSize : null;
         const capture: AttemptCapture = {
           method: info?.method ?? null,
+          settleTimedOut: info?.settleTimedOut ?? null,
           photoWidth: size?.width ?? info?.photoWidth ?? null,
           photoHeight: size?.height ?? info?.photoHeight ?? null,
           photoKb: info?.photoKb ?? null,
@@ -986,10 +1000,11 @@ export default function EasyScanCamera({
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
       setResult({ kind: "processing", previewUrl });
+      // What this analysis was started with, for both ways it can end: a later
+      // capture changes `captureInfoRef` and must not change the record of an
+      // earlier analysis still running, whether it finishes or throws.
+      const info = captureInfoRef.current;
       try {
-        // What this analysis was started with: a later capture must not
-        // change the record of an earlier one still running.
-        const info = captureInfoRef.current;
         const pipelineResult = await runPhotoPipelineImpl({
           file,
           hand: handChipRef.current.hand,
@@ -1055,7 +1070,7 @@ export default function EasyScanCamera({
         // Only a genuine detector load failure says so; anything else keeps
         // the message that does not claim a cause it does not know.
         const detectorFailed = error instanceof HandLandmarkerLoadError;
-        void logAttempt(captureInfoRef.current, {
+        void logAttempt(info, {
           kind: "thrown",
           code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
           message: error instanceof Error ? error.message : "",
@@ -1156,6 +1171,7 @@ export default function EasyScanCamera({
     setPhotoInfo(still ? { url: previewUrl, still, stream: streamSize } : null);
     captureInfoRef.current = {
       method,
+      settleTimedOut: settleTimedOutRef.current,
       photoWidth: still?.width ?? null,
       photoHeight: still?.height ?? null,
       photoKb: file.size / 1024,
@@ -1368,7 +1384,15 @@ export default function EasyScanCamera({
       let detection;
       const detectStartedAt = performance.now();
       try {
-        detection = quadSourceRef.current(imageData, paperSizeRef.current);
+        // The assumed focal length is the whole stream's, scaled to the
+        // sample (visibleView.ts), not the narrower sample's own.
+        detection = quadSourceRef.current(imageData, paperSizeRef.current, {
+          focalPxHint: assumedSampleFocalPx(
+            { width: video.videoWidth, height: video.videoHeight },
+            source,
+            { width, height },
+          ),
+        });
       } catch {
         detection = {
           corners: null,
@@ -1650,6 +1674,7 @@ export default function EasyScanCamera({
         aspectDiff: alignment?.comparison.aspectDiff ?? null,
         fovMismatch: alignment?.comparison.fovMismatch ?? null,
         reapplied: alignment?.reapplied ?? null,
+        settleTimedOut: settleTimedOutRef.current,
         orientationRetry: alignment?.orientationRetry ?? null,
       },
       attempts: attemptsRef.current,

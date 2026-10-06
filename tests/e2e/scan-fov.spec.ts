@@ -18,9 +18,12 @@ import { buildPaperScenePng } from "./fixtures/paper-scene";
 const A4_MM = { width: 210, height: 297 };
 
 /** A paper-edge scene in a portrait photo: the sheet fills about 80 % of the width. */
-async function uploadSyntheticPhoto(page: Page, name = "scene.png") {
-  const width = 1500;
-  const height = 2000;
+async function uploadSyntheticPhoto(
+  page: Page,
+  name = "scene.png",
+  size: { width: number; height: number } = { width: 1500, height: 2000 },
+) {
+  const { width, height } = size;
   const scale = (width * 0.8) / A4_MM.width;
   const png = await buildPaperScenePng(page, {
     canvasWidth: width,
@@ -258,6 +261,93 @@ test.describe("the camera is asked for the photo's shape", () => {
     expect(focus.length).toBeGreaterThanOrEqual(2);
     expect(focus[focus.length - 1].t).toBeGreaterThan(sizes[0].t);
     expect(focus[0].t).toBeLessThan(capabilities.t);
+    // The camera answered in time: the record says the wait did not run out.
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 30_000,
+      })
+      .toBe(1);
+    const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    expect(attempt.method).toBe("canvas");
+    expect(attempt.settleTimedOut).toBe(false);
+  });
+
+  test("a camera whose size request never answers does not keep the shutter shut: it opens at the limit, and the record says so", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-camera project.",
+    );
+    // The photo is 16:9, so the running track is asked for a size, and that
+    // request never resolves (the alignment hangs for good).
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __events?: { t: number; kind: string }[];
+      };
+      const events: { t: number; kind: string }[] = (w.__events = []);
+      const mark = (kind: string) =>
+        events.push({ t: performance.now(), kind });
+      class StubImageCapture {
+        async getPhotoCapabilities() {
+          return { imageWidth: { max: 3840 }, imageHeight: { max: 2160 } };
+        }
+        async takePhoto(): Promise<Blob> {
+          throw new Error("use the canvas");
+        }
+      }
+      (window as unknown as { ImageCapture: unknown }).ImageCapture =
+        StubImageCapture;
+      const proto = MediaStreamTrack.prototype;
+      const realApply = proto.applyConstraints;
+      proto.applyConstraints = function (constraints) {
+        if (constraints && "advanced" in constraints)
+          return realApply.call(this, constraints).catch(() => undefined);
+        mark("size");
+        return new Promise<void>(() => undefined);
+      };
+      new MutationObserver(() => {
+        const stage = document.querySelector(".easyStage");
+        if (
+          stage?.getAttribute("data-phase") === "processing" &&
+          !events.some((event) => event.kind === "processing")
+        )
+          mark("processing");
+      }).observe(document, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["data-phase"],
+      });
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      /processing|gateFailure/,
+      { timeout: 30_000 },
+    );
+    const events = (await page.evaluate(
+      () =>
+        (window as Window & { __events?: { t: number; kind: string }[] })
+          .__events,
+    )) as { t: number; kind: string }[];
+    const size = events.find((e) => e.kind === "size");
+    const processing = events.find((e) => e.kind === "processing");
+    expect(size).toBeDefined();
+    expect(processing).toBeDefined();
+    // The scene is perfect from the first second; without the limit the
+    // shutter would never open. It opens 3 s after the stream started, plus
+    // the ring's 0.8 s: well after the size request, and well before the test's
+    // own 30 s.
+    expect(processing!.t - size!.t).toBeGreaterThan(2500);
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 30_000,
+      })
+      .toBe(1);
+    const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    expect(attempt.settleTimedOut).toBe(true);
   });
 });
 
@@ -462,6 +552,67 @@ test.describe("the attempt log", () => {
       (a) => a.at,
     );
     expect(times[0] <= times[1]).toBe(true);
+  });
+
+  test("an analysis that throws is recorded with the photo it started with, not the next one's", async ({
+    page,
+  }) => {
+    // The detector's model is held back and then fails to load, so BOTH
+    // analyses below throw at the same moment, after the second photo has
+    // been picked. Each record must say which photo it was.
+    await page.addInitScript(() => {
+      const w = window as Window & { __releaseModel?: () => void };
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      w.__releaseModel = release;
+      const realFetch = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        if (!url.includes("hand_landmarker.task"))
+          return realFetch(input, init);
+        await gate;
+        throw new TypeError("offline");
+      };
+    });
+    await page.goto("/scan/easy?debug=1");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await uploadSyntheticPhoto(page, "first.png", {
+      width: 1500,
+      height: 2000,
+    });
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 30_000 },
+    );
+    await uploadSyntheticPhoto(page, "second.png", {
+      width: 1000,
+      height: 1400,
+    });
+    await page.evaluate(() =>
+      (window as Window & { __releaseModel?: () => void }).__releaseModel?.(),
+    );
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 60_000,
+      })
+      .toBe(2);
+    const attempts = (await storedAttempts(page)) as AttemptRecord[];
+    for (const attempt of attempts)
+      expect(attempt.errors.map((e) => e.code)).toEqual([
+        "DETECTOR_LOAD_FAILED",
+      ]);
+    // One record for each photo: not two records of the second.
+    expect(
+      attempts.map((a) => `${a.photo.width}x${a.photo.height}`).sort(),
+    ).toEqual(["1000x1400", "1500x2000"]);
   });
 
   test("a page without storage still scans, and the panel shows this session's attempt", async ({

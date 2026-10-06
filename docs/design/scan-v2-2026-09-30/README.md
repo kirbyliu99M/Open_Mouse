@@ -321,7 +321,8 @@ Two things made the person's view and the analysed picture differ:
 - **Live detection samples only that part.** The loop draws `drawImage(video, sx, sy, sw, sh, 0, 0, w, h)`,
   so the picture the detector gets has the screen's shape, its corner coordinates are the screen's (mapped back
   with the cover rectangle of the sample, which is nearly a plain scale; a unit test checks this agrees with the
-  old mapping to under 2 px), and `frameWidth` for the cue is the visible width. **No number moved:** the guide's
+  old mapping to under 2 px), and `frameWidth` for the cue is the visible width. The paper detector is told to assume the whole stream's focal length scaled to the sample, not the narrower
+  sample's own (`assumedSampleFocalPx`). **No number moved:** the guide's
   0.85, the cue's 0.55 and 0.95 (`CAMERA_CONSTANTS.size`) and the rest are as they were; they now apply to what
   is on screen. A sheet that fills the screen's width is at 100 %. The sample is smaller than before: 296x640
   for a 3:4 stream on 390x844, against 360x640 for the 9:16 whole-stream sample of the base commit and 480x640
@@ -357,7 +358,9 @@ visibleInStream)` carries the region over to the photo through one model: the st
   asked and nothing is flagged.
 - **The shutter waits and focus is asked for again.** Size requests can reset a camera, so the auto-shutter
   does not fire (and the ring does not fill) until the preview has settled (after the photo-size answer and the
-  size requests, or after 2.5 s without an answer), and continuous focus is asked for again after a size request.
+  size requests, or after **3 s** without a finished alignment, a candidate: a camera that never answers must not
+  leave the shutter shut, and the attempt log then says `settleTimedOut: true`), and continuous focus is asked for
+  again after a size request.
 - **Gates are untouched.** `PAPER_EDGE_LIMITS`, `gates.ts` and `src/lib/contracts/` are as they were.
 
 **Fake camera.** `paper-edge-full.y4m` is regenerated (`gen-camera-fixtures.spec.ts`): its frame is 800x1300 (it was

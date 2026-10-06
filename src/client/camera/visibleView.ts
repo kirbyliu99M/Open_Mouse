@@ -294,6 +294,23 @@ export function assumedDetectionFocalPx(frames: {
   return assumedFocalPxFromFov(frames.focalFrame.width);
 }
 
+/**
+ * The focal length in pixels the paper detector assumes for the live loop's
+ * sample (a 70 degree horizontal field of view over the width of the WHOLE
+ * stream, scaled to the sample's pixels). The sample is the visible part of the
+ * stream shrunk to `sample`, so one stream pixel is `sample.width /
+ * visible.width` sample pixels. Taking the assumption from the sample's own
+ * width instead would say the narrower picture is a wider view. With the whole
+ * stream as the visible part it is the same number as before.
+ */
+export function assumedSampleFocalPx(
+  stream: FrameSize,
+  visible: PixelRect,
+  sample: FrameSize,
+): number {
+  return assumedFocalPxFromFov(stream.width) * (sample.width / visible.width);
+}
+
 /** The centre of a rectangle, for the "the crop keeps the principal point" check. */
 export function rectCentre(rect: PixelRect): { x: number; y: number } {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };

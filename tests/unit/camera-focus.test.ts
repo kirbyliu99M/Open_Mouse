@@ -244,6 +244,8 @@ describe("the preview stream", () => {
     expect(CAMERA_CONSTANTS.preview.shortEdgePx).toBe(1080);
     expect(CAMERA_CONSTANTS.preview.minShortEdgePx).toBe(720);
     expect(CAMERA_CONSTANTS.preview.fovMismatchTolerance).toBe(0.02);
+    // The shutter waits for the preview, but at most this long.
+    expect(CAMERA_CONSTANTS.preview.settleTimeoutMs).toBe(3000);
     expect(CAMERA_CONSTANTS.focus.tapRefocusMs).toBe(1200);
   });
 });

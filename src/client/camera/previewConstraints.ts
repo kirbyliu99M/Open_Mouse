@@ -20,8 +20,8 @@
  *
  * Nothing here can be verified without the phone: a browser may still answer
  * with another shape. `compareFov` is how the app finds out and says so (the
- * debug panel and the attempt log, attemptLog.ts), and `fovCrop.ts` is the
- * fallback for when it does.
+ * debug panel and the attempt log, attemptLog.ts), and `visibleView.ts` is the
+ * fallback for when it does: everything looks at the part the person sees.
  */
 import { CAMERA_CONSTANTS } from "./constants";
 
@@ -437,4 +437,41 @@ export async function alignPreviewToStill<
     settings,
     comparison,
   };
+}
+
+/**
+ * `alignPreviewToStill` with a limit on how long anything waits for it. The
+ * auto-shutter must not stay shut because a camera never answers the photo-size
+ * question or a size request: `settled` resolves when the alignment is done or
+ * after `settleTimeoutMs` (3 s, a candidate), whichever is first, with
+ * `settleTimedOut` saying which. The alignment itself is not abandoned: its
+ * result is still delivered through `alignment` whenever it arrives (never a
+ * rejection: `null` if it failed).
+ */
+export function alignAndSettle<T extends ImageCaptureLikeForCapabilities>(
+  input: Parameters<typeof alignPreviewToStill<T>>[0] & {
+    readonly settleTimeoutMs?: number;
+  },
+): {
+  readonly alignment: Promise<PreviewAlignment | null>;
+  readonly settled: Promise<{ readonly settleTimedOut: boolean }>;
+} {
+  const alignment = alignPreviewToStill(input).catch(() => null);
+  const settled = new Promise<{ readonly settleTimedOut: boolean }>(
+    (resolve) => {
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        resolve({ settleTimedOut: true });
+      }, input.settleTimeoutMs ?? PREVIEW.settleTimeoutMs);
+      void alignment.then(() => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ settleTimedOut: false });
+      });
+    },
+  );
+  return { alignment, settled };
 }

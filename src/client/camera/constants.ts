@@ -125,6 +125,13 @@ export const CAMERA_CONSTANTS = {
     minShortEdgePx: 720,
     /** The preview and the photo differ in field of view once their aspect ratios differ by more than this fraction of the photo's. */
     fovMismatchTolerance: 0.02,
+    /**
+     * How long the auto-shutter waits for the preview to be asked for the
+     * photo's shape (the photo-size question and the size requests together)
+     * before it opens anyway and the attempt log notes `settleTimedOut`
+     * (candidate). A camera that never answers must not leave the shutter shut.
+     */
+    settleTimeoutMs: 3000,
   },
   /** Focus (scan v2). */
   focus: {

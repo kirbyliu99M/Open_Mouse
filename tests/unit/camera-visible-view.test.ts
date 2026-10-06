@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analysisFrames,
   assumedDetectionFocalPx,
+  assumedSampleFocalPx,
   rectCentre,
   toFullFrame,
   visibleRectInStill,
@@ -469,5 +470,57 @@ describe("the live loop's corner coordinates: a sample of the visible part lands
       width: 360,
       height: 640,
     });
+  });
+});
+
+describe("assumedSampleFocalPx — the live detector's assumed focal length is the whole stream's", () => {
+  const stream = { width: 1080, height: 1440 };
+
+  it("with the whole stream as the sample it is the number the detector assumed before", () => {
+    const sample = { width: 480, height: 640 };
+    expect(
+      assumedSampleFocalPx(
+        stream,
+        { x: 0, y: 0, width: 1080, height: 1440 },
+        sample,
+      ),
+    ).toBeCloseTo(assumedFocalPxFromFov(sample.width), 9);
+  });
+
+  it("for the visible part it is the whole stream's focal length in the sample's pixels, not the narrower sample's own", () => {
+    const visible = visibleRectInStream(stream, PHONE)!;
+    const sample = { width: 296, height: 640 };
+    const focal = assumedSampleFocalPx(stream, visible, sample);
+    // One stream pixel is sample.width / visible.width sample pixels.
+    expect(focal).toBeCloseTo(
+      assumedFocalPxFromFov(stream.width) * (296 / visible.width),
+      9,
+    );
+    // The narrower picture is not read as a wider view: the old assumption
+    // (from the sample's own width) is smaller.
+    expect(focal).toBeGreaterThan(assumedFocalPxFromFov(sample.width) * 1.3);
+  });
+
+  it("is the same whichever screen shape shows the same stream, to the rounding of the sample", () => {
+    // A focal length is a property of the lens: scaled back to stream pixels
+    // it is the same for every screen.
+    const fromStreamPx = (screen: { width: number; height: number }) => {
+      const visible = visibleRectInStream(stream, screen)!;
+      const sample = {
+        width: Math.round((visible.width * 640) / visible.height),
+        height: 640,
+      };
+      return (
+        assumedSampleFocalPx(stream, visible, sample) *
+        (visible.width / sample.width)
+      );
+    };
+    const reference = assumedFocalPxFromFov(stream.width);
+    for (const screen of [
+      PHONE,
+      { width: 360, height: 640 },
+      { width: 412, height: 915 },
+    ])
+      expect(fromStreamPx(screen)).toBeCloseTo(reference, 6);
   });
 });
