@@ -39,6 +39,7 @@ import {
   FEEL_RIGHT,
   FEEL_LARGE,
   DURATION_A,
+  DURATION_B,
   PAIN_A,
   PAIN_B,
   BRAND_A,
@@ -193,11 +194,20 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
         userId: "user-1",
         handLengthMm: 192,
       });
+      // The first contribution carries a current marker on a catalogue mouse
+      // AND on an other mouse: the body schema allows only one marker per body,
+      // but the repo does not enforce it, so one write seeds both kinds, and the
+      // retry below has a marker of each kind to (wrongly) take away.
       await world.surveyRepo.recordContribution(
         aWrite(first, {
           userId: "user-1",
           mainUse: USE_A,
           ratings: [rate(mouseA, 5, { isCurrent: true })],
+          otherMouse: {
+            brand: BRAND_A,
+            sizeFeel: FEEL_SMALL,
+            isCurrent: true,
+          },
         }),
       );
       await world.surveyRepo.recordContribution(
@@ -208,9 +218,19 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
         }),
       );
       const before = await world.contributions();
+      expect(before[0]).toMatchObject({
+        ratings: [
+          expect.objectContaining({ slug: "mouse-a", isCurrent: true }),
+        ],
+        otherMice: [
+          expect.objectContaining({ brand: BRAND_A, isCurrent: true }),
+        ],
+      });
 
       // Retrying the first scan, with answers that WOULD replace the earlier
-      // ones (same mouse, a new main use, a new current mouse, a new brand).
+      // ones (same mouse, a new main use, a new current mouse, a new brand) and
+      // that, if they got as far as the clearing statements, would move both
+      // current markers.
       const retry = await world.surveyRepo.recordContribution(
         aWrite(first, {
           userId: "user-1",
@@ -347,6 +367,68 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
       ]);
       expect(await ratingsOf("user-2")).toEqual([
         expect.objectContaining({ slug: "mouse-a", satisfaction: 2 }),
+      ]);
+    });
+
+    it("replaces the whole earlier rating of a mouse: a duration or pain points the new one leaves out are gone, not kept", async () => {
+      const s = await Promise.all(
+        [181, 192, 203].map((h) =>
+          world.addScan({ userId: "user-1", handLengthMm: h }),
+        ),
+      );
+      const ofMouseA = async () =>
+        (await ratingsOf("user-1")).filter((r) => r.slug === "mouse-a");
+
+      await world.surveyRepo.recordContribution(
+        aWrite(s[0]!, {
+          userId: "user-1",
+          ratings: [
+            rate(mouseA, 5, {
+              duration: DURATION_A,
+              painPoints: [PAIN_A, PAIN_B],
+            }),
+          ],
+        }),
+      );
+      expect(await ofMouseA()).toEqual([
+        expect.objectContaining({
+          satisfaction: 5,
+          duration: DURATION_A,
+          painPoints: [PAIN_A, PAIN_B],
+        }),
+      ]);
+
+      // A different satisfaction and pain points, and NO duration: the stored
+      // duration becomes null (the earlier one is not merged in).
+      await world.surveyRepo.recordContribution(
+        aWrite(s[1]!, {
+          userId: "user-1",
+          handLengthBinMm: 190,
+          ratings: [rate(mouseA, 2, { painPoints: [PAIN_B] })],
+        }),
+      );
+      expect(await ofMouseA()).toEqual([
+        expect.objectContaining({
+          satisfaction: 2,
+          duration: null,
+          painPoints: [PAIN_B],
+        }),
+      ]);
+
+      // And the other way round: a duration given, no pain points.
+      await world.surveyRepo.recordContribution(
+        aWrite(s[2]!, {
+          userId: "user-1",
+          handLengthBinMm: 200,
+          ratings: [rate(mouseA, 3, { duration: DURATION_B })],
+        }),
+      );
+      expect(await ofMouseA()).toEqual([
+        expect.objectContaining({
+          satisfaction: 3,
+          duration: DURATION_B,
+          painPoints: [],
+        }),
       ]);
     });
 
@@ -759,6 +841,98 @@ describe.each(worlds)("survey repo on %s", (_name, make) => {
         expect(await currentRatings()).toEqual(["mouse-a"]);
         expect(await currentOthers()).toEqual([]);
       });
+    });
+
+    it("moves only its own markers and main use: another signed-in person's are untouched by a write that moves the same kinds", async () => {
+      const mine1 = await world.addScan({
+        userId: "user-1",
+        handLengthMm: 181,
+      });
+      const theirs = await world.addScan({
+        userId: "user-2",
+        handLengthMm: 192,
+      });
+      const mine2 = await world.addScan({
+        userId: "user-1",
+        handLengthMm: 203,
+      });
+
+      // user-2 holds all three things the repeat rules move: a current rating,
+      // a current other mouse (the repo does not enforce the body schema's
+      // one-marker rule, so one write seeds both kinds) and a main use.
+      await world.surveyRepo.recordContribution(
+        aWrite(theirs, {
+          userId: "user-2",
+          handLengthBinMm: 190,
+          mainUse: USE_A,
+          ratings: [rate(mouseA, 5, { isCurrent: true })],
+          otherMouse: {
+            brand: BRAND_A,
+            sizeFeel: FEEL_RIGHT,
+            isCurrent: true,
+          },
+        }),
+      );
+      const theirsBefore = async () =>
+        (await world.contributions()).filter((c) => c.userId === "user-2");
+      const held = await theirsBefore();
+      expect(held).toEqual([
+        expect.objectContaining({
+          mainUse: USE_A,
+          ratings: [
+            expect.objectContaining({ slug: "mouse-a", isCurrent: true }),
+          ],
+          otherMice: [
+            expect.objectContaining({ brand: BRAND_A, isCurrent: true }),
+          ],
+        }),
+      ]);
+
+      // user-1 gives their own, then a second submission that moves a current
+      // rating, a current other mouse and the main use. Each of the three
+      // clearing statements has user-1's own rows to move here, so a statement
+      // that is not limited to user-1 would reach user-2's rows as well.
+      await world.surveyRepo.recordContribution(
+        aWrite(mine1, {
+          userId: "user-1",
+          mainUse: USE_A,
+          ratings: [rate(mouseC, 4, { isCurrent: true })],
+          otherMouse: {
+            brand: BRAND_B,
+            sizeFeel: FEEL_SMALL,
+            isCurrent: true,
+          },
+        }),
+      );
+      await world.surveyRepo.recordContribution(
+        aWrite(mine2, {
+          userId: "user-1",
+          handLengthBinMm: 200,
+          mainUse: USE_B,
+          ratings: [rate(mouseB, 3, { isCurrent: true })],
+          otherMouse: {
+            brand: BRAND_OTHER,
+            sizeFeel: FEEL_LARGE,
+            isCurrent: true,
+          },
+        }),
+      );
+
+      // user-1's own moved...
+      const user1 = (await world.contributions()).filter(
+        (c) => c.userId === "user-1",
+      );
+      expect(user1.map((c) => c.mainUse).filter((u) => u !== null)).toEqual([
+        USE_B,
+      ]);
+      expect(
+        user1.flatMap((c) => c.ratings).filter((r) => r.isCurrent),
+      ).toEqual([expect.objectContaining({ slug: "mouse-b" })]);
+      expect(
+        user1.flatMap((c) => c.otherMice).filter((o) => o.isCurrent),
+      ).toEqual([expect.objectContaining({ brand: BRAND_OTHER })]);
+      // ...and user-2's did not move at all.
+      expect(await theirsBefore()).toEqual(held);
     });
 
     it("keeps every comment as written", async () => {
