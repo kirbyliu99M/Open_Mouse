@@ -55,7 +55,11 @@ import {
   type PipelineResult,
 } from "../photo/pipeline";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { CAMERA_CONSTANTS, PAPER_SIZE_LABELS } from "./constants";
+import {
+  CAMERA_CONSTANTS,
+  PAPER_SIZE_LABELS,
+  captureSource,
+} from "./constants";
 import {
   cueFromCode,
   easyCueText,
@@ -77,6 +81,7 @@ import { computeMaxCornerMovement, isSteady } from "./steadiness";
 import {
   INITIAL_AUTO_CAPTURE_STATE,
   advanceAutoCapture,
+  resetAutoCapture,
   autoCaptureRingFraction,
   type AutoCaptureState,
 } from "./autoCapture";
@@ -123,6 +128,30 @@ import {
   shortUserAgent,
   type ScanDebugSnapshot,
 } from "./debugStats";
+import {
+  assumedSampleFocalPx,
+  frameDrawArgs,
+  frameFocalReferenceWidthPx,
+  visibleRegionInStream,
+  type PixelRect,
+} from "./visibleView";
+import {
+  alignAndSettle,
+  framePreviewConstraints,
+  isPortraitViewport,
+  previewConstraintsFor,
+  type PreviewAlignment,
+  type PreviewTrackLike,
+} from "./previewConstraints";
+import {
+  buildAttemptRecord,
+  readAttempts,
+  recordAttempt,
+  type AttemptCapture,
+  type AttemptCaptureSource,
+  type AttemptOutcome,
+  type AttemptRecord,
+} from "./attemptLog";
 import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
 import {
   INITIAL_HAND_CHIP_STATE,
@@ -186,6 +215,31 @@ function asFocusTrack(track: MediaStreamTrack): FocusTrackLike {
   };
 }
 
+/** The track as the preview alignment sees it (previewConstraints.ts). */
+function asPreviewTrack(track: MediaStreamTrack): PreviewTrackLike {
+  return {
+    getSettings: () => track.getSettings?.() ?? {},
+    applyConstraints: (constraints) =>
+      track.applyConstraints(constraints as MediaTrackConstraints),
+  };
+}
+
+/**
+ * What a capture or an upload knew about itself when it was made, kept for the
+ * attempt log (attemptLog.ts). An uploaded file's size arrives when the
+ * browser has decoded it, which can be after the analysis starts, so that part
+ * is a promise the log waits for.
+ */
+interface CaptureInfo extends AttemptCapture {
+  stillSize?: Promise<Size | null>;
+  /**
+   * What the person saw: the stream's size and the part of it that was on
+   * screen. Set for a camera capture (`takePhoto` or a canvas frame), absent for
+   * an upload, which has no viewfinder.
+   */
+  previewView?: { stream: Size; visibleInStream: PixelRect };
+}
+
 /** The stream's frame size: the <video>'s own (what `object-fit: cover` cropped), else the track's settings. */
 function readStreamSize(
   video: HTMLVideoElement | null,
@@ -220,6 +274,9 @@ async function loadStillSize(url: string): Promise<Size | null> {
 
 /** Live numbers for the debug panel (`?debug=1`): written by the loop, read by a timer. */
 interface DebugLive {
+  /** The part of the stream the live loop sampled (the part on screen), and the sample's size. */
+  visibleInStream: PixelRect | null;
+  sample: Size | null;
   sampleTimes: number[];
   detectMs: number[];
   laplacian: number | null;
@@ -230,6 +287,7 @@ interface DebugLive {
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
+  source: AttemptCaptureSource | null;
   stillWidth: number | null;
   stillHeight: number | null;
   stillKb: number | null;
@@ -238,6 +296,7 @@ interface DebugCapture {
 
 interface ImageCaptureLike {
   takePhoto(): Promise<Blob>;
+  getPhotoCapabilities(): Promise<unknown>;
 }
 interface ImageCaptureConstructor {
   new (track: MediaStreamTrack): ImageCaptureLike;
@@ -488,6 +547,8 @@ export default function EasyScanCamera({
   const reticleCountRef = useRef(0);
   const debugOnRef = useRef(false);
   const debugLiveRef = useRef<DebugLive>({
+    visibleInStream: null,
+    sample: null,
     sampleTimes: [],
     detectMs: [],
     laplacian: null,
@@ -498,6 +559,7 @@ export default function EasyScanCamera({
   });
   const debugCaptureRef = useRef<DebugCapture>({
     method: null,
+    source: null,
     stillWidth: null,
     stillHeight: null,
     stillKb: null,
@@ -514,6 +576,18 @@ export default function EasyScanCamera({
     continuous: FocusApplyResult | null;
     lastTap: FocusApplyResult | null;
   }>({ continuous: null, lastTap: null });
+  // What the preview was asked for and what the camera gave against the
+  // photo's shape (previewConstraints.ts), and the attempts kept on this device.
+  const previewAlignmentRef = useRef<PreviewAlignment | null>(null);
+  // False from the moment a stream starts until its preview has been asked for
+  // the photo's shape (previewConstraints.ts): the auto-shutter waits, so a
+  // photo is never taken while the camera is being reconfigured.
+  const previewSettledRef = useRef(true);
+  const alignTokenRef = useRef(0);
+  // The wait for the preview ran out before the camera answered.
+  const settleTimedOutRef = useRef<boolean | null>(null);
+  const attemptsRef = useRef<readonly AttemptRecord[]>([]);
+  const captureInfoRef = useRef<CaptureInfo | null>(null);
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -538,6 +612,12 @@ export default function EasyScanCamera({
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
   const tryAgainRef = useRef<HTMLButtonElement>(null);
+
+  // The attempts kept on this device (attemptLog.ts), read once so the debug
+  // panel shows the earlier ones too.
+  useEffect(() => {
+    attemptsRef.current = readAttempts(getBrowserStorage()) ?? [];
+  }, []);
 
   // Load persisted paper size + first-run-tip flag once, client-side only
   // (no hydration mismatch: both start at their SSR-safe defaults above).
@@ -748,20 +828,29 @@ export default function EasyScanCamera({
     resetLoopState();
     setCamState({ kind: "requesting" });
     try {
+      // What the shutter takes decides what the preview is asked for.
+      // As a frame of the video (the default, CAMERA_CONSTANTS.capture.source
+      // in constants.ts) the
+      // preview is asked for in the camera's own landscape terms, 1920x1080
+      // ideal, as it was before #132: the S25 answers that with an upright
+      // 1080x1920 and answered the photo-shaped request with a 1088x1088 square.
+      // Only when the camera's photo is taken instead (takePhoto, off) is the
+      // preview asked for in the photo's shape and re-asked below
+      // (previewConstraints.ts): that code is kept, not used.
+      const frameCapture = captureSource() === "frame";
+      const portrait = isPortraitViewport(
+        window.innerWidth,
+        window.innerHeight,
+      );
       const stream = await requestCameraStream(
         navigator.mediaDevices,
         {
-          video: {
-            facingMode: "environment",
-            // The preview only needs to be smooth to analyse; the photo itself
-            // comes from takePhoto(), at the sensor's full size.
-            width: { ideal: CAMERA_CONSTANTS.focus.previewIdealWidth },
-            height: { ideal: CAMERA_CONSTANTS.focus.previewIdealHeight },
-            // Prefer the camera's own frame sizes over a browser crop-and-
-            // scale to the requested shape: a crop would quietly narrow the
-            // field of view and could cut the paper's corners off.
-            resizeMode: { ideal: "none" },
-          } as MediaTrackConstraints & { resizeMode: { ideal: string } },
+          video: frameCapture
+            ? framePreviewConstraints()
+            : previewConstraintsFor(
+                CAMERA_CONSTANTS.preview.defaultStillAspect,
+                portrait,
+              ),
           audio: false,
         },
         () =>
@@ -778,7 +867,63 @@ export default function EasyScanCamera({
         });
       });
       const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) setUpFocus(videoTrack);
+      if (videoTrack && frameCapture) {
+        // Nothing is asked of the camera but focus, and nothing makes the
+        // shutter wait: the picture analysed is the frame being shown.
+        setUpFocus(videoTrack);
+        previewAlignmentRef.current = null;
+        previewSettledRef.current = true;
+        settleTimedOutRef.current = null;
+      } else if (videoTrack) {
+        setUpFocus(videoTrack);
+        previewAlignmentRef.current = null;
+        const alignToken = ++alignTokenRef.current;
+        previewSettledRef.current = false;
+        settleTimedOutRef.current = null;
+        // The shutter waits for the alignment, but not for ever: `settled`
+        // opens it after the alignment is done or after the limit, whichever
+        // is first. The alignment's own result is still used when it arrives.
+        const { alignment: alignmentPromise, settled } = alignAndSettle({
+          track: asPreviewTrack(videoTrack),
+          ImageCaptureCtor: getImageCaptureCtor(),
+          portrait,
+        });
+        void settled.then(({ settleTimedOut }) => {
+          // Only the newest stream's alignment may open the shutter.
+          if (alignToken !== alignTokenRef.current) return;
+          settleTimedOutRef.current = settleTimedOut;
+          previewSettledRef.current = true;
+        });
+        void alignmentPromise
+          .then((alignment) => {
+            if (!alignment) return;
+            // Not for a stream that has been replaced or stopped meanwhile.
+            if (streamRef.current !== stream) return;
+            previewAlignmentRef.current = alignment;
+            const settings = alignment.settings;
+            if (settings && debugTrackRef.current)
+              debugTrackRef.current = {
+                width: settings.width,
+                height: settings.height,
+                frameRate:
+                  settings.frameRate ?? debugTrackRef.current.frameRate,
+              };
+            // A size request can reset the camera's focus: ask for continuous
+            // focus again once the sizes are settled.
+            const focusTrack = focusTrackRef.current;
+            if (alignment.sizeRequests > 0 && focusTrack)
+              return applyContinuousFocus(
+                focusTrack,
+                focusSupportRef.current,
+              ).then((applied) => {
+                if (streamRef.current === stream)
+                  debugFocusRef.current.continuous = applied;
+              });
+          })
+          .catch(() => undefined);
+      } else {
+        previewSettledRef.current = true;
+      }
       setVideoReady(false);
       resetLoopState();
       lastDetectionAtRef.current = performance.now();
@@ -840,10 +985,50 @@ export default function EasyScanCamera({
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [camState.kind, stopStream]);
 
+  // Keeps one record of an analysis on this device (attemptLog.ts): numbers
+  // and codes only, no image, never sent anywhere. Always on, not only with
+  // ?debug=1: the record is the only trace a failed scan leaves, and what it
+  // holds is the same few numbers the debug panel shows.
+  const logAttempt = useCallback(
+    async (info: CaptureInfo | null, outcome: AttemptOutcome) => {
+      try {
+        const size = info?.stillSize ? await info.stillSize : null;
+        const capture: AttemptCapture = {
+          method: info?.method ?? null,
+          captureSource: info?.captureSource ?? null,
+          frame: info?.frame,
+          settleTimedOut: info?.settleTimedOut ?? null,
+          photoWidth: size?.width ?? info?.photoWidth ?? null,
+          photoHeight: size?.height ?? info?.photoHeight ?? null,
+          photoKb: info?.photoKb ?? null,
+          previewWidth: info?.previewWidth ?? null,
+          previewHeight: info?.previewHeight ?? null,
+        };
+        attemptsRef.current = recordAttempt(
+          getBrowserStorage(),
+          buildAttemptRecord({
+            at: new Date(),
+            userAgent: shortUserAgent(navigator.userAgent),
+            capture,
+            outcome,
+          }),
+          attemptsRef.current,
+        );
+      } catch {
+        // The log is a convenience: it must never break a scan.
+      }
+    },
+    [],
+  );
+
   const runPipeline = useCallback(
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
       setResult({ kind: "processing", previewUrl });
+      // What this analysis was started with, for both ways it can end: a later
+      // capture changes `captureInfoRef` and must not change the record of an
+      // earlier analysis still running, whether it finishes or throws.
+      const info = captureInfoRef.current;
       try {
         const pipelineResult = await runPhotoPipelineImpl({
           file,
@@ -855,7 +1040,27 @@ export default function EasyScanCamera({
             userLengthRef.current !== null
               ? { method: "user-length", handLengthMm: userLengthRef.current }
               : { method: "paper-edge", paperSize: paperSizeRef.current },
+          // A frame of the video is already the part the person saw on
+          // screen, so nothing is cropped (no previewView). The camera's own
+          // photo (takePhoto, off by default) is cut down to that part before
+          // analysis (visibleView.ts); an upload has no viewfinder.
+          previewView:
+            info?.captureSource === "takePhoto" ? info.previewView : undefined,
+          // The frame was cut before the pipeline saw it, so the pipeline is
+          // told how wide the stream was: its assumed focal length is then the
+          // live loop's, for the same pixels (a cut narrows the picture, not
+          // the lens).
+          focalReferenceWidthPx:
+            info?.captureSource === "frame" && info.frame
+              ? frameFocalReferenceWidthPx(
+                  info.frame.stream,
+                  info.photoWidth !== null && info.photoHeight !== null
+                    ? { width: info.photoWidth, height: info.photoHeight }
+                    : null,
+                )
+              : undefined,
         });
+        void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
         if (pipelineResult.status === "ok") {
           setHandChip((prev) =>
@@ -899,10 +1104,15 @@ export default function EasyScanCamera({
           });
         }
       } catch (error) {
-        if (runId !== runIdRef.current) return;
         // Only a genuine detector load failure says so; anything else keeps
         // the message that does not claim a cause it does not know.
         const detectorFailed = error instanceof HandLandmarkerLoadError;
+        void logAttempt(info, {
+          kind: "thrown",
+          code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          message: error instanceof Error ? error.message : "",
+        });
+        if (runId !== runIdRef.current) return;
         setResult({
           kind: "gateFailure",
           previewUrl,
@@ -924,84 +1134,185 @@ export default function EasyScanCamera({
         });
       }
     },
-    [runPhotoPipelineImpl],
+    [runPhotoPipelineImpl, logAttempt],
   );
 
   const captureNow = useCallback(async () => {
     if (capturingRef.current) return;
-    capturingRef.current = true;
-    const firedAt = performance.now();
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    const source: AttemptCaptureSource = captureSource();
     const video = videoRef.current;
-    // What the live frame was, read before the stream stops: the photo is
-    // drawn with the same crop.
-    const streamSize = readStreamSize(video, streamRef.current);
-    let file: File;
-    let method: "takePhoto" | "canvas" = "takePhoto";
+    // A frame needs a video that has a picture. If it has none yet (no video
+    // element, no frame decoded, no size) this press does nothing at all: the
+    // loop, the ring and the busy flag are left as they were, and the
+    // auto-shutter asks again on a later sample.
+    if (
+      source === "frame" &&
+      (!video || video.readyState < 2 || video.videoWidth === 0)
+    )
+      return;
+    capturingRef.current = true;
     try {
-      const track = streamRef.current?.getVideoTracks()[0];
-      const ImageCaptureCtor = getImageCaptureCtor();
-      if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
-      const capture = new ImageCaptureCtor(track);
-      const blob = await capture.takePhoto();
-      file = new File([blob], `capture-${Date.now()}.jpg`, {
-        type: blob.type || "image/jpeg",
-      });
-    } catch {
-      method = "canvas";
-      if (!video || video.videoWidth === 0) {
-        capturingRef.current = false;
-        return;
+      const firedAt = performance.now();
+      // The camera's own photo (off): the live loop stops at once, as it did.
+      // A frame stops it only once the frame exists (below), so a frame that
+      // cannot be made leaves the viewfinder running.
+      if (source !== "frame" && rafRef.current !== null)
+        cancelAnimationFrame(rafRef.current);
+      // What the live frame was, read before the stream stops: the photo is
+      // drawn with the same crop.
+      const streamSize = readStreamSize(video, streamRef.current);
+      // ...and the part of it that is on screen (the stage shows the stream with
+      // object-fit: cover): the same call, with the same inputs, as the live
+      // loop's sample, so what is analysed is exactly what was approved.
+      const stageBox = stageRef.current?.getBoundingClientRect();
+      const region =
+        streamSize && stageBox
+          ? visibleRegionInStream(streamSize, {
+              width: stageBox.width,
+              height: stageBox.height,
+            })
+          : null;
+      let file: File;
+      let method: "takePhoto" | "canvas" = "takePhoto";
+      /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
+      const frameFile = async (
+        rect: PixelRect | null,
+      ): Promise<File | null> => {
+        if (!video || video.videoWidth === 0) return null;
+        const area: PixelRect = rect ?? {
+          x: 0,
+          y: 0,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
+        const draw = frameDrawArgs(area);
+        const canvas = document.createElement("canvas");
+        canvas.width = draw.canvas.width;
+        canvas.height = draw.canvas.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.drawImage(video, ...draw.source, ...draw.destination);
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            CAMERA_CONSTANTS.capture.jpegQuality,
+          ),
+        );
+        return blob
+          ? new File([blob], `capture-${Date.now()}.jpg`, {
+              type: "image/jpeg",
+            })
+          : null;
+      };
+      if (source === "frame") {
+        // A frame of the video, cut to the part on screen, at the stream's own
+        // resolution: the pixels the person saw and the detector approved.
+        method = "canvas";
+        let frame: File | null = null;
+        try {
+          frame = await frameFile(region?.capture ?? null);
+        } catch {
+          // A canvas that throws (out of memory, a lost context) is a frame
+          // that was not made, like a missing context or a blob that is null.
+          frame = null;
+        }
+        if (!frame) {
+          // No frame: the loop was not stopped and is still running, the busy
+          // flag is reset by the `finally` below, and the ring starts over so
+          // that the auto-shutter tries again after a full fill, not on every
+          // sample. Nothing is shown (no copy for this has been approved); a
+          // press of the shutter tries again at once.
+          autoCaptureRef.current = resetAutoCapture();
+          setRingFraction(0);
+          return;
+        }
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        file = frame;
+      } else {
+        try {
+          const track = streamRef.current?.getVideoTracks()[0];
+          const ImageCaptureCtor = getImageCaptureCtor();
+          if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
+          const capture = new ImageCaptureCtor(track);
+          const blob = await capture.takePhoto();
+          file = new File([blob], `capture-${Date.now()}.jpg`, {
+            type: blob.type || "image/jpeg",
+          });
+        } catch {
+          // No camera photo: the whole frame; the pipeline cuts it to the part
+          // on screen (previewView).
+          method = "canvas";
+          const frame = await frameFile(null);
+          if (!frame) {
+            capturingRef.current = false;
+            return;
+          }
+          file = frame;
+        }
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        capturingRef.current = false;
-        return;
-      }
-      ctx.drawImage(video, 0, 0);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.92),
-      );
-      if (!blob) {
-        capturingRef.current = false;
-        return;
-      }
-      file = new File([blob], `capture-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
-    }
 
-    const previewUrl = URL.createObjectURL(file);
-    // The camera keeps running while the photo is decoded, so the swap from
-    // live picture to frozen picture happens in one step, under the flash.
-    const still = await loadStillSize(previewUrl);
-    stopStream();
-    if (typeof navigator.vibrate === "function") {
-      navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
+      const previewUrl = URL.createObjectURL(file);
+      // The camera keeps running while the photo is decoded, so the swap from
+      // live picture to frozen picture happens in one step, under the flash.
+      const still = await loadStillSize(previewUrl);
+      stopStream();
+      if (typeof navigator.vibrate === "function") {
+        navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
+      }
+      if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
+      setAnnounced("Photo taken");
+      fileRef.current = file;
+      // A frame cut to the screen's part is drawn exactly as the live video's
+      // visible part was: it IS that part, so it is its own "stream" for the layout.
+      setPhotoInfo(
+        still
+          ? {
+              url: previewUrl,
+              still,
+              stream: source === "frame" ? still : streamSize,
+            }
+          : null,
+      );
+      captureInfoRef.current = {
+        method,
+        captureSource: source,
+        frame:
+          source === "frame" && streamSize && region
+            ? { stream: streamSize, visibleInStream: region.visible }
+            : undefined,
+        settleTimedOut: settleTimedOutRef.current,
+        photoWidth: still?.width ?? null,
+        photoHeight: still?.height ?? null,
+        photoKb: file.size / 1024,
+        previewWidth: streamSize?.width ?? null,
+        previewHeight: streamSize?.height ?? null,
+        previewView:
+          source === "takePhoto" && streamSize && region
+            ? { stream: streamSize, visibleInStream: region.visible }
+            : undefined,
+      };
+      debugCaptureRef.current = {
+        method,
+        source,
+        stillWidth: still?.width ?? null,
+        stillHeight: still?.height ?? null,
+        stillKb: file.size / 1024,
+        ringCompleteToFrozenMs: null,
+      };
+      capturingRef.current = false;
+      void runPipeline(file, previewUrl);
+      // Two frames on, the frozen picture has been painted.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          debugCaptureRef.current.ringCompleteToFrozenMs =
+            performance.now() - firedAt;
+        }),
+      );
+    } finally {
+      // Whatever happened above, a later press or auto-shutter is not blocked.
+      capturingRef.current = false;
     }
-    if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
-    setAnnounced("Photo taken");
-    fileRef.current = file;
-    setPhotoInfo(still ? { url: previewUrl, still, stream: streamSize } : null);
-    debugCaptureRef.current = {
-      method,
-      stillWidth: still?.width ?? null,
-      stillHeight: still?.height ?? null,
-      stillKb: file.size / 1024,
-      ringCompleteToFrozenMs: null,
-    };
-    capturingRef.current = false;
-    void runPipeline(file, previewUrl);
-    // Two frames on, the frozen picture has been painted.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        debugCaptureRef.current.ringCompleteToFrozenMs =
-          performance.now() - firedAt;
-      }),
-    );
   }, [stopStream, runPipeline]);
 
   const onFilePicked = useCallback(
@@ -1015,12 +1326,24 @@ export default function EasyScanCamera({
       setPhotoInfo(null);
       debugCaptureRef.current = {
         method: "upload",
+        source: "upload",
         stillWidth: null,
         stillHeight: null,
         stillKb: file.size / 1024,
         ringCompleteToFrozenMs: null,
       };
-      void loadStillSize(previewUrl).then((still) => {
+      const stillSize = loadStillSize(previewUrl);
+      captureInfoRef.current = {
+        method: "upload",
+        captureSource: "upload",
+        photoWidth: null,
+        photoHeight: null,
+        photoKb: file.size / 1024,
+        previewWidth: null,
+        previewHeight: null,
+        stillSize,
+      };
+      void stillSize.then((still) => {
         if (still) setPhotoInfo({ url: previewUrl, still, stream: null });
       });
       void runPipeline(file, previewUrl);
@@ -1093,17 +1416,20 @@ export default function EasyScanCamera({
     let cancelled = false;
     const minIntervalMs = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond;
 
-    function updateCoverRectFromStage() {
+    // The part of the stream that is on screen (the stage shows it with
+    // object-fit: cover): the loop looks at this and nothing else, so what is
+    // detected, counted ("Move closer") and found "perfect" is what the person
+    // sees. `null` until the stage has a size: the whole frame is then used.
+    function readVisible() {
       const stage = stageRef.current;
       if (!stage || !video || video.videoWidth === 0) return null;
       const box = stage.getBoundingClientRect();
-      const coverRect = computeCoverRect(
-        box.width,
-        box.height,
-        video.videoWidth,
-        video.videoHeight,
+      if (box.width <= 0 || box.height <= 0) return null;
+      const region = visibleRegionInStream(
+        { width: video.videoWidth, height: video.videoHeight },
+        { width: box.width, height: box.height },
       );
-      return { coverRect };
+      return region ? { box, visible: region.visible } : null;
     }
 
     function tick(now: number) {
@@ -1118,12 +1444,30 @@ export default function EasyScanCamera({
       );
       lastSampleTimeRef.current = now;
 
-      const stageInfo = updateCoverRectFromStage();
+      const view = readVisible();
+      const source: PixelRect = view?.visible ?? {
+        x: 0,
+        y: 0,
+        width: video.videoWidth,
+        height: video.videoHeight,
+      };
       const { width, height } = computeDownscaleSize(
-        video.videoWidth,
-        video.videoHeight,
+        Math.max(1, Math.round(source.width)),
+        Math.max(1, Math.round(source.height)),
         CAMERA_CONSTANTS.liveLoop.downscaleLongEdgePx,
       );
+      // The sample has the stage's shape, so mapping it back onto the stage is
+      // (nearly) a plain scale.
+      const stageInfo = view
+        ? {
+            coverRect: computeCoverRect(
+              view.box.width,
+              view.box.height,
+              width,
+              height,
+            ),
+          }
+        : null;
       let canvas = offscreenRef.current;
       if (!canvas) {
         canvas = document.createElement("canvas");
@@ -1135,7 +1479,17 @@ export default function EasyScanCamera({
       }
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) return;
-      ctx.drawImage(video, 0, 0, width, height);
+      ctx.drawImage(
+        video,
+        source.x,
+        source.y,
+        source.width,
+        source.height,
+        0,
+        0,
+        width,
+        height,
+      );
       const imageData = ctx.getImageData(0, 0, width, height);
 
       if (userLengthRef.current !== null) {
@@ -1147,7 +1501,15 @@ export default function EasyScanCamera({
       let detection;
       const detectStartedAt = performance.now();
       try {
-        detection = quadSourceRef.current(imageData, paperSizeRef.current);
+        // The assumed focal length is the whole stream's, scaled to the
+        // sample (visibleView.ts), not the narrower sample's own.
+        detection = quadSourceRef.current(imageData, paperSizeRef.current, {
+          focalPxHint: assumedSampleFocalPx(
+            { width: video.videoWidth, height: video.videoHeight },
+            source,
+            { width, height },
+          ),
+        });
       } catch {
         detection = {
           corners: null,
@@ -1206,7 +1568,7 @@ export default function EasyScanCamera({
       // third in a row empties it (autoCapture.ts).
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
-        nextCue.allPass,
+        nextCue.allPass && previewSettledRef.current,
         dtMs,
       );
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
@@ -1224,6 +1586,8 @@ export default function EasyScanCamera({
             : null;
         live.cornersSeen = detection.cornersSeen;
         live.cueCode = nextCue.code;
+        live.visibleInStream = source;
+        live.sample = { width, height };
         debugVideoSizeRef.current = {
           width: video.videoWidth,
           height: video.videoHeight,
@@ -1269,7 +1633,8 @@ export default function EasyScanCamera({
         );
       }
 
-      if (autoCaptureRef.current.fired) void captureNow();
+      if (autoCaptureRef.current.fired && previewSettledRef.current)
+        void captureNow();
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -1361,6 +1726,7 @@ export default function EasyScanCamera({
     const support = focusSupportRef.current;
     const videoSize = debugVideoSizeRef.current;
     const trackInfo = debugTrackRef.current;
+    const alignment = previewAlignmentRef.current;
     return {
       userAgent: shortUserAgent(navigator.userAgent),
       track: trackInfo
@@ -1388,6 +1754,8 @@ export default function EasyScanCamera({
         lastTap: debugFocusRef.current.lastTap,
       },
       live: {
+        visibleInStream: live.visibleInStream,
+        sample: live.sample,
         samplesPerSecond: samplesPerSecond(live.sampleTimes),
         detectionMsAverage: mean(live.detectMs),
         detectionMsP95: percentile(live.detectMs, 95),
@@ -1403,11 +1771,31 @@ export default function EasyScanCamera({
       },
       capture: {
         method: capture.method,
+        source: capture.source ?? captureSource(),
         stillWidth: capture.stillWidth,
         stillHeight: capture.stillHeight,
         stillKb: capture.stillKb,
         ringCompleteToFrozenMs: capture.ringCompleteToFrozenMs,
       },
+      preview: {
+        requested: alignment
+          ? {
+              width: alignment.requested.width.ideal,
+              height: alignment.requested.height.ideal,
+              aspectRatio: alignment.requested.aspectRatio.ideal,
+            }
+          : null,
+        stillAspect: alignment?.stillAspect ?? null,
+        stillAspectSource: alignment?.stillAspectSource ?? null,
+        photoMax: alignment?.photoMax ?? null,
+        previewAspect: alignment?.comparison.previewAspect ?? null,
+        aspectDiff: alignment?.comparison.aspectDiff ?? null,
+        fovMismatch: alignment?.comparison.fovMismatch ?? null,
+        reapplied: alignment?.reapplied ?? null,
+        settleTimedOut: settleTimedOutRef.current,
+        orientationRetry: alignment?.orientationRetry ?? null,
+      },
+      attempts: attemptsRef.current,
     };
   }, []);
   useEffect(() => {

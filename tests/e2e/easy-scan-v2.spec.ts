@@ -101,7 +101,7 @@ test.describe("AC1: the stage never changes shape", () => {
       expect(delta, name).toBeLessThanOrEqual(1);
   });
 
-  test("the frozen photo is drawn in the live frame's own shape, not the still's", async ({
+  test("the frozen photo is drawn exactly where the live picture was: it is the part of the video that was on screen, so it fills the stage", async ({
     page,
   }) => {
     await holdPipeline(page);
@@ -141,14 +141,17 @@ test.describe("AC1: the stage never changes shape", () => {
       { timeout: 20_000 },
     );
     const photo = await box(page, "svg.easyFrozenSvg");
-    // object-fit: cover of the stream in the stage: the same aspect ratio as
-    // the stream, wider or taller than the stage, and centred on it.
-    expect(photo.width / photo.height).toBeCloseTo(
-      video.width / video.height,
-      2,
-    );
+    // The shutter takes the part of the stream the stage showed (object-fit:
+    // cover), so the frozen photo has the stage's own shape and covers it to
+    // the pixel: no jump between the live picture and the frozen one. (Before
+    // frame capture the photo was the whole stream and was drawn wider or
+    // taller than the stage.)
+    expect(Math.abs(photo.width - 390)).toBeLessThanOrEqual(1);
+    expect(Math.abs(photo.height - 844)).toBeLessThanOrEqual(1);
     expect(photo.x + photo.width / 2).toBeCloseTo(195, 0);
     expect(photo.y + photo.height / 2).toBeCloseTo(422, 0);
+    // ...while the stream behind it is not that shape.
+    expect(video.width / video.height).not.toBeCloseTo(390 / 844, 1);
     await release(page);
   });
 });
@@ -211,15 +214,18 @@ test.describe("AC6: the debug panel", () => {
     );
     console.log(`AC6 debug JSON: ${JSON.stringify(json)}`);
     expect(Object.keys(json).sort()).toEqual([
+      "attempts",
       "capabilities",
       "capture",
       "focusApplied",
       "live",
+      "preview",
       "track",
       "userAgent",
     ]);
+    expect(Array.isArray(json.attempts)).toBe(true);
     expect(json.userAgent).toMatch(/Chrome/);
-    expect(json.track).toMatchObject({ width: 1000, height: 1300 });
+    expect(json.track).toMatchObject({ width: 800, height: 1300 });
     expect(json.capabilities.focusMode).toEqual([]);
     expect(json.live.laplacianFloor).toBe(15);
     expect(json.live.samplesPerSecond).toBeGreaterThan(3);
@@ -229,7 +235,9 @@ test.describe("AC6: the debug panel", () => {
       json.live.detectionMsAverage * 0.5,
     );
     expect(json.live.cornersSeen).toBe(4);
-    expect(["takePhoto", "canvas"]).toContain(json.capture.method);
+    // A frame of the video cut to the part on screen, not the camera's photo.
+    expect(json.capture.method).toBe("canvas");
+    expect(json.capture.source).toBe("frame");
     expect(json.capture.stillWidth).toBeGreaterThan(0);
     expect(json.capture.stillKb).toBeGreaterThan(0);
     expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
@@ -506,6 +514,14 @@ test.describe("AC5: only transform and opacity move", () => {
 /**
  * A camera that reports focus support (Android Chrome does; the fake device
  * does not) and records every constraint it is asked to apply.
+ *
+ * `constraintsSeen` returns the FOCUS constraints only (the ones with an
+ * `advanced` list). Since the preview is asked for in the photo's shape
+ * (previewConstraints.ts) the running track is also asked for a size now and
+ * then (a photo that is not 4:3, or the one swapped retry on a mismatch; the
+ * fake camera's 800x1300 is far from 4:3, so it gets that retry). Those
+ * are size requests, not focus ones, and their timing is not what these focus
+ * tests are about; scan-fov.spec.ts covers them.
  */
 async function fakeFocusSupport(page: Page, supported: boolean) {
   await page.addInitScript((supported) => {
@@ -532,9 +548,10 @@ async function fakeFocusSupport(page: Page, supported: boolean) {
   }, supported);
 }
 const constraintsSeen = (page: Page) =>
-  page.evaluate(
-    () =>
-      (window as Window & { __constraints?: unknown[] }).__constraints ?? [],
+  page.evaluate(() =>
+    (
+      (window as Window & { __constraints?: object[] }).__constraints ?? []
+    ).filter((constraints) => "advanced" in constraints),
   );
 
 /**
@@ -656,7 +673,7 @@ test.describe("AC3 and AC4: focus", () => {
         } as MediaTrackCapabilities;
       };
       proto.getSettings = function () {
-        return { width: 1000, height: 1300, pointsOfInterest: [] };
+        return { width: 800, height: 1300, pointsOfInterest: [] };
       };
       proto.applyConstraints = () =>
         Promise.reject(new DOMException("no", "OverconstrainedError"));
@@ -800,7 +817,9 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
     const json = JSON.parse(
       await page.evaluate(() => navigator.clipboard.readText()),
     );
-    expect(["takePhoto", "canvas"]).toContain(json.capture.method);
+    // A frame of the video cut to the part on screen, not the camera's photo.
+    expect(json.capture.method).toBe("canvas");
+    expect(json.capture.source).toBe("frame");
     expect(json.capture.stillWidth).toBeGreaterThan(0);
     expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
     expect(json.track.videoWidth).toBeGreaterThan(0);

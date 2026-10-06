@@ -101,6 +101,8 @@ describe("debugSnapshotJson", () => {
       lastTap: { applied: false, reason: "TypeError" },
     },
     live: {
+      visibleInStream: { x: 207.31, y: 0, width: 665.38, height: 1440.04 },
+      sample: { width: 296, height: 640 },
       samplesPerSecond: 7.912345,
       detectionMsAverage: 41.2345,
       detectionMsP95: 66.66,
@@ -116,27 +118,45 @@ describe("debugSnapshotJson", () => {
     },
     capture: {
       method: "takePhoto",
+      source: "takePhoto",
       stillWidth: 4000,
       stillHeight: 3000,
       stillKb: 2412.7,
       ringCompleteToFrozenMs: 183.4,
     },
+    preview: {
+      requested: { width: 1080, height: 1440, aspectRatio: 0.7500001 },
+      stillAspect: 1.3333333,
+      stillAspectSource: "photoCapabilities",
+      photoMax: { width: 4000, height: 3000 },
+      previewAspect: 1.7777778,
+      aspectDiff: 0.3333334,
+      fovMismatch: true,
+      reapplied: null,
+      settleTimedOut: false,
+      orientationRetry: null,
+    },
+    attempts: [],
   };
 
   it("is JSON that parses back, with every key the panel promises", () => {
     const parsed = JSON.parse(debugSnapshotJson(snapshot));
     expect(Object.keys(parsed).sort()).toEqual(
       [
+        "attempts",
         "capabilities",
         "capture",
         "focusApplied",
         "live",
+        "preview",
         "track",
         "userAgent",
       ].sort(),
     );
     expect(Object.keys(parsed.live).sort()).toEqual(
       [
+        "sample",
+        "visibleInStream",
         "consecutiveFailures",
         "cornersSeen",
         "cueCode",
@@ -154,6 +174,7 @@ describe("debugSnapshotJson", () => {
     expect(Object.keys(parsed.capture).sort()).toEqual(
       [
         "method",
+        "source",
         "ringCompleteToFrozenMs",
         "stillHeight",
         "stillKb",
@@ -168,8 +189,66 @@ describe("debugSnapshotJson", () => {
     expect(parsed.live.detectionMsAverage).toBe(41.2);
     expect(parsed.live.laplacianVariance).toBe(23.46);
     expect(parsed.live.maxCornerMovementFractionOfDiagonal).toBe(0.0081);
+    expect(parsed.live.visibleInStream).toEqual({
+      x: 207.3,
+      y: 0,
+      width: 665.4,
+      height: 1440,
+    });
+    expect(parsed.live.sample).toEqual({ width: 296, height: 640 });
     expect(parsed.capture.stillKb).toBe(2413);
     expect(parsed.capture.ringCompleteToFrozenMs).toBe(183);
+    expect(parsed.preview.stillAspect).toBe(1.3333);
+    expect(parsed.preview.previewAspect).toBe(1.7778);
+    expect(parsed.preview.aspectDiff).toBe(0.3333);
+    expect(parsed.preview.requested.aspectRatio).toBe(0.75);
+  });
+
+  it("puts each attempt on one line, so twenty are not a thousand lines to paste", () => {
+    const attempt = {
+      v: 1,
+      at: "2026-10-06T10:20:30.000Z",
+      method: "upload",
+      result: "error",
+    };
+    const text = debugSnapshotJson({
+      ...snapshot,
+      attempts: [
+        attempt,
+        { ...attempt, at: "2026-10-06T10:20:31.000Z" },
+      ] as never,
+    });
+    const parsed = JSON.parse(text);
+    expect(parsed.attempts).toHaveLength(2);
+    expect(parsed.attempts[1].at).toBe("2026-10-06T10:20:31.000Z");
+    const lines = text.split("\n").filter((l) => l.includes('"at"'));
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line.trim().startsWith("{")).toBe(true);
+    // Still valid with none.
+    expect(
+      JSON.parse(debugSnapshotJson({ ...snapshot, attempts: [] })).attempts,
+    ).toEqual([]);
+  });
+
+  it("carries the attempts array, and keeps the preview flag as it is", () => {
+    const parsed = JSON.parse(debugSnapshotJson(snapshot));
+    expect(parsed.attempts).toEqual([]);
+    expect(parsed.preview.fovMismatch).toBe(true);
+    expect(parsed.preview.stillAspectSource).toBe("photoCapabilities");
+    expect(Object.keys(parsed.preview).sort()).toEqual(
+      [
+        "aspectDiff",
+        "fovMismatch",
+        "orientationRetry",
+        "photoMax",
+        "previewAspect",
+        "reapplied",
+        "requested",
+        "settleTimedOut",
+        "stillAspect",
+        "stillAspectSource",
+      ].sort(),
+    );
   });
 
   it("keeps null as null (nothing measured yet)", () => {

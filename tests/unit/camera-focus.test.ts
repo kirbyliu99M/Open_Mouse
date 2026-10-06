@@ -10,7 +10,10 @@ import {
   type FocusConstraints,
   type FocusTrackLike,
 } from "../../src/client/camera/focus";
-import { CAMERA_CONSTANTS } from "../../src/client/camera/constants";
+import {
+  CAMERA_CONSTANTS,
+  captureSource,
+} from "../../src/client/camera/constants";
 
 /** A track that records what it is asked for, and can be made to refuse. */
 function fakeTrack(options: {
@@ -239,9 +242,16 @@ describe("applyTapFocus", () => {
 });
 
 describe("the preview stream", () => {
-  it("asks for 1920x1080 for the preview; the 4K still is takePhoto's job", () => {
-    expect(CAMERA_CONSTANTS.focus.previewIdealWidth).toBe(1920);
-    expect(CAMERA_CONSTANTS.focus.previewIdealHeight).toBe(1080);
+  it("is asked for in the photo's shape, not 16:9 (previewConstraints.ts); the full-size still is takePhoto's job", () => {
+    expect(CAMERA_CONSTANTS.preview.defaultStillAspect).toBeCloseTo(4 / 3, 10);
+    expect(CAMERA_CONSTANTS.preview.shortEdgePx).toBe(1080);
+    expect(CAMERA_CONSTANTS.preview.minShortEdgePx).toBe(720);
+    expect(CAMERA_CONSTANTS.preview.fovMismatchTolerance).toBe(0.02);
+    // Frame capture: the preview is asked for 1920x1080 again.
+    expect(CAMERA_CONSTANTS.preview.frameIdealWidth).toBe(1920);
+    expect(CAMERA_CONSTANTS.preview.frameIdealHeight).toBe(1080);
+    // The shutter waits for the preview, but at most this long.
+    expect(CAMERA_CONSTANTS.preview.settleTimeoutMs).toBe(3000);
     expect(CAMERA_CONSTANTS.focus.tapRefocusMs).toBe(1200);
   });
 });
@@ -404,5 +414,13 @@ describe("focusOnceThenContinuous (a tap on the paper)", () => {
     );
     await vi.advanceTimersByTimeAsync(2000);
     expect(calls(applied)).toEqual(["continuous"]);
+  });
+});
+
+describe("what the shutter takes (CAMERA_CONSTANTS.capture)", () => {
+  it("is a frame of the video, cut to the part on screen; the camera's own photo is off", () => {
+    expect(captureSource()).toBe("frame");
+    expect(CAMERA_CONSTANTS.capture.source).toBe("frame");
+    expect(CAMERA_CONSTANTS.capture.jpegQuality).toBe(0.92);
   });
 });

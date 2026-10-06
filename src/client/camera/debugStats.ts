@@ -7,6 +7,7 @@
  * plain numbers and short strings, and the only way out of the device is
  * Kirby copying the JSON himself.
  */
+import type { AttemptRecord } from "./attemptLog";
 import type { CueCode } from "./cues";
 
 /** How many of the latest samples the timing statistics look at. */
@@ -72,6 +73,39 @@ export interface DebugFocusEntry {
   readonly reason?: string;
 }
 
+/**
+ * The preview's shape against the photo's: what the stream was asked for, what
+ * the camera said the photo would be, and whether the two show the same field
+ * of view (previewConstraints.ts). `fovMismatch` is the flag the 2026-10-06
+ * report is about: a preview 16:9 against a photo 4:3.
+ */
+export interface DebugPreviewInfo {
+  readonly requested: {
+    readonly width: number | null;
+    readonly height: number | null;
+    readonly aspectRatio: number | null;
+  } | null;
+  /** The photo's long over short that the preview was compared with. */
+  readonly stillAspect: number | null;
+  readonly stillAspectSource: "photoCapabilities" | "default" | "canvas" | null;
+  /** The largest photo size `getPhotoCapabilities()` reported. */
+  readonly photoMax: {
+    readonly width: number;
+    readonly height: number;
+  } | null;
+  readonly previewAspect: number | null;
+  /** (preview - photo) / photo, long over short. */
+  readonly aspectDiff: number | null;
+  readonly fovMismatch: boolean | null;
+  /** The second request made to the running track once the photo's shape was known. */
+  readonly reapplied: DebugFocusEntry | null;
+  /** The wait for the preview to be asked for the photo's shape ran out (the shutter opened anyway); `null` until it has ended. */
+  readonly settleTimedOut: boolean | null;
+  /** The same shape asked for with width and height swapped, after a mismatch (previewConstraints.ts). */
+  readonly orientationRetry:
+    (DebugFocusEntry & { readonly kept: boolean }) | null;
+}
+
 export interface ScanDebugSnapshot {
   readonly userAgent: string;
   readonly track: {
@@ -97,6 +131,18 @@ export interface ScanDebugSnapshot {
     readonly lastTap: DebugFocusEntry | null;
   };
   readonly live: {
+    /** The part of the stream the live loop looks at, the part on screen, in the stream's pixels. */
+    readonly visibleInStream: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    } | null;
+    /** The size of the picture the detector is given. */
+    readonly sample: {
+      readonly width: number;
+      readonly height: number;
+    } | null;
     readonly samplesPerSecond: number | null;
     readonly detectionMsAverage: number | null;
     readonly detectionMsP95: number | null;
@@ -114,22 +160,43 @@ export interface ScanDebugSnapshot {
   };
   readonly capture: {
     readonly method: "takePhoto" | "canvas" | "upload" | null;
+    /** What the shutter takes: a frame of the video cut to the part on screen, the camera's photo, or (after a pick) an upload. */
+    readonly source: "frame" | "takePhoto" | "upload" | null;
     readonly stillWidth: number | null;
     readonly stillHeight: number | null;
     readonly stillKb: number | null;
     /** From the ring completing to the frozen picture being on screen. */
     readonly ringCompleteToFrozenMs: number | null;
   };
+  readonly preview: DebugPreviewInfo;
+  /** The last 20 scan attempts kept on this device (attemptLog.ts), oldest first. Numbers and codes only. */
+  readonly attempts: readonly AttemptRecord[];
 }
 
 /** The snapshot as pasted back: rounded, stable key order. */
 export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
-  const { live, capture } = snapshot;
-  return JSON.stringify(
+  const { live, capture, preview, attempts, ...rest } = snapshot;
+  const head = JSON.stringify(
     {
-      ...snapshot,
+      ...rest,
+      preview: {
+        ...preview,
+        stillAspect: round(preview.stillAspect, 4),
+        previewAspect: round(preview.previewAspect, 4),
+        aspectDiff: round(preview.aspectDiff, 4),
+        requested: preview.requested && {
+          ...preview.requested,
+          aspectRatio: round(preview.requested.aspectRatio, 4),
+        },
+      },
       live: {
         ...live,
+        visibleInStream: live.visibleInStream && {
+          x: round(live.visibleInStream.x, 1),
+          y: round(live.visibleInStream.y, 1),
+          width: round(live.visibleInStream.width, 1),
+          height: round(live.visibleInStream.height, 1),
+        },
         samplesPerSecond: round(live.samplesPerSecond, 1),
         detectionMsAverage: round(live.detectionMsAverage, 1),
         detectionMsP95: round(live.detectionMsP95, 1),
@@ -149,4 +216,9 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
     null,
     2,
   );
+  // The attempts last, one record to a line: twenty of them, indented like the
+  // rest, would be a thousand lines to paste.
+  const lines = attempts.map((attempt) => `    ${JSON.stringify(attempt)}`);
+  const list = lines.length ? `\n${lines.join(",\n")}\n  ` : "";
+  return `${head.slice(0, -2)},\n  "attempts": [${list}]\n}`;
 }

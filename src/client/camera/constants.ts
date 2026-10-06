@@ -107,12 +107,67 @@ export const CAMERA_CONSTANTS = {
     /** A corner found again within this long of being lost does not pop in again. */
     repopAfterLostMs: 500,
   },
+  /**
+   * The preview stream's shape (scan v2 field-of-view fix, candidates). The
+   * preview used to ask for 1920x1080, which a phone answers with its 16:9
+   * video mode; that mode crops the sensor's left and right (in portrait), so
+   * the photo from takePhoto() (the whole 4:3 sensor) shows about a third
+   * more across than the preview did, and a sheet that filled the preview
+   * filled only three quarters of the photo. The preview is now asked for in
+   * the shape of the photo (previewConstraints.ts).
+   */
+  preview: {
+    /** Long edge over short edge of the photo when the camera will not say (a 4:3 sensor: nearly every phone). */
+    defaultStillAspect: 4 / 3,
+    /** The preview's short edge, asked for as an ideal... */
+    shortEdgePx: 1080,
+    /** ...and never asked for below this. */
+    minShortEdgePx: 720,
+    /** The preview and the photo differ in field of view once their aspect ratios differ by more than this fraction of the photo's. */
+    fovMismatchTolerance: 0.02,
+    /**
+     * What the preview is asked for while the capture is a frame of the video
+     * (`capture.source` "frame"): the camera's own landscape terms, 1920x1080
+     * ideal. Chrome on Android reads width and height that way and turns the
+     * answer upright (1080x1920 on the S25), which is what it did before the
+     * photo-shaped request of #132; that request came back as a 1088x1088 square.
+     */
+    frameIdealWidth: 1920,
+    frameIdealHeight: 1080,
+    /**
+     * How long the auto-shutter waits for the preview to be asked for the
+     * photo's shape (the photo-size question and the size requests together)
+     * before it opens anyway and the attempt log notes `settleTimedOut`
+     * (candidate). A camera that never answers must not leave the shutter shut.
+     */
+    settleTimeoutMs: 3000,
+  },
+  /**
+   * What the shutter takes (scan v2 frame capture, candidates). The easy scan
+   * analyses a FRAME OF THE VIDEO cut to the part that is on screen (the same
+   * rectangle the live detector samples), at the stream's own resolution:
+   * those are the pixels the person saw and the detector approved. `takePhoto()`
+   * is a different image source with a field of view that can only be guessed
+   * from the preview's, and the S25 showed the guess wrong (#132: a square
+   * 1088x1088 preview against a 3000x4000 photo; the live view found all four
+   * corners, the photo none). `takePhoto` stays in the code, with its crop and
+   * its tests, and is off: set `source` to "takePhoto" to bring it back.
+   */
+  capture: {
+    source: "frame",
+    /** JPEG quality of the frame handed to the pipeline. */
+    jpegQuality: 0.92,
+  },
   /** Focus (scan v2). */
   focus: {
-    /** Preview stream size the camera is asked for; the photo still comes from takePhoto. */
-    previewIdealWidth: 1920,
-    previewIdealHeight: 1080,
     /** After a tap's single-shot focus, continuous focus is asked for again. */
     tapRefocusMs: 1200,
   },
 } as const;
+
+export type CaptureSource = "frame" | "takePhoto";
+
+/** What the shutter takes (`CAMERA_CONSTANTS.capture.source`), typed as the choice it is. */
+export function captureSource(): CaptureSource {
+  return CAMERA_CONSTANTS.capture.source as CaptureSource;
+}

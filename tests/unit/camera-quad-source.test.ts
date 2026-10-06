@@ -153,6 +153,17 @@ describe("createPaperEdgeQuadSource", () => {
     expect(source(FAKE_FRAME, "a4")).toEqual(FULL_DETECTION);
   });
 
+  it("passes the options (a focal length to assume) on to the detector, and none when none are given", () => {
+    const seen: unknown[] = [];
+    const source = createPaperEdgeQuadSource((_frame, _size, options) => {
+      seen.push(options);
+      return FULL_DETECTION;
+    });
+    source(FAKE_FRAME, "a4", { focalPxHint: 321 });
+    source(FAKE_FRAME, "letter");
+    expect(seen).toEqual([{ focalPxHint: 321 }, undefined]);
+  });
+
   it("reports no corners found instead of crashing when the detector throws (live loop safety net)", () => {
     const source = createPaperEdgeQuadSource(() => {
       throw new RangeError("detectPaperQuad: unrecoverable side geometry.");
