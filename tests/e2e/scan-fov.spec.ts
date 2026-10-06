@@ -160,7 +160,7 @@ test.describe("the camera is asked for the photo's shape", () => {
     expect(visible.x).toBeCloseTo(199.6, 0);
     expect(visible.y).toBe(0);
     expect(visible.width).toBeCloseTo(600.7, 0);
-    expect(visible.height).toBe(1300);
+    expect(visible.height).toBeCloseTo(1300, 6);
     await page.evaluate(() =>
       (window as Window & { __release?: () => void }).__release?.(),
     );
