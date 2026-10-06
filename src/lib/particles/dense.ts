@@ -62,6 +62,29 @@ export function densifyStrokes(
   seed: number,
   spread = STROKE_SPREAD,
 ): TargetPoint[] {
+  const steps = densifyStrokesSteps(points, runs, count, seed, spread);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** How many particles `densifyStrokesSteps` makes between two yields. */
+const DENSIFY_SLICE = 1500;
+
+/**
+ * `densifyStrokes` as a generator that yields every `DENSIFY_SLICE` particles,
+ * so the stage can run it a slice per task (12,000 particles of the logo took
+ * 12 ms cold, a long task at 4 times the CPU). The same points, in the same
+ * order, from the same random numbers.
+ */
+export function* densifyStrokesSteps(
+  points: readonly TargetPoint[],
+  runs: readonly StrokeRun[],
+  count: number,
+  seed: number,
+  spread = STROKE_SPREAD,
+): Generator<void, TargetPoint[], void> {
   if (!Number.isInteger(count) || count < 0) {
     throw new RangeError("count must be a non-negative integer");
   }
@@ -79,11 +102,13 @@ export function densifyStrokes(
     count,
   );
   const out: TargetPoint[] = [];
-  runs.forEach((run, r) => {
+  let sinceYield = 0;
+  for (let r = 0; r < runs.length; r += 1) {
+    const run = runs[r]!;
     const share = shares[r]!;
     const { start, count: m } = run;
     const first = points[start]!;
-    if (share === 0) return;
+    if (share === 0) continue;
     if (m === 1) {
       out.push(first);
       for (let j = 1; j < share; j += 1) {
@@ -95,11 +120,16 @@ export function densifyStrokes(
           tone: first.tone,
         });
       }
-      return;
+      continue;
     }
     const closed = run.closed;
     const cells = closed ? m : m - 1;
     for (let j = 0; j < share; j += 1) {
+      sinceYield += 1;
+      if (sinceYield === DENSIFY_SLICE) {
+        sinceYield = 0;
+        yield;
+      }
       const exactEnd = !closed && (j === 0 || j === share - 1);
       let u = closed
         ? (j / share) * cells
@@ -133,6 +163,6 @@ export function densifyStrokes(
       }
       out.push({ x, y, tone: a.tone });
     }
-  });
+  }
   return out;
 }

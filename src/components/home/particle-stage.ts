@@ -48,7 +48,7 @@ import {
   legOf,
   logoBox,
   mouseBox,
-  pairingTables,
+  pairingTablesInSlices,
   writeParticles,
 } from "@/lib/particles/particle-set";
 import {
@@ -856,7 +856,12 @@ class Stage {
         }
         // Each particle's swing and direction, which no layout changes: its
         // own slice, so building the first layout's particles is not long.
-        if (this.pairing) pairingTables(this.pairing, PARTICLE_SEED);
+        if (this.pairing) {
+          await pairingTablesInSlices(this.pairing, PARTICLE_SEED, async () => {
+            await pause();
+            if (this.destroyed) throw new Error("the stage was destroyed");
+          });
+        }
         await pause();
         if (this.destroyed) return;
         // The order the WebGL path keeps its particles in (the stars come

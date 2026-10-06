@@ -119,7 +119,36 @@ export interface PairingTables {
 
 const tablesOf = new WeakMap<Pairing, PairingTables>();
 
+/** How many particles `pairingTablesSteps` makes between two yields (9.7 ms cold for 12,000 in one go: a long task at 4 times the CPU). */
+const TABLES_SLICE = 2000;
+
 export function pairingTables(pairing: Pairing, seed: number): PairingTables {
+  const steps = pairingTablesSteps(pairing, seed);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** The same, with `pause()` awaited between the slices. */
+export async function pairingTablesInSlices(
+  pairing: Pairing,
+  seed: number,
+  pause: () => Promise<void>,
+): Promise<PairingTables> {
+  const steps = pairingTablesSteps(pairing, seed);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+    await pause();
+  }
+}
+
+/** `pairingTables` as a generator that yields every `TABLES_SLICE` particles. */
+export function* pairingTablesSteps(
+  pairing: Pairing,
+  seed: number,
+): Generator<void, PairingTables, void> {
   const known = tablesOf.get(pairing);
   if (known && known.seed === seed) return known;
   const n = pairing.count;
@@ -157,6 +186,7 @@ export function pairingTables(pairing: Pairing, seed: number): PairingTables {
     tables.formY[i] = form[1] * swing;
     tables.splitX[i] = split[0] * swing;
     tables.splitY[i] = split[1] * swing;
+    if ((i + 1) % TABLES_SLICE === 0) yield;
   }
   tablesOf.set(pairing, tables);
   return tables;

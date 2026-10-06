@@ -45,7 +45,7 @@ const SPACING_SAMPLES = 48;
 const FIRST_GRID_AT = 16;
 
 /** Picks per slice (the stage waits a task between slices). */
-const SLICE = 300;
+const SLICE = 150;
 
 /**
  * Chosen particles of one drawing (the logo, or one mouse) in a uniform grid:
@@ -146,12 +146,15 @@ class Grid {
   }
 }
 
-/** The typical distance from a particle to its nearest neighbour in the same drawing, from a sample of them (squared compare, then one root). */
-function typicalSpacing(
+/** The spacing estimate yields every this many samples. */
+const SPACING_SLICE = 12;
+
+/** The typical distance from a particle to its nearest neighbour in the same drawing, from a sample of them (squared compare, then one root). A generator: it yields every `SPACING_SLICE` samples. */
+function* typicalSpacing(
   xs: Float64Array,
   ys: Float64Array,
   groups: readonly (readonly number[])[],
-): number {
+): Generator<void, number, void> {
   let total = 0;
   for (const group of groups) total += group.length;
   const every = Math.max(1, Math.floor(total / SPACING_SAMPLES));
@@ -172,6 +175,7 @@ function typicalSpacing(
         if (d < best) best = d;
       }
       if (best < Infinity) nearest.push(best);
+      if (nearest.length % SPACING_SLICE === 0) yield;
     }
   }
   if (nearest.length === 0) return 1;
@@ -207,9 +211,9 @@ export function* starOrderSteps(
   // drawing's distances are measured in, so a gap on the logo and a gap on a
   // mouse can be compared (a mouse holds a third of the particles on a longer
   // line, so its gaps are in other units).
-  const logoUnit = typicalSpacing(logoX, logoY, [everyone]);
+  const logoUnit = yield* typicalSpacing(logoX, logoY, [everyone]);
   yield;
-  const mouseUnit = typicalSpacing(mouseX, mouseY, slots);
+  const mouseUnit = yield* typicalSpacing(mouseX, mouseY, slots);
   yield;
 
   const next = new Int32Array(n).fill(-1);

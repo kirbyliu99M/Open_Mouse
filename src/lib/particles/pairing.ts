@@ -1,4 +1,4 @@
-import { densifyStrokes } from "./dense";
+import { densifyStrokesSteps } from "./dense";
 import { type TargetPoint, resampleToCount } from "./sampling";
 import type { ParticleTargets } from "./targets";
 import { createHandFiller } from "./template-hand";
@@ -242,7 +242,7 @@ export interface PairingOptions {
 }
 
 /** How many hand points one slice of the dense fill makes. */
-const FILL_SLICE = 2500;
+const FILL_SLICE = 1500;
 
 /**
  * Resample every target to the budget, then pair them, as a generator that
@@ -258,11 +258,16 @@ export function* pairingSteps(
   }
   const perMouse = count / MOUSE_COUNT;
   const dense = density === "dense";
-  const logoSorted = sortByX(
-    dense
-      ? densifyStrokes(targets.logo.points, targets.logo.runs, count, seed)
-      : resampleToCount(targets.logo.points, count, seed),
-  );
+  const logoPoints = dense
+    ? yield* densifyStrokesSteps(
+        targets.logo.points,
+        targets.logo.runs,
+        count,
+        seed,
+      )
+    : resampleToCount(targets.logo.points, count, seed);
+  yield;
+  const logoSorted = sortByX(logoPoints);
   yield;
 
   let hand: TargetPoint[];
@@ -284,18 +289,16 @@ export function* pairingSteps(
   for (const [slot, name] of mice.entries()) {
     const sketch = targets.mice[name];
     if (!sketch) throw new RangeError(`no sketch named ${name}`);
-    miceSorted.push(
-      sortByX(
-        dense
-          ? densifyStrokes(
-              sketch.points,
-              sketch.runs,
-              perMouse,
-              seed + 2 + slot,
-            )
-          : resampleToCount(sketch.points, perMouse, seed + 2 + slot),
-      ),
-    );
+    const mousePoints = dense
+      ? yield* densifyStrokesSteps(
+          sketch.points,
+          sketch.runs,
+          perMouse,
+          seed + 2 + slot,
+        )
+      : resampleToCount(sketch.points, perMouse, seed + 2 + slot);
+    yield;
+    miceSorted.push(sortByX(mousePoints));
     yield;
   }
   checkCounts(count, handSorted.length, miceSorted);
