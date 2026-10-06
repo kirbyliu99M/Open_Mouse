@@ -471,13 +471,33 @@ photo's field of view is relied on any more.
   frozen photo covers the stage exactly as the live picture did.
 - **`takePhoto` is off, not removed.** `CAMERA_CONSTANTS.capture.source` is `"frame"` (a candidate); set it
   to `"takePhoto"` to bring the camera's own photo back, with its crop to the part on screen
-  (`visibleRectInStill`, `previewView`), its photo-shaped preview request and its alignment. That code, and
-  its tests, are kept and not used.
+  (`visibleRectInStill`, `previewView`), its photo-shaped preview request and its alignment. The pure
+  functions and their unit tests are kept and not used. **The component-level e2e tests for that path were not
+  kept:** the preview request carrying `aspectRatio`, the wait for `alignAndSettle`, `settleTimedOut`, and the
+  photo cut to the part on screen through `previewView` were rewritten for the frame source in this PR
+  (`CAMERA_CONSTANTS` is `as const`, so an e2e test cannot switch the source at run time). Before the source is
+  set back to `"takePhoto"`, restore those tests from `b7b9084` (#132), `tests/e2e/scan-fov.spec.ts`, and get
+  them passing.
 - **The preview is asked for 1920x1080 ideal again** (the camera's landscape terms) with
   `resizeMode: { ideal: "none" }` and no `aspectRatio`: the request that gave the S25 an upright 1080x1920
   stream before #132, with a wider view. `alignAndSettle`, the swapped retry and `getPhotoCapabilities` are not
   called, the camera is asked for nothing but focus, and the auto-shutter waits for nothing
   (`previewSettledRef` stays open).
+- **A frame that cannot be made does not end the viewfinder.** The live loop is stopped only once the frame
+  exists. Before that, a press of the shutter on a video with no picture yet (no element, `readyState` under 2,
+  `videoWidth` 0) does nothing at all, not even take the busy flag; and a frame that fails (no 2D context, a
+  `toBlob` that gives `null`, a canvas that throws) leaves the loop running, the busy flag reset in a
+  `finally`, and the ring emptied, so the auto-shutter tries again after a full fill and a press tries again at
+  once. Nothing is shown for it: there is no approved copy for this case. (The camera's own photo keeps its
+  earlier order: the loop is stopped first.)
+- **The detector's assumed focal length is the lens's.** The pipeline gets the cut frame and does not know it is
+  cut, so left alone it would assume a focal length from the frame's 580 px (414 px) while the live loop assumes
+  one from the stream's 1088 px (777 px) for the same pixels. The frame's caller therefore passes the optional
+  `focalReferenceWidthPx` (the stream's width in the frame's pixels; `frameFocalReferenceWidthPx` scales it the
+  way the decoder scales a frame over 3000 px), and `assumedDetectionFocalPx` uses it. Left out, nothing
+  changes: uploads, the printed sheet and the camera's photo do not pass it. It feeds only the detector's hint
+  (no gate reads it). The review's estimate for the aspect error in the tilted views the hint matters for:
+  about 2.5 %, 4.5 % and 7.1 % at 15, 20 and 25 degrees, against a limit of 8 %.
 - **Debug panel and attempt log.** A "Capture source" row shows the source (`frame`, `takePhoto` or
   `upload`), the stream's size and the part of it on screen; "Preview vs photo" appears only for the camera's
   photo. "Copy JSON" has `capture.source`. A record has `captureSource` and, for a frame, `view` with
@@ -486,9 +506,12 @@ photo's field of view is relied on any more.
 
 **Parallax: what a video frame costs.** A canvas frame has no EXIF, so no focal length in pixels. The pipeline
 already handles that: it asks `resolveFocalPx`, which uses a focal length estimated from the sheet's own
-perspective when the view is tilted enough to fix one (`reliable`), and otherwise does not correct
-(`parallaxCorrected: false`, the uncorrected projection). Nothing throws and the submission is valid (tested
-with the real pipeline). A phone held flat above the sheet is the fronto-parallel case: not correctable, so
+perspective when that estimate is well-conditioned (`reliable`: a tilted view), and otherwise does not correct
+(`parallaxCorrected: false`, the uncorrected projection). So there are two cases, and the flag says which:
+a **tilted** view can still be corrected from the sheet's own perspective (`parallaxCorrected` may be `true`;
+how good that estimate is has not been measured here), and a **near-frontal** view (a phone held flat above
+the sheet, the case the guide asks for) cannot fix a focal length and is not corrected. Nothing throws and the
+submission is valid in both (tested with the real pipeline). For the near-frontal case
 **the hand length is the uncorrected one and reads high**. With the product's own landmark heights
 (`landmark-heights-v2`) and a pinhole camera over the sheet's centre, a 190 mm hand reads 197.0 mm at 40 cm
 (3.7 % high), 198.0 at 35 cm (4.2 %), 199.4 at 30 cm (5.0 %) and 201.4 at 25 cm (6.0 %); the EXIF-corrected
@@ -498,19 +521,21 @@ the correction (it uses the same heights to build the scene and to correct it). 
 correction back: no `takePhoto`, no guessed focal length.
 
 **A real hand through the frame path** (`tests/e2e/frame-capture-real-hand.spec.ts`, opt-in, run by hand on a
-production build with `next start`; the photo is Kirby's, not committed). One of his hand photos on a sheet
-(`20260923_160341.jpg`) is drawn into a 1080x1920 frame with the sheet at the guide's 85 % of the part on
+production build with `next start`; the photo is one of Kirby's own hand photos, not in the repo). The photo
+(a hand on a sheet) is drawn into a 1080x1920 frame with the sheet at the guide's 85 % of the part on
 screen, fed to Chromium as the fake camera's video, and the whole easy scan runs on a 412x772 screen: the live
 detector, the auto-shutter, the canvas frame, the real MediaPipe hand detector and every gate. Result, from the
 attempt record: `method: canvas`, `captureSource: frame`; the frame sent to the pipeline is 1024x1920 (the
 part on screen is 1024.7x1920 of the 1080x1920 stream; the pipeline did no crop, `analysed.crop: null`); paper
 `cornersSeen: 4`, width 0.850 and height 0.640 of the frame, curl residual 0.627 mm (limit 1.5), minimum side
-coverage 0.475 (limit 0.40), no gate failed; hand found (confidence 0.929, right); sharpness 302; total 947 ms
-(paper 288, hand 241); `parallaxCorrected: false`. The sheet says "Hand measured", hand length 187 mm, palm
-width 68 mm. What this shows: a frame cut to the on-screen part passes the paper gates and the hand detector,
-and the no-EXIF path measures and submits without error. What it does not show: that 187 mm is right (there is
-no ground truth for this photo, and the frame is a still, so no parallax of a phone held over the sheet, no
-focus, no motion), nor anything about the S25's own camera.
+coverage 0.475 (limit 0.40), no gate failed; hand found (confidence 0.929, right); sharpness 302; total 598 ms
+(paper 243, hand 239); `parallaxCorrected: false`. The sheet says "Hand measured". The run was done twice, before
+and after the detector's focal length was taken from the stream's width (above): every paper and hand number
+above is the same in both (the timings are not). This photo is near-frontal; the hint is expected to matter for tilted views (the
+review's estimate above), which was not re-measured here. What this shows: a frame cut to the on-screen part passes the paper gates and
+the hand detector, and the no-EXIF path measures and submits without error. What it does not show: whether the
+measured length is right (it is not checked against any ground truth, and the frame is a still, so no parallax
+of a phone held over the sheet, no focus, no motion), nor anything about the S25's own camera.
 
 **Not verified.** Everything about the S25: what stream shape Chrome gives for the 1920x1080 request this
 time (it gave 1080x1920 in the first run, before #132), whether a canvas frame of the `<video>` has the pixels
