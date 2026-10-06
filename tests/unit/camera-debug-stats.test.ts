@@ -190,6 +190,32 @@ describe("debugSnapshotJson", () => {
     expect(parsed.preview.requested.aspectRatio).toBe(0.75);
   });
 
+  it("puts each attempt on one line, so twenty are not a thousand lines to paste", () => {
+    const attempt = {
+      v: 1,
+      at: "2026-10-06T10:20:30.000Z",
+      method: "upload",
+      result: "error",
+    };
+    const text = debugSnapshotJson({
+      ...snapshot,
+      attempts: [
+        attempt,
+        { ...attempt, at: "2026-10-06T10:20:31.000Z" },
+      ] as never,
+    });
+    const parsed = JSON.parse(text);
+    expect(parsed.attempts).toHaveLength(2);
+    expect(parsed.attempts[1].at).toBe("2026-10-06T10:20:31.000Z");
+    const lines = text.split("\n").filter((l) => l.includes('"at"'));
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line.trim().startsWith("{")).toBe(true);
+    // Still valid with none.
+    expect(
+      JSON.parse(debugSnapshotJson({ ...snapshot, attempts: [] })).attempts,
+    ).toEqual([]);
+  });
+
   it("carries the attempts array, and keeps the preview flag as it is", () => {
     const parsed = JSON.parse(debugSnapshotJson(snapshot));
     expect(parsed.attempts).toEqual([]);

@@ -159,10 +159,10 @@ export interface ScanDebugSnapshot {
 
 /** The snapshot as pasted back: rounded, stable key order. */
 export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
-  const { live, capture, preview } = snapshot;
-  return JSON.stringify(
+  const { live, capture, preview, attempts, ...rest } = snapshot;
+  const head = JSON.stringify(
     {
-      ...snapshot,
+      ...rest,
       preview: {
         ...preview,
         stillAspect: round(preview.stillAspect, 4),
@@ -194,4 +194,9 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
     null,
     2,
   );
+  // The attempts last, one record to a line: twenty of them, indented like the
+  // rest, would be a thousand lines to paste.
+  const lines = attempts.map((attempt) => `    ${JSON.stringify(attempt)}`);
+  const list = lines.length ? `\n${lines.join(",\n")}\n  ` : "";
+  return `${head.slice(0, -2)},\n  "attempts": [${list}]\n}`;
 }
