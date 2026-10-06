@@ -240,8 +240,17 @@ export const scans = pgTable("scans", {
    * the survey (`POST /api/survey`), which is what makes a second submission
    * for the same scan a 409. It lives on the scan and goes with it. The
    * contribution itself never points back here (see `surveyContributions`).
-   * Only `src/server/survey/drizzle-repo.ts` reads or writes it, so a scan read
-   * made before 0007 is applied does not touch the column.
+   *
+   * Migrate BEFORE deploying code that has this column. Drizzle's
+   * `db.insert(scans).values(...)` names EVERY column of this table in the
+   * INSERT (the ones not given are written as `default`), so with this code
+   * live and 0007 not yet applied, `POST /api/scans` (`insertScanWithMeasurements`)
+   * fails with `column "survey_contributed_at" of relation "scans" does not
+   * exist`, not only the survey routes and the account's "Delete everything".
+   * The other way round is safe: code that predates 0007 never names the
+   * column, and the migration only adds it (nullable, no default). Only a
+   * select with an explicit column list, which is what every existing scans
+   * read uses, leaves it out.
    */
   surveyContributedAt: timestamp("survey_contributed_at", {
     withTimezone: true,

@@ -1,12 +1,28 @@
 /**
  * Migration 0007 (survey contributions) on a real Postgres (PGlite), with the
  * repo's own migrations: that the hand-wrapped SQL builds what drizzle's
- * snapshot says, that it is additive and re-runnable, and that the constraints
- * and cascades the privacy rules lean on are really in the database.
+ * snapshot says (columns with their types, nullability and defaults; the
+ * primary key; every foreign key with its target and ON DELETE; every CHECK
+ * expression; every index with its columns, uniqueness and WHERE), that it is
+ * additive and re-runnable, and that the constraints and cascades the privacy
+ * rules lean on are really in the database.
+ *
+ * Most cases only read the schema or start from empty tables, so they share one
+ * migrated database (started once, truncated between the cases that write).
+ * The two that run migrations themselves, "re-runs" and "is additive", start
+ * their own.
  */
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   MIGRATION_FILES,
   applyMigrations,
@@ -21,23 +37,56 @@ import {
   FEEL_RIGHT,
 } from "./fixtures/survey-values";
 
-// Each case starts a fresh in-process Postgres and applies every migration.
-vi.setConfig({ testTimeout: 30_000 });
+// A fresh in-process Postgres with every migration applied takes a few seconds.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
+
+/** The one migrated database most cases share (see the header). */
+let shared: PGlite;
+beforeAll(async () => {
+  shared = (await migratedDatabase()).pg;
+});
+afterAll(() => shared.close());
+
+/** Back to empty tables; the cascade reaches every survey table through its foreign keys. */
+const emptyTables = () =>
+  shared.exec(`truncate table users, mice, scan_sessions cascade`);
 
 const MIGRATION_0007 = MIGRATION_FILES.findIndex((f) => f.startsWith("0007_"));
 
-interface Snapshot {
-  tables: Record<
+interface SnapshotColumn {
+  type: string;
+  typeSchema?: string;
+  primaryKey: boolean;
+  notNull: boolean;
+  default?: string | boolean | number;
+}
+interface SnapshotTable {
+  columns: Record<string, SnapshotColumn>;
+  indexes: Record<
     string,
     {
-      columns: Record<string, { type: string; notNull: boolean }>;
-      indexes: Record<string, { isUnique: boolean }>;
-      foreignKeys: Record<string, unknown>;
-      compositePrimaryKeys: Record<string, unknown>;
-      uniqueConstraints: Record<string, unknown>;
-      checkConstraints: Record<string, unknown>;
+      isUnique: boolean;
+      method: string;
+      where?: string;
+      columns: { expression: string; asc: boolean; nulls: string }[];
     }
   >;
+  foreignKeys: Record<
+    string,
+    {
+      tableTo: string;
+      columnsFrom: string[];
+      columnsTo: string[];
+      onDelete: string;
+      onUpdate: string;
+    }
+  >;
+  compositePrimaryKeys: Record<string, { columns: string[] }>;
+  uniqueConstraints: Record<string, unknown>;
+  checkConstraints: Record<string, { value: string }>;
+}
+interface Snapshot {
+  tables: Record<string, SnapshotTable>;
 }
 
 const snapshot = JSON.parse(
@@ -46,16 +95,6 @@ const snapshot = JSON.parse(
     "utf8",
   ),
 ) as Snapshot;
-
-const UDT_OF_SNAPSHOT_TYPE: Record<string, string> = {
-  uuid: "uuid",
-  text: "text",
-  "timestamp with time zone": "timestamptz",
-  smallint: "int2",
-  jsonb: "jsonb",
-  boolean: "bool",
-  grip_style: "grip_style",
-};
 
 const SURVEY_TABLES = [
   "survey_contributions",
@@ -118,6 +157,135 @@ const rating = (
     values ('${contributionId}', '${mouseId}', ${v.user_id}, ${v.satisfaction}, ${v.pain_points})`;
 };
 
+/**
+ * One table as Postgres itself prints it, every part keyed by name: a column's
+ * type, nullability and default; each constraint's kind and definition
+ * (`pg_get_constraintdef`: the key columns, what a foreign key points to and its
+ * ON DELETE, the text of a CHECK); each index's definition (`pg_get_indexdef`:
+ * its columns, whether it is unique, its WHERE). A drift in any of them reads as
+ * a difference between two short strings with the object's name on it.
+ */
+interface Shape {
+  columns: Record<string, string>;
+  constraints: Record<string, string>;
+  indexes: Record<string, string>;
+}
+
+async function shapeOf(
+  pg: PGlite,
+  schema: string,
+  table: string,
+): Promise<Shape> {
+  const columns = await pg.query<{
+    column_name: string;
+    udt_name: string;
+    is_nullable: string;
+    column_default: string | null;
+  }>(
+    `select column_name, udt_name, is_nullable, column_default
+       from information_schema.columns where table_schema = $1 and table_name = $2`,
+    [schema, table],
+  );
+  const constraints = await pg.query<{
+    conname: string;
+    contype: string;
+    def: string;
+  }>(
+    `select conname, contype, pg_get_constraintdef(oid) as def from pg_constraint
+      where conrelid = format('%I.%I', $1::text, $2::text)::regclass and contype <> 'n'`,
+    [schema, table],
+  );
+  const indexes = await pg.query<{ indexname: string; indexdef: string }>(
+    `select indexname, indexdef from pg_indexes where schemaname = $1 and tablename = $2`,
+    [schema, table],
+  );
+  return {
+    columns: Object.fromEntries(
+      columns.rows.map((c) => [
+        c.column_name,
+        `${c.udt_name} ${c.is_nullable === "NO" ? "NOT NULL" : "NULL"} default ${c.column_default ?? "(none)"}`,
+      ]),
+    ),
+    constraints: Object.fromEntries(
+      constraints.rows.map((c) => [c.conname, `${c.contype}: ${c.def}`]),
+    ),
+    indexes: Object.fromEntries(
+      indexes.rows.map((i) => [
+        i.indexname,
+        i.indexdef.replace(` ON ${schema}.`, " ON public."),
+      ]),
+    ),
+  };
+}
+
+/**
+ * What the drizzle snapshot says a table is, as the same `Shape`: the table is
+ * built from the snapshot's own description, in a scratch schema that is dropped
+ * again, and read back with `shapeOf`. So the snapshot's CHECK text and WHERE
+ * go through the same Postgres parser as the migration's, and the two are
+ * compared as Postgres prints them, not as two strings that happen to differ in
+ * quoting or brackets.
+ */
+async function shapeOfSnapshot(
+  pg: PGlite,
+  table: string,
+  t: SnapshotTable,
+): Promise<Shape> {
+  expect(
+    Object.keys(t.uniqueConstraints),
+    "this builder does not model unique constraints",
+  ).toEqual([]);
+  const schema = `snapshot_${table}`;
+  const q = (identifier: string) => `"${identifier}"`;
+  const lines = [
+    ...Object.entries(t.columns).map(([name, c]) => {
+      const type = c.typeSchema ? `${q(c.typeSchema)}.${q(c.type)}` : c.type;
+      const notNull = c.notNull ? " NOT NULL" : "";
+      const dflt = c.default === undefined ? "" : ` DEFAULT ${c.default}`;
+      return `${q(name)} ${type}${notNull}${dflt}`;
+    }),
+    ...Object.entries(t.columns)
+      .filter(([, c]) => c.primaryKey)
+      .map(
+        ([name]) => `CONSTRAINT ${q(`${table}_pkey`)} PRIMARY KEY (${q(name)})`,
+      ),
+    ...Object.entries(t.compositePrimaryKeys).map(
+      ([name, pk]) =>
+        `CONSTRAINT ${q(name)} PRIMARY KEY (${pk.columns.map(q).join(", ")})`,
+    ),
+    ...Object.entries(t.foreignKeys).map(
+      ([name, fk]) =>
+        `CONSTRAINT ${q(name)} FOREIGN KEY (${fk.columnsFrom.map(q).join(", ")}) ` +
+        `REFERENCES "public".${q(fk.tableTo)}(${fk.columnsTo.map(q).join(", ")}) ` +
+        `ON DELETE ${fk.onDelete} ON UPDATE ${fk.onUpdate}`,
+    ),
+    ...Object.entries(t.checkConstraints).map(
+      ([name, check]) => `CONSTRAINT ${q(name)} CHECK (${check.value})`,
+    ),
+  ];
+  const indexes = Object.entries(t.indexes).map(([name, index]) => {
+    const columns = index.columns.map((c) => {
+      expect(c, "an expression index").toHaveProperty("isExpression", false);
+      return `${q(c.expression)} ${c.asc ? "ASC" : "DESC"} NULLS ${c.nulls.toUpperCase()}`;
+    });
+    return (
+      `CREATE ${index.isUnique ? "UNIQUE " : ""}INDEX ${q(name)} ON ${q(schema)}.${q(table)} ` +
+      `USING ${index.method} (${columns.join(", ")})` +
+      (index.where ? ` WHERE ${index.where}` : "")
+    );
+  });
+  await pg.exec(`CREATE SCHEMA ${q(schema)}`);
+  try {
+    await pg.exec(
+      `CREATE TABLE ${q(schema)}.${q(table)} (\n  ${lines.join(",\n  ")}\n)`,
+    );
+    for (const statement of indexes) await pg.exec(statement);
+    return await shapeOf(pg, schema, table);
+  } finally {
+    await pg.exec(`DROP SCHEMA ${q(schema)} CASCADE`);
+  }
+}
+
 describe("migration 0007", () => {
   it("is one statement (the neon-http migrator has no transaction)", () => {
     expect(migrationStatements(MIGRATION_FILES[MIGRATION_0007]!)).toHaveLength(
@@ -157,70 +325,21 @@ describe("migration 0007", () => {
   });
 
   it.each(SURVEY_TABLES)(
-    "builds %s exactly as drizzle's snapshot describes it",
+    "builds %s exactly as drizzle's snapshot describes it, down to index columns and WHERE, ON DELETE, CHECK expressions and defaults",
     async (table) => {
-      const { pg } = await migratedDatabase();
       const expected = snapshot.tables[`public.${table}`]!;
-
-      const columns = await pg.query<{
-        column_name: string;
-        udt_name: string;
-        is_nullable: string;
-      }>(
-        `select column_name, udt_name, is_nullable from information_schema.columns where table_name = $1`,
-        [table],
-      );
-      expect(
-        Object.fromEntries(
-          columns.rows.map((c) => [
-            c.column_name,
-            { type: c.udt_name, notNull: c.is_nullable === "NO" },
-          ]),
-        ),
-      ).toEqual(
-        Object.fromEntries(
-          Object.entries(expected.columns).map(([name, c]) => [
-            name,
-            { type: UDT_OF_SNAPSHOT_TYPE[c.type], notNull: c.notNull },
-          ]),
-        ),
-      );
-
-      const constraints = await pg.query<{ conname: string; contype: string }>(
-        `select conname, contype from pg_constraint where conrelid = $1::regclass`,
-        [table],
-      );
-      const names = (type: string) =>
-        constraints.rows
-          .filter((c) => c.contype === type)
-          .map((c) => c.conname)
-          .sort();
-      expect(names("f")).toEqual(Object.keys(expected.foreignKeys).sort());
-      expect(names("c")).toEqual(Object.keys(expected.checkConstraints).sort());
-      expect(names("u")).toEqual(
-        Object.keys(expected.uniqueConstraints).sort(),
-      );
-      // The primary key: a composite one is named in the snapshot, a single
-      // column one is Postgres' own `<table>_pkey`.
-      expect(names("p")).toEqual(
-        Object.keys(expected.compositePrimaryKeys).length > 0
-          ? Object.keys(expected.compositePrimaryKeys).sort()
-          : [`${table}_pkey`],
-      );
-
-      const indexes = await pg.query<{ indexname: string }>(
-        `select indexname from pg_indexes where tablename = $1 and indexname not like '%_pkey' and indexname not like '%_pk'`,
-        [table],
-      );
-      expect(indexes.rows.map((i) => i.indexname).sort()).toEqual(
-        Object.keys(expected.indexes).sort(),
-      );
-      await pg.close();
+      const built = await shapeOf(shared, "public", table);
+      const described = await shapeOfSnapshot(shared, table, expected);
+      // Keyed by name, each value the text Postgres itself prints for it, so a
+      // difference reads as "this index is on (id) here and (user_id) there".
+      expect(built.columns).toEqual(described.columns);
+      expect(built.constraints).toEqual(described.constraints);
+      expect(built.indexes).toEqual(described.indexes);
     },
   );
 
   it("adds the nullable survey_contributed_at to scans, as the snapshot says", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     const expected =
       snapshot.tables["public.scans"]!.columns["survey_contributed_at"]!;
     expect(expected).toMatchObject({
@@ -228,19 +347,18 @@ describe("migration 0007", () => {
       notNull: false,
     });
     const { rows } = await pg.query<{ is_nullable: string }>(
-      `select is_nullable from information_schema.columns where table_name = 'scans' and column_name = 'survey_contributed_at'`,
+      `select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'scans' and column_name = 'survey_contributed_at'`,
     );
     expect(rows).toEqual([{ is_nullable: "YES" }]);
-    await pg.close();
   });
 });
 
 describe("what a contribution can never hold or point to", () => {
   it("has no scan or session column, and no foreign key to scans or scan_sessions", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     const columns = await pg.query<{ table_name: string; column_name: string }>(
       `select table_name, column_name from information_schema.columns
-        where table_name in ('survey_contributions', 'survey_ratings', 'survey_other_mice')`,
+        where table_schema = 'public' and table_name in ('survey_contributions', 'survey_ratings', 'survey_other_mice')`,
     );
     for (const c of columns.rows) {
       expect(c.column_name).not.toMatch(/scan|session/);
@@ -252,21 +370,21 @@ describe("what a contribution can never hold or point to", () => {
     expect(new Set(fks.rows.map((r) => r.referenced))).toEqual(
       new Set(["users", "mice", "survey_contributions"]),
     );
-    await pg.close();
   });
 
   it("has no created_at or any timestamp but the day-grained consented_at", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     const { rows } = await pg.query<{ column_name: string }>(
       `select column_name from information_schema.columns
-        where table_name like 'survey_%' and udt_name in ('timestamptz', 'timestamp', 'date')`,
+        where table_schema = 'public' and table_name like 'survey_%' and udt_name in ('timestamptz', 'timestamp', 'date')`,
     );
     expect(rows).toEqual([{ column_name: "consented_at" }]);
-    await pg.close();
   });
 });
 
 describe("constraints", () => {
+  beforeEach(emptyTables);
+
   async function accepts(pg: PGlite, statement: string) {
     await expect(pg.exec(statement)).resolves.toBeDefined();
   }
@@ -275,7 +393,7 @@ describe("constraints", () => {
   }
 
   it("holds the hand profile to multiples of 5 inside the scan's own plausible range", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await accepts(pg, contribution(C1, { hand_length_bin_mm: "100" }));
     await accepts(
       pg,
@@ -295,11 +413,10 @@ describe("constraints", () => {
         "survey_contributions_bins",
       );
     }
-    await pg.close();
   });
 
   it("refuses a consent time finer than a day, so it cannot be matched to a scan by time", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await accepts(
       pg,
       contribution(C1, { consented_at: "'2026-10-06T00:00:00Z'" }),
@@ -315,11 +432,10 @@ describe("constraints", () => {
         "survey_contributions_consented_on_a_day",
       );
     }
-    await pg.close();
   });
 
   it("bounds the free text and the other text columns", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await accepts(pg, contribution(C1, { feedback: `'${"x".repeat(500)}'` }));
     await rejects(
       pg,
@@ -341,11 +457,10 @@ describe("constraints", () => {
       contribution(crypto.randomUUID(), { consent_version: "''" }),
       "survey_contributions_consent_version_set",
     );
-    await pg.close();
   });
 
   it("keeps satisfaction in 1 to 5 and pain points an array", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await seed(pg);
     await pg.exec(contribution(C1));
     await accepts(pg, rating(C1, MOUSE_A, { satisfaction: "1" }));
@@ -362,11 +477,10 @@ describe("constraints", () => {
       `delete from survey_ratings; ${rating(C1, MOUSE_A, { pain_points: `'{"a":1}'` })}`,
       "survey_ratings_pain_points_array",
     );
-    await pg.close();
   });
 
   it("holds a signed-in person to one rating per mouse across contributions, but not an anonymous one", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await seed(pg);
     await pg.exec(contribution(C1, { user_id: `'${USER}'` }));
     await pg.exec(contribution(C2, { user_id: `'${USER}'` }));
@@ -390,11 +504,10 @@ describe("constraints", () => {
       rating(A1, MOUSE_A),
       "survey_ratings_contribution_id_mouse_id_pk",
     );
-    await pg.close();
   });
 
   it("holds a signed-in person to one other mouse per brand slug, matched exactly, and bounds the brand", async () => {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await seed(pg);
     await pg.exec(contribution(C1, { user_id: `'${USER}'` }));
     await pg.exec(contribution(C2, { user_id: `'${USER}'` }));
@@ -435,13 +548,14 @@ describe("constraints", () => {
       other(C1, "x".repeat(33), "null"),
       "survey_other_mice_brand_length",
     );
-    await pg.close();
   });
 });
 
 describe("deletion paths", () => {
+  beforeEach(emptyTables);
+
   async function withContributions() {
-    const { pg } = await migratedDatabase();
+    const pg = shared;
     await seed(pg);
     await pg.exec(`
       ${contribution(C1, { user_id: `'${USER}'`, feedback: "'kept'" })};
@@ -461,7 +575,6 @@ describe("deletion paths", () => {
     expect(await n(pg, "survey_contributions")).toBe(1);
     expect(await n(pg, "survey_ratings")).toBe(1);
     expect(await n(pg, "survey_other_mice")).toBe(0);
-    await pg.close();
   });
 
   it("deleting the contribution removes its ratings and other mice", async () => {
@@ -469,7 +582,6 @@ describe("deletion paths", () => {
     await pg.exec(`delete from survey_contributions where id = '${C1}'`);
     expect(await n(pg, "survey_ratings")).toBe(1);
     expect(await n(pg, "survey_other_mice")).toBe(0);
-    await pg.close();
   });
 
   it("the anonymous expiry (deleting the session) takes the scan and its mark, and leaves every contribution", async () => {
@@ -482,14 +594,12 @@ describe("deletion paths", () => {
     expect(await n(pg, "survey_contributions")).toBe(2);
     expect(await n(pg, "survey_ratings")).toBe(2);
     expect(await n(pg, "survey_other_mice")).toBe(1);
-    await pg.close();
   });
 
   it("deleting a scan leaves the contribution made from it", async () => {
     const pg = await withContributions();
     await pg.exec(`delete from scans where id = '${SCAN}'`);
     expect(await n(pg, "survey_contributions")).toBe(2);
-    await pg.close();
   });
 
   it("removing a catalogue mouse removes the ratings of it, not the rest of the contribution", async () => {
@@ -497,6 +607,5 @@ describe("deletion paths", () => {
     await pg.exec(`delete from mice where id = '${MOUSE_A}'`);
     expect(await n(pg, "survey_ratings")).toBe(1);
     expect(await n(pg, "survey_contributions")).toBe(2);
-    await pg.close();
   });
 });

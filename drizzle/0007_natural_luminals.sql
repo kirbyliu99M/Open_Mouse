@@ -6,9 +6,14 @@
 -- Additive only: nothing existing is dropped or altered, and the one column
 -- added to an existing table (scans.survey_contributed_at) is nullable with no
 -- default, so code that predates this migration keeps reading and writing
--- scans unchanged. Migrate BEFORE deploying the code that uses it: the survey
--- routes and the account's "Delete everything" (which now withdraws the
--- person's contributions) fail until the tables exist.
+-- scans unchanged against a database that already has it.
+--
+-- The other direction is NOT safe: production must apply this migration BEFORE
+-- the new code goes live. Drizzle's INSERT into scans names every column of the
+-- schema (survey_contributed_at as `default`), so new code on a database without
+-- 0007 fails every `POST /api/scans`, not only the survey routes and the
+-- account's "Delete everything" (which now withdraws the person's
+-- contributions). A scan cannot be submitted until the column exists.
 --
 -- One DO block, i.e. one statement, for the same reason as 0005 and 0006: the
 -- neon-http migrator sends each statement as its own HTTP request with no
@@ -17,8 +22,12 @@
 -- constraints and could not re-run. A single statement is atomic in Postgres.
 -- Every step is guarded, so a re-run completes without error. The statements
 -- are the ones drizzle-kit generated, only wrapped; tests/unit/survey-schema-db.test.ts
--- checks the tables, columns, constraints and indexes this builds against
--- drizzle/meta/0007_snapshot.json, so a hand edit cannot drift from the schema.
+-- builds the three survey tables from drizzle/meta/0007_snapshot.json in a scratch
+-- schema and compares them with what this builds, as Postgres prints each part:
+-- every column's type, nullability and default; the primary keys; every foreign
+-- key with its target and ON DELETE; every CHECK expression; every index with its
+-- columns, uniqueness and WHERE. The ALTER TABLE on scans is checked only for
+-- the column's type and nullability.
 DO $$
 BEGIN
   CREATE TABLE IF NOT EXISTS "survey_contributions" (
