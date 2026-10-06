@@ -360,11 +360,12 @@ visibleInStream)` carries the region over to the photo through one model: the st
   size requests, or after 2.5 s without an answer), and continuous focus is asked for again after a size request.
 - **Gates are untouched.** `PAPER_EDGE_LIMITS`, `gates.ts` and `src/lib/contracts/` are as they were.
 
-**Fake camera.** `paper-edge-full.y4m` is regenerated (`gen-camera-fixtures.spec.ts`): its sheet is 560 px
-wide (it was 756) in the 1000x1300 frame. The sheet has to suit two detectors: the easy scan sees the middle
-601 columns on the 390x844 screen, whose cue says "Move back" above 95 % (571 px), and the paper-edge preview
-(`/scan/paper-edge-preview`, still the whole stream) says "Move closer" below 55 % (550 px). 560 px is 93 % of
-the first and 56 % of the second.
+**Fake camera.** `paper-edge-full.y4m` is regenerated (`gen-camera-fixtures.spec.ts`): its frame is 800x1300 (it was
+1000x1300) and its sheet 480 px wide (it was 756). The sheet has to suit two detectors: the easy scan sees the
+middle 601 columns of the frame on the 390x844 screen and 554 on the 360x844 one, and its cue says "Move back"
+above 95 % (526 px at 360); the paper-edge preview (`/scan/paper-edge-preview`, still the whole stream) says
+"Move closer" below 55 % of the frame (440 px). A 1000 px frame left no width that suits both. 480 px is 60 % of
+the frame and 80 % / 87 % of what the two screens show.
 
 **Attempt log** (`attemptLog.ts`, pure and unit tested; storage wrapped in try/catch).
 

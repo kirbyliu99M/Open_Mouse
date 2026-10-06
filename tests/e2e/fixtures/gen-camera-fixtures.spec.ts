@@ -75,18 +75,23 @@ const HOMOGRAPHY: Homography = [
 // Two detectors look at this one video, and the sheet has to be the right size
 // for both:
 //  - the easy scan looks only at the part of the stream that is ON SCREEN (the
-//    stage shows it with object-fit: cover; src/client/camera/visibleView.ts):
-//    on the fake phone's 390x844 screen that is the middle 601 columns of this
-//    1000x1300 frame (x 200 to 801), the whole height. Its cue says "Move back"
-//    above 95 % of that width: 571 px.
+//    stage shows it with object-fit: cover; src/client/camera/visibleView.ts).
+//    The fake phone's screen is 390x844 in most tests and 360x844 in the
+//    layout checks, so what it shows of the frame is 601 columns (390) or 554
+//    columns (360), the whole 1300 height. Its cue says "Move back" above 95 %
+//    of that width: 526 px at 360.
 //  - the paper-edge preview (CameraCapture, still the whole stream) says "Move
-//    closer" below 55 % of the frame's width: 550 px.
-// So the sheet is drawn 560 px wide (210 mm x 2.67): 56 % of the frame and
-// 93 % of what the screen shows. (Before the easy scan looked at the screen's
-// part it was 3.6, 756 px: wider than the screen shows, and found only because
-// the detector looked at the whole frame.)
-const PAPER_SCALE = 2.67;
-const PAPER_TX = (CANVAS_WIDTH - A4_MM.width * PAPER_SCALE) / 2;
+//    closer" below 55 % of the frame's width.
+// A frame as wide as 1000 px left no sheet width that suits both, so this frame
+// is 800 wide (it was 1000): the sheet is drawn 480 px wide (210 mm x 2.2857),
+// 60 % of the frame (above the 55 %), and 80 % of the 390 screen's share and 87 %
+// of the 360 screen's (below the 95 %). The frame's height, 1300, is unchanged.
+// (Before the easy scan looked at the screen's part the sheet was 756 px in a
+// 1000 px frame: wider than the screen shows, and found only because the
+// detector looked at the whole frame.)
+const PAPER_EDGE_CANVAS_WIDTH = 800;
+const PAPER_SCALE = 480 / 210;
+const PAPER_TX = (PAPER_EDGE_CANVAS_WIDTH - A4_MM.width * PAPER_SCALE) / 2;
 const PAPER_TY = (CANVAS_HEIGHT - A4_MM.height * PAPER_SCALE) / 2 - 20;
 const PAPER_HOMOGRAPHY: Homography = [
   [PAPER_SCALE, 0.06, PAPER_TX],
@@ -156,7 +161,7 @@ test("generates the committed fake-camera .y4m fixtures under tests/e2e/fixtures
   // zoomed so the bottom two corners fall outside the frame (2-of-4
   // lock-on / "move back" cue).
   const paperEdgePng = await buildPaperScenePng(page, {
-    canvasWidth: CANVAS_WIDTH,
+    canvasWidth: PAPER_EDGE_CANVAS_WIDTH,
     canvasHeight: CANVAS_HEIGHT,
     homography: PAPER_HOMOGRAPHY,
     paperSizeMm: A4_MM,

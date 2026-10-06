@@ -107,13 +107,13 @@ test.describe("the camera is asked for the photo's shape", () => {
     await page.goto("/scan/easy/live-measured-demo?debug=1");
     await page.getByRole("button", { name: "Got it" }).click();
 
-    // The fake camera's frame is 1000x1300 (paper-edge-full.y4m); the 390x844
-    // screen shows the middle 601 columns of it (390 / (844 / 1300)), x 200 to
-    // 801, the whole height. The detector is given exactly that, shrunk to 640
+    // The fake camera's frame is 800x1300 (paper-edge-full.y4m); the 390x844
+    // screen shows the middle 601 columns of it (390 / (844 / 1300)), x 100 to
+    // 701, the whole height. The detector is given exactly that, shrunk to 640
     // on the long edge: 296x640. (Before, it was given the whole frame, 492x640.)
     const live = page.getByTestId("debug-live-view");
     await expect(live).toContainText(
-      "on screen 601×1300 of the stream at 200,0 · detector sees 296×640",
+      "on screen 601×1300 of the stream at 100,0 · detector sees 296×640",
       { timeout: 15_000 },
     );
     const row = page.getByTestId("debug-fov");
@@ -155,9 +155,9 @@ test.describe("the camera is asked for the photo's shape", () => {
     expect(input).toBeDefined();
     // For a takePhoto capture and for a canvas frame alike: both show the
     // screen's part of the stream, and the pipeline crops to it.
-    expect(input!.previewView?.stream).toEqual({ width: 1000, height: 1300 });
+    expect(input!.previewView?.stream).toEqual({ width: 800, height: 1300 });
     const visible = input!.previewView!.visibleInStream;
-    expect(visible.x).toBeCloseTo(199.6, 0);
+    expect(visible.x).toBeCloseTo(99.6, 0);
     expect(visible.y).toBe(0);
     expect(visible.width).toBeCloseTo(600.7, 0);
     expect(visible.height).toBeCloseTo(1300, 6);
@@ -269,7 +269,7 @@ test.describe("a photo that shows more than its preview did", () => {
       testInfo.project.name !== "chromium-camera-paper-edge",
       "Needs the fake-camera project.",
     );
-    // The fake camera's preview is 1000x1300 (paper-edge-full.y4m) and the 390x844
+    // The fake camera's preview is 800x1300 (paper-edge-full.y4m) and the 390x844
     // screen shows its middle 601 columns. takePhoto is replaced by a still that
     // is 2000x2100: much less elongated than the preview, so it shows more
     // across (the preview is the middle 1615 of its 2000 columns). The part on
@@ -278,7 +278,7 @@ test.describe("a photo that shows more than its preview did", () => {
     await page.addInitScript(() => {
       class StubImageCapture {
         async getPhotoCapabilities() {
-          return { imageWidth: { max: 1300 }, imageHeight: { max: 1000 } };
+          return { imageWidth: { max: 2100 }, imageHeight: { max: 2000 } };
         }
         async takePhoto() {
           const canvas = document.createElement("canvas");
@@ -311,16 +311,17 @@ test.describe("a photo that shows more than its preview did", () => {
       })
       .toBe(1);
     const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    console.log(`ATTEMPT crop example: ${JSON.stringify(attempt)}`);
     expect(attempt.method).toBe("takePhoto");
     expect(attempt.photo).toMatchObject({ width: 2000, height: 2100 });
-    expect(attempt.preview).toMatchObject({ width: 1000, height: 1300 });
+    expect(attempt.preview).toMatchObject({ width: 800, height: 1300 });
     // The photo is much less elongated than the preview: a field-of-view mismatch...
     expect(attempt.preview.fovMismatch).toBe(true);
     expect(attempt.preview.aspectDiff).toBeGreaterThan(0.2);
     // ...so the screen's part of the stream is carried over through the
     // "the stream is a centred part of the photo" model, which holds here.
     expect(attempt.view).toMatchObject({
-      stream: { width: 1000, height: 1300 },
+      stream: { width: 800, height: 1300 },
       model: "stream-in-still",
       modelApplies: true,
     });

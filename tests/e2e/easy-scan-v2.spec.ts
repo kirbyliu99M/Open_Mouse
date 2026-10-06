@@ -222,7 +222,7 @@ test.describe("AC6: the debug panel", () => {
     ]);
     expect(Array.isArray(json.attempts)).toBe(true);
     expect(json.userAgent).toMatch(/Chrome/);
-    expect(json.track).toMatchObject({ width: 1000, height: 1300 });
+    expect(json.track).toMatchObject({ width: 800, height: 1300 });
     expect(json.capabilities.focusMode).toEqual([]);
     expect(json.live.laplacianFloor).toBe(15);
     expect(json.live.samplesPerSecond).toBeGreaterThan(3);
@@ -514,7 +514,7 @@ test.describe("AC5: only transform and opacity move", () => {
  * `advanced` list). Since the preview is asked for in the photo's shape
  * (previewConstraints.ts) the running track is also asked for a size now and
  * then (a photo that is not 4:3, or the one swapped retry on a mismatch; the
- * fake camera's 1000x1300 is 2.5 % off 4:3, so it gets that retry). Those
+ * fake camera's 800x1300 is far from 4:3, so it gets that retry). Those
  * are size requests, not focus ones, and their timing is not what these focus
  * tests are about; scan-fov.spec.ts covers them.
  */
@@ -668,7 +668,7 @@ test.describe("AC3 and AC4: focus", () => {
         } as MediaTrackCapabilities;
       };
       proto.getSettings = function () {
-        return { width: 1000, height: 1300, pointsOfInterest: [] };
+        return { width: 800, height: 1300, pointsOfInterest: [] };
       };
       proto.applyConstraints = () =>
         Promise.reject(new DOMException("no", "OverconstrainedError"));
