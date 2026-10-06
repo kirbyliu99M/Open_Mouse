@@ -38,6 +38,11 @@ import { decodePhoto } from "../../src/client/photo/decode";
 import { detectHandLandmarks } from "../../src/client/photo/landmarks";
 import { detectPaperQuad } from "../../src/client/paper/detect";
 import { evaluatePaperEdgeCalibration } from "../../src/client/paper/calibration";
+import { assumedFocalPxFromFov } from "../../src/client/paper/orientation";
+import {
+  assumedSampleFocalPx,
+  visibleRegionInStream,
+} from "../../src/client/camera/visibleView";
 import { buildPaperHomography } from "../../src/client/paper/homography";
 import {
   applyHomography,
@@ -136,12 +141,16 @@ const noExif = () =>
     type: "image/jpeg",
   });
 
-function run(file: File = noExif()) {
+function run(
+  file: File = noExif(),
+  extra: { focalReferenceWidthPx?: number } = {},
+) {
   return runPhotoPipeline({
     file,
     hand: "right",
     handExplicit: true,
     calibration: { method: "paper-edge", paperSize: "a4" },
+    ...extra,
   });
 }
 
@@ -273,5 +282,52 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
       expect(result.status).toBe("ok");
       expect(result.diagnostics?.parallaxCorrected).toBe(false);
     }
+  });
+});
+
+describe("the paper detector's assumed focal length: a frame cut before the pipeline carries the stream's width", () => {
+  // The S25 after #132: a 1088x1088 stream on a 412x772 screen. The frame is
+  // 580x1088 (FRAME); the live loop assumed its focal length from the whole
+  // stream's 1088 px (777 px), the pipeline would from the frame's 580 (414 px).
+  const stream = { width: 1088, height: 1088 };
+  const region = visibleRegionInStream(stream, { width: 412, height: 772 })!;
+  const hintOfFirstDetection = () => {
+    const call = vi.mocked(detectPaperQuad).mock.calls[0];
+    return call[2]?.focalPxHint;
+  };
+
+  it("not passed (an upload, the camera's photo): from the frame's own width, as before", async () => {
+    arrange(FRONTAL, landmarksFor(FRONTAL));
+    ok(await run());
+    expect(hintOfFirstDetection()).toBe(assumedFocalPxFromFov(FRAME.width));
+    expect(hintOfFirstDetection()).toBeCloseTo(414, 0);
+  });
+
+  it("passed (a frame of the video): the live loop's number for the same pixels, 777 px", async () => {
+    arrange(FRONTAL, landmarksFor(FRONTAL));
+    ok(await run(noExif(), { focalReferenceWidthPx: stream.width }));
+    const hint = hintOfFirstDetection()!;
+    // What the live loop assumed for these pixels, from sample pixels back to frame pixels.
+    const sample = { width: 342, height: 640 };
+    const live = assumedSampleFocalPx(stream, region.visible, sample);
+    expect(hint).toBeCloseTo(live * (region.visible.width / sample.width), 9);
+    expect(hint).toBeCloseTo(777, 0);
+  });
+
+  it("only the detector's hint moves: the result is the same measurement either way", async () => {
+    const landmarks = landmarksFor(TILTED);
+    arrange(TILTED, landmarks);
+    const without = ok(await run());
+    arrange(TILTED, landmarks);
+    const withReference = ok(
+      await run(noExif(), { focalReferenceWidthPx: stream.width }),
+    );
+    expect(withReference.measurements).toEqual(without.measurements);
+    expect(withReference.diagnostics?.parallaxCorrected).toBe(
+      without.diagnostics?.parallaxCorrected,
+    );
+    expect(withReference.diagnostics?.paper).toEqual(
+      without.diagnostics?.paper,
+    );
   });
 });

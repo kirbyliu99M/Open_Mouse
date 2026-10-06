@@ -6,6 +6,7 @@ import {
   rectCentre,
   toFullFrame,
   frameDrawArgs,
+  frameFocalReferenceWidthPx,
   visibleRectInStill,
   visibleRectInStream,
   visibleRegionInStream,
@@ -668,5 +669,95 @@ describe("frameDrawArgs — what drawImage is given to copy the region 1:1", () 
         expect(destination[3]).toBe(source[3]);
         expect(canvas).toEqual({ width: source[2], height: source[3] });
       }
+  });
+});
+
+describe("the focal length of a frame cut before the pipeline: the same number as the live loop's, for the same pixels", () => {
+  // The S25 after #132: a 1088x1088 stream on a 412x772 screen. The shutter
+  // cuts the frame 580x1088 out of it, drawn at the stream's resolution, so a
+  // frame pixel is a stream pixel. The pipeline sees only the 580x1088 frame.
+  const stream = { width: 1088, height: 1088 };
+  const screen = { width: 412, height: 772 };
+  const region = visibleRegionInStream(stream, screen)!;
+  const frame = { width: region.capture.width, height: region.capture.height };
+  const sample = { width: 342, height: 640 };
+
+  it("without a reference the pipeline's assumption is from the frame's own width: the old number (S25: 414 px)", () => {
+    const frames = analysisFrames(frame, null);
+    expect(assumedDetectionFocalPx(frames)).toBe(
+      assumedFocalPxFromFov(frame.width),
+    );
+    expect(assumedDetectionFocalPx(frames)).toBeCloseTo(414, 0);
+  });
+
+  it("with the stream's width as the reference it is the lens's: the live loop's number, scaled from sample pixels to frame (stream) pixels", () => {
+    const frames = analysisFrames(frame, null);
+    const live = assumedSampleFocalPx(stream, region.visible, sample);
+    // One frame pixel is sample.width / visible.width sample pixels.
+    const liveInFramePixels = live * (region.visible.width / sample.width);
+    const hint = assumedDetectionFocalPx(frames, stream.width);
+    expect(hint).toBeCloseTo(liveInFramePixels, 9);
+    expect(hint).toBeCloseTo(assumedFocalPxFromFov(stream.width), 9);
+    expect(hint).toBeCloseTo(777, 0);
+    // Not the narrower frame's own (the review's 580 -> 414 against 1088 -> 777).
+    expect(hint).toBeGreaterThan(assumedDetectionFocalPx(frames) * 1.8);
+  });
+
+  it("the same for every screen shape: the lens does not depend on how much of the stream is on screen", () => {
+    for (const shape of [
+      { width: 412, height: 772 },
+      { width: 390, height: 844 },
+      { width: 360, height: 640 },
+    ]) {
+      const r = visibleRegionInStream(stream, shape)!;
+      const f = { width: r.capture.width, height: r.capture.height };
+      expect(
+        assumedDetectionFocalPx(analysisFrames(f, null), stream.width),
+      ).toBeCloseTo(assumedFocalPxFromFov(stream.width), 9);
+    }
+  });
+
+  it("a reference that is not a positive number is ignored: the frame's own width, as before", () => {
+    const frames = analysisFrames(frame, null);
+    const old = assumedDetectionFocalPx(frames);
+    for (const bad of [0, -5, Number.NaN, Number.POSITIVE_INFINITY, undefined])
+      expect(assumedDetectionFocalPx(frames, bad)).toBe(old);
+  });
+
+  it("a photo that was cropped by the pipeline itself (the camera's photo) is not changed by the new argument being left out", () => {
+    const decoded = { width: 2250, height: 3000 };
+    const crop = { x: 400, y: 0, width: 1450, height: 3000 };
+    expect(assumedDetectionFocalPx(analysisFrames(decoded, crop))).toBe(
+      assumedFocalPxFromFov(decoded.width),
+    );
+  });
+});
+
+describe("frameFocalReferenceWidthPx — the stream's width in the pixels the pipeline analyses", () => {
+  it("a frame at the stream's own resolution: the stream's width", () => {
+    expect(
+      frameFocalReferenceWidthPx(
+        { width: 1088, height: 1088 },
+        { width: 580, height: 1088 },
+      ),
+    ).toBe(1088);
+  });
+
+  it("the frame's size unknown: the stream's width", () => {
+    expect(
+      frameFocalReferenceWidthPx({ width: 1080, height: 1920 }, null),
+    ).toBe(1080);
+  });
+
+  it("a frame the decoder will scale down (long edge over 3000) scales the reference by the same factor", () => {
+    const stream = { width: 2160, height: 3840 };
+    const frame = { width: 1600, height: 3840 };
+    const decoded = computeDownscaleSize(frame.width, frame.height);
+    expect(decoded.height).toBe(3000);
+    expect(frameFocalReferenceWidthPx(stream, frame)).toBeCloseTo(
+      (stream.width * decoded.width) / frame.width,
+      9,
+    );
+    expect(frameFocalReferenceWidthPx(stream, frame)).toBeCloseTo(1687.5, 6);
   });
 });

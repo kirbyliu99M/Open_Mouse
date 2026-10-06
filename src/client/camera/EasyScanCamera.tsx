@@ -81,6 +81,7 @@ import { computeMaxCornerMovement, isSteady } from "./steadiness";
 import {
   INITIAL_AUTO_CAPTURE_STATE,
   advanceAutoCapture,
+  resetAutoCapture,
   autoCaptureRingFraction,
   type AutoCaptureState,
 } from "./autoCapture";
@@ -130,6 +131,7 @@ import {
 import {
   assumedSampleFocalPx,
   frameDrawArgs,
+  frameFocalReferenceWidthPx,
   visibleRegionInStream,
   type PixelRect,
 } from "./visibleView";
@@ -827,7 +829,8 @@ export default function EasyScanCamera({
     setCamState({ kind: "requesting" });
     try {
       // What the shutter takes decides what the preview is asked for.
-      // As a frame of the video (the default, capture.ts in constants) the
+      // As a frame of the video (the default, CAMERA_CONSTANTS.capture.source
+      // in constants.ts) the
       // preview is asked for in the camera's own landscape terms, 1920x1080
       // ideal, as it was before #132: the S25 answers that with an upright
       // 1080x1920 and answered the photo-shaped request with a 1088x1088 square.
@@ -1043,6 +1046,19 @@ export default function EasyScanCamera({
           // analysis (visibleView.ts); an upload has no viewfinder.
           previewView:
             info?.captureSource === "takePhoto" ? info.previewView : undefined,
+          // The frame was cut before the pipeline saw it, so the pipeline is
+          // told how wide the stream was: its assumed focal length is then the
+          // live loop's, for the same pixels (a cut narrows the picture, not
+          // the lens).
+          focalReferenceWidthPx:
+            info?.captureSource === "frame" && info.frame
+              ? frameFocalReferenceWidthPx(
+                  info.frame.stream,
+                  info.photoWidth !== null && info.photoHeight !== null
+                    ? { width: info.photoWidth, height: info.photoHeight }
+                    : null,
+                )
+              : undefined,
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
@@ -1123,144 +1139,180 @@ export default function EasyScanCamera({
 
   const captureNow = useCallback(async () => {
     if (capturingRef.current) return;
-    capturingRef.current = true;
-    const firedAt = performance.now();
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    const video = videoRef.current;
-    // What the live frame was, read before the stream stops: the photo is
-    // drawn with the same crop.
-    const streamSize = readStreamSize(video, streamRef.current);
-    // ...and the part of it that is on screen (the stage shows the stream with
-    // object-fit: cover): the same call, with the same inputs, as the live
-    // loop's sample, so what is analysed is exactly what was approved.
-    const stageBox = stageRef.current?.getBoundingClientRect();
-    const region =
-      streamSize && stageBox
-        ? visibleRegionInStream(streamSize, {
-            width: stageBox.width,
-            height: stageBox.height,
-          })
-        : null;
     const source: AttemptCaptureSource = captureSource();
-    let file: File;
-    let method: "takePhoto" | "canvas" = "takePhoto";
-    /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
-    const frameFile = async (rect: PixelRect | null): Promise<File | null> => {
-      if (!video || video.videoWidth === 0) return null;
-      const area: PixelRect = rect ?? {
-        x: 0,
-        y: 0,
-        width: video.videoWidth,
-        height: video.videoHeight,
+    const video = videoRef.current;
+    // A frame needs a video that has a picture. If it has none yet (no video
+    // element, no frame decoded, no size) this press does nothing at all: the
+    // loop, the ring and the busy flag are left as they were, and the
+    // auto-shutter asks again on a later sample.
+    if (
+      source === "frame" &&
+      (!video || video.readyState < 2 || video.videoWidth === 0)
+    )
+      return;
+    capturingRef.current = true;
+    try {
+      const firedAt = performance.now();
+      // The camera's own photo (off): the live loop stops at once, as it did.
+      // A frame stops it only once the frame exists (below), so a frame that
+      // cannot be made leaves the viewfinder running.
+      if (source !== "frame" && rafRef.current !== null)
+        cancelAnimationFrame(rafRef.current);
+      // What the live frame was, read before the stream stops: the photo is
+      // drawn with the same crop.
+      const streamSize = readStreamSize(video, streamRef.current);
+      // ...and the part of it that is on screen (the stage shows the stream with
+      // object-fit: cover): the same call, with the same inputs, as the live
+      // loop's sample, so what is analysed is exactly what was approved.
+      const stageBox = stageRef.current?.getBoundingClientRect();
+      const region =
+        streamSize && stageBox
+          ? visibleRegionInStream(streamSize, {
+              width: stageBox.width,
+              height: stageBox.height,
+            })
+          : null;
+      let file: File;
+      let method: "takePhoto" | "canvas" = "takePhoto";
+      /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
+      const frameFile = async (
+        rect: PixelRect | null,
+      ): Promise<File | null> => {
+        if (!video || video.videoWidth === 0) return null;
+        const area: PixelRect = rect ?? {
+          x: 0,
+          y: 0,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
+        const draw = frameDrawArgs(area);
+        const canvas = document.createElement("canvas");
+        canvas.width = draw.canvas.width;
+        canvas.height = draw.canvas.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.drawImage(video, ...draw.source, ...draw.destination);
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            CAMERA_CONSTANTS.capture.jpegQuality,
+          ),
+        );
+        return blob
+          ? new File([blob], `capture-${Date.now()}.jpg`, {
+              type: "image/jpeg",
+            })
+          : null;
       };
-      const draw = frameDrawArgs(area);
-      const canvas = document.createElement("canvas");
-      canvas.width = draw.canvas.width;
-      canvas.height = draw.canvas.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return null;
-      ctx.drawImage(video, ...draw.source, ...draw.destination);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(
-          resolve,
-          "image/jpeg",
-          CAMERA_CONSTANTS.capture.jpegQuality,
-        ),
-      );
-      return blob
-        ? new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" })
-        : null;
-    };
-    if (source === "frame") {
-      // A frame of the video, cut to the part on screen, at the stream's own
-      // resolution: the pixels the person saw and the detector approved.
-      method = "canvas";
-      const frame = await frameFile(region?.capture ?? null);
-      if (!frame) {
-        capturingRef.current = false;
-        return;
-      }
-      file = frame;
-    } else {
-      try {
-        const track = streamRef.current?.getVideoTracks()[0];
-        const ImageCaptureCtor = getImageCaptureCtor();
-        if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
-        const capture = new ImageCaptureCtor(track);
-        const blob = await capture.takePhoto();
-        file = new File([blob], `capture-${Date.now()}.jpg`, {
-          type: blob.type || "image/jpeg",
-        });
-      } catch {
-        // No camera photo: the whole frame; the pipeline cuts it to the part
-        // on screen (previewView).
+      if (source === "frame") {
+        // A frame of the video, cut to the part on screen, at the stream's own
+        // resolution: the pixels the person saw and the detector approved.
         method = "canvas";
-        const frame = await frameFile(null);
+        let frame: File | null = null;
+        try {
+          frame = await frameFile(region?.capture ?? null);
+        } catch {
+          // A canvas that throws (out of memory, a lost context) is a frame
+          // that was not made, like a missing context or a blob that is null.
+          frame = null;
+        }
         if (!frame) {
-          capturingRef.current = false;
+          // No frame: the loop was not stopped and is still running, the busy
+          // flag is reset by the `finally` below, and the ring starts over so
+          // that the auto-shutter tries again after a full fill, not on every
+          // sample. Nothing is shown (no copy for this has been approved); a
+          // press of the shutter tries again at once.
+          autoCaptureRef.current = resetAutoCapture();
+          setRingFraction(0);
           return;
         }
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
         file = frame;
-      }
-    }
-
-    const previewUrl = URL.createObjectURL(file);
-    // The camera keeps running while the photo is decoded, so the swap from
-    // live picture to frozen picture happens in one step, under the flash.
-    const still = await loadStillSize(previewUrl);
-    stopStream();
-    if (typeof navigator.vibrate === "function") {
-      navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
-    }
-    if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
-    setAnnounced("Photo taken");
-    fileRef.current = file;
-    // A frame cut to the screen's part is drawn exactly as the live video's
-    // visible part was: it IS that part, so it is its own "stream" for the layout.
-    setPhotoInfo(
-      still
-        ? {
-            url: previewUrl,
-            still,
-            stream: source === "frame" ? still : streamSize,
+      } else {
+        try {
+          const track = streamRef.current?.getVideoTracks()[0];
+          const ImageCaptureCtor = getImageCaptureCtor();
+          if (!track || !ImageCaptureCtor) throw new Error("no-image-capture");
+          const capture = new ImageCaptureCtor(track);
+          const blob = await capture.takePhoto();
+          file = new File([blob], `capture-${Date.now()}.jpg`, {
+            type: blob.type || "image/jpeg",
+          });
+        } catch {
+          // No camera photo: the whole frame; the pipeline cuts it to the part
+          // on screen (previewView).
+          method = "canvas";
+          const frame = await frameFile(null);
+          if (!frame) {
+            capturingRef.current = false;
+            return;
           }
-        : null,
-    );
-    captureInfoRef.current = {
-      method,
-      captureSource: source,
-      frame:
-        source === "frame" && streamSize && region
-          ? { stream: streamSize, visibleInStream: region.visible }
-          : undefined,
-      settleTimedOut: settleTimedOutRef.current,
-      photoWidth: still?.width ?? null,
-      photoHeight: still?.height ?? null,
-      photoKb: file.size / 1024,
-      previewWidth: streamSize?.width ?? null,
-      previewHeight: streamSize?.height ?? null,
-      previewView:
-        source === "takePhoto" && streamSize && region
-          ? { stream: streamSize, visibleInStream: region.visible }
-          : undefined,
-    };
-    debugCaptureRef.current = {
-      method,
-      source,
-      stillWidth: still?.width ?? null,
-      stillHeight: still?.height ?? null,
-      stillKb: file.size / 1024,
-      ringCompleteToFrozenMs: null,
-    };
-    capturingRef.current = false;
-    void runPipeline(file, previewUrl);
-    // Two frames on, the frozen picture has been painted.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        debugCaptureRef.current.ringCompleteToFrozenMs =
-          performance.now() - firedAt;
-      }),
-    );
+          file = frame;
+        }
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      // The camera keeps running while the photo is decoded, so the swap from
+      // live picture to frozen picture happens in one step, under the flash.
+      const still = await loadStillSize(previewUrl);
+      stopStream();
+      if (typeof navigator.vibrate === "function") {
+        navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
+      }
+      if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
+      setAnnounced("Photo taken");
+      fileRef.current = file;
+      // A frame cut to the screen's part is drawn exactly as the live video's
+      // visible part was: it IS that part, so it is its own "stream" for the layout.
+      setPhotoInfo(
+        still
+          ? {
+              url: previewUrl,
+              still,
+              stream: source === "frame" ? still : streamSize,
+            }
+          : null,
+      );
+      captureInfoRef.current = {
+        method,
+        captureSource: source,
+        frame:
+          source === "frame" && streamSize && region
+            ? { stream: streamSize, visibleInStream: region.visible }
+            : undefined,
+        settleTimedOut: settleTimedOutRef.current,
+        photoWidth: still?.width ?? null,
+        photoHeight: still?.height ?? null,
+        photoKb: file.size / 1024,
+        previewWidth: streamSize?.width ?? null,
+        previewHeight: streamSize?.height ?? null,
+        previewView:
+          source === "takePhoto" && streamSize && region
+            ? { stream: streamSize, visibleInStream: region.visible }
+            : undefined,
+      };
+      debugCaptureRef.current = {
+        method,
+        source,
+        stillWidth: still?.width ?? null,
+        stillHeight: still?.height ?? null,
+        stillKb: file.size / 1024,
+        ringCompleteToFrozenMs: null,
+      };
+      capturingRef.current = false;
+      void runPipeline(file, previewUrl);
+      // Two frames on, the frozen picture has been painted.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          debugCaptureRef.current.ringCompleteToFrozenMs =
+            performance.now() - firedAt;
+        }),
+      );
+    } finally {
+      // Whatever happened above, a later press or auto-shutter is not blocked.
+      capturingRef.current = false;
+    }
   }, [stopStream, runPipeline]);
 
   const onFilePicked = useCallback(

@@ -42,6 +42,7 @@
 import { CAMERA_CONSTANTS } from "./constants";
 import { computeCoverRect } from "./quad";
 import { assumedFocalPxFromFov } from "../paper/orientation";
+import { computeDownscaleSize } from "../photo/decode";
 
 export interface FrameSize {
   readonly width: number;
@@ -336,11 +337,48 @@ export function analysisFrames(
  * of its own (a 70 degree horizontal field of view over the frame's width),
  * taken from the whole decoded photo's width and not the cropped one's: a crop
  * narrows the picture, not the lens.
+ *
+ * `focalReferenceWidthPx` is for an image that was cut BEFORE it reached the
+ * pipeline (a frame of the video cut to the part on screen, so the pipeline
+ * sees the cut and cannot know it): the width, in this image's own pixels, of
+ * the whole picture the lens made (the stream's width, for a frame drawn at the
+ * stream's resolution). The live loop works its assumption out from that same
+ * width (`assumedSampleFocalPx`), so both look at the same pixels with the same
+ * number. Left out, or not a positive number, the photo's own width is used,
+ * exactly as before: uploads, the printed sheet and the camera's photo do not
+ * pass it.
  */
-export function assumedDetectionFocalPx(frames: {
-  focalFrame: FrameSize;
-}): number {
-  return assumedFocalPxFromFov(frames.focalFrame.width);
+export function assumedDetectionFocalPx(
+  frames: {
+    focalFrame: FrameSize;
+  },
+  focalReferenceWidthPx?: number,
+): number {
+  const referenceWidth =
+    typeof focalReferenceWidthPx === "number" &&
+    Number.isFinite(focalReferenceWidthPx) &&
+    focalReferenceWidthPx > 0
+      ? focalReferenceWidthPx
+      : frames.focalFrame.width;
+  return assumedFocalPxFromFov(referenceWidth);
+}
+
+/**
+ * The `focalReferenceWidthPx` to hand the pipeline with a frame of the video
+ * (`assumedDetectionFocalPx`): the stream's width in the pixels the pipeline
+ * will analyse. A frame is drawn at the stream's own resolution, so that is the
+ * stream's width, unless the frame is so large that the decoder scales it down
+ * (a long edge over `MAX_LONG_EDGE_PX`, decode.ts): then the stream's width is
+ * scaled by the same factor, from the same function. `frame` is the frame's size
+ * as made; unknown (`null`), no scaling is assumed.
+ */
+export function frameFocalReferenceWidthPx(
+  stream: FrameSize,
+  frame: FrameSize | null,
+): number {
+  if (!usable(frame)) return stream.width;
+  const decoded = computeDownscaleSize(frame.width, frame.height);
+  return (stream.width * decoded.width) / frame.width;
 }
 
 /**

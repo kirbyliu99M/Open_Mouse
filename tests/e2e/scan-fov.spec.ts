@@ -170,6 +170,12 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     await expect(source).toContainText(
       "frame · stream 800×1300 · on screen 601×1300 at 100,0",
     );
+    // A frame has no photo to compare the preview with: the "Preview vs photo"
+    // row (always "–" for it) is not drawn at all.
+    await expect(page.getByTestId("debug-fov")).toHaveCount(0);
+    await expect(page.getByTestId("scan-debug-panel")).not.toContainText(
+      "Preview vs photo",
+    );
 
     // The auto-shutter fires by itself; the pipeline is held in "processing".
     await expect(page.locator(".easyStage")).toHaveAttribute(
@@ -184,7 +190,11 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     const handed = await page.evaluate(async () => {
       const input = (
         window as Window & {
-          __easyScanLiveCalls?: { file: File; previewView?: unknown }[];
+          __easyScanLiveCalls?: {
+            file: File;
+            previewView?: unknown;
+            focalReferenceWidthPx?: number;
+          }[];
         }
       ).__easyScanLiveCalls?.[0];
       if (!input) return null;
@@ -195,6 +205,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
         type: input.file.type,
         size,
         previewView: input.previewView ?? null,
+        focalReferenceWidthPx: input.focalReferenceWidthPx ?? null,
       };
     });
     expect(handed).not.toBeNull();
@@ -206,6 +217,9 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     expect(Math.abs(handed!.size.width - 601)).toBeLessThanOrEqual(1);
     // The pipeline is not asked to crop anything: the frame already is the part.
     expect(handed!.previewView).toBeNull();
+    // ...but is told how wide the whole stream was (800, not the frame's 600),
+    // so that its assumed focal length is the live loop's for the same pixels.
+    expect(handed!.focalReferenceWidthPx).toBe(800);
     await page.evaluate(() =>
       (window as Window & { __release?: () => void }).__release?.(),
     );
@@ -244,6 +258,10 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     console.log(`ATTEMPT frame example: ${JSON.stringify(attempt)}`);
     expect(attempt.method).toBe("canvas");
     expect(attempt.captureSource).toBe("frame");
+    // Numbers and short codes only: nothing in it is an image.
+    const frameJson = JSON.stringify(attempt);
+    expect(frameJson).not.toMatch(/data:|base64|blob:/i);
+    expect(frameJson.length).toBeLessThan(2000);
     // The picture analysed is the on-screen part of the 800x1300 stream.
     expect(attempt.photo).toMatchObject({ width: 600, height: 1300 });
     expect(attempt.photo.kb).toBeGreaterThan(0);
@@ -280,6 +298,168 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     await expect(panel.getByTestId("debug-capture-source")).toContainText(
       "frame",
     );
+  });
+
+  test("a frame that cannot be made leaves the viewfinder running: the first two shutters get no blob and a throw, nothing reaches the pipeline, and the third try goes through", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-camera project.",
+    );
+    // The canvas gives no blob the first time and throws the second time. At
+    // each call the stage's phase is written down: "none" is the live
+    // viewfinder; anything else means a result or a pipeline run has begun.
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __toBlobCalls?: { phase: string | null; at: number }[];
+      };
+      const phases: { phase: string | null; at: number }[] = (w.__toBlobCalls =
+        []);
+      const real = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (
+        this: HTMLCanvasElement,
+        callback: BlobCallback,
+        type?: string,
+        quality?: number,
+      ) {
+        phases.push({
+          phase:
+            document.querySelector(".easyStage")?.getAttribute("data-phase") ??
+            null,
+          at: performance.now(),
+        });
+        if (phases.length === 1) {
+          callback(null);
+          return;
+        }
+        if (phases.length === 2) throw new Error("the canvas was lost");
+        real.call(this, callback, type, quality);
+      };
+    });
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.goto("/scan/easy?debug=1");
+    await page.getByRole("button", { name: "Got it" }).click();
+    // The scene is perfect from the first second, so the auto-shutter fires, is
+    // let down twice, and fires again after a refilled ring.
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 60_000,
+      })
+      .toBe(1);
+    const calls = (await page.evaluate(
+      () =>
+        (
+          window as Window & {
+            __toBlobCalls?: { phase: string | null; at: number }[];
+          }
+        ).__toBlobCalls,
+    ))!;
+    // Exactly three frames were tried (no blob, a throw, a frame), each while
+    // the viewfinder was still live: no pipeline run, no result sheet, before
+    // the third. If the loop had been stopped by the first failure, or the busy
+    // flag left set, there would be no third try.
+    expect(calls.map((call) => call.phase)).toEqual(["none", "none", "none"]);
+    // After a failure the ring starts again (800 ms of passing samples), so the
+    // next try comes after a fill, not on the very next sample (125 ms).
+    expect(calls[1].at - calls[0].at).toBeGreaterThan(600);
+    expect(calls[2].at - calls[1].at).toBeGreaterThan(600);
+    // Nothing was thrown out of the page: a throwing canvas is handled.
+    expect(pageErrors).toEqual([]);
+    const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+    expect(attempt.method).toBe("canvas");
+    expect(attempt.captureSource).toBe("frame");
+    expect(attempt.photo).toMatchObject({ width: 600, height: 1300 });
+    await expect(
+      page.getByRole("dialog", { name: /Retake needed|Hand measured/ }),
+    ).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("a press of the shutter before the video has a frame does nothing: no capture, the loop is not stopped, and the auto-shutter fires once the video is ready", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the fake-camera project.",
+    );
+    // A video that says it has no frame yet (readyState 1) while it plays: the
+    // live loop samples nothing, and a press of the shutter has nothing to take.
+    await page.addInitScript(() => {
+      const w = window as Window & {
+        __readyStateCap?: number | null;
+        __toBlobCalls?: number;
+      };
+      w.__readyStateCap = 1;
+      w.__toBlobCalls = 0;
+      const real = Object.getOwnPropertyDescriptor(
+        HTMLMediaElement.prototype,
+        "readyState",
+      )!;
+      Object.defineProperty(HTMLMediaElement.prototype, "readyState", {
+        configurable: true,
+        get(this: HTMLMediaElement) {
+          return w.__readyStateCap ?? real.get!.call(this);
+        },
+      });
+      const realToBlob = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (
+        this: HTMLCanvasElement,
+        callback: BlobCallback,
+        type?: string,
+        quality?: number,
+      ) {
+        w.__toBlobCalls = (w.__toBlobCalls ?? 0) + 1;
+        realToBlob.call(this, callback, type, quality);
+      };
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await page.waitForFunction(
+      () => {
+        const video = document.querySelector("video");
+        return !!video && video.videoWidth > 0;
+      },
+      undefined,
+      { timeout: 20_000 },
+    );
+    const shutter = page.getByRole("button", { name: "Take photo" });
+    await shutter.click();
+    await shutter.click();
+    await page.waitForTimeout(1500);
+    // Nothing happened: no frame was drawn, the stage is still the live view.
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __toBlobCalls?: number }).__toBlobCalls,
+      ),
+    ).toBe(0);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "none",
+    );
+    expect(await storedAttempts(page)).toEqual([]);
+
+    // The video now has its frame: the loop, which the presses must not have
+    // stopped, samples, fills the ring and takes the picture by itself.
+    await page.evaluate(() => {
+      (window as Window & { __readyStateCap?: number | null }).__readyStateCap =
+        null;
+    });
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      /processing|measured|gateFailure/,
+      { timeout: 30_000 },
+    );
+    await expect
+      .poll(async () => (await storedAttempts(page))?.length, {
+        timeout: 60_000,
+      })
+      .toBe(1);
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __toBlobCalls?: number }).__toBlobCalls,
+      ),
+    ).toBe(1);
   });
 });
 
@@ -319,6 +499,7 @@ test.describe("the attempt log", () => {
     console.log(`ATTEMPT example: ${JSON.stringify(attempt)}`);
     expect(attempt.v).toBe(1);
     expect(attempt.method).toBe("upload");
+    expect(attempt.captureSource).toBe("upload");
     expect(attempt.photo).toMatchObject({ width: 1500, height: 2000 });
     expect(attempt.photo.kb).toBeGreaterThan(0);
     expect(attempt.preview.width).toBeNull();

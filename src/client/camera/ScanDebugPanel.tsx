@@ -64,25 +64,31 @@ export function ScanDebugPanel({
             ? ` · on screen ${fixed(live.visibleInStream.width, 0)}×${fixed(live.visibleInStream.height, 0)} at ${fixed(live.visibleInStream.x, 0)},${fixed(live.visibleInStream.y, 0)}`
             : ""}
         </dd>
-        <dt>Preview vs photo</dt>
-        <dd data-testid="debug-fov">
-          {preview.stillAspect === null
-            ? "–"
-            : `photo ${fixed(preview.stillAspect, 3)} (${preview.stillAspectSource === "photoCapabilities" ? `max ${preview.photoMax?.width}×${preview.photoMax?.height}` : preview.stillAspectSource === "canvas" ? "canvas frame, no ImageCapture" : "assumed"}) · preview ${fixed(preview.previewAspect, 3)} · diff ${fixed(preview.aspectDiff === null ? null : preview.aspectDiff * 100, 1)}% · ${preview.fovMismatch === null ? "?" : preview.fovMismatch ? "FOV MISMATCH" : "same field of view"}`}
-          {preview.requested
-            ? ` · asked ${preview.requested.width ?? "?"}×${preview.requested.height ?? "?"} (${fixed(preview.requested.aspectRatio, 3)})`
-            : ""}
-          {preview.reapplied
-            ? preview.reapplied.applied
-              ? " · re-asked yes"
-              : ` · re-asked no (${preview.reapplied.reason ?? "?"})`
-            : ""}
-          {preview.orientationRetry
-            ? preview.orientationRetry.applied
-              ? ` · swapped retry ${preview.orientationRetry.kept ? "kept" : "dropped"}`
-              : ` · swapped retry no (${preview.orientationRetry.reason ?? "?"})`
-            : ""}
-        </dd>
+        {/* Only for the camera's own photo (takePhoto): a frame of the video has
+            no photo to compare the preview with, so the row would always be "–". */}
+        {capture.source === "takePhoto" && (
+          <>
+            <dt>Preview vs photo</dt>
+            <dd data-testid="debug-fov">
+              {preview.stillAspect === null
+                ? "–"
+                : `photo ${fixed(preview.stillAspect, 3)} (${preview.stillAspectSource === "photoCapabilities" ? `max ${preview.photoMax?.width}×${preview.photoMax?.height}` : preview.stillAspectSource === "canvas" ? "canvas frame, no ImageCapture" : "assumed"}) · preview ${fixed(preview.previewAspect, 3)} · diff ${fixed(preview.aspectDiff === null ? null : preview.aspectDiff * 100, 1)}% · ${preview.fovMismatch === null ? "?" : preview.fovMismatch ? "FOV MISMATCH" : "same field of view"}`}
+              {preview.requested
+                ? ` · asked ${preview.requested.width ?? "?"}×${preview.requested.height ?? "?"} (${fixed(preview.requested.aspectRatio, 3)})`
+                : ""}
+              {preview.reapplied
+                ? preview.reapplied.applied
+                  ? " · re-asked yes"
+                  : ` · re-asked no (${preview.reapplied.reason ?? "?"})`
+                : ""}
+              {preview.orientationRetry
+                ? preview.orientationRetry.applied
+                  ? ` · swapped retry ${preview.orientationRetry.kept ? "kept" : "dropped"}`
+                  : ` · swapped retry no (${preview.orientationRetry.reason ?? "?"})`
+                : ""}
+            </dd>
+          </>
+        )}
         <dt>Live view</dt>
         <dd data-testid="debug-live-view">
           {live.visibleInStream && live.sample
