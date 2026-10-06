@@ -9,6 +9,11 @@ import {
   type PixelRect,
 } from "../../src/client/camera/visibleView";
 import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
+import {
+  computeCoverRect,
+  mapMediaPointToContainer,
+} from "../../src/client/camera/quad";
+import { computeDownscaleSize } from "../../src/client/photo/decode";
 import { assumedFocalPxFromFov } from "../../src/client/paper/orientation";
 
 const PHONE = { width: 390, height: 844 };
@@ -366,5 +371,103 @@ describe("analysisFrames and the detector's assumed focal length — what a crop
     expect(cropped).toBeCloseTo(assumedFocalPxFromFov(decoded.width), 9);
     // What it used to be (the cropped width's) is a different number.
     expect(cropped).not.toBeCloseTo(assumedFocalPxFromFov(crop.width), 0);
+  });
+});
+
+describe("the live loop's corner coordinates: a sample of the visible part lands where the stream's own point lands on screen", () => {
+  // The loop draws only the visible rectangle into the sample canvas and maps
+  // the detector's corners back onto the stage with the cover rectangle of the
+  // SAMPLE (the stage's shape, so nearly a plain scale). That must agree with
+  // mapping the same point of the whole stream through the cover rectangle of
+  // the stream (what the loop did before it sampled the visible part).
+  const longEdge = 640;
+
+  it("agrees to under 2 px for portrait and wide screens, narrower and wider than the stream", () => {
+    const streams = [
+      { width: 1080, height: 1440 },
+      { width: 1080, height: 1920 },
+      { width: 1000, height: 1300 },
+      { width: 1440, height: 1080 },
+    ];
+    const screens = [
+      PHONE,
+      { width: 360, height: 640 },
+      { width: 412, height: 915 },
+      { width: 844, height: 390 },
+      { width: 820, height: 1180 },
+    ];
+    let compared = 0;
+    for (const stream of streams)
+      for (const screen of screens) {
+        const visible = visibleRectInStream(stream, screen)!;
+        const sample = computeDownscaleSize(
+          Math.max(1, Math.round(visible.width)),
+          Math.max(1, Math.round(visible.height)),
+          longEdge,
+        );
+        const sampleCover = computeCoverRect(
+          screen.width,
+          screen.height,
+          sample.width,
+          sample.height,
+        );
+        const streamCover = computeCoverRect(
+          screen.width,
+          screen.height,
+          stream.width,
+          stream.height,
+        );
+        for (const [u, v] of [
+          [0.5, 0.5],
+          [0.3, 0.2],
+          [0.7, 0.85],
+        ]) {
+          // A stream point inside the visible part.
+          const point = {
+            x: visible.x + u * visible.width,
+            y: visible.y + v * visible.height,
+          };
+          const inSample = {
+            x: ((point.x - visible.x) / visible.width) * sample.width,
+            y: ((point.y - visible.y) / visible.height) * sample.height,
+          };
+          const viaSample = mapMediaPointToContainer(
+            inSample,
+            sampleCover,
+            sample.width,
+            sample.height,
+          );
+          const viaStream = mapMediaPointToContainer(
+            point,
+            streamCover,
+            stream.width,
+            stream.height,
+          );
+          const label = `${stream.width}x${stream.height} on ${screen.width}x${screen.height} at ${u},${v}`;
+          expect(Math.abs(viaSample.x - viaStream.x), label).toBeLessThan(2);
+          expect(Math.abs(viaSample.y - viaStream.y), label).toBeLessThan(2);
+          compared++;
+        }
+      }
+    expect(compared).toBe(60);
+  });
+
+  it("the sample is smaller than what the detector was given before: 296x640 for a 3:4 stream on 390x844, against 480x640 for the whole stream", () => {
+    const visible = visibleRectInStream({ width: 1080, height: 1440 }, PHONE)!;
+    const sample = computeDownscaleSize(
+      Math.round(visible.width),
+      Math.round(visible.height),
+      longEdge,
+    );
+    expect(sample).toEqual({ width: 296, height: 640 });
+    expect(computeDownscaleSize(1080, 1440, longEdge)).toEqual({
+      width: 480,
+      height: 640,
+    });
+    // And against the 9:16 whole stream the loop looked at before this change.
+    expect(computeDownscaleSize(1080, 1920, longEdge)).toEqual({
+      width: 360,
+      height: 640,
+    });
   });
 });

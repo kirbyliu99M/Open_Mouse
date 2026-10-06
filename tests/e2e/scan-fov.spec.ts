@@ -227,9 +227,11 @@ test.describe("the camera is asked for the photo's shape", () => {
     });
     await page.goto("/scan/easy");
     await page.getByRole("button", { name: "Got it" }).click();
+    // The pipeline can finish before this looks (the fake scene has no hand):
+    // the "processing" mark below is what says the photo was taken.
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
-      "processing",
+      /processing|gateFailure/,
       { timeout: 30_000 },
     );
     const events = (await page.evaluate(

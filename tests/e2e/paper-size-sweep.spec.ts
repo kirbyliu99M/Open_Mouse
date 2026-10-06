@@ -9,35 +9,43 @@ import { buildPaperScenePng } from "./fixtures/paper-scene";
 
 /**
  * Measurement, not a test of the suite: how the pipeline's paper gates react
- * to the size of the sheet in the photo (docs/design/scan-v2-2026-09-30/
- * README.md, "Preview shape and attempt log"). Run by hand:
+ * to the size of the sheet in what the person SAW (docs/design/
+ * scan-v2-2026-09-30/README.md, "What you see is what is analysed"). Run by
+ * hand:
  *
  *   PAPER_SWEEP=1 npx playwright test tests/e2e/paper-size-sweep.spec.ts --project=mobile
  *
- * Each step draws a 3000x4000 portrait photo (the shape and size of the
- * S25's takePhoto() output) with the sheet at a given fraction of the "fills
- * the frame" size, uploads it through the real `#easy-scan-upload` on the
- * real `/scan/easy` and reads the attempt record the app kept
- * (attemptLog.ts). Nothing is mocked: the numbers are the shipped pipeline's.
+ * The easy scan analyses the part of the photo that was on screen
+ * (visibleView.ts). On a 390x844 screen that is a region with the screen's
+ * shape, 0.462 wide for every 1 tall: 1386x3000 of the S25's decoded
+ * 2250x3000 photo. Each step draws exactly that region at full resolution
+ * (1848x4000 before the decoder scales it down), with the sheet at a given
+ * fraction of ITS WIDTH, uploads it through the real `#easy-scan-upload` on the
+ * real `/scan/easy` and reads the attempt record the app kept (attemptLog.ts).
+ * Nothing is mocked: the numbers are the shipped pipeline's, and they are the
+ * numbers it gets after the crop, which is what an upload of the region is.
  *
- * "100 %" is a sheet 92 % as tall as the photo (86.7 % as wide, A4 in a 3:4
- * frame); 50 % is half that size in both directions.
+ * "85 %" is where the guide rectangle puts the sheet (GUIDE_INSETS: 0.85 of
+ * the screen's width); the live cue says "Move closer" below 55 % and "Move
+ * back" above 95 % (CAMERA_CONSTANTS.size).
  *
  * The synthetic scene's "hand" is a blob that MediaPipe does not take for a
  * hand, so a synthetic photo can never come back "ok": what the sweep reads is
  * the PAPER gates (`paper.gateFailures`, the part of the pipeline the sheet's
  * size acts on), next to the error the result reported. `PAPER_SWEEP_PHOTO`
  * (a path to a real hand photo on a sheet, never committed) adds a second
- * sweep that shrinks that photo inside a plain desk-coloured frame, the
- * experiment Kirby ran by hand on the live site, with a real hand.
+ * sweep that shrinks that photo inside a plain desk-coloured frame of the same
+ * region, the experiment Kirby ran by hand on the live site, with a real hand.
  * `PAPER_SWEEP_OUT` writes the rows as JSON.
  */
+/** The sheet's share of the region's width, from 100 % down to 50 %. */
 const STEPS = Array.from({ length: 11 }, (_, i) => 1 - i * 0.05);
-const WIDTH = 3000;
+/** The region the person saw, in the photo's own pixels: the screen's shape at the photo's full height. */
 const HEIGHT = 4000;
+const WIDTH = Math.round((HEIGHT * 390) / 844);
 const A4_MM = { width: 210, height: 297 };
-/** The sheet's height at "100 %", as a share of the photo's height. */
-const FULL_HEIGHT_SHARE = 0.92;
+/** In the real photo the sheet is about as wide as the photo (measured: 100 % of its 2252 px at the first run). */
+const REAL_PHOTO_PAPER_SHARE = 1;
 
 interface Row {
   readonly scene: string;
@@ -105,9 +113,9 @@ async function runStep(
   };
 }
 
-/** The synthetic scene at `scale`, drawn centred in a 3000x4000 photo. */
+/** The synthetic scene: the sheet `scale` as wide as the region, centred. */
 async function syntheticScene(page: Page, scale: number): Promise<Buffer> {
-  const pxPerMm = ((HEIGHT * FULL_HEIGHT_SHARE) / A4_MM.height) * scale;
+  const pxPerMm = (WIDTH * scale) / A4_MM.width;
   const tx = (WIDTH - A4_MM.width * pxPerMm) / 2;
   const ty = (HEIGHT - A4_MM.height * pxPerMm) / 2;
   return buildPaperScenePng(page, {
@@ -123,14 +131,14 @@ async function syntheticScene(page: Page, scale: number): Promise<Buffer> {
   });
 }
 
-/** A real photo shrunk to `scale` inside a plain desk-coloured 3000x4000 frame, as a JPEG. */
+/** A real photo shrunk so that its sheet is `scale` as wide as the region, inside a plain desk-coloured frame of that shape, as a JPEG. */
 async function realScene(
   page: Page,
   photo: Buffer,
   scale: number,
 ): Promise<Buffer> {
   const base64 = await page.evaluate(
-    async ({ b64, width, height, scale }) => {
+    async ({ b64, width, height, scale, paperShare }) => {
       // Not fetch(data:...): the page's connect-src does not allow it.
       const blob = new Blob(
         [Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))],
@@ -153,14 +161,21 @@ async function realScene(
       const [r, g, b] = pctx.getImageData(0, 0, 1, 1).data;
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(0, 0, width, height);
-      // 100 % is the photo at the frame's height.
-      const fit = height / bitmap.height;
-      const w = bitmap.width * fit * scale;
-      const h = bitmap.height * fit * scale;
+      // The sheet is about `paperShare` of the photo's width: draw the photo
+      // so that the sheet is `scale` of the frame's width.
+      const fit = (width * scale) / (bitmap.width * paperShare);
+      const w = bitmap.width * fit;
+      const h = bitmap.height * fit;
       ctx.drawImage(bitmap, (width - w) / 2, (height - h) / 2, w, h);
       return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
     },
-    { b64: photo.toString("base64"), width: WIDTH, height: HEIGHT, scale },
+    {
+      b64: photo.toString("base64"),
+      width: WIDTH,
+      height: HEIGHT,
+      scale,
+      paperShare: REAL_PHOTO_PAPER_SHARE,
+    },
   );
   return Buffer.from(base64, "base64");
 }
@@ -170,7 +185,7 @@ const fmt = (v: number | null, digits: number) =>
 
 function table(rows: readonly Row[]): string {
   const head =
-    "| sheet scale | width % | height % | residual mm | coverage | corners | paper gates failed | reported errors | result |";
+    "| sheet, share of the screen's width | width % | height % | residual mm | coverage | corners | paper gates failed | reported errors | result |";
   const rule = "|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
@@ -179,7 +194,7 @@ function table(rows: readonly Row[]): string {
   return [head, rule, ...lines].join("\n");
 }
 
-test("sheet size sweep: paper gates against the sheet's share of a 3000x4000 photo", async ({
+test("sheet size sweep: paper gates against the sheet's share of what the person saw", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -195,7 +210,7 @@ test("sheet size sweep: paper gates against the sheet's share of a 3000x4000 pho
     rows.push(await runStep(page, "synthetic", scale, png, "image/png"));
   }
   console.log(
-    `SWEEP synthetic (paper-scene.ts, 3000x4000, PNG)\n${table(rows)}`,
+    `SWEEP synthetic (paper-scene.ts, the on-screen region ${WIDTH}x${HEIGHT}, PNG)\n${table(rows)}`,
   );
 
   const realPath = process.env.PAPER_SWEEP_PHOTO;
@@ -207,7 +222,7 @@ test("sheet size sweep: paper gates against the sheet's share of a 3000x4000 pho
       real.push(await runStep(page, "real hand", scale, jpeg, "image/jpeg"));
     }
     console.log(
-      `SWEEP real hand photo, shrunk in a desk-coloured frame\n${table(real)}`,
+      `SWEEP real hand photo, shrunk in a desk-coloured frame of the on-screen region\n${table(real)}`,
     );
     rows.push(...real);
   }

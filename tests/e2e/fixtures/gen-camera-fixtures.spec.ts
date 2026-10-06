@@ -72,16 +72,20 @@ const HOMOGRAPHY: Homography = [
 // place; see this file's own generation run for the numbers reported in
 // the PR.
 //
-// The easy scan looks only at the part of the stream that is ON SCREEN (the
-// stage shows it with object-fit: cover; src/client/camera/visibleView.ts):
-// on the fake phone's 390x844 screen that is the middle 601 columns of this
-// 1000x1300 frame (x 200 to 801), the whole height. So the sheet is drawn
-// 85 % as wide as that, the guide rectangle's own width (GUIDE_INSETS), and
-// not wider: 210 mm x 2.45 = 514 px of 601 (before this change it was 3.6,
-// 756 px, a sheet that is wider than what the screen shows and could be found
-// by a detector that looked at the whole frame, but not by one that looks at
-// the screen).
-const PAPER_SCALE = 2.45;
+// Two detectors look at this one video, and the sheet has to be the right size
+// for both:
+//  - the easy scan looks only at the part of the stream that is ON SCREEN (the
+//    stage shows it with object-fit: cover; src/client/camera/visibleView.ts):
+//    on the fake phone's 390x844 screen that is the middle 601 columns of this
+//    1000x1300 frame (x 200 to 801), the whole height. Its cue says "Move back"
+//    above 95 % of that width: 571 px.
+//  - the paper-edge preview (CameraCapture, still the whole stream) says "Move
+//    closer" below 55 % of the frame's width: 550 px.
+// So the sheet is drawn 560 px wide (210 mm x 2.67): 56 % of the frame and
+// 93 % of what the screen shows. (Before the easy scan looked at the screen's
+// part it was 3.6, 756 px: wider than the screen shows, and found only because
+// the detector looked at the whole frame.)
+const PAPER_SCALE = 2.67;
 const PAPER_TX = (CANVAS_WIDTH - A4_MM.width * PAPER_SCALE) / 2;
 const PAPER_TY = (CANVAS_HEIGHT - A4_MM.height * PAPER_SCALE) / 2 - 20;
 const PAPER_HOMOGRAPHY: Homography = [
