@@ -335,14 +335,17 @@ export function readAttempts(
   }
 }
 
+/** Whether the store took the list. Best-effort: a full or blocked store must never break a scan. */
 export function writeAttempts(
   storage: StorageLike | null,
   list: readonly AttemptRecord[],
-): void {
+): boolean {
+  if (!storage) return false;
   try {
-    storage?.setItem(ATTEMPT_LOG_KEY, serialiseAttempts(list));
+    storage.setItem(ATTEMPT_LOG_KEY, serialiseAttempts(list));
+    return true;
   } catch {
-    // Best-effort: a full or blocked store must never break a scan.
+    return false;
   }
 }
 
@@ -375,20 +378,23 @@ export function mergeAttempts(
 
 /**
  * Adds `record` to what is stored (read again each time, so two tabs do not
- * overwrite each other) and returns the new list. `session` is the page's own
- * list: the result always contains it, so the debug panel shows every attempt
- * of this session even where the store cannot be read or cannot be written (a
- * full quota lets the page read and refuse the write).
+ * overwrite each other) and returns the list to show. `session` is the page's
+ * own list. While the store can be read and written it is the truth, and the
+ * page's copy is not written back over it (a log deleted in another tab stays
+ * deleted). Where the store cannot be written (a full quota lets the page read
+ * and refuse the write) or cannot be read at all, the page's list covers what
+ * it could not keep, so the debug panel still shows every attempt of the
+ * session.
  */
 export function recordAttempt(
   storage: StorageLike | null,
   record: unknown,
   session: readonly AttemptRecord[] = [],
 ): AttemptRecord[] {
-  const base = mergeAttempts(readAttempts(storage) ?? [], session);
-  const next = appendAttempt(base, record);
-  writeAttempts(storage, next);
-  return next;
+  const stored = readAttempts(storage);
+  const fromStore = appendAttempt(stored ?? session, record);
+  if (writeAttempts(storage, fromStore)) return fromStore;
+  return appendAttempt(mergeAttempts(stored ?? [], session), record);
 }
 
 // ── Making a record from a run ────────────────────────────────────────────

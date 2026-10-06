@@ -483,6 +483,39 @@ describe("storage that is missing or broken", () => {
     expect(readAttempts(storage)).toEqual([]);
   });
 
+  it("a store that can be written is the truth: a log deleted in another tab does not come back from this page's copy", () => {
+    const { storage, data } = fakeStorage();
+    let session = recordAttempt(
+      storage,
+      record({ at: "2026-10-06T10:00:00.000Z" }),
+    );
+    session = recordAttempt(
+      storage,
+      record({ at: "2026-10-06T10:00:01.000Z" }),
+      session,
+    );
+    expect(session).toHaveLength(2);
+    // The person deletes their data in another tab.
+    data.delete(ATTEMPT_LOG_KEY);
+    session = recordAttempt(
+      storage,
+      record({ at: "2026-10-06T10:00:02.000Z" }),
+      session,
+    );
+    expect(session.map((r) => r.at)).toEqual(["2026-10-06T10:00:02.000Z"]);
+    expect(readAttempts(storage)?.map((r) => r.at)).toEqual([
+      "2026-10-06T10:00:02.000Z",
+    ]);
+  });
+
+  it("writeAttempts says whether the store took the list", () => {
+    expect(writeAttempts(fakeStorage().storage, [record()])).toBe(true);
+    expect(
+      writeAttempts(fakeStorage({ setThrows: true }).storage, [record()]),
+    ).toBe(false);
+    expect(writeAttempts(null, [record()])).toBe(false);
+  });
+
   it("a store that is written by another tab as well adds its records to the session's, in time order, without repeats", () => {
     const { storage } = fakeStorage();
     const mine = recordAttempt(
