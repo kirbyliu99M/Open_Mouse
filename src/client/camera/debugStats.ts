@@ -99,6 +99,9 @@ export interface DebugPreviewInfo {
   readonly fovMismatch: boolean | null;
   /** The second request made to the running track once the photo's shape was known. */
   readonly reapplied: DebugFocusEntry | null;
+  /** The same shape asked for with width and height swapped, after a mismatch (previewConstraints.ts). */
+  readonly orientationRetry:
+    (DebugFocusEntry & { readonly kept: boolean }) | null;
 }
 
 export interface ScanDebugSnapshot {

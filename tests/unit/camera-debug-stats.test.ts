@@ -130,6 +130,7 @@ describe("debugSnapshotJson", () => {
       aspectDiff: 0.3333334,
       fovMismatch: true,
       reapplied: null,
+      orientationRetry: null,
     },
     attempts: [],
   };
@@ -198,6 +199,7 @@ describe("debugSnapshotJson", () => {
       [
         "aspectDiff",
         "fovMismatch",
+        "orientationRetry",
         "photoMax",
         "previewAspect",
         "reapplied",

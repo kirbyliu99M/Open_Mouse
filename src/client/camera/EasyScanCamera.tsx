@@ -1558,6 +1558,7 @@ export default function EasyScanCamera({
         aspectDiff: alignment?.comparison.aspectDiff ?? null,
         fovMismatch: alignment?.comparison.fovMismatch ?? null,
         reapplied: alignment?.reapplied ?? null,
+        orientationRetry: alignment?.orientationRetry ?? null,
       },
       attempts: attemptsRef.current,
     };

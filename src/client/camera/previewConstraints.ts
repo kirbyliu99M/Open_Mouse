@@ -27,6 +27,9 @@ import { CAMERA_CONSTANTS } from "./constants";
 
 const PREVIEW = CAMERA_CONSTANTS.preview;
 
+/** The retry with width and height swapped is kept only if it is closer to the photo's shape by more than this (fraction of the photo's). */
+const MIN_RETRY_GAIN = 0.005;
+
 /** The widest and narrowest long-over-short ratio taken at face value; anything else is a camera reporting nonsense. */
 const MIN_ASPECT = 1;
 const MAX_ASPECT = 3;
@@ -218,6 +221,20 @@ export interface PreviewAlignment {
     readonly applied: boolean;
     readonly reason?: string;
   } | null;
+  /**
+   * A phone's browser may read a size request in the sensor's own (wide)
+   * orientation rather than the screen's, and so answer an upright 3:4 request
+   * with the wrong shape. When the first answer was a mismatch, the same shape
+   * was asked for once more with width and height swapped. `kept` says
+   * whether that answer was better (and the right way round) and stayed;
+   * otherwise the first request was put back. `null` when there was no
+   * mismatch to try it on.
+   */
+  readonly orientationRetry: {
+    readonly applied: boolean;
+    readonly kept: boolean;
+    readonly reason?: string;
+  } | null;
   /** What the track reports after that. */
   readonly settings: {
     readonly width: number | null;
@@ -291,7 +308,48 @@ export async function alignPreviewToStill<
       };
     }
   }
-  const settings = readSettings(track);
+  let settings = readSettings(track);
+  let comparison = compareFov(settings, stillAspect);
+  let orientationRetry: PreviewAlignment["orientationRetry"] = null;
+  if (comparison.fovMismatch === true && comparison.aspectDiff !== null) {
+    const firstDiff = Math.abs(comparison.aspectDiff);
+    const first = requested;
+    const swapped = previewSizingFor(stillAspect, !portrait);
+    try {
+      await track.applyConstraints(swapped);
+      const retrySettings = readSettings(track);
+      const retryComparison = compareFov(retrySettings, stillAspect);
+      const rightWayRound =
+        retrySettings?.width != null &&
+        retrySettings.height != null &&
+        retrySettings.height > retrySettings.width === portrait;
+      const better =
+        retryComparison.aspectDiff !== null &&
+        Math.abs(retryComparison.aspectDiff) + MIN_RETRY_GAIN < firstDiff;
+      if (rightWayRound && better) {
+        requested = swapped;
+        settings = retrySettings;
+        comparison = retryComparison;
+        orientationRetry = { applied: true, kept: true };
+      } else {
+        // No better: the first request goes back, so the preview is what it was.
+        try {
+          await track.applyConstraints(first);
+        } catch {
+          // Whatever the track now has is reported below.
+        }
+        settings = readSettings(track);
+        comparison = compareFov(settings, stillAspect);
+        orientationRetry = { applied: true, kept: false };
+      }
+    } catch (error) {
+      orientationRetry = {
+        applied: false,
+        kept: false,
+        reason: error instanceof Error && error.name ? error.name : "error",
+      };
+    }
+  }
   return {
     requested,
     stillAspect,
@@ -300,7 +358,8 @@ export async function alignPreviewToStill<
       ? { width: capabilities.width, height: capabilities.height }
       : null,
     reapplied,
+    orientationRetry,
     settings,
-    comparison: compareFov(settings, stillAspect),
+    comparison,
   };
 }

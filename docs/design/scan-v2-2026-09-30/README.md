@@ -72,8 +72,10 @@ Fill time stays 800 ms of passing samples.
   `cover` crop), show the focus reticle there (screen 3: 88 px square, drafting blue `#0A64E0`,
   2 px stroke, 12 px radius, centre dot), then re-apply `"continuous"` after about 1.2 s.
 - Unsupported browsers: no reticle, no tap handling.
-- Live stream constraints: ask for 1920x1080 ideal for the preview. The high-resolution photo
-  still comes from `takePhoto()` as today; the canvas fallback path keeps working.
+- Live stream constraints: ask for the preview in the photo's own shape, about 1080 on the short
+  edge (_revised 2026-10-06, see "Preview shape and attempt log" below; this line first said
+  1920x1080 ideal_). The high-resolution photo still comes from `takePhoto()` as today; the canvas
+  fallback path keeps working.
 
 **Capture and freeze.** The frozen picture occupies exactly the rectangle and crop the last live
 frame had. Compute the crop from the stream's `getSettings()` aspect and the still's dimensions
@@ -120,7 +122,11 @@ without the query. Nothing leaves the device and no image is stored. It shows:
   a fraction of the diagonal; corners seen; cue code; ring fraction; consecutive-failure count.
 - Capture: `takePhoto` used or canvas fallback; still width, height and size in KB; milliseconds
   from ring complete to the frozen frame being on screen.
-- A "Copy JSON" button (clipboard call wrapped in try/catch) so Kirby can paste the numbers.
+- Preview against photo (2026-10-06): what the stream was asked for, the photo's shape as the camera
+  reported it, the preview's shape, their difference and the `fovMismatch` flag.
+- Attempts (2026-10-06): the last 20 analyses kept on this device, newest first, one line each.
+- A "Copy JSON" button (clipboard call wrapped in try/catch) so Kirby can paste the numbers. The JSON
+  carries the `preview` block and the `attempts` array.
 
 ## Acceptance criteria
 
@@ -170,9 +176,10 @@ criterion; each item is a decision the build had to make or a thing it could not
   keeps clear of the top bar as well, which grows with the text. The floor of 0.4 is reached only
   on a shorter screen, where the band cannot hold the paper at a useful size; there the drawing
   can reach under the sheet.
-- **`resizeMode: { ideal: "none" }`** is asked for next to 1920x1080 ideal, so the browser prefers
+- **`resizeMode: { ideal: "none" }`** is asked for next to the size, so the browser prefers
   the camera's own frame sizes over a software crop-and-scale that would narrow the field of view.
-  Not verified on a phone.
+  Not verified on a phone. (It was first asked for next to 1920x1080 ideal; that size is replaced,
+  see "Preview shape and attempt log".)
 - **Tap-to-focus support is inferred, not observed.** `pointsOfInterest` counts if it shows in the
   track's capabilities, its settings or `getSupportedConstraints()` (Chrome documents it outside
   `getCapabilities()`), together with `single-shot` in `focusMode`. The debug JSON records each

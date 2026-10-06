@@ -67,6 +67,11 @@ export function ScanDebugPanel({
               ? " · re-asked yes"
               : ` · re-asked no (${preview.reapplied.reason ?? "?"})`
             : ""}
+          {preview.orientationRetry
+            ? preview.orientationRetry.applied
+              ? ` · swapped retry ${preview.orientationRetry.kept ? "kept" : "dropped"}`
+              : ` · swapped retry no (${preview.orientationRetry.reason ?? "?"})`
+            : ""}
         </dd>
         <dt>Focus modes</dt>
         <dd>

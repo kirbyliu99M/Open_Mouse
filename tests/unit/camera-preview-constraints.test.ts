@@ -294,6 +294,11 @@ function fakeTrack(options: {
   applyThrows?: Error;
   settingsThrow?: boolean;
   followRequests?: boolean;
+  /** What the track reports after a request: a camera with a mind of its own. */
+  respond?: (constraints: PreviewSizing) => {
+    width: number;
+    height: number;
+  };
 }) {
   const applied: PreviewSizing[] = [];
   let settings = options.settings ?? {
@@ -309,6 +314,8 @@ function fakeTrack(options: {
     applyConstraints: async (constraints) => {
       applied.push(constraints);
       if (options.applyThrows) throw options.applyThrows;
+      if (options.respond)
+        settings = { ...settings, ...options.respond(constraints) };
       if (options.followRequests)
         settings = {
           ...settings,
@@ -353,6 +360,7 @@ describe("alignPreviewToStill", () => {
     expect(seen).toEqual([track]);
     expect(applied).toEqual([]);
     expect(result.reapplied).toBeNull();
+    expect(result.orientationRetry).toBeNull();
     expect(result.stillAspectSource).toBe("photoCapabilities");
     expect(result.photoMax).toEqual({ width: 4000, height: 3000 });
     expect(result.stillAspect).toBeCloseTo(4 / 3, 10);
@@ -393,11 +401,17 @@ describe("alignPreviewToStill", () => {
       ImageCaptureCtor: null,
       portrait: true,
     });
-    expect(applied).toEqual([]);
     expect(result.stillAspectSource).toBe("default");
     expect(result.photoMax).toBeNull();
     expect(result.stillAspect).toBeCloseTo(4 / 3, 10);
-    // The browser answered 16:9 anyway: that is what the flag is for.
+    // The browser answered 16:9 anyway: that is what the flag is for. The
+    // width-and-height swap was tried once, did no better, and was put back.
+    expect(applied).toEqual([
+      previewSizingFor(4 / 3, false),
+      previewSizingFor(4 / 3, true),
+    ]);
+    expect(result.orientationRetry).toEqual({ applied: true, kept: false });
+    expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
     expect(result.comparison.fovMismatch).toBe(true);
   });
 
@@ -442,13 +456,79 @@ describe("alignPreviewToStill", () => {
       ImageCaptureCtor: Ctor,
       portrait: true,
     });
-    expect(applied).toHaveLength(1);
+    // The 16:9 request, then the swapped retry on the mismatch: both refused.
+    expect(applied).toHaveLength(2);
     expect(result.reapplied).toEqual({
       applied: false,
       reason: "OverconstrainedError",
     });
+    expect(result.orientationRetry).toEqual({
+      applied: false,
+      kept: false,
+      reason: "OverconstrainedError",
+    });
     expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
     expect(result.comparison.fovMismatch).toBe(true);
+  });
+
+  it("a browser that reads width and height in the sensor's wide orientation: the swapped request is the one that works, and it stays", async () => {
+    // Asked upright (height > width) it answers 16:9; asked wide it answers 3:4 upright.
+    const { track, applied } = fakeTrack({
+      settings: { width: 1080, height: 1920 },
+      respond: (c) =>
+        c.height.ideal > c.width.ideal
+          ? { width: 1080, height: 1920 }
+          : { width: 1080, height: 1440 },
+    });
+    const { Ctor } = fakeImageCapture(CAPS_43);
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: Ctor,
+      portrait: true,
+    });
+    expect(applied).toEqual([previewSizingFor(4 / 3, false)]);
+    expect(result.orientationRetry).toEqual({ applied: true, kept: true });
+    expect(result.requested).toEqual(previewSizingFor(4 / 3, false));
+    expect(result.settings).toMatchObject({ width: 1080, height: 1440 });
+    expect(result.comparison.fovMismatch).toBe(false);
+  });
+
+  it("a swapped request that gives a wide stream on an upright phone is dropped, even if its shape is right", async () => {
+    const { track, applied } = fakeTrack({
+      settings: { width: 1080, height: 1920 },
+      respond: (c) =>
+        c.height.ideal > c.width.ideal
+          ? { width: 1080, height: 1920 }
+          : { width: 1440, height: 1080 },
+    });
+    const { Ctor } = fakeImageCapture(CAPS_43);
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: Ctor,
+      portrait: true,
+    });
+    expect(applied).toEqual([
+      previewSizingFor(4 / 3, false),
+      previewSizingFor(4 / 3, true),
+    ]);
+    expect(result.orientationRetry).toEqual({ applied: true, kept: false });
+    expect(result.requested).toEqual(previewSizingFor(4 / 3, true));
+    expect(result.settings).toMatchObject({ width: 1080, height: 1920 });
+    expect(result.comparison.fovMismatch).toBe(true);
+  });
+
+  it("the swap is tried once, and only after a mismatch: a match asks nothing more", async () => {
+    const { track, applied } = fakeTrack({
+      settings: { width: 1080, height: 1450 },
+    });
+    const { Ctor } = fakeImageCapture(CAPS_43);
+    const result = await alignPreviewToStill({
+      track,
+      ImageCaptureCtor: Ctor,
+      portrait: true,
+    });
+    expect(applied).toEqual([]);
+    expect(result.orientationRetry).toBeNull();
   });
 
   it("a track whose settings cannot be read leaves the comparison unknown", async () => {
