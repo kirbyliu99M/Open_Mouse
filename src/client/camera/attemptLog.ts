@@ -134,6 +134,25 @@ export interface AttemptRecord {
     } | null;
   };
   readonly parallaxCorrected: boolean | null;
+  /**
+   * The hand length and palm width the scan measured (the numbers its result and
+   * submission carry), to 0.1 mm; `null` where the run did not end in a
+   * measurement. Kept so a few scans in a row can be compared against a tape
+   * measure from the debug JSON. Never sent anywhere.
+   */
+  readonly measured: {
+    readonly handLengthMm: number | null;
+    readonly palmWidthMm: number | null;
+  };
+  /**
+   * Where the parallax correction's focal length came from (EXIF, the
+   * homography, or neither: no correction) and its value in px; `null` for both
+   * where the run stopped before that.
+   */
+  readonly focal: {
+    readonly source: "exif" | "homography" | "none" | null;
+    readonly px: number | null;
+  };
   readonly timingMs: {
     readonly decode: number | null;
     readonly paper: number | null;
@@ -205,6 +224,8 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
   const viewStream = asObject(view?.stream);
   const viewVisible = asObject(view?.visibleInStream);
   const timing = asObject(raw.timingMs);
+  const measured = asObject(raw.measured);
+  const focal = asObject(raw.focal);
   const handedness = hand?.handedness;
   const method = raw.method;
 
@@ -297,6 +318,20 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
         : null,
     },
     parallaxCorrected: cleanBool(raw.parallaxCorrected),
+    // Records stored before these fields existed have none: null, not an error.
+    measured: {
+      handLengthMm: cleanNumber(measured?.handLengthMm, 1),
+      palmWidthMm: cleanNumber(measured?.palmWidthMm, 1),
+    },
+    focal: {
+      source:
+        focal?.source === "exif" ||
+        focal?.source === "homography" ||
+        focal?.source === "none"
+          ? focal.source
+          : null,
+      px: cleanNumber(focal?.px, 1),
+    },
     timingMs: {
       decode: cleanNumber(timing?.decode, 0),
       paper: cleanNumber(timing?.paper, 0),
@@ -550,6 +585,8 @@ export function buildAttemptRecord(input: {
       crop: diagnostics?.fovCrop ?? null,
     },
     parallaxCorrected: diagnostics?.parallaxCorrected ?? null,
+    measured: result === "ok" ? (diagnostics?.measured ?? null) : null,
+    focal: diagnostics?.focal ?? null,
     timingMs: {
       decode: diagnostics?.decodeMs ?? null,
       paper: diagnostics?.paperMs ?? null,
@@ -583,6 +620,8 @@ export function buildAttemptRecord(input: {
       view: null,
       analysed: { width: null, height: null, crop: null },
       parallaxCorrected: null,
+      measured: { handLengthMm: null, palmWidthMm: null },
+      focal: { source: null, px: null },
       timingMs: { decode: null, paper: null, hand: null, total: null },
       userAgent: "",
     }
@@ -624,5 +663,9 @@ export function describeAttempt(record: AttemptRecord): string {
     parts.push("view model n/a");
   if (record.settleTimedOut) parts.push("settle timed out");
   if (record.analysed.crop) parts.push("cropped");
+  if (record.measured.handLengthMm !== null)
+    parts.push(`len ${record.measured.handLengthMm.toFixed(1)} mm`);
+  if (record.measured.palmWidthMm !== null)
+    parts.push(`palm ${record.measured.palmWidthMm.toFixed(1)} mm`);
   return parts.join(" · ");
 }

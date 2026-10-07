@@ -55,6 +55,8 @@ const DIAGNOSTICS: PipelineDiagnostics = {
   laplacianVariance: 142.3456,
   hand: { detected: true, confidence: 0.91234, handedness: "left" },
   parallaxCorrected: null,
+  measured: { handLengthMm: null, palmWidthMm: null },
+  focal: null,
 };
 
 const ERROR_RESULT: PipelineResult = {
@@ -899,5 +901,170 @@ describe("describeAttempt", () => {
     const ok = record({ result: "ok", errors: [], paper: null });
     expect(describeAttempt(ok)).toContain("· ok");
     expect(describeAttempt(ok)).not.toContain("paper");
+  });
+});
+
+describe("measured and focal — what a few scans in a row are compared on", () => {
+  const OK_DIAGNOSTICS: PipelineDiagnostics = {
+    ...DIAGNOSTICS,
+    parallaxCorrected: true,
+    // Unrounded, as the result carries them.
+    measured: { handLengthMm: 188.4372, palmWidthMm: 66.0551 },
+    focal: { source: "exif", px: 2871.6489 },
+  };
+  const okResult = (diagnostics?: PipelineDiagnostics): PipelineResult => ({
+    status: "ok",
+    measurements: {} as never,
+    submission: {} as never,
+    warnings: [],
+    overlay: ERROR_RESULT.overlay,
+    diagnostics,
+  });
+  const build = (
+    outcome: Parameters<typeof buildAttemptRecord>[0]["outcome"],
+  ) =>
+    buildAttemptRecord({
+      at: "2026-10-08T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome,
+    });
+  const NOTHING = { handLengthMm: null, palmWidthMm: null };
+
+  it("an ok result carries the length and width to 0.1 mm and the focal source and value", () => {
+    const r = build({ kind: "result", result: okResult(OK_DIAGNOSTICS) });
+    expect(r.result).toBe("ok");
+    expect(r.measured).toEqual({ handLengthMm: 188.4, palmWidthMm: 66.1 });
+    expect(r.focal).toEqual({ source: "exif", px: 2871.6 });
+    expect(r.parallaxCorrected).toBe(true);
+  });
+
+  it("no correction is a focal source of none with no value", () => {
+    const r = build({
+      kind: "result",
+      result: okResult({
+        ...OK_DIAGNOSTICS,
+        parallaxCorrected: false,
+        focal: { source: "none", px: null },
+      }),
+    });
+    expect(r.focal).toEqual({ source: "none", px: null });
+    expect(r.parallaxCorrected).toBe(false);
+  });
+
+  it("an error result has no measurement, even if its diagnostics held numbers", () => {
+    const r = build({
+      kind: "result",
+      result: { ...ERROR_RESULT, diagnostics: OK_DIAGNOSTICS },
+    });
+    expect(r.result).toBe("error");
+    expect(r.measured).toEqual(NOTHING);
+  });
+
+  it("an error result that stopped early has the focal null as well", () => {
+    const r = build({ kind: "result", result: ERROR_RESULT });
+    expect(r.measured).toEqual(NOTHING);
+    expect(r.focal).toEqual({ source: null, px: null });
+  });
+
+  it("a thrown pipeline and a result with no diagnostics have neither", () => {
+    const thrown = build({ kind: "thrown", code: "X", message: "x" });
+    expect(thrown.measured).toEqual(NOTHING);
+    expect(thrown.focal).toEqual({ source: null, px: null });
+    const bare = build({ kind: "result", result: okResult(undefined) });
+    expect(bare.measured).toEqual(NOTHING);
+    expect(bare.focal).toEqual({ source: null, px: null });
+  });
+
+  it("an old stored record without the fields still parses, with both null", () => {
+    const old = JSON.parse(JSON.stringify(record())) as Record<string, unknown>;
+    delete old.measured;
+    delete old.focal;
+    const parsed = parseAttempts(JSON.stringify([old]));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].v).toBe(1);
+    expect(parsed[0].measured).toEqual(NOTHING);
+    expect(parsed[0].focal).toEqual({ source: null, px: null });
+  });
+
+  it("round-trips through storage", () => {
+    const r = build({ kind: "result", result: okResult(OK_DIAGNOSTICS) });
+    expect(parseAttempts(serialiseAttempts([r]))).toEqual([r]);
+  });
+
+  it("is rebuilt from finite numbers and three known names: NaN, Infinity, strings and data URLs become null", () => {
+    const dataUrl = `data:image/jpeg;base64,${"A".repeat(10_000)}`;
+    const r = sanitizeAttempt({
+      at: "2026-10-08T10:20:30.000Z",
+      result: "ok",
+      measured: { handLengthMm: NaN, palmWidthMm: Infinity, extra: dataUrl },
+      focal: { source: dataUrl, px: "2871" },
+    })!;
+    expect(r.measured).toEqual(NOTHING);
+    expect(r.focal).toEqual({ source: null, px: null });
+    expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
+
+    const strings = sanitizeAttempt({
+      at: "2026-10-08T10:20:30.000Z",
+      result: "ok",
+      measured: { handLengthMm: "188.4", palmWidthMm: -Infinity },
+      focal: { source: "gps", px: dataUrl },
+    })!;
+    expect(strings.measured).toEqual(NOTHING);
+    expect(strings.focal).toEqual({ source: null, px: null });
+    expect(JSON.stringify(strings)).not.toMatch(/data:|base64/i);
+
+    const notObjects = sanitizeAttempt({
+      at: "2026-10-08T10:20:30.000Z",
+      result: "ok",
+      measured: [188.4, 66.1],
+      focal: "exif",
+    })!;
+    expect(notObjects.measured).toEqual(NOTHING);
+    expect(notObjects.focal).toEqual({ source: null, px: null });
+  });
+
+  it("rounds to 0.1 mm and keeps all three focal sources", () => {
+    for (const source of ["exif", "homography", "none"] as const) {
+      const r = sanitizeAttempt({
+        at: "2026-10-08T10:20:30.000Z",
+        result: "ok",
+        measured: { handLengthMm: 150.04, palmWidthMm: 70.06 },
+        focal: { source, px: 1234.56 },
+      })!;
+      expect(r.measured).toEqual({ handLengthMm: 150, palmWidthMm: 70.1 });
+      expect(r.focal).toEqual({ source, px: 1234.6 });
+    }
+  });
+
+  it("the line for the panel shows length and width when present, one or both", () => {
+    const both = record({
+      result: "ok",
+      errors: [],
+      measured: { handLengthMm: 188.4, palmWidthMm: 66.1 },
+    });
+    expect(describeAttempt(both)).toContain("len 188.4 mm · palm 66.1 mm");
+    const lengthOnly = record({
+      result: "ok",
+      errors: [],
+      measured: { handLengthMm: 190, palmWidthMm: null },
+    });
+    expect(describeAttempt(lengthOnly)).toContain("len 190.0 mm");
+    expect(describeAttempt(lengthOnly)).not.toContain("palm");
+    // Nothing measured, nothing said.
+    expect(describeAttempt(record())).not.toMatch(/len |palm /);
+  });
+
+  it("the debug JSON carries the new fields in each attempt record", () => {
+    const r = build({ kind: "result", result: okResult(OK_DIAGNOSTICS) });
+    const json = JSON.parse(serialiseAttempts([r])) as Record<
+      string,
+      unknown
+    >[];
+    expect(json[0].measured).toEqual({
+      handLengthMm: 188.4,
+      palmWidthMm: 66.1,
+    });
+    expect(json[0].focal).toEqual({ source: "exif", px: 2871.6 });
   });
 });

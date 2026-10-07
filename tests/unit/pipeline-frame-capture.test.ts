@@ -232,6 +232,12 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     const { homography, corrected } = reference(FRONTAL, landmarks);
     expect(corrected.parallaxCorrected).toBe(false);
     expect(result.diagnostics?.parallaxCorrected).toBe(false);
+    // No correction: no focal length either, and the measured numbers are the result's own.
+    expect(result.diagnostics?.focal).toEqual({ source: "none", px: null });
+    expect(result.diagnostics?.measured).toEqual({
+      handLengthMm: result.measurements.handLengthMm,
+      palmWidthMm: result.measurements.palmWidthMm,
+    });
     expect(result.submission.calibration).toMatchObject({
       method: "paper-edge",
       parallaxCorrected: false,
@@ -251,10 +257,30 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     expect(result.diagnostics?.parallaxCorrected).toBe(
       corrected.parallaxCorrected,
     );
+    expect(result.diagnostics?.focal).toEqual({
+      source: corrected.focalSource,
+      px: corrected.fPx,
+    });
+    expect(result.diagnostics?.measured).toEqual({
+      handLengthMm: corrected.measurements.handLengthMm,
+      palmWidthMm: corrected.measurements.palmWidthMm,
+    });
     expect(result.submission.calibration).toMatchObject({
       parallaxCorrected: corrected.parallaxCorrected,
     });
     expect(result.measurements).toEqual(corrected.measurements);
+  });
+
+  it("a run that stops before it measures has no measured numbers and no focal length", async () => {
+    arrange(FRONTAL, landmarksFor(FRONTAL));
+    vi.mocked(detectHandLandmarks).mockResolvedValue(null);
+    const result = await run();
+    expect(result.status).toBe("error");
+    expect(result.diagnostics?.measured).toEqual({
+      handLengthMm: null,
+      palmWidthMm: null,
+    });
+    expect(result.diagnostics?.focal).toBeNull();
   });
 
   it("the submission is valid for the contract, with or without the correction", async () => {

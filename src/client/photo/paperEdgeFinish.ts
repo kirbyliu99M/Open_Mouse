@@ -39,6 +39,7 @@ import { runPaperEdgeHandGates } from "./gates";
 import { resolvePipelineHand } from "./hand";
 import { assemblePaperEdgeSubmission } from "./submission";
 import type { DetectedMarker } from "./markers";
+import type { FocalDiagnostics } from "./diagnostics";
 import type { PipelineResult } from "./pipeline";
 
 export interface PaperEdgeFinishInput {
@@ -72,6 +73,8 @@ export interface PaperEdgeFinish {
   readonly result: PipelineResult;
   /** Whether the parallax correction ran; `null` when the run ended before it. */
   readonly parallaxCorrected: boolean | null;
+  /** The focal length the correction used; `null` when the run ended before it. */
+  readonly focal: FocalDiagnostics | null;
 }
 
 /**
@@ -101,6 +104,7 @@ export async function finishPaperEdge(
         overlay: { ...overlayBase, landmarksPx: null },
       },
       parallaxCorrected: null,
+      focal: null,
     };
   }
   const paperCornersFull = corners.map(toFull) as unknown as readonly [
@@ -157,6 +161,7 @@ export async function finishPaperEdge(
     return {
       result: { status: "error", errors: report.errors, overlay },
       parallaxCorrected: null,
+      focal: null,
     };
   }
 
@@ -203,8 +208,14 @@ export async function finishPaperEdge(
         overlay,
       },
       parallaxCorrected: null,
+      focal: null,
     };
   }
+
+  const focal: FocalDiagnostics = {
+    source: corrected.focalSource,
+    px: corrected.fPx,
+  };
 
   // Type narrowing only: report.ok required paperEval.ok, and a passing
   // evaluation always carries its calibration. Its fields are what gets
@@ -218,6 +229,7 @@ export async function finishPaperEdge(
         overlay: { ...overlayBase, landmarksPx: handFull },
       },
       parallaxCorrected: corrected.parallaxCorrected,
+      focal,
     };
   }
   const submission = assemblePaperEdgeSubmission({
@@ -238,5 +250,6 @@ export async function finishPaperEdge(
       overlay,
     },
     parallaxCorrected: corrected.parallaxCorrected,
+    focal,
   };
 }
