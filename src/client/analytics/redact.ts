@@ -26,6 +26,31 @@ const URL_KEY_SHAPE = /(url|pathname|referrer)$/i;
 /** PostHog's "$direct" marker for no referrer: not a URL, kept as is. */
 const NO_VALUE = "$direct";
 
+/** Advertising click IDs: identify a click and so, through the ad network, a person. utm_* is kept. */
+const CLICK_IDS = new Set([
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+  "msclkid",
+  "ttclid",
+  "twclid",
+  "li_fat_id",
+  "gad_source",
+  "dclid",
+  "igshid",
+  "mc_cid",
+]);
+const CLICK_ID_PREFIXES = ["$initial_", "$session_entry_", "$"];
+
+function isClickId(key: string): boolean {
+  if (CLICK_IDS.has(key)) return true;
+  return CLICK_ID_PREFIXES.some(
+    (prefix) =>
+      key.startsWith(prefix) && CLICK_IDS.has(key.slice(prefix.length)),
+  );
+}
+
 type Bag = Record<string, unknown>;
 
 function isUrlKey(key: string): boolean {
@@ -38,6 +63,7 @@ function isUrlKey(key: string): boolean {
 export function redactUrlProperties(bag: Bag): Bag {
   const out: Bag = {};
   for (const [key, value] of Object.entries(bag)) {
+    if (isClickId(key)) continue;
     if (key === "$referring_domain") {
       // A bare host is kept. One that carries a path cannot be redacted by
       // the path rule (it is not a path), so it is dropped.
@@ -72,4 +98,9 @@ export function redactEventUrls<T extends EventLike>(event: T): T {
   if (event.$set) out.$set = redactUrlProperties(event.$set);
   if (event.$set_once) out.$set_once = redactUrlProperties(event.$set_once);
   return out;
+}
+
+/** The `before_send` hook: redacts the event, or drops it when there is none. */
+export function beforeSend<T extends EventLike>(event: T | null): T | null {
+  return event ? redactEventUrls(event) : null;
 }
