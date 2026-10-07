@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CAPTURE_FAILURE_HINT_COPY,
-  CAPTURE_FAILURE_HINT_LANGUAGE,
   CAPTURE_FAILURE_HINT_THRESHOLD,
   advanceCaptureFailures,
   captureFailureHintText,
   hintUnderViewfinder,
+  pickCaptureFailureLanguage,
   shouldShowCaptureFailureHint,
   type CaptureFailureEvent,
 } from "@/client/camera/captureFailure";
@@ -105,13 +105,45 @@ describe("capture failure copy", () => {
     }
   });
 
-  it("shows the screen's language by default, and either one on request", () => {
-    expect(captureFailureHintText()).toBe(
-      CAPTURE_FAILURE_HINT_COPY[CAPTURE_FAILURE_HINT_LANGUAGE],
-    );
+  it("is English by default, and either language on request", () => {
+    expect(captureFailureHintText()).toBe(CAPTURE_FAILURE_HINT_COPY.en);
     expect(captureFailureHintText("zh-TW")).toBe(
       CAPTURE_FAILURE_HINT_COPY["zh-TW"],
     );
     expect(captureFailureHintText("en")).toBe(CAPTURE_FAILURE_HINT_COPY.en);
+  });
+});
+
+describe("the hint's language", () => {
+  it("is zh-TW when the first preferred language is Chinese", () => {
+    expect(pickCaptureFailureLanguage(["zh-TW"])).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage(["zh-Hant-TW", "en-US"])).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage(["zh-CN"])).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage(["zh"])).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage(["ZH-tw"])).toBe("zh-TW");
+  });
+
+  it("is English for anything else", () => {
+    expect(pickCaptureFailureLanguage(["en-US"])).toBe("en");
+    expect(pickCaptureFailureLanguage(["en-US", "zh-TW"])).toBe("en");
+    expect(pickCaptureFailureLanguage(["ja"])).toBe("en");
+    expect(pickCaptureFailureLanguage(["zhx"])).toBe("en");
+  });
+
+  it("is English with no language at all", () => {
+    expect(pickCaptureFailureLanguage([])).toBe("en");
+    expect(pickCaptureFailureLanguage(undefined)).toBe("en");
+    expect(pickCaptureFailureLanguage(null, null)).toBe("en");
+    expect(pickCaptureFailureLanguage([], "")).toBe("en");
+  });
+
+  it("falls back to the single language when the list is missing or empty", () => {
+    expect(pickCaptureFailureLanguage(undefined, "zh-TW")).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage([], "zh-CN")).toBe("zh-TW");
+    expect(pickCaptureFailureLanguage(undefined, "en-GB")).toBe("en");
+  });
+
+  it("ignores the single language when the list has an entry", () => {
+    expect(pickCaptureFailureLanguage(["en-US"], "zh-TW")).toBe("en");
   });
 });

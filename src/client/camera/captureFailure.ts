@@ -14,9 +14,10 @@
  * this point, so the copy does not mention a connection.
  *
  * The copy was approved by Kirby (2026-10-08) and is not to be reworded. There
- * is no i18n framework in the repo yet, so the screen shows English now, as
- * the home story does (src/lib/copy/home-story.ts); the zh-TW line is stored
- * beside it for when the framework lands.
+ * is no i18n framework in the repo yet, so the line follows the browser's
+ * preferred language (`pickCaptureFailureLanguage`): zh-TW for a Chinese
+ * browser, English otherwise. It is read on the client only, and the hint
+ * shows only after failures, so there is no server render to disagree with.
  */
 
 /** Consecutive capture failures before the hint shows (not the first, not the second). */
@@ -63,8 +64,22 @@ export function hintUnderViewfinder(hintText: string, count: number): string {
 
 export type CaptureFailureLanguage = "en" | "zh-TW";
 
-/** The language the screen shows today (no i18n framework yet). */
-export const CAPTURE_FAILURE_HINT_LANGUAGE: CaptureFailureLanguage = "en";
+/**
+ * The language of the hint, from the browser's preferred languages
+ * (`navigator.languages`, most preferred first), falling back to the single
+ * `navigator.language` when that list is missing or empty. Only the first
+ * entry counts: zh-TW when it starts with "zh" (zh-CN and zh-Hant-TW
+ * included, as only one Chinese line exists), English otherwise.
+ */
+export function pickCaptureFailureLanguage(
+  languages: readonly string[] | null | undefined,
+  language?: string | null,
+): CaptureFailureLanguage {
+  const first = languages?.length ? languages[0] : language;
+  return typeof first === "string" && /^zh(?![a-z])/i.test(first.trim())
+    ? "zh-TW"
+    : "en";
+}
 
 export const CAPTURE_FAILURE_HINT_COPY: Readonly<
   Record<CaptureFailureLanguage, string>
@@ -73,9 +88,9 @@ export const CAPTURE_FAILURE_HINT_COPY: Readonly<
   "zh-TW": "相機畫面讀取失敗，正在重試…",
 };
 
-/** The hint line, in the language the screen shows. */
+/** The hint line in `language`. */
 export function captureFailureHintText(
-  language: CaptureFailureLanguage = CAPTURE_FAILURE_HINT_LANGUAGE,
+  language: CaptureFailureLanguage = "en",
 ): string {
   return CAPTURE_FAILURE_HINT_COPY[language];
 }

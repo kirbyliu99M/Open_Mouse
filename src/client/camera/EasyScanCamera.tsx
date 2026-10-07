@@ -89,6 +89,7 @@ import {
   advanceCaptureFailures,
   captureFailureHintText,
   hintUnderViewfinder,
+  pickCaptureFailureLanguage,
   shouldShowCaptureFailureHint,
   type CaptureFailureEvent,
 } from "./captureFailure";
@@ -1947,7 +1948,9 @@ export default function EasyScanCamera({
   // of its usual words (same slot, same live region); it is plain text, so
   // there is nothing to animate.
   const captureFailureHint = shouldShowCaptureFailureHint(captureFailures)
-    ? captureFailureHintText()
+    ? captureFailureHintText(
+        pickCaptureFailureLanguage(navigator.languages, navigator.language),
+      )
     : null;
   const hintText = hintUnderViewfinder(
     userLengthMm !== null
