@@ -15,10 +15,8 @@
  *
  * Properties PostHog adds by itself (`$current_url`, `$pathname`,
  * `$referrer`, `$initial_current_url`, ...) are not described here. The
- * client must pass every URL-shaped one through `redactAnalyticsPath`'s rule
- * before an event leaves the browser: a path matching an entry of
- * `ANALYTICS_REDACTED_ROUTES` is replaced by that entry's pattern, query and
- * fragment dropped.
+ * client must pass every URL-shaped one through `redactAnalyticsPath` before
+ * an event leaves the browser, and drop the property when it returns null.
  *
  * Change this file only in a PR of its own.
  */
@@ -52,11 +50,13 @@ export const RESULTS_STATES = [
   "serverError",
 ] as const;
 
-/** Upper bound for every count property: a larger count is sent as this. */
+/** Upper bound for every count property. The schemas refuse a larger count,
+ * so the client clamps to this before it captures. */
 export const ANALYTICS_COUNT_CAP = 20;
 
+/** A UUID, with or without its dashes. */
 const UUID_SHAPE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i;
 
 /** A pipeline issue code such as `HAND_NOT_DETECTED`. Never a message. */
 const issueCode = z.string().regex(/^[A-Z][A-Z0-9_]{0,47}$/);
@@ -65,7 +65,8 @@ const mouseSlug = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,79}$/)
   .refine((s) => !UUID_SHAPE.test(s), "a UUID is not a mouse slug");
-const count = z.int().min(0).max(ANALYTICS_COUNT_CAP);
+/** The 1-based attempt number on this page, clamped to the cap. */
+const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
 export const analyticsEventSchemas = {
@@ -97,21 +98,24 @@ export const analyticsEventSchemas = {
   scan_capture_attempted: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
     method: z.enum(CAPTURE_METHODS),
-    attempt: count,
+    attempt,
   }),
 
   /** The pipeline refused the photo. `codes` are its issue codes, at most 8,
    * deduplicated. */
   scan_rejected: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
-    attempt: count,
-    codes: z.array(issueCode).max(8),
+    attempt,
+    codes: z
+      .array(issueCode)
+      .max(8)
+      .refine((c) => new Set(c).size === c.length, "codes repeat"),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
   scan_measured: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
-    attempt: count,
+    attempt,
     paper: z.enum(["detected", "manual", "none"]),
   }),
 
@@ -127,12 +131,16 @@ export const analyticsEventSchemas = {
   }),
 
   /** The results page settled once (not again on a re-render). */
-  results_viewed: z.strictObject({
-    state: z.enum(RESULTS_STATES),
-    /** Present only when `state` is `ready`. */
-    topPick: mouseSlug.optional(),
-    noGoodFit: z.boolean().optional(),
-  }),
+  results_viewed: z.union([
+    z.strictObject({
+      state: z.literal("ready"),
+      topPick: mouseSlug,
+      noGoodFit: z.boolean(),
+    }),
+    z.strictObject({
+      state: z.enum(RESULTS_STATES).exclude(["ready"]),
+    }),
+  ]),
 
   /** The written analysis settled. `fallback`: the template text was shown
    * instead of the model's. */
@@ -183,34 +191,51 @@ export type AnalyticsEventProps<E extends AnalyticsEventName> = z.infer<
 >;
 
 /**
- * Paths that carry an identifier, and what they are sent as. The first
- * pattern that matches wins; any other path is sent as is, minus its query
- * and fragment.
+ * Pages whose second path segment identifies something: `/results/<scanId>`
+ * and `/l/<version>/<token>`. Matched without regard to case, because a
+ * mistyped `/Results/<id>` still carries the ID.
  */
-export const ANALYTICS_REDACTED_ROUTES = [
-  { match: /^\/results\/(?!demo(?:\/|$))[^/]+/, as: "/results/[scanId]" },
-  { match: /^\/l\/v1\/[^/]+/, as: "/l/v1/[token]" },
-] as const;
+const RESULTS_SEGMENT = "results";
+const KIT_SEGMENT = "l";
+/** A segment this long is treated as an opaque identifier wherever it is. */
+const OPAQUE_SEGMENT_MIN = 20;
+
+function redactSegments(segments: readonly string[]): string[] {
+  const first = segments[0]?.split(";")[0]?.toLowerCase();
+  if (first === RESULTS_SEGMENT && segments.length > 1) {
+    const only = segments.length === 2 && segments[1] === "demo";
+    return only ? ["results", "demo"] : ["results", "[scanId]"];
+  }
+  if (first === KIT_SEGMENT && segments.length > 1) {
+    return segments.length > 2
+      ? ["l", segments[1] === "v1" ? "v1" : "[version]", "[token]"]
+      : ["l", "[token]"];
+  }
+  return segments.map((s) =>
+    UUID_SHAPE.test(s) || s.length >= OPAQUE_SEGMENT_MIN ? "[id]" : s,
+  );
+}
 
 /**
- * The redaction rule, as a pure function: takes a path or an absolute URL and
- * returns the same shape with the query and fragment removed and an
- * identifying segment replaced. A string that is not a parsable URL or path
- * comes back as `null`, and the caller drops the property.
+ * The redaction rule, as a pure function. It takes a path or an http(s) URL
+ * and returns the same shape with the query and fragment removed, repeated
+ * slashes collapsed, and every identifying segment replaced: anything below
+ * `/results/` other than exactly `/results/demo`, anything below `/l/`, and
+ * any segment shaped like a UUID or at least `OPAQUE_SEGMENT_MIN` long. Any
+ * other scheme (`mailto:`, `data:`, ...) or an unparsable string returns
+ * `null`, and the caller drops the property.
  */
 export function redactAnalyticsPath(value: string): string | null {
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(value);
+  if (hasScheme && !/^https?:/i.test(value)) return null;
   let url: URL;
   try {
     url = new URL(value, "https://redact.invalid");
   } catch {
     return null;
   }
-  const route = ANALYTICS_REDACTED_ROUTES.find((r) =>
-    r.match.test(url.pathname),
-  );
-  const path = route
-    ? url.pathname.replace(route.match, route.as)
-    : url.pathname;
-  const isAbsolute = /^[a-z][a-z0-9+.-]*:/i.test(value);
-  return isAbsolute ? `${url.origin}${path}` : path;
+  const segments = url.pathname.split("/").filter((s) => s !== "");
+  const kept = redactSegments(segments);
+  const path = `/${kept.join("/")}`;
+  return hasScheme ? `${url.origin}${path}` : path;
 }
