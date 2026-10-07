@@ -38,7 +38,7 @@ function noticeTable(): Map<string, { version: string; licence: string }> {
   for (let i = header + 2; i < lines.length; i += 1) {
     const line = lines[i]!;
     if (line.trim() === "") break;
-    const match = /^\s+(\S+)\s+(\S+)\s+(\S+)\s*$/.exec(line);
+    const match = /^\s+(\S+)\s+(\S+)\s+(\S.*?)\s*$/.exec(line);
     expect(match, `table row "${line}"`).not.toBeNull();
     rows.set(match![1]!, { version: match![2]!, licence: match![3]! });
   }
