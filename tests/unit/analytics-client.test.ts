@@ -245,3 +245,19 @@ describe("posthog config", () => {
     ).toEqual({ properties: { $pathname: "/results/[scanId]" } });
   });
 });
+
+describe("click IDs, more", () => {
+  it("matches case-insensitively and knows the extra networks", () => {
+    const out = redactUrlProperties({
+      GCLID: "v",
+      $initial_FbClid: "v",
+      yclid: "v",
+      rdt_cid: "v",
+      epik: "v",
+      sccid: "v",
+      irclickid: "v",
+      UTM_Source: "keep",
+    });
+    expect(out).toEqual({ UTM_Source: "keep" });
+  });
+});

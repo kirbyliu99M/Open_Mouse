@@ -134,4 +134,40 @@ describe("proxyIngest", () => {
     });
     expect(res.status).toBe(502);
   });
+
+  it("413s a chunked body with no content-length once it passes the cap", async () => {
+    const fetchImpl = vi.fn();
+    const chunk = new Uint8Array(100 * 1024);
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        sent += 1;
+        controller.enqueue(chunk);
+        if (sent > 20) controller.close();
+      },
+    });
+    const request = new Request("https://app.test/ingest/e/", {
+      method: "POST",
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect(request.headers.get("content-length")).toBeNull();
+    const res = await proxyIngest(request, ["e"], {
+      enabled: true,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(res.status).toBe(413);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(sent).toBeLessThan(10);
+  });
+
+  it.each([204, 205, 304])("passes a bodiless %i through", async (status) => {
+    const res = await proxyIngest(post(), ["e"], {
+      enabled: true,
+      fetchImpl: (async () =>
+        new Response(null, { status })) as unknown as typeof fetch,
+    });
+    expect(res.status).toBe(status);
+    expect(await res.text()).toBe("");
+  });
 });

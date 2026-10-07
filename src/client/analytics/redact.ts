@@ -40,14 +40,20 @@ const CLICK_IDS = new Set([
   "dclid",
   "igshid",
   "mc_cid",
+  "yclid",
+  "rdt_cid",
+  "epik",
+  "sccid",
+  "irclickid",
 ]);
 const CLICK_ID_PREFIXES = ["$initial_", "$session_entry_", "$"];
 
 function isClickId(key: string): boolean {
-  if (CLICK_IDS.has(key)) return true;
+  const lower = key.toLowerCase();
+  if (CLICK_IDS.has(lower)) return true;
   return CLICK_ID_PREFIXES.some(
     (prefix) =>
-      key.startsWith(prefix) && CLICK_IDS.has(key.slice(prefix.length)),
+      lower.startsWith(prefix) && CLICK_IDS.has(lower.slice(prefix.length)),
   );
 }
 

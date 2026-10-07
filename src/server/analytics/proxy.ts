@@ -37,6 +37,34 @@ export function isIngestPath(segments: readonly string[]): boolean {
   return INGEST_PATHS.has(segments.join("/"));
 }
 
+/** Reads the body as a stream and stops as soon as it passes `cap`; null when it does. */
+export async function readCapped(
+  request: Request,
+  cap: number,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
 export interface ProxyDeps {
   /** True when a project key is configured. */
   enabled: boolean;
@@ -55,9 +83,8 @@ export async function proxyIngest(
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_INGEST_BODY_BYTES)
     return new Response(null, { status: 413 });
-  const body = new Uint8Array(await request.arrayBuffer());
-  if (body.byteLength > MAX_INGEST_BODY_BYTES)
-    return new Response(null, { status: 413 });
+  const body = await readCapped(request, MAX_INGEST_BODY_BYTES);
+  if (body === null) return new Response(null, { status: 413 });
 
   const search = new URL(request.url).search;
   let upstream: Response;
@@ -74,6 +101,9 @@ export async function proxyIngest(
   } catch {
     return new Response(null, { status: 502 });
   }
+  // These statuses may not carry a body (Response throws if one is given).
+  if ([101, 204, 205, 304].includes(upstream.status))
+    return new Response(null, { status: upstream.status });
   return new Response(await upstream.arrayBuffer(), {
     status: upstream.status,
     headers: filterResponseHeaders(upstream.headers),
