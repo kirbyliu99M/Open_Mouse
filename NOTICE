@@ -157,6 +157,7 @@ and package-lock.json.
   jsqr                        1.4.0            Apache-2.0
   next                        15.5.25          MIT
   next-auth                   5.0.0-beta.32    ISC
+  posthog-js                  1.438.2          (Apache-2.0 AND MIT)
   qrcode                      1.5.4            MIT
   react                       19.3.0           MIT
   react-dom                   19.3.0           MIT

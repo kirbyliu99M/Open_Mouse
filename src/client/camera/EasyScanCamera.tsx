@@ -171,6 +171,8 @@ import {
 } from "./easyScanPreferences";
 import ScanSubmitPanel from "../../app/scan/ScanSubmitPanel";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
+import { track } from "../analytics/track";
+import { clampAttempt, issueCodes } from "../analytics/props";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import {
@@ -587,6 +589,8 @@ export default function EasyScanCamera({
   // The wait for the preview ran out before the camera answered.
   const settleTimedOutRef = useRef<boolean | null>(null);
   const attemptsRef = useRef<readonly AttemptRecord[]>([]);
+  // This page's analysis count, for analytics only (1-based once incremented).
+  const attemptCountRef = useRef(0);
   const captureInfoRef = useRef<CaptureInfo | null>(null);
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
@@ -927,6 +931,7 @@ export default function EasyScanCamera({
       setVideoReady(false);
       resetLoopState();
       lastDetectionAtRef.current = performance.now();
+      track("camera_permission_result", { flow: "easy", result: "granted" });
       setCamState({ kind: "live" });
     } catch (err) {
       const name = err instanceof DOMException ? err.name : undefined;
@@ -938,8 +943,16 @@ export default function EasyScanCamera({
         mountedRef.current &&
         requestId === requestIdRef.current &&
         camKindRef.current === "requesting"
-      )
+      ) {
+        track("camera_permission_result", {
+          flow: "easy",
+          result:
+            name === "NotAllowedError" || name === "PermissionDeniedError"
+              ? "denied"
+              : "error",
+        });
         setCamState({ kind: "cameraError", message });
+      }
     }
   }, [stopStream, setUpFocus, resetLoopState]);
 
@@ -952,6 +965,7 @@ export default function EasyScanCamera({
       coarsePointer: window.matchMedia("(pointer: coarse)").matches,
     });
     setDeviceFit(fit);
+    track("scan_entry_shown", { flow: "easy", device: fit });
     setPageUrl(window.location.origin + window.location.pathname);
     if (fit !== "phone") {
       setCamState({ kind: "noCamera" });
@@ -962,6 +976,7 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (!canUseCamera) {
+      track("camera_permission_result", { flow: "easy", result: "noCamera" });
       setCamState({ kind: "noCamera" });
       return;
     }
@@ -1024,6 +1039,15 @@ export default function EasyScanCamera({
   const runPipeline = useCallback(
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
+      attemptCountRef.current += 1;
+      // Read now: a typed length chosen while the photo is analysed must not change it.
+      const paperUsed = userLengthRef.current !== null ? "none" : "detected";
+      const attempt = clampAttempt(attemptCountRef.current);
+      track("scan_capture_attempted", {
+        flow: "easy",
+        method: captureInfoRef.current?.method ?? "upload",
+        attempt,
+      });
       setResult({ kind: "processing", previewUrl });
       // What this analysis was started with, for both ways it can end: a later
       // capture changes `captureInfoRef` and must not change the record of an
@@ -1063,6 +1087,13 @@ export default function EasyScanCamera({
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
         if (pipelineResult.status === "ok") {
+          track("scan_measured", {
+            flow: "easy",
+            attempt,
+            // Paper-edge mode finds the sheet itself; a typed hand length
+            // means no paper was used. This flow has no manual corners.
+            paper: paperUsed,
+          });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
@@ -1076,6 +1107,11 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         } else if (pipelineResult.status === "error") {
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: issueCodes(pipelineResult.errors.map((e) => e.code)),
+          });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
@@ -1089,6 +1125,11 @@ export default function EasyScanCamera({
           });
         } else {
           // "needsManualCard" never happens in paper-edge mode.
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: ["UNEXPECTED"],
+          });
           setResult({
             kind: "gateFailure",
             previewUrl,
@@ -1113,6 +1154,13 @@ export default function EasyScanCamera({
           message: error instanceof Error ? error.message : "",
         });
         if (runId !== runIdRef.current) return;
+        track("scan_rejected", {
+          flow: "easy",
+          attempt,
+          codes: [
+            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          ],
+        });
         setResult({
           kind: "gateFailure",
           previewUrl,
@@ -2529,7 +2577,10 @@ export default function EasyScanCamera({
                   </svg>
                 </button>
                 <div className="easySeeMatches">
-                  <ScanSubmitPanel submission={result.submission} />
+                  <ScanSubmitPanel
+                    submission={result.submission}
+                    flow={demoMeasured ? undefined : "easy"}
+                  />
                 </div>
               </div>
             </>

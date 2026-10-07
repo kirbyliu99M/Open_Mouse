@@ -18,6 +18,7 @@ export function ResultsView({
   onRetryAnalysis,
   enteredLengthMm = null,
   showViewer = false,
+  analytics,
 }: {
   response: FitResponse;
   analysisState?: AnalysisState;
@@ -26,6 +27,12 @@ export function ResultsView({
   enteredLengthMm?: number | null;
   /** Mount the 3D size illustration in the top pick (real scans only). */
   showViewer?: boolean;
+  /** Analytics callbacks, passed only by the real results page (never the demo). */
+  analytics?: {
+    onRetake: () => void;
+    onListOpened: (list: "ranked" | "excluded") => void;
+    onViewerInteracted: () => void;
+  };
 }) {
   return (
     <div className="results-view">
@@ -33,6 +40,7 @@ export function ResultsView({
         backHref="/scan/easy"
         backLabel="Scan again"
         stepLabel="Your matches"
+        onBackClick={analytics?.onRetake}
       />
       <h1>Your best match</h1>
       {response.results[0] &&
@@ -41,7 +49,11 @@ export function ResultsView({
             None of these fits your hand well. The closest is below.
           </p>
         )}
-      <TopPick response={response} viewer={showViewer} />
+      <TopPick
+        response={response}
+        viewer={showViewer}
+        onViewerInteracted={analytics?.onViewerInteracted}
+      />
       {enteredLengthMm !== null && (
         <p className="results-handNotice">
           Based on the hand length you entered ({enteredLengthMm}&nbsp;mm).
@@ -60,8 +72,14 @@ export function ResultsView({
           the other N ranked mice" (item 5) — docs/design/journey-2026-09-23/
           04-results.png. */}
       <AnalysisSlot state={analysisState} onRetry={onRetryAnalysis} />
-      <RankedList response={response} />
-      <ExcludedList response={response} />
+      <RankedList
+        response={response}
+        onOpened={() => analytics?.onListOpened("ranked")}
+      />
+      <ExcludedList
+        response={response}
+        onOpened={() => analytics?.onListOpened("excluded")}
+      />
     </div>
   );
 }

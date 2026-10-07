@@ -23,6 +23,9 @@ import {
   DETECTOR_LOAD_FAILED_MESSAGE,
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
+import { track } from "@/client/analytics/track";
+import { clampAttempt, issueCodes } from "@/client/analytics/props";
+import { detectDeviceFit } from "@/client/camera/deviceFit";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
@@ -499,6 +502,27 @@ export default function ScanClient({
         window.isSecureContext &&
         typeof navigator.mediaDevices?.getUserMedia === "function",
     );
+    if (demoMeasured) return;
+    track("scan_entry_shown", {
+      flow: "sheet",
+      device: detectDeviceFit({
+        userAgent: navigator.userAgent,
+        coarsePointer: window.matchMedia("(pointer: coarse)").matches,
+      }),
+    });
+    // Mount-only on purpose: the entry screen is reported once, and
+    // `demoMeasured` is a prop that never changes for a mounted page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // This page's photo count, for analytics only.
+  const attemptCountRef = useRef(0);
+  // Whether this photo's outcome (measured or rejected) has been reported:
+  // re-runs on the same file (hand change, retry) are not new attempts.
+  const outcomeSentRef = useRef(false);
+  const reportOutcomeOnce = useCallback((send: () => void) => {
+    if (outcomeSentRef.current) return;
+    outcomeSentRef.current = true;
+    send();
   }, []);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -574,7 +598,17 @@ export default function ScanClient({
               : { method: "printed-sheet" },
         });
         if (runId !== runIdRef.current) return;
+        const attempt = clampAttempt(attemptCountRef.current);
         if (result.status === "ok") {
+          reportOutcomeOnce(() =>
+            track("scan_measured", {
+              flow: "sheet",
+              attempt,
+              // "manual": the sheet's corners were placed by hand. "none": a
+              // typed length (not offered in this flow). Otherwise found.
+              paper: cardSource === "manual" ? "manual" : "detected",
+            }),
+          );
           // Not chosen: show the hand the scan was submitted as.
           if (!handExplicit) setHand(result.submission.hand);
           setState({
@@ -589,6 +623,13 @@ export default function ScanClient({
           setManualCorners(defaultManualCorners(result.overlay));
           setState({ kind: "needsManualCard", overlay: result.overlay });
         } else {
+          reportOutcomeOnce(() =>
+            track("scan_rejected", {
+              flow: "sheet",
+              attempt,
+              codes: issueCodes(result.errors.map((e) => e.code)),
+            }),
+          );
           setState({
             kind: "error",
             errors: result.errors,
@@ -602,6 +643,11 @@ export default function ScanClient({
         // Canvas/DOM error) gets a message that doesn't claim a specific
         // cause it doesn't know is true.
         const isLoadFailure = err instanceof HandLandmarkerLoadError;
+        track("scan_rejected", {
+          flow: "sheet",
+          attempt: clampAttempt(attemptCountRef.current),
+          codes: [isLoadFailure ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED"],
+        });
         setState({
           kind: "error",
           errors: [
@@ -626,11 +672,19 @@ export default function ScanClient({
       runPhotoPipelineImpl,
       calibrationMode,
       paperSize,
+      reportOutcomeOnce,
     ],
   );
 
   const onFileChosen = useCallback(
-    (file: File) => {
+    (file: File, method: "canvas" | "upload" = "upload") => {
+      attemptCountRef.current += 1;
+      outcomeSentRef.current = false;
+      track("scan_capture_attempted", {
+        flow: "sheet",
+        method,
+        attempt: clampAttempt(attemptCountRef.current),
+      });
       fileRef.current = file;
       ++runIdRef.current;
       setManualCorners(null);
@@ -906,9 +960,13 @@ export default function ScanClient({
           paperSize={paperSize}
           onPaperSizeChange={setPaperSize}
           onExit={() => setCameraOpen(false)}
+          onPermissionResult={(result) =>
+            track("camera_permission_result", { flow: "sheet", result })
+          }
           onUsePhoto={(file) => {
             setCameraOpen(false);
-            onFileChosen(file);
+            // The default capture source is a video frame drawn on a canvas.
+            onFileChosen(file, "canvas");
           }}
         />
       )}
@@ -1125,7 +1183,10 @@ export default function ScanClient({
             </p>
           </div>
 
-          <ScanSubmitPanel submission={state.submission} />
+          <ScanSubmitPanel
+            submission={state.submission}
+            flow={demoMeasured ? undefined : "sheet"}
+          />
 
           <div className="uploadSlot uploadSlot-measured">
             <label className="uploadButton" htmlFor="top-down-photo">

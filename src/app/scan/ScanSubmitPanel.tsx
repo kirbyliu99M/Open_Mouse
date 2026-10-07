@@ -29,6 +29,8 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
+import { track } from "@/client/analytics/track";
+import type { ScanFlow } from "@/lib/contracts/analytics";
 import { submitScan } from "@/client/scan/submitScan";
 import { resultLengthKey } from "@/components/results/userLengthDisclosure";
 
@@ -40,9 +42,14 @@ type SubmitState =
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
+  /** Which scan flow this is, for analytics. Left out by the demo page, which then sends nothing. */
+  readonly flow?: ScanFlow;
 }
 
-export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
+export default function ScanSubmitPanel({
+  submission,
+  flow,
+}: ScanSubmitPanelProps) {
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const router = useRouter();
   // Synchronous lock — see the file-level comment above for why `state.kind`
@@ -54,6 +61,10 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
     submittingRef.current = true;
     setState({ kind: "submitting" });
     void submitScan(submission).then((outcome) => {
+      if (flow) {
+        if (outcome.status === "success") track("scan_submitted", { flow });
+        else track("scan_submit_failed", { flow, kind: outcome.kind });
+      }
       if (outcome.status === "success") {
         try {
           if (
@@ -80,7 +91,7 @@ export default function ScanSubmitPanel({ submission }: ScanSubmitPanelProps) {
         message: outcome.message,
       });
     });
-  }, [submission, router]);
+  }, [submission, router, flow]);
 
   const busy = state.kind === "submitting" || state.kind === "success";
   const statusText =
