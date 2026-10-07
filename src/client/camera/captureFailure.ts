@@ -88,6 +88,17 @@ export const CAPTURE_FAILURE_HINT_COPY: Readonly<
   "zh-TW": "相機畫面讀取失敗，正在重試…",
 };
 
+/**
+ * The `lang` attribute for the element showing the hint (WCAG 3.1.2): the
+ * page is `lang="en"`, so a zh-TW line needs its own mark. Undefined for
+ * English, which leaves the cue's normal text unmarked.
+ */
+export function captureFailureLangAttribute(
+  language: CaptureFailureLanguage,
+): string | undefined {
+  return language === "zh-TW" ? "zh-TW" : undefined;
+}
+
 /** The hint line in `language`. */
 export function captureFailureHintText(
   language: CaptureFailureLanguage = "en",

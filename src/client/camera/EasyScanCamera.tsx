@@ -88,6 +88,7 @@ import {
 import {
   advanceCaptureFailures,
   captureFailureHintText,
+  captureFailureLangAttribute,
   hintUnderViewfinder,
   pickCaptureFailureLanguage,
   shouldShowCaptureFailureHint,
@@ -1315,7 +1316,13 @@ export default function EasyScanCamera({
           // No camera photo: the whole frame; the pipeline cuts it to the part
           // on screen (previewView).
           method = "canvas";
-          const frame = await frameFile(null);
+          let frame: File | null = null;
+          try {
+            frame = await frameFile(null);
+          } catch {
+            // A canvas that throws is a frame that was not made, as above.
+            frame = null;
+          }
           if (!frame) {
             noteCaptureOutcome("failure");
             capturingRef.current = false;
@@ -1947,10 +1954,11 @@ export default function EasyScanCamera({
   // From the third failed frame capture in a row, the cue line says so instead
   // of its usual words (same slot, same live region); it is plain text, so
   // there is nothing to animate.
-  const captureFailureHint = shouldShowCaptureFailureHint(captureFailures)
-    ? captureFailureHintText(
-        pickCaptureFailureLanguage(navigator.languages, navigator.language),
-      )
+  const captureFailureLanguage = shouldShowCaptureFailureHint(captureFailures)
+    ? pickCaptureFailureLanguage(navigator.languages, navigator.language)
+    : null;
+  const captureFailureHint = captureFailureLanguage
+    ? captureFailureHintText(captureFailureLanguage)
     : null;
   const hintText = hintUnderViewfinder(
     userLengthMm !== null
@@ -2399,6 +2407,11 @@ export default function EasyScanCamera({
                 aria-live="polite"
                 data-testid="camera-cue"
                 data-capture-failure={captureFailureHint ? "true" : undefined}
+                lang={
+                  captureFailureLanguage
+                    ? captureFailureLangAttribute(captureFailureLanguage)
+                    : undefined
+                }
               >
                 {captureFailureHint ? (
                   captureFailureHint

@@ -4,6 +4,7 @@ import {
   CAPTURE_FAILURE_HINT_THRESHOLD,
   advanceCaptureFailures,
   captureFailureHintText,
+  captureFailureLangAttribute,
   hintUnderViewfinder,
   pickCaptureFailureLanguage,
   shouldShowCaptureFailureHint,
@@ -111,6 +112,13 @@ describe("capture failure copy", () => {
       CAPTURE_FAILURE_HINT_COPY["zh-TW"],
     );
     expect(captureFailureHintText("en")).toBe(CAPTURE_FAILURE_HINT_COPY.en);
+  });
+});
+
+describe("the hint's lang attribute", () => {
+  it("marks the zh-TW line, and leaves English unmarked", () => {
+    expect(captureFailureLangAttribute("zh-TW")).toBe("zh-TW");
+    expect(captureFailureLangAttribute("en")).toBeUndefined();
   });
 });
 
