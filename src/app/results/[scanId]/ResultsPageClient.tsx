@@ -15,6 +15,8 @@ import {
   resultLengthKey,
 } from "@/components/results/userLengthDisclosure";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
+import { track } from "@/client/analytics/track";
+import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import "@/components/results/results.css";
@@ -87,10 +89,15 @@ export function ResultsPageClient({
     setAnalysisState({ status: "loading" });
     const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
     if (outcome.status === "ready") {
+      track("analysis_shown", {
+        outcome: outcome.response.source === "fallback" ? "fallback" : "model",
+      });
       setAnalysisState({ status: "ready", response: outcome.response });
     } else if (outcome.status === "rateLimited") {
+      track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "rateLimited" });
     } else {
+      track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "error" });
     }
   }, [scanId]);
@@ -104,9 +111,17 @@ export function ResultsPageClient({
       const outcome = await fetchFitResult(scanId, PREFERENCES);
       if (cancelled) return;
       if (outcome.status === "ready") {
+        const top = outcome.response.results[0];
+        if (top)
+          track("results_viewed", {
+            state: "ready",
+            topPick: top.mouse.slug,
+            noGoodFit: top.total < POOR_FIT_THRESHOLD,
+          });
         setPageState({ kind: "ready", response: outcome.response });
         void runAnalysis();
       } else {
+        track("results_viewed", { state: outcome.status });
         setPageState({ kind: outcome.status });
       }
     })();
@@ -116,6 +131,17 @@ export function ResultsPageClient({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `attempt` exists only to retrigger this effect
   }, [scanId, attempt]);
+
+  const onRetake = useCallback(
+    () => track("retake_clicked", { from: "results" }),
+    [],
+  );
+  const resultsAnalytics = {
+    onRetake,
+    onListOpened: (list: "ranked" | "excluded") =>
+      track("results_list_opened", { list }),
+    onViewerInteracted: () => track("viewer_interacted", {}),
+  };
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
@@ -131,6 +157,7 @@ export function ResultsPageClient({
           backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
+          onBackClick={onRetake}
         />
         <p className="results-page-status" role="status">
           Loading your results&hellip;
@@ -146,6 +173,7 @@ export function ResultsPageClient({
           backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
+          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
@@ -154,7 +182,11 @@ export function ResultsPageClient({
             It may have expired, or the link isn&apos;t yours. Scans without an
             account expire automatically.
           </p>
-          <Link href="/scan/easy" className="results-page-action">
+          <Link
+            href="/scan/easy"
+            className="results-page-action"
+            onClick={onRetake}
+          >
             Scan again
           </Link>
         </div>
@@ -174,6 +206,7 @@ export function ResultsPageClient({
           backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
+          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
@@ -194,6 +227,7 @@ export function ResultsPageClient({
           backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
+          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
@@ -214,6 +248,7 @@ export function ResultsPageClient({
           backHref="/scan/easy"
           backLabel="Scan again"
           stepLabel="Your matches"
+          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">Results</p>
@@ -240,7 +275,11 @@ export function ResultsPageClient({
             This scan has been deleted
           </h1>
           <p>Its measurements have been permanently removed.</p>
-          <Link href="/scan/easy" className="results-page-action">
+          <Link
+            href="/scan/easy"
+            className="results-page-action"
+            onClick={onRetake}
+          >
             Scan again
           </Link>
         </div>
@@ -255,7 +294,11 @@ export function ResultsPageClient({
         showViewer
         response={pageState.response}
         analysisState={analysisState}
-        onRetryAnalysis={() => void runAnalysis()}
+        onRetryAnalysis={() => {
+          track("analysis_retry_clicked", {});
+          void runAnalysis();
+        }}
+        analytics={resultsAnalytics}
       />
       <p className="results-previewNotice">
         Early preview · measurements still being validated.
@@ -263,7 +306,10 @@ export function ResultsPageClient({
       {anonymous && (
         <DeleteScanAction
           scanId={scanId}
-          onDeleted={() => setPageState({ kind: "deleted" })}
+          onDeleted={() => {
+            track("scan_deleted", {});
+            setPageState({ kind: "deleted" });
+          }}
         />
       )}
     </main>

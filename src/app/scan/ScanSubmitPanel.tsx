@@ -46,7 +46,10 @@ export interface ScanSubmitPanelProps {
   readonly flow?: ScanFlow;
 }
 
-export default function ScanSubmitPanel({ submission, flow }: ScanSubmitPanelProps) {
+export default function ScanSubmitPanel({
+  submission,
+  flow,
+}: ScanSubmitPanelProps) {
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const router = useRouter();
   // Synchronous lock — see the file-level comment above for why `state.kind`

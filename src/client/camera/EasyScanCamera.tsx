@@ -1123,7 +1123,11 @@ export default function EasyScanCamera({
           });
         } else {
           // "needsManualCard" never happens in paper-edge mode.
-          track("scan_rejected", { flow: "easy", attempt, codes: ["UNEXPECTED"] });
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: ["UNEXPECTED"],
+          });
           setResult({
             kind: "gateFailure",
             previewUrl,
@@ -1151,7 +1155,9 @@ export default function EasyScanCamera({
         track("scan_rejected", {
           flow: "easy",
           attempt,
-          codes: [detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED"],
+          codes: [
+            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          ],
         });
         setResult({
           kind: "gateFailure",
@@ -2569,7 +2575,10 @@ export default function EasyScanCamera({
                   </svg>
                 </button>
                 <div className="easySeeMatches">
-                  <ScanSubmitPanel submission={result.submission} flow="easy" />
+                  <ScanSubmitPanel
+                    submission={result.submission}
+                    flow={demoMeasured ? undefined : "easy"}
+                  />
                 </div>
               </div>
             </>

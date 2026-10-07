@@ -118,7 +118,9 @@ export interface CameraCaptureProps {
   readonly onUsePhoto: (file: File) => void;
   readonly onExit: () => void;
   /** Analytics hook: called once each time the camera request settles. */
-  readonly onPermissionResult?: (result: "granted" | "denied" | "error") => void;
+  readonly onPermissionResult?: (
+    result: "granted" | "denied" | "error",
+  ) => void;
   /** Injectable for testing and to override the mode-selected default source. */
   readonly quadSource?: SheetQuadSource;
 }

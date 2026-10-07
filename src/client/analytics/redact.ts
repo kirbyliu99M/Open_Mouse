@@ -29,7 +29,9 @@ const NO_VALUE = "$direct";
 type Bag = Record<string, unknown>;
 
 function isUrlKey(key: string): boolean {
-  return (URL_KEYS as readonly string[]).includes(key) || URL_KEY_SHAPE.test(key);
+  return (
+    (URL_KEYS as readonly string[]).includes(key) || URL_KEY_SHAPE.test(key)
+  );
 }
 
 /** Redacts a property bag; returns a new object and never mutates. */

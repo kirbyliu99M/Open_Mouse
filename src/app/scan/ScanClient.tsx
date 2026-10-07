@@ -632,9 +632,7 @@ export default function ScanClient({
         track("scan_rejected", {
           flow: "sheet",
           attempt: clampAttempt(attemptCountRef.current),
-          codes: [
-            isLoadFailure ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
-          ],
+          codes: [isLoadFailure ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED"],
         });
         setState({
           kind: "error",
@@ -1169,7 +1167,10 @@ export default function ScanClient({
             </p>
           </div>
 
-          <ScanSubmitPanel submission={state.submission} flow="sheet" />
+          <ScanSubmitPanel
+            submission={state.submission}
+            flow={demoMeasured ? undefined : "sheet"}
+          />
 
           <div className="uploadSlot uploadSlot-measured">
             <label className="uploadButton" htmlFor="top-down-photo">
