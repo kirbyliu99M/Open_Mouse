@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
+import { ReportError } from "@/components/errors/ReportError";
 import { RetryButton } from "@/components/errors/RetryButton";
 import { ACTIONS, ERROR_COPY, RETRYING } from "@/components/errors/copy";
 import { retry } from "@/components/errors/retry";
@@ -18,6 +19,9 @@ import { retry } from "@/components/errors/retry";
  * announces "Trying again…". Because the button keeps focus, and the heading
  * takes it when the screen is first shown or is mounted again by the boundary,
  * keyboard and screen-reader users are never left on the page body.
+ *
+ * `<ReportError>` sends the error to Sentry: an error boundary catches it,
+ * so the SDK's global handlers never see it.
  */
 export default function ErrorPage({
   error,
@@ -38,6 +42,7 @@ export default function ErrorPage({
       focusHeading
       status={pending ? RETRYING : undefined}
     >
+      <ReportError error={error} />
       <RetryButton
         pending={pending}
         onRetry={() =>

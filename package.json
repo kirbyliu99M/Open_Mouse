@@ -40,6 +40,7 @@
     "@mediapipe/tasks-vision": "1.0.1",
     "@neondatabase/serverless": "1.1.0",
     "@next/env": "15.5.25",
+    "@sentry/nextjs": "11.4.0",
     "drizzle-orm": "0.45.2",
     "js-aruco2": "2.0.0",
     "jsqr": "1.4.0",

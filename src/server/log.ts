@@ -1,7 +1,8 @@
 /**
  * Structured server log: one JSON object per line, `{ level, event, route,
  * ms, ...fields }`, written to stdout (info) or stderr (warn, error) where
- * Vercel collects it. This is the only place under `src/server` and
+ * Vercel collects it; an error line is also sent to Sentry as a message.
+ * This is the only place under `src/server` and
  * `src/app/api` that may call `console.*` (tests/unit/log-no-console.test.ts
  * enforces that).
  *
@@ -42,6 +43,7 @@
  * `op`), never a request or a result object.
  */
 import { createHash } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 
 export type LogLevel = "info" | "warn" | "error";
 
@@ -561,8 +563,15 @@ export function formatLogLine(
 
 function emit(level: LogLevel, event: string, fields?: LogFields): void {
   const line = formatLogLine(level, event, fields);
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
+  if (level === "error") {
+    console.error(line);
+    // The finished, redacted line, never the caller's fields: Sentry gets
+    // exactly what the log got. A no-op when Sentry is off.
+    Sentry.captureMessage(event, {
+      level: "error",
+      extra: JSON.parse(line) as Record<string, unknown>,
+    });
+  } else if (level === "warn") console.warn(line);
   else console.log(line);
 }
 

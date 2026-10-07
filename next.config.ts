@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 /**
@@ -136,4 +137,25 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry's build wrapper. Runtime options are in
+ * src/lib/observability/sentry.ts.
+ *
+ * `tunnelRoute`: the browser sends events to /monitoring on this origin,
+ * which forwards them to Sentry. That keeps the CSP's `connect-src 'self'`
+ * as it is (see the WARNING above) and gets past ad blockers.
+ *
+ * Source maps upload only when SENTRY_AUTH_TOKEN is set (the Vercel build);
+ * without it the build still succeeds and stack traces stay minified.
+ */
+export default withSentryConfig(nextConfig, {
+  org: "bowen-zo",
+  project: "javascript-nextjs",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+  },
+});
