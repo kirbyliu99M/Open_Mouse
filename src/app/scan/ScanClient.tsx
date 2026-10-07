@@ -510,10 +510,20 @@ export default function ScanClient({
         coarsePointer: window.matchMedia("(pointer: coarse)").matches,
       }),
     });
+    // Mount-only on purpose: the entry screen is reported once, and
+    // `demoMeasured` is a prop that never changes for a mounted page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // This page's photo count, for analytics only.
   const attemptCountRef = useRef(0);
+  // Whether this photo's outcome (measured or rejected) has been reported:
+  // re-runs on the same file (hand change, retry) are not new attempts.
+  const outcomeSentRef = useRef(false);
+  const reportOutcomeOnce = useCallback((send: () => void) => {
+    if (outcomeSentRef.current) return;
+    outcomeSentRef.current = true;
+    send();
+  }, []);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
@@ -590,13 +600,15 @@ export default function ScanClient({
         if (runId !== runIdRef.current) return;
         const attempt = clampAttempt(attemptCountRef.current);
         if (result.status === "ok") {
-          track("scan_measured", {
-            flow: "sheet",
-            attempt,
-            // "manual": the sheet's corners were placed by hand. "none": a
-            // typed length (not offered in this flow). Otherwise found.
-            paper: cardSource === "manual" ? "manual" : "detected",
-          });
+          reportOutcomeOnce(() =>
+            track("scan_measured", {
+              flow: "sheet",
+              attempt,
+              // "manual": the sheet's corners were placed by hand. "none": a
+              // typed length (not offered in this flow). Otherwise found.
+              paper: cardSource === "manual" ? "manual" : "detected",
+            }),
+          );
           // Not chosen: show the hand the scan was submitted as.
           if (!handExplicit) setHand(result.submission.hand);
           setState({
@@ -611,11 +623,13 @@ export default function ScanClient({
           setManualCorners(defaultManualCorners(result.overlay));
           setState({ kind: "needsManualCard", overlay: result.overlay });
         } else {
-          track("scan_rejected", {
-            flow: "sheet",
-            attempt,
-            codes: issueCodes(result.errors.map((e) => e.code)),
-          });
+          reportOutcomeOnce(() =>
+            track("scan_rejected", {
+              flow: "sheet",
+              attempt,
+              codes: issueCodes(result.errors.map((e) => e.code)),
+            }),
+          );
           setState({
             kind: "error",
             errors: result.errors,
@@ -658,12 +672,14 @@ export default function ScanClient({
       runPhotoPipelineImpl,
       calibrationMode,
       paperSize,
+      reportOutcomeOnce,
     ],
   );
 
   const onFileChosen = useCallback(
     (file: File, method: "canvas" | "upload" = "upload") => {
       attemptCountRef.current += 1;
+      outcomeSentRef.current = false;
       track("scan_capture_attempted", {
         flow: "sheet",
         method,

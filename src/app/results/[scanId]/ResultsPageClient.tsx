@@ -85,9 +85,18 @@ export function ResultsPageClient({
     }
   }, [scanId]);
 
+  // Bumped by every analysis run and by the fit effect's cleanup (scan changed
+  // or page unmounted): a run that finds it moved on is stale and reports
+  // nothing.
+  const analysisRunRef = useRef(0);
+  // `viewer_interacted` is once per page, even if the viewer re-adds its listeners.
+  const viewerInteractedRef = useRef(false);
+
   const runAnalysis = useCallback(async () => {
+    const run = ++analysisRunRef.current;
     setAnalysisState({ status: "loading" });
     const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
+    if (run !== analysisRunRef.current) return;
     if (outcome.status === "ready") {
       track("analysis_shown", {
         outcome: outcome.response.source === "fallback" ? "fallback" : "model",
@@ -128,6 +137,7 @@ export function ResultsPageClient({
 
     return () => {
       cancelled = true;
+      analysisRunRef.current += 1;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `attempt` exists only to retrigger this effect
   }, [scanId, attempt]);
@@ -140,7 +150,11 @@ export function ResultsPageClient({
     onRetake,
     onListOpened: (list: "ranked" | "excluded") =>
       track("results_list_opened", { list }),
-    onViewerInteracted: () => track("viewer_interacted", {}),
+    onViewerInteracted: () => {
+      if (viewerInteractedRef.current) return;
+      viewerInteractedRef.current = true;
+      track("viewer_interacted", {});
+    },
   };
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);

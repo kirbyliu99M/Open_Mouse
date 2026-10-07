@@ -363,7 +363,8 @@ export default function CameraCapture({
       prevSampleQuadRef.current = null;
       lastCueCodeRef.current = null;
       lastCueChangeAtRef.current = 0;
-      onPermissionResultRef.current?.("granted");
+      if (mountedRef.current && requestId === requestIdRef.current)
+        onPermissionResultRef.current?.("granted");
       setState({ kind: "live" });
     } catch (err) {
       const name = err instanceof DOMException ? err.name : undefined;

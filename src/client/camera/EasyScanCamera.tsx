@@ -1040,6 +1040,8 @@ export default function EasyScanCamera({
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
+      // Read now: a typed length chosen while the photo is analysed must not change it.
+      const paperUsed = userLengthRef.current !== null ? "none" : "detected";
       const attempt = clampAttempt(attemptCountRef.current);
       track("scan_capture_attempted", {
         flow: "easy",
@@ -1090,7 +1092,7 @@ export default function EasyScanCamera({
             attempt,
             // Paper-edge mode finds the sheet itself; a typed hand length
             // means no paper was used. This flow has no manual corners.
-            paper: userLengthRef.current !== null ? "none" : "detected",
+            paper: paperUsed,
           });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
