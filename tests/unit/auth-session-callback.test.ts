@@ -8,6 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
+import { NextRequest } from "next/server";
 import { migratedDatabase } from "./fixtures/pglite";
 import { toPublicSession } from "../../src/server/auth/session";
 
@@ -43,8 +44,8 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(() => pg.close());
 
-function sessionRequest(token: string | null): Request {
-  return new Request("http://localhost/api/auth/session", {
+function sessionRequest(token: string | null): NextRequest {
+  return new NextRequest("http://localhost/api/auth/session", {
     headers: token ? { cookie: `authjs.session-token=${token}` } : {},
   });
 }
