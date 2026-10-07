@@ -1,4 +1,4 @@
-import { auth } from "../../../../auth";
+import { auth, signOut } from "../../../../auth";
 import { createDrizzleAccountRepo } from "../../../../server/account/drizzle-repo";
 import {
   handleAccountDeleteAll,
@@ -23,5 +23,9 @@ export async function DELETE(): Promise<Response> {
   return handleAccountDeleteAll({
     repo: createDrizzleAccountRepo(),
     getUserId,
+    // Clears the session cookie; the database row is already deleted.
+    clearSession: async () => {
+      await signOut({ redirect: false });
+    },
   });
 }

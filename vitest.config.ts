@@ -16,5 +16,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    server: {
+      // next-auth imports "next/server" without the extension, which Node's
+      // ESM resolver cannot find; vite resolves it when the package is inlined
+      // (tests/unit/auth-session-callback.test.ts runs the real handler).
+      deps: { inline: ["next-auth"] },
+    },
   },
 });

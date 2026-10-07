@@ -236,7 +236,7 @@ describe("account Delete everything over the neon-http driver", () => {
     };
   }
 
-  it("sends the withdrawal and the scans' deletion as exactly one transaction of two DELETEs, and no DELETE outside it", async () => {
+  it("sends the withdrawal, the scans' deletion and the user's deletion as exactly one transaction of three DELETEs, and no DELETE outside it", async () => {
     const { createDrizzleAccountRepo } =
       await import("../../src/server/account/drizzle-repo");
     type AccountDb = NonNullable<
@@ -251,9 +251,10 @@ describe("account Delete everything over the neon-http driver", () => {
     expect(deleted).toBe(2);
     expect(client.transaction).toHaveBeenCalledTimes(1);
     const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
-    expect(sql).toHaveLength(2);
+    expect(sql).toHaveLength(3);
     expect(sql[0]).toMatch(/^delete from "survey_contributions" where /);
     expect(sql[1]).toMatch(/^delete from "scan_sessions" where /);
+    expect(sql[2]).toMatch(/^delete from "users" where /);
     for (const statement of transactions[0]!) {
       expect(statement.params).toEqual(["user-1"]);
     }

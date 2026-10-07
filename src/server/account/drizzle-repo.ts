@@ -6,6 +6,7 @@ import {
   scanSessions,
   scans,
   surveyContributions,
+  users,
 } from "../../db/schema";
 import type { AccountRepo, AccountScan } from "./repo";
 
@@ -74,17 +75,21 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         .from(scans)
         .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
         .where(eq(scanSessions.userId, userId));
-      // This does not delete the user row, so the foreign key from
-      // `survey_contributions.user_id` never fires here: the survey answers
-      // are withdrawn by name. One batch (one atomic request), so the button
-      // that promises "everything" never deletes the scans and leaves the
-      // answers, or the other way round. A scan's `survey_contributed_at` mark
-      // goes with the scan; the contributions themselves go with `user_id`.
+      // One batch (one atomic request), so the button that promises
+      // "everything" never deletes the scans and leaves the answers, or the
+      // account, or the other way round. The first two deletes are explicit
+      // because the survey contract says the withdrawal is by name, whatever
+      // else happens to the user row. Deleting the `users` row also cascades
+      // to `accounts`, `auth_sessions`, `scan_sessions` (and through them
+      // scans, measurements, fit results and the analysis cache),
+      // `survey_contributions`, `survey_ratings` and `survey_other_mice`. A
+      // scan's `survey_contributed_at` mark goes with the scan.
       await db.batch([
         db
           .delete(surveyContributions)
           .where(eq(surveyContributions.userId, userId)),
         db.delete(scanSessions).where(eq(scanSessions.userId, userId)),
+        db.delete(users).where(eq(users.id, userId)),
       ]);
       return owned.length;
     },
