@@ -75,6 +75,30 @@ describe("analyticsEventSchemas", () => {
     expect(at(ANALYTICS_COUNT_CAP + 1)).toBe(false);
     expect(at(1.5)).toBe(false);
     expect(at(-1)).toBe(false);
+    expect(at(0)).toBe(false);
+  });
+
+  it("refuses a dashless UUID as a slug, and ready-only fields on other states", () => {
+    const viewed = analyticsEventSchemas.results_viewed;
+    const dashless = SCAN_ID.replaceAll("-", "");
+    expect(
+      viewed.safeParse({ state: "ready", topPick: dashless, noGoodFit: false })
+        .success,
+    ).toBe(false);
+    expect(
+      viewed.safeParse({ state: "notFound", topPick: "logitech-mx-master-3s" })
+        .success,
+    ).toBe(false);
+    expect(viewed.safeParse({ state: "notFound" }).success).toBe(true);
+    expect(viewed.safeParse({ state: "ready" }).success).toBe(false);
+  });
+
+  it("refuses repeated issue codes", () => {
+    const rejected = analyticsEventSchemas.scan_rejected;
+    expect(
+      rejected.safeParse({ flow: "easy", attempt: 1, codes: ["A_B", "A_B"] })
+        .success,
+    ).toBe(false);
   });
 
   it("takes issue codes, not messages", () => {
@@ -110,5 +134,33 @@ describe("redactAnalyticsPath", () => {
 
   it("returns null for something that is not a URL", () => {
     expect(redactAnalyticsPath("http://")).toBeNull();
+  });
+
+  it("redacts the variants a denylist would miss", () => {
+    const cases: [string, string | null][] = [
+      [`/results//${SCAN_ID}`, "/results/[scanId]"],
+      [`/Results/${SCAN_ID}`, "/results/[scanId]"],
+      [`/results/${SCAN_ID}/`, "/results/[scanId]"],
+      [`/results/${SCAN_ID}/more`, "/results/[scanId]"],
+      [`/results;x/${SCAN_ID}`, "/results/[scanId]"],
+      [`/results/demo/${SCAN_ID}`, "/results/[scanId]"],
+      ["/results/demo-abc", "/results/[scanId]"],
+      [`//evil.example/results/${SCAN_ID}`, "/results/[scanId]"],
+      [
+        `https://user:pw@open-mouse.vercel.app/results/${SCAN_ID}`,
+        "https://open-mouse.vercel.app/results/[scanId]",
+      ],
+      ["/l/v1//abcDEF123_-xyz", "/l/v1/[token]"],
+      ["/L/v2/abcDEF123_-xyz", "/l/[version]/[token]"],
+      [`/anything/${SCAN_ID.replaceAll("-", "")}`, "/anything/[id]"],
+      ["/x/abcdefghijklmnopqrstuvwxyz", "/x/[id]"],
+      ["mailto:a@b.c", null],
+      ["data:text/plain,hi", null],
+      ["/", "/"],
+      ["/how-it-works/", "/how-it-works"],
+    ];
+    for (const [input, expected] of cases) {
+      expect(redactAnalyticsPath(input), input).toBe(expected);
+    }
   });
 });
