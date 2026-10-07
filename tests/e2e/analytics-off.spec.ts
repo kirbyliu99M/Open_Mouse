@@ -23,3 +23,25 @@ test("without a PostHog key, home -> scan makes no /ingest request", async ({
   await page.waitForTimeout(5000);
   expect(ingest).toEqual([]);
 });
+
+test("a trailing slash still 308s to the canonical path", async ({
+  request,
+}) => {
+  const res = await request.get("/scan/easy/", { maxRedirects: 0 });
+  expect(res.status()).toBe(308);
+  expect(new URL(res.headers().location!, "http://x").pathname).toBe(
+    "/scan/easy",
+  );
+});
+
+test("/ingest/e/ reaches the handler (404 without a key), not a redirect", async ({
+  request,
+}) => {
+  const res = await request.post("/ingest/e/", {
+    data: "{}",
+    maxRedirects: 0,
+  });
+  expect(res.status()).toBe(404);
+  const get = await request.get("/ingest/e/", { maxRedirects: 0 });
+  expect(get.status()).toBe(404);
+});
