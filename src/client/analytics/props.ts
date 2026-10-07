@@ -19,3 +19,8 @@ export function issueCodes(codes: readonly string[]): string[] {
   }
   return out;
 }
+
+/** The 1-based attempt number, clamped to 1..`ANALYTICS_COUNT_CAP`. */
+export function clampAttempt(n: number): number {
+  return Math.max(1, clampCount(n));
+}
