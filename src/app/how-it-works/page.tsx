@@ -100,8 +100,8 @@ export default function HowItWorksPage() {
           </span>
           Scans without an account expire automatically after a while.
         </p>
-        {/* Candidate wording (未拍板, until Kirby confirms): discloses the
-            anonymous PostHog counts (issue #138). */}
+        {/* Wording confirmed by Kirby on 2026-10-07: discloses the anonymous
+            PostHog counts (issue #138). */}
         <p>
           <span aria-hidden="true">
             <ShieldIcon />
