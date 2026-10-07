@@ -7,6 +7,7 @@ import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
 import { claimOnSignIn } from "./server/auth/claim";
 import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
+import { toPublicSession } from "./server/auth/session";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
 
 /**
@@ -75,10 +76,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Database session strategy hands the callback `user`, not a decoded
     // token; `session.user.id` isn't populated by default (see
     // `src/types/next-auth.d.ts`), and `/account` needs it to scope every
-    // query to exactly this signed-in user.
+    // query to exactly this signed-in user. What this returns is also the
+    // body of `GET /api/auth/session`, readable by any script on the page, so
+    // it is an allow-list (`toPublicSession`), never the object Auth.js
+    // passed in: that one carries the raw `sessionToken` and `userId`.
     session({ session, user }) {
-      session.user.id = user.id;
-      return session;
+      return toPublicSession(session, user);
     },
   },
   events: {

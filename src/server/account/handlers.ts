@@ -20,6 +20,10 @@ export interface AccountDeps {
   /** Resolves the signed-in user's id, or null. Wraps `auth()` in the real
    * route; tests inject a fake so no NextAuth machinery runs in unit tests. */
   getUserId: () => Promise<string | null>;
+  /** Runs after the account is deleted, to clear the auth cookie in the
+   * response. Best effort: the session row is already gone, so the browser is
+   * signed out either way and a failure here is not reported to the caller. */
+  clearSession?: () => Promise<void>;
 }
 
 /**
@@ -40,10 +44,13 @@ export async function handleAccountScansList(
 }
 
 /**
- * `DELETE /api/account/scans`. Deletes every scan this signed-in user owns,
- * across every session/device that was ever claimed into their account, and
- * withdraws every survey contribution they made (`repo.deleteAllScans`; the
- * survey contract says this button must). Irreversible; the `/account` UI gates this behind a confirmation dialog
+ * `DELETE /api/account/scans`. Deletes the signed-in user's account: every
+ * scan they own, across every session/device that was ever claimed into it,
+ * every survey contribution they made, and the `users` row with the Google
+ * profile on it (`repo.deleteAllScans`; the survey contract says this button
+ * must withdraw the survey answers). Their `auth_sessions` rows go with the
+ * user, so every browser they were signed in on is signed out. Irreversible;
+ * the `/account` UI gates this behind a confirmation dialog
  * (docs/design-guidelines.md — modal tasks dim the background).
  */
 export async function handleAccountDeleteAll(
@@ -52,5 +59,10 @@ export async function handleAccountDeleteAll(
   const userId = await deps.getUserId();
   if (!userId) return json(401, { error: "Sign in required." });
   const deletedScans = await deps.repo.deleteAllScans(userId);
+  try {
+    await deps.clearSession?.();
+  } catch {
+    // Already signed out: the session row went with the user.
+  }
   return json(200, { deletedScans });
 }

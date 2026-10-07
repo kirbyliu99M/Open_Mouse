@@ -30,9 +30,11 @@ export interface AccountScan {
 export interface AccountRepo {
   /** Every scan across every `scan_sessions` row this user owns, newest first. */
   listScans(userId: string): Promise<AccountScan[]>;
-  /** Deletes all of this user's `scan_sessions` rows (cascades to scans and
-   * measurements) AND withdraws every survey contribution they made
+  /** Deletes the account: all of this user's `scan_sessions` rows (cascades
+   * to scans and measurements), every survey contribution they made
    * (src/lib/contracts/survey.ts: "Delete everything" must withdraw it too),
-   * in one atomic operation. Returns the number of scans removed. */
+   * and the `users` row itself (its Google email, name and image; cascades to
+   * `accounts` and `auth_sessions`, so every browser they were signed in on is
+   * signed out), in one atomic operation. Returns the number of scans removed. */
   deleteAllScans(userId: string): Promise<number>;
 }

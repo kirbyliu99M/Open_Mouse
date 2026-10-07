@@ -100,6 +100,24 @@ describe("DELETE /api/account/scans — delete-everything", () => {
     expect(repo.deleteAllScans).not.toHaveBeenCalled();
   });
 
+  it("does not clear any session when nobody is signed in, and clears it once after a delete", async () => {
+    const clearSession = vi.fn(async () => {});
+    await handleAccountDeleteAll({
+      repo: fakeRepo(),
+      getUserId: async () => null,
+      clearSession,
+    });
+    expect(clearSession).not.toHaveBeenCalled();
+
+    const res = await handleAccountDeleteAll({
+      repo: fakeRepo(),
+      getUserId: async () => "user-1",
+      clearSession,
+    });
+    expect(res.status).toBe(200);
+    expect(clearSession).toHaveBeenCalledTimes(1);
+  });
+
   it("deletes only the signed-in user's scans and reports the count", async () => {
     const repo = fakeRepo([sampleScan, { ...sampleScan, scanId: "scan-2" }]);
     const res = await handleAccountDeleteAll({

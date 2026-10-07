@@ -90,6 +90,9 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       setVisibleScans([]);
       setDeleteStatus("done");
       setConfirmOpen(false);
+      // The account is gone and this browser is signed out: load /account
+      // again so the server renders the signed-out state.
+      window.location.assign("/account");
     } catch {
       setDeleteStatus("error");
     }
@@ -111,7 +114,6 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
           className="button-danger"
           ref={triggerRef}
           onClick={() => setConfirmOpen(true)}
-          disabled={visibleScans.length === 0}
         >
           Delete everything
         </button>
@@ -167,8 +169,12 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
         >
           <h2 id="delete-all-title">Delete everything?</h2>
           <p id="delete-all-body">
-            This permanently deletes all {visibleScans.length} of your scans.
-            This can&apos;t be undone.
+            This permanently deletes{" "}
+            {visibleScans.length > 0
+              ? `all ${visibleScans.length} of your scans and `
+              : ""}
+            your account, including the email address and name from Google, and
+            signs you out. This can&apos;t be undone.
           </p>
           {deleteStatus === "error" && (
             <p className="status-error" role="status">
