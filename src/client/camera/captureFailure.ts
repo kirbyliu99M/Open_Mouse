@@ -52,6 +52,15 @@ export function shouldShowCaptureFailureHint(count: number): boolean {
   return count >= CAPTURE_FAILURE_HINT_THRESHOLD;
 }
 
+/**
+ * The line under the viewfinder, with nothing shown while the failure hint is
+ * up: the ring keeps refilling during the retries, and "Hold still — taking
+ * the photo" would contradict the cue line's "Couldn't read the camera".
+ */
+export function hintUnderViewfinder(hintText: string, count: number): string {
+  return shouldShowCaptureFailureHint(count) ? "" : hintText;
+}
+
 export type CaptureFailureLanguage = "en" | "zh-TW";
 
 /** The language the screen shows today (no i18n framework yet). */

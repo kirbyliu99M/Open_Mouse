@@ -5,6 +5,7 @@ import {
   CAPTURE_FAILURE_HINT_THRESHOLD,
   advanceCaptureFailures,
   captureFailureHintText,
+  hintUnderViewfinder,
   shouldShowCaptureFailureHint,
   type CaptureFailureEvent,
 } from "@/client/camera/captureFailure";
@@ -67,6 +68,23 @@ describe("capture failure counting", () => {
   it("does not trust a bad count", () => {
     expect(advanceCaptureFailures(-5, "failure")).toBe(1);
     expect(advanceCaptureFailures(1.9, "failure")).toBe(2);
+  });
+});
+
+describe("the line under the viewfinder", () => {
+  const line = "Hold still — taking the photo";
+
+  it("is left as it was before the third failure", () => {
+    expect(hintUnderViewfinder(line, 0)).toBe(line);
+    expect(hintUnderViewfinder(line, 2)).toBe(line);
+    expect(hintUnderViewfinder("", 2)).toBe("");
+  });
+
+  it("is empty while the failure hint shows, and comes back after a success", () => {
+    expect(hintUnderViewfinder(line, 3)).toBe("");
+    expect(
+      hintUnderViewfinder(line, advanceCaptureFailures(3, "success")),
+    ).toBe(line);
   });
 });
 

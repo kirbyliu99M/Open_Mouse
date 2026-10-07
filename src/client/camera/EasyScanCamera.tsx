@@ -88,6 +88,7 @@ import {
 import {
   advanceCaptureFailures,
   captureFailureHintText,
+  hintUnderViewfinder,
   shouldShowCaptureFailureHint,
   type CaptureFailureEvent,
 } from "./captureFailure";
@@ -1948,14 +1949,16 @@ export default function EasyScanCamera({
   const captureFailureHint = shouldShowCaptureFailureHint(captureFailures)
     ? captureFailureHintText()
     : null;
-  const hintText =
+  const hintText = hintUnderViewfinder(
     userLengthMm !== null
       ? ""
       : easyHintText({
           cueCode: cue?.code ?? null,
           ringFraction,
           tapToFocus: focusSupport.tapToFocus,
-        });
+        }),
+    captureFailures,
+  );
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
