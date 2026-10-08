@@ -8,11 +8,26 @@ import { z } from "zod";
 
 export const purchaseLinkSchema = z.strictObject({
   /** Visible text, e.g. a shop name. Supplied by the link owner. */
-  label: z.string().min(1).max(40),
-  url: z
-    .string()
-    .url()
-    .refine((u) => u.startsWith("https://"), { message: "https only" }),
+  label: z.string().trim().min(1).max(40),
+  /** https only, a real host, and no user name or password in the URL. */
+  url: z.string().refine(
+    (u) => {
+      if (!u.startsWith("https://")) return false;
+      try {
+        const parsed = new URL(u);
+        return (
+          parsed.protocol === "https:" &&
+          parsed.hostname !== "" &&
+          !u.startsWith("https:///") &&
+          parsed.username === "" &&
+          parsed.password === ""
+        );
+      } catch {
+        return false;
+      }
+    },
+    { message: "https link to a real host, no credentials" },
+  ),
 });
 
 /** slug → links, in display order (at most four per mouse). */

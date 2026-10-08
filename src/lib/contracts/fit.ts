@@ -13,6 +13,18 @@ import { CATALOGUE_CATEGORIES, SIZES } from "./descriptors";
 export const GRIP_STYLES = ["palm", "claw", "fingertip"] as const;
 export type GripStyle = (typeof GRIP_STYLES)[number];
 
+/**
+ * A path on this site: one leading slash, never `//` (protocol-relative, i.e.
+ * another host), no backslash (browsers read it as a slash) and no `..`.
+ */
+const sitePathSchema = z
+  .string()
+  .refine(
+    (v) =>
+      /^\/[^/\\]/.test(v) && !v.includes("\\") && !v.split("/").includes(".."),
+    { message: "must be a path on this site" },
+  );
+
 export const HAND_TYPE_SIZES = ["small", "medium", "large"] as const;
 export const HAND_TYPE_WIDTHS = ["slim", "wide"] as const;
 
@@ -96,7 +108,7 @@ export const fitEntrySchema = z.strictObject({
     /** 2026-10-08, optional until every engine version fills it. */
     category: z.enum(CATALOGUE_CATEGORIES).optional(),
     /** Site-relative path of the official product photo, or null when none. */
-    imageUrl: z.string().startsWith("/").nullable().optional(),
+    imageUrl: sitePathSchema.nullable().optional(),
   }),
   /**
    * Weighted mean over applicable sub-scores. A null (unknown) sub-score

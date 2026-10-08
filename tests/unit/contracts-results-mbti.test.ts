@@ -71,24 +71,63 @@ describe("contract additions of 2026-10-08", () => {
     expect(fitResponseSchema.safeParse(v1).success).toBe(true);
   });
 
-  it("accepts a null imageUrl but not an absolute or external one", () => {
-    const withImage = (imageUrl: unknown) => ({
+  it.each([
+    ["/images/mice/logitech-g309.webp", true],
+    ["/a", true],
+    ["https://example.com/a.webp", false],
+    ["//evil.com/a.webp", false],
+    ["/\\evil.com/a.webp", false],
+    ["/images/../secret", false],
+    ["", false],
+    ["images/mice/a.webp", false],
+    ["javascript:alert(1)", false],
+  ])("imageUrl %j is accepted: %s", (imageUrl, ok) => {
+    const parsed = fitResponseSchema.safeParse({
       ...base,
       results: [{ ...base.results[0], mouse: { ...mouse, imageUrl } }],
     });
-    expect(fitResponseSchema.safeParse(withImage(null)).success).toBe(true);
-    expect(
-      fitResponseSchema.safeParse(withImage("https://example.com/a.webp"))
-        .success,
-    ).toBe(false);
+    expect(parsed.success).toBe(ok);
   });
 
-  it("rejects a hand type outside the enums", () => {
-    const bad = {
+  it("accepts a null imageUrl", () => {
+    const parsed = fitResponseSchema.safeParse({
       ...base,
-      handType: { size: "huge", grip: "claw", width: "wide" },
-    };
-    expect(fitResponseSchema.safeParse(bad).success).toBe(false);
+      results: [{ ...base.results[0], mouse: { ...mouse, imageUrl: null } }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a category outside the contract", () => {
+    const parsed = fitResponseSchema.safeParse({
+      ...base,
+      results: [{ ...base.results[0], mouse: { ...mouse, category: "toy" } }],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it.each([
+    [{ palm: 1.2, claw: 0, fingertip: 0 }],
+    [{ palm: -0.1, claw: 0.6, fingertip: 0.5 }],
+    [{ palm: 0.5, claw: 0.5 }],
+    [{ palm: 0.2, claw: 0.7, fingertip: 0.1, extra: 0 }],
+  ])("rejects grip weights %j", (weights) => {
+    const parsed = fitResponseSchema.safeParse({
+      ...base,
+      gripStyle: { ...base.gripStyle, weights },
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it.each([
+    [{ size: "huge", grip: "claw", width: "wide" }],
+    [{ size: "medium", grip: "pinch", width: "wide" }],
+    [{ size: "medium", grip: "claw", width: "narrow" }],
+    [{ size: "medium", grip: "claw" }],
+    [{ size: "medium", grip: "claw", width: "wide", rank: 1 }],
+  ])("rejects hand type %j", (handType) => {
+    expect(fitResponseSchema.safeParse({ ...base, handType }).success).toBe(
+      false,
+    );
   });
 
   it("pins the new enums", () => {
@@ -110,19 +149,31 @@ describe("purchaseLinksSchema", () => {
     expect(ok.success).toBe(true);
   });
 
-  it("rejects http links, empty labels and more than four links", () => {
-    const link = { label: "Shop", url: "https://shop.example.com/p/1" };
-    expect(
-      purchaseLinksSchema.safeParse({
-        a: [{ label: "Shop", url: "http://shop.example.com" }],
-      }).success,
-    ).toBe(false);
-    expect(
-      purchaseLinksSchema.safeParse({ a: [{ ...link, label: "" }] }).success,
-    ).toBe(false);
-    expect(
-      purchaseLinksSchema.safeParse({ a: [link, link, link, link, link] })
-        .success,
-    ).toBe(false);
+  const link = { label: "Shop", url: "https://shop.example.com/p/1" };
+  const ok = (links: unknown) =>
+    purchaseLinksSchema.safeParse({ a: links }).success;
+
+  it("accepts exactly four links and a 40-character label", () => {
+    expect(ok([link, link, link, link])).toBe(true);
+    expect(ok([{ ...link, label: "x".repeat(40) }])).toBe(true);
+  });
+
+  it.each([
+    ["http://shop.example.com"],
+    ["HTTPS://shop.example.com"],
+    ["https://user:pw@shop.example.com"],
+    ["https:///shop.example.com"],
+    ["https://"],
+    ["javascript:alert(1)"],
+    ["not a url"],
+  ])("rejects url %j", (url) => {
+    expect(ok([{ ...link, url }])).toBe(false);
+  });
+
+  it("rejects empty or blank labels, long labels and five links", () => {
+    expect(ok([{ ...link, label: "" }])).toBe(false);
+    expect(ok([{ ...link, label: "   " }])).toBe(false);
+    expect(ok([{ ...link, label: "x".repeat(41) }])).toBe(false);
+    expect(ok([link, link, link, link, link])).toBe(false);
   });
 });
