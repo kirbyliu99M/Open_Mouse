@@ -393,6 +393,14 @@ saw: the stream's size, the part of it on screen (`visibleInStream`), the relati
 (`model`), whether it holds (`modelApplies`) and the shape difference; `analysed.crop` is the rectangle of the
 photo that was analysed. The time in the panel is UTC and says so (`Z`).
 
+`measured` (_added 2026-10-08_) is `{ handLengthMm, palmWidthMm }`, the numbers the scan's result and submission
+carry, to 0.1 mm; both `null` for an error or a run that stopped before it measured. `focal` is
+`{ source: "exif" | "homography" | "none" | null, px }`: where the parallax correction's focal length came from
+and its value in pixels (`none`: no correction was possible, `px` is `null`; both `null` where the run stopped
+before the correction). They exist so a few scans in a row can be compared against a tape measure from the
+debug JSON; the line in the panel shows `len 188.4 mm · palm 66.1 mm` for a measured scan. Local only: not in
+analytics and not in any request. A record stored before they existed parses with them `null` (`v` stays 1).
+
 **Debug panel.** `Live view` (the part of the stream on screen and the size of the picture the detector
 gets), `Preview vs photo` (what was asked for, the photo's shape and where it came from, the preview's shape,
 the difference, the flag, and whether a second request or the swapped retry was made) and `Attempts` (newest

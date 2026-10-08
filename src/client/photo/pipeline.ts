@@ -69,6 +69,7 @@ import {
 import { finishPaperEdge } from "./paperEdgeFinish";
 import {
   paperSizeFractions,
+  type FocalDiagnostics,
   type HandDiagnostics,
   type PaperDiagnostics,
   type PipelineDiagnostics,
@@ -195,6 +196,7 @@ interface PipelineTrace {
   laplacianVariance: number | null;
   hand: HandDiagnostics;
   parallaxCorrected: boolean | null;
+  focal: FocalDiagnostics | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -210,6 +212,7 @@ function newTrace(): PipelineTrace {
     laplacianVariance: null,
     hand: { detected: null, confidence: null, handedness: null },
     parallaxCorrected: null,
+    focal: null,
   };
 }
 
@@ -294,6 +297,15 @@ export async function runPhotoPipeline(
     laplacianVariance: trace.laplacianVariance,
     hand: trace.hand,
     parallaxCorrected: trace.parallaxCorrected,
+    // The numbers the result and the submission carry, read off the result.
+    measured:
+      result.status === "ok"
+        ? {
+            handLengthMm: result.measurements.handLengthMm,
+            palmWidthMm: result.measurements.palmWidthMm,
+          }
+        : { handLengthMm: null, palmWidthMm: null },
+    focal: trace.focal,
   };
   return { ...result, diagnostics };
 }
@@ -667,6 +679,7 @@ async function runPaperEdgePipeline(
     readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
   });
   trace.parallaxCorrected = finish.parallaxCorrected;
+  trace.focal = finish.focal;
   return finish.result;
 }
 

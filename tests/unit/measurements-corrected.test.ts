@@ -96,6 +96,7 @@ describe("computeCorrectedHandMeasurements", () => {
 
     expect(result.parallaxCorrected).toBe(true);
     expect(result.focalSource).toBe("exif");
+    expect(result.fPx).toBe(F_PX);
     expect(
       Math.abs(result.measurements.handLengthMm - TRUE_HAND_LENGTH_MM),
     ).toBeLessThan(0.3);
@@ -121,6 +122,9 @@ describe("computeCorrectedHandMeasurements", () => {
 
     expect(result.parallaxCorrected).toBe(true);
     expect(result.focalSource).toBe("homography");
+    // The estimate itself, not the camera's true focal length: close, not equal.
+    expect(result.fPx).not.toBeNull();
+    expect(Math.abs(result.fPx! - F_PX) / F_PX).toBeLessThan(0.05);
     expect(
       Math.abs(result.measurements.handLengthMm - TRUE_HAND_LENGTH_MM),
     ).toBeLessThan(0.3);
@@ -143,6 +147,7 @@ describe("computeCorrectedHandMeasurements", () => {
 
     expect(result.parallaxCorrected).toBe(false);
     expect(result.focalSource).toBe("none");
+    expect(result.fPx).toBeNull();
     expect(result.heightsMm).toBeNull();
     // The uncorrected path — matches computeHandMeasurements exactly.
     const uncorrected = computeHandMeasurements(landmarksPx, h);
