@@ -86,11 +86,15 @@ caused one agent's uncommitted work to be committed by another.
 
 ## The five hard rules
 
-1. **Never commit licensed data.** The EloShapes CSV lives *outside* this repo
-   (`../Dataset/`) and is gitignored twice over. It is a private validation
-   fixture only. Never copy it in, never paste rows into code, tests, or docs,
-   never let its editorial values reach a seed file. If you need it, read it
-   from `../Dataset/` at runtime in a script that never runs in CI.
+1. **Never commit the raw EloShapes CSV.** It lives *outside* this repo
+   (`../Dataset/`) and is gitignored twice over; read it only from there, in a
+   local script that never runs in CI. _Revised 2026-10-08 (Kirby's call):_ its
+   values (dimensions, weight and shape descriptors) **may** be imported into the
+   seed catalogue through the import script, for the brands Kirby selected. Kirby
+   made this call after being shown that EloShapes' terms prohibit copying and
+   redistribution; the risk is his decision, recorded in `docs/STATUS.md`. Every
+   imported row carries `data_source`. Any other licensed data still never enters
+   the repo.
 
 2. **The LLM never computes.** Every number a user sees originates in tested
    TypeScript. Gemini receives finished values and writes prose about them.

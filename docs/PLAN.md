@@ -17,6 +17,8 @@ Three facts shape the design:
 
 2. **Those 8 descriptors are enough to generate a mouse shell procedurally.** No product photos, no image licensing, no 1,260-asset pipeline.
 
+> _Superseded 2026-10-08 (Kirby's call), kept above as history:_ EloShapes values are now imported into the seed catalogue for the brands Kirby selected (gaming mice on sale, checked against each brand's official site), after Kirby was shown the ToS line in fact 1. Official product photos are served from `public/images/mice/` (Kirby's call; the non-affiliation statement is his). Logitech rows keep Logitech's published dimensions. Consequence: EloShapes is no longer an independent check of our own rubric. See `docs/STATUS.md`, decisions of 2026-10-08.
+
 3. **MANO — the standard parametric hand model — is research-licence only**, so it's off the table for anything public. Generating our hand mesh in Blender from the MediaPipe skeleton sidesteps this entirely: no third-party asset, no licence question.
 
 Decisions locked: printed calibration sheet · 3D parametric mesh · session-scoped storage persisting only on login · **Blender as build-time pre-modeling**.
@@ -223,7 +225,7 @@ Mobile-first (users photograph on their phone and upload from it), a11y pass, 3D
 
 ## Extending past Logitech
 
-Logitech's 76 is the pilot precisely because they publish full dimensions. Once the rubric clears M1, the same pipeline scales brand by brand from first-party spec pages, each row carrying its `source_url`. The EloShapes CSV stays what it is: a private accuracy check we can run against any new brand, never a source we ship.
+Logitech's 76 is the pilot precisely because they publish full dimensions. Once the rubric clears M1, the same pipeline scales brand by brand from first-party spec pages, each row carrying its `source_url`. The EloShapes CSV stays what it is: a private accuracy check we can run against any new brand, never a source we ship. _(Superseded 2026-10-08: see fact 1's note above.)_
 
 ---
 
