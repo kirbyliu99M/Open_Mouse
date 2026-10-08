@@ -285,6 +285,8 @@ export interface CorrectedMeasurementsResult {
   /** False when neither EXIF nor a well-conditioned homography focal estimate was available — `measurements` is then the uncorrected path's result. */
   readonly parallaxCorrected: boolean;
   readonly focalSource: FocalSource;
+  /** The focal length the correction used, in px; `null` exactly when `focalSource` is "none". */
+  readonly fPx: number | null;
   /** The 21 heights the points were back-projected at; `null` when `parallaxCorrected` is false. */
   readonly heightsMm: readonly number[] | null;
 }
@@ -324,6 +326,7 @@ export function computeCorrectedHandMeasurements(
       measurements: measurementsFromSheetMm(points),
       parallaxCorrected: false,
       focalSource: resolved.source,
+      fPx: resolved.fPx,
       heightsMm: null,
     };
   }
@@ -344,6 +347,7 @@ export function computeCorrectedHandMeasurements(
     measurements: measurementsFromSheetMm(points),
     parallaxCorrected: true,
     focalSource: resolved.source,
+    fPx: resolved.fPx,
     heightsMm,
   };
 }
