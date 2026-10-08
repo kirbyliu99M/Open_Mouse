@@ -74,7 +74,9 @@ describe("scanSubmissionSchema", () => {
   describe("palmThicknessStated", () => {
     it("is optional: a skipped question sends no field and still parses", () => {
       expect(valid).not.toHaveProperty("palmThicknessStated");
-      expect(scanSubmissionSchema.safeParse(valid).success).toBe(true);
+      const r = scanSubmissionSchema.safeParse(valid);
+      expect(r.success).toBe(true);
+      expect(r.data).not.toHaveProperty("palmThicknessStated");
     });
 
     it.each(PALM_THICKNESS_LEVELS)("accepts %s and keeps it", (level) => {
