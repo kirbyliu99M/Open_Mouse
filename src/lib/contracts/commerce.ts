@@ -32,7 +32,8 @@ export const purchaseLinkSchema = z.strictObject({
 
 /** slug → links, in display order (at most four per mouse). */
 export const purchaseLinksSchema = z.record(
-  z.string(),
+  /** A catalogue slug: lowercase words joined by single hyphens. */
+  z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   z.array(purchaseLinkSchema).max(4),
 );
 

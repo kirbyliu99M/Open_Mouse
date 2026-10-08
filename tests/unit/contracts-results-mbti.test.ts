@@ -170,6 +170,25 @@ describe("purchaseLinksSchema", () => {
     expect(ok([{ ...link, url }])).toBe(false);
   });
 
+  it.each([[""], ["Logitech G309"], ["-g309"], ["g309-"]])(
+    "rejects slug key %j",
+    (key) => {
+      expect(purchaseLinksSchema.safeParse({ [key]: [link] }).success).toBe(
+        false,
+      );
+    },
+  );
+
+  it("never passes a __proto__ key through", () => {
+    const parsed = purchaseLinksSchema.safeParse(
+      JSON.parse('{"__proto__": [{"label": "x", "url": "https://a.example"}]}'),
+    );
+    expect(
+      parsed.success &&
+        Object.prototype.hasOwnProperty.call(parsed.data, "__proto__"),
+    ).toBe(false);
+  });
+
   it("rejects empty or blank labels, long labels and five links", () => {
     expect(ok([{ ...link, label: "" }])).toBe(false);
     expect(ok([{ ...link, label: "   " }])).toBe(false);
