@@ -86,6 +86,15 @@ import {
   type AutoCaptureState,
 } from "./autoCapture";
 import {
+  advanceCaptureFailures,
+  captureFailureHintText,
+  captureFailureLangAttribute,
+  hintUnderViewfinder,
+  pickCaptureFailureLanguage,
+  shouldShowCaptureFailureHint,
+  type CaptureFailureEvent,
+} from "./captureFailure";
+import {
   INITIAL_CUE_DEBOUNCE_STATE,
   advanceCueDebounce,
   type CueDebounceState,
@@ -489,6 +498,10 @@ export default function EasyScanCamera({
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
+  // Consecutive failed frame captures (captureFailure.ts): the number lives in
+  // the ref for the capture callback, and in state for the cue line.
+  const captureFailuresRef = useRef(0);
+  const [captureFailures, setCaptureFailures] = useState(0);
   // The stage is the whole screen and never changes shape (scan v2): its
   // size is measured only to place the guide and the frozen photo.
   const [stageSize, setStageSize] = useState<Size | null>(null);
@@ -805,6 +818,14 @@ export default function EasyScanCamera({
     };
   }, [stopStream]);
 
+  const noteCaptureOutcome = useCallback((event: CaptureFailureEvent) => {
+    captureFailuresRef.current = advanceCaptureFailures(
+      captureFailuresRef.current,
+      event,
+    );
+    setCaptureFailures(captureFailuresRef.current);
+  }, []);
+
   // Everything the loop carries from sample to sample, and what the screen
   // shows of it (the ring, the cue, the hint under it), back to the start.
   // Used when a loop begins and whenever the camera is asked for again: a
@@ -824,7 +845,8 @@ export default function EasyScanCamera({
     // What a screen reader was last told ("Photo taken", the last cue) is not
     // true of a camera that is starting again.
     setAnnounced("");
-  }, []);
+    noteCaptureOutcome("reset");
+  }, [noteCaptureOutcome]);
 
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -1196,8 +1218,10 @@ export default function EasyScanCamera({
     if (
       source === "frame" &&
       (!video || video.readyState < 2 || video.videoWidth === 0)
-    )
+    ) {
+      noteCaptureOutcome("failure");
       return;
+    }
     capturingRef.current = true;
     try {
       const firedAt = performance.now();
@@ -1269,8 +1293,9 @@ export default function EasyScanCamera({
           // No frame: the loop was not stopped and is still running, the busy
           // flag is reset by the `finally` below, and the ring starts over so
           // that the auto-shutter tries again after a full fill, not on every
-          // sample. Nothing is shown (no copy for this has been approved); a
-          // press of the shutter tries again at once.
+          // sample. Nothing is shown until the third failure in a row
+          // (captureFailure.ts); a press of the shutter tries again at once.
+          noteCaptureOutcome("failure");
           autoCaptureRef.current = resetAutoCapture();
           setRingFraction(0);
           return;
@@ -1291,8 +1316,15 @@ export default function EasyScanCamera({
           // No camera photo: the whole frame; the pipeline cuts it to the part
           // on screen (previewView).
           method = "canvas";
-          const frame = await frameFile(null);
+          let frame: File | null = null;
+          try {
+            frame = await frameFile(null);
+          } catch {
+            // A canvas that throws is a frame that was not made, as above.
+            frame = null;
+          }
           if (!frame) {
+            noteCaptureOutcome("failure");
             capturingRef.current = false;
             return;
           }
@@ -1300,6 +1332,7 @@ export default function EasyScanCamera({
         }
       }
 
+      noteCaptureOutcome("success");
       const previewUrl = URL.createObjectURL(file);
       // The camera keeps running while the photo is decoded, so the swap from
       // live picture to frozen picture happens in one step, under the flash.
@@ -1361,7 +1394,7 @@ export default function EasyScanCamera({
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
     }
-  }, [stopStream, runPipeline]);
+  }, [stopStream, runPipeline, noteCaptureOutcome]);
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1876,6 +1909,7 @@ export default function EasyScanCamera({
     restoreFocusRef.current = true;
     dismissTip();
     stopStream();
+    noteCaptureOutcome("reset");
     setCamState({ kind: "noCamera" });
     setLengthStep(true);
   };
@@ -1917,14 +1951,25 @@ export default function EasyScanCamera({
   const cueLabel = cue
     ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus })
     : "Point the camera at the paper";
-  const hintText =
+  // From the third failed frame capture in a row, the cue line says so instead
+  // of its usual words (same slot, same live region); it is plain text, so
+  // there is nothing to animate.
+  const captureFailureLanguage = shouldShowCaptureFailureHint(captureFailures)
+    ? pickCaptureFailureLanguage(navigator.languages, navigator.language)
+    : null;
+  const captureFailureHint = captureFailureLanguage
+    ? captureFailureHintText(captureFailureLanguage)
+    : null;
+  const hintText = hintUnderViewfinder(
     userLengthMm !== null
       ? ""
       : easyHintText({
           cueCode: cue?.code ?? null,
           ringFraction,
           tapToFocus: focusSupport.tapToFocus,
-        });
+        }),
+    captureFailures,
+  );
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
@@ -2358,11 +2403,19 @@ export default function EasyScanCamera({
           <>
             <div className="cameraCueWrap">
               <div
-                className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
+                className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
                 aria-live="polite"
                 data-testid="camera-cue"
+                data-capture-failure={captureFailureHint ? "true" : undefined}
+                lang={
+                  captureFailureLanguage
+                    ? captureFailureLangAttribute(captureFailureLanguage)
+                    : undefined
+                }
               >
-                {userLengthMm !== null ? (
+                {captureFailureHint ? (
+                  captureFailureHint
+                ) : userLengthMm !== null ? (
                   "Hand flat, fingers together, phone straight above"
                 ) : cue?.allPass ? (
                   <>
