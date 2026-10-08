@@ -5,7 +5,7 @@ import type { HandMeasurements } from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
-import { scoreFit } from "./score";
+import { scoreFitDefault } from "./engine";
 
 const scanIdSchema = z.string().uuid();
 
@@ -73,7 +73,7 @@ export async function loadOwnedFit(
   }
 
   const catalogue = await deps.fitRepo.loadCatalogue();
-  const engineOutput = scoreFit(
+  const engineOutput = scoreFitDefault(
     owned.measurements,
     catalogue,
     {
