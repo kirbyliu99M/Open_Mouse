@@ -90,10 +90,10 @@ caused one agent's uncommitted work to be committed by another.
    (`../Dataset/`) and is gitignored twice over; read it only from there, in a
    local script that never runs in CI. _Revised 2026-10-08 (Kirby's call):_ its
    values (dimensions, weight and shape descriptors) **may** be imported into the
-   seed catalogue through the import script, for the brands Kirby selected. Kirby
+   seed catalogue through the import script, for the brands Kirby selected, and only gaming mice currently on sale. Kirby
    made this call after being shown that EloShapes' terms prohibit copying and
    redistribution; the risk is his decision, recorded in `docs/STATUS.md`. Every
-   imported row carries `data_source`. Any other licensed data still never enters
+   imported row must carry a `data_source` field (not yet in the schema). Any other licensed data still never enters
    the repo.
 
 2. **The LLM never computes.** Every number a user sees originates in tested
@@ -147,4 +147,4 @@ caused one agent's uncommitted work to be committed by another.
 - [ ] CI green (and, when the PR adds a migration or needs a phone test, a Vercel preview Claude started with `npx vercel deploy` is READY)
 - [ ] Gate evidence posted as numbers (gated milestones)
 - [ ] **`docs/STATUS.md` updated by Claude after the merge** — milestone row, decisions, blockers (builders report these in the PR description instead)
-- [ ] No licensed data anywhere in the diff or in `git log -p`
+- [ ] No raw EloShapes CSV, and no licensed data other than the EloShapes values rule 1 allows, anywhere in the diff or in `git log -p`

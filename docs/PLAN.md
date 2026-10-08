@@ -17,7 +17,7 @@ Three facts shape the design:
 
 2. **Those 8 descriptors are enough to generate a mouse shell procedurally.** No product photos, no image licensing, no 1,260-asset pipeline.
 
-> _Superseded 2026-10-08 (Kirby's call), kept above as history:_ EloShapes values are now imported into the seed catalogue for the brands Kirby selected (gaming mice on sale, checked against each brand's official site), after Kirby was shown the ToS line in fact 1. Official product photos are served from `public/images/mice/` (Kirby's call; the non-affiliation statement is his). Logitech rows keep Logitech's published dimensions. Consequence: EloShapes is no longer an independent check of our own rubric. See `docs/STATUS.md`, decisions of 2026-10-08.
+> _Superseded 2026-10-08 (Kirby's call), kept above as history:_ EloShapes values are now imported into the seed catalogue for the brands Kirby selected (gaming mice on sale, to be checked against each brand's official site), after Kirby was shown the ToS line in fact 1. Official product photos are served from `public/images/mice/` (Kirby's call; the non-affiliation statement is his). Logitech rows keep Logitech's published dimensions (Claude's plan). Consequence (Claude's inference): EloShapes is no longer an independent check of our own rubric. See `docs/STATUS.md`, decisions of 2026-10-08.
 
 3. **MANO — the standard parametric hand model — is research-licence only**, so it's off the table for anything public. Generating our hand mesh in Blender from the MediaPipe skeleton sidesteps this entirely: no third-party asset, no licence question.
 
