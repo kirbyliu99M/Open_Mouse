@@ -8,10 +8,13 @@
  * minimal consumer updates that keep `main` green.
  */
 import { z } from "zod";
-import { SIZES } from "./descriptors";
+import { CATALOGUE_CATEGORIES, SIZES } from "./descriptors";
 
 export const GRIP_STYLES = ["palm", "claw", "fingertip"] as const;
 export type GripStyle = (typeof GRIP_STYLES)[number];
+
+export const HAND_TYPE_SIZES = ["small", "medium", "large"] as const;
+export const HAND_TYPE_WIDTHS = ["slim", "wide"] as const;
 
 export const SUBSCORES = [
   "length",
@@ -90,6 +93,10 @@ export const fitEntrySchema = z.strictObject({
     heightMm: z.number(),
     weightG: z.number().nullable(),
     size: z.enum(SIZES),
+    /** 2026-10-08, optional until every engine version fills it. */
+    category: z.enum(CATALOGUE_CATEGORIES).optional(),
+    /** Site-relative path of the official product photo, or null when none. */
+    imageUrl: z.string().startsWith("/").nullable().optional(),
   }),
   /**
    * Weighted mean over applicable sub-scores. A null (unknown) sub-score
@@ -118,7 +125,30 @@ export const fitResponseSchema = z.strictObject({
     predicted: z.enum(GRIP_STYLES),
     /** The one scoring used: stated when given, else predicted. */
     used: z.enum(GRIP_STYLES),
+    /**
+     * fit-v1 (candidate): how much each grip contributed when none was
+     * stated (sums to 1). Absent under fit-v0, which uses one grip only.
+     */
+    weights: z
+      .strictObject({
+        palm: z.number().min(0).max(1),
+        claw: z.number().min(0).max(1),
+        fingertip: z.number().min(0).max(1),
+      })
+      .optional(),
   }),
+  /**
+   * Display-only hand type (2026-10-08, candidate): the catalogue size class
+   * the target length falls in, the grip used, and wide vs slim. Anchored to
+   * mouse sizes, never a comparison with other people. Does not affect scores.
+   */
+  handType: z
+    .strictObject({
+      size: z.enum(HAND_TYPE_SIZES),
+      grip: z.enum(GRIP_STYLES),
+      width: z.enum(HAND_TYPE_WIDTHS),
+    })
+    .optional(),
   /** Engine targets for this hand + grip — the "ideal mouse" in numbers. */
   targets: z.strictObject({
     lengthMm: z.number(),
@@ -151,5 +181,6 @@ export const fitPreferencesSchema = z.strictObject({
 });
 
 export type FitEntry = z.infer<typeof fitEntrySchema>;
+export type HandType = NonNullable<FitResponse["handType"]>;
 export type FitResponse = z.infer<typeof fitResponseSchema>;
 export type FitPreferences = z.infer<typeof fitPreferencesSchema>;

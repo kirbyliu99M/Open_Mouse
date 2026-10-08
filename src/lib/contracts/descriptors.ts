@@ -43,6 +43,20 @@ export const CONNECTIVITY = ["wired", "wireless"] as const;
  */
 export const FORM_FACTORS = ["standard", "vertical", "trackball"] as const;
 
+/**
+ * Catalogue category (2026-10-08). `gaming` vs everything else; which rows are
+ * shown is a separate `listed` flag on the catalogue row, not a category.
+ */
+export const CATALOGUE_CATEGORIES = ["gaming", "office"] as const;
+export type CatalogueCategory = (typeof CATALOGUE_CATEGORIES)[number];
+
+/**
+ * Where a catalogue row's numbers came from (2026-10-08, AGENTS rule 1 as
+ * revised): a brand's own published specs, or the EloShapes import.
+ */
+export const DATA_SOURCES = ["first_party", "eloshapes"] as const;
+export type DataSource = (typeof DATA_SOURCES)[number];
+
 export type Size = (typeof SIZES)[number];
 export type Shape = (typeof SHAPES)[number];
 export type HandCompatibility = (typeof HAND_COMPATIBILITY)[number];
