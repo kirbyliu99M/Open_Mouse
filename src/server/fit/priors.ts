@@ -28,7 +28,9 @@ function mean(values: readonly number[]): number {
  * these two when no row has the descriptor, fall back to `UNKNOWN_PRIOR_SCORE`
  * (75), the v0 value.
  *
- * The caller passes the rows that can reach the engine (listed rows).
+ * The caller passes the rows that can reach the engine. Once CAT-1 adds a
+ * `listed` column, unlisted rows will never reach the engine; today every
+ * seeded row does.
  */
 export function computePriors(catalogue: readonly CatalogueMouse[]): Priors {
   const priors = {} as Priors;

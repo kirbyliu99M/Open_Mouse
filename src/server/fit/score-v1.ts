@@ -53,7 +53,7 @@ export function compareRankKeys(a: RankKey, b: RankKey): number {
     return b.totalRaw - a.totalRaw;
   }
   if (b.confidence !== a.confidence) return b.confidence - a.confidence;
-  if (a.lengthAbsDelta !== b.lengthAbsDelta) {
+  if (Math.abs(a.lengthAbsDelta - b.lengthAbsDelta) > TIE_EPSILON) {
     return a.lengthAbsDelta - b.lengthAbsDelta;
   }
   return a.model.localeCompare(b.model);

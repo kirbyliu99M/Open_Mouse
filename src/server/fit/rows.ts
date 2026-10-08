@@ -1,4 +1,4 @@
-import type { FitEntry } from "../../lib/contracts/fit";
+import type { FitEntry, Subscore } from "../../lib/contracts/fit";
 import { UNKNOWN_PRIOR_SCORE } from "./coefficients";
 
 /** One row for `fit_results`, before `id`/`createdAt` (DB-generated). */
@@ -33,6 +33,12 @@ export interface FitResultRow {
  * reads this row directly instead of through the API's `fitResponseSchema`
  * (which the route validates before ever calling this).
  *
+ * `nullScore` says what a null sub-score is stored as. It defaults to
+ * `UNKNOWN_PRIOR_SCORE` (v0's behaviour, unchanged). fit-v1 folds a null into
+ * its total with a catalogue-mean prior instead, so a caller running v1 passes
+ * that prior (see `storedNullScore` in ./engine); stored rows then agree with
+ * the totals. The column is a smallint, so the value is rounded.
+ *
  * Throws if a result's mouse slug has no entry in `mouseIdBySlug` — every
  * scored result came from the same catalogue load that built the map, so a
  * miss means the catalogue changed mid-request or the map was built wrong,
@@ -43,6 +49,7 @@ export function buildFitResultRows(
   engineVersion: string,
   results: readonly FitEntry[],
   mouseIdBySlug: ReadonlyMap<string, string>,
+  nullScore: (subscore: Subscore) => number = () => UNKNOWN_PRIOR_SCORE,
 ): FitResultRow[] {
   return results.map((entry) => {
     const mouseId = mouseIdBySlug.get(entry.mouse.slug);
@@ -52,19 +59,20 @@ export function buildFitResultRows(
       );
     }
     const s = entry.subscores;
-    const orPrior = (score: number | null) => score ?? UNKNOWN_PRIOR_SCORE;
+    const orPrior = (score: number | null, sub: Subscore) =>
+      score ?? Math.round(nullScore(sub));
     return {
       scanId,
       mouseId,
       engineVersion,
       rank: entry.rank,
       totalScore: entry.total,
-      lengthScore: orPrior(s.length.score),
-      gripWidthScore: orPrior(s.gripWidth.score),
-      heightHumpScore: orPrior(s.heightHump.score),
-      frontFlareScore: orPrior(s.frontFlare.score),
-      thumbScore: orPrior(s.thumb.score),
-      weightScore: orPrior(s.weight.score),
+      lengthScore: orPrior(s.length.score, "length"),
+      gripWidthScore: orPrior(s.gripWidth.score, "gripWidth"),
+      heightHumpScore: orPrior(s.heightHump.score, "heightHump"),
+      frontFlareScore: orPrior(s.frontFlare.score, "frontFlare"),
+      thumbScore: orPrior(s.thumb.score, "thumb"),
+      weightScore: orPrior(s.weight.score, "weight"),
       reasons: s,
     };
   });

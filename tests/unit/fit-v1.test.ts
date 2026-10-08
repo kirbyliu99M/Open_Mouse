@@ -301,6 +301,15 @@ describe("tie-break order", () => {
     ]);
   });
 
+  it("treats float noise in |length delta| as a tie, so the model name decides", () => {
+    expect(
+      order([
+        key({ model: "b", lengthAbsDelta: 2 }),
+        key({ model: "a", lengthAbsDelta: 2 + 1e-12 }),
+      ]),
+    ).toEqual(["a", "b"]);
+  });
+
   it("treats float noise in the total as a tie", () => {
     expect(
       order([
@@ -371,14 +380,13 @@ describe("continuity in palm length", () => {
     },
   );
 
-  it("v0's largest jump is reported, not asserted (it is far above 2)", () => {
+  it("v0's sweep runs (its jump is reported by scripts/fit-stability.ts, not asserted)", () => {
     const worst = Math.max(
       ...goldenHands.map(
         (g) => palmLengthSweep(scoreFit, seed, g.hand, g.measurements).maxJump,
       ),
     );
     expect(Number.isFinite(worst)).toBe(true);
-    console.info(`v0 largest palm-length sweep jump: ${worst} points`);
   });
 });
 

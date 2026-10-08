@@ -12,9 +12,9 @@ lives in `src/server/fit/coefficients.ts` only.
 | `hand`                                        | scan                                                 | left / right                                                                      |
 | `gripStyle`                                   | stated by the user (prefs or scan `gripStyleStated`) | overrides any prediction                                                          |
 | `weightG` range, `includeVertical`            | prefs                                                | optional                                                                          |
-| catalogue row                                 | `mice` (listed rows only)                            | dims, weight, shape, hand, hump, flare, curvature, thumb rest, form factor        |
+| catalogue row                                 | `mice` (once CAT-1 adds `listed`: listed rows only)  | dims, weight, shape, hand, hump, flare, curvature, thumb rest, form factor        |
 
-Rows with `listed = false` never reach the engine.
+Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every seeded row does.
 
 ## 2. Grip
 
@@ -48,7 +48,7 @@ Sub-scores and weights as v0 (length 0.30, grip width 0.25, height+hump 0.20, fr
 thumb 0.10, weight 0.05), with:
 
 - **Missing descriptor prior:** a null sub-score contributes `PRIOR[sub][g]` = the mean of that
-  sub-score over listed catalogue rows that have the descriptor, for grip g (computed once per
+  sub-score over the catalogue rows that reach the engine and have the descriptor, for grip g (computed once per
   catalogue load, passed in; falls back to 75 when no row has it). Confidence still counts it as
   missing.
 - Grip-width weight is halved only while `sideCurvature` is null (v0's rule, kept). The draft
@@ -100,7 +100,10 @@ jump > 2 points between neighbours).
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
 switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it stays `"v0"`. `fit_results` is unique
 on (scan, mouse, engineVersion), so no migration. Switching the default is a one-line change
-after Kirby's approval.
+in `DEFAULT_ENGINE` after Kirby's approval. That one line also switches what `fit_results` stores for a
+null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to `buildFitResultRows`,
+so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
+rows keep 75.
 
 ## 9a. Code map
 

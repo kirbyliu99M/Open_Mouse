@@ -157,7 +157,10 @@ export function scoreHeightHumpV1(
       HEIGHT_HUMP_HUMP_WEIGHT * humpScore,
     weight: BASE_WEIGHTS.heightHump,
     reason: {
-      code: heightScore < humpScore ? heightCode : humpCode,
+      // Compare rounded, as v0 does: with an unrounded height score a hump
+      // match would almost never be reported, because the height part is
+      // rarely exactly 100.
+      code: Math.round(heightScore) < humpScore ? heightCode : humpCode,
       params: { deltaMm, targetMm, humpLevelsOff: levelsOff },
     },
   };

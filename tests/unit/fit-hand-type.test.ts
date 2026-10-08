@@ -39,8 +39,10 @@ describe("handTypeStatsFromCatalogue", () => {
 });
 
 describe("classifyHandType", () => {
-  // The four golden hands, each read with the grip its ratio predicts. The
-  // expected values follow the spec rule: size = computeSize of the target
+  // The four golden hands, each read with the grip v0's hard cut predicts
+  // (r = 0.5787 for left_handed is claw there), then left_handed again with
+  // the palm grip that v1's soft weights report for it (what
+  // fit-golden-v1.json pins). The expected values follow the spec rule: size = computeSize of the target
   // mouse (fingertip read as small), width = target width / target length
   // against the seed's median.
   it.each([
@@ -48,6 +50,7 @@ describe("classifyHandType", () => {
     ["medium_claw", "claw", "small", "wide"],
     ["large_palm", "palm", "large", "slim"],
     ["left_handed", "claw", "small", "wide"],
+    ["left_handed", "palm", "medium", "slim"],
   ] as const)("%s read as %s", (name, grip, size, width) => {
     const m = (
       golden as Record<
