@@ -154,3 +154,34 @@ export const THUMB_SCORE = {
 
 /** §5 exclusions: height/length above this is a vertical form factor. */
 export const VERTICAL_FORM_FACTOR_RATIO = 0.55;
+
+// ── fit-v1 (candidate) ─────────────────────────────────────────────────────
+// Everything below belongs to the v1 candidate engine (docs/fit-algorithm.md).
+// Nothing above this line is read by v1 with a different meaning, and v0 reads
+// nothing below it. 未拍板: every number here is a candidate.
+
+/** Which engine the fit route uses. Switching it is the one-line change Kirby approves. */
+export type EngineId = "v0" | "v1";
+export const DEFAULT_ENGINE: EngineId = "v0";
+
+/** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
+export const ENGINE_VERSION_V1 = "fit-v1-candidate";
+
+/**
+ * Logistic scale `s` of the soft grip weights, on r = palmLength / handLength.
+ * The spec's first guess was 0.008, but at 0.008 a 0.5 mm palm-length step
+ * moved one mouse's total by 3 to 4 points on the golden hands; the sweep
+ * needs s of about 0.012 or more to stay within 2, and 0.016 leaves margin.
+ * Candidate (未拍板).
+ */
+export const GRIP_SOFTNESS = 0.016;
+
+/**
+ * Measurement standard deviations (mm) folded into every Gaussian as
+ * σ_eff = √(σ² + (k · σ_meas)²). Candidates, to be replaced by the M2
+ * repeatability numbers.
+ */
+export const SIGMA_MEAS_MM = {
+  handLength: 6,
+  palmWidth: 4,
+} as const;

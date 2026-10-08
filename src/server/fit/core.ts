@@ -5,7 +5,8 @@ import type { HandMeasurements } from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
-import { scoreFit } from "./score";
+import { scoreFitDefault, storedNullScore } from "./engine";
+import { DEFAULT_ENGINE } from "./coefficients";
 
 const scanIdSchema = z.string().uuid();
 
@@ -73,7 +74,7 @@ export async function loadOwnedFit(
   }
 
   const catalogue = await deps.fitRepo.loadCatalogue();
-  const engineOutput = scoreFit(
+  const engineOutput = scoreFitDefault(
     owned.measurements,
     catalogue,
     {
@@ -96,11 +97,13 @@ export async function loadOwnedFit(
       .filter((m): m is typeof m & { id: string } => m.id !== undefined)
       .map((m) => [m.slug, m.id] as const),
   );
+  const storedNull = storedNullScore(DEFAULT_ENGINE, catalogue);
   const rows = buildFitResultRows(
     scanId,
     engineOutput.engineVersion,
     engineOutput.results,
     mouseIdBySlug,
+    (sub) => storedNull(sub, engineOutput.gripStyle.used),
   );
   await deps.fitRepo.saveFitResults(rows);
 
