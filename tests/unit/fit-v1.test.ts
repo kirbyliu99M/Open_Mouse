@@ -393,11 +393,11 @@ describe("continuity in palm length", () => {
 });
 
 describe("engine version", () => {
-  it("labels itself fit-v1-candidate", () => {
-    expect(ENGINE_VERSION_V1).toBe("fit-v1-candidate");
+  it("labels itself fit-v1-candidate.2", () => {
+    expect(ENGINE_VERSION_V1).toBe("fit-v1-candidate.2");
     expect(
       scoreFitV1(hand, seed, prefs, "right", computePriors(seed)).engineVersion,
-    ).toBe("fit-v1-candidate");
+    ).toBe("fit-v1-candidate.2");
   });
 
   it("omits gripStyle.weights when a grip is stated, includes them otherwise", () => {

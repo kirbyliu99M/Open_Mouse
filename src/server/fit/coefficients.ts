@@ -165,7 +165,7 @@ export type EngineId = "v0" | "v1";
 export const DEFAULT_ENGINE: EngineId = "v0";
 
 /** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
-export const ENGINE_VERSION_V1 = "fit-v1-candidate";
+export const ENGINE_VERSION_V1 = "fit-v1-candidate.2";
 
 /**
  * Logistic scale `s` of the soft grip weights, on r = palmLength / handLength.
@@ -185,3 +185,14 @@ export const SIGMA_MEAS_MM = {
   handLength: 6,
   palmWidth: 4,
 } as const;
+
+/**
+ * CALIB-1: v1's thumb-rest adjustment for an ergonomic mouse with a thumb rest
+ * grows with the listed width: -(BASE + SLOPE * max(0, widthMm - FROM)) mm.
+ * Up to FROM mm it is the v0 constant (12 mm); above it, the wider side wings
+ * of MMO and large ergonomic mice cost more. v0 keeps
+ * `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`. Candidates (未拍板).
+ */
+export const THUMB_REST_BASE_MM = 12;
+export const THUMB_REST_WIDE_SLOPE = 0.5;
+export const THUMB_REST_WIDE_FROM_MM = 80;

@@ -4,6 +4,7 @@ import factsJson from "../../src/db/seed/logitech-facts.json";
 import { fitResponseSchema } from "../../src/lib/contracts/fit";
 import type { FitPreferences } from "../../src/lib/contracts/fit";
 import type { HandMeasurements } from "../../src/lib/contracts/measurement";
+import { ENGINE_VERSION_V1 } from "../../src/server/fit/coefficients";
 import { totalApplies } from "../../src/server/fit/exclusions";
 import { computePriors, type Priors } from "../../src/server/fit/priors";
 import { scoreFit } from "../../src/server/fit/score";
@@ -52,7 +53,7 @@ const v1: Engine = (catalogue, m, hand, prefs = PREFS, priors = seedPriors) =>
 
 const engines: [string, Engine, Record<string, Profile>][] = [
   ["fit-v0", v0, profilesV0],
-  ["fit-v1-candidate", v1, profilesV1],
+  [ENGINE_VERSION_V1, v1, profilesV1],
 ];
 
 /** Make a mouse the wrong hand for `hand`, whatever its shape was. */
@@ -254,7 +255,7 @@ describe("a left-hand-only mouse scored for a right hand", () => {
 
   it.each([
     ["fit-v0", v0],
-    ["fit-v1-candidate", v1],
+    [ENGINE_VERSION_V1, v1],
   ] as const)(
     "%s: gets the total its right-hand copy is ranked with",
     (_n, run) => {
@@ -318,7 +319,7 @@ describe("the weight preference reaches the excluded total", () => {
 
   it.each([
     ["fit-v0", v0],
-    ["fit-v1-candidate", v1],
+    [ENGINE_VERSION_V1, v1],
   ] as const)(
     "%s: the preference changes the ranked total, and the excluded copy follows it",
     (_n, run) => {
@@ -407,7 +408,7 @@ describe("a vertical or trackball exclusion", () => {
 
 describe.each([
   ["fit-v0", v0],
-  ["fit-v1-candidate", v1],
+  [ENGINE_VERSION_V1, v1],
 ] as const)("%s: wrong_hand total depends on the form factor", (_n, run) => {
   const measurements: HandMeasurements = {
     handLengthMm: 180,
