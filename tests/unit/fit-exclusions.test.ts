@@ -88,3 +88,51 @@ describe("excludeReason priority", () => {
     expect(excludeReason(m, "right", defaultPrefs)).toBe("wrong_hand");
   });
 });
+
+describe("excludeReason trackball form factor", () => {
+  it("excludes a trackball", () => {
+    expect(
+      excludeReason(mouse({ formFactor: "trackball" }), "right", defaultPrefs),
+    ).toBe("trackball_form_factor");
+  });
+
+  it("includeVertical does not bring a trackball back", () => {
+    expect(
+      excludeReason(mouse({ formFactor: "trackball" }), "right", {
+        includeVertical: true,
+      }),
+    ).toBe("trackball_form_factor");
+  });
+
+  it("reports wrong_hand over trackball_form_factor, and trackball over vertical", () => {
+    expect(
+      excludeReason(
+        mouse({ formFactor: "trackball", handCompatibility: "left" }),
+        "right",
+        defaultPrefs,
+      ),
+    ).toBe("wrong_hand");
+    expect(
+      excludeReason(
+        mouse({ formFactor: "trackball", heightMm: 80, lengthMm: 120 }),
+        "right",
+        defaultPrefs,
+      ),
+    ).toBe("trackball_form_factor");
+  });
+
+  it.each([undefined, "standard"] as const)(
+    "leaves formFactor %s alone",
+    (formFactor) => {
+      expect(
+        excludeReason(mouse({ formFactor }), "right", defaultPrefs),
+      ).toBeNull();
+    },
+  );
+
+  it("does not exclude on formFactor vertical in v0 (height over length decides)", () => {
+    expect(
+      excludeReason(mouse({ formFactor: "vertical" }), "right", defaultPrefs),
+    ).toBeNull();
+  });
+});

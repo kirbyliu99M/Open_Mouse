@@ -7,6 +7,7 @@ import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
 import { scoreFitDefault, storedNullScore } from "./engine";
 import { DEFAULT_ENGINE } from "./coefficients";
+import { listedOnly } from "./listed";
 
 const scanIdSchema = z.string().uuid();
 
@@ -73,7 +74,8 @@ export async function loadOwnedFit(
     return { status: "not_found" };
   }
 
-  const catalogue = await deps.fitRepo.loadCatalogue();
+  // Unlisted rows (CAT-1) leave here, before scoring and before the priors.
+  const catalogue = listedOnly(await deps.fitRepo.loadCatalogue());
   const engineOutput = scoreFitDefault(
     owned.measurements,
     catalogue,
