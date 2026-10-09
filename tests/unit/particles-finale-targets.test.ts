@@ -228,12 +228,21 @@ describe("sampleFinale", () => {
       const line = path.closed
         ? [...path.points, path.points[0]!]
         : path.points;
-      for (const p of desktop.points.slice(run.start, run.start + run.count)) {
+      const own = desktop.points.slice(run.start, run.start + run.count);
+      own.forEach((p, i) => {
         const off = distanceToPolyline([p.x, p.y], line);
+        const sc = FINALE_TIERS.desktop.scale;
         if (p.kind === KIND.satellite) {
-          // 1.8 to 6.3 px at the tier's scale, beside the line.
-          expect(off).toBeGreaterThan(1.7 / FINALE_TIERS.desktop.scale - 0.5);
-          expect(off).toBeLessThan(6.4 / FINALE_TIERS.desktop.scale);
+          // 1.8 to 6.3 px (at the tier's scale) across the line from the dust
+          // grain it follows, which is itself within 0.3 px of the line. (Its
+          // distance to the whole line can be less where the line bends back.)
+          const grain = own[i - 1]!;
+          expect(grain.kind).toBe(KIND.dust);
+          const m = Math.max(sc, 0.7);
+          const gap = distance([p.x, p.y], [grain.x, grain.y]);
+          expect(gap).toBeGreaterThan((1.8 * m - 0.3) / sc - 1e-9);
+          expect(gap).toBeLessThan((6.3 * m + 0.3) / sc + 1e-9);
+          expect(off).toBeLessThan((6.3 * m + 0.01) / sc);
         } else if (p.kind === KIND.rim) {
           expect(off).toBeLessThan(3.3 / FINALE_TIERS.desktop.scale + 0.01);
         } else if (p.kind === KIND.dust) {
@@ -242,7 +251,7 @@ describe("sampleFinale", () => {
         } else {
           expect(off).toBeLessThan(1e-6);
         }
-      }
+      });
     }
   });
 
