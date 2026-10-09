@@ -1,45 +1,118 @@
-import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page } from "@playwright/test";
+import { contrast } from "./fixtures/contrast";
 
-const STATEMENT =
-  "Not affiliated with Logitech. Sizes from Logitech's published specs.";
+// The merged footer (Pencil v17 / v18, 2026-10-10). Kirby: no explanatory text
+// in the footer for now, so the Early preview note and the non-affiliation
+// statement are gone from it (and so from the whole site).
+
+const HEADLINE = "Ready to Find Yours?";
+const GITHUB = "https://github.com/kirbyliu99M/Open_Mouse";
+const PHONE = { width: 390, height: 844 };
+const DESKTOP = { width: 1440, height: 900 };
+
+/** The six links in the order the footer lays them out: href and visible name. */
+const LINKS: readonly (readonly [href: string, name: string])[] = [
+  ["/scan/easy", "Scan"],
+  ["/learn", "Learn"],
+  ["/how-it-works", "How it works"],
+  ["/how-it-works#privacy", "Privacy"],
+  ["/account", "Account"],
+  [GITHUB, "GitHub"],
+];
+
+async function box(page: Page, name: string) {
+  const b = await page
+    .getByTestId("site-footer")
+    .getByRole("link", { name, exact: true })
+    .boundingBox();
+  if (!b) throw new Error(`no box for ${name}`);
+  return b;
+}
 
 test.describe("the site footer, in English", () => {
   for (const path of ["/", "/how-it-works", "/account"]) {
-    test(`${path} has the footer: name, preview note, four links, the statement once`, async ({
+    test(`${path} has the one merged footer: name, headline, three groups, six links`, async ({
       page,
     }) => {
       await page.goto(path);
       const footer = page.getByTestId("site-footer");
+      await expect(page.locator("footer")).toHaveCount(1);
       await expect(footer).toBeVisible();
       await expect(footer.getByText("Palmate", { exact: true })).toBeVisible();
-      await expect(footer).toContainText(
-        "Early preview · measurements are still being validated",
-      );
-      const links = footer.getByRole("navigation", { name: "Site links" });
-      await expect(
-        links.getByRole("link", { name: "How it works" }),
-      ).toHaveAttribute("href", "/how-it-works");
-      await expect(
-        links.getByRole("link", { name: "Privacy" }),
-      ).toHaveAttribute("href", "/how-it-works#privacy");
-      await expect(
-        links.getByRole("link", { name: "Account" }),
-      ).toHaveAttribute("href", "/account");
-      await expect(links.getByRole("link", { name: "GitHub" })).toHaveAttribute(
-        "href",
-        "https://github.com/kirbyliu99M/Open_Mouse",
-      );
-      // The Early preview note is on the whole page once, in the footer
-      // (Kirby, 2026-10-09).
-      await expect(page.getByText("Early preview")).toHaveCount(1);
-      await expect(footer.getByText("Early preview")).toHaveCount(1);
-      // Shown once on the page, not once in the footer and once in the page.
-      await expect(page.getByText(STATEMENT)).toHaveCount(1);
-      await expect(footer.getByText(STATEMENT)).toHaveCount(1);
+      // Kirby's own line, as a statement: not a link, not a button.
+      const headline = footer.getByText(HEADLINE, { exact: true });
+      await expect(headline).toBeVisible();
+      await expect(footer.getByRole("link", { name: HEADLINE })).toHaveCount(0);
+      await expect(footer.getByRole("button")).toHaveCount(0);
+
+      const nav = footer.getByRole("navigation", { name: "Site links" });
+      await expect(nav.getByRole("link")).toHaveCount(LINKS.length);
+      for (const [group, names] of [
+        ["Product", ["Scan", "Learn"]],
+        ["Trust", ["How it works", "Privacy"]],
+        ["Project", ["Account", "GitHub"]],
+      ] as const) {
+        await expect(
+          nav.getByRole("heading", { level: 2, name: group }),
+        ).toBeVisible();
+        // The list is named by its heading.
+        const list = nav.getByRole("list", { name: group });
+        await expect(list.getByRole("link")).toHaveText(names as never);
+      }
+      for (const [href, name] of LINKS) {
+        await expect(
+          nav.getByRole("link", { name, exact: true }),
+        ).toHaveAttribute("href", href);
+      }
+      // GitHub leaves the site: an ordinary external link, no new tab forced.
+      const github = nav.getByRole("link", { name: "GitHub" });
+      await expect(github).toHaveAttribute("rel", "noopener noreferrer");
+      // The other five stay on the site and carry no rel.
+      for (const [, name] of LINKS.filter(([, n]) => n !== "GitHub")) {
+        await expect(
+          nav.getByRole("link", { name, exact: true }),
+        ).not.toHaveAttribute("rel", /.+/);
+      }
       // English is the page's own language: nothing is marked zh-TW.
       await expect(footer.locator('[lang="zh-TW"]')).toHaveCount(0);
     });
   }
+
+  test("the footer carries no explanatory text: no Early preview note, no non-affiliation statement", async ({
+    page,
+  }) => {
+    for (const path of ["/", "/how-it-works", "/account"]) {
+      await page.goto(path);
+      const footer = page.getByTestId("site-footer");
+      await expect(footer).toBeVisible();
+      await expect(footer.getByText("Early preview")).toHaveCount(0);
+      await expect(footer.getByText("Not affiliated")).toHaveCount(0);
+      await expect(page.getByText("Not affiliated")).toHaveCount(0);
+    }
+  });
+
+  test("the decorative parts are hidden from assistive technology, and the background mount is empty", async ({
+    page,
+  }) => {
+    await page.goto("/how-it-works");
+    const footer = page.getByTestId("site-footer");
+    const backdrop = footer.getByTestId("site-footer-backdrop");
+    await expect(backdrop).toHaveAttribute("aria-hidden", "true");
+    expect(await backdrop.evaluate((el) => el.childElementCount)).toBe(0);
+    expect((await backdrop.evaluate((el) => el.textContent ?? "")).trim()).toBe(
+      "",
+    );
+    const mark = footer.locator("img");
+    await expect(mark).toHaveCount(1);
+    await expect(mark).toHaveAttribute("alt", "");
+    await expect(mark).toHaveAttribute("src", "/images/brand/palmate-mark.svg");
+    // Every icon is hidden from the reading order.
+    const icons = footer.locator("svg.siteFooter-icon");
+    await expect(icons).toHaveCount(LINKS.length);
+    for (let i = 0; i < LINKS.length; i += 1)
+      await expect(icons.nth(i)).toHaveAttribute("aria-hidden", "true");
+  });
 
   test("the Privacy link lands on the privacy card", async ({ page }) => {
     await page.goto("/");
@@ -51,13 +124,30 @@ test.describe("the site footer, in English", () => {
     await expect(page.locator("#privacy")).toBeVisible();
   });
 
-  test("the footer is below the content and the page does not scroll sideways", async ({
+  test("the Scan link goes to the same place as the home page's Scan button", async ({
     page,
   }) => {
-    for (const size of [
-      { width: 390, height: 844 },
-      { width: 1280, height: 720 },
-    ]) {
+    await page.goto("/");
+    const target = await page
+      .getByTestId("home-hero")
+      .getByRole("link", { name: "Scan my hand" })
+      .getAttribute("href");
+    await expect(
+      page
+        .getByTestId("site-footer")
+        .getByRole("link", { name: "Scan", exact: true }),
+    ).toHaveAttribute("href", target!);
+  });
+
+  for (const size of [
+    { width: 320, height: 640 },
+    { width: 375, height: 667 },
+    PHONE,
+    DESKTOP,
+  ]) {
+    test(`${size.width} px: the footer is below the content, the page does not scroll sideways, the mark covers no link`, async ({
+      page,
+    }) => {
       await page.setViewportSize(size);
       await page.goto("/how-it-works");
       expect(
@@ -72,39 +162,240 @@ test.describe("the site footer, in English", () => {
           .getBoundingClientRect().top,
       ]);
       expect(footerTop).toBeGreaterThanOrEqual(mainBottom);
+      // The brand mark must not sit on any link, and nothing in the footer
+      // may reach past the right edge.
+      const overlaps = await page.evaluate(() => {
+        const rect = (el: Element) => el.getBoundingClientRect();
+        const mark = rect(document.querySelector(".siteFooter-mark")!);
+        const hits: string[] = [];
+        for (const a of document.querySelectorAll(".siteFooter a")) {
+          const r = rect(a);
+          if (
+            r.left < mark.right &&
+            r.right > mark.left &&
+            r.top < mark.bottom &&
+            r.bottom > mark.top
+          )
+            hits.push(a.textContent ?? "");
+          if (r.right > window.innerWidth + 0.5)
+            hits.push(`edge: ${a.textContent}`);
+        }
+        return hits;
+      });
+      expect(overlaps).toEqual([]);
+    });
+  }
+
+  test("200 % text on a phone does not break the layout", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/how-it-works");
+    await page.addStyleTag({ content: "html { font-size: 200%; }" });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    // Every link is still fully inside the viewport's width.
+    for (const [, name] of LINKS) {
+      const b = await box(page, name);
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(375 + 0.5);
     }
   });
 
-  test("a link shows a focus ring from the keyboard", async ({ page }) => {
+  test("on a phone: Product and Trust side by side, Project below with Account on the left and GitHub on the right, rows 44 px", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
     await page.goto("/how-it-works");
-    const link = page
+    const [scan, learn, how, privacy, account, github] = await Promise.all(
+      LINKS.map(([, name]) => box(page, name)),
+    );
+    // Two columns: Product | Trust, rows aligned.
+    expect(scan!.x).toBeLessThan(how!.x);
+    expect(Math.abs(scan!.y - how!.y)).toBeLessThan(1);
+    expect(Math.abs(learn!.y - privacy!.y)).toBeLessThan(1);
+    expect(Math.abs(scan!.x - learn!.x)).toBeLessThan(1);
+    // The Project row is lower than both columns; Account left, GitHub right,
+    // on the same line.
+    expect(account!.y).toBeGreaterThan(learn!.y + learn!.height);
+    expect(Math.abs(account!.y - github!.y)).toBeLessThan(1);
+    expect(account!.x).toBeLessThan(github!.x);
+    // Touch rows are at least 44 px high.
+    for (const b of [scan, learn, how, privacy, account, github])
+      expect(b!.height).toBeGreaterThanOrEqual(44);
+    // The mark sits at the right, level with the two lines of text.
+    const mark = await page.locator(".siteFooter-mark").boundingBox();
+    const name = await page
       .getByTestId("site-footer")
-      .getByRole("link", { name: "Account" });
-    await link.focus();
-    expect(
-      await link.evaluate((el) => getComputedStyle(el).outlineStyle),
-    ).not.toBe("none");
+      .getByText("Palmate", { exact: true })
+      .boundingBox();
+    expect(mark!.x).toBeGreaterThan(PHONE.width / 2);
+    expect(Math.abs(mark!.width - 92)).toBeLessThan(1);
+    expect(mark!.y).toBeLessThanOrEqual(name!.y + 1);
   });
+
+  test("on a desktop: three groups side by side, 236 px wide each, in the order Product, Trust, Project", async ({
+    page,
+  }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/how-it-works");
+    const [scan, learn, how, privacy, account, github] = await Promise.all(
+      LINKS.map(([, name]) => box(page, name)),
+    );
+    expect(scan!.x).toBeLessThan(how!.x);
+    expect(how!.x).toBeLessThan(account!.x);
+    // Within a group the second link is below the first.
+    expect(learn!.y).toBeGreaterThan(scan!.y);
+    expect(privacy!.y).toBeGreaterThan(how!.y);
+    expect(github!.y).toBeGreaterThan(account!.y);
+    expect(Math.abs(learn!.x - scan!.x)).toBeLessThan(1);
+    // The groups are 236 px wide, 32 px apart.
+    const groups = await page.locator(".siteFooter-group").evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return [r.x, r.width] as const;
+      }),
+    );
+    for (const [, width] of groups)
+      expect(Math.abs(width - 236)).toBeLessThan(1);
+    expect(Math.abs(groups[1]![0] - groups[0]![0] - 236 - 32)).toBeLessThan(1);
+    // The mark is the large one, on the right of the groups.
+    const mark = await page.locator(".siteFooter-mark").boundingBox();
+    expect(Math.abs(mark!.width - 220)).toBeLessThan(1);
+    expect(mark!.x).toBeGreaterThan(github!.x + github!.width);
+  });
+
+  test("the keyboard reaches the links in the order they are laid out", async ({
+    page,
+  }) => {
+    for (const size of [PHONE, DESKTOP]) {
+      await page.setViewportSize(size);
+      await page.goto("/how-it-works");
+      await page
+        .getByTestId("site-footer")
+        .getByRole("link", { name: "Scan", exact: true })
+        .focus();
+      const seen: string[] = [];
+      for (let i = 0; i < LINKS.length; i += 1) {
+        seen.push(
+          await page.evaluate(
+            () => document.activeElement?.getAttribute("href") ?? "",
+          ),
+        );
+        await page.keyboard.press("Tab");
+      }
+      expect(seen, `${size.width} px`).toEqual(LINKS.map(([href]) => href));
+    }
+  });
+
+  test("every link shows a 2 px focus ring from the keyboard, fully drawn", async ({
+    page,
+  }) => {
+    for (const size of [PHONE, DESKTOP]) {
+      await page.setViewportSize(size);
+      await page.goto("/how-it-works");
+      for (const [, name] of LINKS) {
+        const link = page
+          .getByTestId("site-footer")
+          .getByRole("link", { name, exact: true });
+        await link.focus();
+        const ring = await link.evaluate((el) => {
+          const s = getComputedStyle(el);
+          return [s.outlineStyle, s.outlineWidth];
+        });
+        expect(ring, `${name} at ${size.width} px`).toEqual(["solid", "2px"]);
+        // Nothing clips it: no ancestor up to the footer hides overflow.
+        const clipped = await link.evaluate((el) => {
+          for (
+            let p = el.parentElement;
+            p && p.tagName !== "BODY";
+            p = p.parentElement
+          ) {
+            const o = getComputedStyle(p).overflow;
+            if (o !== "visible") return p.className || p.tagName;
+          }
+          return null;
+        });
+        expect(clipped, `${name} clipped by`).toBeNull();
+      }
+    }
+  });
+
+  test("the headings and links keep 4.5:1 on the footer's own colour", async ({
+    page,
+  }) => {
+    await page.goto("/how-it-works");
+    const c = await page.evaluate(() => {
+      const bg = getComputedStyle(
+        document.querySelector(".siteFooter")!,
+      ).backgroundColor;
+      const colour = (selector: string) =>
+        getComputedStyle(document.querySelector(selector)!).color;
+      return {
+        bg,
+        heading: colour(".siteFooter-groupTitle"),
+        link: colour(".siteFooter-group a"),
+        name: colour(".siteFooter-name"),
+        headline: colour(".siteFooter-headline"),
+        icon: colour(".siteFooter-icon"),
+      };
+    });
+    for (const key of ["heading", "link", "name", "headline", "icon"] as const)
+      expect(
+        contrast(c[key], c.bg),
+        `${key} ${c[key]} on ${c.bg}`,
+      ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("the fade above the footer takes no clicks", async ({ page }) => {
+    await page.goto("/how-it-works");
+    const style = await page.evaluate(() => {
+      const s = getComputedStyle(document.querySelector(".siteFooter-fade")!);
+      return [s.pointerEvents, s.position, s.zIndex];
+    });
+    expect(style).toEqual(["none", "absolute", "-1"]);
+  });
+
+  for (const size of [PHONE, DESKTOP]) {
+    test(`axe finds no WCAG 2.2 AA violation in the footer at ${size.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      await page.goto("/how-it-works");
+      await page.getByTestId("site-footer").scrollIntoViewIfNeeded();
+      const result = await new AxeBuilder({ page })
+        .include('[data-testid="site-footer"]')
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(
+        result.violations.map((v) => `${v.id}: ${v.nodes.length}`),
+      ).toEqual([]);
+    });
+  }
 });
 
 test.describe("the site footer, for a browser that prefers Chinese", () => {
   test.use({ locale: "zh-TW" });
 
-  test("switches to zh-TW after mount and marks that text lang=zh-TW", async ({
+  test("switches to zh-TW after mount, marks that text lang=zh-TW, keeps the headline as written", async ({
     page,
   }) => {
     await page.goto("/how-it-works");
     const footer = page.getByTestId("site-footer");
-    await expect(footer.getByRole("link", { name: "運作方式" })).toBeVisible();
-    await expect(footer.getByRole("link", { name: "隱私" })).toBeVisible();
-    await expect(footer.getByRole("link", { name: "帳號" })).toBeVisible();
-    await expect(footer).toContainText("Early preview · 量測仍在驗證中");
+    for (const name of ["掃描", "學習", "運作方式", "隱私", "帳號", "GitHub"])
+      await expect(
+        footer.getByRole("link", { name, exact: true }),
+      ).toBeVisible();
+    for (const name of ["產品", "信任", "專案"])
+      await expect(
+        footer.getByRole("heading", { level: 2, name }),
+      ).toBeVisible();
     await expect(footer.locator('[lang="zh-TW"]')).not.toHaveCount(0);
-    // The statement is not translated yet (Kirby is writing it): English, unmarked.
-    const statement = footer.getByText(STATEMENT);
-    await expect(statement).toHaveCount(1);
-    expect(await statement.getAttribute("lang")).toBeNull();
-    // No hydration complaint.
+    // Kirby's own line is shown as he wrote it, in either language.
+    await expect(footer.getByText(HEADLINE, { exact: true })).toBeVisible();
+    await expect(footer).not.toContainText("Early preview");
+    await expect(footer).not.toContainText("Not affiliated");
   });
 });
 
@@ -128,31 +419,71 @@ test.describe("pages with their own print layout have no footer", () => {
   }
 });
 
-test("on paper the footer prints dark text on white", async ({ page }) => {
+test("on paper the footer prints dark text on white, with no fade, glow or mark", async ({
+  page,
+}) => {
   await page.goto("/how-it-works");
   await page.emulateMedia({ media: "print" });
   const colours = await page.evaluate(() =>
     [
       ".siteFooter-name",
-      ".siteFooter-preview",
-      ".siteFooter-links a",
-      ".siteFooter-statement",
+      ".siteFooter-headline",
+      ".siteFooter-groupTitle",
+      ".siteFooter-group a",
     ].map((selector) => {
       const el = document.querySelector(selector)!;
       return [selector, getComputedStyle(el).color] as const;
     }),
   );
   for (const [selector, colour] of colours) {
-    const [r, g, b] = colour.match(/\d+/g)!.map(Number) as [
-      number,
-      number,
-      number,
-    ];
-    expect(r + g + b, `${selector} ${colour}`).toBeLessThan(3 * 128);
+    expect(contrast(colour, "rgb(255, 255, 255)"), selector).toBeGreaterThan(7);
   }
-  const bg = await page.evaluate(
-    () =>
-      getComputedStyle(document.querySelector(".siteFooter")!).backgroundColor,
-  );
-  expect(["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"]).toContain(bg);
+  const facts = await page.evaluate(() => {
+    const footer = document.querySelector(".siteFooter")!;
+    return {
+      bg: getComputedStyle(footer).backgroundColor,
+      before: getComputedStyle(document.querySelector(".siteFooter-fade")!)
+        .display,
+      after: getComputedStyle(document.querySelector(".siteFooter-horizon")!)
+        .display,
+      mark: getComputedStyle(document.querySelector(".siteFooter-mark")!)
+        .display,
+    };
+  });
+  expect(["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"]).toContain(facts.bg);
+  expect([facts.before, facts.after, facts.mark]).toEqual([
+    "none",
+    "none",
+    "none",
+  ]);
+});
+
+test.describe("with more contrast asked for", () => {
+  test.use({ contrast: "more" });
+  test("the fade and the glow are gone and the edge is a line", async ({
+    page,
+  }) => {
+    await page.goto("/how-it-works");
+    const facts = await page.evaluate(() => {
+      const footer = document.querySelector(".siteFooter")!;
+      const s = getComputedStyle(footer);
+      return {
+        before: getComputedStyle(document.querySelector(".siteFooter-fade")!)
+          .display,
+        after: getComputedStyle(document.querySelector(".siteFooter-horizon")!)
+          .display,
+        glow: getComputedStyle(
+          document.querySelector(".siteFooter-mark")!,
+          "::before",
+        ).display,
+        border: s.borderTopWidth,
+      };
+    });
+    expect(facts).toEqual({
+      before: "none",
+      after: "none",
+      glow: "none",
+      border: "1px",
+    });
+  });
 });

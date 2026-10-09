@@ -9,8 +9,9 @@ import { contrast } from "./fixtures/contrast";
 test.use({ reducedMotion: "reduce" });
 
 const CAPTION = "G Pro X Superlight 2 · sketch";
-// Kirby, 2026-10-09: the note is on the whole site once, in the site footer.
-const PREVIEW_NOTE = "Early preview · measurements are still being validated";
+// Kirby, 2026-10-10: the site footer carries no explanatory text for now, so
+// the Early preview note and the non-affiliation statement appear nowhere on
+// the site until he decides where they go.
 
 test("home shows the headline, the story's three parts and the CTA destinations", async ({
   page,
@@ -46,12 +47,9 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   const body = page.getByRole("main");
   await expect(body.getByRole("link", { name: "Scan my hand" })).toHaveCount(2);
   await expect(body.getByRole("link", { name: "How it works" })).toHaveCount(2);
-  // The Early preview note is on the page exactly once, in the footer.
-  await expect(page.getByText(PREVIEW_NOTE)).toHaveCount(1);
-  await expect(body.getByText(PREVIEW_NOTE)).toHaveCount(0);
-  await expect(
-    page.getByTestId("site-footer").getByText(PREVIEW_NOTE),
-  ).toHaveCount(1);
+  // The Early preview note is not on the page at all for now (Kirby,
+  // 2026-10-10): not in the body, not in the footer.
+  await expect(page.getByText("Early preview")).toHaveCount(0);
   await expect(page.locator(".landing-preview-note")).toHaveCount(0);
   const footerLinks = page
     .getByTestId("site-footer")
@@ -65,16 +63,8 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   for (let i = 0; i < 3; i += 1) await expect(captions.nth(i)).toBeVisible();
   await expect(page.locator(".story-mouse img")).toHaveCount(3);
 
-  // The statement lives in the site footer (root layout), once, with its
-  // words unchanged until Kirby writes the real one.
-  await expect(
-    page.getByText(
-      "Not affiliated with Logitech. Sizes from Logitech's published specs.",
-    ),
-  ).toHaveCount(1);
-  await expect(page.getByTestId("site-footer")).toContainText(
-    "Not affiliated with Logitech. Sizes from Logitech's published specs.",
-  );
+  // Nor is the non-affiliation statement (removed with the note, 2026-10-10).
+  await expect(page.getByText("Not affiliated with Logitech")).toHaveCount(0);
   await expect(page.locator(".landing-footer")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -227,12 +217,10 @@ test("print: text that takes its colour from a token prints dark on the white pa
       "h1 (--text-primary)": colour("h1"),
       "wordmark (--text-primary)": colour(".home-wordmark"),
       "subhead (--text-secondary)": colour(".home-subhead"),
-      "footer Early preview note (--text-tertiary)": colour(
-        ".siteFooter-preview",
-      ),
+      "footer headline (--text-primary)": colour(".siteFooter-headline"),
       "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
-      "footer statement (--text-tertiary)": colour(".siteFooter-statement"),
-      "footer link (--text-secondary)": colour(".siteFooter-links a"),
+      "footer group title (--footer-heading)": colour(".siteFooter-groupTitle"),
+      "footer link (--footer-link)": colour(".siteFooter-group a"),
       "Sign in (--text-secondary)": colour(".home-signin-link"),
     };
   });

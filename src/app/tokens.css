@@ -31,6 +31,12 @@
   --sketch-line: #cfe0ff; /* primary strokes, 15.1:1 on --bg */
   --sketch-line-detail: #6e9bf5; /* detail strokes */
   --glow: #3b82f6; /* up to 40 %; decorative */
+
+  /* The merged footer (Pencil v17/v18, 2026-10-10). All candidate (未拍板). */
+  --footer-bg: #0f1726;
+  --footer-heading: #9aa3b5;
+  --footer-link: #c4ccdc;
+  --footer-line: #ffffff14; /* the divider above the phone's Project row */
 }
 
 @media (prefers-contrast: more) {
@@ -38,6 +44,7 @@
     --control-border: #8a8a8f;
     --hairline: #8a8a8f;
     --glow: transparent;
+    --footer-line: #8a8a8f;
   }
 }
 
@@ -58,5 +65,9 @@
     --sketch-line: #1a5cd0;
     --sketch-line-detail: #1a5cd0;
     --glow: transparent;
+    --footer-bg: #ffffff;
+    --footer-heading: #404040;
+    --footer-link: #262626;
+    --footer-line: #00000040;
   }
 }
