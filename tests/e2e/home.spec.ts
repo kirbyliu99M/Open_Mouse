@@ -41,9 +41,17 @@ test("home shows the headline, the story's three parts and the CTA destinations"
       PREVIEW_NOTE,
     );
   }
-  await expect(page.getByRole("link", { name: "Scan my hand" })).toHaveCount(2);
-  await expect(page.getByRole("link", { name: "How it works" })).toHaveCount(2);
-  await expect(page.getByText(PREVIEW_NOTE)).toHaveCount(2);
+  // Counted in the page body: the site footer (root layout) has a "How it
+  // works" link of its own, checked below.
+  const body = page.getByRole("main");
+  await expect(body.getByRole("link", { name: "Scan my hand" })).toHaveCount(2);
+  await expect(body.getByRole("link", { name: "How it works" })).toHaveCount(2);
+  await expect(body.getByText(PREVIEW_NOTE)).toHaveCount(2);
+  const footerLinks = page
+    .getByTestId("site-footer")
+    .getByRole("link", { name: "How it works" });
+  await expect(footerLinks).toHaveCount(1);
+  await expect(footerLinks).toHaveAttribute("href", "/how-it-works");
 
   // The three mice: each one's name is real text under its sketch.
   const captions = page.getByText(CAPTION);
