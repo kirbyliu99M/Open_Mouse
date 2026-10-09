@@ -21,6 +21,8 @@ export interface UsableSession extends SessionRecord {
 export interface OwnedScan {
   hand: ScanSubmission["hand"];
   gripStyleStated: ScanSubmission["gripStyleStated"] | null;
+  /** null = the user skipped the question. Never defaulted to "medium". */
+  palmThicknessStated: ScanSubmission["palmThicknessStated"] | null;
   measurements: HandMeasurements;
 }
 
@@ -42,6 +44,9 @@ export interface ScanInsertInput {
   sessionId: string;
   hand: ScanSubmission["hand"];
   gripStyleStated: ScanSubmission["gripStyleStated"] | null;
+  /** null = the user skipped the question (the field was absent). Stored as
+   * NULL; never defaulted to "medium". */
+  palmThicknessStated: ScanSubmission["palmThicknessStated"] | null;
   measurements: HandMeasurements;
   /** `calibration.cardScaleRatio` — sheet-vs-card scale agreement; null
    * for a plain-paper scan, which has no card. */

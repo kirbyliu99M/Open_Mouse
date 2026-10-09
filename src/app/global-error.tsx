@@ -3,6 +3,7 @@
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
 import { ACTIONS, GLOBAL_ERROR_COPY } from "@/components/errors/copy";
 import { reloadPage } from "@/components/errors/reload";
+import { ReportError } from "@/components/errors/ReportError";
 
 /**
  * The last resort: an error in the root layout itself. It replaces the whole
@@ -13,6 +14,8 @@ import { reloadPage } from "@/components/errors/reload";
  * "Try again" reloads the page. It does NOT call `reset()` (the prop Next
  * passes): that re-renders with the payload the boundary already holds, which
  * for a server-side failure is the failure itself. See reload.ts.
+ *
+ * `<ReportError>` sends the error to Sentry.
  */
 export default function GlobalError({
   error,
@@ -27,6 +30,7 @@ export default function GlobalError({
         <meta name="robots" content="noindex, nofollow" />
       </head>
       <body className="errorBody">
+        <ReportError error={error} />
         <ErrorScreen
           eyebrow={GLOBAL_ERROR_COPY.eyebrow}
           title={GLOBAL_ERROR_COPY.title}

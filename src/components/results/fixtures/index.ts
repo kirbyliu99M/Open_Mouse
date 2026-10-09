@@ -8,25 +8,30 @@
 import { fitResponseSchema, type FitResponse } from "@/lib/contracts/fit";
 import highConfidenceRaw from "./high-confidence.json";
 import lowConfidenceRaw from "./low-confidence.json";
+import manyResultsRaw from "./many-results.json";
 import withExclusionsRaw from "./with-exclusions.json";
 
 export type FixtureKey =
-  "high-confidence" | "low-confidence" | "with-exclusions";
+  "high-confidence" | "low-confidence" | "with-exclusions" | "many-results";
 
 export const FIXTURES: Record<FixtureKey, FitResponse> = {
   "high-confidence": fitResponseSchema.parse(highConfidenceRaw),
   "low-confidence": fitResponseSchema.parse(lowConfidenceRaw),
   "with-exclusions": fitResponseSchema.parse(withExclusionsRaw),
+  // Eight ranked mice, two excluded, and a hand type: the full layout.
+  "many-results": fitResponseSchema.parse(manyResultsRaw),
 };
 
 export const FIXTURE_LABELS: Record<FixtureKey, string> = {
   "high-confidence": "High confidence",
   "low-confidence": "Low confidence (nulls)",
   "with-exclusions": "With exclusions",
+  "many-results": "Many mice + hand type",
 };
 
 export const FIXTURE_KEYS: FixtureKey[] = [
   "high-confidence",
   "low-confidence",
   "with-exclusions",
+  "many-results",
 ];

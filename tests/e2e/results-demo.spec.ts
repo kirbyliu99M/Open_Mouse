@@ -1,4 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+/** Details is closed by default; open it to reach the scores and the analysis. */
+async function openDetails(page: Page) {
+  const details = page.locator(".results-details");
+  await details.locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+}
 
 test.describe("/results/demo", () => {
   test("presentation fixture shows six top scores, unrated tracks, and plain reasons", async ({
@@ -8,8 +15,8 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByRole("link", { name: /scan again/i }),
     ).toHaveAttribute("href", "/scan/easy");
-    await expect(page.getByText("Your matches")).toBeVisible();
-    const scores = page.locator(".results-topPick .results-subscoreBar");
+    await openDetails(page);
+    const scores = page.locator(".results-details .results-subscoreBar");
     await expect(scores).toHaveCount(6);
     const unrated = scores.filter({
       has: page.locator('.results-subscoreBar-value:text-is("—")'),
@@ -29,42 +36,36 @@ test.describe("/results/demo", () => {
       /descriptor_unknown|shape-classified|logitech-mx-master-3s|fallback|gemini|llm/i,
     );
   });
-  test("top-pick header shows the total as a big number, drops the old meta row, and shows one honest statement about unrated shape", async ({
+
+  test("the header shows the total as a big number, with its label and band, and one honest statement about unrated shape", async ({
     page,
   }) => {
     await page.goto("/results/demo?presentation=1");
 
     // The big score is the fit entry's real total (55 in low-confidence.json,
     // the fixture this presentation view uses), not any other number on the
-    // card.
-    await expect(page.locator(".results-topPick-scoreValue")).toHaveText("55");
-    await expect(page.locator(".results-topPick-scoreLabel")).toHaveText(
+    // page.
+    await expect(page.locator(".results-score-value")).toHaveText("55");
+    await expect(page.locator(".results-score-label")).toHaveText(
       "fit score / 100",
     );
+    await expect(page.locator(".results-band")).toHaveText("A fair fit");
+    await expect(page.locator(".results-score-rank")).toHaveText(
+      "#1 · Logitech",
+    );
 
-    // "Best match" and the old Size/Weight/Fit score/Confidence row are gone
-    // from the top-pick card (item 1).
-    await expect(
-      page.locator(".results-topPick").getByText("Best match", {
-        exact: true,
-      }),
-    ).toHaveCount(0);
-    await expect(
-      page.locator(".results-topPick .results-mouseHeader-stats"),
-    ).toHaveCount(0);
-
-    // Only the "leans on its size" line appears — not also the generic
+    // Only the "leans on its size" line appears, not also the generic
     // low-confidence note (item 2).
-    await expect(page.locator(".results-sizeNotice")).toBeVisible();
-    await expect(
-      page.locator(".results-topPick .results-confidenceNote"),
-    ).toHaveCount(0);
+    await expect(page.locator(".results-sizeNotice")).toHaveCount(1);
+    await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
 
-    // The old per-reason "Why it fits" cards are gone (item 3) — the plain
-    // per-subscore sentences (SubscoreBar's own reason text) are the only
-    // place those reasons appear now.
-    await expect(page.locator(".results-topPick-reasons")).toHaveCount(0);
+    // The old per-reason "Why it fits" cards stay gone: plain lines under
+    // "Why this mouse" instead, one per sub-score that has a score. This
+    // fixture (low-confidence.json) rates only two of the six (length 70,
+    // thumb 60; the other four are null), and `topReasons` never shows an
+    // unrated sub-score as a reason, so there are two lines, not three.
     await expect(page.getByText("Why it fits")).toHaveCount(0);
+    await expect(page.locator(".results-why-list li")).toHaveCount(2);
   });
 
   test("renders each fixture with no console errors", async ({ page }) => {
@@ -77,40 +78,54 @@ test.describe("/results/demo", () => {
     const response = await page.goto("/results/demo");
     expect(response?.status()).toBe(200);
     await expect(page).toHaveTitle(/Results \(mock data\)/);
-    // The dev-controls label is styled like a heading but isn't one —
-    // ResultsView below supplies the page's one real h1 (item 5).
+    // The dev-controls label is styled like a heading but isn't one: the
+    // results page below supplies the page's one real h1 (item 5).
     await expect(page.getByText("Results (mock data)")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 
-    // High confidence (default): top pick visible with its scores heading,
-    // and no "not yet assessed" placeholder for the top pick.
+    // High confidence (default): no hand type in the response (what fit-v0
+    // sends), so the model name is the h1 and there is no hand block.
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
+    await expect(page.locator(".results-hand")).toHaveCount(0);
+    await openDetails(page);
     await expect(page.getByText("How it scores")).toBeVisible();
 
-    // Low confidence: with unrated shape scores, the top pick shows the
-    // "leans on its size" line rather than the generic confidence note —
-    // one honest statement, not two (item 2).
+    // Low confidence: with unrated shape scores, the page shows the "leans on
+    // its size" line rather than the generic confidence note: one honest
+    // statement, not two (item 2).
     await page.getByRole("button", { name: "Low confidence (nulls)" }).click();
     await expect(
-      page.getByRole("heading", { level: 2, name: /MX Master 3S/ }),
+      page.getByRole("heading", { level: 1, name: /MX Master 3S/ }),
     ).toBeVisible();
+    await openDetails(page);
     await expect(page.locator(".results-sizeNotice")).toContainText(
       "leans on its size",
     );
-    await expect(
-      page.locator(".results-topPick").getByRole("status"),
-    ).toHaveCount(0);
+    await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
 
-    // With exclusions: the "Not shown" group lists the excluded mice.
+    // With exclusions: "Other mice" holds the excluded mice, closed.
     await page.getByRole("button", { name: "With exclusions" }).click();
     await expect(
-      page.getByRole("heading", { level: 2, name: /Xlite V3 Mini/ }),
+      page.getByRole("heading", { level: 1, name: /Xlite V3 Mini/ }),
     ).toBeVisible();
-    const excludedToggle = page.getByRole("button", { name: /Not shown/ });
-    await expect(excludedToggle).toBeVisible();
-    await expect(excludedToggle).toHaveAttribute("aria-expanded", "false");
+    const others = page.locator(".results-otherMice");
+    await expect(others).not.toHaveAttribute("open", "");
+    await expect(others.locator("summary")).toContainText("Other mice (2)");
+    await others.locator("summary").click();
+    await expect(page.locator(".results-excluded-list li")).toHaveCount(2);
+
+    // Many mice: a hand type, ranks six onward, and the excluded last.
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+    await expect(page.locator(".results-hand-title")).toHaveText(
+      "Medium mouse · Claw grip · Wide",
+    );
+    // With a hand type the hand title is the one h1 and the model is an h2.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.locator(".results-otherMice summary")).toContainText(
+      "Other mice (5)",
+    );
 
     expect(errors).toEqual([]);
   });
@@ -121,58 +136,140 @@ test.describe("/results/demo", () => {
     // high-confidence.json (the default fixture) sends weight_in_range with
     // { minG: 55, maxG: 60 } for the top pick, so the sentence names the range.
     await page.goto("/results/demo");
-    const topPick = page.locator(".results-topPick");
+    await openDetails(page);
+    const details = page.locator(".results-details");
     await expect(
-      topPick.getByText("Weight is within your preferred range (55–60 g).", {
+      details.getByText("Weight is within your preferred range (55–60 g).", {
         exact: true,
       }),
     ).toBeVisible();
     // It never claims a difference for a weight that is inside the range.
-    await expect(topPick).not.toContainText(/heavier than you prefer/i);
-    await expect(topPick).not.toContainText(/lighter than you prefer/i);
+    await expect(details).not.toContainText(/heavier than you prefer/i);
+    await expect(details).not.toContainText(/lighter than you prefer/i);
   });
 
-  test("expands and collapses the ranked list with the keyboard", async ({
+  test("Details and Other mice open and close with the keyboard, closed by default", async ({
     page,
   }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
 
     await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
 
-    const toggle = page.getByRole("button", {
-      name: /Show the other 3 ranked mice/,
-    });
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    for (const [selector, hidden] of [
+      [".results-details", ".results-subscoreGrid"],
+      [".results-otherMice", ".results-otherMice-list"],
+    ] as const) {
+      const section = page.locator(selector);
+      const summary = section.locator("summary");
+      await expect(section).not.toHaveAttribute("open", "");
+      await expect(section.locator(hidden)).toBeHidden();
 
-    await toggle.focus();
-    await expect(toggle).toBeFocused();
-    await page.keyboard.press("Enter");
+      await summary.focus();
+      await expect(summary).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(section).toHaveAttribute("open", "");
+      await expect(section.locator(hidden)).toBeVisible();
 
-    const opened = page.getByRole("button", {
-      name: /Hide the other 3 ranked mice/,
-    });
-    await expect(opened).toHaveAttribute("aria-expanded", "true");
-    await expect(
-      page.getByRole("heading", { level: 3, name: /DeathAdder V3/ }),
-    ).toBeVisible();
-
-    await page.keyboard.press("Enter");
-    const closed = page.getByRole("button", {
-      name: /Show the other 3 ranked mice/,
-    });
-    await expect(closed).toHaveAttribute("aria-expanded", "false");
+      await page.keyboard.press("Enter");
+      await expect(section).not.toHaveAttribute("open", "");
+    }
 
     expect(errors).toEqual([]);
+  });
+
+  test("the other picks are cards: choosing one shows that mouse in the same layout", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+
+    const cards = page.locator(".results-card");
+    await expect(cards).toHaveCount(4);
+    await expect(page.locator(".results-others-caption")).toHaveText(
+      "Tap any pick to see a results page with the same layout.",
+    );
+    await cards.filter({ hasText: "G309" }).click();
+
+    await expect(page.locator(".results-score-rank")).toHaveText(
+      "#3 · Logitech",
+    );
+    await expect(page.locator(".results-score-model")).toHaveText("G309");
+    // Rank 1 is among the other picks now, and this mouse is not.
+    await expect(cards).toHaveCount(4);
+    await expect(cards.first()).toContainText("G Pro X Superlight 2");
+    await expect(cards.filter({ hasText: "G309" })).toHaveCount(0);
+  });
+
+  test("a mouse beyond the top five has a row, not a page", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+    await page.locator(".results-otherMice summary").click();
+    const rows = page.locator(".results-otherMice-row");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.first()).toContainText("Pulsar X2");
+    await expect(rows.first()).toContainText("77");
+    await expect(rows.locator("a, button")).toHaveCount(0);
+    // The excluded mice come after the ranked rows, each with its reason.
+    const last = await page.evaluate(() => {
+      const row = document.querySelector(".results-otherMice-row:last-child")!;
+      const excluded = document.querySelector(".results-excluded-list")!;
+      return Boolean(
+        row.compareDocumentPosition(excluded) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+    expect(last).toBe(true);
+    await expect(page.locator(".results-excluded-reason").first()).toHaveText(
+      "Vertical mouse: our scoring doesn't cover this shape yet",
+    );
+    // A wrong-hand mouse says which hand it is made for, and carries its score;
+    // the vertical one has no number and no placeholder.
+    const [vertical, wrongHand] = await page
+      .locator(".results-excluded-list li")
+      .all();
+    await expect(vertical.locator(".results-excluded-score")).toHaveCount(0);
+    await expect(vertical).not.toContainText(/\d/);
+    await expect(wrongHand.locator(".results-excluded-reason")).toHaveText(
+      "Made for the left hand",
+    );
+    await expect(wrongHand.locator(".results-excluded-score")).toHaveText(
+      "58 / 100",
+    );
+    // The number is labelled as the score of the mirrored shape, on one line.
+    await expect(wrongHand.locator(".results-excluded-mirror")).toHaveText(
+      "as a right-hand shape: 58 / 100",
+    );
+    const mirror = await wrongHand
+      .locator(".results-excluded-mirror")
+      .boundingBox();
+    const fontSize = await wrongHand
+      .locator(".results-excluded-mirror")
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    // One line: well under two lines of text, whatever the line height.
+    expect(mirror!.height).toBeLessThan(fontSize * 2);
+    // No excluded row is a link.
+    await expect(
+      page.locator(".results-excluded-list a, .results-excluded-list button"),
+    ).toHaveCount(0);
+    // No early-preview notice on the page (the site footer carries it).
+    await expect(page.locator(".results-previewNotice")).toHaveCount(0);
   });
 
   test("Written analysis slot preview shows loading, error and ready states without affecting numeric results", async ({
     page,
   }) => {
     await page.goto("/results/demo");
+    await openDetails(page);
 
     await page.getByRole("button", { name: "Loading", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText(/Preparing/);
+    // The analysis card is a status region; scoped to it, as the page has others.
+    await expect(page.locator(".results-analysis-loading")).toContainText(
+      /Preparing/,
+    );
 
     await page.getByRole("button", { name: "Error", exact: true }).click();
     await expect(
@@ -180,12 +277,12 @@ test.describe("/results/demo", () => {
     ).toContainText(/unaffected/);
     // The numeric top pick is still fully there while the analysis errored.
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Ready", exact: true }).click();
     await expect(
-      page.getByRole("heading", { level: 2, name: "Why this one" }),
+      page.getByRole("heading", { level: 3, name: "Why this one" }),
     ).toBeVisible();
     await expect(
       page.getByText("A close match for your palm grip"),
@@ -196,51 +293,108 @@ test.describe("/results/demo", () => {
     ).toHaveCount(0);
   });
 
-  test("'Why this one' sits between the top pick and 'Show the other ranked mice' (item 5), with a card surface", async ({
+  test("the written analysis lives in Details, after the scores, and a detail page has none", async ({
     page,
   }) => {
     await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
     await page.getByRole("button", { name: "Ready", exact: true }).click();
 
-    const analysisCard = page.locator(".results-analysis");
-    await expect(analysisCard).toBeVisible();
-    // A real card surface, not a bare divider — matches the top-pick card
-    // (item 5). On the one dark theme that surface is #1c1c1e, the top-pick
-    // card's own, lighter than the page (#060709).
-    await expect(analysisCard).toHaveCSS("background-color", "rgb(28, 28, 30)");
-    await expect(page.locator(".results-topPick")).toHaveCSS(
-      "background-color",
-      "rgb(28, 28, 30)",
-    );
-    await expect(analysisCard).toHaveCSS("border-radius", "16px");
-
-    // DOM order: top pick, then "Why this one", then the ranked-list
-    // disclosure toggle.
     const order = await page.evaluate(() => {
-      const topPick = document.querySelector(".results-topPick")!;
-      const analysis = document.querySelector(".results-analysis")!;
-      const rankedToggle = document.querySelector(
-        ".results-rankedList-toggle",
-      )!;
-      const DOCUMENT_POSITION_FOLLOWING = 4;
-      const topPickBeforeAnalysis = Boolean(
-        topPick.compareDocumentPosition(analysis) & DOCUMENT_POSITION_FOLLOWING,
-      );
-      const analysisBeforeToggle = Boolean(
-        analysis.compareDocumentPosition(rankedToggle) &
-        DOCUMENT_POSITION_FOLLOWING,
-      );
-      return { topPickBeforeAnalysis, analysisBeforeToggle };
+      const q = (s: string) => document.querySelector(s)!;
+      const follows = (a: Element, b: Element) =>
+        Boolean(
+          a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      const analysis = q(".results-analysis");
+      return {
+        insideDetails: q(".results-details").contains(analysis),
+        scoresBeforeAnalysis: follows(q(".results-subscoreGrid"), analysis),
+        deltasBeforeAnalysis: follows(q(".results-targetDeltas"), analysis),
+        analysisBeforeOthers: follows(analysis, q(".results-others")),
+      };
     });
-    expect(order.topPickBeforeAnalysis).toBe(true);
-    expect(order.analysisBeforeToggle).toBe(true);
+    expect(order).toEqual({
+      insideDetails: true,
+      scoresBeforeAnalysis: true,
+      deltasBeforeAnalysis: true,
+      analysisBeforeOthers: true,
+    });
+
+    await page.locator(".results-card").first().click();
+    await expect(page.locator(".results-score-rank")).toHaveText(
+      "#2 · Logitech",
+    );
+    await expect(page.locator(".results-analysis")).toHaveCount(0);
   });
 
-  test("heading levels never skip: h1, then h2s for the top pick and 'Why this one', no h3 before an h2", async ({
+  test("the sections come in the approved order", async ({ page }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+    const order = await page.evaluate(() => {
+      const selectors = [
+        ".results-topBar",
+        ".results-hand",
+        ".results-hero-photo",
+        ".results-score",
+        ".results-why",
+        ".results-details",
+        ".results-others",
+        ".results-otherMice",
+        ".results-share-bottom",
+      ];
+      const nodes = selectors.map((s) => document.querySelector(s));
+      return selectors.map((s, i) => {
+        const node = nodes[i];
+        const prev = nodes[i - 1];
+        return [
+          s,
+          i === 0 ||
+            Boolean(
+              prev &&
+              node &&
+              prev.compareDocumentPosition(node) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+            ),
+        ];
+      });
+    });
+    for (const [selector, inOrder] of order)
+      expect(inOrder, `${selector} comes after the one before it`).toBe(true);
+  });
+
+  test("has a share button in the top bar and a primary one, beside the purchase spot or under Other mice", async ({
     page,
   }) => {
     await page.goto("/results/demo");
+    const buttons = page.getByTestId("share-card-button");
+    // Three in the page, two shown at any width: the link in the top bar, and
+    // the primary one in the hero (wide) or under Other mice (phone).
+    await expect(buttons).toHaveCount(3);
+    await expect(
+      page.locator('[data-testid="share-card-button"]:visible'),
+    ).toHaveCount(2);
+    await expect(
+      page.locator(".results-topBar [data-testid='share-card-button']"),
+    ).toBeVisible();
+    const wide = (page.viewportSize()?.width ?? 0) >= 900;
+    await expect(
+      page.locator(
+        wide
+          ? ".results-share-hero [data-testid='share-card-button']"
+          : ".results-share-bottom [data-testid='share-card-button']",
+      ),
+    ).toBeVisible();
+  });
+
+  test("heading levels never skip: one h1, then h2 sections, h3 only under an h2", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
     await page.getByRole("button", { name: "Ready", exact: true }).click();
+    await openDetails(page);
+    await page.locator(".results-otherMice summary").click();
 
     const levels = await page.evaluate(() =>
       Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).map(
@@ -258,5 +412,55 @@ test.describe("/results/demo", () => {
       if (level > 1) expect(seen.has(level - 1)).toBe(true);
       seen.add(level);
     }
+  });
+});
+
+test.describe("/results/demo in a Chinese browser", () => {
+  test.use({ locale: "zh-TW" });
+
+  test("shows the zh-TW words, marked as zh-TW", async ({ page }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+
+    await expect(page.locator(".results-hand-kicker")).toHaveText(
+      "適合你的滑鼠型",
+    );
+    await expect(page.locator(".results-hand-title")).toHaveText(
+      "中型滑鼠・抓握・寬身",
+    );
+    await expect(page.locator(".results-hand-sentence")).toHaveText(
+      "適合長度中等、握寬較寬的滑鼠；以抓握的方式最能發揮。",
+    );
+    await expect(page.locator(".results-hand")).toHaveAttribute(
+      "lang",
+      "zh-TW",
+    );
+    await expect(page.locator(".results-score-rank")).toHaveText(
+      "第一名 · Logitech",
+    );
+    await expect(page.locator(".results-score-label")).toHaveText(
+      "適配分數 / 100",
+    );
+    await expect(page.locator(".results-band")).toHaveText("非常適合你");
+    await expect(page.locator(".results-why-heading")).toHaveText(
+      "為什麼是這支",
+    );
+    await expect(page.locator(".results-why-list li")).toHaveCount(3);
+    await expect(page.locator(".results-details summary")).toContainText(
+      "詳細資料",
+    );
+    await expect(page.locator(".results-others-head h2")).toHaveText(
+      "其他推薦",
+    );
+    await expect(page.locator(".results-otherMice summary")).toContainText(
+      "其他滑鼠（共 5 款）",
+    );
+    await expect(page.locator(".results-topBar-back")).toContainText(
+      "重新掃描",
+    );
+    // The accessible name leaves the chevron out, as the shared TopBar does.
+    await expect(
+      page.getByRole("link", { name: "返回重新掃描" }),
+    ).toHaveAttribute("href", "/scan/easy");
   });
 });

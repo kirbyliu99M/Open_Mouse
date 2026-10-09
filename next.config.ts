@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 /**
@@ -42,7 +43,8 @@ import type { NextConfig } from "next";
  * same-origin script content, so it costs nothing to allow ahead of need.
  *
  * `connect-src 'self'`: same-origin `fetch` to `/api/**`, `/ingest/**` (the
- * PostHog reverse proxy, a route handler) and to the WASM/
+ * PostHog reverse proxy, a route handler), `/monitoring` (the Sentry tunnel,
+ * also a route handler) and to the WASM/
  * model files above (loaded via `fetch`, not `<script src>`, so `script-src`
  * alone would not cover them).
  *
@@ -159,4 +161,25 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry's build wrapper. Runtime options are in
+ * src/lib/observability/sentry.ts.
+ *
+ * No `tunnelRoute`: it is a `rewrites()` rule to Sentry's ingest host, which
+ * would forward the browser's cookies and address. The browser sends events
+ * to the /monitoring route handler instead (src/app/monitoring/route.ts),
+ * which keeps the CSP's `connect-src 'self'` as it is (see the WARNING above).
+ *
+ * Source maps upload only when SENTRY_AUTH_TOKEN is set (the Vercel build);
+ * without it the build still succeeds and stack traces stay minified.
+ */
+export default withSentryConfig(nextConfig, {
+  org: "bowen-zo",
+  project: "javascript-nextjs",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+  },
+});

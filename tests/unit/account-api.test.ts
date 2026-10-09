@@ -10,6 +10,7 @@ const sampleScan: AccountScan = {
   createdAt: "2026-09-22T00:00:00.000Z",
   hand: "left",
   gripStyleStated: "palm",
+  palmThicknessStated: "thick",
   measurements: {
     handLengthMm: 180,
     palmLengthMm: 100,
@@ -62,6 +63,7 @@ describe("GET /api/account/scans — an anonymous user never sees /account data"
           createdAt: "2026-09-22T00:00:00.000Z",
           hand: "left",
           gripStyleStated: "palm",
+          palmThicknessStated: "thick",
           measurements: expect.objectContaining({
             handLengthMm: 180,
             palmLengthMm: 100,
@@ -73,8 +75,26 @@ describe("GET /api/account/scans — an anonymous user never sees /account data"
     // Export shape: round-trips through JSON with no undefined/function
     // values, and carries no server-internal fields (no sessionId, userId).
     expect(Object.keys(body.scans[0]).sort()).toEqual(
-      ["createdAt", "gripStyleStated", "hand", "measurements", "scanId"].sort(),
+      [
+        "createdAt",
+        "gripStyleStated",
+        "hand",
+        "measurements",
+        "palmThicknessStated",
+        "scanId",
+      ].sort(),
     );
+  });
+
+  it("exports a skipped palm-thickness question as null, never as a default", async () => {
+    const skipped: AccountScan = { ...sampleScan, palmThicknessStated: null };
+    const res = await handleAccountScansList({
+      repo: fakeRepo([skipped]),
+      getUserId: async () => "user-1",
+    });
+    const body = await res.json();
+    expect(body.scans[0]).toHaveProperty("palmThicknessStated", null);
+    expect(body.scans[0].palmThicknessStated).not.toBe("medium");
   });
 
   it("is never cacheable — the body is personal hand-measurement data", async () => {

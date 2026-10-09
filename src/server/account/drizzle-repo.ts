@@ -20,6 +20,7 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
           createdAt: scans.createdAt,
           hand: scans.hand,
           gripStyleStated: scans.gripStyleStated,
+          palmThicknessStated: scans.palmThicknessStated,
           handLengthMm: scanMeasurements.handLengthMm,
           palmLengthMm: scanMeasurements.palmLengthMm,
           palmWidthMm: scanMeasurements.palmWidthMm,
@@ -48,6 +49,7 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         createdAt: r.createdAt.toISOString(),
         hand: r.hand,
         gripStyleStated: r.gripStyleStated,
+        palmThicknessStated: r.palmThicknessStated,
         measurements: {
           handLengthMm: r.handLengthMm,
           palmLengthMm: r.palmLengthMm,

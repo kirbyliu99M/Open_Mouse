@@ -125,6 +125,22 @@ function watchErrors(
 const region = (page: Page) => page.locator(".viewer");
 const box = (page: Page) => page.locator(".viewer-box");
 
+/**
+ * The viewer lives in the Details section, which is closed by default; the
+ * viewer mounts (and starts to load) only once it has been opened.
+ */
+async function openDetails(page: Page) {
+  const details = page.locator(".results-details");
+  await details.locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+}
+
+/** Opens a results page, then its Details section. */
+async function gotoResults(page: Page, scanId: string = SCAN_ID) {
+  await page.goto(`/results/${scanId}`);
+  await openDetails(page);
+}
+
 /** Records layout-shift entries with their times, to be read after a state change. */
 async function recordShifts(page: Page) {
   await page.addInitScript(() => {
@@ -216,9 +232,9 @@ async function differenceShare(a: Buffer, b: Buffer): Promise<number> {
 test.describe("fallbacks", () => {
   const expectPageIntact = async (page: Page) => {
     await expect(
-      page.getByRole("heading", { level: 1, name: "Your best match" }),
+      page.getByRole("heading", { level: 1, name: "G Pro X Superlight 2" }),
     ).toBeVisible();
-    await expect(page.locator(".results-topPick-name")).toHaveText(
+    await expect(page.locator(".results-score-model")).toHaveText(
       "G Pro X Superlight 2",
     );
     await expect(
@@ -242,7 +258,7 @@ test.describe("fallbacks", () => {
       await route.fulfill({ status: 404, body: "not found" });
     });
 
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "loading");
     await expect(page.locator(".viewer-caption")).toHaveText(CAPTION);
     // While it loads: a text-less placeholder, and the status line is there but empty.
@@ -282,7 +298,7 @@ test.describe("fallbacks", () => {
         body: "this is not a glb",
       }),
     );
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
     await expectPageIntact(page);
     expect(errors).toEqual([]);
@@ -314,7 +330,7 @@ test.describe("fallbacks", () => {
         m.location().url.includes("/measurements"),
       );
       await stubResults(page, { measurements: handler });
-      await page.goto(`/results/${SCAN_ID}`);
+      await gotoResults(page);
       await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
       await expectPageIntact(page);
       expect(errors).toEqual([]);
@@ -329,8 +345,8 @@ test.describe("fallbacks", () => {
       fit: FIT_NO_SHELL,
       scanId: SCAN_ID_NO_SHELL,
     });
-    await page.goto(`/results/${SCAN_ID_NO_SHELL}`);
-    await expect(page.locator(".results-topPick-name")).toHaveText(
+    await gotoResults(page, SCAN_ID_NO_SHELL);
+    await expect(page.locator(".results-score-model")).toHaveText(
       "Xlite V3 Mini",
     );
     await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
@@ -360,7 +376,7 @@ test.describe("fallbacks", () => {
       };
     });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "failed");
     await expect(page.locator(".viewer-host canvas")).toHaveCount(0);
@@ -387,7 +403,7 @@ test.describe("fallbacks", () => {
       } as typeof HTMLCanvasElement.prototype.getContext;
     });
     const requested = await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
     await expect(region(page)).toHaveAttribute(
       "data-viewer-state",
@@ -430,7 +446,7 @@ test.describe("loading", () => {
       } as unknown as typeof IntersectionObserver;
     });
     const requested = await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "idle");
     await page.waitForTimeout(600);
     expect(
@@ -442,6 +458,33 @@ test.describe("loading", () => {
     await page.evaluate(() =>
       (window as unknown as { __near: () => void }).__near(),
     );
+    await expect
+      .poll(() => requested.some((p) => p.endsWith("/measurements")))
+      .toBe(true);
+    expect(requested.some((p) => p.startsWith("/models/shells/"))).toBe(true);
+  });
+
+  test("nothing is downloaded while Details is closed, and the viewer loads once it is opened", async ({
+    page,
+  }) => {
+    const requested = await stubResults(page);
+    await page.goto(`/results/${SCAN_ID}`);
+    await expect(page.locator(".results-details")).toBeVisible();
+    await expect(page.locator(".results-details")).not.toHaveAttribute(
+      "open",
+      "",
+    );
+    // Closed: no viewer on the page at all, and nothing requested for it.
+    await expect(region(page)).toHaveCount(0);
+    await page.waitForTimeout(600);
+    expect(
+      requested.filter((p) =>
+        /^\/models\/|^\/draco\/|\/measurements$|viewer/i.test(p),
+      ),
+    ).toEqual([]);
+
+    await openDetails(page);
+    await expect(region(page)).toHaveCount(1);
     await expect
       .poll(() => requested.some((p) => p.endsWith("/measurements")))
       .toBe(true);
@@ -485,7 +528,7 @@ test.describe("loading", () => {
           ),
         }),
       );
-      await page.goto(`/results/${SCAN_ID}`);
+      await gotoResults(page);
       await expect(page.locator(".viewer-fallback")).toHaveText(FALLBACK);
     }
     await page.waitForTimeout(300);
@@ -516,7 +559,7 @@ test.describe("with WebGL", () => {
     const errors = watchErrors(page);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -540,7 +583,7 @@ test.describe("with WebGL", () => {
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -560,7 +603,7 @@ test.describe("with WebGL", () => {
   test("a drag turns it", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -585,7 +628,7 @@ test.describe("with WebGL", () => {
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -609,7 +652,7 @@ test.describe("with WebGL", () => {
       measurements: (route) =>
         fulfillJson(route, 200, MEASUREMENTS(SCAN_ID, "left")),
     });
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -641,7 +684,7 @@ test.describe("with WebGL", () => {
     });
     const errors = watchErrors(page);
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -674,7 +717,7 @@ test.describe("with WebGL", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const tags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });
@@ -689,7 +732,7 @@ test.describe("with WebGL", () => {
     await page.route(`**/api/scans/${SCAN_ID}/measurements`, (r) =>
       fulfillJson(r, 404, { error: "Scan not found." }),
     );
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(page.locator(".viewer-fallback")).toBeVisible();
     const fallback = await new AxeBuilder({ page }).withTags(tags).analyze();
     expect(
@@ -712,7 +755,7 @@ test.describe("touch", () => {
     test.skip(!(await hasWebGL(page)), "No WebGL on this machine.");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await stubResults(page);
-    await page.goto(`/results/${SCAN_ID}`);
+    await gotoResults(page);
     await expect(region(page)).toHaveAttribute("data-viewer-state", "ready", {
       timeout: 30_000,
     });

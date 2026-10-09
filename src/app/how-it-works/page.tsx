@@ -115,10 +115,6 @@ export default function HowItWorksPage() {
         Questions about your data?{" "}
         <Link href="#privacy">Read Privacy &amp; data.</Link>
       </p>
-      <p className="home-footer-note">
-        Not affiliated with Logitech. Sizes from Logitech&apos;s published
-        specs.
-      </p>
     </main>
   );
 }

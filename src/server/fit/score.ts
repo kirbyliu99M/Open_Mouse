@@ -4,10 +4,11 @@ import {
   type FitEntry,
   type FitPreferences,
   type FitResponse,
+  type GripStyle,
   type Subscore,
 } from "../../lib/contracts/fit";
 import { ENGINE_VERSION, UNKNOWN_PRIOR_SCORE } from "./coefficients";
-import { excludeReason } from "./exclusions";
+import { excludeReason, totalApplies } from "./exclusions";
 import { predictGrip } from "./grip";
 import {
   scoreFrontFlare,
@@ -17,11 +18,76 @@ import {
   scoreThumb,
   scoreWeight,
 } from "./subscores";
-import { computeTargets } from "./targets";
+import { computeTargets, type FitTargets } from "./targets";
 import type { CatalogueMouse, SubscoreResult } from "./types";
 
 export type { CatalogueMouse } from "./types";
 export { ENGINE_VERSION } from "./coefficients";
+
+/** What one mouse scores against one hand: the shared path of ranking and excluded display. */
+export interface MouseScore {
+  subscores: Record<Subscore, SubscoreResult>;
+  /** Rounded weighted total, 0 to 100. */
+  total: number;
+  /** Share of applicable weight backed by real (non-descriptor_unknown) input. */
+  confidence: number;
+}
+
+/**
+ * The scoring math for one mouse, pure: sub-scores, weighted total (null
+ * sub-scores take UNKNOWN_PRIOR_SCORE at full weight) and confidence. The
+ * ranked path and the `wrong_hand` excluded path both call it, so an excluded
+ * mouse shows exactly the total it would be ranked with.
+ */
+export function scoreMouse(
+  mouse: CatalogueMouse,
+  targets: FitTargets,
+  used: GripStyle,
+  prefs: FitPreferences,
+): MouseScore {
+  const subscores: Record<Subscore, SubscoreResult> = {
+    length: scoreLength(mouse, targets.lengthMm),
+    gripWidth: scoreGripWidth(mouse, targets.gripWidthMm),
+    heightHump: scoreHeightHump(mouse, targets.heightMm, used),
+    frontFlare: scoreFrontFlare(mouse, used),
+    thumb: scoreThumb(mouse, used),
+    weight: scoreWeight(mouse, prefs),
+  };
+
+  let weightedScoreSum = 0;
+  let applicableWeightSum = 0;
+  let confidenceNumerator = 0;
+
+  for (const key of SUBSCORES) {
+    const s = subscores[key];
+    // §4: weight's "no_preference" case is structurally inapplicable to
+    // this scan (the user gave no preference), not a data gap — it is
+    // excluded from the total and from confidence's denominator entirely,
+    // rather than counted as missing.
+    if (s.reason.code === "no_preference") continue;
+
+    applicableWeightSum += s.weight;
+    // §4 (revised): a null score no longer drops out of the total — it
+    // contributes UNKNOWN_PRIOR_SCORE at full weight instead, so a mostly-
+    // unclassified mouse can't out-rank a fully-assessed one just because
+    // the total renormalised over fewer terms (see PR #21 notes).
+    weightedScoreSum += (s.score ?? UNKNOWN_PRIOR_SCORE) * s.weight;
+    if (s.reason.code !== "descriptor_unknown") {
+      confidenceNumerator += s.weight;
+    }
+  }
+
+  const total =
+    applicableWeightSum > 0
+      ? Math.round(weightedScoreSum / applicableWeightSum)
+      : 0;
+  // Confidence is unchanged by the prior: it still measures the share of
+  // applicable weight backed by real (non-descriptor_unknown) input.
+  const confidence =
+    applicableWeightSum > 0 ? confidenceNumerator / applicableWeightSum : 0;
+
+  return { subscores, total, confidence };
+}
 
 /**
  * Pure scoring engine: measurements + catalogue + preferences + hand →
@@ -60,50 +126,22 @@ export function scoreFit(
         brand: mouse.brand,
         model: mouse.model,
         reason,
+        // Kirby, 2026-10-09: a mouse made for the other hand still shows the
+        // score it would get, unless the device is vertical or a trackball:
+        // the length/width model does not apply to those (totalApplies).
+        ...(reason === "wrong_hand" && totalApplies(mouse)
+          ? { total: scoreMouse(mouse, targets, used, prefs).total }
+          : {}),
       });
       continue;
     }
 
-    const subscores: Record<Subscore, SubscoreResult> = {
-      length: scoreLength(mouse, targets.lengthMm),
-      gripWidth: scoreGripWidth(mouse, targets.gripWidthMm),
-      heightHump: scoreHeightHump(mouse, targets.heightMm, used),
-      frontFlare: scoreFrontFlare(mouse, used),
-      thumb: scoreThumb(mouse, used),
-      weight: scoreWeight(mouse, prefs),
-    };
-
-    let weightedScoreSum = 0;
-    let applicableWeightSum = 0;
-    let confidenceNumerator = 0;
-
-    for (const key of SUBSCORES) {
-      const s = subscores[key];
-      // §4: weight's "no_preference" case is structurally inapplicable to
-      // this scan (the user gave no preference), not a data gap — it is
-      // excluded from the total and from confidence's denominator entirely,
-      // rather than counted as missing.
-      if (s.reason.code === "no_preference") continue;
-
-      applicableWeightSum += s.weight;
-      // §4 (revised): a null score no longer drops out of the total — it
-      // contributes UNKNOWN_PRIOR_SCORE at full weight instead, so a mostly-
-      // unclassified mouse can't out-rank a fully-assessed one just because
-      // the total renormalised over fewer terms (see PR #21 notes).
-      weightedScoreSum += (s.score ?? UNKNOWN_PRIOR_SCORE) * s.weight;
-      if (s.reason.code !== "descriptor_unknown") {
-        confidenceNumerator += s.weight;
-      }
-    }
-
-    const total =
-      applicableWeightSum > 0
-        ? Math.round(weightedScoreSum / applicableWeightSum)
-        : 0;
-    // Confidence is unchanged by the prior: it still measures the share of
-    // applicable weight backed by real (non-descriptor_unknown) input.
-    const confidence =
-      applicableWeightSum > 0 ? confidenceNumerator / applicableWeightSum : 0;
+    const { subscores, total, confidence } = scoreMouse(
+      mouse,
+      targets,
+      used,
+      prefs,
+    );
 
     entries.push({
       mouse: {

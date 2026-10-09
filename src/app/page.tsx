@@ -48,9 +48,6 @@ export default function HomePage() {
               A blank sheet of A4 and your phone are all it takes.
             </p>
             <HomeActions />
-            <p className="landing-preview-note">
-              Early preview — measurements are still being validated.
-            </p>
           </div>
 
           {/* The hand on A4 with its landmarks and the two measurement lines
@@ -114,17 +111,7 @@ export default function HomePage() {
 
       <section className="home-final" data-testid="home-final">
         <HomeActions />
-        <p className="landing-preview-note">
-          Early preview — measurements are still being validated.
-        </p>
       </section>
-
-      <footer className="landing-footer">
-        <p>
-          Not affiliated with Logitech. Sizes from Logitech&apos;s published
-          specs.
-        </p>
-      </footer>
     </main>
   );
 }

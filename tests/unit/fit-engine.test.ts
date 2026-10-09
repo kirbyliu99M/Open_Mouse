@@ -178,6 +178,8 @@ describe("scoreFit aggregation", () => {
           brand: "Acme",
           model: "Lefty",
           reason: "wrong_hand",
+          // Lefty is Alpha made for the other hand: same sub-scores, same total.
+          total: r.results[0]!.total,
         },
         {
           slug: "acme-vertical",

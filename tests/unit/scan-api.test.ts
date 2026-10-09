@@ -106,6 +106,43 @@ describe("POST /api/scans — valid submission", () => {
     );
   });
 
+  it.each(["thin", "medium", "thick"] as const)(
+    "passes the user's own palm-thickness answer (%s) to the repo as given",
+    async (level) => {
+      const { repo, insertedScans } = createFakeRepo();
+      const res = await submit(
+        scanRequest({ ...validSubmission, palmThicknessStated: level }),
+        { repo },
+      );
+      expect(res.status).toBe(201);
+      expect(insertedScans[0]!.palmThicknessStated).toBe(level);
+    },
+  );
+
+  it("passes null, not a default, when the palm-thickness question was skipped", async () => {
+    const { repo, insertedScans } = createFakeRepo();
+    expect("palmThicknessStated" in validSubmission).toBe(false);
+    const res = await submit(scanRequest(validSubmission), { repo });
+    expect(res.status).toBe(201);
+    expect(insertedScans).toHaveLength(1);
+    // A fill-in would be stored as if the user had chosen it.
+    expect(insertedScans[0]!.palmThicknessStated).toBeNull();
+    expect(insertedScans[0]!.palmThicknessStated).not.toBe("medium");
+  });
+
+  it.each([["huge"], [""], [null], ["Medium"]])(
+    "400s a palm-thickness answer of %j and never reaches the repo",
+    async (bad) => {
+      const { repo } = createFakeRepo();
+      const res = await submit(
+        scanRequest({ ...validSubmission, palmThicknessStated: bad }),
+        { repo },
+      );
+      expect(res.status).toBe(400);
+      expect(repo.insertScanWithMeasurements).not.toHaveBeenCalled();
+    },
+  );
+
   it("stores a null scale check for a plain-paper scan, which has no card", async () => {
     const { repo } = createFakeRepo();
     const res = await submit(

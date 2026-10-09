@@ -37,3 +37,19 @@ export function excludeReason(
   }
   return null;
 }
+
+/**
+ * Whether the length/width model applies to this device, for showing a score
+ * on an excluded mouse. Vertical devices (a `vertical` form factor, or
+ * height/length above the vertical ratio) and trackballs sit outside it, so a
+ * `wrong_hand` exclusion of one carries no total. An absent `formFactor` is a
+ * standard mouse. This looks at the device only: it ignores
+ * `prefs.includeVertical` and `allowTrackball`, which decide ranking, not
+ * whether a number means anything for the device.
+ */
+export function totalApplies(mouse: CatalogueMouse): boolean {
+  if (mouse.formFactor === "vertical" || mouse.formFactor === "trackball") {
+    return false;
+  }
+  return mouse.heightMm / mouse.lengthMm <= VERTICAL_FORM_FACTOR_RATIO;
+}

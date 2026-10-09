@@ -3,6 +3,7 @@ import { fitResponseSchema } from "../../src/lib/contracts/fit";
 import { LOW_CONFIDENCE_THRESHOLD } from "../../src/components/results/format";
 import highConfidence from "../../src/components/results/fixtures/high-confidence.json";
 import lowConfidence from "../../src/components/results/fixtures/low-confidence.json";
+import manyResults from "../../src/components/results/fixtures/many-results.json";
 import withExclusions from "../../src/components/results/fixtures/with-exclusions.json";
 
 describe("results demo fixtures", () => {
@@ -10,6 +11,7 @@ describe("results demo fixtures", () => {
     ["high-confidence.json", highConfidence],
     ["low-confidence.json", lowConfidence],
     ["with-exclusions.json", withExclusions],
+    ["many-results.json", manyResults],
   ])("%s parses with fitResponseSchema", (_, fixture) => {
     const result = fitResponseSchema.safeParse(fixture);
     expect(
@@ -37,5 +39,15 @@ describe("results demo fixtures", () => {
   it("with-exclusions.json has at least one excluded mouse", () => {
     const parsed = fitResponseSchema.parse(withExclusions);
     expect(parsed.excluded.length).toBeGreaterThan(0);
+  });
+
+  it("many-results.json has a hand type, more than five ranked mice and some excluded", () => {
+    const parsed = fitResponseSchema.parse(manyResults);
+    expect(parsed.handType).toBeDefined();
+    expect(parsed.results.length).toBeGreaterThan(5);
+    expect(parsed.excluded.length).toBeGreaterThan(0);
+    expect(parsed.results.map((r) => r.rank)).toEqual(
+      parsed.results.map((_, i) => i + 1),
+    );
   });
 });

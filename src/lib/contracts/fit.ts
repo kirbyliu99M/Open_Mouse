@@ -169,12 +169,43 @@ export const fitResponseSchema = z.strictObject({
   }),
   /** Mice excluded before ranking, with why (handedness, form factor). */
   excluded: z.array(
-    z.strictObject({
-      slug: z.string(),
-      brand: z.string(),
-      model: z.string(),
-      reason: z.enum(EXCLUSION_REASONS),
-    }),
+    z
+      .strictObject({
+        slug: z.string(),
+        brand: z.string(),
+        model: z.string(),
+        reason: z.enum(EXCLUSION_REASONS),
+        /**
+         * 2026-10-09 (Kirby: an excluded mouse should still show a score).
+         *
+         * What it means: the weighted total this mouse's mirror image would
+         * get for the scanned hand. It uses the same sub-scores, weights and
+         * neutral prior as a ranked entry. Mirroring leaves length, width,
+         * height, hump and flare unchanged and moves a thumb rest to the
+         * person's thumb side, so every sub-score keeps its meaning. Read it
+         * as "how this shape fits you, in your hand's version", never as
+         * "this mouse fits you".
+         *
+         * When: only on a `wrong_hand` exclusion of a device the length/width
+         * model covers. Hard rule 2: no number without a model behind it.
+         * Handedness is checked before form factor, so a right-only trackball
+         * or vertical mouse can be `wrong_hand` too. The schema cannot see
+         * form factor, so the engine must leave `total` out for vertical and
+         * trackball devices (`totalApplies` in src/server/fit/exclusions.ts).
+         * The schema refuses a total on any other reason.
+         *
+         * Not part of the analysis input: the written analysis never sees it.
+         * It must stay out of the analysis numeral allow-list
+         * (src/server/analysis/input.ts).
+         *
+         * Optional until the engine fills it.
+         */
+        total: z.number().int().min(0).max(100).optional(),
+      })
+      .refine((e) => e.total === undefined || e.reason === "wrong_hand", {
+        message: "only a wrong_hand exclusion may carry a total",
+        path: ["total"],
+      }),
   ),
   results: z.array(fitEntrySchema),
 });

@@ -13,6 +13,7 @@ import {
 } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { ENGINE_VERSION_V1 } from "./coefficients";
+import { totalApplies } from "./exclusions";
 import { excludeReasonV1, type ExclusionOptions } from "./exclusions-v1";
 import { argmaxGrip, gripWeights } from "./grip-weights";
 import type { Priors } from "./priors";
@@ -110,6 +111,64 @@ function displayed(subscores: Subscores): FitEntry["subscores"] {
   return out;
 }
 
+/** The per-hand grip state `scoreMouseV1` scores every mouse against. */
+export interface GripContext {
+  /** The grip whose sub-scores and reasons are displayed. */
+  used: GripStyle;
+  /** Blend over grips (a stated grip is weight 1). */
+  weights: Record<GripStyle, number>;
+  /** The grips with weight above zero. */
+  gripsInPlay: readonly GripStyle[];
+  targetsByGrip: Record<GripStyle, FitTargets>;
+}
+
+export interface MouseScoreV1 {
+  /** Sub-scores of the grip used, unrounded. */
+  subscores: Subscores;
+  /** The unrounded blended total, Σ_g w_g · total_g. */
+  totalRaw: number;
+  /** `totalRaw` rounded to a whole number, 0 to 100. */
+  total: number;
+  /** Confidence of the grip used. */
+  confidence: number;
+  lengthAbsDelta: number;
+}
+
+/**
+ * The v1 scoring math for one mouse, pure. The ranked path and the
+ * `wrong_hand` excluded path both call it, so an excluded mouse shows exactly
+ * the total it would be ranked with.
+ */
+export function scoreMouseV1(
+  mouse: CatalogueMouse,
+  grips: GripContext,
+  priors: Priors,
+  prefs: FitPreferences,
+): MouseScoreV1 {
+  let totalRaw = 0;
+  let usedSubscores: Subscores | null = null;
+  let usedConfidence = 0;
+  for (const g of grips.gripsInPlay) {
+    const subs = subscoresFor(mouse, grips.targetsByGrip[g], g, prefs);
+    const t = totalFor(subs, priors, g);
+    totalRaw += grips.weights[g] * t.total;
+    if (g === grips.used) {
+      usedSubscores = subs;
+      usedConfidence = t.confidence;
+    }
+  }
+  // `used` always has weight > 0: stated has weight 1, and the arg-max of
+  // the soft weights is the largest of three weights summing to 1.
+  const shown = usedSubscores as Subscores;
+  return {
+    subscores: shown,
+    totalRaw,
+    total: Math.round(totalRaw),
+    confidence: usedConfidence,
+    lengthAbsDelta: Math.abs(shown.length.reason.params.deltaMm ?? 0),
+  };
+}
+
 /**
  * The fit-v1 candidate engine (docs/fit-algorithm.md). Same inputs as
  * `scoreFit` plus the precomputed `priors` (`computePriors(catalogue)`), so it
@@ -147,6 +206,12 @@ export function scoreFitV1(
     ]),
   ) as Record<GripStyle, FitTargets>;
   const targets = targetsByGrip[used];
+  const grips: GripContext = {
+    used,
+    weights,
+    gripsInPlay,
+    targetsByGrip,
+  };
 
   const excluded: FitResponse["excluded"] = [];
   const scored: {
@@ -163,25 +228,17 @@ export function scoreFitV1(
         brand: mouse.brand,
         model: mouse.model,
         reason,
+        // Kirby, 2026-10-09: a mouse made for the other hand still shows the
+        // score it would get, unless the device is vertical or a trackball:
+        // the length/width model does not apply to those (totalApplies).
+        ...(reason === "wrong_hand" && totalApplies(mouse)
+          ? { total: scoreMouseV1(mouse, grips, priors, prefs).total }
+          : {}),
       });
       continue;
     }
 
-    let totalRaw = 0;
-    let usedSubscores: Subscores | null = null;
-    let usedConfidence = 0;
-    for (const g of gripsInPlay) {
-      const subs = subscoresFor(mouse, targetsByGrip[g], g, prefs);
-      const t = totalFor(subs, priors, g);
-      totalRaw += weights[g] * t.total;
-      if (g === used) {
-        usedSubscores = subs;
-        usedConfidence = t.confidence;
-      }
-    }
-    // `used` always has weight > 0: stated has weight 1, and the arg-max of
-    // the soft weights is the largest of three weights summing to 1.
-    const shown = usedSubscores as Subscores;
+    const m = scoreMouseV1(mouse, grips, priors, prefs);
 
     scored.push({
       entry: {
@@ -195,12 +252,12 @@ export function scoreFitV1(
           weightG: mouse.weightG,
           size: mouse.size,
         },
-        total: Math.round(totalRaw),
-        confidence: usedConfidence,
-        subscores: displayed(shown),
+        total: m.total,
+        confidence: m.confidence,
+        subscores: displayed(m.subscores),
       },
-      totalRaw,
-      lengthAbsDelta: Math.abs(shown.length.reason.params.deltaMm ?? 0),
+      totalRaw: m.totalRaw,
+      lengthAbsDelta: m.lengthAbsDelta,
     });
   }
 

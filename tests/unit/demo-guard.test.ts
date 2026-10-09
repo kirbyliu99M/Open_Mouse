@@ -43,6 +43,7 @@ const PRODUCT_ROUTES = [
   "/account",
   "/how-it-works",
   "/results/[scanId]",
+  "/results/[scanId]/m/[slug]",
   "/scan",
   "/scan/easy",
   "/sheet",
@@ -79,6 +80,7 @@ const DEMO_ROUTES = [
   "/scan/measured-demo",
   "/scan/paper-edge-measured-demo",
   "/scan/paper-edge-preview",
+  "/scan/share-card-demo",
   "/scan/submit-demo",
 ];
 

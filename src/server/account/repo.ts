@@ -19,6 +19,8 @@ export interface AccountScan {
   createdAt: string;
   hand: "left" | "right";
   gripStyleStated: "palm" | "claw" | "fingertip" | null;
+  /** The user's own rough answer; null = they skipped it (never "medium"). */
+  palmThicknessStated: "thin" | "medium" | "thick" | null;
   measurements: AccountScanMeasurements;
 }
 

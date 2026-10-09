@@ -1,15 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
   fetchAnalysisResult,
   fetchFitResult,
+  type FitOutcome,
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
-import { ResultsView } from "@/components/results/ResultsView";
+import {
+  createInflightRequests,
+  fitRequestKey,
+  shouldRequestAnalysis,
+} from "@/lib/results/requests";
 import {
   parseStoredUserLength,
   resultLengthKey,
@@ -19,6 +33,8 @@ import { track } from "@/client/analytics/track";
 import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
+import { useUiLanguage } from "@/components/results/useUiLanguage";
+import type { UiLanguage } from "@/client/uiLanguage";
 import "@/components/results/results.css";
 
 type PageState =
@@ -39,31 +55,75 @@ type PageState =
 const PREFERENCES: FitPreferencesInput = {};
 
 /**
- * The real `/results/[scanId]` page. On mount it POSTs the fit route,
- * renders `ResultsView` as soon as that resolves (the ranking never waits on
- * the analysis — issue #30 acceptance criterion 2), then separately POSTs
- * the analysis route with the identical preferences and feeds its state into
- * `ResultsView`'s optional slot.
+ * Fit requests in flight, shared by every run of the fit effect: React Strict
+ * Mode (on by default in Next.js dev) runs the effect twice at mount, and both
+ * runs must share one POST (`src/lib/results/requests.ts`).
+ */
+const fitRequests = createInflightRequests<FitOutcome>();
+
+/** What a results page reads once the scan's fit has loaded. */
+export interface ResultsScan {
+  scanId: string;
+  response: FitResponse;
+  language: UiLanguage;
+  /** The hand length the user typed in, when the scan used no paper. */
+  enteredLength: number | null;
+  analysisState: AnalysisState;
+  /**
+   * Ask for the written analysis. Only the main page (rank 1) gets a request
+   * out of this, and only the first time per scan (`shouldRequestAnalysis`):
+   * moving to a detail page and back does not ask again.
+   */
+  requestAnalysis: (isMainPage: boolean) => void;
+  retryAnalysis: () => void;
+  analytics: {
+    onRetake: () => void;
+    onListOpened: (list: "ranked" | "excluded") => void;
+    onViewerInteracted: () => void;
+  };
+}
+
+const ResultsScanContext = createContext<ResultsScan | null>(null);
+
+/** The loaded scan. Only valid below `ResultsScanProvider`, which renders its children once the fit is ready. */
+export function useResultsScan(): ResultsScan {
+  const scan = useContext(ResultsScanContext);
+  if (!scan)
+    throw new Error("useResultsScan must be used inside ResultsScanProvider");
+  return scan;
+}
+
+/**
+ * Holds one scan's results for every page under `/results/[scanId]`: the main
+ * page and the detail pages share one layout, so the fit request is POSTed
+ * once per scan and moving between them does not refetch. A reload fetches
+ * again.
+ *
+ * It renders the ranking's children once the fit has loaded (the ranking never
+ * waits on the written analysis — issue #30 acceptance criterion 2). The
+ * analysis is requested separately, and only when the main page asks for it.
  *
  * Every non-happy path names the problem and gives the one action that fixes
  * it, per docs/design-guidelines.md's review checklist:
  *  - 404 (ownership rule in routes.ts: expired or foreign scans are 404,
  *    never 403) -> "scan again"
  *  - network error / 5xx -> "try again", which re-runs the fit request
- *  - 429 on the analysis alone -> handled inside `ResultsView`'s slot; the
+ *  - 429 on the analysis alone -> handled inside `AnalysisSlot`; the
  *    ranking above stays visible and unaffected
  *
- * `anonymous` (issue #42) is decided server-side by `page.tsx` (it calls
+ * `anonymous` (issue #42) is decided server-side by `layout.tsx` (it calls
  * `auth()`), never guessed client-side: it gates the "Delete this scan now"
  * action, which a signed-in caller never sees at all — they manage scans on
  * `/account` instead.
  */
-export function ResultsPageClient({
+export function ResultsScanProvider({
   scanId,
   anonymous,
+  children,
 }: {
   scanId: string;
   anonymous: boolean;
+  children: ReactNode;
 }) {
   const [pageState, setPageState] = useState<PageState>({ kind: "loading" });
   const [analysisState, setAnalysisState] = useState<AnalysisState>({
@@ -71,6 +131,7 @@ export function ResultsPageClient({
   });
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
+  const language = useUiLanguage();
 
   useEffect(() => {
     try {
@@ -89,10 +150,13 @@ export function ResultsPageClient({
   // or page unmounted): a run that finds it moved on is stale and reports
   // nothing.
   const analysisRunRef = useRef(0);
+  // Whether the analysis was asked for already, for this fit.
+  const analysisStartedRef = useRef(false);
   // `viewer_interacted` is once per page, even if the viewer re-adds its listeners.
   const viewerInteractedRef = useRef(false);
 
   const runAnalysis = useCallback(async () => {
+    analysisStartedRef.current = true;
     const run = ++analysisRunRef.current;
     setAnalysisState({ status: "loading" });
     const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
@@ -111,13 +175,31 @@ export function ResultsPageClient({
     }
   }, [scanId]);
 
+  const requestAnalysis = useCallback(
+    (isMainPage: boolean) => {
+      if (
+        !shouldRequestAnalysis({
+          isMainPage,
+          started: analysisStartedRef.current,
+        })
+      )
+        return;
+      void runAnalysis();
+    },
+    [runAnalysis],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setPageState({ kind: "loading" });
     setAnalysisState({ status: "idle" });
+    analysisStartedRef.current = false;
 
     void (async () => {
-      const outcome = await fetchFitResult(scanId, PREFERENCES);
+      const outcome = await fitRequests.getOrStart(
+        fitRequestKey(scanId, attempt),
+        () => fetchFitResult(scanId, PREFERENCES),
+      );
       if (cancelled) return;
       if (outcome.status === "ready") {
         const top = outcome.response.results[0];
@@ -128,7 +210,6 @@ export function ResultsPageClient({
             noGoodFit: top.total < POOR_FIT_THRESHOLD,
           });
         setPageState({ kind: "ready", response: outcome.response });
-        void runAnalysis();
       } else {
         track("results_viewed", { state: outcome.status });
         setPageState({ kind: outcome.status });
@@ -139,30 +220,63 @@ export function ResultsPageClient({
       cancelled = true;
       analysisRunRef.current += 1;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `attempt` exists only to retrigger this effect
+    // `attempt` is part of the request's identity and retriggers this effect
   }, [scanId, attempt]);
 
   const onRetake = useCallback(
     () => track("retake_clicked", { from: "results" }),
     [],
   );
-  const resultsAnalytics = {
-    onRetake,
-    onListOpened: (list: "ranked" | "excluded") =>
-      track("results_list_opened", { list }),
-    onViewerInteracted: () => {
-      if (viewerInteractedRef.current) return;
-      viewerInteractedRef.current = true;
-      track("viewer_interacted", {});
-    },
-  };
+  const analytics = useMemo(
+    () => ({
+      onRetake,
+      onListOpened: (list: "ranked" | "excluded") =>
+        track("results_list_opened", { list }),
+      onViewerInteracted: () => {
+        if (viewerInteractedRef.current) return;
+        viewerInteractedRef.current = true;
+        track("viewer_interacted", {});
+      },
+    }),
+    [onRetake],
+  );
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const retryAnalysis = useCallback(() => {
+    track("analysis_retry_clicked", {});
+    void runAnalysis();
+  }, [runAnalysis]);
 
   const deletedHeadingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (pageState.kind === "deleted") deletedHeadingRef.current?.focus();
   }, [pageState.kind]);
+
+  const scan = useMemo<ResultsScan | null>(
+    () =>
+      pageState.kind === "ready"
+        ? {
+            scanId,
+            response: pageState.response,
+            language,
+            enteredLength,
+            analysisState,
+            requestAnalysis,
+            retryAnalysis,
+            analytics,
+          }
+        : null,
+    [
+      pageState,
+      scanId,
+      language,
+      enteredLength,
+      analysisState,
+      requestAnalysis,
+      retryAnalysis,
+      analytics,
+    ],
+  );
 
   if (pageState.kind === "loading") {
     return (
@@ -302,30 +416,19 @@ export function ResultsPageClient({
   }
 
   return (
-    <main className="resultsMain">
-      <ResultsView
-        enteredLengthMm={enteredLength}
-        showViewer
-        response={pageState.response}
-        analysisState={analysisState}
-        onRetryAnalysis={() => {
-          track("analysis_retry_clicked", {});
-          void runAnalysis();
-        }}
-        analytics={resultsAnalytics}
-      />
-      <p className="results-previewNotice">
-        Early preview · measurements still being validated.
-      </p>
-      {anonymous && (
-        <DeleteScanAction
-          scanId={scanId}
-          onDeleted={() => {
-            track("scan_deleted", {});
-            setPageState({ kind: "deleted" });
-          }}
-        />
-      )}
-    </main>
+    <ResultsScanContext.Provider value={scan}>
+      <main className="resultsMain">
+        {children}
+        {anonymous && (
+          <DeleteScanAction
+            scanId={scanId}
+            onDeleted={() => {
+              track("scan_deleted", {});
+              setPageState({ kind: "deleted" });
+            }}
+          />
+        )}
+      </main>
+    </ResultsScanContext.Provider>
   );
 }
