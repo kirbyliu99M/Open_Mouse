@@ -38,7 +38,7 @@ export default function HomePage() {
             <div className="story-logo">
               {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, and the LCP image: no loader wanted */}
               <img
-                src="/images/palmate-mark.svg"
+                src="/images/hero-palmate-mark.svg"
                 alt=""
                 width={65}
                 height={69}

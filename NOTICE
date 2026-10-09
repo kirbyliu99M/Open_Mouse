@@ -327,13 +327,21 @@ and package-lock.json.
                           for generated output were not checked: Unconfirmed.
                           Home v3 recoloured its strokes (#CFE0FF / #6E9BF5)
                           for the dark theme; the shape is unchanged.
-  palmate-mark.svg,       Written by scripts/build-particle-targets.ts from
-  hand-on-a4.svg          geometry in src/lib/particles/ (the Palmate hand
-                          mark, the four-line path of the Palmate logo's
-                          own drawing; a stylised template hand on an A4
-                          outline, set by hand from the Home v3 design
-                          screens). Not traced from any photo, dataset or
-                          third-party artwork.
+  hero-palmate-mark.svg   The Palmate hand mark: drawn by Kirby in Pencil
+                          (original work). Written by
+                          scripts/build-particle-targets.ts from the path in
+                          src/lib/particles/logo.ts; its viewBox is the box
+                          the particle logo is made in, so the static image
+                          and the particles line up. It is the same hand as
+                          public/images/brand/palmate-mark.svg (the footer's
+                          mark, from another pull request) but a different
+                          crop and use, which is why the two have different
+                          paths.
+  hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
+                          geometry in src/lib/particles/ (a stylised
+                          template hand on an A4 outline, set by hand from
+                          the Home v3 design screens). Not traced from any
+                          photo, dataset or third-party artwork.
 
 
 5. Trademarks

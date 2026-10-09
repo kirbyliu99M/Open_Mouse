@@ -7,7 +7,7 @@ export const SKETCH_DIR = "public/images/sketches";
 /** What the generator writes (repo-relative). */
 export const ARTIFACT_PATHS = {
   targets: "src/lib/particles/targets.generated.json",
-  logo: "public/images/palmate-mark.svg",
+  logo: "public/images/hero-palmate-mark.svg",
   hand: "public/images/hand-on-a4.svg",
 } as const;
 

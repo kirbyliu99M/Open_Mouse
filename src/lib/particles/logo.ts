@@ -7,7 +7,7 @@ import { parsePathData } from "./svg-path";
 /**
  * The Palmate mark of the home page hero (未拍板, candidate: Kirby looks at the
  * animation): a hand drawn as four lines, which replaces the placeholder
- * mouse-and-ruler of Home v3. The static image (public/images/palmate-mark.svg)
+ * mouse-and-ruler of Home v3. The static image (public/images/hero-palmate-mark.svg)
  * draws `PALMATE_PATH` as it is; the particle target is the same path sampled
  * as a cloud of points a little wider than the line, plus a few stray ones
  * round it. Both are made from this file, so they agree.

@@ -153,7 +153,7 @@ test("the h1 comes first; the logo, the hand and the sketches are decorative and
   expect(order.h1s).toBe(1);
   // logo, hand, then the three mice
   expect(order.images.map((i) => i.src)).toEqual([
-    "/images/palmate-mark.svg",
+    "/images/hero-palmate-mark.svg",
     "/images/hand-on-a4.svg",
     "/images/sketches/g-pro-sketch.svg",
     "/images/sketches/g-pro-sketch.svg",

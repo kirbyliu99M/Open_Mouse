@@ -246,7 +246,7 @@ will not cover them.
 `<img>` can't read CSS variables, so these SVGs hard-code the colours. Primary
 strokes are `#CFE0FF`, detail strokes `#6E9BF5`, matching `--sketch-line`.
 
-- **Logo (replaced 2026-10-10, 未拍板 candidate):** `public/images/palmate-mark.svg`,
+- **Logo (replaced 2026-10-10, 未拍板 candidate):** `public/images/hero-palmate-mark.svg`,
   the Palmate hand as one line drawing (the four-line path in
   `src/lib/particles/logo.ts`, `PALMATE_PATH`), `#7FA8FF`, round ends, no fill,
   transparent background, viewBox `13 8 65 69`. The earlier placeholder (a
@@ -372,7 +372,7 @@ Everything else follows scroll.
     width (about 0.8 viewBox units standard deviation, at most 2.4 off the
     line), half bright and half dim, plus 24 strays round it, made by
     `sampleLogoPoints()` in `src/lib/particles/logo.ts` from a fixed seed.
-    The static image is `public/images/palmate-mark.svg`.
+    The static image is `public/images/hero-palmate-mark.svg`.
     `screens/logo-placeholder-vector.png` shows the old placeholder only.
 - **Resampling.** The same particles move through every state, so the
   particle count is fixed by the budget below. Each target list is resampled
