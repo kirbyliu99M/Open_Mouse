@@ -51,20 +51,23 @@ function sessionRequest(token: string | null): NextRequest {
 }
 
 describe("GET /api/auth/session", () => {
-  it("returns exactly expires and user.id: no sessionToken, no userId, no profile", async () => {
+  it("returns exactly expires and user.{id,name,image}: no sessionToken, no userId, no email", async () => {
     const res = await handlers.GET(sessionRequest(TOKEN));
 
     expect(res.status).toBe(200);
     const text = await res.text();
     const body = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(body).sort()).toEqual(["expires", "user"]);
-    expect(body.user).toEqual({ id: "user-1" });
+    expect(body.user).toEqual({
+      id: "user-1",
+      name: "Real Name",
+      image: "https://example.test/me.png",
+    });
     expect(typeof body.expires).toBe("string");
     // Nowhere in the body, under any key.
     expect(text).not.toContain(TOKEN);
     expect(text).not.toMatch(/sessionToken|userId/);
     expect(text).not.toContain("real@example.test");
-    expect(text).not.toContain("Real Name");
   });
 
   it("returns null for a token the database does not know", async () => {
@@ -82,7 +85,7 @@ describe("GET /api/auth/session", () => {
 });
 
 describe("toPublicSession", () => {
-  it("copies only expires and user.id, whatever else the input carries", () => {
+  it("copies only expires, user.id, name and image, whatever else the input carries", () => {
     const leaky = {
       expires: "2026-10-08T00:00:00.000Z",
       sessionToken: TOKEN,
@@ -97,7 +100,26 @@ describe("toPublicSession", () => {
 
     expect(out).toEqual({
       expires: "2026-10-08T00:00:00.000Z",
-      user: { id: "user-1" },
+      user: { id: "user-1", name: "n", image: null },
     });
+    expect(JSON.stringify(out)).not.toMatch(/sessionToken|userId|"e"/);
+  });
+
+  it("passes name and image through, and null when absent", () => {
+    const expires = "2026-10-08T00:00:00.000Z";
+    expect(
+      toPublicSession(
+        { expires },
+        { id: "u", name: "A", image: "https://x/y" },
+      ),
+    ).toEqual({ expires, user: { id: "u", name: "A", image: "https://x/y" } });
+    expect(toPublicSession({ expires }, { id: "u" }).user).toEqual({
+      id: "u",
+      name: null,
+      image: null,
+    });
+    expect(
+      toPublicSession({ expires }, { id: "u", name: null, image: null }).user,
+    ).toEqual({ id: "u", name: null, image: null });
   });
 });

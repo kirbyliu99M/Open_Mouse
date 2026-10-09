@@ -1,5 +1,6 @@
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
+import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
@@ -24,13 +25,7 @@ export default function HomePage() {
       <nav className="home-nav" aria-label="Primary">
         <span className="home-wordmark">Open Mouse</span>
         <div className="home-nav-actions">
-          <HomeCtaLink
-            cta="sign_in"
-            className="home-signin-link"
-            href="/account"
-          >
-            Sign in
-          </HomeCtaLink>
+          <AccountNavLink />
           <NavMenu />
         </div>
       </nav>
