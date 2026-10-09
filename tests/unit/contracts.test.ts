@@ -3,6 +3,7 @@ import {
   SHEET,
   MAX_SCALE_DISAGREEMENT,
   MEASUREMENT_MODEL_VERSION,
+  PALM_THICKNESS_LEVELS,
   scanSubmissionSchema,
 } from "../../src/lib/contracts/measurement";
 
@@ -68,6 +69,56 @@ describe("scanSubmissionSchema", () => {
         measurementModelVersion: "v0",
       }).success,
     ).toBe(false);
+  });
+
+  describe("palmThicknessStated", () => {
+    it("is optional: a skipped question sends no field and still parses", () => {
+      expect(valid).not.toHaveProperty("palmThicknessStated");
+      const r = scanSubmissionSchema.safeParse(valid);
+      expect(r.success).toBe(true);
+      expect(r.data).not.toHaveProperty("palmThicknessStated");
+    });
+
+    it.each(PALM_THICKNESS_LEVELS)("accepts %s and keeps it", (level) => {
+      const r = scanSubmissionSchema.safeParse({
+        ...valid,
+        palmThicknessStated: level,
+      });
+      expect(r.success).toBe(true);
+      expect(r.data?.palmThicknessStated).toBe(level);
+    });
+
+    it("lists exactly thin, medium and thick, in that order", () => {
+      expect([...PALM_THICKNESS_LEVELS]).toEqual(["thin", "medium", "thick"]);
+    });
+
+    it.each([
+      ["wrong case", "Thick"],
+      ["a millimetre value", 24],
+      ["null", null],
+      ["an empty string", ""],
+      ["an unknown label", "average"],
+    ])("rejects %s instead of treating it as a skip", (_, bad) => {
+      expect(
+        scanSubmissionSchema.safeParse({ ...valid, palmThicknessStated: bad })
+          .success,
+      ).toBe(false);
+    });
+
+    it("sits beside, not inside, the measured palmThicknessMm", () => {
+      const both = scanSubmissionSchema.safeParse({
+        ...valid,
+        palmThicknessStated: "thin",
+        measurements: { ...valid.measurements, palmThicknessMm: 22 },
+      });
+      expect(both.success).toBe(true);
+      expect(
+        scanSubmissionSchema.safeParse({
+          ...valid,
+          measurements: { ...valid.measurements, palmThicknessStated: "thin" },
+        }).success,
+      ).toBe(false);
+    });
   });
 
   it("rejects a payload carrying an image instead of silently stripping it", () => {

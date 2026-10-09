@@ -280,13 +280,32 @@ export function calibrationMethodOf(
 }
 
 /**
+ * The user's own answer to "how thick is your palm", a three-way choice shown
+ * after the scan (candidate, 2026-10-08). It is a rough self-report, not a
+ * measurement: no millimetre value is implied, and it is unrelated to the
+ * measured `palmThicknessMm`, which stays a separate optional field. The three
+ * labels order the hand from flat to full and nothing more.
+ */
+export const PALM_THICKNESS_LEVELS = ["thin", "medium", "thick"] as const;
+export type PalmThicknessLevel = (typeof PALM_THICKNESS_LEVELS)[number];
+
+/**
  * Strict: an unexpected field fails the parse instead of being silently
  * stripped, so a client that tries to send an image is rejected loudly.
+ *
+ * `palmThicknessStated` (candidate, 2026-10-08) follows `gripStyleStated`:
+ * what the user said, to be stored with the scan (the server does not store it
+ * yet: that is the separate backend PR), absent when they skipped the
+ * question. A client MUST omit the field on a skip. It never sends `"medium"`
+ * as a default, because a default would be stored as if the user had chosen
+ * it. No scorer reads it yet; the vertical-mouse candidate (#142) is the first
+ * planned reader and stays off.
  */
 export const scanSubmissionSchema = z
   .strictObject({
     hand: z.enum(["left", "right"]),
     gripStyleStated: z.enum(["palm", "claw", "fingertip"]).optional(),
+    palmThicknessStated: z.enum(PALM_THICKNESS_LEVELS).optional(),
     measurements: handMeasurementsSchema,
     calibration: calibrationEvidenceSchema,
     measurementModelVersion: z.enum(MEASUREMENT_MODEL_VERSIONS),
