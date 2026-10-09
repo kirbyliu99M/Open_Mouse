@@ -43,6 +43,16 @@
   color: var(--text-primary);
 }
 
+.home-account-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: 50%;
+  color: var(--text-primary);
+}
+
 .home-main h1 {
   margin: 0 0 0.75rem;
 }

@@ -4,6 +4,7 @@ import { isAuthConfigured } from "../../server/auth/config";
 import { AccountView } from "./AccountView";
 import { AuthButton } from "./AuthButton";
 import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
+import { Avatar } from "@/components/nav/Avatar";
 import { TopBar } from "@/components/nav/TopBar";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -100,6 +101,14 @@ export default async function AccountPage() {
       <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
       <div className="account-header">
         <div>
+          <div className="account-identity" data-testid="account-identity">
+            <Avatar
+              className="avatar avatar-large"
+              name={session.user.name ?? null}
+              image={session.user.image ?? null}
+            />
+            <p className="account-name">{session.user.name ?? "Signed in"}</p>
+          </div>
           <p className="eyebrow">Account</p>
           <h1>Your scans</h1>
           <p className="note">Kept until you delete it.</p>
