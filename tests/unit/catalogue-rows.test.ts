@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATALOGUE_EXPECTED as N } from "./fixtures/catalogue-expected";
 import catalogueJson from "../../src/db/seed/catalogue.json";
 import descriptorsJson from "../../src/db/seed/logitech-descriptors.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
@@ -77,24 +78,25 @@ describe("Logitech series rules", () => {
 });
 
 describe("buildSeedRows on the checked-in files", () => {
-  it("holds 38 + 409 - 15 merged = 432 rows, none skipped, slugs unique", () => {
-    expect(all).toHaveLength(432);
-    expect(built.merged).toBe(15);
-    expect(built.imported).toBe(394);
+  it("holds seed + candidates - merged rows, none skipped, slugs unique", () => {
+    expect(N.seedRows + N.candidates - N.merged).toBe(N.rows);
+    expect(all).toHaveLength(N.rows);
+    expect(built.merged).toBe(N.merged);
+    expect(built.imported).toBe(N.imported);
     expect(built.skipped).toBe(0);
-    expect(new Set(all.map((r) => r.slug)).size).toBe(432);
-    expect(new Set(all.map((r) => `${r.brand}/${r.model}`)).size).toBe(432);
+    expect(new Set(all.map((r) => r.slug)).size).toBe(N.rows);
+    expect(new Set(all.map((r) => `${r.brand}/${r.model}`)).size).toBe(N.rows);
   });
 
-  it("hides exactly the 18 Logitech rows that are neither G nor MX", () => {
+  it("hides exactly the Logitech rows that are neither G nor MX", () => {
     const hidden = all.filter((r) => !r.listed);
-    expect(hidden).toHaveLength(18);
+    expect(hidden).toHaveLength(N.unlisted);
     for (const r of hidden) {
       expect(r.brand).toBe("Logitech");
       expect(isGSeries(r.model) || isMxSeries(r.model)).toBe(false);
       expect(r.category).toBe("office");
     }
-    expect(all.filter((r) => r.listed)).toHaveLength(414);
+    expect(all.filter((r) => r.listed)).toHaveLength(N.listed);
   });
 
   it("makes every candidate row gaming and every G-series row gaming", () => {
@@ -102,7 +104,7 @@ describe("buildSeedRows on the checked-in files", () => {
       expect(r.category).toBe("gaming");
     for (const r of all.filter((x) => isGSeries(x.model)))
       expect(r.category).toBe("gaming");
-    expect(all.filter((r) => r.category === "office")).toHaveLength(23);
+    expect(all.filter((r) => r.category === "office")).toHaveLength(N.office);
   });
 
   it("takes the three trackballs from the Logitech facts, nothing else", () => {
@@ -123,9 +125,13 @@ describe("buildSeedRows on the checked-in files", () => {
     ).toEqual(["Lift Vertical", "M5", "MX Vertical"]);
   });
 
-  it("marks the 38 specs and the 8 official candidates first-party, the rest EloShapes", () => {
-    expect(all.filter((r) => r.dataSource === "first_party")).toHaveLength(46);
-    expect(all.filter((r) => r.dataSource === "eloshapes")).toHaveLength(386);
+  it("marks the specs and the official candidates first-party, the rest EloShapes", () => {
+    expect(all.filter((r) => r.dataSource === "first_party")).toHaveLength(
+      N.firstParty,
+    );
+    expect(all.filter((r) => r.dataSource === "eloshapes")).toHaveLength(
+      N.eloshapes,
+    );
   });
 
   it("gives every row valid descriptor combinations", () => {
@@ -148,8 +154,50 @@ describe("a merged Logitech row", () => {
     expect(g305.humpPlacement).toBe("back_moderate");
     expect(g305.shape).toBe("symmetrical"); // from the candidate
     expect(g305.frontFlare).not.toBeNull();
-    // Provenance stays the geometry file's.
-    expect(g305.descriptorModel).toMatch(/^geometry-gd1@/);
+    // The geometry model is kept, and the EloShapes fill is named.
+    expect(g305.descriptorModel).toMatch(/^geometry-gd1@[0-9a-f]+\+eloshapes$/);
+    expect(g305.descriptorSourceUrls).toContain(
+      entries.find((e) => e.model === "G305 Lightspeed")!.sourceUrl,
+    );
+  });
+
+  it("says +eloshapes on every merged row that took a value from its candidate", () => {
+    const mergedRows = entries.filter((e) => e.mergesInto);
+    expect(mergedRows).toHaveLength(N.merged);
+    for (const e of mergedRows) {
+      const row = byModel(e.mergesInto!);
+      expect(row.descriptorModel, e.model).toMatch(/\+eloshapes$/);
+      expect(row.descriptorSourceUrls, e.model).toContain(e.sourceUrl);
+      expect(row.dataSource, e.model).toBe("first_party");
+    }
+    // The first-party rows nothing was merged into keep the geometry provenance.
+    for (const row of all.filter(
+      (r) =>
+        r.brand === "Logitech" &&
+        r.dataSource === "first_party" &&
+        !entries.some((e) => e.mergesInto === r.model),
+    ))
+      expect(row.descriptorModel ?? "", row.model).not.toMatch(/eloshapes/);
+  });
+
+  it("leaves the geometry provenance alone when nothing is taken from the candidate", () => {
+    const g309 = entries.find((e) => e.mergesInto === "G309")!;
+    const empty: CatalogueEntry = {
+      ...g309,
+      shape: null,
+      handCompatibility: null,
+      humpPlacement: null,
+      frontFlare: null,
+      sideCurvature: null,
+      thumbRest: null,
+    };
+    const rebuilt = buildSeedRows(specs, descriptors, {
+      facts,
+      entries: [empty],
+    });
+    const row = rebuilt.withDescriptors.find((r) => r.model === "G309")!;
+    expect(row.descriptorModel).toMatch(/^geometry-gd1@[0-9a-f]+$/);
+    expect(row.descriptorSourceUrls).toEqual([]);
   });
 
   it("lets a first-party fact win over the candidate", () => {
@@ -169,11 +217,6 @@ describe("a merged Logitech row", () => {
     expect(all.some((r) => r.model === "G903 Lightspeed")).toBe(false);
   });
 
-  it("leaves G403 (the older listing) a row of its own beside G403 Hero", () => {
-    expect(byModel("G403").dataSource).toBe("eloshapes");
-    expect(byModel("G403 Hero").dataSource).toBe("first_party");
-  });
-
   it("names EloShapes as the descriptor source when no geometry record exists", () => {
     const m = built.withDescriptors.find(
       (r) => r.model === "G Pro X Superlight",
@@ -184,9 +227,39 @@ describe("a merged Logitech row", () => {
 
   it("marks inferred rows in descriptor_model", () => {
     const inferred = entries.filter((e) => e.descriptorsInferred);
-    expect(inferred).toHaveLength(8);
+    expect(inferred).toHaveLength(N.inferred);
     for (const e of inferred)
       expect(byModel(e.model).descriptorModel).toBe("eloshapes-inferred");
+  });
+});
+
+describe("Logitech visibility on imported rows", () => {
+  it("lists a Logitech row only if it is G or MX, whichever way it got in", () => {
+    for (const r of all.filter((x) => x.brand === "Logitech" && x.listed))
+      expect(isGSeries(r.model) || isMxSeries(r.model), r.model).toBe(true);
+  });
+
+  it("hides an imported Logitech candidate that is neither G nor MX", () => {
+    const base = entries.find((e) => e.model === "G Pro Wireless")!;
+    const office: CatalogueEntry = {
+      ...base,
+      model: "M590 Silent",
+      slug: "logitech-m590-silent",
+      mergesInto: null,
+    };
+    const rebuilt = buildSeedRows(specs, descriptors, {
+      facts,
+      entries: [office, base],
+    });
+    const rows = [...rebuilt.withDescriptors, ...rebuilt.withoutDescriptors];
+    expect(rows.find((r) => r.model === "M590 Silent")).toMatchObject({
+      category: "office",
+      listed: false,
+    });
+    expect(rows.find((r) => r.model === "G Pro Wireless")).toMatchObject({
+      category: "gaming",
+      listed: true,
+    });
   });
 });
 

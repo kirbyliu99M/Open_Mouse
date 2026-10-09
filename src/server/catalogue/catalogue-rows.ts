@@ -158,7 +158,16 @@ function entryFields(entry: CatalogueEntry): DescriptorFields {
 const first = <T>(...values: (T | null)[]): T | null =>
   values.find((v) => v !== null) ?? null;
 
-/** Merges the three sources onto one Logitech seed row (see the file header). */
+/**
+ * Merges the three sources onto one Logitech seed row (see the file header).
+ *
+ * Provenance: when any descriptor is taken from the EloShapes candidate, the
+ * row says so. `descriptor_model` becomes the geometry model plus
+ * `+eloshapes` (or `eloshapes` / `eloshapes-inferred` when there is no
+ * geometry record) and the candidate's source URL is appended to
+ * `descriptor_source_urls`. A row nothing was taken from the candidate for
+ * keeps the geometry provenance unchanged.
+ */
 export function mergeSeedDescriptors(
   label: string,
   geometry: DescriptorFields,
@@ -166,30 +175,42 @@ export function mergeSeedDescriptors(
   entry: CatalogueEntry | undefined,
 ): DescriptorFields {
   const e = entry ? entryFields(entry) : NO_FIELDS;
+  let fromCandidate = false;
+  // First non-null of the earlier sources, else the candidate (noted).
+  const pick = <T>(earlier: (T | null)[], candidate: T | null): T | null => {
+    const found = first(...earlier);
+    if (found !== null) return found;
+    if (candidate !== null) fromCandidate = true;
+    return candidate;
+  };
   const geometryHasProvenance = geometry.descriptorModel !== null;
   const merged: DescriptorFields = {
-    shape: first(facts.shape, geometry.shape, e.shape),
-    handCompatibility: first(
-      facts.handCompatibility,
-      geometry.handCompatibility,
+    shape: pick([facts.shape, geometry.shape], e.shape),
+    handCompatibility: pick(
+      [facts.handCompatibility, geometry.handCompatibility],
       e.handCompatibility,
     ),
-    humpPlacement: first(geometry.humpPlacement, e.humpPlacement),
-    frontFlare: first(geometry.frontFlare, e.frontFlare),
-    sideCurvature: first(geometry.sideCurvature, e.sideCurvature),
-    thumbRest: first(geometry.thumbRest, e.thumbRest),
+    humpPlacement: pick([geometry.humpPlacement], e.humpPlacement),
+    frontFlare: pick([geometry.frontFlare], e.frontFlare),
+    sideCurvature: pick([geometry.sideCurvature], e.sideCurvature),
+    thumbRest: pick([geometry.thumbRest], e.thumbRest),
     ringFingerRest: geometry.ringFingerRest,
-    // Provenance stays the geometry file's when it has one; otherwise it names
-    // EloShapes when a candidate contributed.
     descriptorMethod: geometryHasProvenance ? geometry.descriptorMethod : null,
-    descriptorModel: geometryHasProvenance
-      ? geometry.descriptorModel
-      : e.descriptorModel,
+    descriptorModel: geometryHasProvenance ? geometry.descriptorModel : null,
     descriptorSourceUrls: geometryHasProvenance
       ? geometry.descriptorSourceUrls
       : null,
     classifiedAt: geometryHasProvenance ? geometry.classifiedAt : null,
   };
+  if (fromCandidate && entry) {
+    merged.descriptorModel = geometryHasProvenance
+      ? `${geometry.descriptorModel}+eloshapes`
+      : e.descriptorModel;
+    merged.descriptorSourceUrls = [
+      ...(geometry.descriptorSourceUrls ?? []),
+      entry.sourceUrl,
+    ];
+  }
   assertConsistent(label, merged);
   return merged;
 }
@@ -303,8 +324,9 @@ export function buildSeedRows(
       size: computeSize(dims),
       sourceUrl: entry.sourceUrl,
       specRetrievedAt: new Date(entry.retrievedAt),
-      category: "gaming",
-      listed: true,
+      // Candidates are gaming mice, but a Logitech one still goes through the
+      // series rule: only G and MX are listed.
+      ...logitechVisibility(entry.brand, entry.model),
       formFactor: deriveFormFactor(dims),
       imagePath: imageExists(slug) ? imagePathFor(slug) : null,
       dataSource: entry.dataSource,

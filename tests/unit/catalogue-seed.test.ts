@@ -1,6 +1,6 @@
 /**
  * The full CAT-1 seed against a real Postgres (PGlite) with the repo's own
- * migrations: the 432 rows (38 first-party + 394 imported candidates) go
+ * migrations: every seed row and imported candidate goes
  * through the real table constraints, a second run changes nothing, and the
  * fit repo reads `listed` and `formFactor` back.
  */
@@ -20,6 +20,7 @@ import {
 vi.mock("server-only", () => ({}));
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
+import { CATALOGUE_EXPECTED as N } from "./fixtures/catalogue-expected";
 import catalogueJson from "../../src/db/seed/catalogue.json";
 import descriptorsJson from "../../src/db/seed/logitech-descriptors.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
@@ -74,24 +75,24 @@ beforeEach(async () => {
 });
 
 describe("seedCatalogue with the catalogue, facts and descriptors", () => {
-  it("writes 432 rows through the table's constraints and says so", async () => {
+  it("writes every row through the table's constraints and says so", async () => {
     const summary = await seedCatalogue(db, specs, descriptors, input);
     expect(seedSummaryLine(summary)).toBe(
-      "Seeded 432 mice (0 skipped for missing dimensions); table now holds 432. Applied descriptors for 34/34 classified models (0 needing review cleared, not applied). Catalogue: 394 imported, 15 merged into first-party rows; 18 unlisted.",
+      `Seeded ${N.rows} mice (0 skipped for missing dimensions); table now holds ${N.rows}. Applied descriptors for 34/34 classified models (0 needing review cleared, not applied). Catalogue: ${N.imported} imported, ${N.merged} merged into first-party rows; ${N.unlisted} unlisted.`,
     );
-    expect(await rows()).toHaveLength(432);
+    expect(await rows()).toHaveLength(N.rows);
   });
 
   it("stores the new columns", async () => {
     await seedCatalogue(db, specs, descriptors, input);
     const all = await rows();
     const count = (f: (r: Row) => boolean) => all.filter(f).length;
-    expect(count((r) => r.listed === false)).toBe(18);
-    expect(count((r) => r.category === "office")).toBe(23);
+    expect(count((r) => r.listed === false)).toBe(N.unlisted);
+    expect(count((r) => r.category === "office")).toBe(N.office);
     expect(count((r) => r.form_factor === "trackball")).toBe(3);
     expect(count((r) => r.form_factor === "vertical")).toBe(3);
-    expect(count((r) => r.data_source === "first_party")).toBe(46);
-    expect(count((r) => r.data_source === "eloshapes")).toBe(386);
+    expect(count((r) => r.data_source === "first_party")).toBe(N.firstParty);
+    expect(count((r) => r.data_source === "eloshapes")).toBe(N.eloshapes);
     expect(count((r) => r.image_path !== null)).toBe(0);
 
     const m575 = await one("ERGO M575");
@@ -118,7 +119,7 @@ describe("seedCatalogue with the catalogue, facts and descriptors", () => {
     const first = await rows();
     const summary = await seedCatalogue(db, specs, descriptors, input);
     expect(await rows()).toEqual(first);
-    expect(summary.tableCount).toBe(432);
+    expect(summary.tableCount).toBe(N.rows);
   });
 
   it("re-seeding moves a row back to the seed's listed value", async () => {
@@ -141,17 +142,17 @@ describe("seedCatalogue with the catalogue, facts and descriptors", () => {
 });
 
 describe("the fit repo over the seeded table", () => {
-  it("returns listed and formFactor, and listedOnly keeps 414 of 432", async () => {
+  it("returns listed and formFactor, and listedOnly keeps the listed rows", async () => {
     await seedCatalogue(db, specs, descriptors, input);
     const repo = createDrizzleFitRepo(
       db as unknown as Parameters<typeof createDrizzleFitRepo>[0],
     );
     const catalogue = await repo.loadCatalogue();
-    expect(catalogue).toHaveLength(432);
+    expect(catalogue).toHaveLength(N.rows);
     const m575 = catalogue.find((m) => m.model === "ERGO M575")!;
     expect(m575.listed).toBe(false);
     expect(m575.formFactor).toBe("trackball");
-    expect(listedOnly(catalogue)).toHaveLength(414);
+    expect(listedOnly(catalogue)).toHaveLength(N.listed);
     expect(
       listedOnly(catalogue).filter((m) => m.formFactor === "trackball"),
     ).toEqual([expect.objectContaining({ model: "MX Ergo S" })]);

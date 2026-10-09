@@ -88,6 +88,8 @@ export const ELOSHAPES_BROWSE_URL = "https://www.eloshapes.com/mouse/browse";
  */
 export const LOGITECH_ALIASES: Readonly<Record<string, string>> = {
   "G903 Lightspeed": "G903 Hero",
+  // No longer in the candidate list (dropped as a duplicate of G403 Hero,
+  // 2026-10-09); kept so the pairing is on record and a re-added G403 merges.
   G403: "G403 Hero",
 };
 
@@ -299,20 +301,53 @@ export function resolveLogitechMerges(
   });
 }
 
-/** The whole import: map, check for duplicates, resolve the Logitech merges. */
+/**
+ * Candidates whose name looks like a trackball but are known not to be one
+ * (slugs). Empty today. A trackball cannot be told from its dimensions, so a
+ * match here without an entry fails the import instead of shipping the row as
+ * `standard`.
+ */
+export const TRACKBALL_NAME_ALLOWLIST: readonly string[] = [];
+
+/**
+ * Throws naming every non-Logitech entry whose name matches
+ * TRACKBALL_NAME_PATTERN and is not allowlisted. Logitech is exempt because
+ * its form factors come from `logitech-facts.json`.
+ */
+export function assertNoUnflaggedTrackballs(
+  entries: readonly Pick<CatalogueEntry, "slug" | "brand" | "model">[],
+  allowlist: readonly string[] = TRACKBALL_NAME_ALLOWLIST,
+): void {
+  const hits = entries.filter(
+    (e) =>
+      e.brand !== "Logitech" &&
+      TRACKBALL_NAME_PATTERN.test(`${e.brand} ${e.model}`) &&
+      !allowlist.includes(e.slug),
+  );
+  if (hits.length > 0) {
+    throw new Error(
+      `candidate names that look like trackballs: ${hits.map((e) => `${e.brand} ${e.model}`).join(", ")}. Decide their form factor before importing, or add the slug to TRACKBALL_NAME_ALLOWLIST.`,
+    );
+  }
+}
+
+/** The whole import: map, check for duplicates and trackballs, resolve the Logitech merges. */
 export function buildCatalogue(
   records: readonly CandidateRecord[],
   seedModels: readonly string[],
   retrievedAt: string,
+  trackballAllowlist: readonly string[] = TRACKBALL_NAME_ALLOWLIST,
 ): CatalogueEntry[] {
   const mapped = records.map((r) => mapCandidate(r, retrievedAt));
   assertNoDuplicates(mapped);
+  assertNoUnflaggedTrackballs(mapped, trackballAllowlist);
   return resolveLogitechMerges(mapped, seedModels);
 }
 
 /**
- * Names that suggest a trackball, for the import report only. The catalogue's
- * form factor never comes from a name; a hit here is a prompt to look.
+ * Names that suggest a trackball. The catalogue's form factor never comes from
+ * a name; a non-Logitech hit fails the import (`assertNoUnflaggedTrackballs`)
+ * so someone decides it, and the import report prints the Logitech ones.
  */
 export const TRACKBALL_NAME_PATTERN =
   /track\s?ball|\bm575\b|\bmx ergo\b|\bexpert\b|\bslimblade\b|\borbit\b|\bergo m575/i;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATALOGUE_EXPECTED as N } from "./fixtures/catalogue-expected";
 import {
   DATA_SOURCES,
   FRONT_FLARES,
@@ -9,6 +10,7 @@ import {
 } from "../../src/lib/contracts/descriptors";
 import {
   assertNoDuplicates,
+  assertNoUnflaggedTrackballs,
   buildCatalogue,
   deriveFormFactor,
   ELOSHAPES_BROWSE_URL,
@@ -210,6 +212,26 @@ describe("mapCandidate", () => {
     );
   });
 
+  it.each([
+    ["not a number", "abc"],
+    ["zero", "0"],
+    ["negative", "-5"],
+    ["infinite", "Infinity"],
+  ])("refuses a %s dimension", (_label, value) => {
+    expect(() => mapCandidate(record({ lengthMm: value }), RETRIEVED)).toThrow(
+      /lengthMm/,
+    );
+  });
+
+  it.each(["abc", "0", "-3"])(
+    "refuses a weight of %j that is not positive",
+    (value) => {
+      expect(() => mapCandidate(record({ weightG: value }), RETRIEVED)).toThrow(
+        /weightG/,
+      );
+    },
+  );
+
   it.each(["lengthMm", "widthMm", "heightMm"] as const)(
     "refuses a row with no %s",
     (k) => {
@@ -274,6 +296,15 @@ describe("resolveLogitechMerges", () => {
     ).toBeNull();
   });
 
+  it("throws when two entries claim one seed row", () => {
+    expect(() =>
+      resolveLogitechMerges(
+        [logitech("G502 Hero"), logitech("G502 Hero")],
+        seedModels,
+      ),
+    ).toThrow(/both merge into the seed row G502 Hero/);
+  });
+
   it("only aliases onto models that exist in the seed", () => {
     for (const target of Object.values(LOGITECH_ALIASES))
       expect(seed.map((r) => r.model)).toContain(target);
@@ -288,6 +319,37 @@ describe("buildCatalogue", () => {
   });
 });
 
+describe("the trackball guard", () => {
+  const kensington = record({ brand: "Kensington", model: "Expert Mouse" });
+
+  it("fails the import for a non-Logitech trackball name", () => {
+    expect(() => buildCatalogue([kensington], [], RETRIEVED)).toThrow(
+      /Kensington Expert Mouse/,
+    );
+  });
+
+  it("passes when the slug is on the allowlist", () => {
+    const entries = buildCatalogue([kensington], [], RETRIEVED, [
+      "kensington-expert-mouse",
+    ]);
+    expect(entries).toHaveLength(1);
+  });
+
+  it("exempts Logitech (its form factors come from the facts file)", () => {
+    const m575 = mapCandidate(
+      record({ brand: "Logitech", model: "ERGO M575" }),
+      RETRIEVED,
+    );
+    expect(() => assertNoUnflaggedTrackballs([m575], [])).not.toThrow();
+  });
+
+  it("passes the real candidate list", () => {
+    expect(() =>
+      assertNoUnflaggedTrackballs(catalogue as unknown as CatalogueEntry[]),
+    ).not.toThrow();
+  });
+});
+
 describe("TRACKBALL_NAME_PATTERN", () => {
   it("catches trackball names and not ordinary mice", () => {
     expect(TRACKBALL_NAME_PATTERN.test("Logitech ERGO M575")).toBe(true);
@@ -299,8 +361,8 @@ describe("TRACKBALL_NAME_PATTERN", () => {
 describe("the committed src/db/seed/catalogue.json", () => {
   const entries = catalogue as unknown as CatalogueEntry[];
 
-  it("holds the 409 approved candidates, no slug twice", () => {
-    expect(entries).toHaveLength(409);
+  it("holds the approved candidates, no slug twice", () => {
+    expect(entries).toHaveLength(N.candidates);
     expect(() => assertNoDuplicates(entries)).not.toThrow();
   });
 
@@ -332,9 +394,11 @@ describe("the committed src/db/seed/catalogue.json", () => {
     }
   });
 
-  it("marks exactly the inferred rows and merges 15 of the 31 Logitech rows", () => {
-    expect(entries.filter((e) => e.descriptorsInferred)).toHaveLength(8);
-    expect(entries.filter((e) => e.mergesInto)).toHaveLength(15);
+  it("marks exactly the inferred rows and merges its Logitech rows", () => {
+    expect(entries.filter((e) => e.descriptorsInferred)).toHaveLength(
+      N.inferred,
+    );
+    expect(entries.filter((e) => e.mergesInto)).toHaveLength(N.merged);
     expect(
       entries.filter((e) => e.mergesInto && e.mergesInto !== e.model),
     ).toEqual([expect.objectContaining({ model: "G903 Lightspeed" })]);
