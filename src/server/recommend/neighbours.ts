@@ -39,6 +39,18 @@
  * says a floor of two is not airtight). Options: probe limits, fixed cells, a
  * higher floor, a coarser mean. Until one is chosen, never claim that a single
  * contributor cannot be worked out.
+ *
+ * What the caller of this function must do (checked 2026-10-09 against the
+ * planned catalogue growth: more brands, `listed = false` for the Logitech mice
+ * that are neither G nor MX): the function takes every rating it is given as
+ * valid and knows nothing about the catalogue. So the route that calls it
+ * hands over only ratings of mice this caller may be shown: it drops unlisted
+ * mice and the mice the fit excludes for this caller (hand, form factor) BEFORE
+ * the call. Left in, they would be listed and would also move the prior. It
+ * takes brand and model from the current `mice` row by `mouse_id` (a rating
+ * stores no name), and never deletes a `mice` row (`survey_ratings.mouse_id`
+ * cascades). The size of the catalogue does not matter to this function; the
+ * size of the pool does.
  */
 import type { GripStyle } from "../../lib/contracts/fit";
 import {
