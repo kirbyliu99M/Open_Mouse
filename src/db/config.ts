@@ -170,11 +170,35 @@ export function redactSecrets(message: string): string {
     .replace(KEY_VALUE_PAIR, redactCredentialValue);
 }
 
+/**
+ * Drizzle wraps a failed statement as "Failed query: …" and keeps the
+ * Postgres error (code, constraint, detail) in `cause`; without it a seed
+ * failure says nothing about why. Walks the cause chain, a few levels deep.
+ */
+function causeDetails(error: Error): string[] {
+  const out: string[] = [];
+  let cause: unknown = error.cause;
+  for (let depth = 0; depth < 3 && cause instanceof Error; depth += 1) {
+    const pg = cause as Error & {
+      code?: unknown;
+      constraint?: unknown;
+      detail?: unknown;
+      column?: unknown;
+    };
+    const extra = (["code", "constraint", "column", "detail"] as const)
+      .filter((k) => typeof pg[k] === "string" && pg[k] !== "")
+      .map((k) => `${k}=${String(pg[k])}`);
+    out.push([cause.message, ...extra].join(" "));
+    cause = cause.cause;
+  }
+  return out;
+}
+
 export function describeMigrationError(error: unknown): string {
   if (error instanceof DatabaseConfigurationError) return error.message;
   const detail =
     error instanceof Error
-      ? error.message
+      ? [error.message, ...causeDetails(error)].join(" | cause: ")
       : typeof error === "string"
         ? error
         : "";

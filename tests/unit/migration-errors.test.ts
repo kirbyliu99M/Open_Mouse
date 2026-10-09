@@ -412,6 +412,26 @@ describe("describeMigrationError", () => {
     expect(described.startsWith("Migration failed: ")).toBe(true);
   });
 
+  it("includes the Postgres cause of a failed query, without its secret", () => {
+    const pg = Object.assign(
+      new Error(
+        'duplicate key value violates unique constraint "mice_slug_unique"',
+      ),
+      {
+        code: "23505",
+        constraint: "mice_slug_unique",
+        detail: `Key (slug)=(acme-test) already exists. postgresql://u:${SECRET}@h/db`,
+      },
+    );
+    const error = new Error('Failed query: insert into "mice"', { cause: pg });
+    const described = describeMigrationError(error);
+    expect(described).toContain('Failed query: insert into "mice"');
+    expect(described).toContain("code=23505");
+    expect(described).toContain("constraint=mice_slug_unique");
+    expect(described).toContain("Key (slug)=(acme-test) already exists.");
+    expect(described).not.toContain(SECRET);
+  });
+
   it.each([undefined, null, 42, {}, new Error(""), "  "])(
     "falls back to a generic message when there is no detail (%s)",
     (error) => {
