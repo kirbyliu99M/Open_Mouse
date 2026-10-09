@@ -569,6 +569,14 @@ describe("the Palmate logo", () => {
 
   it("puts the dot where Kirby's official logo frame has it: (45, 53.5), 0.493 of the hand's ink box across and 0.687 down, a white disc in a blue ring, in the static image and in the particles", () => {
     const { bbox, centre, share } = OFFICIAL;
+    expect(PALMATE_DOT).toEqual({
+      cx: 45,
+      cy: 53.5,
+      r: 1.15,
+      fill: "#CFE0FF",
+      stroke: "#2463EB",
+      strokeWidth: 0.8,
+    });
     // The path's own box is the frame's ink box.
     const xs = polylines.flatMap((p) => p.points.map((v) => v[0]));
     const ys = polylines.flatMap((p) => p.points.map((v) => v[1]));
