@@ -91,6 +91,20 @@ describe("fitResponseSchema", () => {
     ).toBe(true);
   });
 
+  it.each([
+    ["no slug", { model: "X", weightG: 60 }],
+    ["no model", { slug: "x", weightG: 60 }],
+    ["no weightG", { slug: "x", model: "X" }],
+    ["a string weightG", { slug: "x", model: "X", weightG: "60" }],
+  ])("refuses a variant with %s", (_n, variant) => {
+    expect(
+      fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, variants: [variant] }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("refuses a variant carrying a score or a rank", () => {
     for (const extra of [{ total: 80 }, { rank: 2 }]) {
       const bad = {
