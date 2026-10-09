@@ -36,8 +36,8 @@ const base: CatalogueMouse = {
   handCompatibility: "ambidextrous",
   shape: "symmetrical",
   humpPlacement: "center",
-  frontFlare: "narrow",
-  sideCurvature: "straight",
+  frontFlare: "flat",
+  sideCurvature: "flat",
   thumbRest: true,
   ringFingerRest: false,
 };
@@ -86,9 +86,9 @@ describe("groupShells: the key", () => {
     ["heightMm", { heightMm: 40.01 }],
     ["shape", { shape: "ergonomic" }],
     ["handCompatibility", { handCompatibility: "right" }],
-    ["humpPlacement", { humpPlacement: "rear" }],
-    ["frontFlare", { frontFlare: "wide" }],
-    ["sideCurvature", { sideCurvature: "concave" }],
+    ["humpPlacement", { humpPlacement: "back_moderate" }],
+    ["frontFlare", { frontFlare: "outward_moderate" }],
+    ["sideCurvature", { sideCurvature: "inward" }],
     ["thumbRest", { thumbRest: false }],
     ["ringFingerRest", { ringFingerRest: true }],
   ];
