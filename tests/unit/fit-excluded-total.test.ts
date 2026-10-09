@@ -238,9 +238,13 @@ describe("a left-hand-only mouse scored for a right hand", () => {
   ] as const)(
     "%s: gets the total its right-hand copy is ranked with",
     (_n, run) => {
+      const heavyOnly = {
+        includeVertical: false,
+        weightG: { min: 150, max: 160 },
+      };
       for (const prefs of [
         PREFS,
-        { includeVertical: false, weightG: { min: 60, max: 80 } },
+        heavyOnly,
         { includeVertical: false, gripStyle: "fingertip" as const },
       ]) {
         const r = run(catalogue, measurements, "right", prefs, priors);
@@ -251,6 +255,65 @@ describe("a left-hand-only mouse scored for a right hand", () => {
         expect(excluded?.total).toBe(ranked!.total);
         expect(r.results.map((e) => e.mouse.slug)).not.toContain("acme-left");
       }
+    },
+  );
+});
+
+describe("the weight preference reaches the excluded total", () => {
+  const measurements: HandMeasurements = {
+    handLengthMm: 190,
+    palmLengthMm: 110,
+    palmWidthMm: 80,
+  };
+  const rightCopy: CatalogueMouse = {
+    slug: "acme-right",
+    brand: "Acme",
+    model: "Right",
+    lengthMm: 121,
+    widthMm: 68,
+    heightMm: 40,
+    weightG: 85,
+    size: "medium",
+    handCompatibility: "right",
+    shape: "symmetrical",
+    humpPlacement: "back_moderate",
+    frontFlare: "outward_slight",
+    sideCurvature: null,
+    thumbRest: true,
+  };
+  const leftOnly: CatalogueMouse = {
+    ...rightCopy,
+    slug: "acme-left",
+    model: "Left",
+    handCompatibility: "left",
+  };
+  const catalogue = [rightCopy, leftOnly];
+  const priors = computePriors(catalogue);
+  // 85 g against 150 to 160 g is 65 g out of range, far past the weight sigma.
+  const heavyOnly: FitPreferences = {
+    includeVertical: false,
+    weightG: { min: 150, max: 160 },
+  };
+
+  it.each([
+    ["fit-v0", v0],
+    ["fit-v1-candidate", v1],
+  ] as const)(
+    "%s: the preference changes the ranked total, and the excluded copy follows it",
+    (_n, run) => {
+      const totals = (prefs: FitPreferences) => {
+        const r = run(catalogue, measurements, "right", prefs, priors);
+        return {
+          ranked: r.results.find((e) => e.mouse.slug === "acme-right")!.total,
+          excluded: r.excluded.find((e) => e.slug === "acme-left")!.total,
+        };
+      };
+      const without = totals(PREFS);
+      const withPref = totals(heavyOnly);
+      expect(withPref.ranked).not.toBe(without.ranked);
+      expect(without.excluded).toBe(without.ranked);
+      expect(withPref.excluded).toBe(withPref.ranked);
+      expect(withPref.excluded).not.toBe(without.excluded);
     },
   );
 });
