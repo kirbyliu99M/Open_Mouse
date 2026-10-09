@@ -79,6 +79,7 @@ const DEMO_ROUTES = [
   "/scan/measured-demo",
   "/scan/paper-edge-measured-demo",
   "/scan/paper-edge-preview",
+  "/scan/share-card-demo",
   "/scan/submit-demo",
 ];
 

@@ -316,17 +316,6 @@
   margin-top: 0;
 }
 
-.landing-footer {
-  margin-top: 3rem;
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  text-align: left;
-}
-.landing-footer p {
-  margin: 0;
-  line-height: 1.4;
-}
-
 @media (min-width: 48rem) {
   /* The hero on a desktop or tablet, which gets shorter as the window does.
      At full size it is 29rem of logo slot, the headline, the subhead, the
@@ -441,9 +430,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2.5rem;
     margin-top: 3rem;
-  }
-  .landing-footer {
-    text-align: center;
   }
 }
 
@@ -698,13 +684,6 @@
   color: #6fe39c;
 }
 
-.home-footer-note {
-  text-align: center;
-  color: #b5b5bd;
-  font-size: 0.875rem;
-  margin: 0;
-}
-
 .home-how-page {
   padding-top: 1.25rem;
 }
@@ -783,9 +762,6 @@
   color: var(--accent-text);
   text-decoration: none;
 }
-.home-how-page .home-footer-note {
-  text-align: left;
-}
 
 @media (prefers-contrast: more) {
   .home-privacy-card {
@@ -851,8 +827,7 @@
   }
   .home-how-list p,
   .home-cta-caption,
-  .home-how-page .home-cta-caption,
-  .home-footer-note {
+  .home-how-page .home-cta-caption {
     color: var(--text-secondary);
   }
   .home-how-icon {

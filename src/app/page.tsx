@@ -123,13 +123,6 @@ export default function HomePage() {
           Early preview — measurements are still being validated.
         </p>
       </section>
-
-      <footer className="landing-footer">
-        <p>
-          Not affiliated with Logitech. Sizes from Logitech&apos;s published
-          specs.
-        </p>
-      </footer>
     </main>
   );
 }
