@@ -48,6 +48,7 @@ const base: CatalogueMouse = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
   ...base,
@@ -346,6 +347,7 @@ describe("tie-break order", () => {
       model: "Zulu",
       frontFlare: "flat",
       thumbRest: false,
+      ringFingerRest: null,
     });
     const unknown = mouse({ slug: "x-unknown", model: "Alpha" });
     // The unknown mouse takes the known one's own flare and thumb scores as

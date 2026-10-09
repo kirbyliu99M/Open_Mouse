@@ -392,6 +392,7 @@ test.describe("/results/[scanId] — real results page", () => {
       frontFlare: null,
       sideCurvature: null,
       thumbRest: null,
+      ringFingerRest: null,
       ...patch,
     });
     const fit = {

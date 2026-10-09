@@ -24,6 +24,7 @@ const baseMouse: CatalogueMouse = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 
 const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
@@ -76,6 +77,7 @@ describe("scoreGripWidth", () => {
           sideCurvature,
           shape: ergo ? "ergonomic" : "symmetrical",
           thumbRest: ergo ? true : null,
+          ringFingerRest: null,
         }),
         targetMm,
       );

@@ -41,9 +41,9 @@ export interface CatalogueMouse {
   thumbRest: boolean | null;
   /**
    * Only read by same-shell grouping (`shell-groups.ts`), which keys on it;
-   * scoring never does. Absent is treated as null.
+   * scoring never does. Required so every loader fills it.
    */
-  ringFingerRest?: boolean | null;
+  ringFingerRest: boolean | null;
   /**
    * What kind of device this is, from the catalogue column (CAT-1). Both
    * engines exclude a `trackball`; fit-v1 also reads `vertical` (v0 still

@@ -54,6 +54,7 @@ export function buildSeedCatalogue(
       frontFlare: null,
       sideCurvature: null,
       thumbRest: null,
+      ringFingerRest: null,
       ...(formFactor ? { formFactor } : {}),
     };
   });

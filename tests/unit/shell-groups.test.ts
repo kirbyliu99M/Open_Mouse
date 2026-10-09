@@ -129,17 +129,16 @@ describe("groupShells: the key", () => {
     expect(out[0]!.variants?.map((x) => x.slug)).toEqual(["b"]);
   });
 
-  it("an absent ringFingerRest equals null, and differs from false", () => {
-    const { ringFingerRest: _r, ...noField } = base;
-    void _r;
-    const absent: CatalogueMouse = { ...noField, slug: "a", model: "A" };
-    const nul = row("b", { ringFingerRest: null });
+  it("a null ringFingerRest differs from false", () => {
+    const nul = row("a", { ringFingerRest: null });
+    const nul2 = row("b", { ringFingerRest: null });
     const falsy = row("c", { ringFingerRest: false });
     const out = groupShells(
-      [entry(absent, 1, 80), entry(nul, 2, 79), entry(falsy, 3, 78)],
-      [absent, nul, falsy],
+      [entry(nul, 1, 80), entry(nul2, 2, 79), entry(falsy, 3, 78)],
+      [nul, nul2, falsy],
     );
     expect(out.map((e) => e.mouse.slug)).toEqual(["a", "c"]);
+    expect(out[0]!.variants?.map((v) => v.slug)).toEqual(["b"]);
   });
 });
 
