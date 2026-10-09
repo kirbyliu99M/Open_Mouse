@@ -164,6 +164,14 @@ describe("FINALE_LOOK", () => {
     }
   });
 
+  it("is never dark on the dark page: every colour has a relative luminance of at least 0.15", () => {
+    for (const kind of FINALE_KINDS) {
+      for (const { colour } of FINALE_LOOK[kind]) {
+        expect(luminance(colour)).toBeGreaterThanOrEqual(0.15);
+      }
+    }
+  });
+
   it("keeps every particle a dot: 0.5 to 3 px across", () => {
     for (const kind of FINALE_KINDS) {
       for (const { px } of FINALE_LOOK[kind]) {

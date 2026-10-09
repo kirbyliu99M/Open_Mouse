@@ -283,6 +283,46 @@ describe("depthOf", () => {
     );
   });
 
+  it("keeps the letters' layers blue to white and light: hue 210° to 230° (or white), luminance rising from at least 0.4", () => {
+    const rgb = (hex: string) =>
+      [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
+        number,
+        number,
+        number,
+      ];
+    const luminance = (hex: string) => {
+      const [r, g, b] = rgb(hex).map((c) =>
+        c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+      ) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const hue = (hex: string) => {
+      const [r, g, b] = rgb(hex);
+      const max = Math.max(r, g, b);
+      const d = max - Math.min(r, g, b);
+      if (d === 0) return null;
+      const h =
+        max === r
+          ? ((g - b) / d) % 6
+          : max === g
+            ? (b - r) / d + 2
+            : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    let last = 0.4;
+    for (const { colour } of DEPTH_LAYERS) {
+      expect(colour).toMatch(/^#[0-9A-F]{6}$/i);
+      const h = hue(colour);
+      if (h === null) expect(colour.toUpperCase()).toBe("#FFFFFF");
+      else {
+        expect(h).toBeGreaterThanOrEqual(210);
+        expect(h).toBeLessThanOrEqual(230);
+      }
+      expect(luminance(colour)).toBeGreaterThan(last);
+      last = luminance(colour);
+    }
+  });
+
   it("puts nearer layers bigger and brighter", () => {
     for (let i = 1; i < DEPTH_LAYERS.length; i += 1) {
       expect(DEPTH_LAYERS[i]!.px).toBeGreaterThan(DEPTH_LAYERS[i - 1]!.px);
