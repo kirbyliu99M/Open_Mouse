@@ -153,6 +153,7 @@ export async function handleScanSubmission(
     sessionId,
     hand: submission.hand,
     gripStyleStated: submission.gripStyleStated ?? null,
+    palmThicknessStated: submission.palmThicknessStated ?? null,
     measurements: submission.measurements,
     scaleCheckRatio:
       "cardScaleRatio" in submission.calibration

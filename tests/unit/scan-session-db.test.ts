@@ -146,6 +146,7 @@ describe("createClaimedSession on real Postgres", () => {
       sessionId: id,
       hand: "right",
       gripStyleStated: null,
+      palmThicknessStated: null,
       measurements: { handLengthMm: 186, palmLengthMm: 106, palmWidthMm: 82 },
       scaleCheckRatio: null,
       measurementModelVersion: "landmark-raw-v1",

@@ -15,6 +15,7 @@ const NOW = new Date("2026-09-23T12:00:00Z");
 const dbRow = {
   hand: "left" as const,
   gripStyleStated: "palm" as const,
+  palmThicknessStated: "thin" as const,
   handLengthMm: 180,
   palmLengthMm: 100,
   palmWidthMm: 85,
@@ -57,6 +58,7 @@ describe("createDrizzleScanRepo().findOwnedScan", () => {
     expect(result).toEqual({
       hand: "left",
       gripStyleStated: "palm",
+      palmThicknessStated: "thin",
       measurements: {
         handLengthMm: 180,
         palmLengthMm: 100,
