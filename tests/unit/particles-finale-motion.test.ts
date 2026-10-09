@@ -85,7 +85,8 @@ describe("scatterSource, arcControl and quadraticAt", () => {
     expect(arcControl([0, 0], [10, 0], 0)).toEqual([5, 0]);
     expect(arcControl([0, 0], [10, 0], 0.2)).toEqual([5, 2]);
     expect(arcControl([0, 0], [10, 0], -0.2)).toEqual([5, -2]);
-    // Travelling down the screen, a positive bend swings to -x.
+    // Travelling down the screen, a positive bend swings to -x: the
+    // traveller's right on the screen (y down).
     expect(arcControl([0, 0], [0, 10], 0.2)).toEqual([-2, 5]);
   });
 
@@ -154,7 +155,8 @@ describe("gatherAt", () => {
 
   it("swings to the side of its bend: off the straight line mid-flight", () => {
     const mid = gatherAt(particle, 0.3 + GATHER.duration / 2).position;
-    // Signed distance from the source-target line; a positive bend goes left.
+    // Signed distance from the source-target line, along (-dy, dx): positive
+    // is to the right of the travel on the screen (y down).
     const [ax, ay] = particle.source;
     const [bx, by] = particle.target;
     const side = (bx - ax) * (mid[1] - ay) - (by - ay) * (mid[0] - ax);

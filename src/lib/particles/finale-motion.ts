@@ -83,8 +83,9 @@ export function scatterSource(
 
 /**
  * The control point of a flight's curve: the midpoint, moved sideways by
- * `bend` times the distance (to the left of the direction of travel for a
- * positive bend).
+ * `bend` times the distance along (-dy, dx), the travel vector turned a
+ * quarter: on the screen (y down) a positive bend swings to the right of the
+ * direction of travel (going +x it swings down the screen).
  */
 export function arcControl(source: Vec, target: Vec, bend: number): Vec {
   return [

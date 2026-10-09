@@ -201,7 +201,7 @@ describe("FINALE_LOOK", () => {
 });
 
 describe("walkPolyline", () => {
-  it("starts half a step in and steps evenly along a straight line, with the left normal", () => {
+  it("starts half a step in and steps evenly along a straight line, with the normal (-dy, dx): going +x it points down the screen", () => {
     const { points, length } = walkPolyline(
       [
         [0, 0],

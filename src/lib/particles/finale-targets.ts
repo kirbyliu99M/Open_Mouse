@@ -7,8 +7,9 @@ import { parseSketchSvg } from "./svg-path";
  * The home page's ending: a hand on a mouse, drawn in particles (home finale,
  * stage 1: data only, nothing on the page reads it yet). Pure: no file access.
  *
- * The drawing is public/images/sketches/finale-grip.svg, our own line art (the
- * Pencil illustration "Palm Grip Technical Diagram", pvhPT). Each of its paths
+ * The drawing is public/images/sketches/finale-grip.svg, the project's line
+ * drawing pvhPT (the Pencil illustration "Palm Grip Technical Diagram"; its
+ * origin is recorded in NOTICE). Each of its paths
  * names its role with `data-part`, and each role becomes a kind of particle:
  *
  *   hand-outline                  dust: the hand's and forearm's outline,
@@ -248,7 +249,10 @@ interface WalkPoint {
   readonly y: number;
   /** Arc length from the path's start. */
   readonly s: number;
-  /** The unit normal (left of the direction of travel). */
+  /**
+   * The unit normal (-dy, dx): on the screen (y down) it points to the right
+   * of the direction of travel; going +x it points down the screen.
+   */
   readonly nx: number;
   readonly ny: number;
 }
