@@ -4,6 +4,7 @@ import factsJson from "../../src/db/seed/logitech-facts.json";
 import { fitResponseSchema } from "../../src/lib/contracts/fit";
 import type { FitPreferences } from "../../src/lib/contracts/fit";
 import type { HandMeasurements } from "../../src/lib/contracts/measurement";
+import { totalApplies } from "../../src/server/fit/exclusions";
 import { computePriors, type Priors } from "../../src/server/fit/priors";
 import { scoreFit } from "../../src/server/fit/score";
 import { scoreFitV1 } from "../../src/server/fit/score-v1";
@@ -87,12 +88,22 @@ describe.each(engines)(
         expect(wrongHand.map((e) => e.slug).sort()).toEqual(
           [...rankedTotal.keys()].sort(),
         );
+        const bySlug = new Map(seed.map((m) => [m.slug, m]));
+        let withTotal = 0;
         for (const e of wrongHand) {
-          expect(e.total, e.slug).toBe(rankedTotal.get(e.slug));
+          if (totalApplies(bySlug.get(e.slug)!)) {
+            expect(e.total, e.slug).toBe(rankedTotal.get(e.slug));
+            withTotal += 1;
+          } else {
+            // v0 ranks a trackball; as an excluded mouse it shows no number.
+            expect(e, e.slug).not.toHaveProperty("total");
+          }
         }
+        expect(withTotal).toBeGreaterThan(20);
         // The golden top 5 is the same number, so a coefficient change cannot
         // move the excluded and the ranked total apart unnoticed.
         for (const { slug, total } of profile.top5) {
+          if (!totalApplies(bySlug.get(slug)!)) continue;
           expect(wrongHand.find((e) => e.slug === slug)?.total).toBe(total);
         }
       },
