@@ -818,7 +818,7 @@ test("signed in, the nav shows the Google avatar linking to the account page ins
   expect(box!.height).toBeGreaterThanOrEqual(44);
 });
 
-test("signed in with an avatar that fails to load, the nav shows the sparkle fallback", async ({
+test("signed in with an avatar that fails to load, the nav shows the meteor mouse fallback", async ({
   page,
 }) => {
   await page.route("**/api/auth/session", (route) =>
@@ -841,8 +841,8 @@ test("signed in with an avatar that fails to load, the nav shows the sparkle fal
   const account = page
     .getByRole("navigation", { name: "Primary" })
     .getByRole("link", { name: "Account", exact: true });
-  // The fallback is the static sparkle, not the name's initial (Kirby,
-  // 2026-10-09).
+  // The fallback is the static meteor mouse, not the name's initial (Kirby,
+  // 2026-10-10).
   const fallback = account.getByTestId("avatar-fallback");
   await expect(fallback).toBeVisible();
   await expect(fallback.locator("svg")).toHaveCount(1);

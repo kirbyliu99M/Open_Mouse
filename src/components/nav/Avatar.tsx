@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 /** A round profile picture. With no image, or when it fails to load, it shows
- * the static particle sparkle (Kirby's call, 2026-10-09), the same for every
- * user. Decorative: the surrounding control or text carries the accessible
- * name. The colours come from classes in globals.css so print can override. */
+ * the static meteor mouse (Kirby's decision, 2026-10-10: meteor x mouse), the
+ * same for every user. Decorative: the surrounding control or text carries the
+ * accessible name. The colours and stroke styles come from classes in
+ * globals.css so print can override them. */
 export function Avatar({
   image,
   className = "avatar",
@@ -37,18 +38,44 @@ export function Avatar({
     >
       <svg viewBox="0 0 32 32" focusable="false">
         <path
-          className="avatar-spark-light"
-          d="M15 6 C15.8 11.2 18.8 14.2 24 15 C18.8 15.8 15.8 18.8 15 24 C14.2 18.8 11.2 15.8 6 15 C11.2 14.2 14.2 11.2 15 6 Z"
+          className="avatar-meteor-trail-accent"
+          strokeWidth="1.1"
+          d="M12.14 15.98 L8.54 20.27"
         />
         <path
-          className="avatar-spark-accent"
-          d="M24 4 C24.3 5.9 25.1 6.7 27 7 C25.1 7.3 24.3 8.1 24 10 C23.7 8.1 22.9 7.3 21 7 C22.9 6.7 23.7 5.9 24 4 Z"
+          className="avatar-meteor-trail-accent"
+          strokeWidth="1.1"
+          d="M17.35 20.35 L12.46 26.18"
         />
-        <circle className="avatar-spark-accent" cx="8" cy="24" r="1.1" />
-        <circle className="avatar-spark-light" cx="25" cy="24" r="0.9" />
-        <circle className="avatar-spark-accent" cx="6" cy="9" r="0.8" />
-        <circle className="avatar-spark-light" cx="20" cy="27" r="0.7" />
-        <circle className="avatar-spark-accent" cx="12" cy="4" r="0.6" />
+        <path
+          className="avatar-meteor-trail-light"
+          strokeWidth="1.7"
+          d="M13.33 19.85 L7.93 26.29"
+        />
+        <path
+          className="avatar-meteor-body"
+          strokeWidth="1.4"
+          d="M16.63 8.14 C19.53 4.69 22.5 4.57 24.64 6.37 C26.79 8.17 27.19 11.12 24.29 14.56 L21.08 18.4 C19.34 20.46 16.66 20.56 14.36 18.63 C12.06 16.7 11.68 14.04 13.42 11.97 Z"
+        />
+        <path
+          className="avatar-meteor-line"
+          strokeWidth="1"
+          d="M24.64 6.37 L20.46 11.35 M16.63 8.14 L24.29 14.56"
+        />
+        <path
+          className="avatar-meteor-wheel"
+          strokeWidth="1.7"
+          d="M23.49 7.75 L22.01 9.51"
+        />
+        <circle className="avatar-meteor-dot-light" cx="11" cy="17" r="0.7" />
+        <circle className="avatar-meteor-dot-accent" cx="5.5" cy="22" r="0.8" />
+        <circle
+          className="avatar-meteor-dot-accent"
+          cx="14.5"
+          cy="26.5"
+          r="0.6"
+        />
+        <circle className="avatar-meteor-dot-light" cx="26" cy="22" r="0.7" />
       </svg>
     </span>
   );
