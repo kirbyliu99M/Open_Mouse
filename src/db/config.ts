@@ -167,7 +167,28 @@ function redactCredentialValue(
 export function redactSecrets(message: string): string {
   return message
     .replace(CONNECTION_URL, "[redacted-url]")
-    .replace(KEY_VALUE_PAIR, redactCredentialValue);
+    .replace(KEY_VALUE_PAIR, redactCredentialValue)
+    .replace(PG_KEY_DETAIL, redactPgKeyDetail)
+    .replace(PG_FAILING_ROW, "Failing row contains ([redacted])");
+}
+
+// Postgres error details carry column values in two shapes the key=value
+// pattern above cannot see: "Key (col)=(value) already exists." (unique and
+// foreign keys) and "Failing row contains (v1, v2, …)." (check and not-null;
+// no column names). A Key value is redacted when a column name looks like a
+// credential; a failing row is always redacted, since nothing says which
+// value is which. The constraint name, which is what debugging needs, stays.
+const PG_KEY_DETAIL = /Key \(([^()]*)\)=\(((?:[^()]|\([^()]*\))*)\)/g;
+const PG_FAILING_ROW = /Failing row contains \((?:[^()]|\([^()]*\))*\)/g;
+const CREDENTIAL_COLUMN = new RegExp(
+  String.raw`\b(?:${CREDENTIAL_KEY})\b`,
+  "i",
+);
+
+function redactPgKeyDetail(match: string, columns: string): string {
+  return CREDENTIAL_COLUMN.test(columns)
+    ? `Key (${columns})=([redacted])`
+    : match;
 }
 
 /**
@@ -188,7 +209,8 @@ function causeDetails(error: Error): string[] {
     const extra = (["code", "constraint", "column", "detail"] as const)
       .filter((k) => typeof pg[k] === "string" && pg[k] !== "")
       .map((k) => `${k}=${String(pg[k])}`);
-    out.push([cause.message, ...extra].join(" "));
+    const piece = [cause.message, ...extra].filter(Boolean).join(" ");
+    if (piece) out.push(piece);
     cause = cause.cause;
   }
   return out;
@@ -198,7 +220,9 @@ export function describeMigrationError(error: unknown): string {
   if (error instanceof DatabaseConfigurationError) return error.message;
   const detail =
     error instanceof Error
-      ? [error.message, ...causeDetails(error)].join(" | cause: ")
+      ? [error.message, ...causeDetails(error)]
+          .filter(Boolean)
+          .join(" | cause: ")
       : typeof error === "string"
         ? error
         : "";

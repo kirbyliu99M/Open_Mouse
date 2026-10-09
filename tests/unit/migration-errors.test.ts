@@ -432,6 +432,56 @@ describe("describeMigrationError", () => {
     expect(described).not.toContain(SECRET);
   });
 
+  it("redacts a credential column's value in a Postgres Key detail, keeps others", () => {
+    const withCause = (detail: string) =>
+      describeMigrationError(
+        new Error("Failed query", {
+          cause: Object.assign(new Error("dup"), { detail }),
+        }),
+      );
+    const leaked = withCause("Key (api_token)=(abc123secret) already exists.");
+    expect(leaked).not.toContain("abc123secret");
+    expect(leaked).toContain("Key (api_token)=([redacted])");
+    expect(withCause("Key (password)=(hunter2) already exists.")).not.toContain(
+      "hunter2",
+    );
+    expect(
+      withCause("Key (brand, model)=(Acme, Test) already exists."),
+    ).toContain("Key (brand, model)=(Acme, Test) already exists.");
+  });
+
+  it("redacts the values of a Postgres failing row, keeps the constraint", () => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("violates check constraint"), {
+          constraint: "mice_source_url_https",
+          detail: "Failing row contains (abc, hunter2, (nested), 42).",
+        }),
+      }),
+    );
+    expect(described).not.toContain("hunter2");
+    expect(described).toContain("Failing row contains ([redacted]).");
+    expect(described).toContain("constraint=mice_source_url_https");
+  });
+
+  it("drops empty cause pieces instead of printing an empty tail", () => {
+    expect(
+      describeMigrationError(new Error("", { cause: new Error("") })),
+    ).toMatch(/no error detail/);
+    expect(
+      describeMigrationError(new Error("Failed", { cause: new Error("") })),
+    ).toBe("Migration failed: Failed");
+  });
+
+  it("stops after three causes on a cyclic chain", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    Object.assign(a, { cause: b });
+    expect(describeMigrationError(new Error("top", { cause: a }))).toBe(
+      "Migration failed: top | cause: a | cause: b | cause: a",
+    );
+  });
+
   it.each([undefined, null, 42, {}, new Error(""), "  "])(
     "falls back to a generic message when there is no detail (%s)",
     (error) => {
