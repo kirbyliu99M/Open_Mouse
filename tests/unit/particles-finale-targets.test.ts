@@ -103,6 +103,54 @@ describe("the finale's drawing", () => {
   });
 });
 
+describe("FINALE_LOOK", () => {
+  const rgb = (hex: string) => {
+    expect(hex).toMatch(/^#[0-9A-F]{6}$/i);
+    return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
+      number,
+      number,
+      number,
+    ];
+  };
+  // Relative luminance (WCAG), from sRGB.
+  const luminance = (hex: string) => {
+    const [r, g, b] = rgb(hex).map((c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    }) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+
+  it("stays in the page's blue-to-white family: blue is never weaker than red or green", () => {
+    for (const kind of FINALE_KINDS) {
+      for (const { colour } of FINALE_LOOK[kind]) {
+        const [r, g, b] = rgb(colour);
+        expect(b).toBeGreaterThanOrEqual(r);
+        expect(b).toBeGreaterThanOrEqual(g);
+      }
+    }
+    expect(FINALE_LOOK.highlight[0]!.colour.toUpperCase()).toBe("#FFFFFF");
+  });
+
+  it("makes each level lighter, bigger and no fainter than the one below it", () => {
+    for (const kind of FINALE_KINDS) {
+      const levels = FINALE_LOOK[kind];
+      for (let i = 1; i < levels.length; i += 1) {
+        expect(luminance(levels[i]!.colour)).toBeGreaterThan(
+          luminance(levels[i - 1]!.colour),
+        );
+        expect(levels[i]!.px).toBeGreaterThan(levels[i - 1]!.px);
+        expect(levels[i]!.alpha).toBeGreaterThanOrEqual(levels[i - 1]!.alpha);
+      }
+      for (const l of levels) {
+        expect(l.alpha).toBeGreaterThan(0);
+        expect(l.alpha).toBeLessThanOrEqual(1);
+        expect(l.px).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
 describe("walkPolyline", () => {
   it("starts half a step in and steps evenly along a straight line, with the left normal", () => {
     const { points, length } = walkPolyline(
@@ -378,8 +426,8 @@ describe("the committed finale.generated.json", () => {
           mobile: {
             ...raw.tiers.mobile,
             runs: [
-              [5, 3, 0],
-              [6, 1, 0],
+              [0, 3, 0],
+              [2, 1, 1],
             ],
           },
         },
@@ -397,5 +445,68 @@ describe("the committed finale.generated.json", () => {
     expect(() => parseFinaleTargets({ ...raw, tiers: { desktop } })).toThrow(
       /mobile/,
     );
+  });
+
+  describe("runs must cover the points back to back", () => {
+    const raw = JSON.parse(committed);
+    const runs: number[][] = raw.tiers.desktop.runs;
+    const withRuns = (r: unknown) => ({
+      ...raw,
+      tiers: { ...raw.tiers, desktop: { ...raw.tiers.desktop, runs: r } },
+    });
+
+    it("accepts the generator's own runs", () => {
+      expect(() => parseFinaleTargets(withRuns(runs))).not.toThrow();
+    });
+
+    it("rejects a single run that covers one point from the middle (a gap before it)", () => {
+      expect(() => parseFinaleTargets(withRuns([[1, 1, 0]]))).toThrow(/gap/);
+    });
+
+    it("rejects runs with the first one removed (a gap at the start)", () => {
+      expect(() => parseFinaleTargets(withRuns(runs.slice(1)))).toThrow(/gap/);
+    });
+
+    it("rejects runs with the last one removed (points left uncovered at the end)", () => {
+      expect(() => parseFinaleTargets(withRuns(runs.slice(0, -1)))).toThrow(
+        /uncovered/,
+      );
+    });
+
+    it("rejects a gap between two runs", () => {
+      const gapped = runs.map((r, i) =>
+        i === 3 ? [r[0]! + 1, r[1]! - 1, r[2]!] : r,
+      );
+      expect(() => parseFinaleTargets(withRuns(gapped))).toThrow(/gap/);
+    });
+
+    it("rejects overlapping runs, and a path used twice or out of order", () => {
+      const overlapping = runs.map((r, i) =>
+        i === 3 ? [r[0]! - 1, r[1]! + 1, r[2]!] : r,
+      );
+      expect(() => parseFinaleTargets(withRuns(overlapping))).toThrow(
+        /overlaps/,
+      );
+      const twice = runs.map((r, i) =>
+        i === 3 ? [r[0]!, r[1]!, runs[2]![2]!] : r,
+      );
+      expect(() => parseFinaleTargets(withRuns(twice))).toThrow(/path/);
+    });
+  });
+
+  it("rejects a viewBox with no area, or not a number", () => {
+    const raw = JSON.parse(committed);
+    for (const bad of [
+      { width: 0 },
+      { height: 0 },
+      { width: -688 },
+      { height: -1 },
+      { width: Number.NaN },
+      { height: "622" },
+    ]) {
+      expect(() =>
+        parseFinaleTargets({ ...raw, viewBox: { ...raw.viewBox, ...bad } }),
+      ).toThrow(/viewBox/);
+    }
   });
 });

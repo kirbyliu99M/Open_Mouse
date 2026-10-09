@@ -74,6 +74,7 @@ function finaleTier(
     fail(`${what} runs`);
   }
   let next = 0;
+  let lastPath = -1;
   const runList: FinaleRun[] = value.runs.map((triple) => {
     if (!Array.isArray(triple) || triple.length !== 3) fail(`${what} runs`);
     const [start, count, path] = triple as unknown[];
@@ -87,13 +88,19 @@ function finaleTier(
     const from = start as number;
     const length = count as number;
     const line = path as number;
+    // The generator writes the runs back to back: each starts where the last
+    // ended, and together they cover every point.
+    if (from > next) fail(`${what}: a gap between runs`);
     if (from < next || length < 1 || from + length > list.length) {
       fail(`${what}: a run lies outside the points or overlaps another`);
     }
-    if (line < 0 || line >= lineCount) fail(`${what}: a run's path`);
+    // One run per path at most, in path order.
+    if (line <= lastPath || line >= lineCount) fail(`${what}: a run's path`);
+    lastPath = line;
     next = from + length;
     return { start: from, count: length, path: line };
   });
+  if (next !== list.length) fail(`${what}: the runs leave points uncovered`);
   return { scale, spacing, points: list, runs: runList };
 }
 
@@ -120,6 +127,15 @@ export function parseFinaleTargets(json: Json): FinaleTargets {
       points: pts.map((p) => vec(p, "finale line point")),
     };
   });
+  const frame = {
+    x: num(viewBox.x, "finale viewBox"),
+    y: num(viewBox.y, "finale viewBox"),
+    width: num(viewBox.width, "finale viewBox"),
+    height: num(viewBox.height, "finale viewBox"),
+  };
+  if (!(frame.width > 0) || !(frame.height > 0)) {
+    fail("finale viewBox: width and height > 0");
+  }
   const parsedTiers = Object.fromEntries(
     FINALE_TIER_NAMES.map((name) => [
       name,
@@ -129,12 +145,7 @@ export function parseFinaleTargets(json: Json): FinaleTargets {
   return {
     version: 1,
     seed: num(json.seed, "finale seed"),
-    viewBox: {
-      x: num(viewBox.x, "finale viewBox"),
-      y: num(viewBox.y, "finale viewBox"),
-      width: num(viewBox.width, "finale viewBox"),
-      height: num(viewBox.height, "finale viewBox"),
-    },
+    viewBox: frame,
     tiers: parsedTiers,
     lines: lineList,
     bounds: {
