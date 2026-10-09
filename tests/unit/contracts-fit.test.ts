@@ -114,7 +114,11 @@ describe("fitResponseSchema", () => {
   it.each(["vertical_form_factor", "trackball_form_factor"] as const)(
     "refuses a %s total of 0 too, and points at the right entry in a longer list",
     (reason) => {
-      const leftOnly = { ...valid.excluded[0], reason: "wrong_hand", total: 70 };
+      const leftOnly = {
+        ...valid.excluded[0],
+        reason: "wrong_hand",
+        total: 70,
+      };
       const excluded = [leftOnly, { ...valid.excluded[0], reason, total: 0 }];
       const parsed = fitResponseSchema.safeParse({ ...valid, excluded });
       expect(parsed.success).toBe(false);
