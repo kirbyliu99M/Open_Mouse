@@ -7,6 +7,10 @@ import {
   type FitResponse,
 } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
+import {
+  isPersonOpening,
+  PRINT_OPENED_ATTRIBUTE,
+} from "@/lib/results/disclosure";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import { ViewerRegion } from "@/components/viewer/ViewerRegion";
 import { AnalysisSlot } from "./AnalysisSlot";
@@ -51,7 +55,14 @@ export function ResultsDetails({
     <details
       className="results-disclosure results-details"
       onToggle={(event) => {
-        if (event.currentTarget.open) setOpened(true);
+        const details = event.currentTarget;
+        if (
+          isPersonOpening({
+            open: details.open,
+            printOpened: details.hasAttribute(PRINT_OPENED_ATTRIBUTE),
+          })
+        )
+          setOpened(true);
       }}
     >
       <summary>

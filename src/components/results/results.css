@@ -990,23 +990,20 @@
   color: var(--text-secondary);
 }
 .results-excluded-list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.125rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
   padding: 0.5rem 0;
   font-size: 0.9375rem;
   border-bottom: 1px solid var(--hairline);
 }
-.results-excluded-score {
-  grid-column: 2;
-  grid-row: 1;
-  color: var(--text-secondary);
+.results-excluded-detail {
   font-size: 0.875rem;
+  color: var(--text-secondary);
 }
-.results-excluded-reason {
-  grid-column: 1 / -1;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+/* The label and its number never part. */
+.results-excluded-mirror {
+  white-space: nowrap;
 }
 
 /* zh-TW (docs/design-guidelines.md, Typography): no negative tracking, a

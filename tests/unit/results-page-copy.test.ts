@@ -103,6 +103,18 @@ describe("results page copy", () => {
     expect(zhTW.backTo(zhTW.scanAgain)).toBe("返回重新掃描");
   });
 
+  it("labels an excluded mouse's number as the score of its mirrored shape, in the scanned hand's terms", () => {
+    expect(zhTW.excludedMirrorLabel("right")).toBe("若是右手形狀：");
+    expect(zhTW.excludedMirrorLabel("left")).toBe("若是左手形狀：");
+    expect(en.excludedMirrorLabel("right")).toBe("as a right-hand shape:");
+    expect(en.excludedMirrorLabel("left")).toBe("as a left-hand shape:");
+  });
+
+  it("says what the other-mice list holds, including the reasons", () => {
+    expect(zhTW.otherMiceHint).toBe("分數與型號；未列入比較的附原因");
+    expect(en.otherMiceHint).toBe("Scores and names; mice left out show why");
+  });
+
   it("keeps a number and its unit together", () => {
     for (const copy of [zhTW, en]) {
       const text = copy.enteredLengthNotice(186);

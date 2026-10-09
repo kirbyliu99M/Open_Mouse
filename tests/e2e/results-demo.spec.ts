@@ -239,6 +239,18 @@ test.describe("/results/demo", () => {
     await expect(wrongHand.locator(".results-excluded-score")).toHaveText(
       "58 / 100",
     );
+    // The number is labelled as the score of the mirrored shape, on one line.
+    await expect(wrongHand.locator(".results-excluded-mirror")).toHaveText(
+      "as a right-hand shape: 58 / 100",
+    );
+    const mirror = await wrongHand
+      .locator(".results-excluded-mirror")
+      .boundingBox();
+    const fontSize = await wrongHand
+      .locator(".results-excluded-mirror")
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    // One line: well under two lines of text, whatever the line height.
+    expect(mirror!.height).toBeLessThan(fontSize * 2);
     // No excluded row is a link.
     await expect(
       page.locator(".results-excluded-list a, .results-excluded-list button"),

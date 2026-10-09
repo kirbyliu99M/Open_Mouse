@@ -2,6 +2,10 @@
 
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
+import {
+  isPersonOpening,
+  PRINT_OPENED_ATTRIBUTE,
+} from "@/lib/results/disclosure";
 import { otherMice } from "@/lib/results/rankRoutes";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import { MousePhoto } from "./MousePhoto";
@@ -31,7 +35,14 @@ export function OtherMice({
     <details
       className="results-disclosure results-otherMice"
       onToggle={(event) => {
-        if (event.currentTarget.open) onOpened?.();
+        const details = event.currentTarget;
+        if (
+          isPersonOpening({
+            open: details.open,
+            printOpened: details.hasAttribute(PRINT_OPENED_ATTRIBUTE),
+          })
+        )
+          onOpened?.();
       }}
     >
       <summary>
@@ -74,14 +85,28 @@ export function OtherMice({
                   <span className="results-excluded-name">
                     {item.brand} {item.model}
                   </span>
-                  {item.total !== undefined && (
-                    <span className="results-excluded-score results-tabularNum">
-                      {item.total}
-                      <span lang={lang}> {copy.outOf}</span>
+                  {/* Reason first, then (when there is one) the number with its
+                      label: it is the score of the mouse's mirror image for
+                      this hand, not a score of this mouse. */}
+                  <span className="results-excluded-detail" lang={lang}>
+                    <span className="results-excluded-reason">
+                      {copy.excludedReason(item.reason, response.hand)}
                     </span>
-                  )}
-                  <span className="results-excluded-reason" lang={lang}>
-                    {copy.excludedReason(item.reason, response.hand)}
+                    {item.total !== undefined && (
+                      <>
+                        <span aria-hidden="true">{copy.excludedSeparator}</span>
+                        <span className="results-excluded-mirror">
+                          <span className="results-excluded-mirror-label">
+                            {copy.excludedMirrorLabel(response.hand)}
+                          </span>
+                          {" "}
+                          <span className="results-excluded-score results-tabularNum">
+                            {item.total}
+                            <span> {copy.outOf}</span>
+                          </span>
+                        </span>
+                      </>
+                    )}
                   </span>
                 </li>
               ))}

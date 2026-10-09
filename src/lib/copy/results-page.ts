@@ -73,6 +73,14 @@ export interface ResultsPageCopy {
     reason: ExclusionReason,
     userHand: "left" | "right",
   ) => string;
+  /**
+   * The label of an excluded mouse's number. The number is the score of the
+   * mouse's mirror image for the scanned hand, i.e. of the shape in the
+   * person's own hand's version, never "this mouse fits you".
+   */
+  excludedMirrorLabel: (userHand: "left" | "right") => string;
+  /** Between the reason and the mirrored score. */
+  excludedSeparator: string;
 }
 
 const NBSP = " ";
@@ -125,7 +133,7 @@ export const zhTW: ResultsPageCopy = {
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
   outOf: "/ 100",
   otherMiceTitle: (count) => `其他滑鼠（共 ${count} 款）`,
-  otherMiceHint: "只列分數與型號",
+  otherMiceHint: "分數與型號；未列入比較的附原因",
   excludedHeading: "未列入比較",
   excludedReason: (reason, userHand) => {
     switch (reason) {
@@ -137,6 +145,9 @@ export const zhTW: ResultsPageCopy = {
         return "軌跡球：目前的評分方式不適用";
     }
   },
+  excludedMirrorLabel: (userHand) =>
+    userHand === "right" ? "若是右手形狀：" : "若是左手形狀：",
+  excludedSeparator: " · ",
 };
 
 export const en: ResultsPageCopy = {
@@ -195,7 +206,7 @@ export const en: ResultsPageCopy = {
   othersCaption: "Tap any pick to see a results page with the same layout.",
   outOf: "/ 100",
   otherMiceTitle: (count) => `Other mice (${count})`,
-  otherMiceHint: "Scores and names only",
+  otherMiceHint: "Scores and names; mice left out show why",
   excludedHeading: "Not shown",
   excludedReason: (reason, userHand) => {
     switch (reason) {
@@ -209,6 +220,9 @@ export const en: ResultsPageCopy = {
         return "Trackball: our scoring doesn't cover this shape yet";
     }
   },
+  excludedMirrorLabel: (userHand) =>
+    userHand === "right" ? "as a right-hand shape:" : "as a left-hand shape:",
+  excludedSeparator: " · ",
 };
 
 export const RESULTS_PAGE_COPY: Record<UiLanguage, ResultsPageCopy> = {

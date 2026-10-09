@@ -204,18 +204,62 @@ describe("the results page layout", () => {
 describe("excluded rows", () => {
   const withTotal = render(many, { language: "en" });
 
-  it("show the score as NN / 100 when the exclusion carries one, and the reason always", () => {
-    const rows = [
-      ...withTotal.matchAll(
-        /<li><span class="results-excluded-name">.*?<\/li>/g,
-      ),
+  /** The visible words of a row, in reading order. */
+  const words = (row: string) =>
+    row
+      .replace(/<span aria-hidden="true">.*?<\/span>/g, " · ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&#x27;/g, "'")
+      .replace(/ /g, "~");
+  const rowsOf = (html: string) =>
+    [
+      ...html.matchAll(/<li><span class="results-excluded-name">.*?<\/li>/g),
     ].map((m) => m[0]);
+
+  it("put the reason first, then the number labelled as the mirrored shape's score", () => {
+    const rows = rowsOf(withTotal);
     expect(rows).toHaveLength(2);
     const wrongHand = rows.find((r) => r.includes("Basilisk"))!;
-    expect(wrongHand).toContain("Made for the left hand");
-    expect(wrongHand).toMatch(
-      /results-excluded-score[^>]*>58<span[^>]*> \/ 100<\/span>/,
+    // A right-hand scan: the mouse is made for the left hand, the number is
+    // for the right-hand version of its shape.
+    expect(words(wrongHand)).toBe(
+      "Razer Basilisk V3 X (left-handed)Made for the left hand · as a right-hand shape:~58 / 100",
     );
+    // Source order is reading order: reason, label, number.
+    expect(at(wrongHand, "results-excluded-reason")).toBeLessThan(
+      at(wrongHand, "results-excluded-mirror-label"),
+    );
+    expect(at(wrongHand, "results-excluded-mirror-label")).toBeLessThan(
+      at(wrongHand, "results-excluded-score"),
+    );
+    // Tabular figures, and the label and number in one unbreakable unit.
+    expect(wrongHand).toMatch(/results-excluded-score results-tabularNum/);
+    expect(wrongHand).toMatch(
+      /<span class="results-excluded-mirror">.*results-excluded-score.*<\/span><\/span>/,
+    );
+  });
+
+  it("read the same in zh-TW", () => {
+    const wrongHand = rowsOf(render(many, { language: "zh-TW" })).find((r) =>
+      r.includes("Basilisk"),
+    )!;
+    expect(words(wrongHand)).toBe(
+      "Razer Basilisk V3 X (left-handed)為左手設計 · 若是右手形狀：~58 / 100",
+    );
+  });
+
+  it("mirror the hand words for a left-hand scan", () => {
+    const left = { ...many, hand: "left" as const };
+    const en = rowsOf(render(left, { language: "en" })).find((r) =>
+      r.includes("Basilisk"),
+    )!;
+    expect(words(en)).toContain(
+      "Made for the right hand · as a left-hand shape:~58 / 100",
+    );
+    const zh = rowsOf(render(left, { language: "zh-TW" })).find((r) =>
+      r.includes("Basilisk"),
+    )!;
+    expect(words(zh)).toContain("為右手設計 · 若是左手形狀：~58 / 100");
   });
 
   it("show the reason only, with no number or dash, when there is no total", () => {
@@ -230,8 +274,9 @@ describe("excluded rows", () => {
     );
     expect(vertical).not.toContain("results-excluded-score");
     // The words only: no tags, and the apostrophe's entity has digits in it.
-    const words = vertical.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'");
-    expect(words).not.toMatch(/\d|—|–/);
+    const text = vertical.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'");
+    expect(text).not.toMatch(/\d|—|–/);
+    expect(text).not.toMatch(/shape:|形狀/);
   });
 
   it("have no link or button", () => {
