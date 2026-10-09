@@ -40,7 +40,7 @@ export interface AnalyseOptions {
 }
 
 /** Plain words for each exclusion, matching what the results page says
- * (`EXCLUDED_REASON_LABELS`). A `Record` so a new reason cannot silently
+ * (`excludedReason` in `src/lib/copy/results-page.ts`). A `Record` so a new reason cannot silently
  * reuse another's text. */
 const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
   wrong_hand: "doesn't fit your handedness",

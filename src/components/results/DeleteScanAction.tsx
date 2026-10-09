@@ -10,7 +10,7 @@ type Status = "idle" | "confirming" | "deleting" | "error";
 /**
  * Anonymous-only "Delete this scan now" action on `/results/[scanId]`
  * (issue #42, acceptance criterion 2 — "deleting is the user's choice").
- * Not rendered at all for a signed-in caller — `ResultsPageClient` decides
+ * Not rendered at all for a signed-in caller — `ResultsScanProvider` decides
  * that from the server-verified `anonymous` prop, so this component itself
  * never has to guess.
  *

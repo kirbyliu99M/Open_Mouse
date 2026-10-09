@@ -61,7 +61,7 @@ describe("sweepLegacyHandKeys", () => {
 describe("where the sweep runs", () => {
   it("on the results page and on both branches of the account page", () => {
     const results = readFileSync(
-      "src/app/results/[scanId]/ResultsPageClient.tsx",
+      "src/app/results/[scanId]/ResultsScanProvider.tsx",
       "utf8",
     );
     expect(results).toContain("sweepLegacyHandKeys(localStorage)");
