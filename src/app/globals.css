@@ -312,7 +312,12 @@ button:disabled {
   .button-danger {
     border-width: 2px;
   }
-  /* The 28 % frame is faint: draw it in full colour and thicker. */
+  /* The 28 % frame is faint: draw it in full colour and thicker. At 1.5 the
+     frame's outer edge is 0.25 unit outside the viewBox, so the SVG lets it
+     overflow rather than clip it. */
+  .brand-mark {
+    overflow: visible;
+  }
   .brand-mark-plate {
     stroke: var(--accent-text);
     stroke-width: 1.5;

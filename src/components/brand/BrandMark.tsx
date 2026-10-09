@@ -5,8 +5,12 @@
  * print, high-contrast and forced-colours rules), never from here. The size is
  * 28 px by default and can be set by CSS on `.brand-mark`.
  *
- * The frame is drawn inside the square (x = y = 0.5, 31 x 31) so its stroke is
- * not half-clipped at the edge of the viewBox. */
+ * The frame is drawn on the square's inset path (x = y = 0.5, 31 x 31), so its
+ * 1-unit stroke sits exactly inside the viewBox. The thicker 1.5-unit frame
+ * used with more contrast reaches 0.25 unit outside it, so globals.css sets
+ * `overflow: visible` on the SVG there. The L2 artwork's hand stroke ends about
+ * 0.45 unit past the bottom edge: clipped by default, and with more contrast
+ * it shows about 0.2 unit (0.2 px) beyond the thicker frame. */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <svg

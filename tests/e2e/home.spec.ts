@@ -886,8 +886,11 @@ test("the nav's brand mark is decorative, beside the site name, and adds nothing
     await nav.locator("[tabindex]:not([tabindex='-1'])").count(),
     "no tabindex added",
   ).toBe(0);
-  // The first Tab stop is not inside the brand group.
+  // The first Tab stop is the Sign in link, as before the mark (measured on
+  // main: 3 runs on chromium and 2 on mobile, with and without the mark in
+  // the DOM, all landed there), so the mark took no place in the tab order.
   await page.keyboard.press("Tab");
+  await expect(nav.getByRole("link", { name: "Sign in" })).toBeFocused();
   expect(
     await page.evaluate(() => !!document.activeElement?.closest(".home-brand")),
   ).toBe(false);
@@ -941,6 +944,9 @@ test("the nav's brand mark stays visible with more contrast and with forced colo
         document.querySelector(".brand-mark-hand")!,
       );
       return {
+        overflow: getComputedStyle(document.querySelector(".brand-mark")!)
+          .overflow,
+        plateFill: plate.fill,
         plateStroke: plate.stroke,
         plateWidth: plate.strokeWidth,
         handStroke: hand.stroke,
@@ -949,20 +955,31 @@ test("the nav's brand mark stays visible with more contrast and with forced colo
   const normal = await read();
   // The accent colour at 28 % alpha.
   expect(normal.plateStroke).toMatch(/\/ 0\.28\)$/);
+  expect(normal.plateFill).not.toBe("none");
   await page.emulateMedia({ contrast: "more" });
   const more = await read();
   // The frame goes from a 28 % tint to the full accent colour, and thicker.
   expect(more.plateStroke).toBe(normal.handStroke);
   expect(more.plateWidth).toBe("1.5px");
+  // At 1.5 the frame reaches 0.25 unit outside the viewBox: the SVG must not
+  // clip it (it does clip by default).
+  expect(normal.overflow).toBe("hidden");
+  expect(more.overflow).toBe("visible");
   await page.emulateMedia({
     contrast: "no-preference",
     forcedColors: "active",
   });
   const forced = await read();
-  for (const stroke of [forced.plateStroke, forced.handStroke]) {
-    expect(stroke).not.toBe("none");
-    expect(stroke).not.toBe("rgba(0, 0, 0, 0)");
-  }
+  // The system palette draws it: not the translucent 28 % blue of the normal
+  // state (so the forced-colors rule is in effect), and the line differs from
+  // the plate it sits on, or the mark would be invisible.
+  expect(forced.plateStroke).not.toBe(normal.plateStroke);
+  expect(forced.plateStroke).not.toContain("/ 0.28");
+  expect(forced.plateFill).not.toBe(normal.plateFill);
+  expect(forced.plateFill).not.toBe("none");
+  expect(forced.plateStroke).not.toBe(forced.plateFill);
+  expect(forced.handStroke).not.toBe(forced.plateFill);
+  expect(forced.handStroke).not.toBe(normal.handStroke);
 });
 
 test("print: the nav's brand mark prints as a black line drawing with no fill", async ({
