@@ -192,6 +192,7 @@ export interface MeteorOptions {
   /** [shortest, longest] rest length, px. */
   readonly length: readonly [number, number];
   readonly avoid?: readonly Rect[];
+  /** Every tail, at its longest, stays this far from every avoided rectangle (px, default 6). */
   readonly padding?: number;
   readonly attempts?: number;
   /** The longest the tail ever gets, as a multiple of its rest length (TRAIL.max): a meteor is placed so even that tail stays clear. */
@@ -239,7 +240,8 @@ export function placeMeteors(options: MeteorOptions): Meteor[] {
 /**
  * How long the tails are, as a multiple of their rest length, for a scroll
  * speed in px/s (either direction): 1 at a standstill, rising smoothly to
- * TRAIL.max at TRAIL.fullSpeed and staying there. Not a number counts as
+ * TRAIL.max at TRAIL.fullSpeed (fast at first, flattening toward the top,
+ * so it is above the straight line in between) and staying there. Not a number counts as
  * standing still.
  */
 export function trailScale(speed: number): number {

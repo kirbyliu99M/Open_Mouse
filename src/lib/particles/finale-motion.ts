@@ -254,7 +254,11 @@ export interface SweepState {
   readonly solid: boolean;
   /** Still a live particle: right of the core. */
   readonly live: boolean;
-  /** The afterglow on the solid letters, 0 to 1 (1 right behind the core). */
+  /**
+   * The afterglow on the solid letters, 0 to 1: 1 right behind the core,
+   * falling as the square of the way back through the band, so it is bright
+   * only near the core (under half at the band's middle).
+   */
   readonly afterglow: number;
   /** The core's white heat, 0 to 0.95: a short tail behind, a sharper front. */
   readonly core: number;

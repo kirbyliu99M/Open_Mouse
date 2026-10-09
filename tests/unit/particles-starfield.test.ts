@@ -223,3 +223,72 @@ describe("trailScale and smoothSpeed", () => {
     );
   });
 });
+
+describe("round 5: the documented shapes", () => {
+  const rect: Rect = { x: 80, y: 80, width: 40, height: 40 };
+  const grown = (pad: number): Rect => ({
+    x: rect.x - pad,
+    y: rect.y - pad,
+    width: rect.width + 2 * pad,
+    height: rect.height + 2 * pad,
+  });
+
+  it("keeps stars 6 px clear by default, and as far as a padding given", () => {
+    const sky = {
+      width: 200,
+      height: 200,
+      seed: 7,
+      counts: [3000],
+      avoid: [rect],
+    };
+    const byDefault = placeStars(sky);
+    expect(byDefault.length).toBeGreaterThan(2500);
+    for (const s of byDefault)
+      expect(inRect(grown(5.99), s.x, s.y)).toBe(false);
+    // Without padding, stars would sit in that 6 px band.
+    expect(
+      placeStars({ ...sky, padding: 0 }).some((s) =>
+        inRect(grown(5.99), s.x, s.y),
+      ),
+    ).toBe(true);
+    for (const s of placeStars({ ...sky, padding: 20 })) {
+      expect(inRect(grown(19.99), s.x, s.y)).toBe(false);
+    }
+  });
+
+  it("keeps every meteor's longest tail 6 px clear by default", () => {
+    const options = {
+      width: 300,
+      height: 300,
+      seed: 5,
+      count: 400,
+      length: [20, 40] as const,
+      avoid: [rect],
+    };
+    const meteors = placeMeteors(options);
+    expect(meteors.length).toBeGreaterThan(200);
+    for (const m of meteors) {
+      for (const seg of meteorSegments(m, TRAIL.max)) {
+        expect(segmentHitsRect(seg.from, seg.to, grown(5.99))).toBe(false);
+      }
+    }
+    const tight = placeMeteors({ ...options, padding: 0 });
+    expect(
+      tight.some((m) =>
+        meteorSegments(m, TRAIL.max).some((seg) =>
+          segmentHitsRect(seg.from, seg.to, grown(5.99)),
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("rises faster than a straight line at first, then flattens (above the line at half speed)", () => {
+    const half = trailScale(TRAIL.fullSpeed / 2);
+    expect(half).toBeGreaterThan(1 + (TRAIL.max - 1) / 2);
+    expect(half).toBeLessThan(TRAIL.max);
+    // Flattening: the last tenth of the speed adds less than the first tenth.
+    const first = trailScale(TRAIL.fullSpeed / 10) - 1;
+    const last = TRAIL.max - trailScale((TRAIL.fullSpeed * 9) / 10);
+    expect(last).toBeLessThan(first);
+  });
+});

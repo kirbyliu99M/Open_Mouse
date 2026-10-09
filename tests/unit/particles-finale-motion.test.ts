@@ -427,6 +427,28 @@ describe("the sweep", () => {
     expect(sweepAt(at - 50, at, w).excite).toBe(0);
   });
 
+  it("starts four cores before the left edge and ends past the right by the core and the afterglow", () => {
+    expect(sweepX(0, left, right, w)).toBe(left - 4 * w.core);
+    expect(sweepX(1, left, right, w)).toBe(right + w.core + w.afterglow);
+  });
+
+  it("eases in and out: behind a straight line early, ahead late, level at the middle", () => {
+    const from = sweepX(0, left, right, w);
+    const to = sweepX(1, left, right, w);
+    const straight = (t: number) => from + (to - from) * t;
+    expect(sweepX(0.25, left, right, w)).toBeLessThan(straight(0.25));
+    expect(sweepX(0.75, left, right, w)).toBeGreaterThan(straight(0.75));
+    expect(sweepX(0.5, left, right, w)).toBeCloseTo(straight(0.5), 9);
+  });
+
+  it("keeps the afterglow under half at the band's middle: bright only near the core", () => {
+    const at = 600;
+    const back = at - w.core;
+    const mid = sweepAt(back - w.afterglow / 2, at, w).afterglow;
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(0.5);
+  });
+
   it("has a narrower phone version", () => {
     expect(SWEEP.mobile.core).toBeLessThan(SWEEP.desktop.core);
     expect(SWEEP.mobile.afterglow).toBeLessThan(SWEEP.desktop.afterglow);
