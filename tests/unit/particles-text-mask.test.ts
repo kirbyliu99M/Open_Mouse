@@ -191,6 +191,14 @@ describe("labelPieces and groupLetters", () => {
     expect(new Set(letterOfPiece)).toEqual(new Set([0, 1, 2, 3]));
   });
 
+  it("joins pixels that touch at a corner in either diagonal", () => {
+    // (1, 0) and (0, 1): the scan meets (1, 0) first and must reach down-left.
+    const anti = thresholdMask([0, 255, 255, 0], 2, 2);
+    expect(labelPieces(anti).pieces).toHaveLength(1);
+    const main = thresholdMask([255, 0, 0, 255], 2, 2);
+    expect(labelPieces(main).pieces).toHaveLength(1);
+  });
+
   it("has nothing to read in an empty mask", () => {
     expect(groupLetters([])).toEqual({ letters: [], letterOfPiece: [] });
   });

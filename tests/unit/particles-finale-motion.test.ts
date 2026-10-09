@@ -85,6 +85,8 @@ describe("scatterSource, arcControl and quadraticAt", () => {
     expect(arcControl([0, 0], [10, 0], 0)).toEqual([5, 0]);
     expect(arcControl([0, 0], [10, 0], 0.2)).toEqual([5, 2]);
     expect(arcControl([0, 0], [10, 0], -0.2)).toEqual([5, -2]);
+    // Travelling down the screen, a positive bend swings to -x.
+    expect(arcControl([0, 0], [0, 10], 0.2)).toEqual([-2, 5]);
   });
 
   it("starts and ends a curve exactly on its ends", () => {

@@ -107,6 +107,9 @@ describe("segmentHitsRect", () => {
     expect(segmentHitsRect([0, 0], [30, 5], r)).toBe(false);
     expect(segmentHitsRect([25, 0], [25, 30], r)).toBe(false);
     expect(segmentHitsRect([0, 30], [30, 0], r)).toBe(true);
+    // Passing a corner: inside the x band and inside the y band, but never both at once.
+    expect(segmentHitsRect([0, 12], [12, 0], r)).toBe(false);
+    expect(segmentHitsRect([12, 0], [0, 12], r)).toBe(false);
   });
 });
 
@@ -213,5 +216,10 @@ describe("trailScale and smoothSpeed", () => {
     expect(one).toBeGreaterThan(0);
     expect(one).toBeLessThan(1250);
     expect(smoothSpeed(0, 40, 16)).toBeGreaterThan(one);
+    // The step is 1 - e^(-dt/tau) of the gap: a longer time constant moves less.
+    expect(one).toBeCloseTo(1250 * (1 - Math.exp(-16 / 120)), 9);
+    expect(smoothSpeed(0, 20, 16, 1000)).toBeLessThan(
+      smoothSpeed(0, 20, 16, 50),
+    );
   });
 });
