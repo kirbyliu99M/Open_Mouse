@@ -124,19 +124,21 @@ export const KIND_LEVELS: readonly number[] = FINALE_KINDS.map(
  * per drawing unit), and the base spacing along a line there (CSS px).
  *
  * The scales are measured from the v17 desktop (EdWeI) and v18 phone (s3nxQl)
- * frames: x_frame = scale · x_drawing + offset. Fitted point to curve
- * (iterated closest points) over the seven main outlines of the frames' faint
- * illustration layer: desktop 0.8789 with offset (396.9, 29.9), every point
- * within 2.4 px of the drawing (median 0.3 px); phone 0.5291 with offset
- * (0.5, 129.4), within 1.5 px (median 0.2 px). The spacings are v8's (2.3 px
- * desktop, 1.75 px phone). 未拍板.
+ * frames: x_frame = scale · x_drawing + offset, fitted point to curve
+ * (iterated closest points) to v8's nail and knuckle particles, which v8
+ * placed exactly on 32 (desktop) and 33 (phone) of the drawing's detail
+ * paths: desktop 0.8781 with offset (396.95, 30.50), every particle within
+ * 0.07 px of its path; phone 0.5286 with offset (0.50, 129.73), within
+ * 0.07 px. (The frames' faint outline layer gives 0.8789 / 0.5291 but is
+ * itself off its curves by up to 2.5 px; see fit-report.md outside the repo.)
+ * The spacings are v8's (2.3 px desktop, 1.75 px phone). 未拍板.
  */
 export interface FinaleTier {
   readonly scale: number;
   readonly spacing: number;
 }
 export const FINALE_TIERS = {
-  desktop: { scale: 0.879, spacing: 2.3 },
+  desktop: { scale: 0.878, spacing: 2.3 },
   mobile: { scale: 0.529, spacing: 1.75 },
 } as const satisfies Record<string, FinaleTier>;
 export type FinaleTierName = keyof typeof FINALE_TIERS;
