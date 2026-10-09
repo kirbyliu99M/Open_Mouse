@@ -1,21 +1,22 @@
 import { devices, expect, test } from "@playwright/test";
+import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 
 // ── Page titles: each page names itself; the template adds the site ────────
 
 const TITLES: readonly (readonly [string, string])[] = [
-  ["/", "Open_Mouse"],
-  ["/scan/easy", "Scan your hand · Open_Mouse"],
-  ["/scan", "Scan on a printed sheet · Open_Mouse"],
-  ["/sheet", "Calibration sheet · Open_Mouse"],
-  ["/how-it-works", "How it works · Open_Mouse"],
-  ["/account", "Account · Open_Mouse"],
+  ["/", SITE_NAME],
+  ["/scan/easy", `Scan your hand · ${SITE_NAME}`],
+  ["/scan", `Scan on a printed sheet · ${SITE_NAME}`],
+  ["/sheet", `Calibration sheet · ${SITE_NAME}`],
+  ["/how-it-works", `How it works · ${SITE_NAME}`],
+  ["/account", `Account · ${SITE_NAME}`],
   [
     "/results/a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d",
-    "Your results · Open_Mouse",
+    `Your results · ${SITE_NAME}`,
   ],
-  ["/results/demo", "Results (mock data) · Open_Mouse"],
+  ["/results/demo", `Results (mock data) · ${SITE_NAME}`],
 ];
 
 // One test per page: the dev server compiles a route on its first visit, so
