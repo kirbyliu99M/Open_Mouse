@@ -470,13 +470,26 @@ test.describe("big text does not push the name and headline under the mark", () 
               right: b.right,
             };
           };
+          // Where the glyphs really are (the element's own box is its grid
+          // column and could never meet the mark in the other column).
+          const textRect = (el: Element) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const b = range.getBoundingClientRect();
+            return {
+              top: b.top,
+              bottom: b.bottom,
+              left: b.left,
+              right: b.right,
+            };
+          };
           const overflow = (selector: string) => {
             const el = document.querySelector(selector)!;
             return el.scrollWidth - el.clientWidth;
           };
           return {
-            name: rect(document.querySelector(".siteFooter-name")!),
-            headline: rect(document.querySelector(".siteFooter-headline")!),
+            name: textRect(document.querySelector(".siteFooter-name")!),
+            headline: textRect(document.querySelector(".siteFooter-headline")!),
             mark: rect(document.querySelector(".siteFooter-mark img")!),
             nameOver: overflow(".siteFooter-name"),
             headlineOver: overflow(".siteFooter-headline"),
@@ -508,8 +521,10 @@ test.describe("big text does not push the name and headline under the mark", () 
           expect(f.mark.right - f.mark.left, "mark width").toBeLessThanOrEqual(
             220.5,
           );
-        expect(meets(f.name, f.mark), "name meets mark").toBe(false);
-        expect(meets(f.headline, f.mark), "headline meets mark").toBe(false);
+        expect(meets(f.name, f.mark), "name text meets mark").toBe(false);
+        expect(meets(f.headline, f.mark), "headline text meets mark").toBe(
+          false,
+        );
         // Text wider than its box would paint under the mark.
         expect(f.nameOver, "name overflows its box").toBeLessThanOrEqual(0);
         expect(
@@ -520,6 +535,47 @@ test.describe("big text does not push the name and headline under the mark", () 
       });
     }
   }
+});
+
+test("the compact 32 px rows are only for a device with no touch at all", async ({
+  page,
+}) => {
+  // Playwright cannot fake "a touchpad as the main input plus a touch screen"
+  // (pointer: fine and any-pointer: coarse at once), so this reads the rule
+  // the browser actually loaded: the media query that guards the one-line
+  // rows must exclude any-pointer: coarse (pointer: fine alone is true on a
+  // touch laptop).
+  await page.goto("/how-it-works");
+  const conditions = await page.evaluate(() => {
+    const found: string[] = [];
+    const walk = (rules: CSSRuleList) => {
+      for (const rule of rules) {
+        if (rule instanceof CSSMediaRule) {
+          if (
+            [...rule.cssRules].some(
+              (r) =>
+                r instanceof CSSStyleRule &&
+                r.selectorText === ".siteFooter a" &&
+                r.style.minHeight === "1.25rem",
+            )
+          )
+            found.push(rule.conditionText);
+          walk(rule.cssRules);
+        }
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      try {
+        walk(sheet.cssRules);
+      } catch {
+        // a cross-origin sheet: not ours
+      }
+    }
+    return found;
+  });
+  expect(conditions, "the media rule holding the compact rows").toHaveLength(1);
+  expect(conditions[0]).toContain("pointer: fine");
+  expect(conditions[0]).toMatch(/not \(any-pointer: coarse\)/);
 });
 
 test.describe("on a touch screen as wide as a desktop", () => {

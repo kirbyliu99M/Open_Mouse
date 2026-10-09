@@ -254,10 +254,12 @@
 }
 
 /* A mouse on a wide screen: the drawn 32 px pitch from one link to the next
-   (a one-line target). A touch screen of the same width (a tablet on its
-   side, a touch laptop) keeps the 44 px rows above, as design-guidelines.md
-   asks for touch targets. The keyboard focus ring is drawn in full either way. */
-@media (min-width: 64rem) and (hover: hover) and (pointer: fine) {
+   (a one-line target). Any device that can also be touched (a tablet on its
+   side, a touch laptop whose main input is the touchpad and so reports
+   pointer: fine) keeps the 44 px rows above, as design-guidelines.md asks for
+   touch targets: that is what `not (any-pointer: coarse)` is for. The keyboard
+   focus ring is drawn in full either way. */
+@media (min-width: 64rem) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .siteFooter a {
     min-height: 1.25rem;
     line-height: 1.25rem;
