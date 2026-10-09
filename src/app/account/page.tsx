@@ -104,7 +104,6 @@ export default async function AccountPage() {
           <div className="account-identity" data-testid="account-identity">
             <Avatar
               className="avatar avatar-large"
-              name={session.user.name ?? null}
               image={session.user.image ?? null}
             />
             <p className="account-name">{session.user.name ?? "Signed in"}</p>

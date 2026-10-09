@@ -38,7 +38,7 @@ export function AccountNavLink() {
       aria-label="Account"
       title={user.name ?? "Account"}
     >
-      <Avatar name={user.name} image={user.image} />
+      <Avatar image={user.image} />
     </Link>
   );
 }

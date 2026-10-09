@@ -14,9 +14,3 @@ export function parseSessionBody(body: unknown): NavUser | null {
     image: typeof image === "string" && image !== "" ? image : null,
   };
 }
-
-/** The first letter of the name, upper-cased, or null when there is none. */
-export function initialOf(name: string | null | undefined): string | null {
-  const first = Array.from((name ?? "").trim())[0];
-  return first ? first.toLocaleUpperCase() : null;
-}

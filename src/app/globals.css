@@ -76,21 +76,32 @@ main.account {
   flex: none;
 }
 
+/* The static particle sparkle shown when there is no profile picture. The
+   round base is #0b1220 (Kirby's Pencil design, 2026-10-09): tokens.css has
+   no navy, only --bg (#060709), so it is written here. The ring is
+   --accent-text at 40 %. No animation, no transition. */
 .avatar-fallback {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1;
+  background: #0b1220;
+  border: 1px solid color-mix(in srgb, var(--accent-text) 40%, transparent);
+}
+
+.avatar-fallback svg {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-spark-light {
+  fill: var(--sketch-line);
+}
+
+.avatar-spark-accent {
+  fill: var(--accent-text);
 }
 
 .avatar-large {
   width: 3rem;
   height: 3rem;
-  font-size: 1.25rem;
 }
 
 .account-name {
@@ -274,14 +285,16 @@ button:disabled {
   .button-danger {
     border-color: #b3261e;
   }
-  /* The avatar's initial (or person glyph) is white on the accent fill, and
-     Chrome does not print backgrounds by default: on paper it would be white
-     on white. It prints as a dark letter in a dark ring, no fill (the same
-     rule as .home-cta in home.css). */
+  /* The sparkle avatar is light shapes on a navy fill, and Chrome does not
+     print backgrounds by default: on paper it would be light on white. It
+     prints with no fill, a black ring and black shapes (the same idea as
+     .home-cta in home.css). */
   .avatar-fallback {
     background: none;
     border: 1px solid #000;
-    color: #000;
+  }
+  .avatar-fallback svg * {
+    fill: #000;
   }
   /* The confirmation dialogs ("Delete this scan now?", "Delete everything?")
      are light text on a dark panel; printed as they stand that is 1.09:1 on
