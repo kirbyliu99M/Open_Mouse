@@ -46,6 +46,7 @@ const catalogue: CatalogueMouse[] = (seedRows as SeedRow[]).map((r) => ({
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 }));
 
 interface GoldenProfile {

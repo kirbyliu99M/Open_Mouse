@@ -29,6 +29,7 @@ export const sampleCatalogue: CatalogueMouse[] = [
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   },
   {
     id: "mouse-2",
@@ -46,6 +47,7 @@ export const sampleCatalogue: CatalogueMouse[] = [
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   },
 ];
 

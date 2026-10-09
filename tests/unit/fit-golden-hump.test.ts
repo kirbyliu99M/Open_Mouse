@@ -44,6 +44,7 @@ const catalogue: CatalogueMouse[] = [
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   })),
 ].map((m) => ({
   slug: m.slug,
@@ -60,6 +61,7 @@ const catalogue: CatalogueMouse[] = [
   frontFlare: m.frontFlare,
   sideCurvature: m.sideCurvature,
   thumbRest: m.thumbRest,
+  ringFingerRest: null,
 }));
 
 interface GoldenProfile {

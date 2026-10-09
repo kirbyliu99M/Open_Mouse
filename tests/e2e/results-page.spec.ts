@@ -260,6 +260,53 @@ test("the written-analysis card keeps its contrast on the dark theme, in every s
 });
 
 test.describe("/results/[scanId] — real results page", () => {
+  test("lists same-shell variants as text on the top pick, the other-pick card and its detail page", async ({
+    page,
+  }) => {
+    const fixture = structuredClone(highConfidenceFixture) as {
+      results: { variants?: unknown }[];
+    };
+    fixture.results[0].variants = [
+      { slug: "gpx-se", model: "Superlight 2 SE", weightG: 59 },
+    ];
+    fixture.results[1].variants = [
+      { slug: "da-v3-x", model: "DeathAdder V3 X", weightG: null },
+      { slug: "da-v3-y", model: "DeathAdder V3 Y", weightG: null },
+    ];
+    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    await expect(
+      page.locator(".results-score-name .results-variants"),
+    ).toHaveText("Also: Superlight 2 SE");
+    const card = page.locator(".results-card", { hasText: "DeathAdder V3" });
+    await expect(card.locator(".results-variants")).toHaveText(
+      "Also: DeathAdder V3 X, DeathAdder V3 Y",
+    );
+    // Only the cards that have variants show the line; variants are not links.
+    await expect(
+      page.locator(".results-others-grid .results-variants"),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("link", { name: /Superlight 2 SE/ }),
+    ).toHaveCount(0);
+
+    await card.click();
+    await expect(page).toHaveURL(
+      new RegExp(`/results/${SCAN_ID}/m/razer-deathadder-v3$`),
+    );
+    await expect(
+      page.locator(".results-score-name .results-variants"),
+    ).toHaveText("Also: DeathAdder V3 X, DeathAdder V3 Y");
+    // The top pick is now a card on this page, with its own line.
+    await expect(
+      page.locator(".results-others-grid .results-variants"),
+    ).toHaveText(["Also: Superlight 2 SE"]);
+  });
+
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({
     page,
   }) => {
@@ -345,6 +392,7 @@ test.describe("/results/[scanId] — real results page", () => {
       frontFlare: null,
       sideCurvature: null,
       thumbRest: null,
+      ringFingerRest: null,
       ...patch,
     });
     const fit = {
