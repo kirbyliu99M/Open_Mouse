@@ -256,8 +256,8 @@ export interface SweepState {
   readonly live: boolean;
   /**
    * The afterglow on the solid letters, 0 to 1: 1 right behind the core,
-   * falling as the square of the way back through the band, so it is bright
-   * only near the core (under half at the band's middle).
+   * falling faster than a straight line back through the band, so it is
+   * bright only near the core (below one half at the band's middle).
    */
   readonly afterglow: number;
   /** The core's white heat, 0 to 0.95: a short tail behind, a sharper front. */
