@@ -43,11 +43,11 @@ test("/results/demo keeps millimetres and grams with their numbers", async ({
     "High confidence",
     "Low confidence (nulls)",
     "With exclusions",
+    "Many mice + hand type",
   ]) {
     await page.getByRole("button", { name: fixture, exact: true }).click();
-    const closed = page.locator(
-      ".results-rankedList-toggle[aria-expanded='false']",
-    );
+    // The sentences and the weight sit in the Details section.
+    const closed = page.locator(".results-disclosure:not([open]) > summary");
     while ((await closed.count()) > 0) await closed.first().click();
     // The sentences under each score ("Length is within 1.2 mm of your
     // ideal", "about 13 g heavier") and the weight beside each mouse.

@@ -173,7 +173,7 @@ export const en: ResultsPageCopy = {
   othersCaption: "Tap any pick to see a results page with the same layout.",
   outOf: "/ 100",
   otherMiceTitle: (count) => `Other mice (${count})`,
-  otherMiceHint: "Scores and models only",
+  otherMiceHint: "Scores and names only",
   excludedHeading: "Not shown",
   excludedReason: {
     wrong_hand: "Doesn't fit your handedness",

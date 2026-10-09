@@ -63,6 +63,16 @@ async function fulfillJson(route: Route, status: number, body: unknown) {
   });
 }
 
+/**
+ * The Details section is closed by default. Open it to reach the sub-scores,
+ * the written analysis and the 3D viewer.
+ */
+async function openDetails(page: Page) {
+  const details = page.locator(".results-details");
+  await details.locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+}
+
 async function stubHappyFit(page: Page) {
   await page.route(FIT_URL, (route) =>
     fulfillJson(route, 200, highConfidenceFixture),
@@ -171,7 +181,7 @@ test("a typed length stored under an earlier, wider range still gets its note; a
     );
     await page.goto(`/results/${SCAN_ID}`);
     await expect(
-      page.getByRole("heading", { name: "Your best match" }),
+      page.locator(".results-score-model"),
     ).toBeVisible();
     await expect(
       page.getByText(/Based on the hand length you entered/),
@@ -210,6 +220,7 @@ test("the written-analysis card keeps its contrast on the dark theme, in every s
     await page.unroute(ANALYSIS_URL).catch(() => {});
     await page.route(ANALYSIS_URL, (route) => fulfillJson(route, status, body));
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
     const card = page.locator(".results-analysis");
     await expect(card).toBeVisible();
     for (const scheme of ["dark"] as const) {
@@ -278,7 +289,7 @@ test.describe("/results/[scanId] — real results page", () => {
       ),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { level: 2, name: "Other matches" }),
+      page.getByRole("heading", { level: 2, name: "Other picks" }),
     ).toBeVisible();
   });
 
@@ -301,7 +312,7 @@ test.describe("/results/[scanId] — real results page", () => {
     );
     await page.goto(`/results/${SCAN_ID}`);
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -362,10 +373,11 @@ test.describe("/results/[scanId] — real results page", () => {
     );
     await page.goto(`/results/${SCAN_ID}`);
 
-    const top = page.locator(".results-topPick");
+    const top = page.locator(".results-view");
     await expect(
-      top.getByRole("heading", { level: 2, name: "Alpha" }),
+      top.getByRole("heading", { level: 1, name: "Alpha" }),
     ).toBeVisible();
+    await openDetails(page);
     const bar = (label: string) =>
       top.locator(".results-subscoreBar", { hasText: label });
 
@@ -397,13 +409,14 @@ test.describe("/results/[scanId] — real results page", () => {
     );
 
     // The generic confidence note appears nowhere: not on the top pick, and
-    // not on the other matches (their confidence is above the low threshold).
-    await page
-      .getByRole("button", { name: /Show the other 1 ranked mouse/ })
-      .click();
+    // not on the other pick's own page (its confidence is above the low
+    // threshold).
+    await page.getByRole("link", { name: /Acme Beta/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}/m/acme-beta$`));
     await expect(
-      page.getByRole("heading", { level: 3, name: /Acme Beta/ }),
+      page.getByRole("heading", { level: 1, name: "Beta" }),
     ).toBeVisible();
+    await openDetails(page);
     await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
     await expect(
       page.getByText(/haven't assessed this mouse's shape/),
@@ -424,9 +437,10 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
 
+    await openDetails(page);
     await expect(
       page.getByRole("heading", { level: 2, name: "Why this one" }),
     ).toBeVisible();
@@ -450,7 +464,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
     // The analysis card is a status region. Scoped to it: the page has other
     // status regions (the confidence note, the viewer's fallback line).
@@ -517,7 +531,7 @@ test.describe("/results/[scanId] — real results page", () => {
     await tryAgain.click();
 
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
   });
 
@@ -547,8 +561,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await page.goto(`/results/${SCAN_ID}`);
 
     await expect(
-      page.getByRole("heading", { level: 2, name: /G Pro X Superlight 2/ }),
+      page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
+    await openDetails(page);
     await expect(page.getByText("How it scores")).toBeVisible();
 
     const alert = page
@@ -567,6 +582,7 @@ test.describe("/results/[scanId] — real results page", () => {
     );
 
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
 
     await expect(
       page.getByText("Generated automatically from your scores above."),
@@ -590,6 +606,7 @@ test.describe("/results/[scanId] — real results page", () => {
     );
 
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
 
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
@@ -610,6 +627,7 @@ test.describe("/results/[scanId] — real results page", () => {
     );
 
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
 
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
@@ -625,6 +643,7 @@ test.describe("/results/[scanId] — real results page", () => {
     );
 
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
 
     await expect(
       page.getByRole("alert").filter({ hasText: "Written analysis" }),
@@ -647,6 +666,7 @@ test.describe("/results/[scanId] — real results page", () => {
       );
       await page.setViewportSize({ width: 390, height: 900 });
       await page.goto(`/results/${SCAN_ID}`);
+      await openDetails(page);
       await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
       await page.addStyleTag({ content: `html { font-size: ${rootPx}px; }` });
 
@@ -674,6 +694,7 @@ test.describe("/results/[scanId] — real results page", () => {
       fulfillJson(route, 200, READY_ANALYSIS_FALLBACK),
     );
     await page.goto(`/results/${SCAN_ID}`);
+    await openDetails(page);
     await expect(page.getByText(TEMPLATE_LINE)).toBeVisible();
 
     for (const width of [320, 360, 390, 412]) {
@@ -910,9 +931,7 @@ test("a results page sweeps every leftover hand key, not just its own scan's", a
     [[HAND_KEY, OTHER, THIRD], KEEP_LENGTH] as const,
   );
   await page.goto(`/results/${SCAN_ID}`);
-  await expect(
-    page.getByRole("heading", { name: "Your best match" }),
-  ).toBeVisible();
+  await expect(page.locator(".results-score-model")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() =>
