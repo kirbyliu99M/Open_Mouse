@@ -646,6 +646,46 @@ describe("round 5: the finale data against values computed here", () => {
   }
 });
 
+describe("round 6: the rim grain turns inward whichever way the shell is drawn", () => {
+  // A round mouse shell (radius 40 about (100, 100)), drawn clockwise and
+  // anticlockwise on the screen; a short hand line keeps the figure honest.
+  const circle = (turn: 1 | -1): Vec[] =>
+    Array.from({ length: 72 }, (_, i) => {
+      const a = (turn * i * Math.PI * 2) / 72;
+      return [100 + 40 * Math.cos(a), 100 + 40 * Math.sin(a)] as Vec;
+    });
+  for (const turn of [1, -1] as const) {
+    it(`${turn === 1 ? "clockwise" : "anticlockwise"}: every rim grain is nearer the centre than its star`, () => {
+      const synthetic = {
+        viewBox: { x: 0, y: 0, width: 200, height: 200 },
+        paths: [
+          {
+            part: "hand-outline" as const,
+            closed: false,
+            points: [
+              [20, 20],
+              [80, 30],
+            ] as Vec[],
+          },
+          { part: "mouse-shell" as const, closed: true, points: circle(turn) },
+        ],
+      };
+      const { points } = sampleFinale(synthetic, { scale: 1, spacing: 2 }, 3);
+      const rims = points
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => p.kind === KIND.rim);
+      expect(rims.length).toBeGreaterThan(5);
+      for (const { p, i } of rims) {
+        const star = points[i - 1]!;
+        expect(star.kind).toBe(KIND.star);
+        expect(distance([p.x, p.y], [100, 100])).toBeLessThan(
+          distance([star.x, star.y], [100, 100]) - 3,
+        );
+      }
+    });
+  }
+});
+
 describe("round 5: parseFinaleTargets refuses every field the generator would not write", () => {
   const raw = JSON.parse(committed);
   const desktop = raw.tiers.desktop;
