@@ -302,9 +302,23 @@ test.describe("the site footer, in English", () => {
         await link.focus();
         const ring = await link.evaluate((el) => {
           const s = getComputedStyle(el);
-          return [s.outlineStyle, s.outlineWidth];
+          return [s.outlineStyle, s.outlineWidth, s.outlineColor];
         });
-        expect(ring, `${name} at ${size.width} px`).toEqual(["solid", "2px"]);
+        expect(ring.slice(0, 2), `${name} at ${size.width} px`).toEqual([
+          "solid",
+          "2px",
+        ]);
+        // The ring itself must be seen against the footer (3:1 for a
+        // non-text indicator).
+        const footerBg = await page.evaluate(
+          () =>
+            getComputedStyle(document.querySelector(".siteFooter")!)
+              .backgroundColor,
+        );
+        expect(
+          contrast(ring[2]!, footerBg),
+          `${name} ring ${ring[2]} on ${footerBg}`,
+        ).toBeGreaterThanOrEqual(3);
         // Nothing clips it: no ancestor up to the footer hides overflow.
         const clipped = await link.evaluate((el) => {
           for (
@@ -373,6 +387,143 @@ test.describe("the site footer, in English", () => {
       ).toEqual([]);
     });
   }
+});
+
+const FOOTER_RECTS = () => {
+  const r = (selector: string) => {
+    const b = document.querySelector(selector)!.getBoundingClientRect();
+    return { top: b.top, bottom: b.bottom, left: b.left, right: b.right };
+  };
+  const links = [...document.querySelectorAll(".siteFooter-group a")].map(
+    (a) => a.getBoundingClientRect().top,
+  );
+  return {
+    footer: r(".siteFooter"),
+    name: r(".siteFooter-name"),
+    headline: r(".siteFooter-headline"),
+    title: r(".siteFooter-groupTitle"),
+    groups: r(".siteFooter-groups"),
+    firstLink: r(".siteFooter-group a"),
+    linkTops: links,
+    fine: matchMedia("(hover: hover) and (pointer: fine)").matches,
+  };
+};
+
+test.describe("the footer's spacing follows the design (candidate values from Pencil v17 / v18)", () => {
+  test("390 px: 8 px under the name, 8 px under a group title, room before the groups", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto("/how-it-works");
+    const f = await page.evaluate(FOOTER_RECTS);
+    expect(f.headline.top - f.name.bottom).toBeCloseTo(8, 0);
+    expect(f.firstLink.top - f.title.bottom).toBeCloseTo(8, 0);
+    expect(f.groups.top - f.headline.bottom).toBeGreaterThanOrEqual(16);
+  });
+
+  test("1440 px: name at 48, headline at 92, group titles at 164, links 24 px under a title, rows 32 px apart", async ({
+    page,
+  }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/how-it-works");
+    const f = await page.evaluate(FOOTER_RECTS);
+    const at = (top: number) => top - f.footer.top;
+    expect(at(f.name.top)).toBeCloseTo(48, 0);
+    expect(at(f.headline.top)).toBeCloseTo(92.5, 0);
+    expect(at(f.title.top)).toBeCloseTo(164.5, 0);
+    expect(f.firstLink.top - f.title.top).toBeCloseTo(24, 0);
+    if (f.fine) {
+      // Mouse: the drawn one-line rows, 32 px apart (Pencil's pitch).
+      expect(f.linkTops[1]! - f.linkTops[0]!).toBeCloseTo(32, 0);
+    } else {
+      // Touch on a wide screen: 44 px rows.
+      expect(f.linkTops[1]! - f.linkTops[0]!).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+test.describe("big text does not push the name and headline under the mark", () => {
+  const SIZES = [
+    { width: 320, height: 640 },
+    { width: 375, height: 667 },
+    PHONE,
+    { width: 1024, height: 768 },
+    { width: 1100, height: 800 },
+    { width: 1250, height: 800 },
+  ];
+  for (const zoom of ["100%", "200%"]) {
+    for (const size of SIZES) {
+      test(`${size.width} px at ${zoom} text: no box of the name, headline or mark meets another, nothing runs past its box, no sideways scroll`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(size);
+        await page.goto("/how-it-works");
+        await page.addStyleTag({ content: `html { font-size: ${zoom}; }` });
+        const f = await page.evaluate(() => {
+          const rect = (el: Element) => {
+            const b = el.getBoundingClientRect();
+            return {
+              top: b.top,
+              bottom: b.bottom,
+              left: b.left,
+              right: b.right,
+            };
+          };
+          const overflow = (selector: string) => {
+            const el = document.querySelector(selector)!;
+            return el.scrollWidth - el.clientWidth;
+          };
+          return {
+            name: rect(document.querySelector(".siteFooter-name")!),
+            headline: rect(document.querySelector(".siteFooter-headline")!),
+            mark: rect(document.querySelector(".siteFooter-mark img")!),
+            nameOver: overflow(".siteFooter-name"),
+            headlineOver: overflow(".siteFooter-headline"),
+            // What the footer adds to the page's own width (at 320 px and
+            // 200 % the page's hero badge alone is 7 px too wide).
+            scroll: (() => {
+              const withFooter = document.documentElement.scrollWidth;
+              document.querySelector(".siteFooter")!.remove();
+              const without = document.documentElement.scrollWidth;
+              return withFooter - Math.max(without, window.innerWidth);
+            })(),
+          };
+        });
+        const meets = (
+          a: { top: number; bottom: number; left: number; right: number },
+          b: { top: number; bottom: number; left: number; right: number },
+        ) =>
+          a.left < b.right &&
+          a.right > b.left &&
+          a.top < b.bottom &&
+          a.bottom > b.top;
+        expect(meets(f.name, f.mark), "name meets mark").toBe(false);
+        expect(meets(f.headline, f.mark), "headline meets mark").toBe(false);
+        // Text wider than its box would paint under the mark.
+        expect(f.nameOver, "name overflows its box").toBeLessThanOrEqual(0);
+        expect(
+          f.headlineOver,
+          "headline overflows its box",
+        ).toBeLessThanOrEqual(0);
+        expect(f.scroll, "sideways scroll").toBeLessThanOrEqual(0);
+      });
+    }
+  }
+});
+
+test.describe("on a touch screen as wide as a desktop", () => {
+  test.use({ hasTouch: true, viewport: { width: 1024, height: 768 } });
+  test("the links keep 44 px rows (design-guidelines.md: touch targets)", async ({
+    page,
+  }) => {
+    await page.goto("/how-it-works");
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      "this context counts as touch",
+    ).toBe(true);
+    for (const [, name] of LINKS)
+      expect((await box(page, name)).height, name).toBeGreaterThanOrEqual(44);
+  });
 });
 
 test.describe("the site footer, for a browser that prefers Chinese", () => {

@@ -72,24 +72,33 @@
   gap: 1.5rem 1rem;
   max-width: 78rem;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  /* The side padding, named so the mark's glow can stay inside it. */
+  --footer-pad: 1.5rem;
+  padding: 0 var(--footer-pad);
 }
 
-.siteFooter p,
-.siteFooter h2,
-.siteFooter ul {
+/* Reset with no specificity of its own (:where), so that the spacing set on
+   the footer's own classes below wins. With plain ".siteFooter p" the reset
+   (0,1,1) beat ".siteFooter-headline" (0,1,0) and every margin came out 0. */
+:where(.siteFooter) p,
+:where(.siteFooter) h2,
+:where(.siteFooter) ul {
   margin: 0;
 }
 
 .siteFooter-brand {
   grid-area: brand;
   min-width: 0;
+  /* Above the mark's glow, which is drawn later in the page. */
+  position: relative;
+  z-index: 1;
 }
 .siteFooter-name {
   color: var(--text-primary);
   font-size: 1.375rem;
   font-weight: 700;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .siteFooter-headline {
   margin-top: 0.5rem;
@@ -98,20 +107,27 @@
   font-weight: 700;
   line-height: 1.2;
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
+/* The mark is sized in px and vw, not rem: at 200 % text a rem size would
+   double and leave the name and headline no room (they would run under it). */
 .siteFooter-mark {
   grid-area: mark;
   position: relative;
-  width: 5.75rem;
-  height: 5.75rem;
+  width: min(92px, 24vw);
+  height: min(92px, 24vw);
 }
 .siteFooter-mark::before {
   content: "";
-  /* Stays inside the page's side padding (24 px on a phone, 68 px at 1024):
-     a glow that reached past the edge would make the page scroll sideways. */
+  /* Reaches 20 % past the mark, but on the right never farther than the
+     page's side padding: a glow past the edge makes the page scroll sideways
+     (it did at 200 % text near 1024 px). */
   position: absolute;
-  inset: -20%;
+  top: -20%;
+  bottom: -20%;
+  left: -20%;
+  right: max(-20%, calc(-1 * var(--footer-pad)));
   background: radial-gradient(
     closest-side,
     color-mix(in srgb, var(--glow) 22%, transparent),
@@ -156,6 +172,10 @@
   padding: 0;
   list-style: none;
 }
+/* The link is the row: no strut under it, so a row is as tall as its link. */
+.siteFooter li {
+  display: flex;
+}
 .siteFooter a {
   display: inline-flex;
   align-items: center;
@@ -190,24 +210,26 @@
   }
   .siteFooter-inner {
     grid-template-areas: "brand mark" "groups mark";
-    align-items: center;
-    gap: 2.5rem 3rem;
-    padding: 0 clamp(2rem, 6.67vw, 6rem);
-  }
-  .siteFooter-brand {
-    align-self: end;
+    /* The mark is taller than the text beside it: the second row takes the
+       slack, so the gaps between name, headline and groups stay as drawn. */
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 2rem 3rem;
+    --footer-pad: clamp(2rem, 6.67vw, 6rem);
   }
   .siteFooter-name {
     font-size: 1.625rem;
     line-height: 1.25;
   }
   .siteFooter-headline {
+    margin-top: 0.75rem;
     font-size: 2rem;
     line-height: 1.25;
   }
   .siteFooter-mark {
-    width: 13.75rem;
-    height: 13.75rem;
+    width: 220px;
+    height: 220px;
+    align-self: center;
   }
   .siteFooter-groups {
     grid-template-columns: repeat(3, minmax(0, 14.75rem));
@@ -223,13 +245,20 @@
   .siteFooter-group--project ul {
     display: block;
   }
+  /* A link starts 24 px under its group title. */
   .siteFooter-groupTitle {
-    margin-bottom: 1rem;
+    margin-bottom: 0.375rem;
   }
-  /* A 32 px pitch from one row to the next; the keyboard focus ring is still
-     drawn in full. */
+}
+
+/* A mouse on a wide screen: the drawn 32 px pitch from one link to the next
+   (a one-line target). A touch screen of the same width (a tablet on its
+   side, a touch laptop) keeps the 44 px rows above, as design-guidelines.md
+   asks for touch targets. The keyboard focus ring is drawn in full either way. */
+@media (min-width: 64rem) and (hover: hover) and (pointer: fine) {
   .siteFooter a {
     min-height: 1.25rem;
+    line-height: 1.25rem;
   }
   .siteFooter li + li {
     margin-top: 0.75rem;
