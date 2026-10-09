@@ -7,15 +7,21 @@ import {
   buildArtifacts,
 } from "@/lib/particles/artifacts";
 import { type Vec, distance, polylineLength } from "@/lib/particles/geometry";
+import { densifyStrokes, shareOut } from "@/lib/particles/dense";
 import {
   LOGO_BOX,
+  LOGO_PAGE,
   LOGO_SAMPLING,
   LOGO_SCALE,
   LOGO_STROKE,
   LOGO_VIEWBOX,
+  PALMATE_DOT,
   PALMATE_PATH,
+  inLogoMark,
   logoPolylines,
+  strayReach,
 } from "@/lib/particles/logo";
+import { LOOK_LIMITS, STAR_SIZE } from "@/lib/particles/look";
 import { buildPairing } from "@/lib/particles/pairing";
 import { pairingTables } from "@/lib/particles/particle-set";
 import { parseSketchSvg } from "@/lib/particles/svg-path";
@@ -158,12 +164,21 @@ describe("the Palmate logo", () => {
       (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
     ]),
   }));
-  const pathRuns = target.runs.filter((run) => run.count > 1);
-  const strayRuns = target.runs.filter((run) => run.count === 1);
+  // The runs, in order: the four lines, the dot's points, the strays.
+  const pathRuns = target.runs.slice(0, 4);
+  const dotCount = LOGO_SAMPLING.dotCore + LOGO_SAMPLING.dotRing;
+  const dotRuns = target.runs.slice(4, 4 + dotCount);
+  const strayRuns = target.runs.slice(4 + dotCount);
   const cloud = pathRuns.flatMap((run) =>
     target.points.slice(run.start, run.start + run.count),
   );
+  const dot = dotRuns.map((run) => target.points[run.start]!);
   const strays = strayRuns.map((run) => target.points[run.start]!);
+  /** A target point back in the path's viewBox units. */
+  const toUnits = (p: { x: number; y: number }): Vec => [
+    p.x / LOGO_SCALE + LOGO_VIEWBOX.x,
+    p.y / LOGO_SCALE + LOGO_VIEWBOX.y,
+  ];
   const pathLength = polylines.reduce(
     (sum, { points }) => sum + polylineLength(points),
     0,
@@ -190,13 +205,16 @@ describe("the Palmate logo", () => {
     expect(target.height).toBe(LOGO_BOX.height);
   });
 
-  it("has 600 points along the lines (one run for each of the four) and 24 strays (a run of one each), in that order", () => {
+  it("has 600 points along the lines (one run for each of the four), 9 in the dot and 24 strays (a run of one each), in that order", () => {
     expect(cloud).toHaveLength(LOGO_SAMPLING.particles);
     expect(cloud).toHaveLength(600);
-    expect(pathRuns).toHaveLength(4);
+    expect(pathRuns.every((run) => run.count > 1)).toBe(true);
+    expect(dotRuns).toHaveLength(9);
+    expect(dotRuns.every((run) => run.count === 1)).toBe(true);
     expect(strays).toHaveLength(LOGO_SAMPLING.ambient);
     expect(strays).toHaveLength(24);
-    expect(target.points).toHaveLength(624);
+    expect(strayRuns.every((run) => run.count === 1)).toBe(true);
+    expect(target.points).toHaveLength(633);
     // The runs cover the points once, in order, strays last.
     let next = 0;
     for (const run of target.runs) {
@@ -205,7 +223,6 @@ describe("the Palmate logo", () => {
       next += run.count;
     }
     expect(next).toBe(target.points.length);
-    expect(target.runs.slice(0, 4)).toEqual(pathRuns);
     // Each line has its share of the 600: in proportion to its length, to within a point or two.
     polylines.forEach(({ points }, i) => {
       expect(
@@ -280,7 +297,8 @@ describe("the Palmate logo", () => {
     expect(bright).toBeGreaterThan(0.42);
     expect(bright).toBeLessThan(0.58);
     expect(strays.every((p) => p.tone === 0)).toBe(true);
-    const { ambientHole, ambientReach } = LOGO_SAMPLING;
+    const { ambientHole } = LOGO_SAMPLING;
+    const reach = strayReach();
     for (const p of strays) {
       const inHole =
         p.x > -ambientHole &&
@@ -288,17 +306,241 @@ describe("the Palmate logo", () => {
         p.y > -ambientHole &&
         p.y < LOGO_BOX.height + ambientHole;
       expect(inHole).toBe(false);
-      expect(p.x).toBeGreaterThanOrEqual(-ambientReach.x * LOGO_BOX.width);
-      expect(p.x).toBeLessThanOrEqual(LOGO_BOX.width * (1 + ambientReach.x));
-      expect(p.y).toBeGreaterThanOrEqual(-ambientReach.y * LOGO_BOX.height);
-      expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height * (1 + ambientReach.y));
+      expect(inLogoMark(p)).toBe(false);
+      expect(p.x).toBeGreaterThanOrEqual(-reach.x);
+      expect(p.x).toBeLessThanOrEqual(LOGO_BOX.width + reach.x);
+      expect(p.y).toBeGreaterThanOrEqual(-reach.y);
+      expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height + reach.y);
     }
+    // Every point of the mark (the lines and the dot) counts as the mark.
+    expect([...cloud, ...dot].every((p) => inLogoMark(p))).toBe(true);
     for (let i = 0; i < strays.length; i += 1) {
       for (let j = i + 1; j < strays.length; j += 1) {
         expect(
           distance([strays[i]!.x, strays[i]!.y], [strays[j]!.x, strays[j]!.y]),
         ).toBeGreaterThanOrEqual(LOGO_SAMPLING.ambientGap);
       }
+    }
+  });
+
+  it("keeps every stray, as its biggest star, inside the logo's slot and the page's column, on phones from 320 px wide and on desktops (home.css read here, not the numbers logo.ts copied)", () => {
+    const css = readFileSync("src/app/home.css", "utf8");
+    const phone = css.match(/--slot: clamp\((\d+)rem, (\d+)svh, (\d+)rem\);/)!;
+    expect(phone).not.toBeNull();
+    const slotMin = Number(phone[1]) * 16;
+    const slotShare = Number(phone[2]) / 100;
+    const slotMax = Number(phone[3]) * 16;
+    const phoneImage = Number(
+      css.match(/height: calc\(var\(--slot\) \* ([\d.]+)\);/)![1],
+    );
+    const desktop = css.match(
+      /height: calc\(var\(--slot\) \* ([\d.]+) \/ ([\d.]+)\);/,
+    )!;
+    const desktopImage = Number(desktop[1]) / Number(desktop[2]);
+    const desktopSlot = css.match(
+      /--slot: clamp\(\s*(\d+)rem,\s*calc\([\s\S]*?\),\s*(\d+)rem\s*\);/,
+    )!;
+    expect(desktopSlot).not.toBeNull();
+    const dMin = Number(desktopSlot[1]);
+    const dMax = Number(desktopSlot[2]);
+    const pad = css.match(
+      /padding: [\d.]+rem clamp\(([\d.]+)rem, calc\([\d.]+rem \+ \(100vw - (\d+)px\) \* ([\d.]+)\), ([\d.]+)rem\)/,
+    )!;
+    expect(pad).not.toBeNull();
+    const padding = (w: number) =>
+      Math.min(
+        Number(pad[4]) * 16,
+        Math.max(
+          Number(pad[1]) * 16,
+          Number(pad[1]) * 16 + (w - Number(pad[2])) * Number(pad[3]),
+        ),
+      );
+    // logo.ts describes the same page.
+    expect(LOGO_PAGE.phoneSlotRem).toEqual({
+      min: slotMin / 16,
+      max: slotMax / 16,
+    });
+    expect(LOGO_PAGE.phoneSlotOfWindow).toBe(slotShare);
+    expect(LOGO_PAGE.phoneImage).toBe(phoneImage);
+    expect(LOGO_PAGE.desktopImage).toBeCloseTo(desktopImage, 12);
+    expect(LOGO_PAGE.desktopSlotRem).toEqual({ min: dMin, max: dMax });
+    expect(LOGO_PAGE.paddingRem).toEqual({
+      min: Number(pad[1]),
+      max: Number(pad[4]),
+    });
+    expect(LOGO_PAGE.paddingFromPx).toBe(Number(pad[2]));
+    expect(css).toContain(`@media (min-width: ${LOGO_PAGE.desktopFromRem}rem)`);
+
+    const radius = (LOOK_LIMITS.brightPx[1] * STAR_SIZE.logo) / 2;
+    // One layout: the image `image` px tall in a slot `slot` tall, in a column `column` wide.
+    const fits = (
+      label: string,
+      slot: number,
+      image: number,
+      column: number,
+    ) => {
+      const scale = image / LOGO_BOX.height;
+      const roomY = (slot - image) / 2;
+      const roomX = (column - LOGO_BOX.width * scale) / 2;
+      for (const p of strays) {
+        const at = `${label}: the stray at ${p.x.toFixed(1)}, ${p.y.toFixed(1)}`;
+        const beyond = [
+          [-p.y, roomY],
+          [p.y - LOGO_BOX.height, roomY],
+          [-p.x, roomX],
+          [p.x - LOGO_BOX.width, roomX],
+        ] as const;
+        for (const [past, room] of beyond) {
+          if (past > 0)
+            expect(past * scale + radius, at).toBeLessThanOrEqual(room);
+        }
+      }
+    };
+    // Phones, each at least 9 wide to 20 tall: the review found strays cut
+    // off at 390, 412 and 430.
+    for (const [w, h] of [
+      [320, 568],
+      [320, 711],
+      [360, 640],
+      [360, 800],
+      [375, 667],
+      [375, 812],
+      [376, 835],
+      [390, 844],
+      [412, 892],
+      [412, 915],
+      [430, 932],
+      [440, 956],
+    ] as const) {
+      expect(w / h).toBeGreaterThanOrEqual(LOGO_PAGE.phoneAspect - 1e-9);
+      const slot = Math.min(slotMax, Math.max(slotMin, h * slotShare));
+      fits(`${w}x${h}`, slot, slot * phoneImage, w - 2 * padding(w));
+    }
+    // Desktops: the slot from its floor to its full size, in the narrowest
+    // desktop window (the review found strays over the headline at 29 rem).
+    for (let slotRem = dMin; slotRem <= dMax; slotRem += 1) {
+      const slot = slotRem * 16;
+      fits(
+        `desktop, slot ${slotRem} rem`,
+        slot,
+        slot * desktopImage,
+        768 - 2 * padding(768),
+      );
+    }
+  });
+
+  /** Kirby's official logo frame in Pencil: the dot's centre, and the hand's ink box there (getBBox of the path). */
+  const OFFICIAL = {
+    centre: [45, 53.5] as Vec,
+    share: [0.493, 0.687] as Vec,
+    bbox: { x: 18.625, y: 12.959, width: 53.504, height: 59.041 },
+  };
+
+  it("puts the dot where Kirby's official logo frame has it: (45, 53.5), 0.493 of the hand's ink box across and 0.687 down, a white disc in a blue ring, in the static image and in the particles", () => {
+    const { bbox, centre, share } = OFFICIAL;
+    // The path's own box is the frame's ink box.
+    const xs = polylines.flatMap((p) => p.points.map((v) => v[0]));
+    const ys = polylines.flatMap((p) => p.points.map((v) => v[1]));
+    expect(Math.abs(Math.min(...xs) - bbox.x)).toBeLessThan(0.1);
+    expect(Math.abs(Math.min(...ys) - bbox.y)).toBeLessThan(0.1);
+    expect(Math.abs(Math.max(...xs) - bbox.x - bbox.width)).toBeLessThan(0.1);
+    expect(Math.abs(Math.max(...ys) - bbox.y - bbox.height)).toBeLessThan(0.1);
+    const near = (got: Vec, label: string) => {
+      expect(Math.abs(got[0] - centre[0]), `${label} x`).toBeLessThan(0.5);
+      expect(Math.abs(got[1] - centre[1]), `${label} y`).toBeLessThan(0.5);
+      const across = (got[0] - bbox.x) / bbox.width;
+      const down = (got[1] - bbox.y) / bbox.height;
+      expect(Math.abs(across - share[0]) * bbox.width, label).toBeLessThan(0.5);
+      expect(Math.abs(down - share[1]) * bbox.height, label).toBeLessThan(0.5);
+    };
+
+    // The static image: one circle, its stroke the ring (outer edge 1.55,
+    // white inside 0.75), inside the viewBox.
+    const svg = renderLogoSvg();
+    const circles = [...svg.matchAll(/<circle ([^>]*)\/>/g)];
+    expect(circles).toHaveLength(1);
+    const attr = (name: string) =>
+      circles[0]![1]!.match(new RegExp(`${name}="([^"]*)"`))?.[1];
+    near([Number(attr("cx")), Number(attr("cy"))], "static");
+    expect(attr("fill")).toBe("#CFE0FF");
+    expect(attr("stroke")).toBe("#2463EB");
+    const r = Number(attr("r"));
+    const ring = Number(attr("stroke-width"));
+    expect(r + ring / 2).toBeCloseTo(1.55, 9);
+    expect(r - ring / 2).toBeCloseTo(0.75, 9);
+    const { x, y, width, height } = LOGO_VIEWBOX;
+    const [cx, cy] = [Number(attr("cx")), Number(attr("cy"))];
+    expect(cx - 1.55).toBeGreaterThan(x);
+    expect(cy - 1.55).toBeGreaterThan(y);
+    expect(cx + 1.55).toBeLessThan(x + width);
+    expect(cy + 1.55).toBeLessThan(y + height);
+
+    // The particles: a bright core and a ring of dim points round the same
+    // centre, in the box, all part of the mark.
+    const core = dot.filter((p) => p.tone === 1);
+    const rim = dot.filter((p) => p.tone === 0);
+    expect(core).toHaveLength(LOGO_SAMPLING.dotCore);
+    expect(rim).toHaveLength(LOGO_SAMPLING.dotRing);
+    expect(core.length).toBeGreaterThanOrEqual(1);
+    expect(core.length).toBeLessThanOrEqual(3);
+    expect(rim.length).toBeGreaterThanOrEqual(5);
+    expect(rim.length).toBeLessThanOrEqual(7);
+    const centreOf = (list: readonly { x: number; y: number }[]): Vec =>
+      toUnits({ x: mean(list.map((p) => p.x)), y: mean(list.map((p) => p.y)) });
+    near(centreOf(dot), "particles");
+    near(centreOf(core), "the core");
+    near(centreOf(rim), "the ring");
+    // The core inside the white (0.75), the ring on the ring's middle line
+    // (1.15) and inside its outer edge (1.55), to the JSON's 0.1 px.
+    const out = (p: { x: number; y: number }) => {
+      const [u, v] = toUnits(p);
+      return Math.hypot(u - centre[0], v - centre[1]);
+    };
+    for (const p of core) expect(out(p)).toBeLessThan(0.75);
+    for (const p of rim) {
+      expect(Math.abs(out(p) - 1.15)).toBeLessThan(0.05);
+      expect(out(p)).toBeLessThan(1.55);
+    }
+    // Evenly round: neighbours on the ring a sixth of a turn apart.
+    const angles = rim
+      .map((p) => {
+        const [u, v] = toUnits(p);
+        return Math.atan2(v - centre[1], u - centre[0]);
+      })
+      .sort((a, b) => a - b);
+    angles.forEach((a, k) => {
+      const next =
+        k + 1 < angles.length ? angles[k + 1]! : angles[0]! + 2 * Math.PI;
+      expect(next - a).toBeCloseTo((2 * Math.PI) / rim.length, 2);
+    });
+    for (const p of dot) expect(inLogoMark(p)).toBe(true);
+  });
+
+  it("keeps the dot's shape when a WebGL budget grows it: the core's particles stay in the white, the ring's on the ring", () => {
+    const { centre } = OFFICIAL;
+    const out = (p: { x: number; y: number }) => {
+      const [u, v] = toUnits(p);
+      return Math.hypot(u - centre[0], v - centre[1]);
+    };
+    for (const count of [6000, 12000]) {
+      const grown = densifyStrokes(target.points, target.runs, count, 20261003);
+      const shares = shareOut(
+        target.runs.map((run) => run.count),
+        count,
+      );
+      let at = shares.slice(0, 4).reduce((sum, n) => sum + n, 0);
+      dotRuns.forEach((run, k) => {
+        const own = grown.slice(at, at + shares[4 + k]!);
+        at += shares[4 + k]!;
+        expect(own.length, `${count}`).toBeGreaterThan(3);
+        const tone = target.points[run.start]!.tone;
+        for (const p of own) {
+          expect(p.tone).toBe(tone);
+          // A dense walk nudges a lone point by up to 0.75 px (0.25 units).
+          if (tone === 1) expect(out(p), `${count}`).toBeLessThan(0.75);
+          else expect(Math.abs(out(p) - 1.15), `${count}`).toBeLessThan(0.3);
+        }
+      });
     }
   });
 
@@ -335,7 +577,7 @@ describe("the Palmate logo", () => {
           expect(p.y, label).toBeGreaterThan(-LOGO_BOX.height);
           expect(p.y, label).toBeLessThan(2 * LOGO_BOX.height);
         }
-        // The logo's particle count is the stage's budget, not the target's 624:
+        // The logo's particle count is the stage's budget, not the target's 633:
         // the surplus is made the way it always was (thinned, topped up or
         // walked along the lines), so no later state is short of particles.
         expect(new Set(pairing.slot), label).toEqual(new Set([0, 1, 2]));
@@ -350,8 +592,9 @@ describe("the Palmate logo", () => {
     // nudges by up to 1 px, a dense walk by up to 0.75): told apart by the
     // target's own runs, not by the code under test.
     const strayAt = all.logo.runs
-      .filter((run) => run.count === 1)
+      .slice(-LOGO_SAMPLING.ambient)
       .map((run) => all.logo.points[run.start]!);
+    expect(strayAt.every((p) => p.tone === 0)).toBe(true);
     expect(strayAt).toHaveLength(LOGO_SAMPLING.ambient);
     const isStray = (p: { x: number; y: number }) =>
       strayAt.some((s) => distance([p.x, p.y], [s.x, s.y]) < 2);
@@ -373,9 +616,7 @@ describe("the Palmate logo", () => {
           else markXs.push(p.x);
         });
         // Strays are there at every budget (else this would prove nothing).
-        expect(stray.size, label).toBeGreaterThanOrEqual(
-          LOGO_SAMPLING.ambient,
-        );
+        expect(stray.size, label).toBeGreaterThanOrEqual(LOGO_SAMPLING.ambient);
         const left = Math.min(...markXs);
         const right = Math.max(...markXs);
         let markLow = Infinity;
@@ -507,7 +748,7 @@ describe("the static SVGs", () => {
     expect(renderLogoSvg()).not.toContain("var(");
   });
 
-  it("draws the Palmate mark as the hand's own path, one stroke in #7FA8FF with round ends, no fill, no background", () => {
+  it("draws the Palmate mark as the hand's own path, one stroke in #7FA8FF with round ends and no fill, and the dot as one circle; no background, no halo", () => {
     const svg = renderLogoSvg();
     expect(svg).toContain(`d="${PALMATE_PATH}"`);
     expect(svg.match(/<path/g)).toHaveLength(1);
@@ -517,8 +758,13 @@ describe("the static SVGs", () => {
     expect(LOGO_STROKE.color).toBe("#7FA8FF");
     expect(svg).toContain('fill="none"');
     expect(svg).toContain('stroke-linecap="round"');
-    expect(svg).not.toMatch(/<rect|<circle|<ellipse|<image|<g\b/);
-    expect(svg).not.toMatch(/fill="(?!none)/);
+    expect(svg).not.toMatch(/<rect|<ellipse|<image|<g\b|filter|opacity/);
+    // The one fill is the dot's white; the one circle is the dot.
+    expect(svg.match(/<circle/g)).toHaveLength(1);
+    expect(svg.match(/fill="(?!none)[^"]*"/g)).toEqual(['fill="#CFE0FF"']);
+    expect(svg).toContain(
+      '<circle cx="45" cy="53.5" r="1.15" fill="#CFE0FF" stroke="#2463EB" stroke-width="0.8"/>',
+    );
   });
 
   it("draws every particle of the hand, from the same point list as the JSON", () => {

@@ -1,5 +1,6 @@
 import { shareOut } from "./dense";
 import { type Polyline, type Vec, distance } from "./geometry";
+import { LOOK_LIMITS, STAR_SIZE } from "./look";
 import { mulberry32 } from "./random";
 import type { StrokeRun, TargetPoint } from "./sampling";
 import { parsePathData } from "./svg-path";
@@ -7,10 +8,12 @@ import { parsePathData } from "./svg-path";
 /**
  * The Palmate mark of the home page hero (未拍板, candidate: Kirby looks at the
  * animation): a hand drawn as four lines, which replaces the placeholder
- * mouse-and-ruler of Home v3. The static image (public/images/hero-palmate-mark.svg)
- * draws `PALMATE_PATH` as it is; the particle target is the same path sampled
- * as a cloud of points a little wider than the line, plus a few stray ones
- * round it. Both are made from this file, so they agree.
+ * mouse-and-ruler of Home v3, and a dot below the thumb. The static image
+ * (public/images/hero-palmate-mark.svg) draws `PALMATE_PATH` and `PALMATE_DOT`
+ * as they are; the particle target is the same path sampled as a cloud of
+ * points a little wider than the line, the dot as a bright core in a ring of
+ * dim points, and a few stray points round the mark. Both are made from this file, so they
+ * agree.
  */
 
 /** The hand, as the logo's own drawing wrote it (viewBox units). Four subpaths: the palm with the thumb, then three fingers. Do not edit it by eye: the SVG and the target both read it. */
@@ -27,7 +30,7 @@ export const LOGO_VIEWBOX = { x: 13, y: 8, width: 65, height: 69 } as const;
 /** Stage px per viewBox unit: the target's own coordinates are the viewBox's, from its corner, times this (so 0.1 px, the precision of the JSON, is 0.03 of a unit). */
 export const LOGO_SCALE = 3;
 
-/** The logo's box in stage px: the viewBox scaled. The target's points are inside it, and the stage fits the static image's rect to it. */
+/** The logo's box in stage px: the viewBox scaled. The mark's points (the 600 along the lines and the dot's 9) are inside it, the 24 strays outside it; the stage fits the static image's rect to it. */
 export const LOGO_BOX = { width: 195, height: 207 } as const;
 
 /** The stroke of the static image, in viewBox units, and its colour. */
@@ -48,9 +51,17 @@ export const LOGO_SEED = 20261010;
  *   wide (one standard deviation) and never past `maxSpread`, so the line has
  *   a width of about 4 to 5 units and no hard edge.
  * - `brightShare` of the points are the bright tone, the others the dim one.
- * - `ambient` more points are scattered round the mark, in a frame that reaches
- *   `ambientReach` of the box's width and height beyond it, no nearer than
- *   `ambientHole` px to the box and `ambientGap` px to each other.
+ * - The dot (`PALMATE_DOT`, a white disc in a blue ring) is drawn with the
+ *   two tones the particles have: `dotCore` bright points close together at
+ *   its centre (`dotCoreRadius` units out), which read as one star a little
+ *   bigger and brighter than the others, and `dotRing` dim points evenly round
+ *   the ring's middle line (radius `PALMATE_DOT.r`). Six round a 7.2-unit ring
+ *   are 1.2 units apart, about a lit star's width on a desktop, so the ring
+ *   reads as a ring and not as a smear. The ring's blue is the dim tone's
+ *   #6E9BF5, not the static ring's #2463EB: the particles have two colours.
+ * - `ambient` more points are scattered round the mark, in the frame
+ *   `strayReach()` gives (inside the logo's slot and the page's column), no
+ *   nearer than `ambientHole` px to the box and `ambientGap` px to each other.
  */
 export const LOGO_SAMPLING = {
   particles: 600,
@@ -58,11 +69,119 @@ export const LOGO_SAMPLING = {
   spread: 0.8,
   maxSpread: 2.4,
   brightShare: 0.5,
+  dotCore: 3,
+  dotCoreRadius: 0.35,
+  dotRing: 6,
   ambient: 24,
-  ambientReach: { x: 0.5, y: 0.25 },
   ambientHole: 12,
   ambientGap: 30,
 } as const;
+
+/**
+ * The dot of the mark, in the path's viewBox units, as Kirby's official logo
+ * frame in Pencil draws it ("Logo · Palmate (Official)", the Core Sensor Apex):
+ * below the thumb, 0.493 of the way across the hand's ink box and 0.687 of the
+ * way down. A white (#CFE0FF) disc in a blue (#2463EB) ring: drawn as one
+ * circle whose stroke is the ring, so its middle line is at `r`, its outer
+ * edge at `r + strokeWidth / 2` (1.55) and the white inside at
+ * `r - strokeWidth / 2` (0.75). No halo, no second ring.
+ */
+export const PALMATE_DOT = {
+  cx: 45,
+  cy: 53.5,
+  r: 1.15,
+  fill: "#CFE0FF",
+  stroke: "#2463EB",
+  strokeWidth: 0.8,
+} as const;
+
+/**
+ * Where the logo's image sits on the home page, as src/app/home.css lays it
+ * out (a unit test reads the CSS and checks these): the strays must stay
+ * inside the logo's slot (the nav is above it, the headline right below) and
+ * inside the canvas, which is the page's column (the window less its side
+ * padding).
+ *
+ * - Phone: the slot is `clamp(18rem, 40svh, 24rem)` tall and the image 0.63
+ *   of it. The narrowest phone shape the strays are made to fit is 20:9
+ *   upright (0.45: a 412 x 915 window is 0.450), from the narrowest window
+ *   the home page is tested at (320 px) up; a wider shape has more room.
+ * - Desktop (48 rem and up): the image is 22.2 rem of a 29 rem slot at every
+ *   slot height (on a short window the slot shrinks and the image with it).
+ * - The column's side padding: `clamp(1rem, 1rem + (100vw - 360px) * 0.5, 1.5rem)`.
+ */
+export const LOGO_PAGE = {
+  rem: 16,
+  phoneSlotRem: { min: 18, max: 24 },
+  phoneSlotOfWindow: 0.4,
+  phoneImage: 0.63,
+  phoneAspect: 9 / 20,
+  phoneMinWidthPx: 320,
+  desktopFromRem: 48,
+  desktopSlotRem: { min: 14, max: 29 },
+  desktopImage: 22.2 / 29,
+  paddingRem: { min: 1, max: 1.5 },
+  paddingFromPx: 360,
+} as const;
+
+/** The biggest logo star's radius, CSS px: the look's largest bright star times the logo's star size, halved (the shimmer's swell, 2.6 s once, is not counted). */
+const STAR_RADIUS_PX = (LOOK_LIMITS.brightPx[1] * STAR_SIZE.logo) / 2;
+
+/**
+ * How far beyond the box (stage px) a stray's centre may be, sideways and up
+ * or down, so that a star there, at its biggest, stays inside the slot and
+ * the canvas on every window `LOGO_PAGE` describes. Each layout's room is its
+ * CSS px less the star's radius, over the layout's CSS px per stage px; the
+ * reach is the least of them (the desktop's slot sets the height, a phone's
+ * column the width).
+ */
+export function strayReach(): { x: number; y: number } {
+  const p = LOGO_PAGE;
+  const { width, height } = LOGO_BOX;
+  // The image is the box, scaled to its height (the box and the image have one shape).
+  const reachOf = (roomPx: number, imagePx: number) =>
+    (roomPx - STAR_RADIUS_PX) / (imagePx / height);
+  let x = Infinity;
+  let y = Infinity;
+  // Desktop: the slot's room above and below the image, at every slot height.
+  for (
+    let slot = p.desktopSlotRem.min * p.rem;
+    slot <= p.desktopSlotRem.max * p.rem;
+    slot += 1
+  ) {
+    const image = slot * p.desktopImage;
+    y = Math.min(y, reachOf((slot - image) / 2, image));
+    // The narrowest desktop column, at 48 rem.
+    const column = p.desktopFromRem * p.rem - 2 * p.paddingRem.max * p.rem;
+    x = Math.min(x, reachOf((column - (image * width) / height) / 2, image));
+  }
+  // Phone: every window height at the narrowest shape, from the narrowest
+  // width up (a shorter window at that width has the same floored slot).
+  for (
+    let tall = Math.ceil(p.phoneMinWidthPx / p.phoneAspect);
+    tall <= 1600;
+    tall += 1
+  ) {
+    const wide = tall * p.phoneAspect;
+    if (wide >= p.desktopFromRem * p.rem) break;
+    const slot = Math.min(
+      p.phoneSlotRem.max * p.rem,
+      Math.max(p.phoneSlotRem.min * p.rem, tall * p.phoneSlotOfWindow),
+    );
+    const image = slot * p.phoneImage;
+    const padding = Math.min(
+      p.paddingRem.max * p.rem,
+      Math.max(
+        p.paddingRem.min * p.rem,
+        p.paddingRem.min * p.rem + (wide - p.paddingFromPx) * 0.5,
+      ),
+    );
+    const column = wide - 2 * padding;
+    y = Math.min(y, reachOf((slot - image) / 2, image));
+    x = Math.min(x, reachOf((column - (image * width) / height) / 2, image));
+  }
+  return { x, y };
+}
 
 /**
  * Whether a logo point (in its own px, at any budget) belongs to the mark
@@ -128,11 +247,13 @@ function placeAt(walk: Walk, u: number): { at: Vec; normal: Vec } {
 }
 
 /**
- * The logo's particle target in stage px, inside `LOGO_BOX`: `particles` points
- * along the four subpaths (one run each, in path order) and then `ambient`
- * single stray points (a run of one each). Pure and seeded by `LOGO_SEED`: the
- * same points every time, on every machine that rounds `Math.log` and `cos`
- * alike (the committed JSON is checked against a fresh run by a test).
+ * The logo's particle target in stage px: `particles` points along the four
+ * subpaths (one run each, in path order), then the dot's `dotCore` and
+ * `dotRing` points (a run of one each), all inside `LOGO_BOX`; then `ambient` single stray
+ * points (a run of one each) outside it, in the frame `strayReach()` gives. Pure and
+ * seeded by `LOGO_SEED`: the same points every time, on every machine that
+ * rounds `Math.log` and `cos` alike (the committed JSON is checked against a
+ * fresh run by a test).
  */
 export function sampleLogoPoints(): {
   points: TargetPoint[];
@@ -192,9 +313,36 @@ export function sampleLogoPoints(): {
     runs.push({ start, count: points.length - start, closed: false });
   });
 
-  // The strays: outside the box (and a hole round it), no two close together.
-  const reachX = s.ambientReach.x * LOGO_BOX.width;
-  const reachY = s.ambientReach.y * LOGO_BOX.height;
+  // The dot: the bright core, then the dim ring, a run of one each. (As one
+  // run, a dense budget would walk the chords between them; a run of one
+  // grows into a small clump on its own place, so the dot keeps its shape at
+  // every budget.) Fixed angles, no random numbers, so the cloud's and the
+  // strays' are the ones they always were.
+  const dotAt = (radius: number, angle: number) =>
+    toBox([
+      PALMATE_DOT.cx + radius * Math.cos(angle),
+      PALMATE_DOT.cy + radius * Math.sin(angle),
+    ]);
+  for (let k = 0; k < s.dotCore; k += 1) {
+    const [x, y] = dotAt(
+      s.dotCoreRadius,
+      -Math.PI / 2 + (2 * Math.PI * k) / s.dotCore,
+    );
+    runs.push({ start: points.length, count: 1, closed: false });
+    points.push({ x, y, tone: 1 });
+  }
+  for (let k = 0; k < s.dotRing; k += 1) {
+    const [x, y] = dotAt(
+      PALMATE_DOT.r,
+      Math.PI / 2 + (2 * Math.PI * (k + 0.5)) / s.dotRing,
+    );
+    runs.push({ start: points.length, count: 1, closed: false });
+    points.push({ x, y, tone: 0 });
+  }
+
+  // The strays: outside the box (and a hole round it), inside the room the
+  // page has round the image, no two close together.
+  const { x: reachX, y: reachY } = strayReach();
   const strays: Vec[] = [];
   for (let tries = 0; strays.length < s.ambient; tries += 1) {
     if (tries > 20000) throw new Error("the logo's strays do not fit");

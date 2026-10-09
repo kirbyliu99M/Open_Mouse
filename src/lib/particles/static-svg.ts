@@ -1,5 +1,5 @@
 import type { Vec } from "./geometry";
-import { LOGO_STROKE, LOGO_VIEWBOX, PALMATE_PATH } from "./logo";
+import { LOGO_STROKE, LOGO_VIEWBOX, PALMATE_DOT, PALMATE_PATH } from "./logo";
 import type { HandTarget } from "./targets";
 
 /**
@@ -19,15 +19,18 @@ const num = (n: number): string =>
 const pair = ([x, y]: Vec) => `${num(x)} ${num(y)}`;
 
 /**
- * The Palmate mark as one line drawing: the hand's path as the logo wrote it,
- * transparent behind, round ends. No fill, no text. Its viewBox is the logo's
+ * The Palmate mark: the hand's path as the logo wrote it, one line with round
+ * ends and no fill, and the dot, one circle filled white with a blue ring for
+ * its stroke. Nothing else: no text, no background, no halo, no second ring. Its viewBox is the logo's
  * (`LOGO_VIEWBOX`), the box the particle target is made in.
  */
 export function renderLogoSvg(): string {
   const { x, y, width, height } = LOGO_VIEWBOX;
+  const dot = PALMATE_DOT;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" fill="none" stroke="${LOGO_STROKE.color}" stroke-width="${LOGO_STROKE.width}" stroke-linecap="round" stroke-linejoin="round">\n` +
     `<path d="${PALMATE_PATH}"/>\n` +
+    `<circle cx="${dot.cx}" cy="${dot.cy}" r="${dot.r}" fill="${dot.fill}" stroke="${dot.stroke}" stroke-width="${dot.strokeWidth}"/>\n` +
     `</svg>\n`
   );
 }
