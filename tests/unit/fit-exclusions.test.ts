@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { excludeReason } from "../../src/server/fit/exclusions";
+import { excludeReason, totalApplies } from "../../src/server/fit/exclusions";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 
 const baseMouse: CatalogueMouse = {
@@ -87,4 +87,24 @@ describe("excludeReason priority", () => {
     const m = mouse({ handCompatibility: "left", heightMm: 80, lengthMm: 120 });
     expect(excludeReason(m, "right", defaultPrefs)).toBe("wrong_hand");
   });
+});
+
+describe("totalApplies", () => {
+  it.each([
+    // [heightMm, lengthMm, formFactor, expected]
+    [66.1, 120, undefined, false], // ratio 0.5508 > 0.55: vertical by shape
+    [65.9, 120, undefined, true], //  ratio 0.5492 < 0.55
+    [66, 120, undefined, true], //    ratio exactly 0.55 still applies
+    [40, 120, "vertical", false], //  form factor says vertical
+    [40, 120, "trackball", false], // form factor says trackball
+    [40, 120, "standard", true],
+    [40, 120, undefined, true], //    absent form factor is a standard mouse
+  ] as const)(
+    "height=%s length=%s formFactor=%s → %s",
+    (heightMm, lengthMm, formFactor, expected) => {
+      expect(totalApplies(mouse({ heightMm, lengthMm, formFactor }))).toBe(
+        expected,
+      );
+    },
+  );
 });
