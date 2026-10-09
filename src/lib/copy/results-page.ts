@@ -62,8 +62,9 @@ export interface ResultsPageCopy {
   othersCaption: string;
   /**
    * One line on a card whose shell is shared with other catalogue entries
-   * (SHELL-1). `models` are the variants' full model names. Wording is Kirby's: zh-TW 「相同構型」 and English
-   * "Same modeling" (approved 2026-10-10). Text only: a variant has no score, rank or link.
+   * (SHELL-1). `models` are the variants' full model names. Wording is
+   * Kirby's (approved 2026-10-10): zh-TW 「相同構型」, English "Same
+   * modeling". Text only: a variant has no score, rank or link.
    */
   variantsLine: (models: readonly string[]) => string;
   /** Out of 100, after a total. */
