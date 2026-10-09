@@ -788,6 +788,13 @@ describe("round 5: parseFinaleTargets refuses every field the generator would no
     expect(() =>
       parseFinaleTargets({ ...raw, parts: [...raw.parts, "tail"] }),
     ).toThrow(/parts/);
+    // One short: every listed name matches, but the list must be whole.
+    expect(() =>
+      parseFinaleTargets({ ...raw, parts: raw.parts.slice(0, -1) }),
+    ).toThrow(/parts/);
+    expect(() =>
+      parseFinaleTargets({ ...raw, kinds: raw.kinds.slice(0, -1) }),
+    ).toThrow(/kinds/);
     expect(() => parseFinaleTargets(raw)).not.toThrow();
   });
 });
