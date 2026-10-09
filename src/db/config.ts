@@ -165,16 +165,89 @@ function redactCredentialValue(
  * slightly less useful log line, never a leaked credential.
  */
 export function redactSecrets(message: string): string {
-  return message
-    .replace(CONNECTION_URL, "[redacted-url]")
-    .replace(KEY_VALUE_PAIR, redactCredentialValue);
+  return redactPgKeyDetails(
+    message
+      .replace(CONNECTION_URL, "[redacted-url]")
+      .replace(KEY_VALUE_PAIR, redactCredentialValue)
+      .replace(PG_FAILING_ROW, "Failing row contains [redacted]"),
+  );
+}
+
+// Postgres error details carry column values in two shapes the key=value
+// pattern above cannot see: "Key (col)=(value) already exists." (unique and
+// foreign keys) and "Failing row contains (v1, v2, …)." (check and not-null;
+// no column names). Values can hold any parentheses, so neither pattern pairs
+// them (fail toward safe):
+// - Key: the column list runs to the first ")=(" (it may itself hold
+//   parentheses: an expression index such as lower(password)). When it names
+//   a credential, everything after "=(" is redacted up to ") already exists",
+//   ") is not present", the next " | cause: " or, failing those, the end of
+//   the message. A Key that names no credential is skipped past its header
+//   only, so a credential Key after it is still found.
+// - Failing row: everything from it to the end of the message is redacted,
+//   since nothing says which value is which.
+// The constraint name, which is what debugging needs, is printed before the
+// detail and stays. Each scan moves forward only, so both stay linear.
+const PG_KEY_HEADER = /Key \(([\s\S]{0,256}?)\)=\(/g;
+const PG_KEY_END = /\) already exists|\) is not present|\)?\.? \| cause: /g;
+const PG_FAILING_ROW = /Failing row contains [\s\S]*/g;
+const CREDENTIAL_COLUMN = new RegExp(
+  String.raw`\b(?:${CREDENTIAL_KEY})\b`,
+  "i",
+);
+
+function redactPgKeyDetails(message: string): string {
+  let out = "";
+  let kept = 0;
+  PG_KEY_HEADER.lastIndex = 0;
+  for (
+    let header = PG_KEY_HEADER.exec(message);
+    header;
+    header = PG_KEY_HEADER.exec(message)
+  ) {
+    if (!CREDENTIAL_COLUMN.test(header[1])) continue;
+    const valueStart = header.index + header[0].length;
+    PG_KEY_END.lastIndex = valueStart;
+    const valueEnd = PG_KEY_END.exec(message)?.index ?? message.length;
+    out += `${message.slice(kept, valueStart)}[redacted]`;
+    kept = valueEnd;
+    PG_KEY_HEADER.lastIndex = valueEnd;
+  }
+  return out + message.slice(kept);
+}
+
+/**
+ * Drizzle wraps a failed statement as "Failed query: …" and keeps the
+ * Postgres error (code, constraint, detail) in `cause`; without it a seed
+ * failure says nothing about why. Walks the cause chain, a few levels deep.
+ */
+function causeDetails(error: Error): string[] {
+  const out: string[] = [];
+  let cause: unknown = error.cause;
+  for (let depth = 0; depth < 3 && cause instanceof Error; depth += 1) {
+    const pg = cause as Error & {
+      code?: unknown;
+      constraint?: unknown;
+      detail?: unknown;
+      column?: unknown;
+    };
+    const extra = (["code", "constraint", "column", "detail"] as const)
+      .filter((k) => typeof pg[k] === "string" && pg[k] !== "")
+      .map((k) => `${k}=${String(pg[k])}`);
+    const piece = [cause.message, ...extra].filter(Boolean).join(" ");
+    if (piece) out.push(piece);
+    cause = cause.cause;
+  }
+  return out;
 }
 
 export function describeMigrationError(error: unknown): string {
   if (error instanceof DatabaseConfigurationError) return error.message;
   const detail =
     error instanceof Error
-      ? error.message
+      ? [error.message, ...causeDetails(error)]
+          .filter(Boolean)
+          .join(" | cause: ")
       : typeof error === "string"
         ? error
         : "";
