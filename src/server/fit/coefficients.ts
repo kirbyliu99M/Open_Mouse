@@ -187,15 +187,6 @@ export const SIGMA_MEAS_MM = {
 } as const;
 
 /**
- * CALIB-1 (2026-10-10). The ideal sizes are clamped to this percentile range
- * (linear interpolation, see `percentile` in priors.ts) of each dimension over
- * the standard mice of the catalogue the engine is given, so a very large or
- * very small hand never asks for a size at the edge of the catalogue.
- * Candidate (未拍板).
- */
-export const TARGET_BOUND_PERCENTILES = { low: 5, high: 95 } as const;
-
-/**
  * CALIB-1: v1's thumb-rest adjustment for an ergonomic mouse with a thumb rest
  * grows with the listed width: -(BASE + SLOPE * max(0, widthMm - FROM)) mm.
  * Up to FROM mm it is the v0 constant (12 mm); above it, the wider side wings
@@ -203,5 +194,5 @@ export const TARGET_BOUND_PERCENTILES = { low: 5, high: 95 } as const;
  * `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`. Candidates (未拍板).
  */
 export const THUMB_REST_BASE_MM = 12;
-export const THUMB_REST_WIDE_SLOPE = 0.5;
+export const THUMB_REST_WIDE_SLOPE = 1;
 export const THUMB_REST_WIDE_FROM_MM = 80;

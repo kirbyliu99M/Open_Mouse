@@ -34,16 +34,7 @@ Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every
 `length_g = handLength × LENGTH_FACTOR[g]`, `gripWidth = palmWidth × 0.88`,
 `height_g = handLength × HEIGHT_FACTOR[g]` — factors unchanged from v0.
 
-**Bounded targets (CALIB-1, candidate, 未拍板).** In v1 each of the three targets is then clamped
-to the 5th..95th percentile (`TARGET_BOUND_PERCENTILES`) of that dimension over the standard mice
-of the catalogue the engine is given (not `vertical`, not `trackball`, height/length within
-`VERTICAL_FORM_FACTOR_RATIO`). Percentile method: linear interpolation between closest ranks
-(rank = p/100 · (n − 1) over the sorted values; `percentile` in `priors.ts`). The bounds are
-computed once in `computePriors` (`Priors.targetBounds`); with fewer than two standard mice they
-are null and nothing is clamped. The clamped targets are the ones scored and the ones reported in
-the response's `targets` (and used for the hand type). v0 does not clamp. Why: on the 411-row
-catalogue a large palm asked for a 135.3 mm length (99th percentile) and a small fingertip hand for
-a 29.7 mm height (1st percentile), sizes the catalogue barely offers.
+_Tried and dropped (CALIB-1, 2026-10-10):_ clamping each target to the catalogue's 5th..95th percentile. It pulled very small and very large hands toward mid-size mice (a small fingertip hand lost the smallest mice), so v1 targets stay exactly the above.
 
 ## 4. Sub-scores
 
@@ -65,8 +56,8 @@ thumb 0.10, weight 0.05), with:
 - **Width-aware thumb-rest adjustment (CALIB-1, candidate, 未拍板).** For an ergonomic mouse with a
   thumb rest the effective grip width subtracts
   `THUMB_REST_BASE_MM + THUMB_REST_WIDE_SLOPE · max(0, widthMm − THUMB_REST_WIDE_FROM_MM)` =
-  `12 + 0.5 · max(0, width − 80)` mm instead of v0's fixed 12 mm (so nothing changes up to 80 mm;
-  an 89 mm mouse loses 16.5 mm, a 92 mm one 18 mm). Other mice keep 0. v0 keeps the fixed
+  `12 + 1 · max(0, width − 80)` mm instead of v0's fixed 12 mm (so nothing changes up to 80 mm;
+  an 89 mm mouse loses 21 mm, a 92 mm one 24 mm). Other mice keep 0. v0 keeps the fixed
   `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`.
 - Grip-width weight is halved only while `sideCurvature` is null (v0's rule, kept). The draft
   wording was ambiguous; with the current seed every row has a null curvature, so every row is
@@ -130,7 +121,7 @@ rows keep 75.
 | `src/server/fit/score-v1.ts`                              | `scoreFitV1(measurements, catalogue, prefs, hand, priors, options?)`, `compareRankKeys` |
 | `src/server/fit/grip-weights.ts`                          | `gripWeights(r, stated?)`, `argmaxGrip`                                                 |
 | `src/server/fit/subscores-v1.ts`                          | unrounded sub-scores, `sigmaEff`                                                        |
-| `src/server/fit/priors.ts`                                | `computePriors(catalogue)` (priors and `targetBounds`), `percentile`, `clampTargets`    |
+| `src/server/fit/priors.ts`                                | `computePriors(catalogue)`                                                              |
 | `src/server/fit/exclusions-v1.ts`                         | wrong hand, trackball, vertical                                                         |
 | `src/server/fit/engine.ts`                                | `scoreFitDefault`, the `DEFAULT_ENGINE` switch                                          |
 | `src/server/fit/stability.ts`, `scripts/fit-stability.ts` | §8 report: `npx tsx scripts/fit-stability.ts`                                           |

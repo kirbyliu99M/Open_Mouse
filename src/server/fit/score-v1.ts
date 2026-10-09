@@ -16,7 +16,7 @@ import { ENGINE_VERSION_V1 } from "./coefficients";
 import { totalApplies } from "./exclusions";
 import { excludeReasonV1, type ExclusionOptions } from "./exclusions-v1";
 import { argmaxGrip, gripWeights } from "./grip-weights";
-import { clampTargets, type Priors } from "./priors";
+import type { Priors } from "./priors";
 import {
   scoreFrontFlare,
   scoreGripWidthV1,
@@ -202,10 +202,7 @@ export function scoreFitV1(
   const targetsByGrip = Object.fromEntries(
     GRIP_STYLES.map((g) => [
       g,
-      clampTargets(
-        computeTargets(measurements.handLengthMm, measurements.palmWidthMm, g),
-        priors.targetBounds,
-      ),
+      computeTargets(measurements.handLengthMm, measurements.palmWidthMm, g),
     ]),
   ) as Record<GripStyle, FitTargets>;
   const targets = targetsByGrip[used];

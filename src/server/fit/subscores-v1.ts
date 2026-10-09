@@ -89,7 +89,7 @@ export function scoreLengthV1(
 
 /**
  * CALIB-1: the (negative) adjustment for an ergonomic mouse with a thumb rest.
- * -12 mm up to 80 mm wide, then 0.5 mm more for each mm of width above 80.
+ * -12 mm up to 80 mm wide, then 1 mm more for each mm of width above 80.
  */
 export function thumbRestAdjustmentMm(widthMm: number): number {
   return -(

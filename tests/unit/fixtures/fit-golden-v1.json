@@ -19,24 +19,24 @@
     },
     "top5": [
       {
-        "slug": "logitech-mx-anywhere-3s",
-        "total": 86
-      },
-      {
-        "slug": "logitech-pop-mouse",
-        "total": 83
-      },
-      {
-        "slug": "logitech-m196",
-        "total": 79
+        "slug": "logitech-m325s",
+        "total": 69
       },
       {
         "slug": "logitech-m240",
-        "total": 75
+        "total": 66
       },
       {
-        "slug": "logitech-m325s",
-        "total": 67
+        "slug": "logitech-mx-anywhere-3s",
+        "total": 64
+      },
+      {
+        "slug": "logitech-m196",
+        "total": 64
+      },
+      {
+        "slug": "logitech-pebble-2-m350s",
+        "total": 61
       }
     ]
   },
@@ -61,15 +61,15 @@
     "top5": [
       {
         "slug": "logitech-g203-lightsync",
-        "total": 79
+        "total": 78
       },
       {
         "slug": "logitech-g305-lightspeed",
-        "total": 79
+        "total": 78
       },
       {
         "slug": "logitech-m100",
-        "total": 79
+        "total": 78
       },
       {
         "slug": "logitech-m190",
@@ -97,28 +97,28 @@
     "handType": {
       "size": "large",
       "grip": "palm",
-      "width": "wide"
+      "width": "slim"
     },
     "top5": [
       {
         "slug": "logitech-g502-x",
-        "total": 88
-      },
-      {
-        "slug": "logitech-g502-x-lightspeed",
-        "total": 88
-      },
-      {
-        "slug": "logitech-g502-x-plus",
-        "total": 88
-      },
-      {
-        "slug": "logitech-g502-hero",
         "total": 84
       },
       {
+        "slug": "logitech-g502-x-lightspeed",
+        "total": 84
+      },
+      {
+        "slug": "logitech-g502-x-plus",
+        "total": 84
+      },
+      {
+        "slug": "logitech-g502-hero",
+        "total": 79
+      },
+      {
         "slug": "logitech-g903-hero",
-        "total": 73
+        "total": 67
       }
     ]
   },
@@ -147,11 +147,11 @@
       },
       {
         "slug": "logitech-g203-lightsync",
-        "total": 81
+        "total": 80
       },
       {
         "slug": "logitech-g305-lightspeed",
-        "total": 81
+        "total": 80
       },
       {
         "slug": "logitech-g-pro-x-superlight-2c",
