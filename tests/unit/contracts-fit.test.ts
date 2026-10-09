@@ -111,6 +111,32 @@ describe("fitResponseSchema", () => {
     },
   );
 
+  it.each(["vertical_form_factor", "trackball_form_factor"] as const)(
+    "refuses a %s total of 0 too, and points at the right entry in a longer list",
+    (reason) => {
+      const leftOnly = {
+        ...valid.excluded[0],
+        reason: "wrong_hand",
+        total: 70,
+      };
+      const excluded = [leftOnly, { ...valid.excluded[0], reason, total: 0 }];
+      const parsed = fitResponseSchema.safeParse({ ...valid, excluded });
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((i) => i.path)).toEqual([
+        ["excluded", 1, "total"],
+      ]);
+    },
+  );
+
+  it("still refuses an unknown field on an exclusion (strict) after the refine", () => {
+    const excluded = [
+      { ...valid.excluded[0], reason: "wrong_hand", total: 70, rank: 3 },
+    ];
+    expect(fitResponseSchema.safeParse({ ...valid, excluded }).success).toBe(
+      false,
+    );
+  });
+
   it("rejects an exclusion reason outside the contract", () => {
     const excluded = [{ ...valid.excluded[0], reason: "too_heavy" }];
     expect(fitResponseSchema.safeParse({ ...valid, excluded }).success).toBe(
