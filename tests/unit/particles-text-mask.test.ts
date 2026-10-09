@@ -1083,3 +1083,153 @@ describe("round 4: pinned behaviour", () => {
     expect(letterOfPiece).toEqual([0, 1, 1, 2]);
   });
 });
+
+describe("round 5: labels, ties and options", () => {
+  const box = (x0: number, y0: number, x1: number, y1: number) => ({
+    x0,
+    y0,
+    x1,
+    y1,
+    area: (x1 - x0 + 1) * (y1 - y0 + 1),
+  });
+
+  it("ignores a label on an unset pixel: it neither stretches its letter nor lends itself", () => {
+    // Letter 0 is set at columns 0-1 of row 0; its label also lies on the
+    // unset pixel (6, 0). The set pixel (7, 0) is unlabelled: 1 px from that
+    // unset label, 6 px from the letter, so it must not get a label.
+    const alpha = new Uint8ClampedArray(10);
+    const labels = new Uint16Array(10);
+    alpha[0] = alpha[1] = 255;
+    labels[0] = labels[1] = 1;
+    labels[6] = 1; // unset, labelled
+    const ok = lettersFromLabels(thresholdMask(alpha, 10, 1), {
+      labels,
+      lines: [0],
+    });
+    expect(ok.letters[0]).toMatchObject({ x0: 0, x1: 1 });
+    expect(ok.letterAt[6]).toBe(-1);
+    alpha[7] = 255; // set, unlabelled
+    expect(() =>
+      lettersFromLabels(thresholdMask(alpha, 10, 1), { labels, lines: [0] }),
+    ).toThrow(/pixel \(7, 0\)/);
+  });
+
+  it("refuses a negative label and one just past the letters, and takes the last letter's own", () => {
+    const alpha = [255, 255, 255];
+    const mask = thresholdMask(alpha, 3, 1);
+    expect(() =>
+      lettersFromLabels(mask, { labels: [1, -1, 2], lines: [0, 0] }),
+    ).toThrow(/a label is 0 to 2/);
+    expect(() =>
+      lettersFromLabels(mask, { labels: [1, 3, 2], lines: [0, 0] }),
+    ).toThrow(/a label is 0 to 2/);
+    expect(
+      lettersFromLabels(mask, { labels: [1, 2, 2], lines: [0, 0] }).letters,
+    ).toHaveLength(2);
+  });
+
+  it("breaks a tie of distance by scan order: the label above before the one below", () => {
+    // (1, 1) is unlabelled; letter 0 at (1, 0) and letter 1 at (1, 2) are both 1 away.
+    const alpha = new Uint8ClampedArray(9);
+    const labels = new Uint16Array(9);
+    alpha[1] = 255;
+    labels[1] = 1;
+    alpha[7] = 255;
+    labels[7] = 2;
+    alpha[4] = 255;
+    const { letterAt } = lettersFromLabels(thresholdMask(alpha, 3, 3), {
+      labels,
+      lines: [0, 0],
+    });
+    expect(letterAt[4]).toBe(0);
+  });
+
+  it("puts a missed letter's one particle on the first of its equally deep pixels", () => {
+    // A 3 × 1 letter on row 4, between the grid's rows (y 2.6 and 7.8): all
+    // three pixels are 1 deep, so the first, (24, 4), takes the particle.
+    const c = canvas(30, 10);
+    c.rect(0, 0, 20, 10);
+    c.rect(24, 4, 3, 1);
+    const { particles } = sampleMask(c.alpha, 30, 10, {
+      spacing: 6,
+      jitter: 0,
+      seed: 1,
+      guessLetters: true,
+    });
+    expect(particles.filter((p) => p.letter === 1)).toEqual([
+      expect.objectContaining({ x: 24.5, y: 4.5 }),
+    ]);
+  });
+
+  it("uses the threshold it is given, and a jitter of 0.25 when none is given", () => {
+    const c = canvas(40, 20);
+    c.rect(2, 2, 36, 16, 255);
+    c.rect(10, 6, 20, 8, 100); // a faint middle
+    const at = (o: Record<string, number>) =>
+      sampleMask(c.alpha, 40, 20, {
+        spacing: 2,
+        seed: 3,
+        guessLetters: true,
+        ...o,
+      }).particles;
+    expect(at({}).length).toBeLessThan(at({ threshold: 90 }).length);
+    expect(at({ threshold: 128 })).toEqual(at({}));
+    expect(at({ jitter: 0.25 })).toEqual(at({}));
+    expect(at({ jitter: 0.3 })).not.toEqual(at({}));
+  });
+
+  it("will not guess the letters with guessLetters: false", () => {
+    const c = twoLines();
+    expect(() =>
+      sampleMask(c.alpha, c.width, c.height, {
+        spacing: 2,
+        seed: 1,
+        guessLetters: false,
+      }),
+    ).toThrow(/needs the letters/);
+  });
+
+  it("picks a mark's host nearest first, then biggest, then first in order", () => {
+    const mark = box(20, 4, 27, 7);
+    // Nearest: A is 2 rows under the mark, B (bigger) 4 rows.
+    const near = groupLetters([mark, box(16, 10, 23, 23), box(24, 12, 40, 30)]);
+    expect(near.letterOfPiece[0]).toBe(near.letterOfPiece[1]);
+    // Same gap: the bigger host, B, though A comes first.
+    const big = groupLetters([mark, box(16, 10, 23, 23), box(24, 10, 40, 30)]);
+    expect(big.letterOfPiece[0]).toBe(big.letterOfPiece[2]);
+    // Same gap and size: the first in order.
+    const first = groupLetters([
+      mark,
+      box(16, 10, 23, 23),
+      box(24, 10, 31, 23),
+    ]);
+    expect(first.letterOfPiece[0]).toBe(first.letterOfPiece[1]);
+  });
+
+  it("grows a line's band as bodies join, both up and down", () => {
+    // The biggest body sits on rows 10-23; a second reaches up to row 4 (or
+    // down to 29); a third on rows 0-9 (or 24-33) overlaps only the grown band.
+    const up = groupLetters([
+      box(0, 10, 30, 23),
+      box(40, 4, 49, 23),
+      box(60, 0, 69, 9),
+    ]);
+    expect(up.letters.every((l) => l.line === 0)).toBe(true);
+    const down = groupLetters([
+      box(0, 10, 30, 23),
+      box(40, 10, 49, 29),
+      box(60, 24, 69, 33),
+    ]);
+    expect(down.letters.every((l) => l.line === 0)).toBe(true);
+  });
+
+  it("finds an outside square exactly at the reach above, too (the low side in y)", () => {
+    // 7 × 5, row 0 unset: from (3.5, 2.5) the outline is 1.5 up, and every
+    // canvas edge is at least as far.
+    const c = canvas(7, 5);
+    c.rect(0, 1, 7, 4);
+    const mask = thresholdMask(c.alpha, 7, 5);
+    expect(distanceToOutline(mask, 3.5, 2.5, 1.5)).toBe(1.5);
+    expect(distanceToOutline(mask, 3.5, 2.5, 1.4)).toBe(Infinity);
+  });
+});

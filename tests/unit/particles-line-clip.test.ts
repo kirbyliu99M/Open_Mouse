@@ -79,6 +79,26 @@ describe("clipPolyline", () => {
     }
   });
 
+  it("never steps further than `step`, even when the length is not a whole number of steps", () => {
+    // A 10.5 px line walked at most 3 px apart: 4 steps of 2.625 (whole steps
+    // of 3.5 would jump from x = 3.5 to 7 and miss columns 4-6).
+    const bar = mask(12, 3, [[4, 0, 3, 3]]);
+    const pieces = clipPolyline(
+      line([
+        [0, 1.5],
+        [10.5, 1.5],
+      ]),
+      bar,
+      3,
+    );
+    expect(pieces).toHaveLength(2);
+    expect(pieces[0]!.points[pieces[0]!.points.length - 1]![0]).toBeCloseTo(
+      2.625,
+      12,
+    );
+    expect(pieces[1]!.points[0]![0]).toBeCloseTo(7.875, 12);
+  });
+
   it("keeps the line's own corners in a piece", () => {
     const pieces = clipPolyline(
       line([
