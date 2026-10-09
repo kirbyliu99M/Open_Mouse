@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@/lib/particles/random";
 import {
+  MARK_RULES,
   type Mask,
   depthInside,
   dilateMask,
+  distanceToOutline,
   groupLetters,
   labelPieces,
+  markGap,
   maskAt,
   sampleMask,
+  sitsOnBaseline,
   squaredDistanceTo,
   thresholdMask,
 } from "@/lib/particles/text-mask";
@@ -37,6 +41,25 @@ function twoLines() {
   c.rect(30, 34, 5, 20); // L
   c.rect(30, 49, 14, 5);
   return c;
+}
+
+/**
+ * The distance from (x, y) to the nearest point outside the mask, by brute
+ * force: every unset pixel's square, and the canvas's four edges (beyond
+ * them is outside). 0 when (x, y) is itself outside.
+ */
+function bruteOutline(mask: Mask, x: number, y: number): number {
+  if (!maskAt(mask, x, y)) return 0;
+  let best = Math.min(x, y, mask.width - x, mask.height - y);
+  for (let j = 0; j < mask.height; j += 1) {
+    for (let i = 0; i < mask.width; i += 1) {
+      if (mask.data[j * mask.width + i] === 1) continue;
+      const dx = x < i ? i - x : x > i + 1 ? x - (i + 1) : 0;
+      const dy = y < j ? j - y : y > j + 1 ? y - (j + 1) : 0;
+      best = Math.min(best, Math.sqrt(dx * dx + dy * dy));
+    }
+  }
+  return best;
 }
 
 const bruteSquared = (feature: Uint8Array, w: number, h: number) => {
@@ -202,6 +225,208 @@ describe("labelPieces and groupLetters", () => {
   it("has nothing to read in an empty mask", () => {
     expect(groupLetters([])).toEqual({ letters: [], letterOfPiece: [] });
   });
+
+  const box = (x0: number, y0: number, x1: number, y1: number) => ({
+    x0,
+    y0,
+    x1,
+    y1,
+    area: (x1 - x0 + 1) * (y1 - y0 + 1),
+  });
+
+  it("puts a lone i's dot with its stem: one letter, one line (no tall letter beside it)", () => {
+    const { letters, letterOfPiece } = groupLetters([
+      { x0: 20, y0: 4, x1: 25, y1: 7, area: 24 },
+      { x0: 20, y0: 11, x1: 25, y1: 23, area: 78 },
+    ]);
+    expect(letters).toHaveLength(1);
+    expect(letterOfPiece).toEqual([0, 0]);
+    expect(letters[0]).toMatchObject({
+      x0: 20,
+      y0: 4,
+      x1: 25,
+      y1: 23,
+      line: 0,
+    });
+  });
+
+  it("reads a line of lower-case letters only, dots and all: 'mini' is four letters", () => {
+    const { letters, letterOfPiece } = groupLetters([
+      box(0, 12, 17, 25), // m
+      box(22, 5, 25, 8), // i's dot
+      box(22, 12, 25, 25), // i's stem
+      box(30, 12, 41, 25), // n
+      box(46, 5, 49, 8), // i's dot
+      box(46, 12, 49, 25), // i's stem
+    ]);
+    expect(letters).toHaveLength(4);
+    expect(letters.every((l) => l.line === 0)).toBe(true);
+    expect(letterOfPiece).toEqual([0, 1, 1, 2, 3, 3]);
+  });
+
+  it("takes a mark below its letter too (a cedilla), and an accent above it", () => {
+    const { letters, letterOfPiece } = groupLetters([
+      box(0, 10, 11, 23), // c
+      box(4, 26, 8, 29), // cedilla, 2 rows below
+      box(20, 10, 31, 23), // e
+      box(23, 4, 28, 7), // acute, 2 rows above
+    ]);
+    expect(letters).toHaveLength(2);
+    expect(letterOfPiece).toEqual([0, 0, 1, 1]);
+    expect(letters[0]).toMatchObject({ y0: 10, y1: 29 });
+    expect(letters[1]).toMatchObject({ y0: 4, y1: 23 });
+  });
+
+  it("keeps two stacked lines apart, even set tight ('Find Your' over 'Best Mouse')", () => {
+    // Capitals 20 px tall, lower case 14, lines 4 px apart; a full stop at the
+    // end of line one right above a capital of line two.
+    const top = [
+      box(0, 0, 11, 19), // F
+      box(16, 0, 19, 3), // i's dot
+      box(16, 6, 19, 19), // i's stem
+      box(24, 6, 35, 19), // n
+      box(40, 16, 43, 19), // a full stop
+    ];
+    const bottom = [
+      box(0, 24, 11, 43), // B
+      box(16, 30, 21, 43), // e
+      box(26, 24, 29, 27), // i's dot, right under line one's n
+      box(26, 30, 29, 43), // i's stem
+      box(36, 24, 47, 43), // M, under the full stop
+    ];
+    const { letters, letterOfPiece } = groupLetters([...top, ...bottom]);
+    expect(letters.map((l) => l.line)).toEqual([0, 0, 0, 0, 1, 1, 1, 1]);
+    // Each i is one letter; the full stop stays on line one; line two's dot
+    // goes with its own stem, not with the n above it.
+    expect(letterOfPiece.slice(0, 5)).toEqual([0, 1, 1, 2, 3]);
+    expect(letterOfPiece.slice(5)).toEqual([4, 5, 6, 6, 7]);
+    expect(sitsOnBaseline(top[4]!, [...top, ...bottom])).toBe(true);
+    expect(sitsOnBaseline(top[1]!, [...top, ...bottom])).toBe(false);
+    for (const l of letters.filter((x) => x.line === 0)) {
+      expect(l.y1).toBeLessThanOrEqual(19);
+    }
+  });
+
+  it("only treats a small piece close to a bigger one as its mark (markGap)", () => {
+    const stem = box(20, 11, 25, 23);
+    expect(markGap(box(20, 4, 25, 7), stem)).toBe(3);
+    // Too far for its size: a dot 4 rows high, 7 rows away.
+    expect(markGap(box(20, 0, 25, 3), stem)).toBe(-1);
+    // Each gap limit on its own: 7 rows is within 0.4 of a 20-row host but
+    // more than 1.5 dot heights; 6 rows is within 1.5 heights of a 7-row mark
+    // but more than 0.4 of a 12-row host.
+    expect(markGap(box(20, 0, 25, 3), box(20, 11, 25, 30))).toBe(-1);
+    expect(markGap(box(20, 4, 25, 7), box(20, 11, 25, 30))).toBe(3);
+    expect(markGap(box(0, 0, 5, 6), box(0, 13, 5, 24))).toBe(-1);
+    expect(markGap(box(0, 0, 5, 6), box(0, 10, 5, 24))).toBe(3);
+    // Beside it, not over it.
+    expect(markGap(box(30, 4, 35, 7), stem)).toBe(-1);
+    // Sharing a row: a neighbour in the line, not a mark.
+    expect(markGap(box(20, 9, 25, 12), stem)).toBe(-1);
+    // Too big to be a mark of this host.
+    expect(markGap(box(20, 0, 25, 9), stem)).toBe(-1);
+    // A mark is never a host of a bigger piece.
+    expect(markGap(stem, box(20, 4, 25, 7))).toBe(-1);
+    expect(MARK_RULES.size).toBeLessThan(1);
+  });
+});
+
+describe("distanceToOutline", () => {
+  it("matches a brute-force search at random points, edges of the canvas included", () => {
+    const random = mulberry32(17);
+    const c = canvas(14, 11);
+    c.rect(0, 0, 9, 6); // touches the top and left edges
+    c.rect(5, 4, 9, 7); // touches the right and bottom edges
+    c.rect(2, 8, 1, 1);
+    const mask = thresholdMask(c.alpha, c.width, c.height);
+    for (let n = 0; n < 2000; n += 1) {
+      const x = random() * c.width;
+      const y = random() * c.height;
+      const want = bruteOutline(mask, x, y);
+      const got = distanceToOutline(mask, x, y, 20);
+      expect(got).toBeCloseTo(want, 12);
+      // With a short reach it still finds anything within it, and nothing beyond.
+      const short = distanceToOutline(mask, x, y, 1.5);
+      if (want <= 1.5) expect(short).toBeCloseTo(want, 12);
+      else expect(short).toBe(Infinity);
+    }
+  });
+
+  it("finds an outside square exactly at the reach, on the low side too", () => {
+    // 5 × 7, column 0 unset: from (2.5, 3.5) the outline is 1.5 away to the
+    // left, and every canvas edge is further.
+    const c = canvas(5, 7);
+    c.rect(1, 0, 4, 7);
+    const mask = thresholdMask(c.alpha, 5, 7);
+    expect(distanceToOutline(mask, 2.5, 3.5, 1.5)).toBe(1.5);
+    expect(distanceToOutline(mask, 2.5, 3.5, 1.4)).toBe(Infinity);
+  });
+
+  it("refuses a negative reach", () => {
+    const mask = thresholdMask([255], 1, 1);
+    expect(() => distanceToOutline(mask, 0.5, 0.5, -1)).toThrow(/limit/);
+  });
+});
+
+describe("edge particles, measured from the particle", () => {
+  it("marks a particle 1 px from the outline as an edge particle (pixel centres would say 1.5)", () => {
+    const full = new Array(81).fill(255);
+    const { particles } = sampleMask(full, 9, 9, {
+      spacing: 2,
+      jitter: 0,
+      seed: 9,
+      edgeWidth: 1.5,
+    });
+    const p = particles.find(
+      (q) => q.x === 1 && Math.abs(q.y - 4.330127018922193) < 1e-9,
+    );
+    expect(p).toBeDefined();
+    expect(p!.edge).toBe(true);
+    const mask = thresholdMask(full, 9, 9);
+    for (const q of particles) {
+      expect(q.edge).toBe(bruteOutline(mask, q.x, q.y) <= 1.5);
+    }
+  });
+
+  it("can tell two jittered particles in one pixel apart", () => {
+    // Columns 0-5 set: the outline on the right is x = 6.
+    const c = canvas(12, 12);
+    c.rect(0, 0, 6, 12);
+    const mask = thresholdMask(c.alpha, 12, 12);
+    let split = 0;
+    for (let seed = 1; seed <= 40 && split === 0; seed += 1) {
+      const { particles } = sampleMask(c.alpha, 12, 12, {
+        spacing: 1.2,
+        jitter: 0.5,
+        seed,
+        edgeWidth: 1.4,
+      });
+      for (const q of particles) {
+        expect(q.edge).toBe(bruteOutline(mask, q.x, q.y) <= 1.4);
+      }
+      // Two particles in pixel column 4, one nearer the outline than 1.4 and one not.
+      const col4 = particles.filter(
+        (q) => Math.floor(q.x) === 4 && q.y > 2 && q.y < 10,
+      );
+      if (col4.some((q) => q.edge) && col4.some((q) => !q.edge)) split += 1;
+    }
+    expect(split).toBe(1);
+  });
+
+  it("treats the canvas's edge as the outline when the letters touch it", () => {
+    const { particles } = sampleMask(new Array(36).fill(255), 6, 6, {
+      spacing: 1,
+      jitter: 0,
+      seed: 1,
+      edgeWidth: 0.6,
+    });
+    for (const q of particles) {
+      const border = Math.min(q.x, q.y, 6 - q.x, 6 - q.y);
+      expect(q.edge).toBe(border <= 0.6);
+    }
+    expect(particles.some((q) => q.edge)).toBe(true);
+    expect(particles.some((q) => !q.edge)).toBe(true);
+  });
 });
 
 describe("sampleMask", () => {
@@ -250,10 +475,8 @@ describe("sampleMask", () => {
     ).not.toEqual(particles);
   });
 
-  it("tells edge particles from inner ones by their distance to the outline", () => {
-    const depth = depthInside(mask);
-    const at = (p: { x: number; y: number }) =>
-      depth[Math.floor(p.y) * c.width + Math.floor(p.x)]!;
+  it("tells edge particles from inner ones by the particle's own distance to the outline", () => {
+    const at = (p: { x: number; y: number }) => bruteOutline(mask, p.x, p.y);
     const edge = particles.filter((p) => p.edge);
     const inner = particles.filter((p) => !p.edge);
     expect(edge.length).toBeGreaterThan(0);

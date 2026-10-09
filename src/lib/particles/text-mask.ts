@@ -155,6 +155,43 @@ export function depthInside(mask: Mask): Float64Array {
 }
 
 /**
+ * How far the point (x, y) is from the mask's outline, in px, looking no
+ * further than `limit`: the distance to the nearest point outside the mask,
+ * where a set pixel is the whole square [i, i + 1) × [j, j + 1) and
+ * everything beyond the canvas is outside. 0 for a point outside the mask;
+ * Infinity when nothing outside lies within `limit`. Exact (not a pixel-centre
+ * approximation): it measures to the nearest unset pixel's square, and to the
+ * canvas's own edges.
+ */
+export function distanceToOutline(
+  mask: Mask,
+  x: number,
+  y: number,
+  limit: number,
+): number {
+  if (!(limit >= 0)) throw new RangeError("limit must be 0 or more");
+  if (!maskAt(mask, x, y)) return 0;
+  // The canvas's edges.
+  let best = Math.min(x, y, mask.width - x, mask.height - y);
+  const reach = Math.min(limit, best);
+  // One pixel more on the low side: a square ending exactly at x - reach counts.
+  const i0 = Math.max(0, Math.floor(x - reach) - 1);
+  const i1 = Math.min(mask.width - 1, Math.floor(x + reach));
+  const j0 = Math.max(0, Math.floor(y - reach) - 1);
+  const j1 = Math.min(mask.height - 1, Math.floor(y + reach));
+  for (let j = j0; j <= j1; j += 1) {
+    const dy = Math.max(j - y, 0, y - (j + 1));
+    for (let i = i0; i <= i1; i += 1) {
+      if (mask.data[j * mask.width + i] === 1) continue;
+      const dx = Math.max(i - x, 0, x - (i + 1));
+      const d = Math.hypot(dx, dy);
+      if (d < best) best = d;
+    }
+  }
+  return best <= limit ? best : Infinity;
+}
+
+/**
  * The mask's 8-connected pieces: a label per pixel (-1 where unset) and each
  * piece's box and size, in scan order (top row first).
  */
@@ -216,47 +253,180 @@ export interface Letter {
   readonly index: number;
 }
 
+/** A piece of a mask: its box (pixels, inclusive) and its pixel count. */
+export interface Piece {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly area: number;
+}
+
+/**
+ * When a small piece is a mark of the letter above or below it (an i's or a
+ * j's dot, an accent, a cedilla) rather than a letter of its own. It must:
+ * overlap the host across x by more than half the narrower of the two; be at
+ * most `size` of the host's height; and sit clear of it (no shared row) by a
+ * gap of at most `gap` times its own height and at most `hostGap` times the
+ * host's height. The gap limits and the size limit keep stacked lines apart:
+ * a letter of the other line is too big to count as a mark, and a small piece
+ * (a full stop) is usually a whole line gap away, several times its own
+ * height; for lines set tighter than that, `groupLetters` also refuses a piece
+ * that sits on its own line's baseline as a mark of anything below it.
+ * Candidate values (未拍板), tuned on block letters and the headline's two
+ * lines.
+ */
+export const MARK_RULES = { size: 0.6, gap: 1.5, hostGap: 0.4 } as const;
+
+const heightOf = (p: Piece) => p.y1 - p.y0 + 1;
+const widthOf = (p: Piece) => p.x1 - p.x0 + 1;
+const xOverlap = (a: Piece, b: Piece) =>
+  Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + 1;
+
+/** The gap (rows between them) when `mark` may be a mark of `host` (MARK_RULES), else -1. */
+export function markGap(
+  mark: Piece,
+  host: Piece,
+  rules: { size: number; gap: number; hostGap: number } = MARK_RULES,
+): number {
+  const h = heightOf(mark);
+  const H = heightOf(host);
+  if (h > rules.size * H) return -1;
+  if (xOverlap(mark, host) <= 0.5 * Math.min(widthOf(mark), widthOf(host))) {
+    return -1;
+  }
+  const gap = Math.max(host.y0 - mark.y1, mark.y0 - host.y1) - 1;
+  if (gap < 0) return -1; // shares a row: an ordinary neighbour in the line
+  return gap <= rules.gap * h && gap <= rules.hostGap * H ? gap : -1;
+}
+
+/**
+ * Whether a piece sits on a line's baseline: some taller piece shares a row
+ * with it and ends on (about) the same bottom row, as a full stop or a comma
+ * sits beside the letters of its line. An i's dot or an accent ends well above
+ * the bottom of the letters beside it. The tolerance is a quarter of the
+ * piece's height, at least one row.
+ */
+export function sitsOnBaseline(
+  piece: Piece,
+  pieces: readonly Piece[],
+): boolean {
+  const h = heightOf(piece);
+  const tolerance = Math.max(1, 0.25 * h);
+  return pieces.some(
+    (other) =>
+      heightOf(other) > h &&
+      other.y0 <= piece.y1 &&
+      other.y1 >= piece.y0 &&
+      Math.abs(other.y1 - piece.y1) <= tolerance,
+  );
+}
+
 /**
  * Group a mask's pieces into letters in reading order: lines top to bottom,
- * letters left to right. A piece joins a line its height mostly overlaps (an
- * i's dot sits inside its line's band), and a piece that mostly overlaps a
- * neighbour across x joins that letter (the i's dot and its stem).
+ * letters left to right.
+ *
+ * 1. Marks first: a piece that may be a mark (`markGap`) of another, bigger
+ *    piece joins the nearest such host (the smallest gap, then the biggest
+ *    host), so an i's dot and its stem are one letter even with no tall
+ *    letter beside them. A piece on a baseline (`sitsOnBaseline`: a full
+ *    stop) is never a mark of a piece below it: that is the next line.
+ * 2. Lines: a letter (host plus marks) joins a line its height mostly
+ *    overlaps, biggest letters first.
+ * 3. In a line, letters that mostly overlap across x are one letter.
+ *
  * Returns the letters and, per piece, the letter it belongs to.
  */
-export function groupLetters(
-  pieces: readonly {
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-    area: number;
-  }[],
-): { letters: Letter[]; letterOfPiece: number[] } {
-  const order = pieces
-    .map((p, i) => ({ ...p, i }))
+export function groupLetters(pieces: readonly Piece[]): {
+  letters: Letter[];
+  letterOfPiece: number[];
+} {
+  // 1. Each piece's host, if it is a mark; chains end at a piece that is not.
+  const host = pieces.map((mark, i) => {
+    let best = -1;
+    let bestGap = Infinity;
+    const onBaseline = sitsOnBaseline(mark, pieces);
+    pieces.forEach((other, k) => {
+      if (k === i) return;
+      const gap = markGap(mark, other);
+      if (gap < 0) return;
+      // A full stop at the end of one line is not an accent of the letter
+      // under it on the next line.
+      if (mark.y1 < other.y0 && onBaseline) return;
+      if (
+        gap < bestGap ||
+        (gap === bestGap && other.area > pieces[best]!.area)
+      ) {
+        best = k;
+        bestGap = gap;
+      }
+    });
+    return best;
+  });
+  const rootOf = (i: number): number => {
+    let at = i;
+    // A host is strictly taller than its mark (MARK_RULES.size < 1), so a
+    // chain has no loop; the step limit only guards against a rule change.
+    for (let step = 0; host[at]! >= 0 && step < pieces.length; step += 1) {
+      at = host[at]!;
+    }
+    return at;
+  };
+  const clusters = new Map<
+    number,
+    {
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      area: number;
+      members: number[];
+    }
+  >();
+  pieces.forEach((p, i) => {
+    const root = rootOf(i);
+    const c = clusters.get(root);
+    if (c) {
+      c.x0 = Math.min(c.x0, p.x0);
+      c.y0 = Math.min(c.y0, p.y0);
+      c.x1 = Math.max(c.x1, p.x1);
+      c.y1 = Math.max(c.y1, p.y1);
+      c.area += p.area;
+      c.members.push(i);
+    } else {
+      clusters.set(root, { ...p, members: [i] });
+    }
+  });
+  const units = [...clusters.entries()]
+    .map(([root, c]) => ({ ...c, i: root }))
     .sort((a, b) => b.area - a.area || a.i - b.i);
-  const lines: { y0: number; y1: number; members: number[] }[] = [];
-  for (const p of order) {
-    const h = p.y1 - p.y0 + 1;
+
+  // 2. Lines.
+  const lines: { y0: number; y1: number; members: (typeof units)[number][] }[] =
+    [];
+  for (const u of units) {
+    const h = u.y1 - u.y0 + 1;
     const line = lines.find((l) => {
-      const overlap = Math.min(l.y1, p.y1) - Math.max(l.y0, p.y0) + 1;
+      const overlap = Math.min(l.y1, u.y1) - Math.max(l.y0, u.y0) + 1;
       return overlap > 0.5 * Math.min(h, l.y1 - l.y0 + 1);
     });
     if (line) {
-      line.y0 = Math.min(line.y0, p.y0);
-      line.y1 = Math.max(line.y1, p.y1);
-      line.members.push(p.i);
+      line.y0 = Math.min(line.y0, u.y0);
+      line.y1 = Math.max(line.y1, u.y1);
+      line.members.push(u);
     } else {
-      lines.push({ y0: p.y0, y1: p.y1, members: [p.i] });
+      lines.push({ y0: u.y0, y1: u.y1, members: [u] });
     }
   }
   lines.sort((a, b) => a.y0 + a.y1 - (b.y0 + b.y1));
+
+  // 3. Letters, left to right.
   const letters: Letter[] = [];
   const letterOfPiece = new Array<number>(pieces.length).fill(-1);
   lines.forEach((line, lineIndex) => {
-    const members = line.members
-      .map((i) => ({ ...pieces[i]!, i }))
-      .sort((a, b) => a.x0 + a.x1 - (b.x0 + b.x1) || a.i - b.i);
+    const members = [...line.members].sort(
+      (a, b) => a.x0 + a.x1 - (b.x0 + b.x1) || a.i - b.i,
+    );
     const boxes: {
       x0: number;
       y0: number;
@@ -274,11 +444,17 @@ export function groupLetters(
           last.y0 = Math.min(last.y0, m.y0);
           last.x1 = Math.max(last.x1, m.x1);
           last.y1 = Math.max(last.y1, m.y1);
-          last.pieces.push(m.i);
+          last.pieces.push(...m.members);
           continue;
         }
       }
-      boxes.push({ x0: m.x0, y0: m.y0, x1: m.x1, y1: m.y1, pieces: [m.i] });
+      boxes.push({
+        x0: m.x0,
+        y0: m.y0,
+        x1: m.x1,
+        y1: m.y1,
+        pieces: [...m.members],
+      });
     }
     for (const b of boxes) {
       const index = letters.length;
@@ -311,7 +487,7 @@ export interface MaskSampleOptions {
 export interface MaskParticle {
   readonly x: number;
   readonly y: number;
-  /** Within `edgeWidth` of the outline. */
+  /** Within `edgeWidth` of the outline, measured from the particle itself (`distanceToOutline`). */
   readonly edge: boolean;
   /** The letter it belongs to (an index into `letters`, reading order). */
   readonly letter: number;
@@ -343,7 +519,6 @@ export function sampleMask(
   }
   if (!(edgeWidth >= 0)) throw new RangeError("edgeWidth must be 0 or more");
   const mask = thresholdMask(alpha, width, height, options.threshold ?? 128);
-  const depth = depthInside(mask);
   const { labels, pieces } = labelPieces(mask);
   const { letters, letterOfPiece } = groupLetters(pieces);
   const random = mulberry32(seed);
@@ -367,7 +542,7 @@ export function sampleMask(
       particles.push({
         x,
         y,
-        edge: depth[at]! <= edgeWidth,
+        edge: distanceToOutline(mask, x, y, edgeWidth) <= edgeWidth,
         letter,
         order: Math.min(1, (letter + Math.min(1, Math.max(0, across))) / count),
       });
