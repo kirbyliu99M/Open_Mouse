@@ -56,9 +56,9 @@ thumb 0.10, weight 0.05), with:
 - **Width-aware thumb-rest adjustment (CALIB-1, candidate, 未拍板).** For an ergonomic mouse with a
   thumb rest the effective grip width subtracts
   `THUMB_REST_BASE_MM + THUMB_REST_WIDE_SLOPE · max(0, widthMm − THUMB_REST_WIDE_FROM_MM)` =
-  `12 + 1 · max(0, width − 80)` mm instead of v0's fixed 12 mm (so nothing changes up to 80 mm;
-  an 89 mm mouse loses 21 mm, a 92 mm one 24 mm). Other mice keep 0. v0 keeps the fixed
-  `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`.
+  `12 + 0.5 · max(0, width − 80)` mm instead of v0's fixed 12 mm (so nothing changes up to 80 mm;
+  an 89 mm mouse loses 16.5 mm, a 92 mm one 18 mm). Other mice keep 0. v0 keeps the fixed
+  `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`. The slope rests on TechPowerUp measurements: the Corsair Ironclaw RGB is listed at 80 mm and gripped at about 68 mm (wing 12 mm, <https://www.techpowerup.com/review/corsair-ironclaw-rgb/2.html>), and the Redragon M913 Impact Elite, the same shell as the M908, is listed at 92 mm with a narrowest grip of 71.7 mm (wing about 20 mm, <https://www.techpowerup.com/review/redragon-m913-impact-elite/3.html>). A slope of 1.0 was also tried and dropped: it pushed mice that reviewers call large-hand mice (Nightsword, #3 to #14) out of the large-palm top 10.
 - Grip-width weight is halved only while `sideCurvature` is null (v0's rule, kept). The draft
   wording was ambiguous; with the current seed every row has a null curvature, so every row is
   halved alike, and the halving stops mattering once curvature is imported.

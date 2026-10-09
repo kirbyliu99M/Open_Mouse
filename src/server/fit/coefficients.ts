@@ -194,5 +194,5 @@ export const SIGMA_MEAS_MM = {
  * `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`. Candidates (未拍板).
  */
 export const THUMB_REST_BASE_MM = 12;
-export const THUMB_REST_WIDE_SLOPE = 1;
+export const THUMB_REST_WIDE_SLOPE = 0.5;
 export const THUMB_REST_WIDE_FROM_MM = 80;

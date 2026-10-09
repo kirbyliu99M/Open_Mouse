@@ -96,20 +96,20 @@ describe("width-aware thumb-rest adjustment (v1)", () => {
       THUMB_REST_BASE_MM,
       THUMB_REST_WIDE_SLOPE,
       THUMB_REST_WIDE_FROM_MM,
-    ]).toEqual([12, 1, 80]);
+    ]).toEqual([12, 0.5, 80]);
   });
   it("is -12 up to and at 80 mm", () => {
     expect(thumbRestAdjustmentMm(60)).toBe(-12);
-    expect(thumbRestAdjustmentMm(80)).toBe(-12);
+    expect(thumbRestAdjustmentMm(80)).toBe(-12); // Ironclaw RGB, listed 80 mm
   });
-  it("grows by 1 mm per mm above 80 (Spatha 89 is -21, M908 92 is -24)", () => {
-    expect(thumbRestAdjustmentMm(89)).toBe(-21);
-    expect(thumbRestAdjustmentMm(92)).toBe(-24);
+  it("grows by 0.5 mm per mm above 80 (Spatha 89 is -16.5, M908 92 is -18)", () => {
+    expect(thumbRestAdjustmentMm(89)).toBe(-16.5);
+    expect(thumbRestAdjustmentMm(92)).toBe(-18);
   });
   it("feeds the effective width and the reason params", () => {
     const r = scoreGripWidthV1(ergo(89), 70);
-    expect(r.reason.params.ergonomicThumbAdjMm).toBe(-21);
-    expect(r.reason.params.effectiveWidthMm).toBe(68);
+    expect(r.reason.params.ergonomicThumbAdjMm).toBe(-16.5);
+    expect(r.reason.params.effectiveWidthMm).toBe(72.5);
     const below = scoreGripWidthV1(ergo(78), 70);
     expect(below.reason.params.ergonomicThumbAdjMm).toBe(-12);
   });
