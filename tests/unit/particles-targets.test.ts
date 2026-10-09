@@ -6,8 +6,17 @@ import {
   SKETCH_DIR,
   buildArtifacts,
 } from "@/lib/particles/artifacts";
-import { type Vec, distance } from "@/lib/particles/geometry";
-import { LOGO_BOX, logoStrokes } from "@/lib/particles/logo";
+import { type Vec, distance, polylineLength } from "@/lib/particles/geometry";
+import {
+  LOGO_BOX,
+  LOGO_SAMPLING,
+  LOGO_SCALE,
+  LOGO_STROKE,
+  LOGO_VIEWBOX,
+  PALMATE_PATH,
+  logoPolylines,
+} from "@/lib/particles/logo";
+import { buildPairing } from "@/lib/particles/pairing";
 import { parseSketchSvg } from "@/lib/particles/svg-path";
 import { renderHandSvg, renderLogoSvg } from "@/lib/particles/static-svg";
 import {
@@ -137,64 +146,199 @@ describe("the mouse sketches", () => {
   });
 });
 
-describe("the placeholder logo", () => {
+describe("the Palmate logo", () => {
   const target = sampleLogo();
-  const strokes = logoStrokes();
+  const polylines = logoPolylines();
+  /** The path in the target's own px. */
+  const inBox = polylines.map(({ points, closed }) => ({
+    closed,
+    points: points.map(([x, y]): Vec => [
+      (x - LOGO_VIEWBOX.x) * LOGO_SCALE,
+      (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
+    ]),
+  }));
+  const pathRuns = target.runs.filter((run) => run.count > 1);
+  const strayRuns = target.runs.filter((run) => run.count === 1);
+  const cloud = pathRuns.flatMap((run) =>
+    target.points.slice(run.start, run.start + run.count),
+  );
+  const strays = strayRuns.map((run) => target.points[run.start]!);
+  const pathLength = polylines.reduce(
+    (sum, { points }) => sum + polylineLength(points),
+    0,
+  );
+  const mean = (xs: readonly number[]) =>
+    xs.reduce((sum, x) => sum + x, 0) / xs.length;
 
-  it("is the spec's geometry in a 220 x 196 box centred on (90, 98)", () => {
-    const { cx, cy } = LOGO_BOX;
-    expect([LOGO_BOX.width, LOGO_BOX.height, cx, cy]).toEqual([
-      220, 196, 90, 98,
-    ]);
-    const [outline, split, wheel, ruler] = strokes;
-    // x = cx + 58·(0.86 − 0.14·cos t)·sin t, y = cy − 88·cos t: the top and
-    // bottom of the shell are the points at t = 0 and t = π.
-    expect(outline!.polyline.points[0]).toEqual([cx, cy - 88]);
-    const ys = outline!.polyline.points.map((p) => p[1]);
-    expect(Math.min(...ys)).toBeCloseTo(cy - 88, 9);
-    expect(Math.max(...ys)).toBeCloseTo(cy + 88, 1);
-    // Widest at 58 · 0.86 = 49.9 either side (the −0.14·cos t term moves it a little).
-    const xs = outline!.polyline.points.map((p) => p[0]);
-    expect(Math.max(...xs) - cx).toBeGreaterThan(48);
-    expect(Math.max(...xs) - cx).toBeLessThan(58);
-    expect(split!.polyline.points).toEqual([
-      [cx, cy - 88],
-      [cx, cy - 22],
-    ]);
-    expect(Math.min(...wheel!.polyline.points.map((p) => p[0]))).toBeCloseTo(
-      cx - 4.5,
-      9,
-    );
-    expect(Math.max(...wheel!.polyline.points.map((p) => p[1]))).toBeCloseTo(
-      cy - 56 + 9,
-      1,
-    );
-    expect(ruler!.polyline.points).toEqual([
-      [cx + 84, cy - 88],
-      [cx + 84, cy + 88],
-    ]);
-    // End ticks: 5 px each side, at both ends of the ruler.
-    const ticks = strokes.slice(4);
-    expect(ticks).toHaveLength(2);
-    for (const tick of ticks) {
-      const [a, b] = tick.polyline.points;
-      expect(distance(a!, b!)).toBe(10);
-      expect(a![1]).toBe(b![1]);
+  it("is the four lines of the hand, about 349 units long, in a viewBox with room all round and a box that is that viewBox times 3", () => {
+    expect(polylines).toHaveLength(4);
+    expect(polylines.every((p) => !p.closed)).toBe(true);
+    expect(pathLength).toBeGreaterThan(345);
+    expect(pathLength).toBeLessThan(353);
+    const xs = polylines.flatMap((p) => p.points.map((v) => v[0]));
+    const ys = polylines.flatMap((p) => p.points.map((v) => v[1]));
+    const { x, y, width, height } = LOGO_VIEWBOX;
+    // At least 4 units between the path and every edge: the cloud reaches 2.4 units off the line.
+    expect(Math.min(...xs) - x).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...ys) - y).toBeGreaterThanOrEqual(4);
+    expect(x + width - Math.max(...xs)).toBeGreaterThanOrEqual(4);
+    expect(y + height - Math.max(...ys)).toBeGreaterThanOrEqual(4);
+    expect(LOGO_BOX.width).toBe(width * LOGO_SCALE);
+    expect(LOGO_BOX.height).toBe(height * LOGO_SCALE);
+    expect(target.width).toBe(LOGO_BOX.width);
+    expect(target.height).toBe(LOGO_BOX.height);
+  });
+
+  it("has 600 points along the lines (one run for each of the four) and 24 strays (a run of one each), in that order", () => {
+    expect(cloud).toHaveLength(LOGO_SAMPLING.particles);
+    expect(cloud).toHaveLength(600);
+    expect(pathRuns).toHaveLength(4);
+    expect(strays).toHaveLength(LOGO_SAMPLING.ambient);
+    expect(strays).toHaveLength(24);
+    expect(target.points).toHaveLength(624);
+    // The runs cover the points once, in order, strays last.
+    let next = 0;
+    for (const run of target.runs) {
+      expect(run.start).toBe(next);
+      expect(run.closed).toBe(false);
+      next += run.count;
+    }
+    expect(next).toBe(target.points.length);
+    expect(target.runs.slice(0, 4)).toEqual(pathRuns);
+    // Each line has its share of the 600: in proportion to its length, to within a point or two.
+    polylines.forEach(({ points }, i) => {
+      expect(
+        Math.abs(
+          pathRuns[i]!.count - (600 * polylineLength(points)) / pathLength,
+        ),
+      ).toBeLessThanOrEqual(1);
+    });
+  });
+
+  it("puts every point of the cloud inside the box, within 2.4 units of the line and a few at the very edge of that, and no point is exactly on the line", () => {
+    const limit = LOGO_SAMPLING.maxSpread * LOGO_SCALE + 0.3;
+    const distances = cloud.map((p) => distanceToPolylines([p.x, p.y], inBox));
+    for (const p of cloud) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(LOGO_BOX.width);
+      expect(p.y).toBeGreaterThanOrEqual(0);
+      expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height);
+    }
+    expect(Math.max(...distances)).toBeLessThan(limit);
+    // Not a line: a bell-shaped width round it. Spread 0.8 units has a mean
+    // distance of 0.64 units (1.9 px) and about 21 % of the points beyond 1 unit.
+    const units = distances.map((d) => d / LOGO_SCALE);
+    expect(mean(units)).toBeGreaterThan(0.5);
+    expect(mean(units)).toBeLessThan(0.75);
+    const beyond = units.filter((d) => d > 1).length / units.length;
+    expect(beyond).toBeGreaterThan(0.1);
+    expect(beyond).toBeLessThan(0.35);
+    expect(Math.max(...units)).toBeGreaterThan(1.6);
+  });
+
+  it("covers the line: every stretch of 5 units has points within 2 units, so no finger is bare", () => {
+    for (const { points } of inBox) {
+      let sinceLast = Infinity;
+      for (let i = 1; i < points.length; i += 1) {
+        sinceLast += distance(points[i - 1]!, points[i]!);
+        if (sinceLast < 5 * LOGO_SCALE) continue;
+        sinceLast = 0;
+        const [x, y] = points[i]!;
+        expect(
+          cloud.some((p) => distance([p.x, p.y], [x, y]) < 2 * LOGO_SCALE),
+          `no point near ${x.toFixed(1)}, ${y.toFixed(1)}`,
+        ).toBe(true);
+      }
     }
   });
 
-  it("lands every point on the logo, and the ruler's ends are sampled", () => {
-    const polylines = strokes.map((s) => s.polyline);
-    for (const p of target.points) {
-      expect(distanceToPolylines([p.x, p.y], polylines)).toBeLessThan(1e-6);
+  it("is a hand: the cloud's centre and its width to height are those of the path", () => {
+    const pathPoints = inBox.flatMap((p) => p.points);
+    const centre = (list: readonly { x: number; y: number }[]) => [
+      mean(list.map((p) => p.x)),
+      mean(list.map((p) => p.y)),
+    ];
+    const [cx, cy] = centre(cloud);
+    const [px, py] = centre(pathPoints.map(([x, y]) => ({ x, y })));
+    // The path's own points are about a unit apart, so their mean is the line's centroid.
+    expect(Math.abs(cx! - px!)).toBeLessThan(3);
+    expect(Math.abs(cy! - py!)).toBeLessThan(3);
+    const spanOf = (values: readonly number[]) =>
+      Math.max(...values) - Math.min(...values);
+    const ratio = spanOf(cloud.map((p) => p.x)) / spanOf(cloud.map((p) => p.y));
+    const want =
+      spanOf(pathPoints.map((v) => v[0])) / spanOf(pathPoints.map((v) => v[1]));
+    expect(ratio).toBeGreaterThan(want * 0.9);
+    expect(ratio).toBeLessThan(want * 1.1);
+    expect(want).toBeGreaterThan(0.85);
+    expect(want).toBeLessThan(0.95);
+  });
+
+  it("has about half bright and half dim points on the lines, and dim strays only, outside a hole round the box and inside the frame", () => {
+    const bright = cloud.filter((p) => p.tone === 1).length / cloud.length;
+    expect(bright).toBeGreaterThan(0.42);
+    expect(bright).toBeLessThan(0.58);
+    expect(strays.every((p) => p.tone === 0)).toBe(true);
+    const { ambientHole, ambientReach } = LOGO_SAMPLING;
+    for (const p of strays) {
+      const inHole =
+        p.x > -ambientHole &&
+        p.x < LOGO_BOX.width + ambientHole &&
+        p.y > -ambientHole &&
+        p.y < LOGO_BOX.height + ambientHole;
+      expect(inHole).toBe(false);
+      expect(p.x).toBeGreaterThanOrEqual(-ambientReach.x * LOGO_BOX.width);
+      expect(p.x).toBeLessThanOrEqual(LOGO_BOX.width * (1 + ambientReach.x));
+      expect(p.y).toBeGreaterThanOrEqual(-ambientReach.y * LOGO_BOX.height);
+      expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height * (1 + ambientReach.y));
     }
-    for (const end of [
-      [LOGO_BOX.cx + 84, LOGO_BOX.cy - 88],
-      [LOGO_BOX.cx + 84, LOGO_BOX.cy + 88],
-    ] as Vec[]) {
-      expect(target.points.some((p) => distance([p.x, p.y], end) < 1e-9)).toBe(
-        true,
-      );
+    for (let i = 0; i < strays.length; i += 1) {
+      for (let j = i + 1; j < strays.length; j += 1) {
+        expect(
+          distance([strays[i]!.x, strays[i]!.y], [strays[j]!.x, strays[j]!.y]),
+        ).toBeGreaterThanOrEqual(LOGO_SAMPLING.ambientGap);
+      }
+    }
+  });
+
+  it("is deterministic: the same points every time, and the generator's seed does not move it", () => {
+    expect(sampleLogo()).toEqual(sampleLogo());
+    expect(buildTargets(sketches, 1).logo).toEqual(sampleLogo());
+    expect(buildTargets(sketches, 2).logo).toEqual(sampleLogo());
+  });
+
+  it("pairs with the hand and the mice at every budget the stage uses, in both densities, with the same number of particles in all three states", () => {
+    const all = buildTargets(sketches);
+    const names = Object.keys(all.mice).slice(0, 1);
+    // 900 and 1,299 (the Canvas 2D path's phone and desktop), 3,000 and 6,000 (WebGL on a low-end device and a phone), 12,000 (WebGL on a desktop).
+    for (const count of [900, 1299, 3000, 6000, 12000]) {
+      for (const density of ["sparse", "dense"] as const) {
+        const pairing = buildPairing(all, {
+          count,
+          layout: "row",
+          seed: 20261003,
+          mice: [names[0]!, names[0]!, names[0]!],
+          density,
+        });
+        const label = `${count} ${density}`;
+        expect(pairing.logo, label).toHaveLength(count);
+        expect(pairing.hand, label).toHaveLength(count);
+        expect(pairing.mouse, label).toHaveLength(count);
+        // Every particle has a place on the logo: the cloud, or a stray.
+        for (const p of pairing.logo) {
+          expect(Number.isFinite(p.x) && Number.isFinite(p.y), label).toBe(
+            true,
+          );
+          expect(p.x, label).toBeGreaterThan(-LOGO_BOX.width);
+          expect(p.x, label).toBeLessThan(2 * LOGO_BOX.width);
+          expect(p.y, label).toBeGreaterThan(-LOGO_BOX.height);
+          expect(p.y, label).toBeLessThan(2 * LOGO_BOX.height);
+        }
+        // The logo's particle count is the stage's budget, not the target's 624:
+        // the surplus is made the way it always was (thinned, topped up or
+        // walked along the lines), so no later state is short of particles.
+        expect(new Set(pairing.slot), label).toEqual(new Set([0, 1, 2]));
+      }
     }
   });
 });
@@ -300,11 +444,25 @@ describe("the static SVGs", () => {
   });
 
   it("hard-codes its colours, because an <img> can not read CSS variables", () => {
-    for (const svg of [renderHandSvg(targets.hand), renderLogoSvg()]) {
-      expect(svg).not.toContain("var(");
-      expect(svg).toMatch(/#CFE0FF/);
-      expect(svg).toMatch(/#6E9BF5/);
-    }
+    const hand = renderHandSvg(targets.hand);
+    expect(hand).not.toContain("var(");
+    expect(hand).toMatch(/#CFE0FF/);
+    expect(hand).toMatch(/#6E9BF5/);
+    expect(renderLogoSvg()).not.toContain("var(");
+  });
+
+  it("draws the Palmate mark as the hand's own path, one stroke in #7FA8FF with round ends, no fill, no background", () => {
+    const svg = renderLogoSvg();
+    expect(svg).toContain(`d="${PALMATE_PATH}"`);
+    expect(svg.match(/<path/g)).toHaveLength(1);
+    const { x, y, width, height } = LOGO_VIEWBOX;
+    expect(svg).toContain(`viewBox="${x} ${y} ${width} ${height}"`);
+    expect(svg).toContain(`stroke="${LOGO_STROKE.color}"`);
+    expect(LOGO_STROKE.color).toBe("#7FA8FF");
+    expect(svg).toContain('fill="none"');
+    expect(svg).toContain('stroke-linecap="round"');
+    expect(svg).not.toMatch(/<rect|<circle|<ellipse|<image|<g\b/);
+    expect(svg).not.toMatch(/fill="(?!none)/);
   });
 
   it("draws every particle of the hand, from the same point list as the JSON", () => {
