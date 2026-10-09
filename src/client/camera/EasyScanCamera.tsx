@@ -71,6 +71,10 @@ import {
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import { requestCameraStream } from "./requestStream";
 import {
+  isCameraPermissionDenial,
+  reportCaught,
+} from "@/lib/observability/report";
+import {
   computeCoverRect,
   mapMediaPointToContainer,
   type Point,
@@ -956,6 +960,8 @@ export default function EasyScanCamera({
       track("camera_permission_result", { flow: "easy", result: "granted" });
       setCamState({ kind: "live" });
     } catch (err) {
+      if (!isCameraPermissionDenial(err))
+        reportCaught(err, "easy-scan.camera-open");
       const name = err instanceof DOMException ? err.name : undefined;
       const message =
         name === "NotAllowedError" || name === "PermissionDeniedError"
@@ -1170,6 +1176,7 @@ export default function EasyScanCamera({
         // Only a genuine detector load failure says so; anything else keeps
         // the message that does not claim a cause it does not know.
         const detectorFailed = error instanceof HandLandmarkerLoadError;
+        reportCaught(error, "easy-scan.process");
         void logAttempt(info, {
           kind: "thrown",
           code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
