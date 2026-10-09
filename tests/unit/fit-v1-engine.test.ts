@@ -49,6 +49,7 @@ const classified = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
   ...patch,
 });
 
@@ -77,6 +78,7 @@ describe("scoreWithEngine", () => {
         model: "B",
         frontFlare: "flat",
         thumbRest: false,
+        ringFingerRest: null,
       }),
       classified({ slug: "c", model: "C" }),
     ];

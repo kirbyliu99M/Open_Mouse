@@ -5,6 +5,7 @@ import {
   ERROR_COPY,
   NOT_FOUND_COPY,
 } from "../../src/components/errors/copy";
+import { SITE_NAME } from "../../src/lib/site";
 
 /**
  * The not-found page (src/app/not-found.tsx) and the error boundary
@@ -42,7 +43,7 @@ test.describe("404 page", () => {
       await expectOneMainAndOneHeading(page);
       // The page gives its name; the layout's template adds the site, once.
       await expect(page).toHaveTitle(
-        `${NOT_FOUND_COPY.pageTitle} · Open_Mouse`,
+        `${NOT_FOUND_COPY.pageTitle} · ${SITE_NAME}`,
       );
       await expect(
         page.getByRole("link", { name: ACTIONS.scan }),
@@ -111,7 +112,7 @@ test.describe("error screen", () => {
     page,
   }) => {
     await page.goto("/scan/error-demo");
-    await expect(page).toHaveTitle("Error screen (dev only) · Open_Mouse");
+    await expect(page).toHaveTitle(`Error screen (dev only) · ${SITE_NAME}`);
   });
 
   test("moves focus to the heading, so the change is announced", async ({

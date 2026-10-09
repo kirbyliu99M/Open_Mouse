@@ -27,6 +27,7 @@ const catalogueRow = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 
 describe("createDrizzleFitRepo().loadCatalogue", () => {
@@ -49,6 +50,14 @@ describe("createDrizzleFitRepo().loadCatalogue", () => {
   });
 });
 
+/** The fake chain plus the two calls `saveFitResults` makes beyond it. */
+function withBatch(chain: ReturnType<typeof fakeDrizzleChain>) {
+  return Object.assign(chain, {
+    delete: vi.fn(() => chain),
+    batch: vi.fn(async () => []),
+  });
+}
+
 describe("createDrizzleFitRepo().saveFitResults", () => {
   const row: FitResultRow = {
     scanId: "scan-1",
@@ -66,7 +75,7 @@ describe("createDrizzleFitRepo().saveFitResults", () => {
   };
 
   it("upserts on the (scan_id, mouse_id, engine_version) key — repeating the call never throws", async () => {
-    const chain = fakeDrizzleChain([]);
+    const chain = withBatch(fakeDrizzleChain([]));
     const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
 
     await repo.saveFitResults([row]);
@@ -92,12 +101,23 @@ describe("createDrizzleFitRepo().saveFitResults", () => {
     );
   });
 
+  it("refuses rows that mix scans or engine versions", async () => {
+    const chain = withBatch(fakeDrizzleChain([]));
+    const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
+
+    await expect(
+      repo.saveFitResults([row, { ...row, scanId: "scan-2" }]),
+    ).rejects.toThrow(/share one scan/);
+    expect(chain.batch).not.toHaveBeenCalled();
+  });
+
   it("is a no-op for an empty row list — never calls insert", async () => {
-    const chain = fakeDrizzleChain([]);
+    const chain = withBatch(fakeDrizzleChain([]));
     const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
 
     await repo.saveFitResults([]);
 
     expect(chain.insert).not.toHaveBeenCalled();
+    expect(chain.delete).not.toHaveBeenCalled();
   });
 });

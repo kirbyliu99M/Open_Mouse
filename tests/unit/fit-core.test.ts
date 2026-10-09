@@ -292,3 +292,69 @@ describe("loadOwnedFit — a successful fit", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("loadOwnedFit — same-shell grouping", () => {
+  const twin = {
+    ...sampleCatalogue[0]!,
+    id: "mouse-twin",
+    slug: "logitech-g502-se",
+    model: "G502 SE",
+    weightG: 130,
+  };
+  const catalogue = [...sampleCatalogue, twin];
+
+  it("stores exactly the shown entries, with their new contiguous ranks", async () => {
+    const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
+    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo(catalogue);
+
+    const result = await loadOwnedFit(
+      SCAN_ID,
+      { userId: null, cookieSessionId: "session-1" },
+      NO_PREFS,
+      { scanRepo, fitRepo, now: NOW },
+    );
+    if (result.status !== "ok") throw new Error("unreachable");
+
+    const shown = result.fit.results;
+    expect(shown).toHaveLength(2);
+    expect(shown.map((e) => e.rank)).toEqual([1, 2]);
+    const g502 = shown.find((e) => e.mouse.slug.startsWith("logitech-g502"))!;
+    expect(g502.variants).toHaveLength(1);
+    expect(
+      shown.find((e) => e.mouse.slug === "razer-basilisk")!.variants,
+    ).toBeUndefined();
+
+    expect(saveFitResultsCalls).toHaveLength(1);
+    const rows = saveFitResultsCalls[0]!;
+    const slugById = new Map(catalogue.map((m) => [m.id, m.slug]));
+    expect(rows.map((r) => [r.rank, slugById.get(r.mouseId)])).toEqual(
+      shown.map((e) => [e.rank, e.mouse.slug]),
+    );
+    expect(rows.map((r) => r.totalScore)).toEqual(shown.map((e) => e.total));
+    // The variant is not stored as a row of its own.
+    const variantSlug = g502.variants![0]!.slug;
+    expect(rows.map((r) => slugById.get(r.mouseId))).not.toContain(variantSlug);
+  });
+
+  it("leaves excluded untouched", async () => {
+    const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
+    const withTrackball = [
+      ...catalogue,
+      {
+        ...sampleCatalogue[1]!,
+        id: "m-t",
+        slug: "trackball-x",
+        formFactor: "trackball" as const,
+      },
+    ];
+    const { repo: fitRepo } = createFakeFitRepo(withTrackball);
+    const result = await loadOwnedFit(
+      SCAN_ID,
+      { userId: null, cookieSessionId: "session-1" },
+      NO_PREFS,
+      { scanRepo, fitRepo, now: NOW },
+    );
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.fit.excluded.map((e) => e.slug)).toEqual(["trackball-x"]);
+  });
+});

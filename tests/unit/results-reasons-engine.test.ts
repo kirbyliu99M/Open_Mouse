@@ -43,6 +43,7 @@ function mouse(overrides: Partial<CatalogueMouse> = {}): CatalogueMouse {
     frontFlare: "outward_slight",
     sideCurvature: "flat",
     thumbRest: true,
+    ringFingerRest: null,
     ...overrides,
   };
 }

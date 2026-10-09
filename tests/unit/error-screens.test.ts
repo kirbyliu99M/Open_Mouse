@@ -17,6 +17,7 @@ import {
   NOT_FOUND_COPY,
 } from "../../src/components/errors/copy";
 import { retry } from "../../src/components/errors/retry";
+import { SITE_NAME } from "../../src/lib/site";
 
 /**
  * The not-found and error screens: one <main>, one <h1>, the ways out, and
@@ -68,7 +69,7 @@ describe("not-found screen", () => {
 
   it("names only the page: the root layout's template adds the site name", () => {
     expect(metadata.title).toBe("Page not found");
-    expect(String(metadata.title)).not.toContain("Open_Mouse");
+    expect(String(metadata.title)).not.toContain(SITE_NAME);
   });
 });
 
@@ -112,7 +113,7 @@ describe("global error screen (global-error.tsx)", () => {
     // The full title, site name included: no layout template reaches this page.
     expect(html).toContain(`<title>${GLOBAL_ERROR_COPY.documentTitle}</title>`);
     expect(GLOBAL_ERROR_COPY.documentTitle).toBe(
-      "Something went wrong · Open_Mouse",
+      `Something went wrong · ${SITE_NAME}`,
     );
   });
 

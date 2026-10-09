@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SITE_NAME } from "@/lib/site";
 import type { AnalysisOutput } from "@/lib/contracts/analysis";
 import type { AnalysisState } from "./analysisState";
 import {
@@ -89,7 +90,7 @@ export function ResultsDemoClient({
     <main className="resultsMain">
       {!presentation && (
         <div className="results-demoControls">
-          <p className="eyebrow">Open_Mouse — dev/demo route</p>
+          <p className="eyebrow">{SITE_NAME} — dev/demo route</p>
           {/* Not a heading: ResultsView below renders the page's one real
               h1 ("Your best match") — a second h1 here would break the
               page's heading outline (item 5). */}

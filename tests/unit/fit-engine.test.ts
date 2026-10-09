@@ -27,6 +27,7 @@ const fullyClassified: CatalogueMouse = {
   frontFlare: "outward_slight", // claw → 100
   sideCurvature: "flat",
   thumbRest: false, // claw, no rest → 85, thumb_neutral
+  ringFingerRest: null,
 };
 
 const unclassified: CatalogueMouse = {
@@ -44,6 +45,7 @@ const unclassified: CatalogueMouse = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 
 describe("scoreFit aggregation", () => {

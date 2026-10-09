@@ -125,6 +125,51 @@ export const fitEntrySchema = z.strictObject({
       typeof subscoreSchema
     >,
   ),
+  /**
+   * 2026-10-09 (Kirby, candidate): other catalogue entries with the same
+   * shell as this one, shown on its card ("相同構型：Wireless、4K…", Kirby 2026-10-10).
+   *
+   * Same shell, compared with strict equality (`===`, no case folding, no
+   * trimming, no rounding): `brand`, `lengthMm`, `widthMm`, `heightMm`, and
+   * every shape descriptor of the catalogue row: `shape`,
+   * `handCompatibility`, `humpPlacement`, `frontFlare`, `sideCurvature`,
+   * `thumbRest` and `ringFingerRest` (a null matches only a null). Weight,
+   * connectivity and everything else may differ.
+   *
+   * Which rows: only the ranked results. Grouping runs after the unlisted
+   * filter, after exclusion and after scoring, so neither an unlisted row nor
+   * a row excluded for this hand (a left-handed version, say) is ever a
+   * variant.
+   *
+   * Groups, in order:
+   * 1. Group the ranked results by the key above.
+   * 2. A group's shown entry is its member with the best total; on a tie, the
+   *    one with the earlier rank before grouping. Its other members become
+   *    its `variants`, ordered by their rank before grouping.
+   * 3. The shown entries keep their order before grouping and are renumbered
+   *    1..n with no gaps; `rank` is that new number. Nothing else on an entry
+   *    changes.
+   * A variant carries catalogue facts only, no score and no rank: it is never
+   * presented as a separate result.
+   *
+   * Hard rule 2: variants are not part of the analysis input. The analysis
+   * input (src/server/analysis/input.ts, `toInputEntry`) and the share card
+   * input must not carry them, and no variant number (weightG) may enter the
+   * analysis numeral allow-list. The PR that fills this field adds a test
+   * that pins it: a response with variants yields the same analysis input as
+   * one without.
+   *
+   * Optional until the server fills it; absent or [] means no variants.
+   */
+  variants: z
+    .array(
+      z.strictObject({
+        slug: z.string(),
+        model: z.string(),
+        weightG: z.number().nullable(),
+      }),
+    )
+    .optional(),
 });
 
 export const fitResponseSchema = z.strictObject({
