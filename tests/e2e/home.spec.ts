@@ -9,7 +9,8 @@ import { contrast } from "./fixtures/contrast";
 test.use({ reducedMotion: "reduce" });
 
 const CAPTION = "G Pro X Superlight 2 · sketch";
-const PREVIEW_NOTE = "Early preview — measurements are still being validated.";
+// Kirby, 2026-10-09: the note is on the whole site once, in the site footer.
+const PREVIEW_NOTE = "Early preview · measurements are still being validated";
 
 test("home shows the headline, the story's three parts and the CTA destinations", async ({
   page,
@@ -26,9 +27,9 @@ test("home shows the headline, the story's three parts and the CTA destinations"
     page.getByText("A blank sheet of A4 and your phone are all it takes."),
   ).toBeVisible();
 
-  // The buttons and the Early preview note appear twice: in the hero and in
-  // the final section. Each locator is scoped to its region, so Playwright's
-  // strict mode never meets two elements.
+  // The buttons appear twice: in the hero and in the final section. Each
+  // locator is scoped to its region, so Playwright's strict mode never meets
+  // two elements.
   for (const region of ["home-hero", "home-final"]) {
     const scope = page.getByTestId(region);
     await expect(
@@ -37,16 +38,21 @@ test("home shows the headline, the story's three parts and the CTA destinations"
     await expect(
       scope.getByRole("link", { name: "How it works" }),
     ).toHaveAttribute("href", "/how-it-works");
-    await expect(scope.locator(".landing-preview-note")).toHaveText(
-      PREVIEW_NOTE,
-    );
+    // No copy of the Early preview note under the buttons any more.
+    await expect(scope.getByText("Early preview")).toHaveCount(0);
   }
   // Counted in the page body: the site footer (root layout) has a "How it
   // works" link of its own, checked below.
   const body = page.getByRole("main");
   await expect(body.getByRole("link", { name: "Scan my hand" })).toHaveCount(2);
   await expect(body.getByRole("link", { name: "How it works" })).toHaveCount(2);
-  await expect(body.getByText(PREVIEW_NOTE)).toHaveCount(2);
+  // The Early preview note is on the page exactly once, in the footer.
+  await expect(page.getByText(PREVIEW_NOTE)).toHaveCount(1);
+  await expect(body.getByText(PREVIEW_NOTE)).toHaveCount(0);
+  await expect(
+    page.getByTestId("site-footer").getByText(PREVIEW_NOTE),
+  ).toHaveCount(1);
+  await expect(page.locator(".landing-preview-note")).toHaveCount(0);
   const footerLinks = page
     .getByTestId("site-footer")
     .getByRole("link", { name: "How it works" });
@@ -211,7 +217,7 @@ test("print: text that takes its colour from a token prints dark on the white pa
 }) => {
   await page.goto("/");
   await page.emulateMedia({ media: "print" });
-  // The headline, the wordmark, the subhead, the Early preview note, a mouse's
+  // The headline, the wordmark, the subhead, a mouse's
   // caption and the footer: --text-primary, --text-secondary, --text-tertiary
   // on screen, near-white on dark. On paper they must be dark.
   const texts = await page.evaluate(() => {
@@ -221,7 +227,9 @@ test("print: text that takes its colour from a token prints dark on the white pa
       "h1 (--text-primary)": colour("h1"),
       "wordmark (--text-primary)": colour(".home-wordmark"),
       "subhead (--text-secondary)": colour(".home-subhead"),
-      "Early preview note (--text-tertiary)": colour(".landing-preview-note"),
+      "footer Early preview note (--text-tertiary)": colour(
+        ".siteFooter-preview",
+      ),
       "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
       "footer statement (--text-tertiary)": colour(".siteFooter-statement"),
       "footer link (--text-secondary)": colour(".siteFooter-links a"),
@@ -521,7 +529,7 @@ for (const [width, height] of [
 }
 
 // The spec's acceptance for the buttons: from 360 px up the two sit on one
-// line, and the Early preview note and both buttons fit the first screen of a
+// line, and both buttons fit the first screen of a
 // 375 x 667 phone (screens/02). Both depend on the font, and CI is Linux, whose
 // default font is about a quarter wider than Windows', so the sizes in home.css
 // are set for the wider one: this must hold in either.
@@ -586,16 +594,13 @@ test("from 360 px to 420 px the row the buttons live in is never narrower than a
   expect(narrower).toEqual([]);
 });
 
-test("375x667: the first screen holds both buttons and the Early preview note", async ({
-  page,
-}) => {
+test("375x667: the first screen holds both buttons", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
   const hero = page.getByTestId("home-hero");
   const boxes = {
     scan: await hero.getByRole("link", { name: "Scan my hand" }).boundingBox(),
     how: await hero.getByRole("link", { name: "How it works" }).boundingBox(),
-    note: await hero.locator(".landing-preview-note").boundingBox(),
   };
   for (const [name, box] of Object.entries(boxes)) {
     expect(box, name).not.toBeNull();

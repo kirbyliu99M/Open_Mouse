@@ -29,6 +29,10 @@ test.describe("the site footer, in English", () => {
         "href",
         "https://github.com/kirbyliu99M/Open_Mouse",
       );
+      // The Early preview note is on the whole page once, in the footer
+      // (Kirby, 2026-10-09).
+      await expect(page.getByText("Early preview")).toHaveCount(1);
+      await expect(footer.getByText("Early preview")).toHaveCount(1);
       // Shown once on the page, not once in the footer and once in the page.
       await expect(page.getByText(STATEMENT)).toHaveCount(1);
       await expect(footer.getByText(STATEMENT)).toHaveCount(1);

@@ -262,7 +262,6 @@ export async function heroGeometry(page: Page) {
       h1: box("h1"),
       subhead: box(".home-subhead"),
       actions: box('[data-testid="home-hero"] .home-actions'),
-      note: box('[data-testid="home-hero"] .landing-preview-note'),
     };
   });
 }
