@@ -1,4 +1,5 @@
 import type { HandMeasurements } from "../../lib/contracts/measurement";
+import { ENGINE_VERSION, ENGINE_VERSION_V1 } from "./coefficients";
 import { computePriors } from "./priors";
 import { scoreFit } from "./score";
 import { scoreFitV1 } from "./score-v1";
@@ -46,7 +47,7 @@ export function buildStabilityReport(
   lines.push("# Fit stability report");
   lines.push("");
   lines.push(
-    `Catalogue: ${catalogue.length} models (${description}). Engines: v0 = fit-v0-provisional, v1 = fit-v1-candidate.`,
+    `Catalogue: ${catalogue.length} models (${description}). Engines: v0 = ${ENGINE_VERSION}, v1 = ${ENGINE_VERSION_V1}.`,
   );
   lines.push("");
   lines.push(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ENGINE_VERSION_V1 } from "../../src/server/fit/coefficients";
 import { purchaseLinksSchema } from "../../src/lib/contracts/commerce";
 import {
   CATALOGUE_CATEGORIES,
@@ -28,7 +29,7 @@ const mouse = {
 };
 const base = {
   scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f",
-  engineVersion: "fit-v1-candidate",
+  engineVersion: ENGINE_VERSION_V1,
   hand: "right",
   gripStyle: { stated: null, predicted: "claw", used: "claw" },
   targets: { lengthMm: 118, gripWidthMm: 62, heightMm: 39 },

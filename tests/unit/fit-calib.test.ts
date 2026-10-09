@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  ENGINE_VERSION,
+  ENGINE_VERSION_V1,
   THUMB_REST_BASE_MM,
   THUMB_REST_ERGONOMIC_ADJUSTMENT_MM,
   THUMB_REST_WIDE_FROM_MM,
   THUMB_REST_WIDE_SLOPE,
 } from "../../src/server/fit/coefficients";
+import { buildStabilityReport } from "../../src/server/fit/stability-report";
 import { computePriors } from "../../src/server/fit/priors";
 import { scoreFit } from "../../src/server/fit/score";
 import { scoreFitV1 } from "../../src/server/fit/score-v1";
@@ -129,5 +132,31 @@ describe("width-aware thumb-rest adjustment (v1)", () => {
     expect(THUMB_REST_ERGONOMIC_ADJUSTMENT_MM).toBe(-12);
     const r = scoreGripWidth(ergo(92), 70);
     expect(r.reason.params.ergonomicThumbAdjMm).toBe(-12);
+  });
+});
+
+describe("buildStabilityReport catalogue description", () => {
+  const hands = {
+    mid: {
+      hand: "right" as const,
+      measurements: { handLengthMm: 185, palmLengthMm: 104, palmWidthMm: 76 },
+    },
+  };
+  const catalogueLine = (report: string) =>
+    report.split(/\r?\n/).find((l) => l.startsWith("Catalogue:"))!;
+
+  it("uses the 38-row seed text by default and names the engine constants", () => {
+    const line = catalogueLine(buildStabilityReport(ladder, hands));
+    expect(line).toContain("21 models (38-row Logitech seed");
+    expect(line).toContain(
+      `v0 = ${ENGINE_VERSION}, v1 = ${ENGINE_VERSION_V1}.`,
+    );
+  });
+  it("replaces the description when one is given", () => {
+    const line = catalogueLine(
+      buildStabilityReport(ladder, hands, "a custom catalogue"),
+    );
+    expect(line).toContain("(a custom catalogue)");
+    expect(line).not.toContain("38-row");
   });
 });
