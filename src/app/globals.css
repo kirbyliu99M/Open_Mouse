@@ -127,6 +127,26 @@ main.account {
   fill: var(--accent-text);
 }
 
+/* The Palmate brand mark (BrandMark.tsx): a rounded square with a hand drawn
+   in lines. The plate is --bg with a 28 % --accent-text frame, the hand is
+   --accent-text. Colours are only here so print, high contrast and forced
+   colours can override them. No animation, no transition. */
+.brand-mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+.brand-mark-plate {
+  fill: var(--bg);
+  stroke: color-mix(in srgb, var(--accent-text) 28%, transparent);
+  stroke-width: 1;
+}
+
+.brand-mark-hand {
+  stroke: var(--accent-text);
+}
+
 .avatar-large {
   width: 3rem;
   height: 3rem;
@@ -292,6 +312,25 @@ button:disabled {
   .button-danger {
     border-width: 2px;
   }
+  /* The 28 % frame is faint: draw it in full colour and thicker. */
+  .brand-mark-plate {
+    stroke: var(--accent-text);
+    stroke-width: 1.5;
+  }
+}
+
+/* Forced colours: the system palette draws the mark (frame and hand in the
+   text colour on the page colour), so it stays visible in any theme. */
+@media (forced-colors: active) {
+  .brand-mark-plate {
+    forced-color-adjust: none;
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+  .brand-mark-hand {
+    forced-color-adjust: none;
+    stroke: CanvasText;
+  }
 }
 
 /* Print: the muted text above is #b5b5bd, written for the dark theme, and would
@@ -331,6 +370,20 @@ button:disabled {
   .avatar-fallback svg circle {
     fill: #000;
     stroke: none;
+  }
+  /* The brand mark sits in the nav, which is printed with the site name, so
+     it prints too, in black: no plate fill (Chrome drops backgrounds, and a
+     fill would not show on the white page), a black frame and black lines.
+     --text-primary is #000 in print (tokens.css). Two classes (0,2,0) beat
+     the one-class screen rules, and the print block sits after the
+     high-contrast one. */
+  .brand-mark .brand-mark-plate {
+    fill: none;
+    stroke: var(--text-primary);
+    stroke-width: 1;
+  }
+  .brand-mark .brand-mark-hand {
+    stroke: var(--text-primary);
   }
   /* The confirmation dialogs ("Delete this scan now?", "Delete everything?")
      are light text on a dark panel; printed as they stand that is 1.09:1 on

@@ -1,3 +1,4 @@
+import { BrandMark } from "@/components/brand/BrandMark";
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
@@ -24,7 +25,11 @@ export default function HomePage() {
   return (
     <main className="home-main landing-page">
       <nav className="home-nav" aria-label="Primary">
-        <span className="home-wordmark">{SITE_NAME}</span>
+        <div className="home-brand">
+          {/* Decorative: the site name beside it is the only text. */}
+          <BrandMark />
+          <span className="home-wordmark">{SITE_NAME}</span>
+        </div>
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />

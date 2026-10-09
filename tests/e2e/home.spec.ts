@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 
 // These tests pin the static layout (Home v3 PR A): the story as a stack of
@@ -853,4 +854,134 @@ test("a failed session fetch keeps the Sign in link", async ({ page }) => {
   await page.route("**/api/auth/session", (route) => route.abort());
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+});
+
+test("the nav's brand mark is decorative, beside the site name, and adds nothing to tab through", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link", { name: "Sign in" })).toBeVisible();
+
+  // One SVG, hidden from assistive technology, not focusable.
+  const mark = nav.getByTestId("brand-mark");
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toHaveAttribute("aria-hidden", "true");
+  await expect(mark).toHaveAttribute("focusable", "false");
+  expect(await mark.evaluate((el) => el.tagName.toLowerCase())).toBe("svg");
+
+  // The site name is still the only text in the group, and it is not a link.
+  const wordmark = nav.locator(".home-wordmark");
+  await expect(wordmark).toHaveText(SITE_NAME);
+  await expect(nav.locator(".home-brand")).toHaveText(SITE_NAME);
+  expect(await nav.locator(".home-brand a, .home-brand button").count()).toBe(
+    0,
+  );
+
+  // The nav holds exactly what it held before the mark: the account link and
+  // the menu button (the menu's own links only exist while it is open).
+  await expect(nav.getByRole("link")).toHaveCount(1);
+  await expect(nav.getByRole("button")).toHaveCount(1);
+  expect(
+    await nav.locator("[tabindex]:not([tabindex='-1'])").count(),
+    "no tabindex added",
+  ).toBe(0);
+  // The first Tab stop is not inside the brand group.
+  await page.keyboard.press("Tab");
+  expect(
+    await page.evaluate(() => !!document.activeElement?.closest(".home-brand")),
+  ).toBe(false);
+
+  // Layout: the mark, the name and the controls share one line, the mark is
+  // 28 px and centred on the name, and the page does not scroll sideways.
+  const markBox = (await mark.boundingBox())!;
+  const nameBox = (await wordmark.boundingBox())!;
+  const actionsBox = (await nav.locator(".home-nav-actions").boundingBox())!;
+  expect(Math.round(markBox.width)).toBe(28);
+  expect(Math.round(markBox.height)).toBe(28);
+  expect(nameBox.x - (markBox.x + markBox.width)).toBeCloseTo(10, 0);
+  expect(
+    Math.abs(markBox.y + markBox.height / 2 - (nameBox.y + nameBox.height / 2)),
+  ).toBeLessThanOrEqual(1);
+  expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(actionsBox.x);
+  // Same row as the controls: the mark's centre is within the controls' band.
+  expect(markBox.y + markBox.height / 2).toBeGreaterThan(actionsBox.y);
+  expect(markBox.y + markBox.height / 2).toBeLessThan(
+    actionsBox.y + actionsBox.height,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  // No animation or transition on the mark.
+  const motion = await mark.evaluate((el) =>
+    [el, ...Array.from(el.querySelectorAll("*"))].map((node) => {
+      const style = getComputedStyle(node);
+      return [style.animationName, style.transitionDuration];
+    }),
+  );
+  for (const [animation, transition] of motion) {
+    expect(animation).toBe("none");
+    expect(transition).toBe("0s");
+  }
+});
+
+test("the nav's brand mark stays visible with more contrast and with forced colours", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const read = () =>
+    page.evaluate(() => {
+      const plate = getComputedStyle(
+        document.querySelector(".brand-mark-plate")!,
+      );
+      const hand = getComputedStyle(
+        document.querySelector(".brand-mark-hand")!,
+      );
+      return {
+        plateStroke: plate.stroke,
+        plateWidth: plate.strokeWidth,
+        handStroke: hand.stroke,
+      };
+    });
+  const normal = await read();
+  // The accent colour at 28 % alpha.
+  expect(normal.plateStroke).toMatch(/\/ 0\.28\)$/);
+  await page.emulateMedia({ contrast: "more" });
+  const more = await read();
+  // The frame goes from a 28 % tint to the full accent colour, and thicker.
+  expect(more.plateStroke).toBe(normal.handStroke);
+  expect(more.plateWidth).toBe("1.5px");
+  await page.emulateMedia({
+    contrast: "no-preference",
+    forcedColors: "active",
+  });
+  const forced = await read();
+  for (const stroke of [forced.plateStroke, forced.handStroke]) {
+    expect(stroke).not.toBe("none");
+    expect(stroke).not.toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
+test("print: the nav's brand mark prints as a black line drawing with no fill", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.emulateMedia({ media: "print" });
+  const mark = await page.evaluate(() => {
+    const style = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!);
+    return {
+      display: style(".brand-mark").display,
+      plateFill: style(".brand-mark-plate").fill,
+      plateStroke: style(".brand-mark-plate").stroke,
+      handStroke: style(".brand-mark-hand").stroke,
+    };
+  });
+  expect(mark.display).not.toBe("none");
+  expect(mark.plateFill).toBe("none");
+  expect(mark.plateStroke).toBe("rgb(0, 0, 0)");
+  expect(mark.handStroke).toBe("rgb(0, 0, 0)");
 });

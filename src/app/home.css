@@ -18,6 +18,19 @@
   gap: 0 1rem;
   margin-bottom: 1.5rem;
 }
+/* The brand mark and the site name on one line, centred on each other. The
+   mark is decorative and not a link; it never shrinks, so a narrow screen
+   squeezes the name's line, not the mark. No animation. */
+.home-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.home-brand .brand-mark {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+}
 .home-wordmark {
   font-weight: 700;
   font-size: 1.15rem;
