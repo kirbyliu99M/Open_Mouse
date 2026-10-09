@@ -42,6 +42,7 @@ export function createDrizzleFitRepo(db = getDb()): FitRepo {
           frontFlare: mice.frontFlare,
           sideCurvature: mice.sideCurvature,
           thumbRest: mice.thumbRest,
+          ringFingerRest: mice.ringFingerRest,
           formFactor: mice.formFactor,
           listed: mice.listed,
         })

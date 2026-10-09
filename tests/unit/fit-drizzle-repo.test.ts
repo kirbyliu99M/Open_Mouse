@@ -27,6 +27,7 @@ const catalogueRow = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 
 describe("createDrizzleFitRepo().loadCatalogue", () => {

@@ -363,6 +363,7 @@ export function toCatalogueMouse(
     frontFlare: row.frontFlare ?? null,
     sideCurvature: row.sideCurvature ?? null,
     thumbRest: row.thumbRest ?? null,
+    ringFingerRest: row.ringFingerRest ?? null,
     formFactor: row.formFactor,
     listed: row.listed,
   };

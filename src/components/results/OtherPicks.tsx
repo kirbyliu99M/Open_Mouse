@@ -3,6 +3,7 @@ import type { FitEntry } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import { MousePhoto } from "./MousePhoto";
+import { VariantsLine } from "./VariantsLine";
 
 /**
  * "Other picks": the rest of the top five as cards (photo or silhouette,
@@ -44,6 +45,7 @@ export function OtherPicks({
               <MousePhoto imageUrl={entry.mouse.imageUrl} />
               <span className="results-card-brand">{entry.mouse.brand}</span>
               <span className="results-card-model">{entry.mouse.model}</span>
+              <VariantsLine entry={entry} language={language} />
               <span className="results-card-score results-tabularNum">
                 <strong>{entry.total}</strong>
                 <span lang={lang}> {copy.outOf}</span>
