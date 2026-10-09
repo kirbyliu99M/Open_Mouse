@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
+import { parseTargets } from "../../../src/lib/particles/load-targets";
+import { LOGO_BOX, LOGO_SAMPLING } from "../../../src/lib/particles/logo";
 
 /**
  * Shared by the home page's particle-stage specs (Home v3, PR B): the story's
@@ -298,34 +301,96 @@ export async function layoutFacts(page: Page) {
 }
 
 /**
- * How far the canvas's logo may be from the static image's drawing (CSS px).
- *
- * Measured with `logoInk` on the Palmate mark (2026-10-10, headless Chromium
- * on this machine, software WebGL and the Canvas 2D fallback alike, 14 windows
- * from 375x667 to 1536x730, measured again with the lit share at 0.10 and the
- * logo stars 1.7 times the look: WebGL 6 px at most, the Canvas 2D path, which
- * the share does not touch, 7): the worst edge was 7 px at the full-size slot (5.15
- * px per viewBox unit), 4 to 6 px at 4.3 to 4.8 and 3 to 4 px at 2.6 to 3.3: a
- * bit over 1 viewBox unit, always the top edge. The particles are a cloud up
- * to 2.4 units either side of the line and the static line is 2 units thick,
- * so the canvas's ink reaches further than the image's by the cloud's width
- * and a star's radius. 8 is that 7 and a pixel of rounding. (The placeholder mouse
- * outline, a line a star's width wide, needed 3.) A canvas drawn at a stale
- * or hard-coded place or size is off by tens of px.
+ * Where the logo's particles should be, from the committed target: the mark's
+ * points (the four lines' cloud and the dot, every run but the strays), in
+ * the logo box's own px. Their outer box is where the particle centres reach
+ * (the cloud's 2.4 units either side of the line included); `TOP_LEFT_SHARE`
+ * is how much more of the mark's top half is left of its middle than right of
+ * it (the thumb's side and the fingers: 204 points against 162), which is what
+ * tells the hand from its mirror image (the outer box can not: the hand is
+ * 0.24 units off centre sideways).
  */
-export const LOGO_TOLERANCE = 8;
+const LOGO_TARGET = (() => {
+  const targets = parseTargets(
+    JSON.parse(
+      readFileSync("src/lib/particles/targets.generated.json", "utf8"),
+    ),
+  );
+  const runs = targets.logo.runs.slice(0, -LOGO_SAMPLING.ambient);
+  const mark = runs.flatMap((run) =>
+    targets.logo.points.slice(run.start, run.start + run.count),
+  );
+  const xs = mark.map((p) => p.x);
+  const ys = mark.map((p) => p.y);
+  return {
+    box: { width: LOGO_BOX.width, height: LOGO_BOX.height },
+    reach: {
+      x0: Math.min(...xs),
+      y0: Math.min(...ys),
+      x1: Math.max(...xs),
+      y1: Math.max(...ys),
+    },
+  };
+})();
 
 /**
- * How far the canvas's logo is from the static logo's drawing, in CSS px: the
- * bounding box of the opaque pixels of the SVG (drawn at the `<img>`'s own rect)
- * against the bounding box of the canvas's pixels over that same rect. The
- * canvas draws the logo where the image is (it reads the image's rect, never a
- * fixed size), so each of the four edges is within a pixel or two: sampling
- * puts a particle just inside the stroke. A canvas that drew the logo at a
- * stale or hard-coded place or size would be off by tens of px.
+ * How far past the particle centres' outer box (`LOGO_TARGET.reach`, placed
+ * where the stage puts it: the image's rect, fitted and centred) the canvas's
+ * logo may reach, per edge, in CSS px, signed: + is outwards. An edge's ink is
+ * its outermost lit star's centre plus what of the star is over alpha 120,
+ * less how far inside the outermost target point that star is (the stars are
+ * a fraction of the particles).
+ *
+ * Measured with `logoInk` (2026-10-10, headless Chromium on Kirby's machine,
+ * device pixel ratio 1, after the shimmer, at p = 0), left / top / right /
+ * bottom:
+ *
+ *   window      WebGL                  Canvas 2D
+ *   360x800     -0.3  1.5 -0.6  1.3    1.7  0.5  0.4  1.3
+ *   375x667      0.4  0.9 -0.9  2.3    1.4  0.9  0.1  1.3
+ *   390x844     -0.6  1.3 -1.4  1.9    1.4  0.3  0.6  0.9
+ *   412x915     -0.5  1.7 -0.2  1.0    1.5  1.7  0.8  0.0
+ *   430x932     -1.3  2.0 -0.9  1.0    0.7  1.0  1.1  1.0
+ *   768x1024     1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *   1280x600     0.8  1.9 -0.1  1.0   -0.2  0.9  0.9  1.0
+ *   1280x640     0.2  0.7  0.3  1.0    0.2  0.7  1.3  1.0
+ *   1280x720     1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *   1280x800     1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *   1366x657     0.8  1.5 -0.5  0.6    0.8  1.5  0.5  0.6
+ *   1440x700     1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *   1536x730     1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *   1920x1080    1.3  1.3  0.0  1.7    1.3  0.3  0.0  1.7
+ *
+ * So -1.4 to 2.3: the band is that and about a pixel either side, 6 px wide.
+ * Each edge is checked on its own side, so a logo drawn 8 % small (5.9 px an
+ * edge on the smallest phone, 12 on a desktop) or moved 4 px leaves it. (The
+ * old check, the ink's box against the static image's, took absolute values
+ * against 8 px and let a logo 8 % small through.)
+ */
+export const LOGO_EDGE = { low: -2.5, high: 3.5 };
+
+/**
+ * The share by which the top half of the canvas's mark is heavier left of its
+ * middle than right of it (alpha summed), at least: the target's points give
+ * 204 to 162 (1.26), measured 1.21 to 1.36 in the windows above; the mirror
+ * image would give their inverse, 0.74 to 0.83.
+ */
+export const LOGO_TOP_LEFT_SHARE = 1.1;
+
+/**
+ * Where the canvas's logo is, against where it should be, in CSS px.
+ *
+ * - `fit`: per edge, how far the canvas's ink (alpha 120 or more, over the
+ *   image's rect) reaches past the target's particle centres, placed as the
+ *   stage places them (the image's rect, the box fitted inside it and
+ *   centred). Signed, + outwards: a logo drawn smaller, larger or moved shows
+ *   as edges that leave `LOGO_EDGE`, each on its own side.
+ * - `topLeftShare`: the top half's ink left of the middle over right of it:
+ *   a mirror image is under 1.
+ * - `edges` (diagnostic only): the ink's box against the static image's ink.
  */
 export async function logoInk(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((target) => {
     const img = document.querySelector<HTMLImageElement>(".story-logo img")!;
     const layer = document.querySelector<HTMLCanvasElement>(".story-canvas")!;
     // The logo is on whichever canvas draws the particles: the WebGL one (read
@@ -379,7 +444,7 @@ export async function logoInk(page: Page) {
     const w = Math.round(rect.width * scale);
     const h = Math.round(rect.height * scale);
     const drawn = canvas.getContext("2d")!.getImageData(left, top, w, h);
-    // An alpha of 120 keeps the glow's faint halo out and the dotted ruler in.
+    // An alpha of 120 keeps the glow's faint halo out.
     const got = bounds(drawn.data, w, h, 120);
     const edges = {
       left: got.x0 / scale - want.x0,
@@ -387,10 +452,68 @@ export async function logoInk(page: Page) {
       right: got.x1 / scale - want.x1,
       bottom: got.y1 / scale - want.y1,
     };
+
+    // The stage's placing of the logo box in the image's rect (logoBox in
+    // particle-set.ts: contain, centred), relative to the rect's corner.
+    const fitScale = Math.min(
+      rect.width / target.box.width,
+      rect.height / target.box.height,
+    );
+    const offsetX = (rect.width - target.box.width * fitScale) / 2;
+    const offsetY = (rect.height - target.box.height * fitScale) / 2;
+    const at = (x: number, y: number) => ({
+      x: offsetX + x * fitScale,
+      y: offsetY + y * fitScale,
+    });
+    const r0 = at(target.reach.x0, target.reach.y0);
+    const r1 = at(target.reach.x1, target.reach.y1);
+    // The ink's own box in the rect's CSS px: a pixel spans [x, x + 1).
+    const ink = {
+      x0: got.x0 / scale,
+      y0: got.y0 / scale,
+      x1: (got.x1 + 1) / scale,
+      y1: (got.y1 + 1) / scale,
+    };
+    const fit = {
+      left: r0.x - ink.x0,
+      top: r0.y - ink.y0,
+      right: ink.x1 - r1.x,
+      bottom: ink.y1 - r1.y,
+    };
+
+    // The top half's weight, left and right of the middle of the reach.
+    const middleX = ((r0.x + r1.x) / 2) * scale;
+    const middleY = ((r0.y + r1.y) / 2) * scale;
+    let leftWeight = 0;
+    let rightWeight = 0;
+    for (let y = 0; y < Math.min(h, middleY); y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        const alpha = drawn.data[(y * w + x) * 4 + 3] ?? 0;
+        if (x < middleX) leftWeight += alpha;
+        else rightWeight += alpha;
+      }
+    }
     return {
+      fit,
+      topLeftShare: rightWeight > 0 ? leftWeight / rightWeight : Infinity,
       edges,
       worst: Math.max(...Object.values(edges).map((d) => Math.abs(d))),
       empty: got.x1 < 0 || want.x1 < 0,
     };
-  });
+  }, LOGO_TARGET);
+}
+
+/** What is wrong with the canvas's logo, as a list (empty when it is on its mark): each edge inside `LOGO_EDGE`, and the hand the right way round. */
+export function logoOffMark(ink: Awaited<ReturnType<typeof logoInk>>) {
+  const problems: string[] = [];
+  if (ink.empty) problems.push("no logo drawn");
+  for (const [edge, value] of Object.entries(ink.fit)) {
+    if (!(value >= LOGO_EDGE.low && value <= LOGO_EDGE.high)) {
+      problems.push(`${edge} ${value.toFixed(2)}`);
+    }
+  }
+  if (!(ink.topLeftShare >= LOGO_TOP_LEFT_SHARE)) {
+    problems.push(`top left/right ${ink.topLeftShare.toFixed(3)}`);
+  }
+  return problems;
 }

@@ -2,10 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   CANVAS,
   STORY,
-  LOGO_TOLERANCE,
   heroGeometry,
   layoutFacts,
   logoInk,
+  logoOffMark,
   read,
   recordStage,
   scrollToProgress,
@@ -156,9 +156,7 @@ async function expectStageOn(
   // The logo handoff: the canvas draws the mark where the (hidden) image is.
   const ink = await logoInk(page);
   expect(ink.empty).toBe(false);
-  expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(
-    LOGO_TOLERANCE,
-  );
+  expect(logoOffMark(ink), JSON.stringify(ink)).toEqual([]);
 }
 
 test.describe("short laptop windows animate", () => {
@@ -376,10 +374,10 @@ test.describe("dragging the window's height", () => {
       // The canvas is redrawn in the task that resizes it, and the logo is
       // read again from the page: it sits on the image wherever the image is.
       await expect
-        .poll(async () => (await logoInk(page)).worst, {
+        .poll(async () => logoOffMark(await logoInk(page)), {
           message: `the logo's edges at ${height}`,
         })
-        .toBeLessThanOrEqual(LOGO_TOLERANCE);
+        .toEqual([]);
       const screen = await firstScreen(page);
       expect(screen.heroBottom, `hero bottom at ${height}`).toBeLessThanOrEqual(
         height,
@@ -401,9 +399,7 @@ test.describe("dragging the window's height", () => {
     // And back up: on again, and the logo on its mark.
     await page.setViewportSize({ width: 1280, height: 640 });
     await waitForAnimated(page);
-    await expect
-      .poll(async () => (await logoInk(page)).worst)
-      .toBeLessThanOrEqual(LOGO_TOLERANCE);
+    await expect.poll(async () => logoOffMark(await logoInk(page))).toEqual([]);
     await settle(900);
   });
 });

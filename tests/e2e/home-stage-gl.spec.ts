@@ -25,10 +25,10 @@ import { STAR_ORDER_SEED, starOrder } from "../../src/lib/particles/star-order";
 import { phaseAt } from "../../src/lib/particles/timeline";
 import {
   CANVAS,
-  LOGO_TOLERANCE,
   STORY,
   layoutFacts,
   logoInk,
+  logoOffMark,
   read,
   recordStage,
   scrollToProgress,
@@ -1276,11 +1276,9 @@ test.describe("the WebGL path", () => {
     expect(Number(await canvas.getAttribute("data-particles"))).toBe(budget);
     const ink = await logoInk(page);
     expect(ink.empty).toBe(false);
-    // Every edge of the mark is where the image's is: a fraction of the
+    // Every edge of the mark is where the target puts it: a fraction of the
     // particles is a fair sample, not a piece of the logo.
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(
-      LOGO_TOLERANCE,
-    );
+    expect(logoOffMark(ink), JSON.stringify(ink)).toEqual([]);
   });
 
   test("with the guard stepped down to its floor the stars are all still there: only the dust is thinner, because the lit particles come first in the order", async ({
@@ -1350,9 +1348,7 @@ test.describe("the fallback to Canvas 2D", () => {
     await scrollToProgress(page, 0);
     await expect.poll(async () => (await logoInk(page)).empty).toBe(false);
     const ink = await logoInk(page);
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(
-      LOGO_TOLERANCE,
-    );
+    expect(logoOffMark(ink), JSON.stringify(ink)).toEqual([]);
     if (neverUsedWebGL) {
       expect(await read<number>(page, "__bufferUploads")).toBe(0);
     }
