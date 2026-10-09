@@ -182,9 +182,12 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * 0.88 blobs per lit particle on a desktop and 1.00 on a phone. At the logo
  * the stars sit closer, on a shorter line, and blur into one outline: there
  * the canvas's total alpha (in px squared of the canvas, divided by the
- * pixel ratio squared) per lit particle is 5.64 on a desktop (720 lit
- * particles) and 5.62 on a phone (360), measured on the Palmate mark's cloud
- * on 2026-10-10 (the placeholder mouse outline had 5.6 and 5.8). A bound is
+ * pixel ratio squared) per lit particle is 7.31 on a desktop (1,200 lit
+ * particles) and 7.42 on a phone (600), measured on the Palmate mark's cloud
+ * on 2026-10-10 with a lit share of 0.10 and logo stars 1.7 times the look
+ * (the first Palmate cut, 0.06 and 1.35, measured 5.64 and 5.62; the
+ * placeholder mouse outline had 5.6 and 5.8; the figure rises with the share
+ * and the star size because the stars overlap more). A bound is
  * about 10 % either side of what was measured: a share of stars a quarter or
  * more off (0.08 or 0.25 for the mice) is outside it, which the mutation
  * checks of this suite showed. For the logo the bound catches the shader
@@ -201,7 +204,7 @@ const STAR_BLOBS = { low: 0.8, high: 1.05 };
  * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
  */
 const MICE_SOLID = { low: 0.5, high: 3 };
-const LOGO_MASS = { low: 5.2, high: 6.2 };
+const LOGO_MASS = { low: 6.7, high: 8.1 };
 
 /**
  * What the TypeScript maths says the WebGL stage draws, built for the layout

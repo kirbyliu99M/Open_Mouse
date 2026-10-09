@@ -302,7 +302,9 @@ export async function layoutFacts(page: Page) {
  *
  * Measured with `logoInk` on the Palmate mark (2026-10-10, headless Chromium
  * on this machine, software WebGL and the Canvas 2D fallback alike, 14 windows
- * from 375x667 to 1536x730): the worst edge was 7 px at the full-size slot (5.15
+ * from 375x667 to 1536x730, measured again with the lit share at 0.10 and the
+ * logo stars 1.7 times the look: WebGL 6 px at most, the Canvas 2D path, which
+ * the share does not touch, 7): the worst edge was 7 px at the full-size slot (5.15
  * px per viewBox unit), 4 to 6 px at 4.3 to 4.8 and 3 to 4 px at 2.6 to 3.3: a
  * bit over 1 viewBox unit, always the top edge. The particles are a cloud up
  * to 2.4 units either side of the line and the static line is 2 units thick,
