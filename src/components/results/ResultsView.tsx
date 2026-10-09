@@ -13,6 +13,7 @@ import type { AnalysisState } from "./analysisState";
 import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
+import { VariantsLine } from "./VariantsLine";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
@@ -129,6 +130,7 @@ export function ResultsView({
                   {BAND_COPY[language].bands[band].label}
                 </p>
               )}
+              <VariantsLine entry={entry} language={language} />
             </div>
             <p className="results-score-total results-tabularNum">
               <span className="results-score-value">{entry.total}</span>

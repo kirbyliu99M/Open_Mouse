@@ -33,6 +33,7 @@ const humpOnly = (patch: Partial<CatalogueMouse> = {}): CatalogueMouse => ({
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
   ...patch,
 });
 

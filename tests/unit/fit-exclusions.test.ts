@@ -17,6 +17,7 @@ const baseMouse: CatalogueMouse = {
   frontFlare: null,
   sideCurvature: null,
   thumbRest: null,
+  ringFingerRest: null,
 };
 
 const mouse = (patch: Partial<CatalogueMouse>): CatalogueMouse => ({

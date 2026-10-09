@@ -232,6 +232,7 @@ describe("a left-hand-only mouse scored for a right hand", () => {
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   };
   const leftOnly: CatalogueMouse = {
     ...rightCopy,
@@ -246,6 +247,7 @@ describe("a left-hand-only mouse scored for a right hand", () => {
     model: "Classified",
     frontFlare: "outward_slight",
     thumbRest: true,
+    ringFingerRest: null,
   };
   const catalogue = [rightCopy, leftOnly, classified];
   const priors = computePriors(catalogue);
@@ -298,6 +300,7 @@ describe("the weight preference reaches the excluded total", () => {
     frontFlare: "outward_slight",
     sideCurvature: null,
     thumbRest: true,
+    ringFingerRest: null,
   };
   const leftOnly: CatalogueMouse = {
     ...rightCopy,
@@ -357,6 +360,7 @@ describe("a vertical or trackball exclusion", () => {
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   };
   const vertical: CatalogueMouse = {
     ...standard,
@@ -427,6 +431,7 @@ describe.each([
     frontFlare: null,
     sideCurvature: null,
     thumbRest: null,
+    ringFingerRest: null,
   };
   const other: CatalogueMouse = {
     ...rightOnly,
