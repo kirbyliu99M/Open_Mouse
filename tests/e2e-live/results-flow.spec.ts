@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { fitPath, resultsPagePath } from "../../src/lib/contracts/routes";
-import { deleteScans, expectTopPickShown, submitScan } from "./helpers";
+import { EXCLUSION_REASONS } from "../../src/lib/contracts/fit";
+import { en } from "../../src/lib/copy/results-page";
+import {
+  deleteScans,
+  deleteViaUi,
+  expectTopPickShown,
+  submitScan,
+} from "./helpers";
 
 /**
  * The results flow of the new page, against the deployment's real routes and
@@ -14,10 +21,12 @@ import { deleteScans, expectTopPickShown, submitScan } from "./helpers";
  * so the English words are the ones checked.
  */
 const created: string[] = [];
+const deletedViaUi = new Set<string>();
 
 test.afterEach(async ({ page }) => {
-  await deleteScans(page, created);
+  await deleteScans(page, created, deletedViaUi);
   created.length = 0;
+  deletedViaUi.clear();
 });
 
 test("main page, a detail page and back, Details, Other mice, share card, reload, delete", async ({
@@ -102,18 +111,27 @@ test("main page, a detail page and back, Details, Other mice, share card, reload
           "The response has no excluded mice, so the reason and label check was skipped.",
       });
     } else {
+      // The scan is a right hand: the exact English words the page may show.
+      const reasons = EXCLUSION_REASONS.map((r) =>
+        en.excludedReason(r, "right"),
+      );
+      const mirrorLabel = en.excludedMirrorLabel("right"); // "as a right-hand shape:"
       for (let i = 0; i < excludedCount; i++) {
         const row = excluded.nth(i);
-        // Every excluded row says why.
-        await expect(row.locator(".results-excluded-reason")).toHaveText(
-          /\S{3,}/,
-        );
-        // A number, when there is one, follows its label.
+        // Every excluded row says why, in one of the three exact texts.
+        const reason = (
+          await row.locator(".results-excluded-reason").innerText()
+        ).trim();
+        expect(reasons, `row ${i} reason "${reason}"`).toContain(reason);
+        // A number, when there is one, follows exactly the right-hand label,
+        // and only a wrong-hand mouse carries one.
         const mirror = row.locator(".results-excluded-mirror");
-        if ((await mirror.count()) > 0)
+        if ((await mirror.count()) > 0) {
+          expect(reason).toBe(en.excludedReason("wrong_hand", "right"));
           await expect(mirror).toHaveText(
-            /^as a (right|left)-hand shape:[\s ]+\d{1,3} \/ 100$/,
+            new RegExp(String.raw`^${mirrorLabel}[\s\u00A0]+\d{1,3} / 100$`),
           );
+        }
         // And a row with a number never shows a bare one.
         await expect(row.locator(".results-excluded-score")).toHaveCount(
           await mirror.count(),
@@ -144,22 +162,5 @@ test("main page, a detail page and back, Details, Other mice, share card, reload
   await page.reload();
   await expectTopPickShown(page);
 
-  await page.getByRole("button", { name: "Delete this scan now" }).click();
-  await page.getByRole("button", { name: "Delete scan" }).click();
-  await expect(
-    page.getByRole("heading", { name: "This scan has been deleted" }),
-  ).toBeVisible();
-
-  const status = await page.evaluate(
-    async (path) =>
-      (
-        await fetch(path, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: "{}",
-        })
-      ).status,
-    fitPath(scanId),
-  );
-  expect(status).toBe(404);
+  await deleteViaUi(page, scanId, deletedViaUi);
 });

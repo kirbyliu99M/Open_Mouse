@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { fitPath, resultsPagePath } from "../../src/lib/contracts/routes";
-import { deleteScans, expectTopPickShown, submitScan } from "./helpers";
+import { resultsPagePath } from "../../src/lib/contracts/routes";
+import {
+  deleteScans,
+  deleteViaUi,
+  expectTopPickShown,
+  submitScan,
+} from "./helpers";
 
 /**
  * Regression for #42: a `pagehide` beacon deleted the anonymous session on
@@ -10,10 +15,12 @@ import { deleteScans, expectTopPickShown, submitScan } from "./helpers";
  * Every scan the test makes is deleted afterwards, also when it fails.
  */
 const created: string[] = [];
+const deletedViaUi = new Set<string>();
 
 test.afterEach(async ({ page }) => {
-  await deleteScans(page, created);
+  await deleteScans(page, created, deletedViaUi);
   created.length = 0;
+  deletedViaUi.clear();
 });
 
 test("an anonymous scan's results survive navigation and reload, and delete removes them", async ({
@@ -31,24 +38,7 @@ test("an anonymous scan's results survive navigation and reload, and delete remo
   await page.reload();
   await expectTopPickShown(page);
 
-  await page.getByRole("button", { name: "Delete this scan now" }).click();
-  await page.getByRole("button", { name: "Delete scan" }).click();
-  await expect(
-    page.getByRole("heading", { name: "This scan has been deleted" }),
-  ).toBeVisible();
-
-  const status = await page.evaluate(
-    async (path) =>
-      (
-        await fetch(path, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: "{}",
-        })
-      ).status,
-    fitPath(scanId),
-  );
-  expect(status).toBe(404);
+  await deleteViaUi(page, scanId, deletedViaUi);
 
   // The same browser cookie still owns A. Deleting B must leave A and the
   // session intact, through the deployment's real route and database.
