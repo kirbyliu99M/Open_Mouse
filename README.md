@@ -106,7 +106,7 @@ photo measurement is validated.
 - The app loads no analytics or advertising scripts. Its Content-Security-Policy
   allows no third-party origins for scripts or connections (it does allow inline
   scripts, which Next.js needs; see `next.config.ts`). For images it allows one
-  origin, `lh3.googleusercontent.com`, from which a signed-in user's browser loads
+  third-party origin, `lh3.googleusercontent.com`, from which a signed-in user's browser loads
   their Google profile picture, so Google's image host sees that browser's IP
   address and User-Agent (the request sends no referrer).
 
