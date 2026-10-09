@@ -127,7 +127,7 @@ export const fitEntrySchema = z.strictObject({
   ),
   /**
    * 2026-10-09 (Kirby, candidate): other catalogue entries with the same
-   * shell as this one, shown on its card ("也有：Wireless、4K…").
+   * shell as this one, shown on its card ("相同構型：Wireless、4K…", Kirby 2026-10-10).
    *
    * Same shell, compared with strict equality (`===`, no case folding, no
    * trimming, no rounding): `brand`, `lengthMm`, `widthMm`, `heightMm`, and

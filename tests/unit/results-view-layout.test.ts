@@ -465,9 +465,9 @@ describe("the same-shell variants line (SHELL-1)", () => {
 
   it("shows on the top pick, in zh-TW and English, as text with no link", () => {
     const zh = render(withVariants(1));
-    expect(zh).toContain("也有：Variant One、Variant Two");
+    expect(zh).toContain("相同構型：Variant One、Variant Two");
     const en = render(withVariants(1), { language: "en" });
-    expect(en).toContain("Also: Variant One, Variant Two");
+    expect(en).toContain("Same modeling: Variant One, Variant Two");
     expect(en).not.toContain("v-1");
   });
 
@@ -475,12 +475,12 @@ describe("the same-shell variants line (SHELL-1)", () => {
     const html = render(withVariants(3), { scanId: "s" });
     expect(html.match(/results-variants/g)).toHaveLength(1);
     const cards = html.slice(html.indexOf("results-others-grid"));
-    expect(cards).toContain("也有：Variant One、Variant Two");
+    expect(cards).toContain("相同構型：Variant One、Variant Two");
   });
 
   it("shows on the detail page of a shown entry", () => {
     const html = render(withVariants(2), { rank: 2, scanId: "s" });
-    expect(html).toContain("也有：Variant One、Variant Two");
+    expect(html).toContain("相同構型：Variant One、Variant Two");
     expect(html.indexOf("results-variants")).toBeLessThan(
       html.indexOf("results-others-grid"),
     );
