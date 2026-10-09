@@ -132,6 +132,47 @@ describe("FINALE_LOOK", () => {
     expect(FINALE_LOOK.highlight[0]!.colour.toUpperCase()).toBe("#FFFFFF");
   });
 
+  it("stays blue: every colour that is not white has a hue of 210° to 230° (HSL)", () => {
+    const hue = (hex: string) => {
+      const [r, g, b] = rgb(hex).map((c) => c / 255) as [
+        number,
+        number,
+        number,
+      ];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max === min) return null; // grey or white: no hue
+      const d = max - min;
+      const h =
+        max === r
+          ? ((g - b) / d) % 6
+          : max === g
+            ? (b - r) / d + 2
+            : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    for (const kind of FINALE_KINDS) {
+      for (const { colour } of FINALE_LOOK[kind]) {
+        const h = hue(colour);
+        if (h === null) {
+          expect(colour.toUpperCase()).toBe("#FFFFFF");
+          continue;
+        }
+        expect(h).toBeGreaterThanOrEqual(210);
+        expect(h).toBeLessThanOrEqual(230);
+      }
+    }
+  });
+
+  it("keeps every particle a dot: 0.5 to 3 px across", () => {
+    for (const kind of FINALE_KINDS) {
+      for (const { px } of FINALE_LOOK[kind]) {
+        expect(px).toBeGreaterThanOrEqual(0.5);
+        expect(px).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
   it("makes each level lighter, bigger and no fainter than the one below it", () => {
     for (const kind of FINALE_KINDS) {
       const levels = FINALE_LOOK[kind];

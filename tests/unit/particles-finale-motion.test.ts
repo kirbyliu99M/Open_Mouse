@@ -197,6 +197,20 @@ describe("gatherTrail", () => {
     });
   });
 
+  it("follows the bent curve, not the straight line, when the flight bends", () => {
+    const bent = { ...particle, bend: 0.3 };
+    const t = 0.08; // q = 0.4
+    const trail = gatherTrail(bent, t);
+    trail.forEach((p, j) => {
+      const q =
+        0.4 - GATHER.trail + (GATHER.trail * j) / (GATHER.trailSamples - 1);
+      const at = gatherAt(bent, q * GATHER.duration).position;
+      expect(distance(p, at)).toBeLessThan(1e-9);
+    });
+    // Off the straight line from source to target (y = 0).
+    for (const p of trail) expect(Math.abs(p[1])).toBeGreaterThan(1);
+  });
+
   it("clips the trail at the source early in the flight", () => {
     const trail = gatherTrail(particle, 0.002); // q = 0.01
     expect(trail[0]).toEqual(particle.source);
@@ -242,6 +256,17 @@ describe("depthOf", () => {
     ] as const) {
       expect(depthOf(x, y, 0.5).depth).toBeCloseTo(
         Math.min(1, Math.max(0, at(x, y))),
+        12,
+      );
+    }
+    // The particle's own share, at its full weight 0.55 (r away from 0.5).
+    for (const [x, y, r] of [
+      [0, 0, 0.9],
+      [40, 10, 0.2],
+      [300, 55, 0.05],
+    ] as const) {
+      expect(depthOf(x, y, r).depth).toBeCloseTo(
+        Math.min(1, Math.max(0, at(x, y) + 0.55 * (r - 0.5))),
         12,
       );
     }
