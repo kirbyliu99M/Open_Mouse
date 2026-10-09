@@ -3,8 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { contrast } from "./fixtures/contrast";
 
 // The merged footer (Pencil v17 / v18, 2026-10-10). Kirby: no explanatory text
-// in the footer for now, so the Early preview note and the non-affiliation
-// statement are gone from it (and so from the whole site).
+// in the footer for now: the two texts it used to carry (an Early preview note
+// and a non-affiliation statement) were deleted and must stay absent, here and
+// so from the whole site, until he decides otherwise.
 
 const HEADLINE = "Ready to Find Yours?";
 const GITHUB = "https://github.com/kirbyliu99M/Open_Mouse";
@@ -497,6 +498,16 @@ test.describe("big text does not push the name and headline under the mark", () 
           a.right > b.left &&
           a.top < b.bottom &&
           a.bottom > b.top;
+        // The mark does not grow with the text size: on a phone it stays at
+        // most a quarter of the width, so the words keep the rest of the row.
+        if (size.width < 1024)
+          expect(f.mark.right - f.mark.left, "mark width").toBeLessThanOrEqual(
+            size.width * 0.25 + 0.5,
+          );
+        else
+          expect(f.mark.right - f.mark.left, "mark width").toBeLessThanOrEqual(
+            220.5,
+          );
         expect(meets(f.name, f.mark), "name meets mark").toBe(false);
         expect(meets(f.headline, f.mark), "headline meets mark").toBe(false);
         // Text wider than its box would paint under the mark.

@@ -73,7 +73,9 @@
   max-width: 78rem;
   margin: 0 auto;
   /* The side padding, named so the mark's glow can stay inside it. */
-  --footer-pad: 1.5rem;
+  /* 24 px, but never more than 6.15 % of the width: at 200 % text 1.5rem
+     is 48 px a side and "Palmate" would break in the middle of the word. */
+  --footer-pad: min(1.5rem, 6.15vw);
   padding: 0 var(--footer-pad);
 }
 

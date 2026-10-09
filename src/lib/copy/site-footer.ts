@@ -4,9 +4,11 @@
  * titles and "Learn" / "Scan" are new in the merged footer (2026-10-10): their
  * zh-TW wording below is Claude's candidate, not Kirby's.
  *
- * Kirby decided on 2026-10-10 that the footer carries NO explanatory text for
- * now: the "Early preview" note and the non-affiliation statement are removed
- * (not hidden). He will decide later whether, and where, they come back.
+ * History, not a feature: until 2026-10-10 this table also held an "Early
+ * preview" note and a non-affiliation statement. Kirby decided that the footer
+ * carries no explanatory text for now, so both were deleted (not hidden), and
+ * this table has no key for either. If he brings them back, they are new
+ * strings to add here.
  */
 import type { UiLanguage } from "../../client/uiLanguage";
 
