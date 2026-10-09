@@ -12,7 +12,6 @@ import { ViewerRegion } from "@/components/viewer/ViewerRegion";
 import { AnalysisSlot } from "./AnalysisSlot";
 import type { AnalysisState } from "./analysisState";
 import { ConfidenceNote } from "./ConfidenceNote";
-import { MouseHeader } from "./MouseHeader";
 import { SubscoreBar } from "./SubscoreBar";
 import { TargetDeltas } from "./TargetDeltas";
 
@@ -71,8 +70,6 @@ export function ResultsDetails({
             onInteracted={onViewerInteracted}
           />
         )}
-
-        <MouseHeader entry={entry} />
 
         <h3 className="results-details-scoresHeading" lang={lang}>
           {copy.scoresHeading}

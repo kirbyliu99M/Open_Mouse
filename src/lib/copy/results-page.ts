@@ -10,7 +10,7 @@
  *
  * Not covered: the English strings inside the components the page reuses
  * (`SubscoreBar`, `TargetDeltas`, `AnalysisSlot`, `ConfidenceNote`,
- * `MouseHeader`, `DeleteScanAction`) and the loading and error screens. They
+ * `DeleteScanAction`) and the loading and error screens. They
  * are English only for now.
  */
 import type { ExclusionReason, GripStyle, Subscore } from "../contracts/fit";
@@ -63,8 +63,14 @@ export interface ResultsPageCopy {
   otherMiceTitle: (count: number) => string;
   otherMiceHint: string;
   excludedHeading: string;
-  excludedReason: Record<ExclusionReason, string>;
-  previewNotice: string;
+  /**
+   * Why a mouse is not ranked, in words. `userHand` is the hand the scan
+   * measured: a `wrong_hand` mouse is made for the other one.
+   */
+  excludedReason: (
+    reason: ExclusionReason,
+    userHand: "left" | "right",
+  ) => string;
 }
 
 const NBSP = " ";
@@ -118,12 +124,16 @@ export const zhTW: ResultsPageCopy = {
   otherMiceTitle: (count) => `其他滑鼠（共 ${count} 款）`,
   otherMiceHint: "只列分數與型號",
   excludedHeading: "未列入比較",
-  excludedReason: {
-    wrong_hand: "不適合你慣用的手",
-    vertical_form_factor: "直立造型，不納入這次比較",
-    trackball_form_factor: "軌跡球，不納入這次比較",
+  excludedReason: (reason, userHand) => {
+    switch (reason) {
+      case "wrong_hand":
+        return userHand === "right" ? "為左手設計" : "為右手設計";
+      case "vertical_form_factor":
+        return "垂直滑鼠：目前的評分方式不適用";
+      case "trackball_form_factor":
+        return "軌跡球：目前的評分方式不適用";
+    }
   },
-  previewNotice: "Early preview · 量測仍在驗證中。",
 };
 
 export const en: ResultsPageCopy = {
@@ -183,12 +193,18 @@ export const en: ResultsPageCopy = {
   otherMiceTitle: (count) => `Other mice (${count})`,
   otherMiceHint: "Scores and names only",
   excludedHeading: "Not shown",
-  excludedReason: {
-    wrong_hand: "Doesn't fit your handedness",
-    vertical_form_factor: "Vertical shape, excluded from this comparison",
-    trackball_form_factor: "Trackball, excluded from this comparison",
+  excludedReason: (reason, userHand) => {
+    switch (reason) {
+      case "wrong_hand":
+        return userHand === "right"
+          ? "Made for the left hand"
+          : "Made for the right hand";
+      case "vertical_form_factor":
+        return "Vertical mouse: our scoring doesn't cover this shape yet";
+      case "trackball_form_factor":
+        return "Trackball: our scoring doesn't cover this shape yet";
+    }
   },
-  previewNotice: "Early preview · measurements still being validated.",
 };
 
 export const RESULTS_PAGE_COPY: Record<UiLanguage, ResultsPageCopy> = {

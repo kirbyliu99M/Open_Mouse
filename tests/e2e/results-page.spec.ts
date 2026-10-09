@@ -126,9 +126,8 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
         "Based on the hand length you entered (190 mm). Measured without paper.",
     }),
   ).toHaveCount(1);
-  await expect(
-    newTab.locator(".results-previewNotice", { hasText: "Based on the hand" }),
-  ).toHaveCount(0);
+  // The page carries no early-preview notice any more (the site footer does).
+  await expect(newTab.locator(".results-previewNotice")).toHaveCount(0);
   expect(
     await newTab.evaluate(() => {
       const follows = (a: Element, b: Element) =>

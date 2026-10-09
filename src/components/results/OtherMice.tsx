@@ -74,8 +74,14 @@ export function OtherMice({
                   <span className="results-excluded-name">
                     {item.brand} {item.model}
                   </span>
+                  {item.total !== undefined && (
+                    <span className="results-excluded-score results-tabularNum">
+                      {item.total}
+                      <span lang={lang}> {copy.outOf}</span>
+                    </span>
+                  )}
                   <span className="results-excluded-reason" lang={lang}>
-                    {copy.excludedReason[item.reason]}
+                    {copy.excludedReason(item.reason, response.hand)}
                   </span>
                 </li>
               ))}

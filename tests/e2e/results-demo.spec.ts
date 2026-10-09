@@ -224,8 +224,27 @@ test.describe("/results/demo", () => {
     });
     expect(last).toBe(true);
     await expect(page.locator(".results-excluded-reason").first()).toHaveText(
-      "Vertical shape, excluded from this comparison",
+      "Vertical mouse: our scoring doesn't cover this shape yet",
     );
+    // A wrong-hand mouse says which hand it is made for, and carries its score;
+    // the vertical one has no number and no placeholder.
+    const [vertical, wrongHand] = await page
+      .locator(".results-excluded-list li")
+      .all();
+    await expect(vertical.locator(".results-excluded-score")).toHaveCount(0);
+    await expect(vertical).not.toContainText(/\d/);
+    await expect(wrongHand.locator(".results-excluded-reason")).toHaveText(
+      "Made for the left hand",
+    );
+    await expect(wrongHand.locator(".results-excluded-score")).toHaveText(
+      "58 / 100",
+    );
+    // No excluded row is a link.
+    await expect(
+      page.locator(".results-excluded-list a, .results-excluded-list button"),
+    ).toHaveCount(0);
+    // No early-preview notice on the page (the site footer carries it).
+    await expect(page.locator(".results-previewNotice")).toHaveCount(0);
   });
 
   test("Written analysis slot preview shows loading, error and ready states without affecting numeric results", async ({

@@ -39,7 +39,7 @@ export interface AnalyseOptions {
   beforeModelCall?: () => boolean | Promise<boolean>;
 }
 
-/** Plain words for each exclusion, matching what the results page says
+/** Plain words for each exclusion, close to what the results page says
  * (`excludedReason` in `src/lib/copy/results-page.ts`). A `Record` so a new reason cannot silently
  * reuse another's text. */
 const EXCLUSION_TEXT: Record<ExclusionReason, string> = {

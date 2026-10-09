@@ -24,7 +24,11 @@ function allStrings(copy: ResultsPageCopy): string[] {
   const out: string[] = [];
   const walk = (value: unknown) => {
     if (typeof value === "string") out.push(value);
-    else if (typeof value === "function") {
+    else if (value === copy.excludedReason) {
+      for (const reason of EXCLUSION_REASONS)
+        for (const hand of ["left", "right"] as const)
+          out.push(copy.excludedReason(reason, hand));
+    } else if (typeof value === "function") {
       out.push(
         (value as (...a: unknown[]) => string)(
           ...(value.length >= 2 ? [1, "Brand"] : [186]),
@@ -47,11 +51,40 @@ describe("results page copy", () => {
     expect(RESULTS_PAGE_COPY.en).toBe(en);
   });
 
-  it("explains every exclusion reason in both languages", () => {
-    for (const copy of [zhTW, en])
-      expect(Object.keys(copy.excludedReason).sort()).toEqual(
-        [...EXCLUSION_REASONS].sort(),
+  it("explains every exclusion reason in both languages, each differently", () => {
+    for (const copy of [zhTW, en]) {
+      const texts = EXCLUSION_REASONS.map((r) =>
+        copy.excludedReason(r, "right"),
       );
+      for (const text of texts) expect(text.trim()).not.toBe("");
+      expect(new Set(texts).size).toBe(EXCLUSION_REASONS.length);
+    }
+  });
+
+  it("says which hand a wrong-hand mouse is made for: the other one", () => {
+    expect(zhTW.excludedReason("wrong_hand", "right")).toBe("為左手設計");
+    expect(zhTW.excludedReason("wrong_hand", "left")).toBe("為右手設計");
+    expect(en.excludedReason("wrong_hand", "right")).toBe(
+      "Made for the left hand",
+    );
+    expect(en.excludedReason("wrong_hand", "left")).toBe(
+      "Made for the right hand",
+    );
+  });
+
+  it("says the scoring does not cover a vertical mouse or a trackball", () => {
+    expect(zhTW.excludedReason("vertical_form_factor", "right")).toBe(
+      "垂直滑鼠：目前的評分方式不適用",
+    );
+    expect(zhTW.excludedReason("trackball_form_factor", "right")).toBe(
+      "軌跡球：目前的評分方式不適用",
+    );
+    expect(en.excludedReason("vertical_form_factor", "right")).toBe(
+      "Vertical mouse: our scoring doesn't cover this shape yet",
+    );
+    expect(en.excludedReason("trackball_form_factor", "right")).toBe(
+      "Trackball: our scoring doesn't cover this shape yet",
+    );
   });
 
   it("makes no medical claim in any string", () => {

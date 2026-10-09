@@ -34,8 +34,7 @@ import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useUiLanguage } from "@/components/results/useUiLanguage";
-import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { UiLanguage } from "@/client/uiLanguage";
 import "@/components/results/results.css";
 
 type PageState =
@@ -420,9 +419,6 @@ export function ResultsScanProvider({
     <ResultsScanContext.Provider value={scan}>
       <main className="resultsMain">
         {children}
-        <p className="results-previewNotice" lang={uiLangAttribute(language)}>
-          {RESULTS_PAGE_COPY[language].previewNotice}
-        </p>
         {anonymous && (
           <DeleteScanAction
             scanId={scanId}

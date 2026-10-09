@@ -1,3 +1,7 @@
+/*
+ * RETIRED 2026-10-09 (Kirby's decision): this component is no longer rendered
+ * on the results page. The file is kept for reuse; nothing imports it.
+ */
 import { SIZE_LABELS } from "@/lib/contracts/descriptors";
 import type { FitEntry } from "@/lib/contracts/fit";
 import { formatConfidence, formatWeight } from "./format";

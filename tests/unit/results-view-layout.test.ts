@@ -166,6 +166,63 @@ describe("the results page layout", () => {
   });
 });
 
+describe("excluded rows", () => {
+  const withTotal = render(many, { language: "en" });
+
+  it("show the score as NN / 100 when the exclusion carries one, and the reason always", () => {
+    const rows = [
+      ...withTotal.matchAll(
+        /<li><span class="results-excluded-name">.*?<\/li>/g,
+      ),
+    ].map((m) => m[0]);
+    expect(rows).toHaveLength(2);
+    const wrongHand = rows.find((r) => r.includes("Basilisk"))!;
+    expect(wrongHand).toContain("Made for the left hand");
+    expect(wrongHand).toMatch(
+      /results-excluded-score[^>]*>58<span[^>]*> \/ 100<\/span>/,
+    );
+  });
+
+  it("show the reason only, with no number or dash, when there is no total", () => {
+    const rows = [
+      ...withTotal.matchAll(
+        /<li><span class="results-excluded-name">.*?<\/li>/g,
+      ),
+    ].map((m) => m[0]);
+    const vertical = rows.find((r) => r.includes("Lift Vertical"))!;
+    expect(vertical).toContain(
+      "Vertical mouse: our scoring doesn&#x27;t cover this shape yet",
+    );
+    expect(vertical).not.toContain("results-excluded-score");
+    // The words only: no tags, and the apostrophe's entity has digits in it.
+    const words = vertical.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'");
+    expect(words).not.toMatch(/\d|—|–/);
+  });
+
+  it("have no link or button", () => {
+    const list = withTotal.slice(withTotal.indexOf("results-excluded-list"));
+    expect(list).not.toMatch(/<a |<button/);
+  });
+
+  it("are counted in Other mice", () => {
+    expect(withTotal).toContain("Other mice (5)");
+  });
+
+  it("is shown in the page language", () => {
+    const zh = render(many, { language: "zh-TW" });
+    expect(zh).toContain("為左手設計");
+    expect(zh).toContain("垂直滑鼠：目前的評分方式不適用");
+  });
+});
+
+describe("the retired pieces", () => {
+  it("no longer show the mouse header or an early-preview notice", () => {
+    const html = render(many);
+    expect(html).not.toContain("results-mouseHeader");
+    expect(html).not.toContain("results-previewNotice");
+  });
+});
+
 describe("a detail page", () => {
   const detail = render(many, { rank: 3, scanId: many.scanId });
 
