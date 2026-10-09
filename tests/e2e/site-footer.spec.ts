@@ -116,8 +116,11 @@ test.describe("pages with their own print layout have no footer", () => {
     "/scan/easy",
   ]) {
     test(`${path}`, async ({ page }) => {
-      await page.goto(path);
-      await expect(page.locator("body")).toBeVisible();
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      // Ready when the page's <main> is in the DOM. Attached, not visible: on
+      // a phone /scan/easy is a full-bleed viewfinder and Playwright counts
+      // its <body> as hidden, so a visibility check would fail there.
+      await expect(page.locator("main").first()).toBeAttached();
       await expect(page.getByTestId("site-footer")).toHaveCount(0);
       await page.emulateMedia({ media: "print" });
       await expect(page.getByTestId("site-footer")).toHaveCount(0);
