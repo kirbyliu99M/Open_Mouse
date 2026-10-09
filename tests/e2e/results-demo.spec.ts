@@ -446,5 +446,9 @@ test.describe("/results/demo in a Chinese browser", () => {
     await expect(page.locator(".results-topBar-back")).toContainText(
       "重新掃描",
     );
+    // The accessible name leaves the chevron out, as the shared TopBar does.
+    await expect(
+      page.getByRole("link", { name: "返回重新掃描" }),
+    ).toHaveAttribute("href", "/scan/easy");
   });
 });

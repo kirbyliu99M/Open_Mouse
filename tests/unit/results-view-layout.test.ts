@@ -177,6 +177,15 @@ describe("the results page layout", () => {
     expect(render(many, { language: "en" })).not.toMatch(/Early preview/i);
   });
 
+  it("names the back link by its destination, chevron left out", () => {
+    expect(render(many, { language: "en" })).toContain(
+      'aria-label="Back to Scan again"',
+    );
+    expect(render(many, { language: "zh-TW" })).toContain(
+      'aria-label="返回重新掃描"',
+    );
+  });
+
   it("puts the back link and the site name in the top bar", () => {
     const html = render(many);
     expect(html).toContain('href="/scan/easy"');

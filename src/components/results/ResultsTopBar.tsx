@@ -25,6 +25,9 @@ export function ResultsTopBar({
       <Link
         href="/scan/easy"
         className="results-topBar-back"
+        // The accessible name is the destination alone, as the shared TopBar
+        // does (`backLinkName`): the chevron stays decorative.
+        aria-label={copy.backTo(copy.scanAgain)}
         onClick={onRetake}
       >
         <span aria-hidden="true">‹</span>

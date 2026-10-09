@@ -19,6 +19,8 @@ import type { UiLanguage } from "../../client/uiLanguage";
 export interface ResultsPageCopy {
   /** Return link in the top bar. */
   scanAgain: string;
+  /** The back link's accessible name: the destination, with a "back to" in front (the TopBar convention). */
+  backTo: (destination: string) => string;
   /** `aria-label` of the top bar `<nav>`. */
   topBarLabel: string;
   /** Small line above the hand-type title. */
@@ -77,6 +79,7 @@ const NBSP = " ";
 
 export const zhTW: ResultsPageCopy = {
   scanAgain: "重新掃描",
+  backTo: (destination) => `返回${destination}`,
   topBarLabel: "結果頁導覽",
   handKicker: "適合你的滑鼠型",
   handSize: { small: "小型滑鼠", medium: "中型滑鼠", large: "大型滑鼠" },
@@ -138,6 +141,7 @@ export const zhTW: ResultsPageCopy = {
 
 export const en: ResultsPageCopy = {
   scanAgain: "Scan again",
+  backTo: (destination) => `Back to ${destination}`,
   topBarLabel: "Results navigation",
   handKicker: "The mouse type for you",
   handSize: {

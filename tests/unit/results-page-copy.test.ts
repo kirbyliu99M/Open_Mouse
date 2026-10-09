@@ -98,6 +98,11 @@ describe("results page copy", () => {
       for (const text of allStrings(copy)) expect(text.trim()).not.toBe("");
   });
 
+  it("names the back link like the shared TopBar: a back-to in front of the destination", () => {
+    expect(en.backTo(en.scanAgain)).toBe("Back to Scan again");
+    expect(zhTW.backTo(zhTW.scanAgain)).toBe("返回重新掃描");
+  });
+
   it("keeps a number and its unit together", () => {
     for (const copy of [zhTW, en]) {
       const text = copy.enteredLengthNotice(186);
