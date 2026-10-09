@@ -28,6 +28,8 @@ function allStrings(copy: ResultsPageCopy): string[] {
       for (const reason of EXCLUSION_REASONS)
         for (const hand of ["left", "right"] as const)
           out.push(copy.excludedReason(reason, hand));
+    } else if (value === copy.variantsLine) {
+      out.push(copy.variantsLine(["Model A", "Model B"]));
     } else if (typeof value === "function") {
       out.push(
         (value as (...a: unknown[]) => string)(
