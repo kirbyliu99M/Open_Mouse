@@ -1,76 +1,26 @@
-import { expect, test, type Page } from "@playwright/test";
-import {
-  MEASUREMENT_MODEL_VERSION,
-  scanSubmissionSchema,
-} from "../../src/lib/contracts/measurement";
-import {
-  fitPath,
-  resultsPagePath,
-  SCAN_SUBMIT_PATH,
-  scanSubmitResponseSchema,
-} from "../../src/lib/contracts/routes";
-
-/**
- * The results page has rendered its top pick: the rank-1 line ("#1 · <brand>"),
- * a whole-number score, and that score's label. The browser here is English
- * (the page shows zh-TW only to a Chinese browser), so the label is
- * "fit score / 100". This replaces the old page's "Best match" heading.
- */
-async function expectTopPickShown(page: Page) {
-  await expect(page.locator(".results-score-rank")).toHaveText(/^#1 · \S/);
-  await expect(page.locator(".results-score-value")).toHaveText(/^\d{1,3}$/);
-  await expect(page.getByText("fit score / 100")).toBeVisible();
-}
+import { test, expect } from "@playwright/test";
+import { fitPath, resultsPagePath } from "../../src/lib/contracts/routes";
+import { deleteScans, expectTopPickShown, submitScan } from "./helpers";
 
 /**
  * Regression for #42: a `pagehide` beacon deleted the anonymous session on
  * every reload or full navigation, so results vanished on refresh. Nothing is
  * mocked here — this talks to the deployment's real routes and database.
+ *
+ * Every scan the test makes is deleted afterwards, also when it fails.
  */
-const submission = scanSubmissionSchema.parse({
-  hand: "right",
-  gripStyleStated: "claw",
-  measurements: { handLengthMm: 190, palmLengthMm: 108, palmWidthMm: 84 },
-  calibration: {
-    markerIds: [0, 1, 2, 3],
-    reprojectionErrorMm: 0.4,
-    cardScaleRatio: 1.004,
-    parallaxCorrected: true,
-  },
-  measurementModelVersion: MEASUREMENT_MODEL_VERSION,
+const created: string[] = [];
+
+test.afterEach(async ({ page }) => {
+  await deleteScans(page, created);
+  created.length = 0;
 });
 
 test("an anonymous scan's results survive navigation and reload, and delete removes them", async ({
   page,
 }) => {
-  await page.goto("/scan");
-  const body = await page.evaluate(
-    async ({ path, payload }) => {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.status !== 201) throw new Error(`submit returned ${res.status}`);
-      return res.json();
-    },
-    { path: SCAN_SUBMIT_PATH, payload: submission },
-  );
-  const { scanId: scanA } = scanSubmitResponseSchema.parse(body);
-  const secondBody = await page.evaluate(
-    async ({ path, payload }) => {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.status !== 201)
-        throw new Error(`second submit returned ${res.status}`);
-      return res.json();
-    },
-    { path: SCAN_SUBMIT_PATH, payload: submission },
-  );
-  const { scanId } = scanSubmitResponseSchema.parse(secondBody);
+  const scanA = await submitScan(page, created);
+  const scanId = await submitScan(page, created);
   expect(scanId).not.toBe(scanA);
 
   // A full navigation, as following a link or a bookmark does. This is the
