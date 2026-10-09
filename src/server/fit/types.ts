@@ -40,10 +40,16 @@ export interface CatalogueMouse {
   sideCurvature: SideCurvature | null;
   thumbRest: boolean | null;
   /**
-   * fit-v1 only (v0 ignores it). Optional until the catalogue carries a
-   * form-factor column (CAT-1); absent is treated as "standard".
+   * What kind of device this is, from the catalogue column (CAT-1). Both
+   * engines exclude a `trackball`; fit-v1 also reads `vertical` (v0 still
+   * judges vertical by height over length). Absent is treated as "standard".
    */
   formFactor?: FormFactor;
+  /**
+   * False hides the mouse everywhere: `loadOwnedFit` drops it before scoring,
+   * so it is neither ranked nor excluded. Absent is treated as listed.
+   */
+  listed?: boolean;
 }
 
 /** One sub-score computation, before it is placed under its key in FitEntry. */

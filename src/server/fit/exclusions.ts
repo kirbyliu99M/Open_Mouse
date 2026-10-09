@@ -11,7 +11,8 @@ export type { ExclusionReason };
  * prefs.includeVertical. Unknown handedness is never excluded, and unknown
  * shape is never excluded (a right-handed mouse with shape null stays for a
  * left-hand scan). Handedness is checked before the vertical form factor
- * when both would apply.
+ * when both would apply. A `formFactor` of trackball is excluded next
+ * (`trackball_form_factor`), before the vertical check.
  */
 export function excludeReason(
   mouse: CatalogueMouse,
@@ -29,6 +30,9 @@ export function excludeReason(
       return "wrong_hand";
     }
   }
+  // CAT-1: a trackball never fits the length/width model; includeVertical
+  // does not bring it back (it is not a vertical mouse).
+  if (mouse.formFactor === "trackball") return "trackball_form_factor";
   if (
     mouse.heightMm / mouse.lengthMm > VERTICAL_FORM_FACTOR_RATIO &&
     !prefs.includeVertical

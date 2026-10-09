@@ -20,8 +20,8 @@ export function excludeReasonV1(
   prefs: FitPreferences,
   options: ExclusionOptions = {},
 ): ExclusionReason | null {
-  // Reuse v0's handedness rule; includeVertical is forced on so only the
-  // handedness branch can answer.
+  // Reuse v0's handedness rule; only its "wrong_hand" answer is taken (v0's
+  // own trackball and vertical answers are decided below, with the options).
   const v0 = excludeReason(mouse, hand, { ...prefs, includeVertical: true });
   if (v0 === "wrong_hand") return v0;
   if (mouse.formFactor === "trackball" && !options.allowTrackball) {

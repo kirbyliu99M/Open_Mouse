@@ -22,7 +22,10 @@ import {
   type AnalysisOutput,
 } from "../lib/contracts/analysis";
 import {
+  CATALOGUE_CATEGORIES,
   CONNECTIVITY,
+  DATA_SOURCES,
+  FORM_FACTORS,
   FRONT_FLARES,
   HAND_COMPATIBILITY,
   HUMP_PLACEMENTS,
@@ -58,6 +61,12 @@ export const humpPlacementEnum = pgEnum("hump_placement", HUMP_PLACEMENTS);
 export const frontFlareEnum = pgEnum("front_flare", FRONT_FLARES);
 export const sideCurvatureEnum = pgEnum("side_curvature", SIDE_CURVATURES);
 export const connectivityEnum = pgEnum("connectivity", CONNECTIVITY);
+export const catalogueCategoryEnum = pgEnum(
+  "catalogue_category",
+  CATALOGUE_CATEGORIES,
+);
+export const formFactorEnum = pgEnum("form_factor", FORM_FACTORS);
+export const dataSourceEnum = pgEnum("data_source", DATA_SOURCES);
 export const descriptorMethodEnum = pgEnum("descriptor_method", [
   "rubric_vision",
   "manual",
@@ -110,6 +119,14 @@ export const mice = pgTable(
     descriptorModel: text("descriptor_model"),
     descriptorSourceUrls: jsonb("descriptor_source_urls").$type<string[]>(),
     classifiedAt: timestamp("classified_at", { withTimezone: true }),
+    /** 2026-10-09 (CAT-1). The seed decides all five; see src/server/catalogue/catalogue-rows.ts. */
+    category: catalogueCategoryEnum("category").notNull().default("gaming"),
+    /** False hides the row everywhere: the fit service drops it before scoring. */
+    listed: boolean("listed").notNull().default(true),
+    formFactor: formFactorEnum("form_factor").notNull().default("standard"),
+    /** Site-relative path of the product photo, null until one exists in public/images/mice. */
+    imagePath: text("image_path"),
+    dataSource: dataSourceEnum("data_source").notNull().default("first_party"),
     createdAt: createdAt(),
   },
   (t) => [
