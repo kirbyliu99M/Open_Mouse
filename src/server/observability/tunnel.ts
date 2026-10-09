@@ -55,6 +55,19 @@ export function envelopeDsn(body: Uint8Array): string | null {
   return null;
 }
 
+/**
+ * The response headers handed back: only the two the SDK reads to back off
+ * when the project is over quota. Never set-cookie.
+ */
+export function rateLimitHeaders(source: Headers): Headers {
+  const out = new Headers();
+  for (const name of ["x-sentry-rate-limits", "retry-after"]) {
+    const value = source.get(name);
+    if (value !== null) out.set(name, value);
+  }
+  return out;
+}
+
 export interface TunnelDeps {
   /** The configured DSN; unset turns the tunnel off. */
   dsn: string | undefined;
@@ -99,6 +112,8 @@ export async function proxyEnvelope(
   } catch {
     return new Response(null, { status: 502 });
   }
-  // The SDK reads only the status (and rate-limit headers it can live without).
-  return new Response(null, { status: upstream.status });
+  return new Response(null, {
+    status: upstream.status,
+    headers: rateLimitHeaders(upstream.headers),
+  });
 }

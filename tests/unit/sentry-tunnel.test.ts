@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   MAX_ENVELOPE_BYTES,
@@ -74,17 +75,28 @@ describe("proxyEnvelope", () => {
     expect(new TextDecoder().decode(init?.body as Uint8Array)).toBe(envelope());
   });
 
-  it("hands back the status with no upstream headers", async () => {
+  it("hands back the status and the rate-limit headers only", async () => {
     const fetchImpl = vi.fn<typeof fetch>(
       async () =>
         new Response("{}", {
           status: 429,
-          headers: { "set-cookie": "a=b", "content-type": "application/json" },
+          headers: {
+            "set-cookie": "a=b",
+            "content-type": "application/json",
+            "x-sentry-rate-limits": "60:error:organization",
+            "retry-after": "60",
+          },
         }),
     );
     const res = await proxyEnvelope(post(envelope()), { dsn: DSN, fetchImpl });
     expect(res.status).toBe(429);
-    expect([...res.headers.keys()]).toEqual([]);
+    expect([...res.headers.keys()].sort()).toEqual([
+      "retry-after",
+      "x-sentry-rate-limits",
+    ]);
+    expect(res.headers.get("x-sentry-rate-limits")).toBe(
+      "60:error:organization",
+    );
   });
 
   it("is a 404 when no DSN is configured, or for a method other than POST", async () => {
@@ -147,5 +159,21 @@ describe("proxyEnvelope", () => {
     });
     const res = await proxyEnvelope(post(envelope()), { dsn: DSN, fetchImpl });
     expect(res.status).toBe(502);
+  });
+});
+
+describe("the tunnel is wired, and the SDK's tunnelRoute rewrite is not", () => {
+  it("next.config.ts adds no rewrite to Sentry", async () => {
+    const { default: nextConfig } = await import("../../next.config");
+    const rewrites = (await nextConfig.rewrites?.()) ?? [];
+    expect(JSON.stringify(rewrites)).not.toMatch(/sentry\.io/);
+    expect(readFileSync("next.config.ts", "utf8")).not.toMatch(
+      /^\s*tunnelRoute\s*:/m,
+    );
+  });
+  it("the browser SDK sends to /monitoring", () => {
+    expect(readFileSync("src/instrumentation-client.ts", "utf8")).toContain(
+      'tunnel: "/monitoring"',
+    );
   });
 });

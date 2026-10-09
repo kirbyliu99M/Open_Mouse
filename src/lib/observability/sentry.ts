@@ -11,7 +11,8 @@
  * itself, its stack, and the URLs and span names of what ran; `scrubText`
  * then removes from that text what src/server/log.ts keeps out of a log line:
  * scan ids (a scan id in a URL opens the scan), millimetre values, email
- * addresses, IP addresses, bearer tokens, JWTs and connection strings.
+ * addresses, IP addresses, secret assignments, bearer tokens, JWTs, long
+ * opaque tokens and connection strings.
  *
  * No Session Replay: it records the page, and the scan page shows the camera
  * (hard rule 5). No `setUser`.
@@ -51,7 +52,13 @@ export const DATA_COLLECTION: DataCollection = {
   stackFrameVariables: false,
 };
 
-const TEXT_RULES: readonly [RegExp, string][] = [
+const TEXT_RULES: readonly [RegExp, string | ((match: string) => string)][] = [
+  [
+    // password=..., "token": "...", api_key: ..., cookie: ... (as in log.ts).
+    // The name is kept, the value goes.
+    /(password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|client[_-]?secret|secret|authorization|cookie|session[_-]?id)["']?\s*[=:＝：]\s*(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}\]]+)/gi,
+    (match) => `${/^[A-Za-z_-]+/.exec(match)![0]}=[redacted]`,
+  ],
   [
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
     "[id]",
@@ -72,13 +79,23 @@ const TEXT_RULES: readonly [RegExp, string][] = [
   [/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[redacted-ip]"],
   [/\b(?:[0-9a-f]{1,4}:){3,7}[0-9a-f]{1,4}\b/gi, "[redacted-ip]"],
   [/\b\d+(?:[.,]\d+)?\s?mm\b/gi, "[redacted-measurement]"],
+  [
+    // API keys and other opaque secrets: a long unbroken run of key
+    // characters. Exactly 32 lowercase hex is a Sentry trace id, kept so an
+    // error can still be matched to its trace.
+    /\b(?![0-9a-f]{32}\b)[A-Za-z0-9_-]{32,}\b/g,
+    "[redacted-token]",
+  ],
 ];
 
 /** Redacts scan ids, measurements, contact and credential patterns in one string. */
 export function scrubText(text: string): string {
   let out = text;
   for (const [pattern, replacement] of TEXT_RULES) {
-    out = out.replace(pattern, replacement);
+    out =
+      typeof replacement === "string"
+        ? out.replace(pattern, replacement)
+        : out.replace(pattern, replacement);
   }
   return out;
 }
@@ -126,6 +143,15 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   }
   if (event.extra) event.extra = scrubDeep(event.extra) as typeof event.extra;
   if (event.tags) event.tags = scrubDeep(event.tags) as typeof event.tags;
+  // Next's `onRequestError` puts the concrete request path (a scan id with it)
+  // in `contexts.nextjs`. The trace context holds only Sentry's own ids.
+  if (event.contexts) {
+    const { trace, ...rest } = event.contexts;
+    event.contexts = {
+      ...(scrubDeep(rest) as typeof rest),
+      ...(trace ? { trace } : {}),
+    };
+  }
   return event;
 }
 

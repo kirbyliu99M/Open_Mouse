@@ -27,12 +27,16 @@ describe("scrubText", () => {
     ["from kirby@example.com", "from [redacted-email]"],
     ["client 203.0.113.7 failed", "client [redacted-ip] failed"],
     ["peer 2001:db8:85a3:0:0:8a2e:370:7334", "peer [redacted-ip]"],
-    [
-      "Authorization: Bearer abc.def-123",
-      "Authorization: Bearer [redacted-token]",
-    ],
+    ["Authorization: Bearer abc.def-123", "Authorization=[redacted]"],
+    ["sent Bearer abc.def-123", "sent Bearer [redacted-token]"],
     ["jwt eyJhbGciOi.eyJzdWIiOi.sig", "jwt [redacted-token]"],
     ["postgresql://u:p@host/db?x=1", "[redacted-url]"],
+    [
+      "fetch failed: api_key=AIzaSyA-1234567890",
+      "fetch failed: api_key=[redacted]",
+    ],
+    ['{"session-id": "abc123"}', '{"session-id=[redacted]}'],
+    ["key AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q", "key [redacted-token]"],
   ])("%s", (input, expected) => {
     expect(scrubText(input)).toBe(expected);
   });
@@ -88,6 +92,16 @@ describe("scrubEvent", () => {
         },
       ],
       extra: { note: "kirby@example.com" },
+      contexts: {
+        nextjs: {
+          request_path: `/results/${SCAN_ID}`,
+          router_path: "/results/[id]",
+        },
+        trace: {
+          trace_id: "4bf92f3577b34da6a3ce929d0e0e4736",
+          span_id: "00f067aa0ba902b7",
+        },
+      },
     } as unknown as ErrorEvent;
 
     const out = scrubEvent(event);
@@ -108,6 +122,13 @@ describe("scrubEvent", () => {
       data: { url: "/x/[id]" },
     });
     expect(out.extra).toEqual({ note: "[redacted-email]" });
+    expect(out.contexts).toEqual({
+      nextjs: { request_path: "/results/[id]", router_path: "/results/[id]" },
+      trace: {
+        trace_id: "4bf92f3577b34da6a3ce929d0e0e4736",
+        span_id: "00f067aa0ba902b7",
+      },
+    });
   });
 });
 
@@ -146,7 +167,10 @@ describe("SENTRY_OPTIONS", () => {
     expect(DATA_COLLECTION).toMatchObject({
       userInfo: false,
       cookies: false,
+      httpHeaders: { request: { allow: ["user-agent"] }, response: false },
       httpBodies: [],
+      graphQL: { document: false, variables: false },
+      queues: false,
       urlQueryParams: false,
       databaseQueryData: false,
       stackFrameVariables: false,
