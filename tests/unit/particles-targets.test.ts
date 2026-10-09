@@ -17,6 +17,7 @@ import {
   logoPolylines,
 } from "@/lib/particles/logo";
 import { buildPairing } from "@/lib/particles/pairing";
+import { pairingTables } from "@/lib/particles/particle-set";
 import { parseSketchSvg } from "@/lib/particles/svg-path";
 import { renderHandSvg, renderLogoSvg } from "@/lib/particles/static-svg";
 import {
@@ -338,6 +339,61 @@ describe("the Palmate logo", () => {
         // the surplus is made the way it always was (thinned, topped up or
         // walked along the lines), so no later state is short of particles.
         expect(new Set(pairing.slot), label).toEqual(new Set([0, 1, 2]));
+      }
+    }
+  });
+
+  it("lets the shimmer's band cross the mark from 0 to 1 at every budget: the strays round it neither stretch nor shift it", () => {
+    const all = buildTargets(sketches);
+    const names = Object.keys(all.mice).slice(0, 1);
+    // A budget's copy of a stray is within a pixel of it (a sparse top-up
+    // nudges by up to 1 px, a dense walk by up to 0.75): told apart by the
+    // target's own runs, not by the code under test.
+    const strayAt = all.logo.runs
+      .filter((run) => run.count === 1)
+      .map((run) => all.logo.points[run.start]!);
+    expect(strayAt).toHaveLength(LOGO_SAMPLING.ambient);
+    const isStray = (p: { x: number; y: number }) =>
+      strayAt.some((s) => distance([p.x, p.y], [s.x, s.y]) < 2);
+    for (const count of [900, 1299, 6000, 12000]) {
+      for (const density of ["sparse", "dense"] as const) {
+        const label = `${count} ${density}`;
+        const pairing = buildPairing(all, {
+          count,
+          layout: "row",
+          seed: 20261003,
+          mice: [names[0]!, names[0]!, names[0]!],
+          density,
+        });
+        const { shimmerX } = pairingTables(pairing, 20261003);
+        const markXs: number[] = [];
+        const stray = new Set<number>();
+        pairing.logo.forEach((p, i) => {
+          if (isStray(p)) stray.add(i);
+          else markXs.push(p.x);
+        });
+        // Strays are there at every budget (else this would prove nothing).
+        expect(stray.size, label).toBeGreaterThanOrEqual(
+          LOGO_SAMPLING.ambient,
+        );
+        const left = Math.min(...markXs);
+        const right = Math.max(...markXs);
+        let markLow = Infinity;
+        let markHigh = -Infinity;
+        let worst = 0;
+        pairing.logo.forEach((p, i) => {
+          const want = Math.min(1, Math.max(0, (p.x - left) / (right - left)));
+          worst = Math.max(worst, Math.abs(shimmerX[i]! - want));
+          if (stray.has(i)) return;
+          markLow = Math.min(markLow, shimmerX[i]!);
+          markHigh = Math.max(markHigh, shimmerX[i]!);
+        });
+        // The mark's own ends are the band's 0 and 1, exactly.
+        expect(markLow, label).toBe(0);
+        expect(markHigh, label).toBe(1);
+        // Every particle is where the mark's own span puts it (strays held to
+        // 0 to 1), to Float32's precision.
+        expect(worst, label).toBeLessThan(1e-6);
       }
     }
   });

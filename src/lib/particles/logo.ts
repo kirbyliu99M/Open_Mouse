@@ -64,6 +64,25 @@ export const LOGO_SAMPLING = {
   ambientGap: 30,
 } as const;
 
+/**
+ * Whether a logo point (in its own px, at any budget) belongs to the mark
+ * rather than to the strays round it. The mark's points are inside `LOGO_BOX`,
+ * at least 7.8 px from its edges (5 units of room less the cloud's 2.4), and a
+ * stray is at least `ambientHole` px outside it. A budget moves a point by a
+ * pixel at most (a sparse top-up nudges a copy by up to 1 px, a dense walk by
+ * 0.75), so the box widened by half the hole tells the two apart at every
+ * budget.
+ */
+export function inLogoMark(p: { readonly x: number; readonly y: number }) {
+  const margin = LOGO_SAMPLING.ambientHole / 2;
+  return (
+    p.x > -margin &&
+    p.x < LOGO_BOX.width + margin &&
+    p.y > -margin &&
+    p.y < LOGO_BOX.height + margin
+  );
+}
+
 /** The mark's subpaths as polylines in viewBox units (the curves flattened to about 1 unit). */
 export function logoPolylines(): Polyline[] {
   return parsePathData(PALMATE_PATH);
