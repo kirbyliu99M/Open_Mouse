@@ -17,10 +17,15 @@ import { joinHeadlineAndBody } from "./format";
 export function AnalysisSlot({
   state,
   onRetry,
+  headingLevel = 2,
 }: {
   state: AnalysisState;
   onRetry?: () => void;
+  /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
+  headingLevel?: 2 | 3;
 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const SubHeading = headingLevel === 2 ? "h3" : "h4";
   if (state.status === "idle") return null;
 
   if (state.status === "loading") {
@@ -81,11 +86,11 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
-      <h2 className="results-analysis-heading">Why this one</h2>
+      <Heading className="results-analysis-heading">Why this one</Heading>
       <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
-          <h3>Tradeoffs</h3>
+          <SubHeading>Tradeoffs</SubHeading>
           <ul>
             {output.tradeoffs.map((t) => (
               <li key={t}>{t}</li>
@@ -95,7 +100,7 @@ export function AnalysisSlot({
       )}
       {output.whatToAvoid.length > 0 && (
         <div>
-          <h3>What to avoid</h3>
+          <SubHeading>What to avoid</SubHeading>
           <ul>
             {output.whatToAvoid.map((t) => (
               <li key={t}>{t}</li>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
+import { collectNumbers } from "../../src/server/analysis/numerals";
 import { makeFit, makeMeasurements } from "./analysis-fixtures";
 
 describe("buildAnalysisInput", () => {
@@ -116,5 +117,33 @@ describe("buildAnalysisInput", () => {
     expect(input.targets.lengthMm).toBe(118.5);
     expect(input.hand.handLengthMm).toBe(180.5);
     expect(JSON.stringify(input)).not.toContain("0.7575757575757576");
+  });
+});
+
+describe("buildAnalysisInput excluded totals", () => {
+  it("keeps a wrong_hand exclusion's total out of the input and out of the allowed numerals", () => {
+    const fit = makeFit({
+      excluded: [
+        {
+          slug: "acme-lefty",
+          brand: "Acme",
+          model: "Lefty",
+          reason: "wrong_hand",
+          total: 58,
+        },
+      ],
+    });
+    const input = buildAnalysisInput(fit, makeMeasurements());
+    expect(input.excluded).toEqual([
+      {
+        slug: "acme-lefty",
+        brand: "Acme",
+        model: "Lefty",
+        reason: "wrong_hand",
+      },
+    ]);
+    expect(input.excluded[0]).not.toHaveProperty("total");
+    expect(JSON.stringify(input)).not.toContain("58");
+    expect(collectNumbers(input).has(58)).toBe(false);
   });
 });

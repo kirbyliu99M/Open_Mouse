@@ -10,6 +10,7 @@ import {
   type FixtureKey,
 } from "./fixtures";
 import { ResultsView } from "./ResultsView";
+import { useUiLanguage } from "./useUiLanguage";
 
 const MOCK_ANALYSIS: AnalysisOutput = {
   headline: "A close match for your palm grip",
@@ -60,8 +61,10 @@ const ANALYSIS_DEMO_STATES: {
 
 /**
  * Interactive shell for /results/demo: lets a reviewer switch between the
- * three fixtures and preview the optional written-analysis slot's states,
- * all with local state only (no network calls, no live analysis request).
+ * fixtures and preview the optional written-analysis slot's states, all with
+ * local state only (no network calls, no live analysis request). The demo has
+ * no routes, so choosing one of the other picks changes which rank the page
+ * shows instead of navigating.
  */
 export function ResultsDemoClient({
   presentation = false,
@@ -74,6 +77,8 @@ export function ResultsDemoClient({
   const [analysisKey, setAnalysisKey] = useState(
     presentation ? "ready-fallback" : "idle",
   );
+  const [rank, setRank] = useState(1);
+  const language = useUiLanguage();
 
   const analysisState = ANALYSIS_DEMO_STATES.find((a) => a.key === analysisKey)
     ?.state ?? {
@@ -102,7 +107,10 @@ export function ResultsDemoClient({
                   key={key}
                   type="button"
                   aria-pressed={fixtureKey === key}
-                  onClick={() => setFixtureKey(key)}
+                  onClick={() => {
+                    setFixtureKey(key);
+                    setRank(1);
+                  }}
                 >
                   {FIXTURE_LABELS[key]}
                 </button>
@@ -129,8 +137,11 @@ export function ResultsDemoClient({
       )}
 
       <ResultsView
-        key={fixtureKey}
+        key={`${fixtureKey}:${rank}`}
         response={FIXTURES[fixtureKey]}
+        rank={rank}
+        language={language}
+        onSelectRank={setRank}
         analysisState={analysisState}
         onRetryAnalysis={() => setAnalysisKey("loading")}
       />

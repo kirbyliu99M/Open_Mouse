@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AnalyticsProvider } from "@/client/analytics/AnalyticsProvider";
+import { SiteFooter } from "@/components/SiteFooter";
 import "./tokens.css";
 import "./globals.css";
 
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <AnalyticsProvider />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

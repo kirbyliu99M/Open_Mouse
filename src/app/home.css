@@ -214,14 +214,6 @@
   background: #ffffff14;
 }
 
-.landing-preview-note {
-  margin: 0.75rem 0 0;
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  line-height: 1.5;
-  text-align: center;
-}
-
 /* The hand on A4: a static SVG until the particles arrive (PR B). */
 .story-hand {
   position: relative;
@@ -316,21 +308,10 @@
   margin-top: 0;
 }
 
-.landing-footer {
-  margin-top: 3rem;
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  text-align: left;
-}
-.landing-footer p {
-  margin: 0;
-  line-height: 1.4;
-}
-
 @media (min-width: 48rem) {
   /* The hero on a desktop or tablet, which gets shorter as the window does.
      At full size it is 29rem of logo slot, the headline, the subhead, the
-     buttons and the note: 674 px, plus the nav above it. A laptop window
+     buttons: about 643 px, plus the nav above it. A laptop window
      (1280x640, 1366x657) is shorter than that, and the stage switches on only
      when the hero fits in 100svh, so the hero scales down with the height
      instead of the rule being loosened.
@@ -340,7 +321,7 @@
      size at 740px of height down to 44px type and tighter gaps at 600px (the
      stage's own floor, MIN_VIEWPORT_HEIGHT). The logo slot takes whatever is
      left: the viewport minus the nav and the rest of the hero, so the whole
-     hero (buttons and note too) is above the fold at the top of the page, down
+     hero (the buttons too) is above the fold at the top of the page, down
      to a floor of 14rem. Below 600px the page is static, and the same
      shrunken hero is what it shows. Full size is untouched from 740px up.
 
@@ -399,15 +380,14 @@
   }
   .story-logo {
     /* 100svh, less: the nav (3.5rem), the headline (1.05 line height), the
-       gap, one line of subhead (1.15rem x 1.4), the gap, the buttons (3.125rem),
-       the note's gap (0.75rem) and its line (0.8rem x 1.5), and 0.5rem of
-       room. Latin line heights: see the note above for zh-TW. */
+       gap, one line of subhead (1.15rem x 1.4), the gap, and the buttons (3.125rem),
+       and 0.5rem of room. (The "Early preview" note that used to sit under
+       the buttons is in the site footer now: it is not in this sum.) Latin line heights: see the note above for zh-TW. */
     --slot: clamp(
       14rem,
       calc(
         var(--hero-vh) - 3.5rem - var(--hero-h1) * 1.05 - var(--hero-gap-sub) -
-          1.61rem - var(--hero-gap-actions) - 3.125rem - 0.75rem - 1.2rem -
-          0.5rem
+          1.61rem - var(--hero-gap-actions) - 3.125rem - 0.5rem
       ),
       29rem
     );
@@ -441,9 +421,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2.5rem;
     margin-top: 3rem;
-  }
-  .landing-footer {
-    text-align: center;
   }
 }
 
@@ -698,13 +675,6 @@
   color: #6fe39c;
 }
 
-.home-footer-note {
-  text-align: center;
-  color: #b5b5bd;
-  font-size: 0.875rem;
-  margin: 0;
-}
-
 .home-how-page {
   padding-top: 1.25rem;
 }
@@ -783,9 +753,6 @@
   color: var(--accent-text);
   text-decoration: none;
 }
-.home-how-page .home-footer-note {
-  text-align: left;
-}
 
 @media (prefers-contrast: more) {
   .home-privacy-card {
@@ -851,8 +818,7 @@
   }
   .home-how-list p,
   .home-cta-caption,
-  .home-how-page .home-cta-caption,
-  .home-footer-note {
+  .home-how-page .home-cta-caption {
     color: var(--text-secondary);
   }
   .home-how-icon {

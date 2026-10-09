@@ -78,7 +78,7 @@ export async function fetchFitResult(
   // M2 hardening (PR #56 review, MEDIUM 2): a 429 here is the per-IP fit
   // rate limit (src/server/fit/service.ts), not a server failure — the
   // generic "Something went wrong" + instant "Try again" was dishonest and
-  // would just re-trip the same limit. See `ResultsPageClient.tsx`'s
+  // would just re-trip the same limit. See `ResultsScanProvider.tsx`'s
   // `rateLimited` page state for the honest copy this maps to.
   if (res.status === 429) return { status: "rateLimited" };
   if (!res.ok) return { status: "serverError" };
