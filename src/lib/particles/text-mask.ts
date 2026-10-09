@@ -162,6 +162,11 @@ export function depthInside(mask: Mask): Float64Array {
  * Infinity when nothing outside lies within `limit`. Exact (not a pixel-centre
  * approximation): it measures to the nearest unset pixel's square, and to the
  * canvas's own edges.
+ *
+ * Cost: it reads every pixel within min(limit, distance to the canvas edge)
+ * of the point, about (2 · limit + 3)² reads. Keep `limit` small: a limit of
+ * hundreds of px on a large mask, for thousands of particles, is hundreds of
+ * millions of reads (sampleMask caps it at MAX_EDGE_WIDTH).
  */
 export function distanceToOutline(
   mask: Mask,
@@ -263,36 +268,50 @@ export interface Piece {
 }
 
 /**
- * When a small piece is a mark of the letter above or below it (an i's or a
+ * When a small piece may be a mark of a letter above or below it (an i's or a
  * j's dot, an accent, a cedilla) rather than a letter of its own. It must:
- * overlap the host across x by more than half the narrower of the two; be at
- * most `size` of the host's height; and sit clear of it (no shared row) by a
- * gap of at most `gap` times its own height and at most `hostGap` times the
- * host's height. The gap limits and the size limit keep stacked lines apart:
- * a letter of the other line is too big to count as a mark, and a small piece
- * (a full stop) is usually a whole line gap away, several times its own
- * height; for lines set tighter than that, `groupLetters` also refuses a piece
- * that sits on its own line's baseline as a mark of anything below it.
- * Candidate values (未拍板), tuned on block letters and the headline's two
- * lines.
+ * be at most `size` of the host's height (a mark is far smaller than a
+ * lower-case letter, so a whole letter of the next line never qualifies);
+ * overlap the host across x by more than `overlap` of the narrower of the two
+ * (an italic j's dot sits only partly over its stem); and sit clear of it (no
+ * shared row) by a gap of at most `gap` times its own height and at most
+ * `hostGap` times the host's height. Candidate values (未拍板), set on block
+ * letters; real fonts are untested.
  */
-export const MARK_RULES = { size: 0.6, gap: 1.5, hostGap: 0.4 } as const;
+export const MARK_RULES = {
+  size: 0.45,
+  overlap: 0.3,
+  gap: 1.5,
+  hostGap: 0.4,
+} as const;
 
 const heightOf = (p: Piece) => p.y1 - p.y0 + 1;
 const widthOf = (p: Piece) => p.x1 - p.x0 + 1;
 const xOverlap = (a: Piece, b: Piece) =>
   Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + 1;
+const rowsShared = (
+  a: { y0: number; y1: number },
+  b: { y0: number; y1: number },
+) => Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) + 1;
 
 /** The gap (rows between them) when `mark` may be a mark of `host` (MARK_RULES), else -1. */
 export function markGap(
   mark: Piece,
   host: Piece,
-  rules: { size: number; gap: number; hostGap: number } = MARK_RULES,
+  rules: {
+    size: number;
+    overlap: number;
+    gap: number;
+    hostGap: number;
+  } = MARK_RULES,
 ): number {
   const h = heightOf(mark);
   const H = heightOf(host);
   if (h > rules.size * H) return -1;
-  if (xOverlap(mark, host) <= 0.5 * Math.min(widthOf(mark), widthOf(host))) {
+  if (
+    xOverlap(mark, host) <=
+    rules.overlap * Math.min(widthOf(mark), widthOf(host))
+  ) {
     return -1;
   }
   const gap = Math.max(host.y0 - mark.y1, mark.y0 - host.y1) - 1;
@@ -300,40 +319,41 @@ export function markGap(
   return gap <= rules.gap * h && gap <= rules.hostGap * H ? gap : -1;
 }
 
-/**
- * Whether a piece sits on a line's baseline: some taller piece shares a row
- * with it and ends on (about) the same bottom row, as a full stop or a comma
- * sits beside the letters of its line. An i's dot or an accent ends well above
- * the bottom of the letters beside it. The tolerance is a quarter of the
- * piece's height, at least one row.
- */
-export function sitsOnBaseline(
-  piece: Piece,
-  pieces: readonly Piece[],
-): boolean {
-  const h = heightOf(piece);
-  const tolerance = Math.max(1, 0.25 * h);
-  return pieces.some(
-    (other) =>
-      heightOf(other) > h &&
-      other.y0 <= piece.y1 &&
-      other.y1 >= piece.y0 &&
-      Math.abs(other.y1 - piece.y1) <= tolerance,
-  );
-}
+/** a before b, comparing number lists entry by entry. */
+const before = (a: readonly number[], b: readonly number[]): boolean => {
+  for (let n = 0; n < a.length; n += 1) {
+    if (a[n] !== b[n]) return a[n]! < b[n]!;
+  }
+  return false;
+};
 
 /**
- * Group a mask's pieces into letters in reading order: lines top to bottom,
- * letters left to right.
+ * Group a mask's pieces into letters in reading order (lines top to bottom,
+ * letters left to right), from their shapes alone. This is the FALLBACK: the
+ * stage knows which glyph each pixel came from and should pass it
+ * (`MaskSampleOptions.letters`, `lettersFromLabels`), which never guesses.
  *
- * 1. Marks first: a piece that may be a mark (`markGap`) of another, bigger
- *    piece joins the nearest such host (the smallest gap, then the biggest
- *    host), so an i's dot and its stem are one letter even with no tall
- *    letter beside them. A piece on a baseline (`sitsOnBaseline`: a full
- *    stop) is never a mark of a piece below it: that is the next line.
- * 2. Lines: a letter (host plus marks) joins a line its height mostly
- *    overlaps, biggest letters first.
- * 3. In a line, letters that mostly overlap across x are one letter.
+ * 1. Bodies and marks: a piece that may be a mark (`markGap`) of some other
+ *    piece is a mark candidate; every other piece is a body.
+ * 2. Lines are made of bodies only: a body joins a line its height mostly
+ *    overlaps, biggest first. So a descender of one line and the capitals of
+ *    the next stay two lines, and no mark can stretch a line.
+ * 3. A mark candidate that shares rows with a line belongs to that line (the
+ *    one it shares most rows with) and may only be a mark of a body of that
+ *    line: a full stop on line one is never an accent of a capital under it.
+ *    One outside every line (a lone i's dot) may be a mark of any body. Among
+ *    its hosts it takes one it sits above, nearest first, before one it hangs
+ *    below (dots and accents above are far more common than cedillas). With
+ *    no host it is a letter of its own, in its line, or a line of its own.
+ * 4. In a line, bodies and unattached marks that mostly overlap across x are
+ *    one letter (a colon's two dots); each attached mark joins its host.
+ *
+ * Known limits (pass labels instead): a dot exactly between two lines that is
+ * nearer, and above, the letter it does not belong to; a cedilla right above
+ * the next line's letter; a colon, or any glyph of same-sized pieces stacked
+ * apart, with no letter beside it in its line (each piece becomes a line);
+ * tightly kerned letters whose boxes mostly overlap (one letter); a piece
+ * shared by two glyphs (ligatures, touching letters: one letter).
  *
  * Returns the letters and, per piece, the letter it belongs to.
  */
@@ -341,147 +361,239 @@ export function groupLetters(pieces: readonly Piece[]): {
   letters: Letter[];
   letterOfPiece: number[];
 } {
-  // 1. Each piece's host, if it is a mark; chains end at a piece that is not.
-  const host = pieces.map((mark, i) => {
-    let best = -1;
-    let bestGap = Infinity;
-    const onBaseline = sitsOnBaseline(mark, pieces);
-    pieces.forEach((other, k) => {
-      if (k === i) return;
-      const gap = markGap(mark, other);
-      if (gap < 0) return;
-      // A full stop at the end of one line is not an accent of the letter
-      // under it on the next line.
-      if (mark.y1 < other.y0 && onBaseline) return;
-      if (
-        gap < bestGap ||
-        (gap === bestGap && other.area > pieces[best]!.area)
-      ) {
-        best = k;
-        bestGap = gap;
-      }
-    });
-    return best;
-  });
-  const rootOf = (i: number): number => {
-    let at = i;
-    // A host is strictly taller than its mark (MARK_RULES.size < 1), so a
-    // chain has no loop; the step limit only guards against a rule change.
-    for (let step = 0; host[at]! >= 0 && step < pieces.length; step += 1) {
-      at = host[at]!;
-    }
-    return at;
-  };
-  const clusters = new Map<
-    number,
-    {
-      x0: number;
-      y0: number;
-      x1: number;
-      y1: number;
-      area: number;
-      members: number[];
-    }
-  >();
-  pieces.forEach((p, i) => {
-    const root = rootOf(i);
-    const c = clusters.get(root);
-    if (c) {
-      c.x0 = Math.min(c.x0, p.x0);
-      c.y0 = Math.min(c.y0, p.y0);
-      c.x1 = Math.max(c.x1, p.x1);
-      c.y1 = Math.max(c.y1, p.y1);
-      c.area += p.area;
-      c.members.push(i);
-    } else {
-      clusters.set(root, { ...p, members: [i] });
-    }
-  });
-  const units = [...clusters.entries()]
-    .map(([root, c]) => ({ ...c, i: root }))
-    .sort((a, b) => b.area - a.area || a.i - b.i);
+  // 1.
+  const isMark = pieces.map((p, i) =>
+    pieces.some((q, k) => k !== i && markGap(p, q) >= 0),
+  );
 
-  // 2. Lines.
-  const lines: { y0: number; y1: number; members: (typeof units)[number][] }[] =
-    [];
-  for (const u of units) {
-    const h = u.y1 - u.y0 + 1;
-    const line = lines.find((l) => {
-      const overlap = Math.min(l.y1, u.y1) - Math.max(l.y0, u.y0) + 1;
-      return overlap > 0.5 * Math.min(h, l.y1 - l.y0 + 1);
-    });
+  // 2.
+  type Line = { y0: number; y1: number; bodies: number[]; units: number[] };
+  const lines: Line[] = [];
+  const byArea = pieces
+    .map((_, i) => i)
+    .sort((a, b) => pieces[b]!.area - pieces[a]!.area || a - b);
+  for (const i of byArea) {
+    if (isMark[i]) continue;
+    const p = pieces[i]!;
+    const line = lines.find(
+      (l) => rowsShared(l, p) > 0.5 * Math.min(heightOf(p), l.y1 - l.y0 + 1),
+    );
     if (line) {
-      line.y0 = Math.min(line.y0, u.y0);
-      line.y1 = Math.max(line.y1, u.y1);
-      line.members.push(u);
+      line.y0 = Math.min(line.y0, p.y0);
+      line.y1 = Math.max(line.y1, p.y1);
+      line.bodies.push(i);
+      line.units.push(i);
     } else {
-      lines.push({ y0: u.y0, y1: u.y1, members: [u] });
+      lines.push({ y0: p.y0, y1: p.y1, bodies: [i], units: [i] });
     }
   }
-  lines.sort((a, b) => a.y0 + a.y1 - (b.y0 + b.y1));
+  const allBodies = lines.flatMap((l) => l.bodies);
 
-  // 3. Letters, left to right.
-  const letters: Letter[] = [];
+  // 3.
+  const hostOf = new Array<number>(pieces.length).fill(-1);
+  const extra: Line[] = [];
+  for (let i = 0; i < pieces.length; i += 1) {
+    if (!isMark[i]) continue;
+    const p = pieces[i]!;
+    let home: Line | undefined;
+    let shared = 0;
+    for (const l of lines) {
+      const r = rowsShared(l, p);
+      if (r > shared) {
+        shared = r;
+        home = l;
+      }
+    }
+    let best = -1;
+    let bestKey: number[] = [];
+    for (const k of home ? home.bodies : allBodies) {
+      const host = pieces[k]!;
+      const gap = markGap(p, host);
+      if (gap < 0) continue;
+      // Above first, then nearest, then the biggest host, then scan order.
+      const key = [p.y1 < host.y0 ? 0 : 1, gap, -host.area, k];
+      if (best < 0 || before(key, bestKey)) {
+        best = k;
+        bestKey = key;
+      }
+    }
+    if (best >= 0) hostOf[i] = best;
+    else if (home) home.units.push(i);
+    else extra.push({ y0: p.y0, y1: p.y1, bodies: [], units: [i] });
+  }
+  const ordered = [...lines, ...extra].sort(
+    (a, b) => a.y0 + a.y1 - (b.y0 + b.y1) || a.y0 - b.y0,
+  );
+
+  // 4.
+  const boxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const lineOfLetter: number[] = [];
   const letterOfPiece = new Array<number>(pieces.length).fill(-1);
-  lines.forEach((line, lineIndex) => {
-    const members = [...line.members].sort(
-      (a, b) => a.x0 + a.x1 - (b.x0 + b.x1) || a.i - b.i,
+  ordered.forEach((line, lineIndex) => {
+    const members = [...line.units].sort(
+      (a, b) =>
+        pieces[a]!.x0 + pieces[a]!.x1 - (pieces[b]!.x0 + pieces[b]!.x1) ||
+        a - b,
     );
-    const boxes: {
-      x0: number;
-      y0: number;
-      x1: number;
-      y1: number;
-      pieces: number[];
-    }[] = [];
+    let last: { x0: number; y0: number; x1: number; y1: number } | null = null;
     for (const m of members) {
-      const last = boxes[boxes.length - 1];
+      const p = pieces[m]!;
       if (last) {
-        const overlap = Math.min(last.x1, m.x1) - Math.max(last.x0, m.x0) + 1;
-        const narrower = Math.min(last.x1 - last.x0 + 1, m.x1 - m.x0 + 1);
+        const overlap = Math.min(last.x1, p.x1) - Math.max(last.x0, p.x0) + 1;
+        const narrower = Math.min(last.x1 - last.x0 + 1, widthOf(p));
         if (overlap > 0.5 * narrower) {
-          last.x0 = Math.min(last.x0, m.x0);
-          last.y0 = Math.min(last.y0, m.y0);
-          last.x1 = Math.max(last.x1, m.x1);
-          last.y1 = Math.max(last.y1, m.y1);
-          last.pieces.push(...m.members);
+          last.x0 = Math.min(last.x0, p.x0);
+          last.y0 = Math.min(last.y0, p.y0);
+          last.x1 = Math.max(last.x1, p.x1);
+          last.y1 = Math.max(last.y1, p.y1);
+          letterOfPiece[m] = boxes.length - 1;
           continue;
         }
       }
-      boxes.push({
-        x0: m.x0,
-        y0: m.y0,
-        x1: m.x1,
-        y1: m.y1,
-        pieces: [...m.members],
-      });
-    }
-    for (const b of boxes) {
-      const index = letters.length;
-      letters.push({
-        x0: b.x0,
-        y0: b.y0,
-        x1: b.x1,
-        y1: b.y1,
-        line: lineIndex,
-        index,
-      });
-      for (const p of b.pieces) letterOfPiece[p] = index;
+      last = { x0: p.x0, y0: p.y0, x1: p.x1, y1: p.y1 };
+      letterOfPiece[m] = boxes.length;
+      boxes.push(last);
+      lineOfLetter.push(lineIndex);
     }
   });
-  return { letters, letterOfPiece };
+  // Attached marks join their host's letter (a host is always a body, so
+  // there are no chains of marks).
+  pieces.forEach((p, i) => {
+    const host = hostOf[i]!;
+    if (host < 0) return;
+    const k = letterOfPiece[host]!;
+    letterOfPiece[i] = k;
+    const b = boxes[k]!;
+    b.x0 = Math.min(b.x0, p.x0);
+    b.y0 = Math.min(b.y0, p.y0);
+    b.x1 = Math.max(b.x1, p.x1);
+    b.y1 = Math.max(b.y1, p.y1);
+  });
+  return {
+    letters: boxes.map((b, k) => ({ ...b, line: lineOfLetter[k]!, index: k })),
+    letterOfPiece,
+  };
 }
 
+/**
+ * The letters as the caller knows them: which glyph each pixel was drawn by.
+ * The stage lays the headline out on a canvas itself, so it can draw each
+ * glyph on its own and label every pixel with the glyph that covers it most.
+ * With these nothing is guessed from shapes.
+ */
+export interface LetterLabels {
+  /** Per pixel, row by row (the mask's size): 0 for no letter, k + 1 for letter k in reading order. */
+  readonly labels: ArrayLike<number>;
+  /** Per letter k, its line (0 = top). Its length is the number of letters; lines never go back up. */
+  readonly lines: readonly number[];
+}
+
+/** How far (px) a set pixel with no label may look for a labelled neighbour (anti-aliased edges): 2. */
+export const LABEL_REACH = 2;
+
+/**
+ * The letters from the caller's labels: each letter's box over the mask's set
+ * pixels with its label, and per pixel the letter it belongs to (-1 where the
+ * mask is unset). A set pixel left unlabelled (the mask and the labels
+ * disagree by an edge pixel) takes the label of the nearest labelled set
+ * pixel within LABEL_REACH (ring by ring, in scan order); further than that
+ * throws, as do labels of the wrong size or out of range, lines that go back
+ * up, and a letter with no set pixel at all.
+ */
+export function lettersFromLabels(
+  mask: Mask,
+  given: LetterLabels,
+): { letters: Letter[]; letterAt: Int32Array } {
+  const { width, height, data } = mask;
+  const count = given.lines.length;
+  if (given.labels.length !== width * height) {
+    throw new RangeError("labels must have one value per mask pixel");
+  }
+  given.lines.forEach((line, k) => {
+    if (!Number.isInteger(line) || line < 0) {
+      throw new RangeError("a letter's line is a whole number, 0 or more");
+    }
+    if (k > 0 && line < given.lines[k - 1]!) {
+      throw new RangeError(
+        "letters are in reading order: lines never go back up",
+      );
+    }
+  });
+  const letterAt = new Int32Array(width * height).fill(-1);
+  for (let i = 0; i < data.length; i += 1) {
+    const label = given.labels[i]!;
+    if (!Number.isInteger(label) || label < 0 || label > count) {
+      throw new RangeError(`a label is 0 to ${count}`);
+    }
+    if (data[i] === 1 && label > 0) letterAt[i] = label - 1;
+  }
+  const resolved = Int32Array.from(letterAt);
+  for (let i = 0; i < data.length; i += 1) {
+    if (data[i] !== 1 || letterAt[i]! >= 0) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    let found = -1;
+    for (let r = 1; r <= LABEL_REACH && found < 0; r += 1) {
+      for (let dy = -r; dy <= r && found < 0; dy += 1) {
+        for (let dx = -r; dx <= r && found < 0; dx += 1) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          found = letterAt[ny * width + nx]!;
+        }
+      }
+    }
+    if (found < 0) {
+      throw new RangeError(
+        `pixel (${x}, ${y}) is in the mask but no letter is within ${LABEL_REACH} px`,
+      );
+    }
+    resolved[i] = found;
+  }
+  const boxes = Array.from({ length: count }, () => ({
+    x0: Infinity,
+    y0: Infinity,
+    x1: -1,
+    y1: -1,
+  }));
+  for (let i = 0; i < data.length; i += 1) {
+    const k = resolved[i]!;
+    if (k < 0) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    const b = boxes[k]!;
+    if (x < b.x0) b.x0 = x;
+    if (y < b.y0) b.y0 = y;
+    if (x > b.x1) b.x1 = x;
+    if (y > b.y1) b.y1 = y;
+  }
+  boxes.forEach((b, k) => {
+    if (b.x1 < 0) throw new RangeError(`letter ${k} has no pixel in the mask`);
+  });
+  return {
+    letters: boxes.map((b, k) => ({ ...b, line: given.lines[k]!, index: k })),
+    letterAt: resolved,
+  };
+}
+
+/** The widest edge band `sampleMask` accepts (px). See `distanceToOutline` for why. */
+export const MAX_EDGE_WIDTH = 16;
+
 export interface MaskSampleOptions {
-  /** Distance between neighbouring particles, px. */
+  /** Distance between neighbouring particles, px (`spacingForCount` estimates one for a budget). */
   readonly spacing: number;
   /** How far a particle may move off its grid place, as a share of the spacing (0 to 0.5, default 0.25). */
   readonly jitter?: number;
-  /** A particle within this many px of the mask's edge is an edge particle (default 1.5). */
+  /** A particle within this many px of the mask's edge is an edge particle (default 1.5, at most MAX_EDGE_WIDTH). */
   readonly edgeWidth?: number;
   /** The alpha a pixel needs to count as inside (default 128). */
   readonly threshold?: number;
   readonly seed: number;
+  /** Which glyph each pixel belongs to. With them the letters are exact; without, `groupLetters` guesses from shapes. */
+  readonly letters?: LetterLabels;
+  /** The most particles to return: more are thinned evenly, letter by letter (`thinToCount`). */
+  readonly maxCount?: number;
 }
 
 export interface MaskParticle {
@@ -496,11 +608,107 @@ export interface MaskParticle {
 }
 
 /**
+ * About the spacing that puts `count` particles on `area` px of mask: one
+ * particle per hexagonal cell, √3/2 · spacing². An ESTIMATE: the edges cut
+ * cells in half, so the real count can be over or under; pass `maxCount` to
+ * `sampleMask` for a hard limit.
+ */
+export function spacingForCount(area: number, count: number): number {
+  if (!(area > 0) || !Number.isFinite(area)) {
+    throw new RangeError("area must be a positive number");
+  }
+  if (!Number.isInteger(count) || count < 1) {
+    throw new RangeError("count must be a positive whole number");
+  }
+  return Math.sqrt(area / (count * (Math.sqrt(3) / 2)));
+}
+
+/** `count` indices spread evenly over 0 to n - 1 (each cell's middle), in order. n ≥ count. */
+const evenPick = (n: number, count: number): number[] =>
+  Array.from({ length: count }, (_, i) =>
+    Math.min(n - 1, Math.floor(((i + 0.5) * n) / count)),
+  );
+
+/**
+ * Keep at most `maxCount` of `particles` (sorted by `order`, as `sampleMask`
+ * returns them), deterministically and fairly:
+ *
+ * - With at least one particle per letter to spare, every letter keeps one
+ *   and the rest is shared in proportion to each letter's count (largest
+ *   remainder, earlier letters first on a tie). With fewer than the letters,
+ *   letters spread evenly through the reading order keep one each.
+ * - Inside a letter, edge and inner particles keep their shares (rounded), and
+ *   each share is an even pick through its particles in reading order. So the
+ *   cut never falls on the end of the headline, and the outline stays.
+ *
+ * Returns them in their original order. Fewer than `maxCount` comes back
+ * unchanged: the caller keeps the rest of its budget (the finale lets those
+ * particles stay with the hand or stay unlit).
+ */
+export function thinToCount(
+  particles: readonly MaskParticle[],
+  letterCount: number,
+  maxCount: number,
+): MaskParticle[] {
+  if (!Number.isInteger(maxCount) || maxCount < 0) {
+    throw new RangeError("maxCount must be a whole number, 0 or more");
+  }
+  if (particles.length <= maxCount) return [...particles];
+  if (maxCount === 0) return [];
+  const byLetter = Array.from({ length: letterCount }, () => [] as number[]);
+  particles.forEach((p, i) => byLetter[p.letter]!.push(i));
+  const present = byLetter
+    .map((list, k) => (list.length > 0 ? k : -1))
+    .filter((k) => k >= 0);
+  const quota = new Array<number>(letterCount).fill(0);
+  if (maxCount < present.length) {
+    for (const i of evenPick(present.length, maxCount)) quota[present[i]!] = 1;
+  } else {
+    // One each, then the rest in proportion to what each letter has beyond it.
+    for (const k of present) quota[k] = 1;
+    const spare = maxCount - present.length;
+    const beyond = particles.length - present.length;
+    const share = present.map(
+      (k) => (spare * (byLetter[k]!.length - 1)) / beyond,
+    );
+    present.forEach((k, n) => (quota[k] += Math.floor(share[n]!)));
+    let left = maxCount - quota.reduce((s, q) => s + q, 0);
+    const byFraction = present
+      .map((k, n) => ({ k, f: share[n]! - Math.floor(share[n]!) }))
+      .sort((a, b) => b.f - a.f || a.k - b.k);
+    for (const { k } of byFraction) {
+      if (left === 0) break;
+      quota[k] += 1;
+      left -= 1;
+    }
+  }
+  const keep: number[] = [];
+  byLetter.forEach((list, k) => {
+    const q = quota[k]!;
+    if (q === 0) return;
+    const edge = list.filter((i) => particles[i]!.edge);
+    const inner = list.filter((i) => !particles[i]!.edge);
+    let qe = Math.round((q * edge.length) / list.length);
+    qe = Math.min(edge.length, Math.max(q - inner.length, qe));
+    for (const i of evenPick(edge.length, qe)) keep.push(edge[i]!);
+    for (const i of evenPick(inner.length, q - qe)) keep.push(inner[i]!);
+  });
+  keep.sort((a, b) => a - b);
+  return keep.map((i) => particles[i]!);
+}
+
+/**
  * Fill a mask with particles on a hexagonal grid (each row offset by half a
  * spacing, rows √3/2 spacing apart), each nudged by a small seeded jitter and
- * kept only if it lands inside. Returns the particles sorted by `order` (left
- * to right, letter by letter) and the letters. Same mask, options and seed give
- * the same particles.
+ * kept only if it lands inside. A letter the grid misses altogether (a thin
+ * one at a coarse spacing) gets one particle at the centre of its deepest
+ * pixel, so every letter is there. Then, with `maxCount`, `thinToCount`.
+ * Returns the particles sorted by `order` (left to right, letter by letter)
+ * and the letters. Same mask, options and seed give the same particles.
+ *
+ * Cost: the grid is (width × height) / spacing² places; each kept particle
+ * reads about (2 · edgeWidth + 3)² mask pixels (`distanceToOutline`), which
+ * is why `edgeWidth` is capped at MAX_EDGE_WIDTH.
  */
 export function sampleMask(
   alpha: ArrayLike<number>,
@@ -517,14 +725,39 @@ export function sampleMask(
   if (!(jitter >= 0 && jitter <= 0.5)) {
     throw new RangeError("jitter is 0 to 0.5 of the spacing");
   }
-  if (!(edgeWidth >= 0)) throw new RangeError("edgeWidth must be 0 or more");
+  if (!(edgeWidth >= 0 && edgeWidth <= MAX_EDGE_WIDTH)) {
+    throw new RangeError(`edgeWidth is 0 to ${MAX_EDGE_WIDTH} px`);
+  }
   const mask = thresholdMask(alpha, width, height, options.threshold ?? 128);
-  const { labels, pieces } = labelPieces(mask);
-  const { letters, letterOfPiece } = groupLetters(pieces);
+  let letters: Letter[];
+  let letterAt: (pixel: number) => number;
+  if (options.letters) {
+    const known = lettersFromLabels(mask, options.letters);
+    letters = known.letters;
+    letterAt = (pixel) => known.letterAt[pixel]!;
+  } else {
+    const { labels, pieces } = labelPieces(mask);
+    const grouped = groupLetters(pieces);
+    letters = grouped.letters;
+    letterAt = (pixel) => grouped.letterOfPiece[labels[pixel]!]!;
+  }
+  const count = Math.max(1, letters.length);
+  const particle = (x: number, y: number): MaskParticle => {
+    const letter = letterAt(Math.floor(y) * width + Math.floor(x));
+    const box = letters[letter]!;
+    const across = (x - box.x0) / (box.x1 + 1 - box.x0);
+    return {
+      x,
+      y,
+      edge: distanceToOutline(mask, x, y, edgeWidth) <= edgeWidth,
+      letter,
+      order: Math.min(1, (letter + Math.min(1, Math.max(0, across))) / count),
+    };
+  };
   const random = mulberry32(seed);
   const row = (spacing * Math.sqrt(3)) / 2;
-  const count = Math.max(1, letters.length);
   const particles: MaskParticle[] = [];
+  const seen = new Array<boolean>(letters.length).fill(false);
   for (let j = 0; (j + 0.5) * row < height; j += 1) {
     const shift = j % 2 === 1 ? spacing / 2 : 0;
     for (let i = 0; (i + 0.5) * spacing + shift < width; i += 1) {
@@ -535,19 +768,33 @@ export function sampleMask(
       const x = (i + 0.5) * spacing + shift + Math.cos(angle) * radius;
       const y = (j + 0.5) * row + Math.sin(angle) * radius;
       if (!maskAt(mask, x, y)) continue;
-      const at = Math.floor(y) * width + Math.floor(x);
-      const letter = letterOfPiece[labels[at]!]!;
-      const box = letters[letter]!;
-      const across = (x - box.x0) / (box.x1 + 1 - box.x0);
-      particles.push({
-        x,
-        y,
-        edge: distanceToOutline(mask, x, y, edgeWidth) <= edgeWidth,
-        letter,
-        order: Math.min(1, (letter + Math.min(1, Math.max(0, across))) / count),
-      });
+      const p = particle(x, y);
+      seen[p.letter] = true;
+      particles.push(p);
     }
   }
+  if (seen.some((s) => !s)) {
+    // The deepest pixel of each missed letter (first in scan order on a tie).
+    const depth = depthInside(mask);
+    const deepest = new Array<number>(letters.length).fill(-1);
+    for (let i = 0; i < depth.length; i += 1) {
+      if (mask.data[i] !== 1) continue;
+      const k = letterAt(i);
+      if (seen[k]) continue;
+      if (deepest[k]! < 0 || depth[i]! > depth[deepest[k]!]!) deepest[k] = i;
+    }
+    deepest.forEach((pixel) => {
+      if (pixel < 0) return;
+      const x = pixel % width;
+      particles.push(particle(x + 0.5, (pixel - x) / width + 0.5));
+    });
+  }
   particles.sort((a, b) => a.order - b.order || a.y - b.y || a.x - b.x);
-  return { particles, letters };
+  return {
+    particles:
+      options.maxCount === undefined
+        ? particles
+        : thinToCount(particles, letters.length, options.maxCount),
+    letters,
+  };
 }
