@@ -34,6 +34,17 @@ Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every
 `length_g = handLength × LENGTH_FACTOR[g]`, `gripWidth = palmWidth × 0.88`,
 `height_g = handLength × HEIGHT_FACTOR[g]` — factors unchanged from v0.
 
+**Bounded targets (CALIB-1, candidate, 未拍板).** In v1 each of the three targets is then clamped
+to the 5th..95th percentile (`TARGET_BOUND_PERCENTILES`) of that dimension over the standard mice
+of the catalogue the engine is given (not `vertical`, not `trackball`, height/length within
+`VERTICAL_FORM_FACTOR_RATIO`). Percentile method: linear interpolation between closest ranks
+(rank = p/100 · (n − 1) over the sorted values; `percentile` in `priors.ts`). The bounds are
+computed once in `computePriors` (`Priors.targetBounds`); with fewer than two standard mice they
+are null and nothing is clamped. The clamped targets are the ones scored and the ones reported in
+the response's `targets` (and used for the hand type). v0 does not clamp. Why: on the 411-row
+catalogue a large palm asked for a 135.3 mm length (99th percentile) and a small fingertip hand for
+a 29.7 mm height (1st percentile), sizes the catalogue barely offers.
+
 ## 4. Sub-scores
 
 Gaussian `score = 100 · exp(−½ (Δ/σ_eff)²)`, **unrounded inside the engine** (round only the
@@ -51,6 +62,12 @@ thumb 0.10, weight 0.05), with:
   sub-score over the catalogue rows that reach the engine and have the descriptor, for grip g (computed once per
   catalogue load, passed in; falls back to 75 when no row has it). Confidence still counts it as
   missing.
+- **Width-aware thumb-rest adjustment (CALIB-1, candidate, 未拍板).** For an ergonomic mouse with a
+  thumb rest the effective grip width subtracts
+  `THUMB_REST_BASE_MM + THUMB_REST_WIDE_SLOPE · max(0, widthMm − THUMB_REST_WIDE_FROM_MM)` =
+  `12 + 0.5 · max(0, width − 80)` mm instead of v0's fixed 12 mm (so nothing changes up to 80 mm;
+  an 89 mm mouse loses 16.5 mm, a 92 mm one 18 mm). Other mice keep 0. v0 keeps the fixed
+  `THUMB_REST_ERGONOMIC_ADJUSTMENT_MM`.
 - Grip-width weight is halved only while `sideCurvature` is null (v0's rule, kept). The draft
   wording was ambiguous; with the current seed every row has a null curvature, so every row is
   halved alike, and the halving stops mattering once curvature is imported.
@@ -88,7 +105,8 @@ thumb 0.10, weight 0.05), with:
 
 `scripts/fit-stability.ts`, local, deterministic. For the four golden hands × perturbations
 {hand length ±5, ±8 mm; palm length ±3 mm; palm width ±3 mm}: top-1 kept (%), top-5 Jaccard,
-max total change of the base top 5. Run for v0 and v1 on the same catalogue. Acceptance
+max total change of the base top 5. Run for v0 and v1 on the same catalogue
+(`--real` runs it on the listed rows of the full seed instead of the 38-row one). Acceptance
 threshold is Kirby's (candidate: top-5 Jaccard ≥ 0.6 at ±5 mm).
 
 Also: sweep `palmLength` in 0.5 mm steps → largest jump in any mouse's total (v1 must have no
@@ -96,7 +114,7 @@ jump > 2 points between neighbours).
 
 ## 9. Versioning
 
-`ENGINE_VERSION_V1 = "fit-v1-candidate"` (v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
+`ENGINE_VERSION_V1 = "fit-v1-candidate.2"` (CALIB-1 bumped it from `fit-v1-candidate` so stored rows of the two calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
 switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it stays `"v0"`. `fit_results` is unique
 on (scan, mouse, engineVersion), so no migration. Switching the default is a one-line change
@@ -112,7 +130,7 @@ rows keep 75.
 | `src/server/fit/score-v1.ts`                              | `scoreFitV1(measurements, catalogue, prefs, hand, priors, options?)`, `compareRankKeys` |
 | `src/server/fit/grip-weights.ts`                          | `gripWeights(r, stated?)`, `argmaxGrip`                                                 |
 | `src/server/fit/subscores-v1.ts`                          | unrounded sub-scores, `sigmaEff`                                                        |
-| `src/server/fit/priors.ts`                                | `computePriors(catalogue)`                                                              |
+| `src/server/fit/priors.ts`                                | `computePriors(catalogue)` (priors and `targetBounds`), `percentile`, `clampTargets`    |
 | `src/server/fit/exclusions-v1.ts`                         | wrong hand, trackball, vertical                                                         |
 | `src/server/fit/engine.ts`                                | `scoreFitDefault`, the `DEFAULT_ENGINE` switch                                          |
 | `src/server/fit/stability.ts`, `scripts/fit-stability.ts` | §8 report: `npx tsx scripts/fit-stability.ts`                                           |

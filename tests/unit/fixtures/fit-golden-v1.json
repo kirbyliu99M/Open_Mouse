@@ -19,24 +19,24 @@
     },
     "top5": [
       {
-        "slug": "logitech-m325s",
-        "total": 69
-      },
-      {
-        "slug": "logitech-m240",
-        "total": 66
-      },
-      {
         "slug": "logitech-mx-anywhere-3s",
-        "total": 64
+        "total": 86
+      },
+      {
+        "slug": "logitech-pop-mouse",
+        "total": 83
       },
       {
         "slug": "logitech-m196",
-        "total": 64
+        "total": 79
       },
       {
-        "slug": "logitech-pebble-2-m350s",
-        "total": 61
+        "slug": "logitech-m240",
+        "total": 75
+      },
+      {
+        "slug": "logitech-m325s",
+        "total": 67
       }
     ]
   },
@@ -61,15 +61,15 @@
     "top5": [
       {
         "slug": "logitech-g203-lightsync",
-        "total": 78
+        "total": 79
       },
       {
         "slug": "logitech-g305-lightspeed",
-        "total": 78
+        "total": 79
       },
       {
         "slug": "logitech-m100",
-        "total": 78
+        "total": 79
       },
       {
         "slug": "logitech-m190",
@@ -97,28 +97,28 @@
     "handType": {
       "size": "large",
       "grip": "palm",
-      "width": "slim"
+      "width": "wide"
     },
     "top5": [
       {
         "slug": "logitech-g502-x",
-        "total": 84
+        "total": 88
       },
       {
         "slug": "logitech-g502-x-lightspeed",
-        "total": 84
+        "total": 88
       },
       {
         "slug": "logitech-g502-x-plus",
-        "total": 84
+        "total": 88
       },
       {
         "slug": "logitech-g502-hero",
-        "total": 79
+        "total": 84
       },
       {
         "slug": "logitech-g903-hero",
-        "total": 67
+        "total": 73
       }
     ]
   },
@@ -147,11 +147,11 @@
       },
       {
         "slug": "logitech-g203-lightsync",
-        "total": 80
+        "total": 81
       },
       {
         "slug": "logitech-g305-lightspeed",
-        "total": 80
+        "total": 81
       },
       {
         "slug": "logitech-g-pro-x-superlight-2c",

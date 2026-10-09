@@ -42,7 +42,7 @@ describe("fit-golden-v1", () => {
       profile.hand,
       priors,
     );
-    expect(r.engineVersion).toBe("fit-v1-candidate");
+    expect(r.engineVersion).toBe("fit-v1-candidate.2");
     expect(r.gripStyle.predicted).toBe(profile.predictedGrip);
     expect(r.gripStyle.used).toBe(profile.predictedGrip);
     const w = r.gripStyle.weights!;
