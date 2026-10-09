@@ -60,6 +60,12 @@ export function SiteFooter() {
     <footer className="siteFooter" data-testid="site-footer">
       <div className="siteFooter-inner">
         <p className="siteFooter-name">{SITE_NAME}</p>
+        {/* Next to the name in reading order, as on a desktop. The grid areas
+            (site-footer.css) put it last on a phone, so what is seen there is
+            name, links, statement, note. */}
+        <p className="siteFooter-preview" lang={langAttr}>
+          {copy.preview}
+        </p>
         <nav
           className="siteFooter-links"
           aria-label={copy.linksLabel}
@@ -75,9 +81,6 @@ export function SiteFooter() {
         {/* Kirby has not written the real statement yet, so this is the home
             page's wording unchanged, in English whatever the language. */}
         <p className="siteFooter-statement">{NON_AFFILIATION_STATEMENT}</p>
-        <p className="siteFooter-preview" lang={langAttr}>
-          {copy.preview}
-        </p>
       </div>
     </footer>
   );

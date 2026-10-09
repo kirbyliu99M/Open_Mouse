@@ -97,6 +97,22 @@ export function isSitePath(value: string | null | undefined): value is string {
   );
 }
 
+/**
+ * Where a QR code's modules go inside its white panel: a whole-pixel step per
+ * module (so no module is wider than its slot and none overlaps the next) and
+ * the offset that centres the code. `quiet` is the margin in modules. The
+ * remainder after the integer step is split evenly around the code.
+ */
+export function qrGrid(
+  panelSize: number,
+  modules: number,
+  quiet: number,
+): { step: number; offset: number } {
+  const step = Math.max(1, Math.floor(panelSize / (modules + 2 * quiet)));
+  const offset = Math.floor((panelSize - step * modules) / 2);
+  return { step, offset };
+}
+
 /** What the card's QR code encodes: the site root, always. */
 export function shareQrTarget(): string {
   return SITE_URL;

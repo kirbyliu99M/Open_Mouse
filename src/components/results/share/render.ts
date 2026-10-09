@@ -12,6 +12,7 @@ import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
   PHOTO_RADIUS,
   layoutShareCard,
+  qrGrid,
   type Box,
   type ColorKey,
   type DrawOp,
@@ -151,21 +152,22 @@ async function drawQr(
   const { default: QRCode } = await import("qrcode");
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = qr.modules.size;
-  const quiet = 3;
-  const cell = box.w / (size + 2 * quiet);
+  const { step, offset } = qrGrid(box.w, size, 3);
   ctx.save();
   ctx.fillStyle = "#ffffff";
   roundRectPath(ctx, box, 28);
   ctx.fill();
+  // Whole-pixel squares, no anti-aliased seams between neighbouring modules.
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = dark;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       if (qr.modules.get(row, col) === 1) {
         ctx.fillRect(
-          box.x + (col + quiet) * cell,
-          box.y + (row + quiet) * cell,
-          Math.ceil(cell),
-          Math.ceil(cell),
+          box.x + offset + col * step,
+          box.y + offset + row * step,
+          step,
+          step,
         );
       }
     }

@@ -4,7 +4,9 @@ import {
   CARD_PADDING,
   CARD_WIDTH,
   MIN_PHOTO_HEIGHT,
+  QR_SIZE,
   layoutShareCard,
+  qrGrid,
   shareQrTarget,
   type DrawOp,
   type ShareCardInput,
@@ -391,5 +393,43 @@ describe("layoutShareCard: what the card must never carry", () => {
         }
       }
     }
+  });
+});
+
+describe("qrGrid", () => {
+  const QUIET = 3;
+
+  it("uses a whole-pixel step, never overlaps a module, and stays inside the panel (21 to 41 modules)", () => {
+    for (let modules = 21; modules <= 41; modules += 4) {
+      const { step, offset } = qrGrid(QR_SIZE, modules, QUIET);
+      expect(Number.isInteger(step), `step ${modules}`).toBe(true);
+      expect(Number.isInteger(offset), `offset ${modules}`).toBe(true);
+      expect(step).toBeGreaterThanOrEqual(1);
+      // A module is `step` wide and starts every `step`: the next one starts
+      // exactly where this one ends, so none overlaps.
+      for (let col = 0; col + 1 < modules; col++) {
+        expect(offset + col * step + step).toBeLessThanOrEqual(
+          offset + (col + 1) * step,
+        );
+      }
+      // The code, with at least the quiet zone on each side, is in the panel.
+      expect(offset).toBeGreaterThanOrEqual(QUIET * step);
+      expect(offset + modules * step + QUIET * step).toBeLessThanOrEqual(
+        QR_SIZE,
+      );
+    }
+  });
+
+  it("covers every size from 21 to 41, and centres the code to within a pixel", () => {
+    for (let modules = 21; modules <= 41; modules++) {
+      const { step, offset } = qrGrid(QR_SIZE, modules, QUIET);
+      const right = QR_SIZE - (offset + modules * step);
+      expect(Math.abs(offset - right)).toBeLessThanOrEqual(1);
+      expect(offset + modules * step).toBeLessThanOrEqual(QR_SIZE);
+    }
+  });
+
+  it("gives the current 29-module code a 6 px step, not the old 7 px overdraw", () => {
+    expect(qrGrid(QR_SIZE, 29, QUIET).step).toBe(6);
   });
 });
