@@ -254,6 +254,137 @@ describe("the Palmate logo", () => {
     expect(Math.max(...units)).toBeGreaterThan(1.6);
   });
 
+  /**
+   * Each cloud point placed against its own line (in viewBox units): how far
+   * along the line its foot is, and its distance across, signed (+ on the
+   * left of the way the line is drawn). The expected values below come from
+   * the sampling's description (a bell of standard deviation `spread`
+   * clipped at `maxSpread`, places an even step apart, `doubled` of them with
+   * two points), not from what the code made: for N(0, 0.8) clipped at 2.4
+   * (3 standard deviations) the mean distance is 0.638, the share beyond 1
+   * unit 0.211 and the standard deviation 0.795; over 600 points their
+   * standard errors are 0.020, 0.017 and 0.023, and each bound is about 3.5
+   * of them either side.
+   */
+  const placed = pathRuns.map((run, w) =>
+    target.points.slice(run.start, run.start + run.count).map((p) => {
+      const line = inBox[w]!.points;
+      let best = Infinity;
+      let along = 0;
+      let across = 0;
+      let walked = 0;
+      for (let i = 1; i < line.length; i += 1) {
+        const a = line[i - 1]!;
+        const b = line[i]!;
+        const dx = b[0] - a[0];
+        const dy = b[1] - a[1];
+        const length = Math.hypot(dx, dy);
+        const t =
+          length === 0
+            ? 0
+            : Math.max(
+                0,
+                Math.min(
+                  1,
+                  ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / (length * length),
+                ),
+              );
+        const gap = distance([p.x, p.y], [a[0] + dx * t, a[1] + dy * t]);
+        if (gap < best) {
+          best = gap;
+          along = walked + t * length;
+          const side = dx * (p.y - a[1]) - dy * (p.x - a[0]);
+          across = side < 0 ? -gap : gap;
+        }
+        walked += length;
+      }
+      return {
+        along: along / LOGO_SCALE,
+        across: across / LOGO_SCALE,
+        tone: p.tone,
+      };
+    }),
+  );
+  /** The even step between places on each line, in units, as the sampling describes it: the line's length over its count of places. */
+  const steps = pathRuns.map((run, w) => {
+    const places = Math.round(run.count / (1 + 0.26));
+    return polylineLength(inBox[w]!.points) / LOGO_SCALE / places;
+  });
+
+  it("spreads the points across the line as a bell 0.8 units wide, both sides alike, clipped at 2.4 units", () => {
+    const across = placed.flat().map((p) => p.across);
+    const centre = mean(across);
+    const sd = Math.sqrt(mean(across.map((a) => (a - centre) ** 2)));
+    const size = across.map(Math.abs);
+    // Both sides alike: the signed mean is 0 (standard error 0.033).
+    expect(Math.abs(centre)).toBeLessThan(0.12);
+    expect(sd).toBeGreaterThan(0.715);
+    expect(sd).toBeLessThan(0.875);
+    expect(mean(size)).toBeGreaterThan(0.568);
+    expect(mean(size)).toBeLessThan(0.708);
+    const beyond = size.filter((d) => d > 1).length / size.length;
+    expect(beyond).toBeGreaterThan(0.152);
+    expect(beyond).toBeLessThan(0.27);
+    // The tail reaches the clip: 600 draws of a bell have about 4 beyond 2.75
+    // standard deviations (2.2 units), and none past 2.4.
+    expect(Math.max(...size)).toBeGreaterThanOrEqual(2.2);
+    expect(Math.max(...size)).toBeLessThanOrEqual(2.4 + 0.05);
+  });
+
+  it("lights about half the points in every stretch of the line, not whole stretches bright or dim", () => {
+    // Stretches of 10 units, about 17 points each. With each point bright at
+    // a half chance, a stretch is outside 25 % to 75 % bright 5 % of the
+    // time and all one tone almost never (2 in 100,000).
+    let stretches = 0;
+    let even = 0;
+    for (const line of placed) {
+      const end = Math.max(...line.map((p) => p.along));
+      for (let from = 0; from + 10 <= end; from += 10) {
+        const inside = line.filter(
+          (p) => p.along >= from && p.along < from + 10,
+        );
+        if (inside.length < 10) continue;
+        stretches += 1;
+        const bright =
+          inside.filter((p) => p.tone === 1).length / inside.length;
+        expect(bright, `a stretch from ${from} units`).toBeGreaterThan(0);
+        expect(bright, `a stretch from ${from} units`).toBeLessThan(1);
+        if (bright >= 0.25 && bright <= 0.75) even += 1;
+      }
+    }
+    expect(stretches).toBeGreaterThanOrEqual(30);
+    expect(even / stretches).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it("walks each line in order, a place an even step apart, about a quarter of the places with two points close together", () => {
+    let close = 0;
+    placed.forEach((line, w) => {
+      const step = steps[w]!;
+      // The places are about 0.73 units apart.
+      expect(step).toBeGreaterThan(0.68);
+      expect(step).toBeLessThan(0.78);
+      for (let i = 1; i < line.length; i += 1) {
+        const move = line[i]!.along - line[i - 1]!.along;
+        // The next point is at most two steps on (from the start of one
+        // place to the end of the next) and at most one step back (the two
+        // points of a place come in either order). A tight bend stretches
+        // or squeezes the along-the-line distance by the point's distance
+        // across over the bend's radius, which half a step allows for.
+        expect(move, `line ${w}, point ${i}`).toBeLessThanOrEqual(2.5 * step);
+        expect(move, `line ${w}, point ${i}`).toBeGreaterThanOrEqual(
+          -1.5 * step,
+        );
+        if (Math.abs(move) < 0.25) close += 1;
+      }
+    });
+    // 600 points on 476 places is 124 places with two. The two of a place are
+    // each anywhere in its step, so they are under 0.25 units apart with a
+    // chance of 1 - (1 - 0.25 / 0.733)^2 = 0.566: about 70 (standard
+    // deviation 5.5). One point a place, an even 0.58 units apart, has none.
+    expect(close).toBeGreaterThanOrEqual(50);
+    expect(close).toBeLessThanOrEqual(95);
+  });
+
   it("covers the line: every stretch of 5 units has points within 2 units, so no finger is bare", () => {
     for (const { points } of inBox) {
       let sinceLast = Infinity;

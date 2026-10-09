@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import { parseTargets } from "@/lib/particles/load-targets";
-import { LOGO_BOX } from "@/lib/particles/logo";
+import { LOGO_SAMPLING } from "@/lib/particles/logo";
 import { LIT_FRACTION } from "@/lib/particles/look";
 import {
   type Pairing,
@@ -75,6 +75,18 @@ function spreadOf(points: readonly { x: number; y: number }[]): Spread {
   };
 }
 
+/**
+ * The logo's strays (24 single points round the mark, the target's last 24
+ * runs): a budget's copy of one is within a pixel of it (a dense walk nudges
+ * a lone point by up to 0.75 px). Told apart by the target's runs, so a point
+ * of the mark that strayed out of its box is still measured below.
+ */
+const strays = targets.logo.runs
+  .slice(-LOGO_SAMPLING.ambient)
+  .map((run) => targets.logo.points[run.start]!);
+const isStray = (p: { x: number; y: number }) =>
+  strays.some((s) => Math.hypot(p.x - s.x, p.y - s.y) < 2);
+
 /** The first `lit` particles of `placing`, on the logo and on mouse 0 (each mouse is a drawing of its own). */
 function litOn(pairing: Pairing, placing: readonly number[], lit: number) {
   const logo: { x: number; y: number }[] = [];
@@ -82,15 +94,10 @@ function litOn(pairing: Pairing, placing: readonly number[], lit: number) {
   for (let place = 0; place < lit; place += 1) {
     const i = placing[place]!;
     const onLogo = pairing.logo[i]!;
-    // The logo's strays (24 single points in a frame round the mark, logo.ts)
-    // are lone stars by design, tens of px from anything: they are left out of
-    // the evenness of the mark itself, which is what this measures.
-    const inMark =
-      onLogo.x >= 0 &&
-      onLogo.x <= LOGO_BOX.width &&
-      onLogo.y >= 0 &&
-      onLogo.y <= LOGO_BOX.height;
-    if (inMark) logo.push(onLogo);
+    // The strays are lone stars by design, tens of px from anything: they are
+    // left out of the evenness of the mark itself, which is what this
+    // measures. Every other point of the logo is in it.
+    if (!isStray(onLogo)) logo.push(onLogo);
     if (pairing.slot[i] === 0) mouse.push(pairing.mouse[i]!);
   }
   return { logo, mouse };
