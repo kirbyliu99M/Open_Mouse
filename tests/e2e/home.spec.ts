@@ -153,7 +153,7 @@ test("the h1 comes first; the logo, the hand and the sketches are decorative and
   expect(order.h1s).toBe(1);
   // logo, hand, then the three mice
   expect(order.images.map((i) => i.src)).toEqual([
-    "/images/logo-placeholder.svg",
+    "/images/palmate-mark.svg",
     "/images/hand-on-a4.svg",
     "/images/sketches/g-pro-sketch.svg",
     "/images/sketches/g-pro-sketch.svg",
@@ -445,8 +445,8 @@ test.describe("the hero logo slot", () => {
           rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
         };
       });
-      // The SVG's box holds the mark at 176 of 196, so the mark is 0.898 of the image.
-      const mark = sizes.img * (176 / 196);
+      // The SVG's box holds the Palmate hand at 59 of 69, so the mark is 0.855 of the image.
+      const mark = sizes.img * (59 / 69);
       expect(mark / sizes.rem).toBeGreaterThan(markRem - 1.5);
       expect(mark / sizes.rem).toBeLessThan(markRem + 1.5);
       // The mark is about 60 % of the slot (the spec's own words), with room for the glow.

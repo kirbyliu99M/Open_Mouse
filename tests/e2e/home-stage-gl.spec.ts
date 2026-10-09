@@ -25,6 +25,7 @@ import { STAR_ORDER_SEED, starOrder } from "../../src/lib/particles/star-order";
 import { phaseAt } from "../../src/lib/particles/timeline";
 import {
   CANVAS,
+  LOGO_TOLERANCE,
   STORY,
   layoutFacts,
   logoInk,
@@ -181,10 +182,15 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * 0.88 blobs per lit particle on a desktop and 1.00 on a phone. At the logo
  * the stars sit closer, on a shorter line, and blur into one outline: there
  * the canvas's total alpha (in px squared of the canvas, divided by the
- * pixel ratio squared) per lit particle is 5.6 on a desktop and 5.8 on a
- * phone. A bound is about 10 % either side of what was measured: a share of
- * stars a quarter or more off (0.08 or 0.25 for the mice, 0.03 or 0.10 for
- * the logo) is outside it, which the mutation checks of this suite showed.
+ * pixel ratio squared) per lit particle is 5.64 on a desktop (720 lit
+ * particles) and 5.62 on a phone (360), measured on the Palmate mark's cloud
+ * on 2026-10-10 (the placeholder mouse outline had 5.6 and 5.8). A bound is
+ * about 10 % either side of what was measured: a share of stars a quarter or
+ * more off (0.08 or 0.25 for the mice) is outside it, which the mutation
+ * checks of this suite showed. For the logo the bound catches the shader
+ * lighting another number of particles than the TypeScript maths says (the
+ * mass is the shader's, the count is the maths'): a shader that lights half
+ * of what the maths says gives about half the figure.
  */
 const STAR_BLOBS = { low: 0.8, high: 1.05 };
 /**
@@ -1269,7 +1275,9 @@ test.describe("the WebGL path", () => {
     expect(ink.empty).toBe(false);
     // Every edge of the mark is where the image's is: a fraction of the
     // particles is a fair sample, not a piece of the logo.
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(3);
+    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(
+      LOGO_TOLERANCE,
+    );
   });
 
   test("with the guard stepped down to its floor the stars are all still there: only the dust is thinner, because the lit particles come first in the order", async ({
@@ -1339,7 +1347,9 @@ test.describe("the fallback to Canvas 2D", () => {
     await scrollToProgress(page, 0);
     await expect.poll(async () => (await logoInk(page)).empty).toBe(false);
     const ink = await logoInk(page);
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(3);
+    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(
+      LOGO_TOLERANCE,
+    );
     if (neverUsedWebGL) {
       expect(await read<number>(page, "__bufferUploads")).toBe(0);
     }

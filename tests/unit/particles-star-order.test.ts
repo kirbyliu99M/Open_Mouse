@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { LOGO_BOX } from "@/lib/particles/logo";
 import { LIT_FRACTION } from "@/lib/particles/look";
 import {
   type Pairing,
@@ -80,7 +81,16 @@ function litOn(pairing: Pairing, placing: readonly number[], lit: number) {
   const mouse: { x: number; y: number }[] = [];
   for (let place = 0; place < lit; place += 1) {
     const i = placing[place]!;
-    logo.push(pairing.logo[i]!);
+    const onLogo = pairing.logo[i]!;
+    // The logo's strays (24 single points in a frame round the mark, logo.ts)
+    // are lone stars by design, tens of px from anything: they are left out of
+    // the evenness of the mark itself, which is what this measures.
+    const inMark =
+      onLogo.x >= 0 &&
+      onLogo.x <= LOGO_BOX.width &&
+      onLogo.y >= 0 &&
+      onLogo.y <= LOGO_BOX.height;
+    if (inMark) logo.push(onLogo);
     if (pairing.slot[i] === 0) mouse.push(pairing.mouse[i]!);
   }
   return { logo, mouse };

@@ -298,6 +298,22 @@ export async function layoutFacts(page: Page) {
 }
 
 /**
+ * How far the canvas's logo may be from the static image's drawing (CSS px).
+ *
+ * Measured with `logoInk` on the Palmate mark (2026-10-10, headless Chromium
+ * on this machine, software WebGL and the Canvas 2D fallback alike, 14 windows
+ * from 375x667 to 1536x730): the worst edge was 7 px at the full-size slot (5.15
+ * px per viewBox unit), 4 to 6 px at 4.3 to 4.8 and 3 to 4 px at 2.6 to 3.3: a
+ * bit over 1 viewBox unit, always the top edge. The particles are a cloud up
+ * to 2.4 units either side of the line and the static line is 2 units thick,
+ * so the canvas's ink reaches further than the image's by the cloud's width
+ * and a star's radius. 8 is that 7 and a pixel of rounding. (The placeholder mouse
+ * outline, a line a star's width wide, needed 3.) A canvas drawn at a stale
+ * or hard-coded place or size is off by tens of px.
+ */
+export const LOGO_TOLERANCE = 8;
+
+/**
  * How far the canvas's logo is from the static logo's drawing, in CSS px: the
  * bounding box of the opaque pixels of the SVG (drawn at the `<img>`'s own rect)
  * against the bounding box of the canvas's pixels over that same rect. The

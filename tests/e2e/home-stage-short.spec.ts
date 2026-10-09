@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   CANVAS,
   STORY,
+  LOGO_TOLERANCE,
   heroGeometry,
   layoutFacts,
   logoInk,
@@ -32,9 +33,6 @@ test.beforeEach(async ({}, info) => {
 
 /** The first screen's whole layout shift. Strict (0.001) unless the local wide-font simulation says so. */
 const TOTAL_CLS_BOUND = process.env.WIDE_FONT_RUN === "1" ? 0.02 : 0.001;
-
-/** How far the canvas's logo may be from the image's drawing (px). */
-const LOGO_TOLERANCE = 3;
 
 /** The shimmer is the one thing that moves on its own: after it, a frame is the stage at rest. */
 async function waitForShimmerOver(page: Page) {

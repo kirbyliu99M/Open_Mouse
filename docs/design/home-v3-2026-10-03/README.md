@@ -107,7 +107,7 @@ Still **not decided (未拍板, candidate)**:
 | `screens/03-mobile-en.png`                     | Mobile 390 wide, English (also the static PR A layout)                                                   |
 | `screens/04-desktop-en.png`                    | Desktop 1440 wide, English, 1200 px content container                                                    |
 | `screens/story-1 … story-6`                    | The particle story, one frame per state (mobile scale). Storyboard only: the mouse captions are left out |
-| `screens/logo-placeholder-vector.png`          | The placeholder mark as plain lines, only to make the shape legible                                      |
+| `screens/logo-placeholder-vector.png`          | The old placeholder mark (replaced by the Palmate hand on 2026-10-10), kept as a record                  |
 
 The screens show particles at full design density. The implementation
 resamples every target to the particle budget (see
@@ -246,14 +246,12 @@ will not cover them.
 `<img>` can't read CSS variables, so these SVGs hard-code the colours. Primary
 strokes are `#CFE0FF`, detail strokes `#6E9BF5`, matching `--sketch-line`.
 
-- **Logo:** `public/images/logo-placeholder.svg`, the same geometry as the
-  canvas placeholder, in a 220 × 196 box with centre (90, 98):
-  - the outline of a mouse seen from above: `x = cx + 58·(0.86 − 0.14·cos t)·sin t`,
-    `y = cy − 88·cos t`;
-  - a button split from `cy − 88` to `cy − 22`;
-  - a wheel ellipse at `(cx, cy − 56)`, rx 4.5, ry 9;
-  - a ruler at `x = cx + 84` from `cy − 88` to `cy + 88`, with end ticks
-    5 px to each side.
+- **Logo (replaced 2026-10-10, 未拍板 candidate):** `public/images/palmate-mark.svg`,
+  the Palmate hand as one line drawing (the four-line path in
+  `src/lib/particles/logo.ts`, `PALMATE_PATH`), `#7FA8FF`, round ends, no fill,
+  transparent background, viewBox `13 8 65 69`. The earlier placeholder (a
+  mouse outline with a button split, a wheel and a ruler, in a 220 × 196 box)
+  is gone.
 - **Hand on A4:** an SVG rendered by the target generator from the template
   hand. It has the dots, the 21 landmarks, the skeleton lines, the two
   measurement lines with end ticks, and the A4 outline. **No numbers.**
@@ -369,9 +367,13 @@ Everything else follows scroll.
   - The template hand: a fixed, stylised set of the 21 MediaPipe landmark
     positions, filled as capsules along the fingers plus a palm polygon. It is
     an illustration, **not** a user's hand or measurement.
-  - The logo: for now a placeholder SVG, `public/images/logo-placeholder.svg`
-    (the shape in `screens/logo-placeholder-vector.png`), replaced when the
-    real logo exists.
+  - The logo (replaced 2026-10-10, 未拍板 candidate): the Palmate hand. The
+    target is 600 points sampled along its four-line path with a bell-shaped
+    width (about 0.8 viewBox units standard deviation, at most 2.4 off the
+    line), half bright and half dim, plus 24 strays round it, made by
+    `sampleLogoPoints()` in `src/lib/particles/logo.ts` from a fixed seed.
+    The static image is `public/images/palmate-mark.svg`.
+    `screens/logo-placeholder-vector.png` shows the old placeholder only.
 - **Resampling.** The same particles move through every state, so the
   particle count is fixed by the budget below. Each target list is resampled
   to that count. Three mice share it, about a third each. The committed file
