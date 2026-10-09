@@ -35,7 +35,8 @@ frames named `[Home v3] …` under the header "Home v3 header". The PNGs in
 
 Still **not decided (未拍板, candidate)**:
 
-- The logo. The particle logo in the hero (Story 1) is a placeholder.
+- The logo. The hero (Story 1) shows the Palmate hand (replaced 2026-10-10,
+  candidate: Kirby looks at the animation); the placeholder mouse is gone.
 - Which three mice the last step shows. All three are G Pro placeholders until
   more sketches exist.
 - Whether to add the copy "Find your best mouse".
@@ -249,7 +250,10 @@ strokes are `#CFE0FF`, detail strokes `#6E9BF5`, matching `--sketch-line`.
 - **Logo (replaced 2026-10-10, 未拍板 candidate):** `public/images/hero-palmate-mark.svg`,
   the Palmate hand as one line drawing (the four-line path in
   `src/lib/particles/logo.ts`, `PALMATE_PATH`), `#7FA8FF`, round ends, no fill,
-  transparent background, viewBox `13 8 65 69`. The earlier placeholder (a
+  and its dot below the thumb (`PALMATE_DOT`: one circle at 45, 53.5, white
+  `#CFE0FF` inside a `#2463EB` ring, outer radius 1.55 units, as Kirby's
+  official logo frame in Pencil draws it), transparent background, viewBox
+  `13 8 65 69`. The earlier placeholder (a
   mouse outline with a button split, a wheel and a ruler, in a 220 × 196 box)
   is gone.
 - **Hand on A4:** an SVG rendered by the target generator from the template
@@ -334,14 +338,14 @@ Scrolling stays native:
 - no `preventDefault` on wheel or touch;
 - the user can stop or reverse at any point.
 
-| Story                   | Progress (suggested) | What happens                                                                                                                                | Text in the DOM                   |
-| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 1 Hero: logo + headline | p = 0                | The particle logo (placeholder) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still | `home.title`, `home.subhead`, CTA |
-| 2 Logo scatters         | 0.00–0.15            | The logo's particles break loose and drift outwards                                                                                         | —                                 |
-| 3 Particles → hand      | 0.15–0.38            | The particles gather into a hand on the A4 outline                                                                                          | —                                 |
-| 4 Hand measured         | 0.38–0.55            | The 21 landmark dots light up in order; the skeleton lines draw; the hand-length and palm-width lines extend with end ticks, **no numbers** | —                                 |
-| 5 Hand rearranges       | 0.55–0.72            | The hand's particles loosen and flow apart into three streams                                                                               | —                                 |
-| 6 Three mice            | 0.72–1.00            | The three streams settle into three mouse sketches by p = 0.90 and hold still to 1.00. Stacked on mobile, side by side on desktop           | `home.sketchCaption` × 3          |
+| Story                   | Progress (suggested) | What happens                                                                                                                                     | Text in the DOM                   |
+| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| 1 Hero: logo + headline | p = 0                | The particle logo (the Palmate hand) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still | `home.title`, `home.subhead`, CTA |
+| 2 Logo scatters         | 0.00–0.15            | The logo's particles break loose and drift outwards                                                                                              | —                                 |
+| 3 Particles → hand      | 0.15–0.38            | The particles gather into a hand on the A4 outline                                                                                               | —                                 |
+| 4 Hand measured         | 0.38–0.55            | The 21 landmark dots light up in order; the skeleton lines draw; the hand-length and palm-width lines extend with end ticks, **no numbers**      | —                                 |
+| 5 Hand rearranges       | 0.55–0.72            | The hand's particles loosen and flow apart into three streams                                                                                    | —                                 |
+| 6 Three mice            | 0.72–1.00            | The three streams settle into three mouse sketches by p = 0.90 and hold still to 1.00. Stacked on mobile, side by side on desktop                | `home.sketchCaption` × 3          |
 
 After the story section comes the final section. Only G Pro exists today, so all
 three mice are G Pro placeholders.
@@ -370,8 +374,14 @@ Everything else follows scroll.
   - The logo (replaced 2026-10-10, 未拍板 candidate): the Palmate hand. The
     target is 600 points sampled along its four-line path with a bell-shaped
     width (about 0.8 viewBox units standard deviation, at most 2.4 off the
-    line), half bright and half dim, plus 24 strays round it, made by
-    `sampleLogoPoints()` in `src/lib/particles/logo.ts` from a fixed seed.
+    line), half bright and half dim; then the dot, 3 bright points at its
+    centre and 6 dim ones round its ring (the particles have two tones, so
+    the ring is the dim tone's `#6E9BF5`, not the static ring's `#2463EB`);
+    then 24 strays round the mark, inside the logo's slot and the page's
+    column (`strayReach()`, from the layout in `home.css`). 633 points in
+    all, made by `sampleLogoPoints()` in `src/lib/particles/logo.ts` from a
+    fixed seed. The shimmer's band runs from the mark's left end to its
+    right end (the strays do not widen it).
     The static image is `public/images/hero-palmate-mark.svg`.
     `screens/logo-placeholder-vector.png` shows the old placeholder only.
 - **Resampling.** The same particles move through every state, so the
@@ -428,20 +438,23 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     the logo and the three mice are **a few hundred glowing stars each**, as
     in the Canvas 2D version, and only **the hand keeps every particle**, as
     a fine dust. A state lights a share of the particles, its **lit share**
-    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.06, the mice
+    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.10 (the
+    Palmate mark, 2026-10-10; it was 0.06 on the placeholder), the mice
     0.15, the hand 1 (candidate, 未拍板). Every particle has a stable
     **rank** (its place in the uploaded order as a share of the count, taken
     at the middle of the place); a state lights the particles whose rank is
     under its share, so a smaller share is a subset of a bigger one. On a
-    desktop's 12,000 particles that is 720 stars on the logo and 1,800 on the
-    mice (600 to a mouse); a phone's 6,000 has half as many. The
+    desktop's 12,000 particles that is 1,200 stars on the logo and 1,800 on
+    the mice (600 to a mouse); a phone's 6,000 has half as many (600 on the
+    logo). The
     2D version drew about 1,300 particles on a desktop (433 to a mouse) and
     900 on a phone, so 0.15 is about a third denser than the accepted picture
     on a desktop and the same on a phone; 0.11 would match it on a desktop.
     Kirby picks the share from the screenshots `gl/lit-options-*.png`: mice
-    0.08, **0.15 (the default)** and 0.25, with the logo at 0.03, 0.06 and 0.10.
-    The logo's share is lower because its stars sit on a short line (the 2D
-    version drew the logo as about 260 points).
+    0.08, **0.15 (the default)** and 0.25, with the logo at 0.03, 0.06 and 0.10
+    (on the placeholder). The logo's share is lower because its stars sit on
+    a short line (the 2D version drew the placeholder logo as about 260
+    points; the Palmate target has 633).
   - **Over a leg** a particle's visibility goes in a straight line, by the same
     `e(t)` that moves it, from 1 or 0 (lit or not at the start of the leg) to
     1 or 0 (at the end), with the ends exact: at `e ≤ 0` it is the start
@@ -475,18 +488,22 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     **the number of particles the state lights**, not to the total: about
     1,800 on a desktop's mice, close to the 1,300 the 2D look was tuned for,
     so a star is not shrunk). The hand's dust is the same function with every
-    particle: about 2.7 px, faint. The logo's stars are a third bigger
-    (`STAR_SIZE.logo`, 1.35, candidate): the 2D version topped the logo up
-    with copies nudged by a pixel, five on every point, so a logo point
-    glowed as a small clump; a single star of the same size reads thinner.
+    particle: about 2.7 px, faint. The logo's stars are 1.7 times the look
+    (`STAR_SIZE.logo`, candidate; 1.35 on the placeholder, raised for the
+    Palmate mark's denser share, where more lit stars make the look smaller):
+    the 2D version topped the logo up with copies nudged by a pixel, five on
+    every point, so a logo point glowed as a small clump; a single star of
+    the same size reads thinner.
   - **The first frame's stars.** The first frame is drawn before the hand's
     and the mice's places are measured, so its look is worked out with the
     hand's scale taken from the logo's box. After the first measure the scale
-    is the real one, and the logo's stars can change size once, by about 12 %
-    on a desktop's 12,000 particles (a review's estimate, not a figure I
-    measured; the pixel sizes it gave for a phone-sized window are 5.8 → 7.7
-    px). Whether that jump can be seen has not been looked at. It has been so
-    since the stars were first drawn, and has not been changed.
+    is the real one, and the logo's stars can change size once. With the
+    Palmate mark (its box has another shape than the placeholder's) a review
+    estimated 7.08 → 10.20 px on a phone-sized window (+44 %; the
+    placeholder's was 7.74 → 10.20) and about +28 % on a desktop. These are
+    estimates from the formulas, **not measured in a browser**, and whether
+    the jump can be seen has not been looked at. It has been so since the
+    stars were first drawn, and has not been changed.
   - **Guard.** The lit particles come first in the order, so when the guard
     draws only the first N, the dust thins and the stars stay (until N is
     smaller than the stars: at the floor of a quarter of the budget, 3,000 of
@@ -521,7 +538,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   share times the budget, rounded), so a bigger budget makes the hand's dust
   finer and makes the stars proportionally more numerous: at the default shares
   a mouse has 300 stars on a phone's 6,000 particles and 600 on a desktop's
-  12,000 (the logo 360 and 720). The earlier pick between 4,000 / 8,000,
+  12,000 (the logo 600 and 1,200). The earlier pick between 4,000 / 8,000,
   **6,000 / 12,000 (the default)** and 10,000 / 20,000 was made on the picture
   of continuous lines and is still open: it now sets how many stars there are as
   well as how fine the dust is. (A star's look follows the number of lit
@@ -530,7 +547,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
 - **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
   capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
 - **Source density.** The committed `targets.generated.json` stays small (about
-  14 KB gzip): the logo has 262 points, the hand 1,400, a mouse 1,134. The
+  16 KB gzip): the logo has 633 points, the hand 1,400, a mouse 1,134. The
   browser grows them from the same seed, so the result is reproducible:
   - a stroke (the logo, a mouse) is walked at an even step, and each particle is
     nudged a fraction of a pixel across it (a bell-shaped spread of 0.3 stage
@@ -594,7 +611,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   idle loop: on the WebGL path the frame loop runs for 200 ms after the last
   scroll event (so the guard can time every frame of a scroll) and then
   stops; those frames draw nothing unless the picture changed.
-- First paint is the static placeholder logo SVG plus the text. The particle
+- First paint is the static logo SVG (the Palmate mark) plus the text. The particle
   module is a dynamic import after first paint, so it doesn't delay LCP. The
   LCP element is the logo `<img>` or the h1; both are in the initial HTML, and
   the logo SVG is small and not lazy-loaded. The first frame is set up in

@@ -327,16 +327,24 @@ and package-lock.json.
                           for generated output were not checked: Unconfirmed.
                           Home v3 recoloured its strokes (#CFE0FF / #6E9BF5)
                           for the dark theme; the shape is unchanged.
-  hero-palmate-mark.svg   The Palmate hand mark: drawn by Kirby in Pencil
+  hero-palmate-mark.svg   The Palmate mark: drawn by Kirby in Pencil
                           (original work). Written by
-                          scripts/build-particle-targets.ts from the path in
-                          src/lib/particles/logo.ts; its viewBox is the box
-                          the particle logo is made in, so the static image
-                          and the particles line up. It is the same hand as
-                          public/images/brand/palmate-mark.svg (the footer's
-                          mark, from another pull request) but a different
-                          crop and use, which is why the two have different
-                          paths.
+                          scripts/build-particle-targets.ts from
+                          src/lib/particles/logo.ts: the hand's path
+                          (PALMATE_PATH, a 2-unit #7FA8FF stroke) and its dot
+                          (PALMATE_DOT). The dot follows Kirby's official
+                          logo frame in Pencil ("Logo · Palmate (Official)"):
+                          centre (45, 53.5) in the path's units, a white
+                          #CFE0FF disc in a blue #2463EB ring, outer radius
+                          1.55 units. The viewBox (13 8 65 69) is the box the
+                          particle logo is made in, so the static image and
+                          the particles line up. It is the same Palmate mark
+                          as public/images/brand/palmate-mark.svg, the site
+                          footer's copy (that file does not exist in a tree
+                          where it has not been merged); that copy may differ
+                          in its viewBox, stroke width or dot, and where they
+                          differ on the dot, this file follows the official
+                          frame.
   hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
                           geometry in src/lib/particles/ (a stylised
                           template hand on an A4 outline, set by hand from
