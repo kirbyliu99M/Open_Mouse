@@ -180,6 +180,28 @@ describe("gatherTrail", () => {
     }
   });
 
+  it("reaches back `trail` of the flight: its first point is where the particle was then", () => {
+    const t = 0.15; // q = 0.75
+    const trail = gatherTrail(particle, t);
+    const then = gatherAt(particle, t - GATHER.trail * GATHER.duration);
+    expect(then.phase).toBe("flying");
+    expect(distance(trail[0]!, then.position)).toBeLessThan(1e-9);
+    // A real length, not a dot: the first point is well behind the last.
+    expect(distance(trail[0]!, trail[trail.length - 1]!)).toBeGreaterThan(1);
+    // Evenly spread in flight progress: point j is at q - trail + trail·j/(n-1).
+    trail.forEach((p, j) => {
+      const q =
+        0.75 - GATHER.trail + (GATHER.trail * j) / (GATHER.trailSamples - 1);
+      const at = gatherAt(particle, q * GATHER.duration).position;
+      expect(distance(p, at)).toBeLessThan(1e-9);
+    });
+  });
+
+  it("clips the trail at the source early in the flight", () => {
+    const trail = gatherTrail(particle, 0.002); // q = 0.01
+    expect(trail[0]).toEqual(particle.source);
+  });
+
   it("is empty while the particle waits or rests", () => {
     expect(gatherTrail({ ...particle, delay: 0.5 }, 0.2)).toEqual([]);
     expect(gatherTrail(particle, 0.9)).toEqual([]);
@@ -203,6 +225,31 @@ describe("depthOf", () => {
         ),
       );
     }
+  });
+
+  it("varies with position, not only with the particle's own share: v8's slow wave and finer ripple", () => {
+    // depth = 0.52 + 0.14 sin(0.012x + 1) + 0.2 sin(0.09x + 0.13y) cos(0.05x - 0.08y) + 0.55 (r - 0.5)
+    const at = (x: number, y: number) =>
+      0.52 +
+      0.14 * Math.sin(x * 0.012 + 1) +
+      0.2 * Math.sin(x * 0.09 + y * 0.13) * Math.cos(x * 0.05 - y * 0.08);
+    for (const [x, y] of [
+      [0, 0],
+      [40, 10],
+      [130, 0],
+      [300, 55],
+      [-90, 20],
+    ] as const) {
+      expect(depthOf(x, y, 0.5).depth).toBeCloseTo(
+        Math.min(1, Math.max(0, at(x, y))),
+        12,
+      );
+    }
+    // Same share, different places, different depths.
+    const depths = new Set(
+      [0, 17, 50, 133, 260].map((x) => depthOf(x, 30, 0.5).depth.toFixed(6)),
+    );
+    expect(depths.size).toBe(5);
   });
 
   it("goes deeper (nearer) with the particle's own share", () => {
