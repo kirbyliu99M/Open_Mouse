@@ -18,7 +18,9 @@ import {
   SIGMA_MEAS_MM,
   SIGMA_MM,
   SIGMA_WEIGHT_G,
-  THUMB_REST_ERGONOMIC_ADJUSTMENT_MM,
+  THUMB_REST_BASE_MM,
+  THUMB_REST_WIDE_FROM_MM,
+  THUMB_REST_WIDE_SLOPE,
 } from "./coefficients";
 import type { CatalogueMouse, SubscoreResult } from "./types";
 
@@ -85,6 +87,17 @@ export function scoreLengthV1(
   };
 }
 
+/**
+ * CALIB-1: the (negative) adjustment for an ergonomic mouse with a thumb rest.
+ * -12 mm up to 80 mm wide, then 0.5 mm more for each mm of width above 80.
+ */
+export function thumbRestAdjustmentMm(widthMm: number): number {
+  return -(
+    THUMB_REST_BASE_MM +
+    THUMB_REST_WIDE_SLOPE * Math.max(0, widthMm - THUMB_REST_WIDE_FROM_MM)
+  );
+}
+
 export function scoreGripWidthV1(
   mouse: CatalogueMouse,
   targetMm: number,
@@ -94,7 +107,7 @@ export function scoreGripWidthV1(
     curvature === null ? 0 : CURVATURE_ADJUSTMENT_MM[curvature];
   const ergonomicThumbAdjMm =
     mouse.shape === "ergonomic" && mouse.thumbRest === true
-      ? THUMB_REST_ERGONOMIC_ADJUSTMENT_MM
+      ? thumbRestAdjustmentMm(mouse.widthMm)
       : 0;
   const effectiveWidthMm = mouse.widthMm + curvatureAdjMm + ergonomicThumbAdjMm;
   const deltaMm = effectiveWidthMm - targetMm;
