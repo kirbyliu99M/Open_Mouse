@@ -770,3 +770,75 @@ test("the printed-sheet flow stays reachable from /scan", async ({ page }) => {
   expect(response?.status()).toBe(200);
   await expect(page.getByText("Step 2 of 2 · Photo")).toBeVisible();
 });
+
+// A tiny SVG, served for the avatar request.
+const PIXEL =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#3b82f6"/></svg>';
+
+test("signed in, the nav shows the Google avatar linking to the account page instead of Sign in", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({
+      json: {
+        expires: "2099-01-01T00:00:00.000Z",
+        user: {
+          id: "u1",
+          name: "Ada Lovelace",
+          image: "https://lh3.googleusercontent.com/ada.png",
+        },
+      },
+    }),
+  );
+  await page.route("https://lh3.googleusercontent.com/**", (route) =>
+    route.fulfill({ body: PIXEL, contentType: "image/svg+xml" }),
+  );
+  await page.goto("/");
+  // Scoped to the nav: the site footer (root layout) has an Account link too.
+  const account = page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Account", exact: true });
+  await expect(account).toHaveAttribute("href", "/account");
+  await expect(account.locator("img")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+  const box = await account.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+});
+
+test("signed in with an avatar that fails to load, the nav shows the meteor mouse fallback", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({
+      json: {
+        expires: "2099-01-01T00:00:00.000Z",
+        user: {
+          id: "u1",
+          name: "ada lovelace",
+          image: "https://lh3.googleusercontent.com/broken.png",
+        },
+      },
+    }),
+  );
+  await page.route("https://lh3.googleusercontent.com/**", (route) =>
+    route.abort(),
+  );
+  await page.goto("/");
+  // Scoped to the nav: the site footer (root layout) has an Account link too.
+  const account = page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Account", exact: true });
+  // The fallback is the static meteor mouse, not the name's initial (Kirby,
+  // 2026-10-10).
+  const fallback = account.getByTestId("avatar-fallback");
+  await expect(fallback).toBeVisible();
+  await expect(fallback.locator("svg")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+});
+
+test("a failed session fetch keeps the Sign in link", async ({ page }) => {
+  await page.route("**/api/auth/session", (route) => route.abort());
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+});

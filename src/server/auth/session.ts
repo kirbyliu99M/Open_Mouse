@@ -5,13 +5,17 @@ import type { Session } from "next-auth";
  * strategy, Auth.js hands the `session` callback the adapter's session row
  * (`sessionToken`, `userId`, `expires`) and returns whatever the callback
  * returns as the body of `GET /api/auth/session`, so returning the argument
- * would give the raw session token to any script on the page. No consumer reads
- * `name`, `email` or `image` (every reader uses `session.user.id` or only checks
- * that a user exists), so the Google profile stays server-side.
+ * would give the raw session token to any script on the page. The allow-list is
+ * `expires`, `user.id`, and the signed-in user's own `name` and `image`, which
+ * the nav needs to show their avatar. `email`, `sessionToken` and `userId`
+ * never leave the server.
  */
 export function toPublicSession(
   session: { expires: Session["expires"] },
-  user: { id: string },
+  user: { id: string; name?: string | null; image?: string | null },
 ): Session {
-  return { expires: session.expires, user: { id: user.id } };
+  return {
+    expires: session.expires,
+    user: { id: user.id, name: user.name ?? null, image: user.image ?? null },
+  };
 }
