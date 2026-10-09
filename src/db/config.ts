@@ -169,17 +169,26 @@ export function redactSecrets(message: string): string {
     .replace(CONNECTION_URL, "[redacted-url]")
     .replace(KEY_VALUE_PAIR, redactCredentialValue)
     .replace(PG_KEY_DETAIL, redactPgKeyDetail)
-    .replace(PG_FAILING_ROW, "Failing row contains ([redacted])");
+    .replace(PG_FAILING_ROW, "Failing row contains [redacted]");
 }
 
 // Postgres error details carry column values in two shapes the key=value
 // pattern above cannot see: "Key (col)=(value) already exists." (unique and
 // foreign keys) and "Failing row contains (v1, v2, …)." (check and not-null;
-// no column names). A Key value is redacted when a column name looks like a
-// credential; a failing row is always redacted, since nothing says which
-// value is which. The constraint name, which is what debugging needs, stays.
-const PG_KEY_DETAIL = /Key \(([^()]*)\)=\(((?:[^()]|\([^()]*\))*)\)/g;
-const PG_FAILING_ROW = /Failing row contains \((?:[^()]|\([^()]*\))*\)/g;
+// no column names). Values can hold any parentheses, so neither pattern pairs
+// them (fail toward safe):
+// - Key: the column list runs to the first ")=(" (it may itself hold
+//   parentheses: an expression index such as lower(password)). When it names
+//   a credential, everything after "=(" is redacted up to ") already exists",
+//   ") is not present", the next " | cause: " or, failing those, the end of
+//   the message.
+// - Failing row: everything from it to the end of the message is redacted,
+//   since nothing says which value is which.
+// The constraint name, which is what debugging needs, is printed before the
+// detail and stays. Bounded or always-succeeding quantifiers keep both linear.
+const PG_KEY_DETAIL =
+  /Key \(([\s\S]{0,256}?)\)=\(([\s\S]*?)(?=\) already exists|\) is not present|\)?\.? \| cause: |$)/g;
+const PG_FAILING_ROW = /Failing row contains [\s\S]*/g;
 const CREDENTIAL_COLUMN = new RegExp(
   String.raw`\b(?:${CREDENTIAL_KEY})\b`,
   "i",
@@ -187,7 +196,7 @@ const CREDENTIAL_COLUMN = new RegExp(
 
 function redactPgKeyDetail(match: string, columns: string): string {
   return CREDENTIAL_COLUMN.test(columns)
-    ? `Key (${columns})=([redacted])`
+    ? `Key (${columns})=([redacted]`
     : match;
 }
 

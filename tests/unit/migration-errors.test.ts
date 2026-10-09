@@ -460,8 +460,68 @@ describe("describeMigrationError", () => {
       }),
     );
     expect(described).not.toContain("hunter2");
-    expect(described).toContain("Failing row contains ([redacted]).");
+    expect(described).toContain("Failing row contains [redacted]");
     expect(described).toContain("constraint=mice_source_url_https");
+  });
+
+  it.each([
+    ["two-level nesting", "Key (password)=(a(b(c)d)e) already exists.", "a(b"],
+    ["an unpaired )", "Key (password)=(ab)c) already exists.", "c)"],
+    [
+      "an expression index",
+      "Key (lower(password))=(sec) already exists.",
+      "sec",
+    ],
+    ["no terminator", "Key (api_key)=(s3cr3t", "s3cr3t"],
+    ["a foreign key", "Key (token)=(t0k) is not present in table x.", "t0k"],
+  ])("redacts a credential Key value with %s", (_n, detail, secret) => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("dup"), { detail }),
+      }),
+    );
+    expect(described).not.toContain(secret);
+    expect(described).toContain("=([redacted]");
+  });
+
+  it("redacts a credential Key in a later cause after a plain one", () => {
+    const inner = Object.assign(new Error("inner"), {
+      detail: "Key (password)=(hunter2) already exists.",
+    });
+    const outer = Object.assign(new Error("outer", { cause: inner }), {
+      detail: "Key (slug)=(acme",
+    });
+    const described = describeMigrationError(
+      new Error("Failed query", { cause: outer }),
+    );
+    expect(described).not.toContain("hunter2");
+    expect(described).toContain("Key (slug)=(acme");
+  });
+
+  it.each([
+    "Failing row contains (1, pw, (n(x)), z).",
+    "Failing row contains (1, pw, a)b, z).",
+  ])("redacts a whole failing row: %s", (detail) => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("check"), { detail }),
+      }),
+    );
+    expect(described).not.toMatch(/pw|z\)|b, z/);
+    expect(described).toContain("Failing row contains [redacted]");
+  });
+
+  it("stays fast on long hostile input", () => {
+    const t0 = performance.now();
+    for (const s of [
+      "Key (".repeat(40_000),
+      "Key (a)=(".repeat(20_000),
+      "Failing row contains (".repeat(10_000),
+      "(".repeat(200_000),
+    ]) {
+      redactSecrets(s);
+    }
+    expect(performance.now() - t0).toBeLessThan(1000);
   });
 
   it("drops empty cause pieces instead of printing an empty tail", () => {
