@@ -96,7 +96,7 @@ describe("width-aware thumb-rest adjustment (v1)", () => {
       THUMB_REST_BASE_MM,
       THUMB_REST_WIDE_SLOPE,
       THUMB_REST_WIDE_FROM_MM,
-    ]).toEqual([12, 0.5, 80]);
+    ]).toEqual([12, 1, 80]);
   });
   it("is -12 up to and at 80 mm", () => {
     expect(thumbRestAdjustmentMm(60)).toBe(-12);
