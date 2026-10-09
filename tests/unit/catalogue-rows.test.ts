@@ -12,6 +12,7 @@ import {
   isGSeries,
   isMxSeries,
   logitechVisibility,
+  type SeedRow,
   toCatalogueMouse,
 } from "../../src/server/catalogue/catalogue-rows";
 import type {
@@ -26,7 +27,10 @@ const facts = factsJson as unknown as FactsFile;
 const entries = catalogueJson as unknown as CatalogueEntry[];
 
 const built = buildSeedRows(specs, descriptors, { facts, entries });
-const all = [...built.withDescriptors, ...built.withoutDescriptors];
+const all: (SeedRow & Partial<DescriptorFields>)[] = [
+  ...built.withDescriptors,
+  ...built.withoutDescriptors,
+];
 const byModel = (model: string) => {
   const row = all.find((r) => r.model === model);
   if (!row) throw new Error(`${model} not built`);
