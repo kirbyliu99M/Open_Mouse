@@ -19,7 +19,7 @@ import {
  * 100svh and the viewport is at least 600 px tall. What changed is the hero: at
  * 48rem and up its headline, two gaps and logo slot scale down continuously
  * with 100svh (home.css), so it fits every window from 600 px up, and the whole
- * hero (buttons and note too) is above the fold at the top of the page. The
+ * hero (the buttons too) is above the fold at the top of the page. The
  * same CSS runs with and without the stage, so switching shifts nothing.
  */
 
@@ -72,7 +72,6 @@ async function firstScreen(page: Page) {
       heroHeight: hero.offsetHeight,
       panelHeight: panel.offsetHeight,
       actionsBottom: box('[data-testid="home-hero"] .home-actions').bottom,
-      noteBottom: box('[data-testid="home-hero"] .landing-preview-note').bottom,
       links: [...hero.querySelectorAll("a")].map((a) => {
         const r = a.getBoundingClientRect();
         return { width: r.width, height: r.height };
@@ -112,7 +111,6 @@ async function expectStageOn(
   expect(screen.scrollY).toBe(0);
   expect(screen.heroBottom, "hero bottom").toBeLessThanOrEqual(height);
   expect(screen.actionsBottom, "buttons bottom").toBeLessThanOrEqual(height);
-  expect(screen.noteBottom, "note bottom").toBeLessThanOrEqual(height);
   // And it fits the pinned panel, which is the stage's own rule.
   expect(screen.heroHeight).toBeLessThanOrEqual(screen.panelHeight);
   expect(screen.scrollFits).toBe(true);
@@ -325,7 +323,7 @@ test.describe("the hero shrinks continuously with the window's height", () => {
       }
 
       for (const [i, now] of series.entries()) {
-        // Always on the first screen: the buttons and the note are above the fold.
+        // Always on the first screen: the buttons are above the fold.
         expect(now.bottom, `bottom at ${now.h}`).toBeLessThanOrEqual(now.h);
         const before = series[i - 1];
         if (!before) continue;

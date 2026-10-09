@@ -1,0 +1,80 @@
+/* The share button: "link" is the small word in a top bar, "primary" the big
+   filled button under the results. The site is one dark theme (tokens.css). */
+.shareCard {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+.shareCard-primary {
+  display: flex;
+  width: 100%;
+  align-items: stretch;
+}
+
+.shareCard-button {
+  font: inherit;
+  cursor: pointer;
+}
+.shareCard-button[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.7;
+}
+.shareCard-button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+
+.shareCard-button-link {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: 1rem;
+}
+
+.shareCard-button-primary {
+  width: 100%;
+  min-height: 3.125rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.875rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.shareCard-button-primary:active {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
+
+.shareCard-error {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.shareCard-primary .shareCard-error {
+  align-self: flex-start;
+}
+
+@media (prefers-contrast: more) {
+  .shareCard-button-primary {
+    border-color: var(--on-accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shareCard-button {
+    transition: none;
+  }
+}
+
+/* A share control does nothing on paper. */
+@media print {
+  .shareCard {
+    display: none;
+  }
+}

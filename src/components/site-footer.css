@@ -1,0 +1,101 @@
+/* The site footer (root layout). Dark like the rest of the site; on paper it
+   is dark text on white through the print tokens (tokens.css). */
+.siteFooter {
+  margin-top: 1.5rem;
+  padding: 2rem 0 2.5rem;
+  border-top: 1px solid var(--hairline);
+  background: color-mix(in srgb, #ffffff 3%, var(--bg));
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.siteFooter-inner {
+  display: grid;
+  grid-template-areas: "name" "links" "statement" "preview";
+  gap: 1.25rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, calc(1rem + (100vw - 360px) * 0.5), 1.5rem);
+}
+
+.siteFooter p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.siteFooter-name {
+  grid-area: name;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.siteFooter-preview {
+  grid-area: preview;
+}
+
+.siteFooter-links {
+  grid-area: links;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+}
+.siteFooter-links a {
+  display: inline-flex;
+  align-items: center;
+  /* A 44 px touch target without a 44 px gap in the row. */
+  min-height: 2.75rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.siteFooter-links a:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.siteFooter-links a:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.siteFooter-statement {
+  grid-area: statement;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.8rem;
+}
+
+/* Desktop: the name and the note on the left, the links in the middle, the
+   statement on the right (the demo's footer). */
+@media (min-width: 48rem) {
+  .siteFooter-inner {
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-areas:
+      "name links statement"
+      "preview links statement";
+    align-items: start;
+    gap: 0.25rem 2rem;
+  }
+  .siteFooter-links {
+    justify-content: center;
+  }
+  .siteFooter-statement {
+    padding-top: 0;
+    border-top: 0;
+    text-align: right;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .siteFooter {
+    background: var(--bg);
+  }
+}
+
+/* Print: no tint (Chrome does not print backgrounds anyway), and the tokens
+   above already turn the text dark. */
+@media print {
+  .siteFooter {
+    background: none;
+  }
+}
