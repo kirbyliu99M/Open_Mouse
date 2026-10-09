@@ -72,7 +72,16 @@ export interface AnalysisInput {
     palmLengthMm: number;
     palmWidthMm: number;
   };
-  excluded: FitResponse["excluded"];
+  /**
+   * Who was left out and why. Deliberately without `total`: an excluded
+   * wrong_hand entry may carry one in the fit response, but the prompt never
+   * sends it, and every number in this object becomes an allowed numeral
+   * (`collectNumbers`), so copying it would widen the guard.
+   */
+  excluded: Pick<
+    FitResponse["excluded"][number],
+    "slug" | "brand" | "model" | "reason"
+  >[];
   /** Up to 3, in rank order — the fit engine's own top picks. */
   topPicks: AnalysisInputEntry[];
 }
@@ -146,7 +155,12 @@ export function buildAnalysisInput(
       palmLengthMm: oneDecimal(measurements.palmLengthMm),
       palmWidthMm: oneDecimal(measurements.palmWidthMm),
     },
-    excluded: fit.excluded,
+    excluded: fit.excluded.map(({ slug, brand, model, reason }) => ({
+      slug,
+      brand,
+      model,
+      reason,
+    })),
     topPicks: fit.results.slice(0, 3).map(toInputEntry),
   };
 }
