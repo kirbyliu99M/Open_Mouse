@@ -320,7 +320,7 @@ test.describe("/results/demo", () => {
               prev &&
               node &&
               prev.compareDocumentPosition(node) &
-              Node.DOCUMENT_POSITION_FOLLOWING,
+                Node.DOCUMENT_POSITION_FOLLOWING,
             ),
         ];
       });

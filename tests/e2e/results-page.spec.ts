@@ -180,9 +180,7 @@ test("a typed length stored under an earlier, wider range still gets its note; a
       [LENGTH_KEY, stored],
     );
     await page.goto(`/results/${SCAN_ID}`);
-    await expect(
-      page.locator(".results-score-model"),
-    ).toBeVisible();
+    await expect(page.locator(".results-score-model")).toBeVisible();
     await expect(
       page.getByText(/Based on the hand length you entered/),
     ).toHaveCount(shown ? 1 : 0);
@@ -412,7 +410,9 @@ test.describe("/results/[scanId] — real results page", () => {
     // not on the other pick's own page (its confidence is above the low
     // threshold).
     await page.getByRole("link", { name: /Acme Beta/ }).click();
-    await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}/m/acme-beta$`));
+    await expect(page).toHaveURL(
+      new RegExp(`/results/${SCAN_ID}/m/acme-beta$`),
+    );
     await expect(
       page.getByRole("heading", { level: 1, name: "Beta" }),
     ).toBeVisible();

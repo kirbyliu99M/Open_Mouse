@@ -416,7 +416,9 @@ for (const [path, name] of PAGES) {
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       if (path.startsWith("/results/demo")) {
         // Details and Other mice are closed by default; audit them open too.
-        const closed = page.locator(".results-disclosure:not([open]) > summary");
+        const closed = page.locator(
+          ".results-disclosure:not([open]) > summary",
+        );
         while ((await closed.count()) > 0) await closed.first().click();
       }
       if (path.includes("presentation"))
