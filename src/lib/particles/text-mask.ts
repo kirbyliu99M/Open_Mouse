@@ -348,12 +348,24 @@ const before = (a: readonly number[], b: readonly number[]): boolean => {
  * 4. In a line, bodies and unattached marks that mostly overlap across x are
  *    one letter (a colon's two dots); each attached mark joins its host.
  *
- * Known limits (pass labels instead): a dot exactly between two lines that is
- * nearer, and above, the letter it does not belong to; a cedilla right above
- * the next line's letter; a colon, or any glyph of same-sized pieces stacked
- * apart, with no letter beside it in its line (each piece becomes a line);
- * tightly kerned letters whose boxes mostly overlap (one letter); a piece
- * shared by two glyphs (ligatures, touching letters: one letter).
+ * Known limits, all real failures (the page must pass `letters`, and
+ * `sampleMask` refuses to guess unless told to):
+ * - Across lines: an i's dot of one line that falls within the rows of the
+ *   line above (under a descender such as y or g) belongs to that line, and
+ *   joins a letter there or becomes a letter of it (pieces y, n, dot, stem, n
+ *   give [0, 1, 2, 1, 3]); an accent on a capital of the next line (É, Ä) does
+ *   the same at a line height of about 1.1; a dot exactly between two lines,
+ *   nearer and above the letter it does not belong to; a cedilla right above
+ *   the next line's letter.
+ * - Punctuation: in a line with no descender, a semicolon's comma lies below
+ *   the line and becomes a line of its own, so the semicolon is two letters
+ *   and every later line number moves down one; a lone comma does the same; a
+ *   colon, or any glyph of same-sized pieces stacked apart, with no letter
+ *   beside it in its line, is a line per piece.
+ * - Shapes: tightly kerned letters whose boxes mostly overlap become one
+ *   letter; a piece shared by two glyphs (ligatures, touching letters) is one
+ *   letter; a Chinese character of several separate pieces is cut up or mixed
+ *   with its neighbours.
  *
  * Returns the letters and, per piece, the letter it belongs to.
  */
@@ -399,7 +411,12 @@ export function groupLetters(pieces: readonly Piece[]): {
     let shared = 0;
     for (const l of lines) {
       const r = rowsShared(l, p);
-      if (r > shared) {
+      // Most rows shared; on a tie the upper line (smaller y centre).
+      if (
+        r > 0 &&
+        (r > shared ||
+          (r === shared && home && l.y0 + l.y1 < home.y0 + home.y1))
+      ) {
         shared = r;
         home = l;
       }
@@ -484,7 +501,7 @@ export function groupLetters(pieces: readonly Piece[]): {
 export interface LetterLabels {
   /** Per pixel, row by row (the mask's size): 0 for no letter, k + 1 for letter k in reading order. */
   readonly labels: ArrayLike<number>;
-  /** Per letter k, its line (0 = top). Its length is the number of letters; lines never go back up. */
+  /** Per letter k, its line: 0 for the first, then 0, 1, 2 … in reading order with no line left out. Its length is the number of letters. */
   readonly lines: readonly number[];
 }
 
@@ -496,9 +513,10 @@ export const LABEL_REACH = 2;
  * pixels with its label, and per pixel the letter it belongs to (-1 where the
  * mask is unset). A set pixel left unlabelled (the mask and the labels
  * disagree by an edge pixel) takes the label of the nearest labelled set
- * pixel within LABEL_REACH (ring by ring, in scan order); further than that
- * throws, as do labels of the wrong size or out of range, lines that go back
- * up, and a letter with no set pixel at all.
+ * pixel within LABEL_REACH px (straight-line distance between pixel centres;
+ * scan order on a tie); further than that throws, as do labels of the wrong
+ * size or out of range, line numbers that are not 0, 1, 2 … in order with no
+ * line left out, and a letter with no set pixel at all.
  */
 export function lettersFromLabels(
   mask: Mask,
@@ -513,9 +531,15 @@ export function lettersFromLabels(
     if (!Number.isInteger(line) || line < 0) {
       throw new RangeError("a letter's line is a whole number, 0 or more");
     }
-    if (k > 0 && line < given.lines[k - 1]!) {
+    const before = k === 0 ? 0 : given.lines[k - 1]!;
+    if (line < before) {
       throw new RangeError(
         "letters are in reading order: lines never go back up",
+      );
+    }
+    if (line > before + 1 || (k === 0 && line !== 0)) {
+      throw new RangeError(
+        "lines are numbered 0, 1, 2 … with no line left out",
       );
     }
   });
@@ -532,16 +556,25 @@ export function lettersFromLabels(
     if (data[i] !== 1 || letterAt[i]! >= 0) continue;
     const x = i % width;
     const y = (i - x) / width;
+    // The nearest labelled pixel by straight-line distance (centre to
+    // centre, at most LABEL_REACH), first in scan order on a tie. It reads
+    // the given labels only, never a label lent to another pixel, so a
+    // label never reaches further than LABEL_REACH.
     let found = -1;
-    for (let r = 1; r <= LABEL_REACH && found < 0; r += 1) {
-      for (let dy = -r; dy <= r && found < 0; dy += 1) {
-        for (let dx = -r; dx <= r && found < 0; dx += 1) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          found = letterAt[ny * width + nx]!;
-        }
+    let bestD2 = Infinity;
+    const R = Math.floor(LABEL_REACH);
+    for (let dy = -R; dy <= R; dy += 1) {
+      for (let dx = -R; dx <= R; dx += 1) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 === 0 || d2 > LABEL_REACH * LABEL_REACH || d2 >= bestD2)
+          continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const k = letterAt[ny * width + nx]!;
+        if (k < 0) continue;
+        found = k;
+        bestD2 = d2;
       }
     }
     if (found < 0) {
@@ -590,8 +623,17 @@ export interface MaskSampleOptions {
   /** The alpha a pixel needs to count as inside (default 128). */
   readonly threshold?: number;
   readonly seed: number;
-  /** Which glyph each pixel belongs to. With them the letters are exact; without, `groupLetters` guesses from shapes. */
+  /**
+   * Which glyph each pixel belongs to: the production path. Required unless
+   * `guessLetters` is true.
+   */
   readonly letters?: LetterLabels;
+  /**
+   * Guess the letters from shapes (`groupLetters`) instead: for tests and
+   * tools only. Its known limits (see `groupLetters`) make it unfit for the
+   * page; without `letters` and without this, `sampleMask` throws.
+   */
+  readonly guessLetters?: boolean;
   /** The most particles to return: more are thinned evenly, letter by letter (`thinToCount`). */
   readonly maxCount?: number;
 }
@@ -655,8 +697,22 @@ export function thinToCount(
   }
   if (particles.length <= maxCount) return [...particles];
   if (maxCount === 0) return [];
+  if (!Number.isInteger(letterCount) || letterCount < 0) {
+    throw new RangeError("letterCount must be a whole number, 0 or more");
+  }
   const byLetter = Array.from({ length: letterCount }, () => [] as number[]);
-  particles.forEach((p, i) => byLetter[p.letter]!.push(i));
+  particles.forEach((p, i) => {
+    if (
+      !Number.isInteger(p.letter) ||
+      p.letter < 0 ||
+      p.letter >= letterCount
+    ) {
+      throw new RangeError(
+        `particle ${i} is in letter ${p.letter}, outside 0 to ${letterCount - 1}`,
+      );
+    }
+    byLetter[p.letter]!.push(i);
+  });
   const present = byLetter
     .map((list, k) => (list.length > 0 ? k : -1))
     .filter((k) => k >= 0);
@@ -668,13 +724,13 @@ export function thinToCount(
     for (const k of present) quota[k] = 1;
     const spare = maxCount - present.length;
     const beyond = particles.length - present.length;
-    const share = present.map(
-      (k) => (spare * (byLetter[k]!.length - 1)) / beyond,
-    );
-    present.forEach((k, n) => (quota[k] += Math.floor(share[n]!)));
+    // Whole numbers throughout, so equal remainders are equal and the tie
+    // really goes to the earlier letter.
+    const part = present.map((k) => spare * (byLetter[k]!.length - 1));
+    present.forEach((k, n) => (quota[k] += Math.floor(part[n]! / beyond)));
     let left = maxCount - quota.reduce((s, q) => s + q, 0);
     const byFraction = present
-      .map((k, n) => ({ k, f: share[n]! - Math.floor(share[n]!) }))
+      .map((k, n) => ({ k, f: part[n]! % beyond }))
       .sort((a, b) => b.f - a.f || a.k - b.k);
     for (const { k } of byFraction) {
       if (left === 0) break;
@@ -706,6 +762,13 @@ export function thinToCount(
  * Returns the particles sorted by `order` (left to right, letter by letter)
  * and the letters. Same mask, options and seed give the same particles.
  *
+ * Quality: thinning keeps a fair share per letter but not an even spacing.
+ * Halving a full mask with `thinToCount` left nearest-neighbour distances
+ * of p5 1.32 px / median 1.71 px in the review's measurement, where
+ * resampling at spacing · √2 gave 1.79 px / 2.22 px. When the grid is more than
+ * about 5 % over `maxCount`, resample first at spacing · √(n / maxCount)
+ * and let `maxCount` trim only the rest.
+ *
  * Cost: the grid is (width × height) / spacing² places; each kept particle
  * reads about (2 · edgeWidth + 3)² mask pixels (`distanceToOutline`), which
  * is why `edgeWidth` is capped at MAX_EDGE_WIDTH.
@@ -731,6 +794,14 @@ export function sampleMask(
   const mask = thresholdMask(alpha, width, height, options.threshold ?? 128);
   let letters: Letter[];
   let letterAt: (pixel: number) => number;
+  if (options.letters && options.guessLetters) {
+    throw new RangeError("pass letters or guessLetters, not both");
+  }
+  if (!options.letters && options.guessLetters !== true) {
+    throw new RangeError(
+      "sampleMask needs the letters (labels per pixel); guessLetters: true is for tests and tools only",
+    );
+  }
   if (options.letters) {
     const known = lettersFromLabels(mask, options.letters);
     letters = known.letters;

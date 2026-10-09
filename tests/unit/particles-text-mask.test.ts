@@ -441,6 +441,7 @@ describe("edge particles, measured from the particle", () => {
       spacing: 2,
       jitter: 0,
       seed: 9,
+      guessLetters: true,
       edgeWidth: 1.5,
     });
     const p = particles.find(
@@ -465,6 +466,7 @@ describe("edge particles, measured from the particle", () => {
         spacing: 1.2,
         jitter: 0.5,
         seed,
+        guessLetters: true,
         edgeWidth: 1.4,
       });
       for (const q of particles) {
@@ -484,6 +486,7 @@ describe("edge particles, measured from the particle", () => {
       spacing: 1,
       jitter: 0,
       seed: 1,
+      guessLetters: true,
       edgeWidth: 0.6,
     });
     for (const q of particles) {
@@ -497,7 +500,7 @@ describe("edge particles, measured from the particle", () => {
 
 describe("sampleMask", () => {
   const c = twoLines();
-  const options = { spacing: 2.5, seed: 9 };
+  const options = { spacing: 2.5, seed: 9, guessLetters: true };
   const { particles, letters } = sampleMask(
     c.alpha,
     c.width,
@@ -669,7 +672,11 @@ describe("letters from the caller's labels", () => {
     });
     expect(byLabel.letters).toHaveLength(1);
     expect(
-      sampleMask(lone.alpha, 12, 30, { spacing: 1, seed: 2 }).letters,
+      sampleMask(lone.alpha, 12, 30, {
+        spacing: 1,
+        seed: 2,
+        guessLetters: true,
+      }).letters,
     ).toHaveLength(2);
   });
 
@@ -709,7 +716,10 @@ describe("letters from the caller's labels", () => {
     tag(30, 34, 5, 20, 3); // L
     tag(30, 49, 14, 5, 3);
     const base = { spacing: 2.5, seed: 9 };
-    const byShape = sampleMask(c.alpha, c.width, c.height, base);
+    const byShape = sampleMask(c.alpha, c.width, c.height, {
+      ...base,
+      guessLetters: true,
+    });
     const byLabel = sampleMask(c.alpha, c.width, c.height, {
       ...base,
       letters: { labels: known, lines: [0, 0, 1, 1] },
@@ -755,10 +765,15 @@ describe("a hard limit on the count (maxCount, thinToCount, spacingForCount)", (
   it("never goes over: Codex's 100 × 100 at a budget of 11 (the spacing estimate alone gave 12)", () => {
     const full = new Array(100 * 100).fill(255);
     const spacing = spacingForCount(100 * 100, 11);
-    const loose = sampleMask(full, 100, 100, { spacing, seed: 1 }).particles;
+    const loose = sampleMask(full, 100, 100, {
+      spacing,
+      seed: 1,
+      guessLetters: true,
+    }).particles;
     const capped = sampleMask(full, 100, 100, {
       spacing,
       seed: 1,
+      guessLetters: true,
       maxCount: 11,
     }).particles;
     expect(capped.length).toBe(Math.min(11, loose.length));
@@ -771,6 +786,7 @@ describe("a hard limit on the count (maxCount, thinToCount, spacingForCount)", (
     const { particles } = sampleMask(full, 1440, 260, {
       spacing: spacingForCount(area, 10_000),
       seed: 2,
+      guessLetters: true,
       maxCount: 10_000,
     });
     expect(particles.length).toBeLessThanOrEqual(10_000);
@@ -781,6 +797,7 @@ describe("a hard limit on the count (maxCount, thinToCount, spacingForCount)", (
   const sampled = sampleMask(c.alpha, c.width, c.height, {
     spacing: 1.2,
     seed: 3,
+    guessLetters: true,
   });
 
   it("keeps a particle in every letter when the budget allows one each, and spreads the rest fairly", () => {
@@ -860,11 +877,189 @@ describe("a hard limit on the count (maxCount, thinToCount, spacingForCount)", (
       spacing: 6,
       jitter: 0,
       seed: 1,
+      guessLetters: true,
     });
     expect(letters).toHaveLength(2);
     const tiny = particles.filter((p) => p.letter === 1);
     expect(tiny).toEqual([
       expect.objectContaining({ x: 25.5, y: 2.5, edge: true }),
     ]);
+  });
+});
+
+describe("round 4: pinned behaviour", () => {
+  const box = (x0: number, y0: number, x1: number, y1: number) => ({
+    x0,
+    y0,
+    x1,
+    y1,
+    area: (x1 - x0 + 1) * (y1 - y0 + 1),
+  });
+  /** Particles of the given letters, edge where `edge(i)`, x = index. */
+  const synthetic = (
+    letters: readonly number[],
+    edge: (i: number) => boolean = () => false,
+  ) =>
+    letters.map((letter, i) => ({
+      x: i,
+      y: 0,
+      edge: edge(i),
+      letter,
+      order: i / letters.length,
+    }));
+  const counts = (kept: readonly { letter: number }[], n: number) =>
+    Array.from(
+      { length: n },
+      (_, k) => kept.filter((p) => p.letter === k).length,
+    );
+
+  it("breaks an exact tie of remainders toward the earlier letter (5, 8 and 2 particles, keep 7)", () => {
+    // One each leaves 4 to share over 4 + 7 + 1 = 12 beyond the first:
+    // 4·4/12, 4·7/12, 4·1/12 = 1 r4, 2 r4, 0 r4 (all remainders 4/12).
+    // Floors 1 + 2 + 0 = 3, one left, to the earliest letter: 1+1+1, 1+2, 1+0.
+    const p = synthetic([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2]);
+    expect(counts(thinToCount(p, 3, 7), 3)).toEqual([3, 3, 1]);
+  });
+
+  it("picks evenly inside a letter: half of 20 inner particles is every other one, right half included", () => {
+    const p = synthetic(new Array(20).fill(0));
+    const kept = thinToCount(p, 1, 10);
+    expect(kept.map((q) => q.x)).toEqual([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]);
+  });
+
+  it("keeps a letter's edge share rounded, not floored (7 of 10 on the edge, keep 5: 3.5 → 4)", () => {
+    const p = synthetic(new Array(10).fill(0), (i) => i < 7);
+    const kept = thinToCount(p, 1, 5);
+    expect(kept.filter((q) => q.edge)).toHaveLength(4);
+  });
+
+  it("refuses a particle whose letter is outside letterCount, with a readable error", () => {
+    const p = synthetic([0, 1, 2]);
+    expect(() => thinToCount(p, 2, 1)).toThrow(/letter 2, outside 0 to 1/);
+    expect(() => thinToCount(p, -1, 1)).toThrow(/letterCount/);
+  });
+
+  it("wants line numbers 0, 1, 2 … with none left out, and whole and not negative", () => {
+    const one = labelled(6, 6, [
+      [0, 0, 2, 2, 0],
+      [3, 3, 2, 2, 1],
+    ]);
+    const mask = thresholdMask(one.alpha, 6, 6);
+    const go = (lines: number[]) => () =>
+      lettersFromLabels(mask, { labels: one.labels, lines });
+    expect(go([0, 1])).not.toThrow();
+    expect(go([0, 0])).not.toThrow();
+    expect(go([3, 7])).toThrow(/no line left out/);
+    expect(go([0, 2])).toThrow(/no line left out/);
+    expect(go([1, 1])).toThrow(/no line left out/);
+    expect(go([0.5, 1])).toThrow(/whole number/);
+    expect(go([-1, 0])).toThrow(/whole number/);
+  });
+
+  it("lends an unlabelled pixel the label at the shortest straight-line distance", () => {
+    // Pixel (2, 2) is set but unlabelled: letter 0 at (1, 1) is √2 away,
+    // letter 1 at (3, 2) is 1 away. A square ring scan meets (1, 1) first.
+    const alpha = new Uint8ClampedArray(25);
+    const labels = new Uint16Array(25);
+    alpha[1 * 5 + 1] = 255;
+    labels[1 * 5 + 1] = 1;
+    alpha[2 * 5 + 3] = 255;
+    labels[2 * 5 + 3] = 2;
+    alpha[2 * 5 + 2] = 255;
+    const { letterAt } = lettersFromLabels(thresholdMask(alpha, 5, 5), {
+      labels,
+      lines: [0, 0],
+    });
+    expect(letterAt[2 * 5 + 2]).toBe(1);
+  });
+
+  it("never lends a lent label on: a run of unlabelled pixels ends at LABEL_REACH", () => {
+    // Letter in columns 0-3; unlabelled set pixels at x = 4, 5, 6 on row 2.
+    const { alpha, labels } = labelled(10, 5, [[0, 0, 4, 5, 0]]);
+    const run = Uint8ClampedArray.from(alpha);
+    run[2 * 10 + 4] = 255;
+    run[2 * 10 + 5] = 255;
+    expect(() =>
+      lettersFromLabels(thresholdMask(run, 10, 5), { labels, lines: [0] }),
+    ).not.toThrow();
+    run[2 * 10 + 6] = 255; // 3 px from the letter
+    expect(() =>
+      lettersFromLabels(thresholdMask(run, 10, 5), { labels, lines: [0] }),
+    ).toThrow(/pixel \(6, 2\)/);
+  });
+
+  it("caps edgeWidth at 16 px exactly", () => {
+    expect(MAX_EDGE_WIDTH).toBe(16);
+    const full = new Array(400).fill(255);
+    const at = (edgeWidth: number) => () =>
+      sampleMask(full, 20, 20, {
+        spacing: 4,
+        seed: 1,
+        edgeWidth,
+        guessLetters: true,
+      });
+    expect(at(16)).not.toThrow();
+    expect(at(17)).toThrow(/edgeWidth is 0 to 16 px/);
+  });
+
+  it("adds a fallback particle only to a letter the grid missed, one at most, and still keeps maxCount", () => {
+    const opts = { spacing: 6, jitter: 0, seed: 1, guessLetters: true };
+    const big = canvas(30, 10);
+    big.rect(0, 0, 20, 10);
+    const alone = sampleMask(big.alpha, 30, 10, opts).particles;
+    const both = canvas(30, 10);
+    both.rect(0, 0, 20, 10);
+    both.rect(25, 2, 1, 1);
+    const withTiny = sampleMask(both.alpha, 30, 10, opts).particles;
+    expect(withTiny.filter((p) => p.letter === 0)).toHaveLength(alone.length);
+    expect(withTiny.filter((p) => p.letter === 1)).toHaveLength(1);
+    const capped = sampleMask(both.alpha, 30, 10, { ...opts, maxCount: 3 });
+    expect(capped.particles).toHaveLength(3);
+    expect(new Set(capped.particles.map((p) => p.letter))).toEqual(
+      new Set([0, 1]),
+    );
+  });
+
+  it("refuses to guess the letters unless told to, and refuses both at once", () => {
+    const c = twoLines();
+    expect(() =>
+      sampleMask(c.alpha, c.width, c.height, { spacing: 2, seed: 1 }),
+    ).toThrow(/needs the letters/);
+    const labels = new Uint16Array(c.width * c.height);
+    expect(() =>
+      sampleMask(c.alpha, c.width, c.height, {
+        spacing: 2,
+        seed: 1,
+        guessLetters: true,
+        letters: { labels, lines: [0] },
+      }),
+    ).toThrow(/not both/);
+  });
+
+  it("gives a mark that shares as many rows with two lines to the upper one, whichever line is bigger", () => {
+    // Line A rows 0-19 and line B rows 16-35 (4 rows apart in overlap); the
+    // mark at rows 16-19 shares 4 rows with each, and could be the dot of
+    // B's stem C (rows 22-35) under it.
+    const run = (aWide: boolean) =>
+      groupLetters([
+        box(0, 0, aWide ? 40 : 11, 19), // line A's body
+        box(50, 16, aWide ? 61 : 90, 35), // line B's body
+        box(20, 16, 23, 19), // the mark
+        box(20, 22, 23, 35), // C, line B
+      ]);
+    for (const aWide of [true, false]) {
+      const { letters, letterOfPiece } = run(aWide);
+      expect(letters[letterOfPiece[2]!]!.line).toBe(0);
+    }
+  });
+
+  it("reads an italic colon (dots three-quarters over each other) beside letters as one letter", () => {
+    const { letterOfPiece } = groupLetters([
+      box(0, 4, 11, 23),
+      box(17, 12, 20, 15),
+      box(16, 20, 19, 23),
+      box(26, 10, 37, 23),
+    ]);
+    expect(letterOfPiece).toEqual([0, 1, 1, 2]);
   });
 });
