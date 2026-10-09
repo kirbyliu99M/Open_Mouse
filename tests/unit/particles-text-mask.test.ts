@@ -921,6 +921,17 @@ describe("round 4: pinned behaviour", () => {
     expect(counts(thinToCount(p, 3, 7), 3)).toEqual([3, 3, 1]);
   });
 
+  it("shares only what is beyond each letter's first particle, and never goes over", () => {
+    // 2 and 2, keep 3: one each, 1 to share over 1 + 1 beyond: tie, earlier.
+    const two = thinToCount(synthetic([0, 0, 1, 1]), 2, 3);
+    expect(counts(two, 2)).toEqual([2, 1]);
+    // 1, 1, 1 and 5, keep 6: one each, 2 to share; only the last letter has
+    // any beyond its first (4), so it takes both.
+    const four = thinToCount(synthetic([0, 1, 2, 3, 3, 3, 3, 3]), 4, 6);
+    expect(counts(four, 4)).toEqual([1, 1, 1, 3]);
+    expect(new Set(four).size).toBe(6);
+  });
+
   it("picks evenly inside a letter: half of 20 inner particles is every other one, right half included", () => {
     const p = synthetic(new Array(20).fill(0));
     const kept = thinToCount(p, 1, 10);
