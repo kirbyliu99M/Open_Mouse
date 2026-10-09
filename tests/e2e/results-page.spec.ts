@@ -281,10 +281,10 @@ test.describe("/results/[scanId] — real results page", () => {
 
     await expect(
       page.locator(".results-score-name .results-variants"),
-    ).toHaveText("Also: Superlight 2 SE");
+    ).toHaveText("Same modeling: Superlight 2 SE");
     const card = page.locator(".results-card", { hasText: "DeathAdder V3" });
     await expect(card.locator(".results-variants")).toHaveText(
-      "Also: DeathAdder V3 X, DeathAdder V3 Y",
+      "Same modeling: DeathAdder V3 X, DeathAdder V3 Y",
     );
     // Only the cards that have variants show the line; variants are not links.
     await expect(
@@ -300,11 +300,11 @@ test.describe("/results/[scanId] — real results page", () => {
     );
     await expect(
       page.locator(".results-score-name .results-variants"),
-    ).toHaveText("Also: DeathAdder V3 X, DeathAdder V3 Y");
+    ).toHaveText("Same modeling: DeathAdder V3 X, DeathAdder V3 Y");
     // The top pick is now a card on this page, with its own line.
     await expect(
       page.locator(".results-others-grid .results-variants"),
-    ).toHaveText(["Also: Superlight 2 SE"]);
+    ).toHaveText(["Same modeling: Superlight 2 SE"]);
   });
 
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({

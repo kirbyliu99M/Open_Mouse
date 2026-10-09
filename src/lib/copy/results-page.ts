@@ -62,8 +62,8 @@ export interface ResultsPageCopy {
   othersCaption: string;
   /**
    * One line on a card whose shell is shared with other catalogue entries
-   * (SHELL-1). `models` are the variants' full model names. Candidate wording
-   * (未拍板). Text only: a variant has no score, rank or link.
+   * (SHELL-1). `models` are the variants' full model names. Wording is Kirby's: zh-TW 「相同構型」 and English
+   * "Same modeling" (approved 2026-10-10). Text only: a variant has no score, rank or link.
    */
   variantsLine: (models: readonly string[]) => string;
   /** Out of 100, after a total. */
@@ -137,7 +137,7 @@ export const zhTW: ResultsPageCopy = {
   leftHandNotice: "左手的適配還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
-  variantsLine: (models) => `也有：${models.join("、")}`,
+  variantsLine: (models) => `相同構型：${models.join("、")}`,
   outOf: "/ 100",
   otherMiceTitle: (count) => `其他滑鼠（共 ${count} 款）`,
   otherMiceHint: "分數與型號；未列入比較的附原因",
@@ -211,7 +211,7 @@ export const en: ResultsPageCopy = {
     "Left-hand fit isn't rated yet — check each mouse's shape before you buy.",
   othersHeading: "Other picks",
   othersCaption: "Tap any pick to see a results page with the same layout.",
-  variantsLine: (models) => `Also: ${models.join(", ")}`,
+  variantsLine: (models) => `Same modeling: ${models.join(", ")}`,
   outOf: "/ 100",
   otherMiceTitle: (count) => `Other mice (${count})`,
   otherMiceHint: "Scores and names; mice left out show why",
