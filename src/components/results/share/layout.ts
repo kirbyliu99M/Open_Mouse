@@ -30,7 +30,9 @@ export const QR_SIZE = 216;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
+/** The frame stops growing here; with no header (fit-v0) it may be taller, since it starts the card. */
 const MAX_PHOTO_HEIGHT = 780;
+const MAX_PHOTO_HEIGHT_NO_HEADER = 1000;
 const SCORE_FONT: FontSpec = { size: 192, weight: 800 };
 
 export type ColorKey = "primary" | "secondary" | "accent";
@@ -309,7 +311,10 @@ export function layoutShareCard(
   const availTop = headerBottom + gap;
   const availBottom = resultTop - 48;
   const avail = Math.max(MIN_PHOTO_HEIGHT, availBottom - availTop);
-  const photoH = Math.min(avail, MAX_PHOTO_HEIGHT);
+  const photoH = Math.min(
+    avail,
+    hasHeader ? MAX_PHOTO_HEIGHT : MAX_PHOTO_HEIGHT_NO_HEADER,
+  );
   const photoBox: Box = {
     x: CARD_PADDING,
     y: availTop + Math.round((avail - photoH) / 2),

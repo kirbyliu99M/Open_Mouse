@@ -51,11 +51,17 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   for (let i = 0; i < 3; i += 1) await expect(captions.nth(i)).toBeVisible();
   await expect(page.locator(".story-mouse img")).toHaveCount(3);
 
+  // The statement lives in the site footer (root layout), once, with its
+  // words unchanged until Kirby writes the real one.
   await expect(
     page.getByText(
       "Not affiliated with Logitech. Sizes from Logitech's published specs.",
     ),
-  ).toBeVisible();
+  ).toHaveCount(1);
+  await expect(page.getByTestId("site-footer")).toContainText(
+    "Not affiliated with Logitech. Sizes from Logitech's published specs.",
+  );
+  await expect(page.locator(".landing-footer")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
@@ -209,7 +215,8 @@ test("print: text that takes its colour from a token prints dark on the white pa
       "subhead (--text-secondary)": colour(".home-subhead"),
       "Early preview note (--text-tertiary)": colour(".landing-preview-note"),
       "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
-      "footer (--text-tertiary)": colour(".landing-footer"),
+      "footer statement (--text-tertiary)": colour(".siteFooter-statement"),
+      "footer link (--text-secondary)": colour(".siteFooter-links a"),
       "Sign in (--text-secondary)": colour(".home-signin-link"),
     };
   });
