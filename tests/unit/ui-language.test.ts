@@ -1,4 +1,3 @@
-// tests/unit/ui-language.test.ts
 import { describe, expect, it } from "vitest";
 import { pickUiLanguage, uiLangAttribute } from "../../src/client/uiLanguage";
 

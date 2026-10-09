@@ -65,6 +65,16 @@ async function stubScan(page: Page) {
   return calls;
 }
 
+/** The share link in the top bar and the primary share button are both shown. */
+async function expectShareButtons(page: Page) {
+  await expect(
+    page.locator('[data-testid="share-card-button"]:visible'),
+  ).toHaveCount(2);
+  await expect(
+    page.locator(".results-topBar [data-testid='share-card-button']"),
+  ).toBeVisible();
+}
+
 async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
@@ -91,6 +101,7 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
       .poll(() => calls.analysis, { message: "analysis for rank 1" })
       .toBe(1);
     expect(calls.fit).toBe(1);
+    await expectShareButtons(page);
 
     // To rank 2: same layout, a new URL, no second fit request, no analysis.
     await cards.filter({ hasText: "G305" }).click();
@@ -109,6 +120,8 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
     await expect(cards.filter({ hasText: "G305" })).toHaveCount(0);
     expect(calls.fit).toBe(1);
     expect(calls.analysis).toBe(1);
+
+    await expectShareButtons(page);
 
     // The written analysis is not part of a detail page, even with Details open.
     await openDetails(page);

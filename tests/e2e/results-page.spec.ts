@@ -439,6 +439,15 @@ test.describe("/results/[scanId] — real results page", () => {
       page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
     ).toBeVisible();
 
+    // Both share buttons are there: the link in the top bar and the primary
+    // one (hero on a wide screen, under Other mice on a phone).
+    await expect(
+      page.locator('[data-testid="share-card-button"]:visible'),
+    ).toHaveCount(2);
+    await expect(
+      page.locator(".results-topBar [data-testid='share-card-button']"),
+    ).toBeVisible();
+
     await openDetails(page);
     await expect(
       page.getByRole("heading", { level: 3, name: "Why this one" }),

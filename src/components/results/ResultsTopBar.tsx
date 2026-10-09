@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { FitResponse } from "@/lib/contracts/fit";
+import { ShareCardButton } from "./share/ShareCardButton";
 
 /**
  * Top bar of every results page: the way back to a new scan on the left, the
- * site name in the centre (wide screens only), and a spot on the right for the
- * share button, which is wired in separately.
+ * site name in the centre (wide screens only), and the small share link on
+ * the right. The share card is about the top pick, whichever page this is.
  */
 export function ResultsTopBar({
+  fit,
   language,
   onRetake,
 }: {
+  fit: FitResponse;
   language: UiLanguage;
   onRetake?: () => void;
 }) {
@@ -29,11 +33,9 @@ export function ResultsTopBar({
       <Link href="/" className="results-topBar-name">
         Palmate
       </Link>
-      <div
-        className="results-topBar-share"
-        data-testid="share-slot"
-        data-share-position="top"
-      />
+      <div className="results-topBar-share" data-share-position="top">
+        <ShareCardButton fit={fit} lang={language} variant="link" />
+      </div>
     </nav>
   );
 }

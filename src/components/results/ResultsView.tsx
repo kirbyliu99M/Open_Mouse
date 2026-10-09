@@ -16,6 +16,7 @@ import { MousePhoto } from "./MousePhoto";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
+import { ShareCardButton } from "./share/ShareCardButton";
 import { PrintOpenDetails } from "./PrintOpenDetails";
 import { WhyList } from "./WhyList";
 import "./results.css";
@@ -86,7 +87,11 @@ export function ResultsView({
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
-      <ResultsTopBar language={language} onRetake={analytics?.onRetake} />
+      <ResultsTopBar
+        fit={response}
+        language={language}
+        onRetake={analytics?.onRetake}
+      />
 
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
         <p className="results-fitNotice" lang={lang}>
@@ -149,11 +154,22 @@ export function ResultsView({
             </p>
           )}
 
-          <PurchaseSlot
-            slug={entry.mouse.slug}
-            language={language}
-            source={purchaseSource}
-          />
+          {/* Wide screens: the primary share button sits beside the purchase
+              links (design lPz7x). Phones show it under Other mice instead. */}
+          <div className="results-hero-actions">
+            <PurchaseSlot
+              slug={entry.mouse.slug}
+              language={language}
+              source={purchaseSource}
+            />
+            <div className="results-share-hero" data-share-position="hero">
+              <ShareCardButton
+                fit={response}
+                lang={language}
+                variant="primary"
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -187,11 +203,9 @@ export function ResultsView({
         onOpened={() => analytics?.onListOpened("ranked")}
       />
 
-      <div
-        className="results-share-bottom"
-        data-testid="share-slot"
-        data-share-position="bottom"
-      />
+      <div className="results-share-bottom" data-share-position="bottom">
+        <ShareCardButton fit={response} lang={language} variant="primary" />
+      </div>
     </div>
   );
 }

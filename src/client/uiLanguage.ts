@@ -1,4 +1,3 @@
-// src/client/uiLanguage.ts
 /**
  * UI language until the site has an i18n framework (2026-10-09): zh-TW for a
  * browser whose first preferred language is Chinese, English otherwise. Same

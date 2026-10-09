@@ -351,17 +351,28 @@ test.describe("/results/demo", () => {
       expect(inOrder, `${selector} comes after the one before it`).toBe(true);
   });
 
-  test("leaves a share spot in the top bar and one under Other mice", async ({
+  test("has a share button in the top bar and a primary one, beside the purchase spot or under Other mice", async ({
     page,
   }) => {
     await page.goto("/results/demo");
-    await expect(page.getByTestId("share-slot")).toHaveCount(2);
+    const buttons = page.getByTestId("share-card-button");
+    // Three in the page, two shown at any width: the link in the top bar, and
+    // the primary one in the hero (wide) or under Other mice (phone).
+    await expect(buttons).toHaveCount(3);
     await expect(
-      page.locator(".results-topBar").getByTestId("share-slot"),
-    ).toHaveCount(1);
+      page.locator('[data-testid="share-card-button"]:visible'),
+    ).toHaveCount(2);
     await expect(
-      page.locator(".results-share-bottom[data-testid='share-slot']"),
-    ).toHaveCount(1);
+      page.locator(".results-topBar [data-testid='share-card-button']"),
+    ).toBeVisible();
+    const wide = (page.viewportSize()?.width ?? 0) >= 900;
+    await expect(
+      page.locator(
+        wide
+          ? ".results-share-hero [data-testid='share-card-button']"
+          : ".results-share-bottom [data-testid='share-card-button']",
+      ),
+    ).toBeVisible();
   });
 
   test("heading levels never skip: one h1, then h2 sections, h3 only under an h2", async ({

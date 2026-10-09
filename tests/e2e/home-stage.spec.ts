@@ -1271,7 +1271,7 @@ test.describe("the static layout is kept, with no extra height", () => {
         ".story-notes",
         ".story-mice",
         '[data-testid="home-final"]',
-        ".landing-footer",
+        '[data-testid="site-footer"]',
       ].map((selector) =>
         document.querySelector(selector)!.getBoundingClientRect(),
       );

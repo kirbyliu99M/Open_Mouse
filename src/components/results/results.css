@@ -609,9 +609,27 @@
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
+/* The primary share button: under Other mice on a phone, beside the purchase
+   links in the hero on a wide screen (the one not shown is display: none, so
+   it is not in the accessibility tree either). */
 .results-share-bottom {
   display: flex;
   justify-content: center;
+}
+.results-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 1rem;
+}
+.results-hero-actions:not(:has(.results-purchase)) {
+  display: none;
+}
+.results-hero-actions .results-purchase {
+  flex: 1 1 14rem;
+}
+.results-share-hero {
+  display: none;
 }
 
 /* Hero: hand type, photo, rank and score, why, purchase links. */
@@ -1034,6 +1052,19 @@
 }
 
 @media (min-width: 56rem) {
+  .results-hero-actions,
+  .results-hero-actions:not(:has(.results-purchase)) {
+    display: flex;
+  }
+  .results-share-hero {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    min-width: 12rem;
+  }
+  .results-share-bottom {
+    display: none;
+  }
   .resultsMain {
     padding-inline: 1.5rem;
   }

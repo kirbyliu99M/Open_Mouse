@@ -146,9 +146,35 @@ describe("the results page layout", () => {
     );
   });
 
-  it("leaves the share spots, top and bottom, for the share button", () => {
+  it("carries the share button in the top bar (link), beside the purchase links on a wide screen and under Other mice on a phone (primary)", () => {
     const html = render(many);
-    expect(html.match(/data-testid="share-slot"/g)).toHaveLength(2);
+    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(3);
+    expect(html.match(/shareCard-button-link/g)).toHaveLength(1);
+    expect(html.match(/shareCard-button-primary/g)).toHaveLength(2);
+    for (const position of ["top", "hero", "bottom"])
+      expect(html).toContain(`data-share-position="${position}"`);
+    // In order: top bar, hero, then under Other mice.
+    expect(at(html, 'data-share-position="top"')).toBeLessThan(
+      at(html, 'data-share-position="hero"'),
+    );
+    expect(at(html, 'data-share-position="hero"')).toBeLessThan(
+      at(html, 'data-share-position="bottom"'),
+    );
+  });
+
+  it("shares the top pick on a detail page too: the card is about the hand type, not this page's mouse", () => {
+    // The button is given the whole response, so rank 1 is what it draws.
+    const html = render(many, { rank: 3, scanId: many.scanId });
+    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(3);
+  });
+
+  it("shows no share button when there are no results", () => {
+    const html = render({ ...many, results: [] });
+    expect(html).not.toContain("share-card-button");
+  });
+
+  it("carries no early-preview line of its own (the site footer does)", () => {
+    expect(render(many, { language: "en" })).not.toMatch(/Early preview/i);
   });
 
   it("puts the back link and the site name in the top bar", () => {
@@ -200,7 +226,8 @@ describe("excluded rows", () => {
   });
 
   it("have no link or button", () => {
-    const list = withTotal.slice(withTotal.indexOf("results-excluded-list"));
+    const from = withTotal.indexOf("results-excluded-list");
+    const list = withTotal.slice(from, withTotal.indexOf("</ul>", from));
     expect(list).not.toMatch(/<a |<button/);
   });
 
