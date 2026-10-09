@@ -4,6 +4,8 @@
 import * as Sentry from "@sentry/nextjs";
 import { SENTRY_OPTIONS } from "@/lib/observability/sentry";
 
-Sentry.init(SENTRY_OPTIONS);
+// Events go to the same-origin /monitoring route handler, which forwards the
+// envelope and nothing else (no cookie, no client address).
+Sentry.init({ ...SENTRY_OPTIONS, tunnel: "/monitoring" });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
