@@ -32,11 +32,12 @@ describe("scrubText", () => {
     ["jwt eyJhbGciOi.eyJzdWIiOi.sig", "jwt [redacted-token]"],
     ["postgresql://u:p@host/db?x=1", "[redacted-url]"],
     [
-      "fetch failed: api_key=AIzaSyA-1234567890",
+      "fetch failed: api_key=not-a-real-key-123",
       "fetch failed: api_key=[redacted]",
     ],
     ['{"session-id": "abc123"}', '{"session-id=[redacted]}'],
-    ["key AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q", "key [redacted-token]"],
+    // A long opaque run, deliberately not shaped like any vendor's key.
+    [`key ${"q7Rw".repeat(10)}`, "key [redacted-token]"],
   ])("%s", (input, expected) => {
     expect(scrubText(input)).toBe(expected);
   });
