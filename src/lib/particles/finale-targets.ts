@@ -127,10 +127,12 @@ export const KIND_LEVELS: readonly number[] = FINALE_KINDS.map(
  * frames: x_frame = scale · x_drawing + offset, fitted point to curve
  * (iterated closest points) to v8's nail and knuckle particles, which v8
  * placed exactly on 32 (desktop) and 33 (phone) of the drawing's detail
- * paths: desktop 0.8781 with offset (396.95, 30.50), every particle within
- * 0.07 px of its path; phone 0.5286 with offset (0.50, 129.73), within
- * 0.07 px. (The frames' faint outline layer gives 0.8789 / 0.5291 but is
- * itself off its curves by up to 2.5 px; see fit-report.md outside the repo.)
+ * paths: desktop 0.8781 with offset (396.95, 30.50), phone 0.5286 with
+ * offset (0.50, 129.73), every particle within 0.08 px of its path. Rounded
+ * to the three decimals below (same offsets) the worst particle is 0.10 px
+ * off on a desktop and 0.30 px on a phone (median 0.12 px). (The frames'
+ * faint outline layer gives 0.8789 / 0.5291 but is itself off its curves by
+ * up to 2.5 px, cause not known; see fit-report.md outside the repo.)
  * The spacings are v8's (2.3 px desktop, 1.75 px phone). 未拍板.
  */
 export interface FinaleTier {
