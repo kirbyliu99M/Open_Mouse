@@ -125,6 +125,35 @@ export const fitEntrySchema = z.strictObject({
       typeof subscoreSchema
     >,
   ),
+  /**
+   * 2026-10-09 (Kirby, candidate): other catalogue entries with the same
+   * shell as this one, shown on its card ("也有：Wireless、4K…").
+   *
+   * Same shell: same brand, exactly the same length, width and height, and
+   * the same shape descriptors (shape, hand compatibility, hump placement,
+   * front flare, side curvature, thumb rest; a null matches only a null).
+   * Weight and connectivity may differ.
+   *
+   * Grouping runs after exclusion and after scoring, so a variant excluded
+   * for this hand (a left-handed version, say) never joins a group. The entry
+   * shown is the group's best total (ties: the earlier rank), and `rank`
+   * counts the group once. A variant carries catalogue facts only, no score
+   * of its own and no rank: it is never presented as a separate result.
+   *
+   * Not part of the analysis input: variant weights must stay out of the
+   * analysis numeral allow-list (src/server/analysis/input.ts).
+   *
+   * Optional until the server fills it; absent or [] means no variants.
+   */
+  variants: z
+    .array(
+      z.strictObject({
+        slug: z.string(),
+        model: z.string(),
+        weightG: z.number().nullable(),
+      }),
+    )
+    .optional(),
 });
 
 export const fitResponseSchema = z.strictObject({

@@ -64,6 +64,48 @@ describe("fitResponseSchema", () => {
     ).toBe(false);
   });
 
+  // 2026-10-09: same-shell variants on an entry are optional.
+  it("accepts an entry with same-shell variants, and one without", () => {
+    const withVariants = {
+      ...valid,
+      results: [
+        {
+          ...entry,
+          variants: [
+            {
+              slug: "logitech-g-pro-x-superlight-2-se",
+              model: "G Pro X Superlight 2 SE",
+              weightG: 60,
+            },
+            { slug: "acme-test", model: "Test", weightG: null },
+          ],
+        },
+      ],
+    };
+    expect(fitResponseSchema.safeParse(withVariants).success).toBe(true);
+    expect(
+      fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, variants: [] }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a variant carrying a score or a rank", () => {
+    for (const extra of [{ total: 80 }, { rank: 2 }]) {
+      const bad = {
+        ...valid,
+        results: [
+          {
+            ...entry,
+            variants: [{ slug: "x", model: "X", weightG: 60, ...extra }],
+          },
+        ],
+      };
+      expect(fitResponseSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
   it.each(["left", "right"])("accepts a %s-hand response", (hand) => {
     expect(fitResponseSchema.safeParse({ ...valid, hand }).success).toBe(true);
   });
