@@ -99,6 +99,27 @@ describe("clipPolyline", () => {
     expect(pieces[1]!.points[0]![0]).toBeCloseTo(7.875, 12);
   });
 
+  it("rounds the number of steps up, not to the nearest: 10.2 px at most 3 apart is 4 steps", () => {
+    // 10.2 / 3 = 3.4: four steps of 2.55 put a point at x = 5.1 in the bar
+    // (columns 4-6) and one at 7.65 after it. Three steps of 3.4 would keep
+    // only x = 10.2 after the bar, a single point, which is dropped.
+    const bar = mask(12, 3, [[4, 0, 3, 3]]);
+    const pieces = clipPolyline(
+      line([
+        [0, 1.5],
+        [10.2, 1.5],
+      ]),
+      bar,
+      3,
+    );
+    expect(pieces).toHaveLength(2);
+    expect(pieces[0]!.points[pieces[0]!.points.length - 1]![0]).toBeCloseTo(
+      2.55,
+      12,
+    );
+    expect(pieces[1]!.points[0]![0]).toBeCloseTo(7.65, 12);
+  });
+
   it("keeps the line's own corners in a piece", () => {
     const pieces = clipPolyline(
       line([
