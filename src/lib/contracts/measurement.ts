@@ -294,12 +294,12 @@ export type PalmThicknessLevel = (typeof PALM_THICKNESS_LEVELS)[number];
  * stripped, so a client that tries to send an image is rejected loudly.
  *
  * `palmThicknessStated` (candidate, 2026-10-08) follows `gripStyleStated`:
- * what the user said, to be stored with the scan (the server does not store it
- * yet: that is the separate backend PR), absent when they skipped the
- * question. A client MUST omit the field on a skip. It never sends `"medium"`
- * as a default, because a default would be stored as if the user had chosen
- * it. No scorer reads it yet; the vertical-mouse candidate (#142) is the first
- * planned reader and stays off.
+ * what the user said, stored with the scan in the nullable column
+ * `scans.palm_thickness_stated` (migration 0008, #155; a skip is stored as
+ * NULL), absent when they skipped the question. A client MUST omit the field
+ * on a skip. It never sends `"medium"` as a default, because a default would
+ * be stored as if the user had chosen it. No scorer reads it yet; the
+ * vertical-mouse candidate (#142) is the first planned reader and stays off.
  */
 export const scanSubmissionSchema = z
   .strictObject({
