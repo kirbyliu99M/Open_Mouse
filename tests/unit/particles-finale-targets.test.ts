@@ -12,6 +12,7 @@ import {
   KIND_LEVELS,
   LINE_SPACING,
   boxOf,
+  isMousePart,
   buildFinale,
   readFinaleDrawing,
   sampleFinale,
@@ -566,5 +567,187 @@ describe("the committed finale.generated.json", () => {
         parseFinaleTargets({ ...raw, viewBox: { ...raw.viewBox, ...bad } }),
       ).toThrow(/viewBox/);
     }
+  });
+});
+
+describe("round 5: the finale data against values computed here", () => {
+  const MOUSE_PARTS = ["mouse-shell", "mouse-edge", "mouse-button"];
+
+  it("says which parts are the mouse's: exactly the three mouse parts", () => {
+    for (const part of FINALE_PARTS) {
+      expect(isMousePart(part)).toBe(MOUSE_PARTS.includes(part));
+    }
+  });
+
+  it("boxes the whole figure and the mouse as the drawing's own extremes (to 0.1)", () => {
+    const extremes = (paths: typeof drawing.paths) => {
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -Infinity;
+      let y1 = -Infinity;
+      for (const p of paths) {
+        for (const [x, y] of p.points) {
+          x0 = Math.min(x0, x);
+          y0 = Math.min(y0, y);
+          x1 = Math.max(x1, x);
+          y1 = Math.max(y1, y);
+        }
+      }
+      return [x0, y0, x1, y1];
+    };
+    const figure = extremes(drawing.paths);
+    const mouse = extremes(
+      drawing.paths.filter((p) => MOUSE_PARTS.includes(p.part)),
+    );
+    finale.bounds.figure.forEach((v, i) =>
+      expect(Math.abs(v - figure[i]!)).toBeLessThanOrEqual(0.05 + 1e-9),
+    );
+    finale.bounds.mouse.forEach((v, i) =>
+      expect(Math.abs(v - mouse[i]!)).toBeLessThanOrEqual(0.05 + 1e-9),
+    );
+  });
+
+  for (const name of ["desktop", "mobile"] as const) {
+    const sampled = sampleFinale(drawing, FINALE_TIERS[name], DEFAULT_SEED);
+
+    it(`${name}: puts every rim grain nearer the mouse's centre than the star it sits inside of`, () => {
+      const [x0, y0, x1, y1] = finale.bounds.mouse;
+      const centre: Vec = [(x0 + x1) / 2, (y0 + y1) / 2];
+      const rims = sampled.points
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => p.kind === KIND.rim);
+      expect(rims.length).toBeGreaterThan(20);
+      for (const { p, i } of rims) {
+        const star = sampled.points[i - 1]!;
+        expect(star.kind).toBe(KIND.star);
+        expect(distance([p.x, p.y], centre)).toBeLessThan(
+          distance([star.x, star.y], centre),
+        );
+      }
+    });
+
+    it(`${name}: puts each nail's highlight on its vertex with the least 0.45 x + y`, () => {
+      for (const run of sampled.runs) {
+        const path = drawing.paths[run.path]!;
+        if (path.part !== "hand-nail") continue;
+        let best = path.points[0]!;
+        for (const v of path.points) {
+          if (v[0] * 0.45 + v[1] < best[0] * 0.45 + best[1]) best = v;
+        }
+        const highlights = sampled.points
+          .slice(run.start, run.start + run.count)
+          .filter((p) => p.kind === KIND.highlight);
+        expect(highlights).toHaveLength(1);
+        expect(
+          distance([highlights[0]!.x, highlights[0]!.y], best),
+        ).toBeLessThan(1e-9);
+      }
+    });
+  }
+});
+
+describe("round 5: parseFinaleTargets refuses every field the generator would not write", () => {
+  const raw = JSON.parse(committed);
+  const desktop = raw.tiers.desktop;
+  const withDesktop = (patch: Record<string, unknown>) => ({
+    ...raw,
+    tiers: { ...raw.tiers, desktop: { ...desktop, ...patch } },
+  });
+  const withPoint = (p: unknown) =>
+    withDesktop({ points: [p, ...desktop.points.slice(1)] });
+  const withLine = (line: unknown) => ({
+    ...raw,
+    lines: [line, ...raw.lines.slice(1)],
+  });
+  const first = raw.lines[0];
+
+  it("wants a tier's scale and spacing above 0", () => {
+    expect(() => parseFinaleTargets(withDesktop({ scale: 0 }))).toThrow(
+      /scale and spacing/,
+    );
+    expect(() => parseFinaleTargets(withDesktop({ spacing: 0 }))).toThrow(
+      /scale and spacing/,
+    );
+    expect(() => parseFinaleTargets(withDesktop({ scale: -1 }))).toThrow(
+      /scale and spacing/,
+    );
+  });
+
+  it("wants u from 0 to 1, finite x and y, and no empty lists", () => {
+    expect(() => parseFinaleTargets(withPoint([1, 2, 0, 0, -0.01]))).toThrow(
+      /u is 0 to 1/,
+    );
+    expect(() => parseFinaleTargets(withPoint([Infinity, 2, 0, 0, 0]))).toThrow(
+      /finale desktop/,
+    );
+    expect(() => parseFinaleTargets(withPoint([1, "2", 0, 0, 0]))).toThrow(
+      /finale desktop/,
+    );
+    expect(() => parseFinaleTargets(withDesktop({ points: [] }))).toThrow(
+      /points/,
+    );
+    expect(() => parseFinaleTargets(withDesktop({ runs: [] }))).toThrow(/runs/);
+    expect(() => parseFinaleTargets({ ...raw, lines: [] })).toThrow(/lines/);
+    expect(() =>
+      parseFinaleTargets(withLine([first[0], first[1], []])),
+    ).toThrow(/line points/);
+  });
+
+  it("wants a line's part a whole-number index and its closed flag 0 or 1", () => {
+    expect(() =>
+      parseFinaleTargets(withLine(["0", first[1], first[2]])),
+    ).toThrow(/unknown part/);
+    expect(() =>
+      parseFinaleTargets(withLine([0.5, first[1], first[2]])),
+    ).toThrow(/unknown part/);
+    expect(() => parseFinaleTargets(withLine([first[0], 2, first[2]]))).toThrow(
+      /closed is 0 or 1/,
+    );
+    expect(() =>
+      parseFinaleTargets(withLine([first[0], true, first[2]])),
+    ).toThrow(/closed is 0 or 1/);
+    expect(() =>
+      parseFinaleTargets(withLine([first[0], first[1], [[1, Number.NaN]]])),
+    ).toThrow(/line point/);
+  });
+
+  it("wants each box the right way round on each axis, and numbers for the viewBox corner and seed", () => {
+    const [x0, y0, x1, y1] = raw.bounds.figure;
+    const withFigure = (box: unknown) => ({
+      ...raw,
+      bounds: { ...raw.bounds, figure: box },
+    });
+    expect(() => parseFinaleTargets(withFigure([x1, y0, x0, y1]))).toThrow(
+      /figure box/,
+    );
+    expect(() => parseFinaleTargets(withFigure([x0, y1, x1, y0]))).toThrow(
+      /figure box/,
+    );
+    expect(() => parseFinaleTargets(withFigure([x0, y0, x1]))).toThrow(
+      /figure box/,
+    );
+    expect(() =>
+      parseFinaleTargets({ ...raw, viewBox: { ...raw.viewBox, x: "24" } }),
+    ).toThrow(/viewBox/);
+    expect(() => parseFinaleTargets({ ...raw, seed: "1" })).toThrow(/seed/);
+  });
+
+  it("refuses a file whose kinds or parts are listed differently from this build's", () => {
+    expect(() =>
+      parseFinaleTargets({ ...raw, kinds: [...raw.kinds].reverse() }),
+    ).toThrow(/kinds/);
+    expect(() => parseFinaleTargets({ ...raw, kinds: undefined })).toThrow(
+      /kinds/,
+    );
+    expect(() =>
+      parseFinaleTargets({
+        ...raw,
+        parts: [...raw.parts.slice(1), raw.parts[0]],
+      }),
+    ).toThrow(/parts/);
+    expect(() =>
+      parseFinaleTargets({ ...raw, parts: [...raw.parts, "tail"] }),
+    ).toThrow(/parts/);
+    expect(() => parseFinaleTargets(raw)).not.toThrow();
   });
 });

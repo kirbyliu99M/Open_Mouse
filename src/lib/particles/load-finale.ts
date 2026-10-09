@@ -1,5 +1,6 @@
 import {
   type Box,
+  FINALE_KINDS,
   FINALE_PARTS,
   FINALE_TIER_NAMES,
   type FinaleKind,
@@ -108,6 +109,16 @@ function finaleTier(
 export function parseFinaleTargets(json: Json): FinaleTargets {
   if (!isRecord(json) || json.version !== 1) fail("finale: expected version 1");
   const { viewBox, tiers, lines, bounds } = json;
+  // The file names its kinds and parts; a file written with another order
+  // would be read wrong, so they must match this build's lists exactly.
+  const sameList = (value: Json, list: readonly string[]) =>
+    Array.isArray(value) &&
+    value.length === list.length &&
+    value.every((v, i) => v === list[i]);
+  if (!sameList(json.kinds, FINALE_KINDS))
+    fail("finale kinds differ from FINALE_KINDS");
+  if (!sameList(json.parts, FINALE_PARTS))
+    fail("finale parts differ from FINALE_PARTS");
   if (!isRecord(viewBox)) fail("finale viewBox");
   if (!isRecord(tiers)) fail("finale tiers");
   if (!isRecord(bounds)) fail("finale bounds");
