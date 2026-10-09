@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
+import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { FitResponse } from "../../src/lib/contracts/fit";
 import type { UiLanguage } from "../../src/client/uiLanguage";
 
@@ -226,5 +227,65 @@ describe("a poor fit", () => {
     expect(render(poor, { language: "en", rank: 2 })).not.toContain(
       "None of these fits your hand well.",
     );
+  });
+});
+
+describe("cautions and links", () => {
+  const links = {
+    "logitech-g-pro-x-superlight-2": [
+      { label: "Shop A", url: "https://shop.example/superlight" },
+    ],
+  };
+
+  it("puts the typed-length and left-hand notes before the purchase links", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: { ...many, hand: "left" },
+        language: "en",
+        enteredLengthMm: 186,
+        purchaseSource: links,
+      }),
+    );
+    const purchase = at(html, "results-purchase");
+    const notes = [...html.matchAll(/results-handNotice/g)].map(
+      (m) => m.index!,
+    );
+    expect(notes).toHaveLength(2);
+    for (const note of notes) expect(note).toBeLessThan(purchase);
+  });
+
+  it("shows no purchase box at all without links", () => {
+    expect(render(many)).not.toContain("results-purchase");
+  });
+});
+
+describe("the written analysis heading", () => {
+  const ready: AnalysisState = {
+    status: "ready",
+    response: {
+      output: {
+        headline: "h",
+        whyTopPick: "w",
+        tradeoffs: ["t"],
+        whatToAvoid: ["a"],
+        caveats: [],
+      },
+      source: "model",
+      cached: false,
+    },
+  };
+
+  it("is an h3 inside Details, under the page's h2 sections, with h4s below it", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: many,
+        language: "en",
+        analysisState: ready,
+      }),
+    );
+    expect(html).toMatch(/<h3 class="results-analysis-heading">Why this one/);
+    expect(html).toContain("<h4>Tradeoffs</h4>");
+    // Only the zh-TW "why" heading is an h2 of that name.
+    expect(html).not.toMatch(/<h2[^>]*>Why this one/);
   });
 });

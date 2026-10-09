@@ -442,7 +442,7 @@ test.describe("/results/[scanId] — real results page", () => {
 
     await openDetails(page);
     await expect(
-      page.getByRole("heading", { level: 2, name: "Why this one" }),
+      page.getByRole("heading", { level: 3, name: "Why this one" }),
     ).toBeVisible();
     await expect(
       page.getByText("A close match for your palm grip"),

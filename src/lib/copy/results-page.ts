@@ -45,6 +45,10 @@ export interface ResultsPageCopy {
   subscoreShort: Record<Subscore, string>;
   /** Where to buy: only shown when a link exists. */
   purchaseHeading: string;
+  /** One short line above the purchase links. */
+  purchaseNote: string;
+  /** Visually hidden, after each purchase link's text. */
+  opensInNewTab: string;
   detailsTitle: string;
   detailsHint: string;
   scoresHeading: string;
@@ -98,6 +102,8 @@ export const zhTW: ResultsPageCopy = {
     weight: "重量",
   },
   purchaseHeading: "購買連結",
+  purchaseNote: "合作商店連結・開新分頁",
+  opensInNewTab: "（開新分頁）",
   detailsTitle: "詳細資料",
   detailsHint: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
   scoresHeading: "六項分數",
@@ -159,6 +165,8 @@ export const en: ResultsPageCopy = {
     weight: "Weight",
   },
   purchaseHeading: "Where to buy",
+  purchaseNote: "Partner shop links · open in a new tab",
+  opensInNewTab: "(opens in a new tab)",
   detailsTitle: "Details",
   detailsHint: "3D view, six scores, gaps to your ideal size, full analysis",
   scoresHeading: "How it scores",

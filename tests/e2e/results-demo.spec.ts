@@ -248,7 +248,7 @@ test.describe("/results/demo", () => {
 
     await page.getByRole("button", { name: "Ready", exact: true }).click();
     await expect(
-      page.getByRole("heading", { level: 2, name: "Why this one" }),
+      page.getByRole("heading", { level: 3, name: "Why this one" }),
     ).toBeVisible();
     await expect(
       page.getByText("A close match for your palm grip"),

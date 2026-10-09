@@ -177,9 +177,14 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
     await expect(rows.locator("a")).toHaveCount(0);
   });
 
-  test("the detail routes keep robots noindex", async ({ page }) => {
+  test("the detail routes keep robots noindex and have their own title", async ({
+    page,
+  }) => {
     await stubScan(page);
+    await page.goto(MAIN);
+    await expect(page).toHaveTitle(/^Your results/);
     await page.goto(`${MAIN}/m/${RANK_2}`);
+    await expect(page).toHaveTitle(/^Another pick/);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
       "content",
       /noindex/,

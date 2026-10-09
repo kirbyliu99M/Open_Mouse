@@ -16,6 +16,7 @@ import { MousePhoto } from "./MousePhoto";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
+import { PrintOpenDetails } from "./PrintOpenDetails";
 import { WhyList } from "./WhyList";
 import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
@@ -82,6 +83,7 @@ export function ResultsView({
 
   return (
     <div className="results-view" data-rank={entry?.rank}>
+      <PrintOpenDetails />
       <ResultsTopBar language={language} onRetake={analytics?.onRetake} />
 
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
@@ -131,25 +133,26 @@ export function ResultsView({
 
           <WhyList entry={entry} language={language} />
 
+          {/* Cautions about how the scan was made come before any link to a shop. */}
+          {enteredLengthMm !== null && (
+            <p className="results-handNotice" lang={lang}>
+              {copy.enteredLengthNotice(enteredLengthMm)}
+            </p>
+          )}
+          {/* The hand comes from the fit response (#62), not from browser
+              storage, so the note follows a results link to any device. */}
+          {response.hand === "left" && (
+            <p className="results-handNotice" lang={lang}>
+              {copy.leftHandNotice}
+            </p>
+          )}
+
           <PurchaseSlot
             slug={entry.mouse.slug}
             language={language}
             source={purchaseSource}
           />
         </div>
-      )}
-
-      {enteredLengthMm !== null && (
-        <p className="results-handNotice" lang={lang}>
-          {copy.enteredLengthNotice(enteredLengthMm)}
-        </p>
-      )}
-      {/* The hand comes from the fit response (#62), not from browser
-          storage, so the note follows a results link to any device. */}
-      {response.hand === "left" && (
-        <p className="results-handNotice" lang={lang}>
-          {copy.leftHandNotice}
-        </p>
       )}
 
       {entry && (

@@ -16,8 +16,14 @@ import type { AnalysisState } from "@/components/results/analysisState";
 import {
   fetchAnalysisResult,
   fetchFitResult,
+  type FitOutcome,
   type FitPreferencesInput,
 } from "@/components/results/fetchResults";
+import {
+  createInflightRequests,
+  fitRequestKey,
+  shouldRequestAnalysis,
+} from "@/lib/results/requests";
 import {
   parseStoredUserLength,
   resultLengthKey,
@@ -49,6 +55,13 @@ type PageState =
  */
 const PREFERENCES: FitPreferencesInput = {};
 
+/**
+ * Fit requests in flight, shared by every run of the fit effect: React Strict
+ * Mode (on by default in Next.js dev) runs the effect twice at mount, and both
+ * runs must share one POST (`src/lib/results/requests.ts`).
+ */
+const fitRequests = createInflightRequests<FitOutcome>();
+
 /** What a results page reads once the scan's fit has loaded. */
 export interface ResultsScan {
   scanId: string;
@@ -58,11 +71,11 @@ export interface ResultsScan {
   enteredLength: number | null;
   analysisState: AnalysisState;
   /**
-   * Ask for the written analysis. Only the main page (rank 1) calls this, and
-   * only the first call per scan does anything: moving to a detail page and
-   * back does not ask again.
+   * Ask for the written analysis. Only the main page (rank 1) gets a request
+   * out of this, and only the first time per scan (`shouldRequestAnalysis`):
+   * moving to a detail page and back does not ask again.
    */
-  requestAnalysis: () => void;
+  requestAnalysis: (isMainPage: boolean) => void;
   retryAnalysis: () => void;
   analytics: {
     onRetake: () => void;
@@ -163,10 +176,19 @@ export function ResultsScanProvider({
     }
   }, [scanId]);
 
-  const requestAnalysis = useCallback(() => {
-    if (analysisStartedRef.current) return;
-    void runAnalysis();
-  }, [runAnalysis]);
+  const requestAnalysis = useCallback(
+    (isMainPage: boolean) => {
+      if (
+        !shouldRequestAnalysis({
+          isMainPage,
+          started: analysisStartedRef.current,
+        })
+      )
+        return;
+      void runAnalysis();
+    },
+    [runAnalysis],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +197,10 @@ export function ResultsScanProvider({
     analysisStartedRef.current = false;
 
     void (async () => {
-      const outcome = await fetchFitResult(scanId, PREFERENCES);
+      const outcome = await fitRequests.getOrStart(
+        fitRequestKey(scanId, attempt),
+        () => fetchFitResult(scanId, PREFERENCES),
+      );
       if (cancelled) return;
       if (outcome.status === "ready") {
         const top = outcome.response.results[0];
@@ -196,7 +221,7 @@ export function ResultsScanProvider({
       cancelled = true;
       analysisRunRef.current += 1;
     };
-    // `attempt` exists only to retrigger this effect
+    // `attempt` is part of the request's identity and retriggers this effect
   }, [scanId, attempt]);
 
   const onRetake = useCallback(

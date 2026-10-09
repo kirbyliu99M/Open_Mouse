@@ -27,8 +27,9 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   }, [redirect, router, scanId]);
 
   const { requestAnalysis } = scan;
+  // The rule (main page only, once per scan) is `shouldRequestAnalysis`.
   useEffect(() => {
-    if (isMain) requestAnalysis();
+    requestAnalysis(isMain);
   }, [isMain, requestAnalysis]);
 
   if (redirect) return null;

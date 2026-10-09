@@ -86,7 +86,11 @@ export function ResultsDetails({
         <TargetDeltas targets={response.targets} mouse={mouse} />
 
         {analysis && (
-          <AnalysisSlot state={analysis.state} onRetry={analysis.onRetry} />
+          <AnalysisSlot
+            state={analysis.state}
+            onRetry={analysis.onRetry}
+            headingLevel={3}
+          />
         )}
 
         {shapeUnrated ? (

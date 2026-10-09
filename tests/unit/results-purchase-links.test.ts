@@ -95,6 +95,35 @@ describe("PurchaseSlot", () => {
     expect(html).toContain("Shop A");
   });
 
+  it("says once that these are partner links opening in a new tab, and says so on every link", () => {
+    for (const [language, note, hidden] of [
+      ["en", "Partner shop links · open in a new tab", "(opens in a new tab)"],
+      ["zh-TW", "合作商店連結・開新分頁", "（開新分頁）"],
+    ] as const) {
+      const html = renderToStaticMarkup(
+        createElement(PurchaseSlot, {
+          slug: "logitech-g-pro-x-superlight-2",
+          language,
+          source: VALID,
+        }),
+      );
+      expect(html.split(note)).toHaveLength(2); // exactly once
+      expect(html.split(hidden)).toHaveLength(3); // once per link (two links)
+      // The hidden text is inside each link, visually hidden.
+      const anchors = [...html.matchAll(/<a [^>]*>.*?<\/a>/g)].map((m) => m[0]);
+      expect(anchors).toHaveLength(2);
+      for (const a of anchors) {
+        expect(a).toContain("results-visuallyHidden");
+        expect(a).toContain(hidden);
+      }
+    }
+  });
+
+  it("shows neither the note nor the hidden text when there is nothing to link", () => {
+    expect(render({})).not.toMatch(/Partner|new tab/);
+    expect(render(VALID, "razer-deathadder-v3")).toBe("");
+  });
+
   it("reads the bundled file by default (empty today, so nothing shows)", () => {
     expect(
       renderToStaticMarkup(

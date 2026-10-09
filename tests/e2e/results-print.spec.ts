@@ -73,6 +73,30 @@ test("/results/demo prints dark text on white in every fixture and every analysi
   }
 });
 
+test("/results/demo prints the contents of Details and Other mice even though they are closed", async ({
+  page,
+}) => {
+  await page.goto("/results/demo");
+  await page.getByRole("button", { name: "Many mice + hand type" }).click();
+  await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+  // Nothing is opened by hand: both disclosures are closed on screen.
+  await expect(page.locator(".results-disclosure[open]")).toHaveCount(0);
+  const scores = page.locator(".results-details .results-subscoreBar");
+  await expect(scores).toHaveCount(6);
+  for (let i = 0; i < 6; i++) await expect(scores.nth(i)).toBeVisible();
+  await expect(
+    page.locator(".results-details .results-targetDeltas"),
+  ).toBeVisible();
+  const rows = page.locator(".results-otherMice-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toBeVisible();
+  await expect(page.locator(".results-excluded-list")).toBeVisible();
+  // And still dark on white.
+  await expectPrintsDark(page, "closed disclosures, printed", {
+    skip: ".results-demoControls",
+  });
+});
+
 // The real route: the notices after the top pick, the delete action (a
 // button, in its own colours) and the page-level states.
 const SCAN_ID = "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d";
