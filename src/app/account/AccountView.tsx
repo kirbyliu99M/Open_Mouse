@@ -65,7 +65,7 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
       const res = await fetch("/api/account/scans");
       if (!res.ok) throw new Error("export failed");
       const data: unknown = await res.json();
-      downloadJson(`open-mouse-scans-${Date.now()}.json`, data);
+      downloadJson(`palmate-scans-${Date.now()}.json`, data);
       setExportStatus("done");
     } catch {
       setExportStatus("error");

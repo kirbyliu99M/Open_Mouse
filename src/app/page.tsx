@@ -4,6 +4,7 @@ import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
+import { SITE_NAME } from "@/lib/site";
 import "./home.css";
 
 /**
@@ -23,7 +24,7 @@ export default function HomePage() {
   return (
     <main className="home-main landing-page">
       <nav className="home-nav" aria-label="Primary">
-        <span className="home-wordmark">Open Mouse</span>
+        <span className="home-wordmark">{SITE_NAME}</span>
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />
