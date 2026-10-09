@@ -762,22 +762,31 @@ describe("letters from the caller's labels", () => {
 });
 
 describe("a hard limit on the count (maxCount, thinToCount, spacingForCount)", () => {
-  it("never goes over: Codex's 100 × 100 at a budget of 11 (the spacing estimate alone gave 12)", () => {
+  it("cuts a 100 × 100 grid that is really over budget down to exactly 11", () => {
+    // spacingForCount is only an estimate: here at 0.7 of it the grid is well
+    // over 11, so maxCount has to thin it.
     const full = new Array(100 * 100).fill(255);
-    const spacing = spacingForCount(100 * 100, 11);
+    const spacing = spacingForCount(100 * 100, 11) * 0.7;
     const loose = sampleMask(full, 100, 100, {
       spacing,
       seed: 1,
       guessLetters: true,
     }).particles;
+    expect(loose.length).toBeGreaterThan(11);
     const capped = sampleMask(full, 100, 100, {
       spacing,
       seed: 1,
       guessLetters: true,
       maxCount: 11,
     }).particles;
-    expect(capped.length).toBe(Math.min(11, loose.length));
-    expect(capped.length).toBeLessThanOrEqual(11);
+    expect(capped).toHaveLength(11);
+    // A subset of the loose particles, in their order.
+    const index = capped.map((p) =>
+      loose.findIndex((q) => q.x === p.x && q.y === p.y),
+    );
+    expect(index.every((i) => i >= 0)).toBe(true);
+    for (let i = 1; i < index.length; i += 1)
+      expect(index[i]).toBeGreaterThan(index[i - 1]!);
   });
 
   it("holds a full 1440 × 260 headline band to a budget of 10,000", () => {
