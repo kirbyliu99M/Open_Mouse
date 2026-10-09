@@ -806,7 +806,10 @@ test("signed in, the nav shows the Google avatar linking to the account page ins
     route.fulfill({ body: PIXEL, contentType: "image/svg+xml" }),
   );
   await page.goto("/");
-  const account = page.getByRole("link", { name: "Account", exact: true });
+  // Scoped to the nav: the site footer (root layout) has an Account link too.
+  const account = page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Account", exact: true });
   await expect(account).toHaveAttribute("href", "/account");
   await expect(account.locator("img")).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
@@ -834,7 +837,10 @@ test("signed in with an avatar that fails to load, the nav shows the name's init
     route.abort(),
   );
   await page.goto("/");
-  const account = page.getByRole("link", { name: "Account", exact: true });
+  // Scoped to the nav: the site footer (root layout) has an Account link too.
+  const account = page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Account", exact: true });
   await expect(account.getByTestId("avatar-fallback")).toHaveText("A");
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
 });

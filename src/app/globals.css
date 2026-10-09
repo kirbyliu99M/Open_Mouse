@@ -274,6 +274,15 @@ button:disabled {
   .button-danger {
     border-color: #b3261e;
   }
+  /* The avatar's initial (or person glyph) is white on the accent fill, and
+     Chrome does not print backgrounds by default: on paper it would be white
+     on white. It prints as a dark letter in a dark ring, no fill (the same
+     rule as .home-cta in home.css). */
+  .avatar-fallback {
+    background: none;
+    border: 1px solid #000;
+    color: #000;
+  }
   /* The confirmation dialogs ("Delete this scan now?", "Delete everything?")
      are light text on a dark panel; printed as they stand that is 1.09:1 on
      white. They are a question to answer on screen, not content, so they and
