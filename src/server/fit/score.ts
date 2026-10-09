@@ -8,7 +8,7 @@ import {
   type Subscore,
 } from "../../lib/contracts/fit";
 import { ENGINE_VERSION, UNKNOWN_PRIOR_SCORE } from "./coefficients";
-import { excludeReason } from "./exclusions";
+import { excludeReason, totalApplies } from "./exclusions";
 import { predictGrip } from "./grip";
 import {
   scoreFrontFlare,
@@ -127,9 +127,9 @@ export function scoreFit(
         model: mouse.model,
         reason,
         // Kirby, 2026-10-09: a mouse made for the other hand still shows the
-        // score it would get. Vertical devices (and trackballs in v1) are
-        // outside the length/width model and never carry one.
-        ...(reason === "wrong_hand"
+        // score it would get, unless the device is vertical or a trackball:
+        // the length/width model does not apply to those (totalApplies).
+        ...(reason === "wrong_hand" && totalApplies(mouse)
           ? { total: scoreMouse(mouse, targets, used, prefs).total }
           : {}),
       });

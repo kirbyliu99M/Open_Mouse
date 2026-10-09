@@ -13,6 +13,7 @@ import {
 } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { ENGINE_VERSION_V1 } from "./coefficients";
+import { totalApplies } from "./exclusions";
 import { excludeReasonV1, type ExclusionOptions } from "./exclusions-v1";
 import { argmaxGrip, gripWeights } from "./grip-weights";
 import type { Priors } from "./priors";
@@ -228,8 +229,9 @@ export function scoreFitV1(
         model: mouse.model,
         reason,
         // Kirby, 2026-10-09: a mouse made for the other hand still shows the
-        // score it would get. Trackballs and verticals never carry one.
-        ...(reason === "wrong_hand"
+        // score it would get, unless the device is vertical or a trackball:
+        // the length/width model does not apply to those (totalApplies).
+        ...(reason === "wrong_hand" && totalApplies(mouse)
           ? { total: scoreMouseV1(mouse, grips, priors, prefs).total }
           : {}),
       });

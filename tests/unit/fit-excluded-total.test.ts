@@ -308,3 +308,79 @@ describe("a vertical or trackball exclusion", () => {
     expect(r.results.map((e) => e.mouse.slug)).toEqual(["acme-standard"]);
   });
 });
+
+describe.each([
+  ["fit-v0", v0],
+  ["fit-v1-candidate", v1],
+] as const)("%s: wrong_hand total depends on the form factor", (_n, run) => {
+  const measurements: HandMeasurements = {
+    handLengthMm: 180,
+    palmLengthMm: 102,
+    palmWidthMm: 74,
+  };
+  // Made for the right hand only; scanned with a left hand, shape ergonomic
+  // so the left-hand rule excludes it as wrong_hand.
+  const rightOnly: CatalogueMouse = {
+    slug: "acme-right-only",
+    brand: "Acme",
+    model: "Right Only",
+    lengthMm: 118,
+    widthMm: 68,
+    heightMm: 40,
+    weightG: 85,
+    size: "medium",
+    handCompatibility: "right",
+    shape: "ergonomic",
+    humpPlacement: null,
+    frontFlare: null,
+    sideCurvature: null,
+    thumbRest: null,
+  };
+  const other: CatalogueMouse = {
+    ...rightOnly,
+    slug: "acme-any",
+    model: "Any",
+    handCompatibility: null,
+  };
+  const excludedFor = (mouse: CatalogueMouse) => {
+    const r = run(
+      [mouse, other],
+      measurements,
+      "left",
+      PREFS,
+      computePriors([mouse, other]),
+    );
+    return r.excluded.find((e) => e.slug === mouse.slug);
+  };
+
+  it("a right-only trackball for a left hand is wrong_hand with no total", () => {
+    const e = excludedFor({ ...rightOnly, formFactor: "trackball" });
+    expect(e?.reason).toBe("wrong_hand");
+    expect(e).not.toHaveProperty("total");
+  });
+
+  it("a right-only vertical (form factor) for a left hand is wrong_hand with no total", () => {
+    const e = excludedFor({ ...rightOnly, formFactor: "vertical" });
+    expect(e?.reason).toBe("wrong_hand");
+    expect(e).not.toHaveProperty("total");
+  });
+
+  it("a right-only vertical by height/length ratio for a left hand has no total", () => {
+    const e = excludedFor({ ...rightOnly, lengthMm: 108, heightMm: 71 });
+    expect(e?.reason).toBe("wrong_hand");
+    expect(e).not.toHaveProperty("total");
+  });
+
+  it("a right-only standard mouse for a left hand is wrong_hand with a total", () => {
+    const e = excludedFor({ ...rightOnly, formFactor: "standard" });
+    expect(e?.reason).toBe("wrong_hand");
+    expect(typeof e?.total).toBe("number");
+  });
+
+  it("a right-only mouse with an unknown (absent) form factor is treated as standard and keeps its total", () => {
+    expect(rightOnly.formFactor).toBeUndefined();
+    const e = excludedFor(rightOnly);
+    expect(e?.reason).toBe("wrong_hand");
+    expect(typeof e?.total).toBe("number");
+  });
+});
