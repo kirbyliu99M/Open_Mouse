@@ -62,8 +62,9 @@ import type { NextConfig } from "next";
  * needs it, but the framework does.
  *
  * `img-src 'self' data: blob:`: `data:`/`blob:` for canvas-derived and
- * captured-photo previews client-side; no image is ever fetched
- * cross-origin.
+ * captured-photo previews client-side. The one cross-origin image is the
+ * signed-in user's own Google avatar (`https://lh3.googleusercontent.com`),
+ * loaded without a referrer for the nav.
  *
  * `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`,
  * `object-src 'none'`: no legitimate reason for this app to be framed, have
@@ -77,7 +78,7 @@ const CONTENT_SECURITY_POLICY = [
   `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${IS_DEV ? " 'unsafe-eval'" : ""}`,
   "worker-src 'self' blob:",
   "connect-src 'self'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://lh3.googleusercontent.com",
   "style-src 'self' 'unsafe-inline'",
   "frame-ancestors 'none'",
   "base-uri 'self'",

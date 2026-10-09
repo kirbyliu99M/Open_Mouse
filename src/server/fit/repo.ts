@@ -8,7 +8,9 @@ import type { FitResultRow } from "./rows";
  */
 export interface FitRepo {
   /** Every `mice` row, mapped to what `scoreFit` needs (`id` included, so a
-   * scored result can be traced back to a `mice.id` for persistence). */
+   * scored result can be traced back to a `mice.id` for persistence), with
+   * `listed` and `formFactor`. Unlisted rows are returned too: the caller
+   * (`loadOwnedFit`) drops them with `listedOnly` before scoring. */
   loadCatalogue(): Promise<CatalogueMouse[]>;
   /**
    * Upserts one row per ranked result, keyed on the existing

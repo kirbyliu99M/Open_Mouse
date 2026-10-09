@@ -21,6 +21,14 @@
  * facts into that file, or change this precedence, before it ships. Details:
  * src/server/catalogue/geometry-descriptors.ts.
  *
+ * CAT-1 (2026-10-09): it now also reads logitech-facts.json (hand, shape and
+ * form factor were never seeded before) and catalogue.json (the 409 approved
+ * candidates, written by scripts/import-catalogue.ts). A candidate that is the
+ * same product as a logitech.json row only fills that row's null descriptors;
+ * the rest become rows of their own. See src/server/catalogue/catalogue-rows.ts.
+ * Every run also sets category, listed, form_factor, image_path and
+ * data_source on every row.
+ *
  *   npm run db:seed            (explicit, e.g. production)
  *   tsx scripts/seed.ts --preview   (Vercel preview builds, after migrate)
  */
@@ -37,7 +45,14 @@ import {
   type DescriptorRecord,
   type SpecRecord,
 } from "../src/server/catalogue/seed-rows";
+import type { CatalogueEntry } from "../src/server/catalogue/candidate-map";
+import type { FactsFile } from "../src/server/catalogue/catalogue-rows";
 import { resolveConnection } from "./db-connection";
+
+const IMAGES_DIR = "public/images/mice";
+
+const readJson = <T>(path: string): T =>
+  JSON.parse(readFileSync(path, "utf8")) as T;
 
 async function main() {
   const connection = resolveConnection("seed");
@@ -55,6 +70,11 @@ async function main() {
     drizzle(neon(connection)),
     records,
     descriptors,
+    {
+      facts: readJson<FactsFile>("src/db/seed/logitech-facts.json"),
+      entries: readJson<CatalogueEntry[]>("src/db/seed/catalogue.json"),
+      imageExists: (slug) => existsSync(`${IMAGES_DIR}/${slug}.webp`),
+    },
   );
   console.log(seedSummaryLine(summary));
 }

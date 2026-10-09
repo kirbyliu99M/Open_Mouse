@@ -412,6 +412,147 @@ describe("describeMigrationError", () => {
     expect(described.startsWith("Migration failed: ")).toBe(true);
   });
 
+  it("includes the Postgres cause of a failed query, without its secret", () => {
+    const pg = Object.assign(
+      new Error(
+        'duplicate key value violates unique constraint "mice_slug_unique"',
+      ),
+      {
+        code: "23505",
+        constraint: "mice_slug_unique",
+        detail: `Key (slug)=(acme-test) already exists. postgresql://u:${SECRET}@h/db`,
+      },
+    );
+    const error = new Error('Failed query: insert into "mice"', { cause: pg });
+    const described = describeMigrationError(error);
+    expect(described).toContain('Failed query: insert into "mice"');
+    expect(described).toContain("code=23505");
+    expect(described).toContain("constraint=mice_slug_unique");
+    expect(described).toContain("Key (slug)=(acme-test) already exists.");
+    expect(described).not.toContain(SECRET);
+  });
+
+  it("redacts a credential column's value in a Postgres Key detail, keeps others", () => {
+    const withCause = (detail: string) =>
+      describeMigrationError(
+        new Error("Failed query", {
+          cause: Object.assign(new Error("dup"), { detail }),
+        }),
+      );
+    const leaked = withCause("Key (api_token)=(abc123secret) already exists.");
+    expect(leaked).not.toContain("abc123secret");
+    expect(leaked).toContain("Key (api_token)=([redacted])");
+    expect(withCause("Key (password)=(hunter2) already exists.")).not.toContain(
+      "hunter2",
+    );
+    expect(
+      withCause("Key (brand, model)=(Acme, Test) already exists."),
+    ).toContain("Key (brand, model)=(Acme, Test) already exists.");
+  });
+
+  it("redacts the values of a Postgres failing row, keeps the constraint", () => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("violates check constraint"), {
+          constraint: "mice_source_url_https",
+          detail: "Failing row contains (abc, hunter2, (nested), 42).",
+        }),
+      }),
+    );
+    expect(described).not.toContain("hunter2");
+    expect(described).toContain("Failing row contains [redacted]");
+    expect(described).toContain("constraint=mice_source_url_https");
+  });
+
+  it.each([
+    ["two-level nesting", "Key (password)=(a(b(c)d)e) already exists.", "a(b"],
+    ["an unpaired )", "Key (password)=(ab)c) already exists.", "c)"],
+    [
+      "an expression index",
+      "Key (lower(password))=(sec) already exists.",
+      "sec",
+    ],
+    ["no terminator", "Key (api_key)=(s3cr3t", "s3cr3t"],
+    ["a foreign key", "Key (token)=(t0k) is not present in table x.", "t0k"],
+  ])("redacts a credential Key value with %s", (_n, detail, secret) => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("dup"), { detail }),
+      }),
+    );
+    expect(described).not.toContain(secret);
+    expect(described).toContain("=([redacted]");
+  });
+
+  it.each([
+    "Key (brand)=(Acme) Key (password)=(zzz) already exists.",
+    "Key (brand)=(Acme Key (password)=(zzz)",
+    "Key (brand)=(Acme\nKey (password)=(zzz) already exists.",
+  ])("finds a credential Key after a plain one in one detail: %j", (s) => {
+    const redacted = redactSecrets(s);
+    expect(redacted).not.toContain("zzz");
+    expect(redacted).toContain("Key (brand)=(Acme");
+    expect(redacted).toContain("Key (password)=([redacted]");
+  });
+
+  it("redacts a credential Key in a later cause after a plain one", () => {
+    const inner = Object.assign(new Error("inner"), {
+      detail: "Key (password)=(hunter2) already exists.",
+    });
+    const outer = Object.assign(new Error("outer", { cause: inner }), {
+      detail: "Key (slug)=(acme",
+    });
+    const described = describeMigrationError(
+      new Error("Failed query", { cause: outer }),
+    );
+    expect(described).not.toContain("hunter2");
+    expect(described).toContain("Key (slug)=(acme");
+  });
+
+  it.each([
+    "Failing row contains (1, pw, (n(x)), z).",
+    "Failing row contains (1, pw, a)b, z).",
+  ])("redacts a whole failing row: %s", (detail) => {
+    const described = describeMigrationError(
+      new Error("Failed query", {
+        cause: Object.assign(new Error("check"), { detail }),
+      }),
+    );
+    expect(described).not.toMatch(/pw|z\)|b, z/);
+    expect(described).toContain("Failing row contains [redacted]");
+  });
+
+  it("stays fast on long hostile input", () => {
+    const t0 = performance.now();
+    for (const s of [
+      "Key (".repeat(40_000),
+      "Key (a)=(".repeat(20_000),
+      "Failing row contains (".repeat(10_000),
+      "(".repeat(200_000),
+    ]) {
+      redactSecrets(s);
+    }
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
+
+  it("drops empty cause pieces instead of printing an empty tail", () => {
+    expect(
+      describeMigrationError(new Error("", { cause: new Error("") })),
+    ).toMatch(/no error detail/);
+    expect(
+      describeMigrationError(new Error("Failed", { cause: new Error("") })),
+    ).toBe("Migration failed: Failed");
+  });
+
+  it("stops after three causes on a cyclic chain", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    Object.assign(a, { cause: b });
+    expect(describeMigrationError(new Error("top", { cause: a }))).toBe(
+      "Migration failed: top | cause: a | cause: b | cause: a",
+    );
+  });
+
   it.each([undefined, null, 42, {}, new Error(""), "  "])(
     "falls back to a generic message when there is no detail (%s)",
     (error) => {

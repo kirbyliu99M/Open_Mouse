@@ -98,4 +98,13 @@ describe("next.config.ts headers()", () => {
       ).toEqual([]);
     },
   );
+
+  it("img-src allows only self, data:, blob: and the Google avatar host", async () => {
+    expect(await cspDirective("img-src")).toEqual([
+      "'self'",
+      "data:",
+      "blob:",
+      "https://lh3.googleusercontent.com",
+    ]);
+  });
 });
