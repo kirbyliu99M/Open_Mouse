@@ -71,6 +71,10 @@ import {
 import "./camera.css";
 import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import { requestCameraStream } from "./requestStream";
+import {
+  isCameraPermissionDenial,
+  reportCaught,
+} from "@/lib/observability/report";
 
 /** TL, TR, BR, BL — the order every per-corner array in this file uses. */
 type CornerTuple<T> = readonly [T, T, T, T];
@@ -367,6 +371,8 @@ export default function CameraCapture({
         onPermissionResultRef.current?.("granted");
       setState({ kind: "live" });
     } catch (err) {
+      if (!isCameraPermissionDenial(err))
+        reportCaught(err, "camera-capture.camera-open");
       const name = err instanceof DOMException ? err.name : undefined;
       const message =
         name === "NotAllowedError" || name === "PermissionDeniedError"

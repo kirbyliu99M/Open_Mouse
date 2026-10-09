@@ -1,0 +1,166 @@
+{
+  "small_fingertip": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 165,
+      "palmLengthMm": 82,
+      "palmWidthMm": 66
+    },
+    "predictedGrip": "fingertip",
+    "gripWeights": {
+      "palm": 0.0055,
+      "claw": 0.0581,
+      "fingertip": 0.9364
+    },
+    "handType": {
+      "size": "small",
+      "grip": "fingertip",
+      "width": "wide"
+    },
+    "top5": [
+      {
+        "slug": "logitech-m325s",
+        "total": 69
+      },
+      {
+        "slug": "logitech-m240",
+        "total": 66
+      },
+      {
+        "slug": "logitech-mx-anywhere-3s",
+        "total": 64
+      },
+      {
+        "slug": "logitech-m196",
+        "total": 64
+      },
+      {
+        "slug": "logitech-pebble-2-m350s",
+        "total": 61
+      }
+    ]
+  },
+  "medium_claw": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 185,
+      "palmLengthMm": 104,
+      "palmWidthMm": 76
+    },
+    "predictedGrip": "claw",
+    "gripWeights": {
+      "palm": 0.247,
+      "claw": 0.5528,
+      "fingertip": 0.2002
+    },
+    "handType": {
+      "size": "small",
+      "grip": "claw",
+      "width": "wide"
+    },
+    "top5": [
+      {
+        "slug": "logitech-g203-lightsync",
+        "total": 78
+      },
+      {
+        "slug": "logitech-g305-lightspeed",
+        "total": 78
+      },
+      {
+        "slug": "logitech-m100",
+        "total": 78
+      },
+      {
+        "slug": "logitech-m190",
+        "total": 77
+      },
+      {
+        "slug": "logitech-g-pro-x-superlight-2c",
+        "total": 75
+      }
+    ]
+  },
+  "large_palm": {
+    "hand": "right",
+    "measurements": {
+      "handLengthMm": 205,
+      "palmLengthMm": 124,
+      "palmWidthMm": 88
+    },
+    "predictedGrip": "palm",
+    "gripWeights": {
+      "palm": 0.8256,
+      "claw": 0.1573,
+      "fingertip": 0.017
+    },
+    "handType": {
+      "size": "large",
+      "grip": "palm",
+      "width": "slim"
+    },
+    "top5": [
+      {
+        "slug": "logitech-g502-x",
+        "total": 84
+      },
+      {
+        "slug": "logitech-g502-x-lightspeed",
+        "total": 84
+      },
+      {
+        "slug": "logitech-g502-x-plus",
+        "total": 84
+      },
+      {
+        "slug": "logitech-g502-hero",
+        "total": 79
+      },
+      {
+        "slug": "logitech-g903-hero",
+        "total": 67
+      }
+    ]
+  },
+  "left_handed": {
+    "hand": "left",
+    "measurements": {
+      "handLengthMm": 178,
+      "palmLengthMm": 103,
+      "palmWidthMm": 73
+    },
+    "predictedGrip": "palm",
+    "gripWeights": {
+      "palm": 0.4789,
+      "claw": 0.4391,
+      "fingertip": 0.082
+    },
+    "handType": {
+      "size": "medium",
+      "grip": "palm",
+      "width": "slim"
+    },
+    "top5": [
+      {
+        "slug": "logitech-m100",
+        "total": 83
+      },
+      {
+        "slug": "logitech-g203-lightsync",
+        "total": 80
+      },
+      {
+        "slug": "logitech-g305-lightspeed",
+        "total": 80
+      },
+      {
+        "slug": "logitech-g-pro-x-superlight-2c",
+        "total": 76
+      },
+      {
+        "slug": "logitech-m750",
+        "total": 76
+      }
+    ]
+  }
+}
