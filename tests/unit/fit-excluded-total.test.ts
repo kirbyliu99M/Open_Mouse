@@ -95,7 +95,9 @@ describe.each(engines)(
             expect(e.total, e.slug).toBe(rankedTotal.get(e.slug));
             withTotal += 1;
           } else {
-            // v0 ranks a trackball; as an excluded mouse it shows no number.
+            // Not reached with this seed (no trackball or vertical mouse is
+            // ranked); kept so a device the model does not cover never shows
+            // a number if one is ranked again.
             expect(e, e.slug).not.toHaveProperty("total");
           }
         }
@@ -142,13 +144,22 @@ describe.each(engines)(
       "%s: the ranked top 5 still matches the golden fixture",
       (_n, profile) => {
         const r = run(seed, profile.measurements, profile.hand);
-        // The golden fixtures run the seed without facts, so they still rank
-        // a trackball; with facts both engines exclude it (CAT-1), and the
-        // rest of the golden top 5 keeps its order and totals.
+        // The golden fixtures were made from logitech.json alone, where no row
+        // is marked a trackball, so v0's large_palm top 5 still lists ERGO
+        // M575. This seed adds the facts file, so both engines exclude that
+        // row (CAT-1): it must show up as a trackball exclusion, and the rest
+        // of the golden top 5 keeps its order and totals.
         const bySlug = new Map(seed.map((m) => [m.slug, m]));
-        const expected = profile.top5.filter(
-          (e) => bySlug.get(e.slug)?.formFactor !== "trackball",
-        );
+        const isTrackball = (slug: string) =>
+          bySlug.get(slug)?.formFactor === "trackball";
+        const expected = profile.top5.filter((e) => !isTrackball(e.slug));
+        for (const { slug } of profile.top5.filter((e) =>
+          isTrackball(e.slug),
+        )) {
+          expect(r.excluded.find((e) => e.slug === slug)?.reason, slug).toBe(
+            "trackball_form_factor",
+          );
+        }
         expect(
           r.results
             .slice(0, expected.length)
