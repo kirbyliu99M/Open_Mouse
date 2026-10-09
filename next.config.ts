@@ -42,7 +42,8 @@ import type { NextConfig } from "next";
  * this is included defensively; a `blob:` worker still only ever runs
  * same-origin script content, so it costs nothing to allow ahead of need.
  *
- * `connect-src 'self'`: same-origin `fetch` to `/api/**` and to the WASM/
+ * `connect-src 'self'`: same-origin `fetch` to `/api/**`, `/ingest/**` (the
+ * PostHog reverse proxy, a route handler) and to the WASM/
  * model files above (loaded via `fetch`, not `<script src>`, so `script-src`
  * alone would not cover them).
  *
@@ -110,6 +111,27 @@ const nextConfig: NextConfig = {
   // The dev-mode indicator badge has no place in a design screenshot — off
   // in every environment, not just for captures (item 7).
   devIndicators: false,
+  // Events go through the same-origin route handler at /ingest (issue #138;
+  // src/app/ingest/[...path]/route.ts), so the CSP's `connect-src 'self'` is
+  // unchanged and needs no PostHog origin. It is a handler and not a
+  // `rewrites()` rule because a rewrite to an external host forwards the
+  // browser's Cookie header (scan_session, the Auth.js session) and its
+  // X-Forwarded-For to PostHog.
+  //
+  // posthog-js posts to `/ingest/e/` with a trailing slash. Next's canonical
+  // 308 from `/x/` to `/x` would redirect that POST, which `sendBeacon` does
+  // not follow reliably, so the redirect is skipped globally and `redirects()`
+  // below restores it for every path except /ingest.
+  skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      {
+        source: "/:path((?!ingest(?:/|$)).+)/",
+        destination: "/:path",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

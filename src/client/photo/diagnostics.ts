@@ -81,6 +81,25 @@ export interface PipelineDiagnostics {
   readonly hand: HandDiagnostics;
   /** Whether the parallax correction ran; `null` where the pipeline stopped before that. */
   readonly parallaxCorrected: boolean | null;
+  /**
+   * The hand length and palm width of an ok scan, exactly as the result and the
+   * submission carry them (unrounded); `null` for a run that did not end in a
+   * measurement.
+   */
+  readonly measured: MeasuredDiagnostics;
+  /** Where the parallax correction's focal length came from, and its value; `null` where the pipeline stopped before that. */
+  readonly focal: FocalDiagnostics | null;
+}
+
+export interface MeasuredDiagnostics {
+  readonly handLengthMm: number | null;
+  readonly palmWidthMm: number | null;
+}
+
+export interface FocalDiagnostics {
+  readonly source: "exif" | "homography" | "none";
+  /** In px; `null` when `source` is "none" (no correction was possible). */
+  readonly px: number | null;
 }
 
 type Pt = { readonly x: number; readonly y: number };

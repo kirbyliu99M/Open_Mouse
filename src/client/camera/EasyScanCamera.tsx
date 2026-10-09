@@ -90,6 +90,15 @@ import {
   type AutoCaptureState,
 } from "./autoCapture";
 import {
+  advanceCaptureFailures,
+  captureFailureHintText,
+  captureFailureLangAttribute,
+  hintUnderViewfinder,
+  pickCaptureFailureLanguage,
+  shouldShowCaptureFailureHint,
+  type CaptureFailureEvent,
+} from "./captureFailure";
+import {
   INITIAL_CUE_DEBOUNCE_STATE,
   advanceCueDebounce,
   type CueDebounceState,
@@ -175,6 +184,8 @@ import {
 } from "./easyScanPreferences";
 import ScanSubmitPanel from "../../app/scan/ScanSubmitPanel";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
+import { track } from "../analytics/track";
+import { clampAttempt, issueCodes } from "../analytics/props";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import {
@@ -491,6 +502,10 @@ export default function EasyScanCamera({
   const [ringFraction, setRingFraction] = useState(0);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
+  // Consecutive failed frame captures (captureFailure.ts): the number lives in
+  // the ref for the capture callback, and in state for the cue line.
+  const captureFailuresRef = useRef(0);
+  const [captureFailures, setCaptureFailures] = useState(0);
   // The stage is the whole screen and never changes shape (scan v2): its
   // size is measured only to place the guide and the frozen photo.
   const [stageSize, setStageSize] = useState<Size | null>(null);
@@ -591,6 +606,8 @@ export default function EasyScanCamera({
   // The wait for the preview ran out before the camera answered.
   const settleTimedOutRef = useRef<boolean | null>(null);
   const attemptsRef = useRef<readonly AttemptRecord[]>([]);
+  // This page's analysis count, for analytics only (1-based once incremented).
+  const attemptCountRef = useRef(0);
   const captureInfoRef = useRef<CaptureInfo | null>(null);
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
@@ -805,6 +822,14 @@ export default function EasyScanCamera({
     };
   }, [stopStream]);
 
+  const noteCaptureOutcome = useCallback((event: CaptureFailureEvent) => {
+    captureFailuresRef.current = advanceCaptureFailures(
+      captureFailuresRef.current,
+      event,
+    );
+    setCaptureFailures(captureFailuresRef.current);
+  }, []);
+
   // Everything the loop carries from sample to sample, and what the screen
   // shows of it (the ring, the cue, the hint under it), back to the start.
   // Used when a loop begins and whenever the camera is asked for again: a
@@ -824,7 +849,8 @@ export default function EasyScanCamera({
     // What a screen reader was last told ("Photo taken", the last cue) is not
     // true of a camera that is starting again.
     setAnnounced("");
-  }, []);
+    noteCaptureOutcome("reset");
+  }, [noteCaptureOutcome]);
 
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -931,6 +957,7 @@ export default function EasyScanCamera({
       setVideoReady(false);
       resetLoopState();
       lastDetectionAtRef.current = performance.now();
+      track("camera_permission_result", { flow: "easy", result: "granted" });
       setCamState({ kind: "live" });
     } catch (err) {
       if (!isCameraPermissionDenial(err))
@@ -944,8 +971,16 @@ export default function EasyScanCamera({
         mountedRef.current &&
         requestId === requestIdRef.current &&
         camKindRef.current === "requesting"
-      )
+      ) {
+        track("camera_permission_result", {
+          flow: "easy",
+          result:
+            name === "NotAllowedError" || name === "PermissionDeniedError"
+              ? "denied"
+              : "error",
+        });
         setCamState({ kind: "cameraError", message });
+      }
     }
   }, [stopStream, setUpFocus, resetLoopState]);
 
@@ -958,6 +993,7 @@ export default function EasyScanCamera({
       coarsePointer: window.matchMedia("(pointer: coarse)").matches,
     });
     setDeviceFit(fit);
+    track("scan_entry_shown", { flow: "easy", device: fit });
     setPageUrl(window.location.origin + window.location.pathname);
     if (fit !== "phone") {
       setCamState({ kind: "noCamera" });
@@ -968,6 +1004,7 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (!canUseCamera) {
+      track("camera_permission_result", { flow: "easy", result: "noCamera" });
       setCamState({ kind: "noCamera" });
       return;
     }
@@ -1030,6 +1067,15 @@ export default function EasyScanCamera({
   const runPipeline = useCallback(
     async (file: File, previewUrl: string) => {
       const runId = ++runIdRef.current;
+      attemptCountRef.current += 1;
+      // Read now: a typed length chosen while the photo is analysed must not change it.
+      const paperUsed = userLengthRef.current !== null ? "none" : "detected";
+      const attempt = clampAttempt(attemptCountRef.current);
+      track("scan_capture_attempted", {
+        flow: "easy",
+        method: captureInfoRef.current?.method ?? "upload",
+        attempt,
+      });
       setResult({ kind: "processing", previewUrl });
       // What this analysis was started with, for both ways it can end: a later
       // capture changes `captureInfoRef` and must not change the record of an
@@ -1069,6 +1115,13 @@ export default function EasyScanCamera({
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
         if (pipelineResult.status === "ok") {
+          track("scan_measured", {
+            flow: "easy",
+            attempt,
+            // Paper-edge mode finds the sheet itself; a typed hand length
+            // means no paper was used. This flow has no manual corners.
+            paper: paperUsed,
+          });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
@@ -1082,6 +1135,11 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         } else if (pipelineResult.status === "error") {
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: issueCodes(pipelineResult.errors.map((e) => e.code)),
+          });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
@@ -1095,6 +1153,11 @@ export default function EasyScanCamera({
           });
         } else {
           // "needsManualCard" never happens in paper-edge mode.
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: ["UNEXPECTED"],
+          });
           setResult({
             kind: "gateFailure",
             previewUrl,
@@ -1120,6 +1183,13 @@ export default function EasyScanCamera({
           message: error instanceof Error ? error.message : "",
         });
         if (runId !== runIdRef.current) return;
+        track("scan_rejected", {
+          flow: "easy",
+          attempt,
+          codes: [
+            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          ],
+        });
         setResult({
           kind: "gateFailure",
           previewUrl,
@@ -1155,8 +1225,10 @@ export default function EasyScanCamera({
     if (
       source === "frame" &&
       (!video || video.readyState < 2 || video.videoWidth === 0)
-    )
+    ) {
+      noteCaptureOutcome("failure");
       return;
+    }
     capturingRef.current = true;
     try {
       const firedAt = performance.now();
@@ -1228,8 +1300,9 @@ export default function EasyScanCamera({
           // No frame: the loop was not stopped and is still running, the busy
           // flag is reset by the `finally` below, and the ring starts over so
           // that the auto-shutter tries again after a full fill, not on every
-          // sample. Nothing is shown (no copy for this has been approved); a
-          // press of the shutter tries again at once.
+          // sample. Nothing is shown until the third failure in a row
+          // (captureFailure.ts); a press of the shutter tries again at once.
+          noteCaptureOutcome("failure");
           autoCaptureRef.current = resetAutoCapture();
           setRingFraction(0);
           return;
@@ -1250,8 +1323,15 @@ export default function EasyScanCamera({
           // No camera photo: the whole frame; the pipeline cuts it to the part
           // on screen (previewView).
           method = "canvas";
-          const frame = await frameFile(null);
+          let frame: File | null = null;
+          try {
+            frame = await frameFile(null);
+          } catch {
+            // A canvas that throws is a frame that was not made, as above.
+            frame = null;
+          }
           if (!frame) {
+            noteCaptureOutcome("failure");
             capturingRef.current = false;
             return;
           }
@@ -1259,6 +1339,7 @@ export default function EasyScanCamera({
         }
       }
 
+      noteCaptureOutcome("success");
       const previewUrl = URL.createObjectURL(file);
       // The camera keeps running while the photo is decoded, so the swap from
       // live picture to frozen picture happens in one step, under the flash.
@@ -1320,7 +1401,7 @@ export default function EasyScanCamera({
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
     }
-  }, [stopStream, runPipeline]);
+  }, [stopStream, runPipeline, noteCaptureOutcome]);
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1835,6 +1916,7 @@ export default function EasyScanCamera({
     restoreFocusRef.current = true;
     dismissTip();
     stopStream();
+    noteCaptureOutcome("reset");
     setCamState({ kind: "noCamera" });
     setLengthStep(true);
   };
@@ -1876,14 +1958,25 @@ export default function EasyScanCamera({
   const cueLabel = cue
     ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus })
     : "Point the camera at the paper";
-  const hintText =
+  // From the third failed frame capture in a row, the cue line says so instead
+  // of its usual words (same slot, same live region); it is plain text, so
+  // there is nothing to animate.
+  const captureFailureLanguage = shouldShowCaptureFailureHint(captureFailures)
+    ? pickCaptureFailureLanguage(navigator.languages, navigator.language)
+    : null;
+  const captureFailureHint = captureFailureLanguage
+    ? captureFailureHintText(captureFailureLanguage)
+    : null;
+  const hintText = hintUnderViewfinder(
     userLengthMm !== null
       ? ""
       : easyHintText({
           cueCode: cue?.code ?? null,
           ringFraction,
           tapToFocus: focusSupport.tapToFocus,
-        });
+        }),
+    captureFailures,
+  );
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
@@ -2317,11 +2410,19 @@ export default function EasyScanCamera({
           <>
             <div className="cameraCueWrap">
               <div
-                className={`cameraCue${cue?.allPass ? " perfect" : ""}`}
+                className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
                 aria-live="polite"
                 data-testid="camera-cue"
+                data-capture-failure={captureFailureHint ? "true" : undefined}
+                lang={
+                  captureFailureLanguage
+                    ? captureFailureLangAttribute(captureFailureLanguage)
+                    : undefined
+                }
               >
-                {userLengthMm !== null ? (
+                {captureFailureHint ? (
+                  captureFailureHint
+                ) : userLengthMm !== null ? (
                   "Hand flat, fingers together, phone straight above"
                 ) : cue?.allPass ? (
                   <>
@@ -2536,7 +2637,10 @@ export default function EasyScanCamera({
                   </svg>
                 </button>
                 <div className="easySeeMatches">
-                  <ScanSubmitPanel submission={result.submission} />
+                  <ScanSubmitPanel
+                    submission={result.submission}
+                    flow={demoMeasured ? undefined : "easy"}
+                  />
                 </div>
               </div>
             </>

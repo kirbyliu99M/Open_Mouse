@@ -1,4 +1,5 @@
 import type {
+  FormFactor,
   FrontFlare,
   HandCompatibility,
   HumpPlacement,
@@ -38,6 +39,11 @@ export interface CatalogueMouse {
   frontFlare: FrontFlare | null;
   sideCurvature: SideCurvature | null;
   thumbRest: boolean | null;
+  /**
+   * fit-v1 only (v0 ignores it). Optional until the catalogue carries a
+   * form-factor column (CAT-1); absent is treated as "standard".
+   */
+  formFactor?: FormFactor;
 }
 
 /** One sub-score computation, before it is placed under its key in FitEntry. */

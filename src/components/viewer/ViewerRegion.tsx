@@ -36,6 +36,8 @@ interface ViewerRegionProps {
   scanId: string;
   mouseSlug: string;
   mouseName: string;
+  /** Called once, on the first drag, zoom, tap or key press on the viewer. */
+  onInteracted?: () => void;
 }
 
 /**
@@ -51,7 +53,12 @@ export function ViewerRegion(props: ViewerRegionProps) {
   );
 }
 
-function ViewerRegionBody({ scanId, mouseSlug, mouseName }: ViewerRegionProps) {
+function ViewerRegionBody({
+  scanId,
+  mouseSlug,
+  mouseName,
+  onInteracted,
+}: ViewerRegionProps) {
   const url = shellUrl(mouseSlug, shellIndex);
   const [status, dispatch] = useReducer(
     viewerReducer,
@@ -120,6 +127,24 @@ function ViewerRegionBody({ scanId, mouseSlug, mouseName }: ViewerRegionProps) {
   }, [running, url, scanId]);
 
   const interactive = status === "ready";
+
+  // The first interaction, for analytics: reports once per mount.
+  const onInteractedRef = useRef(onInteracted);
+  onInteractedRef.current = onInteracted;
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!interactive || !box || !onInteractedRef.current) return;
+    const events = ["pointerdown", "wheel", "keydown"] as const;
+    const first = () => {
+      for (const name of events) box.removeEventListener(name, first);
+      onInteractedRef.current?.();
+    };
+    for (const name of events)
+      box.addEventListener(name, first, { passive: true });
+    return () => {
+      for (const name of events) box.removeEventListener(name, first);
+    };
+  }, [interactive]);
   return (
     <div className="viewer" data-viewer-state={status}>
       <div

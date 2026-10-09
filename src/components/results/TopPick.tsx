@@ -23,9 +23,11 @@ import { ViewerRegion } from "@/components/viewer/ViewerRegion";
 export function TopPick({
   response,
   viewer = false,
+  onViewerInteracted,
 }: {
   response: FitResponse;
   viewer?: boolean;
+  onViewerInteracted?: () => void;
 }) {
   const entry = response.results[0];
   if (!entry) return null;
@@ -57,6 +59,7 @@ export function TopPick({
           scanId={response.scanId}
           mouseSlug={mouse.slug}
           mouseName={`${mouse.brand} ${mouse.model}`}
+          onInteracted={onViewerInteracted}
         />
       )}
 

@@ -8,7 +8,14 @@ import { EXCLUDED_REASON_LABELS } from "./labels";
  * Excluded mice in a collapsed "Not shown" group, each with its exclusion
  * reason spelled out in words.
  */
-export function ExcludedList({ response }: { response: FitResponse }) {
+export function ExcludedList({
+  response,
+  onOpened,
+}: {
+  response: FitResponse;
+  /** Called each time the list is opened (not closed). */
+  onOpened?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const regionId = useId();
 
@@ -21,7 +28,10 @@ export function ExcludedList({ response }: { response: FitResponse }) {
         className="results-rankedList-toggle"
         aria-expanded={open}
         aria-controls={regionId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) onOpened?.();
+          setOpen((v) => !v);
+        }}
       >
         <span
           className="results-rankedList-chevron"

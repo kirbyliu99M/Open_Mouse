@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { homeStoryNotes } from "@/lib/copy/home-story";
@@ -24,9 +24,13 @@ export default function HomePage() {
       <nav className="home-nav" aria-label="Primary">
         <span className="home-wordmark">Open Mouse</span>
         <div className="home-nav-actions">
-          <Link className="home-signin-link" href="/account">
+          <HomeCtaLink
+            cta="sign_in"
+            className="home-signin-link"
+            href="/account"
+          >
             Sign in
-          </Link>
+          </HomeCtaLink>
           <NavMenu />
         </div>
       </nav>
@@ -134,7 +138,7 @@ export default function HomePage() {
 function HomeActions() {
   return (
     <div className="home-actions">
-      <Link className="home-cta" href="/scan/easy">
+      <HomeCtaLink cta="scan" className="home-cta" href="/scan/easy">
         <svg
           viewBox="0 0 24 24"
           width="20"
@@ -159,10 +163,14 @@ function HomeActions() {
           />
         </svg>
         Scan my hand
-      </Link>
-      <Link className="home-cta-secondary" href="/how-it-works">
+      </HomeCtaLink>
+      <HomeCtaLink
+        cta="how_it_works"
+        className="home-cta-secondary"
+        href="/how-it-works"
+      >
         How it works
-      </Link>
+      </HomeCtaLink>
     </div>
   );
 }

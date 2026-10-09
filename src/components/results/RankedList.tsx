@@ -15,7 +15,14 @@ import { TargetDeltas } from "./TargetDeltas";
  * without a mount/unmount flash. `prefers-reduced-motion` swaps the slide
  * for a cross-fade in CSS alone.
  */
-export function RankedList({ response }: { response: FitResponse }) {
+export function RankedList({
+  response,
+  onOpened,
+}: {
+  response: FitResponse;
+  /** Called each time the list is opened (not closed). */
+  onOpened?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const regionId = useId();
   const rest = response.results.slice(1);
@@ -33,7 +40,10 @@ export function RankedList({ response }: { response: FitResponse }) {
         className="results-rankedList-toggle"
         aria-expanded={open}
         aria-controls={regionId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) onOpened?.();
+          setOpen((v) => !v);
+        }}
       >
         <span
           className="results-rankedList-chevron"

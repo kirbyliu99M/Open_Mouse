@@ -121,6 +121,10 @@ export interface CameraCaptureProps {
   readonly onPaperSizeChange: (size: PaperSize) => void;
   readonly onUsePhoto: (file: File) => void;
   readonly onExit: () => void;
+  /** Analytics hook: called once each time the camera request settles. */
+  readonly onPermissionResult?: (
+    result: "granted" | "denied" | "error",
+  ) => void;
   /** Injectable for testing and to override the mode-selected default source. */
   readonly quadSource?: SheetQuadSource;
 }
@@ -231,9 +235,12 @@ export default function CameraCapture({
   onPaperSizeChange,
   onUsePhoto,
   onExit,
+  onPermissionResult,
   quadSource,
 }: CameraCaptureProps) {
   const [state, setState] = useState<CamState>({ kind: "primer" });
+  const onPermissionResultRef = useRef(onPermissionResult);
+  onPermissionResultRef.current = onPermissionResult;
   const [cue, setCue] = useState<Cue | null>(null);
   const [chips, setChips] = useState<StatusChips | null>(null);
   // One entry per corner (TL, TR, BR, BL) — each is the ideal placeholder
@@ -360,6 +367,8 @@ export default function CameraCapture({
       prevSampleQuadRef.current = null;
       lastCueCodeRef.current = null;
       lastCueChangeAtRef.current = 0;
+      if (mountedRef.current && requestId === requestIdRef.current)
+        onPermissionResultRef.current?.("granted");
       setState({ kind: "live" });
     } catch (err) {
       if (!isCameraPermissionDenial(err))
@@ -373,8 +382,14 @@ export default function CameraCapture({
         mountedRef.current &&
         requestId === requestIdRef.current &&
         stateKindRef.current === "requesting"
-      )
+      ) {
+        onPermissionResultRef.current?.(
+          name === "NotAllowedError" || name === "PermissionDeniedError"
+            ? "denied"
+            : "error",
+        );
         setState({ kind: "cameraError", message });
+      }
     }
   }, [stopStream]);
 

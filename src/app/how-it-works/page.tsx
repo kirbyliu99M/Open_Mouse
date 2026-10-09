@@ -100,6 +100,15 @@ export default function HowItWorksPage() {
           </span>
           Scans without an account expire automatically after a while.
         </p>
+        {/* Wording confirmed by Kirby on 2026-10-07: discloses the anonymous
+            PostHog counts (issue #138). */}
+        <p>
+          <span aria-hidden="true">
+            <ShieldIcon />
+          </span>
+          We count anonymous page visits and scan steps to improve the app,
+          never your photo or your measurements.
+        </p>
       </div>
 
       <p className="home-privacy-link">
