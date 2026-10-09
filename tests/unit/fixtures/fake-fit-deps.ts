@@ -52,6 +52,7 @@ export const sampleCatalogue: CatalogueMouse[] = [
 export const sampleOwnedScan: OwnedScan = {
   hand: "right",
   gripStyleStated: null,
+  palmThicknessStated: null,
   measurements: sampleMeasurements,
 };
 

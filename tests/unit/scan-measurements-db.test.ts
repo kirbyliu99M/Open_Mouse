@@ -45,6 +45,7 @@ describe("GET /api/scans/{scanId}/measurements on a real database", () => {
       sessionId: session.id,
       hand: "left",
       gripStyleStated: "claw",
+      palmThicknessStated: null,
       // 183.44 is stored as numeric(5,1): 183.4.
       measurements: {
         handLengthMm: 183.44,
@@ -91,6 +92,7 @@ describe("GET /api/scans/{scanId}/measurements on a real database", () => {
       sessionId: session.id,
       hand: "right",
       gripStyleStated: null,
+      palmThicknessStated: null,
       measurements: { handLengthMm: 180, palmLengthMm: 100, palmWidthMm: 85 },
       scaleCheckRatio: null,
       measurementModelVersion: "landmark-raw-v2",
@@ -125,6 +127,7 @@ describe("GET /api/scans/{scanId}/measurements on a real database", () => {
       sessionId: expired.id,
       hand: "right",
       gripStyleStated: null,
+      palmThicknessStated: null,
       measurements: { handLengthMm: 180, palmLengthMm: 100, palmWidthMm: 85 },
       scaleCheckRatio: null,
       measurementModelVersion: "landmark-raw-v2",
@@ -150,6 +153,7 @@ describe("GET /api/scans/{scanId}/measurements on a real database", () => {
       sessionId: owned.id,
       hand: "right",
       gripStyleStated: null,
+      palmThicknessStated: null,
       measurements: { handLengthMm: 180, palmLengthMm: 100, palmWidthMm: 85 },
       scaleCheckRatio: null,
       measurementModelVersion: "landmark-raw-v2",

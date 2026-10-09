@@ -162,6 +162,7 @@ export function createFakeSurveyWorld(): SurveyWorld {
       return {
         hand: row.hand,
         gripStyleStated: row.gripStated,
+        palmThicknessStated: null,
         measurements: {
           handLengthMm: row.handLengthMm,
           palmLengthMm: row.palmLengthMm,

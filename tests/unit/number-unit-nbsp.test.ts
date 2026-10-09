@@ -24,6 +24,7 @@ const scan = (hand: number, palmLength: number, palmWidth: number) =>
     createdAt: "2026-10-04T08:00:00.000Z",
     hand: "right",
     gripStyleStated: null,
+    palmThicknessStated: null,
     measurements: {
       handLengthMm: hand,
       palmLengthMm: palmLength,

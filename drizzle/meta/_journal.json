@@ -57,6 +57,13 @@
       "when": 1791218078559,
       "tag": "0007_natural_luminals",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791522383435,
+      "tag": "0008_rapid_killmonger",
+      "breakpoints": true
     }
   ]
 }

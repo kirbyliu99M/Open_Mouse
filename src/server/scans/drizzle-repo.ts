@@ -107,6 +107,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           sessionId: input.sessionId,
           hand: input.hand,
           gripStyleStated: input.gripStyleStated ?? undefined,
+          palmThicknessStated: input.palmThicknessStated ?? undefined,
           gripStylePredicted: null, // M3
         }),
         db.insert(scanMeasurements).values({
@@ -197,6 +198,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         .select({
           hand: scans.hand,
           gripStyleStated: scans.gripStyleStated,
+          palmThicknessStated: scans.palmThicknessStated,
           handLengthMm: scanMeasurements.handLengthMm,
           palmLengthMm: scanMeasurements.palmLengthMm,
           palmWidthMm: scanMeasurements.palmWidthMm,
@@ -222,6 +224,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       return {
         hand: row.hand,
         gripStyleStated: row.gripStyleStated,
+        palmThicknessStated: row.palmThicknessStated,
         measurements: {
           handLengthMm: row.handLengthMm,
           palmLengthMm: row.palmLengthMm,

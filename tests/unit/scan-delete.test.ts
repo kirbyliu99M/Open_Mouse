@@ -26,6 +26,7 @@ function fixture(expiresAt = new Date("2026-09-24T12:00:00Z")) {
         ? {
             hand: "right" as const,
             gripStyleStated: null,
+            palmThicknessStated: null,
             measurements: {
               handLengthMm: 190,
               palmLengthMm: 108,

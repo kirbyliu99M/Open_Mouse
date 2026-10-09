@@ -30,7 +30,10 @@ import {
   SIDE_CURVATURES,
   SIZES,
 } from "../lib/contracts/descriptors";
-import { CALIBRATION_METHODS } from "../lib/contracts/measurement";
+import {
+  CALIBRATION_METHODS,
+  PALM_THICKNESS_LEVELS,
+} from "../lib/contracts/measurement";
 import {
   CONTRIBUTION_BIN_MM,
   MAX_FEEDBACK_CHARS,
@@ -235,6 +238,25 @@ export const scans = pgTable("scans", {
   hand: handSideEnum("hand").notNull(),
   gripStyleStated: gripStyleEnum("grip_style_stated"),
   gripStylePredicted: gripStyleEnum("grip_style_predicted"),
+  /**
+   * What the user said when asked "how thick is your palm" after the scan
+   * (candidate, 2026-10-08; contract: `palmThicknessStated`). NULL means they
+   * skipped the question: there is no default, and NULL is never read as
+   * "medium". A rough self-report with no millimetre value, unrelated to the
+   * measured `scan_measurements.palm_thickness_mm`.
+   *
+   * Plain text rather than a pg enum so the migration is the single
+   * `ADD COLUMN` statement (a `CREATE TYPE` would be a second statement, and
+   * the neon-http migrator runs each statement as its own request). The API
+   * boundary (`scanSubmissionSchema`) is what limits the values, and the type
+   * here limits what the repo can write.
+   *
+   * Like `survey_contributed_at` below, migrate BEFORE deploying code that has
+   * this column: `insertScanWithMeasurements` names every column of `scans`.
+   */
+  palmThicknessStated: text("palm_thickness_stated", {
+    enum: PALM_THICKNESS_LEVELS,
+  }),
   /**
    * Migration 0007: set once, when this scan's hand profile was contributed to
    * the survey (`POST /api/survey`), which is what makes a second submission
