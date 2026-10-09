@@ -165,11 +165,12 @@ function redactCredentialValue(
  * slightly less useful log line, never a leaked credential.
  */
 export function redactSecrets(message: string): string {
-  return message
-    .replace(CONNECTION_URL, "[redacted-url]")
-    .replace(KEY_VALUE_PAIR, redactCredentialValue)
-    .replace(PG_KEY_DETAIL, redactPgKeyDetail)
-    .replace(PG_FAILING_ROW, "Failing row contains [redacted]");
+  return redactPgKeyDetails(
+    message
+      .replace(CONNECTION_URL, "[redacted-url]")
+      .replace(KEY_VALUE_PAIR, redactCredentialValue)
+      .replace(PG_FAILING_ROW, "Failing row contains [redacted]"),
+  );
 }
 
 // Postgres error details carry column values in two shapes the key=value
@@ -181,23 +182,38 @@ export function redactSecrets(message: string): string {
 //   parentheses: an expression index such as lower(password)). When it names
 //   a credential, everything after "=(" is redacted up to ") already exists",
 //   ") is not present", the next " | cause: " or, failing those, the end of
-//   the message.
+//   the message. A Key that names no credential is skipped past its header
+//   only, so a credential Key after it is still found.
 // - Failing row: everything from it to the end of the message is redacted,
 //   since nothing says which value is which.
 // The constraint name, which is what debugging needs, is printed before the
-// detail and stays. Bounded or always-succeeding quantifiers keep both linear.
-const PG_KEY_DETAIL =
-  /Key \(([\s\S]{0,256}?)\)=\(([\s\S]*?)(?=\) already exists|\) is not present|\)?\.? \| cause: |$)/g;
+// detail and stays. Each scan moves forward only, so both stay linear.
+const PG_KEY_HEADER = /Key \(([\s\S]{0,256}?)\)=\(/g;
+const PG_KEY_END = /\) already exists|\) is not present|\)?\.? \| cause: /g;
 const PG_FAILING_ROW = /Failing row contains [\s\S]*/g;
 const CREDENTIAL_COLUMN = new RegExp(
   String.raw`\b(?:${CREDENTIAL_KEY})\b`,
   "i",
 );
 
-function redactPgKeyDetail(match: string, columns: string): string {
-  return CREDENTIAL_COLUMN.test(columns)
-    ? `Key (${columns})=([redacted]`
-    : match;
+function redactPgKeyDetails(message: string): string {
+  let out = "";
+  let kept = 0;
+  PG_KEY_HEADER.lastIndex = 0;
+  for (
+    let header = PG_KEY_HEADER.exec(message);
+    header;
+    header = PG_KEY_HEADER.exec(message)
+  ) {
+    if (!CREDENTIAL_COLUMN.test(header[1])) continue;
+    const valueStart = header.index + header[0].length;
+    PG_KEY_END.lastIndex = valueStart;
+    const valueEnd = PG_KEY_END.exec(message)?.index ?? message.length;
+    out += `${message.slice(kept, valueStart)}[redacted]`;
+    kept = valueEnd;
+    PG_KEY_HEADER.lastIndex = valueEnd;
+  }
+  return out + message.slice(kept);
 }
 
 /**

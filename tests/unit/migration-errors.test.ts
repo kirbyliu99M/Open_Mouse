@@ -484,6 +484,17 @@ describe("describeMigrationError", () => {
     expect(described).toContain("=([redacted]");
   });
 
+  it.each([
+    "Key (brand)=(Acme) Key (password)=(zzz) already exists.",
+    "Key (brand)=(Acme Key (password)=(zzz)",
+    "Key (brand)=(Acme\nKey (password)=(zzz) already exists.",
+  ])("finds a credential Key after a plain one in one detail: %j", (s) => {
+    const redacted = redactSecrets(s);
+    expect(redacted).not.toContain("zzz");
+    expect(redacted).toContain("Key (brand)=(Acme");
+    expect(redacted).toContain("Key (password)=([redacted]");
+  });
+
   it("redacts a credential Key in a later cause after a plain one", () => {
     const inner = Object.assign(new Error("inner"), {
       detail: "Key (password)=(hunter2) already exists.",
