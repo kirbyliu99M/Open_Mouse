@@ -2,6 +2,7 @@ import Link from "next/link";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import type { FitResponse } from "@/lib/contracts/fit";
+import { SITE_NAME } from "@/lib/site";
 import { ShareCardButton } from "./share/ShareCardButton";
 
 /**
@@ -34,7 +35,7 @@ export function ResultsTopBar({
         <span>{copy.scanAgain}</span>
       </Link>
       <Link href="/" className="results-topBar-name">
-        Palmate
+        {SITE_NAME}
       </Link>
       <div className="results-topBar-share" data-share-position="top">
         <ShareCardButton fit={fit} lang={language} variant="link" />

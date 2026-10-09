@@ -1,3 +1,5 @@
+import { SITE_NAME } from "@/lib/site";
+
 /**
  * Every sentence on the not-found and error screens, in one place, so the
  * screens, their tests and the pull request's copy table read the same text.
@@ -21,7 +23,7 @@ export const NOT_FOUND_COPY = {
   message:
     "The link may be out of date, or the page may have moved. You can head back home or start a scan.",
   /**
-   * The page name only: the root layout's title template ("%s · Open_Mouse",
+   * The page name only: the root layout's title template ("%s · Palmate",
    * src/app/layout.tsx) adds the site name, so writing it here would show it
    * twice.
    */
@@ -37,7 +39,7 @@ export const ERROR_COPY = {
 
 export const GLOBAL_ERROR_COPY = {
   eyebrow: "Something went wrong",
-  title: "Open_Mouse hit a problem",
+  title: `${SITE_NAME} hit a problem`,
   message:
     "The app couldn’t recover on its own. Try again, or head back home and start from there.",
   /**
@@ -46,7 +48,7 @@ export const GLOBAL_ERROR_COPY = {
    * never reaches it, and an error component cannot export `metadata`. It
    * copies the template's " · " separator so every page title reads alike.
    */
-  documentTitle: "Something went wrong · Open_Mouse",
+  documentTitle: `Something went wrong · ${SITE_NAME}`,
 } as const;
 
 export const REFERENCE_LABEL = "Reference";
