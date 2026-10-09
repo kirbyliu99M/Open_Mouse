@@ -53,9 +53,9 @@ describe("ViewerRegion's remount per mouse", () => {
     );
   });
 
-  it("is mounted by TopPick through ViewerRegion, not around it", () => {
+  it("is mounted by ResultsDetails through ViewerRegion, not around it", () => {
     const source = readFileSync(
-      join(process.cwd(), "src/components/results/TopPick.tsx"),
+      join(process.cwd(), "src/components/results/ResultsDetails.tsx"),
       "utf8",
     );
     expect(source).toMatch(/<ViewerRegion\b/);

@@ -414,6 +414,13 @@ for (const [path, name] of PAGES) {
         await expect(page.locator(".easyDeviceEntry")).toBeVisible();
       if (path.startsWith("/results/demo"))
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      if (path.startsWith("/results/demo")) {
+        // Details and Other mice are closed by default; audit them open too.
+        const closed = page.locator(
+          ".results-disclosure:not([open]) > summary",
+        );
+        while ((await closed.count()) > 0) await closed.first().click();
+      }
       if (path.includes("presentation"))
         await expect(page.locator(".results-analysis")).toBeVisible();
       if (path === "/scan/measured-demo")

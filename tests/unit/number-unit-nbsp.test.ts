@@ -61,10 +61,23 @@ describe("the results page's typed-length note", () => {
     const html = renderToStaticMarkup(
       createElement(ResultsView, {
         response: FIXTURES["high-confidence"],
+        language: "en",
         enteredLengthMm: 186,
       }),
     );
     expect(html).toContain(`(186${NBSP}mm). Measured without paper.`);
+    expect(html).not.toMatch(/186 mm/);
+  });
+
+  it("does the same in zh-TW", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: FIXTURES["high-confidence"],
+        language: "zh-TW",
+        enteredLengthMm: 186,
+      }),
+    );
+    expect(html).toContain(`（186${NBSP}mm）`);
     expect(html).not.toMatch(/186 mm/);
   });
 });

@@ -43,21 +43,19 @@ test("/results/demo keeps millimetres and grams with their numbers", async ({
     "High confidence",
     "Low confidence (nulls)",
     "With exclusions",
+    "Many mice + hand type",
   ]) {
     await page.getByRole("button", { name: fixture, exact: true }).click();
-    const closed = page.locator(
-      ".results-rankedList-toggle[aria-expanded='false']",
-    );
+    // The sentences and the weight sit in the Details section.
+    const closed = page.locator(".results-disclosure:not([open]) > summary");
     while ((await closed.count()) > 0) await closed.first().click();
     // The sentences under each score ("Length is within 1.2 mm of your
-    // ideal", "about 13 g heavier") and the weight beside each mouse.
+    // ideal", "about 13 g heavier").
     await expectWhole(page, ".results-subscoreBar-reason", 0);
-    await expectWhole(page, ".results-mouseHeader-stats dd", 0);
   }
   // The first fixture really has some of each, so the loop above is not empty.
   await page.getByRole("button", { name: "High confidence" }).click();
   await expectWhole(page, ".results-subscoreBar-reason", 1);
-  await expectWhole(page, ".results-mouseHeader-stats dd", 1);
 });
 
 const SCAN_ID = "a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d";

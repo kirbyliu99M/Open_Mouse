@@ -16,10 +16,17 @@ import {
  * itself is in fixtures/print-text.ts.
  */
 
-/** The two cards carry a dark fill on screen; on paper they have none. */
+/**
+ * The photo box and the written-analysis card carry a fill on screen; on paper
+ * they have none. The glow behind the page is not printed either.
+ */
 async function expectCardsUnfilled(page: Page, label: string) {
+  const glow = await page.evaluate(
+    () => getComputedStyle(document.querySelector(".results-glow")!).display,
+  );
+  expect(glow, `${label}: the glow is not printed`).toBe("none");
   const fills = await page.evaluate(() =>
-    [".results-topPick", ".results-analysis"].flatMap((selector) =>
+    [".results-photo", ".results-analysis"].flatMap((selector) =>
       [...document.querySelectorAll(selector)].map((el) => [
         selector,
         getComputedStyle(el).backgroundColor,
@@ -43,6 +50,7 @@ const FIXTURE_BUTTONS = [
   "High confidence",
   "Low confidence (nulls)",
   "With exclusions",
+  "Many mice + hand type",
 ] as const;
 
 test("/results/demo prints dark text on white in every fixture and every analysis state", async ({
@@ -52,11 +60,9 @@ test("/results/demo prints dark text on white in every fixture and every analysi
   await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
   for (const fixture of FIXTURE_BUTTONS) {
     await page.getByRole("button", { name: fixture, exact: true }).click();
-    // The two disclosures hold the ranked mice, their confidence notes and the
+    // The two disclosures hold the scores, the analysis, the other mice and the
     // excluded list; open them so their text is on the page too.
-    const closed = page.locator(
-      ".results-rankedList-toggle[aria-expanded='false']",
-    );
+    const closed = page.locator(".results-disclosure:not([open]) > summary");
     while ((await closed.count()) > 0) await closed.first().click();
     for (const analysis of ANALYSIS_BUTTONS) {
       await page.getByRole("button", { name: analysis, exact: true }).click();
@@ -65,6 +71,30 @@ test("/results/demo prints dark text on white in every fixture and every analysi
       await expectCardsUnfilled(page, label);
     }
   }
+});
+
+test("/results/demo prints the contents of Details and Other mice even though they are closed", async ({
+  page,
+}) => {
+  await page.goto("/results/demo");
+  await page.getByRole("button", { name: "Many mice + hand type" }).click();
+  await page.emulateMedia({ media: "print", reducedMotion: "reduce" });
+  // Nothing is opened by hand: both disclosures are closed on screen.
+  await expect(page.locator(".results-disclosure[open]")).toHaveCount(0);
+  const scores = page.locator(".results-details .results-subscoreBar");
+  await expect(scores).toHaveCount(6);
+  for (let i = 0; i < 6; i++) await expect(scores.nth(i)).toBeVisible();
+  await expect(
+    page.locator(".results-details .results-targetDeltas"),
+  ).toBeVisible();
+  const rows = page.locator(".results-otherMice-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toBeVisible();
+  await expect(page.locator(".results-excluded-list")).toBeVisible();
+  // And still dark on white.
+  await expectPrintsDark(page, "closed disclosures, printed", {
+    skip: ".results-demoControls",
+  });
 });
 
 // The real route: the notices after the top pick, the delete action (a
@@ -119,6 +149,7 @@ test("/results/[scanId] prints dark text on white: notices, analysis, delete act
     [LENGTH_KEY],
   );
   await page.goto(`/results/${SCAN_ID}`);
+  await page.locator(".results-details > summary").click();
   await expect(page.locator(".results-analysis-ready")).toBeVisible();
   await expect(page.locator(".results-handNotice")).toHaveCount(2);
   await expect(
