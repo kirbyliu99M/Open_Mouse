@@ -142,11 +142,18 @@ describe.each(engines)(
       "%s: the ranked top 5 still matches the golden fixture",
       (_n, profile) => {
         const r = run(seed, profile.measurements, profile.hand);
+        // The golden fixtures run the seed without facts, so they still rank
+        // a trackball; with facts both engines exclude it (CAT-1), and the
+        // rest of the golden top 5 keeps its order and totals.
+        const bySlug = new Map(seed.map((m) => [m.slug, m]));
+        const expected = profile.top5.filter(
+          (e) => bySlug.get(e.slug)?.formFactor !== "trackball",
+        );
         expect(
           r.results
-            .slice(0, 5)
+            .slice(0, expected.length)
             .map((e) => ({ slug: e.mouse.slug, total: e.total })),
-        ).toEqual(profile.top5);
+        ).toEqual(expected);
         // The seed has no handedness, so nothing is wrong_hand and no excluded
         // entry carries a total: the golden response only changes when a
         // wrong_hand mouse exists.
