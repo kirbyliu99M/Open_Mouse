@@ -12,6 +12,10 @@ import { SITE_NAME, SITE_URL } from "../../src/lib/site";
  */
 const EXPECT_SITE_URL = process.env.BRAND_EXPECT_SITE_URL === "1";
 
+/** The page description, which both share cards repeat. */
+const DESCRIPTION =
+  "Finding a mouse that fits your hand. Currently in development.";
+
 /** An absolute URL, and under SITE_URL when checking a production build. */
 function expectAbsolute(url: string | null, label: string) {
   expect(url, label).toBeTruthy();
@@ -56,11 +60,17 @@ test.describe("brand icons and share preview", () => {
   }) => {
     await page.goto("/");
 
-    const iconHrefs = await page
-      .locator('head link[rel="icon"]')
-      .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
-    expect(iconHrefs.length).toBeGreaterThan(0);
+    // Wait for the first icon link, then read them all.
+    const iconLinks = page.locator('head link[rel="icon"]');
+    await expect(iconLinks.first()).toHaveAttribute("href", /./);
+    const iconHrefs = await iconLinks.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("href") ?? ""),
+    );
     expect(iconHrefs.some((h) => h.includes("favicon.ico"))).toBe(true);
+    // icon.png too: a path with "icon" in it that is not the favicon.
+    expect(
+      iconHrefs.some((h) => h.includes("icon") && !h.includes("favicon")),
+    ).toBe(true);
     for (const href of iconHrefs) {
       await expectImage(request, localPath(href), /^image\//);
     }
@@ -98,6 +108,18 @@ test.describe("brand icons and share preview", () => {
       "summary_large_image",
     );
     expect(await metaContent(page, "name", "twitter:title")).toBe(SITE_NAME);
+
+    // Both cards say the same sentence as the page description.
+    await expect(
+      page.locator('meta[name="description"]').first(),
+    ).toHaveAttribute("content", DESCRIPTION);
+    await expect(
+      page.locator('meta[property="og:description"]').first(),
+    ).toHaveAttribute("content", DESCRIPTION);
+    await expect(
+      page.locator('meta[name="twitter:description"]').first(),
+    ).toHaveAttribute("content", DESCRIPTION);
+
     const twitterImage = await metaContent(page, "name", "twitter:image");
     expectAbsolute(twitterImage, "twitter:image");
     await expectImage(request, localPath(twitterImage!), /^image\/png/);
@@ -117,6 +139,13 @@ test.describe("brand icons and share preview", () => {
       /property="og:image" content="https?:\/\/[^"]+\/opengraph-image\.png/,
     );
     expect(head).toContain('name="twitter:card" content="summary_large_image"');
+    expect(head).toContain(`name="description" content="${DESCRIPTION}"`);
+    expect(head).toContain(
+      `property="og:description" content="${DESCRIPTION}"`,
+    );
+    expect(head).toContain(
+      `name="twitter:description" content="${DESCRIPTION}"`,
+    );
     if (EXPECT_SITE_URL) {
       expect(head).toContain(`content="${SITE_URL}/opengraph-image.png`);
     }

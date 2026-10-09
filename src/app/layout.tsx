@@ -6,15 +6,15 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./tokens.css";
 import "./globals.css";
 
-/** The same sentence as `description` below, for the share cards. */
-const SHARE_DESCRIPTION =
+/** One sentence for the page description and both share cards. */
+const SITE_DESCRIPTION =
   "Finding a mouse that fits your hand. Currently in development.";
 
 export const metadata: Metadata = {
   // Each page gives its own title; the template adds the site name after it.
   // The home page has none, so it shows the default.
   title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
-  description: "Finding a mouse that fits your hand. Currently in development.",
+  description: SITE_DESCRIPTION,
   robots: { index: false, follow: false },
 
   // Share previews. The images come from the file convention in this folder
@@ -25,12 +25,12 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     siteName: SITE_NAME,
     type: "website",
-    description: SHARE_DESCRIPTION,
+    description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
-    description: SHARE_DESCRIPTION,
+    description: SITE_DESCRIPTION,
   },
 };
 
