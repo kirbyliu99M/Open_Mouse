@@ -169,12 +169,26 @@ export const fitResponseSchema = z.strictObject({
   }),
   /** Mice excluded before ranking, with why (handedness, form factor). */
   excluded: z.array(
-    z.strictObject({
-      slug: z.string(),
-      brand: z.string(),
-      model: z.string(),
-      reason: z.enum(EXCLUSION_REASONS),
-    }),
+    z
+      .strictObject({
+        slug: z.string(),
+        brand: z.string(),
+        model: z.string(),
+        reason: z.enum(EXCLUSION_REASONS),
+        /**
+         * 2026-10-09 (Kirby: an excluded mouse should still show a score). The
+         * same weighted total a ranked entry would get, so a person can see
+         * how the size fits even though the mouse is left out. Only for
+         * `wrong_hand`: the length/width model still applies to a mouse made
+         * for the other hand, but not to vertical or trackball devices, so
+         * those never carry a number. Optional until the engine fills it.
+         */
+        total: z.number().int().min(0).max(100).optional(),
+      })
+      .refine((e) => e.total === undefined || e.reason === "wrong_hand", {
+        message: "only a wrong_hand exclusion may carry a total",
+        path: ["total"],
+      }),
   ),
   results: z.array(fitEntrySchema),
 });
