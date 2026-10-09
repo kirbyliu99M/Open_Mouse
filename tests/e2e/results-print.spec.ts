@@ -22,7 +22,7 @@ import {
  */
 async function expectCardsUnfilled(page: Page, label: string) {
   const glow = await page.evaluate(
-    () => getComputedStyle(document.querySelector("main")!, "::before").display,
+    () => getComputedStyle(document.querySelector(".results-glow")!).display,
   );
   expect(glow, `${label}: the glow is not printed`).toBe("none");
   const fills = await page.evaluate(() =>

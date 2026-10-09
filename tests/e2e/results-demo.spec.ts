@@ -59,10 +59,13 @@ test.describe("/results/demo", () => {
     await expect(page.locator(".results-sizeNotice")).toHaveCount(1);
     await expect(page.locator(".results-confidenceNote")).toHaveCount(0);
 
-    // The old per-reason "Why it fits" cards stay gone: three plain lines
-    // under "Why this mouse" instead.
+    // The old per-reason "Why it fits" cards stay gone: plain lines under
+    // "Why this mouse" instead, one per sub-score that has a score. This
+    // fixture (low-confidence.json) rates only two of the six (length 70,
+    // thumb 60; the other four are null), and `topReasons` never shows an
+    // unrated sub-score as a reason, so there are two lines, not three.
     await expect(page.getByText("Why it fits")).toHaveCount(0);
-    await expect(page.locator(".results-why-list li")).toHaveCount(3);
+    await expect(page.locator(".results-why-list li")).toHaveCount(2);
   });
 
   test("renders each fixture with no console errors", async ({ page }) => {

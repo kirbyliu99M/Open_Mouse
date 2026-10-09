@@ -550,22 +550,27 @@
  * Dark theme tokens only (src/app/tokens.css); no colour is written out here.
  * Mobile first; the wide layout starts at 56rem. */
 
-.resultsMain {
+/* The glow behind the hero (the approved design's blue haze, top right).
+ * It is a box-shadow of a small, empty, decorative element, not a pseudo
+ * element and not a background image: axe cannot work out a text colour's
+ * background under either of those (it reports color-contrast as "needs
+ * review" for everything on the page), and it ignores a box-shadow. A shadow
+ * adds nothing to the scrollable width either. */
+.results-view {
   position: relative;
   isolation: isolate;
 }
-.resultsMain::before {
-  content: "";
+.results-glow {
   position: absolute;
-  inset: 0 0 auto;
-  height: 40rem;
+  top: 0;
+  left: 70%;
   z-index: -1;
+  width: 28rem;
+  height: 6rem;
+  margin-left: -14rem;
+  border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(
-    60% 60% at 70% 0%,
-    color-mix(in srgb, var(--glow) 22%, transparent),
-    transparent
-  );
+  box-shadow: 0 0 16rem 4rem color-mix(in srgb, var(--glow) 20%, transparent);
 }
 .results-page-status,
 .results-page-error {
@@ -1069,7 +1074,7 @@
 }
 
 @media (prefers-contrast: more) {
-  .resultsMain::before {
+  .results-glow {
     display: none;
   }
   .results-photo,
@@ -1134,7 +1139,7 @@
   }
 
   /* The glow and the photo box have no fill on paper. */
-  .resultsMain::before {
+  .results-glow {
     display: none;
   }
   .results-photo {

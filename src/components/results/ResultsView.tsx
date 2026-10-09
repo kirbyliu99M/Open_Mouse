@@ -84,6 +84,8 @@ export function ResultsView({
   return (
     <div className="results-view" data-rank={entry?.rank}>
       <PrintOpenDetails />
+      {/* Decorative haze behind the hero: see .results-glow in results.css. */}
+      <div className="results-glow" aria-hidden="true" />
       <ResultsTopBar language={language} onRetake={analytics?.onRetake} />
 
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (

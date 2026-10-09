@@ -64,6 +64,20 @@ describe("the results page layout", () => {
     );
   });
 
+  it("gives one reason line per rated sub-score, up to three: two for low-confidence.json, which rates only length and thumb", () => {
+    const low = FIXTURES["low-confidence"];
+    const rated = Object.values(low.results[0].subscores).filter(
+      (sub) => sub.score !== null,
+    );
+    expect(rated).toHaveLength(2);
+    expect(render(low).match(/data-subscore="/g)).toHaveLength(2);
+  });
+
+  it("draws the glow as an empty decorative element, not a pseudo element", () => {
+    const html = render(many);
+    expect(html).toContain('<div class="results-glow" aria-hidden="true">');
+  });
+
   it("has exactly one h1 with a hand type too", () => {
     expect(render(many).match(/<h1[ >]/g)).toHaveLength(1);
   });
