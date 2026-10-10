@@ -201,32 +201,29 @@ const MICE_SOLID = { low: 0.5, high: 3 };
  * the two setups this test runs in. It depends on how big the mark is drawn
  * (the stars overlap less on a bigger one), so each setup has its own bound.
  *
- * Measured 2026-10-10 on the 840-point cloud (variant B: lit share 0.14,
- * stars 1.7 times the look), headless Chromium's software WebGL on Kirby's
- * machine, after the shimmer. The figure is the same on every run of a setup
- * (a fixed seed, a fixed layout): 6.190 for the chromium project (1280x800,
- * 1,680 lit) and 5.867 for the mobile one (Pixel 7, 840 lit). Over other
- * windows it spreads with the mark's size: 5.66 to 6.22 on desktops
- * (1280x720 to 1920x1080, pixel ratio 1 and 2) and 4.90 to 6.49 on phones
- * (375x667 to 430x932, pixel ratio 2 to 3). The bound is 5 % either side of
- * each setup's figure.
+ * Measured 2026-10-10 on the shipped cloud (variant B3: 840 points, even
+ * placing, a stroke's width; lit share 0.14, stars 1.7 times the look),
+ * headless Chromium's software WebGL on Kirby's machine, after the shimmer.
+ * The figure is the same on every run of a setup (a fixed seed, a fixed
+ * layout): 6.320 for the chromium project (1280x800, 1,680 lit) and 5.973
+ * for the mobile one (Pixel 7, 840 lit). Over other windows it spreads with
+ * the mark's size: 5.78 to 6.35 on desktops (1280x720 to 1920x1080, pixel
+ * ratio 1 and 2) and 4.98 to 6.61 on phones (375x667 to 430x932, pixel ratio
+ * 2 to 3). The bound is 5 % either side of each setup's figure.
  *
- * The even, stroke-like cloud (variant B3, the same share and star size)
- * measures 6.320 and 5.973, inside both bounds (+2.1 % and +1.8 %); over
- * other windows 5.78 to 6.35 on desktops and 4.98 to 6.61 on phones.
- *
- * What it catches, measured on the B cloud by changing what the stage draws
- * and not the maths (desktop / phone): the shader lighting 0.12 instead of 0.14, 5.69 /
- * 5.35; lighting 0.10, 5.11 / 4.76; stars 20 % fainter, 5.65 / 5.33; stars
- * 20 % smaller, 5.03 / 4.75. All are outside. A brighter star is not: the
- * logo's stars are at full opacity already (brightAlpha's ceiling, 1), so a
- * 20 % brighter one measured the same. Earlier figures: 7.31 / 7.42 at 0.10
- * (600 points, spread 0.8), 5.64 / 5.62 at 0.06 with stars 1.35, the
- * placeholder outline 5.6 / 5.8.
+ * What it catches, measured on B3 by changing what the stage draws and not
+ * the maths (desktop / phone): the shader lighting 0.12 instead of 0.14,
+ * 5.79 / 5.47; lighting 0.10, 5.14 / 4.89; stars 20 % fainter, 5.75 / 5.42;
+ * stars 10 % smaller, 5.72 / 5.39; 20 % smaller, 5.15 / 4.84. All are
+ * outside. A brighter star is not: the logo's stars are at full opacity
+ * already (brightAlpha's ceiling, 1), so a 20 % brighter one measured the
+ * same. Earlier figures: 6.190 / 5.867 on variant B (random placing), 7.31
+ * / 7.42 at 0.10 (600 points, spread 0.8), 5.64 / 5.62 at 0.06 with stars
+ * 1.35, the placeholder outline 5.6 / 5.8.
  */
 const LOGO_MASS = {
-  desktop: { low: 5.88, high: 6.5 },
-  phone: { low: 5.57, high: 6.16 },
+  desktop: { low: 6.0, high: 6.64 },
+  phone: { low: 5.67, high: 6.27 },
 };
 
 /**
