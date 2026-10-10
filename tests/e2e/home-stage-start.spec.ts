@@ -504,6 +504,26 @@ test.describe("starting away from the top", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(500);
     await expectPanelRestored(page);
 
+    // The attempts stay used up until the reader scrolls: a resize, the tab
+    // hidden and shown again, and reduced motion turned on and off each ask
+    // the stage to look again, and none of them starts a fourth fade out.
+    // (Longer than the idle wait plus a fade out and its frames: 1.5 s.)
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ width: size.width, height: size.height - 20 });
+    await page.waitForTimeout(1500);
+    expect(await read<number>(page, "__fadeOuts")).toBe(LATE_FADE_ATTEMPTS);
+    await page.evaluate(SET_HIDDEN(true));
+    await page.waitForTimeout(100);
+    await page.evaluate(SET_HIDDEN(false));
+    await page.waitForTimeout(1500);
+    expect(await read<number>(page, "__fadeOuts")).toBe(LATE_FADE_ATTEMPTS);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.waitForTimeout(200);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.waitForTimeout(1500);
+    expect(await read<number>(page, "__fadeOuts")).toBe(LATE_FADE_ATTEMPTS);
+    expect(await theSwitch(page)).toBeNull();
+
     // The fade can run again: a scroll, then stillness, switches.
     await page.evaluate(() =>
       document.querySelectorAll("style").forEach((style) => {

@@ -431,6 +431,7 @@ class Stage {
         }
         // At the top the switch moves nothing: now.
         this.cancelLateSwitch();
+        this.lateFadeFailures = 0;
         this.activate(panelHeight);
       } else {
         this.remeasure(panelHeight);
@@ -455,11 +456,18 @@ class Stage {
 
   // ── Switching away from the top (late-start.ts) ─────────────────────────
 
-  /** Wait for the reader to hold still: each scroll starts the wait again. One timer, no loop. */
+  /**
+   * Wait for the reader to hold still: each scroll starts the wait again. One
+   * timer, no loop. Once `LATE_FADE_ATTEMPTS` fades have given up, nothing is
+   * scheduled (whatever asks: a resize, the tab shown again, a media query)
+   * until the reader scrolls, which forgets the failures (`onScroll`).
+   */
   private armLateSwitch(): void {
     if (this.destroyed || this.animated || this.lateState === "fading") return;
     this.lateState = "waiting";
     window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFadeFailures >= LATE_FADE_ATTEMPTS) return;
     this.lateTimer = window.setTimeout(this.lateSwitch, LATE_SWITCH_IDLE_MS);
   }
 
@@ -517,7 +525,7 @@ class Stage {
     this.lateState = "waiting";
     if (hidden) return;
     this.lateFadeFailures += 1;
-    if (this.lateFadeFailures < LATE_FADE_ATTEMPTS) this.armLateSwitch();
+    this.armLateSwitch();
   }
 
   /** The reader has held still: switch, after fading the panel out if part of the story is in view. */
@@ -598,6 +606,8 @@ class Stage {
     try {
       this.activate(panelHeight);
       if (this.animated) {
+        // Switched: a later late start (after going static again) begins afresh.
+        this.lateFadeFailures = 0;
         const after = section.getBoundingClientRect();
         const plan = planLateSwitch({
           staticTop: box.top,
