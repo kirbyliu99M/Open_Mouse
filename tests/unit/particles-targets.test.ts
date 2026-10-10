@@ -33,6 +33,7 @@ import {
   STAGE_WIDTH,
   buildHand,
   buildTargets,
+  isMouseSketch,
   sampleLogo,
   sampleSketch,
   serializeTargets,
@@ -85,6 +86,8 @@ function distanceToPolylines(
   return best;
 }
 
+const mouseSketches = Object.keys(sketches).filter(isMouseSketch);
+
 describe("the mouse sketches", () => {
   it("has at least the G Pro sketch, in public/images/sketches/", () => {
     expect(Object.keys(sketches)).toContain("g-pro-sketch");
@@ -96,7 +99,13 @@ describe("the mouse sketches", () => {
     expect(() => toneOfStroke("#256AF0")).toThrow(/neither/);
   });
 
-  describe.each(Object.keys(sketches))("%s", (name) => {
+  it("are every drawing in the folder but the finale's hand on a mouse", () => {
+    expect(Object.keys(sketches)).toContain("finale-grip");
+    expect(mouseSketches).not.toContain("finale-grip");
+    expect(mouseSketches).toHaveLength(Object.keys(sketches).length - 1);
+  });
+
+  describe.each(mouseSketches)("%s", (name) => {
     const svg = sketches[name]!;
     const target = sampleSketch(svg);
 
@@ -1011,7 +1020,7 @@ describe("buildTargets", () => {
 
   it("writes one JSON file: points as [x, y, tone] rounded to 0.1 px, one entry per sketch", () => {
     const parsed = JSON.parse(serializeTargets(buildTargets(sketches)));
-    expect(Object.keys(parsed.mice)).toEqual(Object.keys(sketches).sort());
+    expect(Object.keys(parsed.mice)).toEqual([...mouseSketches].sort());
     for (const [x, y, tone] of parsed.mice["g-pro-sketch"].points) {
       expect(Math.abs(x * 10 - Math.round(x * 10))).toBeLessThan(1e-6);
       expect(Math.abs(y * 10 - Math.round(y * 10))).toBeLessThan(1e-6);

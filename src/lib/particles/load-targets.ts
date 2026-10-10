@@ -9,22 +9,22 @@ import type { Line, ParticleTargets, ShapeTarget } from "./targets";
  * writes, instead of drawing nonsense.
  */
 
-type Json = unknown;
+export type Json = unknown;
 
-function fail(what: string): never {
+export function fail(what: string): never {
   throw new TypeError(`particle targets: ${what}`);
 }
 
-function isRecord(value: Json): value is Record<string, Json> {
+export function isRecord(value: Json): value is Record<string, Json> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function num(value: Json, what: string): number {
+export function num(value: Json, what: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) fail(what);
   return value;
 }
 
-function vec(value: Json, what: string): Vec {
+export function vec(value: Json, what: string): Vec {
   if (!Array.isArray(value) || value.length !== 2) fail(what);
   return [num(value[0], what), num(value[1], what)];
 }

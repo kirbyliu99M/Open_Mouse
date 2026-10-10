@@ -357,6 +357,21 @@ and package-lock.json.
                           template hand on an A4 outline, set by hand from
                           the Home v3 design screens). Not traced from any
                           photo, dataset or third-party artwork.
+  sketches/finale-grip.svg
+                          A line drawing of a hand on a mouse, from the
+                          project's pen.dev design file (the illustration
+                          "Palm Grip Technical Diagram", node pvhPT),
+                          converted to SVG on 2026-10-10: the curves are
+                          unchanged, one outline is split where the hand meets
+                          the mouse, and the strokes are recoloured. pvhPT
+                          was drawn on pen.dev by AGY (the Gemini CLI) at
+                          Kirby's request, with reference to Kirby's own hand
+                          and to concept pictures Kirby found (per Kirby,
+                          2026-10-10, and the 2026-10-09 entry in
+                          docs/STATUS.md). Whether AGY drew on any other
+                          source was not checked: Unconfirmed. pen.dev's
+                          terms for generated output were not checked:
+                          Unconfirmed.
 
 
 5. Trademarks

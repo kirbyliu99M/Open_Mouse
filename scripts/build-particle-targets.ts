@@ -8,6 +8,9 @@
  *   - src/lib/particles/targets.generated.json  the point lists (PR B loads it)
  *   - public/images/hero-palmate-mark.svg       the static Palmate mark
  *   - public/images/hand-on-a4.svg              the static template hand on A4
+ *   - src/lib/particles/finale.generated.json   the home ending's hand on a
+ *     mouse, from sketches/finale-grip.svg (not a mouse sketch: it is left
+ *     out of the mice)
  * from the same pure functions (src/lib/particles/), seeded, so a run is
  * reproducible. Pairing and interpolation are PR B.
  */

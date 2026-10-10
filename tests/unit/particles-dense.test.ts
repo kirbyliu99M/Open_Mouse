@@ -25,7 +25,7 @@ import {
   resampleToCount,
   sampleStrokeRuns,
 } from "@/lib/particles/sampling";
-import { SAMPLING, STAGE_WIDTH } from "@/lib/particles/targets";
+import { SAMPLING, STAGE_WIDTH, isMouseSketch } from "@/lib/particles/targets";
 import {
   createHandFiller,
   fillTemplateHand,
@@ -268,6 +268,7 @@ describe("densifyStrokes on the real shapes", () => {
   const sketches = Object.fromEntries(
     readdirSync(SKETCH_DIR)
       .filter((file) => file.endsWith(".svg"))
+      .filter((file) => isMouseSketch(basename(file, ".svg")))
       .map((file) => [
         basename(file, ".svg"),
         readFileSync(`${SKETCH_DIR}/${file}`, "utf8"),
