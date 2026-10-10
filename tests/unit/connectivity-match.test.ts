@@ -107,6 +107,23 @@ describe("matchSiteTitle", () => {
     expect(matchSiteTitle(titles, "Whoever", "Xmini")).toBe("acme-xmini");
   });
 
+  it("rejects a single loose-suffix hit that is not on a word boundary", () => {
+    // looseKey("Acme Xmini").endsWith("mini") is true, with one hit.
+    expect(
+      matchSiteTitle(
+        [{ title: "Acme Xmini", slug: "acme-xmini" }],
+        "Acme",
+        "Mini",
+      ),
+    ).toBeNull();
+  });
+
+  it("needs at least one word before the model on the suffix path", () => {
+    expect(
+      matchSiteTitle([{ title: "Mini", slug: "mini" }], "Acme", "Mini"),
+    ).toBeNull();
+  });
+
   it("returns null when the suffix is ambiguous or absent", () => {
     expect(matchSiteTitle(titles, "Third", "Super Mini")).toBeNull();
     expect(matchSiteTitle(titles, "Pulsar", "Nope")).toBeNull();
