@@ -11,7 +11,14 @@
 import type { UiLanguage } from "../../../client/uiLanguage";
 import type { HandType } from "../../../lib/contracts/fit";
 import { shareCardCopy } from "../../../lib/copy/share-card";
+import { palmateMarkInkEdges } from "../../../lib/brand/palmate-mark";
 import { SITE_NAME, SITE_URL } from "../../../lib/site";
+import {
+  DEFAULT_QR_STYLE,
+  SITE_URL_QR_MODULES,
+  qrBoxSize,
+  type QrStyle,
+} from "./qrStyle";
 import {
   clampLines,
   fitLine,
@@ -26,7 +33,14 @@ export const CARD_HEIGHT = 1920;
 export const CARD_PADDING = 84;
 export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
-export const QR_SIZE = 216;
+/** The QR box's side in pixels (5 px module step for the site URL). A layout parameter; 176 is Kirby's pick of 2026-10-10 (the first size he saw was 216). */
+export const DEFAULT_QR_SIZE = 176;
+/** The mark's drawing box is square; its ink is a little smaller (see `PALMATE_MARK_INK`). */
+export const MARK_SIZE = 120;
+/** Quiet zone the QR panel keeps around the code, in modules, at the least. */
+export const QR_MIN_QUIET_MODULES = 2;
+/** Gap between the mark and the name and tagline. */
+const MARK_GAP = 36;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
@@ -62,7 +76,9 @@ export type DrawOp =
   | { kind: "photo"; box: Box; src: string }
   /** A neutral mouse outline, shown when there is no photo. */
   | { kind: "silhouette"; box: Box }
-  | { kind: "qr"; box: Box; text: string };
+  | { kind: "qr"; box: Box; text: string; style: QrStyle }
+  /** The Palmate mark, drawn from `palmate-mark.ts` scaled to the box. */
+  | { kind: "mark"; box: Box };
 
 export interface ShareCardInput {
   lang: UiLanguage;
@@ -97,21 +113,7 @@ export function isSitePath(value: string | null | undefined): value is string {
   );
 }
 
-/**
- * Where a QR code's modules go inside its white panel: a whole-pixel step per
- * module (so no module is wider than its slot and none overlaps the next) and
- * the offset that centres the code. `quiet` is the margin in modules. The
- * remainder after the integer step is split evenly around the code.
- */
-export function qrGrid(
-  panelSize: number,
-  modules: number,
-  quiet: number,
-): { step: number; offset: number } {
-  const step = Math.max(1, Math.floor(panelSize / (modules + 2 * quiet)));
-  const offset = Math.floor((panelSize - step * modules) / 2);
-  return { step, offset };
-}
+export { qrGrid } from "./qrStyle";
 
 /** What the card's QR code encodes: the site root, always. */
 export function shareQrTarget(): string {
@@ -125,10 +127,27 @@ const f = (size: number, weight: FontSpec["weight"]): FontSpec => ({
 
 const LINE = 1.22;
 
+export interface ShareCardOptions {
+  /** The QR size in pixels. A panel style's box is this wide; the frameless box is the code plus its quiet zone at the module step this size gives, so 185 for 176. Default `DEFAULT_QR_SIZE`. */
+  qrSize?: number;
+  /** How the QR code is drawn. Default `DEFAULT_QR_STYLE` (frameless, Kirby's pick of 2026-10-10). */
+  qrStyle?: QrStyle;
+  /** Modules per side of the QR code. Default `SITE_URL_QR_MODULES` (the site URL's code). */
+  qrModules?: number;
+}
+
 export function layoutShareCard(
   input: ShareCardInput,
   measure: MeasureText,
+  options: ShareCardOptions = {},
 ): ShareCardLayout {
+  const qrStyle = options.qrStyle ?? DEFAULT_QR_STYLE;
+  // The box: the panel's side, or for a frameless code the code plus its quiet zone.
+  const qrSide = qrBoxSize(
+    qrStyle,
+    options.qrSize ?? DEFAULT_QR_SIZE,
+    options.qrModules ?? SITE_URL_QR_MODULES,
+  );
   const copy = shareCardCopy(input.lang);
   const ops: DrawOp[] = [{ kind: "background" }];
   const text = (
@@ -206,32 +225,59 @@ export function layoutShareCard(
   }
   const headerBottom = cursor;
 
-  // Footer: site name, tagline, QR. Fixed to the bottom edge.
-  const footerTop = CARD_HEIGHT - CARD_PADDING - QR_SIZE;
-  const qrBox: Box = {
-    x: CARD_WIDTH - CARD_PADDING - QR_SIZE,
-    y: footerTop,
-    w: QR_SIZE,
-    h: QR_SIZE,
+  // Footer: the lockup (mark, name, tagline) at the left and the QR at the
+  // right, both resting on the bottom margin. The mark is placed by its INK, not
+  // its viewBox (the hand does not fill the box): the ink's left edge is on the
+  // content margin and its bottom edge is on the QR box's bottom edge. The name
+  // and tagline are centred on the ink's height.
+  const footerBottom = CARD_HEIGHT - CARD_PADDING;
+  const inkAtOrigin = palmateMarkInkEdges({ x: 0, y: 0, w: MARK_SIZE });
+  const inkHeight = inkAtOrigin.bottom - inkAtOrigin.top;
+  const footerH = Math.max(qrSide, inkHeight);
+  const footerTop = footerBottom - footerH;
+  const markBox: Box = {
+    x: CARD_PADDING - inkAtOrigin.left,
+    y: footerBottom - inkAtOrigin.bottom,
+    w: MARK_SIZE,
+    h: MARK_SIZE,
   };
-  const footerTextWidth = qrBox.x - CARD_PADDING - 36;
+  const qrBox: Box = {
+    x: CARD_WIDTH - CARD_PADDING - qrSide,
+    y: footerBottom - qrSide,
+    w: qrSide,
+    h: qrSide,
+  };
+  const ink = palmateMarkInkEdges(markBox);
+  const textX = ink.right + MARK_GAP;
+  const footerTextWidth = qrBox.x - textX - 36;
   const nameFont = f(48, 700);
   const taglineFont = f(36, 400);
+  // The block runs from the name's cap height to the tagline's baseline.
+  const NAME_CAP = 36;
+  const BASELINE_GAP = 50;
+  const markMid = (ink.top + ink.bottom) / 2;
+  const nameBaseline = markMid - (NAME_CAP + BASELINE_GAP) / 2 + NAME_CAP;
+  ops.push({ kind: "mark", box: markBox });
   text(
     fitLine(SITE_NAME, footerTextWidth, nameFont, measure),
-    CARD_PADDING,
-    footerTop + QR_SIZE / 2 - 6,
+    textX,
+    nameBaseline,
     nameFont,
     "primary",
   );
   text(
     fitLine(copy.tagline, footerTextWidth, taglineFont, measure),
-    CARD_PADDING,
-    footerTop + QR_SIZE / 2 + 52,
+    textX,
+    nameBaseline + BASELINE_GAP,
     taglineFont,
     "secondary",
   );
-  ops.push({ kind: "qr", box: qrBox, text: shareQrTarget() });
+  ops.push({
+    kind: "qr",
+    box: qrBox,
+    text: shareQrTarget(),
+    style: qrStyle,
+  });
 
   // Result block: label, brand, model, band on the left; the score on the right.
   const scoreText = String(input.total);
