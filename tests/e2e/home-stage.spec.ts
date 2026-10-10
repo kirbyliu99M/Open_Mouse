@@ -756,25 +756,21 @@ test.describe("the animated layout", () => {
     await waitForAnimated(page);
     await scrollToProgress(page, 1);
     const seam = await page.evaluate(() => {
-      const final = document.querySelector(".home-final")!;
       const footer = document.querySelector<HTMLElement>(
         '[data-testid="site-footer"]',
       )!;
-      const rem = parseFloat(
-        getComputedStyle(document.documentElement).fontSize,
-      );
-      const before = getComputedStyle(final, "::before");
-      const after = getComputedStyle(final, "::after");
-      const finalBox = final.getBoundingClientRect();
+      const horizon = footer.querySelector(".siteFooter-horizon")!;
+      const before = getComputedStyle(horizon, "::before");
+      const after = getComputedStyle(horizon, "::after");
+      const footerTop = footer.getBoundingClientRect().top;
       return {
         content: [before.content, after.content],
         transform: before.transform,
-        // Where the heads are (the pseudo-elements' top edge), and the footer's
-        // top edge and top padding.
-        head: finalBox.bottom + parseFloat(before.top),
-        footerTop: footer.getBoundingClientRect().top,
+        // Where the heads are (the pseudo-elements' top edge, from the
+        // horizon at the footer's top), and the footer's top padding.
+        head: horizon.getBoundingClientRect().top + parseFloat(before.top),
+        footerTop,
         footerPad: parseFloat(getComputedStyle(footer).paddingTop),
-        rem,
       };
     });
     expect(seam.content).toEqual(['""', '""']);

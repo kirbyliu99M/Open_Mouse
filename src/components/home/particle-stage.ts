@@ -761,6 +761,8 @@ class Stage {
     this.shimmerStart = performance.now();
     this.draw(0, this.shimmerStart);
 
+    // The wide layers in their place before they are shown (no layout shift).
+    this.placeWide(this.parts.panel.getBoundingClientRect());
     // The first frame is on the canvas: switch the layout and hand the logo over.
     section.classList.add(ANIMATED);
     logo.style.visibility = "hidden";
@@ -1245,9 +1247,7 @@ class Stage {
     const ctx = this.skyCtx ?? sky.getContext("2d");
     if (!ctx) return null;
     this.skyCtx = ctx;
-    const width = Math.max(1, document.documentElement.clientWidth);
-    sky.style.left = `${round3(-origin.left)}px`;
-    sky.style.width = `${width}px`;
+    const width = this.placeWide(origin);
     const w = Math.max(1, Math.round(width * this.dpr));
     const h = Math.max(1, Math.round(this.cssHeight * this.dpr));
     if (sky.width !== w || sky.height !== h) {
@@ -1256,15 +1256,28 @@ class Stage {
     }
     // For the e2e suite: how wide the sky is drawn (CSS px).
     sky.dataset.width = String(width);
-    // The finale's light spans the same width, so a phone's narrow column
-    // does not cut its circle off at the column's edges.
-    const glow = this.parts.finale.glow;
-    if (glow) {
-      glow.style.left = `${round3(-origin.left)}px`;
-      glow.style.right = "auto";
-      glow.style.width = `${width}px`;
-    }
     return { width, offsetX: origin.left };
+  }
+
+  /**
+   * The sky's canvas and the finale's light span the viewport's width (less a
+   * scrollbar) from its left edge, so a phone's narrow column does not cut
+   * them off: placed by their left and width in px. Done before the layout
+   * switches (activate), so they appear where they stay and the switch shifts
+   * nothing (a move after they are shown counts as a layout shift), and again
+   * with each measure, which only changes them when the window has. Returns
+   * the width.
+   */
+  private placeWide(origin: DOMRect): number {
+    const width = Math.max(1, document.documentElement.clientWidth);
+    const left = `${round3(-origin.left)}px`;
+    for (const el of [this.skyCanvas, this.parts.finale.glow]) {
+      if (!el) continue;
+      if (el.style.left !== left) el.style.left = left;
+      if (el.style.width !== `${width}px`) el.style.width = `${width}px`;
+      if (el.style.right !== "auto") el.style.right = "auto";
+    }
+    return width;
   }
 
   private countFor(renderer: Renderer): number {

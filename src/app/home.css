@@ -319,9 +319,6 @@
 }
 
 .home-final {
-  /* Above the footer, so the two meteors below can cross into it. */
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -330,19 +327,21 @@
 }
 /* Two meteors across the seam between the home page and the footer (Pencil
    v17 / v18): each a line down and to the left, along the arm, with a bright
-   head just under the footer's horizon (inside its top padding, so never over
-   its text) and its tail rising into the page. Placed across the whole
-   viewport's width from the column's middle; short enough on a phone to stay
-   in it. Still: they do not move (nothing on the page moves by itself).
-   Decorative pseudo-elements: no text, no clicks. 未拍板 (candidate). The
-   seam itself (the fade into the footer's colour and the horizon line) is the
-   footer's own (site-footer.css). The footer starts 5rem under this section
-   (the page's 3.5rem bottom padding, the footer's 1.5rem top margin). */
-.home-final::before,
-.home-final::after {
+   head just under the footer's horizon, inside its top padding (so never over
+   its text), and its tail rising into the page above. They hang from the
+   footer's horizon line (its own seam: the fade into the footer's colour and
+   the line itself are the footer's, site-footer.css), on the home page only
+   (this stylesheet is the home page's; :has keeps the rule there should the
+   sheet stay loaded after a client-side navigation). The footer spans the
+   viewport, so they are placed across its whole width; short enough on a
+   phone to stay in it. Still: they do not move (nothing on the page moves by
+   itself). Decorative pseudo-elements: no text, no clicks. 未拍板
+   (candidate). */
+body:has(.landing-page) .siteFooter-horizon::before,
+body:has(.landing-page) .siteFooter-horizon::after {
   content: "";
   position: absolute;
-  top: calc(100% + 5rem + 1.25rem);
+  top: 1.25rem;
   width: clamp(5rem, 18vw, 10rem);
   height: 2px;
   background:
@@ -356,11 +355,11 @@
   transform-origin: 0 50%;
   pointer-events: none;
 }
-.home-final::before {
-  left: calc(50% - 50vw + 14vw);
+body:has(.landing-page) .siteFooter-horizon::before {
+  left: 14%;
 }
-.home-final::after {
-  left: calc(50% - 50vw + 62vw);
+body:has(.landing-page) .siteFooter-horizon::after {
+  left: 62%;
   width: clamp(4rem, 13vw, 7.5rem);
   opacity: 0.7;
 }
@@ -667,8 +666,8 @@
   .story--animated .story-finale-title {
     color: CanvasText;
   }
-  .home-final::before,
-  .home-final::after {
+  body:has(.landing-page) .siteFooter-horizon::before,
+  body:has(.landing-page) .siteFooter-horizon::after {
     display: none;
   }
 }
@@ -945,8 +944,8 @@
   .story-notes,
   .story-finale-art img,
   .story-finale-glow,
-  .home-final::before,
-  .home-final::after,
+  body:has(.landing-page) .siteFooter-horizon::before,
+  body:has(.landing-page) .siteFooter-horizon::after,
   .story-canvas,
   .story-canvas-gl,
   .story-canvas-sky,

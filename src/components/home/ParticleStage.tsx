@@ -80,7 +80,9 @@ export function ParticleStage() {
       }
       if (reduced.matches) return;
       loading = true;
-      import("./particle-stage")
+      // Named, so its file is particle-stage.<hash>.js in a production build
+      // too (the e2e suite finds the request by that name).
+      import(/* webpackChunkName: "particle-stage" */ "./particle-stage")
         .then((module) => {
           loading = false;
           if (!cancelled) {
