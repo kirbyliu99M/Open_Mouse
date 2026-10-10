@@ -340,7 +340,8 @@ and package-lock.json.
                           (original work). Written by
                           scripts/build-particle-targets.ts from
                           src/lib/particles/logo.ts: the hand's path
-                          (PALMATE_PATH, a 2-unit #7FA8FF stroke) and its dot
+                          (PALMATE_PATH, a 1.4-unit #7FA8FF stroke, the
+                          official logo's line width) and its dot
                           (PALMATE_DOT). The dot follows Kirby's official
                           logo frame in Pencil ("Logo · Palmate (Official)"):
                           centre (45, 53.5) in the path's units, a white
@@ -349,9 +350,9 @@ and package-lock.json.
                           particle logo is made in, so the static image and
                           the particles line up. It is the same hand and the
                           same dot as public/images/brand/palmate-mark.svg
-                          (the site footer's copy); that copy is cropped
-                          differently (viewBox 10 10 70 70) and drawn with a
-                          1.7-unit stroke.
+                          (the site footer's copy), drawn with the same
+                          1.4-unit stroke; that copy is cropped differently
+                          (viewBox 10 10 70 70).
   hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
                           geometry in src/lib/particles/ (a stylised
                           template hand on an A4 outline, set by hand from

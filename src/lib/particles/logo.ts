@@ -23,7 +23,7 @@ export const PALMATE_PATH =
 /**
  * The static image's viewBox: the path's bounding box (x 18.6 to 72.1, y 13.0
  * to 72.0) with about 5 units of room all round, for the particles that sit a
- * little off the line and for the stroke's width.
+ * little off the line (1.6 at most) and for half the stroke's width (0.7).
  */
 export const LOGO_VIEWBOX = { x: 13, y: 8, width: 65, height: 69 } as const;
 
@@ -33,8 +33,14 @@ export const LOGO_SCALE = 3;
 /** The logo's box in stage px: the viewBox scaled. The mark's points (the 840 along the lines and the dot's 9) are inside it, the 24 strays outside it; the stage fits the static image's rect to it. */
 export const LOGO_BOX = { width: 195, height: 207 } as const;
 
-/** The stroke of the static image, in viewBox units, and its colour. */
-export const LOGO_STROKE = { color: "#7FA8FF", width: 2 } as const;
+/**
+ * The stroke of the static image, in viewBox units, and its colour. 1.4 units
+ * is the hand's line in Kirby's official logo frame in Pencil ("Logo · Palmate
+ * (Official)": 2.6 px at 1.857 px a unit), which the static images follow
+ * (Kirby, 2026-10-10; it was 2). Only the static image reads it: the particle
+ * cloud's width is `LOGO_SAMPLING`'s and did not change with it.
+ */
+export const LOGO_STROKE = { color: "#7FA8FF", width: 1.4 } as const;
 
 /** The seed of the logo's cloud. Fixed on its own: the logo does not change with the generator's seed (the hand's fill does). */
 export const LOGO_SEED = 20261010;
