@@ -360,8 +360,31 @@ test.describe("starting away from the top", () => {
     page,
   }, info) => {
     test.skip(info.project.name !== "chromium", "A desktop window size.");
+    // First find a window height that just holds the static story (the
+    // static hero's logo grows with the height, so measure again after each
+    // resize), with the page still taller than it: the reader then stays
+    // away from the top when the window grows to it.
     const release = await holdStageModule(page);
     await page.goto("/");
+    let tall = 0;
+    for (let i = 0; i < 4; i += 1) {
+      const fit = await page.evaluate(() => ({
+        story: document.querySelector(".story")!.getBoundingClientRect().height,
+        viewport: window.innerHeight,
+      }));
+      if (fit.story <= fit.viewport && fit.story + 40 > fit.viewport) {
+        tall = fit.viewport;
+        break;
+      }
+      await page.setViewportSize({
+        width: 1280,
+        height: Math.ceil(fit.story) + 10,
+      });
+    }
+    expect(tall, "a window that just holds the static story").toBeGreaterThan(
+      0,
+    );
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.evaluate(() => window.scrollTo(0, 500));
     await page.waitForTimeout(200);
     release();
@@ -373,7 +396,7 @@ test.describe("starting away from the top", () => {
       undefined,
       { polling: "raf" },
     );
-    await page.setViewportSize({ width: 1280, height: 3200 });
+    await page.setViewportSize({ width: 1280, height: tall });
     expect(
       await page.evaluate(
         () =>
@@ -387,6 +410,13 @@ test.describe("starting away from the top", () => {
     expect(await theSwitch(page)).toBeNull();
     expect((await layoutFacts(page)).animated).toBe(false);
     await expectPanelRestored(page);
+    // The reader was still away from the top all along (so it was the
+    // window's height that held the switch back, not the top).
+    expect(
+      await page.evaluate(
+        () => document.querySelector(".story")!.getBoundingClientRect().top,
+      ),
+    ).toBeLessThan(0);
     // Back at the top the switch moves nothing: now.
     await page.evaluate(() => window.scrollTo(0, 0));
     await waitForAnimated(page);
