@@ -141,10 +141,19 @@ describe("starOrder", () => {
         expect(even.cv, label).toBeLessThan(0.55);
         expect(even.cv, label).toBeLessThan(chance.cv * 0.8);
         expect(even.closest, label).toBeGreaterThan(0.3);
-        // The closest pairs against a random pick's: see the next test, which
-        // reads this over several seeds (one seed's figure is too noisy for
-        // the 1.8 bound); here only a floor every seed measured clears.
-        expect(even.closest, label).toBeGreaterThan(chance.closest * 1.5);
+        // The closest pairs against a random pick's, for the shipped seed: 1.8
+        // times or more on a mouse (2.08, 2.80 and 2.63 at the three shares on
+        // the B3 cloud), 1.5 on the logo. The logo's figure against a random
+        // pick fell when the cloud was made even (the random pick itself is
+        // less clumped there: see the next test, which also reads the logo
+        // over five seeds). The logo and the mice share one order, picked on
+        // both at once, so a change to the logo's target alone moves the
+        // mice's figures too (a review's mutations of the logo's width period
+        // made the mouse bound fail): a mouse failure here after a logo
+        // change is that coupling, and is read over seeds before the bound
+        // is touched.
+        const floor = where === "mouse" ? 1.8 : 1.5;
+        expect(even.closest, label).toBeGreaterThan(chance.closest * floor);
         // And the stars are not bunched at one end: the mean distance is the
         // one a random pick would have, or more.
         expect(even.mean, label).toBeGreaterThan(chance.mean);

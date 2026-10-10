@@ -212,11 +212,15 @@ describe("densifyStrokes on the real shapes", () => {
       (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
     ]),
   }));
-  const strayPoints = targets.logo.runs
-    .filter((run) => run.count === 1)
+  // The target's runs: the four lines, the dot's points (a run of one each),
+  // then the strays (a run of one each, the last `ambient`).
+  const strayRuns = targets.logo.runs.slice(-LOGO_SAMPLING.ambient);
+  const strayPoints = strayRuns.map((run) => targets.logo.points[run.start]!);
+  const dotPoints = targets.logo.runs
+    .slice(4, -LOGO_SAMPLING.ambient)
     .map((run) => targets.logo.points[run.start]!);
 
-  it("puts every logo particle on the mark's cloud or on a stray, and the strays' clumps stay tight", () => {
+  it("puts every logo particle on the mark's cloud, on the dot or on a stray, and the strays' clumps stay tight", () => {
     const out = densifyStrokes(
       targets.logo.points,
       targets.logo.runs,
@@ -229,23 +233,35 @@ describe("densifyStrokes on the real shapes", () => {
     // the spread, plus the 0.1 px of the JSON's rounding.
     const cloud =
       LOGO_SAMPLING.maxSpread * LOGO_SCALE + STROKE_SPREAD * 2.5 + 0.5;
+    // A run of one point is spread within 2.5 spreads of it.
+    const clump = STROKE_SPREAD * 2.5 + 1e-9;
+    const byOne = (p: { x: number; y: number }, list: typeof strayPoints) =>
+      list.some((s) => distance([p.x, p.y], [s.x, s.y]) <= clump);
     let onStray = 0;
     for (const p of out) {
+      // A stray's clump (tens of px off the path, so never on the cloud).
+      if (byOne(p, strayPoints)) {
+        onStray += 1;
+        continue;
+      }
       if (distanceToPolylines([p.x, p.y], markPolylines) <= cloud) continue;
-      // Not near the path: it must be one of a stray's clump (a run of one point is spread within 2.5 spreads of it).
-      const near = strayPoints.some(
-        (s) => distance([p.x, p.y], [s.x, s.y]) <= STROKE_SPREAD * 2.5 + 1e-9,
-      );
       expect(
-        near,
-        `${p.x}, ${p.y} is neither on the cloud nor by a stray`,
+        byOne(p, dotPoints),
+        `${p.x}, ${p.y} is neither on the cloud nor on the dot nor by a stray`,
       ).toBe(true);
-      onStray += 1;
     }
-    // Each stray's share is its own point's share of the logo's points (1 in 624 of 12,000).
-    const share = (12000 * LOGO_SAMPLING.ambient) / targets.logo.points.length;
-    expect(onStray).toBeGreaterThan(share * 0.9);
-    expect(onStray).toBeLessThan(share * 1.1);
+    // The strays' clumps hold exactly the strays' shares of the 12,000 (each
+    // run's share is its points' share of the logo's: 1 point in 873), the
+    // dot's 9 single points not counted.
+    const shares = shareOut(
+      targets.logo.runs.map((run) => run.count),
+      12000,
+    );
+    const strayShare = shares
+      .slice(-LOGO_SAMPLING.ambient)
+      .reduce((sum, n) => sum + n, 0);
+    expect(strayShare).toBeGreaterThan(300);
+    expect(onStray).toBe(strayShare);
     expect(new Set(out.map((p) => p.tone))).toEqual(new Set([0, 1]));
   });
 

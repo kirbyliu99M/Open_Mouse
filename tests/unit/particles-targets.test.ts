@@ -332,9 +332,12 @@ describe("the Palmate logo", () => {
     const beyond = size.filter((d) => d > 1).length / size.length;
     expect(beyond).toBeGreaterThan(0.027);
     expect(beyond).toBeLessThan(0.083);
-    // The tail reaches the clip: the extreme quantiles at the wide parts of
-    // the line are past 1.375 units, and nothing is past 1.6.
-    expect(Math.max(...size)).toBeGreaterThanOrEqual(1.375);
+    // The tail reaches the clip. Over the swelling bell a point is past 1.55
+    // units with a chance of 0.0053, so 840 of them have 4.4 there on
+    // average (random draws would leave none 1.2 % of the time); the golden
+    // order has no draw to miss with: it spreads the tail's levels evenly, and
+    // 5 are past 1.55. A clip of 1.5 or 1.4 leaves none. Nothing is past 1.6.
+    expect(Math.max(...size)).toBeGreaterThanOrEqual(1.55);
     expect(Math.max(...size)).toBeLessThanOrEqual(1.6 + 0.05);
   });
 
@@ -398,6 +401,32 @@ describe("the Palmate logo", () => {
     expect(half).toBeLessThanOrEqual(228);
   });
 
+  it("jitters a pair's two points by a tenth of a step each: the half-step moves spread by 0.08 of a step", () => {
+    // The moves of 0.2 to 0.65 steps are a pair's (and a pair's into the next
+    // pair): 0.5 plus the difference of two jitters uniform on -0.1 to 0.1
+    // (a triangle; standard deviation 0.2 / sqrt(6) = 0.082, 0.077 inside
+    // the window). Placing a point on its line and back adds some along-the-
+    // line noise at the bends: 0.029 of a step, measured with no jitter.
+    // Together sqrt(0.077^2 + 0.029^2) = 0.082. Over about 210 moves the
+    // standard deviation's own error is about 0.003 (a triangle's tails are
+    // light), and the bounds are a little over 4 of those either side.
+    // Measured 0.080; no jitter gives 0.029, 0.05 gives 0.050, 0.2 gives
+    // 0.123.
+    const moves: number[] = [];
+    placed.forEach((line, w) => {
+      for (let i = 1; i < line.length; i += 1) {
+        const move = (line[i]!.along - line[i - 1]!.along) / steps[w]!;
+        if (move >= 0.2 && move < 0.65) moves.push(move);
+      }
+    });
+    expect(moves.length).toBeGreaterThan(180);
+    const m = mean(moves);
+    const sd = Math.sqrt(mean(moves.map((v) => (v - m) ** 2)));
+    expect(Math.abs(m - 0.5)).toBeLessThan(0.03);
+    expect(sd).toBeGreaterThan(0.068);
+    expect(sd).toBeLessThan(0.096);
+  });
+
   it("bellQuantile is the bell's quantile: the published values, to 1e-8, and symmetric", () => {
     const known: [number, number][] = [
       [0.5, 0],
@@ -410,6 +439,28 @@ describe("the Palmate logo", () => {
     for (const [p, z] of known) expect(bellQuantile(p)).toBeCloseTo(z, 8);
     for (const p of [0.01, 0.1, 0.3, 0.45]) {
       expect(bellQuantile(1 - p)).toBeCloseTo(-bellQuantile(p), 8);
+    }
+  });
+
+  it("bellQuantile gives a number at and past the ends (not NaN) and never goes down as the level goes up", () => {
+    for (const p of [0, 1, -1, 2, 1e-15, 1 - 1e-15]) {
+      expect(Number.isFinite(bellQuantile(p)), `level ${p}`).toBe(true);
+    }
+    // Held to 1e-12 .. 1 - 1e-12: about 7 either way.
+    expect(bellQuantile(0)).toBeCloseTo(bellQuantile(1e-12), 12);
+    expect(bellQuantile(0)).toBeLessThan(-6.9);
+    expect(bellQuantile(1)).toBeGreaterThan(6.9);
+    // Rising everywhere, across the two seams of the approximation (0.02425
+    // and 0.97575) as well.
+    const levels = [0, 1e-12, 1e-6, 0.001, 0.0242, 0.02425, 0.0243, 0.1];
+    for (let k = 1; k < 1000; k += 1) levels.push(0.1 + (0.8 * k) / 1000);
+    levels.push(0.9, 0.9757, 0.97575, 0.9758, 0.999, 1 - 1e-6, 1);
+    levels.sort((a, b) => a - b);
+    for (let k = 1; k < levels.length; k += 1) {
+      expect(
+        bellQuantile(levels[k]!),
+        `${levels[k - 1]} to ${levels[k]}`,
+      ).toBeGreaterThanOrEqual(bellQuantile(levels[k - 1]!));
     }
   });
 
