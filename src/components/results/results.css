@@ -558,16 +558,22 @@
 }
 .results-glow {
   position: absolute;
-  top: 0;
+  /* The element has no height. An outer box-shadow is not painted inside the
+     element's own box, so a 6rem-tall ellipse showed the page background as a
+     black hole in the middle of its own glow. With no box there is no inside:
+     the shadow's spread (7rem) takes the height the box used to have, and the
+     side margins take back the width that the spread adds. */
+  top: 3rem;
   /* Inside the page's width, centred at 70%: an element wider than a phone
      would add horizontal scroll (its box counts, its shadow does not). */
   left: 50%;
   right: 10%;
+  margin-inline: 3rem;
   z-index: -1;
-  height: 6rem;
+  height: 0;
   border-radius: 50%;
   pointer-events: none;
-  box-shadow: 0 0 16rem 4rem color-mix(in srgb, var(--glow) 20%, transparent);
+  box-shadow: 0 0 16rem 7rem color-mix(in srgb, var(--glow) 20%, transparent);
 }
 .results-page-status,
 .results-page-error {
