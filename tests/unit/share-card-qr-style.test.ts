@@ -150,6 +150,24 @@ describe("QR style: the three eyes", () => {
   });
 });
 
+describe("QR style: the shared quiet zone", () => {
+  it("gives every panel style the same minQuiet, the base qrBoxSize sizes the frameless box from", () => {
+    const panelStyles = QR_STYLES_LIST.filter(
+      (s) => QR_STYLE_SPECS[s].panel !== null,
+    );
+    expect(panelStyles.length).toBeGreaterThanOrEqual(3);
+    const base = QR_STYLE_SPECS.classic.minQuiet;
+    for (const style of panelStyles)
+      expect(QR_STYLE_SPECS[style].minQuiet, style).toBe(base);
+    // So `qrSize` is the same module step in every style.
+    for (const size of [144, 160, 176, 200])
+      for (const style of panelStyles)
+        expect(qrStyleGrid(style, qrBoxSize(style, size, 29), 29).step).toBe(
+          Math.floor(size / (29 + 2 * base)),
+        );
+  });
+});
+
 describe("QR style: box, grid and place on the card", () => {
   const STYLES: QrStyle[] = ["classic", "softLight", "darkTile", "frameless"];
 

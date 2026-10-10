@@ -25,6 +25,7 @@ import {
 } from "../../src/components/results/share/text";
 import { DEFAULT_QR_STYLE } from "../../src/components/results/share/qrStyle";
 import { handTypeTitle, shareCardCopy } from "../../src/lib/copy/share-card";
+import { palmateMarkInkEdges } from "../../src/lib/brand/palmate-mark";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
 /** A fake font: a CJK character is one em wide, anything else `latin` em. */
@@ -473,36 +474,38 @@ describe("the footer lockup and the QR", () => {
     ["a photo", { ...BASE, photoSrc: "/images/a.png" }, measure],
   ];
 
-  it("puts the mark at the bottom-left, with the name and tagline centred on it", () => {
+  it("puts the mark's INK on the left margin and the bottom edge, with the name and tagline centred on it", () => {
     for (const [name, input, m] of CASES) {
       const layout = layoutShareCard(input, m);
       const mark = findMark(layout);
-      expect(mark.box, name).toEqual({
-        x: CARD_PADDING,
-        y: CARD_HEIGHT - CARD_PADDING - MARK_SIZE,
-        w: MARK_SIZE,
-        h: MARK_SIZE,
-      });
+      const ink = palmateMarkInkEdges(mark.box);
+      expect(mark.box.w, name).toBe(MARK_SIZE);
+      expect(mark.box.h, name).toBe(MARK_SIZE);
+      // Ink left on the content margin, ink bottom on the QR box's bottom edge.
+      expect(ink.left, name).toBeCloseTo(CARD_PADDING, 6);
+      expect(ink.bottom, name).toBeCloseTo(CARD_HEIGHT - CARD_PADDING, 6);
+      expect(ink.bottom, name).toBeCloseTo(
+        findQr(layout).box.y + findQr(layout).box.h,
+        6,
+      );
       const nameOp = texts(layout.ops).find((o) => o.text === SITE_NAME)!;
       const tagOp = texts(layout.ops).find(
         (o) => o.text === shareCardCopy(input.lang).tagline,
       )!;
-      expect(nameOp.x, name).toBeGreaterThanOrEqual(
-        mark.box.x + mark.box.w + MARK_GAP_MIN,
-      );
+      expect(nameOp.x, name).toBeGreaterThanOrEqual(ink.right + MARK_GAP_MIN);
       expect(tagOp.x, name).toBe(nameOp.x);
       // The text block (name's cap height to the tagline's baseline) is
-      // centred on the mark, to within a few pixels, and inside its height.
+      // centred on the mark's ink, to within a few pixels, and inside its height.
       const top = nameOp.baseline - nameOp.font.size * 0.75;
       const bottom = tagOp.baseline;
-      const mid = mark.box.y + mark.box.h / 2;
+      const mid = (ink.top + ink.bottom) / 2;
       expect(Math.abs((top + bottom) / 2 - mid), name).toBeLessThanOrEqual(6);
-      expect(top, name).toBeGreaterThanOrEqual(mark.box.y);
-      expect(bottom, name).toBeLessThanOrEqual(mark.box.y + mark.box.h);
+      expect(top, name).toBeGreaterThanOrEqual(ink.top);
+      expect(bottom, name).toBeLessThanOrEqual(ink.bottom);
     }
   });
 
-  it("makes the QR 176 px by default (frameless: the code plus its quiet zone, 185 px), resting on the mark's bottom edge, with the right margin", () => {
+  it("makes the QR 176 px by default (frameless: the code plus its quiet zone, 185 px), resting on the mark's ink bottom edge, with the right margin", () => {
     expect(DEFAULT_QR_SIZE).toBe(176);
     expect(DEFAULT_QR_STYLE).toBe("frameless");
     for (const [name, input, m] of CASES) {
@@ -513,7 +516,10 @@ describe("the footer lockup and the QR", () => {
       expect(qr.box.w, name).toBe(185);
       expect(qr.box.h, name).toBe(185);
       expect(qr.style, name).toBe("frameless");
-      expect(qr.box.y + qr.box.h, name).toBe(mark.box.y + mark.box.h);
+      expect(qr.box.y + qr.box.h, name).toBeCloseTo(
+        palmateMarkInkEdges(mark.box).bottom,
+        6,
+      );
       expect(qr.box.x + qr.box.w, name).toBe(CARD_WIDTH - CARD_PADDING);
       expect(qr.text, name).toBe(SITE_URL);
     }
@@ -546,7 +552,13 @@ describe("the footer lockup and the QR", () => {
     for (const size of [144, 160, 176]) {
       for (const [name, input, m] of CASES) {
         const layout = layoutShareCard(input, m, { qrSize: size });
-        const mark = findMark(layout).box;
+        const inkEdges = palmateMarkInkEdges(findMark(layout).box);
+        const mark: Box = {
+          x: inkEdges.left,
+          y: inkEdges.top,
+          w: inkEdges.right - inkEdges.left,
+          h: inkEdges.bottom - inkEdges.top,
+        };
         const qr = findQr(layout).box;
         const footerText = texts(layout.ops).filter((o) =>
           [SITE_NAME, shareCardCopy(input.lang).tagline].includes(o.text),
