@@ -30,6 +30,7 @@ import {
   LATE_SWITCH_IDLE_MS,
   type StaticBlock,
   fadeCheck,
+  lateSwitchAllowed,
   planLateSwitch,
   scrollForTarget,
   storyAnchors,
@@ -235,10 +236,11 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
 export function startParticleStage(
   canvas: HTMLCanvasElement,
   glCanvas?: HTMLCanvasElement | null,
+  skyCanvas?: HTMLCanvasElement | null,
 ): StageHandle {
   const parts = findParts(canvas);
   if (!parts) return { destroy() {} };
-  const stage = new Stage(canvas, glCanvas ?? null, parts);
+  const stage = new Stage(canvas, glCanvas ?? null, parts, skyCanvas ?? null);
   stage.start();
   return { destroy: () => stage.destroy() };
 }
@@ -287,6 +289,8 @@ class Stage {
   private finaleScene: FinaleScene | null = null;
   /** The finale's place on the canvas, for its scene (built after the particles). */
   private finaleRect: Rect | null = null;
+  /** The sky canvas's 2D context, once made. */
+  private skyCtx: CanvasRenderingContext2D | null = null;
   /** The finale's frame, filled in for each draw (no allocation per frame). */
   private readonly finaleFrame: FinaleFrame = {
     phase: phaseAt(0).finale,
@@ -341,7 +345,8 @@ class Stage {
    * hold still (`lateTimer` is the wait), "fading" while the panel fades out
    * before the switch (`lateTimer` is the fade). `fadeTimer` ends a fade in.
    */
-  private lateState: "none" | "waiting" | "fading" = "none";
+  /** "parked": the whole static story fits in the viewport, so the stage waits for the top (lateSwitchAllowed). */
+  private lateState: "none" | "waiting" | "fading" | "parked" = "none";
   private lateTimer = 0;
   /** The frame `confirmFaded` looks again in, and how many fades gave up since the reader last scrolled. */
   private lateFrame = 0;
@@ -389,6 +394,8 @@ class Stage {
     private readonly canvas: HTMLCanvasElement,
     private readonly glCanvas: HTMLCanvasElement | null,
     private readonly parts: Parts,
+    /** The finale's sky, the whole viewport wide, under the particles (optional: without it the sky is drawn in the panel). */
+    private readonly skyCanvas: HTMLCanvasElement | null = null,
   ) {
     this.queries = {
       wide: window.matchMedia(WIDE),
@@ -533,6 +540,18 @@ class Stage {
    */
   private armLateSwitch(): void {
     if (this.destroyed || this.animated || this.lateState === "fading") return;
+    if (
+      !lateSwitchAllowed(
+        this.parts.section.getBoundingClientRect().height,
+        window.innerHeight,
+      )
+    ) {
+      // A window taller than the static story: wait for the top.
+      window.clearTimeout(this.lateTimer);
+      this.lateTimer = 0;
+      this.lateState = "parked";
+      return;
+    }
     this.lateState = "waiting";
     window.clearTimeout(this.lateTimer);
     this.lateTimer = 0;
@@ -849,6 +868,11 @@ class Stage {
     }
     if (sheet) sheet.style.opacity = "";
     if (finaleParts.glow) finaleParts.glow.style.opacity = "";
+    if (this.skyCanvas) {
+      this.skyCtx?.clearRect(0, 0, this.skyCanvas.width, this.skyCanvas.height);
+      this.skyCanvas.style.left = "";
+      this.skyCanvas.style.width = "";
+    }
     finaleParts.title.style.opacity = "";
     this.finaleScene = null;
     delete section.dataset.progress;
@@ -1175,8 +1199,10 @@ class Stage {
       });
     }
     const started = performance.now();
+    const sky = this.fitSky(origin);
     try {
       this.finaleScene = buildFinaleScene({
+        sky: sky ?? undefined,
         title: parts.title,
         origin,
         width: this.cssWidth,
@@ -1201,6 +1227,31 @@ class Stage {
     // For the e2e suite and for anyone checking the cost in the inspector:
     // how long this layout's finale took to build (ms, once per layout).
     this.canvas.dataset.finaleMs = (performance.now() - started).toFixed(1);
+  }
+
+  /**
+   * The sky's canvas spans the viewport's width (less a scrollbar), from its
+   * left edge: placed by its left and width in px (once per layout), so it
+   * never sticks out sideways. Its pixel size follows. Null without one.
+   */
+  private fitSky(origin: DOMRect): { width: number; offsetX: number } | null {
+    const sky = this.skyCanvas;
+    if (!sky) return null;
+    const ctx = this.skyCtx ?? sky.getContext("2d");
+    if (!ctx) return null;
+    this.skyCtx = ctx;
+    const width = Math.max(1, document.documentElement.clientWidth);
+    sky.style.left = `${round3(-origin.left)}px`;
+    sky.style.width = `${width}px`;
+    const w = Math.max(1, Math.round(width * this.dpr));
+    const h = Math.max(1, Math.round(this.cssHeight * this.dpr));
+    if (sky.width !== w || sky.height !== h) {
+      sky.width = w;
+      sky.height = h;
+    }
+    // For the e2e suite: how wide the sky is drawn (CSS px).
+    sky.dataset.width = String(width);
+    return { width, offsetX: origin.left };
   }
 
   private countFor(renderer: Renderer): number {
@@ -1748,7 +1799,7 @@ class Stage {
         this.renderer === "webgl" && this.budget > 0
           ? this.guard.drawCount / this.budget
           : 1;
-      drawFinale(ctx, this.finaleScene, f);
+      drawFinale(ctx, this.skyCtx, this.finaleScene, f);
     }
     this.applyDom(phase);
     this.draws += 1;

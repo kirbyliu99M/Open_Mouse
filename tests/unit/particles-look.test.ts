@@ -224,8 +224,20 @@ describe("the look at each end of a leg", () => {
     // The hand lights all 12,000: the look of 12,000 particles, as it always was.
     expect(form.looks[1]).toEqual(glLook(12000, 1.2));
     expect(split.looks[0]).toEqual(glLook(12000, 1.2));
-    // The mice light 1,800: close to the 1,300 the 2D look was tuned for.
-    expect(split.looks[1]).toEqual(glLook(1800, 1.2));
+    // The last state (the finale's figure since 2026-10-11) lights its share
+    // (0.18: 2,160 of 12,000), drawn STAR_SIZE.mouse (1.15) bigger.
+    const figureLit = litCount(LIT_FRACTION.mouse, 12000, 12000);
+    expect(figureLit).toBe(2160);
+    const figure = glLook(figureLit, 1.2);
+    expect(split.looks[1].brightPx).toBeCloseTo(
+      figure.brightPx * STAR_SIZE.mouse,
+      12,
+    );
+    expect(split.looks[1].dimPx).toBeCloseTo(
+      figure.dimPx * STAR_SIZE.mouse,
+      12,
+    );
+    expect(split.looks[1].brightAlpha).toBe(figure.brightAlpha);
     expect(split.looks[1].brightPx).toBeGreaterThan(5);
     expect(split.looks[1].brightPx).toBeLessThanOrEqual(6);
     expect(split.looks[0].brightPx).toBeLessThan(3);
@@ -241,11 +253,12 @@ describe("the look at each end of a leg", () => {
     expect(form.looks[0].brightPx).toBeGreaterThan(split.looks[1].brightPx);
   });
 
-  it("makes the logo's stars a little bigger than a mouse's, and nothing else bigger than its look", () => {
+  it("makes the logo's stars bigger than the finale figure's, the figure's a little bigger than its look (2026-10-11), and the hand's dust exactly its look", () => {
     expect(STAR_SIZE.logo).toBeGreaterThan(1);
     expect(STAR_SIZE.logo).toBeLessThan(2);
     expect(STAR_SIZE.hand).toBe(1);
-    expect(STAR_SIZE.mouse).toBe(1);
+    expect(STAR_SIZE.mouse).toBe(1.15);
+    expect(STAR_SIZE.mouse).toBeLessThan(STAR_SIZE.logo);
   });
 
   it("makes a star bigger and stronger than the dust it comes from, on a desktop and on a phone", () => {

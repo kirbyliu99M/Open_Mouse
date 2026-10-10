@@ -56,6 +56,11 @@ export const LIVE_MAX = { desktop: 2600, mobile: 1300 } as const;
 const LIVE_SPACING = { desktop: 2.3, mobile: 1.75 } as const;
 const SOLID_SPACING = { desktop: 1.55, mobile: 1.3 } as const;
 
+/** The headline particles' flight trails: colour, width (px) and opacity. 未拍板 (candidate). */
+const TRAIL_COLOUR = "#AFC8FA";
+const TRAIL_WIDTH = 0.8;
+const TRAIL_ALPHA = 0.32;
+
 /** How far the meteors drift down their own line over the finale (px, as p runs 0.72 to 1): scroll-driven only. */
 const METEOR_DRIFT = { desktop: 140, mobile: 70 } as const;
 
@@ -163,8 +168,13 @@ export interface FinaleScene {
   readonly meteorHead: Float32Array;
   readonly meteorLength: Float32Array;
   readonly drift: number;
+  /** The sky's size (CSS px): the whole viewport's width on its own canvas, or the panel's. */
   readonly width: number;
   readonly height: number;
+  /** The pixel ratio the sky's own canvas is drawn at. */
+  readonly dpr: number;
+  /** Whether the sky's own canvas has something on it now (so it is cleared once when the sky goes). */
+  readonly state: { skyPainted: boolean };
 }
 
 export interface SceneInput {
@@ -182,6 +192,12 @@ export interface SceneInput {
    * the WebGL path, and no more than the 2D budget on the Canvas 2D fallback.
    */
   readonly liveMax: number;
+  /**
+   * The sky's own canvas (the whole viewport's width, 2026-10-11): its width
+   * (CSS px) and how far right of its left edge the panel's left edge is.
+   * Without it the sky is drawn in the panel (width = the panel's, offset 0).
+   */
+  readonly sky?: { readonly width: number; readonly offsetX: number };
 }
 
 /** Whether (x, y) on the canvas is under the headline's grown letters. */
@@ -353,7 +369,7 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     const ctx = solidCanvas.ctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.font = font;
-    ctx.fillStyle = "rgba(207, 224, 255, 0.28)";
+    ctx.fillStyle = "rgba(207, 224, 255, 0.45)";
     drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
     const pattern = dotPattern(ctx, SOLID_SPACING[tier], dpr);
     if (!pattern) return null;
@@ -369,12 +385,15 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
   const solid = asImage(solidCanvas.canvas);
   const white = asImage(whiteCanvas.canvas);
 
-  // The sky: still stars, drawn once; meteors, drawn each frame.
+  // The sky: still stars, drawn once; meteors, drawn each frame. On the sky's
+  // own canvas the panel's rects move right by the panel's offset.
   const titleBox: Rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-  const avoid = [titleBox, ...input.avoid];
+  const skyWidth = input.sky?.width ?? input.width;
+  const dx = input.sky?.offsetX ?? 0;
+  const avoid = [titleBox, ...input.avoid].map((r) => ({ ...r, x: r.x + dx }));
   const counts = STAR_COUNTS[tier];
   const stars = placeStars({
-    width: input.width,
+    width: skyWidth,
     height: input.height,
     seed: FINALE_SEED + 4,
     counts,
@@ -382,7 +401,7 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     padding: 10,
   });
   const meteors = placeMeteors({
-    width: input.width,
+    width: skyWidth,
     height: input.height,
     seed: FINALE_SEED + 5,
     count: METEOR_LAYOUT[tier].count,
@@ -402,51 +421,71 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     solid,
     white,
     sweep: SWEEP[tier],
-    stars: drawStars(stars, input.width, input.height, dpr),
+    stars: drawStars(stars, skyWidth, input.height, dpr),
     meteorHead: Float32Array.from(meteors.flatMap((m) => [...m.head])),
     meteorLength: Float32Array.from(meteors.map((m) => m.length)),
     drift: METEOR_DRIFT[tier],
-    width: input.width,
+    width: skyWidth,
     height: input.height,
+    dpr,
+    state: { skyPainted: false },
   };
 }
 
+/** The solid letters' dot tile: this many hexagonal cells across and rows down (a whole period of the grid). */
+const TILE_COLS = 6;
+const TILE_ROWS = 4;
+
 /**
- * A repeating tile of dots on a hexagonal grid `spacing` CSS px apart, in the
- * formed letters' brightest colours (finale-motion.ts's DEPTH_LAYERS), for a
- * canvas drawn at `dpr`. Null when no tile can be made.
+ * A repeating tile of dots on a hexagonal grid `spacing` CSS px apart, for a
+ * canvas drawn at `dpr`, in the formed letters' bright colours
+ * (finale-motion.ts's DEPTH_LAYERS). Every dot has the same size; its colour
+ * and a small offset are seeded per dot, so neither the rows nor the tile
+ * repeat as stripes (a tile of one cell whose two rows had different dots
+ * read as fine horizontal lines). The tile is a whole number of device px,
+ * drawn in device px, so the pattern does not drift against the grid. Null
+ * when no tile can be made.
  */
 function dotPattern(
   ctx: AnyContext,
   spacing: number,
   dpr: number,
 ): CanvasPattern | null {
-  const w = spacing;
-  const h = spacing * Math.sqrt(3);
-  const tile = makeCanvas(w * dpr, h * dpr);
+  const row = (spacing * Math.sqrt(3)) / 2;
+  const w = spacing * TILE_COLS;
+  const h = row * TILE_ROWS;
+  const W = Math.max(1, Math.round(w * dpr));
+  const H = Math.max(1, Math.round(h * dpr));
+  const tile = makeCanvas(W, H);
   if (!tile) return null;
   const t = tile.ctx;
-  t.setTransform(Math.ceil(w * dpr) / w, 0, 0, Math.ceil(h * dpr) / h, 0, 0);
-  const dots: [number, number, number][] = [
-    [w / 2, h / 4, 4],
-    [0, (3 * h) / 4, 3],
-    [w, (3 * h) / 4, 3],
-  ];
-  for (const [x, y, layer] of dots) {
-    const look = DEPTH_LAYERS[layer]!;
-    t.globalAlpha = look.alpha;
-    t.fillStyle = look.colour;
-    const r = (look.px * 0.82) / 2;
-    t.beginPath();
-    t.arc(x, y, r, 0, Math.PI * 2);
-    t.fill();
+  t.setTransform(W / w, 0, 0, H / h, 0, 0);
+  const random = mulberry32(FINALE_SEED + 6);
+  const radius = (DEPTH_LAYERS[3]!.px * 0.8) / 2;
+  for (let r = 0; r < TILE_ROWS; r += 1) {
+    for (let c = 0; c < TILE_COLS; c += 1) {
+      const look = DEPTH_LAYERS[2 + Math.floor(random() * 3)]!;
+      const jx = (random() - 0.5) * spacing * 0.2;
+      const jy = (random() - 0.5) * spacing * 0.2;
+      const x = (c + (r % 2 === 1 ? 0.5 : 0) + 0.25) * spacing + jx;
+      const y = (r + 0.5) * row + jy;
+      t.globalAlpha = look.alpha;
+      t.fillStyle = look.colour;
+      t.beginPath();
+      // The dot and its copies across the tile's edges, so it wraps.
+      for (const ox of [-w, 0, w]) {
+        for (const oy of [-h, 0, h]) {
+          t.moveTo(x + ox + radius, y + oy);
+          t.arc(x + ox, y + oy, radius, 0, Math.PI * 2);
+        }
+      }
+      t.fill();
+    }
   }
   const pattern = ctx.createPattern(tile.canvas, "repeat");
   if (!pattern) return null;
   // The tile is in device px: back to CSS px, where the context draws.
-  pattern.setTransform(
-    new DOMMatrix().scale(w / Math.ceil(w * dpr), h / Math.ceil(h * dpr)),
-  );
+  pattern.setTransform(new DOMMatrix().scale(w / W, h / H));
   return pattern;
 }
 
@@ -507,14 +546,34 @@ export function drawnAtShare(i: number, share: number): boolean {
 /** From a meteor's head back along its tail (up and to the right). */
 const TAIL = tailDirection();
 
-/** Draw the finale's layer for this frame. Nothing at all before the sky starts. */
+/**
+ * Draw the finale's layer for this frame: the sky on `skyCtx` (its own,
+ * viewport-wide canvas, under the particles) or, without one, on `ctx`; the
+ * headline on `ctx`. Nothing at all before the sky starts. The sky's own
+ * canvas is cleared only while it has something on it.
+ */
 export function drawFinale(
   ctx: CanvasRenderingContext2D,
+  skyCtx: CanvasRenderingContext2D | null,
   scene: FinaleScene,
   frame: FinaleFrame,
 ): void {
   const { phase } = frame;
-  if (phase.sky > 0) drawSky(ctx, scene, frame);
+  if (skyCtx) {
+    if (phase.sky > 0 || scene.state.skyPainted) {
+      skyCtx.setTransform(1, 0, 0, 1, 0, 0);
+      skyCtx.clearRect(0, 0, skyCtx.canvas.width, skyCtx.canvas.height);
+      scene.state.skyPainted = false;
+    }
+    if (phase.sky > 0) {
+      skyCtx.setTransform(scene.dpr, 0, 0, scene.dpr, 0, 0);
+      drawSky(skyCtx, scene, frame);
+      skyCtx.globalAlpha = 1;
+      scene.state.skyPainted = true;
+    }
+  } else if (phase.sky > 0) {
+    drawSky(ctx, scene, frame);
+  }
   if (frame.headline && phase.gather > 0) drawHeadline(ctx, scene, frame);
   ctx.globalAlpha = 1;
 }
@@ -613,6 +672,41 @@ function drawHeadline(
   const fadeIn = Math.min(1, t / 0.12);
   const n = scene.count;
   const share = Math.min(1, Math.max(0, frame.share));
+  // The flight trails (v7 / v8): a faint line along each flying particle's
+  // own curve, from `GATHER.trail` of its flight behind it to where it is.
+  // One path, no arrays; the same guard share as the particles.
+  if (frame.glow) {
+    ctx.strokeStyle = TRAIL_COLOUR;
+    ctx.lineWidth = TRAIL_WIDTH;
+    ctx.lineCap = "round";
+    ctx.globalAlpha = TRAIL_ALPHA * fadeIn;
+    ctx.beginPath();
+    for (let i = 0; i < n; i += 1) {
+      if (!drawnAtShare(i, share)) continue;
+      if (scene.tx[i]! < back) continue;
+      const q = (t - scene.delay[i]!) / GATHER.duration;
+      if (q <= 0 || q >= 1) continue;
+      const e1 = easeOutCubic(q);
+      const e0 = easeOutCubic(Math.max(0, q - GATHER.trail));
+      const u0 = 1 - e0;
+      const u1 = 1 - e1;
+      const sx = scene.sx[i]!;
+      const sy = scene.sy[i]!;
+      const cx = scene.cx[i]!;
+      const cy = scene.cy[i]!;
+      const tx = scene.tx[i]!;
+      const ty = scene.ty[i]!;
+      ctx.moveTo(
+        u0 * u0 * sx + 2 * u0 * e0 * cx + e0 * e0 * tx,
+        u0 * u0 * sy + 2 * u0 * e0 * cy + e0 * e0 * ty,
+      );
+      ctx.lineTo(
+        u1 * u1 * sx + 2 * u1 * e1 * cx + e1 * e1 * tx,
+        u1 * u1 * sy + 2 * u1 * e1 * cy + e1 * e1 * ty,
+      );
+    }
+    ctx.stroke();
+  }
   const duration = GATHER.duration;
   for (let layer = 0; layer < DEPTH_LAYERS.length; layer += 1) {
     const look = DEPTH_LAYERS[layer]!;

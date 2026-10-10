@@ -285,6 +285,40 @@ test.describe("starting away from the top", () => {
     await expectPanelRestored(page);
   });
 
+  test("a window taller than the static story stays static away from the top (the buttons would be carried off), and switches once the reader is back at the top", async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "chromium", "A desktop window size.");
+    await page.setViewportSize({ width: 1280, height: 2400 });
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    const fits = await page.evaluate(
+      () =>
+        document.querySelector(".story")!.getBoundingClientRect().height <=
+        window.innerHeight,
+    );
+    expect(fits, "the static story fits in a 2,400 px window").toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 200));
+    const scrolled = await page.evaluate(() => window.scrollY);
+    test.skip(scrolled === 0, "The page is not taller than this window.");
+    const finalBefore = await page.evaluate(
+      () => document.querySelector(".home-final")!.getBoundingClientRect().top,
+    );
+    release();
+    // Well past the idle wait and a fade: still the static page, nothing moved.
+    await page.waitForTimeout(2500);
+    expect((await layoutFacts(page)).animated).toBe(false);
+    expect(
+      await page.evaluate(
+        () =>
+          document.querySelector(".home-final")!.getBoundingClientRect().top,
+      ),
+    ).toBeCloseTo(finalBefore, 0);
+    // Back at the top the switch moves nothing: now.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await waitForAnimated(page);
+  });
+
   test("② a scroll while the page is still loading: the stage starts once the reader holds still", async ({
     page,
   }) => {

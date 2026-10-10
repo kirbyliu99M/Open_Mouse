@@ -20,6 +20,8 @@ import { retryDelay, retryStep } from "@/lib/particles/retry";
 export function ParticleStage() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
+  // The finale's sky (stars, meteors), the whole viewport wide, under the rest.
+  const skyCanvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const element = canvas.current;
@@ -82,7 +84,11 @@ export function ParticleStage() {
         .then((module) => {
           loading = false;
           if (!cancelled) {
-            stage = module.startParticleStage(element, glCanvas.current);
+            stage = module.startParticleStage(
+              element,
+              glCanvas.current,
+              skyCanvas.current,
+            );
           }
         })
         .catch(() => {
@@ -138,6 +144,7 @@ export function ParticleStage() {
 
   return (
     <>
+      <canvas ref={skyCanvas} className="story-canvas-sky" aria-hidden="true" />
       <canvas ref={glCanvas} className="story-canvas-gl" aria-hidden="true" />
       <canvas ref={canvas} className="story-canvas" aria-hidden="true" />
     </>

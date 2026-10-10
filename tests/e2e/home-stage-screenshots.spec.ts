@@ -131,6 +131,44 @@ test.describe("home stage screenshots", () => {
     }
   }
 
+  // Wide windows (the sky spans the whole viewport) and 200 % text (the static
+  // page). `-g "wide|200 %"` captures only these.
+  for (const [width, height] of [
+    [1600, 900],
+    [1920, 1080],
+  ] as const) {
+    test(`wide ${width}x${height}`, async ({ page }, info) => {
+      test.skip(info.project.name !== "chromium", "Captures once.");
+      test.setTimeout(120_000);
+      await capture(page, width, height, [0.9, 1], OUTPUT);
+    });
+  }
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`200 % text ${width}x${height}`, async ({ page }, info) => {
+      test.skip(info.project.name !== "chromium", "Captures once.");
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "200%";
+      });
+      await page.waitForTimeout(2500);
+      for (const share of [0, 0.5, 1]) {
+        await page.evaluate((y) => {
+          const max =
+            document.documentElement.scrollHeight - window.innerHeight;
+          window.scrollTo(0, Math.round(max * y));
+        }, share);
+        await page.waitForTimeout(200);
+        await page.screenshot({
+          path: `${OUTPUT}/${width}x${height}-text200-at${share.toFixed(1)}.png`,
+        });
+      }
+    });
+  }
+
   for (const [width, height] of SHORT_SIZES) {
     test(`short desktop ${width}x${height}`, async ({ page }, info) => {
       test.skip(info.project.name !== "chromium", "Captures once.");
