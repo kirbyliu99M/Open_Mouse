@@ -1,7 +1,6 @@
 # Fit algorithm — v1 candidate
 
-Status: **candidate (未拍板)**. `fit-v0-provisional` stays the default engine until Kirby
-approves the before/after of the golden test and the stability report. Every number below
+Status: **candidate (未拍板)**. v1 (`fit-v1-candidate.2`) has been the default engine since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
 lives in `src/server/fit/coefficients.ts` only.
 
 ## 1. Inputs
@@ -107,12 +106,13 @@ jump > 2 points between neighbours).
 
 `ENGINE_VERSION_V1 = "fit-v1-candidate.2"` (CALIB-1 bumped it from `fit-v1-candidate` so stored rows of the two calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
-switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it stays `"v0"`. `fit_results` is unique
-on (scan, mouse, engineVersion), so no migration. Switching the default is a one-line change
-in `DEFAULT_ENGINE` after Kirby's approval. That one line also switches what `fit_results` stores for a
+switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it is `"v1"` since 2026-10-10 (see below). `fit_results` is unique
+on (scan, mouse, engineVersion), so no migration. That one line also switches what `fit_results` stores for a
 null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to `buildFitResultRows`,
 so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
 rows keep 75.
+
+**Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 (`fit-v1-candidate.2`) is the default engine; `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels are unchanged and 未拍板.
 
 ## 9a. Code map
 

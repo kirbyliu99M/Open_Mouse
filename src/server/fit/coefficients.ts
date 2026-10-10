@@ -160,9 +160,13 @@ export const VERTICAL_FORM_FACTOR_RATIO = 0.55;
 // Nothing above this line is read by v1 with a different meaning, and v0 reads
 // nothing below it. 未拍板: every number here is a candidate.
 
-/** Which engine the fit route uses. Switching it is the one-line change Kirby approves. */
+/**
+ * Which engine the fit route uses. Kirby switched the default to v1 on
+ * 2026-10-10, after the v0-vs-v1 comparison on the real catalogue. v1 is still
+ * a candidate (未拍板): only the default changed, not the label or any number.
+ */
 export type EngineId = "v0" | "v1";
-export const DEFAULT_ENGINE: EngineId = "v0";
+export const DEFAULT_ENGINE: EngineId = "v1";
 
 /** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
 export const ENGINE_VERSION_V1 = "fit-v1-candidate.2";
