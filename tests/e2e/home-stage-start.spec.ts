@@ -104,7 +104,12 @@ async function recordSwitch(page: Page) {
 }
 
 type Switch = { scrollY: number; sectionTop: number; panelOpacity: number };
-type FrameRow = [opacity: number, finalTop: number, scrollY: number, animated: boolean];
+type FrameRow = [
+  opacity: number,
+  finalTop: number,
+  scrollY: number,
+  animated: boolean,
+];
 
 /** The static story's geometry, as the stage measures it before switching. */
 async function staticGeometry(page: Page) {
@@ -144,7 +149,8 @@ async function animatedGeometry(page: Page) {
 /** Wait until the late switch's fade in is over (the panel's own style is cleared then). */
 async function waitForFadeOver(page: Page) {
   await page.waitForFunction(
-    () => !document.querySelector<HTMLElement>(".story-panel")!.style.transition,
+    () =>
+      !document.querySelector<HTMLElement>(".story-panel")!.style.transition,
   );
   await page.waitForTimeout(100);
 }
@@ -354,7 +360,10 @@ test.describe("a failed start is tried again", () => {
   // once for a caller in the stage module.
   for (const [label, failures] of [
     ["once: the retry starts the stage", 1],
-    ["every time: the page stays static after the last retry, with no error", 99],
+    [
+      "every time: the page stays static after the last retry, with no error",
+      99,
+    ],
   ] as const) {
     test(`prepare() fails ${label}`, async ({ page }) => {
       const errors: string[] = [];
@@ -404,7 +413,9 @@ test.describe("a failed start is tried again", () => {
         ).toBe(1 + START_RETRY_DELAYS_MS.length);
         const facts = await layoutFacts(page);
         expect(facts.animated).toBe(false);
-        expect(await page.locator(STORY).getAttribute("data-renderer")).toBeNull();
+        expect(
+          await page.locator(STORY).getAttribute("data-renderer"),
+        ).toBeNull();
       }
       expect(errors).toEqual([]);
     });
