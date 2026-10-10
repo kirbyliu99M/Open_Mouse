@@ -199,6 +199,10 @@ async function staticGeometry(page: Page) {
       mice: block(".story-finale"),
       finalTop: document.querySelector(".home-final")!.getBoundingClientRect()
         .top,
+      // The final section's gap under the static story (3rem).
+      finalGap:
+        document.querySelector(".home-final")!.getBoundingClientRect().top -
+        section.bottom,
     };
   });
 }
@@ -213,6 +217,11 @@ async function animatedGeometry(page: Page) {
       progress: Number(section.dataset.progress),
       finalTop: document.querySelector(".home-final")!.getBoundingClientRect()
         .top,
+      // The final section's gap under the animated story: negative, it comes
+      // up over the finale (since 2026-10-11).
+      finalGap:
+        document.querySelector(".home-final")!.getBoundingClientRect().top -
+        section.getBoundingClientRect().bottom,
     };
   });
 }
@@ -340,6 +349,9 @@ test.describe("starting away from the top", () => {
         notes: before.notes,
         mice: before.mice,
       }),
+      // As the stage plans it (particle-stage.ts, switchLate): the final
+      // section's gap differs between the layouts since the finale.
+      finalShift: before.finalGap - after.finalGap,
     });
     expect(plan.fade).toBe(true);
     // data-progress has three decimals; the scroll position is a whole px.
