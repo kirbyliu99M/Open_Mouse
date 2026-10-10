@@ -585,6 +585,120 @@ test.describe("the animated layout", () => {
     expect(overFinale).toBe(true);
   });
 
+  for (const [how, breakIt] of [
+    [
+      "a canvas that will not hand its pixels back",
+      () => {
+        const proto = (
+          globalThis as unknown as {
+            OffscreenCanvasRenderingContext2D?: { prototype: object };
+          }
+        ).OffscreenCanvasRenderingContext2D?.prototype as
+          { getImageData: () => never } | undefined;
+        const fail = () => {
+          throw new Error("no pixels (test)");
+        };
+        if (proto) proto.getImageData = fail;
+        (
+          CanvasRenderingContext2D.prototype as unknown as {
+            getImageData: () => never;
+          }
+        ).getImageData = fail;
+      },
+    ],
+    [
+      "a canvas that does not report its font's ascent (Firefox before 116)",
+      () => {
+        for (const ctor of [
+          (
+            globalThis as unknown as {
+              OffscreenCanvasRenderingContext2D?: {
+                prototype: { measureText(t: string): TextMetrics };
+              };
+            }
+          ).OffscreenCanvasRenderingContext2D,
+          CanvasRenderingContext2D,
+        ]) {
+          if (!ctor) continue;
+          const measure = ctor.prototype.measureText;
+          ctor.prototype.measureText = function (this: unknown, t: string) {
+            const m = measure.call(this, t);
+            return new Proxy(m, {
+              get: (target, key) =>
+                key === "fontBoundingBoxAscent" ||
+                key === "fontBoundingBoxDescent"
+                  ? undefined
+                  : Reflect.get(target, key),
+            });
+          };
+        }
+      },
+    ],
+  ] as const) {
+    test(`the finale's headline is shown as DOM text when its layer can not be built (${how}): it fades in with its window, and nothing throws`, async ({
+      page,
+    }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.addInitScript(breakIt);
+      await page.goto("/");
+      await waitForAnimated(page);
+      await expect(page.locator(STORY)).toHaveAttribute("data-finale", "off");
+      const title = page.getByRole("heading", { level: 2, name: FINALE_TITLE });
+      const opacity = async () =>
+        Number(await title.evaluate((el) => getComputedStyle(el).opacity));
+      await scrollToProgress(page, 0.5);
+      expect(await opacity()).toBe(0);
+      await scrollToProgress(page, 1);
+      expect(await opacity()).toBe(1);
+      await expect(title).toBeVisible();
+      // The rest of the story goes on: the stage is still the animated one.
+      expect((await layoutFacts(page)).animated).toBe(true);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test("with forced colours the finale's headline is DOM text in the system's text colour (the canvas leaves it out)", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/");
+    await waitForAnimated(page);
+    const title = page.getByRole("heading", { level: 2, name: FINALE_TITLE });
+    await scrollToProgress(page, 0.5);
+    expect(
+      Number(await title.evaluate((el) => getComputedStyle(el).opacity)),
+    ).toBe(0);
+    await scrollToProgress(page, 1);
+    const style = await title.evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.style.color = "CanvasText";
+      document.body.append(probe);
+      const canvasText = getComputedStyle(probe).color;
+      probe.remove();
+      const s = getComputedStyle(el);
+      return { opacity: s.opacity, color: s.color, canvasText };
+    });
+    expect(style.opacity).toBe("1");
+    expect(style.color).toBe(style.canvasText);
+    await expect(title).toBeVisible();
+  });
+
+  test("the finale's light is really drawn: its gradient is a valid one (a circle's radius in lengths), and shows at p = 1", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await scrollToProgress(page, 1);
+    const glow = await page.locator(".story-finale-glow").evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { image: s.backgroundImage, opacity: s.opacity };
+    });
+    // An invalid gradient (a percentage in a circle's radius) computes to none.
+    expect(glow.image).toContain("radial-gradient");
+    expect(glow.opacity).toBe("1");
+  });
+
   test("the finale's headline is real text all along (the canvas draws it), and its light fades in with the finale", async ({
     page,
   }) => {

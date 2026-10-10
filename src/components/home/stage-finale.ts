@@ -17,12 +17,10 @@ import { mulberry32 } from "@/lib/particles/random";
 import {
   METEOR,
   METEOR_LAYOUT,
-  type Meteor,
   STAR_CLASSES,
   STAR_COUNTS,
   type Star,
   TRAIL,
-  meteorSegments,
   placeMeteors,
   placeStars,
   tailDirection,
@@ -161,7 +159,9 @@ export interface FinaleScene {
   readonly white: CanvasImageSource | null;
   readonly sweep: SweepWidths;
   readonly stars: CanvasImageSource | null;
-  readonly meteors: readonly Meteor[];
+  /** The meteors' heads (x, y each) and rest lengths, packed so a frame allocates nothing. */
+  readonly meteorHead: Float32Array;
+  readonly meteorLength: Float32Array;
   readonly drift: number;
   readonly width: number;
   readonly height: number;
@@ -177,6 +177,11 @@ export interface SceneInput {
   readonly wide: boolean;
   /** Where no star or meteor goes (canvas px): the figure, the buttons. */
   readonly avoid: readonly Rect[];
+  /**
+   * The most live headline particles this drawing path may have: LIVE_MAX on
+   * the WebGL path, and no more than the 2D budget on the Canvas 2D fallback.
+   */
+  readonly liveMax: number;
 }
 
 /** Whether (x, y) on the canvas is under the headline's grown letters. */
@@ -211,7 +216,12 @@ function drawGlyphs(
   }
 }
 
-/** Build the finale's layer for this layout. Null when the headline has no glyphs or no canvas can be made. */
+/**
+ * Build the finale's layer for this layout. Null when it can not be built
+ * whole: no glyphs, no canvas, a canvas that does not report its font's
+ * ascent and descent (Firefox before 116), an empty mask, or no solid
+ * letters. The stage then shows the headline as DOM text instead.
+ */
 export function buildFinaleScene(input: SceneInput): FinaleScene | null {
   const { title, origin, wide } = input;
   const glyphs = readGlyphs(title, origin);
@@ -247,6 +257,15 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     ctx.lineWidth = 2 * CLIP_PX;
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
   }
+  // The baseline comes from the font's own ascent and descent: a canvas that
+  // does not report them can not place the letters where the page has them.
+  const probe = mask.ctx.measureText("M");
+  if (
+    !Number.isFinite(probe.fontBoundingBoxAscent) ||
+    !Number.isFinite(probe.fontBoundingBoxDescent)
+  ) {
+    return null;
+  }
   drawGlyphs(mask.ctx, glyphs, -maskX, -maskY, 0);
   drawGlyphs(grown.ctx, glyphs, -maskX, -maskY, 2 * CLIP_PX);
   const alpha = (ctx: AnyContext) => {
@@ -275,7 +294,7 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
   if (area === 0) return null;
 
   // The live particles: the tier's spacing, or wider to stay near the cap.
-  const cap = LIVE_MAX[tier];
+  const cap = Math.max(1, Math.min(LIVE_MAX[tier], Math.floor(input.liveMax)));
   const live = sampleMask(letterAlpha, maskWidth, maskHeight, {
     spacing: Math.max(LIVE_SPACING[tier], spacingForCount(area, cap)),
     letters,
@@ -323,11 +342,10 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
   // The solid letters: a finer field of the same dots, drawn once at the
   // device's pixel ratio; and the plain white letters for the sweep's light.
   const dpr = input.dpr;
-  let solid: CanvasImageSource | null = null;
-  let white: CanvasImageSource | null = null;
   const solidCanvas = makeCanvas(maskWidth * dpr, maskHeight * dpr);
   const whiteCanvas = makeCanvas(maskWidth * dpr, maskHeight * dpr);
-  if (solidCanvas && whiteCanvas) {
+  if (!solidCanvas || !whiteCanvas) return null;
+  {
     // The letters filled with a fine hexagonal field of dots (a pattern,
     // so this costs one fill, not a dot at a time: sampling the dots one by
     // one took about 300 ms at 4 times the CPU), over a faint plain fill so
@@ -338,19 +356,18 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     ctx.fillStyle = "rgba(207, 224, 255, 0.28)";
     drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
     const pattern = dotPattern(ctx, SOLID_SPACING[tier], dpr);
-    if (pattern) {
-      ctx.fillStyle = pattern;
-      drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
-    }
+    if (!pattern) return null;
+    ctx.fillStyle = pattern;
+    drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
     ctx.globalAlpha = 1;
-    solid = asImage(solidCanvas.canvas);
     const w = whiteCanvas.ctx;
     w.setTransform(dpr, 0, 0, dpr, 0, 0);
     w.font = font;
     w.fillStyle = "#ffffff";
     drawGlyphs(w, glyphs, -maskX, -maskY, 0);
-    white = asImage(whiteCanvas.canvas);
   }
+  const solid = asImage(solidCanvas.canvas);
+  const white = asImage(whiteCanvas.canvas);
 
   // The sky: still stars, drawn once; meteors, drawn each frame.
   const titleBox: Rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
@@ -386,7 +403,8 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     white,
     sweep: SWEEP[tier],
     stars: drawStars(stars, input.width, input.height, dpr),
-    meteors,
+    meteorHead: Float32Array.from(meteors.flatMap((m) => [...m.head])),
+    meteorLength: Float32Array.from(meteors.map((m) => m.length)),
     drift: METEOR_DRIFT[tier],
     width: input.width,
     height: input.height,
@@ -456,15 +474,38 @@ function drawStars(
   return asImage(layer.canvas);
 }
 
+/** What a frame of the finale needs. The stage keeps one and fills it in each frame (no allocation per frame). */
 export interface FinaleFrame {
-  readonly phase: FinalePhase;
+  phase: FinalePhase;
   /** The story's progress (the meteors drift with it). */
-  readonly progress: number;
+  progress: number;
   /** How long the meteors' tails are, times their rest length (starfield.ts's trailScale of the scroll speed). */
-  readonly trail: number;
+  trail: number;
   /** False for prefers-contrast: more: no halos, no sweep light. */
-  readonly glow: boolean;
+  glow: boolean;
+  /**
+   * The share of the live headline particles to draw, 0 to 1: the slow-frame
+   * guard's (degrade.ts) drawn share of the particle budget, so a slow device
+   * draws fewer of these too. 1 on the Canvas 2D path.
+   */
+  share: number;
+  /** False when the headline is shown as DOM text instead (forced colours): only the sky is drawn. */
+  headline: boolean;
 }
+
+/**
+ * Whether live headline particle `i` (in reading order) is drawn when only
+ * `share` (0 to 1) of them are: an even pick, so any share is spread over the
+ * whole headline, `floor(n * share)` of the first n in all.
+ */
+export function drawnAtShare(i: number, share: number): boolean {
+  if (!(share > 0)) return false;
+  if (share >= 1) return true;
+  return Math.floor((i + 1) * share) !== Math.floor(i * share);
+}
+
+/** From a meteor's head back along its tail (up and to the right). */
+const TAIL = tailDirection();
 
 /** Draw the finale's layer for this frame. Nothing at all before the sky starts. */
 export function drawFinale(
@@ -474,7 +515,7 @@ export function drawFinale(
 ): void {
   const { phase } = frame;
   if (phase.sky > 0) drawSky(ctx, scene, frame);
-  if (phase.gather > 0) drawHeadline(ctx, scene, frame);
+  if (frame.headline && phase.gather > 0) drawHeadline(ctx, scene, frame);
   ctx.globalAlpha = 1;
 }
 
@@ -488,25 +529,28 @@ function drawSky(
     ctx.globalAlpha = sky;
     ctx.drawImage(scene.stars, 0, 0, scene.width, scene.height);
   }
-  const dir = tailDirection();
   const drift = (frame.progress - 0.86) * (scene.drift / 0.28);
   const scale = Math.min(TRAIL.max, Math.max(1, frame.trail));
   ctx.lineCap = "round";
   ctx.strokeStyle = METEOR.colour;
-  for (const meteor of scene.meteors) {
-    const moved: Meteor = {
-      head: [meteor.head[0] - dir[0] * drift, meteor.head[1] - dir[1] * drift],
-      length: meteor.length,
-    };
-    for (const seg of meteorSegments(moved, scale)) {
-      ctx.globalAlpha = sky * seg.alpha;
-      ctx.lineWidth = seg.width;
+  const quarters = METEOR.tail.length;
+  const count = scene.meteorLength.length;
+  for (let m = 0; m < count; m += 1) {
+    // The same tail as starfield.ts's meteorSegments, without its arrays.
+    const hx = scene.meteorHead[2 * m]! - TAIL[0] * drift;
+    const hy = scene.meteorHead[2 * m + 1]! - TAIL[1] * drift;
+    const len = scene.meteorLength[m]! * scale;
+    for (let k = 0; k < quarters; k += 1) {
+      const look = METEOR.tail[k]!;
+      const from = (len * (quarters - k)) / quarters;
+      const to = (len * (quarters - k - 1)) / quarters;
+      ctx.globalAlpha = sky * look.alpha;
+      ctx.lineWidth = look.width;
       ctx.beginPath();
-      ctx.moveTo(seg.from[0], seg.from[1]);
-      ctx.lineTo(seg.to[0], seg.to[1]);
+      ctx.moveTo(hx + TAIL[0] * from, hy + TAIL[1] * from);
+      ctx.lineTo(hx + TAIL[0] * to, hy + TAIL[1] * to);
       ctx.stroke();
     }
-    const [hx, hy] = moved.head;
     if (frame.glow) {
       ctx.globalAlpha = sky * METEOR.halo.alpha;
       ctx.fillStyle = METEOR.halo.colour;
@@ -563,9 +607,12 @@ function drawHeadline(
     ctx.restore();
   }
 
-  // The live particles: waiting, flying, landed; none left of the core.
+  // The live particles: waiting, flying, landed; none left of the core. A
+  // guard that draws a share of the budget draws that share of these too,
+  // evenly through their reading order.
   const fadeIn = Math.min(1, t / 0.12);
   const n = scene.count;
+  const share = Math.min(1, Math.max(0, frame.share));
   const duration = GATHER.duration;
   for (let layer = 0; layer < DEPTH_LAYERS.length; layer += 1) {
     const look = DEPTH_LAYERS[layer]!;
@@ -575,6 +622,7 @@ function drawHeadline(
     const size = look.px;
     for (let i = 0; i < n; i += 1) {
       if (scene.layer[i] !== layer) continue;
+      if (!drawnAtShare(i, share)) continue;
       if (scene.tx[i]! < back) continue;
       const q = (t - scene.delay[i]!) / duration;
       let x: number;

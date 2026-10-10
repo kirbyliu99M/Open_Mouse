@@ -543,6 +543,10 @@
 .story--animated .story-finale {
   --finale-top: 18svh;
   --finale-w: min(94%, 37.75rem, 67.5svh);
+  /* The same width in lengths only (the panel is the viewport less its side
+     padding, at most 1.5rem a side): a circle's radius in a gradient takes no
+     percentage, so the light uses this one. */
+  --finale-len: min(calc((100vw - 3rem) * 0.94), 37.75rem, 67.5svh);
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -579,8 +583,8 @@
   position: absolute;
   inset: 0;
   background: radial-gradient(
-    circle calc(var(--finale-w) * 0.95) at 50%
-      calc(var(--finale-top) + var(--finale-w) * 0.45),
+    circle calc(var(--finale-len) * 0.95) at 50%
+      calc(var(--finale-top) + var(--finale-len) * 0.45),
     color-mix(in srgb, var(--glow) 34%, transparent),
     color-mix(in srgb, var(--glow) 14%, transparent) 55%,
     transparent
@@ -599,6 +603,16 @@
 @media (prefers-contrast: more) {
   .story--animated .story-finale-glow {
     display: none;
+  }
+}
+/* The headline is DOM text, shown, when the canvas can not draw it: its layer
+   could not be built (data-finale="off"), or forced colours are on. The stage
+   then fades it in with the headline's own window (inline opacity), and here
+   it takes the system's text colour under forced colours, not the canvas's
+   near-white. */
+@media (forced-colors: active) {
+  .story--animated .story-finale-title {
+    color: CanvasText;
   }
 }
 

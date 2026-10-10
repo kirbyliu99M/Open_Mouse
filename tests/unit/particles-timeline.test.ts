@@ -145,11 +145,17 @@ describe("phaseAt", () => {
     for (const [from] of Object.values(FINALE)) {
       expect(from).toBeGreaterThanOrEqual(MARKS.miceSettled);
     }
-    // Each window is inside story 6's neighbourhood, in order, and ends at 1.
-    for (const [from, to] of Object.values(FINALE)) {
-      expect(from).toBeGreaterThanOrEqual(0.7);
-      expect(to).toBeLessThanOrEqual(0.98);
-      expect(phaseAt(from).finale).toBeDefined();
+    // Each window lies in story 6 and is over by 0.98 (so p = 0.98 to 1 holds
+    // still): its part is 0 at the window's start and 1 at its end.
+    for (const [key, [from, to]] of Object.entries(FINALE) as [
+      keyof typeof FINALE,
+      readonly [number, number],
+    ][]) {
+      expect(from, key).toBeGreaterThanOrEqual(0.72);
+      expect(to, key).toBeGreaterThan(from);
+      expect(to, key).toBeLessThanOrEqual(0.98);
+      expect(phaseAt(from).finale[key], key).toBe(0);
+      expect(phaseAt(to).finale[key], key).toBe(1);
     }
     expect(FINALE.gather[0]).toBeGreaterThanOrEqual(FINALE.sky[0]);
     expect(FINALE.sweep[0]).toBeGreaterThanOrEqual(FINALE.gather[1]);

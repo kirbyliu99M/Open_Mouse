@@ -851,8 +851,14 @@ describe("the Palmate logo", () => {
   it("pairs with the hand and the mice at every budget the stage uses, in both densities, with the same number of particles in all three states", () => {
     const all = buildTargets(sketches);
     const names = Object.keys(all.mice).slice(0, 1);
-    // 900 and 1,299 (the Canvas 2D path's phone and desktop; 1,300 since the finale is one drawing, 1,299 still a budget the maths must take), 3,000 and 6,000 (WebGL on a low-end device and a phone), 12,000 (WebGL on a desktop).
-    for (const count of [900, 1299, 3000, 6000, 12000]) {
+    // The stage's budgets now (2026-10-11): 450, 650, 900 and 1,300 (the Canvas
+    // 2D path: a low-end phone and desktop, a phone and a desktop), 3,750,
+    // 7,500 and 15,000 (WebGL: a low-end phone, a phone or a low-end desktop,
+    // a desktop). And the budgets of before, still ones the maths must take:
+    // 1,299, 3,000, 6,000 and 12,000.
+    for (const count of [
+      450, 650, 900, 1299, 1300, 3000, 3750, 6000, 7500, 12000, 15000,
+    ]) {
       for (const density of ["sparse", "dense"] as const) {
         const pairing = buildPairing(all, {
           count,
@@ -897,7 +903,8 @@ describe("the Palmate logo", () => {
     expect(strayAt).toHaveLength(LOGO_SAMPLING.ambient);
     const isStray = (p: { x: number; y: number }) =>
       strayAt.some((s) => distance([p.x, p.y], [s.x, s.y]) < 2);
-    for (const count of [900, 1299, 6000, 12000]) {
+    // (The budgets of before, and the ones since 2026-10-11.)
+    for (const count of [900, 1299, 1300, 6000, 7500, 12000, 15000]) {
       for (const density of ["sparse", "dense"] as const) {
         const label = `${count} ${density}`;
         const pairing = buildPairing(all, {

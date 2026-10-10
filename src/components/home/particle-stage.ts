@@ -82,6 +82,7 @@ import {
   sectionProgress,
 } from "@/lib/particles/timeline";
 import {
+  type FinaleFrame,
   type FinaleScene,
   buildFinaleScene,
   drawFinale,
@@ -142,6 +143,8 @@ const ANIMATED = "story--animated";
 const WIDE = "(min-width: 48rem)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MORE_CONTRAST = "(prefers-contrast: more)";
+/** Forced colours (Windows contrast themes): the finale's headline is DOM text in the system's colours, and the canvas leaves it out. */
+const FORCED_COLORS = "(forced-colors: active)";
 /** What tells a scroll the reader made from one the browser made on its own (late start: the fade attempts are forgotten only for the reader's). */
 const READER_INPUT = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
 /** How far the hero text moves up while it fades, in CSS px. */
@@ -284,6 +287,17 @@ class Stage {
   private finaleScene: FinaleScene | null = null;
   /** The finale's place on the canvas, for its scene (built after the particles). */
   private finaleRect: Rect | null = null;
+  /** The finale's frame, filled in for each draw (no allocation per frame). */
+  private readonly finaleFrame: FinaleFrame = {
+    phase: phaseAt(0).finale,
+    progress: 0,
+    trail: 1,
+    glow: true,
+    share: 1,
+    headline: true,
+  };
+  /** One timer per scroll: once the reader has stopped, the meteors' tails go back to their rest length in one more frame. */
+  private settleTimer = 0;
   /** The scroll speed the meteors' tails follow (px/s, smoothed), and the scroll position and time it was last taken at. */
   private scrollSpeed = 0;
   private speedY = 0;
@@ -355,6 +369,7 @@ class Stage {
     inert?: boolean;
     sheet?: string;
     glow?: string;
+    title?: string;
     notes?: string;
   } = {};
 
@@ -364,7 +379,7 @@ class Stage {
   private readonly probe: HTMLElement;
   private readonly controls: HTMLElement[];
   private readonly queries: Record<
-    "wide" | "reduced" | "contrast",
+    "wide" | "reduced" | "contrast" | "forced",
     MediaQueryList
   >;
   private resize: ResizeObserver | null = null;
@@ -379,6 +394,7 @@ class Stage {
       wide: window.matchMedia(WIDE),
       reduced: window.matchMedia(REDUCED_MOTION),
       contrast: window.matchMedia(MORE_CONTRAST),
+      forced: window.matchMedia(FORCED_COLORS),
     };
     // 100svh, measured by the browser itself (100vh where svh is unknown), so
     // it is the same number the panel's CSS height resolves to.
@@ -439,6 +455,7 @@ class Stage {
     this.stopLateTimers();
     window.clearTimeout(this.fadeTimer);
     window.clearTimeout(this.retryTimer);
+    window.clearTimeout(this.settleTimer);
     this.parts.panel.style.transition = "";
     this.parts.panel.style.opacity = "";
     this.probe.remove();
@@ -832,11 +849,13 @@ class Stage {
     }
     if (sheet) sheet.style.opacity = "";
     if (finaleParts.glow) finaleParts.glow.style.opacity = "";
+    finaleParts.title.style.opacity = "";
     this.finaleScene = null;
     delete section.dataset.progress;
     delete section.dataset.story;
     delete section.dataset.renderer;
     delete section.dataset.notes;
+    delete section.dataset.finale;
     this.written = {};
     this.needsMeasure = false;
     this.measureWaited = false;
@@ -1165,10 +1184,16 @@ class Stage {
         dpr: this.dpr,
         wide: this.queries.wide.matches,
         avoid,
+        // The 2D path draws every particle on the main thread: the headline
+        // takes no more than the 2D budget there.
+        liveMax: this.renderer === "webgl" ? Infinity : this.budget,
       });
     } catch {
       this.finaleScene = null;
     }
+    // Without its layer the headline is shown as DOM text (home.css); the
+    // figure and the rest of the story go on as they are.
+    this.parts.section.dataset.finale = this.finaleScene ? "on" : "off";
     const scene = this.finaleScene;
     if (scene && this.set) {
       markClipped(this.set, (x, y) => isBlocked(scene, x, y));
@@ -1447,6 +1472,7 @@ class Stage {
     }
     if (this.animated) {
       this.lastScrollAt = performance.now();
+      this.settleTailsLater();
       // The first scroll starts the guard's counting (degrade.ts): until then
       // only the page's own frames, with the shimmer, have run. A scroll event
       // with the page still at the top has moved nothing, and does not start it.
@@ -1612,6 +1638,26 @@ class Stage {
     return Math.abs(trailScale(this.scrollSpeed) - trailScale(before)) > 0.01;
   }
 
+  /**
+   * A scroll has come: once the reader has stood still for the scroll tail,
+   * draw one more frame with the meteors' tails back at rest. One timer, set
+   * again by each scroll: nothing loops (the tails otherwise kept the length
+   * of the last scroll's speed).
+   */
+  private settleTailsLater(): void {
+    window.clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+    if (!this.finaleScene || this.lastP < 0.8) return;
+    this.settleTimer = window.setTimeout(() => {
+      this.settleTimer = 0;
+      if (this.destroyed || !this.animated) return;
+      if (trailScale(this.scrollSpeed) <= 1) return;
+      this.scrollSpeed = 0;
+      this.dirty = true;
+      this.schedule();
+    }, SCROLL_TAIL_MS + 20);
+  }
+
   /** The frame loop has stopped: the guard's next frame has no gap to this one. */
   private endRun(): void {
     if (this.renderer === "webgl") this.guard = breakChain(this.guard);
@@ -1689,12 +1735,20 @@ class Stage {
       shimmer: band,
     });
     if (this.finaleScene) {
-      drawFinale(ctx, this.finaleScene, {
-        phase: phase.finale,
-        progress: phase.progress,
-        trail: trailScale(this.scrollSpeed),
-        glow: !this.queries.contrast.matches,
-      });
+      const f = this.finaleFrame;
+      f.phase = phase.finale;
+      f.progress = phase.progress;
+      f.trail = trailScale(this.scrollSpeed);
+      f.glow = !this.queries.contrast.matches;
+      f.headline = !this.queries.forced.matches;
+      // The guard's share of the budget (degrade.ts): the headline's live
+      // particles are thinned by it too. The 2D path has no guard: its
+      // headline is capped at the 2D budget when it is built.
+      f.share =
+        this.renderer === "webgl" && this.budget > 0
+          ? this.guard.drawCount / this.budget
+          : 1;
+      drawFinale(ctx, this.finaleScene, f);
     }
     this.applyDom(phase);
     this.draws += 1;
@@ -1755,6 +1809,16 @@ class Stage {
     if (sheet && sheetOpacity !== w.sheet) {
       sheet.style.opacity = sheetOpacity;
       w.sheet = sheetOpacity;
+    }
+    // The headline as DOM text when the canvas does not draw it (its layer
+    // could not be built, or forced colours): it fades in with its window.
+    const domTitle =
+      this.parts.section.dataset.finale === "off" ||
+      this.queries.forced.matches;
+    const title = domTitle ? String(round3(phase.finale.gather)) : "";
+    if (title !== w.title) {
+      finaleParts.title.style.opacity = title;
+      w.title = title;
     }
     const glow = String(round3(phase.finale.glow));
     if (finaleParts.glow && glow !== w.glow) {
