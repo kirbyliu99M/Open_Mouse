@@ -1,7 +1,6 @@
 # Fit algorithm — v1 candidate
 
-Status: **candidate (未拍板)**. `fit-v0-provisional` stays the default engine until Kirby
-approves the before/after of the golden test and the stability report. Every number below
+Status: **candidate (未拍板)**. v1 (`fit-v1-candidate.2`) has been the default engine since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
 lives in `src/server/fit/coefficients.ts` only.
 
 ## 1. Inputs

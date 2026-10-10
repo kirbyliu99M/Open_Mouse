@@ -941,3 +941,41 @@ describe("analyse — beforeModelCall (M2 global model-call budget)", () => {
     expect(client.calls).toHaveLength(1);
   });
 });
+
+describe("analyse — fit-v1 grip weights", () => {
+  const fit = makeFit({
+    engineVersion: "fit-v1-candidate.2",
+    gripStyle: {
+      stated: null,
+      predicted: "claw",
+      used: "claw",
+      weights: { palm: 0.24696, claw: 0.55285, fingertip: 0.20019 },
+    },
+  });
+  const input = buildAnalysisInput(fit, makeMeasurements());
+  const answer = (whyTopPick: string) =>
+    JSON.stringify({
+      headline: "A strong match for your hand.",
+      whyTopPick,
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    });
+
+  it.each(["Your grip leans claw, at about 0.55.", "Roughly 55% claw grip."])(
+    "accepts a restated rounded weight: %s",
+    async (text) => {
+      const client = new FakeTextModel({ answer: () => answer(text) });
+      const result = await analyse(input, client);
+      expect(result.source).toBe("model");
+    },
+  );
+
+  it("still rejects the raw float", async () => {
+    const client = new FakeTextModel({
+      answer: () => answer("Your grip leans claw, at about 0.55285."),
+    });
+    const result = await analyse(input, client);
+    expect(result.source).toBe("fallback");
+  });
+});

@@ -90,6 +90,31 @@ function oneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+function twoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Under fit-v1 `gripStyle.weights` are raw floats (0.4781...). The model sees
+ * them rounded to two decimals, like every other number it may restate: "0.48"
+ * and "48%" (the numeral check reads a percent as value / 100) both pass, the
+ * raw float is never in the input. The fit response itself is not changed.
+ */
+function roundedGripStyle(
+  gripStyle: FitResponse["gripStyle"],
+): FitResponse["gripStyle"] {
+  if (!gripStyle.weights) return gripStyle;
+  const { palm, claw, fingertip } = gripStyle.weights;
+  return {
+    ...gripStyle,
+    weights: {
+      palm: twoDecimals(palm),
+      claw: twoDecimals(claw),
+      fingertip: twoDecimals(fingertip),
+    },
+  };
+}
+
 /** Every reason param (mm, g, ratios) to one decimal: the engine's
  * subtractions leave float noise such as 1.4000000000000057 g otherwise. */
 function roundedParams(params: Record<string, number>): Record<string, number> {
@@ -144,7 +169,7 @@ export function buildAnalysisInput(
   return {
     rankingProvisional: ENGINE_IS_PROVISIONAL,
     estimateNote: bandCopy.provisional,
-    gripStyle: fit.gripStyle,
+    gripStyle: roundedGripStyle(fit.gripStyle),
     targets: {
       lengthMm: oneDecimal(fit.targets.lengthMm),
       gripWidthMm: oneDecimal(fit.targets.gripWidthMm),
