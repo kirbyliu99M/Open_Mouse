@@ -484,8 +484,10 @@ test.describe("desktop sidebar: focus, weights, state across the breakpoint", ()
     await expect(page.locator(".shareCard-note").first()).toBeVisible();
     await page.goto(`${MAIN}?brand=Zowie`);
     await expect(page.locator(".shareCard-note")).toHaveCount(0);
+    // Nothing matches: the note is there for the (phone) bottom button; on a
+    // wide screen that button is hidden and only the top bar's 分享 is shown.
     await page.goto(`${MAIN}?brand=Razer&size=small&conn=wired`);
-    await expect(page.locator(".shareCard-note").first()).toBeVisible();
+    await expect(page.locator(".shareCard-note").first()).toBeAttached();
   });
 });
 
