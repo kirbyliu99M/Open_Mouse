@@ -65,6 +65,33 @@ describe("fitResponseSchema", () => {
   });
 
   // 2026-10-09: same-shell variants on an entry are optional.
+  // 2026-10-10: filter facts on the mouse are optional and nullable.
+  it.each([
+    [{}],
+    [{ shape: "ergonomic", connectivity: "wireless" }],
+    [{ shape: "symmetrical", connectivity: "wired" }],
+    [{ shape: "hybrid", connectivity: null }],
+    [{ shape: null, connectivity: null }],
+  ])("accepts mouse filter facts %j", (facts) => {
+    const r = {
+      ...valid,
+      results: [{ ...entry, mouse: { ...entry.mouse, ...facts } }],
+    };
+    expect(fitResponseSchema.safeParse(r).success).toBe(true);
+  });
+
+  it.each([
+    [{ shape: "round" }],
+    [{ connectivity: "bluetooth" }],
+    [{ connectivity: "Wireless" }],
+  ])("refuses an unknown filter fact %j", (facts) => {
+    const r = {
+      ...valid,
+      results: [{ ...entry, mouse: { ...entry.mouse, ...facts } }],
+    };
+    expect(fitResponseSchema.safeParse(r).success).toBe(false);
+  });
+
   it("accepts an entry with same-shell variants, and one without", () => {
     const withVariants = {
       ...valid,
