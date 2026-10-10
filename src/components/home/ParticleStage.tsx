@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { retryDelay, retryStep } from "@/lib/particles/retry";
 
 /**
  * The home page's particle canvases (Home v3, PR B and the WebGL stage). It
@@ -11,7 +12,8 @@ import { useEffect, useRef } from "react";
  * particles never delay the logo or the headline (the LCP). Until the module
  * has loaded and drawn its first frame the canvases are hidden by CSS and the
  * page is PR A's static layout, which is also what reduced motion, no JS and
- * small screens keep. If the module fails to load, nothing changes.
+ * small screens keep. If the module fails to load, nothing changes, and the
+ * load is tried again a bounded number of times (see `retryLater`).
  *
  * One canvas can not give both a 2D and a WebGL context, hence two.
  */
@@ -27,8 +29,54 @@ export function ParticleStage() {
     let loading = false;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+    // A failed import (a dropped connection, a chunk gone after a deploy) is
+    // tried again a bounded number of times, each after a longer wait, and
+    // only while the tab is shown (src/lib/particles/retry.ts). One timer per
+    // try: nothing loops. After the last one the page stays static.
+    let failures = 0;
+    // Set once the last try has failed: nothing loads the module again until
+    // the page is loaded again (turning motion off and on would otherwise
+    // start a fresh round of tries each time).
+    let exhausted = false;
+    let retryTimer = 0;
+    let waitingToBeShown = false;
+    const onShown = () => {
+      if (document.hidden || !waitingToBeShown) return;
+      waitingToBeShown = false;
+      document.removeEventListener("visibilitychange", onShown);
+      load();
+    };
+    const retryLater = () => {
+      failures += 1;
+      const delay = retryDelay(failures);
+      if (delay === null) {
+        exhausted = true;
+        return;
+      }
+      retryTimer = window.setTimeout(() => {
+        retryTimer = 0;
+        if (cancelled) return;
+        if (retryStep(document.hidden) === "wait-until-shown") {
+          waitingToBeShown = true;
+          document.addEventListener("visibilitychange", onShown);
+          return;
+        }
+        load();
+      }, delay);
+    };
+
     const load = () => {
-      if (cancelled || loading || stage || reduced.matches) return;
+      if (
+        cancelled ||
+        exhausted ||
+        loading ||
+        stage ||
+        retryTimer ||
+        waitingToBeShown
+      ) {
+        return;
+      }
+      if (reduced.matches) return;
       loading = true;
       import("./particle-stage")
         .then((module) => {
@@ -38,9 +86,11 @@ export function ParticleStage() {
           }
         })
         .catch(() => {
-          // The page stays as it is: the static layout. (Nothing is logged:
-          // src/ writes no console output outside src/server/log.ts.)
+          // The page stays as it is, the static layout, until a retry loads
+          // the module. (Nothing is logged: src/ writes no console output
+          // outside src/server/log.ts.)
           loading = false;
+          if (!cancelled) retryLater();
         });
     };
 
@@ -78,6 +128,8 @@ export function ParticleStage() {
     return () => {
       cancelled = true;
       stopWaiting();
+      window.clearTimeout(retryTimer);
+      document.removeEventListener("visibilitychange", onShown);
       window.removeEventListener("load", whenIdle);
       reduced.removeEventListener("change", onMotionChange);
       stage?.destroy();

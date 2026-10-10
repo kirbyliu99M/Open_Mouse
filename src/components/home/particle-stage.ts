@@ -21,7 +21,20 @@ import {
   GL_FLOATS_PER_PARTICLE,
   packParticles,
 } from "@/lib/particles/gl-buffers";
+import {
+  LATE_FADE_ATTEMPTS,
+  LATE_FADE_IN_MS,
+  LATE_FADE_MARGIN_MS,
+  LATE_FADE_OUT_MS,
+  LATE_SWITCH_IDLE_MS,
+  type StaticBlock,
+  fadeCheck,
+  planLateSwitch,
+  scrollForTarget,
+  storyAnchors,
+} from "@/lib/particles/late-start";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { retryDelay, retryStep } from "@/lib/particles/retry";
 import { legLook } from "@/lib/particles/look";
 import {
   type NoteShape,
@@ -267,7 +280,26 @@ class Stage {
   private dirty = true;
   private lastP = -1;
   private visible = true;
-  private waitingForTop = false;
+
+  /**
+   * Starting away from the top (late-start.ts): "waiting" for the reader to
+   * hold still (`lateTimer` is the wait), "fading" while the panel fades out
+   * before the switch (`lateTimer` is the fade). `fadeTimer` ends a fade in.
+   */
+  private lateState: "none" | "waiting" | "fading" = "none";
+  private lateTimer = 0;
+  /** The frame `confirmFaded` looks again in, and how many fades gave up since the reader last scrolled. */
+  private lateFrame = 0;
+  private lateFadeFailures = 0;
+  private fadeTimer = 0;
+  /** The next scroll event is the one the late switch caused, not the reader's. */
+  private selfScroll = false;
+
+  /** `prepare` failed this many times; a retry is waiting on its timer, or on the tab being shown; or no try is left. */
+  private prepareFailures = 0;
+  private retryTimer = 0;
+  private retryWhenShown = false;
+  private prepareGaveUp = false;
 
   private shimmerStart = 0;
   private shimmerOver = false;
@@ -352,6 +384,11 @@ class Stage {
     }
     this.resize?.disconnect();
     if (this.reflowId) cancelAnimationFrame(this.reflowId);
+    this.stopLateTimers();
+    window.clearTimeout(this.fadeTimer);
+    window.clearTimeout(this.retryTimer);
+    this.parts.panel.style.transition = "";
+    this.parts.panel.style.opacity = "";
     this.probe.remove();
     this.gl?.dispose();
     this.gl = null;
@@ -371,7 +408,41 @@ class Stage {
   private reflow(): void {
     if (this.destroyed) return;
     const panelHeight = this.probe.offsetHeight;
-    const allowed = mayAnimate({
+    if (!this.allowed(panelHeight)) {
+      this.cancelLateSwitch();
+      if (this.animated) this.deactivate();
+      return;
+    }
+    try {
+      if (!this.animated) {
+        if (!this.ready) {
+          // The heavy part (the drawing path, the pairing) is built in slices,
+          // off this task, wherever the reader is; it asks for another reflow
+          // when it is done.
+          this.prepare();
+          return;
+        }
+        if (this.parts.section.getBoundingClientRect().top < 0) {
+          // Away from the top the switch would move what the reader is
+          // looking at: it waits until they hold still, and then keeps the
+          // page in place or fades the story through (see `lateSwitch`).
+          this.armLateSwitch();
+          return;
+        }
+        // At the top the switch moves nothing: now.
+        this.cancelLateSwitch();
+        this.activate(panelHeight);
+      } else {
+        this.remeasure(panelHeight);
+      }
+    } catch {
+      this.deactivate();
+    }
+  }
+
+  /** Whether the animated layout may be on (motion allowed, the hero fits, the viewport is tall enough). */
+  private allowed(panelHeight: number): boolean {
+    return mayAnimate({
       reducedMotion: this.queries.reduced.matches,
       heroHeight: this.parts.hero.offsetHeight,
       panelHeight,
@@ -380,33 +451,190 @@ class Stage {
       // two layouts around the 600 px line.
       viewportHeight: panelHeight,
     });
-    if (!allowed) {
-      this.waitingForTop = false;
-      if (this.animated) this.deactivate();
+  }
+
+  // ── Switching away from the top (late-start.ts) ─────────────────────────
+
+  /** Wait for the reader to hold still: each scroll starts the wait again. One timer, no loop. */
+  private armLateSwitch(): void {
+    if (this.destroyed || this.animated || this.lateState === "fading") return;
+    this.lateState = "waiting";
+    window.clearTimeout(this.lateTimer);
+    this.lateTimer = window.setTimeout(this.lateSwitch, LATE_SWITCH_IDLE_MS);
+  }
+
+  /** Stop a late switch that has not happened yet; a fade out that had begun fades back in. */
+  private cancelLateSwitch(): void {
+    this.stopLateTimers();
+    if (this.lateState === "fading") this.fadePanelIn();
+    this.lateState = "none";
+  }
+
+  private stopLateTimers(): void {
+    window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFrame) cancelAnimationFrame(this.lateFrame);
+    this.lateFrame = 0;
+  }
+
+  /**
+   * The fade out's time is up: switch only if the tab is shown and the panel
+   * really is transparent (fadeCheck). Otherwise look again next frame, a
+   * bounded number of times; a hidden tab, or a panel still visible after
+   * that, gives the fade up: the panel fades back in and nothing moved.
+   */
+  private readonly confirmFaded = (frames: number, since: number): void => {
+    this.lateFrame = 0;
+    if (this.destroyed || this.animated || this.lateState !== "fading") return;
+    const check = fadeCheck({
+      hidden: document.hidden,
+      opacity: Number(getComputedStyle(this.parts.panel).opacity),
+      frames,
+      elapsedMs: performance.now() - since,
+    });
+    if (check === "switch") {
+      this.lateState = "none";
+      this.switchLate(true);
+    } else if (check === "next-frame") {
+      this.lateFrame = requestAnimationFrame(() =>
+        this.confirmFaded(frames + 1, since),
+      );
+    } else {
+      this.giveUpFade(check === "hidden");
+    }
+  };
+
+  /**
+   * The fade out did not get to a switch: fade back in and keep waiting. A
+   * hidden tab waits until it is shown (`onVisibility` asks for a reflow,
+   * which waits for stillness again); a panel that would not turn transparent
+   * is tried again after the idle wait, `LATE_FADE_ATTEMPTS` times in all
+   * until the reader scrolls (one timer each: nothing loops on its own).
+   */
+  private giveUpFade(hidden: boolean): void {
+    this.stopLateTimers();
+    this.fadePanelIn();
+    this.lateState = "waiting";
+    if (hidden) return;
+    this.lateFadeFailures += 1;
+    if (this.lateFadeFailures < LATE_FADE_ATTEMPTS) this.armLateSwitch();
+  }
+
+  /** The reader has held still: switch, after fading the panel out if part of the story is in view. */
+  private readonly lateSwitch = (): void => {
+    this.lateTimer = 0;
+    if (this.destroyed || this.animated || this.lateState !== "waiting") return;
+    // A hidden tab switches when it is shown (`onVisibility` asks for a reflow).
+    if (document.hidden) return;
+    const { section, panel } = this.parts;
+    const panelHeight = this.probe.offsetHeight;
+    const box = section.getBoundingClientRect();
+    if (!this.allowed(panelHeight) || box.top >= 0) {
+      this.lateState = "none";
+      this.requestReflow();
       return;
     }
+    // Only whether to fade is decided here; where the reader goes is worked
+    // out after the switch, from the animated layout's real height.
+    const { fade } = planLateSwitch({
+      staticTop: box.top,
+      staticHeight: box.height,
+      animatedHeight: box.height,
+      panelHeight,
+      viewportHeight: window.innerHeight,
+      anchors: [],
+    });
+    if (!fade) {
+      this.lateState = "none";
+      this.switchLate(false);
+      return;
+    }
+    this.lateState = "fading";
+    // A fade in still running (a fade out that a scroll cut short) would take
+    // the transition off this fade out when its timer is up: stop it first.
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = 0;
+    panel.style.transition = `opacity ${LATE_FADE_OUT_MS}ms ease-out`;
+    panel.style.opacity = "0";
+    this.lateTimer = window.setTimeout(() => {
+      this.lateTimer = 0;
+      this.confirmFaded(0, performance.now());
+    }, LATE_FADE_OUT_MS + LATE_FADE_MARGIN_MS);
+  };
+
+  /**
+   * Switch to the animated layout away from the top, in one task: measure the
+   * static story, switch, and scroll to where `planLateSwitch` puts the reader
+   * (the bottom edge kept in place below the story; the matching progress
+   * inside it, under the fade). The browser's scroll anchoring is off for
+   * that task, so the one scroll made here is the only one.
+   */
+  private switchLate(faded: boolean): void {
+    if (this.destroyed || this.animated) {
+      if (faded) this.fadePanelIn();
+      return;
+    }
+    const { section, handImg, notes, mice } = this.parts;
+    const panelHeight = this.probe.offsetHeight;
+    const box = section.getBoundingClientRect();
+    if (!this.allowed(panelHeight)) {
+      if (faded) this.fadePanelIn();
+      return;
+    }
+    const block = (element: Element | null | undefined): StaticBlock | null => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top - box.top, height: rect.height };
+    };
+    const anchors = storyAnchors({
+      staticHeight: box.height,
+      hand: block(handImg.closest(".story-hand")),
+      notes: block(notes[0]?.block.parentElement),
+      mice: block(mice[0]?.img.closest(".story-mice")),
+    });
+    const root = document.documentElement;
+    const anchoring = root.style.overflowAnchor;
+    root.style.overflowAnchor = "none";
     try {
-      if (!this.animated) {
-        // Switching moves everything below the hero, so only do it while the
-        // reader is still at the top; the scroll listener tries again.
-        if (this.parts.section.getBoundingClientRect().top < 0) {
-          this.waitingForTop = true;
-          return;
-        }
-        this.waitingForTop = false;
-        if (!this.ready) {
-          // The heavy part (the drawing path, the pairing) is built in slices,
-          // off this task; it asks for another reflow when it is done.
-          this.prepare();
-          return;
-        }
-        this.activate(panelHeight);
-      } else {
-        this.remeasure(panelHeight);
+      this.activate(panelHeight);
+      if (this.animated) {
+        const after = section.getBoundingClientRect();
+        const plan = planLateSwitch({
+          staticTop: box.top,
+          staticHeight: box.height,
+          animatedHeight: after.height,
+          panelHeight,
+          viewportHeight: window.innerHeight,
+          anchors,
+        });
+        const before = window.scrollY;
+        window.scrollTo({
+          top: scrollForTarget(before, after.top, plan.targetTop),
+          behavior: "instant",
+        });
+        if (window.scrollY !== before) this.selfScroll = true;
       }
     } catch {
       this.deactivate();
+    } finally {
+      // Back on after this frame's layout, which the switch and the scroll are in.
+      requestAnimationFrame(() => {
+        root.style.overflowAnchor = anchoring;
+      });
     }
+    if (faded) this.fadePanelIn();
+  }
+
+  /** The panel back to full opacity, with a fade; the transition is removed once it is over. */
+  private fadePanelIn(): void {
+    const { panel } = this.parts;
+    panel.style.transition = `opacity ${LATE_FADE_IN_MS}ms ease-out`;
+    panel.style.opacity = "";
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = window.setTimeout(() => {
+      this.fadeTimer = 0;
+      panel.style.transition = "";
+    }, LATE_FADE_IN_MS + 50);
   }
 
   /**
@@ -491,6 +719,7 @@ class Stage {
 
   /** Animated to static: the page goes back to PR A's layout, as if nothing had loaded. */
   private deactivate(): void {
+    this.cancelLateSwitch();
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
     this.intersection?.disconnect();
@@ -831,10 +1060,20 @@ class Stage {
    * Build what the first frame needs, a slice at a time: pick the drawing path
    * (making the WebGL context if it is allowed), then the pairing for its
    * budget. Nothing here touches the page. When it is done the stage asks for
-   * a reflow, which switches the layout on. A failure leaves the page static.
+   * a reflow, which switches the layout on. A failure leaves the page static
+   * and is tried again a bounded number of times (retry.ts).
    */
   private prepare(): void {
-    if (this.preparing || this.ready || this.destroyed) return;
+    if (
+      this.preparing ||
+      this.ready ||
+      this.destroyed ||
+      this.prepareGaveUp ||
+      this.retryTimer ||
+      this.retryWhenShown
+    ) {
+      return;
+    }
     this.preparing = true;
     void (async () => {
       let done = false;
@@ -912,15 +1151,36 @@ class Stage {
         await this.warmInSlices();
         done = true;
       } catch {
-        // The page stays as it is: the static layout.
+        // The page stays as it is, the static layout, for now.
       } finally {
         this.preparing = false;
       }
       if (done) {
         this.ready = true;
         if (!this.destroyed) this.requestReflow();
+      } else if (!this.destroyed) {
+        this.schedulePrepareRetry();
       }
     })();
+  }
+
+  /** After a failed `prepare`: one timer for the next try, if one is left; it runs only while the tab is shown. */
+  private schedulePrepareRetry(): void {
+    this.prepareFailures += 1;
+    const delay = retryDelay(this.prepareFailures);
+    if (delay === null) {
+      this.prepareGaveUp = true;
+      return;
+    }
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = 0;
+      if (this.destroyed) return;
+      if (retryStep(document.hidden) === "wait-until-shown") {
+        this.retryWhenShown = true;
+        return;
+      }
+      this.requestReflow();
+    }, delay);
   }
 
   /**
@@ -1032,6 +1292,14 @@ class Stage {
   // ── Drawing ─────────────────────────────────────────────────────────────
 
   private readonly onScroll = (): void => {
+    if (this.animated && this.selfScroll) {
+      // The scroll the late switch made: not the reader's, so it neither
+      // arms the guard nor starts the scroll tail. Draw the frame for it.
+      this.selfScroll = false;
+      this.dirty = true;
+      this.schedule();
+      return;
+    }
     if (this.animated) {
       this.lastScrollAt = performance.now();
       // The first scroll starts the guard's counting (degrade.ts): until then
@@ -1039,11 +1307,18 @@ class Stage {
       // with the page still at the top has moved nothing, and does not start it.
       this.guard = armOnScroll(this.guard, window.scrollY);
       this.schedule();
-    } else if (
-      this.waitingForTop &&
-      this.parts.section.getBoundingClientRect().top >= 0
-    ) {
-      this.requestReflow();
+    } else if (this.lateState !== "none") {
+      // Waiting to switch away from the top: back at the top it switches at
+      // once; anywhere else the reader is moving, so the wait starts again
+      // (and a fade out that had begun fades back in). The reader moved: the
+      // fades that gave up are forgotten.
+      this.lateFadeFailures = 0;
+      if (this.parts.section.getBoundingClientRect().top >= 0) {
+        this.requestReflow();
+      } else {
+        if (this.lateState === "fading") this.cancelLateSwitch();
+        this.armLateSwitch();
+      }
     }
   };
 
@@ -1054,6 +1329,13 @@ class Stage {
     if (!document.hidden) {
       this.dirty = true;
       this.schedule();
+      // A retry, or a late switch, that came due while the tab was hidden.
+      if (this.retryWhenShown) {
+        this.retryWhenShown = false;
+        this.requestReflow();
+      } else if (!this.animated && this.lateState === "waiting") {
+        this.requestReflow();
+      }
     }
   };
 
