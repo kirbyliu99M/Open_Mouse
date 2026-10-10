@@ -218,43 +218,46 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * the three mice on 2026-10-11. Its stars sit on long lines closer together
  * than a star's core, so neighbours touch and a blob is often two or three
  * stars: one blob per lit particle no longer holds. Measured 2026-10-11 on
- * Kirby's machine (headless Chromium, software WebGL), with the budgets of
- * 7,500 / 15,000: 780 blobs for 2,250 lit (0.3467) in the chromium project
- * (1280x800) and 609 for 1,125 (0.5413) in the mobile one (Pixel 7), the same
- * on every run (fixed seed, fixed layout; the same at the guard's floor). The
- * bound is 5 % either side of each.
+ * Kirby's machine (headless Chromium, software WebGL, the production build),
+ * with the budgets of 7,500 / 15,000 and the brighter figure of the same day
+ * (lit share 0.18, more particles bright): 656 blobs for 2,700 lit (0.2430)
+ * in the chromium project (1280x800) and 637 for 1,350 (0.4719) in the mobile
+ * one (Pixel 7), the same on every run (fixed seed, fixed layout; the same at
+ * the guard's floor). The bound is 5 % either side of each.
  *
- * What it catches, measured by changing the share the stage lights (0.15)
- * while the maths here keeps 0.15 (desktop / phone, blobs over the model's
- * lit count): 0.12 gives 832 / 571 (0.370 / 0.508: +6.6 % / -6.2 %, both
- * outside); 0.18 gives 694 / 593 (0.308 / 0.527: -11 % outside / -2.6 %
- * INSIDE). The phone's 0.18 is caught by the figure's solid area instead
- * (FIGURE_SOLID_AREA). (At 10 % either side, 0.12 got through on both.)
+ * What it catches, measured on a production build by changing the share the
+ * stage lights (0.18) while the maths here keeps 0.18 (desktop / phone, blobs
+ * over the model's lit count): 0.15 gives 733 / 638 (0.2715 / 0.4726: +11.7 %
+ * outside / +0.1 % INSIDE); 0.21 gives 564 / 645 (0.2089 / 0.4778: -14 %
+ * outside / +1.2 % INSIDE). On a phone the stars merge so much that their
+ * count barely moves: the figure's solid area (FIGURE_SOLID_AREA) catches
+ * both there.
  */
 const FINALE_BLOBS = {
-  desktop: { low: 0.3294, high: 0.364 },
-  phone: { low: 0.5142, high: 0.5684 },
+  desktop: { low: 0.2309, high: 0.2552 },
+  phone: { low: 0.4483, high: 0.4955 },
 };
 /**
  * The solid area (alpha 80 % or more) of the last state at rest as a
  * multiple of the Canvas 2D version's: the three mice at p = 0.95 until
  * 2026-10-11 (1.8 on a desktop, 0.8 on a phone), the finale's figure at
- * p = 0.80 since (2.35 / 1.00 at 7,500 / 15,000); the continuous line the
- * stage drew before the stars was over 20. The bounds are the 0.5 to 3 the
- * brief asked for.
+ * p = 0.80 since (2.38 / 1.01 with the brighter figure; 3.34 on a desktop
+ * when its stars were also drawn 1.15 times bigger, which is why they are
+ * not); the continuous line the stage drew before the stars was over 20. The
+ * bounds are the 0.5 to 3 the brief asked for.
  */
 const FIGURE_SOLID = { low: 0.5, high: 3 };
 /**
  * The figure's own solid area on the WebGL canvas (CSS px squared, alpha 80 %
- * or more) at rest, per setup: measured 2026-10-11 at 7,500 / 15,000, 1,447
- * (chromium, 1280x800) and 632 (mobile, Pixel 7), the same every run; 5 %
- * either side. It moves with the lit share where the blob count does not
- * (stars merge): 0.12 gave 1,309 / 575 (-9.5 % / -9 %), 0.18 gave 1,587 / 692
- * (+9.7 % / +9.4 %), all outside.
+ * or more) at rest, per setup: measured 2026-10-11 on the production build,
+ * 2,001 (chromium, 1280x800) and 821.3 (mobile, Pixel 7), the same every run;
+ * 5 % either side. It moves with the lit share where the blob count does not
+ * (stars merge): 0.15 gave 1,854 / 767.1 (-7.3 % / -6.6 %), 0.21 gave 2,171 /
+ * 889.8 (+8.5 % / +8.3 %), all outside.
  */
 const FIGURE_SOLID_AREA = {
-  desktop: { low: 1375, high: 1519 },
-  phone: { low: 600, high: 664 },
+  desktop: { low: 1901, high: 2101 },
+  phone: { low: 780, high: 862 },
 };
 /**
  * The logo's total alpha per lit particle (see above), at p = 0, for each of
@@ -264,32 +267,33 @@ const FIGURE_SOLID_AREA = {
  * Measured 2026-10-11 with the budgets of 7,500 / 15,000 (shipped cloud
  * variant B3: 840 points, even placing, a stroke's width; lit share 0.14,
  * stars 1.7 times the look), headless Chromium's software WebGL on Kirby's
- * machine, after the shimmer, the same on every run of a setup (a fixed
- * seed, a fixed layout): 5.188 for the chromium project (1280x800, 2,100
- * lit) and 4.891 for the mobile one (Pixel 7, 1,050 lit; 11.005 per lit
- * particle in device px at a pixel ratio of 1.5). With more lit stars the
- * look draws each a little smaller (look.ts: the crowd), so the logo's total
- * alpha is about what it was (10,895 against 10,618 at 12,000); per star it
- * fell from 6.320 / 5.973 (6,000 / 12,000, 1,680 / 840 lit, 2026-10-10).
- * The spreads and the mutation figures below were measured at 6,000 /
- * 12,000 and have NOT been measured again at the new budgets. Over other windows it spreads with
- * the mark's size: 5.78 to 6.35 on desktops (1280x720 to 1920x1080, pixel
- * ratio 1 and 2) and 4.98 to 6.61 on phones (375x667 to 430x932, pixel ratio
- * 2 to 3). The bound is 5 % either side of each setup's figure.
+ * machine, the production build, after the shimmer, the same on every run of
+ * a setup (a fixed seed, a fixed layout): 5.188 for the chromium project
+ * (1280x800, 2,100 lit) and 4.891 for the mobile one (Pixel 7, 1,050 lit;
+ * 11.005 per lit particle in device px at a pixel ratio of 1.5). With more lit
+ * stars the look draws each a little smaller (look.ts: the crowd), so the
+ * logo's total alpha is about what it was (10,895 against 10,618 at 12,000);
+ * per star it fell from 6.320 / 5.973 (6,000 / 12,000, 2026-10-10). Over
+ * other windows it spreads with the mark's size: 4.77 to 5.55 on desktops
+ * (1280x720 to 1920x1080, pixel ratio 1) and 4.05 to 5.45 on phones (375x667
+ * to 430x932, pixel ratio 1.5).
  *
- * What it catches, measured on B3 by changing what the stage draws and not
- * the maths (desktop / phone): the shader lighting 0.12 instead of 0.14,
- * 5.79 / 5.47; lighting 0.10, 5.14 / 4.89; stars 20 % fainter, 5.75 / 5.42;
- * stars 10 % smaller, 5.72 / 5.39; 20 % smaller, 5.15 / 4.84. All are
- * outside. A brighter star is not: the logo's stars are at full opacity
- * already (brightAlpha's ceiling, 1), so a 20 % brighter one measured the
- * same. Earlier figures: 6.190 / 5.867 on variant B (random placing), 7.31
- * / 7.42 at 0.10 (600 points, spread 0.8), 5.64 / 5.62 at 0.06 with stars
- * 1.35, the placeholder outline 5.6 / 5.8.
+ * The bound is 1 % either side of each setup's figure (it was 5 %). At the
+ * new budgets the look's crowd rule nearly cancels a wrong share: fewer lit
+ * stars are drawn bigger, so the total alpha hardly moves. Measured on a
+ * production build by lighting another share while the maths keeps 0.14
+ * (desktop / phone): 0.12 gives 5.094 / 4.834 (-1.8 % / -1.2 %, outside);
+ * 0.16 gives 5.248 / 4.934 (+1.2 % outside / +0.9 % INSIDE). At 5 % either
+ * side none of these was caught. A bound this tight relies on the figure
+ * being the same on every run, as it has been on this machine; another GPU
+ * or driver may draw a slightly different figure, and then the bound has to
+ * be measured there. (The 2026-10-10 checks at 6,000 / 12,000: lighting 0.12,
+ * 5.79 / 5.47; 0.10, 5.14 / 4.89; stars 20 % fainter, 5.75 / 5.42; 10 %
+ * smaller, 5.72 / 5.39; 20 % smaller, 5.15 / 4.84.)
  */
 const LOGO_MASS = {
-  desktop: { low: 4.93, high: 5.45 },
-  phone: { low: 4.65, high: 5.14 },
+  desktop: { low: 5.136, high: 5.24 },
+  phone: { low: 4.842, high: 4.94 },
 };
 
 /**
