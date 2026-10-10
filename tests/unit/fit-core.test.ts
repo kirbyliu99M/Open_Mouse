@@ -242,7 +242,18 @@ describe("loadOwnedFit — a successful fit", () => {
       prefs,
       sampleOwnedScan.hand,
     );
-    expect(result.fit).toEqual({ scanId: SCAN_ID, ...expected });
+    // The one addition is the filter's catalogue facts (`withFilterFacts`):
+    // facts, not numbers. Take them off and nothing else differs.
+    const withoutFacts = result.fit.results.map((e) => {
+      const { shape: _shape, connectivity: _connectivity, ...mouse } = e.mouse;
+      void _shape;
+      void _connectivity;
+      return { ...e, mouse };
+    });
+    expect({ ...result.fit, results: withoutFacts }).toEqual({
+      scanId: SCAN_ID,
+      ...expected,
+    });
   });
 
   it("persists one row per ranked result, and repeating the request never throws (idempotent upsert key)", async () => {

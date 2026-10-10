@@ -8,6 +8,7 @@ import { buildFitResultRows } from "./rows";
 import { scoreFitDefault, storedNullScore } from "./engine";
 import { DEFAULT_ENGINE } from "./coefficients";
 import { listedOnly } from "./listed";
+import { withFilterFacts } from "./filter-facts";
 import { groupShells } from "./shell-groups";
 
 const scanIdSchema = z.string().uuid();
@@ -88,7 +89,12 @@ export async function loadOwnedFit(
   );
   // Same-shell entries become one card; ranks are renumbered, so what is
   // stored and what is shown are the same list. `excluded` is untouched.
-  const results = groupShells(engineOutput.results, catalogue);
+  // The filter's catalogue facts (shape, connectivity) ride along after the
+  // grouping; nothing scores on them and the analysis never sees them.
+  const results = withFilterFacts(
+    groupShells(engineOutput.results, catalogue),
+    catalogue,
+  );
   const response = { scanId, ...engineOutput, results };
 
   const validated = fitResponseSchema.safeParse(response);
