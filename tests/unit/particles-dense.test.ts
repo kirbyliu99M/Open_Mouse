@@ -14,6 +14,7 @@ import {
   logoPolylines,
 } from "@/lib/particles/logo";
 import {
+  MOUSE_COUNT,
   buildPairing,
   buildPairingInSlices,
   groupByRank,
@@ -31,7 +32,9 @@ import { parseSketchSvg } from "@/lib/particles/svg-path";
 
 const committed = readFileSync(ARTIFACT_PATHS.targets, "utf8");
 const targets = parseTargets(JSON.parse(committed));
-const mice = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+// One last drawing since the finale (MOUSE_COUNT = 1, 2026-10-11); the mouse
+// sketch stands in for it: the mechanics are the same for any drawing.
+const mice = ["g-pro-sketch"];
 
 /** The distance from a point to the nearest part of a set of polylines. */
 function distanceToPolylines(
@@ -495,14 +498,14 @@ describe("pairing at a dense budget", () => {
   } as const;
   const pairing = buildPairing(targets, options);
 
-  it("has the budget's count in every list and a third of it in each mouse", () => {
+  it("has the budget's count in every list, all of it on the one last drawing (the finale)", () => {
     expect(pairing.count).toBe(6000);
     expect(pairing.logo).toHaveLength(6000);
     expect(pairing.hand).toHaveLength(6000);
     expect(pairing.mouse).toHaveLength(6000);
-    const slots = [0, 0, 0];
+    const slots = [0];
     for (const s of pairing.slot) slots[s] = slots[s]! + 1;
-    expect(slots).toEqual([2000, 2000, 2000]);
+    expect(slots).toEqual([6000]);
   });
 
   it("is reproducible: the same seed gives the same pairing, another seed a different one", () => {
@@ -606,7 +609,7 @@ describe("the packed-key sort is exactly the comparator's order", () => {
       const seed = 20261003;
       const got = buildPairing(targets, { count, layout, seed, mice });
       // The same steps as before the packed keys, with comparator sorts.
-      const perMouse = count / 3;
+      const perMouse = count / MOUSE_COUNT;
       const logo = byComparator(
         resampleToCount(targets.logo.points, count, seed),
       );
