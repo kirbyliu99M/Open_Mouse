@@ -851,14 +851,14 @@ describe("the Palmate logo", () => {
   it("pairs with the hand and the mice at every budget the stage uses, in both densities, with the same number of particles in all three states", () => {
     const all = buildTargets(sketches);
     const names = Object.keys(all.mice).slice(0, 1);
-    // 900 and 1,299 (the Canvas 2D path's phone and desktop), 3,000 and 6,000 (WebGL on a low-end device and a phone), 12,000 (WebGL on a desktop).
+    // 900 and 1,299 (the Canvas 2D path's phone and desktop; 1,300 since the finale is one drawing, 1,299 still a budget the maths must take), 3,000 and 6,000 (WebGL on a low-end device and a phone), 12,000 (WebGL on a desktop).
     for (const count of [900, 1299, 3000, 6000, 12000]) {
       for (const density of ["sparse", "dense"] as const) {
         const pairing = buildPairing(all, {
           count,
           layout: "row",
           seed: 20261003,
-          mice: [names[0]!, names[0]!, names[0]!],
+          mice: [names[0]!],
           density,
         });
         const label = `${count} ${density}`;
@@ -878,7 +878,8 @@ describe("the Palmate logo", () => {
         // The logo's particle count is the stage's budget, not the target's 633:
         // the surplus is made the way it always was (thinned, topped up or
         // walked along the lines), so no later state is short of particles.
-        expect(new Set(pairing.slot), label).toEqual(new Set([0, 1, 2]));
+        // One last drawing since the finale (2026-10-11): every particle ends on slot 0.
+        expect(new Set(pairing.slot), label).toEqual(new Set([0]));
       }
     }
   });
@@ -903,7 +904,7 @@ describe("the Palmate logo", () => {
           count,
           layout: "row",
           seed: 20261003,
-          mice: [names[0]!, names[0]!, names[0]!],
+          mice: [names[0]!],
           density,
         });
         const { shimmerX } = pairingTables(pairing, 20261003);
