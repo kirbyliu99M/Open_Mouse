@@ -248,12 +248,17 @@
 }
 
 /* ---- Desktop: sidebar ---- */
-.results-body[data-filter="sidebar"] {
-  display: grid;
-  grid-template-columns: 20.5rem minmax(0, 1fr);
-  gap: 2.5rem;
-  align-items: start;
-  margin-top: 0.5rem;
+/* The two columns exist only from 64em, the same width the script switches at
+   (useWideLayout), so for the moment between a resize and the re-render a
+   narrow window is never squeezed into a sidebar layout. */
+@media (min-width: 64em) {
+  .results-body[data-filter="sidebar"] {
+    display: grid;
+    grid-template-columns: 20.5rem minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+    margin-top: 0.5rem;
+  }
 }
 .resultsMain:has(.results-body[data-filter="sidebar"]) {
   max-width: 86rem;
