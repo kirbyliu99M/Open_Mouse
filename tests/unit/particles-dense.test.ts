@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS, SKETCH_DIR } from "@/lib/particles/artifacts";
 import { STROKE_SPREAD, densifyStrokes, shareOut } from "@/lib/particles/dense";
 import { type Vec, distance } from "@/lib/particles/geometry";
+import { createHandFiller, fillTemplateHand } from "@/lib/particles/hand-fill";
 import { parseTargets } from "@/lib/particles/load-targets";
 import {
   LOGO_SAMPLING,
@@ -26,10 +27,6 @@ import {
   sampleStrokeRuns,
 } from "@/lib/particles/sampling";
 import { SAMPLING, STAGE_WIDTH, isMouseSketch } from "@/lib/particles/targets";
-import {
-  createHandFiller,
-  fillTemplateHand,
-} from "@/lib/particles/template-hand";
 import { parseSketchSvg } from "@/lib/particles/svg-path";
 
 const committed = readFileSync(ARTIFACT_PATHS.targets, "utf8");

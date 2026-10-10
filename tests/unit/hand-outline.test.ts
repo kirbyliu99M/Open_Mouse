@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import type { Vec } from "@/lib/particles/geometry";
+import { fillTemplateHand } from "@/lib/particles/hand-fill";
 import {
   DEMO_PX_PER_MM,
   DEMO_STAGE_SCALE,
@@ -18,9 +19,8 @@ import { parseTargets } from "@/lib/particles/load-targets";
 import {
   FINGER_CHAINS,
   LANDMARKS_MM,
-  PALM_POLYGON_MM,
+  LENGTH_LINE_MM,
   STAGE_SCALE,
-  fillTemplateHand,
 } from "@/lib/particles/template-hand";
 
 const targets = parseTargets(
@@ -99,7 +99,8 @@ describe("the outline's shapes", () => {
     const [a, b] = [polygon[3]!, polygon[4]!];
     expect(a[1]).toBeCloseTo(b[1], 9);
     expect(Math.abs(a[0] - b[0])).toBeCloseTo(40, 0);
-    expect(Math.abs(a[1] - PALM_POLYGON_MM[0]![1])).toBeLessThan(0.5);
+    // At the wrist crease, where the hand-length ruler ends.
+    expect(Math.abs(a[1] - LENGTH_LINE_MM.bottom)).toBeLessThan(0.5);
   });
 
   it("are in stage px as the same shapes (the A4 sheet 340 px wide)", () => {

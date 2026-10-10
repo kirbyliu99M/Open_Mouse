@@ -8,6 +8,7 @@ import {
 } from "@/lib/particles/artifacts";
 import { type Vec, distance, polylineLength } from "@/lib/particles/geometry";
 import { densifyStrokes, shareOut } from "@/lib/particles/dense";
+import { fillTemplateHand, insideHandFill } from "@/lib/particles/hand-fill";
 import {
   LOGO_BOX,
   LOGO_PAGE,
@@ -43,8 +44,6 @@ import {
   LANDMARKS_MM,
   SKELETON,
   STAGE_SCALE,
-  fillTemplateHand,
-  insideTemplateHand,
 } from "@/lib/particles/template-hand";
 
 const sketches = Object.fromEntries(
@@ -966,9 +965,7 @@ describe("the template hand", () => {
     const points = fillTemplateHand(500, 1);
     expect(points).toHaveLength(500);
     for (const p of points) {
-      expect(insideTemplateHand([p.x / STAGE_SCALE, p.y / STAGE_SCALE])).toBe(
-        true,
-      );
+      expect(insideHandFill([p.x / STAGE_SCALE, p.y / STAGE_SCALE])).toBe(true);
     }
     expect(new Set(points.map((p) => p.tone))).toEqual(new Set([0, 1]));
   });
@@ -980,9 +977,9 @@ describe("the template hand", () => {
 
   it("puts every landmark on the hand and a point far from it off the hand", () => {
     for (const landmark of LANDMARKS_MM)
-      expect(insideTemplateHand(landmark)).toBe(true);
-    expect(insideTemplateHand([5, 5])).toBe(false);
-    expect(insideTemplateHand([200, 280])).toBe(false);
+      expect(insideHandFill(landmark)).toBe(true);
+    expect(insideHandFill([5, 5])).toBe(false);
+    expect(insideHandFill([200, 280])).toBe(false);
   });
 
   it("scales the landmarks into the stage and draws the ruler beside the sheet, not on the hand", () => {

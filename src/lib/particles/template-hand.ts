@@ -1,11 +1,10 @@
 import type { Vec } from "./geometry";
-import { mulberry32 } from "./random";
-import type { TargetPoint } from "./sampling";
 
 /**
  * The template hand of the home page's particle story: a fixed, stylised set of
- * the 21 MediaPipe landmark positions, filled as capsules along the fingers
- * plus a palm polygon, lying on an A4 sheet.
+ * the 21 MediaPipe landmark positions lying on an A4 sheet. Its shape (the
+ * outline, and the area the particles fill) is hand-outline.ts; the fill is
+ * hand-fill.ts.
  *
  * It is an illustration. It is NOT a user's hand and NOT a measurement, so the
  * two measurement lines carry no numbers anywhere (docs/design/
@@ -107,56 +106,14 @@ export const SKELETON: readonly (readonly [number, number])[] = [
   [19, 20],
 ];
 
-/** Finger chains (landmark indices) with the half-width in mm at the base and at the tip. */
-const FINGERS: readonly {
-  readonly chain: readonly number[];
-  readonly base: number;
-  readonly tip: number;
-}[] = [
-  { chain: [1, 2, 3, 4], base: 9, tip: 6.8 },
-  { chain: [5, 6, 7, 8], base: 8, tip: 6 },
-  { chain: [9, 10, 11, 12], base: 8.2, tip: 6 },
-  { chain: [13, 14, 15, 16], base: 7.6, tip: 5.6 },
-  { chain: [17, 18, 19, 20], base: 6.6, tip: 5 },
+/** The five finger chains (landmark indices), thumb first: the chains the hand's outline, and so its particle fill, follow (hand-outline.ts). */
+export const FINGER_CHAINS: readonly (readonly number[])[] = [
+  [1, 2, 3, 4],
+  [5, 6, 7, 8],
+  [9, 10, 11, 12],
+  [13, 14, 15, 16],
+  [17, 18, 19, 20],
 ];
-
-/** The five finger chains (landmark indices), thumb first: the same chains the capsules and the hand's outline follow. */
-export const FINGER_CHAINS: readonly (readonly number[])[] = FINGERS.map(
-  ({ chain }) => chain,
-);
-
-/** The palm: wrist crease, the thumb's web, across the knuckles, down the little finger's side. */
-export const PALM_POLYGON_MM: readonly Vec[] = [
-  [96, 246],
-  [136, 246],
-  [170, 170],
-  [166, 150],
-  [84, 148],
-  [72, 196],
-  [80, 225],
-];
-
-/** One capsule: a segment with a half-width at each end. */
-interface Capsule {
-  readonly a: Vec;
-  readonly b: Vec;
-  readonly ra: number;
-  readonly rb: number;
-}
-
-export const CAPSULES_MM: readonly Capsule[] = FINGERS.flatMap(
-  ({ chain, base, tip }) =>
-    chain.slice(1).map((to, i): Capsule => {
-      const from = chain[i]!;
-      const span = chain.length - 1;
-      return {
-        a: LANDMARKS_MM[from]!,
-        b: LANDMARKS_MM[to]!,
-        ra: base + ((tip - base) * i) / span,
-        rb: base + ((tip - base) * (i + 1)) / span,
-      };
-    }),
-);
 
 /** Hand length: a ruler beside the hand, from the middle fingertip to the wrist crease. */
 export const LENGTH_LINE_MM = {
@@ -173,125 +130,3 @@ export const WIDTH_LINE_MM = { y: 170, left: 70, right: 170 } as const;
 
 /** Half the length of an end tick, in mm. */
 export const TICK_MM = 3;
-
-/** What a capsule test needs, worked out once: the segment, its squared length, and the radius at the start and its change along it. */
-interface CapsuleTest {
-  readonly ax: number;
-  readonly ay: number;
-  readonly dx: number;
-  readonly dy: number;
-  readonly lengthSquared: number;
-  readonly ra: number;
-  readonly dr: number;
-}
-
-const CAPSULE_TESTS: readonly CapsuleTest[] = CAPSULES_MM.map(
-  ({ a, b, ra, rb }) => {
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    return {
-      ax: a[0],
-      ay: a[1],
-      dx,
-      dy,
-      lengthSquared: dx * dx + dy * dy,
-      ra,
-      dr: rb - ra,
-    };
-  },
-);
-
-/** Squared distances, so the 50,000 tests a dense fill makes need no square root. */
-function insideCapsule(x: number, y: number, c: CapsuleTest): boolean {
-  const t =
-    c.lengthSquared === 0
-      ? 0
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            ((x - c.ax) * c.dx + (y - c.ay) * c.dy) / c.lengthSquared,
-          ),
-        );
-  const ex = c.ax + c.dx * t - x;
-  const ey = c.ay + c.dy * t - y;
-  const radius = c.ra + c.dr * t;
-  return ex * ex + ey * ey <= radius * radius;
-}
-
-function insidePolygon([x, y]: Vec, polygon: readonly Vec[]): boolean {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
-    const [xi, yi] = polygon[i]!;
-    const [xj, yj] = polygon[j]!;
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-/** True when a point (mm) is on the template hand: in a finger capsule or the palm. */
-export function insideTemplateHand(point: Vec): boolean {
-  return (
-    insidePolygon(point, PALM_POLYGON_MM) ||
-    CAPSULE_TESTS.some((capsule) => insideCapsule(point[0], point[1], capsule))
-  );
-}
-
-const BOUNDS_MM = (() => {
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (const [x, y] of PALM_POLYGON_MM) {
-    xs.push(x);
-    ys.push(y);
-  }
-  for (const { a, b, ra, rb } of CAPSULES_MM) {
-    xs.push(a[0] - ra, a[0] + ra, b[0] - rb, b[0] + rb);
-    ys.push(a[1] - ra, a[1] + ra, b[1] - rb, b[1] + rb);
-  }
-  return {
-    x0: Math.min(...xs),
-    x1: Math.max(...xs),
-    y0: Math.min(...ys),
-    y1: Math.max(...ys),
-  };
-})();
-
-/** The share of fill points that are drawn bright. */
-const BRIGHT_SHARE = 0.3;
-
-/**
- * A source of fill points for the template hand, in stage px (A4 340 px wide),
- * by seeded rejection sampling. Every point is inside a capsule or the palm.
- * `next(n)` continues where the last call stopped, so a big fill can be made in
- * slices (the stage yields to the browser between them) and still be the same
- * points: the first n of a longer fill are the n of a shorter one.
- */
-export function createHandFiller(seed: number): {
-  next(count: number): TargetPoint[];
-} {
-  const random = mulberry32(seed);
-  const { x0, x1, y0, y1 } = BOUNDS_MM;
-  return {
-    next(count: number): TargetPoint[] {
-      const out: TargetPoint[] = [];
-      while (out.length < count) {
-        const x = x0 + random() * (x1 - x0);
-        const y = y0 + random() * (y1 - y0);
-        if (!insideTemplateHand([x, y])) continue;
-        out.push({
-          x: x * STAGE_SCALE,
-          y: y * STAGE_SCALE,
-          tone: random() < BRIGHT_SHARE ? 1 : 0,
-        });
-      }
-      return out;
-    },
-  };
-}
-
-/** `count` points filling the template hand, in stage px (A4 340 px wide). */
-export function fillTemplateHand(count: number, seed: number): TargetPoint[] {
-  return createHandFiller(seed).next(count);
-}
