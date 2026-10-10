@@ -87,7 +87,7 @@ export function glLook(count: number, scale: number): GlLook {
  *
  * The logo's share is under the mice's because its stars sit on a short line.
  * Its value is the Palmate mark's (2026-10-10, 未拍板 candidate): the mark is
- * a cloud of 840 points about 2 to 3 units wide. Kirby asked for a denser
+ * a cloud of 840 points about 2 to 4 units wide. Kirby asked for a denser
  * mark twice: from the first 0.06 (720 stars on a desktop, 360 on a phone)
  * to 0.10, then to 0.14 with the tighter cloud. For scale: on a desktop's
  * 12,000 particles 0.14 is 1,680 stars on the logo, and 0.15 is 1,800 on the

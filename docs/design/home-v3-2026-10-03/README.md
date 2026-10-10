@@ -372,11 +372,17 @@ Everything else follows scroll.
     positions, filled as capsules along the fingers plus a palm polygon. It is
     an illustration, **not** a user's hand or measurement.
   - The logo (replaced 2026-10-10, 未拍板 candidate): the Palmate hand. The
-    target is 840 points sampled along its four-line path with a bell-shaped
-    width (0.5 viewBox units standard deviation, at most 1.6 off the line;
-    Kirby asked twice on 2026-10-10 for a denser mark, and the first cut's
-    600 points, 0.8 and 2.4 became these, variant B of three compared in
-    screenshots), half bright and half dim; then the dot, 3 bright points at its
+    target is 840 points along its four-line path, placed evenly: a place's
+    two points (a quarter of the places have two) sit at a quarter and three
+    quarters of its step, and the points take a bell's quantiles in a
+    golden-ratio order rather than random draws. The bell's width (standard
+    deviation) swells and thins along the line like a drawn stroke, 0.5
+    viewBox units x (1 ± 0.3), a sine of 24 units, each of the four lines in
+    its own phase, and no point is more than 1.6 off the line. (Kirby, on
+    2026-10-10, asked twice for a denser mark and then for the particles to
+    look better: the first cut's 600 random points, 0.8 and 2.4 became
+    variant B, 840, 0.5 and 1.6, and then this, variant B3, each picked from
+    screenshots.) Half the points are bright and half dim; then the dot, 3 bright points at its
     centre and 6 dim ones round its ring (the particles have two tones, so
     the ring is the dim tone's `#6E9BF5`, not the static ring's `#2463EB`);
     then 24 strays round the mark, inside the logo's slot and the page's
