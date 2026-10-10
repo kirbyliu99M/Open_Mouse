@@ -356,6 +356,42 @@ test.describe("starting away from the top", () => {
     await waitForAnimated(page);
   });
 
+  test("a window that grows tall enough for the whole static story while the panel fades out: no switch (the buttons stay), the panel comes back, and the stage waits for the top", async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "chromium", "A desktop window size.");
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(200);
+    release();
+    // The first fade out has begun (checked every frame): make the window
+    // taller than the static story before the fade's timer is up (about
+    // 210 ms).
+    await page.waitForFunction(
+      () => (window as unknown as Record<string, number>).__fadeOuts === 1,
+      undefined,
+      { polling: "raf" },
+    );
+    await page.setViewportSize({ width: 1280, height: 3200 });
+    expect(
+      await page.evaluate(
+        () =>
+          document.querySelector(".story")!.getBoundingClientRect().height <=
+          window.innerHeight,
+      ),
+      "the static story fits in the window now",
+    ).toBe(true);
+    // Longer than the fade out, the frames the switch may wait and the fade in.
+    await page.waitForTimeout(1500);
+    expect(await theSwitch(page)).toBeNull();
+    expect((await layoutFacts(page)).animated).toBe(false);
+    await expectPanelRestored(page);
+    // Back at the top the switch moves nothing: now.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await waitForAnimated(page);
+  });
+
   test("② a scroll while the page is still loading: the stage starts once the reader holds still", async ({
     page,
   }) => {

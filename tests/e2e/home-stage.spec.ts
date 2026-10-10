@@ -719,6 +719,69 @@ test.describe("the animated layout", () => {
     });
   }
 
+  test("a change of the window's width alone (1900 to 1500 and back, and a zoom to 125 %) moves the viewport-wide sky and light with it: no sideways scroll, no gap on the right", async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "chromium", "Desktop widths.");
+    const wide = async () =>
+      page.evaluate(() => {
+        const box = (selector: string) => {
+          const r = document.querySelector(selector)!.getBoundingClientRect();
+          return { left: r.left, right: r.right };
+        };
+        return {
+          sky: box(".story-canvas-sky"),
+          glow: box(".story-finale-glow"),
+          viewport: document.documentElement.clientWidth,
+          fits: document.documentElement.scrollWidth <= window.innerWidth,
+        };
+      });
+    const expectSpans = async (label: string) => {
+      // The reflow is a frame after the resize: wait for the layers to follow.
+      await expect
+        .poll(
+          async () => {
+            const w = await wide();
+            return (
+              Math.abs(w.sky.right - w.viewport) <= 0.5 &&
+              Math.abs(w.glow.right - w.viewport) <= 0.5
+            );
+          },
+          { message: label },
+        )
+        .toBe(true);
+      const w = await wide();
+      expect(w.fits, label).toBe(true);
+      for (const layer of [w.sky, w.glow]) {
+        expect(Math.abs(layer.left), label).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(layer.right - w.viewport), label).toBeLessThanOrEqual(
+          0.5,
+        );
+      }
+    };
+    await page.setViewportSize({ width: 1900, height: 900 });
+    await page.goto("/");
+    await waitForAnimated(page);
+    await scrollToProgress(page, 1);
+    await expectSpans("at 1900");
+    // Above the column's 78rem cap: the section, the hero and the 100svh
+    // probe keep their sizes; only the window's width changes.
+    await page.setViewportSize({ width: 1500, height: 900 });
+    await expectSpans("1900 to 1500");
+    await page.setViewportSize({ width: 1900, height: 900 });
+    await expectSpans("1500 to 1900");
+    // A browser zoom of 125 %: fewer CSS px across at a higher pixel ratio.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: 1520,
+      height: 720,
+      deviceScaleFactor: 1.25,
+      mobile: false,
+    });
+    await expectSpans("a zoom to 125 %");
+    await cdp.send("Emulation.clearDeviceMetricsOverride");
+  });
+
   for (const [width, height] of [
     [390, 844],
     [1440, 900],

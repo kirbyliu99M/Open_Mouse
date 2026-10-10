@@ -141,6 +141,15 @@ const targets = {
 };
 
 const ANIMATED = "story--animated";
+/**
+ * The sky's canvas (and its baked stars) is drawn at a pixel ratio of at most
+ * this: it is the whole viewport wide, and at 1920 x 1080 at a ratio of 2 it
+ * was about 32 MiB, and as much again for the stars' layer, cleared and drawn
+ * whole on each frame. Its stars are small round dots and its meteors thin
+ * lines, which hold up at 1. 未拍板 (candidate).
+ */
+export const SKY_MAX_DPR = 1;
+const skyDpr = (dpr: number) => Math.min(dpr, SKY_MAX_DPR);
 const WIDE = "(min-width: 48rem)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MORE_CONTRAST = "(prefers-contrast: more)";
@@ -425,6 +434,14 @@ class Stage {
   start(): void {
     this.parts.section.append(this.probe);
     window.addEventListener("scroll", this.onScroll, { passive: true });
+    // A change of the window's width alone (a zoom, a window dragged wider or
+    // narrower above the column's 78rem cap) changes none of the observed
+    // boxes, but it moves where the viewport-wide sky and light must go:
+    // the reflow (one per frame at most) places them again.
+    // Only a change of width counts: a phone's toolbars sliding change the
+    // height on every scroll, which the 100svh probe deliberately ignores.
+    this.windowWidth = document.documentElement.clientWidth;
+    window.addEventListener("resize", this.onWindowResize);
     for (const type of READER_INPUT) {
       window.addEventListener(type, this.onReaderInput, {
         passive: true,
@@ -450,6 +467,7 @@ class Stage {
     this.destroyed = true;
     this.deactivate();
     window.removeEventListener("scroll", this.onScroll);
+    window.removeEventListener("resize", this.onWindowResize);
     for (const type of READER_INPUT) {
       window.removeEventListener(type, this.onReaderInput, { capture: true });
     }
@@ -471,6 +489,16 @@ class Stage {
   }
 
   // ── Switching the layout ────────────────────────────────────────────────
+
+  /** The window's width (less a scrollbar) the wide layers were last placed for. */
+  private windowWidth = 0;
+
+  private readonly onWindowResize = (): void => {
+    const width = document.documentElement.clientWidth;
+    if (width === this.windowWidth) return;
+    this.windowWidth = width;
+    this.requestReflow();
+  };
 
   private readonly requestReflow = (): void => {
     if (this.destroyed || this.reflowId) return;
@@ -673,6 +701,16 @@ class Stage {
     const { section, handImg, notes, finale: finaleParts } = this.parts;
     const panelHeight = this.probe.offsetHeight;
     const box = section.getBoundingClientRect();
+    if (!lateSwitchAllowed(box.height, window.innerHeight)) {
+      // The window grew while the panel faded out (a resize, a phone's
+      // toolbar) until the whole static story fits: no switch away from the
+      // top any more (lateSwitchAllowed). The panel fades back in, nothing
+      // moved, and the stage waits for the top.
+      if (faded) this.fadePanelIn();
+      this.stopLateTimers();
+      this.lateState = "parked";
+      return;
+    }
     // The final section's gap under the static story (its top edge less the
     // section's bottom edge), to set against the animated one's after the switch.
     const final = section.nextElementSibling;
@@ -1217,6 +1255,7 @@ class Stage {
         dpr: this.dpr,
         wide: this.queries.wide.matches,
         avoid,
+        skyDpr: skyDpr(this.dpr),
         // The 2D path draws every particle on the main thread: the headline
         // takes no more than the 2D budget there.
         liveMax: this.renderer === "webgl" ? Infinity : this.budget,
@@ -1248,8 +1287,9 @@ class Stage {
     if (!ctx) return null;
     this.skyCtx = ctx;
     const width = this.placeWide(origin);
-    const w = Math.max(1, Math.round(width * this.dpr));
-    const h = Math.max(1, Math.round(this.cssHeight * this.dpr));
+    const dpr = skyDpr(this.dpr);
+    const w = Math.max(1, Math.round(width * dpr));
+    const h = Math.max(1, Math.round(this.cssHeight * dpr));
     if (sky.width !== w || sky.height !== h) {
       sky.width = w;
       sky.height = h;
