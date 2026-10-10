@@ -30,11 +30,12 @@ rings and selection text; it no longer fills a primary button. A selected
 toggle takes the same white fill and black label (its unselected state stays a
 dark outline), keeping its own shape. **Secondary button** (Kirby, 2026-10-10,
 candidate): a plain text link in `--accent-text`, with no fill and no border,
-underlined, at least 44 px tall, with the same focus ring; its border stays
-transparent so more-contrast users still get an outline. The one exception is
+not underlined (like "Print it" and the "‹ Sheet" back link), at least 44 px tall, with the same focus ring; its border stays
+transparent so more-contrast users get an outline instead of colour alone. The one exception is
 the easy-scan camera result sheet, where secondary controls stay dark and
-outlined (the circular retake button, the grip chips). Destructive buttons and
-icon-only chips are unchanged. The home page keeps its blue button until its
+outlined (the circular retake button, the grip chips). The sign-in provider button (`.account-google-button`, dark
+filled) is the other exception. Destructive buttons and icon-only chips are
+unchanged. The home page keeps its blue button until its
 redesign adopts these tokens. On paper the pill prints black with a white
 label.
 

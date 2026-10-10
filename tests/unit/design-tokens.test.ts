@@ -451,7 +451,7 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
   });
 });
 
-describe("the secondary buttons: a text link in --accent-text, no fill, no border (BTN-1, style B)", () => {
+describe("the secondary buttons: a text link in --accent-text, no fill, no border, no underline (BTN-1, style B)", () => {
   const SECONDARY: readonly (readonly [string, string, string | null])[] = [
     ["src/app/globals.css", ".button-secondary", null],
     ["src/app/learn/learn.css", ".learn-button-secondary", null],
@@ -479,9 +479,7 @@ describe("the secondary buttons: a text link in --accent-text, no fill, no borde
       declared(rules, selector, "border-color", media) ??
       declared(rules, selector, "border", media)!;
     expect(border).toMatch(/transparent/);
-    expect(declared(rules, selector, "text-decoration", media)).toBe(
-      "underline",
-    );
+    expect(declared(rules, selector, "text-decoration", media)).toBe("none");
   });
 });
 

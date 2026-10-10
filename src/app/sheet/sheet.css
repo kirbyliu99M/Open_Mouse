@@ -124,8 +124,7 @@
     color: var(--accent-text);
     background: none;
     border: 1px solid transparent;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    text-decoration: none;
   }
   .sheet-after .sheet-privacy {
     text-align: center;

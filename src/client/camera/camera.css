@@ -503,8 +503,7 @@
   border: 1.5px solid transparent;
   background: transparent;
   color: var(--accent-text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 .cameraRetake:focus-visible {
   outline: 2px solid var(--accent-text);

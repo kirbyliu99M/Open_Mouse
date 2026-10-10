@@ -602,8 +602,7 @@ h1 {
   background: none;
   border-color: transparent;
   color: var(--accent-text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 @media (prefers-contrast: more) {
   .scanMain .feedback-ok,

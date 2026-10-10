@@ -116,8 +116,7 @@ main.errorScreen h1:focus {
   background: transparent;
   color: var(--accent-text);
   border-color: transparent;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 .errorAction:focus-visible {
   outline: 3px solid var(--accent-text);
