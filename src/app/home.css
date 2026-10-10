@@ -65,7 +65,9 @@
   margin: 0 0 1.5rem;
 }
 
-/* The primary button: the one filled accent control on the site. */
+/* The primary button: the near-white pill (BTN-1, Kirby 2026-10-10, home option A:
+   the secondary stays an outlined pill). No glow: a blue glow round a white pill
+   reads as a mistake. */
 .home-cta {
   display: flex;
   align-items: center;
@@ -74,20 +76,18 @@
   min-height: 3.125rem;
   padding: 0 1rem;
   /* A real border colour, not transparent: forced colours keeps it visible. */
-  border: 1px solid var(--accent);
+  border: 1px solid var(--button-primary-bg);
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--glow) 40%, transparent);
 }
-/* Pressing darkens the fill. Never lower the opacity: 0.85 would take the
-   white label to 4.33:1. */
+/* Pressing takes the pressed grey (13.2:1). Never lower the opacity. */
 .home-cta:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 .home-cta-caption {
   text-align: center;
@@ -787,7 +787,7 @@
 
 /* Print. Chrome does not print backgrounds unless the user asks for them, so a
    filled button would print as white text on white paper: on paper it is a
-   dark label with an outline, and its glow is gone. The drawings (the logo, the
+   dark label with an outline. The drawings (the logo, the
    hand on A4, the three sketches) are decorative and light-on-dark, so they
    are left off the page; the mice's captions and the five hand annotations go
    with them. The How it works
