@@ -1,5 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type Route } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Page,
+  type Route,
+  type TestInfo,
+} from "@playwright/test";
 import { buildFilterFit, FILTER_SCAN_ID, slugFor } from "./fixtures/filter-fit";
 
 /**
@@ -43,7 +49,7 @@ async function stub(page: Page) {
 
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1024;
 
-async function scan(page: Page, state: string, testInfo: { attach: Function }) {
+async function scan(page: Page, state: string, testInfo: TestInfo) {
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   await testInfo.attach(`axe-incomplete-${state}.json`, {
     body: JSON.stringify(
@@ -71,6 +77,14 @@ async function scan(page: Page, state: string, testInfo: { attach: Function }) {
   ).toEqual([]);
 }
 
+/** Opens every collapsed group (the list shrinks as each one opens). */
+async function openAllGroups(page: Page, scope: string) {
+  const closed = page.locator(
+    `${scope} .results-facet-toggle[aria-expanded="false"]`,
+  );
+  while ((await closed.count()) > 0) await closed.first().click();
+}
+
 const states: [string, string][] = [
   ["plain", MAIN],
   ["two filters, large card swapped", `${MAIN}?brand=Razer&conn=wireless`],
@@ -90,12 +104,7 @@ for (const [state, url] of states) {
     await page.goto(url);
     await expect(page.locator(".results-view")).toBeVisible();
     // All groups open, so every option is on the page for axe.
-    if (isDesktop(page)) {
-      for (const header of await page
-        .locator('.results-facet-toggle[aria-expanded="false"]')
-        .all())
-        await header.click();
-    }
+    if (isDesktop(page)) await openAllGroups(page, ".results-sidebar");
     await scan(page, state, testInfo);
   });
 }
@@ -106,10 +115,7 @@ test("axe: the sheet open (phone layout)", async ({ page }, testInfo) => {
   await page.goto(`${MAIN}?brand=Razer`);
   await page.getByRole("button", { name: /^篩選/ }).click();
   await expect(page.getByRole("dialog", { name: "篩選" })).toBeVisible();
-  for (const header of await page
-    .locator('.results-sheet .results-facet-toggle[aria-expanded="false"]')
-    .all())
-    await header.click();
+  await openAllGroups(page, ".results-sheet");
   await scan(page, "sheet open", testInfo);
 });
 

@@ -95,21 +95,24 @@ for (const w of WIDTHS) {
         await page.screenshot({
           path: `${OUTPUT}/06-sheet-open-${w.name}.png`,
         });
-        // The same sheet scrolled to the weight group, with its missing-data note.
+        // The same sheet scrolled to the weight group, with its missing-data
+        // note (one mouse in the fixture has no weight).
+        await sheet.getByRole("button", { name: "關閉篩選" }).click();
+        await expect(sheet).toHaveCount(0);
+        await page.goto(MAIN);
+        await page.getByRole("button", { name: /^篩選/ }).click();
         await sheet.getByRole("button", { name: /^重量/ }).click();
-        await sheet
-          .getByRole("checkbox", { name: /^90 g 以上/ })
-          .click();
+        await sheet.getByRole("checkbox", { name: /^90 g 以上/ }).click();
         await sheet.locator(".results-facet-missing").scrollIntoViewIfNeeded();
         await page.waitForTimeout(300);
         await page.screenshot({
           path: `${OUTPUT}/06b-sheet-weight-${w.name}.png`,
         });
       } else {
-        for (const header of await page
-          .locator('.results-facet-toggle[aria-expanded="false"]')
-          .all())
-          await header.click();
+        const closed = page.locator(
+          '.results-facet-toggle[aria-expanded="false"]',
+        );
+        while ((await closed.count()) > 0) await closed.first().click();
         await shot(page, "06-sidebar-all-groups-open", w.name);
       }
     });

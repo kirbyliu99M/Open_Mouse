@@ -54,7 +54,7 @@
 }
 .results-textLink {
   min-height: 2.75rem;
-  padding: 0 0.25rem;
+  padding: 0;
   border: 1px solid transparent;
   background: none;
   color: var(--accent-text);
@@ -309,6 +309,11 @@
 .results-body .results-hero {
   column-gap: 3rem;
 }
+/* The content column is narrower beside the sidebar: a smaller headline keeps
+   「中型滑鼠・抓握・寬身」 on one line. */
+.results-body .results-hand-title {
+  font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+}
 .results-body .results-others-grid {
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
 }
@@ -516,6 +521,10 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
 .results-otherMice-overall {
   font-size: 0.8125rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+}
+.results-card-overall {
+  display: block;
 }
 .results-noMatch {
   display: flex;

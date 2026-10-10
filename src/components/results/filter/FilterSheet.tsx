@@ -205,8 +205,8 @@ export function FilterSheet({
               onClick={() => requestClose(false)}
             >
               <svg
-                width="16"
-                height="16"
+                width="20"
+                height="20"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
                 focusable="false"
