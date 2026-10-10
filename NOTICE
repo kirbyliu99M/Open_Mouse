@@ -358,9 +358,11 @@ and package-lock.json.
                           (viewBox 10 10 70 70).
   hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
                           geometry in src/lib/particles/ (a stylised
-                          template hand on an A4 outline, set by hand from
-                          the Home v3 design screens). Not traced from any
-                          photo, dataset or third-party artwork.
+                          template hand on an A4 outline: the 21 landmarks set by
+                          hand from the Home v3 design screens, the filled shape
+                          set by hand from the Home v3.1 Pencil demo outline,
+                          2026-10-05). Not traced from any photo, dataset or
+                          third-party artwork.
   sketches/finale-grip.svg
                           A line drawing of a hand on a mouse, from the
                           project's pen.dev design file (the illustration

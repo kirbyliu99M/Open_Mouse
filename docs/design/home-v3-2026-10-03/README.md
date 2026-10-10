@@ -604,7 +604,8 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     px, at most 2.5 deviations), so a line gets width and stays on the shape;
     an open stroke's first and last particle are its own end points; the file
     says which points make up each stroke (`runs`);
-  - the hand is a fill: `fillTemplateHand` continues, with the generator's own
+  - the hand is a fill: `fillTemplateHand` (in `src/lib/particles/hand-fill.ts`,
+    which fills the outline's own shape) continues, with the generator's own
     seed, past the 1,400 committed points;
   - the pairing (sort by x, pair by index) sorts packed integer keys, not
     objects, and then puts any two points the keys could not tell apart in
