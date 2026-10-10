@@ -6,7 +6,7 @@
  *
  * Reads every SVG in public/images/sketches/ and writes
  *   - src/lib/particles/targets.generated.json  the point lists (PR B loads it)
- *   - public/images/logo-placeholder.svg        the static placeholder logo
+ *   - public/images/hero-palmate-mark.svg       the static Palmate mark
  *   - public/images/hand-on-a4.svg              the static template hand on A4
  * from the same pure functions (src/lib/particles/), seeded, so a run is
  * reproducible. Pairing and interpolation are PR B.

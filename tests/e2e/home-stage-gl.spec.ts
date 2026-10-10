@@ -28,6 +28,7 @@ import {
   STORY,
   layoutFacts,
   logoInk,
+  logoOffMark,
   read,
   recordStage,
   scrollToProgress,
@@ -180,11 +181,11 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * At the mice every star is a blob of its own except for a few that touch:
  * 0.88 blobs per lit particle on a desktop and 1.00 on a phone. At the logo
  * the stars sit closer, on a shorter line, and blur into one outline: there
- * the canvas's total alpha (in px squared of the canvas, divided by the
- * pixel ratio squared) per lit particle is 5.6 on a desktop and 5.8 on a
- * phone. A bound is about 10 % either side of what was measured: a share of
- * stars a quarter or more off (0.08 or 0.25 for the mice, 0.03 or 0.10 for
- * the logo) is outside it, which the mutation checks of this suite showed.
+ * the measure is the canvas's total alpha (in px squared of the canvas,
+ * divided by the pixel ratio squared) per lit particle: see `LOGO_MASS`. For
+ * the mice a bound is about 10 % either side of what was measured: a share of
+ * stars a quarter or more off (0.08 or 0.25) is outside it, which the
+ * mutation checks of this suite showed.
  */
 const STAR_BLOBS = { low: 0.8, high: 1.05 };
 /**
@@ -195,7 +196,35 @@ const STAR_BLOBS = { low: 0.8, high: 1.05 };
  * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
  */
 const MICE_SOLID = { low: 0.5, high: 3 };
-const LOGO_MASS = { low: 5.2, high: 6.2 };
+/**
+ * The logo's total alpha per lit particle (see above), at p = 0, for each of
+ * the two setups this test runs in. It depends on how big the mark is drawn
+ * (the stars overlap less on a bigger one), so each setup has its own bound.
+ *
+ * Measured 2026-10-10 on the shipped cloud (variant B3: 840 points, even
+ * placing, a stroke's width; lit share 0.14, stars 1.7 times the look),
+ * headless Chromium's software WebGL on Kirby's machine, after the shimmer.
+ * The figure is the same on every run of a setup (a fixed seed, a fixed
+ * layout): 6.320 for the chromium project (1280x800, 1,680 lit) and 5.973
+ * for the mobile one (Pixel 7, 840 lit). Over other windows it spreads with
+ * the mark's size: 5.78 to 6.35 on desktops (1280x720 to 1920x1080, pixel
+ * ratio 1 and 2) and 4.98 to 6.61 on phones (375x667 to 430x932, pixel ratio
+ * 2 to 3). The bound is 5 % either side of each setup's figure.
+ *
+ * What it catches, measured on B3 by changing what the stage draws and not
+ * the maths (desktop / phone): the shader lighting 0.12 instead of 0.14,
+ * 5.79 / 5.47; lighting 0.10, 5.14 / 4.89; stars 20 % fainter, 5.75 / 5.42;
+ * stars 10 % smaller, 5.72 / 5.39; 20 % smaller, 5.15 / 4.84. All are
+ * outside. A brighter star is not: the logo's stars are at full opacity
+ * already (brightAlpha's ceiling, 1), so a 20 % brighter one measured the
+ * same. Earlier figures: 6.190 / 5.867 on variant B (random placing), 7.31
+ * / 7.42 at 0.10 (600 points, spread 0.8), 5.64 / 5.62 at 0.06 with stars
+ * 1.35, the placeholder outline 5.6 / 5.8.
+ */
+const LOGO_MASS = {
+  desktop: { low: 6.0, high: 6.64 },
+  phone: { low: 5.67, high: 6.27 },
+};
 
 /**
  * What the TypeScript maths says the WebGL stage draws, built for the layout
@@ -833,8 +862,12 @@ test.describe("the WebGL path", () => {
       );
       if (p === 0) {
         const perParticle = got.mass / (got.scale * got.scale) / lit;
-        expect(perParticle, seen.at(-1)).toBeGreaterThan(LOGO_MASS.low);
-        expect(perParticle, seen.at(-1)).toBeLessThan(LOGO_MASS.high);
+        const wide = await page.evaluate(
+          () => matchMedia("(min-width: 48rem)").matches,
+        );
+        const bound = wide ? LOGO_MASS.desktop : LOGO_MASS.phone;
+        expect(perParticle, seen.at(-1)).toBeGreaterThan(bound.low);
+        expect(perParticle, seen.at(-1)).toBeLessThan(bound.high);
         continue;
       }
       expect(lit, seen.at(-1)).toBeGreaterThan(400);
@@ -1267,9 +1300,9 @@ test.describe("the WebGL path", () => {
     expect(Number(await canvas.getAttribute("data-particles"))).toBe(budget);
     const ink = await logoInk(page);
     expect(ink.empty).toBe(false);
-    // Every edge of the mark is where the image's is: a fraction of the
+    // Every edge of the mark is where the target puts it: a fraction of the
     // particles is a fair sample, not a piece of the logo.
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(3);
+    expect(logoOffMark(ink), JSON.stringify(ink)).toEqual([]);
   });
 
   test("with the guard stepped down to its floor the stars are all still there: only the dust is thinner, because the lit particles come first in the order", async ({
@@ -1339,7 +1372,7 @@ test.describe("the fallback to Canvas 2D", () => {
     await scrollToProgress(page, 0);
     await expect.poll(async () => (await logoInk(page)).empty).toBe(false);
     const ink = await logoInk(page);
-    expect(ink.worst, JSON.stringify(ink.edges)).toBeLessThanOrEqual(3);
+    expect(logoOffMark(ink), JSON.stringify(ink)).toEqual([]);
     if (neverUsedWebGL) {
       expect(await read<number>(page, "__bufferUploads")).toBe(0);
     }

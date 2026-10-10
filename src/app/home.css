@@ -130,7 +130,7 @@
   text-align: center;
 }
 
-/* The logo slot: room for the glow, with the mark at about 60 % of its height. */
+/* The logo slot: room for the glow, with the mark at about 54 % of its height. */
 .story-logo {
   --slot: clamp(18rem, 40svh, 24rem);
   display: flex;
@@ -148,8 +148,8 @@
 }
 .story-logo img {
   display: block;
-  /* The SVG's 220 x 196 box holds the mark at 176 of 196. */
-  height: calc(var(--slot) * 0.6);
+  /* The SVG's 65 x 69 box holds the Palmate hand at 59 of 69 (the mark is 0.855 of the image), so 0.63 of the slot is a mark of 54 % of it. */
+  height: calc(var(--slot) * 0.63);
   width: auto;
   /* At large text the slot is taller than the column is wide: the mark
      shrinks inside its box instead of widening the page. */
@@ -403,8 +403,8 @@
     );
   }
   .story-logo img {
-    /* About 19 rem of mark in a 29 rem slot: 21 rem of image in 29 rem. */
-    height: calc(var(--slot) * 21 / 29);
+    /* About 19 rem of mark in a 29 rem slot: 22.2 rem of image (the mark is 0.855 of it) in 29 rem. */
+    height: calc(var(--slot) * 22.2 / 29);
   }
   .home-actions {
     flex-wrap: nowrap;

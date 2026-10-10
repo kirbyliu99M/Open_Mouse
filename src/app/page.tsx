@@ -38,10 +38,10 @@ export default function HomePage() {
             <div className="story-logo">
               {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, and the LCP image: no loader wanted */}
               <img
-                src="/images/logo-placeholder.svg"
+                src="/images/hero-palmate-mark.svg"
                 alt=""
-                width={220}
-                height={196}
+                width={65}
+                height={69}
               />
             </div>
             <h1>Find the mouse that fits.</h1>

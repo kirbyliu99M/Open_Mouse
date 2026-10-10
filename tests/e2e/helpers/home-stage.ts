@@ -1,4 +1,14 @@
+import { readFileSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
+import { parseTargets } from "../../../src/lib/particles/load-targets";
+import { LOGO_BOX, LOGO_SAMPLING } from "../../../src/lib/particles/logo";
+
+export {
+  LOGO_EDGE,
+  LOGO_TOP_LEFT_SHARE,
+  logoOffMark,
+  type LogoFit,
+} from "./logo-fit";
 
 /**
  * Shared by the home page's particle-stage specs (Home v3, PR B): the story's
@@ -298,16 +308,52 @@ export async function layoutFacts(page: Page) {
 }
 
 /**
- * How far the canvas's logo is from the static logo's drawing, in CSS px: the
- * bounding box of the opaque pixels of the SVG (drawn at the `<img>`'s own rect)
- * against the bounding box of the canvas's pixels over that same rect. The
- * canvas draws the logo where the image is (it reads the image's rect, never a
- * fixed size), so each of the four edges is within a pixel or two: sampling
- * puts a particle just inside the stroke. A canvas that drew the logo at a
- * stale or hard-coded place or size would be off by tens of px.
+ * Where the logo's particles should be, from the committed target: the mark's
+ * points (the four lines' cloud and the dot, every run but the strays), in
+ * the logo box's own px. Their outer box is where the particle centres reach
+ * (the cloud's width either side of the line included). `LOGO_TOP_LEFT_SHARE`
+ * (logo-fit.ts) reads how much more of the mark's top half is left of its
+ * middle than right of it (the thumb's side and the fingers: 282 points
+ * against 221 on the B3 cloud), which is what tells the hand from its mirror image (the outer
+ * box can not: the path is 0.24 units off centre sideways).
+ */
+const LOGO_TARGET = (() => {
+  const targets = parseTargets(
+    JSON.parse(
+      readFileSync("src/lib/particles/targets.generated.json", "utf8"),
+    ),
+  );
+  const runs = targets.logo.runs.slice(0, -LOGO_SAMPLING.ambient);
+  const mark = runs.flatMap((run) =>
+    targets.logo.points.slice(run.start, run.start + run.count),
+  );
+  const xs = mark.map((p) => p.x);
+  const ys = mark.map((p) => p.y);
+  return {
+    box: { width: LOGO_BOX.width, height: LOGO_BOX.height },
+    reach: {
+      x0: Math.min(...xs),
+      y0: Math.min(...ys),
+      x1: Math.max(...xs),
+      y1: Math.max(...ys),
+    },
+  };
+})();
+
+/**
+ * Where the canvas's logo is, against where it should be, in CSS px.
+ *
+ * - `fit`: per edge, how far the canvas's ink (alpha 120 or more, over the
+ *   image's rect) reaches past the target's particle centres, placed as the
+ *   stage places them (the image's rect, the box fitted inside it and
+ *   centred). Signed, + outwards: a logo drawn smaller, larger or moved shows
+ *   as edges that leave `LOGO_EDGE` (logo-fit.ts), each on its own side.
+ * - `topLeftShare`: the top half's ink left of the middle over right of it:
+ *   a mirror image is under 1.
+ * - `edges` (diagnostic only): the ink's box against the static image's ink.
  */
 export async function logoInk(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((target) => {
     const img = document.querySelector<HTMLImageElement>(".story-logo img")!;
     const layer = document.querySelector<HTMLCanvasElement>(".story-canvas")!;
     // The logo is on whichever canvas draws the particles: the WebGL one (read
@@ -361,7 +407,7 @@ export async function logoInk(page: Page) {
     const w = Math.round(rect.width * scale);
     const h = Math.round(rect.height * scale);
     const drawn = canvas.getContext("2d")!.getImageData(left, top, w, h);
-    // An alpha of 120 keeps the glow's faint halo out and the dotted ruler in.
+    // An alpha of 120 keeps the glow's faint halo out.
     const got = bounds(drawn.data, w, h, 120);
     const edges = {
       left: got.x0 / scale - want.x0,
@@ -369,10 +415,53 @@ export async function logoInk(page: Page) {
       right: got.x1 / scale - want.x1,
       bottom: got.y1 / scale - want.y1,
     };
+
+    // The stage's placing of the logo box in the image's rect (logoBox in
+    // particle-set.ts: contain, centred), relative to the rect's corner.
+    const fitScale = Math.min(
+      rect.width / target.box.width,
+      rect.height / target.box.height,
+    );
+    const offsetX = (rect.width - target.box.width * fitScale) / 2;
+    const offsetY = (rect.height - target.box.height * fitScale) / 2;
+    const at = (x: number, y: number) => ({
+      x: offsetX + x * fitScale,
+      y: offsetY + y * fitScale,
+    });
+    const r0 = at(target.reach.x0, target.reach.y0);
+    const r1 = at(target.reach.x1, target.reach.y1);
+    // The ink's own box in the rect's CSS px: a pixel spans [x, x + 1).
+    const ink = {
+      x0: got.x0 / scale,
+      y0: got.y0 / scale,
+      x1: (got.x1 + 1) / scale,
+      y1: (got.y1 + 1) / scale,
+    };
+    const fit = {
+      left: r0.x - ink.x0,
+      top: r0.y - ink.y0,
+      right: ink.x1 - r1.x,
+      bottom: ink.y1 - r1.y,
+    };
+
+    // The top half's weight, left and right of the middle of the reach.
+    const middleX = ((r0.x + r1.x) / 2) * scale;
+    const middleY = ((r0.y + r1.y) / 2) * scale;
+    let leftWeight = 0;
+    let rightWeight = 0;
+    for (let y = 0; y < Math.min(h, middleY); y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        const alpha = drawn.data[(y * w + x) * 4 + 3] ?? 0;
+        if (x < middleX) leftWeight += alpha;
+        else rightWeight += alpha;
+      }
+    }
     return {
+      fit,
+      topLeftShare: rightWeight > 0 ? leftWeight / rightWeight : Infinity,
       edges,
       worst: Math.max(...Object.values(edges).map((d) => Math.abs(d))),
       empty: got.x1 < 0 || want.x1 < 0,
     };
-  });
+  }, LOGO_TARGET);
 }

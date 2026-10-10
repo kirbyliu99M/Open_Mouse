@@ -1,5 +1,5 @@
 import type { Polyline, Vec } from "./geometry";
-import { LOGO_BOX, logoStrokes } from "./logo";
+import { LOGO_BOX, sampleLogoPoints } from "./logo";
 import {
   type StrokeRun,
   type TargetPoint,
@@ -26,7 +26,7 @@ import {
  * results. Pairing and interpolation are PR B.
  *
  * Every point list is in "stage px": mice at a 340 px stage width, the hand
- * with its A4 sheet 340 px wide, the logo in its own 220 × 196 box.
+ * with its A4 sheet 340 px wide, the logo in its own 195 × 207 box.
  */
 
 export const STAGE_WIDTH = 340;
@@ -116,11 +116,12 @@ export function sampleSketch(svg: string): ShapeTarget {
   };
 }
 
+/** The Palmate mark's cloud of points (see logo.ts), in its own box. Not seeded by the generator: the logo is the same for every seed. */
 export function sampleLogo(): ShapeTarget {
   return {
     width: LOGO_BOX.width,
     height: LOGO_BOX.height,
-    ...sampleStrokeRuns(logoStrokes(), SAMPLING),
+    ...sampleLogoPoints(),
   };
 }
 

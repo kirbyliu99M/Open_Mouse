@@ -302,3 +302,16 @@ describe("the biggest point", () => {
     expect(pointSizeFits([1, 16], maxPointCssPx() * 2)).toBe(false);
   });
 });
+
+describe("the logo's stars: a design choice, pinned", () => {
+  it("lights 0.14 of the particles on the logo and draws its stars 1.7 times the look", () => {
+    // These two numbers are not derived: they are the look Kirby picked from
+    // screenshots of the Palmate mark (2026-10-10; still 未拍板, candidate, in
+    // look.ts). He asked for a denser mark twice that day: 0.06 became 0.10,
+    // then 0.14 with the tighter cloud (variant B). They are pinned so that
+    // changing them is a decision and not a side effect of another change:
+    // ask Kirby before changing this test.
+    expect(LIT_FRACTION.logo).toBe(0.14);
+    expect(STAR_SIZE.logo).toBe(1.7);
+  });
+});
