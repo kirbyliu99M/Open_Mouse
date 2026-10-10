@@ -335,11 +335,13 @@ and package-lock.json.
                           unchanged, one outline is split where the hand meets
                           the mouse, and the strokes are recoloured. pvhPT
                           was drawn on pen.dev by AGY (the Gemini CLI) at
-                          Kirby's request, with Kirby's own hand as the
-                          reference (per Kirby, 2026-10-10). Whether AGY drew
-                          on any other source was not checked: Unconfirmed.
-                          pen.dev's terms for generated output were not
-                          checked: Unconfirmed.
+                          Kirby's request, with reference to Kirby's own hand
+                          and to concept pictures Kirby found (per Kirby,
+                          2026-10-10, and the 2026-10-09 entry in
+                          docs/STATUS.md). Whether AGY drew on any other
+                          source was not checked: Unconfirmed. pen.dev's
+                          terms for generated output were not checked:
+                          Unconfirmed.
   logo-placeholder.svg,   Written by scripts/build-particle-targets.ts from
   hand-on-a4.svg          geometry in src/lib/particles/ (a placeholder mouse
                           outline with a ruler; a stylised template hand on
