@@ -683,8 +683,10 @@ test("every piece of text on the home page is one of the token colours, never th
     }
     return [...found].sort();
   });
-  // --text-primary, --text-secondary, --text-tertiary, --on-accent.
+  // --text-primary, --text-secondary, --text-tertiary, --on-accent and
+  // --on-button-primary (the primary pill's label).
   const allowed = [
+    "rgb(6, 7, 9)",
     "rgb(138, 138, 143)",
     "rgb(161, 161, 166)",
     "rgb(245, 245, 247)",
