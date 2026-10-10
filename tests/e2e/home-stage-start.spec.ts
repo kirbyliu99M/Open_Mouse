@@ -146,15 +146,29 @@ async function recordSwitch(page: Page) {
   });
 }
 
-/** Run `action` in the page, once, in the same task as the first fade out's start. */
-async function onFirstFadeOut(page: Page, action: string) {
-  await page.addInitScript((code: string) => {
+/**
+ * Do `action` in the page, once, in the same task as the first fade out's
+ * start: "hide" makes the page believe its tab is hidden (as SET_HIDDEN does),
+ * "scroll" scrolls 8 px. Written out here, not passed as code to run: the
+ * production build's CSP has no 'unsafe-eval', so `new Function` would throw
+ * there and the action would never happen.
+ */
+async function onFirstFadeOut(page: Page, action: "hide" | "scroll") {
+  await page.addInitScript((kind: "hide" | "scroll") => {
     let done = false;
     new MutationObserver(() => {
       const panel = document.querySelector<HTMLElement>(".story-panel");
       if (done || panel?.style.opacity !== "0") return;
       done = true;
-      new Function(code)();
+      if (kind === "hide") {
+        Object.defineProperty(document, "hidden", {
+          configurable: true,
+          get: () => true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      } else {
+        window.scrollBy(0, 8);
+      }
     }).observe(document, {
       attributes: true,
       subtree: true,
@@ -289,18 +303,41 @@ test.describe("starting away from the top", () => {
     page,
   }, info) => {
     test.skip(info.project.name !== "chromium", "A desktop window size.");
-    await page.setViewportSize({ width: 1280, height: 2400 });
     const release = await holdStageModule(page);
     await page.goto("/");
-    const fits = await page.evaluate(
-      () =>
-        document.querySelector(".story")!.getBoundingClientRect().height <=
-        window.innerHeight,
-    );
-    expect(fits, "the static story fits in a 2,400 px window").toBe(true);
-    await page.evaluate(() => window.scrollTo(0, 200));
-    const scrolled = await page.evaluate(() => window.scrollY);
-    test.skip(scrolled === 0, "The page is not taller than this window.");
+    // A window a little taller than the static story (its height depends on
+    // the fonts), so the story's end and the buttons under it are in view from
+    // the first px of scroll.
+    // (The static hero's logo grows with the window's height, so measure
+    // again after each resize until the story fits.)
+    for (let i = 0; i < 4; i += 1) {
+      const fit = await page.evaluate(() => ({
+        story: document.querySelector(".story")!.getBoundingClientRect().height,
+        viewport: window.innerHeight,
+      }));
+      if (fit.story <= fit.viewport && fit.story + 40 > fit.viewport) break;
+      await page.setViewportSize({
+        width: 1280,
+        height: Math.ceil(fit.story) + 10,
+      });
+    }
+    expect(
+      await page.evaluate(
+        () =>
+          document.querySelector(".story")!.getBoundingClientRect().height <=
+          window.innerHeight,
+      ),
+      "the static story fits in the window",
+    ).toBe(true);
+    const top = await page.evaluate(() => {
+      const story = document.querySelector<HTMLElement>(".story")!;
+      window.scrollTo(
+        0,
+        story.getBoundingClientRect().top + window.scrollY + 20,
+      );
+      return story.getBoundingClientRect().top;
+    });
+    expect(top, "the story's top is above the viewport").toBeLessThan(0);
     const finalBefore = await page.evaluate(
       () => document.querySelector(".home-final")!.getBoundingClientRect().top,
     );
@@ -469,7 +506,7 @@ test.describe("starting away from the top", () => {
   test("a tab hidden while the panel fades out: nothing switches or scrolls while hidden, the panel comes back, and showing the tab switches", async ({
     page,
   }) => {
-    await onFirstFadeOut(page, SET_HIDDEN(true));
+    await onFirstFadeOut(page, "hide");
     const release = await holdStageModule(page);
     await page.goto("/");
     await page.evaluate(() => window.scrollTo(0, 500));
@@ -494,7 +531,7 @@ test.describe("starting away from the top", () => {
     page,
   }) => {
     // The reader scrolls a little just as the first fade out begins.
-    await onFirstFadeOut(page, "window.scrollBy(0, 8);");
+    await onFirstFadeOut(page, "scroll");
     const release = await holdStageModule(page);
     await page.goto("/");
     await page.evaluate(() => window.scrollTo(0, 500));
