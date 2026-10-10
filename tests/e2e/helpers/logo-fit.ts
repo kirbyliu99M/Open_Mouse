@@ -48,8 +48,8 @@ export const LOGO_EDGE = { low: -2.5, high: 3.5 } as const;
  * The share by which the top half of the canvas's mark is heavier left of its
  * middle than right of it (alpha summed), at least: the target's points give
  * 286 to 222 (1.29) on the 840-point cloud, and the windows above measured
- * 1.18 to 1.35; a mirror image gives about the inverse (0.85 to 0.875
- * measured on the first cloud, whose own share was 1.21 to 1.36).
+ * 1.18 to 1.35; a mirror image (the logo's x flipped in buildParticleSet)
+ * measured 0.88 to 0.94 (390x844, 1280x800 and the Pixel 7, both paths).
  */
 export const LOGO_TOP_LEFT_SHARE = 1.1;
 

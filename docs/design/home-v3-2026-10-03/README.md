@@ -372,13 +372,15 @@ Everything else follows scroll.
     positions, filled as capsules along the fingers plus a palm polygon. It is
     an illustration, **not** a user's hand or measurement.
   - The logo (replaced 2026-10-10, 未拍板 candidate): the Palmate hand. The
-    target is 600 points sampled along its four-line path with a bell-shaped
-    width (about 0.8 viewBox units standard deviation, at most 2.4 off the
-    line), half bright and half dim; then the dot, 3 bright points at its
+    target is 840 points sampled along its four-line path with a bell-shaped
+    width (0.5 viewBox units standard deviation, at most 1.6 off the line;
+    Kirby asked twice on 2026-10-10 for a denser mark, and the first cut's
+    600 points, 0.8 and 2.4 became these, variant B of three compared in
+    screenshots), half bright and half dim; then the dot, 3 bright points at its
     centre and 6 dim ones round its ring (the particles have two tones, so
     the ring is the dim tone's `#6E9BF5`, not the static ring's `#2463EB`);
     then 24 strays round the mark, inside the logo's slot and the page's
-    column (`strayReach()`, from the layout in `home.css`). 633 points in
+    column (`strayReach()`, from the layout in `home.css`). 873 points in
     all, made by `sampleLogoPoints()` in `src/lib/particles/logo.ts` from a
     fixed seed. The shimmer's band runs from the mark's left end to its
     right end (the strays do not widen it).
@@ -438,14 +440,15 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     the logo and the three mice are **a few hundred glowing stars each**, as
     in the Canvas 2D version, and only **the hand keeps every particle**, as
     a fine dust. A state lights a share of the particles, its **lit share**
-    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.10 (the
-    Palmate mark, 2026-10-10; it was 0.06 on the placeholder), the mice
+    (`LIT_FRACTION` in `src/lib/particles/look.ts`): the logo 0.14 (the
+    Palmate mark, 2026-10-10: 0.06 on the placeholder, then 0.10, then 0.14
+    with the denser cloud), the mice
     0.15, the hand 1 (candidate, 未拍板). Every particle has a stable
     **rank** (its place in the uploaded order as a share of the count, taken
     at the middle of the place); a state lights the particles whose rank is
     under its share, so a smaller share is a subset of a bigger one. On a
-    desktop's 12,000 particles that is 1,200 stars on the logo and 1,800 on
-    the mice (600 to a mouse); a phone's 6,000 has half as many (600 on the
+    desktop's 12,000 particles that is 1,680 stars on the logo and 1,800 on
+    the mice (600 to a mouse); a phone's 6,000 has half as many (840 on the
     logo). The
     2D version drew about 1,300 particles on a desktop (433 to a mouse) and
     900 on a phone, so 0.15 is about a third denser than the accepted picture
@@ -454,7 +457,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     0.08, **0.15 (the default)** and 0.25, with the logo at 0.03, 0.06 and 0.10
     (on the placeholder). The logo's share is lower because its stars sit on
     a short line (the 2D version drew the placeholder logo as about 260
-    points; the Palmate target has 633).
+    points; the Palmate target has 873).
   - **Over a leg** a particle's visibility goes in a straight line, by the same
     `e(t)` that moves it, from 1 or 0 (lit or not at the start of the leg) to
     1 or 0 (at the end), with the ends exact: at `e ≤ 0` it is the start
@@ -500,7 +503,8 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
     is the real one, and the logo's stars can change size once. With the
     Palmate mark (its box has another shape than the placeholder's) a review
     estimated 7.08 → 10.20 px on a phone-sized window (+44 %; the
-    placeholder's was 7.74 → 10.20) and about +28 % on a desktop. These are
+    placeholder's was 7.74 → 10.20) and about +28 % on a desktop, with the
+    logo's share at 0.10 (not worked out again for 0.14). These are
     estimates from the formulas, **not measured in a browser**, and whether
     the jump can be seen has not been looked at. It has been so since the
     stars were first drawn, and has not been changed.
@@ -538,7 +542,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   share times the budget, rounded), so a bigger budget makes the hand's dust
   finer and makes the stars proportionally more numerous: at the default shares
   a mouse has 300 stars on a phone's 6,000 particles and 600 on a desktop's
-  12,000 (the logo 600 and 1,200). The earlier pick between 4,000 / 8,000,
+  12,000 (the logo 840 and 1,680). The earlier pick between 4,000 / 8,000,
   **6,000 / 12,000 (the default)** and 10,000 / 20,000 was made on the picture
   of continuous lines and is still open: it now sets how many stars there are as
   well as how fine the dust is. (A star's look follows the number of lit
@@ -547,7 +551,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
 - **Device pixel ratio.** The 2D canvas is capped at 2. The WebGL canvas is
   capped at 2 on a wide screen and 1.5 under 48 rem (candidate).
 - **Source density.** The committed `targets.generated.json` stays small (about
-  16 KB gzip): the logo has 633 points, the hand 1,400, a mouse 1,134. The
+  17 KB gzip): the logo has 873 points, the hand 1,400, a mouse 1,134. The
   browser grows them from the same seed, so the result is reproducible:
   - a stroke (the logo, a mouse) is walked at an even step, and each particle is
     nudged a fraction of a pixel across it (a bell-shaped spread of 0.3 stage
