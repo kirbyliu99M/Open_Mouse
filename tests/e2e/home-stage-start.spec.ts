@@ -51,7 +51,14 @@ const STAGE_CHUNK = /particle-stage/;
 const FINAL_TOLERANCE_PX = 1;
 /** The panel counts as transparent at or under this opacity. */
 const TRANSPARENT = 0.02;
-/** The layout shift from the switch on: the same strict bound home-stage.spec.ts holds the switch at the top to. */
+/**
+ * The layout shift from the switch on: the same strict bound home-stage.spec.ts
+ * holds the switch at the top to. Measured 0. Note that Chromium's layout-shift
+ * entries do not see this switch at all: with the fade taken out, and with the
+ * scroll compensation taken out as well, ① still measured under this bound
+ * (checked by hand, 2026-10-10). What guards the reader's view is the
+ * frame-by-frame checks in ③a and ③b, not this number.
+ */
 const CLS_AFTER_SWITCH_BOUND = 0.001;
 /**
  * After the last expected try, how long to watch for one more (ms): twice the
@@ -407,6 +414,8 @@ test.describe("starting away from the top", () => {
     }
     expect(await theSwitch(page)).toBeNull();
     expect((await layoutFacts(page)).animated).toBe(false);
+    // Not even a fade out began: the panel never dimmed under the moving page.
+    expect(await read<number>(page, "__fadeOuts")).toBe(0);
     // Held still, it switches.
     await waitForAnimated(page);
   });
