@@ -15,9 +15,10 @@ export const metadata: Metadata = {
  * yet; it is wired in after the results-page rebuild lands). Query switches:
  * `lang=zh`, `handType=0` (fit-v0 sends none), `photo=1` (the placeholder
  * sketch as the product photo), `longName=1`, `preset=rog` (the data of Kirby's
- * 2026-10-10 screenshot: ROG Strix Impact III, 92, Medium mouse, Palm grip, Slim)
- * `qr=160` (the QR panel's side in pixels) and `qrStyle=` classic, softLight,
- * darkTile or frameless.
+ * 2026-10-10 screenshot: ROG Strix Impact III, 92, Medium mouse, Palm grip, Slim),
+ * `qr=176` (the QR size in pixels: the panel's side, or the module step for the
+ * frameless style, whose box is bigger by its quiet zone) and `qrStyle=`
+ * classic, softLight, darkTile or frameless (the default).
  */
 export default async function ShareCardDemoPage({
   searchParams,

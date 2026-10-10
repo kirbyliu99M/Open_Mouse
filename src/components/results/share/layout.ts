@@ -11,6 +11,7 @@
 import type { UiLanguage } from "../../../client/uiLanguage";
 import type { HandType } from "../../../lib/contracts/fit";
 import { shareCardCopy } from "../../../lib/copy/share-card";
+import { palmateMarkInkEdges } from "../../../lib/brand/palmate-mark";
 import { SITE_NAME, SITE_URL } from "../../../lib/site";
 import {
   DEFAULT_QR_STYLE,
@@ -34,12 +35,12 @@ export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
 /** The QR box's side in pixels (5 px module step for the site URL). A layout parameter; 176 is Kirby's pick of 2026-10-10 (the first size he saw was 216). */
 export const DEFAULT_QR_SIZE = 176;
-/** The mark is as tall as the name and tagline together; it is square. */
+/** The mark's drawing box is square; its ink is a little smaller (see `PALMATE_MARK_INK`). */
 export const MARK_SIZE = 120;
 /** Quiet zone the QR panel keeps around the code, in modules, at the least. */
 export const QR_MIN_QUIET_MODULES = 2;
 /** Gap between the mark and the name and tagline. */
-const MARK_GAP = 28;
+const MARK_GAP = 36;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
@@ -129,9 +130,9 @@ const NAME_FONT: FontSpec = { size: 48, weight: 700, brand: true };
 const LINE = 1.22;
 
 export interface ShareCardOptions {
-  /** The QR panel's side in pixels. Default `DEFAULT_QR_SIZE`. */
+  /** The QR size in pixels. A panel style's box is this wide; the frameless box is the code plus its quiet zone at the module step this size gives, so 185 for 176. Default `DEFAULT_QR_SIZE`. */
   qrSize?: number;
-  /** How the QR code is drawn. Default `classic` until Kirby picks. */
+  /** How the QR code is drawn. Default `DEFAULT_QR_STYLE` (frameless, Kirby's pick of 2026-10-10). */
   qrStyle?: QrStyle;
   /** Modules per side of the QR code. Default `SITE_URL_QR_MODULES` (the site URL's code). */
   qrModules?: number;
@@ -227,14 +228,18 @@ export function layoutShareCard(
   const headerBottom = cursor;
 
   // Footer: the lockup (mark, name, tagline) at the left and the QR at the
-  // right, both resting on the bottom margin. The lockup is as tall as the mark;
-  // the name and tagline are centred on it.
+  // right, both resting on the bottom margin. The mark is placed by its INK, not
+  // its viewBox (the hand does not fill the box): the ink's left edge is on the
+  // content margin and its bottom edge is on the QR box's bottom edge. The name
+  // and tagline are centred on the ink's height.
   const footerBottom = CARD_HEIGHT - CARD_PADDING;
-  const footerH = Math.max(qrSide, MARK_SIZE);
+  const inkAtOrigin = palmateMarkInkEdges({ x: 0, y: 0, w: MARK_SIZE });
+  const inkHeight = inkAtOrigin.bottom - inkAtOrigin.top;
+  const footerH = Math.max(qrSide, inkHeight);
   const footerTop = footerBottom - footerH;
   const markBox: Box = {
-    x: CARD_PADDING,
-    y: footerBottom - MARK_SIZE,
+    x: CARD_PADDING - inkAtOrigin.left,
+    y: footerBottom - inkAtOrigin.bottom,
     w: MARK_SIZE,
     h: MARK_SIZE,
   };
@@ -244,14 +249,15 @@ export function layoutShareCard(
     w: qrSide,
     h: qrSide,
   };
-  const textX = markBox.x + MARK_SIZE + MARK_GAP;
+  const ink = palmateMarkInkEdges(markBox);
+  const textX = ink.right + MARK_GAP;
   const footerTextWidth = qrBox.x - textX - 36;
   const nameFont = NAME_FONT;
   const taglineFont = f(36, 400);
   // The block runs from the name's cap height to the tagline's baseline.
   const NAME_CAP = 36;
   const BASELINE_GAP = 50;
-  const markMid = markBox.y + MARK_SIZE / 2;
+  const markMid = (ink.top + ink.bottom) / 2;
   const nameBaseline = markMid - (NAME_CAP + BASELINE_GAP) / 2 + NAME_CAP;
   ops.push({ kind: "mark", box: markBox });
   text(

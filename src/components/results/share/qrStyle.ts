@@ -128,6 +128,11 @@ export const SOFT_LIGHT_PANEL_FILL = "#DCE6FF";
  * panel, so its box is the code plus its four-module quiet zone, at the same
  * module step the panel styles get from `qrSize`: the card keeps the step and
  * the box grows by the quiet zone.
+ *
+ * The step is computed with the panel styles' quiet zone (`classic.minQuiet`,
+ * 2 modules) as the base, so that `qrSize` means the same step in every style.
+ * That is only right while all the panel styles share one `minQuiet`; a unit
+ * test pins it.
  */
 export function qrBoxSize(
   style: QrStyle,

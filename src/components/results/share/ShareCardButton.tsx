@@ -14,9 +14,9 @@ export interface ShareCardButtonProps {
   lang: UiLanguage;
   /** "link" is the small 分享 in the top bar; "primary" is the big 製作我的分享圖. */
   variant: "link" | "primary";
-  /** The QR panel's side in pixels; only a preview route passes it. */
+  /** The QR size in pixels: the panel's side, or for the frameless style the module step it gives (the box grows by its quiet zone). Only a preview route passes it. */
   qrSize?: number;
-  /** The QR code's style; only a preview route passes it (default classic). */
+  /** The QR code's style; only a preview route passes it (default frameless, `DEFAULT_QR_STYLE`). */
   qrStyle?: QrStyle;
 }
 
