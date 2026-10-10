@@ -572,16 +572,15 @@
   transform: translate(-50%, -50%);
   opacity: 0;
 }
+/* The whole panel, with the light drawn in it (a circle about the figure's
+   middle): nothing sticks out sideways on a narrow screen. */
 .story--animated .story-finale-glow {
   display: block;
   position: absolute;
-  top: calc(var(--finale-top) + var(--finale-w) * 0.45);
-  left: 50%;
-  width: min(140%, calc(var(--finale-w) * 1.9));
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
+  inset: 0;
   background: radial-gradient(
-    closest-side,
+    circle calc(var(--finale-w) * 0.95) at 50%
+      calc(var(--finale-top) + var(--finale-w) * 0.45),
     color-mix(in srgb, var(--glow) 34%, transparent),
     color-mix(in srgb, var(--glow) 14%, transparent) 55%,
     transparent

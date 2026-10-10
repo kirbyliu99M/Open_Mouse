@@ -212,7 +212,22 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * stars a quarter or more off (0.08 or 0.25) is outside it, which the
  * mutation checks of this suite showed.
  */
-const STAR_BLOBS = { low: 0.8, high: 1.05 };
+// (The three mice's bound was 0.8 to 1.05.)
+/**
+ * The same measure for the finale's figure at rest (p = 0.80), which replaced
+ * the three mice on 2026-10-11. Its stars sit on long lines closer together
+ * than a star's core, so neighbours touch and a blob is often two or three
+ * stars: one blob per lit particle no longer holds. Measured 2026-10-11 on
+ * Kirby's machine (headless Chromium, software WebGL): 0.457 for the chromium
+ * project (1280x800, 1,800 lit) and 0.652 for the mobile one (Pixel 7, 900
+ * lit), the same on every run (fixed seed, fixed layout). The bound is 10 %
+ * either side of each, as the mice's was. Whether a wrong share falls outside
+ * it (the mice's bound was checked by mutation) has NOT been checked for these.
+ */
+const FINALE_BLOBS = {
+  desktop: { low: 0.41, high: 0.5 },
+  phone: { low: 0.587, high: 0.717 },
+};
 /**
  * The solid area (alpha 80 % or more) of the three mice at p = 0.95 as a
  * multiple of the Canvas 2D version's. Measured: 1.8 on a desktop (1,800
@@ -959,8 +974,13 @@ test.describe("the WebGL path", () => {
         continue;
       }
       expect(lit, seen.at(-1)).toBeGreaterThan(400);
-      expect(ratio, seen.at(-1)).toBeGreaterThan(STAR_BLOBS.low);
-      expect(ratio, seen.at(-1)).toBeLessThan(STAR_BLOBS.high);
+      const finaleBound = (await page.evaluate(
+        () => matchMedia("(min-width: 48rem)").matches,
+      ))
+        ? FINALE_BLOBS.desktop
+        : FINALE_BLOBS.phone;
+      expect(ratio, seen.at(-1)).toBeGreaterThan(finaleBound.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(finaleBound.high);
     }
     test.info().annotations.push({
       type: "star blobs per lit particle",
@@ -1412,11 +1432,16 @@ test.describe("the WebGL path", () => {
     expect(lit).toBe(litCount(LIT_FRACTION.mouse, budget, budget));
     const got = await blobs(page);
     const ratio = got.count / lit;
+    const bound = (await page.evaluate(
+      () => matchMedia("(min-width: 48rem)").matches,
+    ))
+      ? FINALE_BLOBS.desktop
+      : FINALE_BLOBS.phone;
     expect(ratio, `${got.count} blobs for ${lit} stars`).toBeGreaterThan(
-      STAR_BLOBS.low,
+      bound.low,
     );
     expect(ratio, `${got.count} blobs for ${lit} stars`).toBeLessThan(
-      STAR_BLOBS.high,
+      bound.high,
     );
   });
 });
@@ -1429,8 +1454,9 @@ test.describe("the fallback to Canvas 2D", () => {
       cores: navigator.hardwareConcurrency,
     }));
     const base = wide ? 1300 : 900;
-    const wanted = cores <= 4 ? Math.floor(base / 2) : base;
-    return wanted - (wanted % 3);
+    // No rounding to a multiple of three since the finale is one drawing
+    // (2026-10-11): 1,300 on a desktop, not 1,299.
+    return cores <= 4 ? Math.floor(base / 2) : base;
   }
 
   /**

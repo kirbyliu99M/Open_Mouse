@@ -902,6 +902,7 @@ class Stage {
   /** Read where the logo, the hand and the finale are on the page now, and rebuild the particles for them. */
   private measureAndBuild(): void {
     this.measureRects();
+    this.measureFinale();
     this.uploadSet();
     this.measureLayout();
   }
@@ -922,11 +923,16 @@ class Stage {
     );
     this.buildSetData(logoRect, handRect, [finaleRect]);
     this.finaleRect = finaleRect;
-    this.buildFinale(origin);
     this.measured = { origin, handRect };
   }
 
-  /** The third part of the measure: the hand's outline and the notes' places, for the rects the first part found. */
+  /** The second part of the measure: the finale's headline and sky, for the rects the first part found. */
+  private measureFinale(): void {
+    const measured = this.measured;
+    if (measured) this.buildFinale(measured.origin);
+  }
+
+  /** The last part of the measure: the hand's outline and the notes' places, for the rects the first part found. */
   private measureLayout(): void {
     const measured = this.measured;
     if (!measured) return;
@@ -1116,6 +1122,7 @@ class Stage {
         height: box.height,
       });
     }
+    const started = performance.now();
     try {
       this.finaleScene = buildFinaleScene({
         title: parts.title,
@@ -1133,6 +1140,9 @@ class Stage {
     if (scene && this.set) {
       markClipped(this.set, (x, y) => isBlocked(scene, x, y));
     }
+    // For the e2e suite and for anyone checking the cost in the inspector:
+    // how long this layout's finale took to build (ms, once per layout).
+    this.canvas.dataset.finaleMs = (performance.now() - started).toFixed(1);
   }
 
   private countFor(renderer: Renderer): number {
@@ -1466,16 +1476,18 @@ class Stage {
         this.schedule();
         return;
       }
-      // Still at the top: the measure is spread over three frames, one part
-      // each (rects and particles; the upload; the outline and the notes), so
-      // no task of them is long on a slow phone (they were 85 to 110 ms in one
-      // go at 4 times the CPU). Nothing is drawn meanwhile: the canvas shows
-      // the logo, which is where it was. If the reader scrolls, what is left
-      // is done at once and drawn.
-      if (idle && this.measureStep < 3) {
+      // Still at the top: the measure is spread over four frames, one part
+      // each (rects and particles; the finale's headline and sky; the upload;
+      // the outline and the notes), so no task of them is long on a slow
+      // phone (they were 85 to 110 ms in one go at 4 times the CPU, before
+      // the finale). Nothing is drawn meanwhile: the canvas shows the logo,
+      // which is where it was. If the reader scrolls, what is left is done at
+      // once and drawn.
+      if (idle && this.measureStep < 4) {
         try {
           if (this.measureStep === 0) this.measureRects();
-          else if (this.measureStep === 1) this.uploadSet();
+          else if (this.measureStep === 1) this.measureFinale();
+          else if (this.measureStep === 2) this.uploadSet();
           else this.measureLayout();
         } catch {
           this.deactivate();
@@ -1491,8 +1503,9 @@ class Stage {
       this.measureStep = 0;
       try {
         if (done < 1) this.measureRects();
-        if (done < 2) this.uploadSet();
-        if (done < 3) this.measureLayout();
+        if (done < 2) this.measureFinale();
+        if (done < 3) this.uploadSet();
+        if (done < 4) this.measureLayout();
       } catch {
         this.deactivate();
         return;

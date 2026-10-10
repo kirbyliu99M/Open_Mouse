@@ -40,7 +40,8 @@ test.describe("home stage performance (opt-in)", () => {
       test.setTimeout(240_000);
       await page.addInitScript(() => {
         const w = window as unknown as Record<string, unknown>;
-        const frames: { ms: number; drew: boolean; at: number }[] = [];
+        const frames: { ms: number; drew: boolean; at: number; p: number }[] =
+          [];
         w.__frames = frames;
         const draws = () =>
           Number(
@@ -55,7 +56,15 @@ test.describe("home stage performance (opt-in)", () => {
             const start = performance.now();
             callback(time);
             const end = performance.now();
-            frames.push({ ms: end - start, drew: draws() > before, at: end });
+            frames.push({
+              ms: end - start,
+              drew: draws() > before,
+              at: end,
+              p: Number(
+                document.querySelector<HTMLElement>(".story")?.dataset
+                  .progress ?? 0,
+              ),
+            });
           });
       });
       const cdp = await context.newCDPSession(page);
@@ -83,16 +92,20 @@ test.describe("home stage performance (opt-in)", () => {
           max: +(sorted.at(-1) ?? 0).toFixed(2),
         };
       };
-      const drawFrames = () =>
-        page.evaluate(() =>
-          (
-            (window as unknown as Record<string, unknown>).__frames as {
-              ms: number;
-              drew: boolean;
-            }[]
-          )
-            .filter((f) => f.drew)
-            .map((f) => f.ms),
+      /** The draw callbacks' times, from `from` on in the story (the finale: 0.8). */
+      const drawFrames = (from = 0) =>
+        page.evaluate(
+          (min) =>
+            (
+              (window as unknown as Record<string, unknown>).__frames as {
+                ms: number;
+                drew: boolean;
+                p: number;
+              }[]
+            )
+              .filter((f) => f.drew && f.p >= min)
+              .map((f) => f.ms),
+          from,
         );
 
       await page.goto("/");
@@ -136,6 +149,7 @@ test.describe("home stage performance (opt-in)", () => {
       const endMetrics = await metrics();
       const endDraws = await drawn();
       const scrollFrames = await drawFrames();
+      const finaleFrames = await drawFrames(0.8);
 
       // 3. The same loop on the static page (reduced motion: no stage at
       // all), to take the harness's own cost (evaluate, two rAF callbacks per
@@ -183,6 +197,10 @@ test.describe("home stage performance (opt-in)", () => {
         viewport: `${size.width}x${size.height}`,
         cpuThrottle: `${rate}x`,
         particles: await page.locator(CANVAS).getAttribute("data-particles"),
+        // Building the finale's headline and sky, once per layout (ms).
+        finaleBuildMs: Number(
+          await page.locator(CANVAS).getAttribute("data-finale-ms"),
+        ),
         shimmer: {
           framesDrawn: shimmerDraws,
           drawCallbackMs: summary(shimmerFrames),
@@ -196,6 +214,9 @@ test.describe("home stage performance (opt-in)", () => {
         scroll: {
           framesDrawn: frames,
           drawCallbackMs: summary(scrollFrames),
+          // The finale (p 0.8 to 1): the headline, the sky and the meteors on
+          // the 2D canvas on top of the particles.
+          finaleDrawCallbackMs: summary(finaleFrames),
           mainThreadMsPerFrame: {
             task: per("TaskDuration"),
             harnessOnlyOnStaticPage: baselineMs,

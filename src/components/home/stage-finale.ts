@@ -333,6 +333,8 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
       letters,
       seed: FINALE_SEED + 2,
       jitter: 0.18,
+      // Edge or not does not matter for this image: no outline distances.
+      edgeWidth: 0,
     });
     const r = mulberry32(FINALE_SEED + 3);
     const ctx = solidCanvas.ctx;

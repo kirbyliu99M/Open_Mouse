@@ -1089,11 +1089,13 @@ test.describe("the canvas follows the device", () => {
             : 6000
         : cores <= 4
           ? wide
-            ? 648
+            ? 650
             : 450
           : wide
-            ? 1299
+            ? 1300
             : 900;
+      // (648 and 1,299 while three mice each took a third: the finale is one
+      // drawing, 2026-10-11, so the budgets are whole.)
       await expect(page.locator(CANVAS)).toHaveAttribute(
         "data-particles",
         String(expected),
