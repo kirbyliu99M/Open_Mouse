@@ -36,8 +36,9 @@ function expectCard(buffer: Buffer) {
   expect(r + g + b).toBeLessThan(120);
   let white = 0;
   let dark = 0;
-  for (let y = 1626; y < 1830; y += 4) {
-    for (let x = 786; x < 990; x += 4) {
+  // The panel is 160 px, on the bottom-right margin (x 836 to 996, y 1676 to 1836).
+  for (let y = 1680; y < 1832; y += 3) {
+    for (let x = 840; x < 992; x += 3) {
       const [pr, pg, pb] = px(x, y);
       if (pr > 240 && pg > 240 && pb > 240) white += 1;
       else if (pr < 40 && pg < 40 && pb < 40) dark += 1;

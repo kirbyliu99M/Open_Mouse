@@ -13,7 +13,9 @@ export const metadata: Metadata = {
  * Dev-only mount for the share-card button (the results page does not carry it
  * yet; it is wired in after the results-page rebuild lands). Query switches:
  * `lang=zh`, `handType=0` (fit-v0 sends none), `photo=1` (the placeholder
- * sketch as the product photo) and `longName=1`.
+ * sketch as the product photo), `longName=1`, `preset=rog` (the data of Kirby's
+ * 2026-10-10 screenshot: ROG Strix Impact III, 92, Medium mouse, Palm grip, Slim)
+ * and `qr=160` (the QR panel's side in pixels).
  */
 export default async function ShareCardDemoPage({
   searchParams,
@@ -32,6 +34,12 @@ export default async function ShareCardDemoPage({
       withHandType={flag("handType", true)}
       withPhoto={flag("photo", false)}
       longName={flag("longName", false)}
+      preset={q.preset === "rog" ? "rog" : null}
+      qrSize={
+        typeof q.qr === "string" && /^\d{2,3}$/.test(q.qr)
+          ? Number(q.qr)
+          : undefined
+      }
     />
   );
 }

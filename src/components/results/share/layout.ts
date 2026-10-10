@@ -26,7 +26,14 @@ export const CARD_HEIGHT = 1920;
 export const CARD_PADDING = 84;
 export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
-export const QR_SIZE = 216;
+/** The QR panel's side in pixels. A layout parameter; this is the default (Kirby, 2026-10-10: smaller than 216). */
+export const DEFAULT_QR_SIZE = 160;
+/** The mark is as tall as the name and tagline together; it is square. */
+export const MARK_SIZE = 120;
+/** Quiet zone the QR panel keeps around the code, in modules, at the least. */
+export const QR_MIN_QUIET_MODULES = 2;
+/** Gap between the mark and the name and tagline. */
+const MARK_GAP = 28;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
@@ -62,7 +69,9 @@ export type DrawOp =
   | { kind: "photo"; box: Box; src: string }
   /** A neutral mouse outline, shown when there is no photo. */
   | { kind: "silhouette"; box: Box }
-  | { kind: "qr"; box: Box; text: string };
+  | { kind: "qr"; box: Box; text: string }
+  /** The Palmate mark, drawn from `palmate-mark.ts` scaled to the box. */
+  | { kind: "mark"; box: Box };
 
 export interface ShareCardInput {
   lang: UiLanguage;
@@ -125,10 +134,17 @@ const f = (size: number, weight: FontSpec["weight"]): FontSpec => ({
 
 const LINE = 1.22;
 
+export interface ShareCardOptions {
+  /** The QR panel's side in pixels. Default `DEFAULT_QR_SIZE`. */
+  qrSize?: number;
+}
+
 export function layoutShareCard(
   input: ShareCardInput,
   measure: MeasureText,
+  options: ShareCardOptions = {},
 ): ShareCardLayout {
+  const qrSize = options.qrSize ?? DEFAULT_QR_SIZE;
   const copy = shareCardCopy(input.lang);
   const ops: DrawOp[] = [{ kind: "background" }];
   const text = (
@@ -206,28 +222,45 @@ export function layoutShareCard(
   }
   const headerBottom = cursor;
 
-  // Footer: site name, tagline, QR. Fixed to the bottom edge.
-  const footerTop = CARD_HEIGHT - CARD_PADDING - QR_SIZE;
-  const qrBox: Box = {
-    x: CARD_WIDTH - CARD_PADDING - QR_SIZE,
-    y: footerTop,
-    w: QR_SIZE,
-    h: QR_SIZE,
+  // Footer: the lockup (mark, name, tagline) at the left and the QR at the
+  // right, both resting on the bottom margin. The lockup is as tall as the mark;
+  // the name and tagline are centred on it.
+  const footerBottom = CARD_HEIGHT - CARD_PADDING;
+  const footerH = Math.max(qrSize, MARK_SIZE);
+  const footerTop = footerBottom - footerH;
+  const markBox: Box = {
+    x: CARD_PADDING,
+    y: footerBottom - MARK_SIZE,
+    w: MARK_SIZE,
+    h: MARK_SIZE,
   };
-  const footerTextWidth = qrBox.x - CARD_PADDING - 36;
+  const qrBox: Box = {
+    x: CARD_WIDTH - CARD_PADDING - qrSize,
+    y: footerBottom - qrSize,
+    w: qrSize,
+    h: qrSize,
+  };
+  const textX = markBox.x + MARK_SIZE + MARK_GAP;
+  const footerTextWidth = qrBox.x - textX - 36;
   const nameFont = f(48, 700);
   const taglineFont = f(36, 400);
+  // The block runs from the name's cap height to the tagline's baseline.
+  const NAME_CAP = 36;
+  const BASELINE_GAP = 50;
+  const markMid = markBox.y + MARK_SIZE / 2;
+  const nameBaseline = markMid - (NAME_CAP + BASELINE_GAP) / 2 + NAME_CAP;
+  ops.push({ kind: "mark", box: markBox });
   text(
     fitLine(SITE_NAME, footerTextWidth, nameFont, measure),
-    CARD_PADDING,
-    footerTop + QR_SIZE / 2 - 6,
+    textX,
+    nameBaseline,
     nameFont,
     "primary",
   );
   text(
     fitLine(copy.tagline, footerTextWidth, taglineFont, measure),
-    CARD_PADDING,
-    footerTop + QR_SIZE / 2 + 52,
+    textX,
+    nameBaseline + BASELINE_GAP,
     taglineFont,
     "secondary",
   );

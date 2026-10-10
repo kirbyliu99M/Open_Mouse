@@ -11,6 +11,8 @@ import type { FitResponse } from "../../../lib/contracts/fit";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
   PHOTO_RADIUS,
+  QR_MIN_QUIET_MODULES,
+  type ShareCardOptions,
   layoutShareCard,
   qrGrid,
   type Box,
@@ -18,6 +20,13 @@ import {
   type DrawOp,
 } from "./layout";
 import type { FontSpec, MeasureText } from "./text";
+import {
+  PALMATE_MARK_DOT,
+  PALMATE_MARK_PATH,
+  PALMATE_MARK_STROKE,
+  PALMATE_MARK_STROKE_WIDTH,
+  PALMATE_MARK_VIEWBOX,
+} from "../../../lib/brand/palmate-mark";
 
 /** The values of tokens.css, used when a token cannot be read. */
 const TOKEN_FALLBACK = {
@@ -143,6 +152,31 @@ function drawPhoto(
   ctx.restore();
 }
 
+/** The Palmate mark, drawn from its path data scaled to `box`. */
+function drawMark(ctx: CanvasRenderingContext2D, box: Box): void {
+  const vb = PALMATE_MARK_VIEWBOX;
+  const scale = box.w / vb.w;
+  ctx.save();
+  ctx.translate(box.x, box.y);
+  ctx.scale(scale, scale);
+  ctx.translate(-vb.x, -vb.y);
+  ctx.strokeStyle = PALMATE_MARK_STROKE;
+  ctx.lineWidth = PALMATE_MARK_STROKE_WIDTH;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke(new Path2D(PALMATE_MARK_PATH));
+  // The core dot: a filled disc inside a ring whose outer edge is the radius.
+  const d = PALMATE_MARK_DOT;
+  ctx.beginPath();
+  ctx.arc(d.cx, d.cy, d.outerRadius - d.ringWidth / 2, 0, Math.PI * 2);
+  ctx.fillStyle = d.fillColor;
+  ctx.fill();
+  ctx.strokeStyle = d.ringColor;
+  ctx.lineWidth = d.ringWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
 async function drawQr(
   ctx: CanvasRenderingContext2D,
   box: Box,
@@ -152,7 +186,7 @@ async function drawQr(
   const { default: QRCode } = await import("qrcode");
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = qr.modules.size;
-  const { step, offset } = qrGrid(box.w, size, 3);
+  const { step, offset } = qrGrid(box.w, size, QR_MIN_QUIET_MODULES);
   ctx.save();
   ctx.fillStyle = "#ffffff";
   roundRectPath(ctx, box, 28);
@@ -233,6 +267,9 @@ async function paint(
       case "qr":
         await drawQr(ctx, op.box, op.text, theme.bg);
         break;
+      case "mark":
+        drawMark(ctx, op.box);
+        break;
     }
   }
 }
@@ -241,6 +278,7 @@ async function paint(
 export async function makeShareCardPng(
   fit: FitResponse,
   lang: UiLanguage,
+  options: ShareCardOptions = {},
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
   // wrap the text for one font and paint it in another.
@@ -262,7 +300,7 @@ export async function makeShareCardPng(
     ctx.font = fontString(font, theme.fontStack);
     return ctx.measureText(text).width;
   };
-  const layout = layoutShareCard(input, measure);
+  const layout = layoutShareCard(input, measure, options);
   await paint(ctx, layout.ops, theme, photo, layout.width, layout.height);
 
   return new Promise<Blob>((resolve, reject) => {
