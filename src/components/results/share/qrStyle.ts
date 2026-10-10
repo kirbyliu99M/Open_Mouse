@@ -3,9 +3,11 @@
  * `render.ts` paints; everything that can be checked without a canvas is here.
  *
  * Every style keeps whole-pixel module placement (`qrGrid`) and a quiet zone.
- * `classic` is the plain black-on-white square the card shipped with and stays
- * the default until Kirby picks (2026-10-10). The other three are CANDIDATES
- * (未拍板) in the site's design language:
+ * Kirby picked `frameless` as the default on 2026-10-10, pending a phone-camera
+ * scan of the inverted code. `classic` (the plain black-on-white square the card
+ * shipped with) and `softLight` stay in code as the fallbacks: switching back is
+ * the one constant `DEFAULT_QR_STYLE`. The candidates (未拍板), in the site's
+ * design language:
  *
  * - `softLight`: a light blue-white rounded panel, navy dots, blue-ringed eyes.
  *   Dark modules on a light ground, so it is not inverted.
@@ -40,7 +42,8 @@ export const QR_STYLES_LIST: readonly QrStyle[] = [
   "darkTile",
   "frameless",
 ];
-export const DEFAULT_QR_STYLE: QrStyle = "classic";
+/** Kirby picked the frameless style (V3) on 2026-10-10. `classic` and `softLight` stay as fallbacks if a phone camera cannot read the inverted code. */
+export const DEFAULT_QR_STYLE: QrStyle = "frameless";
 
 /** Modules per side of the QR code for the site URL (`qrcode`, level M); a unit test pins it. */
 export const SITE_URL_QR_MODULES = 29;

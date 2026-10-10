@@ -32,8 +32,8 @@ export const CARD_HEIGHT = 1920;
 export const CARD_PADDING = 84;
 export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
-/** The QR panel's side in pixels. A layout parameter; this is the default (Kirby, 2026-10-10: smaller than 216). */
-export const DEFAULT_QR_SIZE = 160;
+/** The QR box's side in pixels (5 px module step for the site URL). A layout parameter; 176 is Kirby's pick of 2026-10-10 (the first size he saw was 216). */
+export const DEFAULT_QR_SIZE = 176;
 /** The mark is as tall as the name and tagline together; it is square. */
 export const MARK_SIZE = 120;
 /** Quiet zone the QR panel keeps around the code, in modules, at the least. */

@@ -40,12 +40,18 @@ const qrOp = (ops: DrawOp[]) =>
   ops.find((o) => o.kind === "qr") as Extract<DrawOp, { kind: "qr" }>;
 
 describe("QR style: the default", () => {
-  it("stays classic until Kirby picks, in the layout and in the spec", () => {
-    expect(DEFAULT_QR_STYLE).toBe("classic");
-    expect(qrOp(layoutShareCard(BASE, measure).ops).style).toBe("classic");
+  it("is frameless (Kirby's pick of 2026-10-10), with classic and softLight kept as fallbacks", () => {
+    expect(DEFAULT_QR_STYLE).toBe("frameless");
+    expect(qrOp(layoutShareCard(BASE, measure).ops).style).toBe("frameless");
+    // The fallbacks are still defined and still drawable.
     expect(QR_STYLE_SPECS.classic.moduleShape).toBe("square");
     expect(QR_STYLE_SPECS.classic.eye).toBeNull();
     expect(QR_STYLE_SPECS.classic.inverted).toBe(false);
+    expect(QR_STYLE_SPECS.softLight.inverted).toBe(false);
+    for (const style of ["classic", "softLight"] as const)
+      expect(
+        qrOp(layoutShareCard(BASE, measure, { qrStyle: style }).ops).style,
+      ).toBe(style);
   });
 
   it("lists the four styles and says which are inverted", () => {

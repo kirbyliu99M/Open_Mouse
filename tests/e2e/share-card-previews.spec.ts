@@ -164,10 +164,10 @@ const results: Record<string, Record<string, string>> = {};
 const verdict = (got: string | null) => (got === SITE_URL ? "pass" : "fail");
 
 const SIZE_CARDS: [file: string, query: string][] = [
-  ["qr-144.png", "qr=144"],
-  ["qr-160.png", "qr=160"],
-  ["qr-176.png", "qr=176"],
-  ["qr-160-zh.png", "qr=160&lang=zh"],
+  ["qr-144.png", "qr=144&qrStyle=classic"],
+  ["qr-160.png", "qr=160&qrStyle=classic"],
+  ["qr-176.png", "qr=176&qrStyle=classic"],
+  ["qr-160-zh.png", "qr=160&qrStyle=classic&lang=zh"],
 ];
 
 /** The candidate styles, all at the 176 px panel (5 px step). */
@@ -179,7 +179,9 @@ const STYLE_CARDS: [
 ][] = [
   ["style-v1.png", "qr=176&qrStyle=softLight", false, "softLight"],
   ["style-v2.png", "qr=176&qrStyle=darkTile", true, "darkTile"],
-  ["style-v3.png", "qr=176&qrStyle=frameless", true, "frameless"],
+  // V3 is the default: no `qr` and no `qrStyle`, the path the real card takes.
+  ["style-v3.png", "", true, "frameless"],
+  ["style-v3-zh.png", "lang=zh", true, "frameless"],
   ["style-v1-zh.png", "qr=176&qrStyle=softLight&lang=zh", false, "softLight"],
 ];
 
@@ -200,7 +202,7 @@ for (const [file, query] of SIZE_CARDS) {
     expect(decode(toRgba(png), png.width, png.height, "attemptBoth")).toBe(
       SITE_URL,
     );
-    // No style asked for: the plain classic code, black on white.
+    // The classic style was asked for: the plain code, black on white.
     const panel = pixel(png, 1080 - 84 - 12, 1920 - 84 - 12);
     expect(near(panel, [255, 255, 255]), `classic panel was ${panel}`).toBe(
       true,

@@ -23,6 +23,7 @@ import {
   type FontSpec,
   type MeasureText,
 } from "../../src/components/results/share/text";
+import { DEFAULT_QR_STYLE } from "../../src/components/results/share/qrStyle";
 import { handTypeTitle, shareCardCopy } from "../../src/lib/copy/share-card";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
@@ -501,30 +502,43 @@ describe("the footer lockup and the QR", () => {
     }
   });
 
-  it("makes the QR 160 px by default, resting on the mark's bottom edge, with the right margin", () => {
-    expect(DEFAULT_QR_SIZE).toBe(160);
+  it("makes the QR 176 px by default (frameless: the code plus its quiet zone, 185 px), resting on the mark's bottom edge, with the right margin", () => {
+    expect(DEFAULT_QR_SIZE).toBe(176);
+    expect(DEFAULT_QR_STYLE).toBe("frameless");
     for (const [name, input, m] of CASES) {
       const layout = layoutShareCard(input, m);
       const qr = findQr(layout);
       const mark = findMark(layout);
-      expect(qr.box.w, name).toBe(160);
-      expect(qr.box.h, name).toBe(160);
+      // 5 px step x (29 modules + 4 quiet on each side).
+      expect(qr.box.w, name).toBe(185);
+      expect(qr.box.h, name).toBe(185);
+      expect(qr.style, name).toBe("frameless");
       expect(qr.box.y + qr.box.h, name).toBe(mark.box.y + mark.box.h);
       expect(qr.box.x + qr.box.w, name).toBe(CARD_WIDTH - CARD_PADDING);
       expect(qr.text, name).toBe(SITE_URL);
     }
   });
 
+  it("keeps the classic style available: a 176 px white panel when asked for", () => {
+    const qr = findQr(layoutShareCard(BASE, measure, { qrStyle: "classic" }));
+    expect(qr.style).toBe("classic");
+    expect(qr.box.w).toBe(176);
+  });
+
   it("takes the QR size as a parameter and keeps it inside the card", () => {
-    for (const size of [144, 160, 176]) {
-      const qr = findQr(layoutShareCard(BASE, measure, { qrSize: size }));
-      expect(qr.box.w).toBe(size);
-      expect(qr.box.x + qr.box.w).toBeLessThanOrEqual(
-        CARD_WIDTH - CARD_PADDING,
-      );
-      expect(qr.box.y + qr.box.h).toBeLessThanOrEqual(
-        CARD_HEIGHT - CARD_PADDING,
-      );
+    for (const style of ["classic", "softLight", "frameless"] as const) {
+      for (const size of [144, 160, 176]) {
+        const qr = findQr(
+          layoutShareCard(BASE, measure, { qrSize: size, qrStyle: style }),
+        );
+        if (style !== "frameless") expect(qr.box.w).toBe(size);
+        expect(qr.box.x + qr.box.w).toBeLessThanOrEqual(
+          CARD_WIDTH - CARD_PADDING,
+        );
+        expect(qr.box.y + qr.box.h).toBeLessThanOrEqual(
+          CARD_HEIGHT - CARD_PADDING,
+        );
+      }
     }
   });
 
