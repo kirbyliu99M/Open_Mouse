@@ -167,7 +167,11 @@ export const fitEntrySchema = z.strictObject({
    *    1..n with no gaps; `rank` is that new number. Nothing else on an entry
    *    changes.
    * A variant carries catalogue facts only, no score and no rank: it is never
-   * presented as a separate result.
+   * presented as a separate result. 2026-10-10 (candidate): a variant may
+   * carry its `connectivity` (same meaning and values as `mouse.connectivity`),
+   * so the results filter can keep a card when any member matches 連線方式
+   * (members of one shell may differ in connectivity and weight, never in
+   * shape). Optional until the server fills it.
    *
    * Hard rule 2: variants are not part of the analysis input. The analysis
    * input (src/server/analysis/input.ts, `toInputEntry`) and the share card
@@ -184,6 +188,7 @@ export const fitEntrySchema = z.strictObject({
         slug: z.string(),
         model: z.string(),
         weightG: z.number().nullable(),
+        connectivity: z.enum(CONNECTIVITY).nullable().optional(),
       }),
     )
     .optional(),

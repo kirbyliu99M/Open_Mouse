@@ -136,6 +136,42 @@ describe("fitResponseSchema", () => {
     ).toBe(false);
   });
 
+  it.each([["wired"], ["wireless"], [null]])(
+    "accepts and keeps a variant's connectivity %j",
+    (connectivity) => {
+      const r = {
+        ...valid,
+        results: [
+          {
+            ...entry,
+            variants: [{ slug: "x", model: "X", weightG: 60, connectivity }],
+          },
+        ],
+      };
+      expect(fitResponseSchema.parse(r).results[0].variants?.[0]).toEqual({
+        slug: "x",
+        model: "X",
+        weightG: 60,
+        connectivity,
+      });
+    },
+  );
+
+  it("refuses an unknown variant connectivity", () => {
+    const r = {
+      ...valid,
+      results: [
+        {
+          ...entry,
+          variants: [
+            { slug: "x", model: "X", weightG: 60, connectivity: "Wireless" },
+          ],
+        },
+      ],
+    };
+    expect(fitResponseSchema.safeParse(r).success).toBe(false);
+  });
+
   it("refuses a variant carrying a score or a rank", () => {
     for (const extra of [{ total: 80 }, { rank: 2 }]) {
       const bad = {
