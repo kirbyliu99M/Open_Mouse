@@ -1,20 +1,20 @@
-import type { FitEntry } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 
 /**
  * "Same modeling: <models>" on a card whose shell other catalogue entries share
- * (SHELL-1). Renders nothing when the entry has no variants. The models are
- * plain text: a variant has no score, no rank and no page of its own.
+ * (SHELL-1). Renders nothing when there are no variants. The models are plain
+ * text: a variant has no score, no rank and no page of its own. While the
+ * results are filtered, the caller passes only the members that match
+ * (FILTER-1, B3).
  */
 export function VariantsLine({
-  entry,
+  variants,
   language,
 }: {
-  entry: FitEntry;
+  variants: readonly { model: string }[];
   language: UiLanguage;
 }) {
-  const variants = entry.variants ?? [];
   if (variants.length === 0) return null;
   return (
     <span className="results-variants" lang={uiLangAttribute(language)}>

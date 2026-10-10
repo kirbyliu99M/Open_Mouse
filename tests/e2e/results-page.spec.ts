@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { scanPath } from "../../src/lib/contracts/routes";
+import { RESULTS_VIEWER_ENABLED } from "../../src/lib/results/features";
 import { contrast } from "./fixtures/contrast";
 import { scoreFit } from "../../src/server/fit/score";
 import type { CatalogueMouse } from "../../src/server/fit/types";
@@ -305,6 +306,40 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.locator(".results-others-grid .results-variants"),
     ).toHaveText(["Same modeling: Superlight 2 SE"]);
+  });
+
+  test("the 3D viewer is hidden: opening Details shows no viewer and makes no measurements or model request", async ({
+    page,
+  }) => {
+    test.skip(
+      RESULTS_VIEWER_ENABLED,
+      "Only while the viewer is hidden (src/lib/results/features.ts).",
+    );
+    const requested: string[] = [];
+    page.on("request", (request) =>
+      requested.push(new URL(request.url()).pathname),
+    );
+    await page.route(FIT_URL, (route) =>
+      fulfillJson(route, 200, highConfidenceFixture),
+    );
+    await page.route(ANALYSIS_URL, (route) =>
+      fulfillJson(route, 500, { error: "Unavailable" }),
+    );
+    await page.goto(`/results/${SCAN_ID}`);
+
+    const details = page.locator(".results-details");
+    await details.locator("summary").click();
+    await expect(details).toHaveAttribute("open", "");
+    await expect(details.locator(".results-subscoreGrid")).toBeVisible();
+    await expect(details.locator(".results-disclosure-hint")).not.toContainText(
+      "3D",
+    );
+    await expect(page.locator(".viewer")).toHaveCount(0);
+    await expect(page.locator(".viewer-box")).toHaveCount(0);
+    await page.waitForLoadState("networkidle");
+    expect(
+      requested.filter((path) => /\/measurements$|draco/.test(path)),
+    ).toEqual([]);
   });
 
   test("shows the left-hand disclosure, poor-fit line below 50, and ranked-list h2", async ({

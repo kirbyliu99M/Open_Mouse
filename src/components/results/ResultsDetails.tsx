@@ -68,7 +68,9 @@ export function ResultsDetails({
       <summary>
         <span className="results-disclosure-text" lang={lang}>
           <span className="results-disclosure-title">{copy.detailsTitle}</span>
-          <span className="results-disclosure-hint">{copy.detailsHint}</span>
+          <span className="results-disclosure-hint">
+            {showViewer ? copy.detailsHintWithViewer : copy.detailsHint}
+          </span>
         </span>
         <span className="results-chevron" aria-hidden="true" />
       </summary>

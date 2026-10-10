@@ -49,7 +49,7 @@ describe("the results page layout", () => {
     const html = render(many);
     expect(html).toContain("適合你的滑鼠型");
     expect(html).toContain("中型滑鼠・抓握・寬身");
-    expect(html).toContain("第一名 · Logitech");
+    expect(html).toContain("第 1 名 · Logitech");
     expect(html).toContain("適配分數 / 100");
   });
 
@@ -308,7 +308,7 @@ describe("a detail page", () => {
   const detail = render(many, { rank: 3, scanId: many.scanId });
 
   it("has the same layout, about the chosen mouse", () => {
-    expect(detail).toContain("第三名 · Logitech");
+    expect(detail).toContain("第 3 名 · Logitech");
     expect(detail).toContain("results-hand-title");
     expect(detail).toContain(`<h2 class="results-score-model">G309`);
   });

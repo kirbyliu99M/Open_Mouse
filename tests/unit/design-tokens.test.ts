@@ -481,6 +481,42 @@ describe("the secondary buttons: a text link in --accent-text, no fill, no borde
     expect(border).toMatch(/transparent/);
     expect(declared(rules, selector, "text-decoration", media)).toBe("none");
   });
+
+  it.each(SECONDARY)(
+    "%s %s: a more-contrast user gets an outline in the text colour, not colour alone",
+    (file, selector) => {
+      const outlined = rulesOf(file).filter(
+        (r) =>
+          (r.media ?? "").includes("prefers-contrast: more") &&
+          r.selectors.includes(selector),
+      );
+      expect(outlined.length, "a more-contrast rule").toBeGreaterThan(0);
+      const colours = outlined.map(
+        (r) => r.decls["border-color"] ?? r.decls.border ?? "",
+      );
+      expect(colours.some((c) => /currentcolor/i.test(c))).toBe(true);
+    },
+  );
+});
+
+describe("the easy-scan retake button and the results glow", () => {
+  const easy = rulesOf("src/client/camera/easy-scan.css");
+  it("the retake button is a circle of at least 44px, to sit beside the pill", () => {
+    expect(declared(easy, ".easyRetakeButton", "border-radius")).toBe("50%");
+    const side = (property: string) =>
+      Number.parseFloat(declared(easy, ".easyRetakeButton", property) ?? "0");
+    expect(side("width")).toBeGreaterThanOrEqual(44);
+    expect(side("height")).toBeGreaterThanOrEqual(44);
+    expect(side("width")).toBe(side("height"));
+  });
+
+  it("the glow has no height (an outer shadow is not painted inside its own box, so a box would show a black hole) and glows with --glow", () => {
+    const results = rulesOf("src/components/results/results.css");
+    expect(declared(results, ".results-glow", "height")).toBe("0");
+    const shadow = declared(results, ".results-glow", "box-shadow")!;
+    expect(shadow).toContain("var(--glow)");
+    expect(shadow).not.toMatch(/inset/);
+  });
 });
 
 describe("the hand ghost over the paper", () => {

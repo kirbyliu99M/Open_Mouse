@@ -1,4 +1,5 @@
 import type {
+  Connectivity,
   FormFactor,
   FrontFlare,
   HandCompatibility,
@@ -44,6 +45,12 @@ export interface CatalogueMouse {
    * scoring never does. Required so every loader fills it.
    */
   ringFingerRest: boolean | null;
+  /**
+   * Wired or wireless, from the catalogue column. Never read by scoring or
+   * grouping; only `withFilterFacts` copies it onto the fit response for the
+   * results-page filter (FILTER-1). Absent or null = not known.
+   */
+  connectivity?: Connectivity | null;
   /**
    * What kind of device this is, from the catalogue column (CAT-1). Both
    * engines exclude a `trackball`; fit-v1 also reads `vertical` (v0 still

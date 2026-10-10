@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import { RESULTS_VIEWER_ENABLED } from "../../src/lib/results/features";
 
 /**
  * Opt-in: how long a frame of the 3D viewer takes while it is being turned,
@@ -66,6 +67,10 @@ test.use({
 
 test.describe("3D viewer frame time (opt-in)", () => {
   test.skip(process.env.PERF !== "1", "Opt-in: set PERF=1 to run it.");
+  test.skip(
+    !RESULTS_VIEWER_ENABLED,
+    "The 3D viewer is hidden (src/lib/results/features.ts).",
+  );
 
   for (const rate of RATES) {
     test(`${rate}x CPU: frame time over ${SECONDS} s of rotation, G309 shell with the hand`, async ({

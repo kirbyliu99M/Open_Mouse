@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import type { FitResponse } from "@/lib/contracts/fit";
+import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { shareCardCopy } from "@/lib/copy/share-card";
 import { shareFileName, topPick } from "./input";
 import type { QrStyle } from "./qrStyle";
@@ -14,6 +15,13 @@ export interface ShareCardButtonProps {
   lang: UiLanguage;
   /** "link" is the small 分享 in the top bar; "primary" is the big 製作我的分享圖. */
   variant: "link" | "primary";
+  /**
+   * The results are filtered (FILTER-1, candidate): a "primary" button turns
+   * into a secondary text link saying it shares the overall #1, with a note.
+   * The card itself never changes: it is made from `fit`, which is never
+   * filtered.
+   */
+  filtering?: boolean;
   /** The QR size in pixels: the panel's side, or for the frameless style the module step it gives (the box grows by its quiet zone). Only a preview route passes it. */
   qrSize?: number;
   /** The QR code's style; only a preview route passes it (default frameless, `DEFAULT_QR_STYLE`). */
@@ -45,6 +53,7 @@ export function ShareCardButton({
   fit,
   lang,
   variant,
+  filtering = false,
   qrSize,
   qrStyle,
 }: ShareCardButtonProps) {
@@ -54,7 +63,13 @@ export function ShareCardButton({
   if (top === null) return null;
 
   const copy = shareCardCopy(lang);
-  const label = variant === "primary" ? copy.buttonPrimary : copy.buttonLink;
+  const secondary = variant === "primary" && filtering;
+  const filterCopy = RESULTS_PAGE_COPY[lang].filter;
+  const label = secondary
+    ? filterCopy.shareOverall
+    : variant === "primary"
+      ? copy.buttonPrimary
+      : copy.buttonLink;
   const busy = status === "busy";
 
   async function onClick() {
@@ -82,10 +97,13 @@ export function ShareCardButton({
   }
 
   return (
-    <span className={`shareCard shareCard-${variant}`}>
+    <span
+      className={`shareCard shareCard-${variant}`}
+      data-filtering={secondary ? "true" : undefined}
+    >
       <button
         type="button"
-        className={`shareCard-button shareCard-button-${variant}`}
+        className={`shareCard-button shareCard-button-${secondary ? "secondary" : variant}`}
         aria-disabled={busy}
         aria-busy={busy}
         lang={uiLangAttribute(lang)}
@@ -94,6 +112,15 @@ export function ShareCardButton({
       >
         {busy ? copy.busy : label}
       </button>
+      {secondary ? (
+        <span
+          className="shareCard-note"
+          lang={uiLangAttribute(lang)}
+          data-testid="share-filter-note"
+        >
+          {filterCopy.shareNote}
+        </span>
+      ) : null}
       {status === "error" ? (
         <span
           className="shareCard-error"

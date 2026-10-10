@@ -5,6 +5,7 @@
  *
  * Pure, and safe on both sides of the seam.
  */
+import type { Size } from "../contracts/descriptors";
 import type { GripStyle, HandType } from "../contracts/fit";
 import { computeSize } from "../../server/catalogue/size";
 
@@ -43,17 +44,29 @@ export function handTypeStatsFromCatalogue(
 }
 
 /**
+ * A catalogue size as one of the three a person sees: "fingertip" (the size
+ * rule's sub-small class) counts as small. The hand type's size and the
+ * results filter's 尺寸 groups both come from this one function, so a mouse is
+ * in the group the hand type points to exactly when its size says so
+ * (FILTER-1, candidate; pinned by tests/unit/results-filters.test.ts).
+ */
+export function handSizeOf(size: Size): HandType["size"] {
+  return size === "fingertip" ? "small" : size;
+}
+
+/**
  * Which catalogue size class the target mouse falls in (the same `computeSize`
  * rule the catalogue uses), reading "fingertip" (the rule's sub-small class
  * for short, low mice) as small: a hand type has three sizes.
  */
 function sizeOf(targets: HandTypeTargets): HandType["size"] {
-  const size = computeSize({
-    lengthMm: targets.lengthMm,
-    widthMm: targets.gripWidthMm,
-    heightMm: targets.heightMm,
-  });
-  return size === "fingertip" ? "small" : size;
+  return handSizeOf(
+    computeSize({
+      lengthMm: targets.lengthMm,
+      widthMm: targets.gripWidthMm,
+      heightMm: targets.heightMm,
+    }),
+  );
 }
 
 /**

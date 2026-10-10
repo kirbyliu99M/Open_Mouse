@@ -1,12 +1,12 @@
 "use client";
 
 import type { FitResponse } from "@/lib/contracts/fit";
+import type { FilteredCard } from "@/lib/results/filters";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   isPersonOpening,
   PRINT_OPENED_ATTRIBUTE,
 } from "@/lib/results/disclosure";
-import { otherMice } from "@/lib/results/rankRoutes";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import { MousePhoto } from "./MousePhoto";
 
@@ -15,19 +15,28 @@ import { MousePhoto } from "./MousePhoto";
  * past the top five as a small picture, its model and its score. These rows
  * have no page of their own. Mice left out of the ranking (`excluded`) come
  * last, each with the reason in words. Renders nothing when there is nothing
- * to list.
+ * to list. While the results are filtered (`filtering`), `ranked` is the
+ * filtered list from the sixth place on, each row also gives its overall rank
+ * when that differs, and `excluded` is empty (the page says they are hidden).
  */
 export function OtherMice({
-  response,
+  ranked,
+  excluded,
+  hand,
   language,
+  filtering = false,
   onOpened,
 }: {
-  response: FitResponse;
+  ranked: readonly FilteredCard[];
+  excluded: FitResponse["excluded"];
+  /** The hand the scan measured, for the excluded reasons. */
+  hand: FitResponse["hand"];
   language: UiLanguage;
+  filtering?: boolean;
   /** Called each time the section is opened (not closed). */
   onOpened?: () => void;
 }) {
-  const { ranked, excluded, count } = otherMice(response);
+  const count = ranked.length + excluded.length;
   if (count === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
   const lang = uiLangAttribute(language);
@@ -57,7 +66,7 @@ export function OtherMice({
       <div className="results-disclosure-body">
         {ranked.length > 0 && (
           <ol className="results-otherMice-list">
-            {ranked.map((entry) => (
+            {ranked.map(({ entry, displayRank, overallRank }) => (
               <li key={entry.mouse.slug} className="results-otherMice-row">
                 <MousePhoto
                   imageUrl={entry.mouse.imageUrl}
@@ -65,6 +74,12 @@ export function OtherMice({
                 />
                 <span className="results-otherMice-name">
                   {entry.mouse.brand} {entry.mouse.model}
+                  {filtering && overallRank !== displayRank && (
+                    <span className="results-otherMice-overall" lang={lang}>
+                      {" "}
+                      {copy.filter.overallRank(overallRank)}
+                    </span>
+                  )}
                 </span>
                 <span className="results-otherMice-score results-tabularNum">
                   {entry.total}
@@ -90,14 +105,14 @@ export function OtherMice({
                       this hand, not a score of this mouse. */}
                   <span className="results-excluded-detail" lang={lang}>
                     <span className="results-excluded-reason">
-                      {copy.excludedReason(item.reason, response.hand)}
+                      {copy.excludedReason(item.reason, hand)}
                     </span>
                     {item.total !== undefined && (
                       <>
                         <span aria-hidden="true">{copy.excludedSeparator}</span>
                         <span className="results-excluded-mirror">
                           <span className="results-excluded-mirror-label">
-                            {copy.excludedMirrorLabel(response.hand)}
+                            {copy.excludedMirrorLabel(hand)}
                           </span>
                           {" "}
                           <span className="results-excluded-score results-tabularNum">
