@@ -197,7 +197,7 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
     await page.goto(MAIN);
     await expect(page).toHaveTitle(/^Your results/);
     await page.goto(`${MAIN}/m/${RANK_2}`);
-    await expect(page).toHaveTitle(/^Another pick/);
+    await expect(page).toHaveTitle(/^其他推薦/);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
       "content",
       /noindex/,

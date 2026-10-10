@@ -1,0 +1,666 @@
+/*
+ * Results-page filter (FILTER-1, candidate / 未拍板): sidebar from 64em (1024
+ * px at the default text size), a bottom sheet below. Dark theme tokens only (src/app/tokens.css); no colour
+ * is written out here.
+ *
+ * Buttons (docs/design-guidelines.md, BTN-1): the primary one is a white pill,
+ * the secondary one a text link with no fill, no border and no underline. The
+ * white pills in the filter are compact (Kirby, 2026-10-10): 44 px tall, a 15 px
+ * label, a width that fits the label with 24 px at each side; the no-match
+ * suggestion is 40 px tall. That is for the filter only, not the rest of the
+ * site.
+ */
+.results-view {
+  --facet-surface: color-mix(in srgb, var(--text-primary) 5%, var(--bg));
+  --facet-chip: color-mix(in srgb, var(--text-primary) 11%, var(--bg));
+}
+
+/* ---- Buttons ---- */
+.results-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1.5rem;
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.results-pill--small {
+  min-height: 2.5rem;
+  white-space: normal;
+  text-align: center;
+}
+.results-pill:active {
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
+}
+.results-pill:focus-visible,
+.results-textLink:focus-visible,
+.results-chip:focus-visible,
+.results-filterButton:focus-visible,
+.results-sheet-close:focus-visible,
+.results-facet-toggle:focus-visible,
+.results-facet-more:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.results-textLink {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.results-textLink:active {
+  opacity: 0.65;
+}
+.results-textLink[aria-disabled="true"] {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+/* ---- Chips ---- */
+.results-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+.results-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.results-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.875rem 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--facet-chip);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.results-chip:active {
+  opacity: 0.7;
+}
+
+/* ---- Facets (shared by the sidebar and the sheet) ---- */
+.results-facets {
+  display: flex;
+  flex-direction: column;
+}
+.results-facet-heading {
+  margin: 0;
+  font: inherit;
+}
+.results-facet-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.results-facet-title {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.results-facet-summary {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.results-facet-summary[data-chosen="true"] {
+  color: var(--accent-text);
+}
+.results-facet-chevron {
+  flex: none;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.results-facet[data-open="true"] .results-facet-chevron {
+  transform: rotate(180deg);
+}
+.results-facet-body {
+  padding-bottom: 0.5rem;
+}
+.results-facet-note,
+.results-facet-missing {
+  margin: 0 0.25rem 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.results-facet-missing {
+  margin-top: 0.25rem;
+}
+.results-facet-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.results-facet-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+}
+/* The real checkbox covers its row: the whole row is the target and the Tab stop. */
+.results-facet-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.results-facet-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+.results-facet-option:active {
+  background: var(--facet-chip);
+}
+.results-facet-count {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+.results-facet-check {
+  margin-left: auto;
+  flex: none;
+  color: var(--accent-text);
+  opacity: 0;
+}
+.results-facet-option[data-selected="true"] {
+  color: var(--accent-text);
+}
+.results-facet-option[data-selected="true"] .results-facet-check {
+  opacity: 1;
+}
+.results-facet-option[data-disabled="true"],
+.results-facet-option[data-disabled="true"] .results-facet-count {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.results-facet-option[data-disabled="true"] input {
+  cursor: default;
+}
+.results-facet-option[data-disabled="true"]:active {
+  background: none;
+}
+.results-facet-fits {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--accent-text);
+}
+.results-facet-fitsDot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.results-facet-more {
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* ---- Desktop: sidebar ---- */
+/* The two columns exist only from 64em, the same width the script switches at
+   (useWideLayout), so for the moment between a resize and the re-render a
+   narrow window is never squeezed into a sidebar layout. */
+@media (min-width: 64em) {
+  .results-body[data-filter="sidebar"] {
+    display: grid;
+    grid-template-columns: 20.5rem minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+    margin-top: 0.5rem;
+  }
+}
+.resultsMain:has(.results-body[data-filter="sidebar"]) {
+  max-width: 86rem;
+}
+.results-body[data-filter="sheet"],
+.results-filterChrome {
+  display: contents;
+}
+.results-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  min-width: 0;
+}
+/* In the sheet layout the content keeps the page's own block spacing (the
+   1.5rem of `.results-view`, as on a detail page). */
+.results-body[data-filter="sheet"] .results-main {
+  gap: 1.5rem;
+}
+.results-sidebar {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 1.5rem 1.25rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 1.5rem;
+  background: var(--facet-surface);
+}
+.results-sidebar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-inline: 0.25rem;
+}
+.results-sidebar-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+/* Focus lands here (by script) after a chip, 「清除全部」 or the no-match button
+   is pressed; it is not a Tab stop. */
+.results-sidebar-title:focus {
+  outline: none;
+}
+.results-sidebar-title:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 4px;
+}
+.results-sidebar-count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+/* Beside the sidebar the content is narrower: the hero stacks until there is room. */
+@media (min-width: 64rem) and (max-width: 79.99rem) {
+  .results-body[data-filter="sidebar"] .results-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .results-body[data-filter="sidebar"] .results-hero > * {
+    grid-column: 1;
+  }
+  .results-body[data-filter="sidebar"] .results-hero > .results-hero-photo {
+    grid-row: auto;
+  }
+}
+.results-body[data-filter="sidebar"] .results-hero {
+  column-gap: 3rem;
+}
+/* The content column is narrower beside the sidebar: a smaller headline keeps
+   「中型滑鼠・抓握・寬身」 on one line. */
+.results-body[data-filter="sidebar"] .results-hand-title {
+  font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+}
+.results-body[data-filter="sidebar"] .results-others-grid {
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+.results-body[data-filter="sidebar"] .results-hero[data-empty="true"] > * {
+  grid-column: 1 / -1;
+}
+
+/* ---- Phone: the bar above the results ---- */
+.results-filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: -0.75rem;
+}
+.results-filterBar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.results-filterButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.125rem 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--facet-chip);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.results-filterButton:active {
+  opacity: 0.7;
+}
+.results-filterBar-count {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+
+/* ---- Phone: the bottom sheet ---- */
+dialog.results-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  height: min(92dvh, 52rem);
+  max-height: calc(100dvh - 1rem);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1.5rem 1.5rem 0 0;
+  overflow: hidden;
+  background: var(--facet-surface);
+  color: var(--text-primary);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1);
+}
+dialog.results-sheet[open] {
+  display: flex;
+  flex-direction: column;
+  animation: results-sheet-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+dialog.results-sheet[data-leaving="true"] {
+  transform: translateY(100%);
+}
+dialog.results-sheet::backdrop {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  animation: results-sheet-fade 0.32s ease-out;
+}
+dialog.results-sheet[data-leaving="true"]::backdrop {
+  opacity: 0;
+  transition: opacity 0.24s;
+}
+@keyframes results-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes results-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.results-sheet-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.results-sheet-grab {
+  flex: none;
+  padding: 0.5rem 1.25rem 0;
+  touch-action: none;
+  cursor: grab;
+}
+.results-sheet-handle {
+  display: block;
+  width: 2.25rem;
+  height: 0.25rem;
+  margin: 0 auto 0.5rem;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+.results-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+}
+.results-sheet-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.results-sheet-title:focus {
+  outline: none;
+}
+.results-sheet-title:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 4px;
+}
+.results-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--facet-chip);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+/* The top padding leaves room for the first group header's focus ring (2 px
+   outline + 3 px offset), which a scroll container would otherwise clip. */
+.results-sheet-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem 1.25rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.results-sheet-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem calc(0.875rem + env(safe-area-inset-bottom, 0px));
+  /* Floating chrome: a translucent layer, content scrolls beneath. */
+  background: color-mix(in srgb, var(--facet-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid var(--hairline);
+}
+
+/* ---- The page itself while filtering ---- */
+.results-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.75rem;
+  border: 1.5px solid var(--accent-text);
+  border-radius: 999px;
+  color: var(--accent-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.results-score-places {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+}
+.results-score-brand {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.results-oneLeft {
+  margin: 0.5rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+.results-excludedNote {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.results-card-place {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.results-card-overall,
+.results-otherMice-overall {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.results-card-overall {
+  display: block;
+}
+.results-noMatch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem 0 2rem;
+}
+.results-noMatch-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+.results-analysisLine {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.results-analysisLine-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+.results-analysisLine-row svg {
+  flex: none;
+}
+.results-analysisLine-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Accessibility variants ---- */
+@media (prefers-reduced-motion: reduce) {
+  dialog.results-sheet,
+  dialog.results-sheet[data-leaving="true"]::backdrop {
+    transition: none;
+  }
+  dialog.results-sheet[open],
+  dialog.results-sheet::backdrop {
+    animation: none;
+  }
+  .results-facet-chevron {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .results-sheet-foot {
+    background: var(--facet-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .results-sidebar,
+  dialog.results-sheet {
+    border: 1px solid var(--control-border);
+  }
+  .results-chip,
+  .results-filterButton,
+  .results-sheet-close {
+    border-color: var(--control-border);
+  }
+  .results-pill {
+    border-color: var(--on-button-primary);
+  }
+  .results-badge {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+  }
+  .results-sheet-foot {
+    background: var(--facet-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-top-color: var(--control-border);
+  }
+}
+
+/* The filter is a control: it does not print. */
+@media print {
+  .results-sidebar,
+  .results-filterBar,
+  dialog.results-sheet {
+    display: none !important;
+  }
+  .results-body[data-filter] {
+    display: block;
+  }
+}
+
+/* The filter summary on a detail page (read only), with its way back. */
+.results-filterNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin-top: -0.75rem;
+}
+/* Read only (a detail page): an outline, not the filled look of a chip that
+   can be removed, and no pressed state. */
+.results-chip--static {
+  cursor: default;
+  min-height: 2.25rem;
+  padding: 0 1rem;
+  background: transparent;
+  border-color: var(--hairline);
+}
+.results-chip--static:active {
+  opacity: 1;
+}

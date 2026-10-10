@@ -14,6 +14,13 @@
  * are English only for now.
  */
 import type { ExclusionReason, GripStyle, Subscore } from "../contracts/fit";
+import type {
+  ConnectivityOption,
+  FilterGroup,
+  ShapeOption,
+  SizeOption,
+  WeightOption,
+} from "../results/filters";
 import type { UiLanguage } from "../../client/uiLanguage";
 
 export interface ResultsPageCopy {
@@ -90,6 +97,68 @@ export interface ResultsPageCopy {
   excludedMirrorLabel: (userHand: "left" | "right") => string;
   /** Between the reason and the mirrored score. */
   excludedSeparator: string;
+  /** The results-page filter (FILTER-1). Every string is a candidate. */
+  filter: FilterCopy;
+}
+
+/**
+ * Words of the results-page filter (FILTER-1, candidate / 未拍板). Wording of
+ * the filter's groups, 適合你, the no-match button and the status line is
+ * Kirby's (2026-10-10); the rest is Claude's draft.
+ */
+export interface FilterCopy {
+  title: string;
+  /** The phone's button; `n` chosen options, none shows no number. */
+  openButton: (n: number) => string;
+  /** 「找到 N 款」: the count line and the live region. */
+  found: (n: number) => string;
+  clearAll: string;
+  /** Accessible name of a chip's remove button. */
+  removeChip: (label: string) => string;
+  /** The chips' list. */
+  chipsLabel: string;
+  group: Record<FilterGroup, string>;
+  /** The collapsed header's summary when nothing is chosen. */
+  anyValue: string;
+  /** Joins several chosen options in a collapsed header. */
+  summaryJoin: string;
+  size: Record<SizeOption, string>;
+  /** Under the size group's title. */
+  sizeNote: string;
+  fitsYou: string;
+  weight: Record<WeightOption, string>;
+  shape: Record<ShapeOption, string>;
+  connectivity: Record<ConnectivityOption, string>;
+  showMoreBrands: (n: number) => string;
+  showFewerBrands: string;
+  /** Accessible name of an option: its label, then how many it would give. */
+  optionName: (label: string, count: number, fits: boolean) => string;
+  /** The sheet's footer button. */
+  viewButton: (n: number) => string;
+  closeSheet: string;
+  noMatch: string;
+  relaxButton: (groupName: string, count: number) => string;
+  oneLeft: string;
+  /** Under a group that has a choice, when some mice lack that value. */
+  missingData: (noun: string, n: number) => string;
+  missingNoun: Record<"weight" | "shape" | "connectivity", string>;
+  filteredRank: (n: number) => string;
+  /** A card's place in the filtered list. */
+  place: (n: number) => string;
+  overallRank: (n: number) => string;
+  /** On a detail page: the way back to the filtered list. */
+  backToList: (n: number) => string;
+  /** Above the other picks while filtering. */
+  othersHeading: string;
+  /** Replaces the excluded list while filtering. */
+  excludedHidden: (n: number) => string;
+  /** The collapsed analysis line and its buttons. */
+  analysisLine: (name: string) => string;
+  analysisShow: string;
+  analysisHide: string;
+  /** The share button and its note while filtering. */
+  shareOverall: string;
+  shareNote: string;
 }
 
 const NBSP = " ";
@@ -110,13 +179,9 @@ export const zhTW: ResultsPageCopy = {
     build: ({ length, width, grip }) =>
       `適合長度${length}、握寬${width}的滑鼠；以${grip}的方式最能發揮。`,
   },
-  rankLine: (rank, brand) => {
-    const numerals = ["一", "二", "三", "四", "五"];
-    const name = numerals[rank - 1];
-    return name === undefined
-      ? `第 ${rank} 名 · ${brand}`
-      : `第${name}名 · ${brand}`;
-  },
+  // Arabic numerals since FILTER-1 (Kirby, 2026-10-10): 「第 5 名」, like the
+  // filter's 「總排名第 5 名」.
+  rankLine: (rank, brand) => `第 ${rank} 名 · ${brand}`,
   scoreLabel: "適配分數 / 100",
   whyHeading: "為什麼是這支",
   subscoreShort: {
@@ -159,6 +224,57 @@ export const zhTW: ResultsPageCopy = {
   excludedMirrorLabel: (userHand) =>
     userHand === "right" ? "若是右手形狀：" : "若是左手形狀：",
   excludedSeparator: " · ",
+  filter: {
+    title: "篩選",
+    openButton: (n) => (n > 0 ? `篩選（${n}）` : "篩選"),
+    found: (n) => `找到 ${n} 款`,
+    clearAll: "清除全部",
+    removeChip: (label) => `移除「${label}」`,
+    chipsLabel: "已套用的篩選",
+    group: {
+      brand: "品牌",
+      size: "尺寸",
+      weight: "重量",
+      shape: "滑鼠握感",
+      connectivity: "連線方式",
+    },
+    anyValue: "不限",
+    summaryJoin: "、",
+    size: { small: "小型鼠", medium: "中型鼠", large: "大型鼠" },
+    sizeNote: "依長度與寬度估算",
+    fitsYou: "適合你",
+    weight: {
+      lt50: "未滿 50 g",
+      "50-69": "50–69 g",
+      "70-89": "70–89 g",
+      gte90: "90 g 以上",
+    },
+    shape: { ergonomic: "人體工學", symmetrical: "左右對稱" },
+    connectivity: { wireless: "無線", wired: "有線" },
+    showMoreBrands: (n) => `顯示其他 ${n} 個品牌`,
+    showFewerBrands: "收合其他品牌",
+    optionName: (label, count, fits) =>
+      `${label}，${count} 款${fits ? "，適合你" : ""}`,
+    viewButton: (n) => `查看 ${n} 款滑鼠`,
+    closeSheet: "關閉篩選",
+    noMatch: "目前沒有符合條件的滑鼠",
+    relaxButton: (groupName, count) =>
+      `拿掉「${groupName}」條件，可看到 ${count} 款`,
+    oneLeft: "只有這 1 款符合",
+    missingData: (noun, n) => `另有 ${n} 款沒有${noun}資料，篩選時不會列出`,
+    missingNoun: { weight: "重量", shape: "握感", connectivity: "連線方式" },
+    filteredRank: (n) => `篩選後第 ${n} 名`,
+    place: (n) => `第 ${n} 名`,
+    overallRank: (n) => `總排名第 ${n} 名`,
+    backToList: (n) => `回到篩選結果（${n} 款）`,
+    othersHeading: "其他符合條件的推薦",
+    excludedHidden: (n) => `篩選中，未列入比較的 ${n} 款不會列出。`,
+    analysisLine: (name) => `AI 分析是針對總排名第 1 的 ${name}`,
+    analysisShow: "看分析",
+    analysisHide: "收起分析",
+    shareOverall: "分享總排名第 1 名",
+    shareNote: "篩選中，分享圖仍放總排名第 1 名",
+  },
 };
 
 export const en: ResultsPageCopy = {
@@ -237,6 +353,67 @@ export const en: ResultsPageCopy = {
   excludedMirrorLabel: (userHand) =>
     userHand === "right" ? "as a right-hand shape:" : "as a left-hand shape:",
   excludedSeparator: " · ",
+  filter: {
+    title: "Filter",
+    openButton: (n) => (n > 0 ? `Filter (${n})` : "Filter"),
+    found: (n) => (n === 1 ? "1 mouse found" : `${n} mice found`),
+    clearAll: "Clear all",
+    removeChip: (label) => `Remove "${label}"`,
+    chipsLabel: "Applied filters",
+    group: {
+      brand: "Brand",
+      size: "Size",
+      weight: "Weight",
+      shape: "Shape",
+      connectivity: "Connection",
+    },
+    anyValue: "Any",
+    summaryJoin: ", ",
+    size: { small: "Small", medium: "Medium", large: "Large" },
+    sizeNote: "Estimated from length and width",
+    fitsYou: "Fits you",
+    weight: {
+      lt50: "Under 50 g",
+      "50-69": "50–69 g",
+      "70-89": "70–89 g",
+      gte90: "90 g and up",
+    },
+    shape: { ergonomic: "Ergonomic", symmetrical: "Symmetrical" },
+    connectivity: { wireless: "Wireless", wired: "Wired" },
+    showMoreBrands: (n) => `Show ${n} more brands`,
+    showFewerBrands: "Show fewer brands",
+    optionName: (label, count, fits) =>
+      `${label}, ${count === 1 ? "1 mouse" : `${count} mice`}${fits ? ", fits you" : ""}`,
+    viewButton: (n) => (n === 1 ? "View 1 mouse" : `View ${n} mice`),
+    closeSheet: "Close filter",
+    noMatch: "No mouse matches these filters",
+    relaxButton: (groupName, count) =>
+      `Remove "${groupName}" to see ${count} ${count === 1 ? "mouse" : "mice"}`,
+    oneLeft: "Only this one matches",
+    missingData: (noun, n) =>
+      `${n} more ${n === 1 ? "mouse has" : "mice have"} no ${noun} data and ${n === 1 ? "is" : "are"} not listed while you filter`,
+    missingNoun: {
+      weight: "weight",
+      shape: "shape",
+      connectivity: "connection",
+    },
+    filteredRank: (n) => `#${n} in your filter`,
+    place: (n) => `#${n}`,
+    overallRank: (n) => `#${n} overall`,
+    backToList: (n) =>
+      n === 1
+        ? "Back to the filtered list (1 mouse)"
+        : `Back to the filtered list (${n} mice)`,
+    othersHeading: "Other picks that match",
+    excludedHidden: (n) =>
+      `While you filter, the ${n} mice left out of the ranking are not listed.`,
+    analysisLine: (name) =>
+      `The written analysis is about the overall #1, ${name}`,
+    analysisShow: "Show analysis",
+    analysisHide: "Hide analysis",
+    shareOverall: "Share the overall #1",
+    shareNote: "While filtering, the share image still shows the overall #1",
+  },
 };
 
 export const RESULTS_PAGE_COPY: Record<UiLanguage, ResultsPageCopy> = {

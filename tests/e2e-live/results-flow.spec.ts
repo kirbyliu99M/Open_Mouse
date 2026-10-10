@@ -75,7 +75,7 @@ test("main page, a detail page and back, Details, Other mice, share card, reload
   await expect(page).toHaveURL(new RegExp(`${main}/m/[a-z0-9-]+$`));
   await expect(page).toHaveURL(new RegExp(`${href}$`));
   await expect(page.locator(".results-score-rank")).toHaveText(/^#2 · \S/);
-  await expect(page).toHaveTitle(/^Another pick/);
+  await expect(page).toHaveTitle(/^其他推薦/);
 
   // 3. Back: the main page again, and no second fit request.
   await page.goBack();

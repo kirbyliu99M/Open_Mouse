@@ -39,6 +39,11 @@ border and no underline (like "Print it" and the "‹ Sheet" back link), at leas
 44 px tall, with the same focus ring. Its border stays transparent, so
 more-contrast users get an outline instead of colour alone.
 
+**Compact pill (the results filter only):** inside the results-page filter the
+white pill is smaller (Kirby, 2026-10-10, FILTER-1, candidate): 44 px tall, a
+15 px label and 24 px at each side, so its width fits the label; the no-match
+suggestion is 40 px tall. The rest of the site keeps the full-size pill.
+
 **Exceptions:**
 
 - The easy-scan camera result sheet: secondary controls stay dark and outlined
