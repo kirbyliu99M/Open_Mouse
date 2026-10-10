@@ -167,15 +167,31 @@ button:disabled {
 }
 
 .button-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 .button-primary:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
+.button-primary:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+}
+.button-primary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+/* Secondary: a text link in --accent-text (BTN-1, style B), no fill, no border.
+   The border stays as transparent so a more-contrast user still gets an outline. */
 .button-secondary {
   background: transparent;
-  color: inherit;
+  color: var(--accent-text);
+  border-color: transparent;
+  text-decoration: none;
+}
+.button-secondary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .button-danger {
   background: transparent;
@@ -266,9 +282,6 @@ button:disabled {
 .measurements dt {
   color: #b5b5bd;
 }
-.button-secondary {
-  border-color: #6e6e73;
-}
 
 @media (prefers-reduced-motion: reduce) {
   button,
@@ -291,6 +304,9 @@ button:disabled {
   .button-secondary,
   .button-danger {
     border-width: 2px;
+  }
+  .button-secondary {
+    border-color: currentColor;
   }
 }
 
@@ -339,5 +355,15 @@ button:disabled {
   .dialog,
   .dialog-backdrop {
     display: none;
+  }
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .button-primary {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
   }
 }

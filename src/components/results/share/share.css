@@ -39,16 +39,16 @@
   width: 100%;
   min-height: 3.125rem;
   padding: 0 1.25rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.875rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font-size: 1rem;
   font-weight: 700;
 }
 .shareCard-button-primary:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 .shareCard-error {
@@ -62,7 +62,7 @@
 
 @media (prefers-contrast: more) {
   .shareCard-button-primary {
-    border-color: var(--on-accent);
+    border-color: var(--on-button-primary);
   }
 }
 

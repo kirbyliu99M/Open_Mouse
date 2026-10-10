@@ -89,9 +89,9 @@
   justify-content: center;
   min-height: 3rem;
   padding: 0 1.5rem;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font-weight: 600;
   cursor: pointer;
 }
@@ -307,9 +307,9 @@
   text-overflow: ellipsis;
 }
 .easyGripChip.selected {
-  background: var(--scan-accent-soft, #1f3554);
-  border-color: var(--accent-text);
-  color: var(--accent-text);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 
 /* flex-start, not center: the submit panel is taller than its button (it
@@ -332,7 +332,8 @@
   /* The global button padding (1.1rem a side) is 70px at 200% text, more than
      the button is wide: it squeezed the icon out. */
   padding: 0;
-  border-radius: 0.85rem;
+  /* A circle, to sit beside the See my matches pill. */
+  border-radius: 50%;
   border: 1px solid var(--scan-border, #3a3a3d);
   background: transparent;
   color: var(--scan-fg, #f5f5f7);
@@ -425,6 +426,20 @@
 }
 .easySheet button:focus-visible {
   outline-color: var(--accent-text);
+}
+/* A white ring would vanish on a white pill. The :has rule above is more
+   specific, so the upload label repeats its selector to win. */
+.easyScanShell:has(#easy-scan-upload:focus-visible)
+  label.easyUploadFallbackButton[for="easy-scan-upload"] {
+  outline-color: var(--accent-text);
+  outline-offset: 3px;
+}
+.easyScanShell .easyUploadFallbackButton:focus-visible,
+.easyScanShell .easyCopyLink:focus-visible,
+.easyDeviceEntry .easyCopyLink:focus-visible,
+.easySheet .easyCopyLink:focus-visible {
+  outline-color: var(--accent-text);
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -696,13 +711,14 @@ main.easyScanShell {
   cursor: pointer;
 }
 .easyCopyLink {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .easyCopyLink:active,
 .easyUploadFallbackButton:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 .easyDeviceUpload {
   background: transparent;
@@ -1549,4 +1565,16 @@ main.easyScanShell {
 }
 .easyDebugAttempts li {
   overflow-wrap: anywhere;
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .easyUploadFallbackButton,
+  .easyCopyLink,
+  .easyGripChip.selected {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
+  }
 }
