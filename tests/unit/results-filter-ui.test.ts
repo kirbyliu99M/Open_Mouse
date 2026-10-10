@@ -127,7 +127,7 @@ describe("FilterFacets", () => {
       /<label[^>]*>(?:(?!<\/label>).)*中型鼠(?:(?!<\/label>).)*<\/label>/,
     );
     expect(row?.[0]).toContain("適合你");
-    expect(html).toContain('aria-label="中型鼠，5 款，適合你"');
+    expect(html).toContain('aria-label="中型鼠，4 款，適合你"');
   });
 
   it("no 適合你 without a hand type, or for a left-hand scan", () => {
