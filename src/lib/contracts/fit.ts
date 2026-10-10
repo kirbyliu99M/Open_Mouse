@@ -118,8 +118,9 @@ export const fitEntrySchema = z.strictObject({
      * 2026-10-10 (Kirby, candidate): catalogue facts the results-page filter
      * reads (滑鼠握感 and 傳輸介面). `shape` is the catalogue's shape descriptor
      * (symmetrical, ergonomic, hybrid); `connectivity` is wired or wireless
-     * (a mouse that also works wired is wireless). null = not known; the
-     * filter never guesses one. Facts only: no score depends on them here, and
+     * (a mouse that also works wired is wireless). Values are lower case;
+     * source data spelled `Wired`/`Wireless` is mapped before it gets here.
+     * null = not known; the filter never guesses one. Facts only: no score depends on them here, and
      * like every catalogue fact they are not numbers the analysis may quote.
      * Optional until the server fills them.
      */

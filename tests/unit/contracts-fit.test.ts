@@ -64,7 +64,6 @@ describe("fitResponseSchema", () => {
     ).toBe(false);
   });
 
-  // 2026-10-09: same-shell variants on an entry are optional.
   // 2026-10-10: filter facts on the mouse are optional and nullable.
   it.each([
     [{}],
@@ -77,7 +76,11 @@ describe("fitResponseSchema", () => {
       ...valid,
       results: [{ ...entry, mouse: { ...entry.mouse, ...facts } }],
     };
-    expect(fitResponseSchema.safeParse(r).success).toBe(true);
+    const parsed = fitResponseSchema.parse(r);
+    const mouse = parsed.results[0].mouse;
+    for (const [k, v] of Object.entries(facts)) {
+      expect(mouse[k as keyof typeof mouse]).toBe(v);
+    }
   });
 
   it.each([
@@ -92,6 +95,7 @@ describe("fitResponseSchema", () => {
     expect(fitResponseSchema.safeParse(r).success).toBe(false);
   });
 
+  // 2026-10-09: same-shell variants on an entry are optional.
   it("accepts an entry with same-shell variants, and one without", () => {
     const withVariants = {
       ...valid,
