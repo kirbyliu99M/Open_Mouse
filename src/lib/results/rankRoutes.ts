@@ -10,19 +10,45 @@ import type { FitEntry, FitResponse } from "../contracts/fit";
 /** The detail pages cover the top five. */
 export const TOP_PICK_COUNT = 5;
 
-export function mainResultsPath(scanId: string): string {
-  return `/results/${encodeURIComponent(scanId)}`;
+/**
+ * `search` is a query string without the `?` (the filter's parameters, see
+ * `serializeFilters`): every path keeps it, so a filtered list stays filtered
+ * when a page is opened from it, reloaded, or redirected to the main page.
+ */
+function withSearch(path: string, search: string): string {
+  return search === "" ? path : `${path}?${search}`;
 }
 
-export function detailResultsPath(scanId: string, slug: string): string {
-  return `${mainResultsPath(scanId)}/m/${encodeURIComponent(slug)}`;
+export function mainResultsPath(scanId: string, search = ""): string {
+  return withSearch(`/results/${encodeURIComponent(scanId)}`, search);
 }
 
-/** The path of the page that shows `entry`: main for rank 1, a detail page otherwise. */
-export function pathForEntry(scanId: string, entry: FitEntry): string {
-  return entry.rank === 1
-    ? mainResultsPath(scanId)
-    : detailResultsPath(scanId, entry.mouse.slug);
+export function detailResultsPath(
+  scanId: string,
+  slug: string,
+  search = "",
+): string {
+  return withSearch(
+    `/results/${encodeURIComponent(scanId)}/m/${encodeURIComponent(slug)}`,
+    search,
+  );
+}
+
+/**
+ * The path of the page that shows `entry`: main for the first place, a detail
+ * page otherwise. `displayRank` is the place in the list the person sees (the
+ * filtered list's, which can differ from `entry.rank`); it defaults to the
+ * overall rank.
+ */
+export function pathForEntry(
+  scanId: string,
+  entry: FitEntry,
+  search = "",
+  displayRank: number = entry.rank,
+): string {
+  return displayRank === 1
+    ? mainResultsPath(scanId, search)
+    : detailResultsPath(scanId, entry.mouse.slug, search);
 }
 
 export type DetailTarget =
