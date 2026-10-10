@@ -376,6 +376,16 @@ and package-lock.json.
                           Unconfirmed.
 
 
+4.1 Font: the wordmark's typeface
+
+  The Palmate wordmark is set in Inter, weight 700 (Kirby's choice,
+  2026-10-10, to match the brand name text in the Pencil file), loaded through
+  next/font/google in src/app/brand-font.ts and served from this site's own
+  origin. Inter is published by its authors under the SIL Open Font License
+  1.1 (the licence Google Fonts lists for it; not rechecked in this change).
+  The licence text is not reproduced in this file: Unconfirmed whether the
+  licence requires it for web delivery.
+
 5. Trademarks
 =============
 
