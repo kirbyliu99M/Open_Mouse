@@ -340,11 +340,10 @@ and package-lock.json.
                           particle logo is made in, so the static image and
                           the particles line up. It is the same Palmate mark
                           as public/images/brand/palmate-mark.svg, the site
-                          footer's copy (that file does not exist in a tree
-                          where it has not been merged); that copy may differ
-                          in its viewBox, stroke width or dot, and where they
-                          differ on the dot, this file follows the official
-                          frame.
+                          footer's copy (not in this tree until that change
+                          is merged), which uses the same dot; that copy is
+                          cropped differently (viewBox 10 10 70 70) and drawn
+                          with a 1.7-unit stroke.
   hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
                           geometry in src/lib/particles/ (a stylised
                           template hand on an A4 outline, set by hand from

@@ -382,7 +382,12 @@ Everything else follows scroll.
     2026-10-10, asked twice for a denser mark and then for the particles to
     look better: the first cut's 600 random points, 0.8 and 2.4 became
     variant B, 840, 0.5 and 1.6, and then this, variant B3, each picked from
-    screenshots.) Half the points are bright and half dim; then the dot, 3 bright points at its
+    screenshots.) The golden-ratio order has a faint rhythm (a review
+    measured a high correlation between offsets 21 points apart, a
+    Fibonacci number, and about three neighbours in four on opposite sides):
+    on a big screen or in the 2D fallback it may just be seen as a plait;
+    if that matters, each line's sequence can start at its own fixed offset.
+    Half the points are bright and half dim; then the dot, 3 bright points at its
     centre and 6 dim ones round its ring (the particles have two tones, so
     the ring is the dim tone's `#6E9BF5`, not the static ring's `#2463EB`);
     then 24 strays round the mark, inside the logo's slot and the page's
