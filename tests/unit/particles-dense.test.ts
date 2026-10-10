@@ -6,7 +6,12 @@ import { ARTIFACT_PATHS, SKETCH_DIR } from "@/lib/particles/artifacts";
 import { STROKE_SPREAD, densifyStrokes, shareOut } from "@/lib/particles/dense";
 import { type Vec, distance } from "@/lib/particles/geometry";
 import { parseTargets } from "@/lib/particles/load-targets";
-import { logoStrokes } from "@/lib/particles/logo";
+import {
+  LOGO_SAMPLING,
+  LOGO_SCALE,
+  LOGO_VIEWBOX,
+  logoPolylines,
+} from "@/lib/particles/logo";
 import {
   buildPairing,
   buildPairingInSlices,
@@ -199,8 +204,23 @@ describe("densifyStrokes on a small shape", () => {
 });
 
 describe("densifyStrokes on the real shapes", () => {
-  it("puts every logo particle within the spread of the logo's own strokes, and ends the ruler exactly", () => {
-    const polylines = logoStrokes().map((s) => s.polyline);
+  /** The Palmate path in the logo target's own px (the viewBox from its corner, times LOGO_SCALE). */
+  const markPolylines = logoPolylines().map(({ points, closed }) => ({
+    closed,
+    points: points.map(([x, y]): Vec => [
+      (x - LOGO_VIEWBOX.x) * LOGO_SCALE,
+      (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
+    ]),
+  }));
+  // The target's runs: the four lines, the dot's points (a run of one each),
+  // then the strays (a run of one each, the last `ambient`).
+  const strayRuns = targets.logo.runs.slice(-LOGO_SAMPLING.ambient);
+  const strayPoints = strayRuns.map((run) => targets.logo.points[run.start]!);
+  const dotPoints = targets.logo.runs
+    .slice(4, -LOGO_SAMPLING.ambient)
+    .map((run) => targets.logo.points[run.start]!);
+
+  it("puts every logo particle on the mark's cloud, on the dot or on a stray, and the strays' clumps stay tight", () => {
     const out = densifyStrokes(
       targets.logo.points,
       targets.logo.runs,
@@ -208,13 +228,40 @@ describe("densifyStrokes on the real shapes", () => {
       20261003,
     );
     expect(out).toHaveLength(12000);
-    // Across the stroke by the spread, plus the sampled points' own error: they
-    // are rounded to 0.1 px in the JSON, and a chord between two of them cuts
-    // the corner of a tight curve (the wheel's ellipse) by a fraction of a px.
-    const limit = STROKE_SPREAD * 2.5 + 0.5;
+    // On the path: a chord between two neighbouring cloud points, which lie at
+    // most `maxSpread` units (times the scale) off the path, nudged across by
+    // the spread, plus the 0.1 px of the JSON's rounding.
+    const cloud =
+      LOGO_SAMPLING.maxSpread * LOGO_SCALE + STROKE_SPREAD * 2.5 + 0.5;
+    // A run of one point is spread within 2.5 spreads of it.
+    const clump = STROKE_SPREAD * 2.5 + 1e-9;
+    const byOne = (p: { x: number; y: number }, list: typeof strayPoints) =>
+      list.some((s) => distance([p.x, p.y], [s.x, s.y]) <= clump);
+    let onStray = 0;
     for (const p of out) {
-      expect(distanceToPolylines([p.x, p.y], polylines)).toBeLessThan(limit);
+      // A stray's clump (tens of px off the path, so never on the cloud).
+      if (byOne(p, strayPoints)) {
+        onStray += 1;
+        continue;
+      }
+      if (distanceToPolylines([p.x, p.y], markPolylines) <= cloud) continue;
+      expect(
+        byOne(p, dotPoints),
+        `${p.x}, ${p.y} is neither on the cloud nor on the dot nor by a stray`,
+      ).toBe(true);
     }
+    // The strays' clumps hold exactly the strays' shares of the 12,000 (each
+    // run's share is its points' share of the logo's: 1 point in 873), the
+    // dot's 9 single points not counted.
+    const shares = shareOut(
+      targets.logo.runs.map((run) => run.count),
+      12000,
+    );
+    const strayShare = shares
+      .slice(-LOGO_SAMPLING.ambient)
+      .reduce((sum, n) => sum + n, 0);
+    expect(strayShare).toBeGreaterThan(300);
+    expect(onStray).toBe(strayShare);
     expect(new Set(out.map((p) => p.tone))).toEqual(new Set([0, 1]));
   });
 
@@ -261,16 +308,17 @@ describe("densifyStrokes on the real shapes", () => {
   );
 
   it("is more even than copies nudged by a pixel: no stretch of a stroke is left bare", () => {
-    // The longest run of the logo's outline: walk it and find the biggest gap between particles.
+    // The longest run of the mark (the palm and thumb): walk it and find the biggest gap between particles.
     const out = densifyStrokes(
       targets.logo.points,
       targets.logo.runs,
       12000,
       1,
     );
-    const outline = logoStrokes()[0]!.polyline;
-    const hits = outline.points.map(([x, y]) =>
-      out.some((p) => Math.hypot(p.x - x, p.y - y) < 1.2),
+    const palm = markPolylines[0]!;
+    // The path's own points are about a unit (3 px) apart; the cloud is a few px wide.
+    const hits = palm.points.map(([x, y]) =>
+      out.some((p) => Math.hypot(p.x - x, p.y - y) < 3),
     );
     expect(hits.every(Boolean)).toBe(true);
   });
@@ -323,6 +371,9 @@ describe("the sampled runs", () => {
         next += run.count;
       }
       expect(next).toBe(shape.points.length);
+      // A mouse's stroke is one tone. The logo's cloud is not: each of its
+      // points is bright or dim on its own (about half each; logo.ts).
+      if (shape === targets.logo) continue;
       for (const run of shape.runs) {
         const tones = new Set(
           shape.points

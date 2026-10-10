@@ -327,22 +327,36 @@ and package-lock.json.
                           for generated output were not checked: Unconfirmed.
                           Home v3 recoloured its strokes (#CFE0FF / #6E9BF5)
                           for the dark theme; the shape is unchanged.
-  logo-placeholder.svg,   Written by scripts/build-particle-targets.ts from
-  hand-on-a4.svg          geometry in src/lib/particles/ (a placeholder mouse
-                          outline with a ruler; a stylised template hand on
-                          an A4 outline, set by hand from the Home v3 design
-                          screens). Not traced from any photo, dataset or
-                          third-party artwork. The logo is a placeholder, not
-                          the final mark.
   brand/palmate-mark.svg  The Palmate mark (a stylised hand with one dot), used
                           in the site footer (2026-10-10). Drawn by Kirby in
                           Pencil: an original work (Kirby's answer,
                           2026-10-10). Not traced from any photo, dataset or
-                          third-party artwork. It is the same path as
-                          public/images/hero-palmate-mark.svg (the home logo
-                          version, in another pull request), cut differently
-                          and used differently. The mark is not final
-                          (candidate, 未拍板).
+                          third-party artwork. It is the same path and the
+                          same dot as public/images/hero-palmate-mark.svg (the
+                          home logo), cut differently (viewBox 10 10 70 70)
+                          and drawn with a 1.7-unit stroke. The mark is not
+                          final (candidate, 未拍板).
+  hero-palmate-mark.svg   The Palmate mark: drawn by Kirby in Pencil
+                          (original work). Written by
+                          scripts/build-particle-targets.ts from
+                          src/lib/particles/logo.ts: the hand's path
+                          (PALMATE_PATH, a 2-unit #7FA8FF stroke) and its dot
+                          (PALMATE_DOT). The dot follows Kirby's official
+                          logo frame in Pencil ("Logo · Palmate (Official)"):
+                          centre (45, 53.5) in the path's units, a white
+                          #CFE0FF disc in a blue #2463EB ring, outer radius
+                          1.55 units. The viewBox (13 8 65 69) is the box the
+                          particle logo is made in, so the static image and
+                          the particles line up. It is the same hand and the
+                          same dot as public/images/brand/palmate-mark.svg
+                          (the site footer's copy); that copy is cropped
+                          differently (viewBox 10 10 70 70) and drawn with a
+                          1.7-unit stroke.
+  hand-on-a4.svg          Written by scripts/build-particle-targets.ts from
+                          geometry in src/lib/particles/ (a stylised
+                          template hand on an A4 outline, set by hand from
+                          the Home v3 design screens). Not traced from any
+                          photo, dataset or third-party artwork.
 
 
 5. Trademarks

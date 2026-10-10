@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS } from "@/lib/particles/artifacts";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { LOGO_SAMPLING } from "@/lib/particles/logo";
 import { LIT_FRACTION } from "@/lib/particles/look";
 import {
   type Pairing,
@@ -74,13 +75,29 @@ function spreadOf(points: readonly { x: number; y: number }[]): Spread {
   };
 }
 
+/**
+ * The logo's strays (24 single points round the mark, the target's last 24
+ * runs): a budget's copy of one is within a pixel of it (a dense walk nudges
+ * a lone point by up to 0.75 px). Told apart by the target's runs, so a point
+ * of the mark that strayed out of its box is still measured below.
+ */
+const strays = targets.logo.runs
+  .slice(-LOGO_SAMPLING.ambient)
+  .map((run) => targets.logo.points[run.start]!);
+const isStray = (p: { x: number; y: number }) =>
+  strays.some((s) => Math.hypot(p.x - s.x, p.y - s.y) < 2);
+
 /** The first `lit` particles of `placing`, on the logo and on mouse 0 (each mouse is a drawing of its own). */
 function litOn(pairing: Pairing, placing: readonly number[], lit: number) {
   const logo: { x: number; y: number }[] = [];
   const mouse: { x: number; y: number }[] = [];
   for (let place = 0; place < lit; place += 1) {
     const i = placing[place]!;
-    logo.push(pairing.logo[i]!);
+    const onLogo = pairing.logo[i]!;
+    // The strays are lone stars by design, tens of px from anything: they are
+    // left out of the evenness of the mark itself, which is what this
+    // measures. Every other point of the logo is in it.
+    if (!isStray(onLogo)) logo.push(onLogo);
     if (pairing.slot[i] === 0) mouse.push(pairing.mouse[i]!);
   }
   return { logo, mouse };
@@ -124,10 +141,66 @@ describe("starOrder", () => {
         expect(even.cv, label).toBeLessThan(0.55);
         expect(even.cv, label).toBeLessThan(chance.cv * 0.8);
         expect(even.closest, label).toBeGreaterThan(0.3);
-        expect(even.closest, label).toBeGreaterThan(chance.closest * 1.8);
+        // The closest pairs against a random pick's, for the shipped seed: 1.8
+        // times or more on a mouse (2.08, 2.80 and 2.63 at the three shares on
+        // the B3 cloud), 1.5 on the logo. The logo's figure against a random
+        // pick fell when the cloud was made even (the random pick itself is
+        // less clumped there: see the next test, which also reads the logo
+        // over five seeds). The logo and the mice share one order, picked on
+        // both at once, so a change to the logo's target alone moves the
+        // mice's figures too (a review's mutations of the logo's width period
+        // made the mouse bound fail): a mouse failure here after a logo
+        // change is that coupling, and is read over seeds before the bound
+        // is touched.
+        const floor = where === "mouse" ? 1.8 : 1.5;
+        expect(even.closest, label).toBeGreaterThan(chance.closest * floor);
         // And the stars are not bunched at one end: the mean distance is the
         // one a random pick would have, or more.
         expect(even.mean, label).toBeGreaterThan(chance.mean);
+      }
+    }
+  });
+
+  it("keeps the closest stars apart at the median of five order seeds: half the mean gap or more, and 1.6 times a random pick's closest pairs or more", () => {
+    // The figure is the 5th percentile of the nearest-neighbour distance as a
+    // share of the mean: with 80 stars on a mouse (a share of 0.08) that is
+    // the 4th smallest gap, so one seed's value swings, and the median of five
+    // seeds is the algorithm's figure, not one draw's. Each seed must still
+    // clear 1.5 times a random pick's (the test above).
+    //
+    // Measured 2026-10-10 over 12 seeds (the shipped one and 1000 to 1010) on
+    // the swelling, golden-ratio cloud (variant B3), every share, logo and
+    // mouse: the closest pairs at 0.46 to 0.68 of the mean gap, and the median
+    // of the first five seeds 0.52 or more in every case. With 3 candidates
+    // instead of 8 the medians are 0.37 to 0.45, with 2 they are 0.30 to
+    // 0.47: the bound, 0.49, is between the two.
+    //
+    // Against a random pick the figure is lower than it was on the random
+    // cloud (variant B: 1.8 or more at the median): the evener cloud makes
+    // the random pick itself less clumped (its closest pairs on the logo at
+    // 0.25 went from 0.249 to 0.315 of its mean gap), not the order worse (its
+    // own went from 0.55 to 0.55). B3's medians are 1.74 or more; 3
+    // candidates give 1.38 (logo at 0.25) and 1.53 (mouse at 0.08). 1.6 is
+    // between.
+    const random = shuffled(COUNT, 99);
+    const seeds = [STAR_ORDER_SEED, 1000, 1001, 1002, 1003];
+    const orders = seeds.map((seed) =>
+      seed === STAR_ORDER_SEED
+        ? Array.from(order)
+        : Array.from(starOrder(pairing, seed)),
+    );
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[2]!;
+    for (const share of [0.08, 0.15, 0.25]) {
+      const lit = Math.round(COUNT * share);
+      const dots = litOn(pairing, random, lit);
+      for (const where of ["logo", "mouse"] as const) {
+        const chance = spreadOf(dots[where]).closest;
+        const closest = orders.map(
+          (placing) => spreadOf(litOn(pairing, placing, lit)[where]).closest,
+        );
+        const label = `${where} at ${share}: ${closest.map((c) => c.toFixed(2)).join(", ")} (random ${chance.toFixed(2)})`;
+        expect(median(closest), label).toBeGreaterThan(0.49);
+        expect(median(closest) / chance, label).toBeGreaterThan(1.6);
       }
     }
   });

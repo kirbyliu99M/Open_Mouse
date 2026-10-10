@@ -236,16 +236,26 @@ describe("the shimmer", () => {
 describe("the boxes the targets are drawn into", () => {
   it("the logo is fitted inside its image and centred (object-fit: contain)", () => {
     // A box exactly the logo's shape, at twice the size.
-    const exact = logoBox({ x: 100, y: 50, width: 440, height: 392 });
+    const exact = logoBox({
+      x: 100,
+      y: 50,
+      width: 2 * LOGO_BOX.width,
+      height: 2 * LOGO_BOX.height,
+    });
     expect(exact).toEqual({ x: 100, y: 50, scale: 2 });
     // Wider than the logo: it is as tall as the box and centred sideways.
-    const wide = logoBox({ x: 0, y: 0, width: 1000, height: 196 });
+    const wide = logoBox({ x: 0, y: 0, width: 1000, height: LOGO_BOX.height });
     expect(wide.scale).toBe(1);
     expect(wide.x).toBeCloseTo((1000 - LOGO_BOX.width) / 2, 12);
     // Narrower: as wide as the box and centred vertically.
-    const narrow = logoBox({ x: 10, y: 20, width: 110, height: 500 });
+    const narrow = logoBox({
+      x: 10,
+      y: 20,
+      width: LOGO_BOX.width / 2,
+      height: 500,
+    });
     expect(narrow.scale).toBe(0.5);
-    expect(narrow.y).toBeCloseTo(20 + (500 - 98) / 2, 12);
+    expect(narrow.y).toBeCloseTo(20 + (500 - LOGO_BOX.height / 2) / 2, 12);
   });
 
   it("the hand's A4 origin is offset by the drawing's viewBox, and the mice start at their image's corner", () => {

@@ -1,5 +1,5 @@
-import type { Polyline, Vec } from "./geometry";
-import { logoStrokes, LOGO_BOX } from "./logo";
+import type { Vec } from "./geometry";
+import { LOGO_STROKE, LOGO_VIEWBOX, PALMATE_DOT, PALMATE_PATH } from "./logo";
 import type { HandTarget } from "./targets";
 
 /**
@@ -18,28 +18,19 @@ const num = (n: number): string =>
   String(Math.round(n * 10) / 10).replace(/^-0$/, "0");
 const pair = ([x, y]: Vec) => `${num(x)} ${num(y)}`;
 
-function pathOf(polylines: readonly Polyline[]): string {
-  return polylines
-    .map(
-      ({ points, closed }) =>
-        `M${points.map(pair).join("L")}${closed ? "Z" : ""}`,
-    )
-    .join("");
-}
-
-/** The placeholder logo, as plain lines (docs/design/home-v3-2026-10-03/screens/logo-placeholder-vector.png). */
+/**
+ * The Palmate mark: the hand's path as the logo wrote it, one line with round
+ * ends and no fill, and the dot, one circle filled white with a blue ring for
+ * its stroke. Nothing else: no text, no background, no halo, no second ring. Its viewBox is the logo's
+ * (`LOGO_VIEWBOX`), the box the particle target is made in.
+ */
 export function renderLogoSvg(): string {
-  const strokes = logoStrokes();
-  const primary = pathOf(
-    strokes.filter((s) => s.tone === 1).map((s) => s.polyline),
-  );
-  const detail = pathOf(
-    strokes.filter((s) => s.tone === 0).map((s) => s.polyline),
-  );
+  const { x, y, width, height } = LOGO_VIEWBOX;
+  const dot = PALMATE_DOT;
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LOGO_BOX.width} ${LOGO_BOX.height}" fill="none" stroke-linecap="round" stroke-linejoin="round">\n` +
-    `<path d="${detail}" stroke="${DETAIL}" stroke-width="1.4"/>\n` +
-    `<path d="${primary}" stroke="${PRIMARY}" stroke-width="1.8"/>\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" fill="none" stroke="${LOGO_STROKE.color}" stroke-width="${LOGO_STROKE.width}" stroke-linecap="round" stroke-linejoin="round">\n` +
+    `<path d="${PALMATE_PATH}"/>\n` +
+    `<circle cx="${dot.cx}" cy="${dot.cy}" r="${dot.r}" fill="${dot.fill}" stroke="${dot.stroke}" stroke-width="${dot.strokeWidth}"/>\n` +
     `</svg>\n`
   );
 }
