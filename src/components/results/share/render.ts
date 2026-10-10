@@ -77,6 +77,23 @@ function fontString(font: FontSpec, theme: Theme): string {
   return `${font.weight} ${font.size}px ${font.brand ? theme.brandStack : theme.fontStack}`;
 }
 
+/**
+ * Sets the font for measuring or drawing. The wordmark also takes its -0.0167em
+ * (-0.3/18) tracking, so the card's name is spaced like the site's. `letterSpacing`
+ * is a newer canvas property: where it is missing the assignment does nothing and
+ * measure and draw still agree with each other.
+ */
+function applyFont(
+  ctx: CanvasRenderingContext2D,
+  font: FontSpec,
+  theme: Theme,
+): void {
+  ctx.font = fontString(font, theme);
+  ctx.letterSpacing = font.brand
+    ? `${(-0.0167 * font.size).toFixed(2)}px`
+    : "0px";
+}
+
 function roundRectPath(
   ctx: CanvasRenderingContext2D,
   box: Box,
@@ -215,7 +232,7 @@ async function paint(
         break;
       }
       case "text": {
-        ctx.font = fontString(op.font, theme);
+        applyFont(ctx, op.font, theme);
         ctx.fillStyle = theme.colors[op.color];
         ctx.textAlign = op.align;
         ctx.textBaseline = "alphabetic";
@@ -293,7 +310,7 @@ export async function makeShareCardPng(
   const input = { ...built, markSrc: mark ? MARK_SRC : null };
 
   const measure: MeasureText = (text, font) => {
-    ctx.font = fontString(font, theme);
+    applyFont(ctx, font, theme);
     return ctx.measureText(text).width;
   };
   const layout = layoutShareCard(input, measure);
