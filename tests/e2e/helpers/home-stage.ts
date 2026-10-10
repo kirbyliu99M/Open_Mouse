@@ -26,7 +26,8 @@ export const CANVAS = ".story-canvas";
 /** The WebGL layer under it, which draws the particles when WebGL is on. */
 export const GL_CANVAS = ".story-canvas-gl";
 export const HERO = '[data-testid="home-hero"]';
-export const CAPTION = "G Pro X Superlight 2 · sketch";
+/** The finale's headline (Kirby's words): it replaced the three mice and their captions (2026-10-11). */
+export const FINALE_TITLE = "Find Your Best Mouse";
 
 /** Wait until the page has switched to the animated layout (the module is dynamic, and dev compiles it on demand). */
 export async function waitForAnimated(page: Page): Promise<void> {

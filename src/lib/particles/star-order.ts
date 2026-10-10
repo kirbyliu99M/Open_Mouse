@@ -1,4 +1,4 @@
-import type { Pairing } from "./pairing";
+import { MOUSE_COUNT, type Pairing } from "./pairing";
 import { mulberry32 } from "./random";
 
 /**
@@ -196,7 +196,7 @@ export function* starOrderSteps(
   const logoY = new Float64Array(n);
   const mouseX = new Float64Array(n);
   const mouseY = new Float64Array(n);
-  const slots = [0, 1, 2].map(() => [] as number[]);
+  const slots = Array.from({ length: MOUSE_COUNT }, () => [] as number[]);
   for (let i = 0; i < n; i += 1) {
     logoX[i] = pairing.logo[i]!.x;
     logoY[i] = pairing.logo[i]!.y;
@@ -225,7 +225,10 @@ export function* starOrderSteps(
   const pool = everyone.slice();
   const order = new Uint32Array(n);
   const chosen: number[] = [];
-  const chosenBySlot: number[][] = [[], [], []];
+  const chosenBySlot: number[][] = Array.from(
+    { length: MOUSE_COUNT },
+    () => [] as number[],
+  );
   const limit = Math.min(n, Math.ceil(STAR_ORDER_SHARE * n));
   let builtAt = 0;
   const logoUnitSq = logoUnit * logoUnit;

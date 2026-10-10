@@ -25,7 +25,7 @@ const SIZES = [
   [390, 844],
   [1440, 900],
 ] as const;
-const PROGRESS = [0, 0.3, 0.5, 0.95] as const;
+const PROGRESS = [0, 0.3, 0.5, 0.72, 0.8, 0.9, 0.95, 1] as const;
 
 // Short laptop windows (the hero scales down with the height): p = 0 and about
 // the middle of the story, with the nav showing at p = 0 as a visitor first
@@ -85,6 +85,50 @@ test.describe("home stage screenshots", () => {
       test.setTimeout(120_000);
       await capture(page, width, height, PROGRESS, OUTPUT);
     });
+  }
+
+  // The finale's two fallbacks at p = 1 (the review of 2026-10-11): its
+  // headline as DOM text when its canvas layer can not be built, and under
+  // forced colours. `-g "finale fallback"` captures only these.
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    for (const mode of ["layer-off", "forced-colors"] as const) {
+      test(`finale fallback ${mode} ${width}x${height}`, async ({
+        page,
+      }, info) => {
+        test.skip(info.project.name !== "chromium", "Captures once.");
+        if (mode === "layer-off") {
+          await page.addInitScript(() => {
+            const fail = () => {
+              throw new Error("no pixels (screenshot)");
+            };
+            const offscreen = (
+              globalThis as unknown as {
+                OffscreenCanvasRenderingContext2D?: { prototype: object };
+              }
+            ).OffscreenCanvasRenderingContext2D;
+            if (offscreen) {
+              (
+                offscreen.prototype as { getImageData: () => never }
+              ).getImageData = fail;
+            }
+          });
+        } else {
+          await page.emulateMedia({ forcedColors: "active" });
+        }
+        await recordStage(page);
+        await page.setViewportSize({ width, height });
+        await page.goto("/");
+        await waitForAnimated(page);
+        await scrollToProgress(page, 1);
+        await page.waitForTimeout(300);
+        await page.screenshot({
+          path: `${OUTPUT}/${width}x${height}-p1.00-${mode}.png`,
+        });
+      });
+    }
   }
 
   for (const [width, height] of SHORT_SIZES) {

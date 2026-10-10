@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import {
   CANVAS,
-  CAPTION,
+  FINALE_TITLE,
   GL_CANVAS,
   HERO,
   STORY,
@@ -569,45 +569,162 @@ test.describe("the animated layout", () => {
     // "story-canvas" is also in "story-canvas-gl": neither layer is hit.
     expect(hit.middle).not.toContain("story-canvas");
     expect(hit.low).not.toContain("story-canvas");
-    // The three captions (and everything else in the stage) take no clicks either.
+    // The finale's headline and drawing (and everything else in the stage)
+    // take no clicks either.
     await scrollToProgress(page, 0.95);
-    const overCaption = await page.evaluate(() => {
-      const caption = document
-        .querySelector(".story-mouse figcaption")!
+    const overFinale = await page.evaluate(() => {
+      const title = document
+        .querySelector(".story-finale-title")!
         .getBoundingClientRect();
       const el = document.elementFromPoint(
-        caption.x + caption.width / 2,
-        caption.y + caption.height / 2,
+        title.x + title.width / 2,
+        title.y + title.height / 2,
       );
-      return el?.closest(".story-mice") === null;
+      return el?.closest(".story-finale") === null;
     });
-    expect(overCaption).toBe(true);
+    expect(overFinale).toBe(true);
   });
 
-  test("the three captions are real text all along, and fade in as the mice settle", async ({
+  for (const [how, breakIt] of [
+    [
+      "a canvas that will not hand its pixels back",
+      () => {
+        const proto = (
+          globalThis as unknown as {
+            OffscreenCanvasRenderingContext2D?: { prototype: object };
+          }
+        ).OffscreenCanvasRenderingContext2D?.prototype as
+          { getImageData: () => never } | undefined;
+        const fail = () => {
+          throw new Error("no pixels (test)");
+        };
+        if (proto) proto.getImageData = fail;
+        (
+          CanvasRenderingContext2D.prototype as unknown as {
+            getImageData: () => never;
+          }
+        ).getImageData = fail;
+      },
+    ],
+    [
+      "a canvas that does not report its font's ascent (Firefox before 116)",
+      () => {
+        for (const ctor of [
+          (
+            globalThis as unknown as {
+              OffscreenCanvasRenderingContext2D?: {
+                prototype: { measureText(t: string): TextMetrics };
+              };
+            }
+          ).OffscreenCanvasRenderingContext2D,
+          CanvasRenderingContext2D,
+        ]) {
+          if (!ctor) continue;
+          const measure = ctor.prototype.measureText;
+          ctor.prototype.measureText = function (this: unknown, t: string) {
+            const m = measure.call(this, t);
+            return new Proxy(m, {
+              get: (target, key) =>
+                key === "fontBoundingBoxAscent" ||
+                key === "fontBoundingBoxDescent"
+                  ? undefined
+                  : Reflect.get(target, key),
+            });
+          };
+        }
+      },
+    ],
+  ] as const) {
+    test(`the finale's headline is shown as DOM text when its layer can not be built (${how}): it fades in with its window, and nothing throws`, async ({
+      page,
+    }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.addInitScript(breakIt);
+      await page.goto("/");
+      await waitForAnimated(page);
+      await expect(page.locator(STORY)).toHaveAttribute("data-finale", "off");
+      const title = page.getByRole("heading", { level: 2, name: FINALE_TITLE });
+      const opacity = async () =>
+        Number(await title.evaluate((el) => getComputedStyle(el).opacity));
+      await scrollToProgress(page, 0.5);
+      expect(await opacity()).toBe(0);
+      await scrollToProgress(page, 1);
+      expect(await opacity()).toBe(1);
+      await expect(title).toBeVisible();
+      // The rest of the story goes on: the stage is still the animated one.
+      expect((await layoutFacts(page)).animated).toBe(true);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test("with forced colours the finale's headline is DOM text in the system's text colour (the canvas leaves it out)", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/");
+    await waitForAnimated(page);
+    const title = page.getByRole("heading", { level: 2, name: FINALE_TITLE });
+    await scrollToProgress(page, 0.5);
+    expect(
+      Number(await title.evaluate((el) => getComputedStyle(el).opacity)),
+    ).toBe(0);
+    await scrollToProgress(page, 1);
+    const style = await title.evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.style.color = "CanvasText";
+      document.body.append(probe);
+      const canvasText = getComputedStyle(probe).color;
+      probe.remove();
+      const s = getComputedStyle(el);
+      return { opacity: s.opacity, color: s.color, canvasText };
+    });
+    expect(style.opacity).toBe("1");
+    expect(style.color).toBe(style.canvasText);
+    await expect(title).toBeVisible();
+  });
+
+  test("the finale's light is really drawn: its gradient is a valid one (a circle's radius in lengths), and shows at p = 1", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForAnimated(page);
-    const captions = page.getByText(CAPTION);
-    await expect(captions).toHaveCount(3);
-    const opacities = () =>
-      captions.evaluateAll((els) =>
-        els.map((el) => Number(getComputedStyle(el).opacity)),
-      );
-    for (const p of [0, 0.3, 0.5, 0.7]) {
-      await scrollToProgress(page, p);
-      expect(await opacities(), `p=${p}`).toEqual([0, 0, 0]);
-      await expect(captions).toHaveCount(3);
-    }
-    await scrollToProgress(page, 0.95);
-    expect(await opacities()).toEqual([1, 1, 1]);
-    // And back again.
-    await scrollToProgress(page, 0.5);
-    expect(await opacities()).toEqual([0, 0, 0]);
+    await scrollToProgress(page, 1);
+    const glow = await page.locator(".story-finale-glow").evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { image: s.backgroundImage, opacity: s.opacity };
+    });
+    // An invalid gradient (a percentage in a circle's radius) computes to none.
+    expect(glow.image).toContain("radial-gradient");
+    expect(glow.opacity).toBe("1");
   });
 
-  test("the story's pieces appear in order: hero, scatter, hand, measured hand, rearranging, mice", async ({
+  test("the finale's headline is real text all along (the canvas draws it), and its light fades in with the finale", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    // The headline stays in the DOM and the accessibility tree at every p:
+    // transparent, because the canvas draws its letters.
+    const title = page.getByRole("heading", { level: 2, name: FINALE_TITLE });
+    const glow = page.locator(".story-finale-glow");
+    const opacity = async (locator: import("@playwright/test").Locator) =>
+      Number(await locator.evaluate((el) => getComputedStyle(el).opacity));
+    for (const p of [0, 0.3, 0.5, 0.7]) {
+      await scrollToProgress(page, p);
+      await expect(title).toHaveCount(1);
+      expect(await opacity(title), `p=${p}`).toBe(0);
+      expect(await opacity(glow), `p=${p}`).toBe(0);
+    }
+    await scrollToProgress(page, 0.95);
+    await expect(title).toHaveCount(1);
+    expect(await opacity(glow)).toBe(1);
+    // And back again.
+    await scrollToProgress(page, 0.5);
+    expect(await opacity(glow)).toBe(0);
+  });
+
+  test("the story's pieces appear in order: hero, scatter, hand, measured hand, rearranging, the finale", async ({
     page,
   }) => {
     await page.goto("/");
@@ -635,7 +752,7 @@ test.describe("the animated layout", () => {
     await expect(sheet).toHaveCSS("opacity", "0");
 
     // The five annotations come with the measured hand (story 4, a little into
-    // 5) and at no other time: none before it, none once the mice come.
+    // 5) and at no other time: none before it, none once the finale comes.
     const notes = page.locator(".story-note");
     await expect(notes).toHaveCount(5);
     const shown = () =>
@@ -651,7 +768,7 @@ test.describe("the animated layout", () => {
     expect(await shown()).toEqual([0, 1, 0, 0, 0]);
   });
 
-  test("at p = 1 the panel lets go: the mice and their captions scroll away with it, and the final section follows", async ({
+  test("at p = 1 the panel lets go: the finale scrolls away with it, and the final section's buttons are already up over its bottom", async ({
     page,
   }) => {
     await page.goto("/");
@@ -662,36 +779,49 @@ test.describe("the animated layout", () => {
         const panel = document
           .querySelector(".story-panel")!
           .getBoundingClientRect();
-        const caption = document
-          .querySelector(".story-mouse figcaption")!
+        const title = document
+          .querySelector(".story-finale-title")!
           .getBoundingClientRect();
         const final = document
           .querySelector('[data-testid="home-final"]')!
           .getBoundingClientRect();
+        const actions = document
+          .querySelector('[data-testid="home-final"] .home-actions')!
+          .getBoundingClientRect();
         return {
           panelTop: panel.top,
           panelBottom: panel.bottom,
-          caption: caption.top,
+          title: title.top,
+          titleBottom: title.bottom,
           final: final.top,
+          actionsTop: actions.top,
+          actionsBottom: actions.bottom,
           viewport: window.innerHeight,
         };
       });
     const pinned = await at();
     // Pinned: the panel fills the viewport.
     expect(Math.abs(pinned.panelTop)).toBeLessThanOrEqual(1);
-    // The final section starts where the panel ends.
-    expect(Math.abs(pinned.final - pinned.panelBottom)).toBeLessThanOrEqual(60);
+    // The final section comes up over the bottom of the panel (the finale's
+    // design: the buttons under the figure, in the same picture), by 20 svh on
+    // a desktop and 33 svh on a phone (home.css, candidate): its buttons are
+    // whole in view, below the headline.
+    const overlap = (pinned.panelBottom - pinned.final) / pinned.viewport;
+    expect(overlap).toBeGreaterThan(0.15);
+    expect(overlap).toBeLessThan(0.4);
+    expect(pinned.actionsTop).toBeGreaterThan(pinned.titleBottom);
+    expect(pinned.actionsBottom).toBeLessThanOrEqual(pinned.viewport);
 
-    // Scroll 120 px further: the panel, the caption and the final section all moved up by 120.
+    // Scroll 120 px further: the panel, the headline and the final section all moved up by 120.
     await page.evaluate(() => window.scrollBy(0, 120));
     await page.waitForTimeout(150);
     const moved = await at();
     expect(moved.panelTop).toBeCloseTo(pinned.panelTop - 120, 0);
-    expect(moved.caption).toBeCloseTo(pinned.caption - 120, 0);
+    expect(moved.title).toBeCloseTo(pinned.title - 120, 0);
     expect(moved.final).toBeCloseTo(pinned.final - 120, 0);
-    // The mice are still p = 1's state: nothing was redrawn or changed.
+    // The finale is still p = 1's state: nothing was redrawn or changed.
     await expect(page.locator(STORY)).toHaveAttribute("data-progress", "1.000");
-    await expect(page.getByText(CAPTION).first()).toHaveCSS("opacity", "1");
+    await expect(page.locator(".story-finale-glow")).toHaveCSS("opacity", "1");
   });
 
   test("the stage draws nothing while it is off screen, and catches up when it is back", async ({
@@ -1048,7 +1178,7 @@ test.describe("the canvas follows the device", () => {
     [4, "4 cores"],
     [2, "2 cores"],
   ] as const) {
-    test(`the particle budget with ${label}: 6,000 on a phone and 12,000 on a desktop with WebGL (900 and 1,300 on Canvas 2D), halved at 4 or fewer`, async ({
+    test(`the particle budget with ${label}: 7,500 on a phone and 15,000 on a desktop with WebGL (900 and 1,300 on Canvas 2D), halved at 4 or fewer`, async ({
       page,
     }) => {
       await page.addInitScript((n) => {
@@ -1066,18 +1196,20 @@ test.describe("the canvas follows the device", () => {
       const expected = webgl
         ? cores <= 4
           ? wide
-            ? 6000
-            : 3000
+            ? 7500
+            : 3750
           : wide
-            ? 12000
-            : 6000
+            ? 15000
+            : 7500
         : cores <= 4
           ? wide
-            ? 648
+            ? 650
             : 450
           : wide
-            ? 1299
+            ? 1300
             : 900;
+      // (648 and 1,299 while three mice each took a third: the finale is one
+      // drawing, 2026-10-11, so the budgets are whole.)
       await expect(page.locator(CANVAS)).toHaveAttribute(
         "data-particles",
         String(expected),
@@ -1269,7 +1401,7 @@ test.describe("the static layout is kept, with no extra height", () => {
         ".story-hero",
         ".story-hand",
         ".story-notes",
-        ".story-mice",
+        ".story-finale",
         '[data-testid="home-final"]',
         '[data-testid="site-footer"]',
       ].map((selector) =>
@@ -1306,13 +1438,14 @@ test.describe("the static layout is kept, with no extra height", () => {
         expect(gap).toBeGreaterThanOrEqual(0);
         expect(gap).toBeLessThanOrEqual(6);
       }
-      // The three static end states are all there.
+      // The three static end states are all there: the finale is its
+      // drawing under its headline.
       await expect(page.locator(".story-logo img")).toBeVisible();
       await expect(page.locator(".story-hand img")).toBeVisible();
-      await expect(page.locator(".story-mouse img")).toHaveCount(3);
-      for (let i = 0; i < 3; i += 1) {
-        await expect(page.locator(".story-mouse img").nth(i)).toBeVisible();
-      }
+      await expect(page.locator(".story-finale-art img")).toBeVisible();
+      await expect(
+        page.getByRole("heading", { level: 2, name: FINALE_TITLE }),
+      ).toBeVisible();
     });
 
     test("switching the preference on while the stage runs takes it back to static, and off brings it back", async ({
@@ -1355,10 +1488,10 @@ test.describe("the static layout is kept, with no extra height", () => {
         expect(gap).toBeGreaterThanOrEqual(0);
         expect(gap).toBeLessThanOrEqual(6);
       }
-      await expect(page.getByText(CAPTION)).toHaveCount(3);
-      for (let i = 0; i < 3; i += 1) {
-        await expect(page.getByText(CAPTION).nth(i)).toBeVisible();
-      }
+      await expect(
+        page.getByRole("heading", { level: 2, name: FINALE_TITLE }),
+      ).toBeVisible();
+      await expect(page.locator(".story-finale-art img")).toBeVisible();
     });
   });
 
@@ -1414,7 +1547,7 @@ test.describe("the static layout is kept, with no extra height", () => {
     expect(await page.locator(CANVAS).getAttribute("data-draws")).toBeNull();
     const plain = await baseline(browser, size.width, size.height);
     expect(facts.scrollHeight).toBe(plain.scrollHeight);
-    // The headline, the buttons and the three mice are all still there and work.
+    // The headline, the buttons and the finale are all still there and work.
     await expect(
       page.getByRole("heading", {
         level: 1,
@@ -1425,7 +1558,9 @@ test.describe("the static layout is kept, with no extra height", () => {
       .locator(HERO)
       .getByRole("link", { name: "Scan my hand" })
       .click({ trial: true });
-    await expect(page.getByText(CAPTION)).toHaveCount(3);
+    await expect(
+      page.getByRole("heading", { level: 2, name: FINALE_TITLE }),
+    ).toBeVisible();
     // A failed load is not an uncaught error.
     expect(errors).toEqual([]);
   });
@@ -1448,7 +1583,7 @@ test("the story section's markup: the hero first, the two canvases last (WebGL u
     "story-hero",
     "story-hand",
     "story-notes",
-    "story-mice",
+    "story-finale",
     "story-canvas-gl",
     "story-canvas",
   ]);

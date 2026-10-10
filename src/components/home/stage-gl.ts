@@ -1,6 +1,7 @@
 import { PALETTE, pointSizeFits } from "@/lib/particles/budget";
 import { GL_FIELD, GL_FLOATS_PER_PARTICLE } from "@/lib/particles/gl-buffers";
 import {
+  FINALE_LIFT,
   type GlLook,
   SHIMMER_GROWTH,
   maxPointCssPx,
@@ -38,6 +39,8 @@ import {
  */
 
 const VERTEX = `
+const float FINALE_LIFT_SIZE = ${FINALE_LIFT.size.toFixed(4)};
+const float FINALE_LIFT_ALPHA = ${FINALE_LIFT.alpha.toFixed(4)};
 attribute vec2 aLogo;
 attribute vec2 aHand;
 attribute vec2 aMouse;
@@ -46,6 +49,7 @@ attribute vec2 aSwirlSplit;
 attribute vec3 aTone;
 attribute float aShimmerX;
 attribute float aRank;
+attribute float aClip;
 
 uniform vec2 uView;
 uniform float uPixel;
@@ -59,6 +63,8 @@ uniform vec2 uFraction;
 uniform vec4 uLookFrom;
 uniform vec4 uLookTo;
 uniform float uFlat;
+uniform float uClip;
+uniform float uLift;
 
 varying float vBright;
 varying float vAlpha;
@@ -67,7 +73,11 @@ void main() {
   // Lit at the start and at the end of the leg (rank under the state's share).
   float litFrom = aRank < uFraction.x ? 1.0 : 0.0;
   float litTo = aRank < uFraction.y ? 1.0 : 0.0;
+  // A place in the finale under the headline's letters: cut out as they arrive.
+  if (uSplit > 0.5) litTo *= 1.0 - aClip * uClip;
   float shown = uE <= 0.0 ? litFrom : (uE >= 1.0 ? litTo : litFrom + (litTo - litFrom) * uE);
+  // (litTo is cut by the headline: the look below still treats it as lit.)
+  float lookTo = aRank < uFraction.y ? 1.0 : 0.0;
   if (shown <= 0.0) {
     // Not lit anywhere on this leg's step: nothing to draw, and nothing to fill.
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -96,8 +106,8 @@ void main() {
   // Where a particle is lit it has that end's look; where it is not, it keeps
   // the look of the other end (it is fading out of, or into, the other state).
   vec4 lookFrom = litFrom > 0.5 ? uLookFrom : uLookTo;
-  vec4 lookTo = litTo > 0.5 ? uLookTo : uLookFrom;
-  vec4 look = mix(lookFrom, lookTo, uE);
+  vec4 lookEnd = lookTo > 0.5 ? uLookTo : uLookFrom;
+  vec4 look = mix(lookFrom, lookEnd, uE);
   // prefers-contrast: more is for seeing better: a dot is a solid disc no
   // smaller than the 2D look's (a core 1.7 px across for a bright one, 1.4 px
   // for a dim one), and no fainter.
@@ -108,6 +118,13 @@ void main() {
   float alpha = mix(look.w, look.z, tone);
   alpha = max(alpha, look.z * min(1.0, 0.35 + boost) * shine);
   if (uFlat > 0.5) alpha = max(alpha, mix(0.72, 1.0, tone));
+
+  // The finale's closing lift (scroll-driven, Phase.finale.lift): its lit
+  // particles a little bigger and brighter once the figure is formed.
+  if (uSplit > 0.5) {
+    size *= 1.0 + FINALE_LIFT_SIZE * uLift;
+    alpha = min(1.0, alpha * (1.0 + FINALE_LIFT_ALPHA * uLift));
+  }
 
   vBright = max(tone, shine);
   vAlpha = alpha * shown;
@@ -176,7 +193,7 @@ void main() {
 
 /** What one frame needs: where the story is, and what to light. */
 export interface GlFrame {
-  /** False: logo to hand. True: hand to the three mice. */
+  /** False: logo to hand. True: hand to the finale. */
   readonly split: boolean;
   /** `e(t)` and `sin(pi e(t))` of the leg (`legOf(phase).weights`). */
   readonly e: number;
@@ -190,6 +207,10 @@ export interface GlFrame {
   /** The share of the particles each end of the leg lights, and each end's look (`legLook`). */
   readonly fractions: readonly [number, number];
   readonly looks: readonly [GlLook, GlLook];
+  /** How far the finale's places under the headline are cut out, 0 to 1 (`Phase.finale.clip`). */
+  readonly clip: number;
+  /** The finale's closing lift, 0 to 1 (`Phase.finale.lift`). */
+  readonly lift: number;
 }
 
 export interface GlRenderer {
@@ -236,6 +257,8 @@ const UNIFORMS = [
   "uLookTo",
   "uFlat",
   "uGlow",
+  "uClip",
+  "uLift",
 ] as const;
 
 const ATTRIBUTES: readonly (readonly [string, number, number])[] = [
@@ -247,6 +270,7 @@ const ATTRIBUTES: readonly (readonly [string, number, number])[] = [
   ["aTone", 3, GL_FIELD.tone],
   ["aShimmerX", 1, GL_FIELD.shimmerX],
   ["aRank", 1, GL_FIELD.rank],
+  ["aClip", 1, GL_FIELD.clip],
 ];
 
 /**
@@ -412,6 +436,8 @@ export function* createGlRendererSteps(
         }
         context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
         context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
+        context.uniform1f(uniform.uClip, frame.clip);
+        context.uniform1f(uniform.uLift, frame.lift);
         context.drawArrays(context.POINTS, 0, frame.count);
       },
       dispose() {

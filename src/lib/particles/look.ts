@@ -19,7 +19,8 @@ import { A4_MM, STAGE_SCALE } from "./template-hand";
  *
  * What counts for a look is the crowd, not the count: particles per pixel of
  * the picture. A phone's 6,000 particles on a 340 px sheet are as crowded as a
- * desktop's 12,000 on a 410 px one. These numbers are looks, not budgets (未拍板,
+ * desktop's 12,000 on a 410 px one (the budgets were 6,000 / 12,000 then; they
+ * are 7,500 / 15,000 since 2026-10-11, budget.ts). These numbers are looks, not budgets (未拍板,
  * tuned by eye from screenshots), and pure functions, so a test can pin their
  * direction and their limits.
  */
@@ -87,7 +88,9 @@ export function glLook(count: number, scale: number): GlLook {
  *
  * The logo's share is under the mice's because its stars sit on a short line.
  * Its value is the Palmate mark's (2026-10-10, 未拍板 candidate): the mark is
- * a cloud of 840 points about 2 to 4 units wide. Kirby asked for a denser
+ * a cloud of 840 points about 2 to 4 units wide. (The counts below are for
+ * the 6,000 / 12,000 budgets of that day; at 7,500 / 15,000, 2026-10-11, the
+ * logo has 1,050 / 2,100 stars and the finale's figure 1,125 / 2,250.) Kirby asked for a denser
  * mark twice: from the first 0.06 (720 stars on a desktop, 360 on a phone)
  * to 0.10, then to 0.14 with the tighter cloud. For scale: on a desktop's
  * 12,000 particles 0.14 is 1,680 stars on the logo, and 0.15 is 1,800 on the
@@ -110,6 +113,14 @@ export type StateName = keyof typeof LIT_FRACTION;
  * 1.7 with the share at 0.14. 未拍板, tuned by eye from screenshots.
  */
 export const STAR_SIZE = { logo: 1.7, hand: 1, mouse: 1 } as const;
+
+/**
+ * The finale's closing lift: once its figure is formed its lit particles grow
+ * by up to this share of their size and brighten by up to this share of their
+ * opacity (capped at 1), with the scroll (Phase.finale.lift), and then hold.
+ * No idle loop: it is the scroll's. 未拍板 (candidate).
+ */
+export const FINALE_LIFT = { size: 0.18, alpha: 0.3 } as const;
 
 /**
  * A particle's rank: its place in the order (from 0) as a share of all the
@@ -206,9 +217,11 @@ export function legLook(
  * (`pointSizeFits`).
  */
 export function maxPointCssPx(): number {
+  // The shimmer swells the logo only, and the lift the finale only: the
+  // bigger of the two swells counts.
   return (
     Math.max(LOOK_LIMITS.brightPx[1], LOOK_LIMITS.dimPx[1]) *
     Math.max(...Object.values(STAR_SIZE)) *
-    (1 + SHIMMER_GROWTH)
+    Math.max(1 + SHIMMER_GROWTH, 1 + FINALE_LIFT.size)
   );
 }

@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PARTICLE_SEED } from "../../src/lib/particles/budget";
 import { DEGRADE } from "../../src/lib/particles/degrade";
+import {
+  finaleShape,
+  finaleSlotName,
+} from "../../src/lib/particles/finale-shape";
+import { parseFinaleTargets } from "../../src/lib/particles/load-finale";
 import { parseTargets } from "../../src/lib/particles/load-targets";
 import {
   LIT_FRACTION,
@@ -22,7 +27,7 @@ import {
   writeParticles,
 } from "../../src/lib/particles/particle-set";
 import { STAR_ORDER_SEED, starOrder } from "../../src/lib/particles/star-order";
-import { phaseAt } from "../../src/lib/particles/timeline";
+import { MARKS, phaseAt } from "../../src/lib/particles/timeline";
 import {
   CANVAS,
   STORY,
@@ -46,9 +51,29 @@ import {
  * purpose.
  */
 
-const targets = parseTargets(
+const baseTargets = parseTargets(
   JSON.parse(readFileSync("src/lib/particles/targets.generated.json", "utf8")),
 );
+const finale = parseFinaleTargets(
+  JSON.parse(readFileSync("src/lib/particles/finale.generated.json", "utf8")),
+);
+/** The targets as the stage files them: the finale's drawing among the last state's, per tier (particle-stage.ts). */
+const targets = {
+  ...baseTargets,
+  mice: {
+    ...baseTargets.mice,
+    [finaleSlotName("desktop")]: finaleShape(finale, "desktop"),
+    [finaleSlotName("mobile")]: finaleShape(finale, "mobile"),
+  },
+};
+/**
+ * The finale's figure at rest, with nothing of the rest of the finale begun
+ * (no sky, no headline, no cut: timeline.ts's FINALE all start here). The
+ * tests that compared the three mice at rest (p = 0.95) compare the figure
+ * here; past it the headline cuts the figure where its letters are, which
+ * depends on the page's font, and is checked on its own.
+ */
+const FIGURE_AT_REST = MARKS.miceSettled;
 
 test.beforeEach(async ({ page }, info) => {
   if (info.project.name === "chromium") {
@@ -187,26 +212,67 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * stars a quarter or more off (0.08 or 0.25) is outside it, which the
  * mutation checks of this suite showed.
  */
-const STAR_BLOBS = { low: 0.8, high: 1.05 };
+// (The three mice's bound was 0.8 to 1.05.)
 /**
- * The solid area (alpha 80 % or more) of the three mice at p = 0.95 as a
- * multiple of the Canvas 2D version's. Measured: 1.8 on a desktop (1,800
- * stars against 1,300 particles) and 0.8 on a phone (900 against 900, drawn
- * at a pixel ratio of 1.5); the continuous line the stage drew before the
- * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
+ * The same measure for the finale's figure at rest (p = 0.80), which replaced
+ * the three mice on 2026-10-11. Its stars sit on long lines closer together
+ * than a star's core, so neighbours touch and a blob is often two or three
+ * stars: one blob per lit particle no longer holds. Measured 2026-10-11 on
+ * Kirby's machine (headless Chromium, software WebGL), with the budgets of
+ * 7,500 / 15,000: 780 blobs for 2,250 lit (0.3467) in the chromium project
+ * (1280x800) and 609 for 1,125 (0.5413) in the mobile one (Pixel 7), the same
+ * on every run (fixed seed, fixed layout; the same at the guard's floor). The
+ * bound is 5 % either side of each.
+ *
+ * What it catches, measured by changing the share the stage lights (0.15)
+ * while the maths here keeps 0.15 (desktop / phone, blobs over the model's
+ * lit count): 0.12 gives 832 / 571 (0.370 / 0.508: +6.6 % / -6.2 %, both
+ * outside); 0.18 gives 694 / 593 (0.308 / 0.527: -11 % outside / -2.6 %
+ * INSIDE). The phone's 0.18 is caught by the figure's solid area instead
+ * (FIGURE_SOLID_AREA). (At 10 % either side, 0.12 got through on both.)
  */
-const MICE_SOLID = { low: 0.5, high: 3 };
+const FINALE_BLOBS = {
+  desktop: { low: 0.3294, high: 0.364 },
+  phone: { low: 0.5142, high: 0.5684 },
+};
+/**
+ * The solid area (alpha 80 % or more) of the last state at rest as a
+ * multiple of the Canvas 2D version's: the three mice at p = 0.95 until
+ * 2026-10-11 (1.8 on a desktop, 0.8 on a phone), the finale's figure at
+ * p = 0.80 since (2.35 / 1.00 at 7,500 / 15,000); the continuous line the
+ * stage drew before the stars was over 20. The bounds are the 0.5 to 3 the
+ * brief asked for.
+ */
+const FIGURE_SOLID = { low: 0.5, high: 3 };
+/**
+ * The figure's own solid area on the WebGL canvas (CSS px squared, alpha 80 %
+ * or more) at rest, per setup: measured 2026-10-11 at 7,500 / 15,000, 1,447
+ * (chromium, 1280x800) and 632 (mobile, Pixel 7), the same every run; 5 %
+ * either side. It moves with the lit share where the blob count does not
+ * (stars merge): 0.12 gave 1,309 / 575 (-9.5 % / -9 %), 0.18 gave 1,587 / 692
+ * (+9.7 % / +9.4 %), all outside.
+ */
+const FIGURE_SOLID_AREA = {
+  desktop: { low: 1375, high: 1519 },
+  phone: { low: 600, high: 664 },
+};
 /**
  * The logo's total alpha per lit particle (see above), at p = 0, for each of
  * the two setups this test runs in. It depends on how big the mark is drawn
  * (the stars overlap less on a bigger one), so each setup has its own bound.
  *
- * Measured 2026-10-10 on the shipped cloud (variant B3: 840 points, even
- * placing, a stroke's width; lit share 0.14, stars 1.7 times the look),
- * headless Chromium's software WebGL on Kirby's machine, after the shimmer.
- * The figure is the same on every run of a setup (a fixed seed, a fixed
- * layout): 6.320 for the chromium project (1280x800, 1,680 lit) and 5.973
- * for the mobile one (Pixel 7, 840 lit). Over other windows it spreads with
+ * Measured 2026-10-11 with the budgets of 7,500 / 15,000 (shipped cloud
+ * variant B3: 840 points, even placing, a stroke's width; lit share 0.14,
+ * stars 1.7 times the look), headless Chromium's software WebGL on Kirby's
+ * machine, after the shimmer, the same on every run of a setup (a fixed
+ * seed, a fixed layout): 5.188 for the chromium project (1280x800, 2,100
+ * lit) and 4.891 for the mobile one (Pixel 7, 1,050 lit; 11.005 per lit
+ * particle in device px at a pixel ratio of 1.5). With more lit stars the
+ * look draws each a little smaller (look.ts: the crowd), so the logo's total
+ * alpha is about what it was (10,895 against 10,618 at 12,000); per star it
+ * fell from 6.320 / 5.973 (6,000 / 12,000, 1,680 / 840 lit, 2026-10-10).
+ * The spreads and the mutation figures below were measured at 6,000 /
+ * 12,000 and have NOT been measured again at the new budgets. Over other windows it spreads with
  * the mark's size: 5.78 to 6.35 on desktops (1280x720 to 1920x1080, pixel
  * ratio 1 and 2) and 4.98 to 6.61 on phones (375x667 to 430x932, pixel ratio
  * 2 to 3). The bound is 5 % either side of each setup's figure.
@@ -222,8 +288,8 @@ const MICE_SOLID = { low: 0.5, high: 3 };
  * 1.35, the placeholder outline 5.6 / 5.8.
  */
 const LOGO_MASS = {
-  desktop: { low: 6.0, high: 6.64 },
-  phone: { low: 5.67, high: 6.27 },
+  desktop: { low: 4.93, high: 5.45 },
+  phone: { low: 4.65, high: 5.14 },
 };
 
 /**
@@ -232,7 +298,7 @@ const LOGO_MASS = {
  * are lit in each state), and `expected(p)`, the positions at progress p.
  */
 async function stageModel(page: Page) {
-  // Where the page put the logo, the hand and the three mice (at p = 0, where
+  // Where the page put the logo, the hand and the finale (at p = 0, where
   // the hero has not moved): the layout the stage built its particles for.
   const page_ = await page.evaluate(() => {
     const panel = document.querySelector(".story-panel") as HTMLElement;
@@ -253,18 +319,12 @@ async function stageModel(page: Page) {
       wide: matchMedia("(min-width: 48rem)").matches,
       logo: rel(document.querySelector(".story-logo img")!),
       hand: rel(document.querySelector(".story-hand img")!),
-      mice: [...document.querySelectorAll(".story-mouse")].map((figure) => ({
-        rect: rel(figure.querySelector("img")!),
-        sketch: (figure as HTMLElement).dataset.sketch ?? "",
-      })),
+      finale: rel(document.querySelector(".story-finale-art img")!),
       count: Number(canvas.dataset.particles),
       drawn: Number(canvas.dataset.drawn),
     };
   });
-  const fallback = Object.keys(targets.mice)[0]!;
-  const sketches = page_.mice.map((m) =>
-    m.sketch in targets.mice ? m.sketch : fallback,
-  );
+  const sketches = [finaleSlotName(page_.wide ? "desktop" : "mobile")];
   const pairing = buildPairing(targets, {
     count: page_.count,
     layout: page_.wide ? "row" : "stacked",
@@ -277,9 +337,7 @@ async function stageModel(page: Page) {
     height: page_.height,
     logo: logoBox(page_.logo),
     hand: handBox(page_.hand, targets.hand.viewBox),
-    mice: page_.mice.map((m, slot) =>
-      mouseBox(m.rect, targets.mice[sketches[slot]!]!.width),
-    ),
+    mice: [mouseBox(page_.finale, targets.mice[sketches[0]!]!.width)],
   };
   const set = buildParticleSet(pairing, layout, PARTICLE_SEED);
   const frame = createFrame(page_.count);
@@ -597,7 +655,7 @@ test.describe("the WebGL path", () => {
     expect(await uploads()).toBeGreaterThan(before);
   });
 
-  test("the shader draws what the TypeScript formula says: the outline and the centre of the particles agree at p = 0, 0.25, 0.5, 0.75 and 1", async ({
+  test("the shader draws what the TypeScript formula says: the outline and the centre of the particles agree at p = 0, 0.25, 0.5, 0.75 and at the finale's figure at rest (0.80)", async ({
     page,
   }) => {
     await page.goto("/");
@@ -735,7 +793,10 @@ test.describe("the WebGL path", () => {
       return { x0, y0, x1, y1 };
     };
     const seen: string[] = [];
-    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+    // (p = 1 until the finale, 2026-10-11: past 0.80 the headline cuts the
+    // figure where its letters are, which the maths here does not model; the
+    // test after this one checks that cut.)
+    for (const p of [0, 0.25, 0.5, 0.75, FIGURE_AT_REST]) {
       await scrollToProgress(page, p);
       await page.waitForTimeout(150);
       const lists = expected(p);
@@ -795,6 +856,74 @@ test.describe("the WebGL path", () => {
     });
   });
 
+  test("past the figure at rest the headline cuts it only where its letters are: what goes dark between p = 0.80 and 1 lies inside the headline's box (grown by the cut and a particle), and something does", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await requireWebGL(page);
+    await waitForShimmerOver(page);
+    /** The WebGL canvas's alpha, a byte per device px, and the headline's box in the same px. */
+    const read = () =>
+      page.evaluate(() => {
+        const snapshot = (window as unknown as Record<string, unknown>)
+          .__glSnapshot as HTMLCanvasElement;
+        const css = document
+          .querySelector(".story-canvas-gl")!
+          .getBoundingClientRect();
+        const scale = snapshot.width / css.width;
+        const { data, width, height } = snapshot
+          .getContext("2d")!
+          .getImageData(0, 0, snapshot.width, snapshot.height);
+        const alpha: number[] = [];
+        for (let i = 3; i < data.length; i += 4) alpha.push(data[i]!);
+        const t = document
+          .querySelector(".story-finale-title")!
+          .getBoundingClientRect();
+        return {
+          alpha,
+          width,
+          height,
+          scale,
+          title: {
+            x0: (t.left - css.left) * scale,
+            y0: (t.top - css.top) * scale,
+            x1: (t.right - css.left) * scale,
+            y1: (t.bottom - css.top) * scale,
+          },
+        };
+      });
+    await scrollToProgress(page, FIGURE_AT_REST);
+    await page.waitForTimeout(150);
+    const before = await read();
+    await scrollToProgress(page, 1);
+    await page.waitForTimeout(150);
+    const after = await read();
+    // The cut (CLIP_PX, 4) plus a particle's reach (its halo, 6 px): 10 CSS px.
+    const grow = 10 * before.scale;
+    const box = before.title;
+    let gone = 0;
+    let goneOutside = 0;
+    for (let i = 0; i < before.alpha.length; i += 1) {
+      if (before.alpha[i]! < 128 || after.alpha[i]! >= 26) continue;
+      gone += 1;
+      const x = i % before.width;
+      const y = (i - x) / before.width;
+      const inside =
+        x >= box.x0 - grow &&
+        x <= box.x1 + grow &&
+        y >= box.y0 - grow &&
+        y <= box.y1 + grow;
+      if (!inside) goneOutside += 1;
+    }
+    const note = `${gone} px went dark, ${goneOutside} of them outside the headline's box`;
+    test
+      .info()
+      .annotations.push({ type: "the headline's cut", description: note });
+    expect(gone, note).toBeGreaterThan(20);
+    expect(goneOutside, note).toBe(0);
+  });
+
   /** In the page: how many separate bright blobs the WebGL canvas holds (pixels of alpha 50 % or more that touch, 8 ways), and the sum of all its alpha (in whole pixels). */
   const blobs = (page: Page) =>
     page.evaluate(() => {
@@ -850,8 +979,8 @@ test.describe("the WebGL path", () => {
     await waitForShimmerOver(page);
     const model = await stageModel(page);
     const seen: string[] = [];
-    // The mice at rest: each star is a blob of its own (their spacing is wider than a star's core). The logo's stars sit closer on a shorter line, so only the mice are counted blob by blob.
-    for (const p of [0, 0.95, 1]) {
+    // The finale's figure at rest: each star is a blob of its own (their spacing is wider than a star's core). The logo's stars sit closer on a shorter line, so only the figure is counted blob by blob.
+    for (const p of [0, FIGURE_AT_REST]) {
       await scrollToProgress(page, p);
       await page.waitForTimeout(150);
       const lit = model.expected(p).solid.length / 2;
@@ -871,8 +1000,13 @@ test.describe("the WebGL path", () => {
         continue;
       }
       expect(lit, seen.at(-1)).toBeGreaterThan(400);
-      expect(ratio, seen.at(-1)).toBeGreaterThan(STAR_BLOBS.low);
-      expect(ratio, seen.at(-1)).toBeLessThan(STAR_BLOBS.high);
+      const finaleBound = (await page.evaluate(
+        () => matchMedia("(min-width: 48rem)").matches,
+      ))
+        ? FINALE_BLOBS.desktop
+        : FINALE_BLOBS.phone;
+      expect(ratio, seen.at(-1)).toBeGreaterThan(finaleBound.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(finaleBound.high);
     }
     test.info().annotations.push({
       type: "star blobs per lit particle",
@@ -880,7 +1014,7 @@ test.describe("the WebGL path", () => {
     });
   });
 
-  test("the mice are stars, not a line: at p = 0.95 the solid area (alpha 80 % or more) is within the bounds measured against the Canvas 2D version's, never the 20 times and more of a continuous line", async ({
+  test("the finale's figure is stars, not a line: at rest (p = 0.80) the solid area (alpha 80 % or more) is within the bounds measured against the Canvas 2D version's, never the 20 times and more of a continuous line", async ({
     page,
     context,
   }) => {
@@ -890,7 +1024,7 @@ test.describe("the WebGL path", () => {
     await waitForShimmerOver(page);
     const old = await twoDPage(page, context);
     const seen: string[] = [];
-    for (const p of [0.95]) {
+    for (const p of [FIGURE_AT_REST]) {
       await scrollToProgress(page, p);
       await scrollToProgress(old, p);
       await page.waitForTimeout(150);
@@ -901,11 +1035,18 @@ test.describe("the WebGL path", () => {
         `p=${p} webgl ${JSON.stringify(gl)} 2d ${JSON.stringify(flat)} ratio ${ratio.toFixed(2)}`,
       );
       expect(flat.area, seen.at(-1)).toBeGreaterThan(20);
-      expect(ratio, seen.at(-1)).toBeGreaterThan(MICE_SOLID.low);
-      expect(ratio, seen.at(-1)).toBeLessThan(MICE_SOLID.high);
+      expect(ratio, seen.at(-1)).toBeGreaterThan(FIGURE_SOLID.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(FIGURE_SOLID.high);
+      const area = (await page.evaluate(
+        () => matchMedia("(min-width: 48rem)").matches,
+      ))
+        ? FIGURE_SOLID_AREA.desktop
+        : FIGURE_SOLID_AREA.phone;
+      expect(gl.area, seen.at(-1)).toBeGreaterThan(area.low);
+      expect(gl.area, seen.at(-1)).toBeLessThan(area.high);
     }
     test.info().annotations.push({
-      type: "solid area of the mice, webgl over 2d",
+      type: "solid area of the finale's figure, webgl over 2d",
       description: seen.join("; "),
     });
   });
@@ -1009,8 +1150,8 @@ test.describe("the WebGL path", () => {
       }, webgl);
 
     const seen: string[] = [];
-    // The logo at the top, and the three mice at the end: no overlay is on the 2D canvas at either.
-    for (const p of [0, 0.95]) {
+    // The logo at the top, and the finale's figure at rest: no overlay is on the 2D canvas at either.
+    for (const p of [0, FIGURE_AT_REST]) {
       await scrollToProgress(page, p);
       await scrollToProgress(flat, p);
       await page.waitForTimeout(150);
@@ -1317,18 +1458,23 @@ test.describe("the WebGL path", () => {
     await restoreClock(page);
     expect(await drawn()).toBe(floor);
     const model = await stageModel(page);
-    await scrollToProgress(page, 0.95);
+    await scrollToProgress(page, FIGURE_AT_REST);
     await page.waitForTimeout(150);
-    const lit = model.expected(0.95).solid.length / 2;
-    // A quarter of the particles are drawn, and every star of the mice is among them.
+    const lit = model.expected(FIGURE_AT_REST).solid.length / 2;
+    // A quarter of the particles are drawn, and every star of the finale is among them.
     expect(lit).toBe(litCount(LIT_FRACTION.mouse, budget, budget));
     const got = await blobs(page);
     const ratio = got.count / lit;
+    const bound = (await page.evaluate(
+      () => matchMedia("(min-width: 48rem)").matches,
+    ))
+      ? FINALE_BLOBS.desktop
+      : FINALE_BLOBS.phone;
     expect(ratio, `${got.count} blobs for ${lit} stars`).toBeGreaterThan(
-      STAR_BLOBS.low,
+      bound.low,
     );
     expect(ratio, `${got.count} blobs for ${lit} stars`).toBeLessThan(
-      STAR_BLOBS.high,
+      bound.high,
     );
   });
 });
@@ -1341,8 +1487,9 @@ test.describe("the fallback to Canvas 2D", () => {
       cores: navigator.hardwareConcurrency,
     }));
     const base = wide ? 1300 : 900;
-    const wanted = cores <= 4 ? Math.floor(base / 2) : base;
-    return wanted - (wanted % 3);
+    // No rounding to a multiple of three since the finale is one drawing
+    // (2026-10-11): 1,300 on a desktop, not 1,299.
+    return cores <= 4 ? Math.floor(base / 2) : base;
   }
 
   /**

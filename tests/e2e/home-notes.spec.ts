@@ -101,7 +101,7 @@ const opacities = (page: Page) =>
     );
 
 test.describe("the annotations on the animated page", () => {
-  test("are real text in reading order, between the hand and the mice, and stay in the accessibility tree", async ({
+  test("are real text in reading order, between the hand and the finale, and stay in the accessibility tree", async ({
     page,
   }) => {
     await page.goto("/");
@@ -120,7 +120,7 @@ test.describe("the annotations on the animated page", () => {
     // No number anywhere in them.
     const text = (await page.locator(".story-notes").textContent()) ?? "";
     expect(text).not.toMatch(/\d/);
-    // After the hand, before the mice, the two canvases last (WebGL under the
+    // After the hand, before the finale, the two canvases last (WebGL under the
     // 2D one) and still decorative.
     const order = await page.evaluate(() =>
       [...document.querySelector(".story-panel")!.children].map(
@@ -131,7 +131,7 @@ test.describe("the annotations on the animated page", () => {
       "story-hero",
       "story-hand",
       "story-notes",
-      "story-mice",
+      "story-finale",
       "story-canvas-gl",
       "story-canvas",
     ]);
@@ -598,15 +598,15 @@ test.describe("the same five blocks as a list, where the stage is off", () => {
       );
     }
     // An ordinary list in the flow: not laid over anything, whole, in order,
-    // between the hand and the three mice.
+    // between the hand and the finale.
     const facts = await page.evaluate(() => {
       const items = [...document.querySelectorAll(".story-note")];
       const rects = items.map((el) => el.getBoundingClientRect());
       const hand = document
         .querySelector(".story-hand")!
         .getBoundingClientRect();
-      const mice = document
-        .querySelector(".story-mice")!
+      const finale = document
+        .querySelector(".story-finale")!
         .getBoundingClientRect();
       return {
         styles: items.map((el) => {
@@ -617,7 +617,7 @@ test.describe("the same five blocks as a list, where the stage is off", () => {
           (r, i) => i === 0 || r.top >= rects[i - 1]!.bottom,
         ),
         afterHand: rects[0]!.top >= hand.bottom - 1,
-        beforeMice: rects[4]!.bottom <= mice.top + 1,
+        beforeFinale: rects[4]!.bottom <= finale.top + 1,
         scrollFits: document.documentElement.scrollWidth <= window.innerWidth,
       };
     });
@@ -630,7 +630,7 @@ test.describe("the same five blocks as a list, where the stage is off", () => {
     expect(facts).toMatchObject({
       inOrder: true,
       afterHand: true,
-      beforeMice: true,
+      beforeFinale: true,
       scrollFits: true,
     });
     // No ring and no leader: the canvas is not shown.

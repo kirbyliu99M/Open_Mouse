@@ -94,6 +94,13 @@ export interface ParticleSet {
   readonly swirlSplit: Float32Array;
   /** 0 at the mark's left edge to 1 at its right, for the shimmer (the strays round it held to 0 to 1: see `pairingTablesSteps`). */
   readonly shimmerX: Float32Array;
+  /**
+   * 1 where the particle's place in the finale lies under the headline's
+   * letters (grown by a few px): the line is cut there and the particle fades
+   * out as the letters arrive (`markClipped`). 0 everywhere until the stage
+   * marks them.
+   */
+  readonly clip: Uint8Array;
 }
 
 /**
@@ -226,6 +233,7 @@ export function buildParticleSet(
     swirlForm: new Float32Array(2 * n),
     swirlSplit: new Float32Array(2 * n),
     shimmerX: tables.shimmerX,
+    clip: new Uint8Array(n),
   };
   for (let i = 0; i < n; i += 1) {
     const l = pairing.logo[i]!;
@@ -246,6 +254,24 @@ export function buildParticleSet(
   return set;
 }
 
+/**
+ * Mark the particles whose place in the last state (`set.mouse`, canvas CSS
+ * px) is blocked, e.g. under the finale headline's grown letters; clear the
+ * rest. Returns how many are marked.
+ */
+export function markClipped(
+  set: ParticleSet,
+  blocked: (x: number, y: number) => boolean,
+): number {
+  let marked = 0;
+  for (let i = 0; i < set.count; i += 1) {
+    const hit = blocked(set.mouse[2 * i]!, set.mouse[2 * i + 1]!);
+    set.clip[i] = hit ? 1 : 0;
+    if (hit) marked += 1;
+  }
+  return marked;
+}
+
 export interface Frame {
   /** x, y per particle in canvas CSS px. */
   readonly xy: Float32Array;
@@ -259,7 +285,7 @@ export function createFrame(count: number): Frame {
 
 /** Which leg of the story a phase is in, and how far along it: what both drawing paths read. */
 export interface Leg {
-  /** False: logo to hand. True: hand to the three mice. */
+  /** False: logo to hand. True: hand to the finale (the last state). */
   readonly split: boolean;
   /** Progress along the leg, 0 to 1. */
   readonly t: number;
