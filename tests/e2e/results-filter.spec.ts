@@ -695,6 +695,13 @@ test.describe("phone sheet", () => {
     expect(t!.y - b!.y).toBeGreaterThanOrEqual(5);
   });
 
+  test("the sheet layout keeps the page's 1.5rem block spacing", async ({
+    page,
+  }) => {
+    await page.goto(MAIN);
+    await expect(page.locator(".results-main")).toHaveCSS("row-gap", "24px");
+  });
+
   test("a mobile page has no horizontal scroll with the filter on", async ({
     page,
   }) => {
@@ -707,20 +714,40 @@ test.describe("phone sheet", () => {
 });
 
 test.describe("the layout switch", () => {
-  test("1023 px gets the sheet, 1024 px the sidebar", async ({ page }) => {
+  test("1023 px gets the sheet, 1024 px the sidebar, in CSS as well as in the script", async ({
+    page,
+  }) => {
     test.skip(!isDesktop(page), "Resizes the desktop window.");
     await stub(page);
+    const body = page.locator(".results-body");
+    const main = page.locator(".results-main");
     await page.setViewportSize({ width: 1023, height: 800 });
     await page.goto(MAIN);
+    const bar = page.locator(".results-filterBar");
     await expect(page.getByRole("button", { name: /^篩選/ })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "篩選" })).toHaveCount(
       0,
     );
+    // The sheet layout adds no box of its own: the bar sits above the content.
+    await expect(body).toHaveCSS("display", "contents");
+    const [barBox, mainBox] = await Promise.all([
+      bar.boundingBox(),
+      main.boundingBox(),
+    ]);
+    expect(mainBox!.y).toBeGreaterThanOrEqual(barBox!.y + barBox!.height);
     await page.setViewportSize({ width: 1024, height: 800 });
-    await expect(
-      page.getByRole("complementary", { name: "篩選" }),
-    ).toBeVisible();
+    const sidebar = page.getByRole("complementary", { name: "篩選" });
+    await expect(sidebar).toBeVisible();
     await expect(page.getByRole("button", { name: /^篩選/ })).toHaveCount(0);
+    // Two columns: the grid is on, and the sidebar is left of the content (a
+    // CSS breakpoint that drifts from the script's would stack them).
+    await expect(body).toHaveCSS("display", "grid");
+    const [sideBox, contentBox] = await Promise.all([
+      sidebar.boundingBox(),
+      main.boundingBox(),
+    ]);
+    expect(contentBox!.x).toBeGreaterThanOrEqual(sideBox!.x + sideBox!.width);
+    expect(Math.abs(contentBox!.y - sideBox!.y)).toBeLessThan(40);
   });
 
   test("a filter set in one layout shows in the other", async ({ page }) => {

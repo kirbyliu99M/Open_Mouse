@@ -1,6 +1,6 @@
 /*
- * Results-page filter (FILTER-1, candidate / 未拍板): sidebar from 1024 CSS px,
- * a bottom sheet below. Dark theme tokens only (src/app/tokens.css); no colour
+ * Results-page filter (FILTER-1, candidate / 未拍板): sidebar from 64em (1024
+ * px at the default text size), a bottom sheet below. Dark theme tokens only (src/app/tokens.css); no colour
  * is written out here.
  *
  * Buttons (docs/design-guidelines.md, BTN-1): the primary one is a white pill,
@@ -273,6 +273,11 @@
   gap: 2rem;
   min-width: 0;
 }
+/* In the sheet layout the content keeps the page's own block spacing (the
+   1.5rem of `.results-view`, as on a detail page). */
+.results-body[data-filter="sheet"] .results-main {
+  gap: 1.5rem;
+}
 .results-sidebar {
   position: sticky;
   top: 1rem;
@@ -297,6 +302,15 @@
   margin: 0;
   font-size: 1.5rem;
   line-height: 1.2;
+}
+/* Focus lands here (by script) after a chip, 「清除全部」 or the no-match button
+   is pressed; it is not a Tab stop. */
+.results-sidebar-title:focus {
+  outline: none;
+}
+.results-sidebar-title:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 4px;
 }
 .results-sidebar-count {
   margin: 0;
@@ -638,8 +652,15 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
   gap: 0.25rem 1rem;
   margin-top: -0.75rem;
 }
+/* Read only (a detail page): an outline, not the filled look of a chip that
+   can be removed, and no pressed state. */
 .results-chip--static {
   cursor: default;
   min-height: 2.25rem;
   padding: 0 1rem;
+  background: transparent;
+  border-color: var(--hairline);
+}
+.results-chip--static:active {
+  opacity: 1;
 }
