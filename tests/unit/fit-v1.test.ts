@@ -12,7 +12,7 @@ import {
   SIGMA_MM,
   UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
-import { scoreFitDefault } from "../../src/server/fit/engine";
+import { scoreFitDefault, scoreWithEngine } from "../../src/server/fit/engine";
 import { excludeReasonV1 } from "../../src/server/fit/exclusions-v1";
 import { argmaxGrip, gripWeights } from "../../src/server/fit/grip-weights";
 import { computePriors } from "../../src/server/fit/priors";
@@ -62,13 +62,16 @@ const hand: HandMeasurements = {
 };
 const noPriors = computePriors([]);
 
-describe("v0 stays the default", () => {
-  it("DEFAULT_ENGINE is v0 and the default engine is scoreFit, byte for byte", () => {
-    expect(DEFAULT_ENGINE).toBe("v0");
+describe("v1 is the default (Kirby, 2026-10-10); v0 stays reachable", () => {
+  it("DEFAULT_ENGINE is v1 and the default engine is scoreFitV1, byte for byte", () => {
+    expect(DEFAULT_ENGINE).toBe("v1");
     expect(ENGINE_VERSION).toBe("fit-v0-provisional");
     const args = [hand, seed, prefs, "right"] as const;
-    expect(scoreFitDefault(...args)).toEqual(scoreFit(...args));
-    expect(scoreFitDefault(...args).engineVersion).toBe("fit-v0-provisional");
+    expect(scoreFitDefault(...args)).toEqual(
+      scoreFitV1(...args, computePriors(seed)),
+    );
+    expect(scoreFitDefault(...args).engineVersion).toBe("fit-v1-candidate.2");
+    expect(scoreWithEngine("v0", ...args)).toEqual(scoreFit(...args));
   });
 });
 

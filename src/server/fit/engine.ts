@@ -56,8 +56,8 @@ export function storedNullScore(
 
 /**
  * The engine the fit route runs: `DEFAULT_ENGINE` in coefficients.ts picks it,
- * and that constant is the single switch. It stays "v0" until Kirby approves
- * the v1 candidate's before/after, so this is v0, byte for byte, today.
+ * and that constant is the single switch. It is "v1" since Kirby's decision of
+ * 2026-10-10 (v1 is still a candidate); `scoreFit` is v0, unchanged.
  */
 export function scoreFitDefault(
   measurements: HandMeasurements,
