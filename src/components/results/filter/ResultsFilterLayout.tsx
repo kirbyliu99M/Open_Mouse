@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
@@ -87,6 +93,12 @@ export function ResultsFilterLayout({
     // Focus goes back to the button that opened the sheet.
     requestAnimationFrame(() => trigger.current?.focus());
   }, []);
+
+  // A sheet left open when the window grows into the sidebar layout is closed
+  // (its draft is discarded), so it does not come back on its own later.
+  useEffect(() => {
+    if (wide) setSheetOpen(false);
+  }, [wide]);
 
   if (wide) {
     return (
