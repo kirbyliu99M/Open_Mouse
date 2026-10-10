@@ -4,6 +4,20 @@ This spec is for the UI lane. The source of truth is the pen.dev canvas: the
 frames named `[Home v3] …` under the header "Home v3 header". The PNGs in
 `screens/` are 1× exports of those frames.
 
+> **Update 2026-10-11: the finale replaced the three mice.** Story 6 is now
+> one drawing, a hand on a mouse (`public/images/sketches/finale-grip.svg`,
+> Pencil v17 desktop / v18 phone), under Kirby's headline "Find Your Best
+> Mouse" (an `h2`, real text; the canvas draws its letters, gathered from
+> particles and swept solid, and the figure's lines are cut where the
+> letters are), with a starfield and scroll-driven meteors behind it. The
+> mice's captions are gone. The final section's two buttons come up over the
+> bottom of the finale as the panel lets go (20svh on a desktop, 33svh on a
+> phone). The WebGL budgets are 7,500 / 15,000 (were 6,000 / 12,000). The
+> sections below that still speak of three mice describe the earlier
+> version where they are not updated; the code (particle-stage.ts,
+> stage-finale.ts, timeline.ts's FINALE) is the reference. All of it is
+> 未拍板 (candidate) until Kirby has seen it.
+
 ## Decisions (Kirby, 2026-10-03)
 
 - The whole site moves to a **dark theme**: home, How it works, results and
@@ -19,7 +33,8 @@ frames named `[Home v3] …` under the header "Home v3 header". The PNGs in
   2026-10-03):
   1. the hero is the logo with the big headline;
   2. on scroll, the particles scatter and form a hand;
-  3. on scroll again, the hand re-forms as three mice.
+  3. on scroll again, the hand re-forms as three mice (since 2026-10-11: as
+     one hand on a mouse, under the headline; see the update above).
 - The three taglines below the CTA ("One photo. No printing." and the other
   two) are removed.
 - The "Measure your hand." line above the headline is removed, in every
@@ -129,7 +144,8 @@ DOM order:
    1. the hero: the logo (a static `<img>`, decorative, empty alt), then the
       `h1`, the subhead, the two buttons and the Early preview note;
    2. the hand (a static SVG);
-   3. the three mice (static SVGs), each with its caption as real text;
+   3. the finale (since 2026-10-11): its static drawing (decorative, empty
+      alt) and its headline "Find Your Best Mouse" as a real `h2`;
    4. the two `<canvas>` elements (PR B only): the WebGL one first, then the
       2D overlay last (see Layers below).
 3. Final section: both buttons again and the Early preview note again.
@@ -198,12 +214,16 @@ are ordinary blocks, and their parts stack in flow, as in
   opacity and transform only. Below opacity 0.05 the buttons and links get
   `inert`, so hidden controls can't be tabbed to; the h1 stays in the
   accessibility tree. Scrolling back reverses this.
-- **Static hand and mice.** Their SVGs are hidden; the canvas draws those
-  states. The three captions are absolutely positioned in the panel at the
-  mice's target rects, and fade in as the mice settle.
-- **Exit.** At p = 1 the sticky panel releases. The three mice and their
-  captions scroll up with the panel, and the final section follows. Nothing
-  disappears abruptly. The canvas stops drawing once the panel is off screen.
+- **Static hand and finale.** Their SVGs are hidden; the canvas draws those
+  states. The finale's headline stays in the DOM, transparent (the canvas
+  draws it); it is shown as DOM text, fading in with its window, when its
+  canvas layer can not be built (`data-finale="off"`) and under forced
+  colours (the system's text colour).
+- **Exit.** At p = 1 the sticky panel releases. The finale scrolls up with
+  the panel; the final section's buttons have already come up over its
+  bottom (they sit above the canvases, which take no pointer events).
+  Nothing disappears abruptly. The canvas stops drawing once the panel is
+  off screen.
 
 Buttons:
 
@@ -363,17 +383,18 @@ Scrolling stays native:
 - no `preventDefault` on wheel or touch;
 - the user can stop or reverse at any point.
 
-| Story                   | Progress (suggested) | What happens                                                                                                                                     | Text in the DOM                   |
-| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
-| 1 Hero: logo + headline | p = 0                | The particle logo (the Palmate hand) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still | `home.title`, `home.subhead`, CTA |
-| 2 Logo scatters         | 0.00–0.15            | The logo's particles break loose and drift outwards                                                                                              | —                                 |
-| 3 Particles → hand      | 0.15–0.38            | The particles gather into a hand on the A4 outline                                                                                               | —                                 |
-| 4 Hand measured         | 0.38–0.55            | The 21 landmark dots light up in order; the skeleton lines draw; the hand-length and palm-width lines extend with end ticks, **no numbers**      | —                                 |
-| 5 Hand rearranges       | 0.55–0.72            | The hand's particles loosen and flow apart into three streams                                                                                    | —                                 |
-| 6 Three mice            | 0.72–1.00            | The three streams settle into three mouse sketches by p = 0.90 and hold still to 1.00. Stacked on mobile, side by side on desktop                | `home.sketchCaption` × 3          |
+| Story                   | Progress (suggested) | What happens                                                                                                                                                                                                      | Text in the DOM                   |
+| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1 Hero: logo + headline | p = 0                | The particle logo (the Palmate hand) above the headline, subhead and buttons. On load it plays one shimmer pass of at most 3 s, then stays still                                                                  | `home.title`, `home.subhead`, CTA |
+| 2 Logo scatters         | 0.00–0.15            | The logo's particles break loose and drift outwards                                                                                                                                                               | —                                 |
+| 3 Particles → hand      | 0.15–0.38            | The particles gather into a hand on the A4 outline                                                                                                                                                                | —                                 |
+| 4 Hand measured         | 0.38–0.55            | The 21 landmark dots light up in order; the skeleton lines draw; the hand-length and palm-width lines extend with end ticks, **no numbers**                                                                       | —                                 |
+| 5 Hand rearranges       | 0.55–0.72            | The hand's particles loosen and flow apart into three streams                                                                                                                                                     | —                                 |
+| 6 The finale            | 0.72–1.00            | The particles settle into the hand on the mouse by p = 0.80; then (to 0.98) the sky and light come up, the headline gathers and is swept solid, the figure's lines are cut at the letters; it holds still to 1.00 | the headline (`h2`)               |
 
-After the story section comes the final section. Only G Pro exists today, so all
-three mice are G Pro placeholders.
+After the story section comes the final section, whose buttons come up over the
+bottom of the finale. (Until 2026-10-11 story 6 was three G Pro placeholder
+mice with captions.)
 
 The only motion that starts without the user is the hero shimmer, and it ends
 within 3 s, which meets WCAG 2.2.2. There is no looping idle drift.
@@ -575,14 +596,15 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
 
   On a device with 4 cores or fewer the Canvas 2D budget is 450 (phone) or
-  648 (desktop), fewer than the logo target's 873 points, so the logo is an
+  650 (desktop; 648 while three mice took a third each), fewer than the logo target's 873 points, so the logo is an
   even pick through the target's points (`resampleToCount`) and the dot and
   the strays are thinned with everything else: at 450 the dot keeps 1 of its
   3 bright core points and 3 of its 6 ring points and 13 of the 24 strays
   remain; at 648, all 3, 4 and 18; from 900 up all of them. A known
   trade-off of the low-end fallback.
 
-  Each is rounded down to a multiple of three (a third per mouse). The
+  Each was rounded down to a multiple of three (a third per mouse) until the
+  finale (2026-10-11), which is one drawing: no rounding now. The
   budget is the number of particles in the whole story. The hand's dust
   draws all of them, and the stars are a share of them (the lit count is the
   share times the budget, rounded), so a bigger budget makes the hand's dust
