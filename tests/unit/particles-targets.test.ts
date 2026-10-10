@@ -205,16 +205,17 @@ describe("the Palmate logo", () => {
     expect(target.height).toBe(LOGO_BOX.height);
   });
 
-  it("has 600 points along the lines (one run for each of the four), 9 in the dot and 24 strays (a run of one each), in that order", () => {
+  it("has 840 points along the lines (one run for each of the four), 9 in the dot and 24 strays (a run of one each), in that order", () => {
     expect(cloud).toHaveLength(LOGO_SAMPLING.particles);
-    expect(cloud).toHaveLength(600);
+    // 840: Kirby's second call for a denser mark (2026-10-10; it was 600).
+    expect(cloud).toHaveLength(840);
     expect(pathRuns.every((run) => run.count > 1)).toBe(true);
     expect(dotRuns).toHaveLength(9);
     expect(dotRuns.every((run) => run.count === 1)).toBe(true);
     expect(strays).toHaveLength(LOGO_SAMPLING.ambient);
     expect(strays).toHaveLength(24);
     expect(strayRuns.every((run) => run.count === 1)).toBe(true);
-    expect(target.points).toHaveLength(633);
+    expect(target.points).toHaveLength(873);
     // The runs cover the points once, in order, strays last.
     let next = 0;
     for (const run of target.runs) {
@@ -223,17 +224,17 @@ describe("the Palmate logo", () => {
       next += run.count;
     }
     expect(next).toBe(target.points.length);
-    // Each line has its share of the 600: in proportion to its length, to within a point or two.
+    // Each line has its share of the 840: in proportion to its length, to within a point or two.
     polylines.forEach(({ points }, i) => {
       expect(
         Math.abs(
-          pathRuns[i]!.count - (600 * polylineLength(points)) / pathLength,
+          pathRuns[i]!.count - (840 * polylineLength(points)) / pathLength,
         ),
       ).toBeLessThanOrEqual(1);
     });
   });
 
-  it("puts every point of the cloud inside the box, within 2.4 units of the line and a few at the very edge of that, and no point is exactly on the line", () => {
+  it("puts every point of the cloud inside the box, within 1.6 units of the line and a few at the very edge of that, and no point is exactly on the line", () => {
     const limit = LOGO_SAMPLING.maxSpread * LOGO_SCALE + 0.3;
     const distances = cloud.map((p) => distanceToPolylines([p.x, p.y], inBox));
     for (const p of cloud) {
@@ -243,15 +244,17 @@ describe("the Palmate logo", () => {
       expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height);
     }
     expect(Math.max(...distances)).toBeLessThan(limit);
-    // Not a line: a bell-shaped width round it. Spread 0.8 units has a mean
-    // distance of 0.64 units (1.9 px) and about 21 % of the points beyond 1 unit.
+    // Not a line: a bell-shaped width round it. Spread 0.5 units has a mean
+    // distance of 0.40 units (1.2 px) and about 4.6 % of the points beyond 1
+    // unit (the bounds are those of the test below; the nearest line of any
+    // of the four can only be nearer than a point's own).
     const units = distances.map((d) => d / LOGO_SCALE);
-    expect(mean(units)).toBeGreaterThan(0.5);
-    expect(mean(units)).toBeLessThan(0.75);
+    expect(mean(units)).toBeGreaterThan(0.34);
+    expect(mean(units)).toBeLessThan(0.435);
     const beyond = units.filter((d) => d > 1).length / units.length;
-    expect(beyond).toBeGreaterThan(0.1);
-    expect(beyond).toBeLessThan(0.35);
-    expect(Math.max(...units)).toBeGreaterThan(1.6);
+    expect(beyond).toBeGreaterThan(0.015);
+    expect(beyond).toBeLessThan(0.071);
+    expect(Math.max(...units)).toBeGreaterThan(1.3);
   });
 
   /**
@@ -260,11 +263,12 @@ describe("the Palmate logo", () => {
    * left of the way the line is drawn). The expected values below come from
    * the sampling's description (a bell of standard deviation `spread`
    * clipped at `maxSpread`, places an even step apart, `doubled` of them with
-   * two points), not from what the code made: for N(0, 0.8) clipped at 2.4
-   * (3 standard deviations) the mean distance is 0.638, the share beyond 1
-   * unit 0.211 and the standard deviation 0.795; over 600 points their
-   * standard errors are 0.020, 0.017 and 0.023, and each bound is about 3.5
-   * of them either side.
+   * two points), not from what the code made: for N(0, 0.5) clipped at 1.6
+   * (3.2 standard deviations) the mean distance is 0.399, the share beyond 1
+   * unit (2 standard deviations) 0.046 and the standard deviation 0.500;
+   * over 840 points their standard errors are 0.0104, 0.0072 and 0.0122, and
+   * each bound is about 3.5 of them either side. (The first cut, N(0, 0.8)
+   * clipped at 2.4 over 600 points, had 0.638, 0.211 and 0.795.)
    */
   const placed = pathRuns.map((run, w) =>
     target.points.slice(run.start, run.start + run.count).map((p) => {
@@ -311,30 +315,30 @@ describe("the Palmate logo", () => {
     return polylineLength(inBox[w]!.points) / LOGO_SCALE / places;
   });
 
-  it("spreads the points across the line as a bell 0.8 units wide, both sides alike, clipped at 2.4 units", () => {
+  it("spreads the points across the line as a bell 0.5 units wide, both sides alike, clipped at 1.6 units", () => {
     const across = placed.flat().map((p) => p.across);
     const centre = mean(across);
     const sd = Math.sqrt(mean(across.map((a) => (a - centre) ** 2)));
     const size = across.map(Math.abs);
-    // Both sides alike: the signed mean is 0 (standard error 0.033).
-    expect(Math.abs(centre)).toBeLessThan(0.12);
-    expect(sd).toBeGreaterThan(0.715);
-    expect(sd).toBeLessThan(0.875);
-    expect(mean(size)).toBeGreaterThan(0.568);
-    expect(mean(size)).toBeLessThan(0.708);
+    // Both sides alike: the signed mean is 0 (standard error 0.017).
+    expect(Math.abs(centre)).toBeLessThan(0.06);
+    expect(sd).toBeGreaterThan(0.457);
+    expect(sd).toBeLessThan(0.543);
+    expect(mean(size)).toBeGreaterThan(0.363);
+    expect(mean(size)).toBeLessThan(0.435);
     const beyond = size.filter((d) => d > 1).length / size.length;
-    expect(beyond).toBeGreaterThan(0.152);
-    expect(beyond).toBeLessThan(0.27);
-    // The tail reaches the clip: 600 draws of a bell have about 4 beyond 2.75
-    // standard deviations (2.2 units), and none past 2.4.
-    expect(Math.max(...size)).toBeGreaterThanOrEqual(2.2);
-    expect(Math.max(...size)).toBeLessThanOrEqual(2.4 + 0.05);
+    expect(beyond).toBeGreaterThan(0.0203);
+    expect(beyond).toBeLessThan(0.0707);
+    // The tail reaches the clip: 840 draws of a bell have about 5 beyond 2.75
+    // standard deviations (1.375 units), and none past 1.6.
+    expect(Math.max(...size)).toBeGreaterThanOrEqual(1.375);
+    expect(Math.max(...size)).toBeLessThanOrEqual(1.6 + 0.05);
   });
 
   it("lights about half the points in every stretch of the line, not whole stretches bright or dim", () => {
-    // Stretches of 10 units, about 17 points each. With each point bright at
-    // a half chance, a stretch is outside 25 % to 75 % bright 5 % of the
-    // time and all one tone almost never (2 in 100,000).
+    // Stretches of 10 units, about 24 points each. With each point bright at
+    // a half chance, a stretch is outside 25 % to 75 % bright 0.7 % of the
+    // time and all one tone almost never (1 in 8 million).
     let stretches = 0;
     let even = 0;
     for (const line of placed) {
@@ -353,16 +357,16 @@ describe("the Palmate logo", () => {
       }
     }
     expect(stretches).toBeGreaterThanOrEqual(30);
-    expect(even / stretches).toBeGreaterThanOrEqual(0.85);
+    expect(even / stretches).toBeGreaterThanOrEqual(0.9);
   });
 
-  it("walks each line in order, a place an even step apart, about a quarter of the places with two points close together", () => {
+  it("walks each line in order, a place an even step apart, about a quarter of the places with two points, most of them close together", () => {
     let close = 0;
     placed.forEach((line, w) => {
       const step = steps[w]!;
-      // The places are about 0.73 units apart.
-      expect(step).toBeGreaterThan(0.68);
-      expect(step).toBeLessThan(0.78);
+      // The places are about 0.52 units apart (349 units over 667 places).
+      expect(step).toBeGreaterThan(0.49);
+      expect(step).toBeLessThan(0.56);
       for (let i = 1; i < line.length; i += 1) {
         const move = line[i]!.along - line[i - 1]!.along;
         // The next point is at most two steps on (from the start of one
@@ -377,12 +381,12 @@ describe("the Palmate logo", () => {
         if (Math.abs(move) < 0.25) close += 1;
       }
     });
-    // 600 points on 476 places is 124 places with two. The two of a place are
+    // 840 points on 667 places is 173 places with two. The two of a place are
     // each anywhere in its step, so they are under 0.25 units apart with a
-    // chance of 1 - (1 - 0.25 / 0.733)^2 = 0.566: about 70 (standard
-    // deviation 5.5). One point a place, an even 0.58 units apart, has none.
-    expect(close).toBeGreaterThanOrEqual(50);
-    expect(close).toBeLessThanOrEqual(95);
+    // chance of 1 - (1 - 0.25 / 0.523)^2 = 0.728: about 126 (standard
+    // deviation 5.9). One point a place, an even 0.42 units apart, has none.
+    expect(close).toBeGreaterThanOrEqual(100);
+    expect(close).toBeLessThanOrEqual(155);
   });
 
   it("covers the line: every stretch of 5 units has points within 2 units, so no finger is bare", () => {
@@ -618,12 +622,12 @@ describe("the Palmate logo", () => {
     // centre, in the box, all part of the mark.
     const core = dot.filter((p) => p.tone === 1);
     const rim = dot.filter((p) => p.tone === 0);
-    expect(core).toHaveLength(LOGO_SAMPLING.dotCore);
-    expect(rim).toHaveLength(LOGO_SAMPLING.dotRing);
-    expect(core.length).toBeGreaterThanOrEqual(1);
-    expect(core.length).toBeLessThanOrEqual(3);
-    expect(rim.length).toBeGreaterThanOrEqual(5);
-    expect(rim.length).toBeLessThanOrEqual(7);
+    // Pinned: a core of 3 and a ring of 6 (the dot as compared in the
+    // screenshots Kirby chose from, 2026-10-10).
+    expect(LOGO_SAMPLING.dotCore).toBe(3);
+    expect(LOGO_SAMPLING.dotRing).toBe(6);
+    expect(core).toHaveLength(3);
+    expect(rim).toHaveLength(6);
     const centreOf = (list: readonly { x: number; y: number }[]): Vec =>
       toUnits({ x: mean(list.map((p) => p.x)), y: mean(list.map((p) => p.y)) });
     near(centreOf(dot), "particles");
