@@ -181,19 +181,11 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * At the mice every star is a blob of its own except for a few that touch:
  * 0.88 blobs per lit particle on a desktop and 1.00 on a phone. At the logo
  * the stars sit closer, on a shorter line, and blur into one outline: there
- * the canvas's total alpha (in px squared of the canvas, divided by the
- * pixel ratio squared) per lit particle is 7.31 on a desktop (1,200 lit
- * particles) and 7.42 on a phone (600), measured on the Palmate mark's cloud
- * on 2026-10-10 with a lit share of 0.10 and logo stars 1.7 times the look
- * (the first Palmate cut, 0.06 and 1.35, measured 5.64 and 5.62; the
- * placeholder mouse outline had 5.6 and 5.8; the figure rises with the share
- * and the star size because the stars overlap more). A bound is
- * about 10 % either side of what was measured: a share of stars a quarter or
- * more off (0.08 or 0.25 for the mice) is outside it, which the mutation
- * checks of this suite showed. For the logo the bound catches the shader
- * lighting another number of particles than the TypeScript maths says (the
- * mass is the shader's, the count is the maths'): a shader that lights half
- * of what the maths says gives about half the figure.
+ * the measure is the canvas's total alpha (in px squared of the canvas,
+ * divided by the pixel ratio squared) per lit particle: see `LOGO_MASS`. For
+ * the mice a bound is about 10 % either side of what was measured: a share of
+ * stars a quarter or more off (0.08 or 0.25) is outside it, which the
+ * mutation checks of this suite showed.
  */
 const STAR_BLOBS = { low: 0.8, high: 1.05 };
 /**
@@ -204,7 +196,34 @@ const STAR_BLOBS = { low: 0.8, high: 1.05 };
  * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
  */
 const MICE_SOLID = { low: 0.5, high: 3 };
-const LOGO_MASS = { low: 6.7, high: 8.1 };
+/**
+ * The logo's total alpha per lit particle (see above), at p = 0, for each of
+ * the two setups this test runs in. It depends on how big the mark is drawn
+ * (the stars overlap less on a bigger one), so each setup has its own bound.
+ *
+ * Measured 2026-10-10 on the 840-point cloud (variant B: lit share 0.14,
+ * stars 1.7 times the look), headless Chromium's software WebGL on Kirby's
+ * machine, after the shimmer. The figure is the same on every run of a setup
+ * (a fixed seed, a fixed layout): 6.190 for the chromium project (1280x800,
+ * 1,680 lit) and 5.867 for the mobile one (Pixel 7, 840 lit). Over other
+ * windows it spreads with the mark's size: 5.66 to 6.22 on desktops
+ * (1280x720 to 1920x1080, pixel ratio 1 and 2) and 4.90 to 6.49 on phones
+ * (375x667 to 430x932, pixel ratio 2 to 3). The bound is 5 % either side of
+ * each setup's figure.
+ *
+ * What it catches, measured by changing what the stage draws and not the
+ * maths (desktop / phone): the shader lighting 0.12 instead of 0.14, 5.69 /
+ * 5.35; lighting 0.10, 5.11 / 4.76; stars 20 % fainter, 5.65 / 5.33; stars
+ * 20 % smaller, 5.03 / 4.75. All are outside. A brighter star is not: the
+ * logo's stars are at full opacity already (brightAlpha's ceiling, 1), so a
+ * 20 % brighter one measured the same. Earlier figures: 7.31 / 7.42 at 0.10
+ * (600 points, spread 0.8), 5.64 / 5.62 at 0.06 with stars 1.35, the
+ * placeholder outline 5.6 / 5.8.
+ */
+const LOGO_MASS = {
+  desktop: { low: 5.88, high: 6.5 },
+  phone: { low: 5.57, high: 6.16 },
+};
 
 /**
  * What the TypeScript maths says the WebGL stage draws, built for the layout
@@ -842,8 +861,12 @@ test.describe("the WebGL path", () => {
       );
       if (p === 0) {
         const perParticle = got.mass / (got.scale * got.scale) / lit;
-        expect(perParticle, seen.at(-1)).toBeGreaterThan(LOGO_MASS.low);
-        expect(perParticle, seen.at(-1)).toBeLessThan(LOGO_MASS.high);
+        const wide = await page.evaluate(
+          () => matchMedia("(min-width: 48rem)").matches,
+        );
+        const bound = wide ? LOGO_MASS.desktop : LOGO_MASS.phone;
+        expect(perParticle, seen.at(-1)).toBeGreaterThan(bound.low);
+        expect(perParticle, seen.at(-1)).toBeLessThan(bound.high);
         continue;
       }
       expect(lit, seen.at(-1)).toBeGreaterThan(400);
