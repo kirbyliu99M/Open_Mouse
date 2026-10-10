@@ -184,4 +184,27 @@ describe("the fit repo over the seeded table", () => {
       listedOnly(catalogue).filter((m) => m.formFactor === "trackball"),
     ).toEqual([expect.objectContaining({ model: "MX Ergo S" })]);
   });
+
+  it("returns the connectivity column for every row (the results filter reads it from here)", async () => {
+    await seedCatalogue(db, specs, descriptors, input);
+    const repo = createDrizzleFitRepo(
+      db as unknown as Parameters<typeof createDrizzleFitRepo>[0],
+    );
+    const catalogue = await repo.loadCatalogue();
+    const stored = new Map(
+      (
+        await pg.query<{ slug: string; connectivity: string | null }>(
+          "SELECT slug, connectivity FROM mice",
+        )
+      ).rows.map((r) => [r.slug, r.connectivity] as const),
+    );
+    // Each row carries exactly what the table holds (a missing column would
+    // read as undefined here, and the filter would see every mouse as unknown).
+    for (const m of catalogue) {
+      expect(m.connectivity, m.slug).toBe(stored.get(m.slug));
+    }
+    const values = new Set(catalogue.map((m) => m.connectivity));
+    expect(values.has("wired")).toBe(true);
+    expect(values.has("wireless")).toBe(true);
+  });
 });

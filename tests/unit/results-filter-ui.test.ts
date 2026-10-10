@@ -130,6 +130,37 @@ describe("FilterFacets", () => {
     expect(html).toContain('aria-label="中型鼠，4 款，適合你"');
   });
 
+  it("the sidebar starts with 品牌 and 尺寸 open (Kirby, 2026-10-11); the sheet with 品牌 only", () => {
+    const sidebar = renderToStaticMarkup(
+      createElement(FilterFacets, {
+        response: response(),
+        language: "zh-TW",
+        filters: emptyFilters(),
+        onChange: noop,
+        startOpen: ["brand", "size"],
+      }),
+    );
+    const open = (html: string, group: string) =>
+      html
+        .slice(html.indexOf(`data-group="${group}"`))
+        .split("</section>")[0]!
+        .includes('aria-expanded="true"');
+    expect(open(sidebar, "brand")).toBe(true);
+    expect(open(sidebar, "size")).toBe(true);
+    expect(open(sidebar, "weight")).toBe(false);
+    const sheet = facets(response(), emptyFilters());
+    expect(open(sheet, "size")).toBe(false);
+  });
+
+  it("the weight options read 未滿 50 g, 50–69 g, 70–89 g, 90 g 以上", () => {
+    const html = facets(response(), emptyFilters());
+    for (const label of ["未滿 50 g", "50–69 g", "70–89 g", "90 g 以上"])
+      expect(html).toContain(
+        `<span class="results-facet-label">${label}</span>`,
+      );
+    expect(html).not.toContain("50 g 以下");
+  });
+
   it("no 適合你 without a hand type, or for a left-hand scan", () => {
     expect(
       facets(response({ handType: undefined }), emptyFilters()),
@@ -296,6 +327,23 @@ describe("the results page under a filter", () => {
     expect(html).toContain("Why text.");
   });
 
+  it("when the overall #1 still leads, the share button is exactly the unfiltered one (Kirby, 2026-10-11)", () => {
+    const html = render(response(), f({ size: ["medium"], order: ["size"] }));
+    expect(html).toContain("shareCard-button-primary");
+    expect(html).not.toContain("shareCard-button-secondary");
+    expect(html).not.toContain("share-filter-note");
+    expect(html).not.toContain("分享總排名第 1 名");
+  });
+
+  it("with nothing matching, the share button still says it shares the overall #1", () => {
+    const html = render(
+      response(),
+      f({ brand: ["Logitech"], size: ["small"], order: ["brand", "size"] }),
+    );
+    expect(html).toContain("shareCard-button-secondary");
+    expect(html).toContain("share-filter-note");
+  });
+
   it("the share button turns secondary and says it shares the overall #1", () => {
     const html = render(response(), razer);
     expect(html).toContain("分享總排名第 1 名");
@@ -324,6 +372,36 @@ describe("the results page under a filter", () => {
     expect(html).toContain('<h2 class="results-score-model">R3</h2>');
     // The other picks are the filtered list without this one.
     expect(html).toContain('href="/results/scan-1?brand=Razer"');
+  });
+
+  it("a detail page under a filter shows the filter read only, with the way back to the list", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: response(),
+        language: "zh-TW",
+        filters: razer,
+        rank: 2,
+        scanId: "scan-1",
+      }),
+    );
+    expect(html).toContain("results-filterNote");
+    expect(html).toContain("results-chip--static");
+    expect(html).toContain(">Razer<");
+    expect(html).toContain("回到篩選結果（2 款）");
+    expect(html).toContain('href="/results/scan-1?brand=Razer"');
+    // Read only: no remove buttons, no sidebar, no phone bar.
+    expect(html).not.toContain("移除「");
+    expect(html).not.toContain("results-filterBar");
+    // Without a filter there is no summary.
+    const plain = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: response(),
+        language: "zh-TW",
+        rank: 2,
+        scanId: "scan-1",
+      }),
+    );
+    expect(plain).not.toContain("results-filterNote");
   });
 
   it("the low-fit reminder reads the large card's score, not the overall #1's", () => {

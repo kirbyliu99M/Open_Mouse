@@ -483,8 +483,6 @@ export interface FilteredCard {
   overallRank: number;
   /** Same-shell members to name on the card: the ones that match when weight or connectivity is chosen, else all. */
   variants: NonNullable<FitEntry["variants"]>;
-  /** Whether the shown mouse itself matches (a variant may be what matches). */
-  headMatches: boolean;
 }
 
 export interface FilteredView {
@@ -537,7 +535,6 @@ export function filteredView(
     displayRank: active ? i + 1 : entry.rank,
     overallRank: entry.rank,
     variants: active ? variantsFor(entry, filters) : (entry.variants ?? []),
-    headMatches: active ? memberMatches(membersOf(entry)[0]!, filters) : true,
   }));
   const large = cards[0] ?? null;
   return {

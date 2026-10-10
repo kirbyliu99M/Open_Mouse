@@ -13,6 +13,7 @@ import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { selectedCount, type Filters } from "@/lib/results/filters";
 import { FilterChips } from "./FilterChips";
 import { FilterFacets } from "./FilterFacets";
+import { FilterFocusContext } from "./FilterFocus";
 import { FilterSheet } from "./FilterSheet";
 import { FilterStatus } from "./FilterStatus";
 import { useWideLayout } from "./useWideLayout";
@@ -57,11 +58,15 @@ function SlidersIcon() {
 /**
  * Puts the filter around the results content (FILTER-1, candidate).
  *
- * 1024 CSS px and wider: a sticky sidebar next to the content, which applies
- * on every change. Narrower (this includes a desktop at 200 % zoom): a
- * 「篩選（n）」 button, the chips, 「清除全部」 and 「找到 N 款」 above the
- * content, and the facets in a bottom sheet (`FilterSheet`) that applies with
- * its footer button.
+ * 64em (1024 CSS px at the default text size) and wider: a sticky sidebar next
+ * to the content, which applies on every change. Narrower (this includes a
+ * desktop at 200 % zoom): a 「篩選（n）」 button, the chips, 「清除全部」 and
+ * 「找到 N 款」 above the content, and the facets in a bottom sheet
+ * (`FilterSheet`) that applies with its footer button.
+ *
+ * The tree around the content is the same in both layouts (only the filter's
+ * own part, keyed `chrome`, is swapped), so crossing the breakpoint does not
+ * remount the results: an open Details section or an expanded analysis stays.
  *
  * The count the sidebar and the bar show, and every option's count, come from
  * `src/lib/results/filters.ts`; this file only places them.
@@ -87,6 +92,7 @@ export function ResultsFilterLayout({
   const lang = uiLangAttribute(language);
   const [sheetOpen, setSheetOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const sidebarTitle = useRef<HTMLHeadingElement>(null);
 
   const onClosed = useCallback(() => {
     setSheetOpen(false);
@@ -94,82 +100,98 @@ export function ResultsFilterLayout({
     requestAnimationFrame(() => trigger.current?.focus());
   }, []);
 
+  // Focus for a control that has just gone (a removed chip, 「清除全部」, the
+  // no-match suggestion): the sidebar's title, or the phone's 篩選 button.
+  const focusFilter = useCallback(() => {
+    requestAnimationFrame(() =>
+      (wide ? sidebarTitle.current : trigger.current)?.focus(),
+    );
+  }, [wide]);
+
   // A sheet left open when the window grows into the sidebar layout is closed
   // (its draft is discarded), so it does not come back on its own later.
   useEffect(() => {
     if (wide) setSheetOpen(false);
   }, [wide]);
 
-  if (wide) {
-    return (
-      <div className="results-body" data-filter="sidebar">
-        <aside
-          className="results-sidebar"
-          aria-labelledby="results-sidebar-title"
-          lang={lang}
-        >
-          <div className="results-sidebar-head">
-            <h2 id="results-sidebar-title" className="results-sidebar-title">
-              {copy.title}
-            </h2>
-            <p className="results-sidebar-count results-tabularNum">
-              {copy.found(count)}
-            </p>
-          </div>
-          <FilterChips
-            filters={filters}
-            language={language}
-            onChange={onChange}
-          />
-          <FilterFacets
-            response={response}
-            language={language}
-            filters={filters}
-            onChange={onChange}
-          />
-          <FilterStatus count={count} language={language} />
-        </aside>
-        <div className="results-main">{children}</div>
-      </div>
-    );
-  }
-
   const chosen = selectedCount(filters);
   return (
-    <>
-      <div className="results-filterBar" data-filter="sheet" lang={lang}>
-        <div className="results-filterBar-row">
-          <button
-            ref={trigger}
-            type="button"
-            className="results-filterButton"
-            aria-haspopup="dialog"
-            onClick={() => setSheetOpen(true)}
+    <FilterFocusContext.Provider value={focusFilter}>
+      <div className="results-body" data-filter={wide ? "sidebar" : "sheet"}>
+        {wide ? (
+          <aside
+            key="chrome"
+            className="results-sidebar"
+            aria-labelledby="results-sidebar-title"
+            lang={lang}
           >
-            <SlidersIcon />
-            <span>{copy.openButton(chosen)}</span>
-          </button>
-          <p className="results-filterBar-count results-tabularNum">
-            {copy.found(count)}
-          </p>
+            <div className="results-sidebar-head">
+              <h2
+                id="results-sidebar-title"
+                ref={sidebarTitle}
+                tabIndex={-1}
+                className="results-sidebar-title"
+              >
+                {copy.title}
+              </h2>
+              <p className="results-sidebar-count results-tabularNum">
+                {copy.found(count)}
+              </p>
+            </div>
+            <FilterChips
+              filters={filters}
+              language={language}
+              onChange={onChange}
+            />
+            <FilterFacets
+              response={response}
+              language={language}
+              filters={filters}
+              onChange={onChange}
+              startOpen={["brand", "size"]}
+            />
+            <FilterStatus count={count} language={language} />
+          </aside>
+        ) : (
+          <div key="chrome" className="results-filterChrome">
+            <div className="results-filterBar" lang={lang}>
+              <div className="results-filterBar-row">
+                <button
+                  ref={trigger}
+                  type="button"
+                  className="results-filterButton"
+                  aria-haspopup="dialog"
+                  onClick={() => setSheetOpen(true)}
+                >
+                  <SlidersIcon />
+                  <span>{copy.openButton(chosen)}</span>
+                </button>
+                <p className="results-filterBar-count results-tabularNum">
+                  {copy.found(count)}
+                </p>
+              </div>
+              <FilterChips
+                filters={filters}
+                language={language}
+                onChange={onChange}
+              />
+            </div>
+            {!sheetOpen && <FilterStatus count={count} language={language} />}
+            {sheetOpen && (
+              <FilterSheet
+                response={response}
+                language={language}
+                applied={filters}
+                onApply={onChange}
+                onClosed={onClosed}
+              />
+            )}
+          </div>
+        )}
+        <div key="main" className="results-main">
+          {children}
         </div>
-        <FilterChips
-          filters={filters}
-          language={language}
-          onChange={onChange}
-        />
       </div>
-      {!sheetOpen && <FilterStatus count={count} language={language} />}
-      {sheetOpen && (
-        <FilterSheet
-          response={response}
-          language={language}
-          applied={filters}
-          onApply={onChange}
-          onClosed={onClosed}
-        />
-      )}
-      {children}
-    </>
+    </FilterFocusContext.Provider>
   );
 }

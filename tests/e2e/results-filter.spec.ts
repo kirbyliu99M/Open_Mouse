@@ -73,6 +73,13 @@ async function brand(page: Page, name: string) {
   return box;
 }
 
+/** Opens a group if it is closed (a group open at the start stays open). */
+async function openGroup(page: Page, name: string) {
+  const header = page.getByRole("button", { name: new RegExp(`^${name}`) });
+  if ((await header.getAttribute("aria-expanded")) === "false")
+    await header.click();
+}
+
 /** The visible 「找到 N 款」 (not the visually hidden live region). */
 const found = (page: Page) =>
   page.locator(".results-sidebar-count, .results-filterBar-count");
@@ -86,7 +93,7 @@ test.describe("desktop sidebar", () => {
     await stub(page);
   });
 
-  test("shows the sidebar with only 品牌 open, counts, and no chips", async ({
+  test("shows the sidebar with 品牌 and 尺寸 open, counts, and no chips", async ({
     page,
   }) => {
     await page.goto(MAIN);
@@ -96,7 +103,13 @@ test.describe("desktop sidebar", () => {
     await expect(
       sidebar.getByRole("button", { name: /^品牌/ }),
     ).toHaveAttribute("aria-expanded", "true");
-    for (const group of ["尺寸", "重量", "滑鼠握感", "連線方式"]) {
+    await expect(
+      sidebar.getByRole("button", { name: /^尺寸/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      sidebar.getByRole("checkbox", { name: /^未滿 50 g，\d+ 款$/ }),
+    ).toHaveCount(0);
+    for (const group of ["重量", "滑鼠握感", "連線方式"]) {
       const header = sidebar.getByRole("button", {
         name: new RegExp(`^${group}`),
       });
@@ -185,10 +198,11 @@ test.describe("desktop sidebar", () => {
     await expect(page.locator(".results-score-rank")).toHaveText(
       "第 1 名 · Zowie",
     );
-    // The share button is secondary all the same: the page is filtering.
+    // The share button is exactly the unfiltered one (Kirby, 2026-10-11).
     await expect(
-      page.locator(".results-share-hero .shareCard-note"),
-    ).toBeVisible();
+      page.locator(".results-share-hero").getByTestId("share-card-button"),
+    ).toHaveText("製作我的分享圖");
+    await expect(page.locator(".shareCard-note")).toHaveCount(0);
     await page.locator(".results-details summary").click();
     await expect(
       page.getByText("Analysis body about the overall first pick."),
@@ -300,7 +314,7 @@ test.describe("desktop sidebar", () => {
     page,
   }) => {
     await page.goto(`${MAIN}?brand=Roccat`);
-    await page.getByRole("button", { name: /^尺寸/ }).click();
+    await openGroup(page, "尺寸");
     // Roccat has no small mouse: 小型鼠 would leave nothing.
     const small = page.getByRole("checkbox", { name: "小型鼠，0 款" });
     await expect(small).toHaveAttribute("aria-disabled", "true");
@@ -322,7 +336,7 @@ test.describe("desktop sidebar", () => {
     page,
   }) => {
     await page.goto(MAIN);
-    await page.getByRole("button", { name: /^尺寸/ }).click();
+    await openGroup(page, "尺寸");
     await expect(page.getByText("依長度與寬度估算")).toBeVisible();
     await expect(page.locator(".results-facet-fits")).toHaveCount(1);
     await expect(
@@ -405,6 +419,97 @@ test.describe("desktop sidebar", () => {
     await expect(relax).toHaveCSS("font-size", "15px");
     await expect(relax).toHaveCSS("padding-left", "24px");
   });
+});
+
+test.describe("desktop sidebar: focus, weights, state across the breakpoint", () => {
+  test.beforeEach(async ({ page }) => {
+    test.skip(!isDesktop(page), "Desktop layout only.");
+    await stub(page);
+  });
+
+  const title = (page: Page) =>
+    page.getByRole("heading", { level: 2, name: "篩選" });
+
+  test("the weight options read 未滿 50 g, 50–69 g, 70–89 g, 90 g 以上", async ({
+    page,
+  }) => {
+    await page.goto(MAIN);
+    await openGroup(page, "重量");
+    for (const label of ["未滿 50 g", "50–69 g", "70–89 g", "90 g 以上"])
+      await expect(
+        page.getByRole("checkbox", { name: new RegExp(`^${label}，`) }),
+      ).toBeVisible();
+  });
+
+  test("removing a chip, 清除全部 and the no-match suggestion leave focus on the filter, not on the page", async ({
+    page,
+  }) => {
+    await page.goto(`${MAIN}?brand=Razer&conn=wireless`);
+    const chips = page.getByRole("list", { name: "已套用的篩選" });
+    await chips.getByRole("button", { name: "移除「無線」" }).click();
+    await expect(title(page)).toBeFocused();
+    await page.getByRole("button", { name: "清除全部" }).click();
+    await expect(title(page)).toBeFocused();
+    expect(search(page)).toBe("");
+    // The no-match suggestion.
+    await page.goto(`${MAIN}?brand=Razer&size=small&conn=wired`);
+    await page.getByRole("button", { name: /^拿掉「/ }).click();
+    await expect(title(page)).toBeFocused();
+  });
+
+  test("crossing the breakpoint keeps what the results page had open", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${MAIN}?brand=Razer&conn=wireless`);
+    await page.locator(".results-details summary").click();
+    await expect(page.locator(".results-details")).toHaveAttribute("open", "");
+    await page
+      .locator(".results-analysisLine")
+      .getByRole("button", { name: "看分析" })
+      .click();
+    await expect(page.getByText("Analysis body")).toBeVisible();
+    await page.setViewportSize({ width: 700, height: 800 });
+    await expect(page.getByRole("button", { name: /^篩選/ })).toBeVisible();
+    await expect(page.locator(".results-details")).toHaveAttribute("open", "");
+    await expect(page.getByText("Analysis body")).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator(".results-details")).toHaveAttribute("open", "");
+  });
+
+  test("a share button that says it shares the overall #1 only when the view is swapped", async ({
+    page,
+  }) => {
+    await page.goto(`${MAIN}?brand=Razer`);
+    await expect(page.locator(".shareCard-note").first()).toBeVisible();
+    await page.goto(`${MAIN}?brand=Zowie`);
+    await expect(page.locator(".shareCard-note")).toHaveCount(0);
+    await page.goto(`${MAIN}?brand=Razer&size=small&conn=wired`);
+    await expect(page.locator(".shareCard-note").first()).toBeVisible();
+  });
+});
+
+test("a detail page under a filter shows the filter and a way back to the list", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.goto(
+    `${MAIN}/m/${slugFor("Razer", "Cobra Pro")}?brand=Razer&conn=wireless`,
+  );
+  const note = page.locator(".results-filterNote");
+  await expect(note).toBeVisible();
+  await expect(note.getByText("Razer", { exact: true })).toBeVisible();
+  await expect(note.getByText("無線", { exact: true })).toBeVisible();
+  const back = note.getByRole("link", { name: /^回到篩選結果（3 款）$/ });
+  await expect(back).toHaveAttribute(
+    "href",
+    `${MAIN}?brand=Razer&conn=wireless`,
+  );
+  await back.click();
+  await expect(page).toHaveURL(
+    new RegExp(`${MAIN}\\?brand=Razer&conn=wireless$`),
+  );
+  await expect(page.locator(".results-badge")).toHaveText("篩選後第 1 名");
 });
 
 test.describe("phone sheet", () => {
@@ -556,6 +661,36 @@ test.describe("phone sheet", () => {
     await expect(apply).toHaveCSS("font-size", "15px");
     await expect(apply).toHaveCSS("padding-left", "24px");
     await expect(apply).toHaveCSS("padding-right", "24px");
+  });
+
+  test("removing a chip, 清除全部 and the no-match suggestion leave focus on 篩選, not on the page", async ({
+    page,
+  }) => {
+    await page.goto(`${MAIN}?brand=Razer&conn=wireless`);
+    const chips = page.getByRole("list", { name: "已套用的篩選" });
+    await chips.getByRole("button", { name: "移除「無線」" }).click();
+    await expect(trigger(page)).toBeFocused();
+    await page.getByRole("button", { name: "清除全部" }).click();
+    await expect(trigger(page)).toBeFocused();
+    expect(search(page)).toBe("");
+    await page.goto(`${MAIN}?brand=Razer&size=small&conn=wired`);
+    await page.getByRole("button", { name: /^拿掉「/ }).click();
+    await expect(trigger(page)).toBeFocused();
+  });
+
+  test("the first group header's focus ring is not clipped by the sheet's scroll area", async ({
+    page,
+  }) => {
+    await page.goto(MAIN);
+    await trigger(page).click();
+    const toggle = sheet(page).getByRole("button", { name: /^品牌/ });
+    const body = sheet(page).locator(".results-sheet-body");
+    const [t, b] = await Promise.all([
+      toggle.boundingBox(),
+      body.boundingBox(),
+    ]);
+    // 2 px outline + 3 px offset must fit above the first header.
+    expect(t!.y - b!.y).toBeGreaterThanOrEqual(5);
   });
 
   test("a mobile page has no horizontal scroll with the filter on", async ({

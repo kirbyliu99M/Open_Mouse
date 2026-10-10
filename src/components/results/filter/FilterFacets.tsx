@@ -65,7 +65,8 @@ function Check() {
  * The five filter groups with their options and counts, shared by the desktop
  * sidebar (changes apply at once) and the phone sheet (changes go to a draft).
  * It holds no filter state of its own, only which groups are open: on mount,
- * 品牌 and every group with a choice. All numbers come from
+ * the groups in `startOpen` (the sheet: 品牌; the sidebar: 品牌 and 尺寸) and
+ * every group with a choice. All numbers come from
  * `src/lib/results/filters.ts`.
  *
  * An option with no card left is `aria-disabled` but stays in the Tab order,
@@ -77,11 +78,14 @@ export function FilterFacets({
   language,
   filters,
   onChange,
+  startOpen = ["brand"],
 }: {
   response: FitResponse;
   language: UiLanguage;
   filters: Filters;
   onChange: (next: Filters) => void;
+  /** The groups that start open, besides any group with a choice. */
+  startOpen?: readonly FilterGroup[];
 }) {
   const copy = RESULTS_PAGE_COPY[language].filter;
   const lang = uiLangAttribute(language);
@@ -97,11 +101,12 @@ export function FilterFacets({
   const fits = suitableSize(response);
 
   const [open, setOpen] = useState<Record<FilterGroup, boolean>>(() => ({
-    brand: true,
-    size: filters.size.length > 0,
-    weight: filters.weight.length > 0,
-    shape: filters.shape.length > 0,
-    connectivity: filters.connectivity.length > 0,
+    brand: startOpen.includes("brand") || filters.brand.length > 0,
+    size: startOpen.includes("size") || filters.size.length > 0,
+    weight: startOpen.includes("weight") || filters.weight.length > 0,
+    shape: startOpen.includes("shape") || filters.shape.length > 0,
+    connectivity:
+      startOpen.includes("connectivity") || filters.connectivity.length > 0,
   }));
   const [moreBrands, setMoreBrands] = useState(() =>
     filters.brand.some((b) => counts.brand.rest.some((o) => o.value === b)),

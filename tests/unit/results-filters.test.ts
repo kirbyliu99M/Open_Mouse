@@ -553,7 +553,6 @@ describe("B3: same-shell cards match on any member", () => {
       f({ connectivity: ["wireless"], order: ["connectivity"] }),
     );
     expect(slugs(v.cards)).toEqual(["head"]);
-    expect(v.cards[0]!.headMatches).toBe(false);
     expect(v.cards[0]!.variants.map((x) => x.slug)).toEqual(["alt-wireless"]);
   });
 
@@ -579,7 +578,6 @@ describe("B3: same-shell cards match on any member", () => {
   it("with no weight or connectivity choice, the card lists every variant", () => {
     const v = filteredView(shell, f({ brand: ["Acme"], order: ["brand"] }));
     expect(v.cards[0]!.variants).toHaveLength(2);
-    expect(v.cards[0]!.headMatches).toBe(true);
   });
 
   it("a variant whose connectivity was not filled counts as not known", () => {

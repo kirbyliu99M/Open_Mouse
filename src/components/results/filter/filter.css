@@ -248,15 +248,19 @@
 }
 
 /* ---- Desktop: sidebar ---- */
-.results-body {
+.results-body[data-filter="sidebar"] {
   display: grid;
   grid-template-columns: 20.5rem minmax(0, 1fr);
   gap: 2.5rem;
   align-items: start;
   margin-top: 0.5rem;
 }
-.resultsMain:has(.results-body) {
+.resultsMain:has(.results-body[data-filter="sidebar"]) {
   max-width: 86rem;
+}
+.results-body[data-filter="sheet"],
+.results-filterChrome {
+  display: contents;
 }
 .results-main {
   display: flex;
@@ -296,28 +300,28 @@
 }
 /* Beside the sidebar the content is narrower: the hero stacks until there is room. */
 @media (min-width: 64rem) and (max-width: 79.99rem) {
-  .results-body .results-hero {
+  .results-body[data-filter="sidebar"] .results-hero {
     grid-template-columns: minmax(0, 1fr);
   }
-  .results-body .results-hero > * {
+  .results-body[data-filter="sidebar"] .results-hero > * {
     grid-column: 1;
   }
-  .results-body .results-hero > .results-hero-photo {
+  .results-body[data-filter="sidebar"] .results-hero > .results-hero-photo {
     grid-row: auto;
   }
 }
-.results-body .results-hero {
+.results-body[data-filter="sidebar"] .results-hero {
   column-gap: 3rem;
 }
 /* The content column is narrower beside the sidebar: a smaller headline keeps
    「中型滑鼠・抓握・寬身」 on one line. */
-.results-body .results-hand-title {
+.results-body[data-filter="sidebar"] .results-hand-title {
   font-size: clamp(1.75rem, 2.4vw, 2.25rem);
 }
-.results-body .results-others-grid {
+.results-body[data-filter="sidebar"] .results-others-grid {
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
 }
-.results-body .results-hero[data-empty="true"] > * {
+.results-body[data-filter="sidebar"] .results-hero[data-empty="true"] > * {
   grid-column: 1 / -1;
 }
 
@@ -458,10 +462,12 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
   color: var(--text-primary);
   cursor: pointer;
 }
+/* The top padding leaves room for the first group header's focus ring (2 px
+   outline + 3 px offset), which a scroll container would otherwise clip. */
 .results-sheet-body {
   flex: 1;
   min-height: 0;
-  padding: 0 1.25rem 1rem;
+  padding: 0.5rem 1.25rem 1rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -614,7 +620,21 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
   dialog.results-sheet {
     display: none !important;
   }
-  .results-body {
+  .results-body[data-filter] {
     display: block;
   }
+}
+
+/* The filter summary on a detail page (read only), with its way back. */
+.results-filterNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin-top: -0.75rem;
+}
+.results-chip--static {
+  cursor: default;
+  min-height: 2.25rem;
+  padding: 0 1rem;
 }

@@ -146,6 +146,8 @@ export interface FilterCopy {
   /** A card's place in the filtered list. */
   place: (n: number) => string;
   overallRank: (n: number) => string;
+  /** On a detail page: the way back to the filtered list. */
+  backToList: (n: number) => string;
   /** Above the other picks while filtering. */
   othersHeading: string;
   /** Replaces the excluded list while filtering. */
@@ -242,7 +244,7 @@ export const zhTW: ResultsPageCopy = {
     sizeNote: "依長度與寬度估算",
     fitsYou: "適合你",
     weight: {
-      lt50: "50 g 以下",
+      lt50: "未滿 50 g",
       "50-69": "50–69 g",
       "70-89": "70–89 g",
       gte90: "90 g 以上",
@@ -264,6 +266,7 @@ export const zhTW: ResultsPageCopy = {
     filteredRank: (n) => `篩選後第 ${n} 名`,
     place: (n) => `第 ${n} 名`,
     overallRank: (n) => `總排名第 ${n} 名`,
+    backToList: (n) => `回到篩選結果（${n} 款）`,
     othersHeading: "其他符合條件的推薦",
     excludedHidden: (n) => `篩選中，未列入比較的 ${n} 款不會列出。`,
     analysisLine: (name) => `AI 分析是針對總排名第 1 的 ${name}`,
@@ -397,6 +400,10 @@ export const en: ResultsPageCopy = {
     filteredRank: (n) => `#${n} in your filter`,
     place: (n) => `#${n}`,
     overallRank: (n) => `#${n} overall`,
+    backToList: (n) =>
+      n === 1
+        ? "Back to the filtered list (1 mouse)"
+        : `Back to the filtered list (${n} mice)`,
     othersHeading: "Other picks that match",
     excludedHidden: (n) =>
       `While you filter, the ${n} mice left out of the ranking are not listed.`,

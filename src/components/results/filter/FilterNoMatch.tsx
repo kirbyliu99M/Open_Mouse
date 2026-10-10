@@ -9,6 +9,7 @@ import {
   suggestRelaxation,
   type Filters,
 } from "@/lib/results/filters";
+import { useFocusFilter } from "./FilterFocus";
 import "./filter.css";
 
 /**
@@ -31,6 +32,12 @@ export function FilterNoMatch({
   headingLevel: 1 | 2;
 }) {
   const copy = RESULTS_PAGE_COPY[language].filter;
+  const focusFilter = useFocusFilter();
+  // The button that was pressed goes with this box: focus moves to the filter.
+  const change = (next: Filters) => {
+    onChange(next);
+    focusFilter();
+  };
   const relax = suggestRelaxation(response, filters);
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
@@ -40,7 +47,7 @@ export function FilterNoMatch({
         <button
           type="button"
           className="results-pill results-pill--small"
-          onClick={() => onChange(clearGroup(filters, relax.group))}
+          onClick={() => change(clearGroup(filters, relax.group))}
         >
           {copy.relaxButton(copy.group[relax.group], relax.count)}
         </button>
@@ -48,7 +55,7 @@ export function FilterNoMatch({
         <button
           type="button"
           className="results-textLink"
-          onClick={() => onChange(emptyFilters())}
+          onClick={() => change(emptyFilters())}
         >
           {copy.clearAll}
         </button>

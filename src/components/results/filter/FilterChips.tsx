@@ -9,6 +9,7 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import { chipsOf } from "@/lib/results/filterLabels";
+import { useFocusFilter } from "./FilterFocus";
 import "./filter.css";
 
 /**
@@ -24,7 +25,14 @@ export function FilterChips({
   language: UiLanguage;
   onChange: (next: Filters) => void;
 }) {
+  const focusFilter = useFocusFilter();
   if (!isFiltering(filters)) return null;
+  // The pressed chip (or the whole row) is gone after a change: focus moves to
+  // the filter's anchor rather than falling back to the page.
+  const change = (next: Filters) => {
+    onChange(next);
+    focusFilter();
+  };
   const copy = RESULTS_PAGE_COPY[language].filter;
   const chips = chipsOf(filters, copy);
   return (
@@ -37,7 +45,7 @@ export function FilterChips({
               className="results-chip"
               aria-label={copy.removeChip(chip.label)}
               onClick={() =>
-                onChange(toggleOption(filters, chip.group, chip.value))
+                change(toggleOption(filters, chip.group, chip.value))
               }
             >
               <span>{chip.label}</span>
@@ -63,7 +71,7 @@ export function FilterChips({
       <button
         type="button"
         className="results-textLink"
-        onClick={() => onChange(emptyFilters())}
+        onClick={() => change(emptyFilters())}
       >
         {copy.clearAll}
       </button>

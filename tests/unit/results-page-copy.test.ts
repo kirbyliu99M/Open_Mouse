@@ -139,6 +139,21 @@ describe("results page copy", () => {
     expect(en.rankLine(2, "Razer")).toBe("#2 · Razer");
   });
 
+  it("the weight bands read 未滿 50 g, 50–69 g, 70–89 g, 90 g 以上 (Kirby, 2026-10-11), English to match", () => {
+    expect(Object.values(zhTW.filter.weight)).toEqual([
+      "未滿 50 g",
+      "50–69 g",
+      "70–89 g",
+      "90 g 以上",
+    ]);
+    expect(Object.values(en.filter.weight)).toEqual([
+      "Under 50 g",
+      "50–69 g",
+      "70–89 g",
+      "90 g and up",
+    ]);
+  });
+
   it("the filter's fixed words are Kirby's (candidate)", () => {
     const c = zhTW.filter;
     expect(c.openButton(2)).toBe("篩選（2）");
@@ -160,7 +175,7 @@ describe("results page copy", () => {
     expect(c.showMoreBrands(18)).toBe("顯示其他 18 個品牌");
     expect(Object.values(c.size)).toEqual(["小型鼠", "中型鼠", "大型鼠"]);
     expect(Object.values(c.weight)).toEqual([
-      "50 g 以下",
+      "未滿 50 g",
       "50–69 g",
       "70–89 g",
       "90 g 以上",

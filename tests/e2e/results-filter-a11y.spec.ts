@@ -122,7 +122,8 @@ test("axe: the sheet open (phone layout)", async ({ page }, testInfo) => {
 test("axe: the sheet at 320 px, more contrast and reduced transparency", async ({
   page,
 }, testInfo) => {
-  test.skip(isDesktop(page), "The sheet is the phone layout.");
+  // Runs in both projects: the viewport is set here, so a desktop browser at
+  // 320 px gets the sheet too.
   await stub(page);
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ contrast: "more", reducedMotion: "reduce" });

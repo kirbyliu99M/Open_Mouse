@@ -14,6 +14,7 @@ import { pathForEntry } from "@/lib/results/rankRoutes";
 import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import type { AnalysisState } from "./analysisState";
 import { FilteredAnalysisLine } from "./FilteredAnalysisLine";
+import { FilterSummary } from "./filter/FilterSummary";
 import { FilterNoMatch } from "./filter/FilterNoMatch";
 import { ResultsFilterLayout } from "./filter/ResultsFilterLayout";
 import { OtherMice } from "./OtherMice";
@@ -119,6 +120,11 @@ export function ResultsView({
   const showOverall =
     showPlace && card !== null && card.overallRank !== card.displayRank;
   const empty = filtering && view.count === 0;
+  // The share card is always the overall #1. Only when that mouse is not the
+  // filtered #1 (a swapped view, or nothing matches) does the button say so;
+  // when the overall #1 still leads it is exactly the button of an unfiltered
+  // page (Kirby, 2026-10-11).
+  const shareOverall = filtering && (view.count === 0 || view.swapped);
 
   const content = (
     <>
@@ -244,7 +250,7 @@ export function ResultsView({
                     fit={response}
                     lang={language}
                     variant="primary"
-                    filtering={filtering}
+                    filtering={shareOverall}
                   />
                 </div>
               </div>
@@ -302,7 +308,7 @@ export function ResultsView({
           fit={response}
           lang={language}
           variant="primary"
-          filtering={filtering}
+          filtering={shareOverall}
         />
       </div>
     </>
@@ -318,6 +324,16 @@ export function ResultsView({
         language={language}
         onRetake={analytics?.onRetake}
       />
+      {/* A detail page has no filter controls: it says which filter it is
+          under and how to get back to the list. */}
+      {!onFiltersChange && filtering && scanId && (
+        <FilterSummary
+          filters={filters}
+          language={language}
+          scanId={scanId}
+          count={view.count}
+        />
+      )}
       {onFiltersChange ? (
         <ResultsFilterLayout
           response={response}
