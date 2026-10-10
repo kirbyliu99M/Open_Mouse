@@ -148,13 +148,33 @@ are ordinary blocks, and their parts stack in flow, as in
     window's height and the text size together);
   - the viewport is at least about 600 px tall.
 
-  Otherwise the page stays static. If the module fails to load, nothing
-  changes.
+  Otherwise the page stays static. If the module fails to load, or the stage's
+  preparation fails, the page stays static for now and the start is tried
+  again twice, after 1.5 s and 4.5 s, only while the tab is shown
+  (`src/lib/particles/retry.ts`); after that it stays static until the page
+  is loaded again (未拍板, candidate timings).
+
+- **Where the reader is when it switches** (`src/lib/particles/late-start.ts`).
+  The stage prepares wherever the reader is.
+  - At the top of the page (the story section's top edge at or below the
+    viewport's top), it switches at once, and the switch shifts nothing.
+  - Away from the top (a reload that restored a scrolled position, or a scroll
+    while the page was still loading), it waits until the reader has not
+    scrolled for 300 ms. With the story's bottom edge in view, it keeps that
+    edge, and so the final section and the footer, where they were. Inside the
+    story, the panel fades out (180 ms, opacity only), the layout switches and
+    the page scrolls to the step that matches what was being read, and the
+    panel fades back in (320 ms). The switch happens only in a shown tab and
+    with the panel measured transparent (computed opacity 0.02 or less);
+    otherwise the fade is given up and the panel fades back in, and it is
+    tried again after the next wait, three times in all until the reader
+    scrolls. A scroll during the wait or the fade out starts the wait again.
+    Timings and the matching steps are 未拍板 (candidate).
 
 - **The section and the panel.** The hero keeps exactly the same position in
-  both layouts, so switching causes no layout shift. The section grows to
-  about 400 svh (to be tuned). The panel becomes
-  `position: sticky; top: 0; height: 100svh`.
+  both layouts, so switching at the top causes no layout shift (away from the
+  top, see above). The section grows to about 400 svh (to be tuned). The panel
+  becomes `position: sticky; top: 0; height: 100svh`.
 - **Layers.** The panel holds two canvases, one on the other: the WebGL canvas
   (`.story-canvas-gl`, the particles) under the 2D canvas (`.story-canvas`,
   the overlay, and the particles too when WebGL is not available). Both are

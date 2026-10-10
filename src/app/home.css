@@ -822,6 +822,12 @@
     position: static;
     height: auto;
   }
+  /* The stage fades the whole panel out and in when it switches away from the
+     top (particle-stage.ts, late-start.ts): printed meanwhile, it is whole. */
+  .story-panel {
+    opacity: 1 !important;
+    transition: none !important;
+  }
   .story-hero {
     opacity: 1 !important;
     transform: none !important;
