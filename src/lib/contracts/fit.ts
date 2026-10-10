@@ -8,7 +8,12 @@
  * minimal consumer updates that keep `main` green.
  */
 import { z } from "zod";
-import { CATALOGUE_CATEGORIES, SIZES } from "./descriptors";
+import {
+  CATALOGUE_CATEGORIES,
+  CONNECTIVITY,
+  SHAPES,
+  SIZES,
+} from "./descriptors";
 
 export const GRIP_STYLES = ["palm", "claw", "fingertip"] as const;
 export type GripStyle = (typeof GRIP_STYLES)[number];
@@ -109,6 +114,18 @@ export const fitEntrySchema = z.strictObject({
     category: z.enum(CATALOGUE_CATEGORIES).optional(),
     /** Site-relative path of the official product photo, or null when none. */
     imageUrl: sitePathSchema.nullable().optional(),
+    /**
+     * 2026-10-10 (Kirby, candidate): catalogue facts the results-page filter
+     * reads (滑鼠握感 and 傳輸介面). `shape` is the catalogue's shape descriptor
+     * (symmetrical, ergonomic, hybrid); `connectivity` is wired or wireless
+     * (a mouse that also works wired is wireless). Values are lower case;
+     * source data spelled `Wired`/`Wireless` is mapped before it gets here.
+     * null = not known; the filter never guesses one. Facts only: no score depends on them here, and
+     * like every catalogue fact they are not numbers the analysis may quote.
+     * Optional until the server fills them.
+     */
+    shape: z.enum(SHAPES).nullable().optional(),
+    connectivity: z.enum(CONNECTIVITY).nullable().optional(),
   }),
   /**
    * Weighted mean over applicable sub-scores. A null (unknown) sub-score
@@ -150,7 +167,11 @@ export const fitEntrySchema = z.strictObject({
    *    1..n with no gaps; `rank` is that new number. Nothing else on an entry
    *    changes.
    * A variant carries catalogue facts only, no score and no rank: it is never
-   * presented as a separate result.
+   * presented as a separate result. 2026-10-10 (candidate): a variant may
+   * carry its `connectivity` (same meaning and values as `mouse.connectivity`),
+   * so the results filter can keep a card when any member matches 連線方式
+   * (members of one shell may differ in connectivity and weight, never in
+   * shape). Optional until the server fills it.
    *
    * Hard rule 2: variants are not part of the analysis input. The analysis
    * input (src/server/analysis/input.ts, `toInputEntry`) and the share card
@@ -167,6 +188,7 @@ export const fitEntrySchema = z.strictObject({
         slug: z.string(),
         model: z.string(),
         weightG: z.number().nullable(),
+        connectivity: z.enum(CONNECTIVITY).nullable().optional(),
       }),
     )
     .optional(),

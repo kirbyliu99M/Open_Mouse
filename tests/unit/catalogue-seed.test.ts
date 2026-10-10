@@ -122,6 +122,33 @@ describe("seedCatalogue with the catalogue, facts and descriptors", () => {
     expect(summary.tableCount).toBe(N.rows);
   });
 
+  it("writes connectivity on conflict, so a rerun fills rows seeded without it", async () => {
+    await seedCatalogue(db, specs, descriptors, input);
+    const imported = (catalogueJson as unknown as CatalogueEntry[]).find(
+      (e) => !e.mergesInto && e.connectivity === "wireless",
+    )!;
+    await pg.exec(
+      `UPDATE mice SET connectivity = NULL WHERE model = '${imported.model.replace(/'/g, "''")}' OR model = 'G502 Hero'`,
+    );
+    await seedCatalogue(db, specs, descriptors, input);
+    expect((await one(imported.model)).connectivity).toBe("wireless");
+    expect((await one("G502 Hero")).connectivity).toBe(
+      specs.find((s) => s.model === "G502 Hero")!.connectivity,
+    );
+    const all = await rows();
+    const count = (v: string | null) =>
+      all.filter((r) => r.connectivity === v).length;
+    expect({
+      wired: count("wired"),
+      wireless: count("wireless"),
+      unknown: count(null),
+    }).toEqual({
+      wired: N.rowConnectivity.wired,
+      wireless: N.rowConnectivity.wireless,
+      unknown: N.rowConnectivity.unknown,
+    });
+  });
+
   it("re-seeding moves a row back to the seed's listed value", async () => {
     await seedCatalogue(db, specs, descriptors, input);
     await pg.exec("UPDATE mice SET listed = true WHERE model = 'M100'");

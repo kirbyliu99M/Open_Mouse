@@ -64,6 +64,37 @@ describe("fitResponseSchema", () => {
     ).toBe(false);
   });
 
+  // 2026-10-10: filter facts on the mouse are optional and nullable.
+  it.each([
+    [{}],
+    [{ shape: "ergonomic", connectivity: "wireless" }],
+    [{ shape: "symmetrical", connectivity: "wired" }],
+    [{ shape: "hybrid", connectivity: null }],
+    [{ shape: null, connectivity: null }],
+  ])("accepts mouse filter facts %j", (facts) => {
+    const r = {
+      ...valid,
+      results: [{ ...entry, mouse: { ...entry.mouse, ...facts } }],
+    };
+    const parsed = fitResponseSchema.parse(r);
+    const mouse = parsed.results[0].mouse;
+    for (const [k, v] of Object.entries(facts)) {
+      expect(mouse[k as keyof typeof mouse]).toBe(v);
+    }
+  });
+
+  it.each([
+    [{ shape: "round" }],
+    [{ connectivity: "bluetooth" }],
+    [{ connectivity: "Wireless" }],
+  ])("refuses an unknown filter fact %j", (facts) => {
+    const r = {
+      ...valid,
+      results: [{ ...entry, mouse: { ...entry.mouse, ...facts } }],
+    };
+    expect(fitResponseSchema.safeParse(r).success).toBe(false);
+  });
+
   // 2026-10-09: same-shell variants on an entry are optional.
   it("accepts an entry with same-shell variants, and one without", () => {
     const withVariants = {
@@ -103,6 +134,42 @@ describe("fitResponseSchema", () => {
         results: [{ ...entry, variants: [variant] }],
       }).success,
     ).toBe(false);
+  });
+
+  it.each([["wired"], ["wireless"], [null]])(
+    "accepts and keeps a variant's connectivity %j",
+    (connectivity) => {
+      const r = {
+        ...valid,
+        results: [
+          {
+            ...entry,
+            variants: [{ slug: "x", model: "X", weightG: 60, connectivity }],
+          },
+        ],
+      };
+      expect(fitResponseSchema.parse(r).results[0].variants?.[0]).toEqual({
+        slug: "x",
+        model: "X",
+        weightG: 60,
+        connectivity,
+      });
+    },
+  );
+
+  it("refuses an unknown variant connectivity", () => {
+    const r = {
+      ...valid,
+      results: [
+        {
+          ...entry,
+          variants: [
+            { slug: "x", model: "X", weightG: 60, connectivity: "Wireless" },
+          ],
+        },
+      ],
+    };
+    expect(fitResponseSchema.safeParse(r).success).toBe(false);
   });
 
   it("refuses a variant carrying a score or a rank", () => {
