@@ -282,31 +282,40 @@
   line-height: 1.55;
 }
 
-/* The three mice: stacked on a phone, side by side from 48rem. */
-.story-mice {
-  list-style: none;
-  display: grid;
-  gap: 2rem;
-  margin: 2rem 0 0;
-  padding: 0;
-}
-.story-mouse {
-  margin: 0;
+/* The finale (story 6, 2026-10-11): Kirby's headline over a hand on a mouse.
+   Static (no JS, reduced motion, a short window, a module that failed): the
+   headline, then the drawing under it, then the final section's buttons. The
+   drawing comes first in the DOM (it is decorative, alt=""), so the column is
+   reversed to show the headline on top; the reading order is the same. */
+.story-finale {
+  position: relative;
+  width: min(100%, 30rem);
+  margin: 3rem auto 0;
   text-align: center;
 }
-.story-mouse img {
+.story-finale-glow {
+  display: none;
+}
+.story-finale-art {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 1.5rem;
+}
+.story-finale-art img {
   display: block;
   width: 100%;
-  max-width: 21rem;
   height: auto;
-  margin: 0 auto;
-  aspect-ratio: 487.54 / 231.57;
+  aspect-ratio: 688 / 622;
 }
-.story-mouse figcaption {
-  margin-top: 0.5rem;
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  line-height: 1.4;
+.story-finale-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .home-final {
@@ -429,10 +438,9 @@
   .story-notes {
     width: min(100%, 38rem);
   }
-  .story-mice {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2.5rem;
-    margin-top: 3rem;
+  .story-finale {
+    width: min(100%, 38rem);
+    margin-top: 4rem;
   }
 }
 
@@ -524,22 +532,75 @@
   opacity: 0;
   will-change: opacity, transform;
 }
-.story--animated .story-mice {
+/* The finale: the drawing's box is where the particles land (the image itself
+   is hidden: the canvas draws it), the headline is drawn by the canvas over it
+   and stays in the DOM, transparent, for a screen reader. The light behind
+   them is under the canvases (z-index 0, earlier in the panel), and the stage
+   fades it in (opacity only). The sizes follow the approved frames (v17
+   desktop EdWeI, v18 phone s3nxQl): the figure about 604 px wide from 7 svh
+   on a 1440 x 900 desktop, 364 px from 18 svh on a 390 x 844 phone; the
+   headline about 96 / 47 px. 未拍板 (candidate), one value each. */
+.story--animated .story-finale {
+  --finale-top: 18svh;
+  --finale-w: min(94%, 37.75rem, 67.5svh);
   position: absolute;
   inset: 0;
-  z-index: 1;
-  align-content: center;
-  gap: clamp(1rem, 4svh, 2rem);
+  z-index: 0;
+  width: auto;
   margin: 0;
   pointer-events: none;
 }
-.story--animated .story-mouse img {
-  visibility: hidden;
-  /* Three stacked mice and their captions must fit the panel. */
-  max-width: min(21rem, calc(((100svh - 5rem) / 3 - 3rem) * 2.105));
+.story--animated .story-finale-art {
+  display: block;
+  position: absolute;
+  top: var(--finale-top);
+  left: 50%;
+  width: var(--finale-w);
+  transform: translateX(-50%);
 }
-.story--animated .story-mouse figcaption {
+.story--animated .story-finale-art img {
+  visibility: hidden;
+}
+.story--animated .story-finale-title {
+  position: absolute;
+  top: 54%;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  font-size: clamp(2.5rem, min(12vw, 10.5svh), 6rem);
+  text-align: center;
+  transform: translate(-50%, -50%);
   opacity: 0;
+}
+.story--animated .story-finale-glow {
+  display: block;
+  position: absolute;
+  top: calc(var(--finale-top) + var(--finale-w) * 0.45);
+  left: 50%;
+  width: min(140%, calc(var(--finale-w) * 1.9));
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--glow) 34%, transparent),
+    color-mix(in srgb, var(--glow) 14%, transparent) 55%,
+    transparent
+  );
+  opacity: 0;
+}
+/* The final section's buttons come up over the bottom of the finale as the
+   panel lets go (p = 1): the canvases take no pointer events and sit under
+   them, so the buttons work and their focus ring shows in full. */
+.story--animated + .home-final {
+  --final-overlap: 33svh;
+  position: relative;
+  z-index: 2;
+  margin-top: calc(-1 * var(--final-overlap));
+}
+@media (prefers-contrast: more) {
+  .story--animated .story-finale-glow {
+    display: none;
+  }
 }
 
 @media (min-width: 48rem) {
@@ -553,11 +614,14 @@
   .story--animated .story-note-why {
     font-size: 1.125rem;
   }
-  .story--animated .story-mice {
-    gap: 2.5rem;
+  .story--animated .story-finale {
+    --finale-top: 7svh;
   }
-  .story--animated .story-mouse img {
-    max-width: 21rem;
+  .story--animated .story-finale-title {
+    top: 49%;
+  }
+  .story--animated + .home-final {
+    --final-overlap: 20svh;
   }
 }
 
@@ -788,9 +852,9 @@
 /* Print. Chrome does not print backgrounds unless the user asks for them, so a
    filled button would print as white text on white paper: on paper it is a
    dark label with an outline. The drawings (the logo, the
-   hand on A4, the three sketches) are decorative and light-on-dark, so they
-   are left off the page; the mice's captions and the five hand annotations go
-   with them. The How it works
+   hand on A4, the finale's hand on a mouse) are decorative and light-on-dark,
+   so they are left off the page; the five hand annotations and the finale's
+   headline go with them. The How it works
    page is printed too: its muted text takes the print tokens, the numbered
    squares and the privacy card lose their dark fills, and the camera-UI badge
    over the photo (white on a translucent black pill) is left off like the
@@ -809,7 +873,7 @@
   .story-logo,
   .story-hand,
   .story-notes,
-  .story-mice,
+  .story-finale,
   .story-canvas,
   .story-canvas-gl,
   .home-hero-badge {
@@ -823,6 +887,9 @@
   .story--animated .story-panel {
     position: static;
     height: auto;
+  }
+  .story--animated + .home-final {
+    margin-top: 3rem;
   }
   /* The stage fades the whole panel out and in when it switches away from the
      top (particle-stage.ts, late-start.ts): printed meanwhile, it is whole. */

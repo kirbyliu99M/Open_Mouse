@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  FINALE,
   HERO_INERT_BELOW,
   MARKS,
   NOTE_BOUNDS,
@@ -100,7 +101,14 @@ describe("phaseAt", () => {
     expect(phase.mouseT).toBe(0);
     expect(phase.hero).toEqual({ opacity: 1, shift: 0, inert: false });
     expect(phase.sheet).toBe(0);
-    expect(phase.captions).toBe(0);
+    expect(phase.finale).toEqual({
+      sky: 0,
+      glow: 0,
+      gather: 0,
+      clip: 0,
+      sweep: 0,
+      lift: 0,
+    });
     expect(phase.landmarks).toBe(0);
     expect(phase.lines).toBe(0);
   });
@@ -114,18 +122,56 @@ describe("phaseAt", () => {
     }
   });
 
-  it("story 6 has stopped by p = 0.90 and holds still to 1.00", () => {
-    expect(phaseAt(0.89).mouseT).toBeLessThan(1);
+  it("the finale's figure is formed by p = 0.86 and holds still to 1.00", () => {
+    // 2026-10-11: the three mice (settled at 0.90) became the finale, whose
+    // figure forms first so the headline can gather after it (FINALE).
+    expect(MARKS.miceSettled).toBe(0.86);
+    expect(phaseAt(0.85).mouseT).toBeLessThan(1);
     expect(phaseAt(MARKS.miceSettled).mouseT).toBe(1);
-    for (const p of [0.9, 0.93, 0.97, 1]) {
+    for (const p of [0.86, 0.9, 0.93, 0.97, 1]) {
       const phase = phaseAt(p);
       expect(phase.mouseT).toBe(1);
       expect(phase.formT).toBe(1);
       expect(phase.overlay).toBe(0);
     }
-    // The captions have faded in by then.
-    expect(phaseAt(0.92).captions).toBe(1);
-    expect(phaseAt(0.8).captions).toBe(0);
+  });
+
+  it("the finale: the sky, then the headline gathers and is swept solid, all done by 0.98 and held to 1", () => {
+    for (const p of [0, 0.38, 0.55, 0.69]) {
+      expect(Object.values(phaseAt(p).finale).every((v) => v === 0)).toBe(
+        true,
+      );
+    }
+    // Each window is inside story 6's neighbourhood, in order, and ends at 1.
+    for (const [from, to] of Object.values(FINALE)) {
+      expect(from).toBeGreaterThanOrEqual(0.7);
+      expect(to).toBeLessThanOrEqual(0.98);
+      expect(phaseAt(from).finale).toBeDefined();
+    }
+    expect(FINALE.gather[0]).toBeGreaterThanOrEqual(FINALE.sky[0]);
+    expect(FINALE.sweep[0]).toBeGreaterThanOrEqual(FINALE.gather[1]);
+    // The lines are cut while the letters arrive, not before.
+    expect(FINALE.clip[0]).toBe(FINALE.gather[0]);
+    for (const p of [0.98, 0.99, 1]) {
+      expect(phaseAt(p).finale).toEqual({
+        sky: 1,
+        glow: 1,
+        gather: 1,
+        clip: 1,
+        sweep: 1,
+        lift: 1,
+      });
+    }
+    // Monotonic: scrolling down never takes a part of the finale back.
+    let last = phaseAt(0.7).finale;
+    for (let i = 1; i <= 300; i += 1) {
+      const now = phaseAt(0.7 + (0.3 * i) / 300).finale;
+      for (const key of Object.keys(now) as (keyof typeof now)[]) {
+        expect(now[key]).toBeGreaterThanOrEqual(last[key]);
+      }
+      last = now;
+    }
+    expect(phaseAt(0.86).finale.gather).toBeCloseTo(0.5, 12);
   });
 
   it("the landmarks light in order, the skeleton draws, then the lines extend, all inside story 4", () => {
@@ -293,14 +339,14 @@ describe("the five annotations' windows", () => {
   });
 
   it("leave every other part of the phase alone: the notes are only a layer over the story", () => {
-    // The same particle phase, hero, sheet, captions and overlay as before the notes.
+    // The same particle phase, hero, sheet, finale and overlay as before the notes.
     for (const p of [0, 0.1, 0.2, 0.38, 0.4, 0.5, 0.55, 0.6, 0.8, 1]) {
       const keys = Object.keys(phaseAt(p)).filter(
         (key) => key !== "notes" && key !== "outline",
       );
       expect(keys.sort()).toEqual(
         [
-          "captions",
+          "finale",
           "formT",
           "hero",
           "landmarks",
@@ -316,7 +362,8 @@ describe("the five annotations' windows", () => {
     }
     // Spot values pinned before this change: the particles' timing is untouched.
     expect(phaseAt(0.2).formT).toBeCloseTo(0.2 / 0.38, 12);
-    expect(phaseAt(0.58).mouseT).toBeCloseTo((0.58 - 0.55) / 0.35, 12);
+    // (The second leg ends at 0.86 since the finale, 2026-10-11: it was 0.90.)
+    expect(phaseAt(0.58).mouseT).toBeCloseTo((0.58 - 0.55) / 0.31, 12);
     expect(phaseAt(0.4).landmarks).toBeCloseTo(((0.4 - 0.38) / 0.09) * 21, 9);
   });
 

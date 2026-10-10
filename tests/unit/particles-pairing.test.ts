@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { finaleShape, finaleSlotName } from "@/lib/particles/finale-shape";
+import { parseFinaleTargets } from "@/lib/particles/load-finale";
 import { parseTargets } from "@/lib/particles/load-targets";
 import {
   MOUSE_COUNT,
@@ -104,10 +106,16 @@ describe("splitIntoGroups", () => {
 });
 
 describe("pairTargets", () => {
+  // Since the finale (2026-10-11) the last state is one drawing: MOUSE_COUNT
+  // is 1 and every particle ends on slot 0.
   const count = 90;
   const logo = randomPoints(count, 1);
   const hand = randomPoints(count, 2);
-  const mice = [3, 4, 5].map((seed) => randomPoints(count / 3, seed));
+  const mice = [randomPoints(count, 3)];
+
+  it("the last state is one drawing", () => {
+    expect(MOUSE_COUNT).toBe(1);
+  });
 
   it("sorts the logo and the hand by x and pairs them by index", () => {
     const pairing = pairTargets(logo, hand, mice, "stacked");
@@ -120,81 +128,74 @@ describe("pairTargets", () => {
     }
   });
 
-  it("stacked: the hand's top third goes to mouse 0, the middle to 1, the bottom to 2", () => {
-    const pairing = pairTargets(logo, hand, mice, "stacked");
-    const ys = [0, 1, 2].map((slot) =>
-      pairing.hand.filter((_, i) => pairing.slot[i] === slot).map((p) => p.y),
-    );
-    expect(ys.map((g) => g.length)).toEqual([30, 30, 30]);
-    expect(Math.max(...ys[0]!)).toBeLessThanOrEqual(Math.min(...ys[1]!));
-    expect(Math.max(...ys[1]!)).toBeLessThanOrEqual(Math.min(...ys[2]!));
-  });
-
-  it("row: the hand's left third goes to mouse 0, the middle to 1, the right to 2", () => {
-    const pairing = pairTargets(logo, hand, mice, "row");
-    const xs = [0, 1, 2].map((slot) =>
-      pairing.hand.filter((_, i) => pairing.slot[i] === slot).map((p) => p.x),
-    );
-    expect(xs.map((g) => g.length)).toEqual([30, 30, 30]);
-    expect(Math.max(...xs[0]!)).toBeLessThanOrEqual(Math.min(...xs[1]!));
-    expect(Math.max(...xs[1]!)).toBeLessThanOrEqual(Math.min(...xs[2]!));
-  });
-
-  it("inside a group, the k-th hand point by x meets the k-th point of its mouse by x", () => {
+  it("every particle ends on the one drawing, the k-th hand point by x on its k-th point by x, in both layouts", () => {
     for (const layout of ["stacked", "row"] as const) {
       const pairing = pairTargets(logo, hand, mice, layout);
-      for (let slot = 0; slot < MOUSE_COUNT; slot += 1) {
-        const ends = pairing.mouse.filter((_, i) => pairing.slot[i] === slot);
-        expect(ends).toEqual(sortByX(mice[slot]!));
-      }
+      expect(pairing.slot.every((s) => s === 0)).toBe(true);
+      expect(pairing.mouse).toEqual(sortByX(mice[0]!));
     }
   });
 
-  it("uses every point of every mouse exactly once", () => {
+  it("uses every point of the drawing exactly once", () => {
     const pairing = pairTargets(logo, hand, mice, "stacked");
     expect(pairing.mouse).toHaveLength(count);
-    for (let slot = 0; slot < MOUSE_COUNT; slot += 1) {
-      const used = pairing.mouse.filter((_, i) => pairing.slot[i] === slot);
-      expect([...used].sort((a, b) => a.x - b.x || a.y - b.y)).toEqual(
-        [...mice[slot]!].sort((a, b) => a.x - b.x || a.y - b.y),
-      );
-    }
+    expect([...pairing.mouse].sort((a, b) => a.x - b.x || a.y - b.y)).toEqual(
+      [...mice[0]!].sort((a, b) => a.x - b.x || a.y - b.y),
+    );
   });
 
-  it("refuses lists that do not fit: a wrong count, or other than three mice", () => {
+  it("refuses lists that do not fit: a wrong count, or other than one last drawing", () => {
     expect(() => pairTargets(logo, hand.slice(1), mice, "row")).toThrow(
       RangeError,
     );
-    expect(() => pairTargets(logo, hand, mice.slice(1), "row")).toThrow(
-      /expected 3/,
+    expect(() => pairTargets(logo, hand, [...mice, ...mice], "row")).toThrow(
+      /expected 1/,
     );
+    expect(() => pairTargets(logo, hand, [], "row")).toThrow(/expected 1/);
     expect(() =>
-      pairTargets(logo, hand, [mice[0]!, mice[1]!, mice[2]!.slice(1)], "row"),
+      pairTargets(logo, hand, [mice[0]!.slice(1)], "row"),
     ).toThrow(RangeError);
   });
 });
 
 describe("buildPairing on the real targets", () => {
-  const sketch = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+  const finale = parseFinaleTargets(
+    JSON.parse(readFileSync(ARTIFACT_PATHS.finale, "utf8")),
+  );
+  const withFinale = {
+    ...targets,
+    mice: {
+      ...targets.mice,
+      [finaleSlotName("desktop")]: finaleShape(finale, "desktop"),
+      [finaleSlotName("mobile")]: finaleShape(finale, "mobile"),
+    },
+  };
+  const sketch = [finaleSlotName("mobile")];
 
-  for (const [layout, count] of [
-    ["stacked", 900],
-    ["row", 1299],
-    ["stacked", 450],
-    ["row", 648],
+  for (const [layout, count, density] of [
+    ["stacked", 900, "sparse"],
+    ["row", 1299, "sparse"],
+    ["stacked", 451, "sparse"],
+    ["row", 6000, "dense"],
   ] as const) {
-    it(`${layout}, ${count} particles: every list has the budget's count, a third of it per mouse`, () => {
-      const pairing = buildPairing(targets, {
+    it(`${layout}, ${count} particles (${density}): every list has the budget's count, all on the finale`, () => {
+      const pairing = buildPairing(withFinale, {
         count,
         layout,
         seed: 7,
-        mice: sketch,
+        mice: layout === "row" ? [finaleSlotName("desktop")] : sketch,
+        density,
       });
       expect(pairing.logo).toHaveLength(count);
       expect(pairing.hand).toHaveLength(count);
       expect(pairing.mouse).toHaveLength(count);
-      for (let slot = 0; slot < MOUSE_COUNT; slot += 1) {
-        expect(pairing.slot.filter((s) => s === slot)).toHaveLength(count / 3);
+      expect(pairing.slot.every((s) => s === 0)).toBe(true);
+      // Every end lies on the drawing (its viewBox, moved to start at 0, 0).
+      for (const p of pairing.mouse) {
+        expect(p.x).toBeGreaterThanOrEqual(-2);
+        expect(p.x).toBeLessThanOrEqual(finale.viewBox.width + 2);
+        expect(p.y).toBeGreaterThanOrEqual(-2);
+        expect(p.y).toBeLessThanOrEqual(finale.viewBox.height + 2);
       }
     });
   }
@@ -206,46 +207,37 @@ describe("buildPairing on the real targets", () => {
       seed: 7,
       mice: sketch,
     } as const;
-    expect(buildPairing(targets, options)).toEqual(
-      buildPairing(targets, options),
+    expect(buildPairing(withFinale, options)).toEqual(
+      buildPairing(withFinale, options),
     );
     // The logo has fewer points than the budget, so the extra copies are nudged by the seed.
-    const other = buildPairing(targets, { ...options, seed: 8 });
-    expect(other.logo).not.toEqual(buildPairing(targets, options).logo);
+    const other = buildPairing(withFinale, { ...options, seed: 8 });
+    expect(other.logo).not.toEqual(buildPairing(withFinale, options).logo);
   });
 
-  it("stacked: mouse 0 takes the hand's fingers (the smallest y), mouse 2 the palm and wrist", () => {
-    const pairing = buildPairing(targets, {
-      count: 900,
-      layout: "stacked",
-      seed: 7,
-      mice: sketch,
-    });
-    const meanY = (slot: number) => {
-      const ys = pairing.hand
-        .filter((_, i) => pairing.slot[i] === slot)
-        .map((p) => p.y);
-      return ys.reduce((a, b) => a + b, 0) / ys.length;
-    };
-    expect(meanY(0)).toBeLessThan(meanY(1));
-    expect(meanY(1)).toBeLessThan(meanY(2));
-  });
-
-  it("refuses a count that is not a multiple of three, and a sketch that does not exist", () => {
+  it("refuses a count that is not a positive whole number, more than one drawing, and a sketch that does not exist", () => {
     expect(() =>
-      buildPairing(targets, {
-        count: 100,
+      buildPairing(withFinale, {
+        count: 0,
         layout: "row",
         seed: 1,
         mice: sketch,
       }),
-    ).toThrow(/multiple of three/);
+    ).toThrow(/multiple of 1/);
     expect(() =>
-      buildPairing(targets, {
+      buildPairing(withFinale, {
         count: 99,
         layout: "row",
         seed: 1,
-        mice: ["nope", "nope", "nope"],
+        mice: [...sketch, ...sketch],
+      }),
+    ).toThrow(/expected 1/);
+    expect(() =>
+      buildPairing(withFinale, {
+        count: 99,
+        layout: "row",
+        seed: 1,
+        mice: ["nope"],
       }),
     ).toThrow(/no sketch named nope/);
   });

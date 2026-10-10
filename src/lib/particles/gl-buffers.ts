@@ -14,11 +14,12 @@ import type { ParticleSet } from "./particle-set";
  * The floats of one particle, in order: the position on the logo (2), on the
  * hand (2) and on its mouse (2); the swirl of the first leg (2) and of the
  * second (2); the tone on the logo, the hand and the mouse (3); the shimmer's
- * x (1); and the rank (1: the particle's place in the buffer as a share of all
+ * x (1); the rank (1: the particle's place in the buffer as a share of all
  * of them, `rankOf`; a state lights the particles whose rank is under its lit
- * share).
+ * share); and the clip (1: 1 where its place in the finale is under the
+ * headline's letters, see `markClipped`).
  */
-export const GL_FLOATS_PER_PARTICLE = 15;
+export const GL_FLOATS_PER_PARTICLE = 16;
 
 /** The offset of each field inside a particle, in floats (the shader's attributes read these). */
 export const GL_FIELD = {
@@ -30,6 +31,7 @@ export const GL_FIELD = {
   tone: 10,
   shimmerX: 13,
   rank: 14,
+  clip: 15,
 } as const;
 
 /**
@@ -69,6 +71,7 @@ export function packParticles(
     data[at + GL_FIELD.tone + 2] = set.toneMouse[i]!;
     data[at + GL_FIELD.shimmerX] = set.shimmerX[i]!;
     data[at + GL_FIELD.rank] = rankOf(j, n);
+    data[at + GL_FIELD.clip] = set.clip[i]!;
   }
   return data;
 }

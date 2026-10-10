@@ -315,12 +315,17 @@ function drawParticles(
   const band = s.shimmer;
   const lit = (i: number) =>
     band === null ? 0 : shimmerBoost(shimmerX[i]!, band);
+  // The finale's places under the headline's letters: cut once the letters
+  // are half there (the WebGL path fades them; this path has no fade).
+  const cut = s.phase.mouseT > 0 && s.phase.finale.clip >= 0.5;
+  const { clip } = particles.set;
 
   // The dim ones are one path.
   ctx.fillStyle = `rgba(${DETAIL}, 0.72)`;
   ctx.beginPath();
   for (let i = 0; i < count; i += 1) {
     if (bright[i]! >= 0.5) continue;
+    if (cut && clip[i] === 1) continue;
     if (band !== null && lit(i) > LIT_DIM_FROM) continue;
     ctx.rect(
       xy[2 * i]! - DIM_PX / 2,
@@ -333,6 +338,7 @@ function drawParticles(
 
   // The bright ones, and any dim one the shimmer's band is on, are glow sprites.
   for (let i = 0; i < count; i += 1) {
+    if (cut && clip[i] === 1) continue;
     const isBright = bright[i]! >= 0.5;
     const boost = band === null ? 0 : lit(i);
     if (!isBright && boost <= LIT_DIM_FROM) continue;

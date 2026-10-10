@@ -39,7 +39,7 @@ export const STORY_RANGES: readonly {
   { story: 3, from: 0.15, to: 0.38 }, // the particles gather into a hand
   { story: 4, from: 0.38, to: 0.55 }, // the hand is measured
   { story: 5, from: 0.55, to: 0.72 }, // the hand rearranges
-  { story: 6, from: 0.72, to: 1 }, // three mice
+  { story: 6, from: 0.72, to: 1 }, // the finale: a hand on a mouse, the headline
 ];
 
 /** Where things happen inside those ranges. */
@@ -50,8 +50,12 @@ export const MARKS = {
   handFormed: 0.38,
   /** The hand's lines are drawn, and it starts to loosen. */
   measured: 0.55,
-  /** The three mice have settled; they hold still to p = 1. */
-  miceSettled: 0.9,
+  /**
+   * The hand has closed on the mouse: the finale's figure is formed and holds
+   * still to p = 1. (The name is from the three mice it replaced; late-start.ts
+   * anchors the finale's bottom edge to it.)
+   */
+  miceSettled: 0.86,
 } as const;
 
 /**
@@ -93,7 +97,7 @@ export interface Phase {
   readonly story: StoryId;
   /** Logo to hand, 0 to 1: the particles leave the logo, drift out, and gather into the hand by p = 0.38. */
   readonly formT: number;
-  /** Hand to three mice, 0 to 1: reached by p = 0.90, held to 1. 0 until the hand has been measured. */
+  /** Hand to the finale's hand on a mouse, 0 to 1: reached by p = 0.86, held to 1. 0 until the hand has been measured. (The name is from the three mice it replaced.) */
   readonly mouseT: number;
   readonly hero: {
     /** 1 at rest, 0 once the hero text has faded out (p = 0.10). */
@@ -105,8 +109,6 @@ export interface Phase {
   };
   /** The A4 outline's opacity: it fades in as the hand forms and out as the hand loosens. */
   readonly sheet: number;
-  /** The mice's captions' opacity: they fade in as the mice settle. */
-  readonly captions: number;
   /** The hand's overlay: how many of the 21 landmarks are lit (fractional), */
   readonly landmarks: number;
   /** how much of the skeleton is drawn, */
@@ -119,7 +121,38 @@ export interface Phase {
   readonly outline: number;
   /** The five annotations' opacities, 0 to 1, in order. At most one is above 0 at any p, and all are 0 outside p = 0.40 to 0.60. */
   readonly notes: readonly number[];
+  /** Story 6, the finale (see FINALE). Each 0 to 1. */
+  readonly finale: FinalePhase;
 }
+
+export interface FinalePhase {
+  /** The sky (stars and meteors) fades in. */
+  readonly sky: number;
+  /** The soft light behind the figure and under the headline. */
+  readonly glow: number;
+  /** The headline's particles fly in, letter by letter (finale-motion.ts's t). */
+  readonly gather: number;
+  /** How far the hand's and the mouse's lines are cut where the letters will be (they fade there as the letters arrive). */
+  readonly clip: number;
+  /** The light that sweeps across the gathered letters and leaves them solid. */
+  readonly sweep: number;
+  /** The closing lift of the finale's stars, once the figure is formed. */
+  readonly lift: number;
+}
+
+/**
+ * The finale's windows in p (story 6, 0.72 to 1): the figure forms first
+ * (mouseT, to 0.86), then the headline gathers and is swept solid, and
+ * everything holds from 0.98 to 1. 未拍板 (candidate), one value each.
+ */
+export const FINALE = {
+  sky: [0.7, 0.82],
+  glow: [0.78, 0.9],
+  gather: [0.8, 0.92],
+  clip: [0.8, 0.88],
+  sweep: [0.92, 0.98],
+  lift: [0.84, 0.94],
+} as const satisfies Record<keyof FinalePhase, readonly [number, number]>;
 
 export function phaseAt(progress: number): Phase {
   const p = clamp01(progress);
@@ -136,7 +169,6 @@ export function phaseAt(progress: number): Phase {
       inert: opacity < HERO_INERT_BELOW,
     },
     sheet: segment(p, 0.2, MARKS.handFormed) * (1 - segment(p, 0.55, 0.62)),
-    captions: segment(p, 0.84, 0.92),
     landmarks: segment(p, MARKS.handFormed, 0.47) * 21,
     skeleton: segment(p, 0.42, 0.5),
     lines: segment(p, 0.47, MARKS.measured),
@@ -150,5 +182,13 @@ export function phaseAt(progress: number): Phase {
         (1 - segment(p, to - NOTE_FADE, to))
       );
     }),
+    finale: {
+      sky: segment(p, ...FINALE.sky),
+      glow: segment(p, ...FINALE.glow),
+      gather: segment(p, ...FINALE.gather),
+      clip: segment(p, ...FINALE.clip),
+      sweep: segment(p, ...FINALE.sweep),
+      lift: segment(p, ...FINALE.lift),
+    },
   };
 }

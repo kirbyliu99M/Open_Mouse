@@ -9,8 +9,9 @@ import "./home.css";
 
 /**
  * Home v3 (docs/design/home-v3-2026-10-03/README.md, "Page structure"). The
- * story section holds the hero, the hand on A4 and the three mice as ordinary
- * stacked blocks with static SVGs (PR A). That static layout is what a visitor
+ * story section holds the hero, the hand on A4, its notes and the finale (a
+ * hand on a mouse under the headline; it replaced the three mice, 2026-10-11)
+ * as ordinary stacked blocks with static SVGs (PR A). That static layout is what a visitor
  * gets without JS, with reduced motion, on a small screen, or if the particle
  * module fails to load. PR B's <ParticleStage /> loads after the first paint
  * and, when allowed, draws a canvas under the hero and switches the section to
@@ -86,24 +87,25 @@ export default function HomePage() {
             ))}
           </ul>
 
-          {/* Only G Pro exists, so all three are placeholders until more
-              sketches do. Each mouse's name is real text. */}
-          <ul className="story-mice">
-            {[0, 1, 2].map((slot) => (
-              <li key={slot}>
-                <figure className="story-mouse" data-sketch="g-pro-sketch">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- static SVG sketch */}
-                  <img
-                    src="/images/sketches/g-pro-sketch.svg"
-                    alt=""
-                    width={488}
-                    height={232}
-                  />
-                  <figcaption>G Pro X Superlight 2 · sketch</figcaption>
-                </figure>
-              </li>
-            ))}
-          </ul>
+          {/* The finale (story 6): a hand on a mouse, under Kirby's
+              headline. The headline is real text; the drawing is decorative
+              (the particles land on it). Without the stage this is the static
+              ending, above the buttons of the final section. With the stage
+              the drawing and the text are hidden and the canvas draws them:
+              the text stays in the DOM, transparent, for a screen reader. */}
+          <div className="story-finale">
+            <span className="story-finale-glow" aria-hidden="true" />
+            <div className="story-finale-art">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static SVG drawing */}
+              <img
+                src="/images/sketches/finale-grip.svg"
+                alt=""
+                width={688}
+                height={622}
+              />
+              <h2 className="story-finale-title">Find Your Best Mouse</h2>
+            </div>
+          </div>
 
           {/* Decorative, and last in the panel: it is drawn under everything. */}
           <ParticleStage />

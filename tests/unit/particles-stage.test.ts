@@ -28,7 +28,7 @@ import {
 } from "@/lib/particles/interpolate";
 import { parseTargets } from "@/lib/particles/load-targets";
 import { LOGO_BOX } from "@/lib/particles/logo";
-import { buildPairing } from "@/lib/particles/pairing";
+import { MOUSE_COUNT, buildPairing } from "@/lib/particles/pairing";
 import {
   type StageLayout,
   buildParticleSet,
@@ -48,7 +48,7 @@ import { phaseAt } from "@/lib/particles/timeline";
 const targets = parseTargets(
   JSON.parse(readFileSync(ARTIFACT_PATHS.targets, "utf8")),
 );
-const sketch = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+const sketch = ["g-pro-sketch"];
 
 describe("what the canvas shares with the static drawings", () => {
   it("uses the same two stroke colours and the same seed as the target generator", () => {
@@ -69,11 +69,12 @@ describe("the particle budget", () => {
 
   it("the 2D fallback is exactly what the stage used before WebGL", () => {
     expect(particleCount(false, 8, "2d")).toBe(900);
-    // 1300 is not a multiple of three, and the mice each take a third.
-    expect(particleCount(true, 8, "2d")).toBe(1299);
-    expect(particleCount(true, undefined, "2d")).toBe(1299);
+    // 1299 while three mice each took a third; the finale is one drawing
+    // (2026-10-11), so the desktop budget is whole again.
+    expect(particleCount(true, 8, "2d")).toBe(1300);
+    expect(particleCount(true, undefined, "2d")).toBe(1300);
     expect(particleCount(false, 4, "2d")).toBe(450);
-    expect(particleCount(true, 4, "2d")).toBe(648);
+    expect(particleCount(true, 4, "2d")).toBe(650);
   });
 
   it("the WebGL path is 6,000 on a phone and 12,000 on a desktop, halved on 4 cores or fewer", () => {
@@ -90,7 +91,7 @@ describe("the particle budget", () => {
     for (const renderer of ["2d", "webgl"] as const) {
       const full = particleCount(false, 8, renderer);
       expect(particleCount(false, 4, renderer)).toBe(
-        Math.floor(full / 2) - (Math.floor(full / 2) % 3),
+        Math.floor(full / 2) - (Math.floor(full / 2) % MOUSE_COUNT),
       );
       expect(particleCount(false, 2, renderer)).toBe(
         particleCount(false, 4, renderer),
@@ -100,11 +101,11 @@ describe("the particle budget", () => {
     }
   });
 
-  it("always gives a multiple of three, for either path and whether or not it is halved", () => {
+  it("always gives a multiple of MOUSE_COUNT (one since the finale), for either path and whether or not it is halved", () => {
     for (const renderer of ["2d", "webgl"] as const) {
       for (const wide of [false, true]) {
         for (const cores of [undefined, 1, 4, 6, 16]) {
-          expect(particleCount(wide, cores, renderer) % 3).toBe(0);
+          expect(particleCount(wide, cores, renderer) % MOUSE_COUNT).toBe(0);
         }
       }
     }
@@ -417,10 +418,10 @@ describe("the particles", () => {
     expect(off / set.count).toBeGreaterThan(0.08 * 350);
   });
 
-  it("every particle starts and ends in the budget's count of three equal mouse groups", () => {
-    const counts = [0, 0, 0];
+  it("every particle ends on the one last drawing (the finale)", () => {
+    const counts = [0];
     for (const s of pairing.slot) counts[s] = counts[s]! + 1;
-    expect(counts).toEqual([300, 300, 300]);
+    expect(counts).toEqual([900]);
   });
 });
 

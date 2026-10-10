@@ -12,9 +12,11 @@ import { createHandFiller } from "./template-hand";
  * - Sort both point lists by x and pair by index. That gives a coherent
  *   sideways flow instead of random crossings.
  * - Logo to hand: one list to one list.
- * - Hand to three mice: the hand's points are split into three groups, by y on
- *   a phone (the mice are stacked) or by x on a desktop (side by side). Each
- *   group is paired with one mouse, again by x.
+ * - Hand to the finale: the last state is one drawing now, the home finale's
+ *   hand on a mouse (finale-targets.ts; it replaced the three mice, 2026-10-11),
+ *   so the hand is paired with it by x as well. The slot machinery that split
+ *   the hand between three mice is kept with a single slot (MOUSE_COUNT = 1),
+ *   so the 2D path, the WebGL buffers and the star order did not change shape.
  *
  * Pure and seeded: the same input and seed give the same pairing.
  */
@@ -22,8 +24,8 @@ import { createHandFiller } from "./template-hand";
 /** Stacked on a phone, side by side from 48 rem. */
 export type MiceLayout = "stacked" | "row";
 
-/** How many mice the last step shows. */
-export const MOUSE_COUNT = 3;
+/** How many drawings the last step shows: one, the finale's hand on a mouse (the name is from the three mice it replaced). */
+export const MOUSE_COUNT = 1;
 
 type Xy = { readonly x: number; readonly y: number };
 
@@ -154,7 +156,7 @@ export interface Pairing {
   readonly hand: readonly TargetPoint[];
   /** Where it ends, in its mouse's own coordinates. */
   readonly mouse: readonly TargetPoint[];
-  /** Which mouse (0 to 2: top to bottom when stacked, left to right in a row) it ends on. */
+  /** Which last drawing it ends on: always 0 since the finale (MOUSE_COUNT = 1). */
   readonly slot: readonly number[];
 }
 
@@ -190,7 +192,7 @@ function checkCounts(
     mice.some((m) => m.length * MOUSE_COUNT !== count)
   ) {
     throw new RangeError(
-      "the logo and the hand need the same count, and each mouse a third of it",
+      `the logo and the hand need the same count, and each of the ${MOUSE_COUNT} last drawings an equal share of it`,
     );
   }
 }
@@ -203,13 +205,13 @@ function pairSorted(
   layout: MiceLayout,
 ): Pairing {
   const count = logoSorted.length;
-  // Which of the three groups each hand point is in, by y when stacked, by x in a row.
+  // Which group each hand point is in (one group per last drawing), by y when stacked, by x in a row.
   const axis = layout === "stacked" ? "y" : "x";
   const groupOf = groupByRank(handSorted, MOUSE_COUNT, axis);
 
   // handSorted is in x order, so each group's points come out in x order too:
   // the k-th point of a group meets the k-th point of its mouse.
-  const next = [0, 0, 0];
+  const next = new Array<number>(MOUSE_COUNT).fill(0);
   const mouse: TargetPoint[] = [];
   const slot: number[] = [];
   for (let i = 0; i < count; i += 1) {
@@ -231,11 +233,11 @@ function pairSorted(
 export type Density = "sparse" | "dense";
 
 export interface PairingOptions {
-  /** The particle budget; a multiple of three. */
+  /** The particle budget; a multiple of MOUSE_COUNT. */
   readonly count: number;
   readonly layout: MiceLayout;
   readonly seed: number;
-  /** The sketch each mouse slot shows, by name in `targets.mice`. */
+  /** The drawing each last slot shows, by name in `targets.mice` (the stage adds the finale's drawing there under its own name). */
   readonly mice: readonly string[];
   /** Sparse when left out. */
   readonly density?: Density;
@@ -254,7 +256,9 @@ export function* pairingSteps(
   { count, layout, seed, mice, density = "sparse" }: PairingOptions,
 ): Generator<void, Pairing, void> {
   if (!Number.isInteger(count) || count < MOUSE_COUNT || count % MOUSE_COUNT) {
-    throw new RangeError("count must be a positive multiple of three");
+    throw new RangeError(
+      `count must be a positive multiple of ${MOUSE_COUNT}`,
+    );
   }
   const perMouse = count / MOUSE_COUNT;
   const dense = density === "dense";

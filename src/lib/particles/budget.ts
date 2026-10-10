@@ -57,7 +57,8 @@ export const SHIMMER_MAX_MS = 3000;
 /**
  * How many particles to use: the budget of the drawing path for a phone or a
  * desktop, halved on a device with 4 cores or fewer, and rounded down to a
- * multiple of three (the three mice each take a third).
+ * multiple of MOUSE_COUNT (each last drawing takes an equal share; one since
+ * the finale replaced the three mice).
  */
 export function particleCount(
   wide: boolean,

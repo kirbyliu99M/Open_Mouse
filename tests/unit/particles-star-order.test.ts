@@ -24,7 +24,7 @@ const targets = parseTargets(
 );
 
 const COUNT = 3000;
-const MICE = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+const MICE = ["g-pro-sketch"];
 const pairing = buildPairing(targets, {
   count: COUNT,
   layout: "stacked",
@@ -205,10 +205,10 @@ describe("starOrder", () => {
     }
   });
 
-  it("gives each mouse its share of the first particles", () => {
+  it("gives each last drawing its share of the first particles (one since the finale: all of them)", () => {
     for (const share of [0.08, 0.15, 0.25]) {
       const lit = Math.round(COUNT * share);
-      const perSlot = [0, 0, 0];
+      const perSlot = new Array<number>(MOUSE_COUNT).fill(0);
       for (let place = 0; place < lit; place += 1) {
         perSlot[pairing.slot[order[place]!]!] += 1;
       }

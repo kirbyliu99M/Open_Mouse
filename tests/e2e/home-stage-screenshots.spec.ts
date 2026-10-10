@@ -25,7 +25,7 @@ const SIZES = [
   [390, 844],
   [1440, 900],
 ] as const;
-const PROGRESS = [0, 0.3, 0.5, 0.95] as const;
+const PROGRESS = [0, 0.3, 0.5, 0.72, 0.8, 0.9, 0.95, 1] as const;
 
 // Short laptop windows (the hero scales down with the height): p = 0 and about
 // the middle of the story, with the nav showing at p = 0 as a visitor first
