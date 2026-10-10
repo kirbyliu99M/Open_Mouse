@@ -218,35 +218,61 @@ const scrollFrames = (page: Page, frames: number, dy = 4) =>
  * the three mice on 2026-10-11. Its stars sit on long lines closer together
  * than a star's core, so neighbours touch and a blob is often two or three
  * stars: one blob per lit particle no longer holds. Measured 2026-10-11 on
- * Kirby's machine (headless Chromium, software WebGL): 0.457 for the chromium
- * project (1280x800, 1,800 lit) and 0.652 for the mobile one (Pixel 7, 900
- * lit), the same on every run (fixed seed, fixed layout). The bound is 10 %
- * either side of each, as the mice's was. Whether a wrong share falls outside
- * it (the mice's bound was checked by mutation) has NOT been checked for these.
+ * Kirby's machine (headless Chromium, software WebGL), with the budgets of
+ * 7,500 / 15,000: 780 blobs for 2,250 lit (0.3467) in the chromium project
+ * (1280x800) and 609 for 1,125 (0.5413) in the mobile one (Pixel 7), the same
+ * on every run (fixed seed, fixed layout; the same at the guard's floor). The
+ * bound is 5 % either side of each.
+ *
+ * What it catches, measured by changing the share the stage lights (0.15)
+ * while the maths here keeps 0.15 (desktop / phone, blobs over the model's
+ * lit count): 0.12 gives 832 / 571 (0.370 / 0.508: +6.6 % / -6.2 %, both
+ * outside); 0.18 gives 694 / 593 (0.308 / 0.527: -11 % outside / -2.6 %
+ * INSIDE). The phone's 0.18 is caught by the figure's solid area instead
+ * (FIGURE_SOLID_AREA). (At 10 % either side, 0.12 got through on both.)
  */
 const FINALE_BLOBS = {
-  desktop: { low: 0.41, high: 0.5 },
-  phone: { low: 0.587, high: 0.717 },
+  desktop: { low: 0.3294, high: 0.364 },
+  phone: { low: 0.5142, high: 0.5684 },
 };
 /**
- * The solid area (alpha 80 % or more) of the three mice at p = 0.95 as a
- * multiple of the Canvas 2D version's. Measured: 1.8 on a desktop (1,800
- * stars against 1,300 particles) and 0.8 on a phone (900 against 900, drawn
- * at a pixel ratio of 1.5); the continuous line the stage drew before the
- * stars was over 20. The bounds are the 0.5 to 3 the brief asked for.
+ * The solid area (alpha 80 % or more) of the last state at rest as a
+ * multiple of the Canvas 2D version's: the three mice at p = 0.95 until
+ * 2026-10-11 (1.8 on a desktop, 0.8 on a phone), the finale's figure at
+ * p = 0.80 since (2.35 / 1.00 at 7,500 / 15,000); the continuous line the
+ * stage drew before the stars was over 20. The bounds are the 0.5 to 3 the
+ * brief asked for.
  */
-const MICE_SOLID = { low: 0.5, high: 3 };
+const FIGURE_SOLID = { low: 0.5, high: 3 };
+/**
+ * The figure's own solid area on the WebGL canvas (CSS px squared, alpha 80 %
+ * or more) at rest, per setup: measured 2026-10-11 at 7,500 / 15,000, 1,447
+ * (chromium, 1280x800) and 632 (mobile, Pixel 7), the same every run; 5 %
+ * either side. It moves with the lit share where the blob count does not
+ * (stars merge): 0.12 gave 1,309 / 575 (-9.5 % / -9 %), 0.18 gave 1,587 / 692
+ * (+9.7 % / +9.4 %), all outside.
+ */
+const FIGURE_SOLID_AREA = {
+  desktop: { low: 1375, high: 1519 },
+  phone: { low: 600, high: 664 },
+};
 /**
  * The logo's total alpha per lit particle (see above), at p = 0, for each of
  * the two setups this test runs in. It depends on how big the mark is drawn
  * (the stars overlap less on a bigger one), so each setup has its own bound.
  *
- * Measured 2026-10-10 on the shipped cloud (variant B3: 840 points, even
- * placing, a stroke's width; lit share 0.14, stars 1.7 times the look),
- * headless Chromium's software WebGL on Kirby's machine, after the shimmer.
- * The figure is the same on every run of a setup (a fixed seed, a fixed
- * layout): 6.320 for the chromium project (1280x800, 1,680 lit) and 5.973
- * for the mobile one (Pixel 7, 840 lit). Over other windows it spreads with
+ * Measured 2026-10-11 with the budgets of 7,500 / 15,000 (shipped cloud
+ * variant B3: 840 points, even placing, a stroke's width; lit share 0.14,
+ * stars 1.7 times the look), headless Chromium's software WebGL on Kirby's
+ * machine, after the shimmer, the same on every run of a setup (a fixed
+ * seed, a fixed layout): 5.188 for the chromium project (1280x800, 2,100
+ * lit) and 4.891 for the mobile one (Pixel 7, 1,050 lit; 11.005 per lit
+ * particle in device px at a pixel ratio of 1.5). With more lit stars the
+ * look draws each a little smaller (look.ts: the crowd), so the logo's total
+ * alpha is about what it was (10,895 against 10,618 at 12,000); per star it
+ * fell from 6.320 / 5.973 (6,000 / 12,000, 1,680 / 840 lit, 2026-10-10).
+ * The spreads and the mutation figures below were measured at 6,000 /
+ * 12,000 and have NOT been measured again at the new budgets. Over other windows it spreads with
  * the mark's size: 5.78 to 6.35 on desktops (1280x720 to 1920x1080, pixel
  * ratio 1 and 2) and 4.98 to 6.61 on phones (375x667 to 430x932, pixel ratio
  * 2 to 3). The bound is 5 % either side of each setup's figure.
@@ -262,8 +288,8 @@ const MICE_SOLID = { low: 0.5, high: 3 };
  * 1.35, the placeholder outline 5.6 / 5.8.
  */
 const LOGO_MASS = {
-  desktop: { low: 6.0, high: 6.64 },
-  phone: { low: 5.67, high: 6.27 },
+  desktop: { low: 4.93, high: 5.45 },
+  phone: { low: 4.65, high: 5.14 },
 };
 
 /**
@@ -1009,8 +1035,15 @@ test.describe("the WebGL path", () => {
         `p=${p} webgl ${JSON.stringify(gl)} 2d ${JSON.stringify(flat)} ratio ${ratio.toFixed(2)}`,
       );
       expect(flat.area, seen.at(-1)).toBeGreaterThan(20);
-      expect(ratio, seen.at(-1)).toBeGreaterThan(MICE_SOLID.low);
-      expect(ratio, seen.at(-1)).toBeLessThan(MICE_SOLID.high);
+      expect(ratio, seen.at(-1)).toBeGreaterThan(FIGURE_SOLID.low);
+      expect(ratio, seen.at(-1)).toBeLessThan(FIGURE_SOLID.high);
+      const area = (await page.evaluate(
+        () => matchMedia("(min-width: 48rem)").matches,
+      ))
+        ? FIGURE_SOLID_AREA.desktop
+        : FIGURE_SOLID_AREA.phone;
+      expect(gl.area, seen.at(-1)).toBeGreaterThan(area.low);
+      expect(gl.area, seen.at(-1)).toBeLessThan(area.high);
     }
     test.info().annotations.push({
       type: "solid area of the finale's figure, webgl over 2d",
