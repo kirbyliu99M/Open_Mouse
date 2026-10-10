@@ -196,7 +196,7 @@ async function staticGeometry(page: Page) {
       viewportHeight: window.innerHeight,
       hand: block(".story-hand"),
       notes: block(".story-notes"),
-      mice: block(".story-mice"),
+      mice: block(".story-finale"),
       finalTop: document.querySelector(".home-final")!.getBoundingClientRect()
         .top,
     };

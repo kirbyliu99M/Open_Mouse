@@ -8,7 +8,9 @@ import { contrast } from "./fixtures/contrast";
 // one, are in home-stage.spec.ts.
 test.use({ reducedMotion: "reduce" });
 
-const CAPTION = "G Pro X Superlight 2 · sketch";
+// The finale's headline (Kirby's words, 2026-10-09). It replaced the three
+// mice and their captions on 2026-10-11.
+const FINALE_TITLE = "Find Your Best Mouse";
 // Kirby, 2026-10-10: the site footer carries no explanatory text for now, so
 // the Early preview note and the non-affiliation statement appear nowhere on
 // the site until he decides where they go.
@@ -57,11 +59,15 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   await expect(footerLinks).toHaveCount(1);
   await expect(footerLinks).toHaveAttribute("href", "/how-it-works");
 
-  // The three mice: each one's name is real text under its sketch.
-  const captions = page.getByText(CAPTION);
-  await expect(captions).toHaveCount(3);
-  for (let i = 0; i < 3; i += 1) await expect(captions.nth(i)).toBeVisible();
-  await expect(page.locator(".story-mouse img")).toHaveCount(3);
+  // The finale: Kirby's headline is real text over its drawing, and the
+  // three mice and their captions are gone.
+  await expect(
+    page.getByRole("heading", { level: 2, name: FINALE_TITLE }),
+  ).toBeVisible();
+  await expect(page.locator(".story-finale-art img")).toHaveCount(1);
+  await expect(page.locator(".story-finale-art img")).toBeVisible();
+  await expect(page.getByText("G Pro X Superlight 2 · sketch")).toHaveCount(0);
+  await expect(page.locator(".story-mice, .story-mouse")).toHaveCount(0);
 
   // Nor is the non-affiliation statement (removed with the note, 2026-10-10).
   await expect(page.getByText("Not affiliated with Logitech")).toHaveCount(0);
@@ -141,16 +147,14 @@ test("the h1 comes first; the logo, the hand and the sketches are decorative and
   });
   expect(order.main).toBe(1);
   expect(order.h1s).toBe(1);
-  // logo, hand, then the three mice
+  // logo, hand, then the finale's hand on a mouse
   expect(order.images.map((i) => i.src)).toEqual([
     "/images/hero-palmate-mark.svg",
     "/images/hand-on-a4.svg",
-    "/images/sketches/g-pro-sketch.svg",
-    "/images/sketches/g-pro-sketch.svg",
-    "/images/sketches/g-pro-sketch.svg",
+    "/images/sketches/finale-grip.svg",
   ]);
-  // Decorative: an empty alt. The wordmark in the nav names the site and each
-  // mouse's caption names the mouse, so nothing here needs a description.
+  // Decorative: an empty alt. The wordmark in the nav names the site and the
+  // finale's headline is real text, so nothing here needs a description.
   for (const image of order.images) expect(image.alt).toBe("");
   expect(order.images[0]!.beforeH1).toBe(true);
   for (const image of order.images.slice(1)) expect(image.afterH1).toBe(true);
@@ -207,9 +211,9 @@ test("print: text that takes its colour from a token prints dark on the white pa
 }) => {
   await page.goto("/");
   await page.emulateMedia({ media: "print" });
-  // The headline, the wordmark, the subhead, a mouse's
-  // caption and the footer: --text-primary, --text-secondary, --text-tertiary
-  // on screen, near-white on dark. On paper they must be dark.
+  // The headline, the wordmark, the subhead, the finale's
+  // headline and the footer: --text-primary, --text-secondary, the footer's
+  // tokens on screen, near-white on dark. On paper they must be dark.
   const texts = await page.evaluate(() => {
     const colour = (selector: string) =>
       getComputedStyle(document.querySelector(selector)!).color;
@@ -218,7 +222,7 @@ test("print: text that takes its colour from a token prints dark on the white pa
       "wordmark (--text-primary)": colour(".home-wordmark"),
       "subhead (--text-secondary)": colour(".home-subhead"),
       "footer headline (--text-primary)": colour(".siteFooter-headline"),
-      "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
+      "finale headline (--text-primary)": colour(".story-finale-title"),
       "footer group title (--footer-heading)": colour(".siteFooter-groupTitle"),
       "footer link (--footer-link)": colour(".siteFooter-group a"),
       "Sign in (--text-secondary)": colour(".home-signin-link"),
@@ -263,7 +267,7 @@ test("print: text that takes its colour from a token prints dark on the white pa
       ".story-logo",
       ".story-hand",
       ".story-notes",
-      ".story-mice",
+      ".story-finale-art img",
       ".navMenuTrigger",
     ].map((selector) => [
       selector,

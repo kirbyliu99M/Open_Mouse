@@ -853,8 +853,8 @@
    filled button would print as white text on white paper: on paper it is a
    dark label with an outline. The drawings (the logo, the
    hand on A4, the finale's hand on a mouse) are decorative and light-on-dark,
-   so they are left off the page; the five hand annotations and the finale's
-   headline go with them. The How it works
+   so they are left off the page, and the five hand annotations with them. The
+   finale's headline is text and prints, in its place in the flow. The How it works
    page is printed too: its muted text takes the print tokens, the numbered
    squares and the privacy card lose their dark fills, and the camera-UI badge
    over the photo (white on a translucent black pill) is left off like the
@@ -873,7 +873,8 @@
   .story-logo,
   .story-hand,
   .story-notes,
-  .story-finale,
+  .story-finale-art img,
+  .story-finale-glow,
   .story-canvas,
   .story-canvas-gl,
   .home-hero-badge {
@@ -890,6 +891,17 @@
   }
   .story--animated + .home-final {
     margin-top: 3rem;
+  }
+  .story--animated .story-finale,
+  .story--animated .story-finale-art,
+  .story--animated .story-finale-title {
+    position: static;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+  .story-finale-title {
+    opacity: 1 !important;
   }
   /* The stage fades the whole panel out and in when it switches away from the
      top (particle-stage.ts, late-start.ts): printed meanwhile, it is whole. */

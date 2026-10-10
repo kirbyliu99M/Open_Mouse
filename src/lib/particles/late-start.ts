@@ -90,15 +90,19 @@ export interface StaticBlock {
  * section's top edge is p = 0 (the hero); the static hand's top edge the
  * formed hand (p = 0.38), so a reader looking at the hand gets the hand; the
  * annotations' top edge the lit, measured hand (p = 0.47, in the notes'
- * windows); the mice's top edge the start of story 6 (p = 0.72) and their
- * bottom edge the settled mice (p = 0.9); the section's bottom edge p = 1.
- * 未拍板 (candidate), like the rest of the timing.
+ * windows); the finale's top edge the start of story 6 (p = 0.72) and its
+ * bottom edge p = 0.9 (the headline gathering over the formed figure; the
+ * three mice the finale replaced settled there, and the anchors' slopes were
+ * tuned for it, so it stays 0.9 while the figure itself is formed by 0.80,
+ * MARKS.miceSettled); the section's bottom edge p = 1. (The `mice` names are
+ * the old ones: the block is the finale's now.) 未拍板 (candidate), like the
+ * rest of the timing.
  */
 export const ANCHOR_PROGRESS = {
   handTop: MARKS.handFormed,
   notesTop: 0.47,
   miceTop: 0.72,
-  miceBottom: MARKS.miceSettled,
+  miceBottom: 0.9,
 } as const;
 
 export function storyAnchors(input: {

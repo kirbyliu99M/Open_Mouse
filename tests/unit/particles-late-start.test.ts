@@ -42,7 +42,7 @@ describe("storyAnchors", () => {
       { offset: 707, progress: MARKS.handFormed },
       { offset: 1488, progress: ANCHOR_PROGRESS.notesTop },
       { offset: 1931, progress: ANCHOR_PROGRESS.miceTop },
-      { offset: 1931 + 185, progress: MARKS.miceSettled },
+      { offset: 1931 + 185, progress: ANCHOR_PROGRESS.miceBottom },
       { offset: STATIC_HEIGHT, progress: 1 },
     ]);
   });
@@ -87,12 +87,10 @@ describe("progressAtOffset", () => {
     expect(progressAtOffset(Number.NaN, anchors)).toBe(0);
   });
 
-  it("puts the hand's top edge at the formed hand and the mice's bottom edge at the settled mice", () => {
+  it("puts the hand's top edge at the formed hand and the finale's bottom edge at p = 0.9 (where the three mice settled; the finale's figure is formed earlier, at 0.80)", () => {
     expect(progressAtOffset(707, anchors)).toBeCloseTo(MARKS.handFormed, 10);
-    expect(progressAtOffset(1931 + 185, anchors)).toBeCloseTo(
-      MARKS.miceSettled,
-      10,
-    );
+    expect(ANCHOR_PROGRESS.miceBottom).toBe(0.9);
+    expect(progressAtOffset(1931 + 185, anchors)).toBeCloseTo(0.9, 10);
   });
 });
 

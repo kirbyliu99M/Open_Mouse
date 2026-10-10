@@ -122,13 +122,13 @@ describe("phaseAt", () => {
     }
   });
 
-  it("the finale's figure is formed by p = 0.86 and holds still to 1.00", () => {
+  it("the finale's figure is formed by p = 0.80 and holds still to 1.00", () => {
     // 2026-10-11: the three mice (settled at 0.90) became the finale, whose
     // figure forms first so the headline can gather after it (FINALE).
-    expect(MARKS.miceSettled).toBe(0.86);
-    expect(phaseAt(0.85).mouseT).toBeLessThan(1);
+    expect(MARKS.miceSettled).toBe(0.8);
+    expect(phaseAt(0.79).mouseT).toBeLessThan(1);
     expect(phaseAt(MARKS.miceSettled).mouseT).toBe(1);
-    for (const p of [0.86, 0.9, 0.93, 0.97, 1]) {
+    for (const p of [0.8, 0.86, 0.9, 0.93, 0.97, 1]) {
       const phase = phaseAt(p);
       expect(phase.mouseT).toBe(1);
       expect(phase.formT).toBe(1);
@@ -137,10 +137,13 @@ describe("phaseAt", () => {
   });
 
   it("the finale: the sky, then the headline gathers and is swept solid, all done by 0.98 and held to 1", () => {
-    for (const p of [0, 0.38, 0.55, 0.69]) {
-      expect(Object.values(phaseAt(p).finale).every((v) => v === 0)).toBe(
-        true,
-      );
+    // Up to the figure at rest (0.80) nothing else of the finale has begun:
+    // the e2e suite compares the WebGL canvas with the maths there.
+    for (const p of [0, 0.38, 0.55, 0.69, 0.79, MARKS.miceSettled]) {
+      expect(Object.values(phaseAt(p).finale).every((v) => v === 0)).toBe(true);
+    }
+    for (const [from] of Object.values(FINALE)) {
+      expect(from).toBeGreaterThanOrEqual(MARKS.miceSettled);
     }
     // Each window is inside story 6's neighbourhood, in order, and ends at 1.
     for (const [from, to] of Object.values(FINALE)) {
@@ -171,7 +174,7 @@ describe("phaseAt", () => {
       }
       last = now;
     }
-    expect(phaseAt(0.86).finale.gather).toBeCloseTo(0.5, 12);
+    expect(phaseAt(0.87).finale.gather).toBeCloseTo(0.5, 12);
   });
 
   it("the landmarks light in order, the skeleton draws, then the lines extend, all inside story 4", () => {
@@ -362,8 +365,8 @@ describe("the five annotations' windows", () => {
     }
     // Spot values pinned before this change: the particles' timing is untouched.
     expect(phaseAt(0.2).formT).toBeCloseTo(0.2 / 0.38, 12);
-    // (The second leg ends at 0.86 since the finale, 2026-10-11: it was 0.90.)
-    expect(phaseAt(0.58).mouseT).toBeCloseTo((0.58 - 0.55) / 0.31, 12);
+    // (The second leg ends at 0.80 since the finale, 2026-10-11: it was 0.90.)
+    expect(phaseAt(0.58).mouseT).toBeCloseTo((0.58 - 0.55) / 0.25, 12);
     expect(phaseAt(0.4).landmarks).toBeCloseTo(((0.4 - 0.38) / 0.09) * 21, 9);
   });
 

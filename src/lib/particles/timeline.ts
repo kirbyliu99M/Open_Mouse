@@ -53,9 +53,10 @@ export const MARKS = {
   /**
    * The hand has closed on the mouse: the finale's figure is formed and holds
    * still to p = 1. (The name is from the three mice it replaced; late-start.ts
-   * anchors the finale's bottom edge to it.)
+   * anchors the finale's bottom edge to it.) Nothing else of the finale has
+   * begun here: at this p the stage shows the figure alone, at rest.
    */
-  miceSettled: 0.86,
+  miceSettled: 0.8,
 } as const;
 
 /**
@@ -97,7 +98,7 @@ export interface Phase {
   readonly story: StoryId;
   /** Logo to hand, 0 to 1: the particles leave the logo, drift out, and gather into the hand by p = 0.38. */
   readonly formT: number;
-  /** Hand to the finale's hand on a mouse, 0 to 1: reached by p = 0.86, held to 1. 0 until the hand has been measured. (The name is from the three mice it replaced.) */
+  /** Hand to the finale's hand on a mouse, 0 to 1: reached by p = 0.80, held to 1. 0 until the hand has been measured. (The name is from the three mice it replaced.) */
   readonly mouseT: number;
   readonly hero: {
     /** 1 at rest, 0 once the hero text has faded out (p = 0.10). */
@@ -142,16 +143,19 @@ export interface FinalePhase {
 
 /**
  * The finale's windows in p (story 6, 0.72 to 1): the figure forms first
- * (mouseT, to 0.86), then the headline gathers and is swept solid, and
- * everything holds from 0.98 to 1. 未拍板 (candidate), one value each.
+ * (mouseT, to 0.80), then the sky and the light come up, the headline gathers
+ * and is swept solid, and everything holds from 0.98 to 1. Every window starts
+ * at 0.80 or later, so p = 0.80 is the figure alone at rest (the e2e suite
+ * compares the WebGL canvas with the maths there). 未拍板 (candidate), one
+ * value each.
  */
 export const FINALE = {
-  sky: [0.7, 0.82],
-  glow: [0.78, 0.9],
-  gather: [0.8, 0.92],
-  clip: [0.8, 0.88],
+  sky: [0.8, 0.88],
+  glow: [0.8, 0.9],
+  gather: [0.82, 0.92],
+  clip: [0.82, 0.88],
   sweep: [0.92, 0.98],
-  lift: [0.84, 0.94],
+  lift: [0.8, 0.9],
 } as const satisfies Record<keyof FinalePhase, readonly [number, number]>;
 
 export function phaseAt(progress: number): Phase {
