@@ -1047,7 +1047,7 @@ describe("the static SVGs", () => {
     expect(renderLogoSvg()).not.toContain("var(");
   });
 
-  it("draws the Palmate mark as the hand's own path, one stroke in #7FA8FF with round ends and no fill, and the dot as one circle; no background, no halo", () => {
+  it("draws the Palmate mark as the hand's own path, one 1.4-unit stroke in #7FA8FF with round ends and no fill, and the dot as one circle; no background, no halo", () => {
     const svg = renderLogoSvg();
     expect(svg).toContain(`d="${PALMATE_PATH}"`);
     expect(svg.match(/<path/g)).toHaveLength(1);
@@ -1055,6 +1055,11 @@ describe("the static SVGs", () => {
     expect(svg).toContain(`viewBox="${x} ${y} ${width} ${height}"`);
     expect(svg).toContain(`stroke="${LOGO_STROKE.color}"`);
     expect(LOGO_STROKE.color).toBe("#7FA8FF");
+    // The official logo's line: 1.4 units (Kirby, 2026-10-10; it was 2).
+    expect(LOGO_STROKE.width).toBe(1.4);
+    expect(svg).toContain(
+      `stroke="${LOGO_STROKE.color}" stroke-width="1.4" stroke-linecap="round"`,
+    );
     expect(svg).toContain('fill="none"');
     expect(svg).toContain('stroke-linecap="round"');
     expect(svg).not.toMatch(/<rect|<ellipse|<image|<g\b|filter|opacity/);

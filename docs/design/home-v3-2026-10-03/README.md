@@ -250,8 +250,10 @@ strokes are `#CFE0FF`, detail strokes `#6E9BF5`, matching `--sketch-line`.
 
 - **Logo (replaced 2026-10-10, 未拍板 candidate):** `public/images/hero-palmate-mark.svg`,
   the Palmate hand as one line drawing (the four-line path in
-  `src/lib/particles/logo.ts`, `PALMATE_PATH`), `#7FA8FF`, round ends, no fill,
-  and its dot below the thumb (`PALMATE_DOT`: one circle at 45, 53.5, white
+  `src/lib/particles/logo.ts`, `PALMATE_PATH`), `#7FA8FF`, a 1.4-unit stroke
+  (`LOGO_STROKE`: the official logo frame's line width, Kirby 2026-10-10; it
+  was 2; the particle cloud's width did not change with it), round ends, no
+  fill, and its dot below the thumb (`PALMATE_DOT`: one circle at 45, 53.5, white
   `#CFE0FF` inside a `#2463EB` ring, outer radius 1.55 units, as Kirby's
   official logo frame in Pencil draws it), transparent background, viewBox
   `13 8 65 69`. The earlier placeholder (a
