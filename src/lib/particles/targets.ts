@@ -1,3 +1,4 @@
+import { FINALE_SKETCH } from "./finale-targets";
 import type { Polyline, Vec } from "./geometry";
 import { LOGO_BOX, logoStrokes } from "./logo";
 import {
@@ -81,7 +82,7 @@ export interface ParticleTargets {
   readonly stageWidth: number;
   readonly logo: ShapeTarget;
   readonly hand: HandTarget;
-  /** One entry per sketch in public/images/sketches/, keyed by file name without the extension. */
+  /** One entry per mouse sketch in public/images/sketches/ (all but the finale's), keyed by file name without the extension. */
   readonly mice: Readonly<Record<string, ShapeTarget>>;
 }
 
@@ -171,13 +172,22 @@ export function buildHand(seed: number, count = HAND_FILL_COUNT): HandTarget {
   };
 }
 
-/** Sample everything. `sketches` maps a sketch's name (file name without `.svg`) to its SVG text. */
+/**
+ * Whether a drawing in public/images/sketches/ is a mouse sketch: every one is
+ * except the finale's hand on a mouse (finale-targets.ts), which has its own
+ * output file.
+ */
+export function isMouseSketch(name: string): boolean {
+  return name !== FINALE_SKETCH;
+}
+
+/** Sample everything. `sketches` maps a sketch's name (file name without `.svg`) to its SVG text; the finale's drawing among them is skipped here. */
 export function buildTargets(
   sketches: Readonly<Record<string, string>>,
   seed = DEFAULT_SEED,
 ): ParticleTargets {
   const mice: Record<string, ShapeTarget> = {};
-  for (const name of Object.keys(sketches).sort()) {
+  for (const name of Object.keys(sketches).filter(isMouseSketch).sort()) {
     mice[name] = sampleSketch(sketches[name]!);
   }
   return {

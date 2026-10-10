@@ -165,6 +165,12 @@ export interface SketchStroke {
   readonly polyline: Polyline;
   /** The stroke colour as written, lower-case, e.g. "#cfe0ff". */
   readonly stroke: string;
+  /**
+   * The path's `data-part` attribute, when it has one (the finale's drawing
+   * names each line's role with it: see finale-targets.ts). The mouse
+   * sketches have none, and their strokes carry no `part` key at all.
+   */
+  readonly part?: string;
 }
 
 export interface Sketch {
@@ -234,8 +240,10 @@ export function parseSketchSvg(svg: string): Sketch {
       const d = attr(text, "d");
       const stroke = attr(text, "stroke");
       if (!d || !stroke) throw new Error("Sketch path without d or stroke");
+      const part = attr(text, "data-part");
       for (const polyline of parsePathData(d)) {
         strokes.push({
+          ...(part === undefined ? {} : { part }),
           stroke: stroke.toLowerCase(),
           polyline: {
             closed: polyline.closed,
