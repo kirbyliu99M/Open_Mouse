@@ -70,14 +70,14 @@
   cursor: pointer;
 }
 .cameraPaperToggleButton.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .cameraPaperToggleButton.selected:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 .cameraNotice {
@@ -369,9 +369,9 @@
   min-height: 3rem;
   padding: 0 1.5rem;
   border: none;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -483,19 +483,31 @@
 .cameraUsePhoto {
   order: 1;
   border: none;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .cameraUsePhoto:active,
 .cameraResumeButton:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
+.cameraUsePhoto:focus-visible,
+.cameraResumeButton:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+/* Secondary: a text link (BTN-1, style B). */
 .cameraRetake {
   order: 2;
-  border: 1.5px solid var(--control-border);
+  border: 1.5px solid transparent;
   background: transparent;
   color: var(--accent-text);
+  text-decoration: none;
+}
+.cameraRetake:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .cameraReviewPage .cameraNotice {
   margin-top: 1rem;
@@ -536,5 +548,18 @@
   }
   .cameraRetake {
     border-width: 2px;
+    border-color: currentColor;
+  }
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .cameraUsePhoto,
+  .cameraResumeButton,
+  .cameraPaperToggleButton.selected {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
   }
 }

@@ -20,8 +20,34 @@ The whole site is dark (Kirby, 2026-10-03), with one theme and
 `color-scheme: dark`. The tokens and their contrast values live in
 `docs/design/home-v3-2026-10-03/README.md#dark-theme-tokens`. Small text never
 goes below `#8A8A8F` on the page background (5.9:1), and never sits on glow
-above 15 %. White button labels need a fill at least as dark as `#1F6BF0`
-(4.75:1). Pressed states darken the fill; they never lower the opacity.
+above 15 %. Pressed states darken the fill; they never lower the opacity.
+
+**Primary button** (Kirby, 2026-10-10, BTN-1, candidate): a near-white pill
+(`--button-primary-bg` `#F5F5F7`, `border-radius: 999px`) with a near-black
+label (`--on-button-primary` `#060709`, 18.5:1), pressed to `#D1D1D6`, and a
+2 px `--accent-text` focus ring with an offset. Blue is for text, links, focus
+rings and selection text; it no longer fills a primary button. On paper the
+pill prints black with a white label.
+
+**Selected toggle:** the same white fill and black label as the primary button,
+in its own shape. Unselected, it stays a dark outline. This includes the grip
+chips on the easy-scan result sheet: dark outlined when unselected, a white pill
+when selected.
+
+**Secondary button:** a plain text link in `--accent-text`, with no fill, no
+border and no underline (like "Print it" and the "‹ Sheet" back link), at least
+44 px tall, with the same focus ring. Its border stays transparent, so
+more-contrast users get an outline instead of colour alone.
+
+**Exceptions:**
+
+- The easy-scan camera result sheet: secondary controls stay dark and outlined
+  (the circular retake button, the unselected grip chips).
+- The sign-in provider button (`.account-google-button`): dark filled.
+- Destructive buttons and icon-only chips are unchanged.
+
+**Home:** the home page keeps its blue button until its redesign adopts these
+tokens.
 
 ---
 

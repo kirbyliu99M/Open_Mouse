@@ -151,7 +151,7 @@
 }
 
 .results-demoControls-buttons button[aria-pressed="true"] {
-  color: var(--on-accent);
+  color: var(--on-button-primary);
 }
 
 .results-demoControls-buttons button:focus-visible {
@@ -388,9 +388,24 @@
   border-color: #3a3a3d;
 }
 
+/* Secondary: a text link (BTN-1, style B). */
 .results-analysis-retry {
-  background: #2c2c2e;
-  color: #f5f5f7;
+  background: none;
+  color: var(--accent-text);
+  border-color: transparent;
+  /* No side padding, so "Try again" lines up with the paragraph above it. The
+     44px height stays. */
+  padding-inline: 0;
+  text-decoration: none;
+}
+.results-analysis-retry:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+@media (prefers-contrast: more) {
+  .results-analysis-retry {
+    border-color: currentColor;
+  }
 }
 
 .results-subscoreBar-track {
@@ -417,14 +432,14 @@
 }
 
 .results-demoControls-buttons button[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
 }
 
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .results-demoControls-buttons button[aria-pressed="true"]:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 /* Journey styling shared with Home and Sheet. */
@@ -483,10 +498,10 @@
 }
 
 /* A filled primary button: pressing darkens the fill and never lowers the
-   opacity, which would take the white label under 4.5:1. */
+   opacity. */
 .results-page-action:active {
   transform: scale(0.98);
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 
 .results-mouseHeader-rank,
@@ -501,8 +516,9 @@
 }
 
 .results-page-action {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 
 .results-subscoreBar-fill {
@@ -546,27 +562,33 @@
  * Mobile first; the wide layout starts at 56rem. */
 
 /* The glow behind the hero (the approved design's blue haze, top right).
- * It is a box-shadow of a small, empty, decorative element, not a pseudo
- * element and not a background image: axe cannot work out a text colour's
- * background under either of those (it reports color-contrast as "needs
- * review" for everything on the page), and it ignores a box-shadow. A shadow
- * adds nothing to the scrollable width either. */
+ * It is a box-shadow of an empty, decorative element with no height, not a
+ * pseudo element and not a background image: axe cannot work out a text
+ * colour's background under either of those (it reports color-contrast as
+ * "needs review" for everything on the page), and it ignores a box-shadow. A
+ * shadow adds nothing to the scrollable width either. */
 .results-view {
   position: relative;
   isolation: isolate;
 }
 .results-glow {
   position: absolute;
-  top: 0;
+  /* The element has no height, on purpose. An outer box-shadow is not painted
+     inside the element's own box, so a box with a height shows the page
+     background as a black hole in the middle of its own glow. With no height
+     there is no inside: the shadow's spread (7rem) gives the haze its
+     thickness, and the side margins take back the width that the spread adds. */
+  top: 3rem;
   /* Inside the page's width, centred at 70%: an element wider than a phone
      would add horizontal scroll (its box counts, its shadow does not). */
   left: 50%;
   right: 10%;
+  margin-inline: 3rem;
   z-index: -1;
-  height: 6rem;
+  height: 0;
   border-radius: 50%;
   pointer-events: none;
-  box-shadow: 0 0 16rem 4rem color-mix(in srgb, var(--glow) 20%, transparent);
+  box-shadow: 0 0 16rem 7rem color-mix(in srgb, var(--glow) 20%, transparent);
 }
 .results-page-status,
 .results-page-error {
@@ -1222,5 +1244,16 @@
 
   .results-subscoreBar[data-assessed="false"] .results-subscoreBar-track {
     background: none;
+  }
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .results-page-action,
+  .results-demoControls-buttons button[aria-pressed="true"] {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
   }
 }

@@ -64,6 +64,9 @@ describe("the dark tokens", () => {
     expect(token("--on-accent")).toBe("#ffffff");
     expect(token("--accent-pressed")).toBe("#1a5cd0");
     expect(token("--accent-text")).toBe("#7fa8ff");
+    expect(token("--button-primary-bg")).toBe("#f5f5f7");
+    expect(token("--on-button-primary")).toBe("#060709");
+    expect(token("--button-primary-pressed")).toBe("#d1d1d6");
     expect(token("--control-border")).toBe("#ffffff59");
     expect(token("--hairline")).toBe("#ffffff24");
     expect(token("--sketch-line")).toBe("#cfe0ff");
@@ -228,17 +231,16 @@ function blend(
   ];
 }
 
-describe("the filled buttons: white on --accent", () => {
-  // A white label on --accent is 4.75:1. Dropping the opacity of a pressed
-  // button would take it to 4.33:1 at 0.85 (and lower further), so every
-  // filled button darkens its fill to --accent-pressed (6.0:1) instead.
-  const FILLED: readonly (readonly [string, string, string | null])[] = [
+describe("the filled buttons: a near-white fill with a near-black label", () => {
+  // The primary button is a near-white pill with a near-black label (BTN-1).
+  // A selected toggle takes the same fill and label, in its own shape.
+  // Dropping the opacity of a pressed button would fade the label, so every
+  // filled button darkens its fill to the pressed token instead.
+  const PRIMARY: readonly (readonly [string, string, string | null])[] = [
     ["src/app/scan/scan.css", ".uploadButton", null],
     ["src/app/scan/scan.css", ".primaryButton", null],
-    ["src/app/scan/scan.css", ".pickerButton.selected", null],
     ["src/app/learn/learn.css", ".learn-button", null],
     ["src/app/globals.css", ".button-primary", null],
-    ["src/app/home.css", ".home-cta", null],
     ["src/app/account/account.css", ".account-start-button", null],
     ["src/components/results/results.css", ".results-page-action", null],
     ["src/components/errors/errors.css", ".errorAction-primary", null],
@@ -247,6 +249,90 @@ describe("the filled buttons: white on --accent", () => {
     ["src/client/camera/camera.css", ".cameraResumeButton", null],
     ["src/client/camera/easy-scan.css", ".easyCopyLink", null],
     ["src/client/camera/easy-scan.css", ".easyUploadFallbackButton", null],
+  ];
+
+  it("the primary button tokens keep the contrast their comments state", () => {
+    const bg = rgb("--button-primary-bg");
+    const on = rgb("--on-button-primary");
+    expect(ratio(on, bg)).toBeGreaterThanOrEqual(18);
+    expect(ratio(on, rgb("--button-primary-pressed"))).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    // The white pill stands out from the page it sits on.
+    expect(ratio(bg, rgb("--bg"))).toBeGreaterThanOrEqual(18);
+    // A disabled pill fades as a whole over the page: the label and fill
+    // both blend towards --bg, and the pair must still read at 3:1.
+    const opacity = Number(token("--button-primary-disabled-opacity"));
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
+    const page = rgb("--bg");
+    expect(
+      ratio(blend(on, opacity, page), blend(bg, opacity, page)),
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("prints as a black pill with a white label, so it does not vanish on white paper", () => {
+    const print = parseRules(tokensCss).find(
+      (r) => r.media === "print" && r.selectors.includes(":root"),
+    )!;
+    const bg = channels(print.decls["--button-primary-bg"]!);
+    expect(ratio(bg, channels(print.decls["--bg"]!))).toBeGreaterThanOrEqual(
+      18,
+    );
+    expect(
+      ratio(channels(print.decls["--on-button-primary"]!), bg),
+    ).toBeGreaterThanOrEqual(18);
+    expect(
+      ratio(
+        channels(print.decls["--on-button-primary"]!),
+        channels(print.decls["--button-primary-pressed"]!),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(PRIMARY)(
+    "%s %s: a pill in the primary tokens; pressing darkens the fill and never lowers the opacity",
+    (file, selector, media) => {
+      const rules = rulesOf(file);
+      const fill = declared(rules, selector, "background", media);
+      expect(fill && resolve(fill), "its fill").toBe(
+        token("--button-primary-bg"),
+      );
+      const label = declared(rules, selector, "color", media);
+      expect(label && resolve(label), "its label").toBe(
+        token("--on-button-primary"),
+      );
+      expect(declared(rules, selector, "border-radius", media), "pill").toBe(
+        "999px",
+      );
+
+      const pressed = declared(
+        rules,
+        `${selector}:active`,
+        "background",
+        media,
+      );
+      expect(pressed && resolve(pressed), "pressed fill").toBe(
+        token("--button-primary-pressed"),
+      );
+      expect(
+        ratio(rgb("--on-button-primary"), channels(resolve(pressed!))),
+        "label on the pressed fill",
+      ).toBeGreaterThanOrEqual(4.5);
+
+      for (const rule of rules) {
+        if (
+          rule.selectors.includes(`${selector}:active`) &&
+          "opacity" in rule.decls
+        ) {
+          expect(Number(rule.decls.opacity), `${rule.media} opacity`).toBe(1);
+        }
+      }
+    },
+  );
+
+  const FILLED: readonly (readonly [string, string, string | null])[] = [
+    ["src/app/scan/scan.css", ".pickerButton.selected", null],
     ["src/client/camera/camera.css", ".cameraPaperToggleButton.selected", null],
     [
       "src/components/results/results.css",
@@ -256,13 +342,17 @@ describe("the filled buttons: white on --accent", () => {
   ];
 
   it.each(FILLED)(
-    "%s %s: pressing darkens the fill and never lowers the opacity",
+    "%s %s (selected toggle): the primary fill; pressing darkens the fill and never lowers the opacity",
     (file, selector, media) => {
       const rules = rulesOf(file);
       const fill = declared(rules, selector, "background", media);
-      expect(fill && resolve(fill), "its fill").toBe(token("--accent"));
+      expect(fill && resolve(fill), "its fill").toBe(
+        token("--button-primary-bg"),
+      );
       const label = declared(rules, selector, "color", media);
-      expect(label && resolve(label), "its label").toBe(token("--on-accent"));
+      expect(label && resolve(label), "its label").toBe(
+        token("--on-button-primary"),
+      );
 
       const pressed = declared(
         rules,
@@ -271,10 +361,10 @@ describe("the filled buttons: white on --accent", () => {
         media,
       );
       expect(pressed && resolve(pressed), "pressed fill").toBe(
-        token("--accent-pressed"),
+        token("--button-primary-pressed"),
       );
       expect(
-        ratio(rgb("--on-accent"), channels(resolve(pressed!))),
+        ratio(rgb("--on-button-primary"), channels(resolve(pressed!))),
         "label on the pressed fill",
       ).toBeGreaterThanOrEqual(4.5);
 
@@ -302,7 +392,7 @@ describe("the filled buttons: white on --accent", () => {
       expect(
         resolve(declared(rulesOf(file), `${selector}:active`, "border-color")!),
         selector,
-      ).toBe(token("--accent-pressed"));
+      ).toBe(token("--button-primary-pressed"));
     }
   });
 
@@ -333,7 +423,7 @@ describe("the filled buttons: white on --accent", () => {
       resolve(
         declared(rules, ".pickerButton.selected:active", "border-color")!,
       ),
-    ).toBe(token("--accent-pressed"));
+    ).toBe(token("--button-primary-pressed"));
   });
 
   it("under reduced motion the filled buttons keep full opacity, and only an unfilled chip fades", () => {
@@ -358,6 +448,74 @@ describe("the filled buttons: white on --accent", () => {
         expect(opacityOf(selector), `${file} ${selector}`).toBe("1");
       }
     }
+  });
+});
+
+describe("the secondary buttons: a text link in --accent-text, no fill, no border, no underline (BTN-1, style B)", () => {
+  const SECONDARY: readonly (readonly [string, string, string | null])[] = [
+    ["src/app/globals.css", ".button-secondary", null],
+    ["src/app/learn/learn.css", ".learn-button-secondary", null],
+    ["src/components/errors/errors.css", ".errorAction-secondary", null],
+    ["src/app/sheet/sheet.css", ".sheet-secondary", "screen"],
+    [
+      "src/app/scan/scan.css",
+      ".scanMain .uploadSlot-measured .uploadButton",
+      null,
+    ],
+    ["src/client/camera/camera.css", ".cameraRetake", null],
+    ["src/components/results/results.css", ".results-analysis-retry", null],
+  ];
+  it.each(SECONDARY)("%s %s", (file, selector, media) => {
+    const rules = rulesOf(file);
+    const label = declared(rules, selector, "color", media)!;
+    expect(["var(--accent-text)", "var(--learn-accent)"]).toContain(label);
+    expect(ratio(rgb("--accent-text"), rgb("--bg"))).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(["none", "transparent"]).toContain(
+      declared(rules, selector, "background", media),
+    );
+    const border =
+      declared(rules, selector, "border-color", media) ??
+      declared(rules, selector, "border", media)!;
+    expect(border).toMatch(/transparent/);
+    expect(declared(rules, selector, "text-decoration", media)).toBe("none");
+  });
+
+  it.each(SECONDARY)(
+    "%s %s: a more-contrast user gets an outline in the text colour, not colour alone",
+    (file, selector) => {
+      const outlined = rulesOf(file).filter(
+        (r) =>
+          (r.media ?? "").includes("prefers-contrast: more") &&
+          r.selectors.includes(selector),
+      );
+      expect(outlined.length, "a more-contrast rule").toBeGreaterThan(0);
+      const colours = outlined.map(
+        (r) => r.decls["border-color"] ?? r.decls.border ?? "",
+      );
+      expect(colours.some((c) => /currentcolor/i.test(c))).toBe(true);
+    },
+  );
+});
+
+describe("the easy-scan retake button and the results glow", () => {
+  const easy = rulesOf("src/client/camera/easy-scan.css");
+  it("the retake button is a circle of at least 44px, to sit beside the pill", () => {
+    expect(declared(easy, ".easyRetakeButton", "border-radius")).toBe("50%");
+    const side = (property: string) =>
+      Number.parseFloat(declared(easy, ".easyRetakeButton", property) ?? "0");
+    expect(side("width")).toBeGreaterThanOrEqual(44);
+    expect(side("height")).toBeGreaterThanOrEqual(44);
+    expect(side("width")).toBe(side("height"));
+  });
+
+  it("the glow has no height (an outer shadow is not painted inside its own box, so a box would show a black hole) and glows with --glow", () => {
+    const results = rulesOf("src/components/results/results.css");
+    expect(declared(results, ".results-glow", "height")).toBe("0");
+    const shadow = declared(results, ".results-glow", "box-shadow")!;
+    expect(shadow).toContain("var(--glow)");
+    expect(shadow).not.toMatch(/inset/);
   });
 });
 

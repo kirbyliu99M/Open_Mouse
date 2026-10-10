@@ -1,8 +1,8 @@
 /* Not-found, error and global-error screens. Self-contained on purpose:
    global-error.tsx replaces the root layout, so globals.css is not loaded
    there. The colours are the site's dark tokens (tokens.css, which
-   ErrorScreen imports itself): --bg, --text-primary, --accent / --on-accent
-   for the primary button, --accent-text for the focus ring; the muted text is
+   ErrorScreen imports itself): --bg, --text-primary, --button-primary-bg /
+   --on-button-primary for the primary button, --accent-text for the focus ring; the muted text is
    #b5b5bd. */
 
 /* Only global-error.tsx puts this class on <body>. */
@@ -89,10 +89,10 @@ main.errorScreen h1:focus {
 .errorAction-secondary:active {
   opacity: 0.85;
 }
-/* The primary label is white on the fill: darken the fill when pressed and
-   never lower the opacity (it would take the label under 4.5:1). */
+/* The primary label is dark on the white fill: darken the fill when pressed
+   and never lower the opacity. */
 .errorAction-primary:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 .errorScreen-status {
   margin: 1rem 0 0;
@@ -107,13 +107,16 @@ main.errorScreen h1:focus {
 }
 
 .errorAction-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
+/* Secondary: a text link (BTN-1, style B). */
 .errorAction-secondary {
   background: transparent;
-  color: inherit;
-  border-color: #6e6e73;
+  color: var(--accent-text);
+  border-color: transparent;
+  text-decoration: none;
 }
 .errorAction:focus-visible {
   outline: 3px solid var(--accent-text);
@@ -148,6 +151,7 @@ main.errorScreen h1:focus {
 @media (prefers-contrast: more) {
   .errorAction-secondary {
     border-width: 2px;
+    border-color: currentColor;
   }
 }
 
