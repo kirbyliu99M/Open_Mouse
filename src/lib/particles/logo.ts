@@ -45,14 +45,28 @@ export const LOGO_SEED = 20261010;
  * - `particles` points lie along the path, which is 349 units long. They sit at
  *   `particles / (1 + doubled)` places an even step apart (667 places, about
  *   0.52 units), and `doubled` of those places carry two points instead of
- *   one (173 of them).
- * - Each point is moved across the line by a bell-shaped amount, `spread` units
- *   wide (one standard deviation) and never past `maxSpread` (3.2 of them), so
- *   the line has a width of about 2 to 3 units and no hard edge.
- * - Density (Kirby, 2026-10-10, who asked twice for a denser, tighter mark):
- *   the first cut was 600 points, spread 0.8 and at most 2.4; it is now 840
- *   points (1.4 times), spread 0.5 and at most 1.6 (variant B of three
- *   compared in screenshots).
+ *   one (173 of them, picked by a seeded shuffle). A place's two points sit
+ *   `pairAt` of a step before and after its middle (a quarter and three
+ *   quarters of the way along it), each moved by up to `pairJitter` of a step,
+ *   so a pair never bunches into one dot.
+ * - Each point is moved across the line by a bell-shaped amount and never past
+ *   `maxSpread`. The bell's width (one standard deviation) swells and thins
+ *   slowly along the line, like a drawn stroke: `spread` times 1 plus or minus
+ *   `widthSwing`, a sine of `widthPeriod` units along the line, each line
+ *   `widthPhase` radians further on than the one before (`logoWidthAt`). So
+ *   the line is about 2 to 4 units wide, with no hard edge.
+ * - Where in the bell each point goes is not drawn at random: the points take
+ *   the bell's quantiles in a low-discrepancy order (golden-ratio steps from
+ *   the middle, `bellQuantile`), so no stretch of line has all its points on
+ *   one side or bunched in the middle, and the cloud has fewer clumps and gaps
+ *   (the nearest-neighbour distances vary by 0.23 of their mean, against 0.41
+ *   with random draws), while each point's own place is still irregular.
+ * - Density (Kirby, 2026-10-10, who asked twice for a denser, tighter mark,
+ *   then for the particles to look better): the first cut was 600 points,
+ *   spread 0.8 and at most 2.4, random places in the bell and in a pair's
+ *   step; it is now 840 points, spread 0.5 (+- 30 %) and at most 1.6, with
+ *   the even placing above (variant B3, compared in screenshots with B, B1
+ *   and B2).
  * - `brightShare` of the points are the bright tone, the others the dim one.
  * - The dot (`PALMATE_DOT`, a white disc in a blue ring) is drawn with the
  *   two tones the particles have: `dotCore` bright points close together at
@@ -71,6 +85,11 @@ export const LOGO_SAMPLING = {
   doubled: 0.26,
   spread: 0.5,
   maxSpread: 1.6,
+  widthSwing: 0.3,
+  widthPeriod: 24,
+  widthPhase: 1.7,
+  pairAt: 0.25,
+  pairJitter: 0.1,
   brightShare: 0.5,
   dotCore: 3,
   dotCoreRadius: 0.35,
@@ -250,6 +269,60 @@ function placeAt(walk: Walk, u: number): { at: Vec; normal: Vec } {
 }
 
 /**
+ * The bell's quantile: the z with Phi(z) = p, for p in (0, 1) (Acklam's
+ * rational approximation, |error| < 1.2e-9). Pure arithmetic and `Math.log`,
+ * `Math.sqrt`, so the committed JSON is the same on every machine that
+ * rounds those alike.
+ */
+export function bellQuantile(p: number): number {
+  const a = [
+    -39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269,
+    -30.66479806614716, 2.506628277459239,
+  ];
+  const b = [
+    -54.47609879822406, 161.5858368580409, -155.6989798598866,
+    66.80131188771972, -13.28068155288572,
+  ];
+  const c = [
+    -0.007784894002430293, -0.3223964580411365, -2.400758277161838,
+    -2.549732539343734, 4.374664141464968, 2.938163982698783,
+  ];
+  const d = [
+    0.007784695709041462, 0.3224671290700398, 2.445134137142996,
+    3.754408661907416,
+  ];
+  const tail = (q: number) =>
+    (((((c[0]! * q + c[1]!) * q + c[2]!) * q + c[3]!) * q + c[4]!) * q +
+      c[5]!) /
+    ((((d[0]! * q + d[1]!) * q + d[2]!) * q + d[3]!) * q + 1);
+  const low = 0.02425;
+  if (p < low) return tail(Math.sqrt(-2 * Math.log(p)));
+  if (p > 1 - low) return -tail(Math.sqrt(-2 * Math.log(1 - p)));
+  const q = p - 0.5;
+  const r = q * q;
+  return (
+    ((((((a[0]! * r + a[1]!) * r + a[2]!) * r + a[3]!) * r + a[4]!) * r +
+      a[5]!) *
+      q) /
+    (((((b[0]! * r + b[1]!) * r + b[2]!) * r + b[3]!) * r + b[4]!) * r + 1)
+  );
+}
+
+/** The golden ratio's fractional part: the step of the low-discrepancy order the cloud's points take the bell's quantiles in. */
+export const GOLDEN_STEP = 0.6180339887498949;
+
+/** The bell's width (one standard deviation, units) on line `line` (0 to 3) at `u` units along it: `spread` times 1 plus or minus `widthSwing`, a sine of `widthPeriod` units, `widthPhase` radians on per line. */
+export function logoWidthAt(line: number, u: number): number {
+  const s = LOGO_SAMPLING;
+  return (
+    s.spread *
+    (1 +
+      s.widthSwing *
+        Math.sin((2 * Math.PI * u) / s.widthPeriod + s.widthPhase * line))
+  );
+}
+
+/**
  * The logo's particle target in stage px: `particles` points along the four
  * subpaths (one run each, in path order), then the dot's `dotCore` and
  * `dotRing` points (a run of one each), all inside `LOGO_BOX`; then `ambient` single stray
@@ -264,11 +337,6 @@ export function sampleLogoPoints(): {
 } {
   const s = LOGO_SAMPLING;
   const random = mulberry32(LOGO_SEED);
-  const gaussian = () => {
-    const radius = Math.sqrt(-2 * Math.log(1 - random()));
-    const g = radius * Math.cos(2 * Math.PI * random());
-    return Math.max(-s.maxSpread, Math.min(s.maxSpread, g * s.spread));
-  };
   const toBox = ([x, y]: Vec): Vec => [
     (x - LOGO_VIEWBOX.x) * LOGO_SCALE,
     (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
@@ -284,6 +352,9 @@ export function sampleLogoPoints(): {
 
   const points: TargetPoint[] = [];
   const runs: StrokeRun[] = [];
+  // The cloud's points in order, across all four lines: the low-discrepancy
+  // order's counter.
+  let nth = 0;
   walks.forEach((walk, w) => {
     const start = points.length;
     // The line's places, an even step apart, and which of them carry two
@@ -302,10 +373,27 @@ export function sampleLogoPoints(): {
     for (let k = 0; k < count; k += 1) {
       const pieces = doubled[k]! + 1;
       for (let j = 0; j < pieces; j += 1) {
-        // A place with two points puts each a little either side of it along the line.
-        const u = (k + 0.5 + (pieces === 1 ? 0 : random() - 0.5)) * step;
+        // A place with two points puts them a quarter and three quarters of
+        // the way along its step, each moved a little.
+        const u =
+          (k +
+            0.5 +
+            (pieces === 1
+              ? 0
+              : (j === 0 ? -s.pairAt : s.pairAt) +
+                (random() - 0.5) * 2 * s.pairJitter)) *
+          step;
         const { at, normal } = placeAt(walk, u);
-        const across = gaussian();
+        // Two draws the random bell took before the quantiles replaced it:
+        // still drawn, so the strays, made from the same stream, stay put.
+        random();
+        random();
+        const level = (0.5 + nth * GOLDEN_STEP) % 1;
+        nth += 1;
+        const across = Math.max(
+          -s.maxSpread,
+          Math.min(s.maxSpread, bellQuantile(level) * logoWidthAt(w, u)),
+        );
         const [x, y] = toBox([
           at[0] + normal[0] * across,
           at[1] + normal[1] * across,
