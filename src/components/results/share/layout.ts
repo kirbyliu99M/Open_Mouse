@@ -27,6 +27,11 @@ export const CARD_PADDING = 84;
 export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
 export const QR_SIZE = 216;
+/** The Palmate mark's file: the one logo, drawn beside the site name when it has loaded. */
+export const MARK_SRC = "/images/brand/palmate-mark.svg";
+/** The mark's side (its viewBox is square) and the gap before the site name. */
+export const MARK_SIZE = 60;
+export const MARK_GAP = 20;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
@@ -62,7 +67,9 @@ export type DrawOp =
   | { kind: "photo"; box: Box; src: string }
   /** A neutral mouse outline, shown when there is no photo. */
   | { kind: "silhouette"; box: Box }
-  | { kind: "qr"; box: Box; text: string };
+  | { kind: "qr"; box: Box; text: string }
+  /** The Palmate mark (`MARK_SRC`), drawn as is: no glow, no tint. */
+  | { kind: "mark"; box: Box; src: string };
 
 export interface ShareCardInput {
   lang: UiLanguage;
@@ -76,6 +83,11 @@ export interface ShareCardInput {
   bandLabel: string | null;
   /** A site-relative path that has already loaded, or null for the silhouette. */
   photoSrc: string | null;
+  /**
+   * `MARK_SRC` once the mark has loaded; null or absent when it has not, and
+   * then the card carries the site name alone.
+   */
+  markSrc?: string | null;
 }
 
 export interface ShareCardLayout {
@@ -122,6 +134,8 @@ const f = (size: number, weight: FontSpec["weight"]): FontSpec => ({
   size,
   weight,
 });
+/** The site name's font: Inter 700, the official wordmark (48 px on the card). */
+const NAME_FONT: FontSpec = { size: 48, weight: 700, brand: true };
 
 const LINE = 1.22;
 
@@ -215,12 +229,31 @@ export function layoutShareCard(
     h: QR_SIZE,
   };
   const footerTextWidth = qrBox.x - CARD_PADDING - 36;
-  const nameFont = f(48, 700);
+  const nameFont = NAME_FONT;
   const taglineFont = f(36, 400);
+  const nameBaseline = footerTop + QR_SIZE / 2 - 6;
+  // The mark sits left of the name, centred on the name's cap height; the name
+  // moves right by its width. With no mark the name stays at the margin.
+  const markSrc = input.markSrc;
+  const nameX = isSitePath(markSrc)
+    ? CARD_PADDING + MARK_SIZE + MARK_GAP
+    : CARD_PADDING;
+  if (isSitePath(markSrc)) {
+    ops.push({
+      kind: "mark",
+      box: {
+        x: CARD_PADDING,
+        y: Math.round(nameBaseline - nameFont.size * 0.36 - MARK_SIZE / 2),
+        w: MARK_SIZE,
+        h: MARK_SIZE,
+      },
+      src: markSrc,
+    });
+  }
   text(
-    fitLine(SITE_NAME, footerTextWidth, nameFont, measure),
-    CARD_PADDING,
-    footerTop + QR_SIZE / 2 - 6,
+    fitLine(SITE_NAME, qrBox.x - 36 - nameX, nameFont, measure),
+    nameX,
+    nameBaseline,
     nameFont,
     "primary",
   );

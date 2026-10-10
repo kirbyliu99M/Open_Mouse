@@ -45,6 +45,18 @@ export function ErrorScreen({
 
   return (
     <main className="errorScreen" aria-labelledby="errorScreenTitle">
+      {/* The Palmate mark, decorative (the text beside it says everything).
+          A plain <img> on purpose: global-error renders without the root
+          layout, and the file is our own fixed SVG. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
+      <img
+        className="errorScreen-mark"
+        src="/images/brand/palmate-mark.svg"
+        alt=""
+        width={44}
+        height={44}
+        aria-hidden="true"
+      />
       <p className="errorScreen-eyebrow">{eyebrow}</p>
       <h1 id="errorScreenTitle" ref={heading} tabIndex={-1}>
         {title}

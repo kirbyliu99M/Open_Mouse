@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import nodePath from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -70,6 +72,19 @@ describe("SiteFooter", () => {
     );
     expect(html).toContain('src="/images/brand/palmate-mark.svg"');
     expect(html).toContain('alt=""');
+  });
+
+  it("draws the mark's hand with the official 1.4-unit stroke, and the dot as before", () => {
+    const svg = readFileSync(
+      nodePath.resolve(__dirname, "../../public/images/brand/palmate-mark.svg"),
+      "utf8",
+    );
+    expect(svg).toMatch(/stroke="#7FA8FF" stroke-width="1\.4"/);
+    expect(svg).not.toContain('stroke-width="1.7"');
+    // The dot is not touched (BRAND-1 changes the hand's line only).
+    expect(svg).toContain(
+      '<circle cx="45" cy="53.5" r="1.15" fill="#CFE0FF" stroke="#2463EB" stroke-width="0.8"/>',
+    );
   });
 
   it("points the GitHub link at the public repository", () => {

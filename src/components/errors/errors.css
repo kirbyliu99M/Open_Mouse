@@ -25,6 +25,14 @@ main.errorScreen {
   justify-content: center;
 }
 
+.errorScreen-mark {
+  display: block;
+  /* px, not rem: at 200 % text the mark should not double. */
+  width: 44px;
+  height: 44px;
+  margin: 0 0 1.25rem;
+}
+
 .errorScreen-eyebrow {
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
@@ -155,6 +163,10 @@ main.errorScreen h1:focus {
    imports itself), and the filled primary button is a dark label with an
    outline, since Chrome prints no backgrounds unless the user asks for them. */
 @media print {
+  /* Blue line art meant for the dark page. */
+  .errorScreen-mark {
+    display: none;
+  }
   .errorScreen-eyebrow,
   .errorScreen-message,
   .errorScreen-status,

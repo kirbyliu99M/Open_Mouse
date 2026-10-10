@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// layout.tsx loads the wordmark font through next/font, which only the Next
+// compiler can run; here it is a stand-in with the same shape.
+vi.mock("next/font/google", () => ({
+  Inter: () => ({ variable: "font-brand-test", className: "inter-test" }),
+}));
+
 import { metadata } from "@/app/layout";
 import { SITE_URL } from "../../src/lib/site";
 

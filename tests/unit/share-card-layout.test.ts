@@ -3,6 +3,8 @@ import {
   CARD_HEIGHT,
   CARD_PADDING,
   CARD_WIDTH,
+  MARK_GAP,
+  MARK_SRC,
   MIN_PHOTO_HEIGHT,
   QR_SIZE,
   layoutShareCard,
@@ -283,6 +285,87 @@ describe("layoutShareCard: titles", () => {
     );
     expect(handTypeTitle(shareCardCopy("en"), HAND)).toBe(
       "Medium mouse · Claw grip · Wide",
+    );
+  });
+});
+
+describe("layoutShareCard: the Palmate mark beside the site name", () => {
+  type MarkOp = Extract<DrawOp, { kind: "mark" }>;
+  const marks = (ops: DrawOp[]) =>
+    ops.filter((o): o is MarkOp => o.kind === "mark");
+  const nameOf = (ops: DrawOp[]) =>
+    texts(ops).find((o) => o.text === SITE_NAME)!;
+  const withMark = layoutShareCard({ ...BASE, markSrc: MARK_SRC }, measure);
+
+  it("sets the site name in the wordmark's font (Inter 700, 48 px)", () => {
+    for (const l of [withMark, layoutShareCard(BASE, measure)]) {
+      expect(nameOf(l.ops).font).toEqual({
+        size: 48,
+        weight: 700,
+        brand: true,
+      });
+    }
+    // Nothing else on the card asks for the wordmark's font.
+    const others = texts(withMark.ops).filter((o) => o.text !== SITE_NAME);
+    for (const o of others) expect(o.font.brand).toBeUndefined();
+  });
+
+  it("draws one mark at the left margin, square, and the name to its right", () => {
+    const [mark] = marks(withMark.ops);
+    expect(marks(withMark.ops)).toHaveLength(1);
+    expect(mark!.src).toBe(MARK_SRC);
+    expect(mark!.box.x).toBe(CARD_PADDING);
+    expect(mark!.box.w).toBe(mark!.box.h);
+    const name = nameOf(withMark.ops);
+    expect(name.x).toBe(mark!.box.x + mark!.box.w + MARK_GAP);
+    // The mark is about as tall as the name's capitals, centred on them.
+    expect(mark!.box.y).toBeLessThan(name.baseline);
+    expect(mark!.box.y + mark!.box.h).toBeGreaterThan(name.baseline - 30);
+    expect(mark!.box.y + mark!.box.h).toBeLessThanOrEqual(name.baseline + 24);
+  });
+
+  it("keeps the mark and the name inside the margins and clear of the QR code", () => {
+    const [mark] = marks(withMark.ops);
+    const [, right] = edges(nameOf(withMark.ops));
+    const qr = withMark.ops.find((o) => o.kind === "qr")!;
+    expect(right).toBeLessThan((qr as { box: { x: number } }).box.x);
+    expect(mark!.box.x + mark!.box.w).toBeLessThan(nameOf(withMark.ops).x);
+  });
+
+  it("falls back to the name alone, at the margin, when the mark did not load", () => {
+    for (const markSrc of [
+      undefined,
+      null,
+      "https://x.example/m.svg",
+      "../m.svg",
+    ]) {
+      const l = layoutShareCard(
+        { ...BASE, ...(markSrc === undefined ? {} : { markSrc }) },
+        measure,
+      );
+      expect(marks(l.ops)).toHaveLength(0);
+      expect(nameOf(l.ops).x).toBe(CARD_PADDING);
+    }
+  });
+
+  it("changes nothing else on the card", () => {
+    const strip = (ops: DrawOp[]) =>
+      ops.filter(
+        (o) =>
+          o.kind !== "mark" && !(o.kind === "text" && o.text === SITE_NAME),
+      );
+    expect(strip(withMark.ops)).toEqual(
+      strip(layoutShareCard(BASE, measure).ops),
+    );
+  });
+
+  it("cuts the name, never the mark, when a fallback face is far too wide", () => {
+    const wide = fakeMeasure(0.55, 6);
+    const l = layoutShareCard({ ...BASE, markSrc: MARK_SRC }, wide);
+    expect(marks(l.ops)).toHaveLength(1);
+    const name = texts(l.ops).find((o) => o.font.brand)!;
+    expect(edges(name, wide)[1]).toBeLessThan(
+      CARD_WIDTH - CARD_PADDING - QR_SIZE,
     );
   });
 });
