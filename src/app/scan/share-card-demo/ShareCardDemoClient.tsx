@@ -2,6 +2,7 @@
 
 import type { UiLanguage } from "@/client/uiLanguage";
 import { FIXTURES } from "@/components/results/fixtures";
+import type { QrStyle } from "@/components/results/share/qrStyle";
 import { ShareCardButton } from "@/components/results/share/ShareCardButton";
 import type { FitResponse } from "@/lib/contracts/fit";
 
@@ -12,6 +13,7 @@ export function ShareCardDemoClient({
   longName,
   preset,
   qrSize,
+  qrStyle,
 }: {
   lang: UiLanguage;
   withHandType: boolean;
@@ -19,6 +21,7 @@ export function ShareCardDemoClient({
   longName: boolean;
   preset: "rog" | null;
   qrSize?: number;
+  qrStyle?: QrStyle;
 }) {
   const base = FIXTURES["high-confidence"];
   const [first, ...rest] = base.results;
@@ -62,13 +65,20 @@ export function ShareCardDemoClient({
     <main className="share-demo">
       <h1>Share card (mock data)</h1>
       <p>
-        <ShareCardButton fit={fit} lang={lang} variant="link" qrSize={qrSize} />
+        <ShareCardButton
+          fit={fit}
+          lang={lang}
+          variant="link"
+          qrSize={qrSize}
+          qrStyle={qrStyle}
+        />
       </p>
       <ShareCardButton
         fit={fit}
         lang={lang}
         variant="primary"
         qrSize={qrSize}
+        qrStyle={qrStyle}
       />
     </main>
   );

@@ -11,14 +11,21 @@ import type { FitResponse } from "../../../lib/contracts/fit";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
   PHOTO_RADIUS,
-  QR_MIN_QUIET_MODULES,
   type ShareCardOptions,
   layoutShareCard,
-  qrGrid,
   type Box,
   type ColorKey,
   type DrawOp,
 } from "./layout";
+import {
+  QR_STYLE_SPECS,
+  SOFT_LIGHT_PANEL_FILL,
+  dotGeometry,
+  finderOrigins,
+  isFinderCell,
+  qrStyleGrid,
+  type QrStyle,
+} from "./qrStyle";
 import type { FontSpec, MeasureText } from "./text";
 import {
   PALMATE_MARK_DOT,
@@ -177,33 +184,105 @@ function drawMark(ctx: CanvasRenderingContext2D, box: Box): void {
   ctx.restore();
 }
 
+/** A rounded ring (outer square minus inner square), pixel-aligned. */
+function drawEye(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  step: number,
+  ring: string,
+  center: string,
+): void {
+  const s = step;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 7 * s, 7 * s, 1.8 * s);
+  ctx.roundRect(x + s, y + s, 5 * s, 5 * s, 1.0 * s);
+  ctx.fillStyle = ring;
+  ctx.fill("evenodd");
+  ctx.beginPath();
+  ctx.roundRect(x + 2 * s, y + 2 * s, 3 * s, 3 * s, 0.9 * s);
+  ctx.fillStyle = center;
+  ctx.fill();
+}
+
+function drawQrPanel(
+  ctx: CanvasRenderingContext2D,
+  box: Box,
+  style: QrStyle,
+): void {
+  const panel = QR_STYLE_SPECS[style].panel;
+  if (!panel) return;
+  const radius = panel.radius(box.w);
+  roundRectPath(ctx, box, radius);
+  if (panel.fill === "white") {
+    ctx.fillStyle = "#ffffff";
+  } else if (panel.fill === "softLight") {
+    ctx.fillStyle = SOFT_LIGHT_PANEL_FILL;
+  } else {
+    // The photo frame's own fill.
+    const g = ctx.createRadialGradient(
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      0,
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      box.w * 0.7,
+    );
+    g.addColorStop(0, "#14284f");
+    g.addColorStop(1, "#0c0e13");
+    ctx.fillStyle = g;
+  }
+  ctx.fill();
+  if (panel.border) {
+    ctx.strokeStyle = panel.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
 async function drawQr(
   ctx: CanvasRenderingContext2D,
   box: Box,
   text: string,
   dark: string,
+  style: QrStyle,
 ): Promise<void> {
   const { default: QRCode } = await import("qrcode");
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = qr.modules.size;
-  const { step, offset } = qrGrid(box.w, size, QR_MIN_QUIET_MODULES);
+  const spec = QR_STYLE_SPECS[style];
+  const { step, offset } = qrStyleGrid(style, box.w, size);
   ctx.save();
-  ctx.fillStyle = "#ffffff";
-  roundRectPath(ctx, box, 28);
-  ctx.fill();
-  // Whole-pixel squares, no anti-aliased seams between neighbouring modules.
+  drawQrPanel(ctx, box, style);
+  // Whole-pixel placement, no anti-aliased seams between neighbouring modules.
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = dark;
+  ctx.fillStyle = spec.moduleColor ?? dark;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
-      if (qr.modules.get(row, col) === 1) {
-        ctx.fillRect(
-          box.x + offset + col * step,
-          box.y + offset + row * step,
-          step,
-          step,
-        );
+      if (qr.modules.get(row, col) !== 1) continue;
+      if (spec.eye && isFinderCell(row, col, size)) continue;
+      const x = box.x + offset + col * step;
+      const y = box.y + offset + row * step;
+      if (spec.moduleShape === "dot") {
+        const d = dotGeometry(x, y, step);
+        ctx.beginPath();
+        ctx.arc(d.cx, d.cy, d.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, step, step);
       }
+    }
+  }
+  if (spec.eye) {
+    for (const o of finderOrigins(size)) {
+      drawEye(
+        ctx,
+        box.x + offset + o.col * step,
+        box.y + offset + o.row * step,
+        step,
+        spec.eye.ring,
+        spec.eye.center,
+      );
     }
   }
   ctx.restore();
@@ -265,7 +344,7 @@ async function paint(
         drawSilhouette(ctx, op.box, theme.detail);
         break;
       case "qr":
-        await drawQr(ctx, op.box, op.text, theme.bg);
+        await drawQr(ctx, op.box, op.text, theme.bg, op.style);
         break;
       case "mark":
         drawMark(ctx, op.box);

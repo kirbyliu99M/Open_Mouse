@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { guardDemoRouteFromProduction } from "../demo-guard";
+import { QR_STYLES_LIST } from "@/components/results/share/qrStyle";
 import { ShareCardDemoClient } from "./ShareCardDemoClient";
 
 export const metadata: Metadata = {
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
  * `lang=zh`, `handType=0` (fit-v0 sends none), `photo=1` (the placeholder
  * sketch as the product photo), `longName=1`, `preset=rog` (the data of Kirby's
  * 2026-10-10 screenshot: ROG Strix Impact III, 92, Medium mouse, Palm grip, Slim)
- * and `qr=160` (the QR panel's side in pixels).
+ * `qr=160` (the QR panel's side in pixels) and `qrStyle=` classic, softLight,
+ * darkTile or frameless.
  */
 export default async function ShareCardDemoPage({
   searchParams,
@@ -34,6 +36,7 @@ export default async function ShareCardDemoPage({
       withHandType={flag("handType", true)}
       withPhoto={flag("photo", false)}
       longName={flag("longName", false)}
+      qrStyle={QR_STYLES_LIST.find((v) => v === q.qrStyle)}
       preset={q.preset === "rog" ? "rog" : null}
       qrSize={
         typeof q.qr === "string" && /^\d{2,3}$/.test(q.qr)
