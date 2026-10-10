@@ -673,8 +673,10 @@ test("every piece of text on the home page is one of the token colours, never th
     }
     return [...found].sort();
   });
-  // --text-primary, --text-secondary, --text-tertiary, --on-accent.
+  // --text-primary, --text-secondary, --text-tertiary, --on-accent, and
+  // --on-button-primary (the primary pill's label, BTN-1).
   const allowed = [
+    "rgb(6, 7, 9)",
     "rgb(138, 138, 143)",
     "rgb(161, 161, 166)",
     "rgb(245, 245, 247)",
@@ -684,7 +686,7 @@ test("every piece of text on the home page is one of the token colours, never th
   expect(colours).not.toContain("rgb(110, 110, 115)"); // #6E6E73, 3.97:1
 });
 
-test("with more contrast the outline button's border is solid #8A8A8F and the glow is gone", async ({
+test("with more contrast the outline button's border is solid #8A8A8F, the primary pill has no glow, and the logo slot's glow is gone", async ({
   page,
 }) => {
   await page.emulateMedia({ contrast: "more" });
@@ -697,9 +699,9 @@ test("with more contrast the outline button's border is solid #8A8A8F and the gl
       .backgroundImage,
   }));
   expect(style.border).toBe("rgb(138, 138, 143)");
-  // The glow colour is --glow at an alpha; with --glow transparent no blue is left.
-  expect(style.shadow).not.toMatch(/59, 130, 246/);
-  expect(style.shadow).toMatch(/(\/ 0\)|, 0\))/);
+  // The primary pill never has a glow (a blue glow round a white pill reads as a mistake).
+  expect(style.shadow).toBe("none");
+  // The logo slot's glow is --glow at an alpha; with --glow transparent no blue is left.
   expect(style.slot).not.toMatch(/59, 130, 246/);
 });
 
