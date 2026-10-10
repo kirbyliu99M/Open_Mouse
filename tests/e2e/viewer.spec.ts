@@ -9,6 +9,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import { RESULTS_VIEWER_ENABLED } from "../../src/lib/results/features";
 import { decodePng } from "./fixtures/png";
 
 /**
@@ -22,6 +23,11 @@ import { decodePng } from "./fixtures/png";
  * need a model check that it really drew (`describe` block "with WebGL"), and
  * say so by skipping when this machine cannot.
  */
+
+test.skip(
+  !RESULTS_VIEWER_ENABLED,
+  "The 3D viewer is hidden until it is finished (src/lib/results/features.ts).",
+);
 
 const read = (name: string): Record<string, unknown> =>
   JSON.parse(

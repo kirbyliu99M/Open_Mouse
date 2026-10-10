@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ResultsView } from "@/components/results/ResultsView";
+import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath, resolveDetailTarget } from "@/lib/results/rankRoutes";
 import { useResultsScan } from "./ResultsScanProvider";
 
@@ -42,7 +43,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       language={scan.language}
       scanId={scanId}
       enteredLengthMm={scan.enteredLength}
-      showViewer
+      showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}
       analytics={scan.analytics}
