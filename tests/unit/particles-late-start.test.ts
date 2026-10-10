@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ANCHOR_PROGRESS,
+  type LateSwitchInput,
   LATE_CONFIRM_FRAMES,
   LATE_CONFIRM_MS,
   LATE_TRANSPARENT,
@@ -182,54 +183,164 @@ describe("planLateSwitch", () => {
   });
 });
 
-describe("planLateSwitch when the viewport is not 100svh tall (a phone's toolbars)", () => {
+describe("planLateSwitch is continuous and only goes forward, whatever the sizes", () => {
+  type Sizes = Omit<LateSwitchInput, "staticTop">;
+
+  /**
+   * The steepest the target top can change per px of the reader's scroll
+   * (|d targetTop / d staticTop|), from the formulas in late-start.ts:
+   * - at the top, and with the story's end in view (the bottom edge kept): 1;
+   * - inside the story: the share is read off the anchors, so its slope per
+   *   px of reading offset is at most the steepest anchor segment's; the
+   *   reading offset moves H / (H - V) px per px of scroll; and the share is
+   *   multiplied by the scroll range A - V (0 when that is negative);
+   * - a static story no taller than the viewport is mapped in proportion:
+   *   A / H.
+   * A jump would be a change larger than this slope times the step.
+   */
+  function slopeBound(sizes: Sizes): number {
+    const { staticHeight: h, animatedHeight: a, viewportHeight: v } = sizes;
+    let steepest = 0;
+    for (let i = 1; i < sizes.anchors.length; i += 1) {
+      const from = sizes.anchors[i - 1]!;
+      const to = sizes.anchors[i]!;
+      steepest = Math.max(
+        steepest,
+        (to.progress - from.progress) / (to.offset - from.offset),
+      );
+    }
+    const inside = h > v ? Math.max(0, a - v) * steepest * (h / (h - v)) : 0;
+    const proportional = h <= v ? a / h : 0;
+    return Math.max(1, inside, proportional);
+  }
+
+  /** Every border between the branches: the top, the story's end at the viewport's bottom, the story's end at the viewport's top. */
+  const borders = (sizes: Sizes) => [
+    0,
+    sizes.viewportHeight - sizes.staticHeight,
+    -sizes.staticHeight,
+  ];
+
+  /**
+   * Sweep the reader down the page: a coarse grid, and around each border
+   * steps of 0.001 px. Between any two neighbouring positions the target may
+   * move by at most the slope bound times the distance (plus 1e-6 for
+   * rounding); and the target never comes back down the page, nor p back.
+   */
+  function expectContinuousAndForward(sizes: Sizes) {
+    const bound = slopeBound(sizes);
+    const travel = Math.max(0, sizes.animatedHeight - sizes.panelHeight);
+    const tops: number[] = [];
+    for (let top = 60; top >= -sizes.staticHeight - 200; top -= 0.5) {
+      tops.push(top);
+    }
+    for (const border of borders(sizes)) {
+      for (let k = -10; k <= 10; k += 1) tops.push(border + k * 0.001);
+    }
+    tops.sort((x, y) => y - x);
+    let last: { top: number; targetTop: number; progress: number } | null =
+      null;
+    for (const top of tops) {
+      const { targetTop, progress } = planLateSwitch({
+        ...sizes,
+        staticTop: top,
+      });
+      if (last) {
+        const step = last.top - top;
+        if (step <= 0) continue;
+        const allowed = bound * step + 1e-6;
+        expect(Math.abs(targetTop - last.targetTop)).toBeLessThanOrEqual(
+          allowed,
+        );
+        if (travel > 0) {
+          expect(Math.abs(progress - last.progress)).toBeLessThanOrEqual(
+            allowed / travel,
+          );
+        }
+        expect(targetTop).toBeLessThanOrEqual(last.targetTop + 1e-9);
+        expect(progress).toBeGreaterThanOrEqual(last.progress - 1e-12);
+      }
+      last = { top, targetTop, progress };
+    }
+  }
+
   // window.innerHeight differs from the panel's 100svh when a phone's address
   // bar has collapsed (taller) or, in some browsers, the other way round.
-  const planFor = (viewportHeight: number, staticTop: number) =>
-    planLateSwitch({
-      staticTop,
-      staticHeight: STATIC_HEIGHT,
-      animatedHeight: ANIMATED_HEIGHT,
-      panelHeight: VH,
-      viewportHeight,
-      anchors,
-    });
-
   for (const viewportHeight of [700, 760, 800, 860, 900]) {
-    it(`${viewportHeight} px: the two branches meet where the story's end comes into view (the target and p do not jump)`, () => {
-      const edge = viewportHeight - STATIC_HEIGHT;
-      const inside = planFor(viewportHeight, edge + 0.01);
-      const atEdge = planFor(viewportHeight, edge);
-      // 0.01 px of scroll moves the target by a few px at most (the last
-      // anchor segment is steep), never by the 100 px a step would.
-      expect(Math.abs(inside.targetTop - atEdge.targetTop)).toBeLessThan(5);
-      expect(Math.abs(inside.progress - atEdge.progress)).toBeLessThan(0.002);
+    it(`a ${viewportHeight} px viewport over an 800 px panel`, () => {
+      const sizes: Sizes = {
+        staticHeight: STATIC_HEIGHT,
+        animatedHeight: ANIMATED_HEIGHT,
+        panelHeight: VH,
+        viewportHeight,
+        anchors,
+      };
+      expectContinuousAndForward(sizes);
       // The end branch keeps the bottom edge where it was.
-      expect(atEdge.targetTop + ANIMATED_HEIGHT).toBeCloseTo(viewportHeight, 6);
-    });
-
-    it(`${viewportHeight} px: p and the target only go forward as the reader goes down`, () => {
-      let lastP = -1;
-      let lastTop = Infinity;
-      const edge = viewportHeight - STATIC_HEIGHT;
-      const tops: number[] = [edge + 0.01, edge + 0.001, edge];
-      for (let top = 0; top >= -STATIC_HEIGHT - 50; top -= 0.5) tops.push(top);
-      tops.sort((a, b) => b - a);
-      for (const top of tops) {
-        const { progress, targetTop } = planFor(viewportHeight, top);
-        expect(progress).toBeGreaterThanOrEqual(lastP);
-        expect(targetTop).toBeLessThanOrEqual(lastTop + 1e-9);
-        lastP = progress;
-        lastTop = targetTop;
-      }
+      const edge = planLateSwitch({
+        ...sizes,
+        staticTop: viewportHeight - STATIC_HEIGHT,
+      });
+      expect(edge.targetTop + ANIMATED_HEIGHT).toBeCloseTo(viewportHeight, 6);
     });
   }
 
-  it("Codex's example (900 px viewport, 800 px panel): 0.01 px apart give the same step", () => {
-    const a = planFor(900, -1216.99);
-    const b = planFor(900, -1217);
-    expect(Math.abs(a.progress - b.progress)).toBeLessThan(0.002);
-    expect(Math.abs(a.targetTop - b.targetTop)).toBeLessThan(5);
+  it("Codex's example (900 px viewport, 800 px panel): -1216.99 and -1217 give the same step", () => {
+    const sizes: Sizes = {
+      staticHeight: STATIC_HEIGHT,
+      animatedHeight: ANIMATED_HEIGHT,
+      panelHeight: VH,
+      viewportHeight: 900,
+      anchors,
+    };
+    const a = planLateSwitch({ ...sizes, staticTop: -1216.99 });
+    const b = planLateSwitch({ ...sizes, staticTop: -1217 });
+    const allowed = slopeBound(sizes) * 0.01 + 1e-6;
+    expect(Math.abs(a.targetTop - b.targetTop)).toBeLessThanOrEqual(allowed);
+  });
+
+  it("an animated section shorter than the viewport (Codex: H 4000, A 3200, panel 800, viewport 3600)", () => {
+    const sizes: Sizes = {
+      staticHeight: 4000,
+      animatedHeight: 3200,
+      panelHeight: 800,
+      viewportHeight: 3600,
+      anchors: storyAnchors({
+        staticHeight: 4000,
+        hand: { top: 1000, height: 800 },
+        notes: { top: 2000, height: 600 },
+        mice: { top: 3000, height: 400 },
+      }),
+    };
+    expectContinuousAndForward(sizes);
+    const a = planLateSwitch({ ...sizes, staticTop: -399.99 });
+    const b = planLateSwitch({ ...sizes, staticTop: -400 });
+    expect(Math.abs(a.targetTop - b.targetTop)).toBeLessThanOrEqual(
+      slopeBound(sizes) * 0.01 + 1e-6,
+    );
+    // The section is never put below the viewport's top once the reader was
+    // past it.
+    expect(b.targetTop).toBeLessThanOrEqual(0);
+  });
+
+  it("a viewport taller than the whole static story (Codex: a portrait 4K screen: H 2117, panel and viewport 2400, A 9600)", () => {
+    const sizes: Sizes = {
+      staticHeight: STATIC_HEIGHT,
+      animatedHeight: 9600,
+      panelHeight: 2400,
+      viewportHeight: 2400,
+      anchors,
+    };
+    expectContinuousAndForward(sizes);
+    // Just off the top lands just off the top, not at the story's end.
+    const a = planLateSwitch({ ...sizes, staticTop: 0 });
+    const b = planLateSwitch({ ...sizes, staticTop: -0.01 });
+    expect(a.progress).toBe(0);
+    expect(b.progress).toBeLessThan(0.001);
+    // With the story wholly above the viewport, its bottom edge is kept.
+    const c = planLateSwitch({ ...sizes, staticTop: -STATIC_HEIGHT - 30 });
+    expect(c.targetTop + 9600).toBeCloseTo(-30, 6);
+    expect(c.progress).toBe(1);
   });
 });
 

@@ -193,11 +193,33 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
   const progressFor = (targetTop: number) =>
     travel > 0 ? clamp01(-targetTop / travel) : 0;
   const bottom = staticTop + staticHeight;
+  // How far into the animated section the reader is put (its top edge that
+  // many px above the viewport's top). Never negative: a reader who was past
+  // the section's top is never put above it again. (That only bites when the
+  // animated section is shorter than the viewport, which 400svh never is.)
+  const into = (px: number) => {
+    const targetTop = -Math.max(0, px);
+    return { targetTop, progress: progressFor(targetTop) };
+  };
+  if (staticHeight <= viewportHeight && bottom > 0) {
+    // The whole static story fits in the viewport (a very tall screen), so
+    // its end is in view from the top on: keeping its bottom edge would jump
+    // to the story's end at the first px of scroll. Map the scroll in
+    // proportion instead, from the top (0) to the story's end leaving the
+    // viewport's top (the whole animated section), where the branch below
+    // takes over. The final section moves under the fade here.
+    const scrolled = -staticTop;
+    return {
+      ...into(
+        staticHeight > 0 ? (scrolled * animatedHeight) / staticHeight : 0,
+      ),
+      fade: true,
+    };
+  }
   if (bottom <= viewportHeight) {
     // The story's end is in view (or the story is above the viewport): keep
     // its bottom edge, and so everything under it, where it is.
-    const targetTop = bottom - animatedHeight;
-    return { targetTop, progress: progressFor(targetTop), fade: bottom > 0 };
+    return { ...into(animatedHeight - bottom), fade: bottom > 0 };
   }
   // Inside the story: how far through it the reader is (0 to 1, from the
   // anchors) is applied to the animated section's own scroll range up to the
@@ -210,9 +232,7 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
     readingOffset(staticTop, staticHeight, viewportHeight),
     anchors,
   );
-  const range = Math.max(0, animatedHeight - viewportHeight);
-  const targetTop = -share * range;
-  return { targetTop, progress: progressFor(targetTop), fade: true };
+  return { ...into(share * (animatedHeight - viewportHeight)), fade: true };
 }
 
 /**
