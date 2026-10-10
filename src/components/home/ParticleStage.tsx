@@ -34,6 +34,10 @@ export function ParticleStage() {
     // only while the tab is shown (src/lib/particles/retry.ts). One timer per
     // try: nothing loops. After the last one the page stays static.
     let failures = 0;
+    // Set once the last try has failed: nothing loads the module again until
+    // the page is loaded again (turning motion off and on would otherwise
+    // start a fresh round of tries each time).
+    let exhausted = false;
     let retryTimer = 0;
     let waitingToBeShown = false;
     const onShown = () => {
@@ -45,7 +49,10 @@ export function ParticleStage() {
     const retryLater = () => {
       failures += 1;
       const delay = retryDelay(failures);
-      if (delay === null) return;
+      if (delay === null) {
+        exhausted = true;
+        return;
+      }
       retryTimer = window.setTimeout(() => {
         retryTimer = 0;
         if (cancelled) return;
@@ -59,7 +66,14 @@ export function ParticleStage() {
     };
 
     const load = () => {
-      if (cancelled || loading || stage || retryTimer || waitingToBeShown) {
+      if (
+        cancelled ||
+        exhausted ||
+        loading ||
+        stage ||
+        retryTimer ||
+        waitingToBeShown
+      ) {
         return;
       }
       if (reduced.matches) return;

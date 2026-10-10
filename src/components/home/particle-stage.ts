@@ -22,11 +22,13 @@ import {
   packParticles,
 } from "@/lib/particles/gl-buffers";
 import {
+  LATE_FADE_ATTEMPTS,
   LATE_FADE_IN_MS,
   LATE_FADE_MARGIN_MS,
   LATE_FADE_OUT_MS,
   LATE_SWITCH_IDLE_MS,
   type StaticBlock,
+  fadeCheck,
   planLateSwitch,
   scrollForTarget,
   storyAnchors,
@@ -286,6 +288,9 @@ class Stage {
    */
   private lateState: "none" | "waiting" | "fading" = "none";
   private lateTimer = 0;
+  /** The frame `confirmFaded` looks again in, and how many fades gave up since the reader last scrolled. */
+  private lateFrame = 0;
+  private lateFadeFailures = 0;
   private fadeTimer = 0;
   /** The next scroll event is the one the late switch caused, not the reader's. */
   private selfScroll = false;
@@ -379,7 +384,7 @@ class Stage {
     }
     this.resize?.disconnect();
     if (this.reflowId) cancelAnimationFrame(this.reflowId);
-    window.clearTimeout(this.lateTimer);
+    this.stopLateTimers();
     window.clearTimeout(this.fadeTimer);
     window.clearTimeout(this.retryTimer);
     this.parts.panel.style.transition = "";
@@ -460,10 +465,59 @@ class Stage {
 
   /** Stop a late switch that has not happened yet; a fade out that had begun fades back in. */
   private cancelLateSwitch(): void {
-    window.clearTimeout(this.lateTimer);
-    this.lateTimer = 0;
+    this.stopLateTimers();
     if (this.lateState === "fading") this.fadePanelIn();
     this.lateState = "none";
+  }
+
+  private stopLateTimers(): void {
+    window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFrame) cancelAnimationFrame(this.lateFrame);
+    this.lateFrame = 0;
+  }
+
+  /**
+   * The fade out's time is up: switch only if the tab is shown and the panel
+   * really is transparent (fadeCheck). Otherwise look again next frame, a
+   * bounded number of times; a hidden tab, or a panel still visible after
+   * that, gives the fade up: the panel fades back in and nothing moved.
+   */
+  private readonly confirmFaded = (frames: number, since: number): void => {
+    this.lateFrame = 0;
+    if (this.destroyed || this.animated || this.lateState !== "fading") return;
+    const check = fadeCheck({
+      hidden: document.hidden,
+      opacity: Number(getComputedStyle(this.parts.panel).opacity),
+      frames,
+      elapsedMs: performance.now() - since,
+    });
+    if (check === "switch") {
+      this.lateState = "none";
+      this.switchLate(true);
+    } else if (check === "next-frame") {
+      this.lateFrame = requestAnimationFrame(() =>
+        this.confirmFaded(frames + 1, since),
+      );
+    } else {
+      this.giveUpFade(check === "hidden");
+    }
+  };
+
+  /**
+   * The fade out did not get to a switch: fade back in and keep waiting. A
+   * hidden tab waits until it is shown (`onVisibility` asks for a reflow,
+   * which waits for stillness again); a panel that would not turn transparent
+   * is tried again after the idle wait, `LATE_FADE_ATTEMPTS` times in all
+   * until the reader scrolls (one timer each: nothing loops on its own).
+   */
+  private giveUpFade(hidden: boolean): void {
+    this.stopLateTimers();
+    this.fadePanelIn();
+    this.lateState = "waiting";
+    if (hidden) return;
+    this.lateFadeFailures += 1;
+    if (this.lateFadeFailures < LATE_FADE_ATTEMPTS) this.armLateSwitch();
   }
 
   /** The reader has held still: switch, after fading the panel out if part of the story is in view. */
@@ -496,13 +550,15 @@ class Stage {
       return;
     }
     this.lateState = "fading";
+    // A fade in still running (a fade out that a scroll cut short) would take
+    // the transition off this fade out when its timer is up: stop it first.
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = 0;
     panel.style.transition = `opacity ${LATE_FADE_OUT_MS}ms ease-out`;
     panel.style.opacity = "0";
     this.lateTimer = window.setTimeout(() => {
       this.lateTimer = 0;
-      if (this.lateState !== "fading") return;
-      this.lateState = "none";
-      this.switchLate(true);
+      this.confirmFaded(0, performance.now());
     }, LATE_FADE_OUT_MS + LATE_FADE_MARGIN_MS);
   };
 
@@ -1254,7 +1310,9 @@ class Stage {
     } else if (this.lateState !== "none") {
       // Waiting to switch away from the top: back at the top it switches at
       // once; anywhere else the reader is moving, so the wait starts again
-      // (and a fade out that had begun fades back in).
+      // (and a fade out that had begun fades back in). The reader moved: the
+      // fades that gave up are forgotten.
+      this.lateFadeFailures = 0;
       if (this.parts.section.getBoundingClientRect().top >= 0) {
         this.requestReflow();
       } else {

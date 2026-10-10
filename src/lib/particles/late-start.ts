@@ -32,6 +32,44 @@ export const LATE_FADE_OUT_MS = 180;
 export const LATE_FADE_IN_MS = 320;
 /** The switch waits this much past the fade out's end (about two frames), so the panel is fully transparent by then. */
 export const LATE_FADE_MARGIN_MS = 34;
+/** The panel counts as transparent, and the switch may happen, at or under this computed opacity. */
+export const LATE_TRANSPARENT = 0.02;
+/**
+ * If the panel is not transparent yet when the fade's timer is up (a long
+ * task held the transition back), the switch looks again once a frame, for at
+ * most this many frames and this long (ms). Then the fade counts as failed.
+ */
+export const LATE_CONFIRM_FRAMES = 5;
+export const LATE_CONFIRM_MS = 150;
+/** A fade that failed is tried again after the idle wait, this many times in all, until the reader scrolls. */
+export const LATE_FADE_ATTEMPTS = 3;
+
+export type FadeCheck = "switch" | "next-frame" | "give-up" | "hidden";
+
+/**
+ * Whether the late switch may happen now, the fade's timer being up: only in a
+ * shown tab (a hidden one switches when it is shown again: the stage draws
+ * nothing while hidden), and only with the panel transparent, so the switch
+ * and its scroll are never seen. Otherwise look again next frame, up to the
+ * bounds above, and then give the fade up (it fades back in; nothing moved).
+ */
+export function fadeCheck(input: {
+  readonly hidden: boolean;
+  readonly opacity: number;
+  /** Frames looked at since the timer was up, and ms gone by. */
+  readonly frames: number;
+  readonly elapsedMs: number;
+}): FadeCheck {
+  if (input.hidden) return "hidden";
+  if (input.opacity <= LATE_TRANSPARENT) return "switch";
+  if (
+    !(input.frames < LATE_CONFIRM_FRAMES) ||
+    !(input.elapsedMs < LATE_CONFIRM_MS)
+  ) {
+    return "give-up";
+  }
+  return "next-frame";
+}
 
 /** A point of the static story that matches a progress of the animated one. */
 export interface StoryAnchor {
@@ -148,22 +186,29 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
     return { targetTop: staticTop, progress: 0, fade: false };
   }
   const travel = Math.max(0, animatedHeight - panelHeight);
+  const progressFor = (targetTop: number) =>
+    travel > 0 ? clamp01(-targetTop / travel) : 0;
   const bottom = staticTop + staticHeight;
   if (bottom <= viewportHeight) {
     // The story's end is in view (or the story is above the viewport): keep
     // its bottom edge, and so everything under it, where it is.
     const targetTop = bottom - animatedHeight;
-    return {
-      targetTop,
-      progress: travel > 0 ? clamp01(-targetTop / travel) : 0,
-      fade: bottom > 0,
-    };
+    return { targetTop, progress: progressFor(targetTop), fade: bottom > 0 };
   }
-  const progress = progressAtOffset(
+  // Inside the story: how far through it the reader is (0 to 1, from the
+  // anchors) is applied to the animated section's own scroll range up to the
+  // point where its bottom edge reaches the viewport's bottom, which is where
+  // the branch above takes over. That range is the panel's travel only when
+  // the viewport is exactly 100svh tall; on a phone whose toolbars have
+  // slid away it is not, and scaling by the travel instead would make the two
+  // branches disagree at their border (p and the target would jump there).
+  const share = progressAtOffset(
     readingOffset(staticTop, staticHeight, viewportHeight),
     anchors,
   );
-  return { targetTop: -progress * travel, progress, fade: true };
+  const range = Math.max(0, animatedHeight - viewportHeight);
+  const targetTop = -share * range;
+  return { targetTop, progress: progressFor(targetTop), fade: true };
 }
 
 /**

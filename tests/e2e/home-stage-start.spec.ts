@@ -1,10 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  LATE_FADE_ATTEMPTS,
   planLateSwitch,
   storyAnchors,
 } from "../../src/lib/particles/late-start";
 import { START_RETRY_DELAYS_MS } from "../../src/lib/particles/retry";
-import { STORY, layoutFacts, waitForAnimated } from "./helpers/home-stage";
+import {
+  STORY,
+  layoutFacts,
+  read,
+  recordStage,
+  waitForAnimated,
+} from "./helpers/home-stage";
 
 /**
  * Home v3: the particle stage starts wherever the reader is
@@ -44,6 +51,17 @@ const STAGE_CHUNK = /particle-stage/;
 const FINAL_TOLERANCE_PX = 1;
 /** The panel counts as transparent at or under this opacity. */
 const TRANSPARENT = 0.02;
+/** The layout shift from the switch on: the same strict bound home-stage.spec.ts holds the switch at the top to. */
+const CLS_AFTER_SWITCH_BOUND = 0.001;
+/**
+ * After the last expected try, how long to watch for one more (ms): twice the
+ * longest wait between tries. A retry that the schedule did not stop would
+ * come within one longest wait; twice that leaves room for a busy machine.
+ */
+const NO_MORE_TRIES_MS = 2 * Math.max(...START_RETRY_DELAYS_MS);
+/** Every try is expected within this long of the page's load (ms): the sum of the waits, plus a wide margin for the dev server and a busy machine. */
+const ALL_TRIES_WITHIN_MS =
+  START_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0) + 30_000;
 
 /** Hold the stage module's request until `release` is called. */
 async function holdStageModule(page: Page) {
@@ -61,16 +79,19 @@ async function holdStageModule(page: Page) {
 /**
  * Records, from before the page's own scripts run: `__switch`, the moment the
  * class went on (the scroll position, the section's top edge and the panel's
- * opacity then); and `__frames`, one entry per frame: the panel's opacity, the
- * final section's top edge, the scroll position, and whether the page was
- * animated.
+ * opacity then); `__panelFrames`, one entry per frame: the panel's computed
+ * opacity, the final section's top edge, the scroll position, whether the page
+ * was animated, and the panel's own (inline) opacity and transition; and
+ * `__fadeOuts`, how many times the panel's inline opacity went to 0 (a fade
+ * out began).
  */
 async function recordSwitch(page: Page) {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>;
     w.__switch = null;
-    const frames: [number, number, number, boolean][] = [];
-    w.__frames = frames;
+    w.__fadeOuts = 0;
+    const frames: [number, number, number, boolean, string, string][] = [];
+    w.__panelFrames = frames;
     const add = DOMTokenList.prototype.add;
     DOMTokenList.prototype.add = function (...tokens: string[]) {
       if (tokens.includes("story--animated") && !w.__switch) {
@@ -84,9 +105,22 @@ async function recordSwitch(page: Page) {
       }
       return add.apply(this, tokens);
     };
+    let lastInline = "";
+    new MutationObserver(() => {
+      const panel = document.querySelector<HTMLElement>(".story-panel");
+      const inline = panel?.style.opacity ?? "";
+      if (inline === "0" && lastInline !== "0") {
+        w.__fadeOuts = (w.__fadeOuts as number) + 1;
+      }
+      lastInline = inline;
+    }).observe(document, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["style"],
+    });
     const raf = window.requestAnimationFrame.bind(window);
     const sample = () => {
-      const panel = document.querySelector(".story-panel");
+      const panel = document.querySelector<HTMLElement>(".story-panel");
       const final = document.querySelector(".home-final");
       const section = document.querySelector(".story");
       if (panel && final && section) {
@@ -95,6 +129,8 @@ async function recordSwitch(page: Page) {
           final.getBoundingClientRect().top,
           window.scrollY,
           section.classList.contains("story--animated"),
+          panel.style.opacity,
+          panel.style.transition,
         ]);
       }
       raf(sample);
@@ -103,13 +139,41 @@ async function recordSwitch(page: Page) {
   });
 }
 
+/** Run `action` in the page, once, in the same task as the first fade out's start. */
+async function onFirstFadeOut(page: Page, action: string) {
+  await page.addInitScript((code: string) => {
+    let done = false;
+    new MutationObserver(() => {
+      const panel = document.querySelector<HTMLElement>(".story-panel");
+      if (done || panel?.style.opacity !== "0") return;
+      done = true;
+      new Function(code)();
+    }).observe(document, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["style"],
+    });
+  }, action);
+}
+
+/** Make the page believe its tab is hidden (or shown again), as home-stage.spec.ts does. */
+const SET_HIDDEN = (hidden: boolean) => `
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => ${hidden} });
+  document.dispatchEvent(new Event("visibilitychange"));
+`;
+
 type Switch = { scrollY: number; sectionTop: number; panelOpacity: number };
 type FrameRow = [
   opacity: number,
   finalTop: number,
   scrollY: number,
   animated: boolean,
+  inlineOpacity: string,
+  inlineTransition: string,
 ];
+
+const frames = (page: Page) => read<FrameRow[]>(page, "__panelFrames");
+const theSwitch = (page: Page) => read<Switch | null>(page, "__switch");
 
 /** The static story's geometry, as the stage measures it before switching. */
 async function staticGeometry(page: Page) {
@@ -146,6 +210,18 @@ async function animatedGeometry(page: Page) {
   });
 }
 
+/** The panel's own style and its computed opacity. */
+async function panelState(page: Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>(".story-panel")!;
+    return {
+      inlineOpacity: panel.style.opacity,
+      transition: panel.style.transition,
+      opacity: getComputedStyle(panel).opacity,
+    };
+  });
+}
+
 /** Wait until the late switch's fade in is over (the panel's own style is cleared then). */
 async function waitForFadeOver(page: Page) {
   await page.waitForFunction(
@@ -155,14 +231,23 @@ async function waitForFadeOver(page: Page) {
   await page.waitForTimeout(100);
 }
 
+/** After the fade in: the panel is back to full opacity, and none of the switch's styles is left on it. */
+async function expectPanelRestored(page: Page) {
+  const state = await panelState(page);
+  expect(state.inlineOpacity).toBe("");
+  expect(state.transition).toBe("");
+  expect(state.opacity).toBe("1");
+}
+
 test.describe("starting away from the top", () => {
   test.beforeEach(async ({ page }) => {
     await recordSwitch(page);
   });
 
-  test("① a reload at a scrolled position starts the stage there, without going back to the top", async ({
+  test("① a reload at a scrolled position starts the stage there, without going back to the top, and shifts no layout", async ({
     page,
   }) => {
+    await recordStage(page);
     await page.goto("/");
     // The first visit compiles the module in dev; the reload is the case.
     await waitForAnimated(page);
@@ -170,9 +255,7 @@ test.describe("starting away from the top", () => {
     await page.waitForTimeout(300);
     await page.reload();
     await waitForAnimated(page);
-    const sw = await page.evaluate(
-      () => (window as unknown as { __switch: Switch }).__switch,
-    );
+    const sw = (await theSwitch(page))!;
     // It switched with the reader away from the top, and left them there.
     expect(sw.sectionTop).toBeLessThan(0);
     await waitForFadeOver(page);
@@ -180,6 +263,10 @@ test.describe("starting away from the top", () => {
     expect(after.progress).toBeGreaterThan(0);
     expect(after.progress).toBeLessThan(1);
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    expect(await read<number>(page, "__clsAfterSwitch")).toBeLessThanOrEqual(
+      CLS_AFTER_SWITCH_BOUND,
+    );
+    await expectPanelRestored(page);
   });
 
   test("② a scroll while the page is still loading: the stage starts once the reader holds still", async ({
@@ -192,16 +279,15 @@ test.describe("starting away from the top", () => {
     expect((await layoutFacts(page)).animated).toBe(false);
     release();
     await waitForAnimated(page);
-    const sw = await page.evaluate(
-      () => (window as unknown as { __switch: Switch }).__switch,
-    );
+    const sw = (await theSwitch(page))!;
     expect(sw.scrollY).toBe(300);
     expect(sw.sectionTop).toBeLessThan(0);
   });
 
-  test("③a inside the story: the reader lands on the step for what they were reading, and the scroll that puts them there happens only while the panel is transparent", async ({
+  test("③a inside the story: the reader lands on the step for what they were reading, the scroll that puts them there happens only while the panel is transparent, and the panel is whole again after", async ({
     page,
   }) => {
+    await recordStage(page);
     const release = await holdStageModule(page);
     await page.goto("/");
     await page.evaluate(() => window.scrollTo(0, 500));
@@ -215,19 +301,15 @@ test.describe("starting away from the top", () => {
     await waitForAnimated(page);
     await waitForFadeOver(page);
 
-    const sw = await page.evaluate(
-      () => (window as unknown as { __switch: Switch }).__switch,
-    );
+    const sw = (await theSwitch(page))!;
     // The panel had faded out when the layout switched.
     expect(sw.panelOpacity).toBeLessThanOrEqual(TRANSPARENT);
     // Frame by frame: the scroll position changed (500 to the new one) only in
     // frames where the panel was transparent. Whatever the reader could see
     // never moved under them. (Static frames at 0 are the ones before the
     // test's own scroll.)
-    const frames = await page.evaluate(
-      () => (window as unknown as { __frames: FrameRow[] }).__frames,
-    );
-    const visible = frames.filter(([opacity]) => opacity > TRANSPARENT);
+    const rows = await frames(page);
+    const visible = rows.filter(([opacity]) => opacity > TRANSPARENT);
     const finalScroll = await page.evaluate(() => window.scrollY);
     expect(finalScroll).not.toBe(500);
     for (const [, , scrollY, animated] of visible) {
@@ -235,7 +317,7 @@ test.describe("starting away from the top", () => {
       else expect([0, 500]).toContain(scrollY);
     }
     // And the switch did fade: some frames were transparent.
-    expect(frames.length - visible.length).toBeGreaterThan(0);
+    expect(rows.length - visible.length).toBeGreaterThan(0);
 
     // The step is the one late-start.ts plans for what was in view.
     const after = await animatedGeometry(page);
@@ -255,11 +337,18 @@ test.describe("starting away from the top", () => {
     expect(plan.fade).toBe(true);
     // data-progress has three decimals; the scroll position is a whole px.
     expect(Math.abs(after.progress - plan.progress)).toBeLessThan(0.003);
+    expect(await read<number>(page, "__clsAfterSwitch")).toBeLessThanOrEqual(
+      CLS_AFTER_SWITCH_BOUND,
+    );
+    // The fade in is over: the panel is fully opaque, with nothing of the
+    // switch's own left on it.
+    await expectPanelRestored(page);
   });
 
   test("③b with the story's end in view, the final section does not move: in no frame, before, during or after the switch", async ({
     page,
   }) => {
+    await recordStage(page);
     const release = await holdStageModule(page);
     await page.goto("/");
     await page.evaluate(() =>
@@ -280,10 +369,7 @@ test.describe("starting away from the top", () => {
     const moved = Math.abs(after.finalTop - before.finalTop);
     expect(moved).toBeLessThanOrEqual(FINAL_TOLERANCE_PX);
     // Every frame recorded from the reader's scroll on.
-    const frames = await page.evaluate(
-      () => (window as unknown as { __frames: FrameRow[] }).__frames,
-    );
-    const fromScroll = frames.filter(
+    const fromScroll = (await frames(page)).filter(
       ([, , scrollY, animated]) => animated || scrollY > 0,
     );
     expect(fromScroll.length).toBeGreaterThan(5);
@@ -292,22 +378,165 @@ test.describe("starting away from the top", () => {
         FINAL_TOLERANCE_PX,
       );
     }
+    expect(await read<number>(page, "__clsAfterSwitch")).toBeLessThanOrEqual(
+      CLS_AFTER_SWITCH_BOUND,
+    );
+    await expectPanelRestored(page);
   });
 
-  test("a scroll during the wait starts the wait again: nothing switches under a moving page", async ({
+  test("a scroll during the wait starts the wait again: once the stage is ready, nothing switches under a page that keeps moving", async ({
     page,
   }) => {
     const release = await holdStageModule(page);
     await page.goto("/");
     await page.evaluate(() => window.scrollTo(0, 400));
     release();
-    // Keep scrolling, a little every 100 ms, for 1.5 s.
-    for (let i = 0; i < 15; i += 1) {
+    // Ready: the stage has built its first set of particles (data-particles
+    // on the canvas), which is the last thing it does before it would switch.
+    await expect(page.locator(".story-canvas")).toHaveAttribute(
+      "data-particles",
+      /^\d+$/,
+      { timeout: 60_000 },
+    );
+    expect(await theSwitch(page)).toBeNull();
+    // Keep scrolling, a little every 100 ms (under the 300 ms the switch
+    // waits for), for 1.5 s: five times the wait.
+    for (let i = 1; i <= 15; i += 1) {
       await page.evaluate((y) => window.scrollTo(0, y), 400 + i * 4);
       await page.waitForTimeout(100);
     }
+    expect(await theSwitch(page)).toBeNull();
     expect((await layoutFacts(page)).animated).toBe(false);
+    // Held still, it switches.
     await waitForAnimated(page);
+  });
+
+  test("a tab hidden while the panel fades out: nothing switches or scrolls while hidden, the panel comes back, and showing the tab switches", async ({
+    page,
+  }) => {
+    await onFirstFadeOut(page, SET_HIDDEN(true));
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(200);
+    release();
+    await expect.poll(() => read<number>(page, "__fadeOuts")).toBe(1);
+    // Longer than the fade out, the frames the switch may wait and the fade in.
+    await page.waitForTimeout(1500);
+    expect(await theSwitch(page)).toBeNull();
+    expect((await layoutFacts(page)).animated).toBe(false);
+    expect(await page.evaluate(() => window.scrollY)).toBe(500);
+    await expectPanelRestored(page);
+
+    await page.evaluate(SET_HIDDEN(false));
+    await waitForAnimated(page);
+    expect((await theSwitch(page))!.panelOpacity).toBeLessThanOrEqual(
+      TRANSPARENT,
+    );
+  });
+
+  test("a fade out cut short by a scroll, then the reader holds still: the next fade out is a fade, not a cut", async ({
+    page,
+  }) => {
+    // The reader scrolls a little just as the first fade out begins.
+    await onFirstFadeOut(page, "window.scrollBy(0, 8);");
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(200);
+    release();
+    await waitForAnimated(page);
+    await waitForFadeOver(page);
+    expect(await read<number>(page, "__fadeOuts")).toBe(2);
+
+    // The frames of the second fade out: the run of frames with the panel's
+    // inline opacity at 0 that ends at the switch. (The first one was cut
+    // within a frame, before any frame of it was sampled.)
+    const rows = await frames(page);
+    const switchAt = rows.findIndex(([, , , animated]) => animated);
+    expect(switchAt).toBeGreaterThan(0);
+    let secondFrom = switchAt;
+    while (secondFrom > 0 && rows[secondFrom - 1]![4] === "0") secondFrom -= 1;
+    const second = rows.slice(secondFrom, switchAt);
+    expect(second.length).toBeGreaterThan(3);
+    for (const [, , , , inline, transition] of second) {
+      // The fade out's transition is on the panel for the whole fade: nothing
+      // cut it short.
+      expect(inline).toBe("0");
+      expect(transition).toMatch(/opacity/);
+    }
+    // The opacity comes down step by step, never in one jump.
+    const opacities = second.map(([opacity]) => opacity);
+    for (let i = 1; i < opacities.length; i += 1) {
+      expect(opacities[i - 1]! - opacities[i]!).toBeLessThan(0.5);
+    }
+    expect(opacities.at(-1)!).toBeLessThanOrEqual(TRANSPARENT);
+  });
+
+  test("when the panel does not become transparent (a long task held the fade back), it never switches in view: the fade is given up a bounded number of times, and the next scroll and stillness switch", async ({
+    page,
+  }) => {
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    // The panel's opacity can not change: as if every frame of the fade were late.
+    await page.addStyleTag({
+      content: ".story-panel { opacity: 1 !important; }",
+    });
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(200);
+    release();
+    await expect
+      .poll(() => read<number>(page, "__fadeOuts"), { timeout: 60_000 })
+      .toBe(LATE_FADE_ATTEMPTS);
+    // No more attempts come, and it never switched.
+    await page.waitForTimeout(2500);
+    expect(await read<number>(page, "__fadeOuts")).toBe(LATE_FADE_ATTEMPTS);
+    expect(await theSwitch(page)).toBeNull();
+    expect(await page.evaluate(() => window.scrollY)).toBe(500);
+    await expectPanelRestored(page);
+
+    // The fade can run again: a scroll, then stillness, switches.
+    await page.evaluate(() =>
+      document.querySelectorAll("style").forEach((style) => {
+        if (style.textContent?.includes("opacity: 1 !important")) {
+          style.remove();
+        }
+      }),
+    );
+    await page.evaluate(() => window.scrollBy(0, 4));
+    await waitForAnimated(page);
+    expect((await theSwitch(page))!.panelOpacity).toBeLessThanOrEqual(
+      TRANSPARENT,
+    );
+  });
+
+  test("printing while the panel fades: the panel prints at full opacity", async ({
+    page,
+  }) => {
+    const release = await holdStageModule(page);
+    await page.goto("/");
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(200);
+    release();
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLElement>(".story-panel")!.style.opacity ===
+        "0",
+      null,
+      { timeout: 60_000, polling: "raf" },
+    );
+    await page.emulateMedia({ media: "print" });
+    const state = await panelState(page);
+    // Still in the switch's fade (out, or back in) when it was read.
+    expect(state.inlineOpacity === "0" || state.transition !== "").toBe(true);
+    expect(state.opacity).toBe("1");
+    expect(
+      await page.evaluate(
+        () =>
+          getComputedStyle(document.querySelector(".story-panel")!)
+            .transitionDuration,
+      ),
+    ).toBe("0s");
   });
 });
 
@@ -329,7 +558,7 @@ test.describe("a failed start is tried again", () => {
     expect(errors).toEqual([]);
   });
 
-  test("⑤ when every try fails the page stays static, with no error, and the tries stop", async ({
+  test("⑤ when every try fails the page stays static, with no error, and the tries stop; turning motion off and on again does not start new ones", async ({
     page,
   }) => {
     const errors: string[] = [];
@@ -340,24 +569,32 @@ test.describe("a failed start is tried again", () => {
       await route.abort();
     });
     await page.goto("/");
-    const total = START_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0);
-    await page.waitForTimeout(total + 3000);
-    const tries = requests;
     // One try and one per retry delay.
-    expect(tries).toBe(1 + START_RETRY_DELAYS_MS.length);
+    const tries = 1 + START_RETRY_DELAYS_MS.length;
+    await expect
+      .poll(() => requests, { timeout: ALL_TRIES_WITHIN_MS })
+      .toBe(tries);
     // And no more come.
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(NO_MORE_TRIES_MS);
     expect(requests).toBe(tries);
     const facts = await layoutFacts(page);
     expect(facts.animated).toBe(false);
     expect(facts.sectionHeight).toBe(facts.panelHeight);
     expect(facts.logoVisibility).toBe("visible");
+
+    // Turning reduced motion on and off again asks the page to load the stage
+    // once more: the tries are used up, so it does not.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.waitForTimeout(200);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.waitForTimeout(NO_MORE_TRIES_MS);
+    expect(requests).toBe(tries);
     expect(errors).toEqual([]);
   });
 
-  // The stage's own preparation (the drawing path, the pairing) fails the
-  // first time: a MessageChannel, which it yields with between slices, throws
-  // once for a caller in the stage module.
+  // The stage's own preparation (the drawing path, the pairing) fails: a
+  // MessageChannel, which it yields with between slices, throws for a caller
+  // in the stage module.
   for (const [label, failures] of [
     ["once: the retry starts the stage", 1],
     [
@@ -385,32 +622,17 @@ test.describe("a failed start is tried again", () => {
         } as unknown as typeof MessageChannel;
       }, failures);
       await page.goto("/");
+      const thrown = () => read<number>(page, "__prepareThrows");
       if (failures === 1) {
         await waitForAnimated(page);
-        expect(
-          await page.evaluate(
-            () => (window as unknown as Record<string, number>).__prepareThrows,
-          ),
-        ).toBe(1);
+        expect(await thrown()).toBe(1);
       } else {
-        // Wait for the module and every retry.
+        const tries = 1 + START_RETRY_DELAYS_MS.length;
         await expect
-          .poll(
-            () =>
-              page.evaluate(
-                () =>
-                  (window as unknown as Record<string, number>).__prepareThrows,
-              ),
-            { timeout: 60_000 },
-          )
-          .toBeGreaterThan(0);
-        const total = START_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0);
-        await page.waitForTimeout(total + 3000);
-        expect(
-          await page.evaluate(
-            () => (window as unknown as Record<string, number>).__prepareThrows,
-          ),
-        ).toBe(1 + START_RETRY_DELAYS_MS.length);
+          .poll(thrown, { timeout: 60_000 + ALL_TRIES_WITHIN_MS })
+          .toBe(tries);
+        await page.waitForTimeout(NO_MORE_TRIES_MS);
+        expect(await thrown()).toBe(tries);
         const facts = await layoutFacts(page);
         expect(facts.animated).toBe(false);
         expect(
