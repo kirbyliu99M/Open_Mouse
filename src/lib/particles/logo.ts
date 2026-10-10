@@ -272,9 +272,12 @@ function placeAt(walk: Walk, u: number): { at: Vec; normal: Vec } {
  * The bell's quantile: the z with Phi(z) = p, for p in (0, 1) (Acklam's
  * rational approximation, |error| < 1.2e-9). Pure arithmetic and `Math.log`,
  * `Math.sqrt`, so the committed JSON is the same on every machine that
- * rounds those alike.
+ * rounds those alike. `level` is held to 1e-12 .. 1 - 1e-12 (z of about
+ * -7 to 7), so 0 and 1 give a number and not NaN (log 0), which the clip
+ * after it could not catch.
  */
-export function bellQuantile(p: number): number {
+export function bellQuantile(level: number): number {
+  const p = Math.min(1 - 1e-12, Math.max(1e-12, level));
   const a = [
     -39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269,
     -30.66479806614716, 2.506628277459239,
