@@ -211,8 +211,12 @@ const MICE_SOLID = { low: 0.5, high: 3 };
  * (375x667 to 430x932, pixel ratio 2 to 3). The bound is 5 % either side of
  * each setup's figure.
  *
- * What it catches, measured by changing what the stage draws and not the
- * maths (desktop / phone): the shader lighting 0.12 instead of 0.14, 5.69 /
+ * The even, stroke-like cloud (variant B3, the same share and star size)
+ * measures 6.320 and 5.973, inside both bounds (+2.1 % and +1.8 %); over
+ * other windows 5.78 to 6.35 on desktops and 4.98 to 6.61 on phones.
+ *
+ * What it catches, measured on the B cloud by changing what the stage draws
+ * and not the maths (desktop / phone): the shader lighting 0.12 instead of 0.14, 5.69 /
  * 5.35; lighting 0.10, 5.11 / 4.76; stars 20 % fainter, 5.65 / 5.33; stars
  * 20 % smaller, 5.03 / 4.75. All are outside. A brighter star is not: the
  * logo's stars are at full opacity already (brightAlpha's ceiling, 1), so a

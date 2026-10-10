@@ -88,11 +88,11 @@ describe("logoOffMark (the e2e suite's judgement of the particle logo)", () => {
     expect(logoOffMark({ ...onMark, empty: true })).toEqual(["no logo drawn"]);
   });
 
-  it("keeps the band about a pixel past what was measured (0.0 to 2.6 px) and the mirror bound under the hand's own share", () => {
-    expect(LOGO_EDGE.low).toBeLessThan(0);
-    expect(LOGO_EDGE.high).toBeGreaterThan(2.6);
+  it("keeps the band past what was measured (-0.4 to 2.2 px) and the mirror bound between a mirror's share (0.98 at most) and the hand's own (1.12 at least)", () => {
+    expect(LOGO_EDGE.low).toBeLessThan(-0.4 - 1);
+    expect(LOGO_EDGE.high).toBeGreaterThan(2.2 + 1);
     expect(LOGO_EDGE.high - LOGO_EDGE.low).toBeLessThanOrEqual(6);
-    expect(LOGO_TOP_LEFT_SHARE).toBeGreaterThan(1);
-    expect(LOGO_TOP_LEFT_SHARE).toBeLessThan(1.18);
+    expect(LOGO_TOP_LEFT_SHARE).toBeGreaterThan(0.98 + 0.05);
+    expect(LOGO_TOP_LEFT_SHARE).toBeLessThan(1.12 - 0.05);
   });
 });

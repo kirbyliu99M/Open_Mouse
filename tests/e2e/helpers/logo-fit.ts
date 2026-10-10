@@ -13,45 +13,49 @@
  * stars are a fraction of the particles).
  *
  * Measured with `logoInk` (2026-10-10, headless Chromium on Kirby's machine,
- * after the shimmer, at p = 0) on the 840-point cloud (variant B), left / top
- * / right / bottom; the windows at pixel ratio 1, then the mobile project's
- * Pixel 7 (412x915, pixel ratio 2.625):
+ * after the shimmer, at p = 0) on the even, stroke-like cloud (variant B3),
+ * left / top / right / bottom; the windows at pixel ratio 1, then the mobile
+ * project's Pixel 7 (412x915, pixel ratio 2.625):
  *
- *   window      WebGL              Canvas 2D
- *   360x800     1.0 1.5 2.1 0.8    1.0 0.5 1.1 0.8
- *   375x667     1.6 1.2 1.7 0.7    1.6 0.2 0.7 0.7
- *   390x844     0.8 1.3 1.5 1.4    0.8 0.3 0.5 1.4
- *   412x915     1.0 1.5 1.8 0.6    0.0 1.5 0.8 0.6
- *   430x932     0.3 1.8 2.1 0.6    0.3 0.8 1.1 0.6
- *   768x1024    1.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   1280x600    0.8 1.1 1.5 0.7    0.8 1.1 1.5 1.7
- *   1280x640    0.4 0.6 1.1 0.7    0.4 0.6 1.1 1.7
- *   1280x720    0.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   1280x800    1.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   1366x657    1.1 1.3 0.4 0.4    1.1 1.3 0.4 1.4
- *   1440x700    0.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   1536x730    0.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   1920x1080   1.7 0.9 1.1 1.6    0.7 0.9 0.1 2.6
- *   Pixel 7     1.4 1.5 1.6 0.9    0.7 0.7 1.1 1.1
+ *   window      WebGL                  Canvas 2D
+ *   360x800      0.8  0.4  0.4  1.0     0.8  0.4  0.4  1.0
+ *   375x667      1.3  0.1 -0.0  1.0     1.3  0.1 -0.0  1.0
+ *   390x844      1.6  0.1 -0.2  0.5     0.6  0.1  0.8  1.5
+ *   412x915      0.9  0.2  0.2 -0.3    -0.1  1.2  1.2  0.7
+ *   430x932      0.2  0.4  0.4  0.6     0.2  0.4  1.4  0.6
+ *   768x1024     1.1 -0.2  1.6  2.2     1.1 -0.2  0.6  1.2
+ *   1280x600    -0.1  0.3  1.9  0.6    -0.1  1.3  1.9  0.6
+ *   1280x640     0.6 -0.2  1.5  1.5    -0.4  0.8  1.5  1.5
+ *   1280x720     1.1 -0.2  1.6  1.2     1.1 -0.2  0.6  1.2
+ *   1280x800     1.1 -0.2  1.6  2.2     1.1 -0.2  0.6  1.2
+ *   1366x657     1.4  0.4  0.8  1.1     1.4  0.4  0.8  0.1
+ *   1440x700     1.1 -0.2  1.6  1.2     1.1 -0.2  0.6  1.2
+ *   1536x730     1.1 -0.2  1.6  1.2     1.1 -0.2  0.6  1.2
+ *   1920x1080    1.1 -0.2  1.6  2.2     1.1 -0.2  0.6  1.2
+ *   Pixel 7      1.5  0.3 -0.1  0.7     0.5  0.5  0.9  0.7
  *
- * So 0.0 to 2.6 (the first, wider cloud of 600 points measured -1.4 to 2.3
- * in the same windows): the band is -2.5 to 3.5, about a pixel past either.
- * Each edge is checked on its own side, so a logo drawn 8 % small (about 6
- * px an edge on the smallest phone, 12 on a desktop) or moved 4 px leaves it,
- * as the mutation runs on the first cloud showed. (The old check, the ink's
- * box against the static image's, took absolute values against 8 px and let
- * a logo 8 % small through.)
+ * So -0.4 to 2.2 (the random 840-point cloud, variant B, measured 0.0 to
+ * 2.6, and the first 600-point cloud -1.4 to 2.3, in the same windows): the
+ * band is -2.5 to 3.5, at least 1.3 px past either. Each edge is checked on
+ * its own side, so a logo drawn 8 % small (about 6 px an edge on the
+ * smallest phone, 12 on a desktop) or moved 4 px leaves it, as the mutation
+ * runs on the first cloud showed. (The old check, the ink's box against the
+ * static image's, took absolute values against 8 px and let a logo 8 %
+ * small through.)
  */
 export const LOGO_EDGE = { low: -2.5, high: 3.5 } as const;
 
 /**
  * The share by which the top half of the canvas's mark is heavier left of its
- * middle than right of it (alpha summed), at least: the target's points give
- * 286 to 222 (1.29) on the 840-point cloud, and the windows above measured
- * 1.18 to 1.35; a mirror image (the logo's x flipped in buildParticleSet)
- * measured 0.88 to 0.94 (390x844, 1280x800 and the Pixel 7, both paths).
+ * middle than right of it (alpha summed), at least. The target's points give
+ * 286 to 222 (1.29). On the B3 cloud the windows above measured 1.12 to 1.34
+ * (the lowest at 412x915 and 430x932, WebGL); a mirror image (the logo's x
+ * flipped in buildParticleSet) measured 0.84 to 0.98 (390x844, 412x915,
+ * 430x932, 1280x800 and the Pixel 7, both paths). 1.05 is about midway, 0.07
+ * from either. (It was 1.1 on the random cloud, whose own share went down to
+ * 1.18 and its mirror's up to 0.94; on B3 1.1 left only 0.02.)
  */
-export const LOGO_TOP_LEFT_SHARE = 1.1;
+export const LOGO_TOP_LEFT_SHARE = 1.05;
 
 /** What `logoInk` reports that the judgement reads. */
 export interface LogoFit {
