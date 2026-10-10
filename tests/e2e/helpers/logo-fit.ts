@@ -48,7 +48,7 @@ export const LOGO_EDGE = { low: -2.5, high: 3.5 } as const;
 /**
  * The share by which the top half of the canvas's mark is heavier left of its
  * middle than right of it (alpha summed), at least. The target's points give
- * 286 to 222 (1.29). On the B3 cloud the windows above measured 1.12 to 1.34
+ * 282 to 221 (1.28) on the B3 cloud. The windows above measured 1.12 to 1.34
  * (the lowest at 412x915 and 430x932, WebGL); a mirror image (the logo's x
  * flipped in buildParticleSet) measured 0.84 to 0.98 (390x844, 412x915,
  * 430x932, 1280x800 and the Pixel 7, both paths). 1.05 is about midway, 0.07
@@ -57,9 +57,9 @@ export const LOGO_EDGE = { low: -2.5, high: 3.5 } as const;
  * 1.1 on the random cloud, whose own share went down to 1.18 and its
  * mirror's up to 0.94; on B3 1.1 left only 0.02.)
  *
- * Read against the target's own 1.29 instead (the share over what the
- * points predict) the margins are no wider: the hand reads 0.87 to 1.04 of
- * it and the mirror 0.65 to 0.76, about 0.06 either side of a midway bound.
+ * Read against the target's own 1.28 instead (the share over what the
+ * points predict) the margins are no wider: the hand reads 0.88 to 1.05 of
+ * it and the mirror 0.66 to 0.77, about 0.06 either side of a midway bound.
  * What moves the figure is which particles are lit and how their glows
  * overlap, not the target; predicting that would mean rebuilding the
  * stage's pairing and star order in the helper. So the bound stays a plain

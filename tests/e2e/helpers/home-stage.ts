@@ -313,8 +313,8 @@ export async function layoutFacts(page: Page) {
  * the logo box's own px. Their outer box is where the particle centres reach
  * (the cloud's width either side of the line included). `LOGO_TOP_LEFT_SHARE`
  * (logo-fit.ts) reads how much more of the mark's top half is left of its
- * middle than right of it (the thumb's side and the fingers: 286 points
- * against 222), which is what tells the hand from its mirror image (the outer
+ * middle than right of it (the thumb's side and the fingers: 282 points
+ * against 221 on the B3 cloud), which is what tells the hand from its mirror image (the outer
  * box can not: the path is 0.24 units off centre sideways).
  */
 const LOGO_TARGET = (() => {

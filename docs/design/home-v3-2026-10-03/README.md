@@ -202,7 +202,8 @@ Buttons:
   `opacity: 0.85` on the button would take the white label to 4.33:1.
 
 Hero sizes (the logo slot includes room for the glow; the mark itself is
-about 60 % of the slot's height):
+about 54 % of the slot's height on a phone, the image being 0.63 of it, and
+about 65 % on a desktop, 19 rem of 29, as `home.css` says):
 
 | Viewport     | Slot height                  | Logo mark height |
 | ------------ | ---------------------------- | ---------------- |
@@ -511,14 +512,16 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   - **The first frame's stars.** The first frame is drawn before the hand's
     and the mice's places are measured, so its look is worked out with the
     hand's scale taken from the logo's box. After the first measure the scale
-    is the real one, and the logo's stars can change size once. With the
-    Palmate mark (its box has another shape than the placeholder's) a review
-    estimated 7.08 → 10.20 px on a phone-sized window (+44 %; the
-    placeholder's was 7.74 → 10.20) and about +28 % on a desktop, with the
-    logo's share at 0.10 (not worked out again for 0.14). These are
-    estimates from the formulas, **not measured in a browser**, and whether
-    the jump can be seen has not been looked at. It has been so since the
-    stars were first drawn, and has not been changed.
+    is the real one, and the logo's stars can change size once. For the
+    shipped mark (the Palmate hand, a lit share of 0.14, stars 1.7 times the
+    look) a review estimated, from the formulas, 6.28 → about 9.1 to 10.1 px
+    on a 390 px wide phone (about +46 % to +60 %) and 7.06 → 10.13 px at
+    1280x800 (+43 %). These are **estimates, not measured in a browser**
+    (earlier estimates: 7.08 → 10.20 px, +44 %, at a share of 0.10; the
+    placeholder's 7.74 → 10.20). Whether the jump can be seen has not been
+    looked at: when testing on a phone, watch the first one or two frames.
+    It has been so since the stars were first drawn, and has not been
+    changed.
   - **Guard.** The lit particles come first in the order, so when the guard
     draws only the first N, the dust thins and the stars stay (until N is
     smaller than the stars: at the floor of a quarter of the budget, 3,000 of
@@ -546,6 +549,14 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
   | -------------------- | ----: | ------: | -------------------------------------- |
   | WebGL                | 6,000 |  12,000 | yes                                    |
   | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
+
+  On a device with 4 cores or fewer the Canvas 2D budget is 450 (phone) or
+  648 (desktop), fewer than the logo target's 873 points, so the logo is an
+  even pick through the target's points (`resampleToCount`) and the dot and
+  the strays are thinned with everything else: at 450 the dot keeps 1 of its
+  3 bright core points and 3 of its 6 ring points and 13 of the 24 strays
+  remain; at 648, all 3, 4 and 18; from 900 up all of them. A known
+  trade-off of the low-end fallback.
 
   Each is rounded down to a multiple of three (a third per mouse). The
   budget is the number of particles in the whole story. The hand's dust

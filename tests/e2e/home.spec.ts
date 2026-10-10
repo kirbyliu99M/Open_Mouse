@@ -449,7 +449,9 @@ test.describe("the hero logo slot", () => {
       const mark = sizes.img * (59 / 69);
       expect(mark / sizes.rem).toBeGreaterThan(markRem - 1.5);
       expect(mark / sizes.rem).toBeLessThan(markRem + 1.5);
-      // The mark is about 60 % of the slot (the spec's own words), with room for the glow.
+      // The mark is about 54 % of the slot on a phone and 65 % on a desktop
+      // (home.css), with room for the glow: this checks the image's share,
+      // 0.63 and 22.2 / 29 (0.77) of the slot.
       expect(sizes.img / sizes.slot).toBeGreaterThan(0.55);
       expect(sizes.img / sizes.slot).toBeLessThan(0.8);
     });

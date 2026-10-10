@@ -30,7 +30,7 @@ export const LOGO_VIEWBOX = { x: 13, y: 8, width: 65, height: 69 } as const;
 /** Stage px per viewBox unit: the target's own coordinates are the viewBox's, from its corner, times this (so 0.1 px, the precision of the JSON, is 0.03 of a unit). */
 export const LOGO_SCALE = 3;
 
-/** The logo's box in stage px: the viewBox scaled. The mark's points (the 600 along the lines and the dot's 9) are inside it, the 24 strays outside it; the stage fits the static image's rect to it. */
+/** The logo's box in stage px: the viewBox scaled. The mark's points (the 840 along the lines and the dot's 9) are inside it, the 24 strays outside it; the stage fits the static image's rect to it. */
 export const LOGO_BOX = { width: 195, height: 207 } as const;
 
 /** The stroke of the static image, in viewBox units, and its colour. */
@@ -208,7 +208,8 @@ export function strayReach(): { x: number; y: number } {
 /**
  * Whether a logo point (in its own px, at any budget) belongs to the mark
  * rather than to the strays round it. The mark's points are inside `LOGO_BOX`,
- * at least 7.8 px from its edges (5 units of room less the cloud's 2.4), and a
+ * at least 10.1 px from its edges by the spec (the path's least room, 4.96
+ * units at the top, less the cloud's 1.6; 11.9 px in the target), and a
  * stray is at least `ambientHole` px outside it. A budget moves a point by a
  * pixel at most (a sparse top-up nudges a copy by up to 1 px, a dense walk by
  * 0.75), so the box widened by half the hole tells the two apart at every
