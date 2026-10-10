@@ -12,9 +12,15 @@ import { MARKS } from "./timeline";
  * layouts). Anywhere else the story section changes from a stack of static
  * blocks (about 2,100 px) to a 400svh section with a pinned panel, so:
  * - below the story (the section's bottom edge is in view, or above it), the
- *   animated section is placed so that its bottom edge stays exactly where it
- *   was: the final section, and whatever else is in view under the story, does
- *   not move (p is then 1, the story's last step);
+ *   animated section is placed so that the final section under it, and
+ *   whatever else is in view under the story, does not move. The final
+ *   section does not sit at the same distance from the section's bottom edge
+ *   in the two layouts (3rem below it in the static one; since the finale,
+ *   2026-10-11, a share of the viewport ABOVE it in the animated one, its
+ *   buttons coming up over the finale), so the bottom edge is moved by that
+ *   difference (`finalShift`) and the final section stays put (p is then 1,
+ *   or a little under it while the final section is still low in the
+ *   viewport);
  * - inside the story, the static blocks the reader is looking at have no twin
  *   in the animated layout (the hand and the mice are drawn by the canvas, in a
  *   pinned panel), so nothing can be kept in place: the panel fades out, the
@@ -94,9 +100,11 @@ export interface StaticBlock {
  * bottom edge p = 0.9 (the headline gathering over the formed figure; the
  * three mice the finale replaced settled there, and the anchors' slopes were
  * tuned for it, so it stays 0.9 while the figure itself is formed by 0.80,
- * MARKS.miceSettled); the section's bottom edge p = 1. (The `mice` names are
- * the old ones: the block is the finale's now.) 未拍板 (candidate), like the
- * rest of the timing.
+ * MARKS.miceSettled); the section's bottom edge p = 1, which wins over the
+ * finale's bottom edge when the two are one (the finale is the static
+ * section's last block), so the story's end is always reachable. (The `mice`
+ * names are the old ones: the block is the finale's now.) 未拍板 (candidate),
+ * like the rest of the timing.
  */
 export const ANCHOR_PROGRESS = {
   handTop: MARKS.handFormed,
@@ -126,12 +134,17 @@ export function storyAnchors(input: {
   // Only anchors that go forward in both: a block that is missing, or that a
   // very short section puts before the previous anchor, is left out.
   const out: StoryAnchor[] = [];
-  for (const { offset, progress } of list) {
-    if (offset === null || !Number.isFinite(offset)) continue;
+  list.forEach(({ offset, progress }, index) => {
+    if (offset === null || !Number.isFinite(offset)) return;
+    if (index === list.length - 1) {
+      // The section's end (p = 1) is always kept: an anchor at or past it (the
+      // finale's bottom edge, when it is the section's last px) gives way.
+      while (out.length > 1 && out.at(-1)!.offset >= offset) out.pop();
+    }
     const last = out.at(-1);
-    if (last && (offset <= last.offset || progress <= last.progress)) continue;
+    if (last && (offset <= last.offset || progress <= last.progress)) return;
     out.push({ offset, progress });
-  }
+  });
   return out;
 }
 
@@ -164,6 +177,15 @@ export interface LateSwitchInput {
   /** The viewport's height now (window.innerHeight): what the reader sees. */
   readonly viewportHeight: number;
   readonly anchors: readonly StoryAnchor[];
+  /**
+   * How much farther below the section's bottom edge the final section's top
+   * edge is in the static layout than in the animated one (CSS px): the
+   * static gap (3rem) plus the animated overlap (the final section comes up
+   * over the finale: 33svh on a phone, 20svh on a desktop). 0 when the two
+   * gaps are the same. The animated section's bottom edge is put this much
+   * lower than the static one's, so the final section does not move.
+   */
+  readonly finalShift?: number;
 }
 
 export interface LateSwitchPlan {
@@ -193,6 +215,10 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
   const progressFor = (targetTop: number) =>
     travel > 0 ? clamp01(-targetTop / travel) : 0;
   const bottom = staticTop + staticHeight;
+  const shift =
+    input.finalShift !== undefined && Number.isFinite(input.finalShift)
+      ? input.finalShift
+      : 0;
   // How far into the animated section the reader is put (its top edge that
   // many px above the viewport's top). Never negative: a reader who was past
   // the section's top is never put above it again. (That only bites when the
@@ -218,8 +244,12 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
   }
   if (bottom <= viewportHeight) {
     // The story's end is in view (or the story is above the viewport): keep
-    // its bottom edge, and so everything under it, where it is.
-    return { ...into(animatedHeight - bottom), fade: bottom > 0 };
+    // the final section, and so everything under it, where it is: the
+    // animated section's bottom edge goes `shift` below the static one's.
+    return {
+      ...into(animatedHeight - (bottom + shift)),
+      fade: bottom > 0,
+    };
   }
   // Inside the story: how far through it the reader is (0 to 1, from the
   // anchors) is applied to the animated section's own scroll range up to the
@@ -232,7 +262,12 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
     readingOffset(staticTop, staticHeight, viewportHeight),
     anchors,
   );
-  return { ...into(share * (animatedHeight - viewportHeight)), fade: true };
+  // (The range ends where the branch above starts: the bottom edge at the
+  // viewport's bottom, moved by `shift`.)
+  return {
+    ...into(share * (animatedHeight - viewportHeight - shift)),
+    fade: true,
+  };
 }
 
 /**

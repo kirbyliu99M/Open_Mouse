@@ -62,6 +62,32 @@ describe("storyAnchors", () => {
     ]);
   });
 
+  it("keeps the story's end (p = 1) when the finale is the static section's last block: its bottom edge gives way", () => {
+    // The finale's bottom edge is the section's bottom edge (the review of
+    // 5ab9d86 found the end anchor dropped there, so the in-story branch
+    // never got past 0.9).
+    const got = storyAnchors({
+      staticHeight: 2117,
+      hand: blocks.hand,
+      notes: blocks.notes,
+      mice: { top: 1931, height: 2117 - 1931 },
+    });
+    expect(got.at(-1)).toEqual({ offset: 2117, progress: 1 });
+    expect(got.at(-2)).toEqual({
+      offset: 1931,
+      progress: ANCHOR_PROGRESS.miceTop,
+    });
+    expect(progressAtOffset(2117, got)).toBe(1);
+    // A finale that ends past the section's bottom (rounding) gives way too.
+    const over = storyAnchors({
+      staticHeight: 2117,
+      hand: null,
+      notes: null,
+      mice: { top: 1931, height: 200 },
+    });
+    expect(over.at(-1)).toEqual({ offset: 2117, progress: 1 });
+  });
+
   it("anchors always go forward in offset and in progress", () => {
     for (let i = 1; i < anchors.length; i += 1) {
       expect(anchors[i]!.offset).toBeGreaterThan(anchors[i - 1]!.offset);
@@ -341,6 +367,63 @@ describe("planLateSwitch is continuous and only goes forward, whatever the sizes
     const c = planLateSwitch({ ...sizes, staticTop: -STATIC_HEIGHT - 30 });
     expect(c.targetTop + 9600).toBeCloseTo(-30, 6);
     expect(c.progress).toBe(1);
+  });
+});
+
+describe("planLateSwitch keeps the final section in place when its gap to the story differs between the layouts (finalShift)", () => {
+  // 3rem below the static story; 20svh up over the animated one on a desktop.
+  const SHIFT = 48 + 0.2 * VH;
+  const withShift = (staticTop: number) =>
+    planLateSwitch({
+      staticTop,
+      staticHeight: STATIC_HEIGHT,
+      animatedHeight: ANIMATED_HEIGHT,
+      panelHeight: VH,
+      viewportHeight: VH,
+      anchors,
+      finalShift: SHIFT,
+    });
+
+  it("with the story's end in view, the final section's top edge is where it was (static: bottom + 48; animated: bottom - overlap)", () => {
+    for (const staticTop of [-1400, -1600, -2000, -2117, -2500]) {
+      const bottom = staticTop + STATIC_HEIGHT;
+      const finalBefore = bottom + 48;
+      const { targetTop } = withShift(staticTop);
+      const finalAfter = targetTop + ANIMATED_HEIGHT - 0.2 * VH;
+      // Exact unless the plan had to clamp at the section's top.
+      if (targetTop < 0) expect(finalAfter).toBeCloseTo(finalBefore, 9);
+    }
+  });
+
+  it("is continuous where the story's end comes into view, and only goes forward", () => {
+    const edge = VH - STATIC_HEIGHT;
+    const inside = withShift(edge + 0.01);
+    const atEdge = withShift(edge);
+    expect(Math.abs(inside.targetTop - atEdge.targetTop)).toBeLessThan(5);
+    expect(Math.abs(inside.progress - atEdge.progress)).toBeLessThan(0.002);
+    let lastTop = Infinity;
+    for (let top = 0; top >= -STATIC_HEIGHT - 50; top -= 0.5) {
+      const { targetTop } = withShift(top);
+      expect(targetTop).toBeLessThanOrEqual(lastTop + 1e-9);
+      lastTop = targetTop;
+    }
+  });
+
+  it("without a shift (or with a non-number) it is the plan it always was", () => {
+    for (const staticTop of [-300, -1400, -2000, -2500]) {
+      const base = plan(staticTop);
+      expect(
+        planLateSwitch({
+          staticTop,
+          staticHeight: STATIC_HEIGHT,
+          animatedHeight: ANIMATED_HEIGHT,
+          panelHeight: VH,
+          viewportHeight: VH,
+          anchors,
+          finalShift: Number.NaN,
+        }),
+      ).toEqual(base);
+    }
   });
 });
 

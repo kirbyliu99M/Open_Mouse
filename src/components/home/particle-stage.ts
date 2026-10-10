@@ -637,6 +637,12 @@ class Stage {
     const { section, handImg, notes, finale: finaleParts } = this.parts;
     const panelHeight = this.probe.offsetHeight;
     const box = section.getBoundingClientRect();
+    // The final section's gap under the static story (its top edge less the
+    // section's bottom edge), to set against the animated one's after the switch.
+    const final = section.nextElementSibling;
+    const staticGap = final
+      ? final.getBoundingClientRect().top - box.bottom
+      : 0;
     if (!this.allowed(panelHeight)) {
       if (faded) this.fadePanelIn();
       return;
@@ -661,6 +667,9 @@ class Stage {
         // Switched: a later late start (after going static again) begins afresh.
         this.lateFadeFailures = 0;
         const after = section.getBoundingClientRect();
+        const animatedGap = final
+          ? final.getBoundingClientRect().top - after.bottom
+          : 0;
         const plan = planLateSwitch({
           staticTop: box.top,
           staticHeight: box.height,
@@ -668,6 +677,7 @@ class Stage {
           panelHeight,
           viewportHeight: window.innerHeight,
           anchors,
+          finalShift: staticGap - animatedGap,
         });
         const before = window.scrollY;
         window.scrollTo({
