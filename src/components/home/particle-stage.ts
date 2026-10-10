@@ -117,6 +117,8 @@ const ANIMATED = "story--animated";
 const WIDE = "(min-width: 48rem)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MORE_CONTRAST = "(prefers-contrast: more)";
+/** What tells a scroll the reader made from one the browser made on its own (late start: the fade attempts are forgotten only for the reader's). */
+const READER_INPUT = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
 /** How far the hero text moves up while it fades, in CSS px. */
 const HERO_SHIFT_PX = 40;
 /** How far an annotation's text sits below its place while it is fading in or out, in CSS px. */
@@ -291,6 +293,8 @@ class Stage {
   /** The frame `confirmFaded` looks again in, and how many fades gave up since the reader last scrolled. */
   private lateFrame = 0;
   private lateFadeFailures = 0;
+  /** The reader used a wheel, a touch, a key or a pointer since the last scroll: the next scroll is theirs. */
+  private readerInput = false;
   private fadeTimer = 0;
   /** The next scroll event is the one the late switch caused, not the reader's. */
   private selfScroll = false;
@@ -359,6 +363,12 @@ class Stage {
   start(): void {
     this.parts.section.append(this.probe);
     window.addEventListener("scroll", this.onScroll, { passive: true });
+    for (const type of READER_INPUT) {
+      window.addEventListener(type, this.onReaderInput, {
+        passive: true,
+        capture: true,
+      });
+    }
     document.addEventListener("visibilitychange", this.onVisibility);
     for (const query of Object.values(this.queries)) {
       query.addEventListener("change", this.requestReflow);
@@ -378,6 +388,9 @@ class Stage {
     this.destroyed = true;
     this.deactivate();
     window.removeEventListener("scroll", this.onScroll);
+    for (const type of READER_INPUT) {
+      window.removeEventListener(type, this.onReaderInput, { capture: true });
+    }
     document.removeEventListener("visibilitychange", this.onVisibility);
     for (const query of Object.values(this.queries)) {
       query.removeEventListener("change", this.requestReflow);
@@ -431,6 +444,7 @@ class Stage {
         }
         // At the top the switch moves nothing: now.
         this.cancelLateSwitch();
+        this.lateFadeFailures = 0;
         this.activate(panelHeight);
       } else {
         this.remeasure(panelHeight);
@@ -455,11 +469,18 @@ class Stage {
 
   // ── Switching away from the top (late-start.ts) ─────────────────────────
 
-  /** Wait for the reader to hold still: each scroll starts the wait again. One timer, no loop. */
+  /**
+   * Wait for the reader to hold still: each scroll starts the wait again. One
+   * timer, no loop. Once `LATE_FADE_ATTEMPTS` fades have given up, nothing is
+   * scheduled (whatever asks: a resize, the tab shown again, a media query)
+   * until the reader scrolls, which forgets the failures (`onScroll`).
+   */
   private armLateSwitch(): void {
     if (this.destroyed || this.animated || this.lateState === "fading") return;
     this.lateState = "waiting";
     window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFadeFailures >= LATE_FADE_ATTEMPTS) return;
     this.lateTimer = window.setTimeout(this.lateSwitch, LATE_SWITCH_IDLE_MS);
   }
 
@@ -517,7 +538,7 @@ class Stage {
     this.lateState = "waiting";
     if (hidden) return;
     this.lateFadeFailures += 1;
-    if (this.lateFadeFailures < LATE_FADE_ATTEMPTS) this.armLateSwitch();
+    this.armLateSwitch();
   }
 
   /** The reader has held still: switch, after fading the panel out if part of the story is in view. */
@@ -598,6 +619,8 @@ class Stage {
     try {
       this.activate(panelHeight);
       if (this.animated) {
+        // Switched: a later late start (after going static again) begins afresh.
+        this.lateFadeFailures = 0;
         const after = section.getBoundingClientRect();
         const plan = planLateSwitch({
           staticTop: box.top,
@@ -1292,6 +1315,10 @@ class Stage {
   // ── Drawing ─────────────────────────────────────────────────────────────
 
   private readonly onScroll = (): void => {
+    // Whether the reader's own input came before this scroll (each scroll
+    // uses the flag up, so an old key press does not make a later scroll theirs).
+    const byReader = this.readerInput;
+    this.readerInput = false;
     if (this.animated && this.selfScroll) {
       // The scroll the late switch made: not the reader's, so it neither
       // arms the guard nor starts the scroll tail. Draw the frame for it.
@@ -1310,9 +1337,11 @@ class Stage {
     } else if (this.lateState !== "none") {
       // Waiting to switch away from the top: back at the top it switches at
       // once; anywhere else the reader is moving, so the wait starts again
-      // (and a fade out that had begun fades back in). The reader moved: the
-      // fades that gave up are forgotten.
-      this.lateFadeFailures = 0;
+      // (and a fade out that had begun fades back in). If the reader moved
+      // the page themselves (input came before this scroll), the fades that
+      // gave up are forgotten; a scroll the browser made on its own (a resize,
+      // scroll anchoring) does not count.
+      if (byReader) this.lateFadeFailures = 0;
       if (this.parts.section.getBoundingClientRect().top >= 0) {
         this.requestReflow();
       } else {
@@ -1320,6 +1349,10 @@ class Stage {
         this.armLateSwitch();
       }
     }
+  };
+
+  private readonly onReaderInput = (): void => {
+    this.readerInput = true;
   };
 
   private readonly onVisibility = (): void => {
