@@ -1,101 +1,298 @@
-/* The site footer (root layout). Dark like the rest of the site; on paper it
-   is dark text on white through the print tokens (tokens.css). */
+/* The site footer (root layout): one block that is both the closing banner and
+   the footer (Pencil v17 desktop / v18 phone, 2026-10-10). Every size, colour
+   and spacing here is a CANDIDATE (未拍板) taken from those frames. Dark like
+   the rest of the site; on paper it is dark text on white through the print
+   tokens (tokens.css). The colours are tokens: --footer-*. */
 .siteFooter {
+  position: relative;
   margin-top: 1.5rem;
-  padding: 2rem 0 2.5rem;
-  border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, #ffffff 3%, var(--bg));
-  color: var(--text-tertiary);
+  padding: 2.5rem 0;
+  background: var(--footer-bg);
+  color: var(--footer-link);
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
+/* The way in from the page above: a fade from nothing to the footer colour,
+   reaching up over the page's bottom edge. Behind the page (z-index -1), so it
+   never tints text, and it takes no clicks. Where a block of the page has its
+   own background, that block simply covers it. */
+.siteFooter-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 200px;
+  background: linear-gradient(to bottom, transparent, var(--footer-bg));
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The horizon: a 1 px line, clear at both ends and 55 % light blue in the
+   middle, with a faint glow just under it. Exactly as tall as the footer's top
+   padding, so it never lies behind any text: axe cannot work out the text
+   colour where a gradient is behind it. */
+.siteFooter-horizon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5rem;
+  background:
+    linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--accent-text) 55%, transparent) 50%,
+        transparent
+      )
+      top / 100% 1px no-repeat,
+    radial-gradient(
+      ellipse 55% 100% at 50% 0,
+      color-mix(in srgb, var(--glow) 22%, transparent),
+      transparent 80%
+    );
+  pointer-events: none;
+}
+
+/* Empty on purpose: where the star field and meteors will go. */
+.siteFooter-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .siteFooter-inner {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-areas: "name" "links" "statement" "preview";
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "brand mark" "groups groups";
+  align-items: start;
+  gap: 1.5rem 1rem;
   max-width: 78rem;
   margin: 0 auto;
-  padding: 0 clamp(1rem, calc(1rem + (100vw - 360px) * 0.5), 1.5rem);
+  /* The side padding, named so the mark's glow can stay inside it. */
+  /* 24 px, but never more than 6.15 % of the width: at 200 % text 1.5rem
+     is 48 px a side and "Palmate" would break in the middle of the word. */
+  --footer-pad: min(1.5rem, 6.15vw);
+  padding: 0 var(--footer-pad);
 }
 
-.siteFooter p {
+/* Reset with no specificity of its own (:where), so that the spacing set on
+   the footer's own classes below wins. With plain ".siteFooter p" the reset
+   (0,1,1) beat ".siteFooter-headline" (0,1,0) and every margin came out 0. */
+:where(.siteFooter) p,
+:where(.siteFooter) h2,
+:where(.siteFooter) ul {
   margin: 0;
+}
+
+.siteFooter-brand {
+  grid-area: brand;
+  min-width: 0;
+  /* Above the mark's glow, which is drawn later in the page. */
+  position: relative;
+  z-index: 1;
+}
+.siteFooter-name {
+  color: var(--text-primary);
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.siteFooter-headline {
+  margin-top: 0.5rem;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* The mark is sized in px and vw, not rem: at 200 % text a rem size would
+   double and leave the name and headline no room (they would run under it). */
+.siteFooter-mark {
+  grid-area: mark;
+  position: relative;
+  width: min(92px, 24vw);
+  height: min(92px, 24vw);
+}
+.siteFooter-mark::before {
+  content: "";
+  /* Reaches 20 % past the mark, but on the right never farther than the
+     page's side padding: a glow past the edge makes the page scroll sideways
+     (it did at 200 % text near 1024 px). */
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -20%;
+  right: max(-20%, calc(-1 * var(--footer-pad)));
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--glow) 22%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.siteFooter-mark img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.siteFooter-groups {
+  grid-area: groups;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+}
+.siteFooter-group--project {
+  grid-column: 1 / -1;
+  margin-top: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--footer-line);
+}
+/* Phone: the Project row has Account on the left and GitHub on the right. */
+.siteFooter-group--project ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1rem;
+}
+
+.siteFooter-groupTitle {
+  margin-bottom: 0.5rem;
+  color: var(--footer-heading);
+  font-size: 0.75rem;
+  font-weight: 600;
   line-height: 1.5;
 }
-
-.siteFooter-name {
-  grid-area: name;
-  color: var(--text-primary);
-  font-size: 1.125rem;
-  font-weight: 700;
+.siteFooter ul {
+  padding: 0;
+  list-style: none;
 }
-.siteFooter-preview {
-  grid-area: preview;
-}
-
-.siteFooter-links {
-  grid-area: links;
+/* The link is the row: no strut under it, so a row is as tall as its link. */
+.siteFooter li {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 1.5rem;
 }
-.siteFooter-links a {
+.siteFooter a {
   display: inline-flex;
   align-items: center;
+  gap: 0.625rem;
   /* A 44 px touch target without a 44 px gap in the row. */
   min-height: 2.75rem;
-  color: var(--text-secondary);
+  color: var(--footer-link);
   text-decoration: none;
 }
-.siteFooter-links a:hover {
+.siteFooter-icon {
+  flex: none;
+  color: var(--accent-text);
+}
+.siteFooter a:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }
-.siteFooter-links a:focus-visible {
+.siteFooter a:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: 0.25rem;
 }
 
-.siteFooter-statement {
-  grid-area: statement;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--hairline);
-  font-size: 0.8rem;
-}
-
-/* Desktop: the name and the note on the left, the links in the middle, the
-   statement on the right (the demo's footer). */
-@media (min-width: 48rem) {
+/* Desktop: name and headline on the left, then the three groups side by side
+   (236 px each), the large mark on the right. */
+@media (min-width: 64rem) {
+  .siteFooter {
+    padding: 3rem 0;
+  }
+  .siteFooter-horizon {
+    height: 3rem;
+  }
   .siteFooter-inner {
-    grid-template-columns: 1fr auto 1fr;
-    grid-template-areas:
-      "name links statement"
-      "preview links statement";
+    grid-template-areas: "brand mark" "groups mark";
+    /* The mark is taller than the text beside it: the second row takes the
+       slack, so the gaps between name, headline and groups stay as drawn. */
+    grid-template-rows: auto 1fr;
     align-items: start;
-    gap: 0.25rem 2rem;
+    gap: 2rem 3rem;
+    --footer-pad: clamp(2rem, 6.67vw, 6rem);
   }
-  .siteFooter-links {
-    justify-content: center;
+  .siteFooter-name {
+    font-size: 1.625rem;
+    line-height: 1.25;
   }
-  .siteFooter-statement {
+  .siteFooter-headline {
+    margin-top: 0.75rem;
+    font-size: 2rem;
+    line-height: 1.25;
+  }
+  .siteFooter-mark {
+    width: 220px;
+    height: 220px;
+    align-self: center;
+  }
+  .siteFooter-groups {
+    grid-template-columns: repeat(3, minmax(0, 14.75rem));
+    gap: 0 2rem;
+    align-self: start;
+  }
+  .siteFooter-group--project {
+    grid-column: auto;
+    margin-top: 0;
     padding-top: 0;
     border-top: 0;
-    text-align: right;
+  }
+  .siteFooter-group--project ul {
+    display: block;
+  }
+  /* A link starts 24 px under its group title. */
+  .siteFooter-groupTitle {
+    margin-bottom: 0.375rem;
   }
 }
 
+/* A mouse on a wide screen: the drawn 32 px pitch from one link to the next
+   (a one-line target). Any device that can also be touched (a tablet on its
+   side, a touch laptop whose main input is the touchpad and so reports
+   pointer: fine) keeps the 44 px rows above, as design-guidelines.md asks for
+   touch targets: that is what `not (any-pointer: coarse)` is for. The keyboard
+   focus ring is drawn in full either way. */
+@media (min-width: 64rem) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .siteFooter a {
+    min-height: 1.25rem;
+    line-height: 1.25rem;
+  }
+  .siteFooter li + li {
+    margin-top: 0.75rem;
+  }
+}
+
+/* No glow, no fade, a plain line: the same layout with nothing to blur the
+   edges. */
 @media (prefers-contrast: more) {
   .siteFooter {
-    background: var(--bg);
+    border-top: 1px solid var(--hairline);
+  }
+  .siteFooter-fade,
+  .siteFooter-horizon,
+  .siteFooter-mark::before {
+    display: none;
   }
 }
 
-/* Print: no tint (Chrome does not print backgrounds anyway), and the tokens
-   above already turn the text dark. */
+/* Print: no tint (Chrome does not print backgrounds anyway), no fade, no
+   glow, no mark (it is blue line art meant for the dark page); the tokens
+   already turn the text dark. */
 @media print {
   .siteFooter {
     background: none;
+  }
+  .siteFooter-fade,
+  .siteFooter-horizon,
+  .siteFooter-backdrop,
+  .siteFooter-mark {
+    display: none;
   }
 }

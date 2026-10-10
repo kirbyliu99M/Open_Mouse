@@ -334,6 +334,15 @@ and package-lock.json.
                           screens). Not traced from any photo, dataset or
                           third-party artwork. The logo is a placeholder, not
                           the final mark.
+  brand/palmate-mark.svg  The Palmate mark (a stylised hand with one dot), used
+                          in the site footer (2026-10-10). Drawn by Kirby in
+                          Pencil: an original work (Kirby's answer,
+                          2026-10-10). Not traced from any photo, dataset or
+                          third-party artwork. It is the same path as
+                          public/images/hero-palmate-mark.svg (the home logo
+                          version, in another pull request), cut differently
+                          and used differently. The mark is not final
+                          (candidate, 未拍板).
 
 
 5. Trademarks

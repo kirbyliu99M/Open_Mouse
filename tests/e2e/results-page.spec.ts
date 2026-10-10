@@ -127,7 +127,7 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
         "Based on the hand length you entered (190 mm). Measured without paper.",
     }),
   ).toHaveCount(1);
-  // The page carries no early-preview notice any more (the site footer does).
+  // The page carries no early-preview notice any more (nor does the site footer for now: Kirby, 2026-10-10).
   await expect(newTab.locator(".results-previewNotice")).toHaveCount(0);
   expect(
     await newTab.evaluate(() => {
