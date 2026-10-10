@@ -369,7 +369,7 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     const ctx = solidCanvas.ctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.font = font;
-    ctx.fillStyle = "rgba(207, 224, 255, 0.45)";
+    ctx.fillStyle = "rgba(220, 232, 255, 0.6)";
     drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
     const pattern = dotPattern(ctx, SOLID_SPACING[tier], dpr);
     if (!pattern) return null;

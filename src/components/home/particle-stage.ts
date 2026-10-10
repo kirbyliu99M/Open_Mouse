@@ -868,6 +868,11 @@ class Stage {
     }
     if (sheet) sheet.style.opacity = "";
     if (finaleParts.glow) finaleParts.glow.style.opacity = "";
+    if (finaleParts.glow) {
+      finaleParts.glow.style.left = "";
+      finaleParts.glow.style.right = "";
+      finaleParts.glow.style.width = "";
+    }
     if (this.skyCanvas) {
       this.skyCtx?.clearRect(0, 0, this.skyCanvas.width, this.skyCanvas.height);
       this.skyCanvas.style.left = "";
@@ -1251,6 +1256,14 @@ class Stage {
     }
     // For the e2e suite: how wide the sky is drawn (CSS px).
     sky.dataset.width = String(width);
+    // The finale's light spans the same width, so a phone's narrow column
+    // does not cut its circle off at the column's edges.
+    const glow = this.parts.finale.glow;
+    if (glow) {
+      glow.style.left = `${round3(-origin.left)}px`;
+      glow.style.right = "auto";
+      glow.style.width = `${width}px`;
+    }
     return { width, offsetX: origin.left };
   }
 
