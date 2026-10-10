@@ -393,6 +393,9 @@
   background: none;
   color: var(--accent-text);
   border-color: transparent;
+  /* No side padding, so "Try again" lines up with the paragraph above it. The
+     44px height stays. */
+  padding-inline: 0;
   text-decoration: none;
 }
 .results-analysis-retry:focus-visible {
@@ -559,22 +562,22 @@
  * Mobile first; the wide layout starts at 56rem. */
 
 /* The glow behind the hero (the approved design's blue haze, top right).
- * It is a box-shadow of a small, empty, decorative element, not a pseudo
- * element and not a background image: axe cannot work out a text colour's
- * background under either of those (it reports color-contrast as "needs
- * review" for everything on the page), and it ignores a box-shadow. A shadow
- * adds nothing to the scrollable width either. */
+ * It is a box-shadow of an empty, decorative element with no height, not a
+ * pseudo element and not a background image: axe cannot work out a text
+ * colour's background under either of those (it reports color-contrast as
+ * "needs review" for everything on the page), and it ignores a box-shadow. A
+ * shadow adds nothing to the scrollable width either. */
 .results-view {
   position: relative;
   isolation: isolate;
 }
 .results-glow {
   position: absolute;
-  /* The element has no height. An outer box-shadow is not painted inside the
-     element's own box, so a 6rem-tall ellipse showed the page background as a
-     black hole in the middle of its own glow. With no box there is no inside:
-     the shadow's spread (7rem) takes the height the box used to have, and the
-     side margins take back the width that the spread adds. */
+  /* The element has no height, on purpose. An outer box-shadow is not painted
+     inside the element's own box, so a box with a height shows the page
+     background as a black hole in the middle of its own glow. With no height
+     there is no inside: the shadow's spread (7rem) gives the haze its
+     thickness, and the side margins take back the width that the spread adds. */
   top: 3rem;
   /* Inside the page's width, centred at 70%: an element wider than a phone
      would add horizontal scroll (its box counts, its shadow does not). */
