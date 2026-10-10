@@ -32,14 +32,17 @@ export type Renderer = "webgl" | "2d";
  *   particles in the whole story: the hand's dust uses all of them, and the
  *   logo's and the mice's stars are a share of them (the lit shares in
  *   look.ts), so a bigger budget gives a finer dust and, in proportion, more
- *   stars (at the default shares a mouse has 300 stars on a 6,000 budget and
- *   600 on a 12,000 one). The choice between 4,000 / 8,000, 6,000 / 12,000 and
- *   10,000 / 20,000 is still open (the screenshots that were to decide it
- *   showed continuous lines and are gone), and the GPU's fill cost on a phone
+ *   stars (at the default shares the finale's figure has 1,125 stars on a
+ *   7,500 budget and 2,250 on a 15,000 one). 7,500 / 15,000 since 2026-10-11
+ *   (Kirby's OK): the hand's particles now fill its whole outline, about 27 %
+ *   more area than before, and the hand's dust uses the whole budget, so the
+ *   budget grew by 25 % (from 6,000 / 12,000) to keep about the same density.
+ *   Kirby judged a phone can take it; the slow-frame guard (degrade.ts) still
+ *   draws fewer when frames come slowly. The GPU's fill cost on a real phone
  *   has not been measured.
  */
 export const PARTICLE_BUDGET_2D = { mobile: 900, desktop: 1300 } as const;
-export const PARTICLE_BUDGET_GL = { mobile: 6000, desktop: 12000 } as const;
+export const PARTICLE_BUDGET_GL = { mobile: 7500, desktop: 15000 } as const;
 
 /** A device with this many logical cores or fewer gets half the particles. */
 export const LOW_END_CORES = 4;

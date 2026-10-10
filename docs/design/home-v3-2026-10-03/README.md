@@ -43,7 +43,9 @@ Still **not decided (未拍板, candidate)**:
 - A sticky "Scan" bar on mobile once the hero scrolls away.
 - The particle-count and performance numbers below. They are Claude's targets
   and must be measured on a real phone before they are treated as fixed. That
-  includes the WebGL stage's budgets (6,000 on a phone and 12,000 on a desktop),
+  includes the WebGL stage's budgets (7,500 on a phone and 15,000 on a desktop
+  since 2026-10-11, +25 % for the hand that fills its outline; 6,000 / 12,000
+  before),
   its slow-frame guard and its pixel-ratio caps (see
   [Rendering and performance](#rendering-and-performance-targets-未拍板-until-measured)).
 
@@ -569,7 +571,7 @@ are measured and **a phone GPU's cost of filling the soft points is not**.
 
   | Path                 | Phone | Desktop | Halved when `hardwareConcurrency <= 4` |
   | -------------------- | ----: | ------: | -------------------------------------- |
-  | WebGL                | 6,000 |  12,000 | yes                                    |
+  | WebGL                | 7,500 |  15,000 | yes                                    |
   | Canvas 2D (fallback) |   900 |   1,300 | yes                                    |
 
   On a device with 4 cores or fewer the Canvas 2D budget is 450 (phone) or

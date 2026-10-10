@@ -19,7 +19,8 @@ import { A4_MM, STAGE_SCALE } from "./template-hand";
  *
  * What counts for a look is the crowd, not the count: particles per pixel of
  * the picture. A phone's 6,000 particles on a 340 px sheet are as crowded as a
- * desktop's 12,000 on a 410 px one. These numbers are looks, not budgets (未拍板,
+ * desktop's 12,000 on a 410 px one (the budgets were 6,000 / 12,000 then; they
+ * are 7,500 / 15,000 since 2026-10-11, budget.ts). These numbers are looks, not budgets (未拍板,
  * tuned by eye from screenshots), and pure functions, so a test can pin their
  * direction and their limits.
  */
@@ -87,7 +88,9 @@ export function glLook(count: number, scale: number): GlLook {
  *
  * The logo's share is under the mice's because its stars sit on a short line.
  * Its value is the Palmate mark's (2026-10-10, 未拍板 candidate): the mark is
- * a cloud of 840 points about 2 to 4 units wide. Kirby asked for a denser
+ * a cloud of 840 points about 2 to 4 units wide. (The counts below are for
+ * the 6,000 / 12,000 budgets of that day; at 7,500 / 15,000, 2026-10-11, the
+ * logo has 1,050 / 2,100 stars and the finale's figure 1,125 / 2,250.) Kirby asked for a denser
  * mark twice: from the first 0.06 (720 stars on a desktop, 360 on a phone)
  * to 0.10, then to 0.14 with the tighter cloud. For scale: on a desktop's
  * 12,000 particles 0.14 is 1,680 stars on the logo, and 0.15 is 1,800 on the

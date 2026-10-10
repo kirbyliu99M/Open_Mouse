@@ -1064,7 +1064,7 @@ test.describe("the canvas follows the device", () => {
     [4, "4 cores"],
     [2, "2 cores"],
   ] as const) {
-    test(`the particle budget with ${label}: 6,000 on a phone and 12,000 on a desktop with WebGL (900 and 1,300 on Canvas 2D), halved at 4 or fewer`, async ({
+    test(`the particle budget with ${label}: 7,500 on a phone and 15,000 on a desktop with WebGL (900 and 1,300 on Canvas 2D), halved at 4 or fewer`, async ({
       page,
     }) => {
       await page.addInitScript((n) => {
@@ -1082,11 +1082,11 @@ test.describe("the canvas follows the device", () => {
       const expected = webgl
         ? cores <= 4
           ? wide
-            ? 6000
-            : 3000
+            ? 7500
+            : 3750
           : wide
-            ? 12000
-            : 6000
+            ? 15000
+            : 7500
         : cores <= 4
           ? wide
             ? 650

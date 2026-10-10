@@ -62,9 +62,11 @@ describe("what the canvas shares with the static drawings", () => {
 });
 
 describe("the particle budget", () => {
-  it("has two: the Canvas 2D fallback's 900 on a phone and 1,300 on a desktop (the old numbers, kept), and the WebGL path's 6,000 and 12,000 (candidate, 未拍板)", () => {
+  it("has two: the Canvas 2D fallback's 900 on a phone and 1,300 on a desktop (the old numbers, kept), and the WebGL path's 7,500 and 15,000 (candidate, 未拍板)", () => {
     expect(PARTICLE_BUDGET_2D).toEqual({ mobile: 900, desktop: 1300 });
-    expect(PARTICLE_BUDGET_GL).toEqual({ mobile: 6000, desktop: 12000 });
+    // 6,000 / 12,000 until 2026-10-11: +25 % with the hand filling its outline
+    // (Kirby's OK), to keep the hand's dust as dense as it was.
+    expect(PARTICLE_BUDGET_GL).toEqual({ mobile: 7500, desktop: 15000 });
   });
 
   it("the 2D fallback is exactly what the stage used before WebGL", () => {
@@ -77,13 +79,13 @@ describe("the particle budget", () => {
     expect(particleCount(true, 4, "2d")).toBe(650);
   });
 
-  it("the WebGL path is 6,000 on a phone and 12,000 on a desktop, halved on 4 cores or fewer", () => {
-    expect(particleCount(false, 8, "webgl")).toBe(6000);
-    expect(particleCount(true, 8, "webgl")).toBe(12000);
-    expect(particleCount(true, undefined, "webgl")).toBe(12000);
-    expect(particleCount(false, 4, "webgl")).toBe(3000);
-    expect(particleCount(true, 2, "webgl")).toBe(6000);
-    expect(particleCount(false, 5, "webgl")).toBe(6000);
+  it("the WebGL path is 7,500 on a phone and 15,000 on a desktop, halved on 4 cores or fewer", () => {
+    expect(particleCount(false, 8, "webgl")).toBe(7500);
+    expect(particleCount(true, 8, "webgl")).toBe(15000);
+    expect(particleCount(true, undefined, "webgl")).toBe(15000);
+    expect(particleCount(false, 4, "webgl")).toBe(3750);
+    expect(particleCount(true, 2, "webgl")).toBe(7500);
+    expect(particleCount(false, 5, "webgl")).toBe(7500);
   });
 
   it("is halved on 4 cores or fewer, and 0 or missing cores mean unknown, not low end", () => {

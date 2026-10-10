@@ -328,32 +328,20 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
   const solidCanvas = makeCanvas(maskWidth * dpr, maskHeight * dpr);
   const whiteCanvas = makeCanvas(maskWidth * dpr, maskHeight * dpr);
   if (solidCanvas && whiteCanvas) {
-    const fine = sampleMask(letterAlpha, maskWidth, maskHeight, {
-      spacing: SOLID_SPACING[tier],
-      letters,
-      seed: FINALE_SEED + 2,
-      jitter: 0.18,
-      // Edge or not does not matter for this image: no outline distances.
-      edgeWidth: 0,
-    });
-    const r = mulberry32(FINALE_SEED + 3);
+    // The letters filled with a fine hexagonal field of dots (a pattern,
+    // so this costs one fill, not a dot at a time: sampling the dots one by
+    // one took about 300 ms at 4 times the CPU), over a faint plain fill so
+    // they read as solid.
     const ctx = solidCanvas.ctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // A faint fill under the dots, so the letters read as solid.
     ctx.font = font;
     ctx.fillStyle = "rgba(207, 224, 255, 0.28)";
     drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
-    DEPTH_LAYERS.forEach((look, layer) => {
-      ctx.fillStyle = look.colour;
-      ctx.globalAlpha = look.alpha;
-      ctx.beginPath();
-      for (const p of fine.particles) {
-        if (depthOf(p.x + maskX, p.y + maskY, r()).layer !== layer) continue;
-        const s = look.px * 0.82;
-        ctx.rect(p.x - s / 2, p.y - s / 2, s, s);
-      }
-      ctx.fill();
-    });
+    const pattern = dotPattern(ctx, SOLID_SPACING[tier], dpr);
+    if (pattern) {
+      ctx.fillStyle = pattern;
+      drawGlyphs(ctx, glyphs, -maskX, -maskY, 0);
+    }
     ctx.globalAlpha = 1;
     solid = asImage(solidCanvas.canvas);
     const w = whiteCanvas.ctx;
@@ -403,6 +391,45 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     width: input.width,
     height: input.height,
   };
+}
+
+/**
+ * A repeating tile of dots on a hexagonal grid `spacing` CSS px apart, in the
+ * formed letters' brightest colours (finale-motion.ts's DEPTH_LAYERS), for a
+ * canvas drawn at `dpr`. Null when no tile can be made.
+ */
+function dotPattern(
+  ctx: AnyContext,
+  spacing: number,
+  dpr: number,
+): CanvasPattern | null {
+  const w = spacing;
+  const h = spacing * Math.sqrt(3);
+  const tile = makeCanvas(w * dpr, h * dpr);
+  if (!tile) return null;
+  const t = tile.ctx;
+  t.setTransform(Math.ceil(w * dpr) / w, 0, 0, Math.ceil(h * dpr) / h, 0, 0);
+  const dots: [number, number, number][] = [
+    [w / 2, h / 4, 4],
+    [0, (3 * h) / 4, 3],
+    [w, (3 * h) / 4, 3],
+  ];
+  for (const [x, y, layer] of dots) {
+    const look = DEPTH_LAYERS[layer]!;
+    t.globalAlpha = look.alpha;
+    t.fillStyle = look.colour;
+    const r = (look.px * 0.82) / 2;
+    t.beginPath();
+    t.arc(x, y, r, 0, Math.PI * 2);
+    t.fill();
+  }
+  const pattern = ctx.createPattern(tile.canvas, "repeat");
+  if (!pattern) return null;
+  // The tile is in device px: back to CSS px, where the context draws.
+  pattern.setTransform(
+    new DOMMatrix().scale(w / Math.ceil(w * dpr), h / Math.ceil(h * dpr)),
+  );
+  return pattern;
 }
 
 function drawStars(
