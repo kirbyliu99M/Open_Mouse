@@ -30,6 +30,8 @@ export const LATE_SWITCH_IDLE_MS = 300;
 /** The panel's fade out before the switch and in after it (ms). Opacity only. 未拍板 (candidate). */
 export const LATE_FADE_OUT_MS = 180;
 export const LATE_FADE_IN_MS = 320;
+/** The switch waits this much past the fade out's end (about two frames), so the panel is fully transparent by then. */
+export const LATE_FADE_MARGIN_MS = 34;
 
 /** A point of the static story that matches a progress of the animated one. */
 export interface StoryAnchor {
@@ -45,16 +47,20 @@ export interface StaticBlock {
 }
 
 /**
- * Where each part of the static story is matched in the animated one: the
- * section's top edge is p = 0, the hand's middle the formed hand (p = 0.38),
- * the annotations' middle the middle of their windows (p = 0.5), the mice's
- * middle the settled mice (p = 0.9), and the section's bottom edge p = 1.
+ * Where each part of the static story is matched in the animated one, so the
+ * reader lands on the step that shows what they were looking at: the
+ * section's top edge is p = 0 (the hero); the static hand's top edge the
+ * formed hand (p = 0.38), so a reader looking at the hand gets the hand; the
+ * annotations' top edge the lit, measured hand (p = 0.47, in the notes'
+ * windows); the mice's top edge the start of story 6 (p = 0.72) and their
+ * bottom edge the settled mice (p = 0.9); the section's bottom edge p = 1.
  * 未拍板 (candidate), like the rest of the timing.
  */
 export const ANCHOR_PROGRESS = {
-  hand: MARKS.handFormed,
-  notes: 0.5,
-  mice: MARKS.miceSettled,
+  handTop: MARKS.handFormed,
+  notesTop: 0.47,
+  miceTop: 0.72,
+  miceBottom: MARKS.miceSettled,
 } as const;
 
 export function storyAnchors(input: {
@@ -63,13 +69,16 @@ export function storyAnchors(input: {
   readonly notes: StaticBlock | null;
   readonly mice: StaticBlock | null;
 }): StoryAnchor[] {
-  const middle = (block: StaticBlock | null) =>
-    block ? block.top + block.height / 2 : null;
+  const { hand, notes, mice } = input;
   const list: { offset: number | null; progress: number }[] = [
     { offset: 0, progress: 0 },
-    { offset: middle(input.hand), progress: ANCHOR_PROGRESS.hand },
-    { offset: middle(input.notes), progress: ANCHOR_PROGRESS.notes },
-    { offset: middle(input.mice), progress: ANCHOR_PROGRESS.mice },
+    { offset: hand ? hand.top : null, progress: ANCHOR_PROGRESS.handTop },
+    { offset: notes ? notes.top : null, progress: ANCHOR_PROGRESS.notesTop },
+    { offset: mice ? mice.top : null, progress: ANCHOR_PROGRESS.miceTop },
+    {
+      offset: mice ? mice.top + mice.height : null,
+      progress: ANCHOR_PROGRESS.miceBottom,
+    },
     { offset: input.staticHeight, progress: 1 },
   ];
   // Only anchors that go forward in both: a block that is missing, or that a

@@ -35,9 +35,10 @@ describe("storyAnchors", () => {
   it("matches the top, the hand, the notes, the mice and the end of the static story to the story's marks", () => {
     expect(anchors).toEqual([
       { offset: 0, progress: 0 },
-      { offset: 707 + 749 / 2, progress: MARKS.handFormed },
-      { offset: 1488 + 395 / 2, progress: ANCHOR_PROGRESS.notes },
-      { offset: 1931 + 185 / 2, progress: MARKS.miceSettled },
+      { offset: 707, progress: MARKS.handFormed },
+      { offset: 1488, progress: ANCHOR_PROGRESS.notesTop },
+      { offset: 1931, progress: ANCHOR_PROGRESS.miceTop },
+      { offset: 1931 + 185, progress: MARKS.miceSettled },
       { offset: STATIC_HEIGHT, progress: 1 },
     ]);
   });
@@ -46,12 +47,12 @@ describe("storyAnchors", () => {
     const got = storyAnchors({
       staticHeight: 1000,
       hand: null,
-      notes: { top: 400, height: 100 }, // middle 450
-      mice: { top: 300, height: 100 }, // middle 350: before the notes
+      notes: { top: 400, height: 100 },
+      mice: { top: 300, height: 100 }, // top 300: before the notes; bottom 400: the same
     });
     expect(got).toEqual([
       { offset: 0, progress: 0 },
-      { offset: 450, progress: ANCHOR_PROGRESS.notes },
+      { offset: 400, progress: ANCHOR_PROGRESS.notesTop },
       { offset: 1000, progress: 1 },
     ]);
   });
@@ -82,12 +83,9 @@ describe("progressAtOffset", () => {
     expect(progressAtOffset(Number.NaN, anchors)).toBe(0);
   });
 
-  it("puts the hand's middle at the formed hand and the mice's middle at the settled mice", () => {
-    expect(progressAtOffset(707 + 749 / 2, anchors)).toBeCloseTo(
-      MARKS.handFormed,
-      10,
-    );
-    expect(progressAtOffset(1931 + 185 / 2, anchors)).toBeCloseTo(
+  it("puts the hand's top edge at the formed hand and the mice's bottom edge at the settled mice", () => {
+    expect(progressAtOffset(707, anchors)).toBeCloseTo(MARKS.handFormed, 10);
+    expect(progressAtOffset(1931 + 185, anchors)).toBeCloseTo(
       MARKS.miceSettled,
       10,
     );
@@ -123,12 +121,17 @@ describe("planLateSwitch", () => {
     // A reload at scrollY 500: the section's top is at -444.
     const got = plan(-444);
     expect(got.fade).toBe(true);
+    // The point being read is 714 px in, just past the hand's top edge (707):
+    // the reader is shown the formed hand.
     const offset = 444 + (444 / (STATIC_HEIGHT - VH)) * VH;
-    const want = (MARKS.handFormed * offset) / (707 + 749 / 2);
+    expect(offset).toBeCloseTo(713.7, 1);
+    const want =
+      MARKS.handFormed +
+      ((offset - 707) / (1488 - 707)) *
+        (ANCHOR_PROGRESS.notesTop - MARKS.handFormed);
     expect(got.progress).toBeCloseTo(want, 10);
-    // Between the scatter and the formed hand, as the hand is coming into view.
-    expect(got.progress).toBeGreaterThan(0.15);
-    expect(got.progress).toBeLessThan(MARKS.handFormed);
+    expect(got.progress).toBeGreaterThan(MARKS.handFormed);
+    expect(got.progress).toBeLessThan(0.4);
     // And the target top gives that progress back.
     expect(sectionProgress(got.targetTop, ANIMATED_HEIGHT, VH)).toBeCloseTo(
       got.progress,
@@ -161,7 +164,9 @@ describe("planLateSwitch", () => {
 
   it("is continuous where the story's end comes into view", () => {
     const edge = VH - STATIC_HEIGHT; // the bottom edge at the viewport's bottom
-    expect(plan(edge + 0.01).progress).toBeCloseTo(1, 4);
+    // (The last anchor segment here is the 1 px from the mice's bottom edge to
+    // the section's, so the slope is steep, but there is no step.)
+    expect(plan(edge + 0.01).progress).toBeCloseTo(1, 2);
     expect(plan(edge).progress).toBe(1);
   });
 

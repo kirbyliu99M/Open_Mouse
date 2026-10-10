@@ -23,6 +23,7 @@ import {
 } from "@/lib/particles/gl-buffers";
 import {
   LATE_FADE_IN_MS,
+  LATE_FADE_MARGIN_MS,
   LATE_FADE_OUT_MS,
   LATE_SWITCH_IDLE_MS,
   type StaticBlock,
@@ -502,7 +503,7 @@ class Stage {
       if (this.lateState !== "fading") return;
       this.lateState = "none";
       this.switchLate(true);
-    }, LATE_FADE_OUT_MS);
+    }, LATE_FADE_OUT_MS + LATE_FADE_MARGIN_MS);
   };
 
   /**
