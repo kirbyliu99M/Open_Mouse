@@ -1,7 +1,7 @@
 import { densifyStrokesSteps } from "./dense";
+import { createHandFiller } from "./hand-fill";
 import { type TargetPoint, resampleToCount } from "./sampling";
 import type { ParticleTargets } from "./targets";
-import { createHandFiller } from "./template-hand";
 
 /**
  * Pairing of the particle story's targets (Home v3, PR B; spec: docs/design/

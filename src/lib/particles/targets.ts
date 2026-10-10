@@ -1,5 +1,6 @@
 import { FINALE_SKETCH } from "./finale-targets";
 import type { Polyline, Vec } from "./geometry";
+import { fillTemplateHand } from "./hand-fill";
 import { LOGO_BOX, sampleLogoPoints } from "./logo";
 import {
   type StrokeRun,
@@ -17,7 +18,6 @@ import {
   STAGE_SCALE,
   TICK_MM,
   WIDTH_LINE_MM,
-  fillTemplateHand,
 } from "./template-hand";
 
 /**
