@@ -87,13 +87,14 @@ export function glLook(count: number, scale: number): GlLook {
  *
  * The logo's share is under the mice's because its stars sit on a short line.
  * Its value is the Palmate mark's (2026-10-10, 未拍板 candidate): the mark is
- * a cloud of 600 points about 4 units wide, and Kirby chose a denser one than
- * the first 0.06 (720 stars on a desktop, 360 on a phone). For scale: on a
- * desktop's 12,000 particles 0.10 is 1,200 stars on the logo, and 0.15 is
- * 1,800 on the mice, 600 to a mouse; a phone's 6,000 has half as many (600
- * on the logo). Kirby picks the set in screenshots.
+ * a cloud of 840 points about 2 to 3 units wide. Kirby asked for a denser
+ * mark twice: from the first 0.06 (720 stars on a desktop, 360 on a phone)
+ * to 0.10, then to 0.14 with the tighter cloud. For scale: on a desktop's
+ * 12,000 particles 0.14 is 1,680 stars on the logo, and 0.15 is 1,800 on the
+ * mice, 600 to a mouse; a phone's 6,000 has half as many (840 on the logo).
+ * Kirby picks the set in screenshots.
  */
-export const LIT_FRACTION = { logo: 0.1, hand: 1, mouse: 0.15 } as const;
+export const LIT_FRACTION = { logo: 0.14, hand: 1, mouse: 0.15 } as const;
 
 export type StateName = keyof typeof LIT_FRACTION;
 
@@ -105,8 +106,8 @@ export type StateName = keyof typeof LIT_FRACTION;
  * bigger so the logo has the same weight as the accepted picture. The Palmate
  * mark (2026-10-10) is 1.35 raised to 1.7 for the denser share above: more
  * lit stars make the look's base size smaller (the crowd), and at 1.35 the
- * dots read much smaller than the 600-dot picture Kirby chose from. 未拍板,
- * tuned by eye from screenshots.
+ * dots read much smaller than the 600-dot picture Kirby chose from. It stays
+ * 1.7 with the share at 0.14. 未拍板, tuned by eye from screenshots.
  */
 export const STAR_SIZE = { logo: 1.7, hand: 1, mouse: 1 } as const;
 

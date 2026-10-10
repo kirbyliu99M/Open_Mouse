@@ -43,13 +43,16 @@ export const LOGO_SEED = 20261010;
  * How the cloud is made. All lengths are viewBox units unless they say px.
  *
  * - `particles` points lie along the path, which is 349 units long. They sit at
- *   `particles / (1 + doubled)` places an even step apart (about 0.73 units),
- *   and `doubled` of those places carry two points instead of one. (Every
- *   0.55 units with one or two points each would be 634 places and well over
- *   600 points; this keeps the count at 600 and the one-or-two mix.)
+ *   `particles / (1 + doubled)` places an even step apart (667 places, about
+ *   0.52 units), and `doubled` of those places carry two points instead of
+ *   one (173 of them).
  * - Each point is moved across the line by a bell-shaped amount, `spread` units
- *   wide (one standard deviation) and never past `maxSpread`, so the line has
- *   a width of about 4 to 5 units and no hard edge.
+ *   wide (one standard deviation) and never past `maxSpread` (3.2 of them), so
+ *   the line has a width of about 2 to 3 units and no hard edge.
+ * - Density (Kirby, 2026-10-10, who asked twice for a denser, tighter mark):
+ *   the first cut was 600 points, spread 0.8 and at most 2.4; it is now 840
+ *   points (1.4 times), spread 0.5 and at most 1.6 (variant B of three
+ *   compared in screenshots).
  * - `brightShare` of the points are the bright tone, the others the dim one.
  * - The dot (`PALMATE_DOT`, a white disc in a blue ring) is drawn with the
  *   two tones the particles have: `dotCore` bright points close together at
@@ -64,10 +67,10 @@ export const LOGO_SEED = 20261010;
  *   nearer than `ambientHole` px to the box and `ambientGap` px to each other.
  */
 export const LOGO_SAMPLING = {
-  particles: 600,
+  particles: 840,
   doubled: 0.26,
-  spread: 0.8,
-  maxSpread: 2.4,
+  spread: 0.5,
+  maxSpread: 1.6,
   brightShare: 0.5,
   dotCore: 3,
   dotCoreRadius: 0.35,
