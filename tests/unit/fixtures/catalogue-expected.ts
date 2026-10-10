@@ -26,4 +26,10 @@ export const CATALOGUE_EXPECTED = {
   eloshapes: 383,
   /** Candidates whose descriptors are inferred. */
   inferred: 8,
+  /** CAT-2: candidates by connectivity (wireless includes wired-and-wireless mice). */
+  candidateConnectivity: { wired: 78, wireless: 327, unknown: 1 },
+  /** CAT-2: every built row (seed rows + imported). */
+  rowConnectivity: { wired: 79, wireless: 349, unknown: 1 },
+  /** CAT-2: the listed rows only. */
+  listedConnectivity: { wired: 78, wireless: 332, unknown: 1 },
 } as const;
