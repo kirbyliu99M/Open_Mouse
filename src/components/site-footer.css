@@ -97,6 +97,9 @@
 }
 .siteFooter-name {
   color: var(--text-primary);
+  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
+  font-family: var(--font-brand), system-ui, sans-serif;
+  letter-spacing: -0.0167em;
   font-size: 1.375rem;
   font-weight: 700;
   line-height: 1.2;

@@ -334,7 +334,8 @@ and package-lock.json.
                           third-party artwork. It is the same path and the
                           same dot as public/images/hero-palmate-mark.svg (the
                           home logo), cut differently (viewBox 10 10 70 70)
-                          and drawn with a 1.7-unit stroke. The mark is not
+                          and drawn with a 1.4-unit stroke (as in Kirby's
+                          official logo frame in Pencil). The mark is not
                           final (candidate, 未拍板).
   hero-palmate-mark.svg   The Palmate mark: drawn by Kirby in Pencil
                           (original work). Written by

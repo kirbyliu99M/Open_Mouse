@@ -19,9 +19,11 @@
   margin-bottom: 1.5rem;
 }
 .home-wordmark {
+  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
+  font-family: var(--font-brand), system-ui, sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.0167em;
   color: var(--text-primary);
 }
 .home-nav-actions {

@@ -8,8 +8,10 @@
  */
 import type { UiLanguage } from "../../../client/uiLanguage";
 import type { FitResponse } from "../../../lib/contracts/fit";
+import { SITE_NAME } from "../../../lib/site";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
+  MARK_SRC,
   PHOTO_RADIUS,
   layoutShareCard,
   qrGrid,
@@ -38,6 +40,8 @@ interface Theme {
   detail: string;
   colors: Record<ColorKey, string>;
   fontStack: string;
+  /** The wordmark's family (Inter 700 from next/font), then the site's stack. */
+  brandStack: string;
 }
 
 function readTheme(): Theme {
@@ -60,11 +64,34 @@ function readTheme(): Theme {
     },
     // The site's own font stack (globals.css sets it on :root).
     fontStack: style.fontFamily.trim() || FALLBACK_STACK,
+    // layout.tsx sets --font-brand on <html> (next/font); without it the name
+    // is drawn in plain Inter if installed, else in the site's stack.
+    brandStack: [
+      style.getPropertyValue("--font-brand").trim() || "Inter",
+      style.fontFamily.trim() || FALLBACK_STACK,
+    ].join(", "),
   };
 }
 
-function fontString(font: FontSpec, stack: string): string {
-  return `${font.weight} ${font.size}px ${stack}`;
+function fontString(font: FontSpec, theme: Theme): string {
+  return `${font.weight} ${font.size}px ${font.brand ? theme.brandStack : theme.fontStack}`;
+}
+
+/**
+ * Sets the font for measuring or drawing. The wordmark also takes its -0.0167em
+ * (-0.3/18) tracking, so the card's name is spaced like the site's. `letterSpacing`
+ * is a newer canvas property: where it is missing the assignment does nothing and
+ * measure and draw still agree with each other.
+ */
+function applyFont(
+  ctx: CanvasRenderingContext2D,
+  font: FontSpec,
+  theme: Theme,
+): void {
+  ctx.font = fontString(font, theme);
+  ctx.letterSpacing = font.brand
+    ? `${(-0.0167 * font.size).toFixed(2)}px`
+    : "0px";
 }
 
 function roundRectPath(
@@ -115,9 +142,17 @@ function drawSilhouette(
   ctx.restore();
 }
 
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+function loadImage(
+  src: string,
+  /** A size for an SVG with only a viewBox, which some browsers cannot draw without one. */
+  size?: number,
+): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
+    if (size !== undefined) {
+      img.width = size;
+      img.height = size;
+    }
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = src;
@@ -180,6 +215,7 @@ async function paint(
   ops: readonly DrawOp[],
   theme: Theme,
   photo: HTMLImageElement | null,
+  mark: HTMLImageElement | null,
   width: number,
   height: number,
 ): Promise<void> {
@@ -196,7 +232,7 @@ async function paint(
         break;
       }
       case "text": {
-        ctx.font = fontString(op.font, theme.fontStack);
+        applyFont(ctx, op.font, theme);
         ctx.fillStyle = theme.colors[op.color];
         ctx.textAlign = op.align;
         ctx.textBaseline = "alphabetic";
@@ -227,6 +263,11 @@ async function paint(
         if (photo) drawPhoto(ctx, photo, op.box, PHOTO_RADIUS);
         break;
       }
+      case "mark": {
+        // Drawn as is (no glow). If the image is gone the name is already at the margin.
+        if (mark) ctx.drawImage(mark, op.box.x, op.box.y, op.box.w, op.box.h);
+        break;
+      }
       case "silhouette":
         drawSilhouette(ctx, op.box, theme.detail);
         break;
@@ -243,9 +284,17 @@ export async function makeShareCardPng(
   lang: UiLanguage,
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
-  // wrap the text for one font and paint it in another.
+  // wrap the text for one font and paint it in another. The wordmark's Inter
+  // 700 is asked for by name, so it is loaded even if no text on the page uses
+  // it yet; a failed load falls back to the stack and both measure and draw use
+  // that same stack.
   await document.fonts.ready;
   const theme = readTheme();
+  try {
+    await document.fonts.load(`700 48px ${theme.brandStack}`, SITE_NAME);
+  } catch {
+    // The stack's next family is used.
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -255,15 +304,17 @@ export async function makeShareCardPng(
 
   const photoPath = topPickPhotoPath(fit);
   const photo = photoPath ? await loadImage(photoPath) : null;
-  const input = buildShareCardInput(fit, lang, photo ? photoPath : null);
-  if (!input) throw new Error("There is no result to share.");
+  const mark = await loadImage(MARK_SRC, 256);
+  const built = buildShareCardInput(fit, lang, photo ? photoPath : null);
+  if (!built) throw new Error("There is no result to share.");
+  const input = { ...built, markSrc: mark ? MARK_SRC : null };
 
   const measure: MeasureText = (text, font) => {
-    ctx.font = fontString(font, theme.fontStack);
+    applyFont(ctx, font, theme);
     return ctx.measureText(text).width;
   };
   const layout = layoutShareCard(input, measure);
-  await paint(ctx, layout.ops, theme, photo, layout.width, layout.height);
+  await paint(ctx, layout.ops, theme, photo, mark, layout.width, layout.height);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

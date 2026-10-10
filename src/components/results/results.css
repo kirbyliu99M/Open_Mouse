@@ -595,7 +595,10 @@
   grid-column: 2;
   display: none;
   color: var(--text-primary);
-  font-weight: 600;
+  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
+  font-family: var(--font-brand), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.0167em;
   text-decoration: none;
 }
 .results-topBar-share {
