@@ -3,7 +3,7 @@
  * It describes the MOUSE that suits the person (size class, grip, width), never
  * the hand, and never compares anyone with anyone else (Kirby, 2026-10-09).
  *
- * `fit.handType` is optional and the default engine (fit-v0) does not send it:
+ * `fit.handType` is optional: the default engine (fit-v1, since 2026-10-10) sends it, fit-v0 does not:
  * with no hand type there is no label, and nothing is guessed. Pure.
  */
 import type { HandType } from "../contracts/fit";

@@ -172,8 +172,8 @@ export function scoreMouseV1(
 /**
  * The fit-v1 candidate engine (docs/fit-algorithm.md). Same inputs as
  * `scoreFit` plus the precomputed `priors` (`computePriors(catalogue)`), so it
- * stays a pure function of its arguments. `scoreFit` (v0) is untouched and
- * stays the default engine.
+ * stays a pure function of its arguments. `scoreFit` (v0) is untouched; v1 has been the
+ * default engine since 2026-10-10 (Kirby), still a candidate.
  *
  * Differences from v0, in short: the grip is a soft blend when none is stated,
  * so a mouse's total is Σ_g w_g · total_g and is continuous in palm length;

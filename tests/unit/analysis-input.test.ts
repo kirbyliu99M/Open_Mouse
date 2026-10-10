@@ -147,3 +147,32 @@ describe("buildAnalysisInput excluded totals", () => {
     expect(collectNumbers(input).has(58)).toBe(false);
   });
 });
+
+describe("buildAnalysisInput — fit-v1 grip weights", () => {
+  const raw = {
+    palm: 0.24696504024757157,
+    claw: 0.552849419090578,
+    fingertip: 0.20018554066185035,
+  };
+  const fit = makeFit({
+    engineVersion: "fit-v1-candidate.2",
+    gripStyle: { stated: null, predicted: "claw", used: "claw", weights: raw },
+  });
+
+  it("rounds the weights to two decimals, and the raw floats are not in the input", () => {
+    const input = buildAnalysisInput(fit, makeMeasurements());
+    expect(input.gripStyle.weights).toEqual({
+      palm: 0.25,
+      claw: 0.55,
+      fingertip: 0.2,
+    });
+    const numbers = collectNumbers(input);
+    for (const v of Object.values(raw)) expect(numbers.has(v)).toBe(false);
+    expect(numbers.has(0.55)).toBe(true);
+  });
+
+  it("leaves the fit response itself unchanged", () => {
+    buildAnalysisInput(fit, makeMeasurements());
+    expect(fit.gripStyle.weights).toEqual(raw);
+  });
+});
