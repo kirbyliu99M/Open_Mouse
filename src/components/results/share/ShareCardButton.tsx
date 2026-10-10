@@ -5,6 +5,7 @@ import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { shareCardCopy } from "@/lib/copy/share-card";
 import { shareFileName, topPick } from "./input";
+import type { QrStyle } from "./qrStyle";
 import { deliverShareFile } from "./shareDecision";
 import "./share.css";
 
@@ -13,6 +14,10 @@ export interface ShareCardButtonProps {
   lang: UiLanguage;
   /** "link" is the small 分享 in the top bar; "primary" is the big 製作我的分享圖. */
   variant: "link" | "primary";
+  /** The QR panel's side in pixels; only a preview route passes it. */
+  qrSize?: number;
+  /** The QR code's style; only a preview route passes it (default classic). */
+  qrStyle?: QrStyle;
 }
 
 type Status = "idle" | "busy" | "error";
@@ -36,7 +41,13 @@ function downloadFile(file: File): void {
  * top pick, the hand type and the site's QR code: no photo of the hand, no
  * measurement, no scan id.
  */
-export function ShareCardButton({ fit, lang, variant }: ShareCardButtonProps) {
+export function ShareCardButton({
+  fit,
+  lang,
+  variant,
+  qrSize,
+  qrStyle,
+}: ShareCardButtonProps) {
   const [status, setStatus] = useState<Status>("idle");
   const running = useRef(false);
   const top = topPick(fit);
@@ -53,7 +64,7 @@ export function ShareCardButton({ fit, lang, variant }: ShareCardButtonProps) {
     try {
       // The card code, and with it `qrcode`, loads on the first click.
       const { makeShareCardPng } = await import("./render");
-      const blob = await makeShareCardPng(fit, lang);
+      const blob = await makeShareCardPng(fit, lang, { qrSize, qrStyle });
       const file = new File([blob], shareFileName(top.mouse.slug), {
         type: "image/png",
       });

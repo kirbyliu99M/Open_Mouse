@@ -328,8 +328,7 @@ and package-lock.json.
                           Home v3 recoloured its strokes (#CFE0FF / #6E9BF5)
                           for the dark theme; the shape is unchanged.
   brand/palmate-mark.svg  The Palmate mark (a stylised hand with one dot), used
-                          in the site footer, the error pages and the results
-                          share card (2026-10-10). Drawn by Kirby in
+                          in the site footer and the error pages (2026-10-10). Drawn by Kirby in
                           Pencil: an original work (Kirby's answer,
                           2026-10-10). Not traced from any photo, dataset or
                           third-party artwork. It is the same path and the
@@ -337,7 +336,9 @@ and package-lock.json.
                           home logo), cut differently (viewBox 10 10 70 70)
                           and drawn with a 1.4-unit stroke (as in Kirby's
                           official logo frame in Pencil). The mark is not
-                          final (candidate, 未拍板).
+                          final (candidate, 未拍板). The results share card draws
+                          the same path from data (src/lib/brand/palmate-mark.ts,
+                          with Path2D), not from this file.
   hero-palmate-mark.svg   The Palmate mark: drawn by Kirby in Pencil
                           (original work). Written by
                           scripts/build-particle-targets.ts from

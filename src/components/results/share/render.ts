@@ -11,15 +11,30 @@ import type { FitResponse } from "../../../lib/contracts/fit";
 import { SITE_NAME } from "../../../lib/site";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
-  MARK_SRC,
   PHOTO_RADIUS,
+  type ShareCardOptions,
   layoutShareCard,
-  qrGrid,
   type Box,
   type ColorKey,
   type DrawOp,
 } from "./layout";
+import {
+  QR_STYLE_SPECS,
+  SOFT_LIGHT_PANEL_FILL,
+  dotGeometry,
+  finderOrigins,
+  isFinderCell,
+  qrStyleGrid,
+  type QrStyle,
+} from "./qrStyle";
 import type { FontSpec, MeasureText } from "./text";
+import {
+  PALMATE_MARK_DOT,
+  PALMATE_MARK_PATH,
+  PALMATE_MARK_STROKE,
+  PALMATE_MARK_STROKE_WIDTH,
+  PALMATE_MARK_VIEWBOX,
+} from "../../../lib/brand/palmate-mark";
 
 /** The values of tokens.css, used when a token cannot be read. */
 const TOKEN_FALLBACK = {
@@ -142,17 +157,9 @@ function drawSilhouette(
   ctx.restore();
 }
 
-function loadImage(
-  src: string,
-  /** A size for an SVG with only a viewBox, which some browsers cannot draw without one. */
-  size?: number,
-): Promise<HTMLImageElement | null> {
+function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    if (size !== undefined) {
-      img.width = size;
-      img.height = size;
-    }
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = src;
@@ -178,33 +185,130 @@ function drawPhoto(
   ctx.restore();
 }
 
+/** The Palmate mark, drawn from its path data scaled to `box`. */
+function drawMark(ctx: CanvasRenderingContext2D, box: Box): void {
+  const vb = PALMATE_MARK_VIEWBOX;
+  const scale = box.w / vb.w;
+  ctx.save();
+  ctx.translate(box.x, box.y);
+  ctx.scale(scale, scale);
+  ctx.translate(-vb.x, -vb.y);
+  ctx.strokeStyle = PALMATE_MARK_STROKE;
+  ctx.lineWidth = PALMATE_MARK_STROKE_WIDTH;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke(new Path2D(PALMATE_MARK_PATH));
+  // The core dot: a filled disc inside a ring whose outer edge is the radius.
+  const d = PALMATE_MARK_DOT;
+  ctx.beginPath();
+  ctx.arc(d.cx, d.cy, d.outerRadius - d.ringWidth / 2, 0, Math.PI * 2);
+  ctx.fillStyle = d.fillColor;
+  ctx.fill();
+  ctx.strokeStyle = d.ringColor;
+  ctx.lineWidth = d.ringWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A rounded ring (outer square minus inner square), pixel-aligned. */
+function drawEye(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  step: number,
+  ring: string,
+  center: string,
+): void {
+  const s = step;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 7 * s, 7 * s, 1.8 * s);
+  ctx.roundRect(x + s, y + s, 5 * s, 5 * s, 1.0 * s);
+  ctx.fillStyle = ring;
+  ctx.fill("evenodd");
+  ctx.beginPath();
+  ctx.roundRect(x + 2 * s, y + 2 * s, 3 * s, 3 * s, 0.9 * s);
+  ctx.fillStyle = center;
+  ctx.fill();
+}
+
+function drawQrPanel(
+  ctx: CanvasRenderingContext2D,
+  box: Box,
+  style: QrStyle,
+): void {
+  const panel = QR_STYLE_SPECS[style].panel;
+  if (!panel) return;
+  const radius = panel.radius(box.w);
+  roundRectPath(ctx, box, radius);
+  if (panel.fill === "white") {
+    ctx.fillStyle = "#ffffff";
+  } else if (panel.fill === "softLight") {
+    ctx.fillStyle = SOFT_LIGHT_PANEL_FILL;
+  } else {
+    // The photo frame's own fill.
+    const g = ctx.createRadialGradient(
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      0,
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      box.w * 0.7,
+    );
+    g.addColorStop(0, "#14284f");
+    g.addColorStop(1, "#0c0e13");
+    ctx.fillStyle = g;
+  }
+  ctx.fill();
+  if (panel.border) {
+    ctx.strokeStyle = panel.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
 async function drawQr(
   ctx: CanvasRenderingContext2D,
   box: Box,
   text: string,
   dark: string,
+  style: QrStyle,
 ): Promise<void> {
   const { default: QRCode } = await import("qrcode");
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = qr.modules.size;
-  const { step, offset } = qrGrid(box.w, size, 3);
+  const spec = QR_STYLE_SPECS[style];
+  const { step, offset } = qrStyleGrid(style, box.w, size);
   ctx.save();
-  ctx.fillStyle = "#ffffff";
-  roundRectPath(ctx, box, 28);
-  ctx.fill();
-  // Whole-pixel squares, no anti-aliased seams between neighbouring modules.
+  drawQrPanel(ctx, box, style);
+  // Whole-pixel placement, no anti-aliased seams between neighbouring modules.
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = dark;
+  ctx.fillStyle = spec.moduleColor ?? dark;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
-      if (qr.modules.get(row, col) === 1) {
-        ctx.fillRect(
-          box.x + offset + col * step,
-          box.y + offset + row * step,
-          step,
-          step,
-        );
+      if (qr.modules.get(row, col) !== 1) continue;
+      if (spec.eye && isFinderCell(row, col, size)) continue;
+      const x = box.x + offset + col * step;
+      const y = box.y + offset + row * step;
+      if (spec.moduleShape === "dot") {
+        const d = dotGeometry(x, y, step);
+        ctx.beginPath();
+        ctx.arc(d.cx, d.cy, d.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, step, step);
       }
+    }
+  }
+  if (spec.eye) {
+    for (const o of finderOrigins(size)) {
+      drawEye(
+        ctx,
+        box.x + offset + o.col * step,
+        box.y + offset + o.row * step,
+        step,
+        spec.eye.ring,
+        spec.eye.center,
+      );
     }
   }
   ctx.restore();
@@ -215,7 +319,6 @@ async function paint(
   ops: readonly DrawOp[],
   theme: Theme,
   photo: HTMLImageElement | null,
-  mark: HTMLImageElement | null,
   width: number,
   height: number,
 ): Promise<void> {
@@ -263,16 +366,14 @@ async function paint(
         if (photo) drawPhoto(ctx, photo, op.box, PHOTO_RADIUS);
         break;
       }
-      case "mark": {
-        // Drawn as is (no glow). If the image is gone the name is already at the margin.
-        if (mark) ctx.drawImage(mark, op.box.x, op.box.y, op.box.w, op.box.h);
-        break;
-      }
       case "silhouette":
         drawSilhouette(ctx, op.box, theme.detail);
         break;
       case "qr":
-        await drawQr(ctx, op.box, op.text, theme.bg);
+        await drawQr(ctx, op.box, op.text, theme.bg, op.style);
+        break;
+      case "mark":
+        drawMark(ctx, op.box);
         break;
     }
   }
@@ -282,6 +383,7 @@ async function paint(
 export async function makeShareCardPng(
   fit: FitResponse,
   lang: UiLanguage,
+  options: ShareCardOptions = {},
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
   // wrap the text for one font and paint it in another. The wordmark's Inter
@@ -304,17 +406,15 @@ export async function makeShareCardPng(
 
   const photoPath = topPickPhotoPath(fit);
   const photo = photoPath ? await loadImage(photoPath) : null;
-  const mark = await loadImage(MARK_SRC, 256);
-  const built = buildShareCardInput(fit, lang, photo ? photoPath : null);
-  if (!built) throw new Error("There is no result to share.");
-  const input = { ...built, markSrc: mark ? MARK_SRC : null };
+  const input = buildShareCardInput(fit, lang, photo ? photoPath : null);
+  if (!input) throw new Error("There is no result to share.");
 
   const measure: MeasureText = (text, font) => {
     applyFont(ctx, font, theme);
     return ctx.measureText(text).width;
   };
-  const layout = layoutShareCard(input, measure);
-  await paint(ctx, layout.ops, theme, photo, mark, layout.width, layout.height);
+  const layout = layoutShareCard(input, measure, options);
+  await paint(ctx, layout.ops, theme, photo, layout.width, layout.height);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

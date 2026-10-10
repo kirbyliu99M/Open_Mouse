@@ -3,10 +3,11 @@ import {
   CARD_HEIGHT,
   CARD_PADDING,
   CARD_WIDTH,
-  MARK_GAP,
-  MARK_SRC,
   MIN_PHOTO_HEIGHT,
-  QR_SIZE,
+  DEFAULT_QR_SIZE,
+  MARK_SIZE,
+  QR_MIN_QUIET_MODULES,
+  type Box,
   layoutShareCard,
   qrGrid,
   shareQrTarget,
@@ -22,6 +23,7 @@ import {
   type FontSpec,
   type MeasureText,
 } from "../../src/components/results/share/text";
+import { DEFAULT_QR_STYLE } from "../../src/components/results/share/qrStyle";
 import { handTypeTitle, shareCardCopy } from "../../src/lib/copy/share-card";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
@@ -289,84 +291,30 @@ describe("layoutShareCard: titles", () => {
   });
 });
 
-describe("layoutShareCard: the Palmate mark beside the site name", () => {
-  type MarkOp = Extract<DrawOp, { kind: "mark" }>;
-  const marks = (ops: DrawOp[]) =>
-    ops.filter((o): o is MarkOp => o.kind === "mark");
+describe("layoutShareCard: the site name's font", () => {
   const nameOf = (ops: DrawOp[]) =>
     texts(ops).find((o) => o.text === SITE_NAME)!;
-  const withMark = layoutShareCard({ ...BASE, markSrc: MARK_SRC }, measure);
 
-  it("sets the site name in the wordmark's font (Inter 700, 48 px)", () => {
-    for (const l of [withMark, layoutShareCard(BASE, measure)]) {
-      expect(nameOf(l.ops).font).toEqual({
-        size: 48,
-        weight: 700,
-        brand: true,
-      });
-    }
-    // Nothing else on the card asks for the wordmark's font.
-    const others = texts(withMark.ops).filter((o) => o.text !== SITE_NAME);
+  it("sets the site name in the wordmark's font (Inter 700, 48 px), and nothing else", () => {
+    const l = layoutShareCard(BASE, measure);
+    expect(nameOf(l.ops).font).toEqual({
+      size: 48,
+      weight: 700,
+      brand: true,
+    });
+    const others = texts(l.ops).filter((o) => o.text !== SITE_NAME);
     for (const o of others) expect(o.font.brand).toBeUndefined();
   });
 
-  it("draws one mark at the left margin, square, and the name to its right", () => {
-    const [mark] = marks(withMark.ops);
-    expect(marks(withMark.ops)).toHaveLength(1);
-    expect(mark!.src).toBe(MARK_SRC);
-    expect(mark!.box.x).toBe(CARD_PADDING);
-    expect(mark!.box.w).toBe(mark!.box.h);
-    const name = nameOf(withMark.ops);
-    expect(name.x).toBe(mark!.box.x + mark!.box.w + MARK_GAP);
-    // The mark is about as tall as the name's capitals, centred on them.
-    expect(mark!.box.y).toBeLessThan(name.baseline);
-    expect(mark!.box.y + mark!.box.h).toBeGreaterThan(name.baseline - 30);
-    expect(mark!.box.y + mark!.box.h).toBeLessThanOrEqual(name.baseline + 24);
-  });
-
-  it("keeps the mark and the name inside the margins and clear of the QR code", () => {
-    const [mark] = marks(withMark.ops);
-    const [, right] = edges(nameOf(withMark.ops));
-    const qr = withMark.ops.find((o) => o.kind === "qr")!;
-    expect(right).toBeLessThan((qr as { box: { x: number } }).box.x);
-    expect(mark!.box.x + mark!.box.w).toBeLessThan(nameOf(withMark.ops).x);
-  });
-
-  it("falls back to the name alone, at the margin, when the mark did not load", () => {
-    for (const markSrc of [
-      undefined,
-      null,
-      "https://x.example/m.svg",
-      "../m.svg",
-    ]) {
-      const l = layoutShareCard(
-        { ...BASE, ...(markSrc === undefined ? {} : { markSrc }) },
-        measure,
-      );
-      expect(marks(l.ops)).toHaveLength(0);
-      expect(nameOf(l.ops).x).toBe(CARD_PADDING);
-    }
-  });
-
-  it("changes nothing else on the card", () => {
-    const strip = (ops: DrawOp[]) =>
-      ops.filter(
-        (o) =>
-          o.kind !== "mark" && !(o.kind === "text" && o.text === SITE_NAME),
-      );
-    expect(strip(withMark.ops)).toEqual(
-      strip(layoutShareCard(BASE, measure).ops),
-    );
-  });
-
-  it("cuts the name, never the mark, when a fallback face is far too wide", () => {
+  it("cuts the name, never the QR code's room, when a fallback face is far too wide", () => {
     const wide = fakeMeasure(0.55, 6);
-    const l = layoutShareCard({ ...BASE, markSrc: MARK_SRC }, wide);
-    expect(marks(l.ops)).toHaveLength(1);
+    const l = layoutShareCard(BASE, wide);
+    const qr = l.ops.find((o) => o.kind === "qr") as Extract<
+      DrawOp,
+      { kind: "qr" }
+    >;
     const name = texts(l.ops).find((o) => o.font.brand)!;
-    expect(edges(name, wide)[1]).toBeLessThan(
-      CARD_WIDTH - CARD_PADDING - QR_SIZE,
-    );
+    expect(edges(name, wide)[1]).toBeLessThan(qr.box.x);
   });
 });
 
@@ -480,39 +428,185 @@ describe("layoutShareCard: what the card must never carry", () => {
 });
 
 describe("qrGrid", () => {
-  const QUIET = 3;
+  const SIZES = [144, 160, 176] as const;
 
   it("uses a whole-pixel step, never overlaps a module, and stays inside the panel (21 to 41 modules)", () => {
-    for (let modules = 21; modules <= 41; modules += 4) {
-      const { step, offset } = qrGrid(QR_SIZE, modules, QUIET);
-      expect(Number.isInteger(step), `step ${modules}`).toBe(true);
-      expect(Number.isInteger(offset), `offset ${modules}`).toBe(true);
-      expect(step).toBeGreaterThanOrEqual(1);
-      // A module is `step` wide and starts every `step`: the next one starts
-      // exactly where this one ends, so none overlaps.
-      for (let col = 0; col + 1 < modules; col++) {
-        expect(offset + col * step + step).toBeLessThanOrEqual(
-          offset + (col + 1) * step,
+    for (const panel of SIZES) {
+      for (let modules = 21; modules <= 41; modules++) {
+        const { step, offset } = qrGrid(panel, modules, QR_MIN_QUIET_MODULES);
+        const at = `${panel} px, ${modules} modules`;
+        expect(Number.isInteger(step), at).toBe(true);
+        expect(Number.isInteger(offset), at).toBe(true);
+        expect(step, at).toBeGreaterThanOrEqual(1);
+        // A module is `step` wide and starts every `step`: the next one starts
+        // exactly where this one ends, so none overlaps.
+        for (let col = 0; col + 1 < modules; col++) {
+          expect(offset + col * step + step, at).toBeLessThanOrEqual(
+            offset + (col + 1) * step,
+          );
+        }
+        // At least the minimum quiet zone on each side, and inside the panel.
+        expect(offset, at).toBeGreaterThanOrEqual(QR_MIN_QUIET_MODULES * step);
+        expect(
+          offset + modules * step + QR_MIN_QUIET_MODULES * step,
+          at,
+        ).toBeLessThanOrEqual(panel);
+        // Centred to within a pixel.
+        const right = panel - (offset + modules * step);
+        expect(Math.abs(offset - right), at).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("gives the current 29-module code its step at each preview size", () => {
+    expect(qrGrid(144, 29, QR_MIN_QUIET_MODULES).step).toBe(4);
+    expect(qrGrid(160, 29, QR_MIN_QUIET_MODULES).step).toBe(4);
+    expect(qrGrid(176, 29, QR_MIN_QUIET_MODULES).step).toBe(5);
+  });
+});
+
+describe("the footer lockup and the QR", () => {
+  type Layout = ReturnType<typeof layoutShareCard>;
+  const MARK_GAP_MIN = 20;
+  const findMark = (l: Layout) =>
+    l.ops.find((o) => o.kind === "mark") as Extract<DrawOp, { kind: "mark" }>;
+  const findQr = (l: Layout) =>
+    l.ops.find((o) => o.kind === "qr") as Extract<DrawOp, { kind: "qr" }>;
+  const overlap = (a: Box, b: Box) =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const boxOf = (o: TextOp, m: MeasureText = measure): Box => {
+    const [left, right] = edges(o, m);
+    return {
+      x: left,
+      y: o.baseline - o.font.size,
+      w: right - left,
+      h: o.font.size,
+    };
+  };
+
+  const CASES: [string, ShareCardInput, MeasureText][] = [
+    ["standard zh-TW", BASE, measure],
+    ["English", { ...BASE, lang: "en", bandLabel: "A very good fit" }, measure],
+    ["no handType", { ...BASE, handType: undefined }, measure],
+    [
+      "long model name",
+      {
+        ...BASE,
+        model: "Pro X Superlight 2 DEX Lightspeed Wireless Gaming Mouse",
+      },
+      measure,
+    ],
+    ["a font nearly twice as wide", BASE, fakeMeasure(0.55, 1.9)],
+    ["a photo", { ...BASE, photoSrc: "/images/a.png" }, measure],
+  ];
+
+  it("puts the mark at the bottom-left, with the name and tagline centred on it", () => {
+    for (const [name, input, m] of CASES) {
+      const layout = layoutShareCard(input, m);
+      const mark = findMark(layout);
+      expect(mark.box, name).toEqual({
+        x: CARD_PADDING,
+        y: CARD_HEIGHT - CARD_PADDING - MARK_SIZE,
+        w: MARK_SIZE,
+        h: MARK_SIZE,
+      });
+      const nameOp = texts(layout.ops).find((o) => o.text === SITE_NAME)!;
+      const tagOp = texts(layout.ops).find(
+        (o) => o.text === shareCardCopy(input.lang).tagline,
+      )!;
+      expect(nameOp.x, name).toBeGreaterThanOrEqual(
+        mark.box.x + mark.box.w + MARK_GAP_MIN,
+      );
+      expect(tagOp.x, name).toBe(nameOp.x);
+      // The text block (name's cap height to the tagline's baseline) is
+      // centred on the mark, to within a few pixels, and inside its height.
+      const top = nameOp.baseline - nameOp.font.size * 0.75;
+      const bottom = tagOp.baseline;
+      const mid = mark.box.y + mark.box.h / 2;
+      expect(Math.abs((top + bottom) / 2 - mid), name).toBeLessThanOrEqual(6);
+      expect(top, name).toBeGreaterThanOrEqual(mark.box.y);
+      expect(bottom, name).toBeLessThanOrEqual(mark.box.y + mark.box.h);
+    }
+  });
+
+  it("makes the QR 176 px by default (frameless: the code plus its quiet zone, 185 px), resting on the mark's bottom edge, with the right margin", () => {
+    expect(DEFAULT_QR_SIZE).toBe(176);
+    expect(DEFAULT_QR_STYLE).toBe("frameless");
+    for (const [name, input, m] of CASES) {
+      const layout = layoutShareCard(input, m);
+      const qr = findQr(layout);
+      const mark = findMark(layout);
+      // 5 px step x (29 modules + 4 quiet on each side).
+      expect(qr.box.w, name).toBe(185);
+      expect(qr.box.h, name).toBe(185);
+      expect(qr.style, name).toBe("frameless");
+      expect(qr.box.y + qr.box.h, name).toBe(mark.box.y + mark.box.h);
+      expect(qr.box.x + qr.box.w, name).toBe(CARD_WIDTH - CARD_PADDING);
+      expect(qr.text, name).toBe(SITE_URL);
+    }
+  });
+
+  it("keeps the classic style available: a 176 px white panel when asked for", () => {
+    const qr = findQr(layoutShareCard(BASE, measure, { qrStyle: "classic" }));
+    expect(qr.style).toBe("classic");
+    expect(qr.box.w).toBe(176);
+  });
+
+  it("takes the QR size as a parameter and keeps it inside the card", () => {
+    for (const style of ["classic", "softLight", "frameless"] as const) {
+      for (const size of [144, 160, 176]) {
+        const qr = findQr(
+          layoutShareCard(BASE, measure, { qrSize: size, qrStyle: style }),
+        );
+        if (style !== "frameless") expect(qr.box.w).toBe(size);
+        expect(qr.box.x + qr.box.w).toBeLessThanOrEqual(
+          CARD_WIDTH - CARD_PADDING,
+        );
+        expect(qr.box.y + qr.box.h).toBeLessThanOrEqual(
+          CARD_HEIGHT - CARD_PADDING,
         );
       }
-      // The code, with at least the quiet zone on each side, is in the panel.
-      expect(offset).toBeGreaterThanOrEqual(QUIET * step);
-      expect(offset + modules * step + QUIET * step).toBeLessThanOrEqual(
-        QR_SIZE,
-      );
     }
   });
 
-  it("covers every size from 21 to 41, and centres the code to within a pixel", () => {
-    for (let modules = 21; modules <= 41; modules++) {
-      const { step, offset } = qrGrid(QR_SIZE, modules, QUIET);
-      const right = QR_SIZE - (offset + modules * step);
-      expect(Math.abs(offset - right)).toBeLessThanOrEqual(1);
-      expect(offset + modules * step).toBeLessThanOrEqual(QR_SIZE);
+  it("overlaps nothing: mark, name, tagline, QR, the result block and the photo stay apart", () => {
+    for (const size of [144, 160, 176]) {
+      for (const [name, input, m] of CASES) {
+        const layout = layoutShareCard(input, m, { qrSize: size });
+        const mark = findMark(layout).box;
+        const qr = findQr(layout).box;
+        const footerText = texts(layout.ops).filter((o) =>
+          [SITE_NAME, shareCardCopy(input.lang).tagline].includes(o.text),
+        );
+        const at = `${name} @ ${size}`;
+        expect(footerText, at).toHaveLength(2);
+        expect(overlap(mark, qr), at).toBe(false);
+        for (const o of footerText) {
+          const b = boxOf(o, m);
+          expect(overlap(b, mark), at).toBe(false);
+          expect(overlap(b, qr), at).toBe(false);
+        }
+        const footerTop = Math.min(mark.y, qr.y);
+        expect(layout.photoBox.y + layout.photoBox.h, at).toBeLessThan(
+          footerTop,
+        );
+        for (const o of texts(layout.ops)) {
+          if (footerText.includes(o)) continue;
+          expect(o.baseline, `${at}: ${o.text}`).toBeLessThan(footerTop);
+        }
+        expect(layout.photoBox.h, at).toBeGreaterThanOrEqual(MIN_PHOTO_HEIGHT);
+      }
     }
   });
 
-  it("gives the current 29-module code a 6 px step, not the old 7 px overdraw", () => {
-    expect(qrGrid(QR_SIZE, 29, QUIET).step).toBe(6);
+  it("keeps the lockup and the QR with no hand type, and gives the photo the room instead", () => {
+    const withType = layoutShareCard(BASE, measure);
+    const without = layoutShareCard({ ...BASE, handType: undefined }, measure);
+    for (const l of [withType, without]) {
+      expect(l.ops.filter((o) => o.kind === "mark")).toHaveLength(1);
+      expect(l.ops.filter((o) => o.kind === "qr")).toHaveLength(1);
+    }
+    expect(findMark(without).box).toEqual(findMark(withType).box);
+    expect(without.photoBox.h).toBeGreaterThan(withType.photoBox.h);
   });
 });
