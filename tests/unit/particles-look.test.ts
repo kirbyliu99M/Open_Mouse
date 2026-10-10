@@ -225,7 +225,8 @@ describe("the look at each end of a leg", () => {
     expect(form.looks[1]).toEqual(glLook(12000, 1.2));
     expect(split.looks[0]).toEqual(glLook(12000, 1.2));
     // The last state (the finale's figure since 2026-10-11) lights its share
-    // (0.18: 2,160 of 12,000), drawn STAR_SIZE.mouse (1.15) bigger.
+    // (0.18: 2,160 of 12,000), drawn STAR_SIZE.mouse times its look (1: a
+    // 1.15 tried that day made the figure too solid, look.ts).
     const figureLit = litCount(LIT_FRACTION.mouse, 12000, 12000);
     expect(figureLit).toBe(2160);
     const figure = glLook(figureLit, 1.2);

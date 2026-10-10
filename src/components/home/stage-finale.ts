@@ -198,6 +198,8 @@ export interface SceneInput {
    * Without it the sky is drawn in the panel (width = the panel's, offset 0).
    */
   readonly sky?: { readonly width: number; readonly offsetX: number };
+  /** The pixel ratio the sky (its canvas, its baked stars) is drawn at: the stage keeps it at most SKY_MAX_DPR. Defaults to `dpr`. */
+  readonly skyDpr?: number;
 }
 
 /** Whether (x, y) on the canvas is under the headline's grown letters. */
@@ -421,13 +423,13 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     solid,
     white,
     sweep: SWEEP[tier],
-    stars: drawStars(stars, skyWidth, input.height, dpr),
+    stars: drawStars(stars, skyWidth, input.height, input.skyDpr ?? dpr),
     meteorHead: Float32Array.from(meteors.flatMap((m) => [...m.head])),
     meteorLength: Float32Array.from(meteors.map((m) => m.length)),
     drift: METEOR_DRIFT[tier],
     width: skyWidth,
     height: input.height,
-    dpr,
+    dpr: input.skyDpr ?? dpr,
     state: { skyPainted: false },
   };
 }

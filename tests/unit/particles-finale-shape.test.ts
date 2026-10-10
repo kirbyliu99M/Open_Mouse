@@ -28,15 +28,36 @@ describe("finaleTone", () => {
     expect(finaleTone(KIND.highlight, 0)).toBe(1);
     expect(finaleTone(KIND.satellite, 0)).toBe(0);
     expect(finaleTone(KIND.rim, 0)).toBe(0);
-    for (const kind of [KIND.dust, KIND.detail, KIND.star]) {
-      const from = FINALE_BRIGHT_FROM[kind];
+    // The thresholds themselves, written out (2026-10-11: dust from level 3,
+    // details and stars from 1), so a change of FINALE_BRIGHT_FROM fails here
+    // instead of being compared with itself.
+    const expected: [number, number][] = [
+      [KIND.dust, 3],
+      [KIND.detail, 1],
+      [KIND.star, 1],
+    ];
+    for (const [kind, from] of expected) {
+      expect(FINALE_BRIGHT_FROM[kind as 0 | 2 | 4]).toBe(from);
       for (let level = 0; level < KIND_LEVELS[kind]!; level += 1) {
-        expect(finaleTone(kind, level)).toBe(level >= from ? 1 : 0);
+        expect(finaleTone(kind as 0 | 2 | 4, level)).toBe(
+          level >= from ? 1 : 0,
+        );
       }
       // Monotonic in the level: a brighter level is never dimmer.
-      expect(finaleTone(kind, KIND_LEVELS[kind]! - 1)).toBe(1);
-      expect(finaleTone(kind, 0)).toBe(0);
+      expect(finaleTone(kind as 0 | 2 | 4, KIND_LEVELS[kind]! - 1)).toBe(1);
+      expect(finaleTone(kind as 0 | 2 | 4, 0)).toBe(0);
     }
+  });
+
+  it("makes this many of the committed figure's points bright: 1,714 of 2,061 on a desktop, 1,352 of 1,639 on a phone (the observable result of the thresholds)", () => {
+    // Counted 2026-10-11 from finale.generated.json with the thresholds above.
+    // A change of a threshold, or of the drawing's levels, moves these.
+    const bright = (tier: "desktop" | "mobile") =>
+      finaleShape(finale, tier).points.filter((p) => p.tone === 1).length;
+    expect(finale.tiers.desktop.points).toHaveLength(2061);
+    expect(finale.tiers.mobile.points).toHaveLength(1639);
+    expect(bright("desktop")).toBe(1714);
+    expect(bright("mobile")).toBe(1352);
   });
 
   it("refuses a kind or a level that does not exist", () => {
