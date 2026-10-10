@@ -100,14 +100,17 @@ describe("scoreWithEngine", () => {
     expect(c.total).toBe(manual.total);
   });
 
-  it("scoreFitDefault follows DEFAULT_ENGINE, which is v0", () => {
-    expect(DEFAULT_ENGINE).toBe("v0");
+  it("scoreFitDefault follows DEFAULT_ENGINE, which is v1", () => {
+    expect(DEFAULT_ENGINE).toBe("v1");
     expect(scoreFitDefault(hand, seed, prefs, "right")).toEqual(
       scoreWithEngine(DEFAULT_ENGINE, hand, seed, prefs, "right"),
     );
-    expect(scoreFitDefault(hand, seed, prefs, "right").engineVersion).toBe(
-      ENGINE_VERSION,
-    );
+    const out = scoreFitDefault(hand, seed, prefs, "right");
+    expect(out.engineVersion).toBe("fit-v1-candidate.2");
+    expect(out.handType).toBeDefined();
+    expect(
+      scoreWithEngine("v0", hand, seed, prefs, "right").engineVersion,
+    ).toBe(ENGINE_VERSION);
   });
 });
 

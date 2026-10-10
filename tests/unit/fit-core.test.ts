@@ -4,7 +4,7 @@ import {
   fitResponseSchema,
 } from "../../src/lib/contracts/fit";
 import { loadOwnedFit } from "../../src/server/fit/core";
-import { scoreFit } from "../../src/server/fit/score";
+import { scoreFitDefault } from "../../src/server/fit/engine";
 import {
   createFakeFitRepo,
   createFakeScanRepo,
@@ -223,7 +223,7 @@ describe("loadOwnedFit — a successful fit", () => {
     });
   });
 
-  it("adds no computation of its own — every number matches scoreFit's own output", async () => {
+  it("adds no computation of its own — every number matches the default engine's own output", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
     const { repo: fitRepo } = createFakeFitRepo();
     const prefs = fitPreferencesSchema.parse({ gripStyle: "palm" });
@@ -236,7 +236,7 @@ describe("loadOwnedFit — a successful fit", () => {
     );
     if (result.status !== "ok") throw new Error("unreachable");
 
-    const expected = scoreFit(
+    const expected = scoreFitDefault(
       sampleOwnedScan.measurements,
       sampleCatalogue,
       prefs,

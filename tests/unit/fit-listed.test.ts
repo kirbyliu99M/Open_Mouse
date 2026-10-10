@@ -11,6 +11,14 @@ import {
   sampleOwnedScan,
 } from "./fixtures/fake-fit-deps";
 
+// This file pins the v0 path on purpose (fit-listed-v1.test.ts covers the
+// default, v1): the default engine is switched to v0 for these tests.
+vi.mock("../../src/server/fit/coefficients", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/server/fit/coefficients")>();
+  return { ...actual, DEFAULT_ENGINE: "v0" };
+});
+
 // Wrap the real scoreFit so the test can see exactly which catalogue reached it.
 vi.mock("../../src/server/fit/score", async (importOriginal) => {
   const actual =
