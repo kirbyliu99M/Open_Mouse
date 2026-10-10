@@ -684,6 +684,101 @@ test.describe("the animated layout", () => {
     await expect(title).toBeVisible();
   });
 
+  for (const [width, height] of [
+    [1600, 900],
+    [1920, 1080],
+  ] as const) {
+    test(`${width}x${height}: the finale's sky spans the whole viewport's width (not only the content column), with no sideways scroll`, async ({
+      page,
+    }, info) => {
+      test.skip(info.project.name !== "chromium", "Desktop widths.");
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForAnimated(page);
+      await scrollToProgress(page, 1);
+      const sky = await page.evaluate(() => {
+        const el = document.querySelector<HTMLElement>(".story-canvas-sky")!;
+        const r = el.getBoundingClientRect();
+        const column = document
+          .querySelector(".story-panel")!
+          .getBoundingClientRect();
+        return {
+          left: r.left,
+          right: r.right,
+          drawnWidth: Number(el.dataset.width),
+          viewport: document.documentElement.clientWidth,
+          columnWidth: column.width,
+          fits: document.documentElement.scrollWidth <= window.innerWidth,
+        };
+      });
+      expect(sky.columnWidth).toBeLessThan(sky.viewport);
+      expect(Math.abs(sky.left)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(sky.right - sky.viewport)).toBeLessThanOrEqual(0.5);
+      expect(sky.drawnWidth).toBe(sky.viewport);
+      expect(sky.fits).toBe(true);
+    });
+  }
+
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 900],
+  ] as const) {
+    test(`${width}x${height} at 200 % text: no sideways scroll at the top, mid-story and at the end`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "200%";
+      });
+      await page.waitForTimeout(2500);
+      for (const y of [0, 0.5, 1]) {
+        await page.evaluate((share) => {
+          const max =
+            document.documentElement.scrollHeight - window.innerHeight;
+          window.scrollTo(0, Math.round(max * share));
+        }, y);
+        await page.waitForTimeout(150);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+          `at ${y} of the page`,
+        ).toBe(true);
+      }
+    });
+  }
+
+  test("the seam: the two meteors' heads sit in the footer's top padding, under its horizon, above its text", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForAnimated(page);
+    await scrollToProgress(page, 1);
+    const seam = await page.evaluate(() => {
+      const footer = document.querySelector<HTMLElement>(
+        '[data-testid="site-footer"]',
+      )!;
+      const horizon = footer.querySelector(".siteFooter-horizon")!;
+      const before = getComputedStyle(horizon, "::before");
+      const after = getComputedStyle(horizon, "::after");
+      const footerTop = footer.getBoundingClientRect().top;
+      return {
+        content: [before.content, after.content],
+        transform: before.transform,
+        // Where the heads are (the pseudo-elements' top edge, from the
+        // horizon at the footer's top), and the footer's top padding.
+        head: horizon.getBoundingClientRect().top + parseFloat(before.top),
+        footerTop,
+        footerPad: parseFloat(getComputedStyle(footer).paddingTop),
+      };
+    });
+    expect(seam.content).toEqual(['""', '""']);
+    expect(seam.transform).not.toBe("none");
+    expect(seam.head).toBeGreaterThan(seam.footerTop);
+    expect(seam.head).toBeLessThan(seam.footerTop + seam.footerPad);
+  });
+
   test("the finale's light is really drawn: its gradient is a valid one (a circle's radius in lengths), and shows at p = 1", async ({
     page,
   }) => {
@@ -1584,6 +1679,7 @@ test("the story section's markup: the hero first, the two canvases last (WebGL u
     "story-hand",
     "story-notes",
     "story-finale",
+    "story-canvas-sky",
     "story-canvas-gl",
     "story-canvas",
   ]);

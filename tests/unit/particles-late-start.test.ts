@@ -6,6 +6,7 @@ import {
   LATE_CONFIRM_MS,
   LATE_TRANSPARENT,
   fadeCheck,
+  lateSwitchAllowed,
   planLateSwitch,
   progressAtOffset,
   readingOffset,
@@ -424,6 +425,24 @@ describe("planLateSwitch keeps the final section in place when its gap to the st
         }),
       ).toEqual(base);
     }
+  });
+});
+
+describe("lateSwitchAllowed", () => {
+  it("allows the late switch only when the static story is taller than the viewport", () => {
+    expect(lateSwitchAllowed(STATIC_HEIGHT, VH)).toBe(true);
+    expect(lateSwitchAllowed(STATIC_HEIGHT, STATIC_HEIGHT - 1)).toBe(true);
+    // A window as tall as the story or taller: the buttons under it are in
+    // view from the first px, so the page waits for the top (review of
+    // 2026-10-11: planLateSwitch's tall-screen branch carried them off).
+    expect(lateSwitchAllowed(STATIC_HEIGHT, STATIC_HEIGHT)).toBe(false);
+    expect(lateSwitchAllowed(STATIC_HEIGHT, 2400)).toBe(false);
+  });
+
+  it("refuses sizes that are not numbers", () => {
+    expect(lateSwitchAllowed(Number.NaN, VH)).toBe(false);
+    expect(lateSwitchAllowed(STATIC_HEIGHT, Number.NaN)).toBe(false);
+    expect(lateSwitchAllowed(Infinity, VH)).toBe(false);
   });
 });
 

@@ -325,6 +325,44 @@
   margin-top: 3rem;
   text-align: center;
 }
+/* Two meteors across the seam between the home page and the footer (Pencil
+   v17 / v18): each a line down and to the left, along the arm, with a bright
+   head just under the footer's horizon, inside its top padding (so never over
+   its text), and its tail rising into the page above. They hang from the
+   footer's horizon line (its own seam: the fade into the footer's colour and
+   the line itself are the footer's, site-footer.css), on the home page only
+   (this stylesheet is the home page's; :has keeps the rule there should the
+   sheet stay loaded after a client-side navigation). The footer spans the
+   viewport, so they are placed across its whole width; short enough on a
+   phone to stay in it. Still: they do not move (nothing on the page moves by
+   itself). Decorative pseudo-elements: no text, no clicks. 未拍板
+   (candidate). */
+body:has(.landing-page) .siteFooter-horizon::before,
+body:has(.landing-page) .siteFooter-horizon::after {
+  content: "";
+  position: absolute;
+  top: 1.25rem;
+  width: clamp(5rem, 18vw, 10rem);
+  height: 2px;
+  background:
+    radial-gradient(circle at 1.5px 50%, #ffffff 0 1.4px, transparent 2.4px),
+    linear-gradient(
+      to left,
+      transparent,
+      color-mix(in srgb, #bfd4ff 85%, transparent)
+    );
+  transform: rotate(-40deg);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+body:has(.landing-page) .siteFooter-horizon::before {
+  left: 14%;
+}
+body:has(.landing-page) .siteFooter-horizon::after {
+  left: 62%;
+  width: clamp(4rem, 13vw, 7.5rem);
+  opacity: 0.7;
+}
 .home-final .home-actions {
   margin-top: 0;
 }
@@ -455,7 +493,8 @@
    The hero sits in the same place in both layouts (it is the panel's first
    child, and nothing here moves it), so switching shifts nothing in view. */
 .story-canvas,
-.story-canvas-gl {
+.story-canvas-gl,
+.story-canvas-sky {
   display: none;
 }
 
@@ -482,6 +521,19 @@
   display: block;
   position: absolute;
   inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* The finale's sky: the whole viewport wide (the stage sets its left and width
+   in px from the panel's place, so it never sticks out), under the other two
+   canvases (first in the markup, the same z-index). */
+.story--animated .story-canvas-sky {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
   z-index: 0;
   width: 100%;
   height: 100%;
@@ -542,11 +594,11 @@
    headline about 96 / 47 px. 未拍板 (candidate), one value each. */
 .story--animated .story-finale {
   --finale-top: 18svh;
-  --finale-w: min(94%, 37.75rem, 67.5svh);
+  --finale-w: min(99%, 37.75rem, 67.5svh);
   /* The same width in lengths only (the panel is the viewport less its side
      padding, at most 1.5rem a side): a circle's radius in a gradient takes no
      percentage, so the light uses this one. */
-  --finale-len: min(calc((100vw - 3rem) * 0.94), 37.75rem, 67.5svh);
+  --finale-len: min(calc((100vw - 3rem) * 0.99), 37.75rem, 67.5svh);
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -613,6 +665,10 @@
 @media (forced-colors: active) {
   .story--animated .story-finale-title {
     color: CanvasText;
+  }
+  body:has(.landing-page) .siteFooter-horizon::before,
+  body:has(.landing-page) .siteFooter-horizon::after {
+    display: none;
   }
 }
 
@@ -888,8 +944,11 @@
   .story-notes,
   .story-finale-art img,
   .story-finale-glow,
+  body:has(.landing-page) .siteFooter-horizon::before,
+  body:has(.landing-page) .siteFooter-horizon::after,
   .story-canvas,
   .story-canvas-gl,
+  .story-canvas-sky,
   .home-hero-badge {
     display: none !important;
   }

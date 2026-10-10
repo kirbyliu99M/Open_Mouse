@@ -132,6 +132,7 @@ test.describe("the annotations on the animated page", () => {
       "story-hand",
       "story-notes",
       "story-finale",
+      "story-canvas-sky",
       "story-canvas-gl",
       "story-canvas",
     ]);

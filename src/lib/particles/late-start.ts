@@ -53,6 +53,26 @@ export const LATE_FADE_ATTEMPTS = 3;
 export type FadeCheck = "switch" | "next-frame" | "give-up" | "hidden";
 
 /**
+ * Whether the stage may switch away from the top at all. Not when the whole
+ * static story fits in the viewport (a very tall window, about 2,100 px or
+ * more): its end, and the final section's buttons under it, are in view from
+ * the first px of scroll, and no place for the animated section keeps both
+ * the story's step and the buttons where they were (the review of 2026-10-11
+ * found the buttons carried off there). Such a page stays static until the
+ * reader is back at the top, where the switch moves nothing.
+ */
+export function lateSwitchAllowed(
+  staticHeight: number,
+  viewportHeight: number,
+): boolean {
+  return (
+    Number.isFinite(staticHeight) &&
+    Number.isFinite(viewportHeight) &&
+    staticHeight > viewportHeight
+  );
+}
+
+/**
  * Whether the late switch may happen now, the fade's timer being up: only in a
  * shown tab (a hidden one switches when it is shown again: the stage draws
  * nothing while hidden), and only with the panel transparent, so the switch
@@ -228,6 +248,8 @@ export function planLateSwitch(input: LateSwitchInput): LateSwitchPlan {
     return { targetTop, progress: progressFor(targetTop) };
   };
   if (staticHeight <= viewportHeight && bottom > 0) {
+    // (The stage never gets here since 2026-10-11: such a page waits for the
+    // top, lateSwitchAllowed. The branch stays for a caller that asks.)
     // The whole static story fits in the viewport (a very tall screen), so
     // its end is in view from the top on: keeping its bottom edge would jump
     // to the story's end at the first px of scroll. Map the scroll in

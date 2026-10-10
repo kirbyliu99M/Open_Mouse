@@ -29,11 +29,13 @@ export function finaleSlotName(tier: FinaleTierName): string {
  * (candidate), tuned by eye from screenshots against the v8 frames.
  */
 export const FINALE_BRIGHT_FROM: Readonly<Record<FinaleKind, number>> = {
-  0: 4, // dust
+  // Lowered 2026-10-11 (Kirby: the figure brighter, nearer v17 / v18): dust
+  // from 4 to 3, details and stars from 2 to 1.
+  0: 3, // dust
   1: Infinity, // satellite
-  2: 2, // detail
+  2: 1, // detail
   3: 0, // highlight
-  4: 2, // star
+  4: 1, // star
   5: Infinity, // rim
 };
 

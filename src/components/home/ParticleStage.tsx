@@ -20,6 +20,8 @@ import { retryDelay, retryStep } from "@/lib/particles/retry";
 export function ParticleStage() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
+  // The finale's sky (stars, meteors), the whole viewport wide, under the rest.
+  const skyCanvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const element = canvas.current;
@@ -78,11 +80,17 @@ export function ParticleStage() {
       }
       if (reduced.matches) return;
       loading = true;
-      import("./particle-stage")
+      // Named, so its file is particle-stage.<hash>.js in a production build
+      // too (the e2e suite finds the request by that name).
+      import(/* webpackChunkName: "particle-stage" */ "./particle-stage")
         .then((module) => {
           loading = false;
           if (!cancelled) {
-            stage = module.startParticleStage(element, glCanvas.current);
+            stage = module.startParticleStage(
+              element,
+              glCanvas.current,
+              skyCanvas.current,
+            );
           }
         })
         .catch(() => {
@@ -138,6 +146,7 @@ export function ParticleStage() {
 
   return (
     <>
+      <canvas ref={skyCanvas} className="story-canvas-sky" aria-hidden="true" />
       <canvas ref={glCanvas} className="story-canvas-gl" aria-hidden="true" />
       <canvas ref={canvas} className="story-canvas" aria-hidden="true" />
     </>
