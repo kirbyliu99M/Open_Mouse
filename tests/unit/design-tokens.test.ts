@@ -451,6 +451,40 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
   });
 });
 
+describe("the secondary buttons: a text link in --accent-text, no fill, no border (BTN-1, style B)", () => {
+  const SECONDARY: readonly (readonly [string, string, string | null])[] = [
+    ["src/app/globals.css", ".button-secondary", null],
+    ["src/app/learn/learn.css", ".learn-button-secondary", null],
+    ["src/components/errors/errors.css", ".errorAction-secondary", null],
+    ["src/app/sheet/sheet.css", ".sheet-secondary", "screen"],
+    [
+      "src/app/scan/scan.css",
+      ".scanMain .uploadSlot-measured .uploadButton",
+      null,
+    ],
+    ["src/client/camera/camera.css", ".cameraRetake", null],
+    ["src/components/results/results.css", ".results-analysis-retry", null],
+  ];
+  it.each(SECONDARY)("%s %s", (file, selector, media) => {
+    const rules = rulesOf(file);
+    const label = declared(rules, selector, "color", media)!;
+    expect(["var(--accent-text)", "var(--learn-accent)"]).toContain(label);
+    expect(ratio(rgb("--accent-text"), rgb("--bg"))).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(["none", "transparent"]).toContain(
+      declared(rules, selector, "background", media),
+    );
+    const border =
+      declared(rules, selector, "border-color", media) ??
+      declared(rules, selector, "border", media)!;
+    expect(border).toMatch(/transparent/);
+    expect(declared(rules, selector, "text-decoration", media)).toBe(
+      "underline",
+    );
+  });
+});
+
 describe("the hand ghost over the paper", () => {
   const camera = rulesOf("src/client/camera/camera.css");
   // The e2e fixtures' paper is a light grey, a real sheet is nearer white.

@@ -307,9 +307,9 @@
   text-overflow: ellipsis;
 }
 .easyGripChip.selected {
-  background: var(--scan-accent-soft, #1f3554);
-  border-color: var(--accent-text);
-  color: var(--accent-text);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 
 /* flex-start, not center: the submit panel is taller than its button (it
@@ -332,7 +332,8 @@
   /* The global button padding (1.1rem a side) is 70px at 200% text, more than
      the button is wide: it squeezed the icon out. */
   padding: 0;
-  border-radius: 0.85rem;
+  /* A circle, to sit beside the See my matches pill. */
+  border-radius: 50%;
   border: 1px solid var(--scan-border, #3a3a3d);
   background: transparent;
   color: var(--scan-fg, #f5f5f7);
@@ -1570,7 +1571,8 @@ main.easyScanShell {
    light label on white paper. Outline it in dark text instead. */
 @media print {
   .easyUploadFallbackButton,
-  .easyCopyLink {
+  .easyCopyLink,
+  .easyGripChip.selected {
     background: none;
     color: var(--text-primary);
     border: 1px solid currentColor;

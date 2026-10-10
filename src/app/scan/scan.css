@@ -597,16 +597,22 @@ h1 {
 .scanMain .measurements dt {
   color: #b5b5bd;
 }
+/* "Use a different photo": secondary, a text link (BTN-1, style B). */
 .scanMain .uploadSlot-measured .uploadButton {
-  background: #1c1c1e;
-  border-color: var(--scan-border);
+  background: none;
+  border-color: transparent;
   color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 @media (prefers-contrast: more) {
   .scanMain .feedback-ok,
   .scanMain .pickerButton,
   .scanMain .uploadButton {
     border: 2px solid currentColor;
+  }
+  .scanMain .uploadSlot-measured .uploadButton {
+    border-color: currentColor;
   }
 }
 

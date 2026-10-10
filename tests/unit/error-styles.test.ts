@@ -180,10 +180,16 @@ describe("error screen colours (the one dark theme)", () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it("the secondary button's outline is at least 3:1 on the page", () => {
-    expect(
-      contrast(errors.value(".errorAction-secondary", "border-color"), bg),
-    ).toBeGreaterThanOrEqual(3);
+  it("the secondary button is a text link in the accent text colour: 4.5:1 on the page, no visible border (BTN-1, style B)", () => {
+    const label = colourOf(errors.value(".errorAction-secondary", "color"));
+    expect(label).toBe(tokens["--accent-text"]);
+    expect(contrast(label, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(errors.value(".errorAction-secondary", "border-color")).toBe(
+      "transparent",
+    );
+    expect(errors.value(".errorAction-secondary", "text-decoration")).toBe(
+      "underline",
+    );
   });
 
   it("the focus ring is at least 3:1 on the page, and is the accent text colour", () => {

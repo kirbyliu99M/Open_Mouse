@@ -77,10 +77,14 @@
   border: 0;
 }
 
+/* Secondary: a text link (BTN-1, style B). The border stays transparent so a
+   more-contrast user still gets an outline. */
 .learn-button-secondary {
   color: var(--learn-accent);
-  background: var(--learn-surface);
-  border: 1px solid var(--learn-rule);
+  background: none;
+  border: 1px solid transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .learn-button:active,

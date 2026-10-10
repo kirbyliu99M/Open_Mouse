@@ -111,10 +111,13 @@ main.errorScreen h1:focus {
   background: var(--button-primary-bg);
   color: var(--on-button-primary);
 }
+/* Secondary: a text link (BTN-1, style B). */
 .errorAction-secondary {
   background: transparent;
-  color: inherit;
-  border-color: #6e6e73;
+  color: var(--accent-text);
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .errorAction:focus-visible {
   outline: 3px solid var(--accent-text);
@@ -149,6 +152,7 @@ main.errorScreen h1:focus {
 @media (prefers-contrast: more) {
   .errorAction-secondary {
     border-width: 2px;
+    border-color: currentColor;
   }
 }
 

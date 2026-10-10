@@ -497,11 +497,18 @@
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
+/* Secondary: a text link (BTN-1, style B). */
 .cameraRetake {
   order: 2;
-  border: 1.5px solid var(--control-border);
+  border: 1.5px solid transparent;
   background: transparent;
   color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cameraRetake:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .cameraReviewPage .cameraNotice {
   margin-top: 1rem;
@@ -542,6 +549,7 @@
   }
   .cameraRetake {
     border-width: 2px;
+    border-color: currentColor;
   }
 }
 

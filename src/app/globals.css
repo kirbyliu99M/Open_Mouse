@@ -181,9 +181,18 @@ button:disabled {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
+/* Secondary: a text link in --accent-text (BTN-1, style B), no fill, no border.
+   The border stays as transparent so a more-contrast user still gets an outline. */
 .button-secondary {
   background: transparent;
-  color: inherit;
+  color: var(--accent-text);
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.button-secondary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .button-danger {
   background: transparent;
@@ -274,9 +283,6 @@ button:disabled {
 .measurements dt {
   color: #b5b5bd;
 }
-.button-secondary {
-  border-color: #6e6e73;
-}
 
 @media (prefers-reduced-motion: reduce) {
   button,
@@ -299,6 +305,9 @@ button:disabled {
   .button-secondary,
   .button-danger {
     border-width: 2px;
+  }
+  .button-secondary {
+    border-color: currentColor;
   }
 }
 

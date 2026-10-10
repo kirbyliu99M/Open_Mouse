@@ -120,10 +120,12 @@
     outline-offset: 3px;
   }
   .sheet-secondary {
+    /* Secondary: a text link (BTN-1, style B). */
     color: var(--accent-text);
-    background: #242426;
-    border: 1px solid #3a3a3d;
-    text-decoration: none;
+    background: none;
+    border: 1px solid transparent;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .sheet-after .sheet-privacy {
     text-align: center;
