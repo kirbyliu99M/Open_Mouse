@@ -17,6 +17,7 @@ import {
   LOGO_VIEWBOX,
   PALMATE_DOT,
   PALMATE_PATH,
+  bellQuantile,
   inLogoMark,
   logoPolylines,
   strayReach,
@@ -244,16 +245,17 @@ describe("the Palmate logo", () => {
       expect(p.y).toBeLessThanOrEqual(LOGO_BOX.height);
     }
     expect(Math.max(...distances)).toBeLessThan(limit);
-    // Not a line: a bell-shaped width round it. Spread 0.5 units has a mean
-    // distance of 0.40 units (1.2 px) and about 4.6 % of the points beyond 1
-    // unit (the bounds are those of the test below; the nearest line of any
-    // of the four can only be nearer than a point's own).
+    // Not a line: a bell-shaped width round it. The swelling bell has a mean
+    // distance of 0.398 units (1.2 px) and 5.5 % of the points beyond 1 unit
+    // (the bounds are those of the test below, a little lower at the bottom:
+    // the nearest line of any of the four can only be nearer than a point's
+    // own).
     const units = distances.map((d) => d / LOGO_SCALE);
     expect(mean(units)).toBeGreaterThan(0.34);
-    expect(mean(units)).toBeLessThan(0.435);
+    expect(mean(units)).toBeLessThan(0.436);
     const beyond = units.filter((d) => d > 1).length / units.length;
-    expect(beyond).toBeGreaterThan(0.015);
-    expect(beyond).toBeLessThan(0.071);
+    expect(beyond).toBeGreaterThan(0.022);
+    expect(beyond).toBeLessThan(0.083);
     expect(Math.max(...units)).toBeGreaterThan(1.3);
   });
 
@@ -261,14 +263,15 @@ describe("the Palmate logo", () => {
    * Each cloud point placed against its own line (in viewBox units): how far
    * along the line its foot is, and its distance across, signed (+ on the
    * left of the way the line is drawn). The expected values below come from
-   * the sampling's description (a bell of standard deviation `spread`
-   * clipped at `maxSpread`, places an even step apart, `doubled` of them with
-   * two points), not from what the code made: for N(0, 0.5) clipped at 1.6
-   * (3.2 standard deviations) the mean distance is 0.399, the share beyond 1
-   * unit (2 standard deviations) 0.046 and the standard deviation 0.500;
-   * over 840 points their standard errors are 0.0104, 0.0072 and 0.0122, and
-   * each bound is about 3.5 of them either side. (The first cut, N(0, 0.8)
-   * clipped at 2.4 over 600 points, had 0.638, 0.211 and 0.795.)
+   * the sampling's description, not from what the code made: a bell clipped
+   * at 1.6 whose standard deviation is 0.5 x (1 + 0.3 sin(2 pi u / 24 +
+   * 1.7 line)) at u units along a line (worked out over the sine's phase):
+   * the mean distance is 0.398, the share beyond 1 unit 0.055 and the
+   * standard deviation 0.508; over 840 points random draws would have
+   * standard errors of 0.011, 0.008 and 0.012, and each bound is about 3.5
+   * of them either side (the low-discrepancy order lands much nearer). (An
+   * even bell of 0.5 had 0.399, 0.046 and 0.500; the first cut, 0.8 clipped
+   * at 2.4 over 600 points, 0.638, 0.211 and 0.795.)
    */
   const placed = pathRuns.map((run, w) =>
     target.points.slice(run.start, run.start + run.count).map((p) => {
@@ -315,22 +318,22 @@ describe("the Palmate logo", () => {
     return polylineLength(inBox[w]!.points) / LOGO_SCALE / places;
   });
 
-  it("spreads the points across the line as a bell 0.5 units wide, both sides alike, clipped at 1.6 units", () => {
+  it("spreads the points across the line as a bell about 0.5 units wide, both sides alike, clipped at 1.6 units", () => {
     const across = placed.flat().map((p) => p.across);
     const centre = mean(across);
     const sd = Math.sqrt(mean(across.map((a) => (a - centre) ** 2)));
     const size = across.map(Math.abs);
-    // Both sides alike: the signed mean is 0 (standard error 0.017).
-    expect(Math.abs(centre)).toBeLessThan(0.06);
-    expect(sd).toBeGreaterThan(0.457);
-    expect(sd).toBeLessThan(0.543);
-    expect(mean(size)).toBeGreaterThan(0.363);
-    expect(mean(size)).toBeLessThan(0.435);
+    // Both sides alike: the signed mean is 0 (standard error 0.018).
+    expect(Math.abs(centre)).toBeLessThan(0.061);
+    expect(sd).toBeGreaterThan(0.465);
+    expect(sd).toBeLessThan(0.552);
+    expect(mean(size)).toBeGreaterThan(0.36);
+    expect(mean(size)).toBeLessThan(0.436);
     const beyond = size.filter((d) => d > 1).length / size.length;
-    expect(beyond).toBeGreaterThan(0.0203);
-    expect(beyond).toBeLessThan(0.0707);
-    // The tail reaches the clip: 840 draws of a bell have about 5 beyond 2.75
-    // standard deviations (1.375 units), and none past 1.6.
+    expect(beyond).toBeGreaterThan(0.027);
+    expect(beyond).toBeLessThan(0.083);
+    // The tail reaches the clip: the extreme quantiles at the wide parts of
+    // the line are past 1.375 units, and nothing is past 1.6.
     expect(Math.max(...size)).toBeGreaterThanOrEqual(1.375);
     expect(Math.max(...size)).toBeLessThanOrEqual(1.6 + 0.05);
   });
@@ -360,33 +363,126 @@ describe("the Palmate logo", () => {
     expect(even / stretches).toBeGreaterThanOrEqual(0.9);
   });
 
-  it("walks each line in order, a place an even step apart, about a quarter of the places with two points, most of them close together", () => {
-    let close = 0;
+  it("walks each line in order, a place an even step apart, about a quarter of the places with two points a half step apart", () => {
+    let half = 0;
     placed.forEach((line, w) => {
       const step = steps[w]!;
       // The places are about 0.52 units apart (349 units over 667 places).
       expect(step).toBeGreaterThan(0.49);
       expect(step).toBeLessThan(0.56);
       for (let i = 1; i < line.length; i += 1) {
-        const move = line[i]!.along - line[i - 1]!.along;
-        // The next point is at most two steps on (from the start of one
-        // place to the end of the next) and at most one step back (the two
-        // points of a place come in either order). A tight bend stretches
-        // or squeezes the along-the-line distance by the point's distance
-        // across over the bend's radius, which half a step allows for.
-        expect(move, `line ${w}, point ${i}`).toBeLessThanOrEqual(2.5 * step);
-        expect(move, `line ${w}, point ${i}`).toBeGreaterThanOrEqual(
-          -1.5 * step,
-        );
-        if (Math.abs(move) < 0.25) close += 1;
+        const move = (line[i]!.along - line[i - 1]!.along) / step;
+        // The next point is at most two steps on and at most one step back.
+        // A tight bend stretches or squeezes the along-the-line distance by
+        // the point's distance across over the bend's radius, which half a
+        // step allows for.
+        expect(move, `line ${w}, point ${i}`).toBeLessThanOrEqual(2.5);
+        expect(move, `line ${w}, point ${i}`).toBeGreaterThanOrEqual(-1.5);
+        if (move >= 0.25 && move <= 0.62) half += 1;
       }
     });
-    // 840 points on 667 places is 173 places with two. The two of a place are
-    // each anywhere in its step, so they are under 0.25 units apart with a
-    // chance of 1 - (1 - 0.25 / 0.523)^2 = 0.728: about 126 (standard
-    // deviation 5.9). One point a place, an even 0.42 units apart, has none.
-    expect(close).toBeGreaterThanOrEqual(100);
-    expect(close).toBeLessThanOrEqual(155);
+    // A place's two points sit at a quarter and three quarters of its step,
+    // each moved by up to a tenth of it: the move from the first to the
+    // second is 0.5 step plus the difference of two jitters (a triangle on
+    // -0.2 to 0.2), so it is 0.25 to 0.62 steps with a chance of
+    // 1 - 0.08^2 / (2 x 0.04) = 0.92. The same holds from the second point of
+    // a pair to the first of the next when the next place is doubled too,
+    // which the shuffle makes 43.9 times (173 doubled places of 667, by line:
+    // 91 x 90 / 352 + 31 x 30 / 121 + 27 x 26 / 104 + 24 x 23 / 90). Every
+    // other move is 0.65 steps or more. So about 0.92 x (173 + 43.9) = 200
+    // moves (standard deviation about 8: the adjacencies vary by about 6.6,
+    // the jitters by 4); the bound is 3.5 of those either side. Points placed
+    // anywhere in their step (the earlier sampling) give about 75, one point
+    // a place none.
+    expect(half).toBeGreaterThanOrEqual(172);
+    expect(half).toBeLessThanOrEqual(228);
+  });
+
+  it("bellQuantile is the bell's quantile: the published values, to 1e-8, and symmetric", () => {
+    const known: [number, number][] = [
+      [0.5, 0],
+      [0.8413447460685429, 1],
+      [0.975, 1.959963984540054],
+      [0.99, 2.326347874040841],
+      [0.001, -3.090232306167813],
+      [0.02, -2.053748910631823],
+    ];
+    for (const [p, z] of known) expect(bellQuantile(p)).toBeCloseTo(z, 8);
+    for (const p of [0.01, 0.1, 0.3, 0.45]) {
+      expect(bellQuantile(1 - p)).toBeCloseTo(-bellQuantile(p), 8);
+    }
+  });
+
+  it("takes the bell's quantiles in the golden-ratio order: point n of the cloud is at the level (0.5 + n x 0.618...) mod 1 of a bell as wide as the line is there", () => {
+    // The spec's own numbers, worked out here: the level each point should
+    // have, and the width the line should have where it is.
+    const golden = (Math.sqrt(5) - 1) / 2;
+    const width = (line: number, u: number) =>
+      0.5 * (1 + 0.3 * Math.sin((2 * Math.PI * u) / 24 + 1.7 * line));
+    let n = 0;
+    let checked = 0;
+    let onWidth = 0;
+    let levelsMatch = 0;
+    const levels: number[] = [];
+    placed.forEach((line, w) => {
+      for (const p of line) {
+        const level = (0.5 + n * golden) % 1;
+        n += 1;
+        levels.push(level);
+        const z = bellQuantile(level);
+        // Points near the middle of the bell or at the clip say little about
+        // the width: the rest do.
+        if (Math.abs(z) < 0.6 || Math.abs(p.across) > 1.55) continue;
+        checked += 1;
+        const seen = p.across / z;
+        if (Math.abs(seen - width(w, p.along)) < 0.04) onWidth += 1;
+        if (Math.sign(p.across) === Math.sign(z)) levelsMatch += 1;
+      }
+    });
+    expect(n).toBe(840);
+    expect(checked).toBeGreaterThan(400);
+    // Away from a line's sharpest bends (where the nearest piece of line is
+    // not the one a point was placed from) every point is where the spec
+    // puts it: its side of the line, and its width to a few hundredths.
+    expect(levelsMatch / checked).toBeGreaterThan(0.97);
+    expect(onWidth / checked).toBeGreaterThan(0.9);
+    // The order itself: 840 levels in (0, 1), no two close (a golden-ratio
+    // sequence's gaps take at most three sizes, the largest under 2 / 840).
+    const sorted = [...levels].sort((a, b) => a - b);
+    let widest = sorted[0]! + 1 - sorted[sorted.length - 1]!;
+    for (let k = 1; k < sorted.length; k += 1) {
+      widest = Math.max(widest, sorted[k]! - sorted[k - 1]!);
+    }
+    expect(widest).toBeLessThan(2 / 840);
+  });
+
+  it("swells and thins the line like a drawn stroke: about 0.64 units wide where the sine is high, 0.36 where it is low, on each line in its own phase", () => {
+    // The points where sin(2 pi u / 24 + 1.7 line) is over 0.5, and under
+    // -0.5: a third of each line each. Over the sine's phase there, the
+    // clipped bell's standard deviation is 0.618 and 0.377 (worked out like
+    // the figures above): 0.64 and 0.36 at the very top and bottom. A run of
+    // consecutive points of a golden-ratio sequence covers the quantiles
+    // evenly, so a third of a line lands within a few % of its figure.
+    const phaseOf = (line: number, u: number) =>
+      Math.sin((2 * Math.PI * u) / 24 + 1.7 * line);
+    const sdOf = (values: readonly number[]) => {
+      const m = mean(values);
+      return Math.sqrt(mean(values.map((v) => (v - m) ** 2)));
+    };
+    placed.forEach((line, w) => {
+      const wide = line.filter((p) => phaseOf(w, p.along) > 0.5);
+      const thin = line.filter((p) => phaseOf(w, p.along) < -0.5);
+      expect(wide.length, `line ${w}`).toBeGreaterThan(30);
+      expect(thin.length, `line ${w}`).toBeGreaterThan(30);
+      const label = `line ${w}: wide ${sdOf(wide.map((p) => p.across)).toFixed(3)}, thin ${sdOf(thin.map((p) => p.across)).toFixed(3)}`;
+      expect(sdOf(wide.map((p) => p.across)), label).toBeGreaterThan(0.54);
+      expect(sdOf(wide.map((p) => p.across)), label).toBeLessThan(0.7);
+      expect(sdOf(thin.map((p) => p.across)), label).toBeGreaterThan(0.31);
+      expect(sdOf(thin.map((p) => p.across)), label).toBeLessThan(0.43);
+    });
+    // The four lines are not in step: each starts its sine 1.7 radians on.
+    const starts = [0, 1, 2, 3].map((line) => phaseOf(line, 0));
+    expect(new Set(starts.map((v) => v.toFixed(3))).size).toBe(4);
   });
 
   it("covers the line: every stretch of 5 units has points within 2 units, so no finger is bare", () => {

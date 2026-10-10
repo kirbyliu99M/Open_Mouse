@@ -152,19 +152,27 @@ describe("starOrder", () => {
     }
   });
 
-  it("keeps the closest stars apart, 1.8 times a random pick's closest pairs or more, at the median of five order seeds", () => {
-    // The figure is the 5th percentile of the nearest-neighbour distance:
-    // with 80 stars on a mouse (a share of 0.08) that is the 4th smallest
-    // gap, so one seed's value swings. Measured over 12 seeds (the shipped
-    // one and 1000 to 1010), as closest / a random pick's closest, mouse at
-    // 0.08: 1.85 to 2.34, median 2.12, on the 600-point Palmate cloud; 1.69
-    // to 2.36, median 2.11, on the 840-point one (2026-10-10). The order is
-    // picked on the logo and the mouse together, so any change to the logo
-    // draws it again: the shipped seed went from 2.34 to 1.69 with no change
-    // to the mouse. The median of five seeds is the algorithm's figure, not
-    // one draw's; each seed must still clear 1.5 (the test above), and the
-    // lowest of all 72 measured (12 seeds, 3 shares, logo and mouse, both
-    // clouds) was 1.69.
+  it("keeps the closest stars apart at the median of five order seeds: half the mean gap or more, and 1.6 times a random pick's closest pairs or more", () => {
+    // The figure is the 5th percentile of the nearest-neighbour distance as a
+    // share of the mean: with 80 stars on a mouse (a share of 0.08) that is
+    // the 4th smallest gap, so one seed's value swings, and the median of five
+    // seeds is the algorithm's figure, not one draw's. Each seed must still
+    // clear 1.5 times a random pick's (the test above).
+    //
+    // Measured 2026-10-10 over 12 seeds (the shipped one and 1000 to 1010) on
+    // the swelling, golden-ratio cloud (variant B3), every share, logo and
+    // mouse: the closest pairs at 0.46 to 0.68 of the mean gap, and the median
+    // of the first five seeds 0.52 or more in every case. With 3 candidates
+    // instead of 8 the medians are 0.37 to 0.45, with 2 they are 0.30 to
+    // 0.47: the bound, 0.49, is between the two.
+    //
+    // Against a random pick the figure is lower than it was on the random
+    // cloud (variant B: 1.8 or more at the median): the evener cloud makes
+    // the random pick itself less clumped (its closest pairs on the logo at
+    // 0.25 went from 0.249 to 0.315 of its mean gap), not the order worse (its
+    // own went from 0.55 to 0.55). B3's medians are 1.74 or more; 3
+    // candidates give 1.38 (logo at 0.25) and 1.53 (mouse at 0.08). 1.6 is
+    // between.
     const random = shuffled(COUNT, 99);
     const seeds = [STAR_ORDER_SEED, 1000, 1001, 1002, 1003];
     const orders = seeds.map((seed) =>
@@ -172,17 +180,18 @@ describe("starOrder", () => {
         ? Array.from(order)
         : Array.from(starOrder(pairing, seed)),
     );
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[2]!;
     for (const share of [0.08, 0.15, 0.25]) {
       const lit = Math.round(COUNT * share);
       const dots = litOn(pairing, random, lit);
       for (const where of ["logo", "mouse"] as const) {
         const chance = spreadOf(dots[where]).closest;
-        const ratios = orders
-          .map((placing) => spreadOf(litOn(pairing, placing, lit)[where]))
-          .map((even) => even.closest / chance)
-          .sort((a, b) => a - b);
-        const label = `${where} at ${share}: ${ratios.map((r) => r.toFixed(2)).join(", ")}`;
-        expect(ratios[2]!, label).toBeGreaterThan(1.8);
+        const closest = orders.map(
+          (placing) => spreadOf(litOn(pairing, placing, lit)[where]).closest,
+        );
+        const label = `${where} at ${share}: ${closest.map((c) => c.toFixed(2)).join(", ")} (random ${chance.toFixed(2)})`;
+        expect(median(closest), label).toBeGreaterThan(0.49);
+        expect(median(closest) / chance, label).toBeGreaterThan(1.6);
       }
     }
   });
