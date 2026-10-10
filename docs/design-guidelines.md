@@ -26,9 +26,11 @@ above 15 %. Pressed states darken the fill; they never lower the opacity.
 (`--button-primary-bg` `#F5F5F7`, `border-radius: 999px`) with a near-black
 label (`--on-button-primary` `#060709`, 18.5:1), pressed to `#D1D1D6`, and a
 2 px `--accent-text` focus ring with an offset. Blue is for text, links, focus
-rings and selected states (a selected toggle keeps its `--accent` fill and
-white label, 4.75:1); it no longer fills a primary button. On paper the pill
-prints black with a white label.
+rings and selection text; it no longer fills a primary button. A selected
+toggle takes the same white fill and black label (its unselected state stays a
+dark outline), keeping its own shape. The home page keeps its blue button until
+its redesign adopts these tokens. On paper the pill prints black with a white
+label.
 
 ---
 

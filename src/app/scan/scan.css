@@ -129,15 +129,15 @@ h1 {
   transform: scale(0.97);
 }
 .pickerButton.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* A white label on an accent fill: pressing darkens the fill and never lowers
-   the opacity, which would take the label under 4.5:1. */
+/* A dark label on the white fill: pressing darkens the fill and never lowers
+   the opacity. */
 .pickerButton.selected:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 .uploadSlot {
@@ -508,9 +508,9 @@ h1 {
   border-radius: 999px;
   min-height: 3.25rem;
 }
-/* Selected state is a solid accent fill (the base `.pickerButton.selected`
+/* Selected state is a solid white fill (the base `.pickerButton.selected`
    rule above), not a color-only tint — distinguishable without relying on
-   hue, and `--on-accent` keeps its text at 4.75:1 on `--accent`. A softer accent-soft pill used to override that here, differing
+   hue, and `--on-button-primary` keeps its text at 18.5:1. A softer accent-soft pill used to override that here, differing
    from the unselected pill only by color. */
 .scanMain .uploadButton,
 .scanMain .primaryButton {

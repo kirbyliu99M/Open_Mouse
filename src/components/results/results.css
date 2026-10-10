@@ -151,7 +151,7 @@
 }
 
 .results-demoControls-buttons button[aria-pressed="true"] {
-  color: var(--on-accent);
+  color: var(--on-button-primary);
 }
 
 .results-demoControls-buttons button:focus-visible {
@@ -417,14 +417,14 @@
 }
 
 .results-demoControls-buttons button[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
 }
 
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .results-demoControls-buttons button[aria-pressed="true"]:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 /* Journey styling shared with Home and Sheet. */

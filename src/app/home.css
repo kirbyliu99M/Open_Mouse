@@ -72,20 +72,20 @@
   min-height: 3.125rem;
   padding: 0 1rem;
   /* A real border colour, not transparent: forced colours keeps it visible. */
-  border: 1px solid var(--button-primary-bg);
+  border: 1px solid var(--accent);
   border-radius: 999px;
-  background: var(--button-primary-bg);
-  color: var(--on-button-primary);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
   box-shadow: 0 0 1.25rem color-mix(in srgb, var(--glow) 40%, transparent);
 }
-/* Pressing darkens the fill. Never lower the opacity: it would fade the
-   dark label. */
+/* Pressing darkens the fill. Never lower the opacity: 0.85 would take the
+   white label to 4.33:1. */
 .home-cta:active {
-  background: var(--button-primary-pressed);
-  border-color: var(--button-primary-pressed);
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
 }
 .home-cta-caption {
   text-align: center;

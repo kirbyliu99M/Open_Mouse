@@ -231,9 +231,9 @@ function blend(
   ];
 }
 
-describe("the filled buttons: a near-white pill, or --accent for a selected toggle", () => {
+describe("the filled buttons: a near-white fill with a near-black label", () => {
   // The primary button is a near-white pill with a near-black label (BTN-1).
-  // A selected toggle keeps the blue fill with its white label (4.75:1).
+  // A selected toggle takes the same fill and label, in its own shape.
   // Dropping the opacity of a pressed button would fade the label, so every
   // filled button darkens its fill to the pressed token instead.
   const PRIMARY: readonly (readonly [string, string, string | null])[] = [
@@ -241,7 +241,6 @@ describe("the filled buttons: a near-white pill, or --accent for a selected togg
     ["src/app/scan/scan.css", ".primaryButton", null],
     ["src/app/learn/learn.css", ".learn-button", null],
     ["src/app/globals.css", ".button-primary", null],
-    ["src/app/home.css", ".home-cta", null],
     ["src/app/account/account.css", ".account-start-button", null],
     ["src/components/results/results.css", ".results-page-action", null],
     ["src/components/errors/errors.css", ".errorAction-primary", null],
@@ -335,13 +334,17 @@ describe("the filled buttons: a near-white pill, or --accent for a selected togg
   ];
 
   it.each(FILLED)(
-    "%s %s: pressing darkens the fill and never lowers the opacity",
+    "%s %s (selected toggle): the primary fill; pressing darkens the fill and never lowers the opacity",
     (file, selector, media) => {
       const rules = rulesOf(file);
       const fill = declared(rules, selector, "background", media);
-      expect(fill && resolve(fill), "its fill").toBe(token("--accent"));
+      expect(fill && resolve(fill), "its fill").toBe(
+        token("--button-primary-bg"),
+      );
       const label = declared(rules, selector, "color", media);
-      expect(label && resolve(label), "its label").toBe(token("--on-accent"));
+      expect(label && resolve(label), "its label").toBe(
+        token("--on-button-primary"),
+      );
 
       const pressed = declared(
         rules,
@@ -350,10 +353,10 @@ describe("the filled buttons: a near-white pill, or --accent for a selected togg
         media,
       );
       expect(pressed && resolve(pressed), "pressed fill").toBe(
-        token("--accent-pressed"),
+        token("--button-primary-pressed"),
       );
       expect(
-        ratio(rgb("--on-accent"), channels(resolve(pressed!))),
+        ratio(rgb("--on-button-primary"), channels(resolve(pressed!))),
         "label on the pressed fill",
       ).toBeGreaterThanOrEqual(4.5);
 
@@ -381,7 +384,7 @@ describe("the filled buttons: a near-white pill, or --accent for a selected togg
       expect(
         resolve(declared(rulesOf(file), `${selector}:active`, "border-color")!),
         selector,
-      ).toBe(token("--accent-pressed"));
+      ).toBe(token("--button-primary-pressed"));
     }
   });
 
@@ -412,7 +415,7 @@ describe("the filled buttons: a near-white pill, or --accent for a selected togg
       resolve(
         declared(rules, ".pickerButton.selected:active", "border-color")!,
       ),
-    ).toBe(token("--accent-pressed"));
+    ).toBe(token("--button-primary-pressed"));
   });
 
   it("under reduced motion the filled buttons keep full opacity, and only an unfilled chip fades", () => {

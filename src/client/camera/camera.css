@@ -70,14 +70,14 @@
   cursor: pointer;
 }
 .cameraPaperToggleButton.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .cameraPaperToggleButton.selected:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 .cameraNotice {

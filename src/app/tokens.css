@@ -7,12 +7,12 @@
  * root layout, so it can not rely on the layout's imports).
  *
  * Which token fills a control:
- *   --button-primary-bg  the primary button: a near-white pill (Kirby,
- *                        2026-10-10, BTN-1, candidate); the label on it is
+ *   --button-primary-bg  the primary button, a near-white pill, and a selected
+ *                        toggle (Kirby, 2026-10-10, BTN-1, candidate; the home
+ *                        page adopts it with its redesign); the label is
  *                        --on-button-primary, a pressed one uses
  *                        --button-primary-pressed.
- *   --accent             a selected toggle's fill, a badge, a stroke; the label
- *                        on it is --on-accent. #1f6bf0 is only 4.24:1 on --bg
+ *   --accent             a badge, a stroke; the label on it is --on-accent. #1f6bf0 is only 4.24:1 on --bg
  *                        and 2.6:1 on the selected-chip fill, so it is never
  *                        used for text and no longer fills a primary button.
  *   --accent-text        text, links, outlines, focus rings and selected chips.
