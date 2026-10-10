@@ -382,3 +382,53 @@ test("the hand chip inside the retake sheet stays readable with reduced transpar
     "with reduced transparency",
   ).toBeGreaterThan(4.5);
 });
+
+test("the camera-error upload pill shows a visible keyboard focus ring in --accent-text, not white on white", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile",
+    "Desktop shows the QR hand-off page, not the camera screen.",
+  );
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    if (!media) return;
+    media.getUserMedia = () =>
+      Promise.reject(new DOMException("denied", "NotAllowedError"));
+  });
+  await page.goto("/scan/easy");
+  const label = page.locator("label.easyUploadFallbackButton");
+  await expect(label).toBeVisible({ timeout: 15_000 });
+  const gotIt = page.getByRole("button", { name: "Got it" });
+  if (await gotIt.isVisible()) await gotIt.click();
+  // The file input is visually hidden; a keyboard reaches it and the ring is
+  // drawn on the label. Tab until it has focus.
+  for (let i = 0; i < 20; i += 1) {
+    if (
+      await page.evaluate(
+        () => document.activeElement?.id === "easy-scan-upload",
+      )
+    )
+      break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(page.locator("#easy-scan-upload")).toBeFocused();
+  const ring = await label.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const probe = document.createElement("span");
+    probe.style.color = "var(--accent-text)";
+    document.body.append(probe);
+    const accentText = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      colour: style.outlineColor,
+      width: style.outlineWidth,
+      offset: style.outlineOffset,
+      accentText,
+    };
+  });
+  expect(ring.colour).toBe(ring.accentText);
+  expect(ring.colour).toBe("rgb(127, 168, 255)");
+  expect(ring.width).toBe("2px");
+  expect(ring.offset).toBe("3px");
+});

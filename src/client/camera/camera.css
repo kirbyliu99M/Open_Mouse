@@ -544,3 +544,15 @@
     border-width: 2px;
   }
 }
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .cameraUsePhoto,
+  .cameraResumeButton,
+  .cameraPaperToggleButton.selected {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
+  }
+}

@@ -33,7 +33,7 @@
   --button-primary-bg: #f5f5f7; /* 18.5:1 on --bg */
   --on-button-primary: #060709; /* 18.5:1 on --button-primary-bg */
   --button-primary-pressed: #d1d1d6; /* 13.2:1 for --on-button-primary */
-  --button-primary-disabled-opacity: 0.4;
+  --button-primary-disabled-opacity: 0.5; /* blended label on fill 5.0:1, see the test */
 
   --control-border: #ffffff59; /* about 3.1:1 on --bg */
   --hairline: #ffffff24; /* decorative */
@@ -56,7 +56,8 @@
    a token (the headline, the wordmark, the subhead, the captions) would
    otherwise print in near-white on white. The fills keep their blue, and
    --on-accent stays white on them. The primary button turns black with a
-   white label, because a white pill would vanish on white paper. */
+   white label here, but most pills are outlined in dark text in their own
+   print blocks, because browsers skip backgrounds when printing. */
 @media print {
   :root {
     --bg: #ffffff;

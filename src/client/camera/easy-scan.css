@@ -426,7 +426,13 @@
 .easySheet button:focus-visible {
   outline-color: var(--accent-text);
 }
-/* A white ring would vanish on a white pill. */
+/* A white ring would vanish on a white pill. The :has rule above is more
+   specific, so the upload label repeats its selector to win. */
+.easyScanShell:has(#easy-scan-upload:focus-visible)
+  label.easyUploadFallbackButton[for="easy-scan-upload"] {
+  outline-color: var(--accent-text);
+  outline-offset: 3px;
+}
 .easyScanShell .easyUploadFallbackButton:focus-visible,
 .easyScanShell .easyCopyLink:focus-visible,
 .easyDeviceEntry .easyCopyLink:focus-visible,
@@ -1558,4 +1564,15 @@ main.easyScanShell {
 }
 .easyDebugAttempts li {
   overflow-wrap: anywhere;
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .easyUploadFallbackButton,
+  .easyCopyLink {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
+  }
 }

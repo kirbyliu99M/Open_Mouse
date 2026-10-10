@@ -4,8 +4,9 @@
  * The scan palette. The site is one dark theme (docs/design/
  * home-v3-2026-10-03/README.md), so these are the dark values only. The page
  * background and the accent come from the global tokens in tokens.css:
- * `--bg`, `--accent` (fills), `--accent-text` (text, outlines, focus rings,
- * selected chips) and `--on-accent` (the label on an accent fill).
+ * `--bg`, `--button-primary-bg` and `--on-button-primary` (the white pill and
+ * its label: primary buttons and selected chips), `--accent-text` (text,
+ * outlines, focus rings) and `--accent` (strokes).
  */
 :root {
   --scan-marker: #0a6cff;
@@ -598,6 +599,7 @@ h1 {
 }
 .scanMain .uploadSlot-measured .uploadButton {
   background: #1c1c1e;
+  border-color: var(--scan-border);
   color: var(--accent-text);
 }
 @media (prefers-contrast: more) {
@@ -605,5 +607,17 @@ h1 {
   .scanMain .pickerButton,
   .scanMain .uploadButton {
     border: 2px solid currentColor;
+  }
+}
+
+/* Print: browsers skip backgrounds by default, so a filled pill would print a
+   light label on white paper. Outline it in dark text instead. */
+@media print {
+  .uploadButton,
+  .primaryButton,
+  .pickerButton.selected {
+    background: none;
+    color: var(--text-primary);
+    border: 1px solid currentColor;
   }
 }

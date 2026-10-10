@@ -260,7 +260,15 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
     );
     // The white pill stands out from the page it sits on.
     expect(ratio(bg, rgb("--bg"))).toBeGreaterThanOrEqual(18);
-    expect(token("--button-primary-disabled-opacity")).toBe("0.4");
+    // A disabled pill fades as a whole over the page: the label and fill
+    // both blend towards --bg, and the pair must still read at 3:1.
+    const opacity = Number(token("--button-primary-disabled-opacity"));
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
+    const page = rgb("--bg");
+    expect(
+      ratio(blend(on, opacity, page), blend(bg, opacity, page)),
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it("prints as a black pill with a white label, so it does not vanish on white paper", () => {

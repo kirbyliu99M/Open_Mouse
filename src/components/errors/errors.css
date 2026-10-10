@@ -1,8 +1,8 @@
 /* Not-found, error and global-error screens. Self-contained on purpose:
    global-error.tsx replaces the root layout, so globals.css is not loaded
    there. The colours are the site's dark tokens (tokens.css, which
-   ErrorScreen imports itself): --bg, --text-primary, --accent / --on-accent
-   for the primary button, --accent-text for the focus ring; the muted text is
+   ErrorScreen imports itself): --bg, --text-primary, --button-primary-bg /
+   --on-button-primary for the primary button, --accent-text for the focus ring; the muted text is
    #b5b5bd. */
 
 /* Only global-error.tsx puts this class on <body>. */
