@@ -224,13 +224,48 @@ describe("eloPageConnectivity", () => {
     expect(eloPageConnectivity(["Weight", "50"])).toBe("");
     expect(eloPageConnectivity(block("-", "-"))).toBe("");
   });
+
+  it("reads Wired = Yes with Wireless = - as wired", () => {
+    expect(eloPageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
+  });
 });
 
 describe("OFFICIAL_CONNECTIVITY", () => {
-  it("is https-keyed and holds only wired or wireless", () => {
-    for (const [url, value] of Object.entries(OFFICIAL_CONNECTIVITY)) {
-      expect(url.startsWith("https://")).toBe(true);
-      expect(["Wired", "Wireless"]).toContain(value);
+  const official = (catalogue as unknown as CatalogueEntry[]).filter(
+    (e) => e.dataSource === "first_party",
+  );
+
+  it("pins the seven values read from the brand pages", () => {
+    expect(OFFICIAL_CONNECTIVITY).toEqual({
+      "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
+        "Wired",
+      "https://hyperx.com/products/hyperx-pulsefire-haste-3-wireless-gaming-mouse":
+        "Wireless",
+      "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse": "Wired",
+      "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold": "Wireless",
+      "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold": "Wireless",
+      "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
+      "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
+        "Wireless",
+    });
+  });
+
+  it("keys every value by the URL of an official candidate in catalogue.json", () => {
+    const urls = new Set(official.map((e) => e.sourceUrl));
+    for (const url of Object.keys(OFFICIAL_CONNECTIVITY)) {
+      expect(urls.has(url), url).toBe(true);
+    }
+    expect(official).toHaveLength(8);
+  });
+
+  it("leaves exactly the one unreadable official page (Razer Boomslang) null", () => {
+    const nulls = official.filter((e) => e.connectivity === null);
+    expect(nulls.map((e) => e.model)).toEqual([
+      "Boomslang 20th Anniversary Edition",
+    ]);
+    for (const e of official) {
+      const raw = OFFICIAL_CONNECTIVITY[e.sourceUrl];
+      if (raw !== undefined) expect(e.connectivity).toBe(raw.toLowerCase());
     }
   });
 });

@@ -10,6 +10,13 @@
  * is in src/server/catalogue/candidate-map.ts.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  buildCsvIndex,
+  lookupCsvConnectivity,
+  matchSiteTitle,
+  pageTextLines,
+  type DatasetRow,
+} from "../src/server/catalogue/connectivity-match";
 import { parseCsv } from "../src/server/catalogue/csv";
 import {
   buildCatalogue,
@@ -49,57 +56,31 @@ const COLUMNS = [
   "thumbRest",
 ] as const;
 
-/** Loose key, the same one build_candidates.py matched rows with. */
-const loose = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-const pageLines = (html: string): string[] =>
-  html
-    .replace(/<!---->/g, "")
-    .replace(/<[^>]+>/g, "\n")
-    .replace(/&amp;/g, "&")
-    .replace(/&#39;/g, "'")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l !== "");
-
 /**
  * Fills `connectivity` on each record from the local EloShapes sources:
  * the dataset CSV for `eloshapes_csv`, the saved compare pages for
  * `eloshapes_site`, the brand's own page (OFFICIAL_CONNECTIVITY) for
- * `official`. Returns what it could not find.
+ * `official`. File I/O only; the matching is in connectivity-match.ts.
+ * Returns what it could not find.
  */
 function attachConnectivity(records: CandidateRecord[]): string[] {
-  const dataset = parseCsv(readFileSync(ELO_DATASET, "utf8"));
-  const byBrandModel = new Map<string, string>();
-  const byModel = new Map<string, string[]>();
-  for (const r of dataset) {
-    // build_candidates.py drops the "Gear " prefix of Endgame Gear model names.
-    const model = r.Model.replace(/^Gear\s+/, "");
-    byBrandModel.set(loose(r.Brand) + "|" + loose(model), r.Connectivity);
-    const list = byModel.get(loose(model)) ?? [];
-    list.push(r.Connectivity);
-    byModel.set(loose(model), list);
-  }
-  const site = parseCsv(readFileSync(`${ELO_SITE_DIR}/elo-new.csv`, "utf8"))
+  const index = buildCsvIndex(
+    parseCsv(readFileSync(ELO_DATASET, "utf8")) as unknown as DatasetRow[],
+  );
+  const titles = parseCsv(readFileSync(`${ELO_SITE_DIR}/elo-new.csv`, "utf8"))
     .filter((r) => r.status === "200")
-    .map((r) => ({ key: loose(r.title), slug: r.slug }));
+    .map((r) => ({ title: r.title, slug: r.slug }));
   const missing: string[] = [];
   for (const rec of records) {
     const label = `${rec.brand} ${rec.model}`;
     let raw: string | undefined;
     if (rec.source === "eloshapes_csv") {
-      raw = byBrandModel.get(loose(rec.brand) + "|" + loose(rec.model));
-      if (raw === undefined) {
-        const same = byModel.get(loose(rec.model));
-        if (same && new Set(same).size === 1) raw = same[0];
-      }
+      raw = lookupCsvConnectivity(index, rec.brand, rec.model);
     } else if (rec.source === "eloshapes_site") {
-      const hit =
-        site.find((s) => s.key === loose(label)) ??
-        site.find((s) => s.key.endsWith(loose(rec.model)));
-      const file = hit ? `${ELO_SITE_DIR}/raw/${hit.slug}.html` : "";
+      const slug = matchSiteTitle(titles, rec.brand, rec.model);
+      const file = slug ? `${ELO_SITE_DIR}/raw/${slug}.html` : "";
       if (file && existsSync(file)) {
-        raw = eloPageConnectivity(pageLines(readFileSync(file, "utf8")));
+        raw = eloPageConnectivity(pageTextLines(readFileSync(file, "utf8")));
       }
     } else {
       raw = OFFICIAL_CONNECTIVITY[rec.officialUrl.trim()];

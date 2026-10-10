@@ -198,22 +198,22 @@ export function eloPageConnectivity(lines: readonly string[]): string {
  * null. Keyed by official URL so the source is on record.
  */
 export const OFFICIAL_CONNECTIVITY: Readonly<Record<string, string>> = {
-  // Page title "Pulsefire Haste 3 - Wired Gaming Mouse"
+  // hyperx.com product page: sold as the Wired model, wired only.
   "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
     "Wired",
-  // Page title "Pulsefire Haste 3 - Wireless Gaming Mouse"
+  // hyperx.com product page: sold as the Wireless model.
   "https://hyperx.com/products/hyperx-pulsefire-haste-3-wireless-gaming-mouse":
     "Wireless",
-  // "uses a durable paracord-style wrapped cable ... HyperFlex 2 USB-A cable"
+  // hyperx.com product page: wired USB-A cable, no wireless mode.
   "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse": "Wired",
-  // "Connection 2.4GHz Wireless / Wired" (works both ways, so Wireless)
+  // wlmouse.com spec: 2.4GHz wireless and wired, so Wireless.
   "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold": "Wireless",
   "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold": "Wireless",
   "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
-  // "Connection Type: Wired / 2.4GhZ / BT"
+  // dareu.com spec: wired, 2.4GHz and Bluetooth, so Wireless.
   "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
     "Wireless",
-  // Razer Boomslang 20th Anniversary Edition: the support page does not state it, stays null.
+  // Razer Boomslang 20th Anniversary Edition: the support page states nothing readable, stays null.
 };
 
 export function mapYesNo(field: string, raw: string): boolean | null {
