@@ -532,7 +532,13 @@ test.describe("starting away from the top", () => {
         }
       }),
     );
+    // A scroll the page makes on its own (no input from the reader) does not
+    // count as the reader's: still no fourth fade out.
     await page.evaluate(() => window.scrollBy(0, 4));
+    await page.waitForTimeout(1500);
+    expect(await read<number>(page, "__fadeOuts")).toBe(LATE_FADE_ATTEMPTS);
+    // The reader scrolls (a key), then holds still: it switches.
+    await page.keyboard.press("ArrowDown");
     await waitForAnimated(page);
     expect((await theSwitch(page))!.panelOpacity).toBeLessThanOrEqual(
       TRANSPARENT,
