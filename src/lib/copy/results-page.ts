@@ -53,6 +53,8 @@ export interface ResultsPageCopy {
   opensInNewTab: string;
   detailsTitle: string;
   detailsHint: string;
+  /** The hint while the 3D viewer is shown (`RESULTS_VIEWER_ENABLED`). */
+  detailsHintWithViewer: string;
   scoresHeading: string;
   sizeNotice: string;
   fitNotice: string;
@@ -129,7 +131,8 @@ export const zhTW: ResultsPageCopy = {
   purchaseNote: "合作商店連結・開新分頁",
   opensInNewTab: "（開新分頁）",
   detailsTitle: "詳細資料",
-  detailsHint: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
+  detailsHint: "六項分數、和理想尺寸的差距、完整分析",
+  detailsHintWithViewer: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
   scoresHeading: "六項分數",
   sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以適配分數目前主要看尺寸。",
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
@@ -201,7 +204,9 @@ export const en: ResultsPageCopy = {
   purchaseNote: "Partner shop links · open in a new tab",
   opensInNewTab: "(opens in a new tab)",
   detailsTitle: "Details",
-  detailsHint: "3D view, six scores, gaps to your ideal size, full analysis",
+  detailsHint: "Six scores, gaps to your ideal size, full analysis",
+  detailsHintWithViewer:
+    "3D view, six scores, gaps to your ideal size, full analysis",
   scoresHeading: "How it scores",
   sizeNotice:
     "Some shape scores aren't rated yet for this mouse, so the fit score currently leans on its size.",
