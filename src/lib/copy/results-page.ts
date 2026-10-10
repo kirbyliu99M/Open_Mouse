@@ -141,6 +141,8 @@ export interface FilterCopy {
   missingData: (noun: string, n: number) => string;
   missingNoun: Record<"weight" | "shape" | "connectivity", string>;
   filteredRank: (n: number) => string;
+  /** A card's place in the filtered list. */
+  place: (n: number) => string;
   overallRank: (n: number) => string;
   /** Above the other picks while filtering. */
   othersHeading: string;
@@ -257,6 +259,7 @@ export const zhTW: ResultsPageCopy = {
     missingData: (noun, n) => `另有 ${n} 款沒有${noun}資料，篩選時不會列出`,
     missingNoun: { weight: "重量", shape: "握感", connectivity: "連線方式" },
     filteredRank: (n) => `篩選後第 ${n} 名`,
+    place: (n) => `第 ${n} 名`,
     overallRank: (n) => `總排名第 ${n} 名`,
     othersHeading: "其他符合條件的推薦",
     excludedHidden: (n) => `篩選中，未列入比較的 ${n} 款不會列出。`,
@@ -387,6 +390,7 @@ export const en: ResultsPageCopy = {
       connectivity: "connection",
     },
     filteredRank: (n) => `#${n} in your filter`,
+    place: (n) => `#${n}`,
     overallRank: (n) => `#${n} overall`,
     othersHeading: "Other picks that match",
     excludedHidden: (n) =>

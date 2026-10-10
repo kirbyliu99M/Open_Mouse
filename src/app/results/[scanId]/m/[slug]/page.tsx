@@ -5,17 +5,18 @@ export const dynamic = "force-dynamic";
 
 /**
  * Its own title, so a detail page is not "Your results" like the main page
- * (candidate wording, 未拍板). No per-mouse data is read on the server. The
+ * (candidate wording, 未拍板; Chinese since FILTER-1, as the page's own words are). No per-mouse data is read on the server. The
  * rest of the metadata, including `robots: noindex`, comes from the layout.
  */
 export const metadata: Metadata = {
-  title: "Another pick",
+  title: "其他推薦",
 };
 
 /**
- * `/results/[scanId]/m/[slug]`: the detail page of a rank 2 to 5 mouse, in the
- * same layout as the main page. Any other slug goes back to the main page
- * (decided on the client, which is where the ranking is).
+ * `/results/[scanId]/m/[slug]`: the detail page of the mouse in second to
+ * fifth place of the list shown (the filtered list when the URL carries a
+ * filter), in the same layout as the main page. Any other slug goes back to
+ * the main page (decided on the client, which is where the ranking is).
  */
 export default async function ResultsDetailPage({
   params,

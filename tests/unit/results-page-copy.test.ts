@@ -91,8 +91,15 @@ describe("results page copy", () => {
 
   it("makes no medical claim in any string", () => {
     for (const copy of [zhTW, en])
-      for (const text of allStrings(copy))
+      for (const text of allStrings(copy)) {
+        // The one exemption (FILTER-1, candidate, Kirby's wording): 人體工學 /
+        // Ergonomic is the NAME of a catalogue shape category in the filter
+        // (the shape descriptor `ergonomic`), not a claim about anyone's
+        // health or comfort. Exactly these two strings, nothing that merely
+        // contains them. Claude to confirm.
+        if (text === copy.filter.shape.ergonomic) continue;
         expect(findMedicalClaimTerm(text), text).toBeNull();
+      }
   });
 
   it("has no empty string", () => {
@@ -125,11 +132,48 @@ describe("results page copy", () => {
     }
   });
 
-  it("numbers ranks one to five in Chinese and the rest with digits", () => {
-    expect(zhTW.rankLine(1, "Logitech")).toBe("第一名 · Logitech");
-    expect(zhTW.rankLine(5, "Razer")).toBe("第五名 · Razer");
+  it("numbers every rank with Arabic numerals (FILTER-1: 「第 5 名」, like 「總排名第 5 名」)", () => {
+    expect(zhTW.rankLine(1, "Logitech")).toBe("第 1 名 · Logitech");
+    expect(zhTW.rankLine(5, "Razer")).toBe("第 5 名 · Razer");
     expect(zhTW.rankLine(6, "Razer")).toBe("第 6 名 · Razer");
     expect(en.rankLine(2, "Razer")).toBe("#2 · Razer");
+  });
+
+  it("the filter's fixed words are Kirby's (candidate)", () => {
+    const c = zhTW.filter;
+    expect(c.openButton(2)).toBe("篩選（2）");
+    expect(c.found(15)).toBe("找到 15 款");
+    expect(c.relaxButton("尺寸", 4)).toBe("拿掉「尺寸」條件，可看到 4 款");
+    expect(c.oneLeft).toBe("只有這 1 款符合");
+    expect(c.missingData("重量", 3)).toBe(
+      "另有 3 款沒有重量資料，篩選時不會列出",
+    );
+    expect(c.filteredRank(1)).toBe("篩選後第 1 名");
+    expect(c.overallRank(5)).toBe("總排名第 5 名");
+    expect(c.analysisLine("Zowie EC2-DW")).toBe(
+      "AI 分析是針對總排名第 1 的 Zowie EC2-DW",
+    );
+    expect(c.shareOverall).toBe("分享總排名第 1 名");
+    expect(c.shareNote).toBe("篩選中，分享圖仍放總排名第 1 名");
+    expect(c.noMatch).toBe("目前沒有符合條件的滑鼠");
+    expect(c.viewButton(15)).toBe("查看 15 款滑鼠");
+    expect(c.showMoreBrands(18)).toBe("顯示其他 18 個品牌");
+    expect(Object.values(c.size)).toEqual(["小型鼠", "中型鼠", "大型鼠"]);
+    expect(Object.values(c.weight)).toEqual([
+      "50 g 以下",
+      "50–69 g",
+      "70–89 g",
+      "90 g 以上",
+    ]);
+    expect(Object.values(c.shape)).toEqual(["人體工學", "左右對稱"]);
+    expect(Object.values(c.connectivity)).toEqual(["無線", "有線"]);
+    expect(Object.values(c.group)).toEqual([
+      "品牌",
+      "尺寸",
+      "重量",
+      "滑鼠握感",
+      "連線方式",
+    ]);
   });
 
   it("counts the other mice from the number it is given", () => {

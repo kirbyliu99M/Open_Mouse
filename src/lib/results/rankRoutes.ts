@@ -3,7 +3,9 @@
  *
  * `/results/[scanId]` is rank 1. `/results/[scanId]/m/[slug]` is a detail page
  * for ranks 2 to 5 only; any other slug (rank 1, rank 6 or later, or one that
- * is not in the response) goes back to the main page. Pure.
+ * is not in the response) goes back to the main page. Under a filter the same
+ * rule applies to the filtered list's places (`resolveViewDetail` in
+ * ./filters.ts), and every path keeps the filter's query string. Pure.
  */
 import type { FitEntry, FitResponse } from "../contracts/fit";
 

@@ -436,7 +436,7 @@ test.describe("/results/demo in a Chinese browser", () => {
       "zh-TW",
     );
     await expect(page.locator(".results-score-rank")).toHaveText(
-      "第一名 · Logitech",
+      "第 1 名 · Logitech",
     );
     await expect(page.locator(".results-score-label")).toHaveText(
       "適配分數 / 100",
