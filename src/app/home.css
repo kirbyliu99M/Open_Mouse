@@ -394,7 +394,7 @@
     /* 100svh, less: the nav (3.5rem), the headline (1.05 line height), the
        gap, one line of subhead (1.15rem x 1.4), the gap, and the buttons (3.125rem),
        and 0.5rem of room. (The "Early preview" note that used to sit under
-       the buttons is in the site footer now: it is not in this sum.) Latin line heights: see the note above for zh-TW. */
+       the buttons is gone: it is not in this sum.) Latin line heights: see the note above for zh-TW. */
     --slot: clamp(
       14rem,
       calc(
