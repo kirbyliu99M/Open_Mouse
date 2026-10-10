@@ -20,8 +20,15 @@ The whole site is dark (Kirby, 2026-10-03), with one theme and
 `color-scheme: dark`. The tokens and their contrast values live in
 `docs/design/home-v3-2026-10-03/README.md#dark-theme-tokens`. Small text never
 goes below `#8A8A8F` on the page background (5.9:1), and never sits on glow
-above 15 %. White button labels need a fill at least as dark as `#1F6BF0`
-(4.75:1). Pressed states darken the fill; they never lower the opacity.
+above 15 %. Pressed states darken the fill; they never lower the opacity.
+
+**Primary button** (Kirby, 2026-10-10, BTN-1, candidate): a near-white pill
+(`--button-primary-bg` `#F5F5F7`, `border-radius: 999px`) with a near-black
+label (`--on-button-primary` `#060709`, 18.5:1), pressed to `#D1D1D6`, and a
+2 px `--accent-text` focus ring with an offset. Blue is for text, links, focus
+rings and selected states (a selected toggle keeps its `--accent` fill and
+white label, 4.75:1); it no longer fills a primary button. On paper the pill
+prints black with a white label.
 
 ---
 

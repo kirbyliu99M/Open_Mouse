@@ -369,9 +369,9 @@
   min-height: 3rem;
   padding: 0 1.5rem;
   border: none;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -483,13 +483,19 @@
 .cameraUsePhoto {
   order: 1;
   border: none;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .cameraUsePhoto:active,
 .cameraResumeButton:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+}
+.cameraUsePhoto:focus-visible,
+.cameraResumeButton:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .cameraRetake {
   order: 2;

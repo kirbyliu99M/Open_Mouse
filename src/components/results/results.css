@@ -483,10 +483,10 @@
 }
 
 /* A filled primary button: pressing darkens the fill and never lowers the
-   opacity, which would take the white label under 4.5:1. */
+   opacity. */
 .results-page-action:active {
   transform: scale(0.98);
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 
 .results-mouseHeader-rank,
@@ -501,8 +501,9 @@
 }
 
 .results-page-action {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 
 .results-subscoreBar-fill {

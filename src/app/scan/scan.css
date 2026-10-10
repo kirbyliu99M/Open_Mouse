@@ -150,10 +150,10 @@ h1 {
   justify-content: center;
   min-height: 44px;
   padding: 0.75rem 1.5rem;
-  border: 1px solid var(--scan-border);
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -163,7 +163,7 @@ h1 {
 }
 .uploadButton:active {
   transform: scale(0.97);
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 
 .visuallyHidden {
@@ -331,9 +331,9 @@ h1 {
   min-width: 44px;
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -341,10 +341,15 @@ h1 {
 }
 .primaryButton:active {
   transform: scale(0.97);
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+}
+.primaryButton:focus-visible,
+.uploadButton:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .primaryButton:disabled {
-  opacity: 0.6;
+  opacity: var(--button-primary-disabled-opacity);
   cursor: not-allowed;
 }
 

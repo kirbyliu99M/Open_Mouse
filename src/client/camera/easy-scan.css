@@ -89,9 +89,9 @@
   justify-content: center;
   min-height: 3rem;
   padding: 0 1.5rem;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font-weight: 600;
   cursor: pointer;
 }
@@ -426,6 +426,14 @@
 .easySheet button:focus-visible {
   outline-color: var(--accent-text);
 }
+/* A white ring would vanish on a white pill. */
+.easyScanShell .easyUploadFallbackButton:focus-visible,
+.easyScanShell .easyCopyLink:focus-visible,
+.easyDeviceEntry .easyCopyLink:focus-visible,
+.easySheet .easyCopyLink:focus-visible {
+  outline-color: var(--accent-text);
+  outline-offset: 3px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .easySheet {
@@ -696,13 +704,14 @@ main.easyScanShell {
   cursor: pointer;
 }
 .easyCopyLink {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
-/* White on the accent fill: pressing darkens it, never fades it. */
+/* Dark on the white fill: pressing darkens it, never fades it. */
 .easyCopyLink:active,
 .easyUploadFallbackButton:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 .easyDeviceUpload {
   background: transparent;

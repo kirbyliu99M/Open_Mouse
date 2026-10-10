@@ -167,11 +167,19 @@ button:disabled {
 }
 
 .button-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 .button-primary:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+}
+.button-primary:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+}
+.button-primary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
 }
 .button-secondary {
   background: transparent;

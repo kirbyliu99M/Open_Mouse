@@ -6,11 +6,16 @@
  * Loaded by the root layout and by ErrorScreen (global-error.tsx replaces the
  * root layout, so it can not rely on the layout's imports).
  *
- * Which accent token to use:
- *   --accent        fills a control (the primary button); the label on it is
- *                   --on-accent. #1f6bf0 is only 4.24:1 on --bg and 2.6:1 on
- *                   the selected-chip fill, so it is never used for text.
- *   --accent-text   text, links, outlines, focus rings and selected chips.
+ * Which token fills a control:
+ *   --button-primary-bg  the primary button: a near-white pill (Kirby,
+ *                        2026-10-10, BTN-1, candidate); the label on it is
+ *                        --on-button-primary, a pressed one uses
+ *                        --button-primary-pressed.
+ *   --accent             a selected toggle's fill, a badge, a stroke; the label
+ *                        on it is --on-accent. #1f6bf0 is only 4.24:1 on --bg
+ *                        and 2.6:1 on the selected-chip fill, so it is never
+ *                        used for text and no longer fills a primary button.
+ *   --accent-text        text, links, outlines, focus rings and selected chips.
  */
 :root {
   color-scheme: dark;
@@ -24,6 +29,11 @@
   --on-accent: #ffffff; /* 4.75:1 on --accent */
   --accent-pressed: #1a5cd0; /* 6.0:1 for --on-accent */
   --accent-text: #7fa8ff; /* 8.6:1 on --bg */
+
+  --button-primary-bg: #f5f5f7; /* 18.5:1 on --bg */
+  --on-button-primary: #060709; /* 18.5:1 on --button-primary-bg */
+  --button-primary-pressed: #d1d1d6; /* 13.2:1 for --on-button-primary */
+  --button-primary-disabled-opacity: 0.4;
 
   --control-border: #ffffff59; /* about 3.1:1 on --bg */
   --hairline: #ffffff24; /* decorative */
@@ -45,7 +55,8 @@
    the tokens are redefined here too, because text that takes its colour from
    a token (the headline, the wordmark, the subhead, the captions) would
    otherwise print in near-white on white. The fills keep their blue, and
-   --on-accent stays white on them. */
+   --on-accent stays white on them. The primary button turns black with a
+   white label, because a white pill would vanish on white paper. */
 @media print {
   :root {
     --bg: #ffffff;
@@ -53,6 +64,9 @@
     --text-secondary: #262626;
     --text-tertiary: #404040;
     --accent-text: #1a5cd0;
+    --button-primary-bg: #000000; /* 21:1 for --on-button-primary */
+    --on-button-primary: #ffffff;
+    --button-primary-pressed: #262626; /* 15.1:1 for --on-button-primary */
     --control-border: #00000099;
     --hairline: #00000040;
     --sketch-line: #1a5cd0;

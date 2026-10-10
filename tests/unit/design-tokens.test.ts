@@ -64,6 +64,9 @@ describe("the dark tokens", () => {
     expect(token("--on-accent")).toBe("#ffffff");
     expect(token("--accent-pressed")).toBe("#1a5cd0");
     expect(token("--accent-text")).toBe("#7fa8ff");
+    expect(token("--button-primary-bg")).toBe("#f5f5f7");
+    expect(token("--on-button-primary")).toBe("#060709");
+    expect(token("--button-primary-pressed")).toBe("#d1d1d6");
     expect(token("--control-border")).toBe("#ffffff59");
     expect(token("--hairline")).toBe("#ffffff24");
     expect(token("--sketch-line")).toBe("#cfe0ff");
@@ -228,14 +231,14 @@ function blend(
   ];
 }
 
-describe("the filled buttons: white on --accent", () => {
-  // A white label on --accent is 4.75:1. Dropping the opacity of a pressed
-  // button would take it to 4.33:1 at 0.85 (and lower further), so every
-  // filled button darkens its fill to --accent-pressed (6.0:1) instead.
-  const FILLED: readonly (readonly [string, string, string | null])[] = [
+describe("the filled buttons: a near-white pill, or --accent for a selected toggle", () => {
+  // The primary button is a near-white pill with a near-black label (BTN-1).
+  // A selected toggle keeps the blue fill with its white label (4.75:1).
+  // Dropping the opacity of a pressed button would fade the label, so every
+  // filled button darkens its fill to the pressed token instead.
+  const PRIMARY: readonly (readonly [string, string, string | null])[] = [
     ["src/app/scan/scan.css", ".uploadButton", null],
     ["src/app/scan/scan.css", ".primaryButton", null],
-    ["src/app/scan/scan.css", ".pickerButton.selected", null],
     ["src/app/learn/learn.css", ".learn-button", null],
     ["src/app/globals.css", ".button-primary", null],
     ["src/app/home.css", ".home-cta", null],
@@ -247,6 +250,82 @@ describe("the filled buttons: white on --accent", () => {
     ["src/client/camera/camera.css", ".cameraResumeButton", null],
     ["src/client/camera/easy-scan.css", ".easyCopyLink", null],
     ["src/client/camera/easy-scan.css", ".easyUploadFallbackButton", null],
+  ];
+
+  it("the primary button tokens keep the contrast their comments state", () => {
+    const bg = rgb("--button-primary-bg");
+    const on = rgb("--on-button-primary");
+    expect(ratio(on, bg)).toBeGreaterThanOrEqual(18);
+    expect(ratio(on, rgb("--button-primary-pressed"))).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    // The white pill stands out from the page it sits on.
+    expect(ratio(bg, rgb("--bg"))).toBeGreaterThanOrEqual(18);
+    expect(token("--button-primary-disabled-opacity")).toBe("0.4");
+  });
+
+  it("prints as a black pill with a white label, so it does not vanish on white paper", () => {
+    const print = parseRules(tokensCss).find(
+      (r) => r.media === "print" && r.selectors.includes(":root"),
+    )!;
+    const bg = channels(print.decls["--button-primary-bg"]!);
+    expect(ratio(bg, channels(print.decls["--bg"]!))).toBeGreaterThanOrEqual(
+      18,
+    );
+    expect(
+      ratio(channels(print.decls["--on-button-primary"]!), bg),
+    ).toBeGreaterThanOrEqual(18);
+    expect(
+      ratio(
+        channels(print.decls["--on-button-primary"]!),
+        channels(print.decls["--button-primary-pressed"]!),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(PRIMARY)(
+    "%s %s: a pill in the primary tokens; pressing darkens the fill and never lowers the opacity",
+    (file, selector, media) => {
+      const rules = rulesOf(file);
+      const fill = declared(rules, selector, "background", media);
+      expect(fill && resolve(fill), "its fill").toBe(
+        token("--button-primary-bg"),
+      );
+      const label = declared(rules, selector, "color", media);
+      expect(label && resolve(label), "its label").toBe(
+        token("--on-button-primary"),
+      );
+      expect(declared(rules, selector, "border-radius", media), "pill").toBe(
+        "999px",
+      );
+
+      const pressed = declared(
+        rules,
+        `${selector}:active`,
+        "background",
+        media,
+      );
+      expect(pressed && resolve(pressed), "pressed fill").toBe(
+        token("--button-primary-pressed"),
+      );
+      expect(
+        ratio(rgb("--on-button-primary"), channels(resolve(pressed!))),
+        "label on the pressed fill",
+      ).toBeGreaterThanOrEqual(4.5);
+
+      for (const rule of rules) {
+        if (
+          rule.selectors.includes(`${selector}:active`) &&
+          "opacity" in rule.decls
+        ) {
+          expect(Number(rule.decls.opacity), `${rule.media} opacity`).toBe(1);
+        }
+      }
+    },
+  );
+
+  const FILLED: readonly (readonly [string, string, string | null])[] = [
+    ["src/app/scan/scan.css", ".pickerButton.selected", null],
     ["src/client/camera/camera.css", ".cameraPaperToggleButton.selected", null],
     [
       "src/components/results/results.css",

@@ -89,10 +89,10 @@ main.errorScreen h1:focus {
 .errorAction-secondary:active {
   opacity: 0.85;
 }
-/* The primary label is white on the fill: darken the fill when pressed and
-   never lower the opacity (it would take the label under 4.5:1). */
+/* The primary label is dark on the white fill: darken the fill when pressed
+   and never lower the opacity. */
 .errorAction-primary:active {
-  background: var(--accent-pressed);
+  background: var(--button-primary-pressed);
 }
 .errorScreen-status {
   margin: 1rem 0 0;
@@ -107,8 +107,9 @@ main.errorScreen h1:focus {
 }
 
 .errorAction-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
 }
 .errorAction-secondary {
   background: transparent;
