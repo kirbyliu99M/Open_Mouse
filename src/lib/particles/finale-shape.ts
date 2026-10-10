@@ -128,7 +128,8 @@ export function labelsFromGlyphs(
     let best = 0;
     let bestD = Infinity;
     rows.forEach((row, i) => {
-      const d = cy < row.top ? row.top - cy : cy > row.bottom ? cy - row.bottom : 0;
+      const d =
+        cy < row.top ? row.top - cy : cy > row.bottom ? cy - row.bottom : 0;
       if (d < bestD) {
         bestD = d;
         best = i;

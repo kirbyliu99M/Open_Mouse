@@ -1,6 +1,7 @@
 import { PALETTE, pointSizeFits } from "@/lib/particles/budget";
 import { GL_FIELD, GL_FLOATS_PER_PARTICLE } from "@/lib/particles/gl-buffers";
 import {
+  FINALE_LIFT,
   type GlLook,
   SHIMMER_GROWTH,
   maxPointCssPx,
@@ -38,6 +39,8 @@ import {
  */
 
 const VERTEX = `
+const float FINALE_LIFT_SIZE = ${FINALE_LIFT.size.toFixed(4)};
+const float FINALE_LIFT_ALPHA = ${FINALE_LIFT.alpha.toFixed(4)};
 attribute vec2 aLogo;
 attribute vec2 aHand;
 attribute vec2 aMouse;
@@ -61,6 +64,7 @@ uniform vec4 uLookFrom;
 uniform vec4 uLookTo;
 uniform float uFlat;
 uniform float uClip;
+uniform float uLift;
 
 varying float vBright;
 varying float vAlpha;
@@ -114,6 +118,13 @@ void main() {
   float alpha = mix(look.w, look.z, tone);
   alpha = max(alpha, look.z * min(1.0, 0.35 + boost) * shine);
   if (uFlat > 0.5) alpha = max(alpha, mix(0.72, 1.0, tone));
+
+  // The finale's closing lift (scroll-driven, Phase.finale.lift): its lit
+  // particles a little bigger and brighter once the figure is formed.
+  if (uSplit > 0.5) {
+    size *= 1.0 + FINALE_LIFT_SIZE * uLift;
+    alpha = min(1.0, alpha * (1.0 + FINALE_LIFT_ALPHA * uLift));
+  }
 
   vBright = max(tone, shine);
   vAlpha = alpha * shown;
@@ -198,6 +209,8 @@ export interface GlFrame {
   readonly looks: readonly [GlLook, GlLook];
   /** How far the finale's places under the headline are cut out, 0 to 1 (`Phase.finale.clip`). */
   readonly clip: number;
+  /** The finale's closing lift, 0 to 1 (`Phase.finale.lift`). */
+  readonly lift: number;
 }
 
 export interface GlRenderer {
@@ -245,6 +258,7 @@ const UNIFORMS = [
   "uFlat",
   "uGlow",
   "uClip",
+  "uLift",
 ] as const;
 
 const ATTRIBUTES: readonly (readonly [string, number, number])[] = [
@@ -423,6 +437,7 @@ export function* createGlRendererSteps(
         context.uniform1f(uniform.uGlow, frame.glow ? 1 : 0);
         context.uniform1f(uniform.uFlat, frame.glow ? 0 : 1);
         context.uniform1f(uniform.uClip, frame.clip);
+        context.uniform1f(uniform.uLift, frame.lift);
         context.drawArrays(context.POINTS, 0, frame.count);
       },
       dispose() {

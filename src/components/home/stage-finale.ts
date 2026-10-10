@@ -76,8 +76,9 @@ function makeCanvas(
     typeof OffscreenCanvas === "undefined"
       ? Object.assign(document.createElement("canvas"), { width: w, height: h })
       : new OffscreenCanvas(w, h);
-  const ctx = canvas.getContext("2d", { willReadFrequently: true }) as
-    AnyContext | null;
+  const ctx = canvas.getContext("2d", {
+    willReadFrequently: true,
+  }) as AnyContext | null;
   return ctx ? { canvas, ctx } : null;
 }
 
@@ -288,10 +289,7 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     const r = Math.sqrt(-2 * Math.log(1 - random()));
     return r * Math.cos(2 * Math.PI * random());
   };
-  const centre: [number, number] = [
-    (x0 + x1) / 2,
-    (y0 + y1) / 2,
-  ];
+  const centre: [number, number] = [(x0 + x1) / 2, (y0 + y1) / 2];
   const spread = GATHER_SPREAD[tier];
   const scene = {
     tx: new Float32Array(n),
@@ -307,7 +305,11 @@ export function buildFinaleScene(input: SceneInput): FinaleScene | null {
     const target: [number, number] = [p.x + maskX, p.y + maskY];
     const source = scatterSource(target, centre, [gauss(), gauss()], spread);
     const bend = GATHER.bendMin + GATHER.bendRange * random();
-    const control = arcControl(source, target, (random() < 0.5 ? -1 : 1) * bend);
+    const control = arcControl(
+      source,
+      target,
+      (random() < 0.5 ? -1 : 1) * bend,
+    );
     scene.tx[i] = target[0];
     scene.ty[i] = target[1];
     scene.sx[i] = source[0];
@@ -557,8 +559,14 @@ function drawHeadline(
       } else {
         const e = easeOutCubic(q);
         const u = 1 - e;
-        x = u * u * scene.sx[i]! + 2 * u * e * scene.cx[i]! + e * e * scene.tx[i]!;
-        y = u * u * scene.sy[i]! + 2 * u * e * scene.cy[i]! + e * e * scene.ty[i]!;
+        x =
+          u * u * scene.sx[i]! +
+          2 * u * e * scene.cx[i]! +
+          e * e * scene.tx[i]!;
+        y =
+          u * u * scene.sy[i]! +
+          2 * u * e * scene.cy[i]! +
+          e * e * scene.ty[i]!;
       }
       const k = q <= 0 ? 0.7 : 1;
       ctx.rect(x - (size * k) / 2, y - (size * k) / 2, size * k, size * k);

@@ -112,6 +112,14 @@ export type StateName = keyof typeof LIT_FRACTION;
 export const STAR_SIZE = { logo: 1.7, hand: 1, mouse: 1 } as const;
 
 /**
+ * The finale's closing lift: once its figure is formed its lit particles grow
+ * by up to this share of their size and brighten by up to this share of their
+ * opacity (capped at 1), with the scroll (Phase.finale.lift), and then hold.
+ * No idle loop: it is the scroll's. 未拍板 (candidate).
+ */
+export const FINALE_LIFT = { size: 0.18, alpha: 0.3 } as const;
+
+/**
  * A particle's rank: its place in the order (from 0) as a share of all the
  * particles, taken at the middle of its place so that no particle's rank is on
  * a fraction's edge (the shader reads it as a float).
@@ -206,9 +214,11 @@ export function legLook(
  * (`pointSizeFits`).
  */
 export function maxPointCssPx(): number {
+  // The shimmer swells the logo only, and the lift the finale only: the
+  // bigger of the two swells counts.
   return (
     Math.max(LOOK_LIMITS.brightPx[1], LOOK_LIMITS.dimPx[1]) *
     Math.max(...Object.values(STAR_SIZE)) *
-    (1 + SHIMMER_GROWTH)
+    Math.max(1 + SHIMMER_GROWTH, 1 + FINALE_LIFT.size)
   );
 }

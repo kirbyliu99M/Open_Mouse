@@ -152,9 +152,9 @@ describe("pairTargets", () => {
       /expected 1/,
     );
     expect(() => pairTargets(logo, hand, [], "row")).toThrow(/expected 1/);
-    expect(() =>
-      pairTargets(logo, hand, [mice[0]!.slice(1)], "row"),
-    ).toThrow(RangeError);
+    expect(() => pairTargets(logo, hand, [mice[0]!.slice(1)], "row")).toThrow(
+      RangeError,
+    );
   });
 });
 

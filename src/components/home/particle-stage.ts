@@ -763,8 +763,14 @@ class Stage {
     this.rafId = 0;
     this.intersection?.disconnect();
     this.intersection = null;
-    const { section, hero, logo, sheet, finale: finaleParts, notes } =
-      this.parts;
+    const {
+      section,
+      hero,
+      logo,
+      sheet,
+      finale: finaleParts,
+      notes,
+    } = this.parts;
     section.classList.remove(ANIMATED);
     logo.style.visibility = "";
     hero.style.opacity = "";
@@ -1600,6 +1606,7 @@ class Stage {
         count: this.guard.drawCount,
         glow: !this.queries.contrast.matches,
         clip: phase.finale.clip,
+        lift: phase.finale.lift,
         ...legLook(
           leg.split,
           set.count,

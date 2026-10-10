@@ -256,9 +256,7 @@ export function* pairingSteps(
   { count, layout, seed, mice, density = "sparse" }: PairingOptions,
 ): Generator<void, Pairing, void> {
   if (!Number.isInteger(count) || count < MOUSE_COUNT || count % MOUSE_COUNT) {
-    throw new RangeError(
-      `count must be a positive multiple of ${MOUSE_COUNT}`,
-    );
+    throw new RangeError(`count must be a positive multiple of ${MOUSE_COUNT}`);
   }
   const perMouse = count / MOUSE_COUNT;
   const dense = density === "dense";
