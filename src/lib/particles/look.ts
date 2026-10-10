@@ -115,10 +115,11 @@ export type StateName = keyof typeof LIT_FRACTION;
  * lit stars make the look's base size smaller (the crowd), and at 1.35 the
  * dots read much smaller than the 600-dot picture Kirby chose from. It stays
  * 1.7 with the share at 0.14. The finale's figure ("mouse", the last state)
- * is 1.15 since 2026-10-11 (brighter and bigger, nearer v17 / v18). 未拍板,
- * tuned by eye from screenshots.
+ * stays 1: drawn 1.15 bigger (tried 2026-10-11) its solid area on a desktop
+ * was 3.34 times the Canvas 2D look's, over the 3 the e2e suite allows for
+ * "stars, not a line". 未拍板, tuned by eye from screenshots.
  */
-export const STAR_SIZE = { logo: 1.7, hand: 1, mouse: 1.15 } as const;
+export const STAR_SIZE = { logo: 1.7, hand: 1, mouse: 1 } as const;
 
 /**
  * The finale's closing lift: once its figure is formed its lit particles grow

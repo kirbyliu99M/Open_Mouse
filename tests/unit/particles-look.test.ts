@@ -253,12 +253,11 @@ describe("the look at each end of a leg", () => {
     expect(form.looks[0].brightPx).toBeGreaterThan(split.looks[1].brightPx);
   });
 
-  it("makes the logo's stars bigger than the finale figure's, the figure's a little bigger than its look (2026-10-11), and the hand's dust exactly its look", () => {
+  it("makes the logo's stars a little bigger than the finale figure's, and nothing else bigger than its look", () => {
     expect(STAR_SIZE.logo).toBeGreaterThan(1);
     expect(STAR_SIZE.logo).toBeLessThan(2);
     expect(STAR_SIZE.hand).toBe(1);
-    expect(STAR_SIZE.mouse).toBe(1.15);
-    expect(STAR_SIZE.mouse).toBeLessThan(STAR_SIZE.logo);
+    expect(STAR_SIZE.mouse).toBe(1);
   });
 
   it("makes a star bigger and stronger than the dust it comes from, on a desktop and on a phone", () => {
