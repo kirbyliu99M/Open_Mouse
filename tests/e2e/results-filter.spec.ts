@@ -373,11 +373,14 @@ test.describe("desktop sidebar", () => {
     await page.goto(MAIN);
     const sidebar = page.getByRole("complementary", { name: "篩選" });
     const before = await sidebar.boundingBox();
-    await page.mouse.wheel(0, 600);
+    // Part-way down the page the sidebar stays in view, 1rem from the top (it
+    // only leaves with the end of its own container, at the foot of the page).
+    await page.mouse.wheel(0, 250);
     await page.waitForTimeout(200);
     const after = await sidebar.boundingBox();
     expect(after!.y).toBeGreaterThanOrEqual(0);
     expect(after!.y).toBeLessThanOrEqual(before!.y);
+    expect(after!.y).toBeLessThanOrEqual(20);
     const overflow = await sidebar.evaluate(
       (el) => getComputedStyle(el).overflowY,
     );
