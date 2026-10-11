@@ -139,7 +139,7 @@ export const zhTW: ResultsScreensCopy = {
   subscoreLabel: {
     length: "長度",
     gripWidth: "握寬",
-    heightHump: "高度與背弧",
+    heightHump: "高度與駝峰",
     frontFlare: "前端外擴",
     thumb: "拇指支撐",
     weight: "重量",
