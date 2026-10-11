@@ -67,6 +67,7 @@ import {
   type PixelRect,
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
+import type { IssueDetail } from "./issue-detail";
 import {
   paperSizeFractions,
   type FocalDiagnostics,
@@ -79,6 +80,8 @@ import {
 export interface PipelineIssue {
   readonly code: string;
   readonly message: string;
+  /** What the message says that the code does not, for other languages. */
+  readonly detail?: IssueDetail;
 }
 
 export interface PhotoOverlay {
@@ -411,6 +414,7 @@ async function runPhotoPipelineTraced(
           code: "HAND_NOT_DETECTED",
           message:
             "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+          detail: { kind: "handNotDetected", on: "sheet" },
         },
       ],
       overlay: { ...overlayBase, landmarksPx: null },
@@ -657,6 +661,7 @@ async function runPaperEdgePipeline(
           code: "HAND_NOT_DETECTED",
           message:
             "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+          detail: { kind: "handNotDetected", on: "paper" },
         },
       ],
       overlay: { ...overlayBase, landmarksPx: null },
@@ -705,6 +710,7 @@ async function runUserLengthPipeline(
           code: checkHandDetected(0)!.code,
           message:
             "We couldn't find a hand — keep your whole hand in view, fingers together, and retake.",
+          detail: { kind: "handNotDetected", on: "nothing" },
         },
       ],
       overlay: { ...overlayBase, landmarksPx: null },
@@ -743,6 +749,7 @@ async function runUserLengthPipeline(
         {
           code: "MEASUREMENT_OUT_OF_RANGE",
           message: userLengthRetakeMessage(handLengthMm),
+          detail: { kind: "typedLength", typedMm: handLengthMm },
         },
       ],
       overlay,

@@ -100,13 +100,13 @@ describe("progress numbers", () => {
   });
 
   it("describes a determinate and an indeterminate download", () => {
-    expect(describeDownload(p(3_910_000, 7_819_674))).toEqual({
+    expect(describeDownload(p(3_910_000, 7_819_674), "en")).toEqual({
       determinate: true,
       percent: 50,
       announced: 50,
       sizeText: "3.9 of 7.8 MB",
     });
-    expect(describeDownload(p(3_910_000, null))).toEqual({
+    expect(describeDownload(p(3_910_000, null), "en")).toEqual({
       determinate: false,
       percent: null,
       announced: null,
@@ -328,11 +328,14 @@ describe("createModelReader", () => {
 describe("describeDetectorLoad", () => {
   it("shows a determinate pill while the model streams in", () => {
     expect(
-      describeDetectorLoad({
-        stage: "model",
-        loadedBytes: 3_910_000,
-        totalBytes: 7_819_674,
-      }),
+      describeDetectorLoad(
+        {
+          stage: "model",
+          loadedBytes: 3_910_000,
+          totalBytes: 7_819_674,
+        },
+        "en",
+      ),
     ).toEqual({
       visible: true,
       text: "Loading the hand detector",
@@ -343,18 +346,21 @@ describe("describeDetectorLoad", () => {
   });
 
   it("shows an indeterminate pill while the runtime starts, and when the model's size is unknown", () => {
-    expect(describeDetectorLoad({ stage: "runtime" })).toEqual({
+    expect(describeDetectorLoad({ stage: "runtime" }, "en")).toEqual({
       visible: true,
       text: "Starting the hand detector",
       detail: null,
       percent: null,
       announced: null,
     });
-    const unknown = describeDetectorLoad({
-      stage: "model",
-      loadedBytes: 1_200_000,
-      totalBytes: null,
-    });
+    const unknown = describeDetectorLoad(
+      {
+        stage: "model",
+        loadedBytes: 1_200_000,
+        totalBytes: null,
+      },
+      "en",
+    );
     expect(unknown).toMatchObject({
       visible: true,
       detail: "1.2 MB",
@@ -366,7 +372,7 @@ describe("describeDetectorLoad", () => {
   it.each(["idle", "ready", "failed"] as const)(
     "shows nothing when the detector is %s",
     (stage) => {
-      expect(describeDetectorLoad({ stage }).visible).toBe(false);
+      expect(describeDetectorLoad({ stage }, "en").visible).toBe(false);
     },
   );
 });

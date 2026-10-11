@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useSyncExternalStore } from "react";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 import {
-  DETECTOR_LOAD_FAILED_MESSAGE,
   getDetectorLoadState,
   getHandLandmarker,
   subscribeDetectorLoadState,
@@ -32,6 +33,8 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
     getDetectorLoadState,
     () => IDLE,
   );
+  const locale = useLocale();
+  const words = scanCommonCopy(locale);
   // The same element stays mounted from "failed" through the retry, so focus
   // has somewhere to stay when the retry button goes away.
   const rootRef = useRef<HTMLDivElement>(null);
@@ -47,7 +50,7 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
         tabIndex={-1}
         inert={inert}
       >
-        <p className="easyDetectorText">{DETECTOR_LOAD_FAILED_MESSAGE}</p>
+        <p className="easyDetectorText">{words.detectorLoadFailed}</p>
         <button
           type="button"
           className="easyDetectorRetry"
@@ -58,13 +61,13 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
             });
           }}
         >
-          Try again
+          {words.detectorTryAgain}
         </button>
       </div>
     );
   }
 
-  const view = describeDetectorLoad(state);
+  const view = describeDetectorLoad(state, locale);
   if (!view.visible) return null;
   const determinate = view.announced !== null;
   return (
@@ -85,7 +88,7 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
         {...(determinate
           ? {
               "aria-valuenow": view.announced,
-              "aria-valuetext": `${view.announced} percent`,
+              "aria-valuetext": words.detectorPercent(view.announced as number),
             }
           : {})}
       >

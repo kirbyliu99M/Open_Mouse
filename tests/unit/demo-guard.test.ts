@@ -14,6 +14,10 @@ vi.mock("../../src/server/i18n/getLocale", () => ({
 vi.mock("../../src/client/camera/EasyScanCamera", () => ({
   default: () => null,
 }));
+// The pages read the visitor's locale (server-only); the guard does not care.
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
+}));
 
 const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
 

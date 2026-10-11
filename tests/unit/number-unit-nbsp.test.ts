@@ -6,6 +6,7 @@ import { AccountView } from "../../src/app/account/AccountView";
 import type { AccountScan } from "../../src/server/account/repo";
 import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
+import { en as easyEn, zhTW as easyZh } from "../../src/lib/copy/easy-scan";
 
 /**
  * A number and its unit are joined by a no-break space (U+00A0), so a wide
@@ -82,19 +83,23 @@ describe("the results page's typed-length note", () => {
   });
 });
 
-describe("the easy-scan camera screen (read from its source: it needs a live camera)", () => {
+describe("the easy-scan camera screen (its words are in src/lib/copy/easy-scan.ts; it needs a live camera)", () => {
   const source = read("src/client/camera/EasyScanCamera.tsx");
 
   it("joins the typed length in the chip, 'NNN mm entered', with a no-break space", () => {
-    expect(source).toContain("{userLengthMm}&nbsp;mm entered");
-    expect(source).not.toMatch(/\{userLengthMm\} mm/);
+    expect(source).toContain("easy.lengthChip(");
+    for (const table of [easyEn, easyZh])
+      expect(table.lengthChip("190")).toContain(`190${NBSP}mm`);
+    expect(easyEn.lengthChip("190")).toBe(`190${NBSP}mm entered`);
   });
 
   it("does the same in the 'you entered' disclosure and the length hint", () => {
-    expect(source).toContain(
-      "{result.submission.calibration.referenceMm}&nbsp;mm)",
-    );
-    expect(source).toContain("18.6&nbsp;cm = 186&nbsp;mm.");
-    expect(source).not.toMatch(/referenceMm\} mm\)/);
+    expect(source).toContain("easy.disclosureBased(");
+    expect(source).toContain("easy.lengthHint(");
+    for (const table of [easyEn, easyZh]) {
+      expect(table.disclosureBased("190")).toContain(`190${NBSP}mm`);
+      expect(table.lengthHint(135, 265)).toContain(`186${NBSP}mm`);
+      expect(table.lengthHint(135, 265)).toContain(`18.6${NBSP}cm`);
+    }
   });
 });

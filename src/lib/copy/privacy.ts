@@ -1,11 +1,14 @@
 /**
  * The photo-privacy promise, zh-TW and English. Every zh-TW string is a
- * CANDIDATE (未拍板), Claude's wording, until Kirby has read it. The English is
+ * CANDIDATE (未拍板), Claude's wording, until Kirby has read it. The sentences
+ * live in `scan-common.ts` (the scan screens use them too); this module
+ * re-exports them under the pages' names. The English is
  * pinned by e2e specs; `src/components/privacy-copy.ts` keeps exporting it as
  * constants for the scan screens.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
+import * as scanCommon from "./scan-common";
 
 export interface PrivacyCopy {
   /** On a phone. */
@@ -15,15 +18,13 @@ export interface PrivacyCopy {
 }
 
 export const zhTW: PrivacyCopy = {
-  photoStaysOnPhone: "你的照片不會離開手機，只會傳送測量數值。",
-  photoStaysOnDevice: "你的照片不會離開這台裝置，只會傳送測量數值。",
+  photoStaysOnPhone: scanCommon.zhTW.privacyPhone,
+  photoStaysOnDevice: scanCommon.zhTW.privacyDevice,
 };
 
 export const en: PrivacyCopy = {
-  photoStaysOnPhone:
-    "Your photo never leaves your phone. Only measurements are sent.",
-  photoStaysOnDevice:
-    "Your photo never leaves this device. Only measurements are sent.",
+  photoStaysOnPhone: scanCommon.en.privacyPhone,
+  photoStaysOnDevice: scanCommon.en.privacyDevice,
 };
 
 export function privacyCopy(locale: Locale): PrivacyCopy {
