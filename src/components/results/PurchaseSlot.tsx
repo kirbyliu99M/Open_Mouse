@@ -1,27 +1,29 @@
 import type { Locale } from "@/lib/contracts/locale";
+import type { PurchaseLink } from "@/lib/contracts/commerce";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { linksForSlug } from "@/lib/results/purchaseLinks";
-import purchaseLinksFile from "@/data/purchase-links.json";
+import { ExternalLinkIcon } from "./ExternalLinkIcon";
 
 /**
- * Where to buy, for one mouse. Reads `src/data/purchase-links.json`, which
- * another team maintains. With no links for the slug, or a file that does not
- * match the contract, it renders nothing: no box, no placeholder text. When
- * it does render, one short line says these are partner links that open in a
- * new tab, and each link says so to a screen reader too. Links never touch
- * rank or score. `source` is for tests; the page uses the file.
+ * Where to buy, for one mouse: a plain list of rows under the heading 「購買」
+ * ("Buy"), shop name on the left and the external-link icon on the right. The
+ * links come from the caller: `ResultsView` passes `useMouseLinks(slug)`'s
+ * `purchaseLinks`, which the browser fetches from the static route
+ * `/api/mice/<slug>/links` (built from `src/data/purchase-links.json`, which
+ * another team maintains). This component never reads the file, so the file
+ * stays out of the client bundle. With no links, or before they arrive, it
+ * renders nothing: no box, no placeholder text. There is no
+ * visible note; each link still says "opens in a new tab" to a screen reader
+ * and keeps `rel="sponsored noopener"`. A long shop name wraps, it is never
+ * cut. Links never touch rank or score.
  */
 export function PurchaseSlot({
-  slug,
+  links,
   language,
-  source = purchaseLinksFile,
 }: {
-  slug: string;
+  links: readonly PurchaseLink[] | null | undefined;
   language: Locale;
-  source?: unknown;
 }) {
-  const links = linksForSlug(source, slug);
-  if (links.length === 0) return null;
+  if (!links || links.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
   return (
     <section
@@ -31,16 +33,18 @@ export function PurchaseSlot({
       <h2 id="results-purchase-heading" className="results-purchase-heading">
         {copy.purchaseHeading}
       </h2>
-      <p className="results-purchase-note">{copy.purchaseNote}</p>
       <ul className="results-purchase-links">
-        {links.map((link) => (
+        {links.slice(0, 4).map((link) => (
           <li key={`${link.label}|${link.url}`}>
             <a href={link.url} rel="sponsored noopener" target="_blank">
-              {link.label}
-              <span className="results-visuallyHidden">
-                {" "}
-                {copy.opensInNewTab}
+              <span className="results-purchase-name">
+                {link.label}
+                <span className="results-visuallyHidden">
+                  {" "}
+                  {copy.opensInNewTab}
+                </span>
               </span>
+              <ExternalLinkIcon />
             </a>
           </li>
         ))}

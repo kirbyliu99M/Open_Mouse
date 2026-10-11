@@ -29,8 +29,11 @@ import { detectDeviceFit } from "@/client/camera/deviceFit";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
 import CameraCapture from "@/client/camera/CameraCapture";
-import { UNVERIFIED_MEASUREMENT_NOTE } from "@/client/photo/unverified-note";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import { issueText } from "@/client/photo/issueText";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { scanCommonCopy } from "@/lib/copy/scan-common";
+import { scanSheetCopy } from "@/lib/copy/scan-sheet";
+import { navCopy } from "@/lib/copy/nav";
 import {
   HAND_CONNECTIONS,
   KNUCKLE_LANDMARK_IDS,
@@ -65,21 +68,6 @@ type ScanState =
       overlay: PhotoOverlay | null;
       retryable?: boolean;
     };
-
-const MEASUREMENT_LABELS: Record<keyof HandMeasurements, string> = {
-  handLengthMm: "Hand length",
-  palmLengthMm: "Palm length",
-  palmWidthMm: "Palm width",
-  thumbLengthMm: "Thumb length",
-  indexLengthMm: "Index finger length",
-  middleLengthMm: "Middle finger length",
-  ringLengthMm: "Ring finger length",
-  pinkyLengthMm: "Pinky length",
-  palmThicknessMm: "Palm thickness",
-  knuckleHeightMm: "Knuckle height",
-  gripApertureMm: "Grip aperture",
-  thumbAngleDeg: "Thumb angle",
-};
 
 function defaultManualCorners(overlay: PhotoOverlay): CardCorners {
   const w = overlay.imageWidth;
@@ -462,6 +450,9 @@ export default function ScanClient({
    */
   calibrationMode?: "printed-sheet" | "paper-edge";
 } = {}) {
+  const locale = useLocale();
+  const common = scanCommonCopy(locale);
+  const sheet = scanSheetCopy(locale);
   const [hand, setHand] = useState<Hand>(demoMeasured?.hand ?? "right");
   // "Right hand" is only where the picker starts. Until the user taps it, the
   // hand is not theirs to contradict: the detected hand is used and nothing
@@ -830,15 +821,15 @@ export default function ScanClient({
 
   const statusText =
     state.kind === "reading"
-      ? "Reading photo…"
+      ? sheet.statusReading
       : state.kind === "processing"
-        ? "Looking for the sheet markers and your hand…"
+        ? sheet.statusProcessing
         : state.kind === "needsManualCard"
-          ? "We couldn't find the card automatically — drag its four corners to match your card."
+          ? sheet.statusNeedsCard
           : state.kind === "ok"
-            ? "Measured."
-            : state.kind === "error"
-              ? state.errors[0]?.message
+            ? sheet.statusMeasured
+            : state.kind === "error" && state.errors[0]
+              ? issueText(state.errors[0], locale)
               : "";
 
   const isPaperEdge = calibrationMode === "paper-edge";
@@ -847,30 +838,28 @@ export default function ScanClient({
     <main className="scanMain">
       {demoLabel && <p className="demoLabel">{demoLabel}</p>}
       {isPaperEdge ? (
-        <TopBar backHref="/" backLabel="Home" stepLabel="Photo" />
+        <TopBar
+          backHref="/"
+          backLabel={navCopy(locale).home}
+          stepLabel={sheet.stepPhoto}
+        />
       ) : (
         <TopBar
           backHref="/sheet"
-          backLabel="Sheet"
-          stepLabel="Step 2 of 2 · Photo"
+          backLabel={sheet.backSheet}
+          stepLabel={sheet.stepPhotoOfTwo}
         />
       )}
 
       {isPaperEdge ? (
         <>
-          <h1>Photograph your hand on a sheet of paper</h1>
-          <p className="hint">
-            Lay your hand flat on a blank A4 sheet, fingers together, and
-            photograph it from directly above.
-          </p>
+          <h1>{sheet.headingPaper}</h1>
+          <p className="hint">{sheet.hintPaper}</p>
         </>
       ) : (
         <>
-          <h1>Photograph your hand on the sheet</h1>
-          <p className="hint">
-            Lay your hand flat on the sheet next to a bank card, fingers
-            together, and photograph both from directly above.
-          </p>
+          <h1>{sheet.headingSheet}</h1>
+          <p className="hint">{sheet.hintSheet}</p>
         </>
       )}
 
@@ -878,8 +867,12 @@ export default function ScanClient({
           never needs a re-measure, and changing hand re-runs detection on
           the photo still in memory rather than losing it. */}
       <fieldset className="picker">
-        <legend>Which hand?</legend>
-        <div className="pickerButtons" role="group" aria-label="Which hand">
+        <legend>{sheet.whichHand}</legend>
+        <div
+          className="pickerButtons"
+          role="group"
+          aria-label={sheet.whichHand.replace(/[?？]$/, "")}
+        >
           {(["left", "right"] as const).map((h) => (
             <button
               key={h}
@@ -888,18 +881,18 @@ export default function ScanClient({
               aria-pressed={hand === h}
               onClick={() => changeHand(h)}
             >
-              {h === "left" ? "Left hand" : "Right hand"}
+              {h === "left" ? common.handLeft : common.handRight}
             </button>
           ))}
         </div>
       </fieldset>
 
       <fieldset className="picker">
-        <legend>Grip style (optional)</legend>
+        <legend>{sheet.gripLegend}</legend>
         <div
           className="pickerButtons"
           role="group"
-          aria-label="Grip style, optional"
+          aria-label={sheet.gripGroupLabel}
         >
           {(["palm", "claw", "fingertip"] as const).map((g) => (
             <button
@@ -909,7 +902,13 @@ export default function ScanClient({
               aria-pressed={gripStyle === g}
               onClick={() => changeGrip(gripStyle === g ? undefined : g)}
             >
-              {g[0].toUpperCase() + g.slice(1)}
+              {
+                {
+                  palm: common.gripPalm,
+                  claw: common.gripClaw,
+                  fingertip: common.gripFingertip,
+                }[g]
+              }
             </button>
           ))}
         </div>
@@ -931,15 +930,15 @@ export default function ScanClient({
               style={{ width: "100%", marginBottom: "0.75rem" }}
               onClick={() => setCameraOpen(true)}
             >
-              Open camera
+              {sheet.openCamera}
             </button>
           )}
           <label className="uploadButton" htmlFor="top-down-photo">
             {cameraAvailable
-              ? "Upload a photo instead"
+              ? common.uploadInstead
               : previewUrl
-                ? "Replace photo"
-                : "Choose photo"}
+                ? sheet.replacePhoto
+                : sheet.choosePhoto}
           </label>
           <input
             id="top-down-photo"
@@ -949,7 +948,7 @@ export default function ScanClient({
             onChange={onInputChange}
             className="visuallyHidden"
           />
-          <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
+          <p className="deviceNotice">{common.privacyPhone}</p>
         </div>
       )}
 
@@ -1006,7 +1005,7 @@ export default function ScanClient({
               onPointerMove={onDragMove}
               onPointerUp={endDrag}
               role="img"
-              aria-label="Detected markers, card and hand landmarks overlaid on your photo"
+              aria-label={sheet.overlayLabel}
             >
               {overlay.markers.map((m) => (
                 <polygon
@@ -1039,7 +1038,7 @@ export default function ScanClient({
                     r={Math.max(10, overlay.imageWidth * 0.012)}
                     tabIndex={0}
                     role="slider"
-                    aria-label={`Card corner ${i + 1}. Use arrow keys to adjust.`}
+                    aria-label={sheet.cardCornerLabel(i + 1)}
                     aria-valuetext={`x ${Math.round(p.x)}, y ${Math.round(p.y)}`}
                     className="overlayHandle"
                     onPointerDown={beginDrag(i)}
@@ -1057,16 +1056,16 @@ export default function ScanClient({
           className="primaryButton"
           onClick={onConfirmManualCard}
         >
-          Use these corners
+          {sheet.useTheseCorners}
         </button>
       )}
 
       {state.kind === "error" && (
         <div className="feedback feedback-error" role="alert">
-          <p className="feedbackTitle">Retake needed</p>
+          <p className="feedbackTitle">{common.retakeNeeded}</p>
           <ul>
             {state.errors.map((err, i) => (
-              <li key={i}>{err.message}</li>
+              <li key={i}>{issueText(err, locale)}</li>
             ))}
           </ul>
           {state.retryable && (
@@ -1075,7 +1074,7 @@ export default function ScanClient({
               className="primaryButton"
               onClick={retryPhoto}
             >
-              Try again
+              {common.tryAgain}
             </button>
           )}
         </div>
@@ -1098,8 +1097,8 @@ export default function ScanClient({
                 role="img"
                 aria-label={
                   isPaperEdge
-                    ? "Your measured hand: the paper corners and hand skeleton, with hand length and palm width labelled"
-                    : "Your measured hand: the sheet markers, card and hand skeleton, with hand length and palm width labelled"
+                    ? sheet.measuredLabelPaper
+                    : sheet.measuredLabelSheet
                 }
               >
                 {state.overlay.markers.map((m) => (
@@ -1122,13 +1121,17 @@ export default function ScanClient({
                     {
                       a: state.overlay.landmarksPx[0],
                       b: state.overlay.landmarksPx[LANDMARK.middle[3]],
-                      label: `Hand length ${state.measurements.handLengthMm.toFixed(1)} mm`,
+                      label: sheet.dimHandLength(
+                        state.measurements.handLengthMm.toFixed(1),
+                      ),
                       side: 1,
                     },
                     {
                       a: state.overlay.landmarksPx[LANDMARK.index[0]],
                       b: state.overlay.landmarksPx[LANDMARK.pinky[0]],
-                      label: `Palm width ${state.measurements.palmWidthMm.toFixed(1)} mm`,
+                      label: sheet.dimPalmWidth(
+                        state.measurements.palmWidthMm.toFixed(1),
+                      ),
                       side: 1,
                     },
                   ]}
@@ -1139,12 +1142,12 @@ export default function ScanClient({
 
           <div className="feedback feedback-ok">
             <p className="feedbackTitle">
-              <CheckIcon /> Hand measured
+              <CheckIcon /> {common.handMeasured}
             </p>
             {state.warnings.length > 0 && (
               <div className="feedback feedback-warning">
                 {state.warnings.map((w, i) => (
-                  <p key={i}>{w.message}</p>
+                  <p key={i}>{issueText(w, locale)}</p>
                 ))}
               </div>
             )}
@@ -1158,7 +1161,9 @@ export default function ScanClient({
             <dl className="measurements" data-testid="scan-measurements">
               {Object.entries(state.measurements).map(([key, value]) => (
                 <div className="measurementRow" key={key}>
-                  <dt>{MEASUREMENT_LABELS[key as keyof HandMeasurements]}</dt>
+                  <dt>
+                    {sheet.measurementLabels[key as keyof HandMeasurements]}
+                  </dt>
                   <dd className="tabularNum">
                     {typeof value === "number"
                       ? value.toFixed(1)
@@ -1169,17 +1174,17 @@ export default function ScanClient({
               ))}
             </dl>
             <p className="measureNote" data-testid="scan-unverified-note">
-              {UNVERIFIED_MEASUREMENT_NOTE}
+              {common.unverifiedNote}
             </p>
             <p className="feedbackCaption">
               {isPaperEdge
                 ? // No card, no manual-correction path in paper-edge mode
                   // (runPaperEdgePipeline never returns "needsManualCard") —
                   // one sentence covers it, never "sheet markers and the card".
-                  "All four paper corners were found, so the scale is checked."
+                  sheet.captionPaper
                 : state.cardSource === "auto"
-                  ? "All four sheet markers and the card were found, so the scale is checked."
-                  : "All four sheet markers were found; the card corners you placed set the scale."}
+                  ? sheet.captionAuto
+                  : sheet.captionManual}
             </p>
           </div>
 
@@ -1190,7 +1195,7 @@ export default function ScanClient({
 
           <div className="uploadSlot uploadSlot-measured">
             <label className="uploadButton" htmlFor="top-down-photo">
-              Use a different photo
+              {sheet.useDifferentPhoto}
             </label>
             <input
               id="top-down-photo"
@@ -1199,14 +1204,14 @@ export default function ScanClient({
               onChange={onInputChange}
               className="visuallyHidden"
             />
-            <p className="deviceNotice">{PHOTO_PRIVACY_COPY}</p>
+            <p className="deviceNotice">{common.privacyPhone}</p>
           </div>
         </>
       )}
 
       {!isPaperEdge && (
         <Link href="/sheet" className="scanSheetLink">
-          Don&apos;t have the sheet? Print it
+          {sheet.printSheetLink}
         </Link>
       )}
     </main>

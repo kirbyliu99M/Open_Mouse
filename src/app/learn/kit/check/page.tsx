@@ -3,13 +3,17 @@ import { TopBar } from "@/components/nav/TopBar";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { KIT_V2_SHEETS, type KitV2Sheet } from "@/lib/learning/session";
+import { learnCopy } from "@/lib/copy/learn";
+import { getLocale } from "@/server/i18n/getLocale";
 import { CheckClient } from "./CheckClient";
 import "../learn.css";
 
-export const metadata: Metadata = {
-  title: "Check photos",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: learnCopy(await getLocale()).checkMetaTitle,
+    robots: { index: false, follow: false },
+  };
+}
 
 /** `?paper=letter` presets the sheet size (the folder sorter uses it); anything else is A4. */
 function paperFrom(value: string | string[] | undefined): PaperSize {
@@ -35,6 +39,7 @@ export default async function LearnCheckPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   guardDemoRouteFromProduction();
+  const copy = learnCopy(await getLocale());
   const params = await searchParams;
   const paper = paperFrom(params.paper);
   const sheet = sheetFrom(params.sheet);
@@ -42,15 +47,11 @@ export default async function LearnCheckPage({
     <main className="learn">
       <TopBar
         backHref="/learn/kit"
-        backLabel="Learning kit"
-        stepLabel="Check photos"
+        backLabel={copy.learningKit}
+        stepLabel={copy.checkPhotos}
       />
-      <h1>Check photos</h1>
-      <p className="learn-lead">
-        Choose the photos from a session. Each one is checked on this device;
-        nothing is uploaded. Keep the camera&apos;s file names: they set the
-        capture order.
-      </p>
+      <h1>{copy.checkPhotos}</h1>
+      <p className="learn-lead">{copy.checkLead}</p>
       <CheckClient initialPaperSize={paper} initialSheet={sheet} />
     </main>
   );

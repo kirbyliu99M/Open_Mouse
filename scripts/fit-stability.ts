@@ -18,6 +18,10 @@
  * (logitech.json merged with catalogue.json and the descriptors, as the seed
  * script builds them), the same one the calibration evidence uses.
  *
+ * The report also carries the palm-thickness sensitivity (v1 only, candidate):
+ * each golden hand scored with no answer / thin / medium / thick, and the
+ * palm-length sweep with the answer fixed. `--real` includes it too.
+ *
  * The acceptance threshold for "rigid" is Kirby's (未拍板); the candidate in the
  * spec is a top-5 Jaccard of at least 0.6 at ±5 mm.
  */

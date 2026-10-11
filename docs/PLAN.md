@@ -7,17 +7,17 @@
 
 A web app that measures a user's hand from guided photos, scores every mouse in a catalogue against those measurements, renders a 3D simulation of that hand on the recommended shells, and has Gemini write the narrative analysis. Frontend on Vercel, Postgres on Neon, repo on GitHub. Claude plans and supervises; Codex implements and tests.
 
-We have `Dataset/eloshapes_mouse_data.csv` — 1,260 mice, 160 brands, **76 Logitech**. The shape columns are essentially 100% complete (2–3 nulls each):
+We have a third-party mouse-dimension CSV (`Dataset/`, outside the repo) — 1,260 mice, 160 brands, **76 Logitech**. The shape columns are essentially 100% complete (2–3 nulls each):
 
 `Length/Width/Height (mm)`, `Weight (g)`, `Shape` (Symmetrical/Ergonomic/Hybrid), `Hand compatibility`, `Hump placement` (Center → Back-aggressive), `Front flare` (Inward-aggressive → Outward-aggressive, 7 levels), `Side curvature`, `Thumb rest`, `Ring finger rest`.
 
 Three facts shape the design:
 
-1. **EloShapes' [ToS](https://www.eloshapes.com/terms) prohibits copying, scraping, or redistributing their content.** Their editorial shape judgments are both the most valuable and the most protected part. Per your decision: the CSV **never ships and never enters git** — it stays a local, gitignored **validation fixture**. The shippable catalogue is seeded from Logitech's published dimensions (unprotectable facts) with shape descriptors we derive ourselves via a documented rubric. The 76 Logitech rows become the labelled test set that proves the rubric works.
+1. **As we read its terms of use in 2026-09, the CSV's source prohibits copying, scraping, or redistributing its content** (a historical reading, not a legal conclusion; the link is removed on purpose). Its editorial shape judgments are both the most valuable and the most protected part. Per your decision: the CSV **never ships and never enters git** — it stays a local, gitignored **validation fixture**. The shippable catalogue is seeded from Logitech's published dimensions (unprotectable facts) with shape descriptors we derive ourselves via a documented rubric. The 76 Logitech rows become the labelled test set that proves the rubric works.
 
 2. **Those 8 descriptors are enough to generate a mouse shell procedurally.** No product photos, no image licensing, no 1,260-asset pipeline.
 
-> _Superseded 2026-10-08 (Kirby's call), kept above as history:_ EloShapes values are now imported into the seed catalogue for the brands Kirby selected (gaming mice on sale, to be checked against each brand's official site), after Kirby was shown the ToS line in fact 1. Official product photos are served from `public/images/mice/` (Kirby's call; the non-affiliation statement is his). Logitech rows keep Logitech's published dimensions (Claude's plan). Consequence (Claude's inference): EloShapes is no longer an independent check of our own rubric. See `docs/STATUS.md`, decisions of 2026-10-08.
+> _Superseded 2026-10-08 (Kirby's call), kept above as history:_ the third-party CSV's values are now imported into the seed catalogue for the brands Kirby selected (gaming mice on sale, to be checked against each brand's official site), after Kirby was shown the terms-of-use line in fact 1. _Kirby's statement, 2026-10-11:_ those values are a compilation of public data that the project only cross-checks; he ran an independent check with AGY and added data from official sites (where that added data lives: unconfirmed), and all text naming the dataset is to be removed from the repo. Official product photos are served from `public/images/mice/` (Kirby's call; the non-affiliation statement is his). Logitech rows keep Logitech's published dimensions (Claude's plan). Consequence (Claude's inference): the third-party CSV is no longer an independent check of our own rubric. See `docs/STATUS.md`, decisions of 2026-10-08.
 
 3. **MANO — the standard parametric hand model — is research-licence only**, so it's off the table for anything public. Generating our hand mesh in Blender from the MediaPipe skeleton sidesteps this entirely: no third-party asset, no licence question.
 
@@ -225,7 +225,7 @@ Mobile-first (users photograph on their phone and upload from it), a11y pass, 3D
 
 ## Extending past Logitech
 
-Logitech's 76 is the pilot precisely because they publish full dimensions. Once the rubric clears M1, the same pipeline scales brand by brand from first-party spec pages, each row carrying its `source_url`. The EloShapes CSV stays what it is: a private accuracy check we can run against any new brand, never a source we ship. _(Superseded 2026-10-08: see fact 1's note above.)_
+Logitech's 76 is the pilot precisely because they publish full dimensions. Once the rubric clears M1, the same pipeline scales brand by brand from first-party spec pages, each row carrying its `source_url`. The third-party CSV stays outside the repo as a private accuracy check we can run against any new brand; the raw file is never shipped. _(Superseded 2026-10-08: see fact 1's note above.)_
 
 ---
 

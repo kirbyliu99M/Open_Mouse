@@ -4,6 +4,8 @@ import { TopBar } from "@/components/nav/TopBar";
 import { KitPageSvg } from "@/components/learning/KitSvg";
 import { KitSheetSvg } from "@/components/learning/KitV2Svg";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { learnCopy } from "@/lib/copy/learn";
+import { getLocale } from "@/server/i18n/getLocale";
 import {
   GESTURES,
   KIT_V1_VERSION,
@@ -14,10 +16,12 @@ import { KIT_V2_SHEETS, type KitV2Sheet } from "@/lib/learning/session";
 import { PrintButton } from "../PrintButton";
 import "../learn.css";
 
-export const metadata: Metadata = {
-  title: "Print the learning kit",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: learnCopy(await getLocale()).printMetaTitle,
+    robots: { index: false, follow: false },
+  };
+}
 
 function handsFrom(value: string | string[] | undefined): HandSide[] {
   const v = Array.isArray(value) ? value[0] : value;
@@ -32,17 +36,14 @@ function sheetFrom(value: string | string[] | undefined): KitV2Sheet | null {
   return KIT_V2_SHEETS.find((s) => s === v) ?? null;
 }
 
-const SHEET_NAME: Record<KitV2Sheet, string> = {
-  A: "Sheet A: the product sheet's four markers, centre line, wrist line and a 100 mm ruler",
-  B: "Sheet B (not used, Kirby 2026-10-02): six markers on the outer ring and a blank hand area",
-};
-
 export default async function LearnPrintPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   guardDemoRouteFromProduction();
+  const locale = await getLocale();
+  const copy = learnCopy(locale);
   const params = await searchParams;
   const sheet = sheetFrom(params.sheet);
   if (sheet) {
@@ -51,36 +52,33 @@ export default async function LearnPrintPage({
         <div className="learn noPrint">
           <TopBar
             backHref="/learn/kit"
-            backLabel="Learning kit"
-            stepLabel="Print"
+            backLabel={copy.learningKit}
+            stepLabel={copy.step}
           />
-          <h1>
-            Print kit v2, sheet {sheet}
-            {sheet === "B" ? " (not used, Kirby 2026-10-02)" : ""}
-          </h1>
+          <h1>{copy.printKitV2Sheet(sheet, sheet === "B")}</h1>
           <p className="learn-lead">
-            {SHEET_NAME[sheet]}. One A4 page for both hands. In the print dialog
-            choose A4, 100% / Actual size, and turn off &ldquo;Fit to
-            page&rdquo;.{" "}
-            {sheet === "A"
-              ? "Then check the 100 mm line with a ruler."
-              : "Then check with a ruler that the outer edge of marker 0 to the outer edge of marker 1 is 180 mm."}{" "}
-            Participant cards are on the{" "}
-            <Link href="/learn/kit/slates?kit=2">cards page</Link>.
+            {copy.join([
+              sheet === "A" ? copy.sheetNameA : copy.sheetNameB,
+              copy.printDialogV2,
+              sheet === "A" ? copy.checkRulerA : copy.checkRulerB,
+              copy.cardsPageBefore,
+            ])}{" "}
+            <Link href="/learn/kit/slates?kit=2">{copy.cardsPageLink}</Link>
+            {copy.stop}
           </p>
-          <PrintButton label="Print 1 page" />
+          <PrintButton label={copy.print1Page} />
           <p className="learn-note">
-            Other sheet:{" "}
+            {copy.otherSheet}{" "}
             <Link href={`/learn/kit/print?sheet=${sheet === "A" ? "B" : "A"}`}>
-              sheet {sheet === "A" ? "B (not used)" : "A"}
+              {copy.sheetLabel(sheet === "A" ? "B" : "A", sheet === "A")}
             </Link>
-            .
+            {copy.stop}
           </p>
         </div>
         <div className="learn-print-pages">
           <section className="learn-print-page learn-print-page-a4">
-            <p className="learn-print-label">Kit v2 · sheet {sheet}</p>
-            <KitSheetSvg sheet={sheet} />
+            <p className="learn-print-label">{copy.kitSheetLabel(sheet)}</p>
+            <KitSheetSvg sheet={sheet} locale={locale} />
           </section>
         </div>
       </main>
@@ -92,26 +90,27 @@ export default async function LearnPrintPage({
   );
   const label =
     hands.length === 2
-      ? "both hands"
+      ? copy.handsBoth
       : hands[0] === "right"
-        ? "right hand"
-        : "left hand";
+        ? copy.handsRight
+        : copy.handsLeft;
 
   return (
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
           backHref="/learn/kit"
-          backLabel="Learning kit"
-          stepLabel="Print"
+          backLabel={copy.learningKit}
+          stepLabel={copy.step}
         />
-        <h1>Print the kit</h1>
+        <h1>{copy.printTheKit}</h1>
         <p className="learn-lead">
-          {pages.length} pages, {label}. In the print dialog choose A4, 100% /
-          Actual size, and turn off &ldquo;Fit to page&rdquo;. Then check the
-          100 mm line on one page with a ruler.
+          {copy.join([
+            copy.printKitLead(pages.length, label),
+            copy.printKitLeadAfter,
+          ])}
         </p>
-        <PrintButton label={`Print ${pages.length} pages`} />
+        <PrintButton label={copy.printPages(pages.length)} />
       </div>
       <div className="learn-print-pages">
         {pages.map(({ hand, gesture }) => {
@@ -124,9 +123,9 @@ export default async function LearnPrintPage({
           return (
             <section key={token} className="learn-print-page">
               <p className="learn-print-label">
-                {token} · {gesture.name}
+                {token} · {copy.gestures[gesture.code].name}
               </p>
-              <KitPageSvg gesture={gesture} hand={hand} />
+              <KitPageSvg gesture={gesture} hand={hand} locale={locale} />
             </section>
           );
         })}

@@ -60,12 +60,16 @@ tokens.
 
 ### Sheet (`/sheet`)
 
+The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10-11 (candidate) and kept for the learning kit, demos and tests.
+
 - **Simplicity:** one job — print correctly. The single most prominent line is
   _Print at 100% / Actual size_. Everything else is secondary.
 - The on-screen preview is exact-size and never rescaled. (It is tested: 1 page,
   210 mm.)
 
 ### Scan (`/scan`) — three photo slots
+
+The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10-11 (candidate) and kept for the learning kit, demos and tests.
 
 - **Wayfinding:** always show _step n of 3_, what the step is for, and how to
   leave. Never trap the user.
@@ -91,6 +95,19 @@ tokens.
 - **Direct labels:** name things by what they are ("Grip width", "Hump
   position"), not internal terms ("sideCurvature").
 - Numbers shown to the user come from the fit engine, never from Gemini prose.
+- **Links are secondary, never a button** (Kirby, 2026-10-11, candidate): the
+  maker's page on the fit-band chip's row is a plain `--accent-text` text link
+  with an external-link icon, and the purchase list is plain rows (white shop
+  name, grey icon, hairlines between rows), never a white pill or a filled
+  button. 「製作我的分享圖」 stays the only primary button on the page.
+- **The big photo opens a dialog** (Kirby, 2026-10-11, candidate): the top
+  mouse's photo, on the results page and the detail pages, is a button with a
+  corner icon that opens a native modal on a near-black scrim, with the photo
+  on the same soft backdrop as on the page; a mouse with no photo (the
+  silhouette) and the small cards do not open. Pinch or wheel zooms from 1x to
+  3x, a drag pans, a double tap toggles 1x and 2.5x, and the keys `+`, `-`, `0`
+  and the arrows do the same; Esc, the close button or the scrim closes it and
+  focus returns to the photo.
 
 ### 3D viewer (M4b)
 

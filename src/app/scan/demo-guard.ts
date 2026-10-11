@@ -16,6 +16,15 @@ import { notFound } from "next/navigation";
  * 2026-09-30), so those pages are not served anywhere else. (`/learn` itself
  * is the public information page and is NOT guarded.)
  *
+ * The printed-sheet flow, `/sheet` (the printable ArUco calibration sheet) and
+ * `/scan` (its photo step), is guarded too (Kirby, 2026-10-11): the
+ * main scan flow is `/scan/easy` on any blank A4 sheet, and nothing in the
+ * site links to the printed-sheet pages. They stay for the learning kit, the
+ * demos and the e2e tests, which run under `next dev`. `/scan/easy` itself,
+ * the one public scan page, must NOT call this guard. Because the guard is
+ * dev-only (above), these two pages are closed on previews and a local
+ * `next start` as well, not only in production.
+ *
  * Dev only (Kirby, 2026-10-11; candidate): these routes answer only on a local
  * `next dev` (`NODE_ENV === "development"`). Production, Vercel previews and a
  * local `next start` all answer 404, because a preview has no password and

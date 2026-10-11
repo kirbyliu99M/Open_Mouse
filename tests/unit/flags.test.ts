@@ -1,10 +1,9 @@
+import { easyScanCopy } from "../../src/lib/copy/easy-scan";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseFlag } from "../../src/lib/flags";
 import {
-  EDIT_HAND_LENGTH_LABEL,
   failureOffersLengthEdit,
-  NO_PAPER_ENTRY_LABEL,
   noPaperEntryLabel,
 } from "../../src/client/camera/noPaperEntry";
 
@@ -58,28 +57,34 @@ describe("typed hand length entry flag", () => {
 
 describe("noPaperEntryLabel", () => {
   it("hides the entry when the flag is off, whether or not a length was typed", () => {
-    expect(noPaperEntryLabel(false, false)).toBeNull();
-    expect(noPaperEntryLabel(true, false)).toBeNull();
+    expect(noPaperEntryLabel(false, "en", false)).toBeNull();
+    expect(noPaperEntryLabel(true, "en", false)).toBeNull();
   });
 
   it("shows the entry when the flag is on", () => {
-    expect(noPaperEntryLabel(false, true)).toBe(NO_PAPER_ENTRY_LABEL);
-    expect(noPaperEntryLabel(true, true)).toBe(EDIT_HAND_LENGTH_LABEL);
+    expect(noPaperEntryLabel(false, "en", true)).toBe(
+      easyScanCopy("en").noPaperEntry,
+    );
+    expect(noPaperEntryLabel(true, "en", true)).toBe(
+      easyScanCopy("en").editHandLength,
+    );
   });
 
   it("defaults to the build-time flag, which is off with the variable unset", async () => {
     vi.resetModules();
     vi.stubEnv(ENV_NAME, undefined);
     const entry = await import("../../src/client/camera/noPaperEntry");
-    expect(entry.noPaperEntryLabel(false)).toBeNull();
-    expect(entry.noPaperEntryLabel(true)).toBeNull();
+    expect(entry.noPaperEntryLabel(false, "en")).toBeNull();
+    expect(entry.noPaperEntryLabel(true, "en")).toBeNull();
   });
 
   it("follows the build-time flag when it is on", async () => {
     vi.resetModules();
     vi.stubEnv(ENV_NAME, "1");
     const entry = await import("../../src/client/camera/noPaperEntry");
-    expect(entry.noPaperEntryLabel(false)).toBe(entry.NO_PAPER_ENTRY_LABEL);
+    expect(entry.noPaperEntryLabel(false, "en")).toBe(
+      easyScanCopy("en").noPaperEntry,
+    );
   });
 });
 
@@ -87,8 +92,10 @@ describe("every no-paper entry in EasyScanCamera goes through the flag", () => {
   const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
 
   it("has no hard-coded entry label that bypasses noPaperEntryLabel", () => {
-    expect(source).not.toContain(NO_PAPER_ENTRY_LABEL);
-    expect(source).not.toContain(EDIT_HAND_LENGTH_LABEL);
+    for (const locale of ["en", "zh-TW"] as const)
+      expect(source).not.toContain(easyScanCopy(locale).noPaperEntry);
+    for (const locale of ["en", "zh-TW"] as const)
+      expect(source).not.toContain(easyScanCopy(locale).editHandLength);
     expect(source).toContain("noPaperEntryLabel(");
   });
 
