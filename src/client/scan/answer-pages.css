@@ -88,7 +88,7 @@
 }
 
 .answerTitle {
-  margin: 0.75rem 0 0;
+  margin: 0.5rem 0 0;
   font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -116,7 +116,7 @@
   flex: 1 1 0;
   min-height: 9rem;
   max-height: 21rem;
-  margin: 1rem 0;
+  margin: 0.75rem 0;
 }
 .gripArt {
   border: 1px solid #ffffff33;
@@ -161,15 +161,16 @@
   }
 }
 
-.thicknessArt {
-  display: flex;
-  justify-content: center;
-}
+/* Fills the picture's box exactly and fits the hand inside it (meet), so it
+   never reaches the rows below. */
 .thicknessHand {
+  position: absolute;
+  inset: 0;
   display: block;
-  height: 100%;
   width: 100%;
-  overflow: visible;
+  height: 100%;
+  /* The glow's blur stays inside the box too. */
+  overflow: hidden;
 }
 .thicknessGlow {
   fill: var(--glow);
@@ -282,7 +283,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 .answerPrimary {
   min-height: 3.25rem;

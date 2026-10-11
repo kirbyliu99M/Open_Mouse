@@ -30,9 +30,16 @@ rings and selection text; it no longer fills a primary button. On paper the
 pill prints black with a white label.
 
 **Selected toggle:** the same white fill and black label as the primary button,
-in its own shape. Unselected, it stays a dark outline. This includes the grip
-chips on the easy-scan result sheet: dark outlined when unselected, a white pill
-when selected.
+in its own shape. Unselected, it stays a dark outline.
+
+**Question pages (grip, palm thickness)** (Kirby, 2026-10-12, candidate): after
+the easy-scan measured sheet, two optional full pages, grip 1／2 and palm
+thickness 2／2, each with 返回, a step counter, three radio rows, one primary
+button that stays disabled until a row is chosen, and a small 跳過. A chosen row
+is the accent wash (`#1F6BF0` at 20 %) with a 2 px `--accent-text` ring and a
+filled radio with a check, as in the approved frames; it is not the white
+toggle above, because the row is a list choice and not a chip. A skip sends no
+field, and nothing ever sends a default. The scan is sent from the last page.
 
 **Secondary button:** a plain text link in `--accent-text`, with no fill, no
 border and no underline (like "Print it" and the "‹ Sheet" back link), at least
@@ -47,7 +54,7 @@ suggestion is 40 px tall. The rest of the site keeps the full-size pill.
 **Exceptions:**
 
 - The easy-scan camera result sheet: secondary controls stay dark and outlined
-  (the circular retake button, the unselected grip chips).
+  (the circular retake button).
 - The sign-in provider button (`.account-google-button`): dark filled.
 - Destructive buttons and icon-only chips are unchanged.
 

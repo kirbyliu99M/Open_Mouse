@@ -1508,7 +1508,7 @@ async function pinnedLayout(
     // given a fixed height, a chip that cuts its own word short.
     const spilling = [
       ...dialog.querySelectorAll<HTMLElement>(
-        ".easyRetakeButton, .easySeeMatches .primaryButton, .easyTryAgainButton, .easyEditLengthButton, .easyGripChip",
+        ".easyRetakeButton, .easySeeMatches .primaryButton, .easyTryAgainButton, .easyEditLengthButton",
       ),
     ]
       .filter(
@@ -1595,7 +1595,7 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
   for (const phone of PINNED_PHONES) {
     for (const percent of [100, 150, 200]) {
       for (const kind of ["measured", "retake"] as const) {
-        test(`${phone.width}x${phone.height} at ${percent}% text: the ${kind === "retake" ? "Try again" : "See my matches"} button is fully on screen and in front`, async ({
+        test(`${phone.width}x${phone.height} at ${percent}% text: the ${kind === "retake" ? "Try again" : "Continue"} button is fully on screen and in front`, async ({
           page,
         }) => {
           const l = await pinnedLayout(page, phone, percent, kind);
@@ -1816,16 +1816,11 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
           .join(", ")}`,
       );
       const names = stops.map((s) => s.name);
-      // Grip chips, then Retake photo, then See my matches: the DOM's order.
-      expect(names.slice(0, 4)).toEqual([
-        "Palm",
-        "Claw",
-        "Fingertip",
-        "Not sure",
-      ]);
-      expect(names[4]).toBe("Retake photo");
-      expect(stops.length).toBeGreaterThanOrEqual(6);
-      expect(stops[5].inRow).toBe(true);
+      // Retake photo, then Continue: the DOM's order. The sheet no longer has
+      // grip options (they are the first question page).
+      expect(names.slice(0, 2)).toEqual(["Retake photo", "Continue"]);
+      expect(stops.length).toBeGreaterThanOrEqual(2);
+      expect(stops[1].inRow).toBe(true);
       for (const stop of stops as ((typeof stops)[number] & {
         ringPixelOff: number;
         ringToPage: number;
@@ -1889,9 +1884,9 @@ test.describe("fix round 3: the actions stay in view at large text", () => {
         "the walk never stops on the dialog",
       ).toEqual([]);
       // Round the end and back to the first option.
-      const last = walked.indexOf("BUTTON See my matches");
+      const last = walked.indexOf("BUTTON Continue");
       expect(last).toBeGreaterThan(-1);
-      expect(walked.slice(last + 1)).toContain("BUTTON Palm");
+      expect(walked.slice(last + 1)).toContain("BUTTON Retake photo");
     });
   }
 
@@ -1949,168 +1944,40 @@ test.describe("fix round 3: a retake on the upload path starts clean", () => {
   });
 });
 
-test.describe("fix round 4: the sheet's grip options and height", () => {
-  const WIDTHS = [360, 390] as const;
-  const PERCENTS = [100, 115, 130, 150, 200] as const;
-  for (const width of WIDTHS) {
-    for (const percent of PERCENTS) {
-      test(`${width} px wide at ${percent}% text: the four grip options are the same width, in one row, two by two, or (only where two would not fit) one under another, none cut short`, async ({
-        page,
-      }) => {
-        await pinnedLayout(page, { width, height: 844 }, percent, "measured");
-        const { chips, grid } = await page.evaluate(() => {
-          const row = document.querySelector<HTMLElement>(".easyGripChips")!;
-          const chips = [
-            ...document.querySelectorAll<HTMLElement>(".easyGripChip"),
-          ].map((el) => {
-            const r = el.getBoundingClientRect();
-            const style = getComputedStyle(el);
-            // The width of the label's own text, whatever box it is in.
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            return {
-              text: (el.textContent ?? "").trim(),
-              left: r.left,
-              top: r.top,
-              width: r.width,
-              cut: el.scrollWidth > el.clientWidth + 1,
-              textWidth: range.getBoundingClientRect().width,
-              borders:
-                parseFloat(style.borderLeftWidth) +
-                parseFloat(style.borderRightWidth),
-            };
-          });
-          return {
-            chips,
-            grid: {
-              width: row.clientWidth,
-              gap: parseFloat(getComputedStyle(row).columnGap),
-            },
-          };
-        });
-        expect(chips.map((c) => c.text)).toEqual([
-          "Palm",
-          "Claw",
-          "Fingertip",
-          "Not sure",
-        ]);
-        const widths = chips.map((c) => c.width);
-        const rows = [...new Set(chips.map((c) => Math.round(c.top)))];
-        console.log(
-          `${width} px, ${percent}%: widths ${widths.map((w) => w.toFixed(1)).join(" / ")}, ${rows.length === 1 ? "one row of four" : `${rows.length} rows`}`,
-        );
-        // Equal width, always.
-        expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(
-          1,
-        );
-        // Four in a row, or two and two: never three and one. One under
-        // another only where two side by side would not fit: the font, not
-        // only the text size, decides that (DejaVu Sans, which Linux and CI
-        // use, is a quarter wider than Windows' font), so it is worked out from
-        // the width of the widest label and not from a size in px.
-        //
-        // "Would not fit" has the slack of the CSS's own thresholds, which are
-        // in ch and so follow the font's digits, not its letters: "Fingertip"
-        // is 6.7ch in Windows' font and 7.1ch in DejaVu Sans, two across need
-        // 14.5ch and 15.2ch, and the threshold is 16ch. So a sheet up to 12%
-        // wider than two across need may still stack (16 / 14.5 = 1.10); far
-        // more than that is the layout stacking for no reason.
-        //
-        // The same the other way round: four across need 29.7ch in Windows'
-        // font and 30.9ch in DejaVu Sans against a threshold of 32.5ch, so
-        // where four across would fit with that much to spare the options must
-        // be in one row, not two by two.
-        const STACK_SLACK = 1.12;
-        const widestColumn = Math.max(
-          ...chips.map((c) => c.textWidth + c.borders),
-        );
-        const twoAcross = 2 * widestColumn + grid.gap;
-        const fourAcross = 4 * widestColumn + 3 * grid.gap;
-        console.log(
-          `${width} px, ${percent}%: four across need ${fourAcross.toFixed(1)} px, two across ${twoAcross.toFixed(1)} px, of ${grid.width} px`,
-        );
-        expect([1, 2, 4]).toContain(rows.length);
-        if (rows.length === 2)
-          for (const row of rows)
-            expect(chips.filter((c) => Math.round(c.top) === row)).toHaveLength(
-              2,
-            );
-        if (rows.length === 4)
-          expect(
-            twoAcross * STACK_SLACK,
-            "stacked although two by two would have fit with room to spare",
-          ).toBeGreaterThan(grid.width);
-        if (fourAcross * STACK_SLACK <= grid.width)
-          expect(
-            rows,
-            "not in one row although four across would have fit with room to spare",
-          ).toHaveLength(1);
-        // No word cut short ("Fingertip" is the long one).
-        expect(chips.filter((c) => c.cut).map((c) => c.text)).toEqual([]);
-        // The layout on a 390 px screen at normal text is the one it always was.
-        if (width === 390 && percent === 100) {
-          expect(rows).toHaveLength(1);
-          for (const w of widths) expect(w).toBeCloseTo(81, 0);
-        }
-      });
-    }
-  }
-
+test.describe("the measured sheet after the grip chips moved to their own page", () => {
   for (const [width, height] of [
     [390, 844],
     [360, 780],
     [360, 640],
   ] as const) {
-    test(`${width}x${height} at 100% text: the sheet is no taller than before the pinned row (333 px) and does not need to scroll`, async ({
+    test(`${width}x${height} at 100% text: the sheet has no grip options, one Continue button, and does not need to scroll`, async ({
       page,
     }) => {
       await pinnedLayout(page, { width, height }, 100, "measured");
+      const sheet = page.getByRole("dialog", { name: "Hand measured" });
+      await expect(sheet.locator(".easyGripChip")).toHaveCount(0);
+      await expect(sheet.getByText("How do you hold a mouse")).toHaveCount(0);
+      await expect(sheet.getByRole("button", { name: "Continue" })).toHaveCount(
+        1,
+      );
       const m = await page.evaluate(() => {
         const d = document.querySelector<HTMLElement>(
           "dialog.easyResultSheet",
         )!;
-        // 333 px is what the sheet measured in Windows' font, where each line
-        // of text is one line and the four options are in one row. A wider font
-        // (DejaVu Sans on Linux and CI) wraps the numbers onto a second line
-        // and puts the options two by two: that is the content growing, not
-        // the sheet. So the baseline grows by exactly the lines and rows the
-        // text and options really take beyond that, and nothing else: the
-        // text blocks have a fixed line height and the options a fixed height.
-        let extraTextPx = 0;
-        for (const p of d.querySelectorAll<HTMLElement>(":scope > p")) {
-          const lineHeight = parseFloat(getComputedStyle(p).lineHeight);
-          if (!(lineHeight > 0))
-            throw new Error("a text block has no fixed line height");
-          extraTextPx +=
-            (Math.round(p.getBoundingClientRect().height / lineHeight) - 1) *
-            lineHeight;
-        }
-        const chips = [...d.querySelectorAll<HTMLElement>(".easyGripChip")];
-        const rows = new Set(
-          chips.map((c) => Math.round(c.getBoundingClientRect().top)),
-        );
-        const grid = getComputedStyle(d.querySelector(".easyGripChips")!);
-        const extraChipRowsPx =
-          (rows.size - 1) * (chips[0].offsetHeight + parseFloat(grid.rowGap));
         return {
           height: d.offsetHeight,
           scrollHeight: d.scrollHeight,
           clientHeight: d.clientHeight,
           cap: parseFloat(getComputedStyle(d).maxHeight),
-          extraTextPx,
-          extraChipRowsPx,
         };
       });
-      const expected = Math.round(333 + m.extraTextPx + m.extraChipRowsPx);
       console.log(
-        `${width}x${height} 100%: sheet ${m.height} px (content ${m.scrollHeight} px), the baseline 333 px plus ${m.extraTextPx.toFixed(1)} px of wrapped text and ${m.extraChipRowsPx.toFixed(1)} px of option rows = ${expected} px`,
+        `${width}x${height} 100%: sheet ${m.height} px (content ${m.scrollHeight} px, cap ${m.cap} px)`,
       );
-      expect(m.height).toBeLessThanOrEqual(expected);
-      expect(m.scrollHeight).toBeLessThanOrEqual(expected);
-      // It scrolls only where the content is taller than the cap (52vh) it
-      // would have had in the baseline anyway.
-      if (expected <= m.cap + 1)
-        expect(m.scrollHeight).toBeLessThanOrEqual(m.clientHeight + 1);
+      // Shorter than the 333 px it was with the four grip options in it, and
+      // nothing scrolls inside it.
+      expect(m.height).toBeLessThan(333);
+      expect(m.scrollHeight).toBeLessThanOrEqual(m.clientHeight + 1);
     });
   }
 });
