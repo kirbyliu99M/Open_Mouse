@@ -123,7 +123,6 @@ test.describe("/learn information page", () => {
     ]);
     // The marks are real text, in the page for a screen reader too.
     for (const mark of [
-      "Left–right symmetrical",
       "Centred peak",
       "Rear peak",
       "Schematic: exaggerated flare",
@@ -137,7 +136,7 @@ test.describe("/learn information page", () => {
       .evaluateAll((marks) =>
         marks.map((m) => parseFloat(getComputedStyle(m).fontSize)),
       );
-    expect(sizes).toHaveLength(8);
+    expect(sizes).toHaveLength(7);
     for (const size of sizes) expect(size).toBeGreaterThanOrEqual(12);
   });
 

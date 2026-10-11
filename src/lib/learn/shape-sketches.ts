@@ -14,7 +14,6 @@ export type ShapeSketchId = "symmetrical" | "ergonomic" | "hump" | "flare";
 
 /** The keys of `LearnPageCopy.shape.marks`. */
 export type ShapeMarkKey =
-  | "symmetrical"
   | "thumbRest"
   | "straightSide"
   | "centredPeak"
@@ -47,9 +46,9 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
     id: "symmetrical",
     viewBox: { x: 0, y: 10, w: 512, h: 500 },
     arrows: true,
-    marks: [
-      { key: "symmetrical", x: 255.5, y: 480, anchor: "m", tone: "secondary" },
-    ],
+    // No text on this drawing (Kirby, 2026-10-11: the name under the tile is
+    // enough, in both languages).
+    marks: [],
   },
   {
     id: "ergonomic",

@@ -232,6 +232,7 @@ describe("the rendered /learn body", () => {
       for (const m of marks) expect(m[1]).not.toContain("aria-hidden");
       // The line breaks are kept in the text (the page shows them with
       // white-space: pre), not turned into tags or spaces.
+      expect(marks).toHaveLength(7);
       expect(html).toContain(copy.shape.marks.thumbRest);
       expect(copy.shape.marks.thumbRest).toContain("\n");
     },
@@ -276,11 +277,13 @@ describe("the four shape sketches", () => {
   });
 
   it("places a mark by percentages of the crop: from the right edge for anchor r", () => {
-    const [sym, erg, hump] = SHAPE_SKETCHES;
-    // Symmetrical: x 255.5 of 512, y 480 in a crop that starts at 10 and is 500 high.
-    expect(markPlacement(sym, sym.marks[0])).toEqual({
-      top: "94%",
-      left: "49.9%",
+    const [sym, erg, hump, flare] = SHAPE_SKETCHES;
+    // The Symmetrical drawing has no text on it.
+    expect(sym.marks).toEqual([]);
+    // Flare's schematic note, anchor m: x 256 of 512, y 490 in a crop from 40, 470 high.
+    expect(markPlacement(flare, flare.marks[2])).toEqual({
+      top: "95.74%",
+      left: "50%",
     });
     expect(markPlacement(erg, erg.marks[0])).toEqual({
       top: "47.45%",

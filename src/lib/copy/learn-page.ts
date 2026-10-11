@@ -11,7 +11,8 @@
  *
  * LEARN-5 (candidate, from the sketch package's labels.json): the two new
  * shape names `shape.hump` and `shape.flare` (the results page has no word for
- * them), and the eight text marks on the four drawings, `shape.marks`. The
+ * them), and the seven text marks on three of the four drawings,
+ * `shape.marks` (the Symmetrical drawing carries no text, Kirby 2026-10-11). The
  * package's own status: zh-TW wording OK'd by Kirby 2026-10-11 in a draft
  * table; the English wording is Claude's, exact English strings unconfirmed.
  * The zh names for hump and flare are placeholders there.
@@ -50,7 +51,6 @@ export interface LearnPageCopy {
      * is a line break the page keeps.
      */
     marks: {
-      symmetrical: string;
       thumbRest: string;
       straightSide: string;
       centredPeak: string;
@@ -115,7 +115,6 @@ export const zhTW: LearnPageCopy = {
     hump: "拱背",
     flare: "前端外張",
     marks: {
-      symmetrical: "左右對稱",
       thumbRest: "拇指托\n外凸",
       straightSide: "另一側\n較直",
       centredPeak: "對稱型最高點",
@@ -179,7 +178,6 @@ export const en: LearnPageCopy = {
     hump: "Hump",
     flare: "Flare",
     marks: {
-      symmetrical: "Left–right symmetrical",
       thumbRest: "Thumb\nrest",
       straightSide: "Straight\nside",
       centredPeak: "Centred peak",
