@@ -160,8 +160,12 @@ describe("the bundled mouse-media.json", () => {
     expect(total).toBeLessThanOrEqual(10 * 1024 * 1024);
   });
 
-  it("has no mouse without a photo (every CSV row had a cut-out on 2026-10-11)", () => {
+  it("has no photo for exactly the two mice whose maker lists none", () => {
     const nulls = entries.filter(([, v]) => v.image === null);
-    expect(nulls.map(([slug]) => slug)).toEqual([]);
+    expect(nulls.map(([slug]) => slug).sort()).toEqual([
+      "fantech-yari-e",
+      "g-wolves-vuk-medium",
+    ]);
+    expect(entries.length - nulls.length).toBe(404);
   });
 });

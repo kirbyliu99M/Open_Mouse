@@ -522,7 +522,7 @@
   "fantech-yari-e": {
     "officialUrl": "https://fantechworld.com/products/yari-e-wg14e",
     "officialKind": "product",
-    "image": "/images/mice/fantech-yari-e.webp"
+    "image": null
   },
   "fantech-yari-pro": {
     "officialUrl": "https://fantechworld.com/products/yari-pro-wg14p",
@@ -697,7 +697,7 @@
   "g-wolves-vuk-medium": {
     "officialUrl": "https://shop.g-wolves.com/products/g-wolves-vuk-medium",
     "officialKind": "product",
-    "image": "/images/mice/g-wolves-vuk-medium.webp"
+    "image": null
   },
   "g-wolves-warg": {
     "officialUrl": "https://shop.g-wolves.com/products/g-wolves-warg-8k-wireless-gaming-mouse",

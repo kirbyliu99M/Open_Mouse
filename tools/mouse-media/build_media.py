@@ -36,6 +36,22 @@ def encode(img, quality):
     return buf.getvalue()
 
 
+def write_json(a, seen, slug_by_key, chosen):
+    media = {}
+    for k, r in seen.items():
+        slug = slug_by_key[k]
+        media[slug] = {
+            "officialUrl": r["official_url"].strip(),
+            "officialKind": KIND[r["url_type"].strip()],
+            "image": None if chosen[slug] is None else f"/images/mice/{slug}.webp",
+        }
+    ordered = {s: media[s] for s in sorted(media)}
+    a.out_json.parent.mkdir(parents=True, exist_ok=True)
+    with a.out_json.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(ordered, indent=2, ensure_ascii=False) + "\n")
+    return ordered
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pics", required=True, type=Path)
@@ -43,6 +59,12 @@ def main():
     ap.add_argument("--catalogue", required=True, type=Path)
     ap.add_argument("--out-images", required=True, type=Path)
     ap.add_argument("--out-json", required=True, type=Path)
+    ap.add_argument(
+        "--only-json",
+        action="store_true",
+        help="write the JSON only; do not crop or encode, and require every "
+        "non-null image to exist already in --out-images and no other WebP to",
+    )
     a = ap.parse_args()
 
     catalogue = json.loads(a.catalogue.read_text(encoding="utf-8"))
@@ -69,6 +91,11 @@ def main():
     chosen = {}  # slug -> Path | None
     for k, r in seen.items():
         slug = slug_by_key[k]
+        if int(r["image_count"]) == 0:
+            # The maker lists no photo for this model: any <prefix>_01.png in
+            # the pics folder is another model's photo, so there is no image.
+            chosen[slug] = None
+            continue
         name = r["hero_image"].strip() or f"{r['image_prefix']}_01.png"
         p = a.pics / name
         if p.is_file():
@@ -82,6 +109,18 @@ def main():
         else:
             p = None
         chosen[slug] = p
+
+    if a.only_json:
+        want = {f"{s}.webp" for s, p in chosen.items() if p is not None}
+        have = {f.name for f in a.out_images.glob("*.webp")}
+        if want != have:
+            sys.exit(
+                f"WebP files differ from the rule: missing {sorted(want - have)}, "
+                f"extra {sorted(have - want)}"
+            )
+        write_json(a, seen, slug_by_key, chosen)
+        print(f"json only: {len(want)} images, {len(chosen) - len(want)} null")
+        return
 
     # One shared crop window: union of alpha>threshold boxes plus margin.
     x0 = y0 = 10**9
@@ -115,7 +154,6 @@ def main():
     for k, r in seen.items():
         slug = slug_by_key[k]
         p = chosen[slug]
-        image = None
         if p is not None:
             with Image.open(p) as im:
                 im = im.convert("RGBA").crop(window).resize(
@@ -131,17 +169,8 @@ def main():
                 lowered[slug] = (q, len(data))
             (a.out_images / f"{slug}.webp").write_bytes(data)
             sizes.append(len(data))
-            image = f"/images/mice/{slug}.webp"
-        media[slug] = {
-            "officialUrl": r["official_url"].strip(),
-            "officialKind": KIND[r["url_type"].strip()],
-            "image": image,
-        }
 
-    ordered = {s: media[s] for s in sorted(media)}
-    a.out_json.parent.mkdir(parents=True, exist_ok=True)
-    with a.out_json.open("w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(ordered, indent=2, ensure_ascii=False) + "\n")
+    ordered = write_json(a, seen, slug_by_key, chosen)
 
     sizes.sort()
     n = len(sizes)

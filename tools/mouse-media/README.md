@@ -22,13 +22,18 @@ python tools/mouse-media/build_media.py \
 ```
 
 Needs Python 3 with Pillow. The script fails if a CSV row has no catalogue match
-or the reverse. Slow on purpose (WebP `method=6`): about five minutes.
+or the reverse. Slow on purpose (WebP `method=6`): about seven minutes.
+
+To rewrite only the JSON (no cropping or encoding), add `--only-json`. It also
+checks that the WebP files in `--out-images` are exactly the ones the rule says
+should exist, so it can confirm that a hand edit matches a fresh run.
 
 ## Rules
 
-- Image per mouse: `hero_image`, or `<image_prefix>_01.png` when it is blank. A
-  hero that is not 800x800 (for example a wide callout diagram) is replaced by
-  `<image_prefix>_01.png`; a mouse with no file gets `"image": null`.
+- Image per mouse: `hero_image`. A row with `image_count` 0 has no photo
+  (`"image": null`, no WebP): a `<image_prefix>_01.png` found for it is another
+  model's photo, so it is never used as a fallback. A hero that is not 800x800
+  (for example a wide callout diagram) is replaced by `<image_prefix>_01.png`.
 - Crop: one window for every image, the union of all alpha > 10 bounding boxes
   plus a 2 % margin, so alignment and relative scale stay consistent. Resized to
   480 px high (width follows), lossy WebP with alpha, quality 80, no EXIF.
