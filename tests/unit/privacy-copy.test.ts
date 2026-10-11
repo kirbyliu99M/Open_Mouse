@@ -13,10 +13,10 @@ it("keeps the shared privacy promise on How it works, the scan screens and the c
   expect(PHOTO_PRIVACY_COPY).toBe(
     "Your photo never leaves your phone. Only measurements are sent.",
   );
-  expect(
-    readFileSync("src/app/how-it-works/page.tsx", "utf8"),
-    "how-it-works",
-  ).toContain("PHOTO_PRIVACY_COPY");
+  // How it works reads it in the visitor's language (`privacyCopy(locale)`).
+  expect(readFileSync("src/app/how-it-works/page.tsx", "utf8")).toContain(
+    "photoStaysOnPhone",
+  );
   // The scan screens read the same sentence from the locale table
   // (src/lib/copy/scan-common.ts), whose English is the shared constant
   // (tests/unit/i18n-scan.test.ts compares the two).

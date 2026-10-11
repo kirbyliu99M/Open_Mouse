@@ -8,13 +8,18 @@ import { Avatar } from "@/components/nav/Avatar";
 import { TopBar } from "@/components/nav/TopBar";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { accountCopy } from "@/lib/copy/account";
+import { getLocale } from "@/server/i18n/getLocale";
 import "./account.css";
 
-export const metadata: Metadata = { title: "Account" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: accountCopy(await getLocale()).metaTitle };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
+  const copy = accountCopy(await getLocale());
   const session = await auth();
 
   if (!session?.user) {
@@ -22,33 +27,30 @@ export default async function AccountPage() {
     return (
       <main className="account">
         <LegacyHandKeySweep />
-        <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
+        <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.account} />
         <span className="account-hero-icon" aria-hidden="true">
           <PersonIcon />
         </span>
-        <h1>Keep your scans</h1>
-        <p className="account-subtitle">
-          Signing in is optional. Without an account, a scan expires
-          automatically after a while.
-        </p>
+        <h1>{copy.keepYourScans}</h1>
+        <p className="account-subtitle">{copy.subtitle}</p>
         <ul className="account-benefits">
           <li>
             <span aria-hidden="true">
               <BookmarkIcon />
             </span>
-            Your scans stay until you delete them
+            {copy.benefitKeep}
           </li>
           <li>
             <span aria-hidden="true">
               <DeviceIcon />
             </span>
-            Open your results on any device
+            {copy.benefitDevices}
           </li>
           <li>
             <span aria-hidden="true">
               <TrashIcon />
             </span>
-            Delete everything in one tap, any time
+            {copy.benefitDelete}
           </li>
         </ul>
         {configured ? (
@@ -62,12 +64,9 @@ export default async function AccountPage() {
               <AuthButton action="in" />
             </form>
             <Link className="account-skip-link" href="/scan/easy">
-              Scan without an account
+              {copy.scanWithoutAccount}
             </Link>
-            <p className="account-fine-print">
-              We keep your email address and your scans — never your photo. Your
-              current scan joins your account when you sign in.
-            </p>
+            <p className="account-fine-print">{copy.finePrint}</p>
           </>
         ) : (
           <>
@@ -75,17 +74,12 @@ export default async function AccountPage() {
               <span aria-hidden="true">
                 <InfoIcon />
               </span>
-              <p>
-                Sign-in is unavailable right now. You can still scan — your
-                result is kept for a while, then expires automatically.
-              </p>
+              <p>{copy.unavailable}</p>
             </div>
             <Link className="account-start-button" href="/scan/easy">
-              <CameraIcon /> Scan my hand
+              <CameraIcon /> {copy.scanMyHand}
             </Link>
-            <p className="account-fine-print">
-              When sign-in opens, your scans can be saved to your account.
-            </p>
+            <p className="account-fine-print">{copy.whenOpens}</p>
           </>
         )}
       </main>
@@ -98,7 +92,7 @@ export default async function AccountPage() {
   return (
     <main className="account">
       <LegacyHandKeySweep />
-      <TopBar backHref="/" backLabel="Home" stepLabel="Account" />
+      <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.account} />
       <div className="account-header">
         <div>
           <div className="account-identity" data-testid="account-identity">
@@ -106,11 +100,11 @@ export default async function AccountPage() {
               className="avatar avatar-large"
               image={session.user.image ?? null}
             />
-            <p className="account-name">{session.user.name ?? "Signed in"}</p>
+            <p className="account-name">{session.user.name ?? copy.signedIn}</p>
           </div>
-          <p className="eyebrow">Account</p>
-          <h1>Your scans</h1>
-          <p className="note">Kept until you delete it.</p>
+          <p className="eyebrow">{copy.account}</p>
+          <h1>{copy.yourScans}</h1>
+          <p className="note">{copy.keptUntil}</p>
         </div>
         <form
           action={async () => {

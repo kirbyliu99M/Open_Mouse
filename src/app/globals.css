@@ -388,3 +388,7 @@ button:disabled {
   line-height: 1.6;
   text-wrap: balance;
 }
+/* Paragraphs and list items: no lone closing character (e.g. 「嗎？」). */
+:lang(zh-TW) :is(p, li) {
+  text-wrap: pretty;
+}

@@ -10,9 +10,7 @@
  * (趴握, 抓握, 指握). Numbers are formatted in TypeScript and handed in as
  * text: no copy table computes a number (hard rule 2).
  *
- * The photo-privacy sentences are the same as the pages builder's
- * `privacy.ts`; once both branches are in `main`, one of the two can read
- * the other.
+ * The photo-privacy sentences are the single source for `privacy.ts` too.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";

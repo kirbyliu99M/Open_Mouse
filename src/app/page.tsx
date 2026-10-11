@@ -2,10 +2,12 @@ import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { FINALE_HEADLINE, homeCopy } from "@/lib/copy/home";
 import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import { SITE_NAME } from "@/lib/site";
+import type { Locale } from "@/lib/contracts/locale";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
 
@@ -24,6 +26,7 @@ import "./home.css";
  */
 export default async function HomePage() {
   const locale = await getLocale();
+  const copy = homeCopy(locale);
   const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
@@ -48,11 +51,9 @@ export default async function HomePage() {
                 height={69}
               />
             </div>
-            <h1>Find the mouse that fits.</h1>
-            <p className="home-subhead">
-              A blank sheet of A4 and your phone are all it takes.
-            </p>
-            <HomeActions />
+            <h1>{copy.heading}</h1>
+            <p className="home-subhead">{copy.subhead}</p>
+            <HomeActions locale={locale} />
           </div>
 
           {/* The hand on A4 with its landmarks and the two measurement lines
@@ -106,7 +107,7 @@ export default async function HomePage() {
                 width={688}
                 height={622}
               />
-              <h2 className="story-finale-title">Find Your Best Mouse</h2>
+              <h2 className="story-finale-title">{FINALE_HEADLINE}</h2>
             </div>
           </div>
 
@@ -116,14 +117,15 @@ export default async function HomePage() {
       </section>
 
       <section className="home-final" data-testid="home-final">
-        <HomeActions />
+        <HomeActions locale={locale} />
       </section>
     </main>
   );
 }
 
 /** "Scan my hand" (the filled primary) and "How it works" (the outline secondary). */
-function HomeActions() {
+function HomeActions({ locale }: { locale: Locale }) {
+  const copy = homeCopy(locale);
   return (
     <div className="home-actions">
       <HomeCtaLink cta="scan" className="home-cta" href="/scan/easy">
@@ -150,14 +152,14 @@ function HomeActions() {
             strokeWidth="1.7"
           />
         </svg>
-        Scan my hand
+        {copy.scanMyHand}
       </HomeCtaLink>
       <HomeCtaLink
         cta="how_it_works"
         className="home-cta-secondary"
         href="/how-it-works"
       >
-        How it works
+        {copy.howItWorks}
       </HomeCtaLink>
     </div>
   );
