@@ -7,6 +7,7 @@
  */
 import { Type } from "@google/genai";
 import type { AnalysisSource } from "../../lib/contracts/analysis";
+import type { Locale } from "../../lib/contracts/locale";
 import type { ExclusionReason } from "../fit/exclusions";
 import { LOG_ROUTES, log } from "../log";
 import type { TextModel } from "./client";
@@ -48,8 +49,23 @@ const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
   trackball_form_factor: "trackball, excluded from this comparison",
 };
 
+/** zh-TW wording for the same reasons (candidate, 未拍板). No digit, no medical term. */
+const EXCLUSION_TEXT_ZH_TW: Record<ExclusionReason, string> = {
+  wrong_hand: "是為另一隻手設計的",
+  vertical_form_factor: "垂直形狀，不納入這次比較",
+  trackball_form_factor: "軌跡球，不納入這次比較",
+};
+
 const PROVISIONAL_NOTE =
   "This ranking is provisional: some shape descriptors it depends on are not classified yet.";
+
+/** Names 暫定 (see `./provisional`), which the low-confidence check looks for. */
+const PROVISIONAL_NOTE_ZH_TW =
+  "這份排名是暫定的：它所依據的部分形狀描述尚未分類。";
+
+function exclusionText(locale: Locale): Record<ExclusionReason, string> {
+  return locale === "zh-TW" ? EXCLUSION_TEXT_ZH_TW : EXCLUSION_TEXT;
+}
 
 export const MAX_OUTPUT_TOKENS = 400;
 
@@ -108,7 +124,7 @@ function isLowConfidence(input: AnalysisInput): boolean {
  * model to explain from. All of it is candidate copy (未拍板) from
  * `src/lib/copy/fit-bands.ts`, English and free of digits.
  */
-function promptData(input: AnalysisInput) {
+function promptData(input: AnalysisInput, locale: Locale) {
   return {
     rankingStatus: input.rankingProvisional
       ? // Deliberately avoids the word "provisional": that word is what the
@@ -116,7 +132,9 @@ function promptData(input: AnalysisInput) {
         // also knows the Chinese markers), and copying this sentence must not
         // satisfy it without saying descriptors are unclassified. A Chinese
         // version of this sentence must avoid 暫定 / 暂定 / 初步 too.
-        "Fit settings have not yet been validated against owner ratings."
+        locale === "zh-TW"
+        ? "合手度的計算設定，尚未用實際持有者的評價核對過。"
+        : "Fit settings have not yet been validated against owner ratings."
       : undefined,
     // Same rule for this one: it must not contain a provisional marker either
     // (a test pins that), or copying it would satisfy the low-confidence check.
@@ -127,7 +145,7 @@ function promptData(input: AnalysisInput) {
     excluded: input.excluded.map(({ brand, model, reason }) => ({
       brand,
       model,
-      reason: EXCLUSION_TEXT[reason],
+      reason: exclusionText(locale)[reason],
     })),
     topPicks: input.topPicks.map((entry) => ({
       rank: entry.rank,
@@ -162,6 +180,7 @@ function promptData(input: AnalysisInput) {
  * instruction) without re-deriving it.
  */
 export function buildPrompt(input: AnalysisInput): string {
+  if (input.locale === "zh-TW") return buildPromptZhTw(input);
   const lines = [
     "You are writing a short analysis of a mouse-fit ranking for a user, from the JSON data below.",
     "Explain how the top pick will feel to use for this hand. Do not just restate the scores.",
@@ -190,11 +209,74 @@ export function buildPrompt(input: AnalysisInput): string {
       '- The top pick has low confidence: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.',
     );
   }
-  lines.push("", "Data:", JSON.stringify(promptData(input)));
+  lines.push("", "Data:", JSON.stringify(promptData(input, "en")));
   return lines.join("\n");
 }
 
-function retryPrompt(basePrompt: string, violation: string): string {
+/**
+ * The zh-TW prompt (candidate wording, 未拍板): the same rules as the English
+ * one, in Traditional Chinese as used in Taiwan. Brand and model names stay
+ * verbatim. At low confidence it asks for 暫定 by name, which is the marker
+ * `mentionsProvisional` looks for; the `rankingStatus` sentence in the data
+ * deliberately carries none of that check's markers (see `./provisional`).
+ */
+function buildPromptZhTw(input: AnalysisInput): string {
+  const lines = [
+    "你要根據下方的 JSON 資料，為使用者寫一段簡短的滑鼠合手度排名分析。",
+    "請用繁體中文（台灣用語）寫出每一個欄位。滑鼠的品牌與型號保持原文，不要翻譯。",
+    "說明排名第一的滑鼠用起來會是什麼感覺，不要只是重述分數。",
+    "規則：",
+    "- 你寫出的每一個數字都必須已經出現在 JSON 資料中。不可計算、估算、換一種方式四捨五入或自創數字。數字的中文寫法也算數字（例如「兩」「三成」「一半」「百分之五十」）。",
+    "- 以資料中的文字為準：每個排名靠前的滑鼠都有整體等級的「meaning」，每個子分數都有一句「impact」。用你自己的白話說出它們的意思，不要加上它們沒有說的內容。",
+    '- "headline"：一句簡短的話，從整體等級的 meaning 出發，說明排名第一的滑鼠整體用起來的感覺。',
+    '- "whyTopPick"：一到兩句簡短的話，從最值得一提的子分數，說明對你的手和這支滑鼠最重要的一兩件事，以及使用時可以預期什麼。',
+    '- "tradeoffs"（最多三項）：可能需要適應的地方，取自等級較低的子分數。',
+    '- "whatToAvoid"（最多兩項）：挑選其他滑鼠時要留意什麼，或說明某支被排除的滑鼠為何被排除。只能提到資料中出現的滑鼠。',
+    '- "caveats"：包含一句簡短的話，說明這是依手部尺寸做的估算，用資料中「estimateNote」的說法，或相近的說法。',
+    "- 每一句都要簡短。只描述使用感受（搆得到的距離、握法、手掌與手指放哪裡、長時間使用可能的感覺），用「可能」「容易」「往往」這類語氣，絕不用肯定、斷定的說法。",
+    "- 不要說這個估算有多準確或多可靠，也不要承諾任何結果。",
+    "- 不要和其他人、其他使用者的分數、平均值或百分位數比較。",
+    "- 不要用自己的話替合手程度打分（不要寫「很適合」「不適合」「很棒」「很差」「高分」「低分」）。只用資料提供的等級說明（meaning）與 impact 的說法。",
+    "- 用平實的話寫，讓沒看過 JSON 的人也看得懂。",
+    "- 不要提到內部識別碼、原因代碼、等級代號（例如 very_good）或版本字串。用白話描述事實。",
+    "- 如果資料中有使用者指定的握法，要寫成使用者自己的選擇，不是預測。",
+    "- 絕不做醫療、診斷、治療或預防傷害的說法。不要說滑鼠能預防或減輕勞損、傷害，也不要說能舒緩疼痛。",
+    "- 不要提到腕隧道症候群、滑鼠手、肌腱炎、腱鞘炎、重複性勞損、痠痛、疼痛緩解，或其他健康狀況。不要說滑鼠符合人體工學、對手腕友善、護腕、更健康或對身體更安全。",
+    "- 只描述形狀的事實，以及它們如何影響使用，例如垂直握法、較高的拱起、較寬的外殼。絕不複述廠商關於手腕健康的行銷文案。",
+    "- 對於不對稱的右手造型，寫「偏向右手的不對稱造型」，不要寫「人體工學」。",
+  ];
+  if (isLowConfidence(input)) {
+    lines.push(
+      '- 排名第一的滑鼠信心偏低：它所依據的部分形狀描述尚未分類。請明確用「暫定」這個詞，說明這份排名與形狀描述是暫定的，而且 "caveats" 陣列中必須提到。',
+    );
+  }
+  lines.push("", "資料：", JSON.stringify(promptData(input, "zh-TW")));
+  return lines.join("\n");
+}
+
+function retryPromptZhTw(basePrompt: string, violation: string): string {
+  if (violation.startsWith("medical claim: ")) {
+    return `${basePrompt}\n\n你上一次的回答用了禁止的醫療或健康用語（${violation.slice("medical claim: ".length)}）。請只用形狀的事實重寫完整的回答，不要有任何醫療、診斷、治療、預防傷害或身體安全的說法。`;
+  }
+  if (violation.startsWith("(missing)")) {
+    return `${basePrompt}\n\n你上一次的回答缺少必要的內容：沒有在 "caveats" 中說明這份排名是暫定的。請重寫完整的回答，並在 "caveats" 中明確寫出「暫定」。`;
+  }
+  if (violation.startsWith("(")) {
+    return `${basePrompt}\n\n你上一次的回答格式不符合規定。請依規定的格式重寫完整的回答。`;
+  }
+  const what =
+    violation === "NaN"
+      ? "一個特殊的數字符號（圈起來的、羅馬或其他特殊數字記號）"
+      : `數字 ${violation}`;
+  return `${basePrompt}\n\n你上一次的回答用了${what}，但它沒有出現在上方的資料中。回答裡的每一個數字都必須原樣來自資料。請重寫完整的回答，不要自創任何新數字。`;
+}
+
+function retryPrompt(
+  basePrompt: string,
+  violation: string,
+  locale: Locale,
+): string {
+  if (locale === "zh-TW") return retryPromptZhTw(basePrompt, violation);
   if (violation.startsWith("medical claim: ")) {
     return `${basePrompt}\n\nYour previous answer used a prohibited medical or health term (${violation.slice("medical claim: ".length)}). Rewrite the full answer using only shape facts, with no medical, diagnostic, therapeutic, injury-prevention, or body-safety claims.`;
   }
@@ -273,6 +355,7 @@ function describeReasons(
  * `src/lib/copy/fit-bands.ts` and carries no digit (a test pins that).
  */
 export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
+  if (input.locale === "zh-TW") return buildFallbackOutputZhTw(input);
   const top = input.topPicks[0];
   if (!top) {
     return {
@@ -310,6 +393,42 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
 }
 
 /**
+ * The zh-TW fallback (candidate wording, 未拍板): the same shape as the English
+ * one, every sentence from `src/lib/copy/fit-bands.ts` (`zhTW`, no digit) or
+ * the digit-free strings above; the only numerals that can appear are those in
+ * brand and model names, which come from the input.
+ */
+function buildFallbackOutputZhTw(input: AnalysisInput): AnalysisOutput {
+  const top = input.topPicks[0];
+  if (!top) {
+    return {
+      headline: "沒有找到符合你測量結果的滑鼠。",
+      whyTopPick: "沒有可供排名的候選滑鼠。",
+      tradeoffs: [],
+      whatToAvoid: [],
+      caveats: [],
+    };
+  }
+  const positives = describeReasons(top, POSITIVE_REASON_CODES, 2);
+  const tradeoffs = describeReasons(top, NEGATIVE_REASON_CODES, 3);
+  const headline =
+    top.band === "poor"
+      ? `這幾款都不太適合你的手，最接近的是 ${top.brand} ${top.model}。`
+      : `${top.brand} ${top.model} 是最符合你手型的一款。`;
+  const whyTopPick = [top.bandMeaning, ...positives].join("");
+  const whatToAvoid = input.excluded
+    .map(
+      ({ brand, model, reason }) =>
+        `${brand} ${model}：${EXCLUSION_TEXT_ZH_TW[reason]}。`,
+    )
+    .slice(0, 2);
+  const caveats: string[] = [];
+  if (top.lowConfidence) caveats.push(PROVISIONAL_NOTE_ZH_TW);
+  caveats.push(input.estimateNote);
+  return { headline, whyTopPick, tradeoffs, whatToAvoid, caveats };
+}
+
+/**
  * Calls the model, validates its structured output, and enforces the
  * no-new-numerals and no-medical-claims rules. Retries once, naming the violation; a second
  * violation returns the deterministic fallback instead of ever surfacing
@@ -334,6 +453,7 @@ export async function analyse(
   client: TextModel | null,
   options: AnalyseOptions = {},
 ): Promise<AnalyseResult> {
+  const locale = input.locale;
   if (client === null) {
     return { output: buildFallbackOutput(input), source: "fallback" };
   }
@@ -352,7 +472,10 @@ export async function analyse(
       // every other "can't produce a trustworthy answer" path above.
       const allowed = await options.beforeModelCall();
       if (!allowed) {
-        return { output: buildFallbackOutput(input), source: "fallback" };
+        return {
+          output: buildFallbackOutput(input),
+          source: "fallback",
+        };
       }
     }
     let raw: string;
@@ -389,7 +512,11 @@ export async function analyse(
     try {
       parsed = JSON.parse(raw);
     } catch {
-      prompt = retryPrompt(basePrompt, "(the response was not valid JSON)");
+      prompt = retryPrompt(
+        basePrompt,
+        "(the response was not valid JSON)",
+        locale,
+      );
       continue;
     }
     const result = analysisOutputSchema.safeParse(parsed);
@@ -397,6 +524,7 @@ export async function analyse(
       prompt = retryPrompt(
         basePrompt,
         "(the response didn't match the expected shape)",
+        locale,
       );
       continue;
     }
@@ -407,7 +535,7 @@ export async function analyse(
       exemptTokens,
     );
     if (violation === null) return { output: result.data, source: "model" };
-    prompt = retryPrompt(basePrompt, violation);
+    prompt = retryPrompt(basePrompt, violation, locale);
   }
 
   return { output: buildFallbackOutput(input), source: "fallback" };

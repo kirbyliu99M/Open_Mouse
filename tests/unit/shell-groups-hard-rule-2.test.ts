@@ -41,8 +41,8 @@ describe("variants and hard rule 2", () => {
   it("gives the same analysis input with and without variants", () => {
     const { plain, rich } = withAndWithout();
     const m = makeMeasurements();
-    const a = buildAnalysisInput(plain, m);
-    const b = buildAnalysisInput(rich, m);
+    const a = buildAnalysisInput(plain, m, "en");
+    const b = buildAnalysisInput(rich, m, "en");
     expect(b).toEqual(a);
     const json = JSON.stringify(b);
     expect(json).not.toContain("variants");
@@ -52,10 +52,10 @@ describe("variants and hard rule 2", () => {
   it("no variant number enters the numeral allow-list", () => {
     const { plain, rich } = withAndWithout();
     const m = makeMeasurements();
-    const allowed = collectNumbers(buildAnalysisInput(rich, m));
+    const allowed = collectNumbers(buildAnalysisInput(rich, m, "en"));
     expect(allowed.has(VARIANT_WEIGHT)).toBe(false);
     expect([...allowed].sort()).toEqual(
-      [...collectNumbers(buildAnalysisInput(plain, m))].sort(),
+      [...collectNumbers(buildAnalysisInput(plain, m, "en"))].sort(),
     );
   });
 
@@ -78,6 +78,8 @@ describe("variants and hard rule 2", () => {
       results: base.results.map((e) => ({ ...e, variants: VARIANTS })),
     };
     const m = makeMeasurements();
-    expect(buildAnalysisInput(rich, m)).toEqual(buildAnalysisInput(base, m));
+    expect(buildAnalysisInput(rich, m, "en")).toEqual(
+      buildAnalysisInput(base, m, "en"),
+    );
   });
 });

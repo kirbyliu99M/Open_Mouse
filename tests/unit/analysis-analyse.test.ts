@@ -11,7 +11,7 @@ function inputFor(confidence = 0.9) {
   const fit = makeFit({
     results: [{ ...makeFit().results[0]!, confidence }],
   });
-  return buildAnalysisInput(fit, makeMeasurements());
+  return buildAnalysisInput(fit, makeMeasurements(), "en");
 }
 
 /**
@@ -41,7 +41,7 @@ function inputWithG502X() {
       },
     ],
   });
-  return buildAnalysisInput(fit, makeMeasurements());
+  return buildAnalysisInput(fit, makeMeasurements(), "en");
 }
 
 const CLEAN_ANSWER = JSON.stringify({
@@ -249,6 +249,7 @@ describe("analyse — no-new-numerals rule", () => {
     const input = buildAnalysisInput(
       fit,
       makeMeasurements({ handLengthMm: 180.456 }),
+      "en",
     );
     const answer = (whyTopPick: string) =>
       JSON.stringify({
@@ -272,7 +273,9 @@ describe("analyse — no-new-numerals rule", () => {
 
   it("keeps every slug, every reason code and the engine version out of the prompt data", () => {
     const fit = makeFit();
-    const prompt = buildPrompt(buildAnalysisInput(fit, makeMeasurements()));
+    const prompt = buildPrompt(
+      buildAnalysisInput(fit, makeMeasurements(), "en"),
+    );
     const data = prompt.split("Data:\n")[1]!;
     expect(data).not.toContain(fit.engineVersion);
     for (const slug of [
@@ -310,9 +313,9 @@ describe("analyse — no-new-numerals rule", () => {
         },
       ],
     });
-    const data = buildPrompt(buildAnalysisInput(fit, makeMeasurements())).split(
-      "Data:\n",
-    )[1]!;
+    const data = buildPrompt(
+      buildAnalysisInput(fit, makeMeasurements(), "en"),
+    ).split("Data:\n")[1]!;
     expect(data).toContain("vertical shape, excluded from this comparison");
     expect(data).toContain("doesn't fit your handedness");
     expect(data).not.toContain("scored separately");
@@ -952,7 +955,7 @@ describe("analyse — fit-v1 grip weights", () => {
       weights: { palm: 0.24696, claw: 0.55285, fingertip: 0.20019 },
     },
   });
-  const input = buildAnalysisInput(fit, makeMeasurements());
+  const input = buildAnalysisInput(fit, makeMeasurements(), "en");
   const answer = (whyTopPick: string) =>
     JSON.stringify({
       headline: "A strong match for your hand.",

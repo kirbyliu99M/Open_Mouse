@@ -65,6 +65,7 @@ const inputFor = (entry = makeEntry(), excluded = makeFit().excluded) =>
   buildAnalysisInput(
     makeFit({ results: [entry], excluded }),
     makeMeasurements(),
+    "en",
   );
 
 const exemptTokensOf = (input: ReturnType<typeof inputFor>) =>
@@ -641,6 +642,7 @@ describe("buildFallbackOutput — use-experience wording", () => {
               results: [entryWith(code, { total })],
             }),
             makeMeasurements(),
+            "en",
           );
           const out = buildFallbackOutput(input);
           for (const text of [

@@ -37,6 +37,7 @@ describe("handleAnalysisRequest", () => {
       fit: makeFit(),
       measurements: makeMeasurements(),
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     const deps = {
       client,
@@ -66,6 +67,7 @@ describe("handleAnalysisRequest", () => {
         measurements: makeMeasurements(),
         scanId: "scan-a",
         rateLimitKey: "user-1",
+        locale: "en" as const,
       },
       {
         client,
@@ -86,6 +88,7 @@ describe("handleAnalysisRequest", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     const deps = {
       client,
@@ -122,6 +125,7 @@ describe("handleAnalysisRequest", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     const deps = {
       client,
@@ -134,7 +138,7 @@ describe("handleAnalysisRequest", () => {
     expect(first.body).toMatchObject({ cached: false, source: "fallback" });
     expect(client.calls).toHaveLength(2); // one attempt + one retry
 
-    const key = computeCacheKey(request.fit, request.measurements);
+    const key = computeCacheKey(request.fit, request.measurements, "en");
     expect(await cache.get(request.scanId, key)).toBeNull();
 
     // Nothing was cached, so the second request calls the model again.
@@ -150,6 +154,7 @@ describe("handleAnalysisRequest", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     const response = await handleAnalysisRequest(request, {
       client: null,
@@ -159,7 +164,7 @@ describe("handleAnalysisRequest", () => {
     });
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ cached: false, source: "fallback" });
-    const key = computeCacheKey(request.fit, request.measurements);
+    const key = computeCacheKey(request.fit, request.measurements, "en");
     expect(await cache.get(request.scanId, key)).toBeNull();
   });
 
@@ -169,7 +174,13 @@ describe("handleAnalysisRequest", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
     await handleAnalysisRequest(
-      { scanId: "scan-a", fit, measurements, rateLimitKey: "user-1" },
+      {
+        scanId: "scan-a",
+        fit,
+        measurements,
+        rateLimitKey: "user-1",
+        locale: "en" as const,
+      },
       {
         client,
         cache,
@@ -177,7 +188,7 @@ describe("handleAnalysisRequest", () => {
         globalLimiter: alwaysAllow(),
       },
     );
-    const key = computeCacheKey(fit, measurements);
+    const key = computeCacheKey(fit, measurements, "en");
     expect(await cache.get("scan-a", key)).not.toBeNull();
   });
 
@@ -189,6 +200,7 @@ describe("handleAnalysisRequest", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     const deps = {
       client,
@@ -204,7 +216,7 @@ describe("handleAnalysisRequest", () => {
     expect(analysisResponseSchema.safeParse(cached.body).success).toBe(true);
 
     const noModel = await handleAnalysisRequest(
-      { ...request, rateLimitKey: "user-2" },
+      { ...request, rateLimitKey: "user-2", locale: "en" as const },
       {
         client: null,
         cache: new InMemoryAnalysisCache(),
@@ -239,6 +251,7 @@ describe("handleAnalysisRequest", () => {
         measurements: makeMeasurements(),
         scanId: "scan-a",
         rateLimitKey: "user-1",
+        locale: "en" as const,
       },
       {
         client,
@@ -262,6 +275,7 @@ describe("handleAnalysisRequest", () => {
         measurements: makeMeasurements(),
         scanId: "scan-a",
         rateLimitKey: "user-1",
+        locale: "en" as const,
       },
       {
         client,
@@ -286,6 +300,7 @@ describe("handleAnalysisRequest", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "user-1",
+      locale: "en" as const,
     };
     // Prime the cache with a real model answer via a permissive limiter.
     await handleAnalysisRequest(request, {
@@ -327,6 +342,7 @@ describe("handleAnalysisRequest", () => {
         measurements: makeMeasurements(),
         scanId: "scan-a",
         rateLimitKey: "user-1",
+        locale: "en" as const,
       },
       {
         client: null,
@@ -355,6 +371,7 @@ describe("handleAnalysisRequest", () => {
         measurements: makeMeasurements(),
         scanId: "scan-a",
         rateLimitKey: "scan-42",
+        locale: "en" as const,
       },
       {
         client,
@@ -373,6 +390,7 @@ describe("handleAnalysisRequest — site-wide daily model cap (M1)", () => {
     measurements: makeMeasurements(),
     scanId: "scan-a",
     rateLimitKey: "user-1",
+    locale: "en" as const,
   };
 
   it("serves the deterministic fallback with 200 (never 429) once the global cap is hit, and never calls the model", async () => {
@@ -398,7 +416,7 @@ describe("handleAnalysisRequest — site-wide daily model cap (M1)", () => {
       limiter: alwaysAllow(),
       globalLimiter: neverAllow(),
     });
-    const key = computeCacheKey(request.fit, request.measurements);
+    const key = computeCacheKey(request.fit, request.measurements, "en");
     expect(await cache.get(request.scanId, key)).toBeNull();
 
     const second = await handleAnalysisRequest(request, {
@@ -582,6 +600,7 @@ describe("handleAnalysisRequest — the cache never fails a request", () => {
     fit: makeFit(),
     measurements: makeMeasurements(),
     rateLimitKey: "user-1",
+    locale: "en" as const,
   };
   // What a Postgres constraint error looks like: its detail quotes the row.
   // Shaped like production: Drizzle wraps the driver's error, and its own

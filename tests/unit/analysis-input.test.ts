@@ -6,7 +6,7 @@ import { makeFit, makeMeasurements } from "./analysis-fixtures";
 describe("buildAnalysisInput", () => {
   it("replaces the engine version with a provisional flag and keeps grip style, exclusions and already-rounded targets", () => {
     const fit = makeFit();
-    const input = buildAnalysisInput(fit, makeMeasurements());
+    const input = buildAnalysisInput(fit, makeMeasurements(), "en");
     expect(input).not.toHaveProperty("engineVersion");
     expect(input.rankingProvisional).toBe(true);
     expect(input.targets).toEqual(fit.targets);
@@ -18,6 +18,7 @@ describe("buildAnalysisInput", () => {
     const input = buildAnalysisInput(
       makeFit(),
       makeMeasurements({ thumbLengthMm: 55 }),
+      "en",
     );
     expect(input.hand).toEqual({
       handLengthMm: 180.4,
@@ -36,6 +37,7 @@ describe("buildAnalysisInput", () => {
     const input = buildAnalysisInput(
       makeFit({ results: entries }),
       makeMeasurements(),
+      "en",
     );
     expect(input.topPicks).toHaveLength(3);
     expect(input.topPicks.map((p) => p.rank)).toEqual([1, 2, 3]);
@@ -50,7 +52,7 @@ describe("buildAnalysisInput", () => {
   });
 
   it("carries mouse dimensions engine-made numbers can be checked against", () => {
-    const input = buildAnalysisInput(makeFit(), makeMeasurements());
+    const input = buildAnalysisInput(makeFit(), makeMeasurements(), "en");
     expect(input.topPicks[0]).toMatchObject({
       slug: "logitech-g-pro-x-superlight-2",
       lengthMm: 125,
@@ -68,7 +70,8 @@ describe("buildAnalysisInput", () => {
     const fit = makeFit({
       results: [{ ...makeFit().results[0]!, confidence: 0.597 }],
     });
-    const entry = buildAnalysisInput(fit, makeMeasurements()).topPicks[0]!;
+    const entry = buildAnalysisInput(fit, makeMeasurements(), "en")
+      .topPicks[0]!;
     expect(entry.confidencePercent).toBe(60);
     expect(entry.lowConfidence).toBe(true);
   });
@@ -97,7 +100,8 @@ describe("buildAnalysisInput", () => {
         },
       ],
     });
-    const entry = buildAnalysisInput(fit, makeMeasurements()).topPicks[0]!;
+    const entry = buildAnalysisInput(fit, makeMeasurements(), "en")
+      .topPicks[0]!;
     expect(entry.lengthMm).toBe(125);
     expect(entry.widthMm).toBe(63.5);
     expect(entry.subscores.length.params).toEqual({ deltaMm: 1.5 });
@@ -112,6 +116,7 @@ describe("buildAnalysisInput", () => {
     const input = buildAnalysisInput(
       fit,
       makeMeasurements({ handLengthMm: 180.456 }),
+      "en",
     );
     expect(input.topPicks[0]!.confidencePercent).toBe(76);
     expect(input.targets.lengthMm).toBe(118.5);
@@ -133,7 +138,7 @@ describe("buildAnalysisInput excluded totals", () => {
         },
       ],
     });
-    const input = buildAnalysisInput(fit, makeMeasurements());
+    const input = buildAnalysisInput(fit, makeMeasurements(), "en");
     expect(input.excluded).toEqual([
       {
         slug: "acme-lefty",
@@ -160,7 +165,7 @@ describe("buildAnalysisInput — fit-v1 grip weights", () => {
   });
 
   it("rounds the weights to two decimals, and the raw floats are not in the input", () => {
-    const input = buildAnalysisInput(fit, makeMeasurements());
+    const input = buildAnalysisInput(fit, makeMeasurements(), "en");
     expect(input.gripStyle.weights).toEqual({
       palm: 0.25,
       claw: 0.55,
@@ -172,7 +177,7 @@ describe("buildAnalysisInput — fit-v1 grip weights", () => {
   });
 
   it("leaves the fit response itself unchanged", () => {
-    buildAnalysisInput(fit, makeMeasurements());
+    buildAnalysisInput(fit, makeMeasurements(), "en");
     expect(fit.gripStyle.weights).toEqual(raw);
   });
 });

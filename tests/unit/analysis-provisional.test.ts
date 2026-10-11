@@ -211,7 +211,7 @@ function lowConfidenceInput() {
   const fit = makeFit({
     results: [{ ...makeFit().results[0]!, confidence: 0.4 }],
   });
-  return buildAnalysisInput(fit, makeMeasurements());
+  return buildAnalysisInput(fit, makeMeasurements(), "en");
 }
 
 function answerWithCaveat(caveat: string) {
@@ -287,7 +287,7 @@ describe("analyse — provisional caveat in the model's own language", () => {
     const fit = makeFit({
       results: [{ ...makeFit().results[0]!, confidence: 0.9 }],
     });
-    const input = buildAnalysisInput(fit, makeMeasurements());
+    const input = buildAnalysisInput(fit, makeMeasurements(), "en");
     const client = new FakeTextModel({
       answer: () =>
         JSON.stringify({
