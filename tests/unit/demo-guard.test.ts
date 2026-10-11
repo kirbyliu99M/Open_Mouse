@@ -42,6 +42,7 @@ const PRODUCT_ROUTES = [
   "/",
   "/account",
   "/how-it-works",
+  "/mice",
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
   "/scan",

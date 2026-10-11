@@ -9,7 +9,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { Locale } from "@/lib/contracts/locale";
-import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   closeSheet,
@@ -18,6 +17,7 @@ import {
   isFiltering,
   matchCount,
   openSheet,
+  type FilterSource,
   type Filters,
 } from "@/lib/results/filters";
 import { FilterFacets } from "./FilterFacets";
@@ -49,7 +49,7 @@ export function FilterSheet({
   onApply,
   onClosed,
 }: {
-  response: FitResponse;
+  response: FilterSource;
   language: Locale;
   applied: Filters;
   onApply: (filters: Filters) => void;

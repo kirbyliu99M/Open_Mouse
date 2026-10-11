@@ -2,7 +2,6 @@
 
 import { useId, useMemo, useState } from "react";
 import type { Locale } from "@/lib/contracts/locale";
-import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   FILTER_GROUPS,
@@ -12,6 +11,7 @@ import {
   toggleOption,
   type FacetOption,
   type FilterGroup,
+  type FilterSource,
   type Filters,
 } from "@/lib/results/filters";
 import { groupSummary, optionLabel } from "@/lib/results/filterLabels";
@@ -80,7 +80,7 @@ export function FilterFacets({
   onChange,
   startOpen = ["brand"],
 }: {
-  response: FitResponse;
+  response: FilterSource;
   language: Locale;
   filters: Filters;
   onChange: (next: Filters) => void;

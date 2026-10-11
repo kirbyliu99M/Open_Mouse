@@ -8,9 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import type { Locale } from "@/lib/contracts/locale";
-import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { selectedCount, type Filters } from "@/lib/results/filters";
+import {
+  selectedCount,
+  type FilterSource,
+  type Filters,
+} from "@/lib/results/filters";
 import { FilterChips } from "./FilterChips";
 import { FilterFacets } from "./FilterFacets";
 import { FilterFocusContext } from "./FilterFocus";
@@ -77,14 +80,21 @@ export function ResultsFilterLayout({
   filters,
   count,
   onChange,
+  lead,
   children,
 }: {
-  response: FitResponse;
+  response: FilterSource;
   language: Locale;
   filters: Filters;
   /** How many cards the applied filters keep. */
   count: number;
   onChange: (next: Filters) => void;
+  /**
+   * Optional content that comes first: above the filter bar on a phone, at the
+   * top of the content column beside the sidebar (the all-mice page's search).
+   * The results page passes none.
+   */
+  lead?: ReactNode;
   children: ReactNode;
 }) {
   const wide = useWideLayout();
@@ -117,6 +127,7 @@ export function ResultsFilterLayout({
   return (
     <FilterFocusContext.Provider value={focusFilter}>
       <div className="results-body" data-filter={wide ? "sidebar" : "sheet"}>
+        {!wide && lead}
         {wide ? (
           <aside
             key="chrome"
@@ -187,6 +198,7 @@ export function ResultsFilterLayout({
           </div>
         )}
         <div key="main" className="results-main">
+          {wide && lead}
           {children}
         </div>
       </div>

@@ -24,7 +24,8 @@ export function showsSiteFooter(pathname: string | null): boolean {
   );
 }
 
-type IconName = "camera" | "book" | "workflow" | "shield" | "user" | "branch";
+type IconName =
+  "camera" | "book" | "list" | "workflow" | "shield" | "user" | "branch";
 
 /**
  * 16 px line icons (1.75 px stroke, `currentColor`), drawn for this footer.
@@ -43,6 +44,12 @@ const ICONS: Record<IconName, ReactNode> = {
     <>
       <path d="M2 5.5c3-1 7-1 10 1 3-2 7-2 10-1V18c-3-1-7-1-10 1-3-2-7-2-10-1z" />
       <path d="M12 6.5V19" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M9 6h12M9 12h12M9 18h12" />
+      <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
     </>
   ),
   workflow: (
@@ -143,6 +150,12 @@ export function SiteFooter() {
                 <Link href="/learn">
                   <FooterIcon name="book" />
                   {copy.learn}
+                </Link>
+              </li>
+              <li>
+                <Link href="/mice">
+                  <FooterIcon name="list" />
+                  {copy.allMice}
                 </Link>
               </li>
             </ul>
