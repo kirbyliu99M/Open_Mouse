@@ -22,10 +22,47 @@
  * (「其他」 was dropped), so it only leaves the list when 滑鼠握感 is chosen and
  * is not counted as missing data.
  */
-import type { Connectivity, Shape } from "../contracts/descriptors";
+import type { Connectivity, Shape, Size } from "../contracts/descriptors";
 import type { FitEntry, FitResponse } from "../contracts/fit";
 import { handSizeOf } from "../fit/handType";
 import { TOP_PICK_COUNT } from "./rankRoutes";
+
+/**
+ * What the matching and the counts read, and nothing more: the shown mouse's
+ * brand, size, shape, weight and connectivity, plus its same-shell variants.
+ * `FitResponse` has exactly this shape, so the results page passes its
+ * response as it is; the all-mice page (`/mice`) builds the same shape from the
+ * catalogue rows, so both pages apply one set of rules (bands, half-open
+ * weight intervals, size groups, null handling). Types only: no behaviour
+ * moved.
+ */
+export interface FilterMouse {
+  slug: string;
+  brand: string;
+  model: string;
+  weightG: number | null;
+  size: Size;
+  shape?: Shape | null;
+  connectivity?: Connectivity | null;
+}
+
+export interface FilterEntry {
+  mouse: FilterMouse;
+  variants?: readonly {
+    slug: string;
+    model: string;
+    weightG: number | null;
+    connectivity?: Connectivity | null;
+  }[];
+}
+
+/** A list of cards to filter and count. A `FitResponse` is one. */
+export interface FilterSource {
+  results: readonly FilterEntry[];
+  /** Only the results page has these (they decide 適合你); the all-mice page has none. */
+  hand?: FitResponse["hand"];
+  handType?: FitResponse["handType"];
+}
 
 export const FILTER_GROUPS = [
   "brand",
@@ -244,7 +281,7 @@ interface Member {
   connectivity: Connectivity | null;
 }
 
-function membersOf(entry: FitEntry): Member[] {
+function membersOf(entry: FilterEntry): Member[] {
   return [
     {
       slug: entry.mouse.slug,
@@ -271,7 +308,7 @@ export function weightBandOf(weightG: number | null): WeightOption | null {
 }
 
 /** The size group of a mouse: `mouse.size`, fingertip counting as small. */
-export function sizeGroupOf(entry: FitEntry): SizeOption {
+export function sizeGroupOf(entry: FilterEntry): SizeOption {
   return handSizeOf(entry.mouse.size);
 }
 
@@ -291,11 +328,12 @@ function memberMatches(m: Member, filters: Filters): boolean {
 }
 
 /** The members of a card that satisfy the weight and connectivity choices (all of them when neither is chosen). */
-function matchingMembers(entry: FitEntry, filters: Filters): Member[] {
+function matchingMembers(entry: FilterEntry, filters: Filters): Member[] {
   return membersOf(entry).filter((m) => memberMatches(m, filters));
 }
 
-function cardMatches(entry: FitEntry, filters: Filters): boolean {
+/** Whether one card is kept by `filters` (all of them, when none is chosen). */
+export function cardMatches(entry: FilterEntry, filters: Filters): boolean {
   if (filters.brand.length > 0 && !filters.brand.includes(entry.mouse.brand))
     return false;
   if (filters.size.length > 0 && !filters.size.includes(sizeGroupOf(entry)))
@@ -312,14 +350,14 @@ function cardsOf(response: FitResponse): FitEntry[] {
   return [...response.results].sort((a, b) => a.rank - b.rank);
 }
 
-function countMatching(response: FitResponse, filters: Filters): number {
+function countMatching(response: FilterSource, filters: Filters): number {
   let n = 0;
   for (const e of response.results) if (cardMatches(e, filters)) n += 1;
   return n;
 }
 
 /** How many cards these filters keep. */
-export function matchCount(response: FitResponse, filters: Filters): number {
+export function matchCount(response: FilterSource, filters: Filters): number {
   return countMatching(response, filters);
 }
 
@@ -343,7 +381,7 @@ export interface FacetCounts {
 }
 
 function optionCount(
-  response: FitResponse,
+  response: FilterSource,
   filters: Filters,
   group: FilterGroup,
   value: string,
@@ -355,7 +393,7 @@ function optionCount(
 }
 
 /** Brands in the response: the featured five that are present, then the rest by card count (more first), then by name. */
-export function brandOrder(response: FitResponse): {
+export function brandOrder(response: FilterSource): {
   featured: string[];
   rest: string[];
 } {
@@ -375,7 +413,7 @@ export function brandOrder(response: FitResponse): {
  * does.
  */
 export function facetCounts(
-  response: FitResponse,
+  response: FilterSource,
   filters: Filters,
 ): FacetCounts {
   const brands = brandOrder(response);
@@ -396,7 +434,7 @@ export function facetCounts(
 export type NullGroup = "weight" | "shape" | "connectivity";
 
 /** Whether a card has no value at all for a group. */
-function lacks(entry: FitEntry, group: NullGroup): boolean {
+function lacks(entry: FilterEntry, group: NullGroup): boolean {
   switch (group) {
     case "weight":
       return membersOf(entry).every((m) => weightBandOf(m.weightG) === null);
@@ -413,7 +451,7 @@ function lacks(entry: FitEntry, group: NullGroup): boolean {
  * with no selection reports 0.
  */
 export function nullCounts(
-  response: FitResponse,
+  response: FilterSource,
   filters: Filters,
 ): Record<NullGroup, number> {
   const out: Record<NullGroup, number> = {
@@ -444,7 +482,7 @@ export interface Relaxation {
  * removal still leaves nothing), so the page offers 「清除全部」 only.
  */
 export function suggestRelaxation(
-  response: FitResponse,
+  response: FilterSource,
   filters: Filters,
 ): Relaxation | null {
   let best: (Relaxation & { added: number; fixed: number }) | null = null;
@@ -469,7 +507,7 @@ export function suggestRelaxation(
  * from `handType.size`, which the server takes from the same `handSizeOf` that
  * puts each mouse in its size group.
  */
-export function suitableSize(response: FitResponse): SizeOption | null {
+export function suitableSize(response: FilterSource): SizeOption | null {
   if (!response.handType || response.hand === "left") return null;
   return response.handType.size;
 }

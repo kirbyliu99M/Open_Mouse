@@ -344,6 +344,43 @@
   grid-column: 1 / -1;
 }
 
+/* ---- Both shells in the markup (`shells="both"`, the all-mice page) ----
+   The server renders the sidebar and the phone's bar together and this media
+   query, at the same 64em as `WIDE_QUERY`, shows one of them. The hidden one is
+   `display: none`, so it is out of the reading order and nothing in it is
+   announced. The search (`.results-lead`) is one element that moves with the
+   grid, so it is never remounted. */
+.results-body[data-filter="both"] {
+  display: contents;
+}
+.results-body[data-filter="both"] > .results-sidebar {
+  display: none;
+}
+.results-body[data-filter="both"] .results-main {
+  gap: 1.5rem;
+}
+@media (min-width: 64em) {
+  .results-body[data-filter="both"] {
+    display: grid;
+    grid-template-columns: 20.5rem minmax(0, 1fr);
+    gap: 1.5rem 2.5rem;
+    align-items: start;
+    margin-top: 0.5rem;
+  }
+  .results-body[data-filter="both"] > .results-sidebar {
+    display: flex;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .results-body[data-filter="both"] > .results-filterChrome {
+    display: none;
+  }
+  .results-body[data-filter="both"] > .results-lead,
+  .results-body[data-filter="both"] > .results-main {
+    grid-column: 2;
+  }
+}
+
 /* ---- Phone: the bar above the results ---- */
 .results-filterBar {
   display: flex;

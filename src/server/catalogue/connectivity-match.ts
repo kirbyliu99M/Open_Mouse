@@ -1,5 +1,5 @@
 /**
- * Pure matching for CAT-2: which EloShapes source row (dataset CSV row or
+ * Pure matching for CAT-2: which public-compilation source row (dataset CSV row or
  * saved compare page) belongs to an approved candidate, and what a saved page
  * says. `scripts/import-catalogue.ts` only does the file I/O and calls these.
  * An ambiguous match is a miss (undefined / null), never a guess.
@@ -15,7 +15,7 @@ const words = (s: string): string[] =>
     .split(/[^a-z0-9]+/)
     .filter((w) => w !== "");
 
-/** One row of the EloShapes dataset CSV, the columns this module needs. */
+/** One row of the third-party dataset CSV, the columns this module needs. */
 export interface DatasetRow {
   Brand: string;
   Model: string;
@@ -109,7 +109,7 @@ export function matchSiteTitle(
   return suffix.length === 1 ? suffix[0]!.slug : null;
 }
 
-/** Visible text lines of a saved EloShapes page. */
+/** Visible text lines of a saved compare page. */
 export const pageTextLines = (html: string): string[] =>
   html
     .replace(/<!---->/g, "")

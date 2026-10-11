@@ -139,7 +139,7 @@ const NO_FIELDS: DescriptorFields = {
   classifiedAt: null,
 };
 
-/** Descriptor columns carried by a catalogue entry; the model string records that they came from EloShapes. */
+/** Descriptor columns carried by a catalogue entry; the model string records that they came from the public compilation. */
 function entryFields(entry: CatalogueEntry): DescriptorFields {
   return {
     ...NO_FIELDS,
@@ -150,8 +150,8 @@ function entryFields(entry: CatalogueEntry): DescriptorFields {
     sideCurvature: entry.sideCurvature,
     thumbRest: entry.thumbRest,
     descriptorModel: entry.descriptorsInferred
-      ? "eloshapes-inferred"
-      : "eloshapes",
+      ? "public_compilation-inferred"
+      : "public_compilation",
   };
 }
 
@@ -161,9 +161,10 @@ const first = <T>(...values: (T | null)[]): T | null =>
 /**
  * Merges the three sources onto one Logitech seed row (see the file header).
  *
- * Provenance: when any descriptor is taken from the EloShapes candidate, the
+ * Provenance: when any descriptor is taken from the candidate, the
  * row says so. `descriptor_model` becomes the geometry model plus
- * `+eloshapes` (or `eloshapes` / `eloshapes-inferred` when there is no
+ * `+public_compilation` (or `public_compilation` /
+ * `public_compilation-inferred` when there is no
  * geometry record) and the candidate's source URL is appended to
  * `descriptor_source_urls`. A row nothing was taken from the candidate for
  * keeps the geometry provenance unchanged.
@@ -204,7 +205,7 @@ export function mergeSeedDescriptors(
   };
   if (fromCandidate && entry) {
     merged.descriptorModel = geometryHasProvenance
-      ? `${geometry.descriptorModel}+eloshapes`
+      ? `${geometry.descriptorModel}+public_compilation`
       : e.descriptorModel;
     merged.descriptorSourceUrls = [
       ...(geometry.descriptorSourceUrls ?? []),
