@@ -7,9 +7,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
 
+// not-found.tsx reads the visitor's locale on the server; these tests are English.
+vi.mock("server-only", () => ({}));
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
+}));
+
+import { LocaleProvider } from "../../src/client/i18n/LocaleProvider";
 import ErrorPage from "../../src/app/error";
 import GlobalError from "../../src/app/global-error";
-import NotFound, { metadata } from "../../src/app/not-found";
+import NotFound, { generateMetadata } from "../../src/app/not-found";
 import {
   ACTIONS,
   ERROR_COPY,
@@ -41,6 +48,10 @@ const NEVER_SHOWN = [
   "Error:",
 ];
 
+/** error.tsx reads the locale from the provider; the screens are tested in English. */
+const inEnglish = (child: ReturnType<typeof createElement>) =>
+  createElement(LocaleProvider, { initialLocale: "en", children: child });
+
 const structure = (html: string) => {
   expect(count(html, /<main[\s>]/g)).toBe(1);
   expect(count(html, /<h1[\s>]/g)).toBe(1);
@@ -50,8 +61,11 @@ const structure = (html: string) => {
   expect(html).toContain(ACTIONS.home);
 };
 
+const notFoundMarkup = renderToStaticMarkup(await NotFound());
+const metadata = await generateMetadata();
+
 describe("not-found screen", () => {
-  const html = renderToStaticMarkup(createElement(NotFound));
+  const html = notFoundMarkup;
 
   it("has one <main>, one <h1> and links home and to the scan", () => {
     structure(html);
@@ -84,7 +98,7 @@ describe("not-found screen", () => {
 
 describe("error screen (error.tsx)", () => {
   const html = renderToStaticMarkup(
-    createElement(ErrorPage, { error: leaky, reset: () => {} }),
+    inEnglish(createElement(ErrorPage, { error: leaky, reset: () => {} })),
   );
 
   it("has one <main>, one <h1>, links home and to the scan, and a Try again button", () => {
@@ -101,10 +115,12 @@ describe("error screen (error.tsx)", () => {
 
   it("shows no reference at all when there is no digest", () => {
     const withoutDigest = renderToStaticMarkup(
-      createElement(ErrorPage, {
-        error: new Error("SECRET-MESSAGE"),
-        reset: () => {},
-      }),
+      inEnglish(
+        createElement(ErrorPage, {
+          error: new Error("SECRET-MESSAGE"),
+          reset: () => {},
+        }),
+      ),
     );
     expect(withoutDigest).not.toContain("Reference");
     expect(withoutDigest).not.toContain("SECRET-MESSAGE");
@@ -113,7 +129,11 @@ describe("error screen (error.tsx)", () => {
 
 describe("global error screen (global-error.tsx)", () => {
   const html = renderToStaticMarkup(
-    createElement(GlobalError, { error: leaky, reset: () => {} }),
+    createElement(GlobalError, {
+      error: leaky,
+      reset: () => {},
+      initialLocale: "en",
+    }),
   );
 
   it("brings its own <html> and <body>, because the root layout is gone", () => {

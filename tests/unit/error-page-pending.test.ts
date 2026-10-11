@@ -12,6 +12,7 @@ vi.mock("react", async (importOriginal) => {
   return { ...actual, useTransition: () => [true, (cb: () => void) => cb()] };
 });
 
+import { LocaleProvider } from "../../src/client/i18n/LocaleProvider";
 import ErrorPage from "../../src/app/error";
 import { RETRYING } from "../../src/components/errors/copy";
 
@@ -22,7 +23,13 @@ import { RETRYING } from "../../src/components/errors/copy";
  */
 describe("error.tsx while a retry is running", () => {
   const html = renderToStaticMarkup(
-    createElement(ErrorPage, { error: new Error("x"), reset: () => {} }),
+    createElement(LocaleProvider, {
+      initialLocale: "en",
+      children: createElement(ErrorPage, {
+        error: new Error("x"),
+        reset: () => {},
+      }),
+    }),
   );
 
   it("marks the button busy without disabling it", () => {

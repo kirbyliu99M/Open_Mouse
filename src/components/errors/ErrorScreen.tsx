@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { REFERENCE_LABEL } from "./copy";
 import "../../app/tokens.css";
 import "./errors.css";
 
@@ -11,6 +10,8 @@ interface ErrorScreenProps {
   message: string;
   /** An error digest, the only detail of a failure a screen may show. */
   reference?: string | undefined;
+  /** The label before the digest ("Reference"). */
+  referenceLabel: string;
   /**
    * Move keyboard and screen-reader focus to the heading on mount. For a
    * screen that replaces a page in place (the error boundary), so the change
@@ -34,6 +35,7 @@ export function ErrorScreen({
   title,
   message,
   reference,
+  referenceLabel,
   focusHeading = false,
   status,
   children,
@@ -64,7 +66,7 @@ export function ErrorScreen({
       <p className="errorScreen-message">{message}</p>
       {reference ? (
         <p className="errorScreen-reference">
-          {REFERENCE_LABEL}: <code>{reference}</code>
+          {referenceLabel}: <code>{reference}</code>
         </p>
       ) : null}
       <div className="errorScreen-actions">{children}</div>
