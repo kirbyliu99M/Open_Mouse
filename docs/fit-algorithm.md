@@ -1,17 +1,18 @@
 # Fit algorithm — v1 candidate
 
-Status: **candidate (未拍板)**. v1 (`fit-v1-candidate.2`) has been the default engine since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
+Status: **candidate (未拍板)**. v1 (`fit-v1-candidate.3`) has been the default engine since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
 lives in `src/server/fit/coefficients.ts` only.
 
 ## 1. Inputs
 
-| Input                                         | Source                                               | Notes                                                                             |
-| --------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `handLengthMm`, `palmLengthMm`, `palmWidthMm` | scan (`HandMeasurements`)                            | wrist crease → middle fingertip; known bias 7–11 mm on a 190 mm hand (2026-10-07) |
-| `hand`                                        | scan                                                 | left / right                                                                      |
-| `gripStyle`                                   | stated by the user (prefs or scan `gripStyleStated`) | overrides any prediction                                                          |
-| `weightG` range, `includeVertical`            | prefs                                                | optional                                                                          |
-| catalogue row                                 | `mice` (once CAT-1 adds `listed`: listed rows only)  | dims, weight, shape, hand, hump, flare, curvature, thumb rest, form factor        |
+| Input                                         | Source                                                   | Notes                                                                                                                                               |
+| --------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handLengthMm`, `palmLengthMm`, `palmWidthMm` | scan (`HandMeasurements`)                                | wrist crease → middle fingertip; known bias 7–11 mm on a 190 mm hand (2026-10-07)                                                                   |
+| `hand`                                        | scan                                                     | left / right                                                                                                                                        |
+| `gripStyle`                                   | stated by the user (prefs or scan `gripStyleStated`)     | overrides any prediction                                                                                                                            |
+| `palmThickness`                               | stated by the user (prefs or scan `palmThicknessStated`) | v1 only. thin / medium / thick shifts the height target (§3). Prefs win over the scan; a skipped answer is `undefined`, never `"medium"`. Candidate |
+| `weightG` range, `includeVertical`            | prefs                                                    | optional                                                                                                                                            |
+| catalogue row                                 | `mice` (once CAT-1 adds `listed`: listed rows only)      | dims, weight, shape, hand, hump, flare, curvature, thumb rest, form factor                                                                          |
 
 Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every seeded row does.
 
@@ -31,7 +32,23 @@ Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every
 ## 3. Targets (per grip g)
 
 `length_g = handLength × LENGTH_FACTOR[g]`, `gripWidth = palmWidth × 0.88`,
-`height_g = handLength × HEIGHT_FACTOR[g]` — factors unchanged from v0.
+`height_g = handLength × HEIGHT_FACTOR[g] + THICKNESS_HEIGHT_SHIFT_MM[level]` — factors unchanged from v0.
+
+**Palm-thickness shift (candidate, 未拍板; Kirby 2026-10-11, option A).** The person's own three-way answer
+shifts the height target by `THICKNESS_HEIGHT_SHIFT_MM` = thin −1.5 mm, medium 0, thick +1.5 mm, for every grip
+alike. With no answer nothing is added, so the result is exactly what it was before (`medium` gives the same
+numbers as no answer, but a skipped answer must reach the engine as `undefined`, never as `"medium"`). Only
+the height target moves: length, grip width, hump logic, weights, sigmas, `handType` and v0 are untouched.
+**The 1.5 mm is a placeholder with no data behind it, and "a thicker palm prefers a taller mouse" is an
+assumption, not a verified fact.** Replace both when M2 or learning-kit data exist.
+
+How large the effect can be (formula-derived, not an engine run): the height Gaussian has
+σ_eff ≈ 3.2 mm (σ 3 mm, widened by 0.20 × 6 mm of hand-length noise). A perfect-match mouse (Δ = 0)
+loses about 10 points on the height sub-score at a 1.5 mm shift, which is about −2.0 on the total without hump data
+and about −1.2 with it (height and hump share the 0.20 weight 0.6 / 0.4). The worst case is a mouse sitting
+about 2.5 mm from the target, where a 1.5 mm shift moves its height sub-score by about 27 points: about 5.5
+on the total without hump data and about 3.3 with it (up to about 6 and 3.5 once the total is divided by
+the 0.95 of applicable weight and rounded). The measured report in §8 stays inside these figures.
 
 _Tried and dropped (CALIB-1, 2026-10-10):_ clamping each target to the catalogue's 5th..95th percentile. It pulled very small and very large hands toward mid-size mice (a small fingertip hand lost the smallest mice), so v1 targets stay exactly the above.
 
@@ -102,9 +119,14 @@ threshold is Kirby's (candidate: top-5 Jaccard ≥ 0.6 at ±5 mm).
 Also: sweep `palmLength` in 0.5 mm steps → largest jump in any mouse's total (v1 must have no
 jump > 2 points between neighbours).
 
+Palm-thickness sensitivity (v1 only, candidate): each golden hand scored with no answer, thin, medium and
+thick against its own no-answer ranking: top-1 kept, top-5 Jaccard against the no-answer top 5, largest
+total change in the no-answer top 5. `medium` must equal `none`. The palm-length sweep is repeated with the
+answer fixed (every answer must stay at 2 points or below). `--real` includes both.
+
 ## 9. Versioning
 
-`ENGINE_VERSION_V1 = "fit-v1-candidate.2"` (CALIB-1 bumped it from `fit-v1-candidate` so stored rows of the two calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
+`ENGINE_VERSION_V1 = "fit-v1-candidate.3"` (the palm-thickness shift bumped it from `fit-v1-candidate.2`, CALIB-1's value, and CALIB-1 had bumped `fit-v1-candidate`, so stored rows of different calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
 switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it is `"v1"` since 2026-10-10 (see below). `fit_results` is unique
 on (scan, mouse, engineVersion), so no migration. That one line also switches what `fit_results` stores for a
@@ -112,7 +134,7 @@ null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to
 so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
 rows keep 75.
 
-**Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 (`fit-v1-candidate.2`) is the default engine; `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels are unchanged and 未拍板.
+**Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 (`fit-v1-candidate.3`) is the default engine; `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels were unchanged by the switch, and `.3` adds only the palm-thickness shift (§3); all of it is 未拍板.
 
 ## 9a. Code map
 
