@@ -47,6 +47,10 @@ export interface ScanAnswersCopy {
   thicknessGroupLabel: string;
   thicknessSubmit: string;
   thickness: { thick: ChoiceCopy; medium: ChoiceCopy; thin: ChoiceCopy };
+  /** The thickness page's 跳過 sends the scan: its accessible name says so (the visible word stays `skip`). */
+  skipAndSee: string;
+  /** In the error banner when the failure's fix is a new photo (kinds invalid and tooLarge). */
+  retake: string;
   /** While the scan is sent (the button shows `sending`). */
   sending: string;
 }
@@ -77,6 +81,8 @@ export const zhTW: ScanAnswersCopy = {
     medium: { name: "中", hint: "掌心有自然的弧度，介於兩者之間" },
     thin: { name: "薄", hint: "掌心偏平，手背的筋骨線條較明顯" },
   },
+  skipAndSee: "跳過並看結果",
+  retake: "重拍",
   sending: "傳送中…",
 };
 
@@ -104,7 +110,7 @@ export const en: ScanAnswersCopy = {
     },
   },
   thicknessTitle: "Palm thickness",
-  thicknessSubtitle: "Tap the one closest to yours.",
+  thicknessSubtitle: "Tap the one closest to your palm.",
   thicknessGroupLabel: "Palm thickness",
   thicknessSubmit: "See results",
   thickness: {
@@ -121,6 +127,8 @@ export const en: ScanAnswersCopy = {
       hint: "A flatter palm; the tendons on the back of the hand show more",
     },
   },
+  skipAndSee: "Skip and see results",
+  retake: "Retake photo",
   sending: "Sending…",
 };
 

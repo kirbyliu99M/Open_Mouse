@@ -93,6 +93,7 @@ describe("copy", () => {
       name: "薄",
       hint: "掌心偏平，手背的筋骨線條較明顯",
     });
+    expect([zhTW.skipAndSee, zhTW.retake]).toEqual(["跳過並看結果", "重拍"]);
     expect([zhTW.thicknessSubmit, zhTW.stepThickness]).toEqual([
       "看結果",
       "2／2",
@@ -321,6 +322,7 @@ describe("the pages as rendered", () => {
         onBack: noop,
         busy: false,
         errorKind: "network",
+        onRetake: noop,
       }),
       "en",
     );
@@ -329,6 +331,93 @@ describe("the pages as rendered", () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain("No connection");
     expect(html).toContain(en.stepThickness);
+  });
+
+  it("the thickness skip keeps its visible word and is named for what it does", () => {
+    const zh = render(
+      createElement(ThicknessPage, {
+        value: null,
+        onChange: noop,
+        onSubmit: noop,
+        onSkip: noop,
+        onBack: noop,
+        busy: false,
+        errorKind: null,
+        onRetake: noop,
+      }),
+    );
+    expect(zh).toMatch(
+      /<button[^>]*aria-label="跳過並看結果"[^>]*data-testid="thickness-skip"[^>]*>跳過<\/button>/,
+    );
+    const english = render(
+      createElement(ThicknessPage, {
+        value: null,
+        onChange: noop,
+        onSubmit: noop,
+        onSkip: noop,
+        onBack: noop,
+        busy: false,
+        errorKind: null,
+        onRetake: noop,
+      }),
+      "en",
+    );
+    expect(english).toMatch(
+      /aria-label="Skip and see results"[^>]*data-testid="thickness-skip"[^>]*>Skip<\/button>/,
+    );
+    // The grip page's skip is just 跳過: it does not send anything.
+    expect(
+      render(
+        createElement(GripPage, {
+          value: null,
+          onChange: noop,
+          onConfirm: noop,
+          onSkip: noop,
+          onBack: noop,
+        }),
+      ),
+    ).not.toContain("跳過並看結果");
+  });
+
+  it("the banner offers a retake only where the error sentence asks for a new photo", () => {
+    const banner = (
+      errorKind: "invalid" | "tooLarge" | "rateLimited" | "network" | "server",
+    ) =>
+      render(
+        createElement(ThicknessPage, {
+          value: "thin",
+          onChange: noop,
+          onSubmit: noop,
+          onSkip: noop,
+          onBack: noop,
+          busy: false,
+          errorKind,
+          onRetake: noop,
+        }),
+      );
+    for (const kind of ["invalid", "tooLarge"] as const) {
+      expect(banner(kind), kind).toContain('data-testid="thickness-retake"');
+      expect(banner(kind), kind).toContain("重拍");
+    }
+    for (const kind of ["rateLimited", "network", "server"] as const)
+      expect(banner(kind), kind).not.toContain("thickness-retake");
+  });
+
+  it("after a successful send the button says the results are opening", () => {
+    const html = render(
+      createElement(ThicknessPage, {
+        value: "thin",
+        onChange: noop,
+        onSubmit: noop,
+        onSkip: noop,
+        onBack: noop,
+        busy: true,
+        opening: true,
+        errorKind: null,
+        onRetake: noop,
+      }),
+    );
+    expect(html).toContain("正在開啟結果…");
   });
 
   it("while sending, the button says so and every control is off", () => {
@@ -341,6 +430,7 @@ describe("the pages as rendered", () => {
         onBack: noop,
         busy: true,
         errorKind: null,
+        onRetake: noop,
       }),
     );
     expect(html).toContain("傳送中…");

@@ -207,7 +207,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   min-height: 4rem;
-  padding: 0.5rem 1rem;
+  padding: var(--answer-pad-y, 0.5rem) 1rem;
   border: 1px solid var(--control-border);
   border-radius: 0.75rem;
   background: transparent;
@@ -247,7 +247,7 @@
 .answerChoiceInput:checked + .answerChoiceBody {
   border: 2px solid var(--accent-text);
   /* One pixel less padding keeps the text where it was under the thicker ring. */
-  padding: calc(0.5rem - 1px) calc(1rem - 1px);
+  padding: calc(var(--answer-pad-y, 0.5rem) - 1px) calc(1rem - 1px);
   background: #1f6bf033;
 }
 .answerChoiceInput:checked + .answerChoiceBody .answerChoiceHint {
@@ -337,6 +337,10 @@
   }
 }
 .answerError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
   margin: 0 0 0.5rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--scan-error-fg, #ff9d90);
@@ -346,8 +350,95 @@
   font-size: 0.9375rem;
   line-height: 1.5;
 }
+.answerError p {
+  margin: 0;
+}
+/* Only where the fix is a new photo. A pill outline in the banner's own
+   colour: not the white primary pill, so the page keeps one primary button. */
+.answerErrorRetake {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.answerErrorRetake:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.answerErrorRetake:active {
+  background: #ffffff14;
+}
 @media (prefers-reduced-motion: reduce) {
   .answerPrimary:active:not(:disabled) {
     transform: none;
+  }
+}
+
+/* A short phone (360 x 640, 320 x 568): the picture gives up height first and
+   the rows and spacing tighten, so the main button and 跳過 stay on the first
+   screen. A normal phone keeps the frames' look. */
+@media (max-height: 700px) {
+  .answerPage {
+    --answer-pad-y: 0.25rem;
+  }
+  .answerTitle {
+    margin-top: 0.25rem;
+    font-size: 1.5rem;
+  }
+  .answerArt {
+    min-height: 4.5rem;
+    margin: 0.5rem 0;
+  }
+  .answerChoices {
+    gap: 0.375rem;
+  }
+  .answerChoiceBody {
+    min-height: 3.5rem;
+  }
+  .answerActions {
+    margin-top: 0.25rem;
+  }
+}
+
+/* A phone on its side (about 667 x 375): the picture goes, and the page is two
+   columns, the question on the left and the rows and buttons on the right. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .answerPage {
+    width: 100%;
+    max-width: 48rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "top fields"
+      "title fields"
+      "sub fields"
+      "rest actions";
+    column-gap: 1.5rem;
+    align-content: start;
+  }
+  .answerTop {
+    grid-area: top;
+  }
+  .answerTitle {
+    grid-area: title;
+  }
+  .answerSubtitle {
+    grid-area: sub;
+  }
+  .answerArt {
+    display: none;
+  }
+  .answerChoices {
+    grid-area: fields;
+  }
+  .answerActions {
+    grid-area: actions;
   }
 }

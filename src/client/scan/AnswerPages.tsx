@@ -20,7 +20,7 @@
  * 返回 and 跳過 have a 44 px hit area, and the image swap is a fade under
  * `prefers-reduced-motion`.
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import type { PalmThicknessLevel } from "../../lib/contracts/measurement";
 import { scanAnswersCopy, type ChoiceCopy } from "../../lib/copy/scan-answers";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
@@ -149,7 +149,7 @@ function PageShell({
     headingRef.current?.focus({ preventScroll: true });
   }, []);
   return (
-    <section className="answerPage" aria-labelledby="answer-title">
+    <section className="answerPage">
       <div className="answerTop">
         <button
           type="button"
@@ -266,16 +266,19 @@ function PrimaryButton({
   disabled,
   onClick,
   testId,
+  buttonRef,
 }: {
   readonly children: ReactNode;
   readonly disabled: boolean;
   readonly onClick: () => void;
   readonly testId: string;
+  readonly buttonRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <button
       type="button"
       className="answerPrimary"
+      ref={buttonRef}
       disabled={disabled}
       onClick={onClick}
       data-testid={testId}
@@ -392,11 +395,21 @@ export interface ThicknessPageProps {
   /** 跳過: the scan is sent with no thickness. */
   readonly onSkip: () => void;
   readonly onBack: () => void;
-  /** The scan is being sent. */
+  /** The scan is being sent (or was, and the results are opening). */
   readonly busy: boolean;
+  /** The scan was stored and the results page is opening. */
+  readonly opening?: boolean;
   /** Why the last attempt to send it failed, if it did. */
   readonly errorKind: SubmitScanErrorKind | null;
+  /** The banner's 重拍 (shown only for a failure whose fix is a new photo). */
+  readonly onRetake: () => void;
 }
+
+/** Failures whose own sentence asks for a new photo (scan-common.ts submitErrors). */
+export const RETAKE_ERROR_KINDS: readonly SubmitScanErrorKind[] = [
+  "invalid",
+  "tooLarge",
+];
 
 /** Palm-thickness page, step 2／2: where the scan is sent. */
 export function ThicknessPage({
@@ -406,11 +419,27 @@ export function ThicknessPage({
   onSkip,
   onBack,
   busy,
+  opening = false,
   errorKind,
+  onRetake,
 }: ThicknessPageProps) {
   const locale = useLocale();
   const words = scanAnswersCopy(locale);
+  const common = scanCommonCopy(locale);
   const controls = thicknessControls(value, busy);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const skipRef = useRef<HTMLButtonElement>(null);
+  // A failed send leaves the controls off for a moment (they were disabled
+  // while it ran, which dropped focus). The alert announces the reason; focus
+  // goes back to the main button, or to 跳過 when no row is chosen (the main
+  // button is then disabled and cannot take it).
+  useEffect(() => {
+    if (!errorKind) return;
+    const target = submitRef.current?.disabled
+      ? skipRef.current
+      : submitRef.current;
+    target?.focus();
+  }, [errorKind]);
   const rows: readonly Row<PalmThicknessLevel>[] = [
     { value: "thick", copy: words.thickness.thick },
     { value: "medium", copy: words.thickness.medium },
@@ -430,28 +459,47 @@ export function ThicknessPage({
       footer={
         <div className="answerActions">
           {errorKind && (
-            <p className="answerError" role="alert">
-              {scanCommonCopy(locale).submitErrors[errorKind]}
-            </p>
+            <div className="answerError">
+              <p role="alert">{common.submitErrors[errorKind]}</p>
+              {RETAKE_ERROR_KINDS.includes(errorKind) && (
+                <button
+                  type="button"
+                  className="answerErrorRetake"
+                  onClick={onRetake}
+                  data-testid="thickness-retake"
+                >
+                  {words.retake}
+                </button>
+              )}
+            </div>
           )}
           <PrimaryButton
             disabled={!controls.submitEnabled}
             onClick={onSubmit}
             testId="thickness-submit"
+            buttonRef={submitRef}
           >
-            {busy ? words.sending : words.thicknessSubmit}
+            {opening
+              ? common.submitButtonOpening
+              : busy
+                ? words.sending
+                : words.thicknessSubmit}
           </PrimaryButton>
+          {/* The visible word stays 跳過; the name says what it does here: the
+              scan is sent. It contains the visible word (WCAG 2.5.3). */}
           <button
             type="button"
             className="answerSkip"
+            ref={skipRef}
             onClick={onSkip}
             disabled={!controls.skipEnabled}
+            aria-label={words.skipAndSee}
             data-testid="thickness-skip"
           >
             {words.skip}
           </button>
           <p className="answerSr" aria-live="polite">
-            {busy ? words.sending : ""}
+            {opening ? common.submitSuccessStatus : busy ? words.sending : ""}
           </p>
         </div>
       }

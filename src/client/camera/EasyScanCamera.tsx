@@ -641,6 +641,10 @@ export default function EasyScanCamera({
   const sheetDialogRef = useRef<HTMLDialogElement>(null);
   const sheetTitleRef = useRef<HTMLParagraphElement>(null);
   const answerDialogRef = useRef<HTMLDialogElement>(null);
+  const continueRef = useRef<HTMLButtonElement>(null);
+  // Set when the sheet closes to make room for a question page: its next
+  // opening is a return, not an arrival.
+  const sheetResumedRef = useRef(false);
   const tipDialogRef = useRef<HTMLDialogElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
@@ -724,11 +728,20 @@ export default function EasyScanCamera({
       // closes, but keeps the heights it measured, so the photo behind does not
       // move when 返回 opens it again.
       if (!onSheet) {
+        sheetResumedRef.current = true;
         dialog?.close();
         return;
       }
+      // Coming back from a question page: the sheet does not slide in again
+      // (it was there a moment ago), and focus goes to the button that left.
+      const resumed = sheetResumedRef.current;
+      sheetResumedRef.current = false;
+      if (dialog) {
+        if (resumed) dialog.dataset.resumed = "true";
+        else delete dialog.dataset.resumed;
+      }
       dialog?.showModal();
-      sheetTitleRef.current?.focus();
+      (resumed ? continueRef.current : sheetTitleRef.current)?.focus();
       const measureBar = () => {
         const bottoms = [
           ...(topBarRef.current?.querySelectorAll("button") ?? []),
@@ -769,11 +782,16 @@ export default function EasyScanCamera({
     setBarBottom(null);
   }, [result.kind, onSheet]);
 
-  // A question page is a modal of its own, opened the moment it mounts.
+  // A question page is a modal of its own, opened the moment it mounts, and
+  // opened again if the browser closed it by itself while it should be open
+  // (see onClose below). A page change starts at the top, so a short phone
+  // does not keep the scroll position of the page before.
   useLayoutEffect(() => {
     const dialog = answerDialogRef.current;
-    if (answersOpen && dialog && !dialog.open) dialog.showModal();
-  }, [answersOpen]);
+    if (!answersOpen || !dialog) return;
+    if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
+  }, [answersOpen, answers.step]);
 
   const dismissTip = useCallback(() => {
     setTipOpen(false);
@@ -2640,6 +2658,7 @@ export default function EasyScanCamera({
                   <button
                     type="button"
                     className="primaryButton"
+                    ref={continueRef}
                     data-testid="answers-continue-button"
                     onClick={() => dispatchAnswers({ type: "open" })}
                   >
@@ -2704,6 +2723,20 @@ export default function EasyScanCamera({
           ref={answerDialogRef}
           className="answerDialog"
           aria-labelledby="answer-title"
+          onClose={(e) => {
+            // The browser closed it itself: a second Esc, or the Android back
+            // gesture, with no tap in between is not cancelable, so onCancel
+            // never gets to stop it. State and dialog must stay in step:
+            // while the scan is being sent it opens again, otherwise it is a
+            // 返回 (and the effect above opens the dialog again if the page
+            // before it is a question page too).
+            if (answers.step === "thickness" && submitBusy) {
+              e.currentTarget.showModal();
+              return;
+            }
+            clearSubmitError();
+            dispatchAnswers({ type: "back" });
+          }}
           onCancel={(e) => {
             // Escape is 返回, and does nothing while the scan is being sent.
             e.preventDefault();
@@ -2740,6 +2773,8 @@ export default function EasyScanCamera({
                 dispatchAnswers({ type: "back" });
               }}
               busy={submitBusy}
+              opening={submitState.kind === "success"}
+              onRetake={retake}
               errorKind={
                 submitState.kind === "error" ? submitState.errorKind : null
               }

@@ -1524,3 +1524,10 @@ main.easyScanShell {
 :lang(zh) .easyTipNoPaper {
   word-break: keep-all;
 }
+
+/* Back from a question page: the result sheet was there a moment ago, so it
+   neither rises nor fades in again (EasyScanCamera.tsx sets the attribute).
+   More specific than the rise above and its reduced-motion fade. */
+.easySheet.easyResultSheet[data-resumed="true"] {
+  animation: none;
+}

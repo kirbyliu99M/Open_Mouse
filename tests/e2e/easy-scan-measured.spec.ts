@@ -208,7 +208,7 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await expect(dialog.getByText("Step 2 of 2")).toBeAttached();
     await expect(dialog.getByRole("radio")).toHaveCount(3);
     await expect(
-      dialog.getByRole("button", { name: "See results" }),
+      dialog.getByRole("button", { name: "See results", exact: true }),
     ).toBeDisabled();
     await expect(dialog.getByRole("button", { name: "Skip" })).toBeEnabled();
     await expect(dialog.locator("svg.thicknessHand")).toBeVisible();
@@ -240,7 +240,7 @@ test.describe("the palm-thickness page (2 of 2)", () => {
       .getByRole("radio", { name: /^Thick/ })
       .check();
     await thicknessPage(page)
-      .getByRole("button", { name: "See results" })
+      .getByRole("button", { name: "See results", exact: true })
       .click();
     await expect.poll(() => bodies.length).toBe(1);
     expect(bodies[0].gripStyleStated).toBe("claw");
@@ -297,15 +297,19 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await toThicknessPage(page, "Claw");
     const dialog = thicknessPage(page);
     await dialog.getByRole("radio", { name: /^Thin/ }).check();
-    await dialog.getByRole("button", { name: "See results" }).click();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
     await expect(dialog.getByRole("alert")).toContainText(
       "Something went wrong on our end",
     );
     await expect(dialog.getByRole("radio", { name: /^Thin/ })).toBeChecked();
     await expect(
-      dialog.getByRole("button", { name: "See results" }),
+      dialog.getByRole("button", { name: "See results", exact: true }),
     ).toBeEnabled();
-    await dialog.getByRole("button", { name: "See results" }).click();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
     await expect.poll(() => bodies.length).toBe(2);
     expect(bodies[1]).toEqual(bodies[0]);
     expect(bodies[1].palmThicknessStated).toBe("thin");
@@ -330,7 +334,9 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await toThicknessPage(page, null);
     const dialog = thicknessPage(page);
     await dialog.getByRole("radio", { name: /^Medium/ }).check();
-    await dialog.getByRole("button", { name: "See results" }).click();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
     await expect(
       dialog.getByRole("button", { name: "Sending…" }),
     ).toBeDisabled();
@@ -471,4 +477,307 @@ test.describe("both pages: touch targets, focus and motion", () => {
       expect(m.skipBottom).toBeLessThanOrEqual(m.viewport);
     });
   }
+});
+
+test.describe("the browser closing the question page by itself", () => {
+  test("Esc twice from the thickness page goes thickness -> grip -> sheet, and there is always a dialog", async ({
+    page,
+  }) => {
+    await toThicknessPage(page, "Claw");
+    const openDialogs = () => page.locator("dialog[open]").count();
+    await page.keyboard.press("Escape");
+    await expect(gripPage(page)).toBeVisible();
+    expect(await openDialogs()).toBeGreaterThan(0);
+    // The second Esc has no tap before it: Chromium may close the dialog
+    // without asking, which is what the page has to survive.
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toBeVisible();
+    await expect(gripPage(page)).toBeHidden();
+    await expect(thicknessPage(page)).toBeHidden();
+    expect(await openDialogs()).toBeGreaterThan(0);
+    // And the way forward is still there, with the answers kept.
+    await sheet(page).getByRole("button", { name: "Continue" }).click();
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Claw/ }),
+    ).toBeChecked();
+  });
+
+  test("a close the page did not ask for (the dialog closed from outside) is taken as Back", async ({
+    page,
+  }) => {
+    await toThicknessPage(page, "Palm");
+    await thicknessPage(page).getByRole("radio", { name: /^Thin/ }).check();
+    // What a non-cancelable Esc or the Android back gesture does.
+    await page.evaluate(() =>
+      document.querySelector<HTMLDialogElement>("dialog.answerDialog")!.close(),
+    );
+    await expect(gripPage(page)).toBeVisible();
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Palm/ }),
+    ).toBeChecked();
+    await page.evaluate(() =>
+      document.querySelector<HTMLDialogElement>("dialog.answerDialog")!.close(),
+    );
+    await expect(sheet(page)).toBeVisible();
+    await expect(gripPage(page)).toBeHidden();
+  });
+
+  test("while the scan is sent Esc does not go back, and a close from outside opens the page again", async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/scans", async (route) => {
+      await gate;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ scanId: SCAN_ID }),
+      });
+    });
+    await toThicknessPage(page, null);
+    const dialog = thicknessPage(page);
+    await dialog.getByRole("radio", { name: /^Medium/ }).check();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("button", { name: "Sending…" }),
+    ).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+    await expect(gripPage(page)).toBeHidden();
+    await page.evaluate(() =>
+      document.querySelector<HTMLDialogElement>("dialog.answerDialog")!.close(),
+    );
+    await expect(dialog).toBeVisible();
+    release();
+    await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}`), {
+      timeout: 30_000,
+    });
+  });
+});
+
+test.describe("coming back to the sheet, scrolling, focus and the failure banner", () => {
+  test("Back to the sheet: no new slide-in, and focus is on Continue; the first arrival does slide", async ({
+    page,
+  }) => {
+    await page.goto("/scan/easy/measured-demo");
+    await expect(sheet(page)).toBeVisible();
+    const animation = () =>
+      sheet(page).evaluate((el) => getComputedStyle(el).animationName);
+    expect(await animation()).toBe("easySheetSlideIn");
+    await sheet(page).getByRole("button", { name: "Continue" }).click();
+    await expect(gripPage(page)).toBeVisible();
+    await gripPage(page).getByRole("button", { name: "Back" }).click();
+    await expect(sheet(page)).toBeVisible();
+    expect(await animation()).toBe("none");
+    await expect(
+      sheet(page).getByRole("button", { name: "Continue" }),
+    ).toBeFocused();
+  });
+
+  test("under reduced motion the sheet never slides (it fades in on arrival, and not at all on return)", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/scan/easy/measured-demo");
+    await expect(sheet(page)).toBeVisible();
+    const animation = () =>
+      sheet(page).evaluate((el) => getComputedStyle(el).animationName);
+    expect(await animation()).not.toBe("easySheetSlideIn");
+    await sheet(page).getByRole("button", { name: "Continue" }).click();
+    await gripPage(page).getByRole("button", { name: "Back" }).click();
+    await expect(sheet(page)).toBeVisible();
+    expect(await animation()).toBe("none");
+  });
+
+  test("a new page starts at the top, even on a screen too short for the page", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 300 });
+    await openGripPage(page);
+    const dialog = gripPage(page);
+    await dialog.getByRole("radio", { name: /^Palm/ }).check();
+    const scrolled = await dialog.evaluate((el) => {
+      el.scrollTop = 120;
+      return el.scrollTop;
+    });
+    expect(scrolled).toBeGreaterThan(0);
+    await dialog.getByRole("button", { name: "Confirm" }).click();
+    await expect(thicknessPage(page)).toBeVisible();
+    expect(await thicknessPage(page).evaluate((el) => el.scrollTop)).toBe(0);
+  });
+
+  test("a failed send puts focus back on See results; with no row chosen, on Skip", async ({
+    page,
+  }) => {
+    await captureScans(page, () => ({ status: 500, body: { error: "boom" } }));
+    await toThicknessPage(page, null);
+    const dialog = thicknessPage(page);
+    await dialog.getByRole("radio", { name: /^Thin/ }).check();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "See results", exact: true }),
+    ).toBeFocused();
+    // The skip button: its visible word is Skip, its name says what it does.
+    await expect(dialog.getByTestId("thickness-skip")).toHaveText("Skip");
+    await expect(
+      dialog.getByRole("button", { name: "Skip and see results" }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Skip and see results" }).click();
+    await expect(dialog.getByTestId("thickness-skip")).toBeFocused();
+  });
+
+  for (const [status, kind] of [
+    [400, "invalid"],
+    [413, "tooLarge"],
+  ] as const) {
+    test(`a ${kind} failure shows Retake photo in the banner: it resets everything and leaves the pages`, async ({
+      page,
+    }) => {
+      const bodies = await captureScans(page, () => ({
+        status,
+        body: { error: "no" },
+      }));
+      await toThicknessPage(page, "Claw");
+      const dialog = thicknessPage(page);
+      await dialog.getByRole("radio", { name: /^Thin/ }).check();
+      await dialog
+        .getByRole("button", { name: "See results", exact: true })
+        .click();
+      await expect.poll(() => bodies.length).toBe(1);
+      const retake = dialog.getByTestId("thickness-retake");
+      await expect(retake).toBeVisible();
+      await expect(retake).toHaveText("Retake photo");
+      const b = await retake.boundingBox();
+      expect(b!.height).toBeGreaterThanOrEqual(44);
+      // Focus is on See results after the failure; Shift+Tab reaches the
+      // banner's button, by keyboard, so its focus ring shows.
+      await page.keyboard.press("Shift+Tab");
+      await expect(retake).toBeFocused();
+      expect(
+        await retake.evaluate((el) => getComputedStyle(el).outlineStyle),
+      ).toBe("solid");
+      await retake.click();
+      await expect(dialog).toBeHidden();
+      await expect(sheet(page)).toBeHidden();
+      // Nothing was sent again.
+      expect(bodies).toHaveLength(1);
+    });
+  }
+
+  test("the other failures have no Retake button in the banner", async ({
+    page,
+  }) => {
+    await toThicknessPage(page, null);
+    const dialog = thicknessPage(page);
+    await dialog.getByRole("radio", { name: /^Thin/ }).check();
+    for (const status of [429, 500]) {
+      await page.unroute("**/api/scans");
+      await captureScans(page, () => ({ status, body: { error: "no" } }));
+      await dialog
+        .getByRole("button", { name: "See results", exact: true })
+        .click();
+      await expect(dialog.getByRole("alert")).toBeVisible();
+      await expect(dialog.getByTestId("thickness-retake")).toHaveCount(0);
+    }
+  });
+});
+
+test.describe("short screens: the main button and Skip are on the first screen", () => {
+  for (const [width, height] of [
+    [360, 640],
+    [320, 568],
+    [667, 375],
+  ] as const) {
+    for (const which of ["grip", "thickness"] as const) {
+      test(`${width}x${height}: the ${which} page needs no scrolling to reach its buttons`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height });
+        if (which === "grip") await openGripPage(page);
+        else await toThicknessPage(page, null);
+        const dialog = which === "grip" ? gripPage(page) : thicknessPage(page);
+        const m = await dialog.evaluate((el) => {
+          const primary = el.querySelector<HTMLElement>(".answerPrimary")!;
+          const skip = el.querySelector<HTMLElement>(".answerSkip")!;
+          const back = el.querySelector<HTMLElement>(".answerBack")!;
+          return {
+            scrolls: el.scrollHeight > el.clientHeight + 1,
+            overflowsX: el.scrollWidth > el.clientWidth + 1,
+            primaryBottom: primary.getBoundingClientRect().bottom,
+            skipBottom: skip.getBoundingClientRect().bottom,
+            backTop: back.getBoundingClientRect().top,
+            viewport: window.innerHeight,
+          };
+        });
+        console.log(
+          `${width}x${height} ${which}: primary bottom ${m.primaryBottom.toFixed(0)}, skip bottom ${m.skipBottom.toFixed(0)} of ${m.viewport}, scrolls ${m.scrolls}`,
+        );
+        expect(m.primaryBottom).toBeLessThanOrEqual(m.viewport);
+        expect(m.skipBottom).toBeLessThanOrEqual(m.viewport);
+        expect(m.backTop).toBeGreaterThanOrEqual(0);
+        expect(m.overflowsX).toBe(false);
+      });
+    }
+  }
+});
+
+test.describe("the typed-length path stores the length only after the scan was stored", () => {
+  const lengthKey = `open-mouse:user-length:${SCAN_ID}`;
+  const lengthKeys = (page: Page) =>
+    page.evaluate(() =>
+      Object.keys(localStorage).filter((k) =>
+        k.startsWith("open-mouse:user-length:"),
+      ),
+    );
+
+  test("201: the typed length is kept under the scan's key, and both answers are in the POST", async ({
+    page,
+  }) => {
+    const bodies = await captureScans(page);
+    await page.goto("/scan/easy/measured-length-demo");
+    await expect(sheet(page)).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Continue" }).click();
+    await gripPage(page)
+      .getByRole("radio", { name: /^Fingertip/ })
+      .check();
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await thicknessPage(page)
+      .getByRole("radio", { name: /^Thick/ })
+      .check();
+    await thicknessPage(page)
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect.poll(() => bodies.length).toBe(1);
+    expect(bodies[0].gripStyleStated).toBe("fingertip");
+    expect(bodies[0].palmThicknessStated).toBe("thick");
+    expect((bodies[0].calibration as { method: string }).method).toBe(
+      "user-length",
+    );
+    await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}`), {
+      timeout: 30_000,
+    });
+    expect(
+      await page.evaluate((key) => localStorage.getItem(key), lengthKey),
+    ).toBe("186");
+  });
+
+  test("a failed send (500) writes nothing", async ({ page }) => {
+    await captureScans(page, () => ({ status: 500, body: { error: "boom" } }));
+    await page.goto("/scan/easy/measured-length-demo");
+    await expect(sheet(page)).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Continue" }).click();
+    await gripPage(page).getByRole("button", { name: "Skip" }).click();
+    await thicknessPage(page)
+      .getByRole("button", { name: "Skip and see results" })
+      .click();
+    await expect(thicknessPage(page).getByRole("alert")).toBeVisible();
+    expect(await lengthKeys(page)).toEqual([]);
+  });
 });

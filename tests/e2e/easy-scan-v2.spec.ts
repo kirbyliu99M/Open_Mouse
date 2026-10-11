@@ -1981,3 +1981,75 @@ test.describe("the measured sheet after the grip chips moved to their own page",
     });
   }
 });
+
+/**
+ * The two question pages (grip, palm thickness) belong to the photo they
+ * followed: a retake, then a new measurement, starts them empty, and a failed
+ * send's banner is gone.
+ */
+test.describe("a retake clears the answers and the error", () => {
+  test("select both answers, fail a send, go back to the sheet, retake: the new photo's pages are empty and its POST has neither field", async ({
+    page,
+  }) => {
+    const bodies: Record<string, unknown>[] = [];
+    await page.route("**/api/scans", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      bodies.push(JSON.parse(route.request().postData() ?? "{}"));
+      const failed = bodies.length === 1;
+      await route.fulfill({
+        status: failed ? 500 : 201,
+        contentType: "application/json",
+        body: JSON.stringify(
+          failed
+            ? { error: "boom" }
+            : { scanId: "623e4567-e89b-12d3-a456-426614174010" },
+        ),
+      });
+    });
+    await openLive(page);
+    const sheet = page.getByRole("dialog", { name: "Hand measured" });
+    const grip = page.getByRole("dialog", { name: "How you hold a mouse" });
+    const thickness = page.getByRole("dialog", { name: "Palm thickness" });
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    await sheet.getByRole("button", { name: "Continue" }).click();
+    await grip.getByRole("radio", { name: /^Claw/ }).check();
+    await grip.getByRole("button", { name: "Confirm" }).click();
+    await thickness.getByRole("radio", { name: /^Thin/ }).check();
+    await thickness
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect(thickness.getByRole("alert")).toBeVisible();
+    // Back to the sheet, and a new photo.
+    await thickness.getByRole("button", { name: "Back" }).click();
+    await grip.getByRole("button", { name: "Back" }).click();
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "Retake photo" }).click();
+    await expect(sheet).toBeHidden();
+    // The fake camera's auto-shutter takes the next photo by itself.
+    await expect(sheet).toBeVisible({ timeout: 30_000 });
+    await sheet.getByRole("button", { name: "Continue" }).click();
+    for (const radio of await grip.getByRole("radio").all())
+      await expect(radio).not.toBeChecked();
+    await expect(grip.getByRole("button", { name: "Confirm" })).toBeDisabled();
+    await expect(grip.getByTestId("grip-art-neutral")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await grip.getByRole("button", { name: "Skip" }).click();
+    for (const radio of await thickness.getByRole("radio").all())
+      await expect(radio).not.toBeChecked();
+    await expect(thickness.getByRole("alert")).toHaveCount(0);
+    await expect(
+      thickness.getByRole("button", { name: "See results", exact: true }),
+    ).toBeDisabled();
+    await thickness
+      .getByRole("button", { name: "Skip and see results" })
+      .click();
+    await expect.poll(() => bodies.length).toBe(2);
+    expect(bodies[1]).not.toHaveProperty("gripStyleStated");
+    expect(bodies[1]).not.toHaveProperty("palmThicknessStated");
+    // The first attempt did carry what was chosen.
+    expect(bodies[0].gripStyleStated).toBe("claw");
+    expect(bodies[0].palmThicknessStated).toBe("thin");
+  });
+});
