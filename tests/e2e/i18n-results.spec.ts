@@ -170,6 +170,13 @@ test.describe("results in zh-TW", () => {
 
     await openDetails(page);
     await expect(page.getByText("很適合趴握")).toBeVisible();
+    // Model-written text: small label and the visible AI notice, in zh-TW.
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "文字分析",
+    );
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "本分析由 AI 撰寫，內容僅供參考。",
+    );
     await expect(
       page.getByRole("heading", { name: "為什麼推薦這支" }),
     ).toBeVisible();
@@ -251,6 +258,13 @@ test.describe("results in zh-TW", () => {
       page.getByText("A close match for your palm grip"),
     ).toBeVisible();
     expect(seen).toEqual(["zh-TW", "en"]);
+    // The label and the AI notice switch language with the text.
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "Written analysis",
+    );
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "This analysis was written by AI and is for reference only.",
+    );
 
     // The slow zh-TW answer lands now; it must not replace the English one.
     release();
@@ -267,6 +281,9 @@ test.describe("results in zh-TW", () => {
       .getByRole("button", { name: "中文" })
       .click();
     await expect(page.getByText("很適合趴握")).toBeVisible();
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "本分析由 AI 撰寫，內容僅供參考。",
+    );
     expect(seen).toEqual(["zh-TW", "en", "zh-TW"]);
   });
 });

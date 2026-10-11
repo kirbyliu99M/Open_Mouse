@@ -50,6 +50,13 @@ export interface ResultsScreensCopy {
     whatToAvoid: string;
     /** Shown under text written from the scores by a template. */
     provenance: string;
+    /**
+     * Visible small print under text a model wrote (`source === "model"`),
+     * never under the template-written fallback. Kirby, 2026-10-12: the
+     * Chinese is his; the English is a candidate translation. No product or
+     * vendor name appears in it.
+     */
+    aiWrittenNotice: string;
   };
   deleteScan: {
     trigger: string;
@@ -126,6 +133,7 @@ export const zhTW: ResultsScreensCopy = {
     tradeoffs: "取捨",
     whatToAvoid: "要避開的",
     provenance: "依上方的分數自動產生。",
+    aiWrittenNotice: "本分析由 AI 撰寫，內容僅供參考。",
   },
   deleteScan: {
     trigger: "立即刪除這次掃描",
@@ -208,6 +216,8 @@ export const en: ResultsScreensCopy = {
     tradeoffs: "Tradeoffs",
     whatToAvoid: "What to avoid",
     provenance: "Generated automatically from your scores above.",
+    aiWrittenNotice:
+      "This analysis was written by AI and is for reference only.",
   },
   deleteScan: {
     trigger: "Delete this scan now",
