@@ -1,8 +1,11 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { httpsUrlSchema } from "../../src/lib/contracts/commerce";
 import {
+  LARGE_PHOTO_HEIGHT,
+  LARGE_PHOTO_WIDTH,
+  largePhotoPath,
   mediaForSlug,
   parseMouseMedia,
 } from "../../src/lib/results/mouseMedia";
@@ -188,5 +191,113 @@ describe("the bundled mouse-media.json", () => {
       "g-wolves-vuk-medium",
     ]);
     expect(entries.length - nulls.length).toBe(404);
+  });
+});
+
+describe("largePhotoPath", () => {
+  it("maps a small photo path to its enlarged file", () => {
+    expect(
+      largePhotoPath("/images/mice/logitech-g-pro-x-superlight-2.webp"),
+    ).toBe("/images/mice/l/logitech-g-pro-x-superlight-2.webp");
+  });
+
+  it("maps every bundled image, and only into /images/mice/l/", () => {
+    for (const [slug, v] of Object.entries(bundled)) {
+      if (v.image === null) continue;
+      expect(largePhotoPath(v.image)).toBe(`/images/mice/l/${slug}.webp`);
+    }
+  });
+
+  it.each([
+    "/images/mice/l/a.webp",
+    "/images/mice/a.png",
+    "/images/mice/A.webp",
+    "/images/mice/sub/a.webp",
+    "/images/mice/../a.webp",
+    "/images/mice/a.webp?x=1",
+    "/images/other/a.webp",
+    "https://x.test/images/mice/a.webp",
+    "",
+  ])("returns %j unchanged", (input) => {
+    expect(largePhotoPath(input)).toBe(input);
+  });
+
+  it("is idempotent", () => {
+    const once = largePhotoPath("/images/mice/a.webp");
+    expect(largePhotoPath(once)).toBe(once);
+  });
+});
+
+/** Canvas size from a WebP header: lossy with alpha is VP8X, plain lossy VP8. */
+function webpSize(bytes: Buffer): { width: number; height: number } {
+  const fourcc = bytes.subarray(12, 16).toString("latin1");
+  if (fourcc === "VP8X") {
+    return {
+      width: 1 + bytes.readUIntLE(24, 3),
+      height: 1 + bytes.readUIntLE(27, 3),
+    };
+  }
+  if (fourcc === "VP8 ") {
+    return {
+      width: bytes.readUInt16LE(26) & 0x3fff,
+      height: bytes.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  throw new Error(`unsupported WebP chunk ${fourcc}`);
+}
+
+describe("the enlarged photos (public/images/mice/l)", () => {
+  const dir = join(process.cwd(), "public", "images", "mice", "l");
+  const MAX_FILE = 70 * 1024;
+  const MAX_TOTAL = 30 * 1024 * 1024;
+  const wanted = Object.entries(bundled)
+    .filter(([, v]) => v.image !== null)
+    .map(([slug]) => `${slug}.webp`)
+    .sort();
+  const have = existsSync(dir) ? readdirSync(dir).sort() : [];
+
+  it("has a file for every non-null image and no other file", () => {
+    expect(wanted.filter((f) => !have.includes(f))).toEqual([]);
+    expect(have.filter((f) => !wanted.includes(f))).toEqual([]);
+    expect(have).toHaveLength(404);
+  });
+
+  it("keeps each file at most 70 KB and the total at most 30 MB", () => {
+    let total = 0;
+    const over: string[] = [];
+    for (const f of have) {
+      const size = statSync(join(dir, f)).size;
+      total += size;
+      if (size > MAX_FILE) over.push(`${f}: ${size}`);
+    }
+    expect(over).toEqual([]);
+    expect(total).toBeLessThanOrEqual(MAX_TOTAL);
+  });
+
+  it("holds real WebP files whose header size equals the constants", () => {
+    const wrong: string[] = [];
+    for (const f of have) {
+      const bytes = readFileSync(join(dir, f));
+      const riff = bytes.subarray(0, 4).toString("latin1");
+      const webp = bytes.subarray(8, 12).toString("latin1");
+      if (riff !== "RIFF" || webp !== "WEBP") {
+        wrong.push(`${f}: not WebP`);
+        continue;
+      }
+      const { width, height } = webpSize(bytes);
+      if (width !== LARGE_PHOTO_WIDTH || height !== LARGE_PHOTO_HEIGHT)
+        wrong.push(`${f}: ${width}x${height}`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("has the same aspect ratio as the 480 px photos (within one pixel of width)", () => {
+    const small = readFileSync(
+      join(process.cwd(), "public", "images", "mice", wanted[0]),
+    );
+    const { width, height } = webpSize(small);
+    expect(
+      Math.abs((width * LARGE_PHOTO_HEIGHT) / height - LARGE_PHOTO_WIDTH),
+    ).toBeLessThanOrEqual(1);
   });
 });

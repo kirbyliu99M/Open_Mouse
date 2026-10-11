@@ -18,6 +18,9 @@ ALPHA_THRESHOLD = 10
 MARGIN = 0.02
 OUT_HEIGHT = 480
 MAX_BYTES = 30 * 1024
+LARGE_HEIGHT = 960
+LARGE_MAX_BYTES = 70 * 1024
+LARGE_TOTAL_BYTES = 30 * 1024 * 1024
 QUALITIES = [80, 75, 70, 65, 60]
 KIND = {
     "direct_product_page": "product",
@@ -34,6 +37,77 @@ def encode(img, quality):
     buf = io.BytesIO()
     img.save(buf, "WEBP", quality=quality, method=6, exif=b"")
     return buf.getvalue()
+
+
+def crop_window(chosen):
+    """One shared crop window: union of alpha>threshold boxes plus margin."""
+    x0 = y0 = 10**9
+    x1 = y1 = -1
+    size = None
+    for slug, p in chosen.items():
+        if p is None:
+            continue
+        with Image.open(p) as im:
+            im = im.convert("RGBA")
+            if im.size != STD_SIZE:
+                sys.exit(f"{p.name}: size {im.size} is not {STD_SIZE}")
+            size = im.size
+            bbox = im.getchannel("A").point(
+                lambda v: 255 if v > ALPHA_THRESHOLD else 0
+            ).getbbox()
+        if bbox is None:
+            sys.exit(f"{p.name}: fully transparent")
+        x0, y0 = min(x0, bbox[0]), min(y0, bbox[1])
+        x1, y1 = max(x1, bbox[2]), max(y1, bbox[3])
+    w, h = size
+    mx, my = round((x1 - x0) * MARGIN), round((y1 - y0) * MARGIN)
+    return (max(0, x0 - mx), max(0, y0 - my), min(w, x1 + mx), min(h, y1 + my))
+
+
+def encode_to_budget(im, slug, max_bytes):
+    for q in QUALITIES:
+        data = encode(im, q)
+        if len(data) <= max_bytes:
+            return q, data
+    sys.exit(f"{slug}: {len(data)} bytes at quality {QUALITIES[-1]}")
+
+
+def report(label, sizes, lowered):
+    sizes = sorted(sizes)
+    n = len(sizes)
+    kb = lambda b: b / 1024
+    print(f"{label}files {n}, total {sum(sizes) / 1048576:.2f} MB")
+    print(
+        f"{label}p50 {kb(sizes[n // 2]):.1f} KB, "
+        f"p95 {kb(sizes[int(n * 0.95)]):.1f} KB, max {kb(sizes[-1]):.1f} KB"
+    )
+    print(f"{label}lowered quality:", lowered or "none")
+
+
+def build_large(a, seen, slug_by_key, chosen, window):
+    """Encode the enlarged files: the same window, LARGE_HEIGHT px high."""
+    out_w = round((window[2] - window[0]) * LARGE_HEIGHT / (window[3] - window[1]))
+    print(f"large output {out_w}x{LARGE_HEIGHT}")
+    a.out_large.mkdir(parents=True, exist_ok=True)
+    lowered = {}
+    sizes = []
+    for k in seen:
+        slug = slug_by_key[k]
+        p = chosen[slug]
+        if p is None:
+            continue
+        with Image.open(p) as im:
+            im = im.convert("RGBA").crop(window).resize(
+                (out_w, LARGE_HEIGHT), Image.LANCZOS
+            )
+        q, data = encode_to_budget(im, slug, LARGE_MAX_BYTES)
+        if q != QUALITIES[0]:
+            lowered[slug] = (q, len(data))
+        (a.out_large / f"{slug}.webp").write_bytes(data)
+        sizes.append(len(data))
+    report("large ", sizes, lowered)
+    if sum(sizes) > LARGE_TOTAL_BYTES:
+        sys.exit(f"large total {sum(sizes)} bytes is over {LARGE_TOTAL_BYTES}")
 
 
 def write_json(a, seen, slug_by_key, chosen):
@@ -65,7 +139,23 @@ def main():
         help="write the JSON only; do not crop or encode, and require every "
         "non-null image to exist already in --out-images and no other WebP to",
     )
+    ap.add_argument(
+        "--out-large",
+        type=Path,
+        help="also write the enlarged (960 px high) files here, one per photo, "
+        "from the same chosen image and crop window",
+    )
+    ap.add_argument(
+        "--only-large",
+        action="store_true",
+        help="encode only the enlarged files into --out-large: leave --out-images "
+        "and --out-json untouched",
+    )
     a = ap.parse_args()
+    if a.only_large and a.only_json:
+        ap.error("--only-large and --only-json cannot be combined")
+    if a.only_large and a.out_large is None:
+        ap.error("--only-large needs --out-large")
 
     catalogue = json.loads(a.catalogue.read_text(encoding="utf-8"))
     slug_by_key = {key(e["brand"], e["model"]): e["slug"] for e in catalogue}
@@ -122,30 +212,13 @@ def main():
         print(f"json only: {len(want)} images, {len(chosen) - len(want)} null")
         return
 
-    # One shared crop window: union of alpha>threshold boxes plus margin.
-    x0 = y0 = 10**9
-    x1 = y1 = -1
-    size = None
-    for slug, p in chosen.items():
-        if p is None:
-            continue
-        with Image.open(p) as im:
-            im = im.convert("RGBA")
-            if im.size != STD_SIZE:
-                sys.exit(f"{p.name}: size {im.size} is not {STD_SIZE}")
-            size = im.size
-            bbox = im.getchannel("A").point(
-                lambda v: 255 if v > ALPHA_THRESHOLD else 0
-            ).getbbox()
-        if bbox is None:
-            sys.exit(f"{p.name}: fully transparent")
-        x0, y0 = min(x0, bbox[0]), min(y0, bbox[1])
-        x1, y1 = max(x1, bbox[2]), max(y1, bbox[3])
-    w, h = size
-    mx, my = round((x1 - x0) * MARGIN), round((y1 - y0) * MARGIN)
-    window = (max(0, x0 - mx), max(0, y0 - my), min(w, x1 + mx), min(h, y1 + my))
+    window = crop_window(chosen)
     out_w = round((window[2] - window[0]) * OUT_HEIGHT / (window[3] - window[1]))
     print(f"crop window {window}, output {out_w}x{OUT_HEIGHT}")
+
+    if a.only_large:
+        build_large(a, seen, slug_by_key, chosen, window)
+        return
 
     a.out_images.mkdir(parents=True, exist_ok=True)
     lowered = {}
@@ -159,12 +232,7 @@ def main():
                 im = im.convert("RGBA").crop(window).resize(
                     (out_w, OUT_HEIGHT), Image.LANCZOS
                 )
-            for q in QUALITIES:
-                data = encode(im, q)
-                if len(data) <= MAX_BYTES:
-                    break
-            else:
-                sys.exit(f"{slug}: {len(data)} bytes at quality {QUALITIES[-1]}")
+            q, data = encode_to_budget(im, slug, MAX_BYTES)
             if q != QUALITIES[0]:
                 lowered[slug] = (q, len(data))
             (a.out_images / f"{slug}.webp").write_bytes(data)
@@ -172,16 +240,11 @@ def main():
 
     ordered = write_json(a, seen, slug_by_key, chosen)
 
-    sizes.sort()
-    n = len(sizes)
-    kb = lambda b: b / 1024
-    print(f"files {n}, total {sum(sizes) / 1048576:.2f} MB")
-    print(
-        f"p50 {kb(sizes[n // 2]):.1f} KB, p95 {kb(sizes[int(n * 0.95)]):.1f} KB, "
-        f"max {kb(sizes[-1]):.1f} KB"
-    )
-    print("lowered quality:", lowered or "none")
+    report("", sizes, lowered)
     print("null images:", [s for s, v in ordered.items() if v["image"] is None])
+
+    if a.out_large is not None:
+        build_large(a, seen, slug_by_key, chosen, window)
 
 
 if __name__ == "__main__":
