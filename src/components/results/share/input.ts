@@ -4,7 +4,7 @@
  * brand, model and total, its band from `bandOf`, and the hand type if the
  * engine sent one (fit-v0 does not, and the card never invents one).
  */
-import type { UiLanguage } from "../../../client/uiLanguage";
+import type { Locale } from "../../../lib/contracts/locale";
 import type { FitEntry, FitResponse } from "../../../lib/contracts/fit";
 import { en, zhTW } from "../../../lib/copy/fit-bands";
 import { bandOf } from "../../../lib/fit/bands";
@@ -20,7 +20,7 @@ export function topPick(fit: FitResponse): FitEntry | null {
 }
 
 /** The band's name in the card's language, or null if the total is not gradable. */
-export function bandLabelFor(total: number, lang: UiLanguage): string | null {
+export function bandLabelFor(total: number, lang: Locale): string | null {
   let band;
   try {
     band = bandOf(total);
@@ -34,7 +34,7 @@ export function bandLabelFor(total: number, lang: UiLanguage): string | null {
 /** `photoSrc` is the product photo's path once it has loaded, else null. */
 export function buildShareCardInput(
   fit: FitResponse,
-  lang: UiLanguage,
+  lang: Locale,
   photoSrc: string | null,
 ): ShareCardInput | null {
   const top = topPick(fit);

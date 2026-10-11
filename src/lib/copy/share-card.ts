@@ -8,7 +8,7 @@
  * type words are the same ones the results page uses (builder R, candidate).
  */
 import type { HandType } from "../contracts/fit";
-import type { UiLanguage } from "../../client/uiLanguage";
+import type { Locale } from "../../lib/contracts/locale";
 
 export interface ShareCardCopy {
   kicker: string;
@@ -82,7 +82,7 @@ export const en: ShareCardCopy = {
   error: "Could not make the card. Please try again.",
 };
 
-export function shareCardCopy(lang: UiLanguage): ShareCardCopy {
+export function shareCardCopy(lang: Locale): ShareCardCopy {
   return lang === "zh-TW" ? zhTW : en;
 }
 

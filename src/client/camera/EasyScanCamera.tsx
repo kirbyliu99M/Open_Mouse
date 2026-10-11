@@ -32,6 +32,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/client/i18n/LocaleProvider";
 import type {
   PaperSize,
   ScanSubmission,
@@ -92,9 +93,7 @@ import {
 import {
   advanceCaptureFailures,
   captureFailureHintText,
-  captureFailureLangAttribute,
   hintUnderViewfinder,
-  pickCaptureFailureLanguage,
   shouldShowCaptureFailureHint,
   type CaptureFailureEvent,
 } from "./captureFailure";
@@ -478,6 +477,7 @@ export default function EasyScanCamera({
   );
   const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   const [deviceFit, setDeviceFit] = useState<DeviceFit | null>(null);
+  const locale = useLocale();
   const [pageUrl, setPageUrl] = useState("");
   const [userLengthMm, setUserLengthMm] = useState<number | null>(null);
   const [lengthStep, setLengthStep] = useState(false);
@@ -1962,7 +1962,7 @@ export default function EasyScanCamera({
   // of its usual words (same slot, same live region); it is plain text, so
   // there is nothing to animate.
   const captureFailureLanguage = shouldShowCaptureFailureHint(captureFailures)
-    ? pickCaptureFailureLanguage(navigator.languages, navigator.language)
+    ? locale
     : null;
   const captureFailureHint = captureFailureLanguage
     ? captureFailureHintText(captureFailureLanguage)
@@ -2414,11 +2414,6 @@ export default function EasyScanCamera({
                 aria-live="polite"
                 data-testid="camera-cue"
                 data-capture-failure={captureFailureHint ? "true" : undefined}
-                lang={
-                  captureFailureLanguage
-                    ? captureFailureLangAttribute(captureFailureLanguage)
-                    : undefined
-                }
               >
                 {captureFailureHint ? (
                   captureFailureHint

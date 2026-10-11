@@ -11,7 +11,7 @@ import {
   type FixtureKey,
 } from "./fixtures";
 import { ResultsView } from "./ResultsView";
-import { useUiLanguage } from "./useUiLanguage";
+import { useLocale } from "@/client/i18n/LocaleProvider";
 
 const MOCK_ANALYSIS: AnalysisOutput = {
   headline: "A close match for your palm grip",
@@ -79,7 +79,7 @@ export function ResultsDemoClient({
     presentation ? "ready-fallback" : "idle",
   );
   const [rank, setRank] = useState(1);
-  const language = useUiLanguage();
+  const language = useLocale();
 
   const analysisState = ANALYSIS_DEMO_STATES.find((a) => a.key === analysisKey)
     ?.state ?? {

@@ -1,5 +1,5 @@
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 
 /**
  * "Same modeling: <models>" on a card whose shell other catalogue entries share
@@ -13,11 +13,11 @@ export function VariantsLine({
   language,
 }: {
   variants: readonly { model: string }[];
-  language: UiLanguage;
+  language: Locale;
 }) {
   if (variants.length === 0) return null;
   return (
-    <span className="results-variants" lang={uiLangAttribute(language)}>
+    <span className="results-variants">
       {RESULTS_PAGE_COPY[language].variantsLine(variants.map((v) => v.model))}
     </span>
   );

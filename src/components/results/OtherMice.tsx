@@ -7,7 +7,7 @@ import {
   isPersonOpening,
   PRINT_OPENED_ATTRIBUTE,
 } from "@/lib/results/disclosure";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { MousePhoto } from "./MousePhoto";
 
 /**
@@ -31,7 +31,7 @@ export function OtherMice({
   excluded: FitResponse["excluded"];
   /** The hand the scan measured, for the excluded reasons. */
   hand: FitResponse["hand"];
-  language: UiLanguage;
+  language: Locale;
   filtering?: boolean;
   /** Called each time the section is opened (not closed). */
   onOpened?: () => void;
@@ -39,7 +39,6 @@ export function OtherMice({
   const count = ranked.length + excluded.length;
   if (count === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   return (
     <details
       className="results-disclosure results-otherMice"
@@ -55,7 +54,7 @@ export function OtherMice({
       }}
     >
       <summary>
-        <span className="results-disclosure-text" lang={lang}>
+        <span className="results-disclosure-text">
           <span className="results-disclosure-title">
             {copy.otherMiceTitle(count)}
           </span>
@@ -75,7 +74,7 @@ export function OtherMice({
                 <span className="results-otherMice-name">
                   {entry.mouse.brand} {entry.mouse.model}
                   {filtering && overallRank !== displayRank && (
-                    <span className="results-otherMice-overall" lang={lang}>
+                    <span className="results-otherMice-overall">
                       {" "}
                       {copy.filter.overallRank(overallRank)}
                     </span>
@@ -83,7 +82,7 @@ export function OtherMice({
                 </span>
                 <span className="results-otherMice-score results-tabularNum">
                   {entry.total}
-                  <span lang={lang}> {copy.outOf}</span>
+                  <span> {copy.outOf}</span>
                 </span>
               </li>
             ))}
@@ -91,7 +90,7 @@ export function OtherMice({
         )}
         {excluded.length > 0 && (
           <section className="results-excluded">
-            <h3 className="results-excluded-heading" lang={lang}>
+            <h3 className="results-excluded-heading">
               {copy.excludedHeading}
             </h3>
             <ul className="results-excluded-list">
@@ -103,7 +102,7 @@ export function OtherMice({
                   {/* Reason first, then (when there is one) the number with its
                       label: it is the score of the mouse's mirror image for
                       this hand, not a score of this mouse. */}
-                  <span className="results-excluded-detail" lang={lang}>
+                  <span className="results-excluded-detail">
                     <span className="results-excluded-reason">
                       {copy.excludedReason(item.reason, hand)}
                     </span>

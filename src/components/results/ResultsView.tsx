@@ -11,7 +11,7 @@ import {
 } from "@/lib/results/filters";
 import { handTypeLabel } from "@/lib/results/handTypeLabel";
 import { pathForEntry } from "@/lib/results/rankRoutes";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { AnalysisState } from "./analysisState";
 import { FilteredAnalysisLine } from "./FilteredAnalysisLine";
 import { FilterSummary } from "./filter/FilterSummary";
@@ -73,7 +73,7 @@ export function ResultsView({
    * to the first place.
    */
   rank?: number;
-  language: UiLanguage;
+  language: Locale;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
   /** The hand length the user typed in, when the scan used no paper. */
@@ -102,7 +102,6 @@ export function ResultsView({
     view.cards.find((c) => c.displayRank === rank) ?? view.large ?? null;
   const entry = card?.entry ?? null;
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   const search = serializeFilters(filters);
 
   const hand = handTypeLabel(response.handType, language);
@@ -129,7 +128,7 @@ export function ResultsView({
   const content = (
     <>
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
-        <p className="results-fitNotice" lang={lang}>
+        <p className="results-fitNotice">
           {copy.fitNotice}
         </p>
       )}
@@ -137,7 +136,7 @@ export function ResultsView({
       {(entry || empty) && (
         <div className="results-hero" data-empty={empty ? "true" : undefined}>
           {hand && (
-            <header className="results-hand" lang={lang}>
+            <header className="results-hand">
               <p className="results-hand-kicker">{hand.kicker}</p>
               <h1 className="results-hand-title">{hand.title}</h1>
               <p className="results-hand-sentence">{hand.sentence}</p>
@@ -168,7 +167,7 @@ export function ResultsView({
                     <>
                       <p
                         className="results-score-rank results-score-places"
-                        lang={lang}
+                       
                       >
                         <span className="results-badge">
                           {copy.filter.filteredRank(card.displayRank)}
@@ -182,7 +181,7 @@ export function ResultsView({
                       <p className="results-score-brand">{entry.mouse.brand}</p>
                     </>
                   ) : (
-                    <p className="results-score-rank" lang={lang}>
+                    <p className="results-score-rank">
                       {copy.rankLine(card.displayRank, entry.mouse.brand)}
                     </p>
                   )}
@@ -190,21 +189,21 @@ export function ResultsView({
                     {entry.mouse.model}
                   </ModelHeading>
                   {band && (
-                    <p className="results-band" lang={lang}>
+                    <p className="results-band">
                       <span className="results-band-dot" aria-hidden="true" />
                       {BAND_COPY[language].bands[band].label}
                     </p>
                   )}
                   <VariantsLine variants={card.variants} language={language} />
                   {isMain && filtering && view.count === 1 && (
-                    <p className="results-oneLeft" lang={lang}>
+                    <p className="results-oneLeft">
                       {copy.filter.oneLeft}
                     </p>
                   )}
                 </div>
                 <p className="results-score-total results-tabularNum">
                   <span className="results-score-value">{entry.total}</span>
-                  <span className="results-score-label" lang={lang}>
+                  <span className="results-score-label">
                     {copy.scoreLabel}
                   </span>
                 </p>
@@ -223,14 +222,14 @@ export function ResultsView({
 
               {/* Cautions about how the scan was made come before any link to a shop. */}
               {enteredLengthMm !== null && (
-                <p className="results-handNotice" lang={lang}>
+                <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}
                 </p>
               )}
               {/* The hand comes from the fit response (#62), not from browser
                   storage, so the note follows a results link to any device. */}
               {response.hand === "left" && (
-                <p className="results-handNotice" lang={lang}>
+                <p className="results-handNotice">
                   {copy.leftHandNotice}
                 </p>
               )}
@@ -298,7 +297,7 @@ export function ResultsView({
       />
 
       {view.hiddenExcludedCount > 0 && (
-        <p className="results-excludedNote" lang={lang}>
+        <p className="results-excludedNote">
           {copy.filter.excludedHidden(view.hiddenExcludedCount)}
         </p>
       )}

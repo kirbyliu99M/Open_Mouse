@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { serializeFilters, type Filters } from "@/lib/results/filters";
 import { chipsOf } from "@/lib/results/filterLabels";
@@ -20,14 +20,14 @@ export function FilterSummary({
   count,
 }: {
   filters: Filters;
-  language: UiLanguage;
+  language: Locale;
   scanId: string;
   /** How many cards the filter keeps. */
   count: number;
 }) {
   const copy = RESULTS_PAGE_COPY[language].filter;
   return (
-    <div className="results-filterNote" lang={uiLangAttribute(language)}>
+    <div className="results-filterNote">
       <ul className="results-chips-list" aria-label={copy.chipsLabel}>
         {chipsOf(filters, copy).map((chip) => (
           <li key={`${chip.group}:${chip.value}`}>

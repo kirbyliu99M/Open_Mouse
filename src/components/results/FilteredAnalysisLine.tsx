@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { AnalysisSlot } from "./AnalysisSlot";
 import type { AnalysisState } from "./analysisState";
@@ -39,7 +39,7 @@ export function FilteredAnalysisLine({
   onRetry,
 }: {
   name: string;
-  language: UiLanguage;
+  language: Locale;
   state: AnalysisState;
   onRetry?: () => void;
 }) {
@@ -47,7 +47,7 @@ export function FilteredAnalysisLine({
   const [open, setOpen] = useState(false);
   const regionId = useId();
   return (
-    <div className="results-analysisLine" lang={uiLangAttribute(language)}>
+    <div className="results-analysisLine">
       <p className="results-analysisLine-row">
         <Sparkle />
         <span className="results-analysisLine-text">

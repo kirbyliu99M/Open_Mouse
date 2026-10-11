@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { FilteredCard } from "@/lib/results/filters";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { MousePhoto } from "./MousePhoto";
 import { VariantsLine } from "./VariantsLine";
 
@@ -19,7 +19,7 @@ export function OtherPicks({
   onSelect,
 }: {
   cards: FilteredCard[];
-  language: UiLanguage;
+  language: Locale;
   /** The list is filtered: the heading says so and each card shows its overall rank when it differs. */
   filtering?: boolean;
   hrefFor?: (card: FilteredCard) => string;
@@ -28,17 +28,16 @@ export function OtherPicks({
 }) {
   if (cards.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   return (
     <section
       className="results-others"
       aria-labelledby="results-others-heading"
     >
       <div className="results-others-head">
-        <h2 id="results-others-heading" lang={lang}>
+        <h2 id="results-others-heading">
           {filtering ? copy.filter.othersHeading : copy.othersHeading}
         </h2>
-        <p className="results-others-caption" lang={lang}>
+        <p className="results-others-caption">
           {copy.othersCaption}
         </p>
       </div>
@@ -49,7 +48,7 @@ export function OtherPicks({
             <>
               <MousePhoto imageUrl={entry.mouse.imageUrl} />
               {filtering && (
-                <span className="results-card-place" lang={lang}>
+                <span className="results-card-place">
                   {copy.filter.place(card.displayRank)}
                 </span>
               )}
@@ -58,9 +57,9 @@ export function OtherPicks({
               <VariantsLine variants={card.variants} language={language} />
               <span className="results-card-score results-tabularNum">
                 <strong>{entry.total}</strong>
-                <span lang={lang}> {copy.outOf}</span>
+                <span> {copy.outOf}</span>
                 {filtering && card.overallRank !== card.displayRank && (
-                  <span className="results-card-overall" lang={lang}>
+                  <span className="results-card-overall">
                     {" "}
                     {copy.filter.overallRank(card.overallRank)}
                   </span>

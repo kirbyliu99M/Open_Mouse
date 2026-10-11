@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   HOME_STORY_COPY,
-  HOME_STORY_LANGUAGE,
   HOME_STORY_NOTE_KEYS,
   homeStoryNotes,
 } from "@/lib/copy/home-story";
@@ -68,12 +67,11 @@ describe("the home story's annotation copy", () => {
     }
   });
 
-  it("shows English for now, in the story's order", () => {
-    expect(HOME_STORY_LANGUAGE).toBe("en");
-    expect(homeStoryNotes().map((note) => note.key)).toEqual([
+  it("shows the locale's lines, in the story's order", () => {
+    expect(homeStoryNotes("en").map((note) => note.key)).toEqual([
       ...HOME_STORY_NOTE_KEYS,
     ]);
-    expect(homeStoryNotes().map((note) => note.title)).toEqual([
+    expect(homeStoryNotes("en").map((note) => note.title)).toEqual([
       "Hand length",
       "Palm width",
       "Knuckles",
@@ -81,7 +79,7 @@ describe("the home story's annotation copy", () => {
       "Thumb",
     ]);
     // The small lines Kirby confirmed (spelling and grammar only touched).
-    expect(homeStoryNotes().map((note) => note.why)).toEqual([
+    expect(homeStoryNotes("en").map((note) => note.why)).toEqual([
       "The right length can reduce hand fatigue.",
       "A close match with the palm means a better grip.",
       "A pressing force at the best intensity reduces stiff fingers.",

@@ -6,7 +6,7 @@
  * `qrcode` is loaded with a dynamic `import()` when a card is made, so it is in
  * no route's first-load JS (the results page's chunk loads it on the click).
  */
-import type { UiLanguage } from "../../../client/uiLanguage";
+import type { Locale } from "../../../lib/contracts/locale";
 import type { FitResponse } from "../../../lib/contracts/fit";
 import { SITE_NAME } from "../../../lib/site";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
@@ -382,7 +382,7 @@ async function paint(
 /** The card as a 1080 x 1920 PNG. Rejects if the canvas cannot be made. */
 export async function makeShareCardPng(
   fit: FitResponse,
-  lang: UiLanguage,
+  lang: Locale,
   options: ShareCardOptions = {},
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would

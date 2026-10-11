@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { selectedCount, type Filters } from "@/lib/results/filters";
@@ -80,7 +80,7 @@ export function ResultsFilterLayout({
   children,
 }: {
   response: FitResponse;
-  language: UiLanguage;
+  language: Locale;
   filters: Filters;
   /** How many cards the applied filters keep. */
   count: number;
@@ -89,7 +89,6 @@ export function ResultsFilterLayout({
 }) {
   const wide = useWideLayout();
   const copy = RESULTS_PAGE_COPY[language].filter;
-  const lang = uiLangAttribute(language);
   const [sheetOpen, setSheetOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const sidebarTitle = useRef<HTMLHeadingElement>(null);
@@ -123,7 +122,7 @@ export function ResultsFilterLayout({
             key="chrome"
             className="results-sidebar"
             aria-labelledby="results-sidebar-title"
-            lang={lang}
+           
           >
             <div className="results-sidebar-head">
               <h2
@@ -154,7 +153,7 @@ export function ResultsFilterLayout({
           </aside>
         ) : (
           <div key="chrome" className="results-filterChrome">
-            <div className="results-filterBar" lang={lang}>
+            <div className="results-filterBar">
               <div className="results-filterBar-row">
                 <button
                   ref={trigger}

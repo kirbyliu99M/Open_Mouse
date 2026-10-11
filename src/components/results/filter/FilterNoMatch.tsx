@@ -1,6 +1,6 @@
 "use client";
 
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
@@ -26,7 +26,7 @@ export function FilterNoMatch({
 }: {
   response: FitResponse;
   filters: Filters;
-  language: UiLanguage;
+  language: Locale;
   onChange: (next: Filters) => void;
   /** 1 when the page has no other h1 (no hand type). */
   headingLevel: 1 | 2;
@@ -41,7 +41,7 @@ export function FilterNoMatch({
   const relax = suggestRelaxation(response, filters);
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
-    <section className="results-noMatch" lang={uiLangAttribute(language)}>
+    <section className="results-noMatch">
       <Heading className="results-noMatch-title">{copy.noMatch}</Heading>
       {relax ? (
         <button

@@ -5,13 +5,13 @@ import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
 import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { FitResponse } from "../../src/lib/contracts/fit";
-import type { UiLanguage } from "../../src/client/uiLanguage";
+import type { Locale } from "../../src/lib/contracts/locale";
 
 const many = FIXTURES["many-results"];
 
 function render(
   response: FitResponse,
-  props: { rank?: number; language?: UiLanguage; scanId?: string } = {},
+  props: { rank?: number; language?: Locale; scanId?: string } = {},
 ) {
   return renderToStaticMarkup(
     createElement(ResultsView, {

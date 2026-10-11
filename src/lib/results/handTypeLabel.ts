@@ -7,7 +7,7 @@
  * with no hand type there is no label, and nothing is guessed. Pure.
  */
 import type { HandType } from "../contracts/fit";
-import type { UiLanguage } from "../../client/uiLanguage";
+import type { Locale } from "../../lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "../copy/results-page";
 
 export interface HandTypeLabel {
@@ -19,7 +19,7 @@ export interface HandTypeLabel {
 /** The label for `handType`, or `null` when the response carried none. */
 export function handTypeLabel(
   handType: HandType | null | undefined,
-  language: UiLanguage,
+  language: Locale,
 ): HandTypeLabel | null {
   if (!handType) return null;
   const copy = RESULTS_PAGE_COPY[language];

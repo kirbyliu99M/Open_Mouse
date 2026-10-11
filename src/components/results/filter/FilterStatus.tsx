@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { UiLanguage } from "@/client/uiLanguage";
-import { uiLangAttribute } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 
 /** A screen reader hears the new count this long after the last change. */
@@ -18,7 +17,7 @@ export function FilterStatus({
   language,
 }: {
   count: number;
-  language: UiLanguage;
+  language: Locale;
 }) {
   const [text, setText] = useState("");
   const seen = useRef(count);
@@ -35,7 +34,7 @@ export function FilterStatus({
     <p
       role="status"
       className="results-visuallyHidden"
-      lang={uiLangAttribute(language)}
+     
       data-testid="filter-status"
     >
       {text}

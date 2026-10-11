@@ -1,7 +1,7 @@
 /**
  * Words for the results page (`/results/[scanId]` and its detail pages), zh-TW
  * and English, same keys. There is no i18n framework yet (2026-10-09): the
- * page picks a table with `pickUiLanguage` (`src/client/uiLanguage.ts`), the
+ * page picks a table with `pickCopy` (`src/lib/i18n/copy.ts`) with the visitor's locale, the
  * same way `fit-bands.ts` is read.
  *
  * Every string here is a CANDIDATE (未拍板) until Kirby has read it. The hand
@@ -21,7 +21,7 @@ import type {
   SizeOption,
   WeightOption,
 } from "../results/filters";
-import type { UiLanguage } from "../../client/uiLanguage";
+import type { Locale } from "../../lib/contracts/locale";
 
 export interface ResultsPageCopy {
   /** Return link in the top bar. */
@@ -416,7 +416,7 @@ export const en: ResultsPageCopy = {
   },
 };
 
-export const RESULTS_PAGE_COPY: Record<UiLanguage, ResultsPageCopy> = {
+export const RESULTS_PAGE_COPY: Record<Locale, ResultsPageCopy> = {
   "zh-TW": zhTW,
   en,
 };

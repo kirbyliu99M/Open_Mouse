@@ -8,7 +8,7 @@
  * measurement. The only numbers are the fit total (from the fit response) and
  * the QR code, which points at the site root and carries no per-person value.
  */
-import type { UiLanguage } from "../../../client/uiLanguage";
+import type { Locale } from "../../../lib/contracts/locale";
 import type { HandType } from "../../../lib/contracts/fit";
 import { shareCardCopy } from "../../../lib/copy/share-card";
 import { palmateMarkInkEdges } from "../../../lib/brand/palmate-mark";
@@ -81,7 +81,7 @@ export type DrawOp =
   | { kind: "mark"; box: Box };
 
 export interface ShareCardInput {
-  lang: UiLanguage;
+  lang: Locale;
   /** Missing under fit-v0, which sends none. Then the card starts at the photo. */
   handType?: HandType;
   brand: string;

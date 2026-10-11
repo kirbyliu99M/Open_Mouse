@@ -1,5 +1,4 @@
-import type { UiLanguage } from "@/client/uiLanguage";
-import { uiLangAttribute } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { linksForSlug } from "@/lib/results/purchaseLinks";
 import purchaseLinksFile from "@/data/purchase-links.json";
@@ -18,7 +17,7 @@ export function PurchaseSlot({
   source = purchaseLinksFile,
 }: {
   slug: string;
-  language: UiLanguage;
+  language: Locale;
   source?: unknown;
 }) {
   const links = linksForSlug(source, slug);
@@ -32,11 +31,11 @@ export function PurchaseSlot({
       <h2
         id="results-purchase-heading"
         className="results-purchase-heading"
-        lang={uiLangAttribute(language)}
+       
       >
         {copy.purchaseHeading}
       </h2>
-      <p className="results-purchase-note" lang={uiLangAttribute(language)}>
+      <p className="results-purchase-note">
         {copy.purchaseNote}
       </p>
       <ul className="results-purchase-links">
@@ -46,7 +45,7 @@ export function PurchaseSlot({
               {link.label}
               <span
                 className="results-visuallyHidden"
-                lang={uiLangAttribute(language)}
+               
               >
                 {" "}
                 {copy.opensInNewTab}
