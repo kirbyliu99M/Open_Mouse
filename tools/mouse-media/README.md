@@ -6,7 +6,7 @@ official-link data (`src/data/mouse-media.json`) for the results page.
 ## Inputs (outside the repo, never committed)
 
 - `mouse_official_urls.csv` with columns `brand, model, official_url, domain,
-  url_type, image_prefix, image_count, hero_image` (one row per catalogue mouse,
+url_type, image_prefix, image_count, hero_image` (one row per catalogue mouse,
   joined to `src/db/seed/catalogue.json` on brand and model, case-insensitive).
 - `Mice Pics/*.png`: 800x800 RGBA cut-outs from the makers' own sites.
 
