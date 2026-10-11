@@ -109,7 +109,7 @@ test.describe("easy scan on a phone without a camera", () => {
     ).toBeVisible();
   });
 
-  test("zh-TW: an empty length shows the range in Chinese", async ({
+  test("zh-TW: a length out of range shows the range in Chinese", async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
@@ -121,7 +121,9 @@ test.describe("easy scan on a phone without a camera", () => {
       .click();
     await page.getByLabel(easyZh.lengthFieldLabel).fill("5");
     await page.getByRole("button", { name: easyZh.lengthContinue }).click();
-    await expect(page.getByRole("alert")).toHaveText(/^請輸入 135 到 265/);
+    await expect(page.locator("#easy-length-error")).toHaveText(
+      /^請輸入 135 到 265/,
+    );
   });
 
   test("en: the same flow stays English (negative control)", async ({
