@@ -99,7 +99,7 @@
   flex-direction: column;
   justify-content: flex-start;
 }
-/* The cards the design centres: the hand, the chart and the compact one (3,
+/* The cards the design centres: the hand, the chart and the compact one (4,
    one title and one sentence). */
 .learn-card--hand,
 .learn-card--score,
@@ -352,7 +352,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Card 4, "Look at the shape" (LEARN-5, candidate): four line drawings, each
+/* Card 5, "Look at the shape" (LEARN-5, candidate): four line drawings, each
    on a dark tile (272 x 262, radius 14, a hairline) with the drawing 252 px
    wide in the middle, its text marks on top and its name under the tile
    (14 / 600). One column below 40rem (the tile fills the width, up to 342 px;

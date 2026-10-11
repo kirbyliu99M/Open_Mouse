@@ -12,9 +12,6 @@ const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "user-agent": "vitest" }),
 }));
-vi.mock("../../src/server/i18n/getLocale", () => ({
-  getLocale: async () => "en",
-}));
 vi.mock("../../src/client/camera/EasyScanCamera", () => ({
   default: () => null,
 }));
@@ -369,6 +366,47 @@ describe("the source check itself", () => {
     ["no default export", `${IMPORT}export function Page() {\n${GUARD}();\n}`],
   ])("rejects: %s", (_label, source) => {
     expect(guardsFirst(source)).toBe(false);
+  });
+
+  it("says which of the two guards a page calls first, also through an import alias", () => {
+    const body = "return null;";
+    const withGuard = (name: string, local = name) =>
+      `import { ${name === local ? name : `${name} as ${local}`} } from "@/app/scan/demo-guard";
+export default function Page() {
+${local}();
+${body}
+}`;
+    // Positive: the dev-only guard, plain and aliased.
+    expect(firstGuard(withGuard(DEV_ONLY))).toBe(DEV_ONLY);
+    expect(firstGuard(withGuard(DEV_ONLY, "guard"))).toBe(DEV_ONLY);
+    // The production-only one is a different answer, so a page that calls it
+    // fails a check that expects the dev-only guard (and the other way round).
+    expect(firstGuard(withGuard(PRODUCTION_ONLY))).toBe(PRODUCTION_ONLY);
+    expect(firstGuard(withGuard(PRODUCTION_ONLY, "guard"))).toBe(
+      PRODUCTION_ONLY,
+    );
+    expect(firstGuard(withGuard(PRODUCTION_ONLY))).not.toBe(DEV_ONLY);
+    expect(firstGuard(withGuard(DEV_ONLY))).not.toBe(PRODUCTION_ONLY);
+    // Both imported, only the second called: the one called counts.
+    expect(
+      firstGuard(
+        `import { ${PRODUCTION_ONLY}, ${DEV_ONLY} } from "../demo-guard";
+export default function Page() {
+${DEV_ONLY}();
+return null;
+}`,
+      ),
+    ).toBe(DEV_ONLY);
+    // A look-alike dev-only guard from somewhere else is no guard.
+    expect(
+      firstGuard(
+        `import { ${DEV_ONLY} } from "./other";
+export default function Page() {
+${DEV_ONLY}();
+return null;
+}`,
+      ),
+    ).toBeNull();
   });
 
   it("callsGuardAnywhere sees a call, even a late or nested one, but not a comment or a string", () => {

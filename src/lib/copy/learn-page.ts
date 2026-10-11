@@ -13,7 +13,7 @@
  * already exist there); the zh title and body and all the English are
  * Claude's, the English a translation. Not decided (未拍板).
  * The card "Weight and connection" is gone (Kirby 2026-10-11: it contradicted
- * the weight bar in the chart), so the page has five cards.
+ * the weight bar in the chart), so the page has six cards (with the palm thickness card).
  *
  * LEARN-5 (candidate, from the sketch package's labels.json): the two new
  * shape names `shape.hump` and `shape.flare` (the results page has no word for
@@ -124,7 +124,7 @@ export const zhTW: LearnPageCopy = {
   },
   thickness: {
     title: "手掌厚度",
-    body: "手掌的厚薄會影響適合的滑鼠高度。掃描後可以選填厚、中或薄，略過就不調整。",
+    body: "手掌的厚薄可能影響適合的滑鼠高度。掃描後可以選填厚、中或薄，略過就不調整。",
     options: {
       thick: { name: "厚", line: "掌肉豐厚，大拇指根部明顯隆起" },
       medium: { name: "中", line: "掌心有自然的弧度，介於兩者之間" },
@@ -192,7 +192,7 @@ export const en: LearnPageCopy = {
   },
   thickness: {
     title: "Palm thickness",
-    body: "Thick, medium or thin changes how tall a mouse should be. You can pick one after the scan; skip it and we do not adjust.",
+    body: "Thick, medium or thin may change how tall a mouse should be. You can pick one after the scan; skip it and we do not adjust.",
     options: {
       thick: {
         name: "Thick",

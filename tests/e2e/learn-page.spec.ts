@@ -108,7 +108,7 @@ test.describe("/learn information page", () => {
     for (const b of boxes) expect(b.w).toBeGreaterThanOrEqual(90);
   });
 
-  test("card 4 shows four tiles, each with its drawing, its text marks and its name", async ({
+  test("card 5 shows four tiles, each with its drawing, its text marks and its name", async ({
     page,
   }) => {
     await page.goto("/learn");
