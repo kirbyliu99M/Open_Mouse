@@ -693,9 +693,18 @@
   color: var(--text-tertiary);
   background: color-mix(in srgb, var(--text-primary) 5%, var(--bg));
 }
+/* The photo is laid over the box (absolute, inset), not placed in the grid: a grid
+   row sized by `auto` made `height: 100%` fall back to the file's own height, so
+   a box shorter than the photo (4:3 on a wide screen, 8:5 on the small cards)
+   clipped the top and bottom of the mouse. The inset keeps a thin margin. */
+.results-photo[data-has-photo="true"] {
+  position: relative;
+}
 .results-photo-img {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0.75rem;
+  width: calc(100% - 1.5rem);
+  height: calc(100% - 1.5rem);
   object-fit: contain;
 }
 /* A real photo sits on a soft lighter backdrop (no hard edge), so a black mouse
