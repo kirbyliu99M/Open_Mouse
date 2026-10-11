@@ -1,7 +1,9 @@
 /**
  * Words of the navigation chrome: the home page's side menu, the journey top
  * bar and the account entry. Every zh-TW string is a CANDIDATE (未拍板),
- * Claude's Taiwan wording (滑鼠, 帳號, 掃描), until Kirby has read it.
+ * Claude's Taiwan wording (滑鼠, 我的檔案, 掃描), until Kirby has read it.
+ * 「我的檔案」 replaces 「帳號」 on the menu item (Kirby, 2026-10-12; the page is
+ * the profile page).
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -19,7 +21,10 @@ export interface NavCopy {
   home: string;
   scanMyHand: string;
   howItWorks: string;
+  /** The menu item and the avatar link: the profile page. */
   account: string;
+  /** The marker on that item when the person has not answered the questionnaire. */
+  unanswered: string;
   signIn: string;
   /** The `aria-label` of the journey top bar. */
   journeyNavLabel: string;
@@ -37,7 +42,8 @@ export const zhTW: NavCopy = {
   home: "首頁",
   scanMyHand: "掃描我的手",
   howItWorks: "運作方式",
-  account: "帳號",
+  account: "我的檔案",
+  unanswered: "尚未填答",
   signIn: "登入",
   journeyNavLabel: "流程導覽",
   backTo: (destination) => `返回${destination}`,
@@ -53,7 +59,8 @@ export const en: NavCopy = {
   home: "Home",
   scanMyHand: "Scan my hand",
   howItWorks: "How it works",
-  account: "Account",
+  account: "My profile",
+  unanswered: "Not answered yet",
   signIn: "Sign in",
   journeyNavLabel: "Journey navigation",
   backTo: (destination) => `Back to ${destination}`,

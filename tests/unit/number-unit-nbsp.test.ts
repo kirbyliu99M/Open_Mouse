@@ -42,18 +42,20 @@ const scan = (hand: number, palmLength: number, palmWidth: number) =>
     },
   }) satisfies AccountScan;
 
-describe("/account's scan card", () => {
+describe("/account's 我的手 rows", () => {
   const html = renderToStaticMarkup(
     createElement(AccountView, { scans: [scan(190, 108, 84)] }),
   );
-  const values = [...html.matchAll(/<dd>([^<]*)<\/dd>/g)].map((m) => m[1]);
+  const values = [
+    ...html.matchAll(/<dd class="profile-fact">([^<]*)<\/dd>/g),
+  ].map((m) => m[1]);
 
-  it("has the three measurements, each as a number, a no-break space and mm", () => {
-    expect(values).toEqual([`190${NBSP}mm`, `108${NBSP}mm`, `84${NBSP}mm`]);
+  it("has hand length and palm width, each as a number, a no-break space and cm", () => {
+    expect(values).toEqual([`19.0${NBSP}cm`, `8.4${NBSP}cm`]);
   });
 
   it("never joins them with a plain space", () => {
-    for (const value of values) expect(value).not.toMatch(/\d mm/);
+    for (const value of values) expect(value).not.toMatch(/\d cm/);
   });
 });
 

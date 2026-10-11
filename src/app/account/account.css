@@ -1,34 +1,3 @@
-.account-hero-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 1rem;
-  margin: 0.5rem 0 1rem;
-}
-
-.account-subtitle {
-  margin: 0 0 1.25rem;
-}
-
-.account-benefits {
-  list-style: none;
-  margin: 0 0 1.75rem;
-  padding: 0;
-  display: grid;
-  gap: 0.9rem;
-}
-.account-benefits li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-.account-benefits li span {
-  flex: 0 0 auto;
-  display: inline-flex;
-}
-
 .account-google-button {
   display: flex;
   align-items: center;
@@ -36,8 +5,8 @@
   gap: 0.6rem;
   width: 100%;
   min-height: 3.25rem;
-  border-radius: 0.85rem;
-  border: 1px solid #3a3a3d;
+  border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 1.02rem;
   font-weight: 700;
 }
@@ -45,11 +14,14 @@
 .account-skip-link {
   display: flex;
   justify-content: center;
+  width: 100%;
   min-height: 2.75rem;
   align-items: center;
   font-weight: 600;
   margin-top: 0.75rem;
   text-decoration: none;
+  background: transparent;
+  border: 0;
 }
 
 .account-fine-print {
@@ -114,20 +86,18 @@
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
-.account-hero-icon {
-  background: #17395f;
-  color: var(--accent-text);
-}
 .account-subtitle,
 .account-fine-print {
   color: #b5b5bd;
 }
-.account-benefits li span {
-  color: var(--accent-text);
-}
+/* The sign-in button is the white BTN-1 pill in the profile frame (2026-10-12);
+   it was dark filled before (design-guidelines.md still lists that exception). */
 .account-google-button {
-  background: #242426;
-  color: #f5f5f7;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+}
+.account-google-button:active {
+  background: var(--button-primary-pressed);
 }
 .account-unavailable {
   background: #242426;
@@ -167,7 +137,6 @@
   .account-fine-print {
     color: var(--text-secondary);
   }
-  .account-hero-icon,
   .account-google-button,
   .account-unavailable {
     background: none;
@@ -175,6 +144,9 @@
   .account-google-button,
   .account-unavailable p {
     color: var(--text-primary);
+  }
+  .account-google-button {
+    border: 1px solid var(--text-primary);
   }
   .account-start-button {
     background: none;
@@ -190,5 +162,436 @@
     background: none;
     color: var(--text-primary);
     border: 1px solid currentColor;
+  }
+}
+
+/* ── The profile page 「我的檔案」 (Pencil frames, candidate, 2026-10-12) ───── */
+
+.account h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+  margin: 0.5rem 0 0.25rem;
+}
+.account-subtitle {
+  margin: 0 0 1.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.profile-person {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+.avatar.avatar-profile {
+  width: 4rem;
+  height: 4rem;
+}
+.avatar.avatar-row {
+  width: 2rem;
+  height: 2rem;
+  margin-left: auto;
+}
+.profile-person-text {
+  min-width: 0;
+}
+.profile-name,
+.profile-email {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.profile-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.profile-email {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.profile-section {
+  margin: 0 0 2rem;
+}
+.profile-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.profile-section h2 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  margin: 0 0 0.25rem;
+}
+.profile-section-aside {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.profile-empty h3 {
+  font-size: 1rem;
+  margin: 0.75rem 0 0.25rem;
+}
+.profile-empty p,
+.profile-muted {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* Rows: a 48 px tap target between hairlines. */
+.profile-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+  padding: 0.25rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1rem;
+  text-align: left;
+}
+.profile-row-button:active {
+  background: transparent;
+  transform: none;
+  opacity: 0.7;
+}
+.profile-row-label {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+.profile-row-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.profile-row-readonly {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+.profile-row-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+.profile-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+.profile-row-value + .profile-chevron,
+.avatar-row + .profile-chevron {
+  margin-left: 0;
+}
+.profile-facts {
+  margin: 0;
+}
+.profile-facts .profile-row {
+  justify-content: space-between;
+}
+.profile-fact {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.profile-earlier .profile-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+.profile-earlier .profile-row-value {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* A mouse: its name, and one line of what the person said about it. */
+.profile-mouse {
+  padding: 0.5rem 0;
+}
+.profile-mouse-text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.profile-mouse-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.profile-mouse-meta {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.profile-current {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Text rows: a link-coloured action, or the red delete. */
+.profile-text-button {
+  color: var(--accent-text);
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.profile-text-button:disabled {
+  color: var(--text-secondary);
+}
+.profile-danger {
+  color: #ff9d90;
+}
+.profile-add {
+  gap: 0.5rem;
+  font-weight: 600;
+}
+.profile-retry {
+  margin-top: 0.25rem;
+  padding-left: 0;
+}
+.profile-fine {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* BTN-1: the white pill. */
+.profile-primary,
+.profile-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3.25rem;
+  border-radius: 999px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.profile-primary {
+  border: 1px solid transparent;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+}
+.profile-primary:active:not(:disabled) {
+  background: var(--button-primary-pressed);
+  transform: none;
+}
+.profile-primary:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+}
+.profile-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
+}
+.profile-outline svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.profile-signout {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+.profile-signout-button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  font-size: 1rem;
+}
+
+/* The nickname and avatar sheets (native dialog, bottom aligned). */
+dialog.profile-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: min(100%, 40rem);
+  max-width: none;
+  max-height: 90dvh;
+  margin: auto auto 0;
+  padding: 0.75rem 1.25rem 1.5rem;
+  border: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: #1c1c1e;
+  color: #f5f5f7;
+  overflow-y: auto;
+}
+dialog.profile-sheet::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+dialog.profile-sheet:focus {
+  outline: none;
+}
+.profile-sheet-handle {
+  display: block;
+  width: 2.25rem;
+  height: 0.3125rem;
+  margin: 0 auto 0.5rem;
+  border-radius: 999px;
+  background: #ffffff59;
+}
+.profile-sheet-cancel {
+  padding-left: 0;
+  padding-right: 0;
+}
+.profile-sheet-title {
+  font-size: 1.375rem;
+  margin: 0.25rem 0 1rem;
+}
+.profile-sheet-save {
+  margin-top: 1.5rem;
+}
+.profile-sheet-reset {
+  display: flex;
+  margin: 0.5rem auto 0;
+}
+.profile-sheet-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.profile-field {
+  position: relative;
+}
+.profile-field input {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 3rem 0 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+.profile-field-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.profile-field-clear:active {
+  transform: translateY(-50%);
+}
+.profile-field-clear svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.profile-field-count {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.profile-avatar-preview {
+  position: relative;
+  width: 7rem;
+  margin: 0 auto 1.5rem;
+}
+.avatar.profile-avatar-xl {
+  width: 7rem;
+  height: 7rem;
+}
+.profile-avatar-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+}
+.profile-avatar-badge svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.profile-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.profile a:focus-visible,
+.profile button:focus-visible,
+.profile-sheet button:focus-visible,
+.profile-sheet input:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  dialog.profile-sheet::backdrop {
+    background: #000;
+  }
+}
+@media (prefers-contrast: more) {
+  .profile-row {
+    border-bottom-color: currentColor;
+  }
+  dialog.profile-sheet {
+    border: 2px solid currentColor;
+  }
+}
+@media print {
+  dialog.profile-sheet {
+    display: none;
+  }
+  .profile-row {
+    border-bottom-color: #999;
+  }
+  .profile-primary {
+    background: none;
+    border: 1px solid var(--text-primary);
+    color: var(--text-primary);
+  }
+  .profile-email,
+  .profile-section-aside,
+  .profile-row-label,
+  .profile-row-readonly,
+  .profile-mouse-meta,
+  .profile-fine,
+  .profile-muted,
+  .profile-empty p {
+    color: var(--text-secondary);
+  }
+  .profile-current,
+  .profile-text-button {
+    color: var(--text-primary);
   }
 }

@@ -160,8 +160,8 @@ const CASES: PageCase[] = [
   {
     name: "account",
     path: "/account",
-    zhHeading: accountZh.keepYourScans,
-    enHeading: accountEn.keepYourScans,
+    zhHeading: accountZh.title,
+    enHeading: accountEn.title,
     zhActions: [],
     enActions: [],
     zhTitle: accountZh.metaTitle,
