@@ -43,7 +43,13 @@ vi.mock("../../src/server/analysis/drizzle-rate-limiter", () => ({
     createDrizzleRateLimiter(options),
 }));
 
-import { DELETE, POST, dynamic } from "../../src/app/api/survey/route";
+import {
+  DELETE,
+  GET,
+  POST,
+  PUT,
+  dynamic,
+} from "../../src/app/api/survey/route";
 import { SURVEY_CONSENT_VERSION } from "../../src/lib/contracts/survey";
 import {
   FIT_RATE_LIMIT_MAX,
@@ -161,6 +167,112 @@ describe("/api/survey route", () => {
     expect(await world.contributions()).toEqual(before);
   });
 
+  it("GET and PUT give the handlers the signed-in user's id from auth(): 401 without a session, the caller's own answers with one", async () => {
+    const get = () => new Request("http://localhost/api/survey");
+    const put = (body: unknown) =>
+      new Request("http://localhost/api/survey", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    auth.mockResolvedValue(null);
+    expect((await GET(get())).status).toBe(401);
+    expect(
+      (await PUT(put({ ratings: [{ slug: "mouse-a", satisfaction: 3 }] })))
+        .status,
+    ).toBe(401);
+
+    auth.mockResolvedValue({ user: { id: "user-1" } });
+    // Nothing contributed yet: a read is an empty 200, an edit is a 404.
+    const empty = await GET(get());
+    expect(empty.status).toBe(200);
+    expect(empty.headers.get("cache-control")).toBe("no-store");
+    expect(await empty.json()).toEqual({
+      mainUse: null,
+      ratings: [],
+      otherMice: [],
+      feedback: null,
+    });
+    expect(
+      (await PUT(put({ ratings: [{ slug: "mouse-a", satisfaction: 3 }] })))
+        .status,
+    ).toBe(404);
+
+    const scan = await world.addScan({ userId: "user-1" });
+    expect((await POST(submission(scan.scanId))).status).toBe(201);
+    const edited = await PUT(
+      put({ ratings: [{ slug: "mouse-a", satisfaction: 2 }] }),
+    );
+    expect(edited.status).toBe(200);
+    expect(edited.headers.get("cache-control")).toBe("no-store");
+    expect(await edited.json()).toEqual({ stored: true });
+    const read = await (await GET(get())).json();
+    expect(read.ratings).toEqual([
+      { slug: "mouse-a", satisfaction: 2, painPoints: [], current: false },
+    ]);
+  });
+
+  it("GET, PUT, POST and DELETE share one budget: each builds the limiter with the same survey constants and key prefix, and each is refused with a 429 and no-store when the limiter says no", async () => {
+    auth.mockResolvedValue({ user: { id: "user-1" } });
+    const scan = await world.addScan({ userId: "user-1" });
+    expect((await POST(submission(scan.scanId))).status).toBe(201);
+    const before = await world.contributions();
+
+    const methods = {
+      GET: () =>
+        GET(
+          new Request("http://localhost/api/survey", {
+            headers: { "x-forwarded-for": IP },
+          }),
+        ),
+      PUT: () =>
+        PUT(
+          new Request("http://localhost/api/survey", {
+            method: "PUT",
+            headers: {
+              "content-type": "application/json",
+              "x-forwarded-for": IP,
+            },
+            body: JSON.stringify({
+              feedback: "x",
+              ratings: [{ slug: "mouse-a", satisfaction: 1 }],
+            }),
+          }),
+        ),
+      DELETE: () =>
+        DELETE(
+          new Request("http://localhost/api/survey", {
+            method: "DELETE",
+            headers: { "x-forwarded-for": IP },
+          }),
+        ),
+    };
+    for (const [method, call] of Object.entries(methods)) {
+      createDrizzleRateLimiter.mockClear();
+      allow.mockReset();
+      allow.mockReturnValue(false);
+      const refused = await call();
+      expect(refused.status, method).toBe(429);
+      expect(refused.headers.get("cache-control"), method).toBe("no-store");
+      expect(allow, method).toHaveBeenCalledWith(IP);
+      expect(createDrizzleRateLimiter, method).toHaveBeenCalledWith({
+        windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
+        limit: SURVEY_RATE_LIMIT_MAX,
+        keyPrefix: "survey:",
+      });
+    }
+    // None of the refused calls got through: the edit and the withdrawal changed nothing.
+    expect(await world.contributions()).toEqual(before);
+
+    createDrizzleRateLimiter.mockClear();
+    await POST(submission(scan.scanId, IP));
+    expect(createDrizzleRateLimiter).toHaveBeenCalledWith({
+      windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
+      limit: SURVEY_RATE_LIMIT_MAX,
+      keyPrefix: "survey:",
+    });
+  });
+
   it("answers the survey's own 500, no-store and without the error's text, when the dependencies cannot be built", async () => {
     auth.mockResolvedValue({ user: { id: "user-1" } });
     const scan = await world.addScan({ userId: "user-1" });
@@ -176,7 +288,16 @@ describe("/api/survey route", () => {
       const del = await DELETE(
         new Request("http://localhost/api/survey", { method: "DELETE" }),
       );
-      for (const res of [post, del]) {
+      const read = await GET(new Request("http://localhost/api/survey"));
+      const edit = await PUT(
+        new Request("http://localhost/api/survey", {
+          method: "PUT",
+          body: JSON.stringify({
+            ratings: [{ slug: "mouse-a", satisfaction: 3 }],
+          }),
+        }),
+      );
+      for (const res of [post, del, read, edit]) {
         expect(res.status).toBe(500);
         expect(res.headers.get("cache-control")).toBe("no-store");
         expect(await res.clone().json()).toEqual({
@@ -188,7 +309,7 @@ describe("/api/survey route", () => {
       error.mockRestore();
     }
     // One log line each, naming the route and the operation, never the message.
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(4);
     expect(lines[0]).toContain("survey.failed");
     expect(lines[0]).toContain("/api/survey");
     expect(lines.join(" ")).not.toMatch(/hunter2|DATABASE_URL/);

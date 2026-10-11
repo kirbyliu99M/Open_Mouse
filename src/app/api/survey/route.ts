@@ -7,6 +7,8 @@ import {
 import { createDrizzleScanRepo } from "../../../server/scans/drizzle-repo";
 import { createDrizzleSurveyRepo } from "../../../server/survey/drizzle-repo";
 import {
+  handleSurveyEdit,
+  handleSurveyRead,
   handleSurveySubmission,
   handleSurveyWithdrawal,
   logFailure,
@@ -19,7 +21,7 @@ function deps(): SurveyDeps {
   return {
     scanRepo: createDrizzleScanRepo(),
     surveyRepo: createDrizzleSurveyRepo(),
-    // One budget for POST and DELETE, keyed on the caller's IP.
+    // One budget for GET, POST, PUT and DELETE, keyed on the caller's IP.
     limiter: createDrizzleRateLimiter({
       windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
       limit: SURVEY_RATE_LIMIT_MAX,
@@ -37,7 +39,7 @@ function deps(): SurveyDeps {
  * framework error page, so it is built inside a try/catch of its own.
  */
 async function run(
-  op: "submit" | "withdraw",
+  op: "submit" | "withdraw" | "read" | "edit",
   handle: (request: Request, deps: SurveyDeps) => Promise<Response>,
   request: Request,
 ): Promise<Response> {
@@ -48,6 +50,14 @@ async function run(
     return logFailure(op, error);
   }
   return handle(request, built);
+}
+
+export async function GET(request: Request): Promise<Response> {
+  return run("read", handleSurveyRead, request);
+}
+
+export async function PUT(request: Request): Promise<Response> {
+  return run("edit", handleSurveyEdit, request);
 }
 
 export async function POST(request: Request): Promise<Response> {

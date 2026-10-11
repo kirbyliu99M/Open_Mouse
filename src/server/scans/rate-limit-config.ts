@@ -18,11 +18,14 @@ export const FIT_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const FIT_RATE_LIMIT_MAX = 60;
 
 /**
- * `POST` and `DELETE /api/survey`, one budget per client IP for both methods
- * (key prefix `survey:`). A candidate (未拍板), like every number here: a person
- * answers the questionnaire once per scan, so ten in ten minutes is generous
- * for a household behind one address and still caps a script that tries to
- * stuff the similar-hand answer with contributions from fresh scans.
+ * `GET`, `POST`, `PUT` and `DELETE /api/survey`, one budget per client IP for
+ * all four methods (key prefix `survey:`). A candidate (未拍板), like every
+ * number here: a person answers the questionnaire once per scan, so ten in ten
+ * minutes is generous for a household behind one address and still caps a
+ * script that tries to stuff the similar-hand answer with contributions from
+ * fresh scans. Reading and editing one's own answers draw on the same ten: a
+ * page that loads them reads once and an edit is one request, so a person
+ * editing is nowhere near it; a UI that polled `GET` would be.
  */
 export const SURVEY_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const SURVEY_RATE_LIMIT_MAX = 10;

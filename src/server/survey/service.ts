@@ -1,4 +1,8 @@
+import type { ZodType } from "zod";
 import {
+  surveyEditResponseSchema,
+  surveyEditSchema,
+  surveyMineResponseSchema,
   surveySubmissionSchema,
   surveySubmitResponseSchema,
 } from "../../lib/contracts/survey";
@@ -9,7 +13,7 @@ import { readSessionCookie } from "../scans/cookies";
 import type { RateLimiter } from "../scans/rate-limit-config";
 import type { ScanRepo } from "../scans/repo";
 import { flattenIssues } from "../scans/submit";
-import { buildContributionWrite } from "./profile";
+import { buildAnswersWrite, buildContributionWrite } from "./profile";
 import type { SurveyRepo } from "./repo";
 
 /**
@@ -46,7 +50,7 @@ export interface SurveyDeps {
   scanRepo: ScanRepo;
   surveyRepo: SurveyRepo;
   /**
-   * Per-IP limit shared by POST and DELETE. Required, not defaulted: a route
+   * Per-IP limit shared by every method of this path. Required, not defaulted: a route
    * that forgets it must fail to compile rather than ship unlimited.
    */
   limiter: RateLimiter;
@@ -70,6 +74,50 @@ async function isRateLimited(
 }
 
 /**
+ * Reads the request's body within `MAX_SURVEY_BODY_BYTES` and checks it against
+ * `schema`: a 413 for a body over the cap, a 400 for text that is not JSON or
+ * does not fit the schema, else the parsed data. Shared by POST and PUT, so the
+ * two refuse the same things in the same words; `what` names the body in the
+ * 400's sentence.
+ */
+async function readJsonBody<T>(
+  request: Request,
+  schema: ZodType<T>,
+  what: "submission" | "edit",
+): Promise<
+  { response: Response; data?: never } | { response?: never; data: T }
+> {
+  let bodyText: string;
+  try {
+    bodyText = await readLimitedBody(request, MAX_SURVEY_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return { response: json(413, { error: "Request body too large." }) };
+    }
+    throw error;
+  }
+
+  let payload: unknown;
+  try {
+    payload = bodyText.length > 0 ? JSON.parse(bodyText) : undefined;
+  } catch {
+    return {
+      response: json(400, { error: "Request body must be valid JSON." }),
+    };
+  }
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    return {
+      response: json(400, {
+        error: `Invalid survey ${what}.`,
+        issues: flattenIssues(parsed.error.issues),
+      }),
+    };
+  }
+  return { data: parsed.data };
+}
+
+/**
  * What a log line may say about a failure: the route, the operation and the
  * error's class (log.ts reduces an Error to its name and a short code). Never
  * the body, an answer, a brand, a bin or a message: a thrown error can carry
@@ -78,7 +126,7 @@ async function isRateLimited(
  * same plain 500 and the same log line.
  */
 export function logFailure(
-  op: "submit" | "withdraw",
+  op: "submit" | "withdraw" | "read" | "edit",
   error: unknown,
 ): Response {
   log.error("survey.failed", { route: SURVEY_LOG_ROUTE, op, error });
@@ -110,30 +158,13 @@ export async function handleSurveySubmission(
       return json(429, { error: "Too many requests. Try again shortly." });
     }
 
-    let bodyText: string;
-    try {
-      bodyText = await readLimitedBody(request, MAX_SURVEY_BODY_BYTES);
-    } catch (error) {
-      if (error instanceof BodyTooLargeError) {
-        return json(413, { error: "Request body too large." });
-      }
-      throw error;
-    }
-
-    let payload: unknown;
-    try {
-      payload = bodyText.length > 0 ? JSON.parse(bodyText) : undefined;
-    } catch {
-      return json(400, { error: "Request body must be valid JSON." });
-    }
-    const parsed = surveySubmissionSchema.safeParse(payload);
-    if (!parsed.success) {
-      return json(400, {
-        error: "Invalid survey submission.",
-        issues: flattenIssues(parsed.error.issues),
-      });
-    }
-    const body = parsed.data;
+    const read = await readJsonBody(
+      request,
+      surveySubmissionSchema,
+      "submission",
+    );
+    if (read.response) return read.response;
+    const body = read.data;
 
     const now = (deps.now ?? (() => new Date()))();
     const userId = await deps.getUserId();
@@ -210,5 +241,99 @@ export async function handleSurveyWithdrawal(
     return new Response(null, { status: 204, headers: NO_STORE });
   } catch (error) {
     return logFailure("withdraw", error);
+  }
+}
+
+/**
+ * `GET /api/survey`: a signed-in caller reads back their own answers. Order:
+ * per-IP rate limit (429) -> signed in (401) -> read -> 200 with
+ * `surveyMineResponseSchema` (empty lists and nulls when nothing is kept).
+ * The comment and other mice in the body go to their owner only; no log line
+ * carries an answer.
+ */
+export async function handleSurveyRead(
+  request: Request,
+  deps: SurveyDeps,
+): Promise<Response> {
+  try {
+    if (await isRateLimited(request, deps.limiter)) {
+      return json(429, { error: "Too many requests. Try again shortly." });
+    }
+    const userId = await deps.getUserId();
+    if (userId === null) return json(401, { error: "Sign in required." });
+
+    const stored = await deps.surveyRepo.readAnswers(userId);
+    const response = surveyMineResponseSchema.parse({
+      mainUse: stored.mainUse,
+      ratings: stored.ratings.map((rating) => ({
+        slug: rating.slug,
+        satisfaction: rating.satisfaction,
+        ...(rating.duration === null ? {} : { duration: rating.duration }),
+        painPoints: rating.painPoints,
+        current: rating.isCurrent,
+      })),
+      otherMice: stored.otherMice.map((other) => ({
+        brand: other.brand,
+        sizeFeel: other.sizeFeel,
+        current: other.isCurrent,
+      })),
+      feedback: stored.feedback,
+    });
+    return json(200, response);
+  } catch (error) {
+    return logFailure("read", error);
+  }
+}
+
+/**
+ * `PUT /api/survey`: a signed-in caller replaces their answers as a whole.
+ * Order: per-IP rate limit (429) -> signed in (401) -> body size (413) -> body
+ * schema (400, which also refuses a body that names no mouse) -> unknown mouse
+ * slug (400) -> the write, which finds no contribution (404) inside the same
+ * all-or-nothing step -> 200.
+ *
+ * There is no scan, no consent and no hand profile in the body, and none is
+ * written. Nothing in any response echoes an answer.
+ */
+export async function handleSurveyEdit(
+  request: Request,
+  deps: SurveyDeps,
+): Promise<Response> {
+  try {
+    if (await isRateLimited(request, deps.limiter)) {
+      return json(429, { error: "Too many requests. Try again shortly." });
+    }
+    const userId = await deps.getUserId();
+    if (userId === null) return json(401, { error: "Sign in required." });
+
+    const read = await readJsonBody(request, surveyEditSchema, "edit");
+    if (read.response) return read.response;
+    const body = read.data;
+
+    const mouseIdBySlug = await deps.surveyRepo.findMouseIdsBySlug(
+      body.ratings.map((rating) => rating.slug),
+    );
+    const unknown = body.ratings.flatMap((rating, index) =>
+      mouseIdBySlug.has(rating.slug)
+        ? []
+        : [{ path: `ratings.${index}.slug`, message: "unknown mouse" }],
+    );
+    if (unknown.length > 0) {
+      return json(400, { error: "Unknown mouse.", issues: unknown });
+    }
+
+    const outcome = await deps.surveyRepo.replaceAnswers(
+      userId,
+      buildAnswersWrite(body, mouseIdBySlug),
+    );
+    if (outcome === "no_contribution") {
+      log.info("survey.edit_refused", { route: SURVEY_LOG_ROUTE });
+      return json(404, { error: "No survey answers to edit." });
+    }
+
+    log.info("survey.edited", { route: SURVEY_LOG_ROUTE });
+    return json(200, surveyEditResponseSchema.parse({ stored: true }));
+  } catch (error) {
+    return logFailure("edit", error);
   }
 }

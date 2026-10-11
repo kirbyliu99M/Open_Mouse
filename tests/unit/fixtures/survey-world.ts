@@ -11,9 +11,10 @@
  * (`vi.mock("server-only", () => ({}))`); the real repos load lazily so the
  * mock is in place by then.
  *
- * Not covered by either world: two submissions for the same scan at the same
- * instant. PGlite is one connection, so the row lock that serialises them
- * (drizzle-repo.ts) is argued from Postgres' documented behaviour, not run.
+ * Not covered by either world: two submissions for the same scan, or two edits
+ * of the same account, at the same instant. PGlite is one connection, so the
+ * row locks that serialise them (drizzle-repo.ts) are argued from Postgres'
+ * documented behaviour, not run.
  */
 import type { PGlite } from "@electric-sql/pglite";
 import type {
@@ -22,8 +23,11 @@ import type {
   ScanRepo,
 } from "../../../src/server/scans/repo";
 import type {
+  AnswersWrite,
   ContributionWrite,
   RecordContributionResult,
+  ReplaceAnswersResult,
+  StoredAnswers,
   SurveyRepo,
 } from "../../../src/server/survey/repo";
 import { createFakeRepo } from "./fake-scan-repo";
@@ -172,6 +176,16 @@ export function createFakeSurveyWorld(): SurveyWorld {
     },
   };
 
+  /** One person's contributions, the latest first (newest consent day, then larger id). */
+  const ofUser = (userId: string) =>
+    stored
+      .filter((c) => c.write.userId === userId)
+      .sort(
+        (a, b) =>
+          b.write.consentedAt.getTime() - a.write.consentedAt.getTime() ||
+          (a.id < b.id ? 1 : -1),
+      );
+
   const slugOf = (mouseId: string) =>
     [...miceBySlug].find(([, id]) => id === mouseId)![0];
 
@@ -252,6 +266,67 @@ export function createFakeSurveyWorld(): SurveyWorld {
       const before = stored.length;
       stored = stored.filter((c) => c.write.userId !== userId);
       return before - stored.length;
+    },
+
+    async readAnswers(userId): Promise<StoredAnswers> {
+      const mine = ofUser(userId);
+      return {
+        mainUse: mine.find((c) => c.mainUse !== null)?.mainUse ?? null,
+        feedback: mine[0]?.write.feedback ?? null,
+        ratings: mine
+          .flatMap((c) => c.ratings)
+          .map((r) => ({
+            slug: slugOf(r.mouseId),
+            satisfaction: r.satisfaction,
+            duration: r.duration,
+            painPoints: r.painPoints,
+            isCurrent: r.isCurrent,
+          }))
+          .sort((a, b) => a.slug.localeCompare(b.slug)),
+        otherMice: mine
+          .flatMap((c) => c.otherMice)
+          .map((o) => ({
+            brand: o.brand,
+            sizeFeel: o.sizeFeel,
+            isCurrent: o.isCurrent,
+          }))
+          .sort((a, b) => a.brand.localeCompare(b.brand)),
+      };
+    },
+
+    async replaceAnswers(
+      userId: string,
+      write: AnswersWrite,
+    ): Promise<ReplaceAnswersResult> {
+      const mine = ofUser(userId);
+      const latest = mine[0];
+      if (!latest) return "no_contribution";
+      const mouseIds = new Set(write.ratings.map((r) => r.mouseId));
+      const brands = new Set(write.otherMice.map((o) => o.brand));
+      for (const c of mine) {
+        c.ratings = c.ratings.filter((r) => mouseIds.has(r.mouseId));
+        c.otherMice = c.otherMice.filter((o) => brands.has(o.brand));
+        c.mainUse = null;
+      }
+      // A row the person already had keeps its contribution; a new one goes to
+      // the latest (the SQL's upsert that leaves `contribution_id` alone).
+      for (const r of write.ratings) {
+        const had = mine
+          .flatMap((c) => c.ratings)
+          .find((x) => x.mouseId === r.mouseId);
+        if (had) Object.assign(had, { ...r, userId });
+        else latest.ratings.push({ ...r, userId });
+      }
+      for (const o of write.otherMice) {
+        const had = mine
+          .flatMap((c) => c.otherMice)
+          .find((x) => x.brand === o.brand);
+        if (had) Object.assign(had, { ...o, userId });
+        else latest.otherMice.push({ ...o, userId });
+      }
+      latest.mainUse = write.mainUse;
+      latest.write = { ...latest.write, feedback: write.feedback };
+      return "stored";
     },
   };
 
