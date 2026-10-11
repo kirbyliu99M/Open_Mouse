@@ -20,6 +20,7 @@ import { ResultsFilterLayout } from "./filter/ResultsFilterLayout";
 import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
+import { PhotoZoom } from "./PhotoZoom";
 import { VariantsLine } from "./VariantsLine";
 import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
@@ -165,7 +166,15 @@ export function ResultsView({
                 alt={`${entry.mouse.brand} ${entry.mouse.model}`}
                 className="results-hero-photo"
                 priority
-              />
+              >
+                {entry.mouse.imageUrl && (
+                  <PhotoZoom
+                    imageUrl={entry.mouse.imageUrl}
+                    name={`${entry.mouse.brand} ${entry.mouse.model}`}
+                    copy={copy.photoZoom}
+                  />
+                )}
+              </MousePhoto>
 
               <div className="results-score">
                 <div className="results-score-name">

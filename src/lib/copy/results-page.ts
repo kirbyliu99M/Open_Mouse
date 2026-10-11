@@ -100,6 +100,14 @@ export interface ResultsPageCopy {
   excludedSeparator: string;
   /** The results-page filter (FILTER-1). Every string is a candidate. */
   filter: FilterCopy;
+  /** Click the big photo to enlarge it (candidate, 2026-10-11). */
+  photoZoom: {
+    /** Accessible name of the photo button, with the mouse named. */
+    enlarge: (name: string) => string;
+    close: string;
+    /** Read by screen readers with the dialog; never shown. */
+    keys: string;
+  };
 }
 
 /**
@@ -277,6 +285,11 @@ export const zhTW: ResultsPageCopy = {
     shareOverall: "分享總排名第 1 名",
     shareNote: "篩選中，分享圖仍放總排名第 1 名",
   },
+  photoZoom: {
+    enlarge: (name) => `放大照片：${name}`,
+    close: "關閉",
+    keys: "按加號與減號縮放，按 0 還原，放大後可用方向鍵移動，按 Esc 關閉。",
+  },
 };
 
 export const en: ResultsPageCopy = {
@@ -416,6 +429,11 @@ export const en: ResultsPageCopy = {
     analysisHide: "Hide analysis",
     shareOverall: "Share the overall #1",
     shareNote: "While filtering, the share image still shows the overall #1",
+  },
+  photoZoom: {
+    enlarge: (name) => `Enlarge photo: ${name}`,
+    close: "Close",
+    keys: "Press plus and minus to zoom, 0 to reset, arrow keys to move when zoomed, Escape to close.",
   },
 };
 

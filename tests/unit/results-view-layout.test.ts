@@ -592,3 +592,81 @@ describe("the same-shell variants line (SHELL-1)", () => {
     expect(text).not.toMatch(/\d/);
   });
 });
+
+// Click the big photo to enlarge it (candidate, 2026-10-11). The static markup
+// is what the page renders before any script: the closed button and its corner
+// icon. The dialog itself is mounted only on click; jsdom has no showModal
+// layout, so the open dialog is covered by tests/e2e/photo-zoom.spec.ts (not
+// run here: Playwright is off limits on this machine) and by the pure zoom
+// maths in tests/unit/photo-zoom.test.ts.
+describe("the enlarge-photo button", () => {
+  const withPhotos: FitResponse = {
+    ...many,
+    results: many.results.map((r) => ({
+      ...r,
+      mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+    })),
+  };
+  const buttons = (html: string) =>
+    [...html.matchAll(/<button[^>]*results-photoZoom-btn[^>]*>/g)].map(
+      (m) => m[0],
+    );
+
+  it("makes the big photo a button with a name, a dialog hint and the corner icon", () => {
+    const html = render(withPhotos, { scanId: many.scanId });
+    const found = buttons(html);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('type="button"');
+    expect(found[0]).toContain('aria-haspopup="dialog"');
+    const top = withPhotos.results[0].mouse;
+    expect(found[0]).toContain(
+      `aria-label="放大照片：${top.brand} ${top.model}"`,
+    );
+    // Inside the hero photo panel, after its image.
+    const panel = html.slice(html.indexOf("results-hero-photo"));
+    expect(panel.indexOf("<img")).toBeLessThan(
+      panel.indexOf("results-photoZoom-btn"),
+    );
+    expect(html).toContain('class="results-photoZoom-icon"');
+    expect(html).toContain('aria-hidden="true"');
+  });
+
+  it("says it in English on an English page", () => {
+    const html = render(withPhotos, { language: "en", scanId: many.scanId });
+    const top = withPhotos.results[0].mouse;
+    expect(html).toContain(
+      `aria-label="Enlarge photo: ${top.brand} ${top.model}"`,
+    );
+  });
+
+  it("is on the detail page's big photo too", () => {
+    const html = render(withPhotos, { rank: 2, scanId: many.scanId });
+    expect(buttons(html)).toHaveLength(1);
+    const second = withPhotos.results[1].mouse;
+    expect(html).toContain(`放大照片：${second.brand} ${second.model}`);
+  });
+
+  it("is not on a silhouette (no photo): no button, no icon", () => {
+    const html = render(many);
+    expect(html).toContain('data-has-photo="false"');
+    expect(html).not.toContain("results-photoZoom");
+    expect(html).not.toContain("aria-haspopup");
+  });
+
+  it("is not on the small cards or in the other-mice list", () => {
+    const html = render(withPhotos, { scanId: many.scanId });
+    const cards =
+      html.match(/<ul class="results-others-grid">.*?<\/ul>/s)?.[0] ?? "";
+    expect(cards).toContain("results-photo-img");
+    expect(cards).not.toContain("results-photoZoom");
+    expect(cards).not.toContain("<button");
+    const list = html.match(/<ol class="results-otherMice-list">.*?<\/ol>/s);
+    expect(list?.[0]).not.toContain("results-photoZoom");
+  });
+
+  it("mounts no dialog until it is clicked", () => {
+    const html = render(withPhotos, { scanId: many.scanId });
+    expect(html).not.toContain("<dialog");
+    expect(html).not.toContain("results-photoDialog");
+  });
+});
