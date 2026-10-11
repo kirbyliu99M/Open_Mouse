@@ -347,9 +347,9 @@ export const zhTW: LearnCopy = {
   kitV2A4Only: "套件 v2 僅支援 A4。",
   paperAppliesNext: "套用在你接下來選擇的照片。套件是為 A4 設計的。",
   kitLabel: "套件",
-  kitV1Option: "套件 v1：各頁自帶 QR code（舊版）",
+  kitV1Option: "套件 v1（舊版）",
   kitV2Option: (sheet, notUsed) =>
-    `套件 v2：${sheet} 版，卡片槽放卡片${notUsed ? "（不使用，Kirby 2026-10-02）" : ""}`,
+    `套件 v2，${sheet} 版${notUsed ? "（不使用）" : ""}`,
   kitV2Note:
     "套件 v2 依受測者卡片和拍攝順序歸檔，並保留每張標有受測者的照片。下方的判定是產品本身的判定：在你把這次拍攝的照片標為好或壞之前，請不要先看（docs/learning/README.md，「Kit v2」一節）。",
   checking: (current, total) => `正在檢查第 ${current} 張，共 ${total} 張…`,
