@@ -20,8 +20,12 @@ import { migratedDatabase } from "./fixtures/pglite";
 import { users } from "../../src/db/schema";
 
 vi.mock("server-only", () => ({}));
+const headersState = vi.hoisted(() => ({ cookiesThrow: false }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: () => undefined }),
+  cookies: async () => {
+    if (headersState.cookiesThrow) throw new Error("cookies unavailable");
+    return { get: () => undefined };
+  },
   headers: async () => new Headers(),
 }));
 vi.mock("../../src/db/client", () => ({ getDb: () => flakyDb }));
@@ -44,6 +48,7 @@ let flakyDb: ActivityDbSource;
 /** When true, every UPDATE of `users` throws; the adapter's other writes work. */
 let failUsersUpdate = false;
 let handlers: typeof import("../../src/auth").handlers;
+let authEvents: typeof import("../../src/auth").authEvents;
 
 const TOKEN = "session-token-for-the-last-active-test";
 
@@ -67,7 +72,7 @@ beforeAll(async () => {
       return Reflect.get(target, prop, receiver);
     },
   }) as unknown as ActivityDbSource;
-  ({ handlers } = await import("../../src/auth"));
+  ({ handlers, authEvents } = await import("../../src/auth"));
 }, 60_000);
 afterAll(() => pg.close());
 beforeEach(async () => {
@@ -227,20 +232,18 @@ describe("recordSessionActivity: the 24-hour throttle", () => {
 });
 
 describe("handleSignInEvent", () => {
-  const noCookies = { get: () => undefined };
+  const COOKIE = "11111111-1111-4111-8111-111111111111";
+  const withCookie = async () => ({ get: () => ({ value: COOKIE }) });
+  const noCookies = async () => ({ get: () => undefined });
   const claimRepo = () => ({ claimSession: vi.fn(async () => undefined) });
 
   it("stamps the user and then tries the claim", async () => {
     await seedUser("u1", "200 days");
     const repo = claimRepo();
-    await handleSignInEvent(
-      { id: "u1" },
-      { get: () => ({ value: "11111111-1111-4111-8111-111111111111" }) },
-      {
-        db: realDb,
-        repo,
-      },
-    );
+    await handleSignInEvent({ id: "u1" }, withCookie, {
+      db: realDb,
+      makeRepo: () => repo,
+    });
     expect(await ageOf("u1")).toBeLessThan(60);
     expect(repo.claimSession).toHaveBeenCalledTimes(1);
   });
@@ -249,14 +252,10 @@ describe("handleSignInEvent", () => {
     await seedUser("u1", "200 days");
     failUsersUpdate = true;
     const repo = claimRepo();
-    await handleSignInEvent(
-      { id: "u1" },
-      { get: () => ({ value: "11111111-1111-4111-8111-111111111111" }) },
-      {
-        db: flakyDb,
-        repo,
-      },
-    );
+    await handleSignInEvent({ id: "u1" }, withCookie, {
+      db: flakyDb,
+      makeRepo: () => repo,
+    });
     expect(repo.claimSession).toHaveBeenCalledTimes(1);
 
     failUsersUpdate = false;
@@ -266,22 +265,80 @@ describe("handleSignInEvent", () => {
       }),
     };
     await expect(
+      handleSignInEvent({ id: "u1" }, withCookie, {
+        db: realDb,
+        makeRepo: () => failing,
+      }),
+    ).rejects.toThrow("claim failed");
+    expect(await ageOf("u1")).toBeLessThan(60);
+  });
+
+  it("a cookies() that throws still stamps; only the claim is lost", async () => {
+    await seedUser("u1", "200 days");
+    const repo = claimRepo();
+    await expect(
       handleSignInEvent(
         { id: "u1" },
-        { get: () => ({ value: "11111111-1111-4111-8111-111111111111" }) },
-        {
-          db: realDb,
-          repo: failing,
+        async () => {
+          throw new Error("cookies unavailable");
         },
+        { db: realDb, makeRepo: () => repo },
       ),
-    ).rejects.toThrow("claim failed");
+    ).rejects.toThrow("cookies unavailable");
+    expect(await ageOf("u1")).toBeLessThan(60);
+    expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+
+  it("a repo factory that throws still stamps", async () => {
+    await seedUser("u1", "200 days");
+    await expect(
+      handleSignInEvent({ id: "u1" }, withCookie, {
+        db: realDb,
+        makeRepo: () => {
+          throw new Error("no DATABASE_URL");
+        },
+      }),
+    ).rejects.toThrow("no DATABASE_URL");
     expect(await ageOf("u1")).toBeLessThan(60);
   });
 
   it("no user id: no stamp, no claim", async () => {
     const repo = claimRepo();
-    await handleSignInEvent({}, noCookies, { db: realDb, repo });
+    await handleSignInEvent({}, noCookies, {
+      db: realDb,
+      makeRepo: () => repo,
+    });
     expect(repo.claimSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("the sign-in event as wired in src/auth.ts (authEvents.signIn)", () => {
+  // The Auth.js event config, called the way Auth.js calls it after a sign-in.
+  // This is what fails if the stamp is ever unhooked from the real event.
+  it("stamps last_active_at on a sign-in", async () => {
+    await seedUser("user-1", "200 days");
+    await authEvents.signIn({ user: { id: "user-1" } });
+    expect(await ageOf("user-1")).toBeLessThan(60);
+  });
+
+  it("still stamps when next/headers cookies() throws (the claim is lost, the stamp is not)", async () => {
+    await seedUser("user-1", "200 days");
+    headersState.cookiesThrow = true;
+    try {
+      await expect(
+        authEvents.signIn({ user: { id: "user-1" } }),
+      ).rejects.toThrow("cookies unavailable");
+    } finally {
+      headersState.cookiesThrow = false;
+    }
+    expect(await ageOf("user-1")).toBeLessThan(60);
+  });
+
+  it("another user is not stamped", async () => {
+    await seedUser("user-1", "200 days");
+    await seedUser("user-2", "200 days");
+    await authEvents.signIn({ user: { id: "user-1" } });
+    expect(await ageOf("user-2")).toBeGreaterThan(199 * 24 * HOUR);
   });
 });
 

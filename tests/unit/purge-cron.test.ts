@@ -245,12 +245,74 @@ describe("delete mode bounds", () => {
     expect(repo.deleteUserAccounts).toHaveBeenCalledTimes(3);
   });
 
-  it("stops instead of looping when the guard deletes nothing for the ids it selected", async () => {
+  it("stops instead of looping when the guard deletes nothing for the ids it selected, and says remaining because the same accounts are still eligible", async () => {
     const { repo } = fakeRepo(["a", "b"]);
     repo.deleteUserAccounts.mockImplementation(async () => []);
     const res = await call("", { repo });
-    expect(await res.json()).toMatchObject({ usersDeleted: 0, chunks: 1 });
+    expect(await res.json()).toMatchObject({
+      usersDeleted: 0,
+      chunks: 1,
+      remaining: true,
+    });
+    // One chunk, then the single "anything more?" look: no endless re-selection.
     expect(repo.deleteUserAccounts).toHaveBeenCalledTimes(1);
+    expect(repo.selectInactiveUserIds).toHaveBeenCalledTimes(2);
+  });
+
+  it("a chunk the guard blocked does not hide other eligible accounts: remaining is true", async () => {
+    // The first two became active after the select (the guard blocks them) but
+    // a third account is still eligible.
+    const { repo, remaining } = fakeRepo(["a", "b", "c"]);
+    repo.selectInactiveUserIds.mockImplementationOnce(async () => ["a", "b"]);
+    repo.deleteUserAccounts.mockImplementation(async (ids) => {
+      for (const id of ids) remaining.delete(id);
+      return [];
+    });
+    remaining.add("c");
+    const res = await call("", { repo });
+    expect(await res.json()).toMatchObject({
+      usersDeleted: 0,
+      chunks: 1,
+      remaining: true,
+    });
+  });
+
+  it("a chunk the guard blocked with nothing else eligible: remaining is false", async () => {
+    const { repo, remaining } = fakeRepo(["a", "b"]);
+    repo.deleteUserAccounts.mockImplementation(async (ids) => {
+      for (const id of ids) remaining.delete(id);
+      return [];
+    });
+    const res = await call("", { repo });
+    expect(await res.json()).toMatchObject({
+      usersDeleted: 0,
+      chunks: 1,
+      remaining: false,
+    });
+  });
+
+  it("a guard that blocks every chunk cannot loop past the cap or the time budget", async () => {
+    const { repo } = fakeRepo(Array.from({ length: 500 }, (_, i) => `u${i}`));
+    repo.deleteUserAccounts.mockImplementation(async () => []);
+    const res = await call("", { repo });
+    expect((await res.json()) as { remaining: boolean }).toMatchObject({
+      remaining: true,
+    });
+    expect(repo.deleteUserAccounts.mock.calls.length).toBeLessThanOrEqual(8);
+  });
+
+  it("remaining is false only after a select that found nothing", async () => {
+    const { repo } = fakeRepo(["a"]);
+    const res = await call("", { repo });
+    expect(await res.json()).toMatchObject({
+      usersDeleted: 1,
+      remaining: false,
+    });
+    // The last select returned no ids.
+    const results = await Promise.all(
+      repo.selectInactiveUserIds.mock.results.map((r) => r.value),
+    );
+    expect(results.at(-1)).toEqual([]);
   });
 
   it("with nothing eligible deletes nothing and does not call the delete", async () => {

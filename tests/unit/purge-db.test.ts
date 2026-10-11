@@ -42,8 +42,11 @@ import { shortHash } from "../../src/server/log";
 import { createPgliteSurveyWorld } from "./fixtures/survey-world";
 import {
   counts,
+  rowIds,
   seedAccount,
   seedAnonymous,
+  survivingRowIds,
+  tableTotals,
   type PurgeWorld,
 } from "./fixtures/purge-world";
 
@@ -174,6 +177,80 @@ describe("eligibility on the database clock", () => {
   });
 });
 
+describe("a day is 24 hours, whatever the session time zone (spec 2.2)", () => {
+  // PGlite runs in this process and takes its clock from JS `Date`, so faking
+  // `Date` moves the database's now() too. That lets the 90-day cutoff be
+  // computed across a DST change: `timestamptz - interval '90 days'` is calendar
+  // arithmetic in the session zone and is off by an hour there, while 2160 hours
+  // is exact. Each case sits inside one transaction, where now() stands still.
+  const ZONES = ["UTC", "Asia/Taipei", "America/New_York", "Europe/London"];
+  // 90 days before each instant spans a DST change in New York and London
+  // (fall back on 2026-11-01 / 2026-10-25; spring forward on 2026-03-08 / 03-29).
+  const INSTANTS = ["2027-01-15T17:00:00Z", "2026-06-01T16:00:00Z"];
+
+  afterEach(async () => {
+    await world.pg.exec("rollback").catch(() => undefined);
+    await world.pg.exec("reset timezone");
+  });
+
+  it.each(ZONES.flatMap((zone) => INSTANTS.map((at) => [zone, at] as const)))(
+    "%s, now = %s: exactly 90 x 24 h is not eligible, one millisecond more is",
+    async (zone, at) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(at));
+      await world.pg.exec(`set timezone = '${zone}'`);
+      await world.pg.exec("begin");
+      const { rows } = await world.pg.query<{ now: string }>(
+        `select to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI') as now`,
+      );
+      // The fake clock really reached the database (else this proves nothing).
+      expect(rows[0]!.now).toBe(at.slice(0, 16));
+
+      await world.pg.exec(
+        `insert into users (id, last_active_at) values ('edge', now() - interval '2160 hours')`,
+      );
+      expect(await selectInactiveUserIds(db, 90, 10)).toEqual([]);
+      expect(await countInactiveUsers(db, 90)).toBe(0);
+      expect(
+        await deleteUserAccounts(db, ["edge"], { windowDays: 90 }),
+      ).toEqual([]);
+
+      await world.pg.exec(
+        `update users set last_active_at = now() - interval '2160 hours' - interval '1 millisecond' where id = 'edge'`,
+      );
+      expect(await selectInactiveUserIds(db, 90, 10)).toEqual(["edge"]);
+      expect(await countInactiveUsers(db, 90)).toBe(1);
+      expect(
+        await deleteUserAccounts(db, ["edge"], { windowDays: 90 }),
+      ).toEqual(["edge"]);
+      await world.pg.exec("rollback");
+    },
+  );
+
+  it("the scan safety net uses the same 24-hour day (a scan 2160 h + 1 ms old no longer blocks)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-15T17:00:00Z"));
+    await world.pg.exec(`set timezone = 'America/New_York'`);
+    await world.pg.exec("begin");
+    await world.pg.exec(
+      `insert into users (id, last_active_at) values ('s', now() - interval '3000 hours')`,
+    );
+    await world.pg.exec(
+      `insert into scan_sessions (id, user_id) values ('00000000-0000-4000-8000-000000000001', 's')`,
+    );
+    await world.pg.exec(
+      `insert into scans (session_id, hand, created_at) values ('00000000-0000-4000-8000-000000000001', 'right', now() - interval '2160 hours')`,
+    );
+    // Exactly at the edge: created_at >= cutoff still blocks.
+    expect(await selectInactiveUserIds(db, 90, 10)).toEqual([]);
+    await world.pg.exec(
+      `update scans set created_at = now() - interval '2160 hours' - interval '1 millisecond'`,
+    );
+    expect(await selectInactiveUserIds(db, 90, 10)).toEqual(["s"]);
+    await world.pg.exec("rollback");
+  });
+});
+
 describe("the two safety nets, evaluated by the database", () => {
   it("a scan inside the window blocks the purge of an otherwise eligible account", async () => {
     await seedAccount(world, "scanned", {
@@ -240,6 +317,10 @@ describe("deleteUserAccounts", () => {
       expect(n, table).toBeGreaterThan(0);
     }
     const keptBefore = await counts(world.pg, "kept");
+    const goneIds = await rowIds(world.pg, "gone");
+    for (const [table, ids] of Object.entries(goneIds)) {
+      expect(ids.length, table).toBeGreaterThan(0);
+    }
 
     const deleted = await deleteUserAccounts(db, ["gone", "kept"], {
       windowDays: 90,
@@ -250,6 +331,20 @@ describe("deleteUserAccounts", () => {
       expect(n, table).toBe(0);
     }
     expect(await counts(world.pg, "kept")).toEqual(keptBefore);
+
+    // Counting by user_id cannot see a row that a foreign key left behind with
+    // user_id set to NULL (ON DELETE SET NULL). These two checks can: no row of
+    // the deleted account survives under ANY owner, and each table now holds
+    // exactly the surviving account's rows and nothing else.
+    for (const [table, ids] of Object.entries(
+      await survivingRowIds(world.pg, goneIds),
+    )) {
+      expect(
+        ids,
+        `${table}: rows of the deleted account that survived`,
+      ).toEqual([]);
+    }
+    expect(await tableTotals(world.pg)).toEqual(keptBefore);
   });
 
   it("is idempotent: the second run deletes nothing", async () => {
@@ -491,7 +586,13 @@ describe("GET /api/cron/purge-inactive on PGlite", () => {
     };
     const { status, body } = await run("", { repo });
     expect(status).toBe(200);
-    expect(body).toMatchObject({ usersDeleted: 0, scansDeleted: 0, chunks: 1 });
+    // They all became active, so nothing is left to take: remaining is false.
+    expect(body).toMatchObject({
+      usersDeleted: 0,
+      scansDeleted: 0,
+      chunks: 1,
+      remaining: false,
+    });
     expect(await userCount()).toBe(3);
   });
 });

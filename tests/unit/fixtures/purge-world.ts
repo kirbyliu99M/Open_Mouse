@@ -40,6 +40,88 @@ export async function counts(
   return out;
 }
 
+/**
+ * Row counts of the WHOLE of each user-owned table, not filtered by user. A
+ * count by `user_id` reads 0 for a row that a changed foreign key
+ * (`ON DELETE SET NULL`) left behind as an anonymous row; a whole-table count
+ * does not. Compare it with the counts of the accounts that must survive.
+ */
+export async function tableTotals(pg: PGlite): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const table of Object.keys(USER_TABLES)) {
+    const { rows } = await pg.query<{ n: number }>(
+      `select count(*)::int as n from ${table}`,
+    );
+    out[table] = rows[0]!.n;
+  }
+  return out;
+}
+
+/** Primary-key values of every row of the user, per table, for an id-level check. */
+const ROW_IDS: Record<string, { own: string; all: string }> = {
+  users: {
+    own: `select id::text as k from users where id = $1`,
+    all: `select id::text as k from users`,
+  },
+  scan_sessions: {
+    own: `select id::text as k from scan_sessions where user_id = $1`,
+    all: `select id::text as k from scan_sessions`,
+  },
+  scans: {
+    own: `select s.id::text as k from scans s join scan_sessions ss on ss.id = s.session_id where ss.user_id = $1`,
+    all: `select id::text as k from scans`,
+  },
+  scan_measurements: {
+    own: `select m.scan_id::text as k from scan_measurements m join scans s on s.id = m.scan_id join scan_sessions ss on ss.id = s.session_id where ss.user_id = $1`,
+    all: `select scan_id::text as k from scan_measurements`,
+  },
+  fit_results: {
+    own: `select f.id::text as k from fit_results f join scans s on s.id = f.scan_id join scan_sessions ss on ss.id = s.session_id where ss.user_id = $1`,
+    all: `select id::text as k from fit_results`,
+  },
+  survey_contributions: {
+    own: `select id::text as k from survey_contributions where user_id = $1`,
+    all: `select id::text as k from survey_contributions`,
+  },
+  survey_ratings: {
+    own: `select (contribution_id::text || ':' || mouse_id::text) as k from survey_ratings where user_id = $1`,
+    all: `select (contribution_id::text || ':' || mouse_id::text) as k from survey_ratings`,
+  },
+  survey_other_mice: {
+    own: `select id::text as k from survey_other_mice where user_id = $1`,
+    all: `select id::text as k from survey_other_mice`,
+  },
+};
+
+/** The ids of the user's rows, taken before a delete. */
+export async function rowIds(
+  pg: PGlite,
+  userId: string,
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  for (const [table, q] of Object.entries(ROW_IDS)) {
+    out[table] = (await pg.query<{ k: string }>(q.own, [userId])).rows.map(
+      (r) => r.k,
+    );
+  }
+  return out;
+}
+
+/** Of the ids taken by `rowIds`, those that still exist in the table, owner or no owner. */
+export async function survivingRowIds(
+  pg: PGlite,
+  before: Record<string, string[]>,
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  for (const [table, ids] of Object.entries(before)) {
+    const present = new Set(
+      (await pg.query<{ k: string }>(ROW_IDS[table]!.all)).rows.map((r) => r.k),
+    );
+    out[table] = ids.filter((id) => present.has(id));
+  }
+  return out;
+}
+
 export interface SeedAccount {
   /** Postgres interval text before the database's now(): `last_active_at = now() - this`. */
   lastActiveAgo?: string;
