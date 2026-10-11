@@ -396,7 +396,8 @@ describe("/sheet, /scan and /scan/easy under VERCEL_ENV", () => {
     async (_route, load) => {
       process.env.VERCEL_ENV = "production";
       const { default: Page } = await load();
-      expect(() => Page()).toThrow(NOT_FOUND);
+      // `/sheet` is async (it reads the locale), `/scan` is not: await both.
+      await expect(async () => Page()).rejects.toThrow(NOT_FOUND);
     },
   );
 
@@ -407,7 +408,7 @@ describe("/sheet, /scan and /scan/easy under VERCEL_ENV", () => {
       for (const value of ["preview", "development", undefined] as const) {
         if (value === undefined) delete process.env.VERCEL_ENV;
         else process.env.VERCEL_ENV = value;
-        expect(Page()).toBeTruthy();
+        expect(await Page()).toBeTruthy();
       }
     },
   );
