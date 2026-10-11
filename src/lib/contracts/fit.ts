@@ -14,11 +14,6 @@ import {
   SHAPES,
   SIZES,
 } from "./descriptors";
-import {
-  OFFICIAL_URL_KINDS,
-  httpsUrlSchema,
-  purchaseLinkSchema,
-} from "./commerce";
 import { PALM_THICKNESS_LEVELS } from "./measurement";
 
 export const GRIP_STYLES = ["palm", "claw", "fingertip"] as const;
@@ -120,19 +115,6 @@ export const fitEntrySchema = z.strictObject({
     category: z.enum(CATALOGUE_CATEGORIES).optional(),
     /** Site-relative path of the official product photo, or null when none. */
     imageUrl: sitePathSchema.nullable().optional(),
-    /**
-     * 2026-10-11 (Kirby, candidate): links the server fills from static files
-     * (`src/data/mouse-media.json`, `src/data/purchase-links.json`), for every
-     * entry, because the results-page filter can promote any mouse to the top.
-     * `officialUrl` is the maker's own page (https), `officialKind` says whether
-     * it is this model's page (`product`) or a lineup / series / support page
-     * (`brand`). `purchaseLinks` are at most four partner shops. Facts only:
-     * never ranked or scored by, and none of it is a number or text the analysis
-     * may quote. Optional until the server fills them; absent or null = none.
-     */
-    officialUrl: httpsUrlSchema.nullable().optional(),
-    officialKind: z.enum(OFFICIAL_URL_KINDS).nullable().optional(),
-    purchaseLinks: z.array(purchaseLinkSchema).max(4).optional(),
     /**
      * 2026-10-10 (Kirby, candidate): catalogue facts the results-page filter
      * reads (滑鼠握感 and 傳輸介面). `shape` is the catalogue's shape descriptor

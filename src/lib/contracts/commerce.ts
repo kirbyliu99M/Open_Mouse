@@ -40,6 +40,22 @@ export const purchaseLinkSchema = z.strictObject({
 export const OFFICIAL_URL_KINDS = ["product", "brand"] as const;
 export type OfficialUrlKind = (typeof OFFICIAL_URL_KINDS)[number];
 
+/**
+ * The links of ONE mouse (2026-10-11, candidate): the maker's own page and up to
+ * four partner shops. Served as a static JSON file per mouse,
+ * `GET /api/mice/<slug>/links`, built at deploy time from
+ * `src/data/mouse-media.json` and `src/data/purchase-links.json`, so the CDN
+ * answers it and no function runs (the results response stays small). The page
+ * needs it only for the one mouse its big header shows. Never ranked or scored
+ * by, and never part of the analysis input.
+ */
+export const mouseLinksSchema = z.strictObject({
+  officialUrl: httpsUrlSchema.nullable(),
+  officialKind: z.enum(OFFICIAL_URL_KINDS).nullable(),
+  purchaseLinks: z.array(purchaseLinkSchema).max(4),
+});
+export type MouseLinks = z.infer<typeof mouseLinksSchema>;
+
 /** slug → links, in display order (at most four per mouse). */
 export const purchaseLinksSchema = z.record(
   /** A catalogue slug: lowercase words joined by single hyphens. */
