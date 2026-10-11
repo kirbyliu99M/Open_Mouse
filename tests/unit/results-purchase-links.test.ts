@@ -1,12 +1,15 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PurchaseSlot } from "../../src/components/results/PurchaseSlot";
 import {
   linksForSlug,
   parsePurchaseLinks,
 } from "../../src/lib/results/purchaseLinks";
+import { purchaseLinksSchema } from "../../src/lib/contracts/commerce";
 import bundled from "../../src/data/purchase-links.json";
+import mouseMedia from "../../src/data/mouse-media.json";
 
 const VALID = {
   "logitech-g-pro-x-superlight-2": [
@@ -15,15 +18,20 @@ const VALID = {
   ],
 };
 
-const render = (source: unknown, slug = "logitech-g-pro-x-superlight-2") =>
-  renderToStaticMarkup(
-    createElement(PurchaseSlot, { slug, language: "en", source }),
-  );
+describe("the bundled purchase-links.json", () => {
+  // The other team fills this file. A file with a bad entry is dropped whole at
+  // run time (`parsePurchaseLinks` gives `{}`), silently, so it is checked
+  // here with a parse that throws. Its content is not pinned: an empty file, or
+  // a full one, both pass.
+  it("matches the contract (https URLs, 1 to 40 character labels, at most four per mouse)", () => {
+    expect(() => purchaseLinksSchema.parse(bundled)).not.toThrow();
+    expect(parsePurchaseLinks(bundled)).toEqual(bundled);
+  });
 
-describe("purchase links file", () => {
-  it("ships as an empty object, which is valid", () => {
-    expect(bundled).toEqual({});
-    expect(parsePurchaseLinks(bundled)).toEqual({});
+  it("only names mice that are in mouse-media.json, so the static route has a page for every key", () => {
+    const known = new Set(Object.keys(mouseMedia));
+    const unknown = Object.keys(bundled).filter((slug) => !known.has(slug));
+    expect(unknown).toEqual([]);
   });
 });
 
@@ -70,21 +78,20 @@ describe("parsePurchaseLinks / linksForSlug", () => {
 });
 
 describe("PurchaseSlot", () => {
-  it("renders nothing for an empty file", () => {
-    expect(render({})).toBe("");
-  });
+  const LINKS = VALID["logitech-g-pro-x-superlight-2"];
+  const render = (
+    links: Parameters<typeof PurchaseSlot>[0]["links"],
+    language: "en" | "zh-TW" = "en",
+  ) => renderToStaticMarkup(createElement(PurchaseSlot, { links, language }));
 
-  it("renders nothing for a slug with no links", () => {
-    expect(render(VALID, "razer-deathadder-v3")).toBe("");
-  });
-
-  it("renders nothing, and does not crash, for an invalid file", () => {
-    expect(render({ "logitech-g-pro-x-superlight-2": "oops" })).toBe("");
+  it("renders nothing without links", () => {
+    expect(render([])).toBe("");
+    expect(render(undefined)).toBe("");
     expect(render(null)).toBe("");
   });
 
   it("renders the links with rel sponsored noopener and a new tab", () => {
-    const html = render(VALID);
+    const html = render(LINKS);
     const anchors = [...html.matchAll(/<a [^>]*>/g)].map((m) => m[0]);
     expect(anchors).toHaveLength(2);
     for (const a of anchors) {
@@ -95,40 +102,68 @@ describe("PurchaseSlot", () => {
     expect(html).toContain("Shop A");
   });
 
-  it("says once that these are partner links opening in a new tab, and says so on every link", () => {
-    for (const [language, note, hidden] of [
-      ["en", "Partner shop links · open in a new tab", "(opens in a new tab)"],
-      ["zh-TW", "合作商店連結・開新分頁", "（開新分頁）"],
-    ] as const) {
-      const html = renderToStaticMarkup(
-        createElement(PurchaseSlot, {
-          slug: "logitech-g-pro-x-superlight-2",
-          language,
-          source: VALID,
-        }),
+  it("has the one-word heading and no visible note line, in both languages", () => {
+    const en = render(LINKS, "en");
+    const zh = render(LINKS, "zh-TW");
+    expect(en).toContain(">Buy</h2>");
+    expect(zh).toContain(">購買</h2>");
+    for (const html of [en, zh]) {
+      expect(html).not.toMatch(
+        /Partner|Where to buy|合作商店|購買連結|results-purchase-note/,
       );
-      expect(html.split(note)).toHaveLength(2); // exactly once
-      expect(html.split(hidden)).toHaveLength(3); // once per link (two links)
-      // The hidden text is inside each link, visually hidden.
+      // The only paragraph-like text left is the heading and the shop names.
+      expect(html).not.toMatch(/<p[ >]/);
+    }
+  });
+
+  it("says 'opens in a new tab' only to a screen reader, once per link", () => {
+    for (const [language, hidden] of [
+      ["en", "(opens in a new tab)"],
+      ["zh-TW", "（開新分頁）"],
+    ] as const) {
+      const html = render(LINKS, language);
+      expect(html.split(hidden)).toHaveLength(3); // two links
       const anchors = [...html.matchAll(/<a [^>]*>.*?<\/a>/g)].map((m) => m[0]);
       expect(anchors).toHaveLength(2);
       for (const a of anchors) {
         expect(a).toContain("results-visuallyHidden");
         expect(a).toContain(hidden);
+        // The icon is decorative.
+        expect(a).toContain('aria-hidden="true"');
       }
     }
   });
 
-  it("shows neither the note nor the hidden text when there is nothing to link", () => {
-    expect(render({})).not.toMatch(/Partner|new tab/);
-    expect(render(VALID, "razer-deathadder-v3")).toBe("");
+  it("renders up to four rows, in the given order", () => {
+    const four = Array.from({ length: 4 }, (_, i) => ({
+      label: `Shop ${i + 1}`,
+      url: `https://shop${i + 1}.example/p`,
+    }));
+    const html = render(four);
+    expect(html.match(/<li>/g)).toHaveLength(4);
+    expect(html.indexOf("Shop 1")).toBeLessThan(html.indexOf("Shop 4"));
+    // A fifth (not allowed by the contract) is never drawn.
+    expect(
+      render([
+        ...four,
+        { label: "Shop 5", url: "https://shop5.example/p" },
+      ]).match(/<li>/g),
+    ).toHaveLength(4);
   });
 
-  it("reads the bundled file by default (empty today, so nothing shows)", () => {
-    expect(
-      renderToStaticMarkup(
-        createElement(PurchaseSlot, { slug: "anything", language: "zh-TW" }),
-      ),
-    ).toBe("");
+  it("keeps a long shop name in full (it wraps; the DOM never cuts it)", () => {
+    const label = "一家名字非常非常長的合作商店旗艦店 Official Flagship Store";
+    const html = render([{ label, url: "https://shop.example/x" }], "zh-TW");
+    expect(html).toContain(label);
+    expect(html).not.toContain("…");
+  });
+
+  it("does not read src/data/purchase-links.json: the slot takes its links as a prop", () => {
+    const source = readFileSync(
+      "src/components/results/PurchaseSlot.tsx",
+      "utf8",
+    );
+    expect(source).not.toMatch(/from\s+["'][^"']*purchase-links\.json["']/);
+    expect(source).not.toContain("purchaseLinksFile");
   });
 });

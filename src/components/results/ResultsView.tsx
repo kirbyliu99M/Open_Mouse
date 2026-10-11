@@ -21,11 +21,13 @@ import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
 import { VariantsLine } from "./VariantsLine";
+import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
 import { PrintOpenDetails } from "./PrintOpenDetails";
+import { useMouseLinks } from "./useMouseLinks";
 import { WhyList } from "./WhyList";
 import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
@@ -48,8 +50,11 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  * never filtered). Without `onFiltersChange` (the demo) nothing changes.
  *
  * Order: top bar, hand type (when the response has one), photo, rank and
- * score, why, purchase links (when there are any), details (closed), other
- * picks, other mice (closed).
+ * score (the official link sits on the fit-band chip's row), why, purchase
+ * links (when there are any), details (closed), other picks, other mice
+ * (closed). The photo comes from the entry (`mouse.imageUrl`, filled by the
+ * server for every entry). The official link and the purchase links come from
+ * `useMouseLinks` for the mouse on screen only.
  */
 export function ResultsView({
   response,
@@ -61,7 +66,6 @@ export function ResultsView({
   showViewer = false,
   scanId,
   onSelectRank,
-  purchaseSource,
   analytics,
   filters = emptyFilters(),
   onFiltersChange,
@@ -84,8 +88,6 @@ export function ResultsView({
   scanId?: string;
   /** The demo has no routes: the other picks are buttons that call this. */
   onSelectRank?: (rank: number) => void;
-  /** Overrides `src/data/purchase-links.json` (tests only). */
-  purchaseSource?: unknown;
   /** Analytics callbacks, passed only by the real results page (never the demo). */
   analytics?: {
     onRetake: () => void;
@@ -101,6 +103,11 @@ export function ResultsView({
   const card =
     view.cards.find((c) => c.displayRank === rank) ?? view.large ?? null;
   const entry = card?.entry ?? null;
+  // The official link and the purchase links of the one mouse in the big
+  // header: a static file per mouse, asked for once (never on the fit
+  // response, never for the small cards). `null` until it arrives, and for
+  // good when there is none.
+  const links = useMouseLinks(entry?.mouse.slug);
   const copy = RESULTS_PAGE_COPY[language];
   const search = serializeFilters(filters);
 
@@ -157,6 +164,7 @@ export function ResultsView({
                 imageUrl={entry.mouse.imageUrl}
                 alt={`${entry.mouse.brand} ${entry.mouse.model}`}
                 className="results-hero-photo"
+                priority
               />
 
               <div className="results-score">
@@ -183,12 +191,6 @@ export function ResultsView({
                   <ModelHeading className="results-score-model">
                     {entry.mouse.model}
                   </ModelHeading>
-                  {band && (
-                    <p className="results-band">
-                      <span className="results-band-dot" aria-hidden="true" />
-                      {BAND_COPY[language].bands[band].label}
-                    </p>
-                  )}
                   <VariantsLine variants={card.variants} language={language} />
                   {isMain && filtering && view.count === 1 && (
                     <p className="results-oneLeft">{copy.filter.oneLeft}</p>
@@ -199,6 +201,27 @@ export function ResultsView({
                   <span className="results-score-label">{copy.scoreLabel}</span>
                 </p>
               </div>
+
+              {/* A full-width row under the score: the fit-band chip on the left,
+                  the maker's page on the right. It does not depend on the chip:
+                  with no band the link stands alone. Its height is fixed, so
+                  the link arriving later moves nothing. */}
+              {(band || links?.officialUrl) && (
+                <div className="results-bandRow">
+                  {band && (
+                    <p className="results-band">
+                      <span className="results-band-dot" aria-hidden="true" />
+                      {BAND_COPY[language].bands[band].label}
+                    </p>
+                  )}
+                  <OfficialLink
+                    url={links?.officialUrl}
+                    kind={links?.officialKind}
+                    brand={entry.mouse.brand}
+                    language={language}
+                  />
+                </div>
+              )}
 
               {swappedMain && overallTop && (
                 <FilteredAnalysisLine
@@ -229,9 +252,8 @@ export function ResultsView({
                   filtered), so while filtering it turns secondary and says so. */}
               <div className="results-hero-actions">
                 <PurchaseSlot
-                  slug={entry.mouse.slug}
+                  links={links?.purchaseLinks}
                   language={language}
-                  source={purchaseSource}
                 />
                 <div className="results-share-hero" data-share-position="hero">
                   <ShareCardButton

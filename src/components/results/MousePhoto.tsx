@@ -1,17 +1,32 @@
 /**
+ * The size, in pixels, of every committed product photo
+ * (`public/images/mice/*.webp`, from `tools/mouse-media`). They go on the
+ * `<img>` as `width` and `height`; the box has its own aspect ratio and the
+ * image is `object-fit: contain` inside it, so a photo of another shape would
+ * still not move the page. Pinned against the real files by a test.
+ */
+export const MOUSE_PHOTO_WIDTH = 555;
+export const MOUSE_PHOTO_HEIGHT = 480;
+
+/**
  * The official product photo of a mouse, or a neutral silhouette when there is
- * none (`imageUrl` is null or missing). The silhouette carries no text of its
- * own. Nothing sends images yet, so the silhouette is the normal case today.
- * `alt` is empty where the mouse is named right next to the picture.
+ * none (`imageUrl` is null or missing: two catalogue mice have no photo). The
+ * silhouette carries no text of its own. `alt` is empty where the mouse is
+ * named right next to the picture. The photo is lazy and decoded off the main
+ * thread, except the one at the top of the page (`priority`), which loads at
+ * once and is not lazy.
  */
 export function MousePhoto({
   imageUrl,
   alt = "",
   className = "",
+  priority = false,
 }: {
   imageUrl: string | null | undefined;
   alt?: string;
   className?: string;
+  /** The photo at the top of the page: eager, high priority. */
+  priority?: boolean;
 }) {
   return (
     <div
@@ -20,7 +35,16 @@ export function MousePhoto({
     >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- a plain site-relative file, sized by its box
-        <img src={imageUrl} alt={alt} className="results-photo-img" />
+        <img
+          src={imageUrl}
+          alt={alt}
+          className="results-photo-img"
+          width={MOUSE_PHOTO_WIDTH}
+          height={MOUSE_PHOTO_HEIGHT}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
+          decoding="async"
+        />
       ) : (
         <svg
           className="results-photo-silhouette"
