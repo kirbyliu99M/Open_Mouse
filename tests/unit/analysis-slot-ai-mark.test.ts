@@ -5,7 +5,11 @@ import { AnalysisSlot } from "../../src/components/results/AnalysisSlot";
 import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { AnalysisSource } from "../../src/lib/contracts/analysis";
 import type { Locale } from "../../src/lib/contracts/locale";
-import { en, RESULTS_PAGE_COPY, zhTW } from "../../src/lib/copy/results-page";
+import {
+  en,
+  resultsScreensCopy,
+  zhTW,
+} from "../../src/lib/copy/results-screens";
 
 const STAR = "results-analysis-aiStar";
 const LABEL_ROW = "results-analysis-labelRow";
@@ -57,7 +61,7 @@ describe("the AI label, star and notice around the written analysis", () => {
     expect(html).toContain(STAR);
     expect(html).toContain(NOTICE_CLASS);
     expect(html).toContain(
-      `<p class="results-eyebrow">${en.analysisLabel}</p>`,
+      `<p class="results-eyebrow">${en.analysis.eyebrow}</p>`,
     );
     expect(html).toContain(`>${NOTICE_EN}</p>`);
   });
@@ -71,9 +75,9 @@ describe("the AI label, star and notice around the written analysis", () => {
   it("follows the page language, with Kirby's Chinese sentence", () => {
     const html = render(ready("model"), "zh-TW");
     expect(html).toContain(`>${NOTICE_ZH}</p>`);
-    expect(html).toContain(zhTW.analysisLabel);
+    expect(html).toContain(zhTW.analysis.eyebrow);
     expect(html).not.toContain(NOTICE_EN);
-    expect(html).not.toContain(en.analysisLabel);
+    expect(html).not.toContain(en.analysis.eyebrow);
   });
 
   it("makes the notice visible text, not a hover tip or hidden text", () => {
@@ -131,11 +135,11 @@ describe("the AI label, star and notice around the written analysis", () => {
   it("uses the same localized small label in loading, rate limited and error", () => {
     for (const status of ["loading", "rateLimited", "error"] as const) {
       expect(render({ status }, "en")).toContain(
-        `<p class="results-eyebrow">${en.analysisLabel}</p>`,
+        `<p class="results-eyebrow">${en.analysis.eyebrow}</p>`,
       );
       const zh = render({ status }, "zh-TW");
       expect(zh).toContain(
-        `<p class="results-eyebrow">${zhTW.analysisLabel}</p>`,
+        `<p class="results-eyebrow">${zhTW.analysis.eyebrow}</p>`,
       );
       expect(zh).not.toContain("Written analysis");
     }
@@ -151,10 +155,12 @@ describe("the AI label, star and notice around the written analysis", () => {
   });
 
   it("has the strings in both languages and says no vendor name anywhere", () => {
-    expect(RESULTS_PAGE_COPY["zh-TW"].aiWrittenNotice).toBe(NOTICE_ZH);
-    expect(RESULTS_PAGE_COPY.en.aiWrittenNotice).toBe(NOTICE_EN);
-    expect(zhTW.analysisLabel.length).toBeGreaterThan(0);
-    expect(en.analysisLabel).toBe("Written analysis");
+    expect(resultsScreensCopy("zh-TW").analysis.aiWrittenNotice).toBe(
+      NOTICE_ZH,
+    );
+    expect(resultsScreensCopy("en").analysis.aiWrittenNotice).toBe(NOTICE_EN);
+    expect(zhTW.analysis.eyebrow.length).toBeGreaterThan(0);
+    expect(en.analysis.eyebrow).toBe("Written analysis");
     for (const copy of [zhTW, en]) {
       expect(JSON.stringify(copy)).not.toMatch(/gemini/i);
     }

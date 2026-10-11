@@ -134,20 +134,22 @@ describe("easy-scan hand chip state", () => {
   });
 
   it("labels an untouched chip 'auto' and a tapped chip without it", () => {
-    expect(handChipLabel(INITIAL_HAND_CHIP_STATE)).toBe("Right hand · auto");
-    expect(handChipLabel({ hand: "left", locked: false })).toBe(
+    expect(handChipLabel(INITIAL_HAND_CHIP_STATE, "en")).toBe(
+      "Right hand · auto",
+    );
+    expect(handChipLabel({ hand: "left", locked: false }, "en")).toBe(
       "Left hand · auto",
     );
     const tapped = toggleHandChip(INITIAL_HAND_CHIP_STATE);
-    expect(handChipLabel(tapped)).toBe("Left hand");
+    expect(handChipLabel(tapped, "en")).toBe("Left hand");
     // Tapping back to the default hand is still the user's choice, not 'auto'.
-    expect(handChipLabel(toggleHandChip(tapped))).toBe("Right hand");
+    expect(handChipLabel(toggleHandChip(tapped), "en")).toBe("Right hand");
   });
 
   it("never says 'auto' once a detection is folded into a locked chip", () => {
     const locked = toggleHandChip(INITIAL_HAND_CHIP_STATE);
     const after = applyDetectedHandedness(locked, "right");
-    expect(handChipLabel(after)).not.toContain("auto");
+    expect(handChipLabel(after, "en")).not.toContain("auto");
   });
 
   it("does not let the chip change while a photo is being processed", () => {
@@ -166,15 +168,17 @@ describe("easy-scan hand chip state", () => {
     ] as const) {
       // Label in name: the visible text is the start of the accessible name.
       expect(
-        handChipAccessibleName(state).startsWith(handChipLabel(state)),
+        handChipAccessibleName(state, "en").startsWith(
+          handChipLabel(state, "en"),
+        ),
       ).toBe(true);
-      expect(handChipAccessibleName(state)).toMatch(/\. Change hand$/);
+      expect(handChipAccessibleName(state, "en")).toMatch(/\. Change hand$/);
     }
-    expect(handChipAccessibleName(INITIAL_HAND_CHIP_STATE)).toBe(
+    expect(handChipAccessibleName(INITIAL_HAND_CHIP_STATE, "en")).toBe(
       "Right hand · auto, set automatically. Change hand",
     );
     expect(
-      handChipAccessibleName(toggleHandChip(INITIAL_HAND_CHIP_STATE)),
+      handChipAccessibleName(toggleHandChip(INITIAL_HAND_CHIP_STATE), "en"),
     ).toBe("Left hand, set by you. Change hand");
   });
 });

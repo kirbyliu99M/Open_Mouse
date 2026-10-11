@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/contracts/locale";
+import { errorsCopy } from "@/lib/copy/errors";
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
-import { ACTIONS, GLOBAL_ERROR_COPY } from "@/components/errors/copy";
+import { localeFromBrowser } from "@/components/errors/browser-locale";
 import { reloadPage } from "@/components/errors/reload";
 import { ReportError } from "@/components/errors/ReportError";
 
@@ -16,26 +19,39 @@ import { ReportError } from "@/components/errors/ReportError";
  * for a server-side failure is the failure itself. See reload.ts.
  *
  * `<ReportError>` sends the error to Sentry.
+ *
+ * Language: the root layout's locale is gone too, so the screen starts in the
+ * site default (the server cannot read the cookie here) and, once mounted,
+ * switches to the visitor's cookie or browser language, setting `<html lang>`
+ * with it. `initialLocale` is only for tests; Next never passes it.
  */
 export default function GlobalError({
   error,
+  initialLocale = DEFAULT_LOCALE,
 }: {
   error: Error & { digest?: string };
   reset?: () => void;
+  initialLocale?: Locale;
 }) {
+  const [locale, setLocale] = useState<Locale>(initialLocale);
+  useEffect(() => {
+    setLocale(localeFromBrowser(document.cookie, navigator.languages));
+  }, []);
+  const copy = errorsCopy(locale);
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
-        <title>{GLOBAL_ERROR_COPY.documentTitle}</title>
+        <title>{copy.globalError.documentTitle}</title>
         <meta name="robots" content="noindex, nofollow" />
       </head>
       <body className="errorBody">
         <ReportError error={error} />
         <ErrorScreen
-          eyebrow={GLOBAL_ERROR_COPY.eyebrow}
-          title={GLOBAL_ERROR_COPY.title}
-          message={GLOBAL_ERROR_COPY.message}
+          eyebrow={copy.globalError.eyebrow}
+          title={copy.globalError.title}
+          message={copy.globalError.message}
           reference={error.digest}
+          referenceLabel={copy.referenceLabel}
           focusHeading
         >
           <button
@@ -43,16 +59,16 @@ export default function GlobalError({
             className="errorAction errorAction-primary"
             onClick={() => reloadPage()}
           >
-            {ACTIONS.retry}
+            {copy.actions.retry}
           </button>
           {/* Plain anchors on purpose: a full page load is what recovers from a
               failure in the root layout, and the app router may be what broke. */}
           <a className="errorAction errorAction-secondary" href="/scan/easy">
-            {ACTIONS.scan}
+            {copy.actions.scan}
           </a>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see above */}
           <a className="errorAction errorAction-secondary" href="/">
-            {ACTIONS.home}
+            {copy.actions.home}
           </a>
         </ErrorScreen>
       </body>

@@ -1,6 +1,6 @@
 import type { AnalysisSource } from "@/lib/contracts/analysis";
 import type { Locale } from "@/lib/contracts/locale";
-import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import type { AnalysisState } from "./analysisState";
 import { joinHeadlineAndBody } from "./format";
 
@@ -22,9 +22,11 @@ import { joinHeadlineAndBody } from "./format";
  * text, cached or not) a small label "Written analysis" with a generic
  * four-point star (not any vendor's own mark) sits above the heading, and a
  * visible line under the text says an AI wrote it and it is for reference
- * only. Both follow the page language. Fallback text, loading, error and
- * idle show neither the star nor the notice (loading and error keep the plain
- * small label, in the page language), and no vendor name appears anywhere in the page text.
+ * only. Both follow the page language (`resultsScreensCopy(language).analysis`:
+ * `eyebrow` is the small label in every state, `aiWrittenNotice` the notice).
+ * Fallback text, loading, error and idle show neither the star nor the notice
+ * (loading, rate-limited and error keep the plain small label), and no vendor
+ * name appears anywhere in the page text.
  */
 export function AnalysisSlot({
   state,
@@ -34,15 +36,15 @@ export function AnalysisSlot({
 }: {
   state: AnalysisState;
   onRetry?: () => void;
-  /** Picks the small label (every state) and the AI notice (model text); the only strings here that follow the locale. */
-  language: Locale;
   /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
   headingLevel?: 2 | 3;
+  /** Picks every string in the slot, including the small label and the AI notice. */
+  language: Locale;
 }) {
+  const copy = resultsScreensCopy(language).analysis;
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const SubHeading = headingLevel === 2 ? "h3" : "h4";
   if (state.status === "idle") return null;
-  const label = RESULTS_PAGE_COPY[language].analysisLabel;
 
   if (state.status === "loading") {
     return (
@@ -50,8 +52,8 @@ export function AnalysisSlot({
         className="results-analysis results-analysis-loading"
         role="status"
       >
-        <p className="results-eyebrow">{label}</p>
-        <p>Preparing your written analysis&hellip;</p>
+        <p className="results-eyebrow">{copy.eyebrow}</p>
+        <p>{copy.preparing}</p>
       </section>
     );
   }
@@ -59,19 +61,15 @@ export function AnalysisSlot({
   if (state.status === "rateLimited") {
     return (
       <section className="results-analysis results-analysis-error" role="alert">
-        <p className="results-eyebrow">{label}</p>
-        <p>
-          Too many requests right now, so we couldn&apos;t prepare the written
-          analysis. Your ranked results and sub-scores above are unaffected —
-          try again in a few minutes.
-        </p>
+        <p className="results-eyebrow">{copy.eyebrow}</p>
+        <p>{copy.rateLimited}</p>
         {onRetry && (
           <button
             type="button"
             className="results-analysis-retry"
             onClick={onRetry}
           >
-            Try again
+            {copy.retry}
           </button>
         )}
       </section>
@@ -81,18 +79,15 @@ export function AnalysisSlot({
   if (state.status === "error") {
     return (
       <section className="results-analysis results-analysis-error" role="alert">
-        <p className="results-eyebrow">{label}</p>
-        <p>
-          We couldn&apos;t prepare the written analysis right now. Your ranked
-          results and sub-scores above are unaffected.
-        </p>
+        <p className="results-eyebrow">{copy.eyebrow}</p>
+        <p>{copy.error}</p>
         {onRetry && (
           <button
             type="button"
             className="results-analysis-retry"
             onClick={onRetry}
           >
-            Try again
+            {copy.retry}
           </button>
         )}
       </section>
@@ -104,15 +99,15 @@ export function AnalysisSlot({
     <section className="results-analysis results-analysis-ready">
       {showAiMark(source) && (
         <div className="results-analysis-labelRow">
-          <p className="results-eyebrow">{label}</p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
           <AiStar />
         </div>
       )}
-      <Heading className="results-analysis-heading">Why this one</Heading>
-      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
+      <Heading className="results-analysis-heading">{copy.heading}</Heading>
+      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick, language)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
-          <SubHeading>Tradeoffs</SubHeading>
+          <SubHeading>{copy.tradeoffs}</SubHeading>
           <ul>
             {output.tradeoffs.map((t) => (
               <li key={t}>{t}</li>
@@ -122,7 +117,7 @@ export function AnalysisSlot({
       )}
       {output.whatToAvoid.length > 0 && (
         <div>
-          <SubHeading>What to avoid</SubHeading>
+          <SubHeading>{copy.whatToAvoid}</SubHeading>
           <ul>
             {output.whatToAvoid.map((t) => (
               <li key={t}>{t}</li>
@@ -131,14 +126,12 @@ export function AnalysisSlot({
         </div>
       )}
       {showAiMark(source) && (
-        <p className="results-analysis-aiNotice">
-          {RESULTS_PAGE_COPY[language].aiWrittenNotice}
-        </p>
+        <p className="results-analysis-aiNotice">{copy.aiWrittenNotice}</p>
       )}
       {source === "fallback" && (
         <p className="results-analysis-provenance" role="status">
           <InfoIcon />
-          Generated automatically from your scores above.
+          {copy.provenance}
         </p>
       )}
       {output.caveats.length > 0 && (

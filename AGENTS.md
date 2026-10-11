@@ -86,15 +86,19 @@ caused one agent's uncommitted work to be committed by another.
 
 ## The five hard rules
 
-1. **Never commit the raw EloShapes CSV.** It lives *outside* this repo
-   (`../Dataset/`) and is gitignored twice over; read it only from there, in a
-   local script that never runs in CI. _Revised 2026-10-08 (Kirby's call):_ its
-   values (dimensions, weight and shape descriptors) **may** be imported into the
-   seed catalogue through the import script, for the brands Kirby selected, and only gaming mice currently on sale. Kirby
-   made this call after being shown that EloShapes' terms prohibit copying and
-   redistribution; the risk is his decision, recorded in `docs/STATUS.md`. Every
-   imported row must carry a `data_source` field (not yet in the schema). Any other licensed data still never enters
-   the repo.
+1. **Never commit raw third-party data files.** A third-party mouse-dimension
+   CSV (and any saved web pages) lives *outside* this repo (`../Dataset/`) and is
+   gitignored twice over; read it only from there, in a local script that never
+   runs in CI. _Revised 2026-10-08 (Kirby's call), and again 2026-10-11 (Kirby's
+   statement):_ the seed catalogue's values (dimensions, weight and shape
+   descriptors) are a checked compilation of public data and official
+   specifications, for the brands Kirby selected and only gaming mice currently
+   on sale. Kirby's statement of 2026-10-11 is that the third-party dataset's
+   values are a compilation of public data which the project only cross-checks,
+   and that he ran an independent check with AGY and added data from official
+   sites; this file records that statement and draws no legal conclusion from it.
+   Every seed row carries a `data_source` field. Any other licensed data still
+   never enters the repo.
 
 2. **The LLM never computes.** Every number a user sees originates in tested
    TypeScript. Gemini receives finished values and writes prose about them.
@@ -147,4 +151,4 @@ caused one agent's uncommitted work to be committed by another.
 - [ ] CI green (and, when the PR adds a migration or needs a phone test, a Vercel preview Claude started with `npx vercel deploy` is READY)
 - [ ] Gate evidence posted as numbers (gated milestones)
 - [ ] **`docs/STATUS.md` updated by Claude after the merge** — milestone row, decisions, blockers (builders report these in the PR description instead)
-- [ ] No raw EloShapes CSV, and no licensed data other than the EloShapes values rule 1 allows, anywhere in the diff or in `git log -p`
+- [ ] No raw third-party data file (CSV or saved pages), and no licensed data other than the checked public-data values rule 1 allows, anywhere in the diff or in `git log -p`; every seed row carries a `data_source`

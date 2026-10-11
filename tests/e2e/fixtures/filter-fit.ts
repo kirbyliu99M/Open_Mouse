@@ -124,7 +124,7 @@ export function buildFilterFit(over: Partial<FitResponse> = {}): FitResponse {
   return {
     ...BASE,
     scanId: "f1f1f1f1-1111-4a2b-8c3d-9e0f1a2b3c4d",
-    engineVersion: "fit-v1-candidate.2",
+    engineVersion: "fit-v1-candidate.3",
     handType: { size: "medium", grip: "claw", width: "wide" },
     excluded: BASE.excluded,
     results,

@@ -18,7 +18,10 @@ vi.mock("server-only", () => ({}));
 import { SURVEY_CONSENT_VERSION } from "../../src/lib/contracts/survey";
 import { createDrizzleSurveyRepo } from "../../src/server/survey/drizzle-repo";
 import { startOfUtcDay } from "../../src/server/survey/profile";
-import type { ContributionWrite } from "../../src/server/survey/repo";
+import type {
+  AnswersWrite,
+  ContributionWrite,
+} from "../../src/server/survey/repo";
 import {
   USE_B,
   FEEL_SMALL,
@@ -251,6 +254,197 @@ describe("recordContribution over the neon-http driver", () => {
     await expect(repo.recordContribution(aWrite())).rejects.toThrow(
       "statement failed",
     );
+  });
+});
+
+const anEdit = (over: Partial<AnswersWrite> = {}): AnswersWrite => ({
+  mainUse: USE_B,
+  feedback: "light",
+  ratings: [
+    {
+      mouseId: MOUSE_A,
+      satisfaction: 5,
+      duration: DURATION_A,
+      painPoints: [PAIN_A],
+      isCurrent: false,
+    },
+    {
+      mouseId: MOUSE_B,
+      satisfaction: 2,
+      duration: null,
+      painPoints: [],
+      isCurrent: true,
+    },
+  ],
+  otherMice: [{ brand: BRAND_A, sizeFeel: FEEL_SMALL, isCurrent: false }],
+  ...over,
+});
+
+describe("replaceAnswers over the neon-http driver", () => {
+  it("sends every statement in one transaction request, and nothing outside it", async () => {
+    const { repo, built, transactions, client } = fakeNeon((s) =>
+      s.map(() => oneRow),
+    );
+    await repo.replaceAnswers("user-1", anEdit());
+    expect(client.transaction).toHaveBeenCalledTimes(1);
+    expect(transactions[0]).toHaveLength(built.length);
+    expect(transactions[0]).toEqual(built);
+  });
+
+  it("locks the person's latest contribution row first, so a second edit waits for the first", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.replaceAnswers("user-1", anEdit());
+    const lock = transactions[0]![0]!;
+    expect(lock.sql.toLowerCase()).toMatch(
+      /^select "id" from "survey_contributions" where "survey_contributions"\."id" = \(select .* from "survey_contributions" where .*"user_id" = \$1 order by .*"consented_at" desc, .*"id" desc limit 1\) for update$/,
+    );
+    expect(lock.params).toEqual(["user-1"]);
+  });
+
+  it("says 'stored' when the lock found a contribution row and 'no_contribution' when it found none", async () => {
+    const found = fakeNeon((s) => s.map(() => oneRow));
+    expect(await found.repo.replaceAnswers("user-1", anEdit())).toBe("stored");
+    const none = fakeNeon((s) => s.map((_, i) => (i === 0 ? noRows : oneRow)));
+    expect(await none.repo.replaceAnswers("user-1", anEdit())).toBe(
+      "no_contribution",
+    );
+  });
+
+  it("deletes what the body leaves out, upserts what it names (marker exactly as given), and sets main use and comment last", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.replaceAnswers("user-1", anEdit());
+    const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
+    // 1 lock, 2 deletes, 2 rating upserts, 1 other-mouse upsert, 2 updates.
+    expect(sql).toHaveLength(8);
+    expect(sql[1]).toMatch(
+      /^delete from "survey_ratings" where .*"user_id" = \$\d+ and .*"mouse_id" not in \(\$\d+, \$\d+\)/,
+    );
+    expect(sql[2]).toMatch(
+      /^delete from "survey_other_mice" where .*"brand" not in \(\$\d+\)/,
+    );
+    for (const upsert of sql.slice(3, 6)) {
+      expect(upsert).toMatch(/on conflict \("user_id","(?:mouse_id|brand)"\)/);
+      // The marker is the body's, not OR-ed with the old one, and the row keeps
+      // the contribution it has: `contribution_id` is never in the SET list.
+      expect(upsert).toMatch(/"is_current" = excluded\.is_current(?!\s+or)/);
+      expect(upsert).not.toMatch(/"contribution_id" = excluded/);
+    }
+    expect(sql[6]).toMatch(
+      /^update "survey_contributions" set "main_use" = \$\d+ where .*"main_use" is not null and .*"id" <> \(select/,
+    );
+    expect(sql[7]).toMatch(
+      /^update "survey_contributions" set "main_use" = \$\d+, "feedback" = \$\d+ where .*"id" = \(select/,
+    );
+  });
+
+  it("deletes every rating or other mouse of the person when the body names none of that kind", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.replaceAnswers("user-1", anEdit({ ratings: [], otherMice: [] }));
+    const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
+    expect(sql).toHaveLength(5);
+    expect(sql[1]).not.toMatch(/not in/);
+    expect(sql[2]).not.toMatch(/not in/);
+  });
+
+  it("is scoped to the person in every statement and names no hand profile, grip, consent record, scan or mark (the consent day is only read, to order)", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.replaceAnswers("user-1", anEdit());
+    for (const statement of transactions[0]!) {
+      expect(statement.params, statement.sql).toContain("user-1");
+      expect(statement.sql.toLowerCase()).not.toMatch(
+        /hand_length_bin|palm_width_bin|grip_style|consent_version|"consented_at" =|"scans"|survey_contributed_at|scan_id/,
+      );
+    }
+    // A write with nothing for main use or comment still sets both (to null).
+    const cleared = fakeNeon((s) => s.map(() => oneRow));
+    await cleared.repo.replaceAnswers(
+      "user-1",
+      anEdit({ mainUse: null, feedback: null }),
+    );
+    const last = cleared.transactions[0]!.at(-1)!;
+    expect(last.params).toEqual(expect.arrayContaining([null, null]));
+  });
+
+  it("every upsert is a guarded INSERT ... SELECT from the latest contribution row, so no contribution means no row", async () => {
+    const { repo, transactions } = fakeNeon((s) => s.map(() => oneRow));
+    await repo.replaceAnswers("user-1", anEdit());
+    const inserts = transactions[0]!.filter((s) =>
+      s.sql.toLowerCase().startsWith("insert into"),
+    );
+    expect(inserts).toHaveLength(3);
+    for (const insert of inserts) {
+      expect(insert.sql.toLowerCase()).toMatch(
+        /from "survey_contributions" where "survey_contributions"\."id" = \(select/,
+      );
+    }
+  });
+
+  it("lets a failed transaction through, so the caller answers 500 and nothing is half-written", async () => {
+    const { repo, client } = fakeNeon(() => []);
+    client.transaction.mockRejectedValueOnce(new Error("statement failed"));
+    await expect(repo.replaceAnswers("user-1", anEdit())).rejects.toThrow(
+      "statement failed",
+    );
+  });
+});
+
+describe("readAnswers over the neon-http driver", () => {
+  it("is one transaction request of four SELECTs, all scoped to the person, and changes nothing", async () => {
+    const { repo, transactions, client } = fakeNeon(() => [
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+    ]);
+    expect(await repo.readAnswers("user-1")).toEqual({
+      mainUse: null,
+      feedback: null,
+      ratings: [],
+      otherMice: [],
+    });
+    expect(client.transaction).toHaveBeenCalledTimes(1);
+    expect(transactions[0]).toHaveLength(4);
+    for (const statement of transactions[0]!) {
+      expect(statement.sql.toLowerCase()).toMatch(/^select /);
+      expect(statement.params).toContain("user-1");
+    }
+  });
+
+  it("maps the rows: comment of the latest contribution, latest main use, slug from the mice row", async () => {
+    const { repo } = fakeNeon(() => [
+      { rows: [["Latest comment."]] },
+      { rows: [[USE_B]] },
+      { rows: [["mouse-a", 4, DURATION_A, [PAIN_A], true]] },
+      { rows: [[BRAND_A, FEEL_SMALL, false]] },
+    ]);
+    expect(await repo.readAnswers("user-1")).toEqual({
+      mainUse: USE_B,
+      feedback: "Latest comment.",
+      ratings: [
+        {
+          slug: "mouse-a",
+          satisfaction: 4,
+          duration: DURATION_A,
+          painPoints: [PAIN_A],
+          isCurrent: true,
+        },
+      ],
+      otherMice: [{ brand: BRAND_A, sizeFeel: FEEL_SMALL, isCurrent: false }],
+    });
+  });
+
+  it("reads the slug from a join on the CURRENT mice row, and the latest contribution by consent day then id", async () => {
+    const { repo, transactions } = fakeNeon(() => [
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+    ]);
+    await repo.readAnswers("user-1");
+    const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
+    expect(sql[0]).toMatch(/order by .*"consented_at" desc, .*"id" desc limit/);
+    expect(sql[1]).toMatch(/"main_use" is not null/);
+    expect(sql[2]).toMatch(/inner join "mice" on "mice"\."id" = /);
   });
 });
 

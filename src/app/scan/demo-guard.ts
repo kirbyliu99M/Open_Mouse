@@ -15,6 +15,13 @@ import { notFound } from "next/navigation";
  * collects the learning data by hand, on his own machine (decision 2026-09-30),
  * so those pages are not served in production.
  *
+ * The printed-sheet flow, `/sheet` (the printable ArUco calibration sheet) and
+ * `/scan` (its photo step), is guarded too (Kirby, 2026-10-11): the
+ * main scan flow is `/scan/easy` on any blank A4 sheet, and nothing in the
+ * site links to the printed-sheet pages. They stay for the learning kit, the
+ * demos and the e2e tests, which run under `next dev`. `/scan/easy` itself,
+ * the one public scan page, must NOT call this guard.
+ *
  * Only a real production deployment (`VERCEL_ENV === "production"`) answers
  * 404. `next dev`, which the e2e suite runs, and Vercel previews are
  * unaffected.

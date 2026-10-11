@@ -27,6 +27,12 @@ async function mismatchPipeline(
             code: "HANDEDNESS_MISMATCH",
             message:
               "This looks like your left hand. Tap the hand button below.",
+            detail: {
+              kind: "handedness" as const,
+              detected: "left" as const,
+              stated: "right" as const,
+              fix: "button" as const,
+            },
           }
         : {
             code: "LOW_LANDMARK_CONFIDENCE",
