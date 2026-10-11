@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 import { QR_STYLES_LIST } from "@/components/results/share/qrStyle";
 import { ShareCardDemoClient } from "./ShareCardDemoClient";
 
@@ -25,7 +25,7 @@ export default async function ShareCardDemoPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const q = await searchParams;
   const flag = (key: string, fallback: boolean) => {
     const v = q[key];

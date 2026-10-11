@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { learnCopy } from "@/lib/copy/learn";
 import { GESTURES, KIT_V1_VERSION, shotsPerHand } from "@/lib/learning/kit";
 import { getLocale } from "@/server/i18n/getLocale";
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LearnPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const copy = learnCopy(await getLocale());
   const perHand = shotsPerHand();
   const gestures = copy.gestures;

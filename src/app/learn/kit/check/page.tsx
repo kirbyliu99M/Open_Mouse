@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { TopBar } from "@/components/nav/TopBar";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { KIT_V2_SHEETS, type KitV2Sheet } from "@/lib/learning/session";
 import { learnCopy } from "@/lib/copy/learn";
@@ -38,7 +38,7 @@ export default async function LearnCheckPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const copy = learnCopy(await getLocale());
   const params = await searchParams;
   const paper = paperFrom(params.paper);

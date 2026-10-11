@@ -1,7 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { guardDemoRouteFromProduction } from "../../src/app/scan/demo-guard";
+import {
+  guardDemoRouteFromProduction,
+  guardDevOnlyRoute,
+} from "../../src/app/scan/demo-guard";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 // `/scan/easy` reads the request headers and mounts the camera; neither exists
@@ -29,7 +32,33 @@ function setEnv(name: "NODE_ENV" | "VERCEL_ENV", value: string | undefined) {
   else env[name] = value;
 }
 
-describe("guardDemoRouteFromProduction", () => {
+// Why two guards (Kirby's decisions, 2026-10-11): the demo pages and the
+// learning kit open only on a local `next dev`. `/sheet` and `/scan` are the
+// printed-sheet flow: previews must be able to render them, so they close only
+// on the real production site.
+describe("guardDemoRouteFromProduction (the printed-sheet flow: closed only in production)", () => {
+  afterEach(() => {
+    setEnv("NODE_ENV", ORIGINAL_NODE_ENV);
+    setEnv("VERCEL_ENV", ORIGINAL_VERCEL_ENV);
+  });
+
+  it("calls notFound() (throws) when VERCEL_ENV is production", () => {
+    setEnv("VERCEL_ENV", "production");
+    expect(() => guardDemoRouteFromProduction()).toThrow();
+  });
+
+  it("does nothing outside production (preview, development, or unset), whatever NODE_ENV is", () => {
+    for (const nodeEnv of ["production", "development", "test"] as const) {
+      setEnv("NODE_ENV", nodeEnv);
+      for (const value of ["preview", "development", undefined] as const) {
+        setEnv("VERCEL_ENV", value);
+        expect(() => guardDemoRouteFromProduction()).not.toThrow();
+      }
+    }
+  });
+});
+
+describe("guardDevOnlyRoute (the demo routes and the learning kit: local `next dev` only)", () => {
   afterEach(() => {
     setEnv("NODE_ENV", ORIGINAL_NODE_ENV);
     setEnv("VERCEL_ENV", ORIGINAL_VERCEL_ENV);
@@ -39,7 +68,7 @@ describe("guardDemoRouteFromProduction", () => {
     setEnv("NODE_ENV", "development");
     for (const vercel of [undefined, "development", "preview"] as const) {
       setEnv("VERCEL_ENV", vercel);
-      expect(() => guardDemoRouteFromProduction()).not.toThrow();
+      expect(() => guardDevOnlyRoute()).not.toThrow();
     }
   });
 
@@ -47,7 +76,7 @@ describe("guardDemoRouteFromProduction", () => {
     setEnv("NODE_ENV", "production");
     for (const vercel of [undefined, "production", "preview"] as const) {
       setEnv("VERCEL_ENV", vercel);
-      expect(() => guardDemoRouteFromProduction()).toThrow();
+      expect(() => guardDevOnlyRoute()).toThrow();
     }
   });
 
@@ -55,7 +84,7 @@ describe("guardDemoRouteFromProduction", () => {
     setEnv("VERCEL_ENV", undefined);
     for (const value of ["test", "staging", undefined] as const) {
       setEnv("NODE_ENV", value);
-      expect(() => guardDemoRouteFromProduction()).toThrow();
+      expect(() => guardDevOnlyRoute()).toThrow();
     }
   });
 
@@ -64,7 +93,7 @@ describe("guardDemoRouteFromProduction", () => {
     // the dev-only promise should not hang on that: production wins.
     setEnv("NODE_ENV", "development");
     setEnv("VERCEL_ENV", "production");
-    expect(() => guardDemoRouteFromProduction()).toThrow();
+    expect(() => guardDevOnlyRoute()).toThrow();
   });
 });
 
@@ -162,6 +191,10 @@ const isProductRoute = (route: string) => PRODUCT_ROUTES.includes(route);
 // ── Reading a page's source ─────────────────────────────────────────────────
 
 const GUARD = "guardDemoRouteFromProduction";
+/** The two real guards (see demo-guard.ts). */
+const PRODUCTION_ONLY = "guardDemoRouteFromProduction";
+const DEV_ONLY = "guardDevOnlyRoute";
+const GUARD_NAMES = [PRODUCTION_ONLY, DEV_ONLY];
 
 function parse(source: string): ts.SourceFile {
   return ts.createSourceFile(
@@ -173,9 +206,9 @@ function parse(source: string): ts.SourceFile {
   );
 }
 
-/** Local names that are the real guard: imported by that name from a `demo-guard` module. */
-function importedGuardNames(file: ts.SourceFile): Set<string> {
-  const names = new Set<string>();
+/** Local name -> real guard name, for the guards imported from a `demo-guard` module. */
+function importedGuardNames(file: ts.SourceFile): Map<string, string> {
+  const names = new Map<string, string>();
   for (const statement of file.statements) {
     if (
       !ts.isImportDeclaration(statement) ||
@@ -187,9 +220,9 @@ function importedGuardNames(file: ts.SourceFile): Set<string> {
     const bindings = statement.importClause?.namedBindings;
     if (!bindings || !ts.isNamedImports(bindings)) continue;
     for (const element of bindings.elements) {
-      if ((element.propertyName ?? element.name).text === GUARD) {
-        names.add(element.name.text);
-      }
+      const imported = (element.propertyName ?? element.name).text;
+      if (GUARD_NAMES.includes(imported))
+        names.set(element.name.text, imported);
     }
   }
   return names;
@@ -235,19 +268,23 @@ function defaultExportBody(file: ts.SourceFile): ts.Block | null {
  * Anywhere later, inside a nested function, after an early return, or in a
  * comment does not count: those run too late or not at all.
  */
-function guardsFirst(source: string): boolean {
+function firstGuard(source: string): string | null {
   const file = parse(source);
   const body = defaultExportBody(file);
   const first = body?.statements[0];
-  if (!first || !ts.isExpressionStatement(first)) return false;
+  if (!first || !ts.isExpressionStatement(first)) return null;
   const call = first.expression;
-  return (
-    ts.isCallExpression(call) &&
-    ts.isIdentifier(call.expression) &&
-    importedGuardNames(file).has(call.expression.text) &&
-    call.arguments.length === 0
-  );
+  if (
+    !ts.isCallExpression(call) ||
+    !ts.isIdentifier(call.expression) ||
+    call.arguments.length !== 0
+  ) {
+    return null;
+  }
+  return importedGuardNames(file).get(call.expression.text) ?? null;
 }
+
+const guardsFirst = (source: string) => firstGuard(source) !== null;
 
 /** True when the file calls anything named like the guard, anywhere. */
 function callsGuardAnywhere(source: string): boolean {
@@ -256,7 +293,7 @@ function callsGuardAnywhere(source: string): boolean {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === GUARD
+      GUARD_NAMES.includes(node.expression.text)
     ) {
       found = true;
     }
@@ -389,6 +426,21 @@ describe("every page under src/app is a listed product page or calls guardDemoRo
   it.each(otherFiles)("src/app/%s calls the guard first", (file) => {
     expect(guardsFirst(readFileSync(`src/app/${file}`, "utf8"))).toBe(true);
   });
+
+  // Each page calls the guard it is meant to: /sheet and /scan the
+  // production-only one (previews render them); every other guarded page the
+  // dev-only one.
+  it.each(otherFiles)(
+    "src/app/%s calls the right one of the two guards",
+    (file) => {
+      const expected = PRINTED_SHEET_ROUTES.includes(routeOf(file))
+        ? PRODUCTION_ONLY
+        : DEV_ONLY;
+      expect(firstGuard(readFileSync(`src/app/${file}`, "utf8"))).toBe(
+        expected,
+      );
+    },
+  );
 
   it.each(productFiles)(
     "src/app/%s is a product page: it must not call the guard (that would 404 it in production)",

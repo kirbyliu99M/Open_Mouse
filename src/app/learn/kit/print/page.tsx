@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
 import { KitPageSvg } from "@/components/learning/KitSvg";
 import { KitSheetSvg } from "@/components/learning/KitV2Svg";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { learnCopy } from "@/lib/copy/learn";
 import { getLocale } from "@/server/i18n/getLocale";
 import {
@@ -41,7 +41,7 @@ export default async function LearnPrintPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const locale = await getLocale();
   const copy = learnCopy(locale);
   const params = await searchParams;
