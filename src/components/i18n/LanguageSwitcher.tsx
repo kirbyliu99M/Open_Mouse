@@ -30,7 +30,6 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           lang={option.lang}
           className="languageSwitcher-option"
           aria-pressed={locale === option.locale}
-          aria-current={locale === option.locale ? "true" : undefined}
           onClick={() => {
             if (locale !== option.locale) setLocale(option.locale);
           }}

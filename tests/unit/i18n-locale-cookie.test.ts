@@ -5,6 +5,9 @@ import { pickCopy } from "../../src/lib/i18n/copy";
 import { backLinkName } from "../../src/components/nav/labels";
 
 describe("localeCookieString", () => {
+  it("keeps the choice for one year", () => {
+    expect(LOCALE_COOKIE_MAX_AGE_S).toBe(31536000);
+  });
   it("writes the site-wide, year-long, SameSite=Lax cookie", () => {
     expect(localeCookieString("en", false)).toBe(
       `om_locale=en; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE_S}; SameSite=Lax`,

@@ -8,6 +8,7 @@ import type { FitRepo } from "../fit/repo";
 import type { AnalysisRequestDeps } from "./handler";
 import { handleAnalysisRequest } from "./handler";
 import { resolveClientIp } from "./ip";
+import { localeFromRequestHeaders } from "./locale";
 
 // `no-store`: every response here carries personal hand-measurement data,
 // a ranking derived from it, or prose written about that ranking (same
@@ -124,6 +125,7 @@ export async function computeAnalysisForScan(
       fit: fitResult.fit,
       measurements: fitResult.measurements,
       rateLimitKey,
+      locale: localeFromRequestHeaders(request.headers),
     },
     {
       client: deps.client,
