@@ -5,10 +5,15 @@
  * CFbGl, LHhIs, gDxD7 of design-exports/profile-page-2026-10-12, candidate).
  *
  * Every zh-TW string is a CANDIDATE (未拍板) until Kirby has read it. The
- * consent paragraphs are the frame's text, which is a shortened form of
- * candidate E in copy-review-2026-10-06.md (the frame drops the opening
- * sentence "送出後，我們會保存你的回答…" and the line "請不要填聯絡方式", which
- * the comment box's placeholder carries instead). The consent text goes with
+ * consent paragraphs started as the frame's text (a shortened form of
+ * candidate E in copy-review-2026-10-06.md) and were CHANGED after review
+ * (2026-10-12, candidate, for Kirby to read): the "kept" list now names every
+ * item the form sends (use time, what does not fit, which mouse is the current
+ * one, the brand and size feel of other mice), and "不會保存：照片、姓名、Email"
+ * became "不會保存：照片" plus a line telling people not to write a name or
+ * contact details in the comment, because the contract forbids a consent text
+ * that says no personal detail is stored (a name typed into the comment is
+ * kept). The consent text goes with
  * `SURVEY_CONSENT_VERSION` in the contract: when either changes, the other
  * must be looked at. It does not say that the model of a mouse that is not in
  * the catalogue is kept, because the model field is not sent yet.
@@ -64,9 +69,16 @@ export interface QuestionnaireCopy {
   commentCount: (used: number, max: number) => string;
   consentLabel: string;
   consentKept: string;
+  consentNotKept: string;
   consentWithdraw: string;
   submit: string;
   submitting: string;
+  /** The add button is off and this line says why: the form holds as many mice as one answer can. */
+  othersFull: (max: number) => string;
+  /** Closes the form when there is nothing to edit instead. */
+  close: string;
+  /** Marks a brand in the brand list that the person has already answered. */
+  brandAnswered: (brand: string) => string;
 
   // What the server said.
   alreadyAnswered: string;
@@ -158,11 +170,16 @@ export const zhTW: QuestionnaireCopy = {
   commentCount: (used, max) => `${used}/${max}`,
   consentLabel: "我同意，送出我的回答",
   consentKept:
-    "會保存：手長與掌寬（只存 5 mm 一格的範圍，不存確切數字）、握法、你評的滑鼠與滿意度、主要用途，以及你選填的意見。不會保存：照片、姓名、Email。意見欄只有站方看得到，不會公開。",
+    "會保存：手長與掌寬（只存 5 mm 一格的範圍，不存確切數字）、握法、你評的滑鼠與滿意度、使用時間、哪裡不合適、哪一支是你現在用的、你選的其他品牌與大小感覺、主要用途，以及你選填的意見。",
+  consentNotKept:
+    "不會保存：照片。意見欄請不要填姓名或聯絡方式；意見欄只有站方看得到，不會公開。",
   consentWithdraw:
     "沒有登入時送出的回答，之後無法找回，也就無法撤回；登入後送出的回答，可以在刪除帳號資料時一併撤回。",
   submit: "送出",
   submitting: "送出中…",
+  othersFull: (max) => `一次最多回答 ${max} 支滑鼠，已經滿了。`,
+  close: "關閉",
+  brandAnswered: (brand) => `${brand}（已回答）`,
 
   alreadyAnswered: "這次量測已經送出過回答。",
   editInstead: "修改我的回答",
@@ -249,11 +266,17 @@ export const en: QuestionnaireCopy = {
   commentCount: (used, max) => `${used}/${max}`,
   consentLabel: "I agree. Send my answers.",
   consentKept:
-    "Kept: hand length and palm width (only as a 5 mm range, never the exact numbers), grip, the mice you rate and how satisfied you are, main use, and the comment if you write one. Not kept: photos, name, email. Only the maintainers can see the comment; it is never public.",
+    "Kept: hand length and palm width (only as a 5 mm range, never the exact numbers), grip, the mice you rate and how satisfied you are, how long you've used them, what doesn't suit you, which one you use now, the brand and size feel of other mice you pick, main use, and the comment if you write one.",
+  consentNotKept:
+    "Not kept: photos. Please don't write your name or contact details in the comment; only the maintainers can see the comment, and it is never public.",
   consentWithdraw:
     "Answers sent without signing in can't be found again, so they can't be taken back. Answers sent while signed in can be taken back when you delete your account data.",
   submit: "Send",
   submitting: "Sending…",
+  othersFull: (max) =>
+    `One answer holds at most ${max} mice, and that many are in.`,
+  close: "Close",
+  brandAnswered: (brand) => `${brand} (answered)`,
 
   alreadyAnswered: "This measurement has already sent its answers.",
   editInstead: "Change my answers",

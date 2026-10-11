@@ -2,7 +2,11 @@
 
 import { useId, useMemo, useState } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
-import { OTHER_MOUSE_BRANDS, SIZE_FEELS } from "@/lib/contracts/survey";
+import {
+  OTHER_MOUSE_BRANDS,
+  SIZE_FEELS,
+  type OtherMouseBrand,
+} from "@/lib/contracts/survey";
 import { accountCopy } from "@/lib/copy/account";
 import { questionnaireCopy } from "@/lib/copy/questionnaire";
 import { ChipChoice } from "./QuestionFields";
@@ -31,6 +35,7 @@ export function MouseChoiceFlow({
   allowOther,
   showModelField = false,
   initialOther,
+  answeredBrands = [],
   onChoose,
   onClose,
   returnFocusTo,
@@ -47,6 +52,8 @@ export function MouseChoiceFlow({
    */
   showModelField?: boolean;
   initialOther?: OtherDraft;
+  /** Brands the person has already answered; the brand list marks them. */
+  answeredBrands?: readonly OtherMouseBrand[];
   onChoose: (choice: MouseChoice) => void;
   onClose: () => void;
   returnFocusTo?: () => HTMLElement | null;
@@ -57,6 +64,7 @@ export function MouseChoiceFlow({
       <OtherMouseSheet
         initial={initialOther ?? emptyOtherDraft()}
         showModelField={showModelField}
+        answeredBrands={answeredBrands}
         onDone={(draft) => onChoose({ kind: "other", draft })}
         onBack={() => setStep("list")}
         onClose={onClose}
@@ -268,6 +276,7 @@ function MousePickerSheet({
 export function OtherMouseSheet({
   initial,
   showModelField,
+  answeredBrands = [],
   onDone,
   onBack,
   onClose,
@@ -275,6 +284,7 @@ export function OtherMouseSheet({
 }: {
   initial: OtherDraft;
   showModelField: boolean;
+  answeredBrands?: readonly OtherMouseBrand[];
   onDone: (draft: OtherDraft) => void;
   onBack: () => void;
   onClose: () => void;
@@ -330,7 +340,9 @@ export function OtherMouseSheet({
           >
             {OTHER_MOUSE_BRANDS.map((slug) => (
               <option key={slug} value={slug}>
-                {brandName(slug, account)}
+                {answeredBrands.includes(slug)
+                  ? copy.brandAnswered(brandName(slug, account))
+                  : brandName(slug, account)}
               </option>
             ))}
           </select>

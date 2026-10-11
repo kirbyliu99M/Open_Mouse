@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -16,6 +17,7 @@ import {
   RatingSheet,
   RemoveConfirm,
 } from "../../src/app/account/MouseEditSheets";
+import { NicknameSheet } from "../../src/app/account/ProfileEditSheets";
 import { QuestionnaireForm } from "../../src/app/account/QuestionnaireForm";
 import type { AnswersState } from "../../src/app/account/profile-model";
 import {
@@ -27,6 +29,7 @@ import {
 } from "../../src/app/account/questionnaire-model";
 import {
   MAX_FEEDBACK_CHARS,
+  MAX_RATED_MICE,
   OTHER_MOUSE_BRANDS,
   surveyMineResponseSchema,
 } from "../../src/lib/contracts/survey";
@@ -110,13 +113,23 @@ describe("the first-time form", () => {
     expect(html).toContain(copy.choosePlaceholder);
     // The questions that belong to a chosen catalogue mouse are not asked yet.
     expect(html).not.toContain(copy.qSatisfaction);
-    expect(html).not.toContain(copy.qDuration);
+    expect(html).not.toContain(
+      `<legend class="qn-legend">${copy.qDuration}</legend>`,
+    );
     expect(html).not.toContain(copy.qPain);
     // The consent is a real checkbox, not ticked; submit is off.
     expect(html).toMatch(/<input[^>]*type="checkbox"(?![^>]*checked)[^>]*>/);
     expect(html).toContain(copy.consentLabel);
     expect(html).toContain(copy.consentKept);
+    expect(html).toContain(copy.consentNotKept);
     expect(html).toContain(copy.consentWithdraw);
+    // The three paragraphs are read in this order, under the consent label.
+    expect(html.indexOf(copy.consentKept)).toBeLessThan(
+      html.indexOf(copy.consentNotKept),
+    );
+    expect(html.indexOf(copy.consentNotKept)).toBeLessThan(
+      html.indexOf(copy.consentWithdraw),
+    );
     expect(html).toMatch(
       new RegExp(`<button[^>]*disabled=""[^>]*>${copy.submit}</button>`),
     );
@@ -175,6 +188,9 @@ describe("the first-time form", () => {
 
   it("chips have real state: aria-pressed on the chosen use time, pain point and main use", () => {
     const html = renderForm(RATED);
+    expect(html).toContain(
+      `<legend class="qn-legend">${copy.qDuration}</legend>`,
+    );
     expect(html).toContain(
       `aria-pressed="true">${account.durations["6_to_12_months"]}</button>`,
     );
@@ -250,14 +266,106 @@ describe("the first-time form", () => {
     expect(html).toContain(copy.othersHint(2));
   });
 
-  it("draws no add button when the body is full", () => {
+  it("when the body is full the add button is off and one line says why, instead of an error after sending", () => {
     const full = form({
       current: { kind: "rating", draft: emptyRatingDraft("a") },
       extraRatings: ["b", "c", "d", "e"].map((s) => emptyRatingDraft(s)),
     });
     const html = renderForm(full);
-    expect(html).not.toContain(copy.addMouse);
-    expect(html).toContain(copy.othersHint(0));
+    expect(html).toMatch(
+      new RegExp(
+        `<button[^>]*disabled=""[^>]*>(?:(?!</button>).)*${copy.addMouse}`,
+        "s",
+      ),
+    );
+    expect(html).toContain(copy.othersFull(MAX_RATED_MICE));
+    expect(html).not.toContain(copy.othersHint(0));
+    // The button names the line that explains it.
+    expect(html).toMatch(/aria-describedby="([^"]*-others)"/);
+    // With a slot left, the button is on and the hint counts the slots.
+    const open = renderForm(RATED);
+    expect(open).not.toMatch(
+      new RegExp(
+        `<button[^>]*disabled=""[^>]*>(?:(?!</button>).)*${copy.addMouse}`,
+        "s",
+      ),
+    );
+    expect(open).toContain(copy.othersHint(MAX_RATED_MICE - 1));
+    expect(open).not.toContain(copy.othersFull(MAX_RATED_MICE));
+  });
+
+  it("a catalogue mouse without a score keeps submit off and says so next to it, even with consent and another mouse", () => {
+    const html = renderForm(
+      form({
+        consent: true,
+        current: {
+          kind: "rating",
+          draft: emptyRatingDraft("razer-deathadder-v3"),
+        },
+        extraRatings: [{ ...emptyRatingDraft("zowie-s2-c"), satisfaction: 3 }],
+      }),
+    );
+    expect(html).toMatch(
+      new RegExp(`<button[^>]*disabled=""[^>]*>${copy.submit}</button>`),
+    );
+    // Once under the question and once right above the button.
+    expect(html.match(new RegExp(copy.satisfactionNeeded, "g"))).toHaveLength(
+      2,
+    );
+    expect(html.lastIndexOf(copy.satisfactionNeeded)).toBeGreaterThan(
+      html.indexOf(copy.consentWithdraw),
+    );
+    // Scored: the line is gone and submit is on.
+    const scored = renderForm({
+      ...RATED,
+      consent: true,
+    });
+    expect(scored).not.toContain(copy.satisfactionNeeded);
+    expect(scored).not.toMatch(
+      new RegExp(`<button[^>]*disabled=""[^>]*>${copy.submit}</button>`),
+    );
+  });
+
+  describe("after a 409", () => {
+    const conflict = (
+      props: { signedIn: boolean; canEditInstead?: boolean } = {
+        signedIn: true,
+      },
+    ) =>
+      renderToStaticMarkup(
+        createElement(QuestionnaireForm, {
+          scanId: SCAN,
+          catalogue: CATALOGUE,
+          mouseNames: NAMES,
+          initialFailure: "conflict",
+          onClose: noop,
+          onSubmitted: noop,
+          ...props,
+        }),
+      );
+
+    it("a signed-in person with answers is offered the edit", () => {
+      const html = conflict({ signedIn: true, canEditInstead: true });
+      expect(html).toContain(copy.alreadyAnswered);
+      expect(html).toContain(`>${copy.editInstead}</button>`);
+      expect(html).not.toContain(`>${copy.close}</button>`);
+    });
+
+    it("a signed-in person with no answers has nothing to edit: the line and a way to close, no dead edit button", () => {
+      const html = conflict({ signedIn: true, canEditInstead: false });
+      expect(html).toContain(copy.alreadyAnswered);
+      expect(html).not.toContain(copy.editInstead);
+      expect(html).toContain(`>${copy.close}</button>`);
+      // The default (nothing known) is the safe one.
+      expect(conflict({ signedIn: true })).not.toContain(copy.editInstead);
+    });
+
+    it("a signed-out person cannot edit either way", () => {
+      const html = conflict({ signedIn: false, canEditInstead: true });
+      expect(html).toContain(copy.alreadyAnswered);
+      expect(html).not.toContain(copy.editInstead);
+      expect(html).toContain(`>${copy.close}</button>`);
+    });
   });
 });
 
@@ -343,6 +451,22 @@ describe("the sheet for a mouse that is not in the catalogue", () => {
     );
     expect(html).toContain(copy.otherDone);
     expect(html).toContain(copy.backToList);
+  });
+
+  it("marks the brands already answered in the brand list, and no other", () => {
+    const html = renderToStaticMarkup(
+      createElement(OtherMouseSheet, {
+        initial: emptyOtherDraft(),
+        showModelField: false,
+        answeredBrands: ["razer"],
+        onDone: noop,
+        onBack: noop,
+        onClose: noop,
+      }),
+    );
+    expect(html).toContain(`>${copy.brandAnswered("Razer")}</option>`);
+    expect(html.match(new RegExp(copy.brandAnswered(""), "g"))).toHaveLength(1);
+    expect(render()).not.toContain("已回答");
   });
 
   it("the model field is behind a prop: absent by default, present when switched on", () => {
@@ -511,8 +635,19 @@ describe("the removal confirmation", () => {
     expect(html).toContain("qn-confirm-remove");
   });
 
-  it("shows no always-on focus ring: no inline outline, and no autofocus attribute that would paint one", () => {
-    expect(html).not.toContain("outline");
+  it("the stylesheet gives focus no ring of its own: it appears only for keyboard focus (:focus-visible)", () => {
+    const css = readFileSync("src/app/account/questionnaire.css", "utf8");
+    const block = (selector: string): string => {
+      const at = css.indexOf(`${selector} {`);
+      if (at === -1) throw new Error(`no rule for ${selector}`);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    expect(block(".qn-confirm button:focus")).toContain("outline: none");
+    expect(block(".qn-confirm button:focus-visible")).toContain(
+      "outline: 2px solid var(--accent-text)",
+    );
+    // The default-focused 「取消」 has no border or outline of its own that would show a ring at rest.
+    expect(block(".qn-confirm-cancel")).not.toMatch(/outline|accent/);
     expect(html).not.toContain("autofocus");
   });
 });
@@ -613,10 +748,18 @@ describe("the profile page with the questionnaire wired", () => {
     );
   });
 
-  it("the nickname and avatar sheets stay unwired: no `editing` is passed", () => {
-    const html = render(answers);
-    expect(html).toContain(account.nicknameRow);
-    expect(html).not.toContain(account.notWired);
+  it("a nickname sheet opened with no `editing` (what SignedInProfile gives it) says it cannot save, and keeps Save off", () => {
+    const sheet = renderToStaticMarkup(
+      createElement(NicknameSheet, {
+        saved: "Ada",
+        onClose: noop,
+        onSaved: noop,
+      }),
+    );
+    expect(sheet).toContain(account.notWired);
+    expect(sheet).toMatch(
+      new RegExp(`<button[^>]*disabled=""[^>]*>${account.save}</button>`),
+    );
   });
 });
 

@@ -28,7 +28,9 @@ import {
   emptyRatingDraft,
   failureLine,
   isOverCap,
+  answeredBrands,
   ratingFromDraft,
+  routeAddOther,
   withFeedback,
   withMainUse,
   withOther,
@@ -166,6 +168,10 @@ export function SignedInProfile({
         <QuestionnaireForm
           scanId={overlay.scanId}
           signedIn
+          canEditInstead={
+            ctx.answers !== null &&
+            ctx.answers.ratings.length + ctx.answers.otherMice.length > 0
+          }
           catalogue={catalogue}
           mouseNames={mouseNames}
           showModelField={showModelField}
@@ -186,7 +192,18 @@ export function SignedInProfile({
     if (overlay.kind === "add-pick") {
       const choose = (choice: MouseChoice) => {
         if (choice.kind === "other") {
-          void addOther(choice.draft, ctx, base);
+          const route = routeAddOther(answers, choice.draft);
+          if (route.kind === "edit-existing") {
+            // That brand is already answered: open its own sheet, so an add
+            // can never overwrite it (and clear its "in use now").
+            open({
+              kind: "edit",
+              target: { kind: "other", brand: route.brand },
+              ctx,
+            });
+            return;
+          }
+          void addOther(choice.draft, ctx, route.body);
           return;
         }
         const existing = answers.ratings.find((r) => r.slug === choice.slug);
@@ -210,6 +227,7 @@ export function SignedInProfile({
           chosenSlugs={answers.ratings.map((r) => r.slug)}
           allowOther
           showModelField={showModelField}
+          answeredBrands={answeredBrands(answers)}
           onChoose={choose}
           onClose={close}
           returnFocusTo={returnFocus}
@@ -340,13 +358,8 @@ export function SignedInProfile({
   async function addOther(
     draft: OtherDraft,
     ctx: ProfileHandlerContext,
-    base: SurveyEdit,
+    body: SurveyEdit,
   ) {
-    const body = withOther(base, {
-      brand: draft.brand,
-      sizeFeel: draft.sizeFeel,
-      current: false,
-    });
     if (isOverCap(body)) {
       open({ kind: "add-other", draft, ctx });
       setLine(copy.overCap(MAX_ACCOUNT_MICE));

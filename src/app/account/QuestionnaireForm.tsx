@@ -32,6 +32,7 @@ import {
   extraSlotsLeft,
   failureLine,
   formSlugs,
+  hasUnscoredMouse,
   otherTaken,
   togglePain,
   type CatalogueChoice,
@@ -109,6 +110,8 @@ export function QuestionnaireForm({
   mouseNames,
   showModelField = false,
   initialForm,
+  initialFailure,
+  canEditInstead = false,
   onClose,
   onSubmitted,
   returnFocusTo,
@@ -122,6 +125,14 @@ export function QuestionnaireForm({
   showModelField?: boolean;
   /** The answers to start from (a static render in a test has no way to type them). */
   initialForm?: FormState;
+  /** The failure to start from (a static render in a test cannot make one happen). */
+  initialFailure?: SurveyFailure;
+  /**
+   * A signed-in person who already has mice to edit: only then is 「修改我的回答」
+   * offered after a 409. With none, the edit has nothing to open, so the
+   * line stands alone with a way to close.
+   */
+  canEditInstead?: boolean;
   onClose: () => void;
   /** A signed-in person's answers were stored: read them again and close. */
   onSubmitted: () => void;
@@ -133,7 +144,9 @@ export function QuestionnaireForm({
   const [form, setForm] = useState<FormState>(() => initialForm ?? emptyForm());
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [sending, setSending] = useState(false);
-  const [failure, setFailure] = useState<SurveyFailure | null>(null);
+  const [failure, setFailure] = useState<SurveyFailure | null>(
+    initialFailure ?? null,
+  );
   const [done, setDone] = useState(false);
   const commentId = useId();
   const consentId = useId();
@@ -371,8 +384,10 @@ export function QuestionnaireForm({
 
           <fieldset className="qn-q">
             <legend className="qn-legend">{copy.qOthers}</legend>
-            <p className="qn-hint">
-              {copy.othersHint(Math.min(left, MAX_RATED_MICE - 1))}
+            <p id={`${consentId}-others`} className="qn-hint">
+              {left > 0
+                ? copy.othersHint(Math.min(left, MAX_RATED_MICE - 1))
+                : copy.othersFull(MAX_RATED_MICE)}
             </p>
             {extraRows.length > 0 && (
               <ul className="profile-rows qn-extra-rows">
@@ -415,17 +430,17 @@ export function QuestionnaireForm({
                 ))}
               </ul>
             )}
-            {left > 0 && (
-              <button
-                type="button"
-                className="profile-row profile-text-button profile-add"
-                aria-haspopup="dialog"
-                onClick={() => setOverlay({ kind: "pick-extra" })}
-              >
-                <PlusIcon />
-                {copy.addMouse}
-              </button>
-            )}
+            <button
+              type="button"
+              className="profile-row profile-text-button profile-add"
+              aria-haspopup="dialog"
+              aria-describedby={`${consentId}-others`}
+              disabled={left === 0}
+              onClick={() => setOverlay({ kind: "pick-extra" })}
+            >
+              <PlusIcon />
+              {copy.addMouse}
+            </button>
           </fieldset>
 
           <div className="qn-q">
@@ -452,6 +467,7 @@ export function QuestionnaireForm({
             </label>
             <div id={`${consentId}-text`} className="qn-consent-text">
               <p>{copy.consentKept}</p>
+              <p>{copy.consentNotKept}</p>
               <p>{copy.consentWithdraw}</p>
             </div>
           </div>
@@ -459,18 +475,23 @@ export function QuestionnaireForm({
           {failure !== null && (
             <div className="qn-failure" role="status">
               <p className="status-error">{failureLine(failure, copy)}</p>
-              {failure === "conflict" && signedIn && (
+              {failure === "conflict" && (
                 <button
                   type="button"
                   className="button-secondary qn-failure-action"
-                  onClick={onSubmitted}
+                  onClick={signedIn && canEditInstead ? onSubmitted : onClose}
                 >
-                  {copy.editInstead}
+                  {signedIn && canEditInstead ? copy.editInstead : copy.close}
                 </button>
               )}
             </div>
           )}
 
+          {hasUnscoredMouse(form) && (
+            <p className="qn-hint qn-needed" role="status">
+              {copy.satisfactionNeeded}
+            </p>
+          )}
           <button
             type="button"
             className="profile-primary qn-submit"

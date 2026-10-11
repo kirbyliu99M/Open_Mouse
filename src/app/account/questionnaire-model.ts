@@ -16,7 +16,6 @@ import type { QuestionnaireCopy } from "@/lib/copy/questionnaire";
 import type { SurveyFailure } from "./survey-client";
 import {
   MAX_ACCOUNT_MICE,
-  MAX_FEEDBACK_CHARS,
   MAX_RATED_MICE,
   SURVEY_CONSENT_VERSION,
   type MainUse,
@@ -175,16 +174,33 @@ export function hasSendableMouse(form: FormState): boolean {
   );
 }
 
-/** The submit button's rule: the consent is ticked and a mouse can be sent. */
+/**
+ * A catalogue mouse the form holds that has no score yet. The contract's
+ * rating needs one, and the body must not silently leave the mouse out, so
+ * while there is one the form cannot be sent (and says why).
+ */
+export function hasUnscoredMouse(form: FormState): boolean {
+  return (
+    (form.current?.kind === "rating" &&
+      form.current.draft.satisfaction === null) ||
+    form.extraRatings.some((r) => r.satisfaction === null)
+  );
+}
+
+/**
+ * The submit button's rule: the consent is ticked, a mouse can be sent, and no
+ * catalogue mouse is waiting for its score.
+ */
 export function canSubmit(form: FormState): boolean {
-  return form.consent && hasSendableMouse(form);
+  return form.consent && hasSendableMouse(form) && !hasUnscoredMouse(form);
 }
 
 /**
  * The `POST /api/survey` body, or `null` when the form cannot be sent (no
  * consent, no mouse the contract accepts). The comment is trimmed and left out
- * when empty. A catalogue mouse without a score is left out rather than sent
- * with an invented one.
+ * when empty. A catalogue mouse without a score makes the form unsendable
+ * (`canSubmit`), so none is ever left out of the body or sent with an
+ * invented score.
  */
 export function buildSubmission(
   form: FormState,
@@ -225,11 +241,6 @@ export function buildSubmission(
  */
 export function feedbackLength(text: string): number {
   return text.length;
-}
-
-/** The comment is over the contract's limit. */
-export function feedbackTooLong(text: string): boolean {
-  return feedbackLength(text.trim()) > MAX_FEEDBACK_CHARS;
 }
 
 // ── Editing what is already kept (`PUT /api/survey`, a whole replacement) ─────
@@ -341,6 +352,39 @@ export function canRemoveMouse(body: SurveyEdit): boolean {
   return miceInBody(body) > 1;
 }
 
+/**
+ * What 「加入另一支滑鼠」 does with a brand-only answer picked on the profile
+ * page. A brand already answered is NOT sent as an add (that would replace it
+ * and clear its `current`, a change nobody asked for): the person is taken to
+ * that brand's own edit sheet instead, the way a catalogue mouse that is
+ * already rated is. A new brand is an add, never the current mouse.
+ */
+export type AddOtherRoute =
+  | { kind: "edit-existing"; brand: OtherMouseBrand }
+  | { kind: "add"; body: SurveyEdit };
+
+export function routeAddOther(
+  answers: SurveyMineResponse,
+  draft: OtherDraft,
+): AddOtherRoute {
+  if (answers.otherMice.some((o) => o.brand === draft.brand)) {
+    return { kind: "edit-existing", brand: draft.brand };
+  }
+  return {
+    kind: "add",
+    body: withOther(editBodyFrom(answers), {
+      brand: draft.brand,
+      sizeFeel: draft.sizeFeel,
+      current: false,
+    }),
+  };
+}
+
+/** The brands the person has already answered, for marking them in the brand list. */
+export function answeredBrands(answers: SurveyMineResponse): OtherMouseBrand[] {
+  return answers.otherMice.map((o) => o.brand);
+}
+
 /** Turn a rating the sheet is editing into the draft the sheet shows. */
 export function draftFromRating(rating: MouseRating): RatingDraft {
   return {
@@ -364,15 +408,6 @@ export function togglePain(
 }
 
 // ── The picker ────────────────────────────────────────────────────────────────
-
-/** "Brand Model" without saying the brand twice, for a row that names one mouse. */
-export function choiceName(choice: CatalogueChoice): string {
-  const b = choice.brand.trim();
-  const m = choice.model.trim();
-  if (b === "") return m;
-  if (m === "") return b;
-  return m.toLowerCase().startsWith(b.toLowerCase()) ? m : `${b} ${m}`;
-}
 
 /** The catalogue in the order the picker lists it: brand, then model (numbers in order). */
 export function sortChoices(

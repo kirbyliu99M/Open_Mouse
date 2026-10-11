@@ -11,10 +11,13 @@ import {
   emptyRatingDraft,
   extraSlotsLeft,
   failureLine,
+  answeredBrands,
+  routeAddOther,
   feedbackLength,
   filterChoices,
   formMouseCount,
   hasSendableMouse,
+  hasUnscoredMouse,
   isOverCap,
   miceInBody,
   otherTaken,
@@ -171,7 +174,7 @@ describe("the first-time form's body", () => {
     expect(text).not.toContain("model");
   });
 
-  it("leaves out an empty comment, an unanswered main use and an unscored extra mouse", () => {
+  it("leaves out an empty comment and an unanswered main use", () => {
     const form = formWith({
       consent: true,
       feedback: "   ",
@@ -179,12 +182,73 @@ describe("the first-time form's body", () => {
         kind: "rating",
         draft: { ...emptyRatingDraft("a"), satisfaction: 5 },
       },
-      extraRatings: [emptyRatingDraft("b")],
     });
     const body = buildSubmission(form, SCAN);
     expect(body).not.toHaveProperty("feedback");
     expect(body).not.toHaveProperty("mainUse");
     expect(body?.ratings.map((r) => r.slug)).toEqual(["a"]);
+  });
+
+  it("a catalogue mouse without a score is never dropped quietly: the form cannot be sent while there is one", () => {
+    const scored = {
+      kind: "rating" as const,
+      draft: { ...emptyRatingDraft("a"), satisfaction: 5 },
+    };
+    // The current mouse has no score, another mouse could be sent on its own.
+    const currentUnscored = formWith({
+      consent: true,
+      current: { kind: "rating", draft: emptyRatingDraft("b") },
+      extraRatings: [{ ...emptyRatingDraft("c"), satisfaction: 2 }],
+    });
+    expect(hasSendableMouse(currentUnscored)).toBe(true);
+    expect(hasUnscoredMouse(currentUnscored)).toBe(true);
+    expect(canSubmit(currentUnscored)).toBe(false);
+    expect(buildSubmission(currentUnscored, SCAN)).toBeNull();
+    // The same for an extra mouse.
+    const extraUnscored = formWith({
+      consent: true,
+      current: scored,
+      extraRatings: [emptyRatingDraft("b")],
+    });
+    expect(hasUnscoredMouse(extraUnscored)).toBe(true);
+    expect(canSubmit(extraUnscored)).toBe(false);
+    expect(buildSubmission(extraUnscored, SCAN)).toBeNull();
+    // A brand-only mouse needs no score.
+    expect(
+      hasUnscoredMouse(
+        formWith({ current: { kind: "other", draft: emptyOtherDraft() } }),
+      ),
+    ).toBe(false);
+    // Once every catalogue mouse has its score, the body holds all of them.
+    const complete = formWith({
+      consent: true,
+      current: scored,
+      extraRatings: [{ ...emptyRatingDraft("b"), satisfaction: 1 }],
+    });
+    expect(canSubmit(complete)).toBe(true);
+    expect(buildSubmission(complete, SCAN)?.ratings.map((r) => r.slug)).toEqual(
+      ["a", "b"],
+    );
+  });
+
+  it("a full form (MAX_RATED_MICE in all) has no slot left, and its body is still accepted", () => {
+    const full = formWith({
+      consent: true,
+      current: {
+        kind: "rating",
+        draft: { ...emptyRatingDraft("m0"), satisfaction: 3 },
+      },
+      extraRatings: Array.from({ length: MAX_RATED_MICE - 2 }, (_, i) => ({
+        ...emptyRatingDraft(`m${i + 1}`),
+        satisfaction: 3,
+      })),
+      extraOther: emptyOtherDraft(),
+    });
+    expect(formMouseCount(full)).toBe(MAX_RATED_MICE);
+    expect(extraSlotsLeft(full)).toBe(0);
+    expect(
+      surveySubmissionSchema.safeParse(buildSubmission(full, SCAN)).success,
+    ).toBe(true);
   });
 
   it("a duration left unanswered is absent, not null", () => {
@@ -511,7 +575,21 @@ describe("the picker's list", () => {
 });
 
 describe("what a failed call says", () => {
-  it("every failure has its own sentence, in both languages", () => {
+  it("each reason says its own sentence, in both languages", () => {
+    for (const copy of [zhTW, en]) {
+      expect(failureLine("conflict", copy)).toBe(copy.alreadyAnswered);
+      expect(failureLine("not_found", copy)).toBe(copy.scanGone);
+      expect(failureLine("rate_limited", copy)).toBe(copy.rateLimited);
+      expect(failureLine("unauthorized", copy)).toBe(copy.sessionExpired);
+      expect(failureLine("invalid", copy)).toBe(copy.sendInvalid);
+      expect(failureLine("invalid_feedback", copy)).toBe(
+        copy.sendFeedbackInvalid,
+      );
+      expect(failureLine("network", copy)).toBe(copy.sendNetwork);
+    }
+  });
+
+  it("no two sentences are the same, so a swap cannot hide", () => {
     const reasons = [
       "conflict",
       "not_found",
@@ -524,7 +602,53 @@ describe("what a failed call says", () => {
     for (const copy of [zhTW, en]) {
       const lines = reasons.map((r) => failureLine(r, copy));
       expect(new Set(lines).size).toBe(reasons.length);
-      for (const line of lines) expect(line.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("「加入另一支滑鼠」 with a brand-only answer", () => {
+  const RAZER_CURRENT = mine({
+    mainUse: null,
+    feedback: null,
+    ratings: [{ slug: "a", satisfaction: 4, painPoints: [], current: false }],
+    otherMice: [{ brand: "razer", sizeFeel: "large", current: true }],
+  });
+
+  it("a brand that is already answered goes to its own edit sheet and is never sent as an add", () => {
+    const route = routeAddOther(RAZER_CURRENT, {
+      ...emptyOtherDraft(),
+      brand: "razer",
+      sizeFeel: "small",
+    });
+    expect(route).toEqual({ kind: "edit-existing", brand: "razer" });
+    expect(route).not.toHaveProperty("body");
+    // The point: an add of the same brand would have cleared its current marker.
+    const overwritten = withOther(editBodyFrom(RAZER_CURRENT), {
+      brand: "razer",
+      sizeFeel: "small",
+      current: false,
+    });
+    expect(overwritten.otherMice[0]?.current).toBe(false);
+  });
+
+  it("a new brand is added as it is, not current, and nothing else changes", () => {
+    const route = routeAddOther(RAZER_CURRENT, {
+      ...emptyOtherDraft(),
+      brand: "apple",
+      sizeFeel: "small",
+    });
+    expect(route.kind).toBe("add");
+    if (route.kind !== "add") return;
+    expect(route.body.otherMice).toEqual([
+      { brand: "razer", sizeFeel: "large", current: true },
+      { brand: "apple", sizeFeel: "small", current: false },
+    ]);
+    expect(route.body.ratings).toEqual(editBodyFrom(RAZER_CURRENT).ratings);
+    expect(surveyEditSchema.safeParse(route.body).success).toBe(true);
+  });
+
+  it("lists the brands already answered, for the brand list to mark", () => {
+    expect(answeredBrands(RAZER_CURRENT)).toEqual(["razer"]);
+    expect(answeredBrands(ANSWERS)).toEqual(["zowie"]);
   });
 });
