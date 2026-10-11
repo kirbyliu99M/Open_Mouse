@@ -8,6 +8,8 @@
  * carries no scoring weight; it is the same subtraction a user could do by
  * reading the two numbers next to each other.
  */
+import type { Locale } from "@/lib/contracts/locale";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 
 /*
  * A number and its unit are joined by a no-break space (U+00A0), so a wide
@@ -55,8 +57,8 @@ export function formatSignedMmValue(deltaMm: number): string {
   return `${sign}${safe.toFixed(1)}`;
 }
 
-export function formatWeight(weightG: number | null): string {
-  if (weightG === null) return "Weight not listed";
+export function formatWeight(weightG: number | null, locale: Locale): string {
+  if (weightG === null) return resultsScreensCopy(locale).weightNotListed;
   return `${Math.round(weightG)}\u00A0g`;
 }
 
@@ -66,8 +68,8 @@ export function formatConfidence(confidence: number): string {
 }
 
 /** 0-100 integer score, or the null case spelled out rather than shown as 0. */
-export function formatScore(score: number | null): string {
-  return score === null ? "Not yet assessed" : `${score}`;
+export function formatScore(score: number | null, locale: Locale): string {
+  return score === null ? resultsScreensCopy(locale).notAssessed : `${score}`;
 }
 
 /**

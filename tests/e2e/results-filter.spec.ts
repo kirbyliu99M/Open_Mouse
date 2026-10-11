@@ -248,7 +248,7 @@ test.describe("desktop sidebar", () => {
         `/m/${slugFor("Razer", "Cobra Pro")}\\?brand=Razer&conn=wireless$`,
       ),
     );
-    await expect(page).toHaveTitle(/^其他推薦/);
+    await expect(page).toHaveTitle(/^Other picks/);
     await expect(page.locator(".results-badge")).toHaveText("篩選後第 2 名");
     await expect(page.locator(".results-score-overall")).toHaveText(
       "總排名第 12 名",

@@ -34,6 +34,7 @@ import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import type { Locale } from "@/lib/contracts/locale";
 import "@/components/results/results.css";
 
@@ -132,6 +133,13 @@ export function ResultsScanProvider({
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
   const language = useLocale();
+  const copy = resultsScreensCopy(language);
+  // The locale the next analysis request is made in (the server answers in the
+  // visitor's cookie locale, so a request is "in" the locale current when sent).
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  // The locale the analysis on screen (or in flight) was asked for.
+  const analysisLanguageRef = useRef(language);
 
   useEffect(() => {
     try {
@@ -157,6 +165,7 @@ export function ResultsScanProvider({
 
   const runAnalysis = useCallback(async () => {
     analysisStartedRef.current = true;
+    analysisLanguageRef.current = languageRef.current;
     const run = ++analysisRunRef.current;
     setAnalysisState({ status: "loading" });
     const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
@@ -174,6 +183,15 @@ export function ResultsScanProvider({
       setAnalysisState({ status: "error" });
     }
   }, [scanId]);
+
+  // The written analysis follows the language switch: once it was asked for,
+  // a new locale asks again (the server keeps one per locale, so going back is
+  // cheap). `runAnalysis` bumps `analysisRunRef`, so a response still on its
+  // way for the old language is dropped when it arrives.
+  useEffect(() => {
+    if (analysisStartedRef.current && analysisLanguageRef.current !== language)
+      void runAnalysis();
+  }, [language, runAnalysis]);
 
   const requestAnalysis = useCallback(
     (isMainPage: boolean) => {
@@ -283,12 +301,12 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
-          backLabel="Scan again"
-          stepLabel="Your matches"
+          backLabel={copy.scanAgain}
+          stepLabel={copy.stepLabel}
           onBackClick={onRetake}
         />
         <p className="results-page-status" role="status">
-          Loading your results&hellip;
+          {copy.loading}
         </p>
       </main>
     );
@@ -299,23 +317,20 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
-          backLabel="Scan again"
-          stepLabel="Your matches"
+          backLabel={copy.scanAgain}
+          stepLabel={copy.stepLabel}
           onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
-          <p className="results-eyebrow">Results</p>
-          <h1>We couldn&apos;t find this scan</h1>
-          <p>
-            It may have expired, or the link isn&apos;t yours. Scans without an
-            account expire automatically.
-          </p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
+          <h1>{copy.notFound.title}</h1>
+          <p>{copy.notFound.body}</p>
           <Link
             href="/scan/easy"
             className="results-page-action"
             onClick={onRetake}
           >
-            Scan again
+            {copy.scanAgain}
           </Link>
         </div>
       </main>
@@ -332,16 +347,16 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
-          backLabel="Scan again"
-          stepLabel="Your matches"
+          backLabel={copy.scanAgain}
+          stepLabel={copy.stepLabel}
           onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
-          <p className="results-eyebrow">Results</p>
-          <h1>Too many tries in a short time</h1>
-          <p>Wait a few minutes, then try again.</p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
+          <h1>{copy.rateLimited.title}</h1>
+          <p>{copy.rateLimited.body}</p>
           <button type="button" className="results-page-action" onClick={retry}>
-            Try again
+            {copy.tryAgain}
           </button>
         </div>
       </main>
@@ -353,16 +368,16 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
-          backLabel="Scan again"
-          stepLabel="Your matches"
+          backLabel={copy.scanAgain}
+          stepLabel={copy.stepLabel}
           onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
-          <p className="results-eyebrow">Results</p>
-          <h1>We couldn&apos;t reach the server</h1>
-          <p>Check your connection and try again.</p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
+          <h1>{copy.networkError.title}</h1>
+          <p>{copy.networkError.body}</p>
           <button type="button" className="results-page-action" onClick={retry}>
-            Try again
+            {copy.tryAgain}
           </button>
         </div>
       </main>
@@ -374,16 +389,16 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
-          backLabel="Scan again"
-          stepLabel="Your matches"
+          backLabel={copy.scanAgain}
+          stepLabel={copy.stepLabel}
           onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
-          <p className="results-eyebrow">Results</p>
-          <h1>Something went wrong</h1>
-          <p>We couldn&apos;t load your results. Try again.</p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
+          <h1>{copy.serverError.title}</h1>
+          <p>{copy.serverError.body}</p>
           <button type="button" className="results-page-action" onClick={retry}>
-            Try again
+            {copy.tryAgain}
           </button>
         </div>
       </main>
@@ -394,21 +409,21 @@ export function ResultsScanProvider({
     return (
       <main className="resultsMain">
         <div className="results-page-error" role="status">
-          <p className="results-eyebrow">Results</p>
+          <p className="results-eyebrow">{copy.eyebrow}</p>
           {/* Focus lands here on mount (see the ref below) — the trigger
               button that opened the confirmation no longer exists once this
               renders, so this heading is the one place left to send focus
               (docs/design-guidelines.md — focus management). */}
           <h1 ref={deletedHeadingRef} tabIndex={-1}>
-            This scan has been deleted
+            {copy.deleted.title}
           </h1>
-          <p>Its measurements have been permanently removed.</p>
+          <p>{copy.deleted.body}</p>
           <Link
             href="/scan/easy"
             className="results-page-action"
             onClick={onRetake}
           >
-            Scan again
+            {copy.scanAgain}
           </Link>
         </div>
       </main>

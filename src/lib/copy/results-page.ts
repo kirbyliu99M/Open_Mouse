@@ -181,7 +181,7 @@ export const zhTW: ResultsPageCopy = {
   // Arabic numerals since FILTER-1 (Kirby, 2026-10-10): 「第 5 名」, like the
   // filter's 「總排名第 5 名」.
   rankLine: (rank, brand) => `第 ${rank} 名 · ${brand}`,
-  scoreLabel: "適配分數 / 100",
+  scoreLabel: "合手度分數 / 100",
   whyHeading: "為什麼是這支",
   subscoreShort: {
     length: "長度",
@@ -198,11 +198,11 @@ export const zhTW: ResultsPageCopy = {
   detailsHint: "六項分數、和理想尺寸的差距、完整分析",
   detailsHintWithViewer: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
   scoresHeading: "六項分數",
-  sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以適配分數目前主要看尺寸。",
+  sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以合手度分數目前主要看尺寸。",
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
-  leftHandNotice: "左手的適配還沒評過，購買前請先確認每支滑鼠的形狀。",
+  leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
   variantsLine: (models) => `相同構型：${models.join("、")}`,

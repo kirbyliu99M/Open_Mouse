@@ -1143,10 +1143,10 @@ describe("a no-break space between a number and its unit", () => {
     const shown = [
       formatMm(63.46),
       formatSignedMm(-1.5),
-      formatWeight(59.6),
-      reasonText("length_short", { deltaMm: -3.2 }),
-      reasonText("weight_in_range", { minG: 60, maxG: 90 }),
-      reasonText("weight_heavier", { deltaG: 12.6 }),
+      formatWeight(59.6, "en"),
+      reasonText("length_short", { deltaMm: -3.2 }, "en"),
+      reasonText("weight_in_range", { minG: 60, maxG: 90 }, "en"),
+      reasonText("weight_heavier", { deltaG: 12.6 }, "en"),
       "Hand length 190\u00A0mm (entered) · Palm width 84\u00A0mm",
     ];
     for (const text of shown) {
@@ -1156,10 +1156,12 @@ describe("a no-break space between a number and its unit", () => {
     }
     expect(extractNumerals(formatMm(63.46))).toEqual([63.5]);
     expect(
-      extractNumerals(reasonText("weight_heavier", { deltaG: 12.6 })),
+      extractNumerals(reasonText("weight_heavier", { deltaG: 12.6 }, "en")),
     ).toEqual([13]);
     expect(
-      extractNumerals(reasonText("weight_in_range", { minG: 60, maxG: 90 })),
+      extractNumerals(
+        reasonText("weight_in_range", { minG: 60, maxG: 90 }, "en"),
+      ),
     ).toEqual([60, 90]);
   });
 

@@ -135,7 +135,7 @@ describe("layoutShareCard: the standard card", () => {
     expect(all).toContain("Logitech");
     expect(all).toContain("G Pro X Superlight 2c");
     expect(all).toContain("79");
-    expect(all).toContain("適配分數");
+    expect(all).toContain("合手度分數");
     expect(all).toContain("適合你");
     expect(all).toContain(SITE_NAME);
     expect(all).toContain("測測你的手型");

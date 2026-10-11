@@ -65,11 +65,11 @@ describe("dimensionDelta", () => {
 
 describe("formatWeight", () => {
   it("spells out a missing weight rather than showing a blank or zero", () => {
-    expect(formatWeight(null)).toBe("Weight not listed");
+    expect(formatWeight(null, "en")).toBe("Weight not listed");
   });
 
   it("rounds grams", () => {
-    expect(formatWeight(59.6)).toBe("60\u00A0g");
+    expect(formatWeight(59.6, "en")).toBe("60\u00A0g");
   });
 });
 
@@ -82,12 +82,12 @@ describe("formatConfidence", () => {
 
 describe("formatScore", () => {
   it("never renders a null score as 0", () => {
-    expect(formatScore(null)).toBe("Not yet assessed");
-    expect(formatScore(null)).not.toContain("0");
+    expect(formatScore(null, "en")).toBe("Not yet assessed");
+    expect(formatScore(null, "en")).not.toContain("0");
   });
 
   it("renders a real score as-is", () => {
-    expect(formatScore(88)).toBe("88");
+    expect(formatScore(88, "en")).toBe("88");
   });
 });
 

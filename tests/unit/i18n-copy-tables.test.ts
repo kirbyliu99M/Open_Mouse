@@ -18,6 +18,8 @@ const EXPECTED_MODULES = [
   "language-switcher.ts",
   "nav.ts",
   "results-page.ts",
+  "results-reasons.ts",
+  "results-screens.ts",
   "share-card.ts",
   "site-footer.ts",
   "site-meta.ts",
