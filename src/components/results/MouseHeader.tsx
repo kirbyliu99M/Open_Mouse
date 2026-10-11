@@ -24,7 +24,9 @@ export function MouseHeader({ entry }: { entry: FitEntry }) {
         </div>
         <div>
           <dt>Weight</dt>
-          <dd className="results-tabularNum">{formatWeight(mouse.weightG)}</dd>
+          <dd className="results-tabularNum">
+            {formatWeight(mouse.weightG, "en")}
+          </dd>
         </div>
         <div>
           <dt>Fit score</dt>

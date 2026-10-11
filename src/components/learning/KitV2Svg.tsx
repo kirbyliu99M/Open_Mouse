@@ -14,6 +14,8 @@ import {
   computeKitV2Layout,
   type LayoutText,
 } from "@/lib/learning/layoutv2";
+import type { Locale } from "@/lib/contracts/locale";
+import { layoutText, learnCopy } from "@/lib/copy/learn";
 import type { Line } from "@/lib/learning/layout";
 import type { KitV2Sheet } from "@/lib/learning/session";
 
@@ -46,7 +48,7 @@ function Stroke({
   );
 }
 
-function Text({ t }: { t: LayoutText }) {
+function Text({ t, locale }: { t: LayoutText; locale: Locale }) {
   return (
     <text
       x={t.x}
@@ -56,7 +58,7 @@ function Text({ t }: { t: LayoutText }) {
       textAnchor={t.anchor}
       fill={t.tone === "grey" ? "#555" : INK}
     >
-      {t.text}
+      {layoutText(locale, t.text)}
     </text>
   );
 }
@@ -67,7 +69,13 @@ function Text({ t }: { t: LayoutText }) {
  * `computeKitV2Layout`, in millimetres, so the geometry tests cover what is
  * printed.
  */
-export function KitSheetSvg({ sheet }: { sheet: KitV2Sheet }) {
+export function KitSheetSvg({
+  sheet,
+  locale,
+}: {
+  sheet: KitV2Sheet;
+  locale: Locale;
+}) {
   const layout = computeKitV2Layout(sheet);
   return (
     <svg
@@ -76,7 +84,7 @@ export function KitSheetSvg({ sheet }: { sheet: KitV2Sheet }) {
       viewBox={`0 0 ${layout.widthMm} ${layout.heightMm}`}
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label={`Learning kit v${LEARNING_KIT_VERSION} sheet ${sheet}: both hands, participant card slot at the top`}
+      aria-label={learnCopy(locale).svgSheetLabel(LEARNING_KIT_VERSION, sheet)}
       fontFamily={FONT}
     >
       <rect width={layout.widthMm} height={layout.heightMm} fill="white" />
@@ -120,7 +128,7 @@ export function KitSheetSvg({ sheet }: { sheet: KitV2Sheet }) {
       ))}
 
       {layout.texts.map((t, i) => (
-        <Text key={i} t={t} />
+        <Text key={i} t={t} locale={locale} />
       ))}
     </svg>
   );
@@ -131,11 +139,14 @@ function Card({
   participant,
   origin,
   baseUrl,
+  locale,
 }: {
   participant: string;
   origin: { x: number; y: number };
   baseUrl?: string;
+  locale: Locale;
 }) {
+  const copy = learnCopy(locale);
   const url = kitCodeUrl(
     {
       kind: "participant",
@@ -175,10 +186,10 @@ function Card({
         {participant}
       </text>
       <text x={origin.x + n.x} y={origin.y + 24} fontSize={2.4} fill="#555">
-        Open Mouse · kit v{LEARNING_KIT_VERSION}
+        {copy.svgCardBrand(LEARNING_KIT_VERSION)}
       </text>
       <text x={origin.x + n.x} y={origin.y + 27.5} fontSize={2.4} fill="#555">
-        No names.
+        {copy.svgNoNames}
       </text>
     </g>
   );
@@ -192,10 +203,12 @@ export function CardPageSvg({
   first,
   count,
   baseUrl,
+  locale,
 }: {
   first: number;
   count: number;
   baseUrl?: string;
+  locale: Locale;
 }) {
   const ids = Array.from(
     { length: Math.min(count, KIT_V2_CARDS_PER_PAGE) },
@@ -210,7 +223,10 @@ export function CardPageSvg({
       viewBox={`0 0 ${KIT_V2_PAGE_WIDTH_MM} ${KIT_V2_PAGE_HEIGHT_MM}`}
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label={`Kit v${LEARNING_KIT_VERSION} participant cards ${ids.join(", ")}`}
+      aria-label={learnCopy(locale).svgCardsLabel(
+        LEARNING_KIT_VERSION,
+        ids.join(", "),
+      )}
       fontFamily={FONT}
     >
       <rect
@@ -224,6 +240,7 @@ export function CardPageSvg({
           participant={id}
           origin={cardOrigin(i)}
           baseUrl={baseUrl}
+          locale={locale}
         />
       ))}
     </svg>

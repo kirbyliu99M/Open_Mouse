@@ -2,10 +2,11 @@ import type { GripStyle } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import {
   CONTRIBUTION_BIN_MM,
+  type SurveyEdit,
   type SurveySubmission,
 } from "../../lib/contracts/survey";
 import { predictGrip } from "../fit/grip";
-import type { ContributionWrite } from "./repo";
+import type { AnswersWrite, ContributionWrite } from "./repo";
 
 /**
  * Rounds `mm` DOWN to a multiple of `bin`: the whole of what a contribution
@@ -108,5 +109,40 @@ export function buildContributionWrite(
             sizeFeel: body.otherMouse.sizeFeel,
             isCurrent: body.otherMouse.current,
           },
+  };
+}
+
+/**
+ * The write for one accepted edit: the body's answers as they are, with each
+ * catalogue slug resolved to its `mice.id`. What the body leaves out stays out
+ * (`mainUse` and `feedback` become null, which clears them); there is no hand
+ * profile, grip or consent here to take from anywhere.
+ */
+export function buildAnswersWrite(
+  body: SurveyEdit,
+  mouseIdBySlug: ReadonlyMap<string, string>,
+): AnswersWrite {
+  return {
+    mainUse: body.mainUse ?? null,
+    feedback: body.feedback ?? null,
+    ratings: body.ratings.map((rating) => {
+      const mouseId = mouseIdBySlug.get(rating.slug);
+      if (mouseId === undefined) {
+        // The service refuses an unknown slug with a 400 before getting here.
+        throw new Error("buildAnswersWrite: slug not in the catalogue");
+      }
+      return {
+        mouseId,
+        satisfaction: rating.satisfaction,
+        duration: rating.duration ?? null,
+        painPoints: rating.painPoints,
+        isCurrent: rating.current,
+      };
+    }),
+    otherMice: body.otherMice.map((other) => ({
+      brand: other.brand,
+      sizeFeel: other.sizeFeel,
+      isCurrent: other.current,
+    })),
   };
 }

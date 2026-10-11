@@ -437,7 +437,7 @@ test.describe("/results/demo in a Chinese browser", () => {
       "第 1 名 · Logitech",
     );
     await expect(page.locator(".results-score-label")).toHaveText(
-      "適配分數 / 100",
+      "合手度分數 / 100",
     );
     await expect(page.locator(".results-band")).toHaveText("非常適合你");
     await expect(page.locator(".results-why-heading")).toHaveText(

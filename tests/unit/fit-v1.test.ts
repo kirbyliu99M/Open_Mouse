@@ -70,7 +70,7 @@ describe("v1 is the default (Kirby, 2026-10-10); v0 stays reachable", () => {
     expect(scoreFitDefault(...args)).toEqual(
       scoreFitV1(...args, computePriors(seed)),
     );
-    expect(scoreFitDefault(...args).engineVersion).toBe("fit-v1-candidate.2");
+    expect(scoreFitDefault(...args).engineVersion).toBe("fit-v1-candidate.3");
     expect(scoreWithEngine("v0", ...args)).toEqual(scoreFit(...args));
   });
 });
@@ -396,11 +396,11 @@ describe("continuity in palm length", () => {
 });
 
 describe("engine version", () => {
-  it("labels itself fit-v1-candidate.2", () => {
-    expect(ENGINE_VERSION_V1).toBe("fit-v1-candidate.2");
+  it("labels itself fit-v1-candidate.3", () => {
+    expect(ENGINE_VERSION_V1).toBe("fit-v1-candidate.3");
     expect(
       scoreFitV1(hand, seed, prefs, "right", computePriors(seed)).engineVersion,
-    ).toBe("fit-v1-candidate.2");
+    ).toBe("fit-v1-candidate.3");
   });
 
   it("omits gripStyle.weights when a grip is stated, includes them otherwise", () => {

@@ -1,11 +1,11 @@
 "use client";
 
-import { ACTIONS } from "./copy";
-
 interface RetryButtonProps {
   /** A retry is under way. */
   pending: boolean;
   onRetry: () => void;
+  /** The button's words ("Try again"). */
+  label: string;
 }
 
 /**
@@ -16,7 +16,7 @@ interface RetryButtonProps {
  * settles. The sentence "Trying again…" is announced by the screen's status
  * region.
  */
-export function RetryButton({ pending, onRetry }: RetryButtonProps) {
+export function RetryButton({ pending, onRetry, label }: RetryButtonProps) {
   return (
     <button
       type="button"
@@ -27,7 +27,7 @@ export function RetryButton({ pending, onRetry }: RetryButtonProps) {
         if (!pending) onRetry();
       }}
     >
-      {ACTIONS.retry}
+      {label}
     </button>
   );
 }

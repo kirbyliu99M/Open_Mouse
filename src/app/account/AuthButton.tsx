@@ -1,6 +1,8 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { accountCopy } from "@/lib/copy/account";
 
 /**
  * The "in" action reads "Continue with Google" (docs/design/
@@ -10,8 +12,9 @@ import { useFormStatus } from "react-dom";
  */
 export function AuthButton({ action }: { action: "in" | "out" }) {
   const { pending } = useFormStatus();
-  const label = action === "in" ? "Continue with Google" : "Sign out";
-  const pendingLabel = action === "in" ? "Signing in…" : "Signing out…";
+  const copy = accountCopy(useLocale());
+  const label = action === "in" ? copy.continueWithGoogle : copy.signOut;
+  const pendingLabel = action === "in" ? copy.signingIn : copy.signingOut;
   const currentLabel = pending ? pendingLabel : label;
   return (
     <button

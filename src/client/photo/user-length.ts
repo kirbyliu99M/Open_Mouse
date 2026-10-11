@@ -1,3 +1,5 @@
+import type { Locale } from "../../lib/contracts/locale";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 import {
   handMeasurementsSchema,
   LANDMARK,
@@ -56,8 +58,11 @@ export const USER_LENGTH_PALM_RATIO = { min: 0.38, max: 0.56 } as const;
  */
 export const USER_LENGTH_RANGE_MM = { min: 135, max: 265 } as const;
 
-export function userLengthRangeMessage(): string {
-  return `Enter a hand length between ${USER_LENGTH_RANGE_MM.min} and ${USER_LENGTH_RANGE_MM.max}\u00A0mm.`;
+export function userLengthRangeMessage(locale: Locale): string {
+  return scanCommonCopy(locale).lengthRange(
+    USER_LENGTH_RANGE_MM.min,
+    USER_LENGTH_RANGE_MM.max,
+  );
 }
 
 function distance(a: Point2, b: Point2): number {

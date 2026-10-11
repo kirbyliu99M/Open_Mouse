@@ -27,10 +27,9 @@ The main page offers two equally clear intents: get a personal fit ranking or
 explore shapes. Its preview label remains until the M2 ruler gate passes. The
 mouse-shape area introduces top view, side profile, and hand fit as concepts;
 it does not imply a validated 3D simulation or a scored shape comparison yet.
-EloShapes' [browse](https://www.eloshapes.com/mouse/browse) and
-[compare](https://www.eloshapes.com/mouse/compare) tools are conceptual
-references for shape literacy. Use our own art, interaction, wording, and data.
-Do not use the private EloShapes fixture as product content.
+A third-party site's browse and compare tools are conceptual
+references for shape literacy (links removed 2026-10-11). Use our own art, interaction, wording, and data.
+Do not use the private third-party fixture as product content.
 
 ## Screen decisions
 

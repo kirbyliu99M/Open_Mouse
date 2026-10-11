@@ -441,7 +441,9 @@ export const rateLimits = pgTable("rate_limits", {
 //     `created_at`.
 //   - `feedback` (the one free-text field) and `survey_other_mice.brand` (a
 //     slug picked from the contract's `OTHER_MOUSE_BRANDS`, contract v3) are
-//     read by the maintainers only; no response schema carries either.
+//     read by the maintainers only; the one response schema that carries
+//     either is the owner-only `GET /api/survey` (`surveyMineResponseSchema`),
+//     which gives a signed-in person back their own answers.
 //   - the answer lists (duration, pain points, main use, size feel) are plain
 //     text, not enums or CHECKs: the lists are candidates, and the contract's
 //     schema is what refuses a value outside them, so a list change is not a
