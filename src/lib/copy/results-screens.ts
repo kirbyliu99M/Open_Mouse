@@ -96,7 +96,7 @@ export const zhTW: ResultsScreensCopy = {
   eyebrow: "結果",
   notFound: {
     title: "找不到這次掃描",
-    body: "可能已經過期，或這個連結不是你的。沒有登入帳號的掃描會自動過期。",
+    body: "可能已經過期，或這個連結不是你的。未登入帳號的掃描會自動過期。",
   },
   rateLimited: {
     title: "短時間內嘗試太多次",

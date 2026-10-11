@@ -901,9 +901,39 @@
   font-weight: 500;
   line-height: 1.3;
   text-align: right;
-  overflow-wrap: anywhere;
+  /* break-word, not anywhere: "anywhere" shrinks the link's minimum width to one
+     letter, and the band row then squeezes it to a column of single characters. */
+  overflow-wrap: break-word;
   color: var(--accent-text);
   text-decoration: none;
+}
+/* Chinese breaks only at the space after the brand, so 官網產品頁 stays whole. */
+.results-official-text:lang(zh-TW) {
+  word-break: keep-all;
+}
+
+/* Very large text (root font size 150 % or more on a phone): the viewport is
+   only a few rem wide. Rem media queries follow the root size, so this never
+   matches at 100 %. The official link takes its own row and the "why" labels
+   sit above their text, instead of squeezing both into a few letters a line. */
+@media (max-width: 15rem) {
+  .results-bandRow {
+    flex-wrap: wrap;
+  }
+  .results-official {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    text-align: left;
+  }
+  .results-why-list li {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .results-why-list .results-why-label,
+  .results-why-list[lang] .results-why-label {
+    flex: none;
+  }
 }
 
 /* Disclosures: Details and Other mice. Closed by default. */

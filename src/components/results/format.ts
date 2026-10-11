@@ -80,10 +80,17 @@ export function formatScore(score: number | null, locale: Locale): string {
  * the headline doesn't already end in one — otherwise the two sentences run
  * together with no break between them.
  */
-export function joinHeadlineAndBody(headline: string, body: string): string {
+export function joinHeadlineAndBody(
+  headline: string,
+  body: string,
+  locale: Locale,
+): string {
   const trimmedHeadline = headline.trim();
-  const endsWithPunctuation = /[.!?]$/.test(trimmedHeadline);
-  return `${trimmedHeadline}${endsWithPunctuation ? "" : "."} ${body.trim()}`;
+  const ended = /[.!?。！？]$/.test(trimmedHeadline);
+  if (locale === "zh-TW") {
+    return `${trimmedHeadline}${ended ? "" : "。"}${body.trim()}`;
+  }
+  return `${trimmedHeadline}${ended ? "" : "."} ${body.trim()}`;
 }
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.6;

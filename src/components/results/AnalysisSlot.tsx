@@ -85,7 +85,7 @@ export function AnalysisSlot({
   return (
     <section className="results-analysis results-analysis-ready">
       <Heading className="results-analysis-heading">{copy.heading}</Heading>
-      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
+      <p>{joinHeadlineAndBody(output.headline, output.whyTopPick, language)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
           <SubHeading>{copy.tradeoffs}</SubHeading>

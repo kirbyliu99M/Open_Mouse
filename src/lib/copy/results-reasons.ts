@@ -30,7 +30,7 @@ export type ReasonsCopy = Record<ReasonCode, ReasonTemplate>;
 export const zhTW: ReasonsCopy = {
   length_ideal: (a) =>
     a.delta
-      ? `長度與你的理想值相差不到 ${a.delta}，幾乎已是最接近的程度。`
+      ? `長度與你的理想值相差不到 ${a.delta}，已經非常接近。`
       : "長度與你的理想值很接近。",
   length_short: (a) =>
     a.delta
@@ -65,13 +65,13 @@ export const zhTW: ReasonsCopy = {
       ? `這支滑鼠比你的理想掌心高度高 ${a.delta}。`
       : "這支滑鼠比你的理想掌心高度高。",
   hump_matches_grip: () => "背弧的位置適合你握滑鼠的方式。",
-  hump_mismatch_grip: () => "背弧的位置和你握滑鼠的方式不太搭。",
+  hump_mismatch_grip: () => "背弧的位置和你握滑鼠的方式不太相符。",
   flare_supports_fingers: () => "前端向外展開，手指有地方可以放。",
-  flare_neutral: () => "前端的形狀不會幫上忙，也不會擠到手指。",
+  flare_neutral: () => "前端形狀對手指既沒有幫助，也不會造成擠壓。",
   flare_crowds_fingers: () => "前端向內收，可能會擠到指尖。",
   thumb_rest_supports: () => "拇指托板能支撐你的握法。",
-  thumb_neutral: () => "沒有拇指托板，對你的握法沒有影響。",
-  thumb_rest_missing: () => "沒有拇指托板，而趴握通常會把拇指靠在托板上。",
+  thumb_neutral: () => "沒有拇指托板，不影響你的握法。",
+  thumb_rest_missing: () => "沒有拇指托板，而趴握通常會把拇指靠在拇指托板上。",
   thumb_rest_unneeded: () => "有拇指托板，但你的握法用不到。",
   weight_in_range: (a) =>
     a.range ? `重量在你偏好的範圍內（${a.range}）。` : "重量在你偏好的範圍內。",

@@ -105,6 +105,7 @@ describe("joinHeadlineAndBody", () => {
       joinHeadlineAndBody(
         "A close match for your palm grip",
         "Its length lands close to your ideal.",
+        "en",
       ),
     ).toBe(
       "A close match for your palm grip. Its length lands close to your ideal.",
@@ -116,6 +117,7 @@ describe("joinHeadlineAndBody", () => {
       joinHeadlineAndBody(
         "G Pro X Superlight 2c is the top match for your hand.",
         "Its length lands close to your ideal.",
+        "en",
       ),
     ).toBe(
       "G Pro X Superlight 2c is the top match for your hand. Its length lands close to your ideal.",
@@ -123,8 +125,26 @@ describe("joinHeadlineAndBody", () => {
   });
 
   it("keeps an existing exclamation or question mark as-is", () => {
-    expect(joinHeadlineAndBody("A great fit!", "Read on.")).toBe(
+    expect(joinHeadlineAndBody("A great fit!", "Read on.", "en")).toBe(
       "A great fit! Read on.",
     );
+  });
+
+  it("zh-TW joins with 。 and no space", () => {
+    expect(
+      joinHeadlineAndBody("很適合趴握", "長度接近你的理想值", "zh-TW"),
+    ).toBe("很適合趴握。長度接近你的理想值");
+  });
+
+  it("zh-TW keeps a headline that already ends in 。, ！ or ？", () => {
+    for (const end of ["。", "！", "？", "!", "."]) {
+      expect(joinHeadlineAndBody(`很適合趴握${end}`, "長度接近", "zh-TW")).toBe(
+        `很適合趴握${end}長度接近`,
+      );
+    }
+  });
+
+  it("English treats 。 as already terminated", () => {
+    expect(joinHeadlineAndBody("Fits。", "Body.", "en")).toBe("Fits。 Body.");
   });
 });
