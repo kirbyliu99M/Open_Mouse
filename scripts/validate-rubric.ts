@@ -36,11 +36,10 @@ const arg = (flag: string) => {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
+// The local, uncommitted dataset CSV; override with CATALOGUE_DATASET_CSV.
 const FIXTURE = resolve(
-  process.cwd(),
-  "..",
-  "Dataset",
-  "eloshapes_mouse_data.csv",
+  process.env.CATALOGUE_DATASET_CSV ??
+    "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/third_party_mouse_data.csv",
 );
 const brand = arg("--brand") ?? "Logitech";
 

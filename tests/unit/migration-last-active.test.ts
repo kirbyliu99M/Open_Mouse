@@ -60,6 +60,43 @@ describe("the last_active_at migration", () => {
     }
   });
 
+  it("comes after the data-source rename migration, and the journal's timestamps strictly increase (the neon migrator skips an entry whose `when` is not newer than the last applied one)", () => {
+    const journal = JSON.parse(
+      readFileSync(
+        join(process.cwd(), "drizzle", "meta", "_journal.json"),
+        "utf8",
+      ),
+    ) as { entries: { idx: number; when: number; tag: string }[] };
+    const whens = journal.entries.map((e) => e.when);
+    for (let i = 1; i < whens.length; i += 1) {
+      expect(whens[i]!, journal.entries[i]!.tag).toBeGreaterThan(whens[i - 1]!);
+    }
+    const mine = journal.entries.find((e) => `${e.tag}.sql` === FILE);
+    expect(mine).toBeDefined();
+    const rename = journal.entries.find(
+      (e) => e.tag === "0010_rename_data_source_value",
+    );
+    expect(rename).toBeDefined();
+    expect(mine!.idx).toBeGreaterThan(rename!.idx);
+    expect(mine!.when).toBeGreaterThan(rename!.when);
+    expect(MIGRATION_FILES.indexOf(FILE!)).toBeGreaterThan(
+      MIGRATION_FILES.indexOf("0010_rename_data_source_value.sql"),
+    );
+  });
+
+  it("applies on top of a database that already has everything before it (the upgrade path: only this file is applied)", async () => {
+    const db = await databaseBeforeIt();
+    await db.exec(
+      `insert into users (id, email) values ('old', 'old@example.test')`,
+    );
+    // Everything before it is in place; now only this one file.
+    await applyMigrations(db, INDEX, INDEX + 1);
+    const { rows } = await db.query<{ n: number }>(
+      `select count(*)::int as n from users where last_active_at is not null`,
+    );
+    expect(rows[0]!.n).toBe(1);
+  });
+
   it("gives every existing user the migration time, not NULL and not an invented older date", async () => {
     const db = await databaseBeforeIt();
     await db.exec(

@@ -1,6 +1,7 @@
-import type { AnalysisState } from "./analysisState";
+import type { AnalysisSource } from "@/lib/contracts/analysis";
 import type { Locale } from "@/lib/contracts/locale";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
+import type { AnalysisState } from "./analysisState";
 import { joinHeadlineAndBody } from "./format";
 
 /**
@@ -14,7 +15,18 @@ import { joinHeadlineAndBody } from "./format";
  * text was written from the fit scores by a deterministic template, not by a
  * model. The note below says exactly that, in plain words, and — per
  * docs/design-guidelines.md's "no internal vocabulary" rule — never uses the
- * words "fallback", "Gemini", "LLM" or "model" anywhere a user can see it.
+ * words "fallback", "Gemini", "LLM" or "model" in that note.
+ *
+ * The other half of the same honesty (Kirby, 2026-10-11 and 10-12): when
+ * `response.source === "model"` (the only value that means a model wrote the
+ * text, cached or not) a small label "Written analysis" with a generic
+ * four-point star (not any vendor's own mark) sits above the heading, and a
+ * visible line under the text says an AI wrote it and it is for reference
+ * only. Both follow the page language (`resultsScreensCopy(language).analysis`:
+ * `eyebrow` is the small label in every state, `aiWrittenNotice` the notice).
+ * Fallback text, loading, error and idle show neither the star nor the notice
+ * (loading, rate-limited and error keep the plain small label), and no vendor
+ * name appears anywhere in the page text.
  */
 export function AnalysisSlot({
   state,
@@ -26,6 +38,7 @@ export function AnalysisSlot({
   onRetry?: () => void;
   /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
   headingLevel?: 2 | 3;
+  /** Picks every string in the slot, including the small label and the AI notice. */
   language: Locale;
 }) {
   const copy = resultsScreensCopy(language).analysis;
@@ -84,6 +97,12 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
+      {showAiMark(source) && (
+        <div className="results-analysis-labelRow">
+          <p className="results-eyebrow">{copy.eyebrow}</p>
+          <AiStar />
+        </div>
+      )}
       <Heading className="results-analysis-heading">{copy.heading}</Heading>
       <p>{joinHeadlineAndBody(output.headline, output.whyTopPick, language)}</p>
       {output.tradeoffs.length > 0 && (
@@ -106,6 +125,9 @@ export function AnalysisSlot({
           </ul>
         </div>
       )}
+      {showAiMark(source) && (
+        <p className="results-analysis-aiNotice">{copy.aiWrittenNotice}</p>
+      )}
       {source === "fallback" && (
         <p className="results-analysis-provenance" role="status">
           <InfoIcon />
@@ -116,6 +138,39 @@ export function AnalysisSlot({
         <p className="results-analysis-caveats">{output.caveats.join(" ")}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * True only for text the model wrote. Fallback (template) text must never
+ * carry the label, star or notice: the contract says the UI must not present
+ * it as if a model wrote it.
+ */
+export function showAiMark(source: AnalysisSource): boolean {
+  return source === "model";
+}
+
+/**
+ * A generic four-point star, about 14px, in the accent text colour. Purely
+ * decorative: hidden from assistive technology and with no hover title, so
+ * the visible notice under the text is the only thing read, once.
+ */
+function AiStar() {
+  return (
+    <span className="results-analysis-aiStar" aria-hidden="true">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    </span>
   );
 }
 
