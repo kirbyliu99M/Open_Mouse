@@ -17,12 +17,13 @@ import { joinHeadlineAndBody } from "./format";
  * docs/design-guidelines.md's "no internal vocabulary" rule — never uses the
  * words "fallback", "Gemini", "LLM" or "model" in that note.
  *
- * The other half of the same honesty (Kirby, 2026-10-11): when
- * `response.source === "model"` (the only value that means Gemini wrote the
- * text, cached or not) a small star sits beside the heading, named "Written
- * with Gemini" / 「由 Gemini 撰寫」. It is a generic four-point star, not
- * Google's own mark. Fallback text, loading and error show no star, and there
- * is no Gemini wording anywhere else.
+ * The other half of the same honesty (Kirby, 2026-10-11 and 10-12): when
+ * `response.source === "model"` (the only value that means a model wrote the
+ * text, cached or not) a small label "Written analysis" with a generic
+ * four-point star (not any vendor's own mark) sits above the heading, and a
+ * visible line under the text says an AI wrote it and it is for reference
+ * only. Both follow the page language. Fallback text, loading, error and
+ * idle show neither, and no vendor name appears anywhere in the page text.
  */
 export function AnalysisSlot({
   state,
@@ -32,7 +33,7 @@ export function AnalysisSlot({
 }: {
   state: AnalysisState;
   onRetry?: () => void;
-  /** Names the Gemini star (the only string here that follows the locale). */
+  /** Picks the label and notice for model text (the only strings here that follow the locale). */
   language: Locale;
   /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
   headingLevel?: 2 | 3;
@@ -99,12 +100,15 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
-      <div className="results-analysis-headRow">
-        <Heading className="results-analysis-heading">Why this one</Heading>
-        {showGeminiMark(source) && (
-          <GeminiMark label={RESULTS_PAGE_COPY[language].writtenWithGemini} />
-        )}
-      </div>
+      {showAiMark(source) && (
+        <div className="results-analysis-labelRow">
+          <p className="results-eyebrow">
+            {RESULTS_PAGE_COPY[language].analysisLabel}
+          </p>
+          <AiStar />
+        </div>
+      )}
+      <Heading className="results-analysis-heading">Why this one</Heading>
       <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
@@ -126,6 +130,11 @@ export function AnalysisSlot({
           </ul>
         </div>
       )}
+      {showAiMark(source) && (
+        <p className="results-analysis-aiNotice">
+          {RESULTS_PAGE_COPY[language].aiWrittenNotice}
+        </p>
+      )}
       {source === "fallback" && (
         <p className="results-analysis-provenance" role="status">
           <InfoIcon />
@@ -141,44 +150,33 @@ export function AnalysisSlot({
 
 /**
  * True only for text the model wrote. Fallback (template) text must never
- * carry the star: the contract says the UI must not present it as if a model
- * wrote it.
+ * carry the label, star or notice: the contract says the UI must not present
+ * it as if a model wrote it.
  */
-export function showGeminiMark(source: AnalysisSource): boolean {
+export function showAiMark(source: AnalysisSource): boolean {
   return source === "model";
 }
 
 /**
- * A generic four-point star, about 14px, in the accent text colour. Not
- * Google's official Gemini mark.
- *
- * The accessible name must be read exactly once. An element with both
- * `aria-label` and `title` is announced twice by some screen readers (the
- * title becomes its description), so the two jobs are split:
- *  - the star is `aria-hidden` and carries the `title`, which is only the
- *    mouse hover tip (an `aria-hidden` subtree is not exposed, so the title is
- *    never read);
- *  - the name is a visually hidden text sibling, which is read once, and is
- *    part of the page when it prints or is copied.
+ * A generic four-point star, about 14px, in the accent text colour. Purely
+ * decorative: hidden from assistive technology and with no hover title, so
+ * the visible notice under the text is the only thing read, once.
  */
-function GeminiMark({ label }: { label: string }) {
+function AiStar() {
   return (
-    <span className="results-analysis-geminiMark">
-      <span aria-hidden="true" title={label}>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path
-            d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
-            fill="currentColor"
-          />
-        </svg>
-      </span>
-      <span className="results-visuallyHidden">{label}</span>
+    <span className="results-analysis-aiStar" aria-hidden="true">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
+          fill="currentColor"
+        />
+      </svg>
     </span>
   );
 }

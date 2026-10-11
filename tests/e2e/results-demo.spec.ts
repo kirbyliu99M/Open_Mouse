@@ -291,11 +291,37 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("Generated automatically from your scores above."),
     ).toHaveCount(0);
-    // ...and the small Gemini star, named once (visually hidden text). Not shown while loading or on
-    // error (checked above, before this state), nor for the fallback below.
-    await expect(page.locator(".results-analysis-geminiMark")).toHaveText(
-      "Written with Gemini",
+    // ...and, for model text only, the small label with its generic star above the
+    // heading, and a visible notice under the text (touch devices have no hover).
+    // Not shown while loading or on error (checked above), nor for the fallback below.
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "Written analysis",
     );
+    await expect(page.locator(".results-analysis-aiStar")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    const notice = page.locator(".results-analysis-aiNotice");
+    await expect(notice).toBeVisible();
+    await expect(notice).toHaveText(
+      "This analysis was written by AI and is for reference only.",
+    );
+    expect(
+      await notice.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    ).toBeGreaterThanOrEqual(12);
+    // No product name in anything a reader can see.
+    expect(
+      (await page.locator("body").innerText()).toLowerCase(),
+    ).not.toContain("gemini");
+    // A narrow phone: the notice wraps inside the page, nothing scrolls sideways.
+    await page.setViewportSize({ width: 320, height: 700 });
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
 
     await page
       .getByRole("button", { name: "Ready (written from scores)" })
@@ -303,7 +329,9 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
-    await expect(page.locator(".results-analysis-geminiMark")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiStar")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-labelRow")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveCount(0);
   });
 
   test("the written analysis lives in Details, after the scores, and a detail page has none", async ({
@@ -430,6 +458,26 @@ test.describe("/results/demo", () => {
 
 test.describe("/results/demo in a Chinese browser", () => {
   test.use({ locale: "zh-TW" });
+
+  test("model-written analysis shows the Chinese label and notice, visible, with no product name", async ({
+    page,
+  }) => {
+    await page.goto("/results/demo");
+    await page.getByRole("button", { name: "Many mice + hand type" }).click();
+    await openDetails(page);
+    await page.getByRole("button", { name: "Ready", exact: true }).click();
+
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "文字分析",
+    );
+    await expect(page.locator(".results-analysis-aiNotice")).toBeVisible();
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "本分析由 AI 撰寫，內容僅供參考。",
+    );
+    expect(
+      (await page.locator("body").innerText()).toLowerCase(),
+    ).not.toContain("gemini");
+  });
 
   test("shows the zh-TW words, under <html lang=zh-TW>", async ({ page }) => {
     await page.goto("/results/demo");

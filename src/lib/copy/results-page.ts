@@ -10,8 +10,9 @@
  * Not covered: the English strings inside the components the page reuses
  * (`SubscoreBar`, `TargetDeltas`, `AnalysisSlot`, `ConfidenceNote`,
  * `DeleteScanAction`) and the loading and error screens. They
- * are English only for now. The one exception is `writtenWithGemini`, the
- * name of the small star `AnalysisSlot` shows beside Gemini-written text.
+ * are English only for now. The exceptions are `analysisLabel` and
+ * `aiWrittenNotice`, the small label and the visible notice `AnalysisSlot`
+ * shows for model-written text.
  */
 import type { ExclusionReason, GripStyle, Subscore } from "../contracts/fit";
 import type {
@@ -98,12 +99,18 @@ export interface ResultsPageCopy {
   /** Between the reason and the mirrored score. */
   excludedSeparator: string;
   /**
-   * Name of the small star beside the written analysis (`title` and
-   * `aria-label`). Shown only when Gemini wrote the text; never for the
-   * template-written fallback. Kirby, 2026-10-11: no other Gemini wording
-   * anywhere on the site.
+   * Small label above the written analysis, with the star beside it. Shown
+   * only when a model wrote the text (candidate). The English is the label the
+   * slot's other states already show; the Chinese is a candidate.
    */
-  writtenWithGemini: string;
+  analysisLabel: string;
+  /**
+   * Visible small print under the written analysis. Shown only when a model
+   * wrote the text; never for the template-written fallback. Kirby, 2026-10-12:
+   * the Chinese is his; the English is a candidate translation. No product or
+   * vendor name appears in it.
+   */
+  aiWrittenNotice: string;
   /** The results-page filter (FILTER-1). Every string is a candidate. */
   filter: FilterCopy;
 }
@@ -231,7 +238,8 @@ export const zhTW: ResultsPageCopy = {
   excludedMirrorLabel: (userHand) =>
     userHand === "right" ? "若是右手形狀：" : "若是左手形狀：",
   excludedSeparator: " · ",
-  writtenWithGemini: "由 Gemini 撰寫",
+  analysisLabel: "文字分析",
+  aiWrittenNotice: "本分析由 AI 撰寫，內容僅供參考。",
   filter: {
     title: "篩選",
     openButton: (n) => (n > 0 ? `篩選（${n}）` : "篩選"),
@@ -361,7 +369,8 @@ export const en: ResultsPageCopy = {
   excludedMirrorLabel: (userHand) =>
     userHand === "right" ? "as a right-hand shape:" : "as a left-hand shape:",
   excludedSeparator: " · ",
-  writtenWithGemini: "Written with Gemini",
+  analysisLabel: "Written analysis",
+  aiWrittenNotice: "This analysis was written by AI and is for reference only.",
   filter: {
     title: "Filter",
     openButton: (n) => (n > 0 ? `Filter (${n})` : "Filter"),
