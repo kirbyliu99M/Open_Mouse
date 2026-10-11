@@ -149,30 +149,36 @@ export function showGeminiMark(source: AnalysisSource): boolean {
 }
 
 /**
- * A generic four-point star, about 14px, in the accent text colour. The star
- * is decorative (`aria-hidden`); the wrapper carries the name once, as an
- * image label, and as a hover `title`. Not Google's official Gemini mark.
+ * A generic four-point star, about 14px, in the accent text colour. Not
+ * Google's official Gemini mark.
+ *
+ * The accessible name must be read exactly once. An element with both
+ * `aria-label` and `title` is announced twice by some screen readers (the
+ * title becomes its description), so the two jobs are split:
+ *  - the star is `aria-hidden` and carries the `title`, which is only the
+ *    mouse hover tip (an `aria-hidden` subtree is not exposed, so the title is
+ *    never read);
+ *  - the name is a visually hidden text sibling, which is read once, and is
+ *    part of the page when it prints or is copied.
  */
 function GeminiMark({ label }: { label: string }) {
   return (
-    <span
-      className="results-analysis-geminiMark"
-      role="img"
-      aria-label={label}
-      title={label}
-    >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path
-          d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
-          fill="currentColor"
-        />
-      </svg>
+    <span className="results-analysis-geminiMark">
+      <span aria-hidden="true" title={label}>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <span className="results-visuallyHidden">{label}</span>
     </span>
   );
 }

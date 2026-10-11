@@ -33,16 +33,36 @@ function render(state: AnalysisState, language: Locale = "en"): string {
 }
 
 describe("the Gemini star beside the written analysis", () => {
-  it("shows for text the model wrote, named once, with a decorative star", () => {
+  it("shows for text the model wrote, with a decorative 14px star", () => {
     const html = render(ready("model"));
     expect(html).toContain(MARK);
-    expect(html).toContain('role="img"');
-    expect(html).toContain('aria-label="Written with Gemini"');
-    expect(html).toContain('title="Written with Gemini"');
-    // The star itself is decorative; the name is said once, by the wrapper.
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
-    expect(html.match(/Written with Gemini/g)).toHaveLength(2); // aria-label + title
     expect(html).toContain('width="14"');
+  });
+
+  it("gives the accessible name once: visually hidden text, with the hover title on an aria-hidden element", () => {
+    const html = render(ready("model"));
+    // The name a screen reader reads: one visually hidden text, nothing else.
+    expect(html).toContain(
+      '<span class="results-visuallyHidden">Written with Gemini</span>',
+    );
+    // The hover tip is on an element hidden from assistive technology, so the
+    // title is never read as a second name or a description.
+    expect(html).toContain(
+      '<span aria-hidden="true" title="Written with Gemini">',
+    );
+    // Regression guard: no element may carry both an aria-label and a title,
+    // nor an aria-label with the name (it would be read twice, with the text).
+    expect(html).not.toMatch(/<[^>]*aria-label="[^"]*"[^>]*title=/);
+    expect(html).not.toMatch(/<[^>]*title="[^"]*"[^>]*aria-label=/);
+    expect(html).not.toContain('aria-label="Written with Gemini"');
+    expect(html).not.toContain('role="img"');
+    // Outside aria-hidden elements the name appears exactly once.
+    const exposed = html.replace(
+      /<span aria-hidden="true"[^>]*>.*?<\/span>/g,
+      "",
+    );
+    expect(exposed.match(/Written with Gemini/g)).toHaveLength(1);
   });
 
   it("still shows for model text served from the cache", () => {
@@ -51,7 +71,10 @@ describe("the Gemini star beside the written analysis", () => {
 
   it("is named in the page's language", () => {
     const html = render(ready("model"), "zh-TW");
-    expect(html).toContain('aria-label="由 Gemini 撰寫"');
+    expect(html).toContain(
+      '<span class="results-visuallyHidden">由 Gemini 撰寫</span>',
+    );
+    expect(html).toContain('title="由 Gemini 撰寫"');
     expect(html).not.toContain("Written with Gemini");
   });
 

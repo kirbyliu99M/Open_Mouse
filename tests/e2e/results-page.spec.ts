@@ -685,10 +685,13 @@ test.describe("/results/[scanId] — real results page", () => {
     }
   });
 
-  // Kirby, 2026-09-30: no line about who wrote model text yet (an AI source
-  // line comes later). Until then only a template-written analysis carries a
-  // source line; a model-written one, fresh or cached, carries none.
-  test("a model-written analysis shows no source line yet, and no internal vocabulary", async ({
+  // Kirby, 2026-09-30: model-written text carries no source LINE (only a
+  // template-written analysis does). Kirby, 2026-10-11: instead, a small
+  // generic star beside the heading, named "Written with Gemini" in visually
+  // hidden text, appears for model-written text, fresh or cached, and for
+  // nothing else. The name "Gemini" is therefore allowed in the page text here,
+  // but only through that star; the other internal words stay forbidden.
+  test("a model-written analysis shows the Gemini star, no source line, and no other internal vocabulary", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -702,14 +705,17 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
     await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-geminiMark")).toHaveText(
+      "Written with Gemini",
+    );
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
-    for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
+    for (const forbidden of ["fallback", "llm", " model"]) {
       expect(bodyText).not.toContain(forbidden);
     }
   });
 
-  test("a cached model-written analysis shows no source line either", async ({
+  test("a cached model-written analysis shows the Gemini star and no source line", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -723,6 +729,9 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
     await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-geminiMark")).toHaveText(
+      "Written with Gemini",
+    );
   });
 
   test("the error state of the analysis slot shows no source line", async ({

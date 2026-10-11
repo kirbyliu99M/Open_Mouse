@@ -291,11 +291,11 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("Generated automatically from your scores above."),
     ).toHaveCount(0);
-    // ...and the small Gemini star, named once. Not shown while loading or on
+    // ...and the small Gemini star, named once (visually hidden text). Not shown while loading or on
     // error (checked above, before this state), nor for the fallback below.
-    await expect(
-      page.getByRole("img", { name: "Written with Gemini" }),
-    ).toHaveCount(1);
+    await expect(page.locator(".results-analysis-geminiMark")).toHaveText(
+      "Written with Gemini",
+    );
 
     await page
       .getByRole("button", { name: "Ready (written from scores)" })
@@ -303,9 +303,7 @@ test.describe("/results/demo", () => {
     await expect(
       page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
-    await expect(
-      page.getByRole("img", { name: "Written with Gemini" }),
-    ).toHaveCount(0);
+    await expect(page.locator(".results-analysis-geminiMark")).toHaveCount(0);
   });
 
   test("the written analysis lives in Details, after the scores, and a detail page has none", async ({
