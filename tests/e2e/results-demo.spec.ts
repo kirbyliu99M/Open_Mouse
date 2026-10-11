@@ -418,7 +418,7 @@ test.describe("/results/demo", () => {
 test.describe("/results/demo in a Chinese browser", () => {
   test.use({ locale: "zh-TW" });
 
-  test("shows the zh-TW words, marked as zh-TW", async ({ page }) => {
+  test("shows the zh-TW words, under <html lang=zh-TW>", async ({ page }) => {
     await page.goto("/results/demo");
     await page.getByRole("button", { name: "Many mice + hand type" }).click();
 
@@ -431,10 +431,8 @@ test.describe("/results/demo in a Chinese browser", () => {
     await expect(page.locator(".results-hand-sentence")).toHaveText(
       "適合長度中等、握寬較寬的滑鼠；以抓握的方式最能發揮。",
     );
-    await expect(page.locator(".results-hand")).toHaveAttribute(
-      "lang",
-      "zh-TW",
-    );
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
+    await expect(page.locator(".results-hand")).not.toHaveAttribute("lang");
     await expect(page.locator(".results-score-rank")).toHaveText(
       "第 1 名 · Logitech",
     );

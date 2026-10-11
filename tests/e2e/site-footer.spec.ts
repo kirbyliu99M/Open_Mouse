@@ -45,7 +45,8 @@ test.describe("the site footer, in English", () => {
       const headline = footer.getByText(HEADLINE, { exact: true });
       await expect(headline).toBeVisible();
       await expect(footer.getByRole("link", { name: HEADLINE })).toHaveCount(0);
-      await expect(footer.getByRole("button")).toHaveCount(0);
+      // The only buttons are the language switcher's two options.
+      await expect(footer.getByRole("button")).toHaveCount(2);
 
       const nav = footer.getByRole("navigation", { name: "Site links" });
       await expect(nav.getByRole("link")).toHaveCount(LINKS.length);
@@ -75,8 +76,8 @@ test.describe("the site footer, in English", () => {
           nav.getByRole("link", { name, exact: true }),
         ).not.toHaveAttribute("rel", /.+/);
       }
-      // English is the page's own language: nothing is marked zh-TW.
-      await expect(footer.locator('[lang="zh-TW"]')).toHaveCount(0);
+      // <html lang> carries the language: the links need no lang of their own.
+      await expect(nav.locator("[lang]")).toHaveCount(0);
     });
   }
 
@@ -596,7 +597,7 @@ test.describe("on a touch screen as wide as a desktop", () => {
 test.describe("the site footer, for a browser that prefers Chinese", () => {
   test.use({ locale: "zh-TW" });
 
-  test("switches to zh-TW after mount, marks that text lang=zh-TW, keeps the headline as written", async ({
+  test("is rendered in zh-TW by the server, keeps the headline as written", async ({
     page,
   }) => {
     await page.goto("/how-it-works");
@@ -609,7 +610,7 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
       await expect(
         footer.getByRole("heading", { level: 2, name }),
       ).toBeVisible();
-    await expect(footer.locator('[lang="zh-TW"]')).not.toHaveCount(0);
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
     // Kirby's own line is shown as he wrote it, in either language.
     await expect(footer.getByText(HEADLINE, { exact: true })).toBeVisible();
     await expect(footer).not.toContainText("Early preview");

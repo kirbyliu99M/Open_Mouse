@@ -117,7 +117,6 @@ export function SiteFooter() {
         <div className="siteFooter-brand">
           <p className="siteFooter-name">{SITE_NAME}</p>
           <p className="siteFooter-headline">{FOOTER_HEADLINE}</p>
-          <LanguageSwitcher className="siteFooter-language" />
         </div>
         <div className="siteFooter-mark" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element -- our own fixed SVG mark, no next/image config needed */}
@@ -189,6 +188,7 @@ export function SiteFooter() {
             </ul>
           </div>
         </nav>
+        <LanguageSwitcher className="siteFooter-language" />
       </div>
     </footer>
   );

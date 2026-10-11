@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import nodePath from "node:path";
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,7 +28,7 @@ function render(at: string | null, locale: Locale = "en"): string {
   return renderToStaticMarkup(
     createElement(
       LocaleProvider,
-      { initialLocale: locale },
+      { initialLocale: locale } as ComponentProps<typeof LocaleProvider>,
       createElement(SiteFooter),
     ),
   );
