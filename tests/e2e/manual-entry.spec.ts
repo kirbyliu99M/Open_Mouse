@@ -536,21 +536,35 @@ test.describe("typed hand length and width", () => {
   }) => {
     await page.goto(URL);
     await handle(page).click();
+    // Straight after opening, inside the 320 ms slide-up: the strip is moving,
+    // so events go to it directly instead of to where it was a moment ago.
     const grab = page.locator(".manualEntry-grab");
-    const box = (await grab.boundingBox())!;
-    // Grab the strip within the 320 ms of the opening animation.
-    await page.mouse.move(box.x + box.width / 2, box.y + 12);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + 112, { steps: 4 });
-    const dragged = await page.evaluate(
-      () => document.querySelector("dialog")!.style.animation,
-    );
-    expect(dragged).toBe("none");
-    const moved = await page.evaluate(
-      () => getComputedStyle(document.querySelector("dialog")!).transform,
-    );
-    expect(moved).not.toBe("none");
-    await page.mouse.up();
+    const init = { pointerId: 5, pointerType: "touch", isPrimary: true };
+    await grab.dispatchEvent("pointerdown", {
+      ...init,
+      clientX: 100,
+      clientY: 100,
+    });
+    await grab.dispatchEvent("pointermove", {
+      ...init,
+      clientX: 100,
+      clientY: 200,
+    });
+    const state = await page.evaluate(() => {
+      const dialog = document.querySelector("dialog")!;
+      return {
+        animation: dialog.style.animationName,
+        transform: dialog.style.transform,
+      };
+    });
+    // The opening animation is stopped, so the dragged transform shows.
+    expect(state.animation).toBe("none");
+    expect(state.transform).toBe("translateY(100px)");
+    await grab.dispatchEvent("pointercancel", {
+      ...init,
+      clientX: 100,
+      clientY: 200,
+    });
   });
 
   test("the touch targets are at least 44 px", async ({ page }) => {
