@@ -458,6 +458,10 @@ describe("issueText", () => {
     expect(issuesEn.handNotDetected("paper")).toBe(
       checkHandDetected(0, "paper")?.message,
     );
+    // The no-paper pipeline builds this one inline (pipeline.ts).
+    expect(issuesEn.handNotDetected("nothing")).toBe(
+      "We couldn't find a hand — keep your whole hand in view, fingers together, and retake.",
+    );
     expect(issuesEn.handednessMismatch("left", "right", "picker")).toBe(
       checkHandedness("left", "right")?.message,
     );
