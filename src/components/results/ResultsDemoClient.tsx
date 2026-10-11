@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SITE_NAME } from "@/lib/site";
 import type { AnalysisOutput } from "@/lib/contracts/analysis";
+import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "./analysisState";
 import {
   FIXTURES,
@@ -67,10 +68,24 @@ const ANALYSIS_DEMO_STATES: {
  * no routes, so choosing one of the other picks changes which rank the page
  * shows instead of navigating.
  */
+/** Demo only: the fixtures carry no photo paths, so `?photos=1` adds them by slug (a missing file shows the silhouette). */
+function withDemoPhotos(response: FitResponse): FitResponse {
+  return {
+    ...response,
+    results: response.results.map((r) => ({
+      ...r,
+      mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+    })),
+  };
+}
+
 export function ResultsDemoClient({
   presentation = false,
+  photos = false,
 }: {
   presentation?: boolean;
+  /** `?photos=1`: give every fixture mouse its committed photo path, by slug. */
+  photos?: boolean;
 }) {
   const [fixtureKey, setFixtureKey] = useState<FixtureKey>(
     presentation ? "low-confidence" : FIXTURE_KEYS[0],
@@ -139,7 +154,9 @@ export function ResultsDemoClient({
 
       <ResultsView
         key={`${fixtureKey}:${rank}`}
-        response={FIXTURES[fixtureKey]}
+        response={
+          photos ? withDemoPhotos(FIXTURES[fixtureKey]) : FIXTURES[fixtureKey]
+        }
         rank={rank}
         language={language}
         onSelectRank={setRank}

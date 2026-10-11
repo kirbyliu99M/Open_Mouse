@@ -100,6 +100,14 @@ The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10
   with an external-link icon, and the purchase list is plain rows (white shop
   name, grey icon, hairlines between rows), never a white pill or a filled
   button. 「製作我的分享圖」 stays the only primary button on the page.
+- **The big photo opens a dialog** (Kirby, 2026-10-11, candidate): the top
+  mouse's photo, on the results page and the detail pages, is a button with a
+  corner icon that opens a native modal on a near-black scrim, with the photo
+  on the same soft backdrop as on the page; a mouse with no photo (the
+  silhouette) and the small cards do not open. Pinch or wheel zooms from 1x to
+  3x, a drag pans, a double tap toggles 1x and 2.5x, and the keys `+`, `-`, `0`
+  and the arrows do the same; Esc, the close button or the scrim closes it and
+  focus returns to the photo.
 
 ### 3D viewer (M4b)
 

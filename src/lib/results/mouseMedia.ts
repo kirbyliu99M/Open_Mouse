@@ -46,3 +46,9 @@ export function mediaForSlug(
   // Own keys only: a slug like "constructor" must not read the prototype.
   return Object.hasOwn(media, slug) ? media[slug] : null;
 }
+
+export {
+  LARGE_PHOTO_HEIGHT,
+  LARGE_PHOTO_WIDTH,
+  largePhotoPath,
+} from "./photoPaths";

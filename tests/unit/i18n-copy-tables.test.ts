@@ -26,6 +26,8 @@ const EXPECTED_MODULES = [
   "nav.ts",
   "privacy.ts",
   "results-page.ts",
+  "results-reasons.ts",
+  "results-screens.ts",
   "scan-common.ts",
   "scan-issues.ts",
   "scan-sheet.ts",

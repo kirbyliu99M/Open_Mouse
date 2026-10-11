@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /**
  * The size, in pixels, of every committed product photo
  * (`public/images/mice/*.webp`, from `tools/mouse-media`). They go on the
@@ -21,12 +23,18 @@ export function MousePhoto({
   alt = "",
   className = "",
   priority = false,
+  children,
 }: {
   imageUrl: string | null | undefined;
   alt?: string;
   className?: string;
   /** The photo at the top of the page: eager, high priority. */
   priority?: boolean;
+  /**
+   * Laid over the panel, after the photo, only when there is a photo (the
+   * click-to-enlarge button, `PhotoZoom`). The silhouette never has any.
+   */
+  children?: ReactNode;
 }) {
   return (
     <div
@@ -34,17 +42,20 @@ export function MousePhoto({
       data-has-photo={imageUrl ? "true" : "false"}
     >
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- a plain site-relative file, sized by its box
-        <img
-          src={imageUrl}
-          alt={alt}
-          className="results-photo-img"
-          width={MOUSE_PHOTO_WIDTH}
-          height={MOUSE_PHOTO_HEIGHT}
-          loading={priority ? "eager" : "lazy"}
-          fetchPriority={priority ? "high" : undefined}
-          decoding="async"
-        />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a plain site-relative file, sized by its box */}
+          <img
+            src={imageUrl}
+            alt={alt}
+            className="results-photo-img"
+            width={MOUSE_PHOTO_WIDTH}
+            height={MOUSE_PHOTO_HEIGHT}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : undefined}
+            decoding="async"
+          />
+          {children}
+        </>
       ) : (
         <svg
           className="results-photo-silhouette"
