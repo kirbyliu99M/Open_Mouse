@@ -314,4 +314,27 @@ describe("fitPreferencesSchema", () => {
       fitPreferencesSchema.safeParse({ weightG: { min: 90, max: 60 } }).success,
     ).toBe(false);
   });
+
+  it("accepts the three palm-thickness levels and leaves the field absent otherwise", () => {
+    for (const level of ["thin", "medium", "thick"] as const) {
+      expect(fitPreferencesSchema.parse({ palmThickness: level })).toEqual({
+        palmThickness: level,
+        includeVertical: false,
+      });
+    }
+    // Never defaulted: an empty request carries no thickness at all.
+    expect("palmThickness" in fitPreferencesSchema.parse({})).toBe(false);
+  });
+
+  it.each([
+    ["an unknown level", { palmThickness: "chunky" }],
+    ["a number", { palmThickness: 2 }],
+    ["null", { palmThickness: null }],
+    [
+      "a millimetre value under the stated field's old name",
+      { palmThicknessMm: 34 },
+    ],
+  ])("rejects %s", (_, bad) => {
+    expect(fitPreferencesSchema.safeParse(bad).success).toBe(false);
+  });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
+import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { PrintButton } from "./PrintButton";
 import { ID1_CARD_MM, SHEET } from "@/lib/contracts/measurement";
 import { MarkerGlyph } from "@/components/sheet/MarkerGlyph";
@@ -18,6 +19,7 @@ const TICK_INTERVAL_MM = 10;
 const TICK_LENGTH_MM = 3;
 
 export default async function SheetPage() {
+  guardDemoRouteFromProduction();
   const copy = sheetCopy(await getLocale());
   const layout = computeSheetLayout();
   const ticks = Array.from(
