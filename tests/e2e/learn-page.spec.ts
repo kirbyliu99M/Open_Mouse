@@ -228,7 +228,10 @@ test.describe("/learn information page", () => {
     const image = page.locator(".learn-card--hand .learn-figure");
     const [t, i] = [await text.boundingBox(), await image.boundingBox()];
     expect(i!.y).toBeGreaterThan(t!.y + t!.height - 1);
-    await page.setViewportSize({ width: 1120, height: 800 });
+    // 1200 px, not the 1120 px edge of the breakpoint: the text column is then
+    // about 244 px (card 518 px inside its padding, less the 250 px drawing and
+    // the 24 px gap), so 200 px leaves room for a scrollbar.
+    await page.setViewportSize({ width: 1200, height: 800 });
     const wide = await text.boundingBox();
     expect(wide!.width).toBeGreaterThanOrEqual(200);
     const side = await image.boundingBox();

@@ -49,9 +49,8 @@ export interface LearnPageCopy {
     hump: string;
     flare: string;
     /**
-     * New (LEARN-5, candidate): the text drawn on the four sketches. A "
-"
-     * is a line break the page keeps.
+     * New (LEARN-5, candidate): the text drawn on the four sketches. A `"\n"`
+     * in a string is a line break the page keeps.
      */
     marks: {
       thumbRest: string;

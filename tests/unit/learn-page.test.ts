@@ -70,6 +70,7 @@ describe("learn page copy", () => {
     }
     // The flare drawing is exaggerated: the page must say so.
     expect(en.shape.marks.schematic).toMatch(/schematic/i);
+    expect(zhTW.shape.marks.schematic).toContain("示意圖");
   });
 
   it("takes the grip names and three chart labels from the results page, not new strings", () => {
@@ -191,6 +192,18 @@ describe("the rendered /learn body", () => {
     expect(widths).toEqual([100, 83.33, 66.67, 33.33, 33.33, 16.67]);
   });
 
+  it("makes the chart an ordered list, largest weight first, with no list numbers drawn", () => {
+    const html = render(en);
+    expect(html).toContain('<ol class="learn-bars">');
+    expect(html).not.toContain("<ul");
+    const widths = [
+      ...html.matchAll(/class="learn-bar" style="width:([\d.]+)%"/g),
+    ].map((m) => Number(m[1]));
+    expect(widths).toEqual([...widths].sort((a, b) => b - a));
+    const css = readFileSync("src/app/learn/learn-info.css", "utf8");
+    expect(css).toMatch(/\.learn-bars \{[^}]*list-style: none/);
+  });
+
   it("uses Kirby's grip drawings, the home hand SVG and our four shape sketches, all decorative (empty alt), each file present, the old two mouse drawings gone, and writes no thickness card", () => {
     const html = render(en);
     for (const grip of ["palm", "claw", "fingertip"]) {
@@ -258,6 +271,8 @@ describe("the four shape sketches", () => {
         const tag = rootTag(read(file));
         expect(tag, file).toContain(`viewBox="${viewBoxText(sketch)}"`);
         expect(tag, file).not.toMatch(/\s(width|height)=/);
+        // Decorative: no role and no label anywhere in the file.
+        expect(read(file), file).not.toMatch(/\srole=|aria-label/);
       }
     },
   );

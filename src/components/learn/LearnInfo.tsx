@@ -178,6 +178,7 @@ function cards(copy: LearnPageCopy): Card[] {
                         <span
                           key={mark.key}
                           className="learn-shape-mark"
+                          data-mark={mark.key}
                           data-anchor={mark.anchor}
                           data-tone={mark.tone}
                           style={
@@ -212,7 +213,8 @@ function cards(copy: LearnPageCopy): Card[] {
         <>
           <p>{copy.score.body}</p>
           <div className="learn-chart">
-            <ul className="learn-bars">
+            {/* An ordered list: the bars run from the largest to the smallest weight, and that order is all a screen reader can say about them without new text. list-style is none, so no numbers show. */}
+            <ol className="learn-bars">
               {weightBars(BASE_WEIGHTS).map((bar) => (
                 <li key={bar.key}>
                   <span className="learn-bar-label">
@@ -226,7 +228,7 @@ function cards(copy: LearnPageCopy): Card[] {
                   </span>
                 </li>
               ))}
-            </ul>
+            </ol>
             <p className="learn-chart-note">{copy.score.barsNote}</p>
           </div>
           <Link className="learn-link" href="/how-it-works">

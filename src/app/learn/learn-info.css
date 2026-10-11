@@ -368,7 +368,11 @@
   width: 100%;
   aspect-ratio: 272 / 262;
   padding: 0.625rem;
-  overflow: hidden;
+  /* Not clipped: with the text only enlarged (200 %) a 12 px mark grows, and
+     the drawing does not, so a mark would be cut. Known limit: such a mark can
+     then run past the tile's edge (into the card's padding; the card clips
+     sideways, below). */
+  overflow: visible;
   border: 1px solid var(--hairline);
   border-radius: 0.875rem;
   background: var(--learn-tile-bg);
@@ -426,6 +430,29 @@
 .learn-shape-mark[data-anchor="m"] {
   text-align: center;
   transform: translateX(-50%);
+}
+/* The schematic note is a full sentence, about 340 px at 12 px, wider than the
+   drawing (about 232 px): it wraps inside the drawing's width, centred. The
+   other marks stay on their prepared lines. */
+.learn-shape-mark[data-mark="schematic"] {
+  white-space: normal;
+  width: max-content;
+  max-width: 100%;
+}
+/* Marks that grow past a tile (large text) must not widen the page: the card
+   clips sideways only. */
+.learn-card--shape {
+  overflow-x: clip;
+}
+/* Windows high contrast: the tile keeps its dark fill and the light drawing
+   (the marks inherit the fixed light colours), with a border in the system
+   text colour. The base and the arrows are images, which forced colours leave
+   alone. */
+@media (forced-colors: active) {
+  .learn-shape-tile {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
 }
 .learn-shape figcaption {
   color: var(--text-primary);
