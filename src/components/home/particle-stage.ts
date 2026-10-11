@@ -1,3 +1,4 @@
+import finaleJson from "@/lib/particles/finale.generated.json";
 import targetsJson from "@/lib/particles/targets.generated.json";
 import {
   PARTICLE_SEED,
@@ -21,7 +22,24 @@ import {
   GL_FLOATS_PER_PARTICLE,
   packParticles,
 } from "@/lib/particles/gl-buffers";
+import {
+  LATE_FADE_ATTEMPTS,
+  LATE_FADE_IN_MS,
+  LATE_FADE_MARGIN_MS,
+  LATE_FADE_OUT_MS,
+  LATE_SWITCH_IDLE_MS,
+  type StaticBlock,
+  fadeCheck,
+  lateSwitchAllowed,
+  planLateSwitch,
+  scrollForTarget,
+  storyAnchors,
+} from "@/lib/particles/late-start";
+import { parseFinaleTargets } from "@/lib/particles/load-finale";
+import { finaleShape, finaleSlotName } from "@/lib/particles/finale-shape";
 import { parseTargets } from "@/lib/particles/load-targets";
+import { smoothSpeed, trailScale } from "@/lib/particles/starfield";
+import { retryDelay, retryStep } from "@/lib/particles/retry";
 import { legLook } from "@/lib/particles/look";
 import {
   type NoteShape,
@@ -48,6 +66,7 @@ import {
   handBox,
   legOf,
   logoBox,
+  markClipped,
   mouseBox,
   pairingTablesInSlices,
   writeParticles,
@@ -63,6 +82,13 @@ import {
   phaseAt,
   sectionProgress,
 } from "@/lib/particles/timeline";
+import {
+  type FinaleFrame,
+  type FinaleScene,
+  buildFinaleScene,
+  drawFinale,
+  isBlocked,
+} from "./stage-finale";
 import { type GlRenderer, createGlRendererSteps } from "./stage-gl";
 import {
   type OutlineLayer,
@@ -98,12 +124,39 @@ import {
  * src/lib/particles/ and is unit tested; this file is covered by the e2e suite.
  */
 
-const targets = parseTargets(targetsJson);
+const baseTargets = parseTargets(targetsJson);
+const finale = parseFinaleTargets(finaleJson);
+/**
+ * The story's targets with the finale's drawing filed among the last state's
+ * drawings, once per density tier (a desktop and a phone sample the drawing
+ * at their own spacing): the pairing reads them by name like a mouse sketch.
+ */
+const targets = {
+  ...baseTargets,
+  mice: {
+    ...baseTargets.mice,
+    [finaleSlotName("desktop")]: finaleShape(finale, "desktop"),
+    [finaleSlotName("mobile")]: finaleShape(finale, "mobile"),
+  },
+};
 
 const ANIMATED = "story--animated";
+/**
+ * The sky's canvas (and its baked stars) is drawn at a pixel ratio of at most
+ * this: it is the whole viewport wide, and at 1920 x 1080 at a ratio of 2 it
+ * was about 32 MiB, and as much again for the stars' layer, cleared and drawn
+ * whole on each frame. Its stars are small round dots and its meteors thin
+ * lines, which hold up at 1. 未拍板 (candidate).
+ */
+export const SKY_MAX_DPR = 1;
+const skyDpr = (dpr: number) => Math.min(dpr, SKY_MAX_DPR);
 const WIDE = "(min-width: 48rem)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MORE_CONTRAST = "(prefers-contrast: more)";
+/** Forced colours (Windows contrast themes): the finale's headline is DOM text in the system's colours, and the canvas leaves it out. */
+const FORCED_COLORS = "(forced-colors: active)";
+/** What tells a scroll the reader made from one the browser made on its own (late start: the fade attempts are forgotten only for the reader's). */
+const READER_INPUT = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
 /** How far the hero text moves up while it fades, in CSS px. */
 const HERO_SHIFT_PX = 40;
 /** How far an annotation's text sits below its place while it is fading in or out, in CSS px. */
@@ -113,10 +166,14 @@ export interface StageHandle {
   destroy(): void;
 }
 
-interface MouseParts {
+/** The finale (story 6): its static drawing (where the particles land), its headline, and the light behind it. */
+interface FinaleParts {
+  readonly root: HTMLElement;
   readonly img: HTMLElement;
-  readonly caption: HTMLElement | null;
-  readonly sketch: string;
+  readonly title: HTMLElement;
+  readonly glow: HTMLElement | null;
+  /** The final section's buttons, which come up over the finale at the end: no star goes there. */
+  readonly actions: HTMLElement | null;
 }
 
 interface Parts {
@@ -128,7 +185,7 @@ interface Parts {
   readonly sheet: HTMLElement | null;
   /** The five annotations' text blocks, in order: each its own element, with a small line inside. Empty when the page has not got exactly five. */
   readonly notes: readonly NoteParts[];
-  readonly mice: readonly MouseParts[];
+  readonly finale: FinaleParts;
 }
 
 interface NoteParts {
@@ -155,18 +212,14 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
   const logo = section?.querySelector<HTMLElement>(".story-logo img");
   const handImg = section?.querySelector<HTMLElement>(".story-hand img");
   if (!section || !panel || !hero || !logo || !handImg) return null;
-  const fallback = Object.keys(targets.mice)[0];
-  const mice = [...section.querySelectorAll<HTMLElement>(".story-mouse")].map(
-    (figure): MouseParts | null => {
-      const img = figure.querySelector<HTMLElement>("img");
-      const wanted = figure.dataset.sketch ?? "";
-      const sketch = wanted in targets.mice ? wanted : fallback;
-      return img && sketch
-        ? { img, caption: figure.querySelector("figcaption"), sketch }
-        : null;
-    },
-  );
-  if (mice.length !== MOUSE_COUNT || mice.some((m) => m === null)) return null;
+  // Exactly one finale, with its drawing and its headline: without them the
+  // story has no last state and the page stays static.
+  const finales = section.querySelectorAll<HTMLElement>(".story-finale");
+  const root = finales[0];
+  if (finales.length !== MOUSE_COUNT || !root) return null;
+  const img = root.querySelector<HTMLElement>(".story-finale-art img");
+  const title = root.querySelector<HTMLElement>(".story-finale-title");
+  if (!img || !title) return null;
   return {
     section,
     panel,
@@ -175,7 +228,13 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
     handImg,
     sheet: section.querySelector<HTMLElement>(".story-hand-sheet"),
     notes: findNotes(section),
-    mice: mice as MouseParts[],
+    finale: {
+      root,
+      img,
+      title,
+      glow: root.querySelector<HTMLElement>(".story-finale-glow"),
+      actions: document.querySelector<HTMLElement>(".home-final .home-actions"),
+    },
   };
 }
 
@@ -186,10 +245,11 @@ function findParts(canvas: HTMLCanvasElement): Parts | null {
 export function startParticleStage(
   canvas: HTMLCanvasElement,
   glCanvas?: HTMLCanvasElement | null,
+  skyCanvas?: HTMLCanvasElement | null,
 ): StageHandle {
   const parts = findParts(canvas);
   if (!parts) return { destroy() {} };
-  const stage = new Stage(canvas, glCanvas ?? null, parts);
+  const stage = new Stage(canvas, glCanvas ?? null, parts, skyCanvas ?? null);
   stage.start();
   return { destroy: () => stage.destroy() };
 }
@@ -234,6 +294,27 @@ class Stage {
   private noteShapes: readonly NoteShape[] = [];
   /** False when the notes have no place that keeps clear of the sheet's bottom edge: none of them is shown. */
   private notesShown = false;
+  /** The finale's headline and sky for the current layout (null until built, or when it could not be). */
+  private finaleScene: FinaleScene | null = null;
+  /** The finale's place on the canvas, for its scene (built after the particles). */
+  private finaleRect: Rect | null = null;
+  /** The sky canvas's 2D context, once made. */
+  private skyCtx: CanvasRenderingContext2D | null = null;
+  /** The finale's frame, filled in for each draw (no allocation per frame). */
+  private readonly finaleFrame: FinaleFrame = {
+    phase: phaseAt(0).finale,
+    progress: 0,
+    trail: 1,
+    glow: true,
+    share: 1,
+    headline: true,
+  };
+  /** One timer per scroll: once the reader has stopped, the meteors' tails go back to their rest length in one more frame. */
+  private settleTimer = 0;
+  /** The scroll speed the meteors' tails follow (px/s, smoothed), and the scroll position and time it was last taken at. */
+  private scrollSpeed = 0;
+  private speedY = 0;
+  private speedAt = 0;
 
   /** The drawing path in use now. "2d" until WebGL has been made, and for good once it has failed. */
   private renderer: Renderer = "2d";
@@ -267,7 +348,29 @@ class Stage {
   private dirty = true;
   private lastP = -1;
   private visible = true;
-  private waitingForTop = false;
+
+  /**
+   * Starting away from the top (late-start.ts): "waiting" for the reader to
+   * hold still (`lateTimer` is the wait), "fading" while the panel fades out
+   * before the switch (`lateTimer` is the fade). `fadeTimer` ends a fade in.
+   */
+  /** "parked": the whole static story fits in the viewport, so the stage waits for the top (lateSwitchAllowed). */
+  private lateState: "none" | "waiting" | "fading" | "parked" = "none";
+  private lateTimer = 0;
+  /** The frame `confirmFaded` looks again in, and how many fades gave up since the reader last scrolled. */
+  private lateFrame = 0;
+  private lateFadeFailures = 0;
+  /** The reader used a wheel, a touch, a key or a pointer since the last scroll: the next scroll is theirs. */
+  private readerInput = false;
+  private fadeTimer = 0;
+  /** The next scroll event is the one the late switch caused, not the reader's. */
+  private selfScroll = false;
+
+  /** `prepare` failed this many times; a retry is waiting on its timer, or on the tab being shown; or no try is left. */
+  private prepareFailures = 0;
+  private retryTimer = 0;
+  private retryWhenShown = false;
+  private prepareGaveUp = false;
 
   private shimmerStart = 0;
   private shimmerOver = false;
@@ -279,7 +382,8 @@ class Stage {
     transform?: string;
     inert?: boolean;
     sheet?: string;
-    captions?: string;
+    glow?: string;
+    title?: string;
     notes?: string;
   } = {};
 
@@ -289,7 +393,7 @@ class Stage {
   private readonly probe: HTMLElement;
   private readonly controls: HTMLElement[];
   private readonly queries: Record<
-    "wide" | "reduced" | "contrast",
+    "wide" | "reduced" | "contrast" | "forced",
     MediaQueryList
   >;
   private resize: ResizeObserver | null = null;
@@ -299,11 +403,14 @@ class Stage {
     private readonly canvas: HTMLCanvasElement,
     private readonly glCanvas: HTMLCanvasElement | null,
     private readonly parts: Parts,
+    /** The finale's sky, the whole viewport wide, under the particles (optional: without it the sky is drawn in the panel). */
+    private readonly skyCanvas: HTMLCanvasElement | null = null,
   ) {
     this.queries = {
       wide: window.matchMedia(WIDE),
       reduced: window.matchMedia(REDUCED_MOTION),
       contrast: window.matchMedia(MORE_CONTRAST),
+      forced: window.matchMedia(FORCED_COLORS),
     };
     // 100svh, measured by the browser itself (100vh where svh is unknown), so
     // it is the same number the panel's CSS height resolves to.
@@ -327,6 +434,20 @@ class Stage {
   start(): void {
     this.parts.section.append(this.probe);
     window.addEventListener("scroll", this.onScroll, { passive: true });
+    // A change of the window's width alone (a zoom, a window dragged wider or
+    // narrower above the column's 78rem cap) changes none of the observed
+    // boxes, but it moves where the viewport-wide sky and light must go:
+    // the reflow (one per frame at most) places them again.
+    // Only a change of width counts: a phone's toolbars sliding change the
+    // height on every scroll, which the 100svh probe deliberately ignores.
+    this.windowWidth = document.documentElement.clientWidth;
+    window.addEventListener("resize", this.onWindowResize);
+    for (const type of READER_INPUT) {
+      window.addEventListener(type, this.onReaderInput, {
+        passive: true,
+        capture: true,
+      });
+    }
     document.addEventListener("visibilitychange", this.onVisibility);
     for (const query of Object.values(this.queries)) {
       query.addEventListener("change", this.requestReflow);
@@ -346,18 +467,38 @@ class Stage {
     this.destroyed = true;
     this.deactivate();
     window.removeEventListener("scroll", this.onScroll);
+    window.removeEventListener("resize", this.onWindowResize);
+    for (const type of READER_INPUT) {
+      window.removeEventListener(type, this.onReaderInput, { capture: true });
+    }
     document.removeEventListener("visibilitychange", this.onVisibility);
     for (const query of Object.values(this.queries)) {
       query.removeEventListener("change", this.requestReflow);
     }
     this.resize?.disconnect();
     if (this.reflowId) cancelAnimationFrame(this.reflowId);
+    this.stopLateTimers();
+    window.clearTimeout(this.fadeTimer);
+    window.clearTimeout(this.retryTimer);
+    window.clearTimeout(this.settleTimer);
+    this.parts.panel.style.transition = "";
+    this.parts.panel.style.opacity = "";
     this.probe.remove();
     this.gl?.dispose();
     this.gl = null;
   }
 
   // ── Switching the layout ────────────────────────────────────────────────
+
+  /** The window's width (less a scrollbar) the wide layers were last placed for. */
+  private windowWidth = 0;
+
+  private readonly onWindowResize = (): void => {
+    const width = document.documentElement.clientWidth;
+    if (width === this.windowWidth) return;
+    this.windowWidth = width;
+    this.requestReflow();
+  };
 
   private readonly requestReflow = (): void => {
     if (this.destroyed || this.reflowId) return;
@@ -371,7 +512,42 @@ class Stage {
   private reflow(): void {
     if (this.destroyed) return;
     const panelHeight = this.probe.offsetHeight;
-    const allowed = mayAnimate({
+    if (!this.allowed(panelHeight)) {
+      this.cancelLateSwitch();
+      if (this.animated) this.deactivate();
+      return;
+    }
+    try {
+      if (!this.animated) {
+        if (!this.ready) {
+          // The heavy part (the drawing path, the pairing) is built in slices,
+          // off this task, wherever the reader is; it asks for another reflow
+          // when it is done.
+          this.prepare();
+          return;
+        }
+        if (this.parts.section.getBoundingClientRect().top < 0) {
+          // Away from the top the switch would move what the reader is
+          // looking at: it waits until they hold still, and then keeps the
+          // page in place or fades the story through (see `lateSwitch`).
+          this.armLateSwitch();
+          return;
+        }
+        // At the top the switch moves nothing: now.
+        this.cancelLateSwitch();
+        this.lateFadeFailures = 0;
+        this.activate(panelHeight);
+      } else {
+        this.remeasure(panelHeight);
+      }
+    } catch {
+      this.deactivate();
+    }
+  }
+
+  /** Whether the animated layout may be on (motion allowed, the hero fits, the viewport is tall enough). */
+  private allowed(panelHeight: number): boolean {
+    return mayAnimate({
       reducedMotion: this.queries.reduced.matches,
       heroHeight: this.parts.hero.offsetHeight,
       panelHeight,
@@ -380,33 +556,231 @@ class Stage {
       // two layouts around the 600 px line.
       viewportHeight: panelHeight,
     });
-    if (!allowed) {
-      this.waitingForTop = false;
-      if (this.animated) this.deactivate();
+  }
+
+  // ── Switching away from the top (late-start.ts) ─────────────────────────
+
+  /**
+   * Wait for the reader to hold still: each scroll starts the wait again. One
+   * timer, no loop. Once `LATE_FADE_ATTEMPTS` fades have given up, nothing is
+   * scheduled (whatever asks: a resize, the tab shown again, a media query)
+   * until the reader scrolls, which forgets the failures (`onScroll`).
+   */
+  private armLateSwitch(): void {
+    if (this.destroyed || this.animated || this.lateState === "fading") return;
+    if (
+      !lateSwitchAllowed(
+        this.parts.section.getBoundingClientRect().height,
+        window.innerHeight,
+      )
+    ) {
+      // A window taller than the static story: wait for the top.
+      window.clearTimeout(this.lateTimer);
+      this.lateTimer = 0;
+      this.lateState = "parked";
       return;
     }
+    this.lateState = "waiting";
+    window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFadeFailures >= LATE_FADE_ATTEMPTS) return;
+    this.lateTimer = window.setTimeout(this.lateSwitch, LATE_SWITCH_IDLE_MS);
+  }
+
+  /** Stop a late switch that has not happened yet; a fade out that had begun fades back in. */
+  private cancelLateSwitch(): void {
+    this.stopLateTimers();
+    if (this.lateState === "fading") this.fadePanelIn();
+    this.lateState = "none";
+  }
+
+  private stopLateTimers(): void {
+    window.clearTimeout(this.lateTimer);
+    this.lateTimer = 0;
+    if (this.lateFrame) cancelAnimationFrame(this.lateFrame);
+    this.lateFrame = 0;
+  }
+
+  /**
+   * The fade out's time is up: switch only if the tab is shown and the panel
+   * really is transparent (fadeCheck). Otherwise look again next frame, a
+   * bounded number of times; a hidden tab, or a panel still visible after
+   * that, gives the fade up: the panel fades back in and nothing moved.
+   */
+  private readonly confirmFaded = (frames: number, since: number): void => {
+    this.lateFrame = 0;
+    if (this.destroyed || this.animated || this.lateState !== "fading") return;
+    const check = fadeCheck({
+      hidden: document.hidden,
+      opacity: Number(getComputedStyle(this.parts.panel).opacity),
+      frames,
+      elapsedMs: performance.now() - since,
+    });
+    if (check === "switch") {
+      this.lateState = "none";
+      this.switchLate(true);
+    } else if (check === "next-frame") {
+      this.lateFrame = requestAnimationFrame(() =>
+        this.confirmFaded(frames + 1, since),
+      );
+    } else {
+      this.giveUpFade(check === "hidden");
+    }
+  };
+
+  /**
+   * The fade out did not get to a switch: fade back in and keep waiting. A
+   * hidden tab waits until it is shown (`onVisibility` asks for a reflow,
+   * which waits for stillness again); a panel that would not turn transparent
+   * is tried again after the idle wait, `LATE_FADE_ATTEMPTS` times in all
+   * until the reader scrolls (one timer each: nothing loops on its own).
+   */
+  private giveUpFade(hidden: boolean): void {
+    this.stopLateTimers();
+    this.fadePanelIn();
+    this.lateState = "waiting";
+    if (hidden) return;
+    this.lateFadeFailures += 1;
+    this.armLateSwitch();
+  }
+
+  /** The reader has held still: switch, after fading the panel out if part of the story is in view. */
+  private readonly lateSwitch = (): void => {
+    this.lateTimer = 0;
+    if (this.destroyed || this.animated || this.lateState !== "waiting") return;
+    // A hidden tab switches when it is shown (`onVisibility` asks for a reflow).
+    if (document.hidden) return;
+    const { section, panel } = this.parts;
+    const panelHeight = this.probe.offsetHeight;
+    const box = section.getBoundingClientRect();
+    if (!this.allowed(panelHeight) || box.top >= 0) {
+      this.lateState = "none";
+      this.requestReflow();
+      return;
+    }
+    // Only whether to fade is decided here; where the reader goes is worked
+    // out after the switch, from the animated layout's real height.
+    const { fade } = planLateSwitch({
+      staticTop: box.top,
+      staticHeight: box.height,
+      animatedHeight: box.height,
+      panelHeight,
+      viewportHeight: window.innerHeight,
+      anchors: [],
+    });
+    if (!fade) {
+      this.lateState = "none";
+      this.switchLate(false);
+      return;
+    }
+    this.lateState = "fading";
+    // A fade in still running (a fade out that a scroll cut short) would take
+    // the transition off this fade out when its timer is up: stop it first.
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = 0;
+    panel.style.transition = `opacity ${LATE_FADE_OUT_MS}ms ease-out`;
+    panel.style.opacity = "0";
+    this.lateTimer = window.setTimeout(() => {
+      this.lateTimer = 0;
+      this.confirmFaded(0, performance.now());
+    }, LATE_FADE_OUT_MS + LATE_FADE_MARGIN_MS);
+  };
+
+  /**
+   * Switch to the animated layout away from the top, in one task: measure the
+   * static story, switch, and scroll to where `planLateSwitch` puts the reader
+   * (the bottom edge kept in place below the story; the matching progress
+   * inside it, under the fade). The browser's scroll anchoring is off for
+   * that task, so the one scroll made here is the only one.
+   */
+  private switchLate(faded: boolean): void {
+    if (this.destroyed || this.animated) {
+      if (faded) this.fadePanelIn();
+      return;
+    }
+    const { section, handImg, notes, finale: finaleParts } = this.parts;
+    const panelHeight = this.probe.offsetHeight;
+    const box = section.getBoundingClientRect();
+    if (!lateSwitchAllowed(box.height, window.innerHeight)) {
+      // The window grew while the panel faded out (a resize, a phone's
+      // toolbar) until the whole static story fits: no switch away from the
+      // top any more (lateSwitchAllowed). The panel fades back in, nothing
+      // moved, and the stage waits for the top.
+      if (faded) this.fadePanelIn();
+      this.stopLateTimers();
+      this.lateState = "parked";
+      return;
+    }
+    // The final section's gap under the static story (its top edge less the
+    // section's bottom edge), to set against the animated one's after the switch.
+    const final = section.nextElementSibling;
+    const staticGap = final
+      ? final.getBoundingClientRect().top - box.bottom
+      : 0;
+    if (!this.allowed(panelHeight)) {
+      if (faded) this.fadePanelIn();
+      return;
+    }
+    const block = (element: Element | null | undefined): StaticBlock | null => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top - box.top, height: rect.height };
+    };
+    const anchors = storyAnchors({
+      staticHeight: box.height,
+      hand: block(handImg.closest(".story-hand")),
+      notes: block(notes[0]?.block.parentElement),
+      mice: block(finaleParts.root),
+    });
+    const root = document.documentElement;
+    const anchoring = root.style.overflowAnchor;
+    root.style.overflowAnchor = "none";
     try {
-      if (!this.animated) {
-        // Switching moves everything below the hero, so only do it while the
-        // reader is still at the top; the scroll listener tries again.
-        if (this.parts.section.getBoundingClientRect().top < 0) {
-          this.waitingForTop = true;
-          return;
-        }
-        this.waitingForTop = false;
-        if (!this.ready) {
-          // The heavy part (the drawing path, the pairing) is built in slices,
-          // off this task; it asks for another reflow when it is done.
-          this.prepare();
-          return;
-        }
-        this.activate(panelHeight);
-      } else {
-        this.remeasure(panelHeight);
+      this.activate(panelHeight);
+      if (this.animated) {
+        // Switched: a later late start (after going static again) begins afresh.
+        this.lateFadeFailures = 0;
+        const after = section.getBoundingClientRect();
+        const animatedGap = final
+          ? final.getBoundingClientRect().top - after.bottom
+          : 0;
+        const plan = planLateSwitch({
+          staticTop: box.top,
+          staticHeight: box.height,
+          animatedHeight: after.height,
+          panelHeight,
+          viewportHeight: window.innerHeight,
+          anchors,
+          finalShift: staticGap - animatedGap,
+        });
+        const before = window.scrollY;
+        window.scrollTo({
+          top: scrollForTarget(before, after.top, plan.targetTop),
+          behavior: "instant",
+        });
+        if (window.scrollY !== before) this.selfScroll = true;
       }
     } catch {
       this.deactivate();
+    } finally {
+      // Back on after this frame's layout, which the switch and the scroll are in.
+      requestAnimationFrame(() => {
+        root.style.overflowAnchor = anchoring;
+      });
     }
+    if (faded) this.fadePanelIn();
+  }
+
+  /** The panel back to full opacity, with a fade; the transition is removed once it is over. */
+  private fadePanelIn(): void {
+    const { panel } = this.parts;
+    panel.style.transition = `opacity ${LATE_FADE_IN_MS}ms ease-out`;
+    panel.style.opacity = "";
+    window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = window.setTimeout(() => {
+      this.fadeTimer = 0;
+      panel.style.transition = "";
+    }, LATE_FADE_IN_MS + 50);
   }
 
   /**
@@ -425,6 +799,8 @@ class Stage {
     this.shimmerStart = performance.now();
     this.draw(0, this.shimmerStart);
 
+    // The wide layers in their place before they are shown (no layout shift).
+    this.placeWide(this.parts.panel.getBoundingClientRect());
     // The first frame is on the canvas: switch the layout and hand the logo over.
     section.classList.add(ANIMATED);
     logo.style.visibility = "hidden";
@@ -491,11 +867,19 @@ class Stage {
 
   /** Animated to static: the page goes back to PR A's layout, as if nothing had loaded. */
   private deactivate(): void {
+    this.cancelLateSwitch();
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
     this.intersection?.disconnect();
     this.intersection = null;
-    const { section, hero, logo, sheet, mice, notes } = this.parts;
+    const {
+      section,
+      hero,
+      logo,
+      sheet,
+      finale: finaleParts,
+      notes,
+    } = this.parts;
     section.classList.remove(ANIMATED);
     logo.style.visibility = "";
     hero.style.opacity = "";
@@ -523,12 +907,24 @@ class Stage {
       this.headingTabindexSet = false;
     }
     if (sheet) sheet.style.opacity = "";
-    for (const mouse of mice)
-      if (mouse.caption) mouse.caption.style.opacity = "";
+    if (finaleParts.glow) finaleParts.glow.style.opacity = "";
+    if (finaleParts.glow) {
+      finaleParts.glow.style.left = "";
+      finaleParts.glow.style.right = "";
+      finaleParts.glow.style.width = "";
+    }
+    if (this.skyCanvas) {
+      this.skyCtx?.clearRect(0, 0, this.skyCanvas.width, this.skyCanvas.height);
+      this.skyCanvas.style.left = "";
+      this.skyCanvas.style.width = "";
+    }
+    finaleParts.title.style.opacity = "";
+    this.finaleScene = null;
     delete section.dataset.progress;
     delete section.dataset.story;
     delete section.dataset.renderer;
     delete section.dataset.notes;
+    delete section.dataset.finale;
     this.written = {};
     this.needsMeasure = false;
     this.measureWaited = false;
@@ -618,22 +1014,23 @@ class Stage {
     this.cssWidth = width;
     this.cssHeight = panelHeight;
     this.fitCanvas();
-    this.buildSet(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    this.buildSet(logoRect, logoRect, [logoRect]);
     // (`fitCanvas` may have fallen back to the 2D path: the key says which.)
     this.warmKey = this.warmKeyFor(width, panelHeight, logoRect);
     return true;
   }
 
-  /** Read where the logo, the hand and the three mice are on the page now, and rebuild the particles for them. */
+  /** Read where the logo, the hand and the finale are on the page now, and rebuild the particles for them. */
   private measureAndBuild(): void {
     this.measureRects();
+    this.measureFinale();
     this.uploadSet();
     this.measureLayout();
   }
 
-  /** The first part of the measure: where the logo, the hand and the mice are, and the particles for them. */
+  /** The first part of the measure: where the logo, the hand and the finale are, the particles for them, and the finale's headline and sky. */
   private measureRects(): void {
-    const { panel, hero, logo, handImg, mice } = this.parts;
+    const { panel, hero, logo, handImg, finale: finaleParts } = this.parts;
     const origin = panel.getBoundingClientRect();
     // The hero moves up as it fades; the logo's place is where it rests.
     const transform = hero.style.transform;
@@ -641,15 +1038,22 @@ class Stage {
     const logoRect = relative(logo.getBoundingClientRect(), origin);
     hero.style.transform = transform;
     const handRect = relative(handImg.getBoundingClientRect(), origin);
-    this.buildSetData(
-      logoRect,
-      handRect,
-      mice.map((m) => relative(m.img.getBoundingClientRect(), origin)),
+    const finaleRect = relative(
+      finaleParts.img.getBoundingClientRect(),
+      origin,
     );
+    this.buildSetData(logoRect, handRect, [finaleRect]);
+    this.finaleRect = finaleRect;
     this.measured = { origin, handRect };
   }
 
-  /** The third part of the measure: the hand's outline and the notes' places, for the rects the first part found. */
+  /** The second part of the measure: the finale's headline and sky, for the rects the first part found. */
+  private measureFinale(): void {
+    const measured = this.measured;
+    if (measured) this.buildFinale(measured.origin);
+  }
+
+  /** The last part of the measure: the hand's outline and the notes' places, for the rects the first part found. */
   private measureLayout(): void {
     const measured = this.measured;
     if (!measured) return;
@@ -757,7 +1161,7 @@ class Stage {
     const layoutKind: MiceLayout = this.queries.wide.matches
       ? "row"
       : "stacked";
-    const sketches = this.parts.mice.map((m) => m.sketch);
+    const sketches = this.finaleSketches();
     const count = this.countFor(this.renderer);
     const key = this.pairingKeyFor(this.renderer, count, layoutKind, sketches);
     if (key !== this.pairingKey || !this.pairing) {
@@ -808,6 +1212,114 @@ class Stage {
     );
   }
 
+  /** The last state's drawing: the finale, sampled for a desktop or a phone. */
+  private finaleSketches(): string[] {
+    return [finaleSlotName(this.queries.wide.matches ? "desktop" : "mobile")];
+  }
+
+  /**
+   * The finale's headline and sky for this layout, and which of the finale's
+   * particles sit under the headline's grown letters (their lines are cut
+   * there). Once per layout; the particles' clip marks go up with the next
+   * upload. A finale that can not be built leaves the figure whole and no
+   * headline drawn: the text is still in the DOM.
+   */
+  private buildFinale(origin: DOMRect): void {
+    const { finale: parts } = this.parts;
+    this.finaleScene = null;
+    if (this.set) this.set.clip.fill(0);
+    const avoid: Rect[] = [];
+    if (this.finaleRect) avoid.push(this.finaleRect);
+    const actions = parts.actions;
+    if (actions) {
+      // Where the buttons are once the panel lets go (p = 1): as far above the
+      // panel's bottom as they are above the section's bottom now.
+      const section = this.parts.section.getBoundingClientRect();
+      const box = actions.getBoundingClientRect();
+      avoid.push({
+        x: box.left - origin.left,
+        y: this.cssHeight + (box.top - section.bottom),
+        width: box.width,
+        height: box.height,
+      });
+    }
+    const started = performance.now();
+    const sky = this.fitSky(origin);
+    try {
+      this.finaleScene = buildFinaleScene({
+        sky: sky ?? undefined,
+        title: parts.title,
+        origin,
+        width: this.cssWidth,
+        height: this.cssHeight,
+        dpr: this.dpr,
+        wide: this.queries.wide.matches,
+        avoid,
+        skyDpr: skyDpr(this.dpr),
+        // The 2D path draws every particle on the main thread: the headline
+        // takes no more than the 2D budget there.
+        liveMax: this.renderer === "webgl" ? Infinity : this.budget,
+      });
+    } catch {
+      this.finaleScene = null;
+    }
+    // Without its layer the headline is shown as DOM text (home.css); the
+    // figure and the rest of the story go on as they are.
+    this.parts.section.dataset.finale = this.finaleScene ? "on" : "off";
+    const scene = this.finaleScene;
+    if (scene && this.set) {
+      markClipped(this.set, (x, y) => isBlocked(scene, x, y));
+    }
+    // For the e2e suite and for anyone checking the cost in the inspector:
+    // how long this layout's finale took to build (ms, once per layout).
+    this.canvas.dataset.finaleMs = (performance.now() - started).toFixed(1);
+  }
+
+  /**
+   * The sky's canvas spans the viewport's width (less a scrollbar), from its
+   * left edge: placed by its left and width in px (once per layout), so it
+   * never sticks out sideways. Its pixel size follows. Null without one.
+   */
+  private fitSky(origin: DOMRect): { width: number; offsetX: number } | null {
+    const sky = this.skyCanvas;
+    if (!sky) return null;
+    const ctx = this.skyCtx ?? sky.getContext("2d");
+    if (!ctx) return null;
+    this.skyCtx = ctx;
+    const width = this.placeWide(origin);
+    const dpr = skyDpr(this.dpr);
+    const w = Math.max(1, Math.round(width * dpr));
+    const h = Math.max(1, Math.round(this.cssHeight * dpr));
+    if (sky.width !== w || sky.height !== h) {
+      sky.width = w;
+      sky.height = h;
+    }
+    // For the e2e suite: how wide the sky is drawn (CSS px).
+    sky.dataset.width = String(width);
+    return { width, offsetX: origin.left };
+  }
+
+  /**
+   * The sky's canvas and the finale's light span the viewport's width (less a
+   * scrollbar) from its left edge, so a phone's narrow column does not cut
+   * them off: placed by their left and width in px. Done before the layout
+   * switches (activate), so they appear where they stay and the switch shifts
+   * nothing (a move after they are shown counts as a layout shift), and again
+   * with each measure, which only changes them when the window has. Returns
+   * the width.
+   */
+  private placeWide(origin: DOMRect): number {
+    const width = Math.max(1, document.documentElement.clientWidth);
+    const left = `${round3(-origin.left)}px`;
+    for (const el of [this.skyCanvas, this.parts.finale.glow]) {
+      if (!el) continue;
+      if (el.style.left !== left) el.style.left = left;
+      if (el.style.width !== `${width}px`) el.style.width = `${width}px`;
+      if (el.style.right !== "auto") el.style.right = "auto";
+    }
+    return width;
+  }
+
   private countFor(renderer: Renderer): number {
     return particleCount(
       this.queries.wide.matches,
@@ -831,10 +1343,20 @@ class Stage {
    * Build what the first frame needs, a slice at a time: pick the drawing path
    * (making the WebGL context if it is allowed), then the pairing for its
    * budget. Nothing here touches the page. When it is done the stage asks for
-   * a reflow, which switches the layout on. A failure leaves the page static.
+   * a reflow, which switches the layout on. A failure leaves the page static
+   * and is tried again a bounded number of times (retry.ts).
    */
   private prepare(): void {
-    if (this.preparing || this.ready || this.destroyed) return;
+    if (
+      this.preparing ||
+      this.ready ||
+      this.destroyed ||
+      this.prepareGaveUp ||
+      this.retryTimer ||
+      this.retryWhenShown
+    ) {
+      return;
+    }
     this.preparing = true;
     void (async () => {
       let done = false;
@@ -853,7 +1375,7 @@ class Stage {
         const layoutKind: MiceLayout = this.queries.wide.matches
           ? "row"
           : "stacked";
-        const sketches = this.parts.mice.map((m) => m.sketch);
+        const sketches = this.finaleSketches();
         const renderer = this.renderer;
         const count = this.countFor(renderer);
         const key = this.pairingKeyFor(renderer, count, layoutKind, sketches);
@@ -912,15 +1434,36 @@ class Stage {
         await this.warmInSlices();
         done = true;
       } catch {
-        // The page stays as it is: the static layout.
+        // The page stays as it is, the static layout, for now.
       } finally {
         this.preparing = false;
       }
       if (done) {
         this.ready = true;
         if (!this.destroyed) this.requestReflow();
+      } else if (!this.destroyed) {
+        this.schedulePrepareRetry();
       }
     })();
+  }
+
+  /** After a failed `prepare`: one timer for the next try, if one is left; it runs only while the tab is shown. */
+  private schedulePrepareRetry(): void {
+    this.prepareFailures += 1;
+    const delay = retryDelay(this.prepareFailures);
+    if (delay === null) {
+      this.prepareGaveUp = true;
+      return;
+    }
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = 0;
+      if (this.destroyed) return;
+      if (retryStep(document.hidden) === "wait-until-shown") {
+        this.retryWhenShown = true;
+        return;
+      }
+      this.requestReflow();
+    }, delay);
   }
 
   /**
@@ -997,7 +1540,7 @@ class Stage {
     if (this.destroyed) return;
     const origin = panel.getBoundingClientRect();
     const logoRect = relative(logo.getBoundingClientRect(), origin);
-    this.buildSetData(logoRect, logoRect, [logoRect, logoRect, logoRect]);
+    this.buildSetData(logoRect, logoRect, [logoRect]);
     await pause();
     if (this.destroyed) return;
     this.uploadSet();
@@ -1032,19 +1575,45 @@ class Stage {
   // ── Drawing ─────────────────────────────────────────────────────────────
 
   private readonly onScroll = (): void => {
+    // Whether the reader's own input came before this scroll (each scroll
+    // uses the flag up, so an old key press does not make a later scroll theirs).
+    const byReader = this.readerInput;
+    this.readerInput = false;
+    if (this.animated && this.selfScroll) {
+      // The scroll the late switch made: not the reader's, so it neither
+      // arms the guard nor starts the scroll tail. Draw the frame for it.
+      this.selfScroll = false;
+      this.dirty = true;
+      this.schedule();
+      return;
+    }
     if (this.animated) {
       this.lastScrollAt = performance.now();
+      this.settleTailsLater();
       // The first scroll starts the guard's counting (degrade.ts): until then
       // only the page's own frames, with the shimmer, have run. A scroll event
       // with the page still at the top has moved nothing, and does not start it.
       this.guard = armOnScroll(this.guard, window.scrollY);
       this.schedule();
-    } else if (
-      this.waitingForTop &&
-      this.parts.section.getBoundingClientRect().top >= 0
-    ) {
-      this.requestReflow();
+    } else if (this.lateState !== "none") {
+      // Waiting to switch away from the top: back at the top it switches at
+      // once; anywhere else the reader is moving, so the wait starts again
+      // (and a fade out that had begun fades back in). If the reader moved
+      // the page themselves (input came before this scroll), the fades that
+      // gave up are forgotten; a scroll the browser made on its own (a resize,
+      // scroll anchoring) does not count.
+      if (byReader) this.lateFadeFailures = 0;
+      if (this.parts.section.getBoundingClientRect().top >= 0) {
+        this.requestReflow();
+      } else {
+        if (this.lateState === "fading") this.cancelLateSwitch();
+        this.armLateSwitch();
+      }
     }
+  };
+
+  private readonly onReaderInput = (): void => {
+    this.readerInput = true;
   };
 
   private readonly onVisibility = (): void => {
@@ -1054,6 +1623,13 @@ class Stage {
     if (!document.hidden) {
       this.dirty = true;
       this.schedule();
+      // A retry, or a late switch, that came due while the tab was hidden.
+      if (this.retryWhenShown) {
+        this.retryWhenShown = false;
+        this.requestReflow();
+      } else if (!this.animated && this.lateState === "waiting") {
+        this.requestReflow();
+      }
     }
   };
 
@@ -1086,16 +1662,18 @@ class Stage {
         this.schedule();
         return;
       }
-      // Still at the top: the measure is spread over three frames, one part
-      // each (rects and particles; the upload; the outline and the notes), so
-      // no task of them is long on a slow phone (they were 85 to 110 ms in one
-      // go at 4 times the CPU). Nothing is drawn meanwhile: the canvas shows
-      // the logo, which is where it was. If the reader scrolls, what is left
-      // is done at once and drawn.
-      if (idle && this.measureStep < 3) {
+      // Still at the top: the measure is spread over four frames, one part
+      // each (rects and particles; the finale's headline and sky; the upload;
+      // the outline and the notes), so no task of them is long on a slow
+      // phone (they were 85 to 110 ms in one go at 4 times the CPU, before
+      // the finale). Nothing is drawn meanwhile: the canvas shows the logo,
+      // which is where it was. If the reader scrolls, what is left is done at
+      // once and drawn.
+      if (idle && this.measureStep < 4) {
         try {
           if (this.measureStep === 0) this.measureRects();
-          else if (this.measureStep === 1) this.uploadSet();
+          else if (this.measureStep === 1) this.measureFinale();
+          else if (this.measureStep === 2) this.uploadSet();
           else this.measureLayout();
         } catch {
           this.deactivate();
@@ -1111,8 +1689,9 @@ class Stage {
       this.measureStep = 0;
       try {
         if (done < 1) this.measureRects();
-        if (done < 2) this.uploadSet();
-        if (done < 3) this.measureLayout();
+        if (done < 2) this.measureFinale();
+        if (done < 3) this.uploadSet();
+        if (done < 4) this.measureLayout();
       } catch {
         this.deactivate();
         return;
@@ -1120,6 +1699,7 @@ class Stage {
       this.dirty = true;
     }
     const p = this.currentProgress();
+    if (this.followScrollSpeed(now)) this.dirty = true;
     if (!this.dirty && p === this.lastP && this.shimmerOver) {
       this.keepGoing();
       return;
@@ -1150,6 +1730,49 @@ class Stage {
       performance.now() - this.lastScrollAt < SCROLL_TAIL_MS;
     if (!this.shimmerOver || inTail) this.schedule();
     else this.endRun();
+  }
+
+  /**
+   * The scroll speed the finale's meteor tails follow, from this frame's
+   * scroll (smoothed: starfield.ts). True when the tails would change enough
+   * to redraw (only while the sky is showing). Scroll-driven only: the frames
+   * this runs in are the scroll's own and its short tail.
+   */
+  private followScrollSpeed(now: number): boolean {
+    const y = window.scrollY;
+    const before = this.scrollSpeed;
+    if (this.speedAt > 0 && now > this.speedAt) {
+      this.scrollSpeed = smoothSpeed(
+        this.scrollSpeed,
+        y - this.speedY,
+        now - this.speedAt,
+        90,
+      );
+    }
+    this.speedY = y;
+    this.speedAt = now;
+    if (!this.finaleScene || this.lastP < 0.7) return false;
+    return Math.abs(trailScale(this.scrollSpeed) - trailScale(before)) > 0.01;
+  }
+
+  /**
+   * A scroll has come: once the reader has stood still for the scroll tail,
+   * draw one more frame with the meteors' tails back at rest. One timer, set
+   * again by each scroll: nothing loops (the tails otherwise kept the length
+   * of the last scroll's speed).
+   */
+  private settleTailsLater(): void {
+    window.clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+    if (!this.finaleScene || this.lastP < 0.8) return;
+    this.settleTimer = window.setTimeout(() => {
+      this.settleTimer = 0;
+      if (this.destroyed || !this.animated) return;
+      if (trailScale(this.scrollSpeed) <= 1) return;
+      this.scrollSpeed = 0;
+      this.dirty = true;
+      this.schedule();
+    }, SCROLL_TAIL_MS + 20);
   }
 
   /** The frame loop has stopped: the guard's next frame has no gap to this one. */
@@ -1201,6 +1824,8 @@ class Stage {
         band,
         count: this.guard.drawCount,
         glow: !this.queries.contrast.matches,
+        clip: phase.finale.clip,
+        lift: phase.finale.lift,
         ...legLook(
           leg.split,
           set.count,
@@ -1226,6 +1851,22 @@ class Stage {
       notes: this.noteShapes,
       shimmer: band,
     });
+    if (this.finaleScene) {
+      const f = this.finaleFrame;
+      f.phase = phase.finale;
+      f.progress = phase.progress;
+      f.trail = trailScale(this.scrollSpeed);
+      f.glow = !this.queries.contrast.matches;
+      f.headline = !this.queries.forced.matches;
+      // The guard's share of the budget (degrade.ts): the headline's live
+      // particles are thinned by it too. The 2D path has no guard: its
+      // headline is capped at the 2D budget when it is built.
+      f.share =
+        this.renderer === "webgl" && this.budget > 0
+          ? this.guard.drawCount / this.budget
+          : 1;
+      drawFinale(ctx, this.skyCtx, this.finaleScene, f);
+    }
     this.applyDom(phase);
     this.draws += 1;
     this.canvas.dataset.draws = String(this.draws);
@@ -1255,9 +1896,9 @@ class Stage {
     heading.focus({ preventScroll: true });
   }
 
-  /** The DOM's share of the story: the hero's fade, the A4 outline, the captions. Opacity and transform only. */
+  /** The DOM's share of the story: the hero's fade, the A4 outline, the finale's light. Opacity and transform only. */
   private applyDom(phase: Phase): void {
-    const { hero, sheet, mice } = this.parts;
+    const { hero, sheet, finale: finaleParts } = this.parts;
     const w = this.written;
     const opacity =
       phase.hero.opacity >= 1 ? "" : String(round3(phase.hero.opacity));
@@ -1286,12 +1927,20 @@ class Stage {
       sheet.style.opacity = sheetOpacity;
       w.sheet = sheetOpacity;
     }
-    const captions = String(round3(phase.captions));
-    if (captions !== w.captions) {
-      for (const mouse of mice) {
-        if (mouse.caption) mouse.caption.style.opacity = captions;
-      }
-      w.captions = captions;
+    // The headline as DOM text when the canvas does not draw it (its layer
+    // could not be built, or forced colours): it fades in with its window.
+    const domTitle =
+      this.parts.section.dataset.finale === "off" ||
+      this.queries.forced.matches;
+    const title = domTitle ? String(round3(phase.finale.gather)) : "";
+    if (title !== w.title) {
+      finaleParts.title.style.opacity = title;
+      w.title = title;
+    }
+    const glow = String(round3(phase.finale.glow));
+    if (finaleParts.glow && glow !== w.glow) {
+      finaleParts.glow.style.opacity = glow;
+      w.glow = glow;
     }
     // The annotations' text: opacity, and a small rise while one fades. A note
     // at 0 is left to its stylesheet (hidden), and is still in the DOM, in

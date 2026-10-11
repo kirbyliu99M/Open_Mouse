@@ -224,8 +224,21 @@ describe("the look at each end of a leg", () => {
     // The hand lights all 12,000: the look of 12,000 particles, as it always was.
     expect(form.looks[1]).toEqual(glLook(12000, 1.2));
     expect(split.looks[0]).toEqual(glLook(12000, 1.2));
-    // The mice light 1,800: close to the 1,300 the 2D look was tuned for.
-    expect(split.looks[1]).toEqual(glLook(1800, 1.2));
+    // The last state (the finale's figure since 2026-10-11) lights its share
+    // (0.18: 2,160 of 12,000), drawn STAR_SIZE.mouse times its look (1: a
+    // 1.15 tried that day made the figure too solid, look.ts).
+    const figureLit = litCount(LIT_FRACTION.mouse, 12000, 12000);
+    expect(figureLit).toBe(2160);
+    const figure = glLook(figureLit, 1.2);
+    expect(split.looks[1].brightPx).toBeCloseTo(
+      figure.brightPx * STAR_SIZE.mouse,
+      12,
+    );
+    expect(split.looks[1].dimPx).toBeCloseTo(
+      figure.dimPx * STAR_SIZE.mouse,
+      12,
+    );
+    expect(split.looks[1].brightAlpha).toBe(figure.brightAlpha);
     expect(split.looks[1].brightPx).toBeGreaterThan(5);
     expect(split.looks[1].brightPx).toBeLessThanOrEqual(6);
     expect(split.looks[0].brightPx).toBeLessThan(3);
@@ -241,7 +254,7 @@ describe("the look at each end of a leg", () => {
     expect(form.looks[0].brightPx).toBeGreaterThan(split.looks[1].brightPx);
   });
 
-  it("makes the logo's stars a little bigger than a mouse's, and nothing else bigger than its look", () => {
+  it("makes the logo's stars a little bigger than the finale figure's, and nothing else bigger than its look", () => {
     expect(STAR_SIZE.logo).toBeGreaterThan(1);
     expect(STAR_SIZE.logo).toBeLessThan(2);
     expect(STAR_SIZE.hand).toBe(1);
@@ -300,5 +313,18 @@ describe("the biggest point", () => {
     expect(pointSizeFits([1, 64], maxPointCssPx() * 2)).toBe(true);
     expect(pointSizeFits([1, 1023], maxPointCssPx() * 2)).toBe(true);
     expect(pointSizeFits([1, 16], maxPointCssPx() * 2)).toBe(false);
+  });
+});
+
+describe("the logo's stars: a design choice, pinned", () => {
+  it("lights 0.14 of the particles on the logo and draws its stars 1.7 times the look", () => {
+    // These two numbers are not derived: they are the look Kirby picked from
+    // screenshots of the Palmate mark (2026-10-10; still 未拍板, candidate, in
+    // look.ts). He asked for a denser mark twice that day: 0.06 became 0.10,
+    // then 0.14 with the tighter cloud (variant B). They are pinned so that
+    // changing them is a decision and not a side effect of another change:
+    // ask Kirby before changing this test.
+    expect(LIT_FRACTION.logo).toBe(0.14);
+    expect(STAR_SIZE.logo).toBe(1.7);
   });
 });

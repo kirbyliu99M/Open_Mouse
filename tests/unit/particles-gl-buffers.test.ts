@@ -34,7 +34,9 @@ const layout: StageLayout = {
     { x: 10, y: 150, width: 330, height: 407 },
     targets.hand.viewBox,
   ),
-  mice: [0, 1, 2].map((slot) =>
+  // One last drawing since the finale (MOUSE_COUNT = 1); the mechanics are
+  // the same for any sketch, so the mouse sketch stands in for it here.
+  mice: [0].map((slot) =>
     mouseBox({ x: 20, y: 120 + slot * 220, width: 310, height: 147 }, 340),
   ),
 };
@@ -43,7 +45,7 @@ const pairing = buildPairing(targets, {
   count: COUNT,
   layout: "stacked",
   seed: 7,
-  mice: ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"],
+  mice: ["g-pro-sketch"],
   density: "dense",
 });
 const set = buildParticleSet(pairing, layout, 7);
@@ -52,11 +54,12 @@ describe("packParticles", () => {
   const order = starOrder(pairing, STAR_ORDER_SEED);
   const data = packParticles(set, order);
 
-  it("makes one interleaved buffer: 15 floats per particle", () => {
-    expect(GL_FLOATS_PER_PARTICLE).toBe(15);
+  it("makes one interleaved buffer: 16 floats per particle", () => {
+    // 15 before the finale (2026-10-11) added the clip mark.
+    expect(GL_FLOATS_PER_PARTICLE).toBe(16);
     expect(data).toBeInstanceOf(Float32Array);
-    expect(data).toHaveLength(COUNT * 15);
-    // Every field has its own floats: no two overlap, and they fill the 15.
+    expect(data).toHaveLength(COUNT * 16);
+    // Every field has its own floats: no two overlap, and they fill the 16.
     const fields = [
       [GL_FIELD.logo, 2],
       [GL_FIELD.hand, 2],
@@ -66,12 +69,13 @@ describe("packParticles", () => {
       [GL_FIELD.tone, 3],
       [GL_FIELD.shimmerX, 1],
       [GL_FIELD.rank, 1],
+      [GL_FIELD.clip, 1],
     ] as const;
     const used = fields.flatMap(([at, size]) =>
       Array.from({ length: size }, (_, i) => at + i),
     );
     expect(used.sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 15 }, (_, i) => i),
+      Array.from({ length: 16 }, (_, i) => i),
     );
   });
 

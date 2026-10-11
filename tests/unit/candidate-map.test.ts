@@ -13,9 +13,12 @@ import {
   assertNoUnflaggedTrackballs,
   buildCatalogue,
   deriveFormFactor,
+  eloPageConnectivity,
   ELOSHAPES_BROWSE_URL,
+  isKnownConnectivity,
   LOGITECH_ALIASES,
   mapCandidate,
+  mapConnectivity,
   mapDataSource,
   mapFlare,
   mapHand,
@@ -25,6 +28,7 @@ import {
   mapSourceUrl,
   mapYesNo,
   normaliseBrand,
+  OFFICIAL_CONNECTIVITY,
   resolveLogitechMerges,
   TRACKBALL_NAME_PATTERN,
   type CandidateRecord,
@@ -52,6 +56,7 @@ const record = (over: Partial<CandidateRecord> = {}): CandidateRecord => ({
   flare: "Outward - slight",
   sideCurvature: "Inward - aggressive",
   thumbRest: "No",
+  connectivity: "Wireless",
   ...over,
 });
 
@@ -165,6 +170,103 @@ describe("deriveFormFactor", () => {
     );
     expect(deriveFormFactor({ lengthMm: 100, heightMm: 55 })).toBe("standard");
     expect(deriveFormFactor({ lengthMm: 125, heightMm: 40 })).toBe("standard");
+  });
+});
+
+describe("mapConnectivity", () => {
+  it("maps each EloShapes value", () => {
+    expect(mapConnectivity("Wired")).toBe("wired");
+    expect(mapConnectivity("Wireless")).toBe("wireless");
+    expect(mapConnectivity(" wireless ")).toBe("wireless");
+  });
+
+  it("maps blank, missing and unknown spellings to null", () => {
+    expect(mapConnectivity("")).toBeNull();
+    expect(mapConnectivity(undefined)).toBeNull();
+    expect(mapConnectivity("Bluetooth")).toBeNull();
+    expect(isKnownConnectivity("")).toBe(true);
+    expect(isKnownConnectivity("Wired")).toBe(true);
+    expect(isKnownConnectivity("Bluetooth")).toBe(false);
+  });
+
+  it("carries the value into the entry, null when the record has none", () => {
+    expect(mapCandidate(record(), RETRIEVED).connectivity).toBe("wireless");
+    expect(
+      mapCandidate(record({ connectivity: "Wired" }), RETRIEVED).connectivity,
+    ).toBe("wired");
+    expect(
+      mapCandidate(record({ connectivity: undefined }), RETRIEVED).connectivity,
+    ).toBeNull();
+  });
+});
+
+describe("eloPageConnectivity", () => {
+  const block = (wired: string, wireless: string) => [
+    "Acceleration",
+    "Connectivity",
+    "Wired",
+    wired,
+    "Wireless",
+    wireless,
+    "Bluetooth",
+    "No",
+  ];
+
+  it("reads wired-only, wireless-only and both (both is Wireless)", () => {
+    expect(eloPageConnectivity(block("Yes (USB-C)", "No"))).toBe("Wired");
+    expect(eloPageConnectivity(block("No", "Yes (2.4 GHz)"))).toBe("Wireless");
+    expect(eloPageConnectivity(block("Yes (USB-C)", "Yes (2.4 GHz)"))).toBe(
+      "Wireless",
+    );
+  });
+
+  it("returns blank when the block or the answers are missing", () => {
+    expect(eloPageConnectivity(["Weight", "50"])).toBe("");
+    expect(eloPageConnectivity(block("-", "-"))).toBe("");
+  });
+
+  it("reads Wired = Yes with Wireless = - as wired", () => {
+    expect(eloPageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
+  });
+});
+
+describe("OFFICIAL_CONNECTIVITY", () => {
+  const official = (catalogue as unknown as CatalogueEntry[]).filter(
+    (e) => e.dataSource === "first_party",
+  );
+
+  it("pins the seven values read from the brand pages", () => {
+    expect(OFFICIAL_CONNECTIVITY).toEqual({
+      "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
+        "Wired",
+      "https://hyperx.com/products/hyperx-pulsefire-haste-3-wireless-gaming-mouse":
+        "Wireless",
+      "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse": "Wired",
+      "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold": "Wireless",
+      "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold": "Wireless",
+      "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
+      "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
+        "Wireless",
+    });
+  });
+
+  it("keys every value by the URL of an official candidate in catalogue.json", () => {
+    const urls = new Set(official.map((e) => e.sourceUrl));
+    for (const url of Object.keys(OFFICIAL_CONNECTIVITY)) {
+      expect(urls.has(url), url).toBe(true);
+    }
+    expect(official).toHaveLength(8);
+  });
+
+  it("leaves exactly the one unreadable official page (Razer Boomslang) null", () => {
+    const nulls = official.filter((e) => e.connectivity === null);
+    expect(nulls.map((e) => e.model)).toEqual([
+      "Boomslang 20th Anniversary Edition",
+    ]);
+    for (const e of official) {
+      const raw = OFFICIAL_CONNECTIVITY[e.sourceUrl];
+      if (raw !== undefined) expect(e.connectivity).toBe(raw.toLowerCase());
+    }
   });
 });
 
@@ -360,6 +462,19 @@ describe("TRACKBALL_NAME_PATTERN", () => {
 
 describe("the committed src/db/seed/catalogue.json", () => {
   const entries = catalogue as unknown as CatalogueEntry[];
+
+  it("carries connectivity on every entry, with the counts the fixture names", () => {
+    const n = (v: string | null) =>
+      entries.filter((e) => e.connectivity === v).length;
+    for (const e of entries) {
+      expect([null, "wired", "wireless"]).toContain(e.connectivity);
+    }
+    expect({
+      wired: n("wired"),
+      wireless: n("wireless"),
+      unknown: n(null),
+    }).toEqual(N.candidateConnectivity);
+  });
 
   it("holds the approved candidates, no slug twice", () => {
     expect(entries).toHaveLength(N.candidates);

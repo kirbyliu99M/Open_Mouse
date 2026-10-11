@@ -90,7 +90,7 @@ test.describe("/scan/easy/measured-demo — the measured bottom sheet", () => {
   });
 });
 
-test("the selected grip chip keeps its contrast, and its text and border use --accent-text, never --accent", async ({
+test("the selected grip chip is the white pill fill with a near-black label, and keeps its contrast", async ({
   page,
 }) => {
   await page.goto("/scan/easy/measured-demo");
@@ -110,12 +110,11 @@ test("the selected grip chip keeps its contrast, and its text and border use --a
         border: computed.borderTopColor,
       };
     });
-    // --scan-accent-soft was never defined, so the fallback light-blue
-    // fill sat under the dark theme's light-blue text: 1.98:1.
+    // The selected toggles share the primary button's fill and label
+    // (--button-primary-bg #F5F5F7, --on-button-primary #060709): 18.5:1.
     expect(contrast(style.color, style.background), grip).toBeGreaterThan(4.5);
-    // The fill --accent (#1F6BF0) is only 2.6:1 on this chip's fill, so the
-    // text and the outline use --accent-text (#7FA8FF), 5.3:1.
-    expect(style.color, grip).toBe("rgb(127, 168, 255)");
-    expect(style.border, grip).toBe("rgb(127, 168, 255)");
+    expect(style.background, grip).toBe("rgb(245, 245, 247)");
+    expect(style.color, grip).toBe("rgb(6, 7, 9)");
+    expect(style.border, grip).toBe("rgb(245, 245, 247)");
   }
 });

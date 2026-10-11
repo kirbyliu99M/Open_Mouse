@@ -35,20 +35,43 @@
   font-size: 1rem;
 }
 
+/* While the results are filtered: the same text link as a secondary button
+   (BTN-1): no fill, no border, no underline, 44 px tall. */
+.shareCard-button-secondary {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+}
+.shareCard-primary[data-filtering="true"] {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+}
+.shareCard-note {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
 .shareCard-button-primary {
   width: 100%;
   min-height: 3.125rem;
   padding: 0 1.25rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.875rem;
-  background: var(--accent);
-  color: var(--on-accent);
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
   font-size: 1rem;
   font-weight: 700;
 }
 .shareCard-button-primary:active {
-  background: var(--accent-pressed);
-  border-color: var(--accent-pressed);
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
 }
 
 .shareCard-error {
@@ -62,7 +85,7 @@
 
 @media (prefers-contrast: more) {
   .shareCard-button-primary {
-    border-color: var(--on-accent);
+    border-color: var(--on-button-primary);
   }
 }
 

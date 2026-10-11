@@ -246,6 +246,19 @@ describe("parseSketchSvg", () => {
     ).toThrow(/without d or stroke/);
   });
 
+  it("reads a path's data-part (each of its subpaths gets it), and adds no part key to a path without one", () => {
+    const parsed = parseSketchSvg(
+      `<svg viewBox="0 0 10 10"><g data-part="ignored"><path data-part="hand-nail" stroke="#CFE0FF" d="M0 0l1 1M5 5l1 0"/></g>` +
+        `<path stroke="#6E9BF5" d="M0 9l2 0"/></svg>`,
+    );
+    expect(parsed.strokes.map((s) => s.part)).toEqual([
+      "hand-nail",
+      "hand-nail",
+      undefined,
+    ]);
+    expect("part" in parsed.strokes[2]!).toBe(false);
+  });
+
   it("refuses elements it does not read", () => {
     expect(() => parseSketchSvg(sketch(`<circle r="3"/>`))).toThrow(
       /unsupported <circle>/,

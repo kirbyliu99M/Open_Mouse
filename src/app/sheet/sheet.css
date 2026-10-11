@@ -108,16 +108,22 @@
     text-align: center;
   }
   .sheet-primary {
-    color: var(--on-accent);
-    background: var(--accent);
+    border-radius: 999px;
+    color: var(--on-button-primary);
+    background: var(--button-primary-bg);
   }
   .sheet-primary:active {
-    background: var(--accent-pressed);
+    background: var(--button-primary-pressed);
+  }
+  .sheet-primary:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 3px;
   }
   .sheet-secondary {
+    /* Secondary: a text link (BTN-1, style B). */
     color: var(--accent-text);
-    background: #242426;
-    border: 1px solid #3a3a3d;
+    background: none;
+    border: 1px solid transparent;
     text-decoration: none;
   }
   .sheet-after .sheet-privacy {

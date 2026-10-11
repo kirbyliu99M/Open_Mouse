@@ -122,6 +122,33 @@ describe("seedCatalogue with the catalogue, facts and descriptors", () => {
     expect(summary.tableCount).toBe(N.rows);
   });
 
+  it("writes connectivity on conflict, so a rerun fills rows seeded without it", async () => {
+    await seedCatalogue(db, specs, descriptors, input);
+    const imported = (catalogueJson as unknown as CatalogueEntry[]).find(
+      (e) => !e.mergesInto && e.connectivity === "wireless",
+    )!;
+    await pg.exec(
+      `UPDATE mice SET connectivity = NULL WHERE model = '${imported.model.replace(/'/g, "''")}' OR model = 'G502 Hero'`,
+    );
+    await seedCatalogue(db, specs, descriptors, input);
+    expect((await one(imported.model)).connectivity).toBe("wireless");
+    expect((await one("G502 Hero")).connectivity).toBe(
+      specs.find((s) => s.model === "G502 Hero")!.connectivity,
+    );
+    const all = await rows();
+    const count = (v: string | null) =>
+      all.filter((r) => r.connectivity === v).length;
+    expect({
+      wired: count("wired"),
+      wireless: count("wireless"),
+      unknown: count(null),
+    }).toEqual({
+      wired: N.rowConnectivity.wired,
+      wireless: N.rowConnectivity.wireless,
+      unknown: N.rowConnectivity.unknown,
+    });
+  });
+
   it("re-seeding moves a row back to the seed's listed value", async () => {
     await seedCatalogue(db, specs, descriptors, input);
     await pg.exec("UPDATE mice SET listed = true WHERE model = 'M100'");
@@ -156,5 +183,28 @@ describe("the fit repo over the seeded table", () => {
     expect(
       listedOnly(catalogue).filter((m) => m.formFactor === "trackball"),
     ).toEqual([expect.objectContaining({ model: "MX Ergo S" })]);
+  });
+
+  it("returns the connectivity column for every row (the results filter reads it from here)", async () => {
+    await seedCatalogue(db, specs, descriptors, input);
+    const repo = createDrizzleFitRepo(
+      db as unknown as Parameters<typeof createDrizzleFitRepo>[0],
+    );
+    const catalogue = await repo.loadCatalogue();
+    const stored = new Map(
+      (
+        await pg.query<{ slug: string; connectivity: string | null }>(
+          "SELECT slug, connectivity FROM mice",
+        )
+      ).rows.map((r) => [r.slug, r.connectivity] as const),
+    );
+    // Each row carries exactly what the table holds (a missing column would
+    // read as undefined here, and the filter would see every mouse as unknown).
+    for (const m of catalogue) {
+      expect(m.connectivity, m.slug).toBe(stored.get(m.slug));
+    }
+    const values = new Set(catalogue.map((m) => m.connectivity));
+    expect(values.has("wired")).toBe(true);
+    expect(values.has("wireless")).toBe(true);
   });
 });

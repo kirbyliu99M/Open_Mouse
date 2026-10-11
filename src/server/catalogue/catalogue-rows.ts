@@ -52,7 +52,7 @@ export interface CatalogueColumns {
   dataSource: DataSource;
 }
 
-/** A `mice` insert before descriptors. Imported rows have no known connectivity. */
+/** A `mice` insert before descriptors. Connectivity is null for a candidate no source states it for. */
 export type SeedRow = Omit<MouseRow, "connectivity"> & {
   connectivity: MouseRow["connectivity"] | null;
 } & CatalogueColumns;
@@ -320,7 +320,7 @@ export function buildSeedRows(
       model: entry.model,
       ...dims,
       weightG: entry.weightG,
-      connectivity: null,
+      connectivity: entry.connectivity,
       size: computeSize(dims),
       sourceUrl: entry.sourceUrl,
       specRetrievedAt: new Date(entry.retrievedAt),
@@ -364,6 +364,7 @@ export function toCatalogueMouse(
     sideCurvature: row.sideCurvature ?? null,
     thumbRest: row.thumbRest ?? null,
     ringFingerRest: row.ringFingerRest ?? null,
+    connectivity: row.connectivity ?? null,
     formFactor: row.formFactor,
     listed: row.listed,
   };

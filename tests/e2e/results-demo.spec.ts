@@ -255,7 +255,7 @@ test.describe("/results/demo", () => {
     await expect(
       page.locator(".results-excluded-list a, .results-excluded-list button"),
     ).toHaveCount(0);
-    // No early-preview notice on the page (the site footer carries it).
+    // No early-preview notice on the page (nor in the site footer for now: Kirby, 2026-10-10).
     await expect(page.locator(".results-previewNotice")).toHaveCount(0);
   });
 
@@ -436,7 +436,7 @@ test.describe("/results/demo in a Chinese browser", () => {
       "zh-TW",
     );
     await expect(page.locator(".results-score-rank")).toHaveText(
-      "第一名 · Logitech",
+      "第 1 名 · Logitech",
     );
     await expect(page.locator(".results-score-label")).toHaveText(
       "適配分數 / 100",

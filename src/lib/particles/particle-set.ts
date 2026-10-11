@@ -4,7 +4,7 @@ import {
   legWeights,
   swirlDirection,
 } from "./interpolate";
-import { LOGO_BOX } from "./logo";
+import { LOGO_BOX, inLogoMark } from "./logo";
 import { mulberry32 } from "./random";
 import type { Pairing } from "./pairing";
 import type { Phase } from "./timeline";
@@ -92,8 +92,15 @@ export interface ParticleSet {
   /** The swirl vector at full amplitude (x, y per particle, canvas px), for logo to hand and for hand to mice. */
   readonly swirlForm: Float32Array;
   readonly swirlSplit: Float32Array;
-  /** 0 at the logo's left edge to 1 at its right, for the shimmer. */
+  /** 0 at the mark's left edge to 1 at its right, for the shimmer (the strays round it held to 0 to 1: see `pairingTablesSteps`). */
   readonly shimmerX: Float32Array;
+  /**
+   * 1 where the particle's place in the finale lies under the headline's
+   * letters (grown by a few px): the line is cut there and the particle fades
+   * out as the letters arrive (`markClipped`). 0 everywhere until the stage
+   * marks them.
+   */
+  readonly clip: Uint8Array;
 }
 
 /**
@@ -164,11 +171,24 @@ export function* pairingTablesSteps(
     splitX: new Float64Array(n),
     splitY: new Float64Array(n),
   };
+  // The shimmer's band crosses the mark, not the strays round it: 0 is the
+  // mark's own left end and 1 its right end, whatever the budget. A stray past
+  // either end is held at 0 or 1 (it lights as the band enters or leaves the
+  // mark). Normalised by every point, strays and all, the mark was only 0.28
+  // to 0.72 of the band's run: it crossed 2.4 times too fast and 2.3 times too
+  // wide. A made-up pairing with no point in the mark spans its whole list.
   let minX = Infinity;
   let maxX = -Infinity;
   for (const p of pairing.logo) {
+    if (!inLogoMark(p)) continue;
     minX = Math.min(minX, p.x);
     maxX = Math.max(maxX, p.x);
+  }
+  if (!(maxX >= minX)) {
+    for (const p of pairing.logo) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+    }
   }
   const span = maxX - minX || 1;
   for (let i = 0; i < n; i += 1) {
@@ -176,7 +196,7 @@ export function* pairingTablesSteps(
     tables.toneLogo[i] = l.tone;
     tables.toneHand[i] = pairing.hand[i]!.tone;
     tables.toneMouse[i] = pairing.mouse[i]!.tone;
-    tables.shimmerX[i] = (l.x - minX) / span;
+    tables.shimmerX[i] = Math.min(1, Math.max(0, (l.x - minX) / span));
     // A golden-angle direction per particle; the second leg is turned by a
     // fixed angle so it does not retrace the first one's swings.
     const swing = MIN_SWING + (1 - MIN_SWING) * random();
@@ -213,6 +233,7 @@ export function buildParticleSet(
     swirlForm: new Float32Array(2 * n),
     swirlSplit: new Float32Array(2 * n),
     shimmerX: tables.shimmerX,
+    clip: new Uint8Array(n),
   };
   for (let i = 0; i < n; i += 1) {
     const l = pairing.logo[i]!;
@@ -233,6 +254,24 @@ export function buildParticleSet(
   return set;
 }
 
+/**
+ * Mark the particles whose place in the last state (`set.mouse`, canvas CSS
+ * px) is blocked, e.g. under the finale headline's grown letters; clear the
+ * rest. Returns how many are marked.
+ */
+export function markClipped(
+  set: ParticleSet,
+  blocked: (x: number, y: number) => boolean,
+): number {
+  let marked = 0;
+  for (let i = 0; i < set.count; i += 1) {
+    const hit = blocked(set.mouse[2 * i]!, set.mouse[2 * i + 1]!);
+    set.clip[i] = hit ? 1 : 0;
+    if (hit) marked += 1;
+  }
+  return marked;
+}
+
 export interface Frame {
   /** x, y per particle in canvas CSS px. */
   readonly xy: Float32Array;
@@ -246,7 +285,7 @@ export function createFrame(count: number): Frame {
 
 /** Which leg of the story a phase is in, and how far along it: what both drawing paths read. */
 export interface Leg {
-  /** False: logo to hand. True: hand to the three mice. */
+  /** False: logo to hand. True: hand to the finale (the last state). */
   readonly split: boolean;
   /** Progress along the leg, 0 to 1. */
   readonly t: number;

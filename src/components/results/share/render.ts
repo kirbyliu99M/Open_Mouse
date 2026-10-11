@@ -8,16 +8,33 @@
  */
 import type { UiLanguage } from "../../../client/uiLanguage";
 import type { FitResponse } from "../../../lib/contracts/fit";
+import { SITE_NAME } from "../../../lib/site";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
   PHOTO_RADIUS,
+  type ShareCardOptions,
   layoutShareCard,
-  qrGrid,
   type Box,
   type ColorKey,
   type DrawOp,
 } from "./layout";
+import {
+  QR_STYLE_SPECS,
+  SOFT_LIGHT_PANEL_FILL,
+  dotGeometry,
+  finderOrigins,
+  isFinderCell,
+  qrStyleGrid,
+  type QrStyle,
+} from "./qrStyle";
 import type { FontSpec, MeasureText } from "./text";
+import {
+  PALMATE_MARK_DOT,
+  PALMATE_MARK_PATH,
+  PALMATE_MARK_STROKE,
+  PALMATE_MARK_STROKE_WIDTH,
+  PALMATE_MARK_VIEWBOX,
+} from "../../../lib/brand/palmate-mark";
 
 /** The values of tokens.css, used when a token cannot be read. */
 const TOKEN_FALLBACK = {
@@ -38,6 +55,8 @@ interface Theme {
   detail: string;
   colors: Record<ColorKey, string>;
   fontStack: string;
+  /** The wordmark's family (Inter 700 from next/font), then the site's stack. */
+  brandStack: string;
 }
 
 function readTheme(): Theme {
@@ -60,11 +79,34 @@ function readTheme(): Theme {
     },
     // The site's own font stack (globals.css sets it on :root).
     fontStack: style.fontFamily.trim() || FALLBACK_STACK,
+    // layout.tsx sets --font-brand on <html> (next/font); without it the name
+    // is drawn in plain Inter if installed, else in the site's stack.
+    brandStack: [
+      style.getPropertyValue("--font-brand").trim() || "Inter",
+      style.fontFamily.trim() || FALLBACK_STACK,
+    ].join(", "),
   };
 }
 
-function fontString(font: FontSpec, stack: string): string {
-  return `${font.weight} ${font.size}px ${stack}`;
+function fontString(font: FontSpec, theme: Theme): string {
+  return `${font.weight} ${font.size}px ${font.brand ? theme.brandStack : theme.fontStack}`;
+}
+
+/**
+ * Sets the font for measuring or drawing. The wordmark also takes its -0.0167em
+ * (-0.3/18) tracking, so the card's name is spaced like the site's. `letterSpacing`
+ * is a newer canvas property: where it is missing the assignment does nothing and
+ * measure and draw still agree with each other.
+ */
+function applyFont(
+  ctx: CanvasRenderingContext2D,
+  font: FontSpec,
+  theme: Theme,
+): void {
+  ctx.font = fontString(font, theme);
+  ctx.letterSpacing = font.brand
+    ? `${(-0.0167 * font.size).toFixed(2)}px`
+    : "0px";
 }
 
 function roundRectPath(
@@ -143,33 +185,130 @@ function drawPhoto(
   ctx.restore();
 }
 
+/** The Palmate mark, drawn from its path data scaled to `box`. */
+function drawMark(ctx: CanvasRenderingContext2D, box: Box): void {
+  const vb = PALMATE_MARK_VIEWBOX;
+  const scale = box.w / vb.w;
+  ctx.save();
+  ctx.translate(box.x, box.y);
+  ctx.scale(scale, scale);
+  ctx.translate(-vb.x, -vb.y);
+  ctx.strokeStyle = PALMATE_MARK_STROKE;
+  ctx.lineWidth = PALMATE_MARK_STROKE_WIDTH;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke(new Path2D(PALMATE_MARK_PATH));
+  // The core dot: a filled disc inside a ring whose outer edge is the radius.
+  const d = PALMATE_MARK_DOT;
+  ctx.beginPath();
+  ctx.arc(d.cx, d.cy, d.outerRadius - d.ringWidth / 2, 0, Math.PI * 2);
+  ctx.fillStyle = d.fillColor;
+  ctx.fill();
+  ctx.strokeStyle = d.ringColor;
+  ctx.lineWidth = d.ringWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A rounded ring (outer square minus inner square), pixel-aligned. */
+function drawEye(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  step: number,
+  ring: string,
+  center: string,
+): void {
+  const s = step;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 7 * s, 7 * s, 1.8 * s);
+  ctx.roundRect(x + s, y + s, 5 * s, 5 * s, 1.0 * s);
+  ctx.fillStyle = ring;
+  ctx.fill("evenodd");
+  ctx.beginPath();
+  ctx.roundRect(x + 2 * s, y + 2 * s, 3 * s, 3 * s, 0.9 * s);
+  ctx.fillStyle = center;
+  ctx.fill();
+}
+
+function drawQrPanel(
+  ctx: CanvasRenderingContext2D,
+  box: Box,
+  style: QrStyle,
+): void {
+  const panel = QR_STYLE_SPECS[style].panel;
+  if (!panel) return;
+  const radius = panel.radius(box.w);
+  roundRectPath(ctx, box, radius);
+  if (panel.fill === "white") {
+    ctx.fillStyle = "#ffffff";
+  } else if (panel.fill === "softLight") {
+    ctx.fillStyle = SOFT_LIGHT_PANEL_FILL;
+  } else {
+    // The photo frame's own fill.
+    const g = ctx.createRadialGradient(
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      0,
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      box.w * 0.7,
+    );
+    g.addColorStop(0, "#14284f");
+    g.addColorStop(1, "#0c0e13");
+    ctx.fillStyle = g;
+  }
+  ctx.fill();
+  if (panel.border) {
+    ctx.strokeStyle = panel.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
 async function drawQr(
   ctx: CanvasRenderingContext2D,
   box: Box,
   text: string,
   dark: string,
+  style: QrStyle,
 ): Promise<void> {
   const { default: QRCode } = await import("qrcode");
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = qr.modules.size;
-  const { step, offset } = qrGrid(box.w, size, 3);
+  const spec = QR_STYLE_SPECS[style];
+  const { step, offset } = qrStyleGrid(style, box.w, size);
   ctx.save();
-  ctx.fillStyle = "#ffffff";
-  roundRectPath(ctx, box, 28);
-  ctx.fill();
-  // Whole-pixel squares, no anti-aliased seams between neighbouring modules.
+  drawQrPanel(ctx, box, style);
+  // Whole-pixel placement, no anti-aliased seams between neighbouring modules.
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = dark;
+  ctx.fillStyle = spec.moduleColor ?? dark;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
-      if (qr.modules.get(row, col) === 1) {
-        ctx.fillRect(
-          box.x + offset + col * step,
-          box.y + offset + row * step,
-          step,
-          step,
-        );
+      if (qr.modules.get(row, col) !== 1) continue;
+      if (spec.eye && isFinderCell(row, col, size)) continue;
+      const x = box.x + offset + col * step;
+      const y = box.y + offset + row * step;
+      if (spec.moduleShape === "dot") {
+        const d = dotGeometry(x, y, step);
+        ctx.beginPath();
+        ctx.arc(d.cx, d.cy, d.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, step, step);
       }
+    }
+  }
+  if (spec.eye) {
+    for (const o of finderOrigins(size)) {
+      drawEye(
+        ctx,
+        box.x + offset + o.col * step,
+        box.y + offset + o.row * step,
+        step,
+        spec.eye.ring,
+        spec.eye.center,
+      );
     }
   }
   ctx.restore();
@@ -196,7 +335,7 @@ async function paint(
         break;
       }
       case "text": {
-        ctx.font = fontString(op.font, theme.fontStack);
+        applyFont(ctx, op.font, theme);
         ctx.fillStyle = theme.colors[op.color];
         ctx.textAlign = op.align;
         ctx.textBaseline = "alphabetic";
@@ -231,7 +370,10 @@ async function paint(
         drawSilhouette(ctx, op.box, theme.detail);
         break;
       case "qr":
-        await drawQr(ctx, op.box, op.text, theme.bg);
+        await drawQr(ctx, op.box, op.text, theme.bg, op.style);
+        break;
+      case "mark":
+        drawMark(ctx, op.box);
         break;
     }
   }
@@ -241,11 +383,20 @@ async function paint(
 export async function makeShareCardPng(
   fit: FitResponse,
   lang: UiLanguage,
+  options: ShareCardOptions = {},
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
-  // wrap the text for one font and paint it in another.
+  // wrap the text for one font and paint it in another. The wordmark's Inter
+  // 700 is asked for by name, so it is loaded even if no text on the page uses
+  // it yet; a failed load falls back to the stack and both measure and draw use
+  // that same stack.
   await document.fonts.ready;
   const theme = readTheme();
+  try {
+    await document.fonts.load(`700 48px ${theme.brandStack}`, SITE_NAME);
+  } catch {
+    // The stack's next family is used.
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -259,10 +410,10 @@ export async function makeShareCardPng(
   if (!input) throw new Error("There is no result to share.");
 
   const measure: MeasureText = (text, font) => {
-    ctx.font = fontString(font, theme.fontStack);
+    applyFont(ctx, font, theme);
     return ctx.measureText(text).width;
   };
-  const layout = layoutShareCard(input, measure);
+  const layout = layoutShareCard(input, measure, options);
   await paint(ctx, layout.ops, theme, photo, layout.width, layout.height);
 
   return new Promise<Blob>((resolve, reject) => {

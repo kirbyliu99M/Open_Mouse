@@ -8,9 +8,12 @@ import { contrast } from "./fixtures/contrast";
 // one, are in home-stage.spec.ts.
 test.use({ reducedMotion: "reduce" });
 
-const CAPTION = "G Pro X Superlight 2 · sketch";
-// Kirby, 2026-10-09: the note is on the whole site once, in the site footer.
-const PREVIEW_NOTE = "Early preview · measurements are still being validated";
+// The finale's headline (Kirby's words, 2026-10-09). It replaced the three
+// mice and their captions on 2026-10-11.
+const FINALE_TITLE = "Find Your Best Mouse";
+// Kirby, 2026-10-10: the site footer carries no explanatory text for now, so
+// the Early preview note and the non-affiliation statement appear nowhere on
+// the site until he decides where they go.
 
 test("home shows the headline, the story's three parts and the CTA destinations", async ({
   page,
@@ -46,12 +49,9 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   const body = page.getByRole("main");
   await expect(body.getByRole("link", { name: "Scan my hand" })).toHaveCount(2);
   await expect(body.getByRole("link", { name: "How it works" })).toHaveCount(2);
-  // The Early preview note is on the page exactly once, in the footer.
-  await expect(page.getByText(PREVIEW_NOTE)).toHaveCount(1);
-  await expect(body.getByText(PREVIEW_NOTE)).toHaveCount(0);
-  await expect(
-    page.getByTestId("site-footer").getByText(PREVIEW_NOTE),
-  ).toHaveCount(1);
+  // The Early preview note is not on the page at all for now (Kirby,
+  // 2026-10-10): not in the body, not in the footer.
+  await expect(page.getByText("Early preview")).toHaveCount(0);
   await expect(page.locator(".landing-preview-note")).toHaveCount(0);
   const footerLinks = page
     .getByTestId("site-footer")
@@ -59,22 +59,18 @@ test("home shows the headline, the story's three parts and the CTA destinations"
   await expect(footerLinks).toHaveCount(1);
   await expect(footerLinks).toHaveAttribute("href", "/how-it-works");
 
-  // The three mice: each one's name is real text under its sketch.
-  const captions = page.getByText(CAPTION);
-  await expect(captions).toHaveCount(3);
-  for (let i = 0; i < 3; i += 1) await expect(captions.nth(i)).toBeVisible();
-  await expect(page.locator(".story-mouse img")).toHaveCount(3);
-
-  // The statement lives in the site footer (root layout), once, with its
-  // words unchanged until Kirby writes the real one.
+  // The finale: Kirby's headline is real text over its drawing, and the
+  // three mice and their captions are gone.
   await expect(
-    page.getByText(
-      "Not affiliated with Logitech. Sizes from Logitech's published specs.",
-    ),
-  ).toHaveCount(1);
-  await expect(page.getByTestId("site-footer")).toContainText(
-    "Not affiliated with Logitech. Sizes from Logitech's published specs.",
-  );
+    page.getByRole("heading", { level: 2, name: FINALE_TITLE }),
+  ).toBeVisible();
+  await expect(page.locator(".story-finale-art img")).toHaveCount(1);
+  await expect(page.locator(".story-finale-art img")).toBeVisible();
+  await expect(page.getByText("G Pro X Superlight 2 · sketch")).toHaveCount(0);
+  await expect(page.locator(".story-mice, .story-mouse")).toHaveCount(0);
+
+  // Nor is the non-affiliation statement (removed with the note, 2026-10-10).
+  await expect(page.getByText("Not affiliated with Logitech")).toHaveCount(0);
   await expect(page.locator(".landing-footer")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -151,16 +147,14 @@ test("the h1 comes first; the logo, the hand and the sketches are decorative and
   });
   expect(order.main).toBe(1);
   expect(order.h1s).toBe(1);
-  // logo, hand, then the three mice
+  // logo, hand, then the finale's hand on a mouse
   expect(order.images.map((i) => i.src)).toEqual([
-    "/images/logo-placeholder.svg",
+    "/images/hero-palmate-mark.svg",
     "/images/hand-on-a4.svg",
-    "/images/sketches/g-pro-sketch.svg",
-    "/images/sketches/g-pro-sketch.svg",
-    "/images/sketches/g-pro-sketch.svg",
+    "/images/sketches/finale-grip.svg",
   ]);
-  // Decorative: an empty alt. The wordmark in the nav names the site and each
-  // mouse's caption names the mouse, so nothing here needs a description.
+  // Decorative: an empty alt. The wordmark in the nav names the site and the
+  // finale's headline is real text, so nothing here needs a description.
   for (const image of order.images) expect(image.alt).toBe("");
   expect(order.images[0]!.beforeH1).toBe(true);
   for (const image of order.images.slice(1)) expect(image.afterH1).toBe(true);
@@ -217,9 +211,9 @@ test("print: text that takes its colour from a token prints dark on the white pa
 }) => {
   await page.goto("/");
   await page.emulateMedia({ media: "print" });
-  // The headline, the wordmark, the subhead, a mouse's
-  // caption and the footer: --text-primary, --text-secondary, --text-tertiary
-  // on screen, near-white on dark. On paper they must be dark.
+  // The headline, the wordmark, the subhead, the finale's
+  // headline and the footer: --text-primary, --text-secondary, the footer's
+  // tokens on screen, near-white on dark. On paper they must be dark.
   const texts = await page.evaluate(() => {
     const colour = (selector: string) =>
       getComputedStyle(document.querySelector(selector)!).color;
@@ -227,12 +221,10 @@ test("print: text that takes its colour from a token prints dark on the white pa
       "h1 (--text-primary)": colour("h1"),
       "wordmark (--text-primary)": colour(".home-wordmark"),
       "subhead (--text-secondary)": colour(".home-subhead"),
-      "footer Early preview note (--text-tertiary)": colour(
-        ".siteFooter-preview",
-      ),
-      "mouse caption (--text-tertiary)": colour(".story-mouse figcaption"),
-      "footer statement (--text-tertiary)": colour(".siteFooter-statement"),
-      "footer link (--text-secondary)": colour(".siteFooter-links a"),
+      "footer headline (--text-primary)": colour(".siteFooter-headline"),
+      "finale headline (--text-primary)": colour(".story-finale-title"),
+      "footer group title (--footer-heading)": colour(".siteFooter-groupTitle"),
+      "footer link (--footer-link)": colour(".siteFooter-group a"),
       "Sign in (--text-secondary)": colour(".home-signin-link"),
     };
   });
@@ -275,7 +267,7 @@ test("print: text that takes its colour from a token prints dark on the white pa
       ".story-logo",
       ".story-hand",
       ".story-notes",
-      ".story-mice",
+      ".story-finale-art img",
       ".navMenuTrigger",
     ].map((selector) => [
       selector,
@@ -445,11 +437,13 @@ test.describe("the hero logo slot", () => {
           rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
         };
       });
-      // The SVG's box holds the mark at 176 of 196, so the mark is 0.898 of the image.
-      const mark = sizes.img * (176 / 196);
+      // The SVG's box holds the Palmate hand at 59 of 69, so the mark is 0.855 of the image.
+      const mark = sizes.img * (59 / 69);
       expect(mark / sizes.rem).toBeGreaterThan(markRem - 1.5);
       expect(mark / sizes.rem).toBeLessThan(markRem + 1.5);
-      // The mark is about 60 % of the slot (the spec's own words), with room for the glow.
+      // The mark is about 54 % of the slot on a phone and 65 % on a desktop
+      // (home.css), with room for the glow: this checks the image's share,
+      // 0.63 and 22.2 / 29 (0.77) of the slot.
       expect(sizes.img / sizes.slot).toBeGreaterThan(0.55);
       expect(sizes.img / sizes.slot).toBeLessThan(0.8);
     });
@@ -683,8 +677,10 @@ test("every piece of text on the home page is one of the token colours, never th
     }
     return [...found].sort();
   });
-  // --text-primary, --text-secondary, --text-tertiary, --on-accent.
+  // --text-primary, --text-secondary, --text-tertiary, --on-accent, and
+  // --on-button-primary (the primary pill's label, BTN-1).
   const allowed = [
+    "rgb(6, 7, 9)",
     "rgb(138, 138, 143)",
     "rgb(161, 161, 166)",
     "rgb(245, 245, 247)",
@@ -694,7 +690,7 @@ test("every piece of text on the home page is one of the token colours, never th
   expect(colours).not.toContain("rgb(110, 110, 115)"); // #6E6E73, 3.97:1
 });
 
-test("with more contrast the outline button's border is solid #8A8A8F and the glow is gone", async ({
+test("with more contrast the outline button's border is solid #8A8A8F, the primary pill has no glow, and the logo slot's glow is gone", async ({
   page,
 }) => {
   await page.emulateMedia({ contrast: "more" });
@@ -707,9 +703,9 @@ test("with more contrast the outline button's border is solid #8A8A8F and the gl
       .backgroundImage,
   }));
   expect(style.border).toBe("rgb(138, 138, 143)");
-  // The glow colour is --glow at an alpha; with --glow transparent no blue is left.
-  expect(style.shadow).not.toMatch(/59, 130, 246/);
-  expect(style.shadow).toMatch(/(\/ 0\)|, 0\))/);
+  // The primary pill never has a glow (a blue glow round a white pill reads as a mistake).
+  expect(style.shadow).toBe("none");
+  // The logo slot's glow is --glow at an alpha; with --glow transparent no blue is left.
   expect(style.slot).not.toMatch(/59, 130, 246/);
 });
 

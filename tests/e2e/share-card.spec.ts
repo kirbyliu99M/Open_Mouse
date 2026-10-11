@@ -31,20 +31,43 @@ function expectCard(buffer: Buffer) {
     const i = (y * png.width + x) * png.channels;
     return [png.data[i]!, png.data[i + 1]!, png.data[i + 2]!] as const;
   };
-  // The page is the site's dark; the QR code is a white panel in the bottom-right corner.
+  // The page is the site's dark.
   const [r, g, b] = px(10, 10);
   expect(r + g + b).toBeLessThan(120);
+  // The QR code is the frameless style (the default): light dots straight on the
+  // card, no panel. Its box is 185 px on the bottom-right margin (x 811 to 996,
+  // y 1651 to 1836); the code starts 20 px in (5 px step, 4 modules of quiet zone).
+  const boxX = 1080 - 84 - 185;
+  const boxY = 1920 - 84 - 185;
+  const near = (
+    got: readonly number[],
+    want: readonly [number, number, number],
+  ) =>
+    Math.hypot(got[0]! - want[0], got[1]! - want[1], got[2]! - want[2]) <= 24;
+  // The quiet zone is the card's own dark background.
+  const quiet = px(boxX + 6, boxY + 6);
+  expect(
+    quiet[0] + quiet[1] + quiet[2],
+    "quiet zone is plain dark",
+  ).toBeLessThan(120);
+  // The top-left eye: a #7FA8FF ring and a #CFE0FF centre.
+  const ring = px(boxX + 20 + 2, boxY + 20 + 17);
+  const centre = px(boxX + 20 + 17, boxY + 20 + 17);
+  expect(near(ring, [0x7f, 0xa8, 0xff]), `eye ring was ${ring}`).toBe(true);
+  expect(near(centre, [0xcf, 0xe0, 0xff]), `eye centre was ${centre}`).toBe(
+    true,
+  );
+  let light = 0;
   let white = 0;
-  let dark = 0;
-  for (let y = 1626; y < 1830; y += 4) {
-    for (let x = 786; x < 990; x += 4) {
+  for (let y = boxY + 20; y < boxY + 165; y += 3) {
+    for (let x = boxX + 20; x < boxX + 165; x += 3) {
       const [pr, pg, pb] = px(x, y);
-      if (pr > 240 && pg > 240 && pb > 240) white += 1;
-      else if (pr < 40 && pg < 40 && pb < 40) dark += 1;
+      if (pr > 180 && pg > 200 && pb > 240) light += 1;
+      if (pr > 250 && pg > 250 && pb > 250) white += 1;
     }
   }
-  expect(white, "QR panel is mostly white").toBeGreaterThan(500);
-  expect(dark, "QR modules are dark").toBeGreaterThan(300);
+  expect(light, "QR modules are light dots").toBeGreaterThan(150);
+  expect(white, "no white panel").toBe(0);
 }
 
 for (const query of [

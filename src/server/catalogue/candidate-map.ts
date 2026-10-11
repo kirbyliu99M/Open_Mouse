@@ -16,6 +16,7 @@ import {
   HUMP_PLACEMENTS,
   SHAPES,
   SIDE_CURVATURES,
+  type Connectivity,
   type DataSource,
   type FormFactor,
   type FrontFlare,
@@ -45,6 +46,8 @@ export interface CandidateRecord {
   flare: string;
   sideCurvature: string;
   thumbRest: string;
+  /** EloShapes' "Wired" / "Wireless" (or an official page's reading); not a column of the approved CSV, the importer fills it. */
+  connectivity?: string;
 }
 
 /** A row of `src/db/seed/catalogue.json`. */
@@ -65,6 +68,11 @@ export interface CatalogueEntry {
   frontFlare: FrontFlare | null;
   sideCurvature: SideCurvature | null;
   thumbRest: boolean | null;
+  /**
+   * "wireless" also covers a mouse that works wired and wireless (EloShapes
+   * lists it as Wireless). Null when no source states it.
+   */
+  connectivity: Connectivity | null;
   /** True when the shape values come from a predecessor or a description, not a measurement of this model. */
   descriptorsInferred: boolean;
   /**
@@ -141,6 +149,72 @@ export const mapFlare = (raw: string): FrontFlare | null =>
   mapEnum("flare", raw, FRONT_FLARES);
 export const mapSideCurvature = (raw: string): SideCurvature | null =>
   mapEnum("sideCurvature", raw, SIDE_CURVATURES);
+
+/**
+ * "Wired" / "Wireless" (EloShapes' spelling) to the contract enum. Blank is
+ * null; any other spelling is null too, and the importer counts it as a
+ * warning (`isKnownConnectivity`) instead of failing the whole import.
+ */
+export function mapConnectivity(raw: string | undefined): Connectivity | null {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (v === "wired") return "wired";
+  if (v === "wireless") return "wireless";
+  return null;
+}
+
+/** True for a blank value or one `mapConnectivity` understands. */
+export function isKnownConnectivity(raw: string | undefined): boolean {
+  const v = (raw ?? "").trim().toLowerCase();
+  return v === "" || v === "wired" || v === "wireless";
+}
+
+/**
+ * Reads the Connectivity block of a saved EloShapes compare page, given the
+ * page's visible text lines. The block reads `Connectivity`, `Wired`,
+ * `Yes (USB-C)`, `Wireless`, `Yes (2.4 GHz)`, `Bluetooth`, ... Wireless wins
+ * when both are present (a wired-and-wireless mouse is wireless); returns ""
+ * when the block or both answers are missing.
+ */
+export function eloPageConnectivity(lines: readonly string[]): string {
+  const at = lines.indexOf("Connectivity");
+  if (at < 0) return "";
+  const block = lines.slice(at + 1, at + 10);
+  const answer = (name: string): boolean | null => {
+    const i = block.indexOf(name);
+    const v = i < 0 ? undefined : block[i + 1];
+    if (v === undefined) return null;
+    return v.startsWith("Yes") ? true : v.startsWith("No") ? false : null;
+  };
+  const wireless = answer("Wireless");
+  const wired = answer("Wired");
+  if (wireless === true) return "Wireless";
+  if (wired === true) return "Wired";
+  return "";
+}
+
+/**
+ * The 8 `official` candidates carry no EloShapes value. Each entry is what the
+ * brand's own page plainly states (read 2026-10-10); a model not listed stays
+ * null. Keyed by official URL so the source is on record.
+ */
+export const OFFICIAL_CONNECTIVITY: Readonly<Record<string, string>> = {
+  // hyperx.com product page: sold as the Wired model, wired only.
+  "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
+    "Wired",
+  // hyperx.com product page: sold as the Wireless model.
+  "https://hyperx.com/products/hyperx-pulsefire-haste-3-wireless-gaming-mouse":
+    "Wireless",
+  // hyperx.com product page: wired USB-A cable, no wireless mode.
+  "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse": "Wired",
+  // wlmouse.com spec: 2.4GHz wireless and wired, so Wireless.
+  "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold": "Wireless",
+  "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold": "Wireless",
+  "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
+  // dareu.com spec: wired, 2.4GHz and Bluetooth, so Wireless.
+  "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
+    "Wireless",
+  // Razer Boomslang 20th Anniversary Edition: the support page states nothing readable, stays null.
+};
 
 export function mapYesNo(field: string, raw: string): boolean | null {
   if (isBlank(raw)) return null;
@@ -232,6 +306,7 @@ export function mapCandidate(
       frontFlare: mapFlare(record.flare),
       sideCurvature: mapSideCurvature(record.sideCurvature),
       thumbRest: mapYesNo("thumbRest", record.thumbRest),
+      connectivity: mapConnectivity(record.connectivity),
       descriptorsInferred: record.descriptorBasis.trim() !== "",
       mergesInto: null,
       retrievedAt,

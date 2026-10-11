@@ -140,6 +140,55 @@ describe("buildSeedRows on the checked-in files", () => {
   });
 });
 
+describe("connectivity", () => {
+  const tally = (rows: { connectivity: string | null }[]) => ({
+    wired: rows.filter((r) => r.connectivity === "wired").length,
+    wireless: rows.filter((r) => r.connectivity === "wireless").length,
+    unknown: rows.filter((r) => r.connectivity === null).length,
+  });
+
+  it("counts what the fixture says, over every row and the listed ones", () => {
+    expect(tally(all)).toEqual(N.rowConnectivity);
+    expect(tally(all.filter((r) => r.listed))).toEqual(N.listedConnectivity);
+  });
+
+  it("gives an imported row its candidate's value", () => {
+    const entry = entries.find(
+      (e) => !e.mergesInto && e.connectivity === "wired",
+    )!;
+    expect(all.find((r) => r.slug === entry.slug)!.connectivity).toBe("wired");
+    const none = entries.find((e) => e.connectivity === null)!;
+    expect(all.find((r) => r.slug === none.slug)!.connectivity).toBeNull();
+  });
+
+  it("keeps the seed's value on a merged Logitech row when the candidate disagrees", () => {
+    const seedValue = specs.find((s) => s.model === "G502 Hero")!.connectivity;
+    const flipped = entries.map((e) =>
+      e.mergesInto === "G502 Hero"
+        ? { ...e, connectivity: seedValue === "wired" ? "wireless" : "wired" }
+        : e,
+    ) as CatalogueEntry[];
+    const rebuilt = buildSeedRows(specs, descriptors, {
+      facts,
+      entries: flipped,
+    });
+    const row = [
+      ...rebuilt.withDescriptors,
+      ...rebuilt.withoutDescriptors,
+    ].find((r) => r.model === "G502 Hero")!;
+    expect(row.connectivity).toBe(seedValue);
+  });
+
+  it("agrees with the seed on every merged Logitech row today", () => {
+    for (const e of entries.filter((x) => x.mergesInto)) {
+      const seedValue = specs.find(
+        (s) => s.model === e.mergesInto,
+      )!.connectivity;
+      expect(e.connectivity, e.model).toBe(seedValue);
+    }
+  });
+});
+
 describe("a merged Logitech row", () => {
   it("keeps its own dimensions and weight, not the candidate's", () => {
     const g703 = byModel("G703 Lightspeed");
