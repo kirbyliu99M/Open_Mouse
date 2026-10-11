@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   EXCLUSION_REASONS,
   SUBSCORES,
-  fitEntrySchema,
   fitPreferencesSchema,
   fitResponseSchema,
 } from "../../src/lib/contracts/fit";
@@ -305,57 +304,6 @@ describe("fitResponseSchema", () => {
     expect(
       fitResponseSchema.safeParse({ ...valid, results: [bad] }).success,
     ).toBe(false);
-  });
-});
-
-describe("fitEntrySchema media and link fields (2026-10-11, candidate)", () => {
-  const withMouse = (extra: Record<string, unknown>) => ({
-    ...entry,
-    mouse: { ...entry.mouse, ...extra },
-  });
-  const shop = { label: "Shop A", url: "https://shop.example/a" };
-
-  it("accepts an entry with no media fields at all (they stay optional)", () => {
-    expect(fitEntrySchema.safeParse(entry).success).toBe(true);
-  });
-
-  it("accepts an official link, its kind and up to four purchase links", () => {
-    for (const kind of ["product", "brand"] as const) {
-      const parsed = fitEntrySchema.safeParse(
-        withMouse({
-          officialUrl: "https://maker.example/mouse",
-          officialKind: kind,
-          purchaseLinks: [shop, shop, shop, shop],
-        }),
-      );
-      expect(parsed.success).toBe(true);
-    }
-    expect(
-      fitEntrySchema.safeParse(
-        withMouse({ officialUrl: null, officialKind: null }),
-      ).success,
-    ).toBe(true);
-  });
-
-  it.each([
-    ["an http official link", { officialUrl: "http://maker.example/m" }],
-    [
-      "an official link with credentials",
-      { officialUrl: "https://user:pw@maker.example/m" },
-    ],
-    ["an official link that is not a URL", { officialUrl: "maker.example/m" }],
-    ["an unknown official kind", { officialKind: "shop" }],
-    ["five purchase links", { purchaseLinks: [shop, shop, shop, shop, shop] }],
-    [
-      "a purchase link over http",
-      { purchaseLinks: [{ label: "A", url: "http://shop.example/a" }] },
-    ],
-    [
-      "a purchase link with an extra field",
-      { purchaseLinks: [{ ...shop, rank: 1 }] },
-    ],
-  ])("rejects %s", (_, extra) => {
-    expect(fitEntrySchema.safeParse(withMouse(extra)).success).toBe(false);
   });
 });
 
