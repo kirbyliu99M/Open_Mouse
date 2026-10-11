@@ -13,15 +13,16 @@ import { DEFAULT_LOCALE, isLocale, type Locale } from "../contracts/locale";
  */
 export function localeFromLanguageTag(tag: string): Locale | null {
   const t = tag.trim();
-  if (/^zh(?![a-z])/i.test(t)) return "zh-TW";
-  if (/^en(?![a-z])/i.test(t)) return "en";
+  if (/^zh(?:$|[-_])/i.test(t)) return "zh-TW";
+  if (/^en(?:$|[-_])/i.test(t)) return "en";
   return null;
 }
 
 /**
  * The best supported locale in an `Accept-Language` header, or null. Entries
  * are tried in descending `q` (ties keep header order); `q=0` and `*` never
- * match; a malformed `q` counts as 1. So `ja, en;q=0.8` is en, and
+ * match; an entry whose `q` is present but outside the RFC 9110 grammar
+ * (`0` to `1`, at most three decimals) is skipped. So `ja, en;q=0.8` is en, and
  * `en;q=0.5, zh-TW` is zh-TW.
  */
 export function localeFromAcceptLanguage(
@@ -34,10 +35,11 @@ export function localeFromAcceptLanguage(
       const [tag = "", ...params] = part.split(";");
       let q = 1;
       for (const param of params) {
-        const m = /^\s*q\s*=\s*([0-9.]+)\s*$/i.exec(param);
+        const m = /^\s*q\s*=\s*(.*?)\s*$/i.exec(param);
         if (m) {
-          const parsed = Number(m[1]);
-          if (Number.isFinite(parsed)) q = parsed;
+          q = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/.test(m[1] ?? "")
+            ? Number(m[1])
+            : 0;
         }
       }
       return { tag: tag.trim(), q, index };
