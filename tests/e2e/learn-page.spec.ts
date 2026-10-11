@@ -108,19 +108,82 @@ test.describe("/learn information page", () => {
     for (const b of boxes) expect(b.w).toBeGreaterThanOrEqual(90);
   });
 
-  test("card 4 shows the two mouse drawings with the results page's shape words", async ({
+  test("card 4 shows four tiles, each with its drawing, its text marks and its name", async ({
     page,
   }) => {
     await page.goto("/learn");
-    const mice = page.locator(".learn-mice img");
-    await expect(mice).toHaveCount(2);
-    await expect(page.locator(".learn-mice figcaption")).toHaveText([
+    await expect(page.locator(".learn-shape-tile")).toHaveCount(4);
+    // 4 base drawings + 3 arrow overlays, all decorative.
+    await expect(page.locator(".learn-shape img")).toHaveCount(7);
+    await expect(page.locator(".learn-shape figcaption")).toHaveText([
       "Symmetrical",
       "Ergonomic",
+      "Hump",
+      "Flare",
     ]);
+    // The marks are real text, in the page for a screen reader too.
+    for (const mark of [
+      "Left–right symmetrical",
+      "Centred peak",
+      "Rear peak",
+      "Schematic: exaggerated flare",
+    ]) {
+      await expect(
+        page.locator(".learn-shape-mark", { hasText: mark }),
+      ).toHaveCount(1);
+    }
+    const sizes = await page
+      .locator(".learn-shape-mark")
+      .evaluateAll((marks) =>
+        marks.map((m) => parseFloat(getComputedStyle(m).fontSize)),
+      );
+    expect(sizes).toHaveLength(8);
+    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(12);
   });
 
-  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, 5 is under 3, 4 spans both, 6 is full width", async ({
+  test("no sketch mark spills out of its tile, and the tiles are four across, two across or one, by width", async ({
+    page,
+  }) => {
+    const columns = async () =>
+      new Set(
+        await page
+          .locator(".learn-shape-tile")
+          .evaluateAll((tiles) =>
+            tiles.map((t) => Math.round(t.getBoundingClientRect().x)),
+          ),
+      ).size;
+    const spill = () =>
+      page.locator(".learn-shape-tile").evaluateAll((tiles) =>
+        tiles.flatMap((tile) => {
+          const box = tile.getBoundingClientRect();
+          return [...tile.querySelectorAll(".learn-shape-mark")]
+            .filter((m) => {
+              const r = m.getBoundingClientRect();
+              return (
+                r.left < box.left - 0.5 ||
+                r.right > box.right + 0.5 ||
+                r.top < box.top - 0.5 ||
+                r.bottom > box.bottom + 0.5
+              );
+            })
+            .map((m) => m.textContent);
+        }),
+      );
+    for (const [width, across] of [
+      [1440, 4],
+      [900, 2],
+      [390, 1],
+      [320, 1],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      await page.locator(".learn-shapes").scrollIntoViewIfNeeded();
+      expect(await columns(), `${width} px`).toBe(across);
+      expect(await spill(), `${width} px`).toEqual([]);
+    }
+  });
+
+  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3, 4, 5 and 6 each take the full width in order", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -135,18 +198,24 @@ test.describe("/learn information page", () => {
     );
     expect(Math.abs(hand.y - grip.y)).toBeLessThan(2);
     expect(hand.x).toBeLessThan(grip.x);
-    expect(Math.abs(size.x - weight.x)).toBeLessThan(2);
-    expect(weight.y).toBeGreaterThan(size.y + size.height - 1);
-    expect(shape.x).toBeGreaterThan(size.x);
-    expect(shape.height).toBeGreaterThan(size.height + weight.height - 2);
-    expect(score.width).toBeGreaterThan(hand.width * 1.9);
-    expect(score.y).toBeGreaterThan(shape.y + shape.height - 1);
+    // 3, 4, 5 and 6 are as wide as 1 and 2 together, stacked in order.
+    for (const full of [size, shape, weight, score]) {
+      expect(full.width).toBeGreaterThan(hand.width * 1.9);
+      expect(Math.abs(full.x - hand.x)).toBeLessThan(2);
+    }
+    expect(size.y).toBeGreaterThan(hand.y + hand.height - 1);
+    expect(shape.y).toBeGreaterThan(size.y + size.height - 1);
+    expect(weight.y).toBeGreaterThan(shape.y + shape.height - 1);
+    expect(score.y).toBeGreaterThan(weight.y + weight.height - 1);
+    // The two compact cards are about 116 px high.
+    expect(size.height).toBeLessThan(160);
+    expect(weight.height).toBeLessThan(160);
   });
 
   test("nothing scrolls sideways at 320 px wide", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/learn");
-    await expect(page.locator(".learn-mice img")).toHaveCount(2);
+    await expect(page.locator(".learn-shape-tile")).toHaveCount(4);
     const overflow = () =>
       page.evaluate(
         () => document.documentElement.scrollWidth - window.innerWidth,

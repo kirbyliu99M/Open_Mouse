@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,11 @@ import {
   en as resultsEn,
   zhTW as resultsZh,
 } from "../../src/lib/copy/results-page";
+import {
+  markPlacement,
+  SHAPE_SKETCHES,
+  viewBoxText,
+} from "../../src/lib/learn/shape-sketches";
 import { findMedicalClaimTerm } from "../../src/server/analysis/medicalClaims";
 
 const LOCALES = [
@@ -48,6 +53,24 @@ describe("learn page copy", () => {
     expect(zhTW.shape.ergonomic).toBe(resultsZh.filter.shape.ergonomic);
   });
 
+  it("has the same shape marks in both languages, one for every mark on the four sketches", () => {
+    const keys = SHAPE_SKETCHES.flatMap((s) => s.marks.map((m) => m.key));
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(Object.keys(en.shape.marks).sort()).toEqual([...keys].sort());
+    expect(Object.keys(zhTW.shape.marks).sort()).toEqual([...keys].sort());
+    for (const copy of [en, zhTW]) {
+      for (const text of [
+        ...Object.values(copy.shape.marks),
+        copy.shape.hump,
+        copy.shape.flare,
+      ]) {
+        expect(text.trim()).not.toBe("");
+      }
+    }
+    // The flare drawing is exaggerated: the page must say so.
+    expect(en.shape.marks.schematic).toMatch(/schematic/i);
+  });
+
   it("takes the grip names and three chart labels from the results page, not new strings", () => {
     for (const [copy, results] of [
       [en, resultsEn],
@@ -75,6 +98,7 @@ describe("learn page copy", () => {
       // The two shape labels are the results page's own data words
       // ("Ergonomic" / 人體工學), reused as they are.
       const shapeWords = [copy.shape.symmetrical, copy.shape.ergonomic];
+      // The sketch marks are not a medical claim; they are checked here too.
       for (const text of strings(copy)) {
         if (!shapeWords.includes(text)) {
           expect(findMedicalClaimTerm(text), text).toBeNull();
@@ -135,23 +159,27 @@ describe("the rendered /learn body", () => {
         copy.score.bars.weight,
       ]);
       expect(html).toContain(copy.score.barsNote);
-      // The shape labels are the results page's words, under the two mice.
-      expect(html).toContain(
-        `<figcaption>${copy.shape.symmetrical}</figcaption>`,
-      );
-      expect(html).toContain(
-        `<figcaption>${copy.shape.ergonomic}</figcaption>`,
-      );
+      // The four names under the four tiles, in order; the first two are the
+      // results page's words.
+      const names = [
+        ...html.matchAll(/<figcaption>([^<]+)<\/figcaption>/g),
+      ].map((m) => m[1]);
+      expect(names).toEqual([
+        copy.shape.symmetrical,
+        copy.shape.ergonomic,
+        copy.shape.hump,
+        copy.shape.flare,
+      ]);
       expect(html.match(/href="\/scan\/easy"/g)).toHaveLength(2);
       expect(html).toContain('href="/how-it-works"');
       expect(html).toContain(copy.scanButton);
     },
   );
 
-  it("hides the visible grip captions from a screen reader (the list names each grip once) and keeps the shape captions", () => {
+  it("hides the visible grip captions from a screen reader (the list names each grip once) and keeps the four shape captions", () => {
     const html = render(en);
     expect(html.match(/<figcaption aria-hidden="true">/g)).toHaveLength(3);
-    expect(html.match(/<figcaption>/g)).toHaveLength(2);
+    expect(html.match(/<figcaption>/g)).toHaveLength(4);
     expect(html).toContain("<dt>Palm</dt>");
   });
 
@@ -163,14 +191,8 @@ describe("the rendered /learn body", () => {
     expect(widths).toEqual([100, 83.33, 66.67, 33.33, 33.33, 16.67]);
   });
 
-  it("uses Kirby's grip drawings, the home hand SVG and our two mouse line drawings, all decorative (empty alt), each file present, and writes no thickness card", () => {
+  it("uses Kirby's grip drawings, the home hand SVG and our four shape sketches, all decorative (empty alt), each file present, the old two mouse drawings gone, and writes no thickness card", () => {
     const html = render(en);
-    for (const shape of ["symmetrical", "ergonomic"]) {
-      expect(html).toContain(`/images/learn/${shape}-top.svg`);
-      expect(() =>
-        readFileSync(`public/images/learn/${shape}-top.svg`),
-      ).not.toThrow();
-    }
     for (const grip of ["palm", "claw", "fingertip"]) {
       expect(html).toContain(`/images/learn/grip-${grip}.webp`);
       expect(() =>
@@ -178,8 +200,100 @@ describe("the rendered /learn body", () => {
       ).not.toThrow();
     }
     expect(html).toContain("/images/hand-on-a4.svg");
-    expect(html.match(/<img /g)).toHaveLength(6);
-    expect(html.match(/ alt=""/g)).toHaveLength(6);
+    // The hand, three grips, four sketches and three arrow overlays.
+    expect(html.match(/<img /g)).toHaveLength(11);
+    expect(html.match(/ alt=""/g)).toHaveLength(11);
+    for (const sketch of SHAPE_SKETCHES) {
+      expect(html).toContain(`/images/learn/shape-${sketch.id}.svg"`);
+      expect(html.includes(`shape-${sketch.id}-arrows.svg`)).toBe(
+        sketch.arrows,
+      );
+    }
+    expect(html).not.toContain("-top.svg");
+    for (const old of ["symmetrical-top.svg", "ergonomic-top.svg"]) {
+      expect(existsSync(`public/images/learn/${old}`)).toBe(false);
+    }
     expect(html.toLowerCase()).not.toContain("thick");
+  });
+
+  it.each(LOCALES)(
+    "%s: puts every sketch mark in the page as plain text with its line breaks, none hidden from a screen reader",
+    (_l, copy) => {
+      const html = render(copy);
+      const marks = [
+        ...html.matchAll(
+          /<span class="learn-shape-mark"([^>]*)>([^<]*)<\/span>/g,
+        ),
+      ];
+      const expected = SHAPE_SKETCHES.flatMap((s) =>
+        s.marks.map((m) => copy.shape.marks[m.key]),
+      );
+      expect(marks.map((m) => m[2])).toEqual(expected);
+      for (const m of marks) expect(m[1]).not.toContain("aria-hidden");
+      // The line breaks are kept in the text (the page shows them with
+      // white-space: pre), not turned into tags or spaces.
+      expect(html).toContain(copy.shape.marks.thumbRest);
+      expect(copy.shape.marks.thumbRest).toContain("\n");
+    },
+  );
+});
+
+describe("the four shape sketches", () => {
+  const read = (name: string) =>
+    readFileSync(`public/images/learn/${name}`, "utf8");
+  const rootTag = (svg: string) => svg.match(/^<svg[^>]*>/)?.[0] ?? "";
+
+  it.each(SHAPE_SKETCHES.map((s) => [s.id, s] as const))(
+    "%s: the base drawing and the arrow overlay carry the crop viewBox, with no fixed width or height",
+    (_id, sketch) => {
+      const files = [`shape-${sketch.id}.svg`];
+      if (sketch.arrows) files.push(`shape-${sketch.id}-arrows.svg`);
+      else {
+        expect(
+          existsSync(`public/images/learn/shape-${sketch.id}-arrows.svg`),
+        ).toBe(false);
+      }
+      for (const file of files) {
+        const tag = rootTag(read(file));
+        expect(tag, file).toContain(`viewBox="${viewBoxText(sketch)}"`);
+        expect(tag, file).not.toMatch(/\s(width|height)=/);
+      }
+    },
+  );
+
+  it("the crop keeps the 512-unit width of the package and every mark's anchor is inside it", () => {
+    for (const sketch of SHAPE_SKETCHES) {
+      const { x, y, w, h } = sketch.viewBox;
+      expect(w).toBe(512);
+      expect(h).toBeGreaterThan(0);
+      for (const mark of sketch.marks) {
+        expect(mark.x, mark.key).toBeGreaterThanOrEqual(x);
+        expect(mark.x, mark.key).toBeLessThanOrEqual(x + w);
+        expect(mark.y, mark.key).toBeGreaterThanOrEqual(y);
+        expect(mark.y, mark.key).toBeLessThan(y + h);
+      }
+    }
+  });
+
+  it("places a mark by percentages of the crop: from the right edge for anchor r", () => {
+    const [sym, erg, hump] = SHAPE_SKETCHES;
+    // Symmetrical: x 256 of 512, y 344 in a crop that starts at 130 and is 260 high.
+    expect(markPlacement(sym, sym.marks[0])).toEqual({
+      top: "82.31%",
+      left: "50%",
+    });
+    expect(markPlacement(erg, erg.marks[0])).toEqual({
+      top: "47.45%",
+      left: "3.52%",
+    });
+    // Hump, anchor r: the text ends at x 257, so it is 255 / 512 from the right.
+    expect(markPlacement(hump, hump.marks[0])).toEqual({
+      top: "13.33%",
+      right: "49.8%",
+    });
+    expect(markPlacement(hump, hump.marks[1])).toEqual({
+      top: "13.33%",
+      left: "60.35%",
+    });
   });
 });

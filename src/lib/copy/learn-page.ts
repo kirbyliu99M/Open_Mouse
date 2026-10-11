@@ -9,6 +9,13 @@
  * mouse-shape labels are the results page's own words, imported from its table,
  * not new strings), and the chart note.
  *
+ * LEARN-5 (candidate, from the sketch package's labels.json): the two new
+ * shape names `shape.hump` and `shape.flare` (the results page has no word for
+ * them), and the eight text marks on the four drawings, `shape.marks`. The
+ * package's own status: zh-TW wording OK'd by Kirby 2026-10-11 in a draft
+ * table; the English wording is Claude's, exact English strings unconfirmed.
+ * The zh names for hump and flare are placeholders there.
+ *
  * The page has no digits and no medical claim (a unit test checks both).
  */
 import type { Locale } from "../contracts/locale";
@@ -31,9 +38,27 @@ export interface LearnPageCopy {
   shape: {
     title: string;
     body: string;
-    /** The results page's own shape words, under the two drawings. */
+    /** The results page's own shape words, under the first two drawings. */
     symmetrical: string;
     ergonomic: string;
+    /** New (LEARN-5, candidate): the names under the other two drawings. */
+    hump: string;
+    flare: string;
+    /**
+     * New (LEARN-5, candidate): the text drawn on the four sketches. A "
+"
+     * is a line break the page keeps.
+     */
+    marks: {
+      symmetrical: string;
+      thumbRest: string;
+      straightSide: string;
+      centredPeak: string;
+      rearPeak: string;
+      widerFront: string;
+      narrowerWaist: string;
+      schematic: string;
+    };
   };
   weightAndConnection: { title: string; body: string };
   score: {
@@ -87,6 +112,18 @@ export const zhTW: LearnPageCopy = {
     title: "看形狀",
     symmetrical: resultsZh.filter.shape.symmetrical,
     ergonomic: resultsZh.filter.shape.ergonomic,
+    hump: "拱背",
+    flare: "前端外張",
+    marks: {
+      symmetrical: "左右對稱",
+      thumbRest: "拇指托\n外凸",
+      straightSide: "另一側\n較直",
+      centredPeak: "對稱型最高點",
+      rearPeak: "此款最高點偏後",
+      widerFront: "前端\n較寬",
+      narrowerWaist: "腰部\n較窄",
+      schematic: "示意圖：外張經誇大",
+    },
     body: "有些外殼左右對稱，有些為單手造型。拱背位置、前端寬度與側邊弧度會改變滑鼠的貼合方式。",
   },
   weightAndConnection: {
@@ -139,6 +176,18 @@ export const en: LearnPageCopy = {
     title: "Look at the shape",
     symmetrical: resultsEn.filter.shape.symmetrical,
     ergonomic: resultsEn.filter.shape.ergonomic,
+    hump: "Hump",
+    flare: "Flare",
+    marks: {
+      symmetrical: "Left–right symmetrical",
+      thumbRest: "Thumb\nrest",
+      straightSide: "Straight\nside",
+      centredPeak: "Centred peak",
+      rearPeak: "Rear peak",
+      widerFront: "Wider\nfront",
+      narrowerWaist: "Narrower\nwaist",
+      schematic: "Schematic: exaggerated flare",
+    },
     body: "Some shells are symmetrical; others are shaped for one hand. Hump position, front width and side curve change how a mouse sits.",
   },
   weightAndConnection: {

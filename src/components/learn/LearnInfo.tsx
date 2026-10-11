@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { BASE_WEIGHTS } from "@/server/fit/coefficients";
 import type { LearnPageCopy } from "@/lib/copy/learn-page";
+import { markPlacement, SHAPE_SKETCHES } from "@/lib/learn/shape-sketches";
 import { weightBars } from "@/lib/learn/weight-bars";
 
 /**
@@ -132,21 +133,52 @@ function cards(copy: LearnPageCopy): Card[] {
       children: (
         <>
           <p>{copy.shape.body}</p>
-          {/* Two line drawings of our own (not traced from a photo, not any
-              brand's mouse): a symmetrical shell and a one-handed one. */}
-          <div className="learn-mice">
-            {(["symmetrical", "ergonomic"] as const).map((shape) => (
-              <figure key={shape}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- our own fixed SVG, no next/image config needed */}
-                <img
-                  src={`/images/learn/${shape}-top.svg`}
-                  alt=""
-                  width={300}
-                  height={380}
-                  loading="lazy"
-                  decoding="async"
-                />
-                <figcaption>{copy.shape[shape]}</figcaption>
+          {/* Four line drawings of our own (LEARN-5, candidate): drawn after
+              measuring official product photos, with no photo and no logo in
+              them. Each sits on a dark tile with its marks as real text (so they can be read, by a
+              screen reader too) placed by percentages of the drawing. The
+              images are decorative (empty alt): the marks and the name under
+              the tile carry the idea. */}
+          <div className="learn-shapes">
+            {SHAPE_SKETCHES.map((sketch) => (
+              <figure key={sketch.id} className="learn-shape">
+                <div className="learn-shape-tile">
+                  <div className="learn-shape-art">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- our own fixed SVG, no next/image config needed */}
+                    <img
+                      src={`/images/learn/shape-${sketch.id}.svg`}
+                      alt=""
+                      width={sketch.viewBox.w}
+                      height={sketch.viewBox.h}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    {sketch.arrows ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- our own fixed SVG, no next/image config needed
+                      <img
+                        className="learn-shape-arrows"
+                        src={`/images/learn/shape-${sketch.id}-arrows.svg`}
+                        alt=""
+                        width={sketch.viewBox.w}
+                        height={sketch.viewBox.h}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                    {sketch.marks.map((mark) => (
+                      <span
+                        key={mark.key}
+                        className="learn-shape-mark"
+                        data-anchor={mark.anchor}
+                        data-tone={mark.tone}
+                        style={markPlacement(sketch, mark)}
+                      >
+                        {copy.shape.marks[mark.key]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <figcaption>{copy.shape[sketch.id]}</figcaption>
               </figure>
             ))}
           </div>

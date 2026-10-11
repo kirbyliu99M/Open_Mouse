@@ -42,10 +42,10 @@
 }
 
 /* A phone is one column, 1 to 6. From 56rem the cards sit on a fixed grid (the
-   design, Learn v4, content 1200 px): two columns of 590 px and rows that are
-   at least 360 / 180 / 180 / auto px (a row grows only if its text needs it,
-   so nothing is clipped at a big text size). Row 1 is cards 1 and 2; cards 3
-   and 5 are stacked on the left of card 4; card 6 takes the full width. */
+   design, Learn v5, content 1200 px, candidate): row 1 is cards 1 and 2 (two
+   columns of 590 px, at least 360 px high); then cards 3, 4, 5 and 6 each take
+   the full width, 3 and 5 as compact cards (at least 116 px high). A row grows
+   only if its text needs it, so nothing is clipped at a big text size. */
 .learn-cards {
   list-style: none;
   margin: 0 0 2.5rem;
@@ -59,12 +59,13 @@
   .learn-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows:
-      minmax(22.5rem, auto) minmax(11.25rem, auto) minmax(11.25rem, auto)
+      minmax(22.5rem, auto) minmax(7.25rem, auto) auto minmax(7.25rem, auto)
       auto;
     grid-template-areas:
       "hand grip"
-      "size shape"
-      "weight shape"
+      "size size"
+      "shape shape"
+      "weight weight"
       "score score";
   }
   .learn-card--hand {
@@ -97,15 +98,24 @@
   flex-direction: column;
   justify-content: flex-start;
 }
-/* The two cards the design centres: the hand and the chart. */
+/* The cards the design centres: the hand, the chart and the two compact ones
+   (3 and 5, one title and one sentence each). */
 .learn-card--hand,
-.learn-card--score {
+.learn-card--score,
+.learn-card--size,
+.learn-card--weight {
   justify-content: center;
 }
 
 @media (min-width: 56rem) {
   .learn-card {
     padding: 1.75rem;
+  }
+  /* A compact card has no body to push against: the sentence sits right under
+     its title. */
+  .learn-card--size p,
+  .learn-card--weight p {
+    margin-bottom: 0;
   }
 }
 
@@ -271,63 +281,140 @@
   }
 }
 
-.learn-grips,
-.learn-mice {
+.learn-grips {
   display: flex;
   justify-content: center;
   gap: 0.25rem;
 }
-.learn-grips figure,
-.learn-mice figure {
+.learn-grips figure {
   flex: 1 1 0;
   min-width: 0;
+  max-width: 10.25rem; /* 164 px */
   margin: 0;
   text-align: center;
 }
-.learn-grips figure {
-  max-width: 10.25rem; /* 164 px */
-}
-.learn-grips img,
-.learn-mice img {
+.learn-grips img {
   display: block;
   width: 100%;
   height: auto;
   margin: 0 auto;
 }
-.learn-grips figcaption,
-.learn-mice figcaption {
+.learn-grips figcaption {
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 600;
   margin-top: 0.25rem;
-}
-
-/* Card 4: two top-view drawings of our own, up to 120 x 152 on a phone and
-   150 x 190 on a wide screen. They shrink (and so does the gap) instead of
-   overflowing: at 320 px wide, or at a large text size, nothing scrolls
-   sideways. */
-.learn-mice {
-  gap: clamp(0.5rem, 5vw, 2rem);
-}
-.learn-mice figure {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 7.5rem;
-}
-.learn-mice img {
-  max-width: 100%;
-}
-.learn-grips figcaption,
-.learn-mice figcaption {
   overflow-wrap: anywhere;
 }
-@media (min-width: 56rem) {
-  .learn-mice {
-    gap: 3rem;
+
+/* Card 4, "Look at the shape" (LEARN-5, candidate): four line drawings, each
+   on a dark tile (272 x 262, radius 14, a hairline) with the drawing 252 px
+   wide in the middle, its text marks on top and its name under the tile
+   (14 / 600). One column below 40rem (the tile fills the width, up to 342 px;
+   the phone layout is a proposal Kirby has not seen), two columns from 40rem,
+   four from 76rem. The design's 1024 px for four columns is not used: there
+   a tile is about 220 px, the drawing about 200 px, and the 12 px marks run
+   into the arrows (they are fixed-size text over a shrinking drawing); at
+   76rem a tile is about 268 px, as designed. */
+.learn-shapes {
+  /* The tile's own colours. Fixed, not --bg / --text-*: the tile stays dark in
+     print, where those tokens turn white and black. #060709 is --bg (the design
+     has #05060A, one step darker, but no token); the two text colours are
+     --text-primary and --text-secondary as they are on screen. */
+  --learn-tile-bg: #060709;
+  --learn-tile-text: #f5f5f7;
+  --learn-tile-text-secondary: #a1a1a6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 1.125rem;
+  margin-top: 0.5rem;
+}
+@media (min-width: 40rem) {
+  .learn-shapes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .learn-mice figure {
-    max-width: 9.375rem;
+}
+@media (min-width: 76rem) {
+  .learn-shapes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+@media (prefers-contrast: more) {
+  .learn-shapes {
+    --learn-tile-text-secondary: #f5f5f7;
+  }
+}
+
+.learn-shape {
+  width: 100%;
+  max-width: 21.375rem; /* 342 px */
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+@media (min-width: 76rem) {
+  .learn-shape {
+    max-width: 17rem; /* 272 px */
+  }
+}
+.learn-shape-tile {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 272 / 262;
+  padding: 0.625rem;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 0.875rem;
+  background: var(--learn-tile-bg);
+}
+/* The drawing's box: the base drawing sets its height, the arrows lie exactly
+   on it (same viewBox), and the marks are placed by percentages of it. */
+.learn-shape-art {
+  position: relative;
+  width: 100%;
+}
+.learn-shape-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.learn-shape-art .learn-shape-arrows {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+}
+/* The marks are real text at 12 px, never smaller. They hold their line
+   breaks (a line feed in the copy), never wrap on their own, and are clipped by the
+   tile rather than the page. */
+.learn-shape-mark {
+  position: absolute;
+  color: var(--learn-tile-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: pre;
+  text-align: left;
+  pointer-events: none;
+}
+.learn-shape-mark[data-tone="primary"] {
+  color: var(--learn-tile-text);
+}
+.learn-shape-mark[data-anchor="r"] {
+  text-align: right;
+}
+.learn-shape-mark[data-anchor="m"] {
+  text-align: center;
+  transform: translateX(-50%);
+}
+.learn-shape figcaption {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
 }
 
 /* How we score: bar length = the engine weight relative to the largest. */
@@ -410,10 +497,19 @@
     border-color: var(--button-primary-bg);
   }
   .learn-figure-hand img,
-  .learn-grips img,
-  .learn-mice img {
+  .learn-grips img {
     background: #060709;
     border-radius: 0.5rem;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* The shape tiles keep their dark fill, and their marks keep the light
+     colours (the tile's own variables are fixed, not the print tokens). */
+  .learn-shape {
+    break-inside: avoid;
+  }
+  .learn-shape-tile {
+    border-color: #00000040;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
