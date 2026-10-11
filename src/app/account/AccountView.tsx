@@ -170,6 +170,7 @@ export function AccountView({
   const [name, setName] = useState(profile.name);
   const [image, setImage] = useState(profile.image);
   const [sheet, setSheet] = useState<"nickname" | "avatar" | null>(null);
+  const sheetRef = useRef<"nickname" | "avatar" | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -213,14 +214,22 @@ export function AccountView({
     return () => controller.abort();
   }, [reloadKey]);
 
-  // Closing a sheet returns focus to the row that opened it.
+  // Closing a sheet returns focus to the row that opened it. A sheet can ask
+  // to close twice (its Cancel button, then the dialog's own close event), so
+  // only the first call counts.
+  function openSheet(kind: "nickname" | "avatar") {
+    sheetRef.current = kind;
+    setSheet(kind);
+  }
   function closeSheet() {
-    const trigger =
-      sheet === "avatar"
-        ? avatarTriggerRef.current
-        : nicknameTriggerRef.current;
+    const kind = sheetRef.current;
+    if (kind === null) return;
+    sheetRef.current = null;
     setSheet(null);
-    trigger?.focus();
+    (kind === "avatar"
+      ? avatarTriggerRef
+      : nicknameTriggerRef
+    ).current?.focus();
   }
 
   async function handleExport() {
@@ -285,7 +294,7 @@ export function AccountView({
               type="button"
               className="profile-row profile-row-button"
               aria-haspopup="dialog"
-              onClick={() => setSheet("avatar")}
+              onClick={() => openSheet("avatar")}
             >
               <span className="profile-row-label">{copy.avatarRow}</span>
               <Avatar className="avatar avatar-row" image={image} />
@@ -298,7 +307,7 @@ export function AccountView({
               type="button"
               className="profile-row profile-row-button"
               aria-haspopup="dialog"
-              onClick={() => setSheet("nickname")}
+              onClick={() => openSheet("nickname")}
             >
               <span className="profile-row-label">{copy.nicknameRow}</span>
               <span className="profile-row-value">{displayName}</span>

@@ -13,6 +13,7 @@ import {
   handRows,
   hasAnswers,
   mouseDisplayName,
+  mouseNamesFromRows,
   mouseRows,
   nicknameLength,
   otherAnswerRows,
@@ -170,6 +171,20 @@ describe("mouseDisplayName", () => {
   it("copes with a blank side", () => {
     expect(mouseDisplayName("", "X")).toBe("X");
     expect(mouseDisplayName("Razer", " ")).toBe("Razer");
+  });
+});
+
+describe("mouseNamesFromRows", () => {
+  it("maps each slug to its display name", () => {
+    expect(
+      mouseNamesFromRows([
+        { slug: "a", brand: "Razer", model: "DeathAdder V3" },
+        { slug: "b", brand: "Logitech", model: "Logitech G Pro" },
+      ]),
+    ).toEqual({ a: "Razer DeathAdder V3", b: "Logitech G Pro" });
+  });
+  it("is empty for no rows", () => {
+    expect(mouseNamesFromRows([])).toEqual({});
   });
 });
 
