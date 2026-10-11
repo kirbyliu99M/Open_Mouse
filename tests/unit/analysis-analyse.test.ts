@@ -947,7 +947,7 @@ describe("analyse — beforeModelCall (M2 global model-call budget)", () => {
 
 describe("analyse — fit-v1 grip weights", () => {
   const fit = makeFit({
-    engineVersion: "fit-v1-candidate.2",
+    engineVersion: "fit-v1-candidate.3",
     gripStyle: {
       stated: null,
       predicted: "claw",

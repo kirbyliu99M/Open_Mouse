@@ -84,6 +84,10 @@ export async function loadOwnedFit(
     {
       ...prefs,
       gripStyle: prefs.gripStyle ?? owned.gripStyleStated ?? undefined,
+      // A skipped answer is null in the scan; it must reach the engine as
+      // undefined (no shift), never as "medium".
+      palmThickness:
+        prefs.palmThickness ?? owned.palmThicknessStated ?? undefined,
     },
     owned.hand,
   );

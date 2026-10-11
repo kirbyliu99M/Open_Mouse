@@ -25,7 +25,11 @@ import {
   scoreThumb,
   scoreWeightV1,
 } from "./subscores-v1";
-import { computeTargets, type FitTargets } from "./targets";
+import {
+  computeTargets,
+  computeTargetsByGrip,
+  type FitTargets,
+} from "./targets";
 import type { CatalogueMouse, SubscoreResult } from "./types";
 
 export { ENGINE_VERSION_V1 } from "./coefficients";
@@ -199,13 +203,20 @@ export function scoreFitV1(
   const weights = gripWeights(r, stated);
   const gripsInPlay = GRIP_STYLES.filter((g) => weights[g] > 0);
 
-  const targetsByGrip = Object.fromEntries(
-    GRIP_STYLES.map((g) => [
-      g,
-      computeTargets(measurements.handLengthMm, measurements.palmWidthMm, g),
-    ]),
-  ) as Record<GripStyle, FitTargets>;
+  // Candidate: an undefined palmThickness (no answer) adds no shift.
+  const targetsByGrip = computeTargetsByGrip(
+    measurements.handLengthMm,
+    measurements.palmWidthMm,
+    prefs.palmThickness,
+  );
   const targets = targetsByGrip[used];
+  // The hand-type label is display only and must not move with the thickness
+  // answer, so it reads the targets without the shift.
+  const handTypeTargets = computeTargets(
+    measurements.handLengthMm,
+    measurements.palmWidthMm,
+    used,
+  );
   const grips: GripContext = {
     used,
     weights,
@@ -288,7 +299,7 @@ export function scoreFitV1(
       ...(stated === null ? { weights } : {}),
     },
     ...(handTypeStats
-      ? { handType: classifyHandType(targets, used, handTypeStats) }
+      ? { handType: classifyHandType(handTypeTargets, used, handTypeStats) }
       : {}),
     targets,
     excluded,
