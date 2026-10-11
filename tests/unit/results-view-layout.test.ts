@@ -54,7 +54,7 @@ describe("the results page layout", () => {
     expect(html).toContain("適合你的滑鼠型");
     expect(html).toContain("中型滑鼠・抓握・寬身");
     expect(html).toContain("第 1 名 · Logitech");
-    expect(html).toContain("適配分數 / 100");
+    expect(html).toContain("合手度分數 / 100");
   });
 
   it("has no hand-type block at all when the response sends none (fit-v0)", () => {

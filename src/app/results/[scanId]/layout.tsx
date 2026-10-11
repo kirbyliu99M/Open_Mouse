@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
+import { getLocale } from "@/server/i18n/getLocale";
 import { auth } from "../../../auth";
 import { ResultsScanProvider } from "./ResultsScanProvider";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Your results",
-  description: "Your ranked mouse recommendations and written analysis.",
-  robots: { index: false, follow: false },
-};
+/** Title and description follow the visitor's locale. */
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = resultsScreensCopy(await getLocale());
+  return {
+    title: copy.titleMain,
+    description: copy.metaDescription,
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * One layout for the main results page and the detail pages under it, so the

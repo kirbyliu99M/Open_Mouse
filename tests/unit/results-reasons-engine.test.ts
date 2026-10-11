@@ -54,7 +54,7 @@ describe("weight reasons rendered from the engine's own params", () => {
   it("weight_in_range states the preferred range the engine sent", () => {
     const { reason } = scoreWeight(mouse({ weightG: 75 }), prefs);
     expect(reason.code).toBe("weight_in_range");
-    expect(reasonText(reason.code, reason.params)).toBe(
+    expect(reasonText(reason.code, reason.params, "en")).toBe(
       "Weight is within your preferred range (60–90\u00A0g).",
     );
   });
@@ -62,7 +62,7 @@ describe("weight reasons rendered from the engine's own params", () => {
   it("weight_in_range never claims a gap: it is inside the range by definition", () => {
     for (const weightG of [60, 75, 90]) {
       const { reason } = scoreWeight(mouse({ weightG }), prefs);
-      expect(reasonText(reason.code, reason.params)).not.toMatch(
+      expect(reasonText(reason.code, reason.params, "en")).not.toMatch(
         /within \d+ g of/,
       );
     }
@@ -71,19 +71,19 @@ describe("weight reasons rendered from the engine's own params", () => {
   it("weight_heavier and weight_lighter state the gap from the range", () => {
     const heavy = scoreWeight(mouse({ weightG: 100 }), prefs).reason;
     const light = scoreWeight(mouse({ weightG: 50 }), prefs).reason;
-    expect(reasonText(heavy.code, heavy.params)).toBe(
+    expect(reasonText(heavy.code, heavy.params, "en")).toBe(
       "This mouse is about 10\u00A0g heavier than you prefer.",
     );
-    expect(reasonText(light.code, light.params)).toBe(
+    expect(reasonText(light.code, light.params, "en")).toBe(
       "This mouse is about 10\u00A0g lighter than you prefer.",
     );
   });
 
   it("degrades to the plain sentence when the range is missing", () => {
-    expect(reasonText("weight_in_range", {})).toBe(
+    expect(reasonText("weight_in_range", {}, "en")).toBe(
       "Weight is within your preferred range.",
     );
-    expect(reasonText("weight_in_range", { minG: 60 })).toBe(
+    expect(reasonText("weight_in_range", { minG: 60 }, "en")).toBe(
       "Weight is within your preferred range.",
     );
   });
@@ -183,8 +183,8 @@ describe("every reason the engine emits", () => {
       if (Object.keys(params).length === 0 || PARAMS_NOT_SHOWN.has(code)) {
         continue;
       }
-      const withParams = reasonText(code, params);
-      if (withParams === reasonText(code, {})) {
+      const withParams = reasonText(code, params, "en");
+      if (withParams === reasonText(code, {}, "en")) {
         ignored.push(`${code} ${JSON.stringify(params)}`);
       }
     }
@@ -193,7 +193,7 @@ describe("every reason the engine emits", () => {
 
   it("never renders a broken number", () => {
     for (const { code, params } of emitted.values()) {
-      expect(reasonText(code, params), code).not.toMatch(
+      expect(reasonText(code, params, "en"), code).not.toMatch(
         /NaN|undefined|Infinity|-\d/,
       );
     }
