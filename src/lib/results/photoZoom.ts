@@ -214,7 +214,8 @@ export function zoomKeyAction(
       return { kind: "zoom", direction: -1 };
     case "0":
       return { kind: "reset" };
-    // Arrow keys move the photo in the direction of the arrow.
+    // Arrow keys move the VIEW in the direction of the arrow, so the photo
+    // itself moves the other way (ArrowRight: dx < 0).
     case "ArrowLeft":
       return zoomed ? { kind: "pan", dx: KEY_PAN_STEP, dy: 0 } : null;
     case "ArrowRight":

@@ -9,7 +9,12 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { largePhotoPath } from "@/lib/results/mouseMedia";
+import {
+  createScrimPress,
+  lockModal,
+  type ModalLock,
+} from "@/lib/results/photoDialogControl";
+import { largePhotoPath } from "@/lib/results/photoPaths";
 import {
   RESET_VIEW,
   TAP_MAX_MS,
@@ -48,7 +53,8 @@ export interface PhotoZoomCopy {
  * photo on the same soft backdrop. The 480 px file already on the page shows at
  * once; the 960 px one is loaded when the dialog opens (or on hover/focus of the
  * button) and swapped in when it has decoded. Zoom 1x to 3x by pinch, wheel,
- * double tap and keys; the maths lives in `@/lib/results/photoZoom`.
+ * double tap and keys; the maths lives in `@/lib/results/photoZoom`, the modal
+ * lock and the scrim press in `@/lib/results/photoDialogControl`.
  *
  * The dialog is mounted only while open, so a closed page carries no second copy
  * of the name and nothing of the zoom state survives a close (reset to 1x).
@@ -64,13 +70,15 @@ export function PhotoZoom({
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const preloaded = useRef(false);
+  // The URL already asked for: this component is reused when the photo changes
+  // (a filter or brand change), so "once per mount" is not enough.
+  const preloadedUrl = useRef<string | null>(null);
   const largeUrl = largePhotoPath(imageUrl);
 
   // Hover or focus on the button is a cheap hint: start fetching the big file.
   const warm = useCallback(() => {
-    if (preloaded.current || largeUrl === imageUrl) return;
-    preloaded.current = true;
+    if (preloadedUrl.current === largeUrl || largeUrl === imageUrl) return;
+    preloadedUrl.current = largeUrl;
     const img = new Image();
     img.src = largeUrl;
   }, [largeUrl, imageUrl]);
@@ -149,11 +157,16 @@ function PhotoDialog({
   const frame = useRef(0);
   const pointers = useRef(new Map<number, Point>());
   const pinch = useRef<PinchStart | null>(null);
-  const drag = useRef<{ from: Point; view: ZoomView } | null>(null);
+  const drag = useRef<{ from: Point; base: Point; scale: number } | null>(null);
   const press = useRef<{ time: number; point: Point; moved: boolean } | null>(
     null,
   );
   const lastTap = useRef<Tap | null>(null);
+  const lock = useRef<ModalLock | null>(null);
+  const scrimPress = useRef(createScrimPress());
+  // Set by a pointerup that ended a clean press on the scrim; the click that
+  // follows it does the closing, so nothing underneath receives that click.
+  const scrimClick = useRef(false);
 
   const flush = useCallback(() => {
     frame.current = 0;
@@ -183,8 +196,13 @@ function PhotoDialog({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     };
-    view.current = clampView(view.current, box.current);
-  }, []);
+    // A resize or a rotation can shrink the room to pan in: apply the clamp.
+    const now = view.current;
+    const next = clampView(now, box.current);
+    if (next.scale !== now.scale || next.x !== now.x || next.y !== now.y) {
+      commit(next);
+    }
+  }, [commit]);
 
   /** Screen point -> box-centre coordinates. */
   const local = useCallback(
@@ -195,16 +213,13 @@ function PhotoDialog({
     [],
   );
 
-  // Open as a native modal, lock the page behind it, and undo both on close
-  // or unmount.
+  // Open as a native modal and lock the page behind it; undo both on close or
+  // unmount (see `lockModal`).
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (typeof dialog.showModal === "function" && !dialog.open) {
-      dialog.showModal();
-    }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const modal = lockModal(dialog, document.body);
+    lock.current = modal;
     measure();
     const area = areaRef.current;
     let observer: ResizeObserver | null = null;
@@ -217,8 +232,7 @@ function PhotoDialog({
       observer?.disconnect();
       window.removeEventListener("resize", measure);
       if (frame.current) cancelAnimationFrame(frame.current);
-      document.body.style.overflow = previousOverflow;
-      if (dialog.open) dialog.close();
+      modal.dispose();
     };
   }, [measure]);
 
@@ -269,7 +283,25 @@ function PhotoDialog({
   // --- pointer gestures -----------------------------------------------------
   const startDrag = () => {
     const [only] = [...pointers.current.values()];
-    drag.current = only ? { from: only, view: view.current } : null;
+    const now = view.current;
+    drag.current = only
+      ? { from: only, base: { x: now.x, y: now.y }, scale: now.scale }
+      : null;
+  };
+
+  /** Two or more fingers: measure the pinch afresh from the first two. */
+  const rebasePinch = () => {
+    const [a, b] = [...pointers.current.values()];
+    if (!a || !b) {
+      pinch.current = null;
+      return;
+    }
+    const mid = midpoint(a, b);
+    pinch.current = {
+      view: view.current,
+      distance: distance(a, b),
+      center: local(mid.x, mid.y),
+    };
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -280,15 +312,10 @@ function PhotoDialog({
     if (pointers.current.size === 1) {
       press.current = { time: event.timeStamp, point, moved: false };
       startDrag();
-    } else if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
+    } else {
       press.current = null; // a pinch is never a tap
       drag.current = null;
-      pinch.current = {
-        view: view.current,
-        distance: distance(a, b),
-        center: local(midpoint(a, b).x, midpoint(a, b).y),
-      };
+      rebasePinch(); // whenever the number of fingers changes
     }
   };
 
@@ -312,12 +339,21 @@ function PhotoDialog({
     if (press1 && distance(press1.point, point) > TAP_SLOP) {
       press1.moved = true;
     }
-    if (drag.current && view.current.scale > 1) {
+    const d = drag.current;
+    if (d && view.current.scale > 1) {
+      const now = view.current;
+      // A wheel or key zoom in the middle of a drag changed the scale: carry on
+      // from here, with the current scale, using only the finger's movement.
+      if (now.scale !== d.scale) {
+        d.from = point;
+        d.base = { x: now.x, y: now.y };
+        d.scale = now.scale;
+      }
       commit(
         panBy(
-          drag.current.view,
-          point.x - drag.current.from.x,
-          point.y - drag.current.from.y,
+          { scale: now.scale, x: d.base.x, y: d.base.y },
+          point.x - d.from.x,
+          point.y - d.from.y,
           box.current,
         ),
       );
@@ -328,9 +364,13 @@ function PhotoDialog({
     if (!pointers.current.has(event.pointerId)) return;
     pointers.current.delete(event.pointerId);
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (pointers.current.size >= 2) {
+      rebasePinch(); // a third finger lifted: the baseline moves with the count
+      return;
+    }
     if (pinch.current) {
       // One finger left after a pinch carries on as a drag from where it is.
-      if (pointers.current.size < 2) pinch.current = null;
+      pinch.current = null;
       if (pointers.current.size === 1) startDrag();
       return;
     }
@@ -375,10 +415,38 @@ function PhotoDialog({
       className="results-photoDialog"
       aria-labelledby={captionId}
       aria-describedby={keysId}
-      onClose={onClosed}
+      // A close event that arrives while the dialog is open again (StrictMode's
+      // second mount) or after unmount is not a close.
+      onClose={() => {
+        if (lock.current?.shouldNotifyClosed() === false) return;
+        onClosed();
+      }}
       onKeyDown={onKeyDown}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) dialogRef.current?.close();
+        scrimClick.current = false;
+        scrimPress.current.down(
+          event.pointerId,
+          event.target === event.currentTarget,
+        );
+      }}
+      onPointerUp={(event) => {
+        const close = scrimPress.current.up(
+          event.pointerId,
+          event.target === event.currentTarget,
+        );
+        scrimClick.current = close;
+        if (close) event.preventDefault();
+      }}
+      onPointerCancel={(event) => {
+        scrimPress.current.cancel(event.pointerId);
+        scrimClick.current = false;
+      }}
+      onClick={(event) => {
+        const close = scrimClick.current;
+        scrimClick.current = false;
+        if (close && event.target === event.currentTarget) {
+          dialogRef.current?.close();
+        }
       }}
     >
       <p id={captionId} className="results-photoDialog-caption">
@@ -408,10 +476,13 @@ function PhotoDialog({
         ref={areaRef}
         className="results-photoDialog-area"
         data-zoomed="false"
+        // Focusable by a click (not by Tab), so the keys keep working after one.
+        tabIndex={-1}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
+        onLostPointerCapture={onPointerEnd}
         onDragStart={(event) => event.preventDefault()}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- a plain site-relative file, transformed by the zoom */}
