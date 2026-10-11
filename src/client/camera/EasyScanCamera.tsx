@@ -33,6 +33,10 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { cameraCuesCopy } from "../../lib/copy/camera-cues";
+import { easyScanCopy } from "../../lib/copy/easy-scan";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
+import { issueText } from "../photo/issueText";
 import type {
   PaperSize,
   ScanSubmission,
@@ -69,7 +73,6 @@ import {
   type Cue,
   type CueCode,
 } from "./cues";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
 import { requestCameraStream } from "./requestStream";
 import {
   isCameraPermissionDenial,
@@ -192,17 +195,10 @@ import {
   USER_LENGTH_RANGE_MM,
   userLengthRangeMessage,
 } from "../photo/user-length";
-import {
-  EDIT_HAND_LENGTH_LABEL,
-  failureOffersLengthEdit,
-  noPaperEntryLabel,
-} from "./noPaperEntry";
+import { failureOffersLengthEdit, noPaperEntryLabel } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import { DetectorProgress } from "./DetectorProgress";
-import {
-  measuredSheetNumbers,
-  UNVERIFIED_MEASUREMENT_NOTE,
-} from "../photo/unverified-note";
+import { measuredSheetNumbers } from "../photo/unverified-note";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -325,7 +321,7 @@ function getImageCaptureCtor(): ImageCaptureConstructor | null {
 type CamState =
   | { kind: "requesting" }
   | { kind: "live" }
-  | { kind: "cameraError"; message: string }
+  | { kind: "cameraError"; blocked: boolean }
   | { kind: "streamEnded" }
   /** No usable camera at all (insecure context, no getUserMedia, desktop) — upload only, no error styling. */
   | { kind: "noCamera" };
@@ -391,13 +387,15 @@ function sampleLuma(
   }
   return out;
 }
-const GRIP_OPTIONS: readonly { value: GripStyle | undefined; label: string }[] =
-  [
-    { value: "palm", label: "Palm" },
-    { value: "claw", label: "Claw" },
-    { value: "fingertip", label: "Fingertip" },
-    { value: undefined, label: "Not sure" },
-  ];
+const GRIP_OPTIONS: readonly {
+  value: GripStyle | undefined;
+  key: "gripPalm" | "gripClaw" | "gripFingertip" | "gripNotSure";
+}[] = [
+  { value: "palm", key: "gripPalm" },
+  { value: "claw", key: "gripClaw" },
+  { value: "fingertip", key: "gripFingertip" },
+  { value: undefined, key: "gripNotSure" },
+];
 
 function HandToggle({
   state,
@@ -410,15 +408,16 @@ function HandToggle({
   readonly disabled?: boolean;
   readonly inSheet?: boolean;
 }) {
+  const locale = useLocale();
   return (
     <button
       type="button"
       className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
-      aria-label={handChipAccessibleName(state)}
+      aria-label={handChipAccessibleName(state, locale)}
       disabled={disabled}
       onClick={onClick}
     >
-      <HandIcon width={16} height={16} /> {handChipLabel(state)}
+      <HandIcon width={16} height={16} /> {handChipLabel(state, locale)}
     </button>
   );
 }
@@ -478,6 +477,12 @@ export default function EasyScanCamera({
   const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   const [deviceFit, setDeviceFit] = useState<DeviceFit | null>(null);
   const locale = useLocale();
+  // The live loop and the capture callbacks outlive a render: they read the
+  // locale through a ref, so they need not be rebuilt when it changes.
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const common = scanCommonCopy(locale);
+  const easy = easyScanCopy(locale);
   const [pageUrl, setPageUrl] = useState("");
   const [userLengthMm, setUserLengthMm] = useState<number | null>(null);
   const [lengthStep, setLengthStep] = useState(false);
@@ -963,10 +968,8 @@ export default function EasyScanCamera({
       if (!isCameraPermissionDenial(err))
         reportCaught(err, "easy-scan.camera-open");
       const name = err instanceof DOMException ? err.name : undefined;
-      const message =
-        name === "NotAllowedError" || name === "PermissionDeniedError"
-          ? "Camera access was blocked."
-          : "The camera couldn't be opened.";
+      const blocked =
+        name === "NotAllowedError" || name === "PermissionDeniedError";
       if (
         mountedRef.current &&
         requestId === requestIdRef.current &&
@@ -979,7 +982,7 @@ export default function EasyScanCamera({
               ? "denied"
               : "error",
         });
-        setCamState({ kind: "cameraError", message });
+        setCamState({ kind: "cameraError", blocked });
       }
     }
   }, [stopStream, setUpFocus, resetLoopState]);
@@ -1349,7 +1352,7 @@ export default function EasyScanCamera({
         navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
       }
       if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
-      setAnnounced("Photo taken");
+      setAnnounced(scanCommonCopy(localeRef.current).photoTaken);
       fileRef.current = file;
       // A frame cut to the screen's part is drawn exactly as the live video's
       // visible part was: it IS that part, so it is its own "stream" for the layout.
@@ -1582,7 +1585,7 @@ export default function EasyScanCamera({
 
       if (userLengthRef.current !== null) {
         setCue(null);
-        setAnnounced("Hand flat, fingers together, phone straight above");
+        setAnnounced(cameraCuesCopy(localeRef.current).handFlat);
         return;
       }
 
@@ -1717,6 +1720,7 @@ export default function EasyScanCamera({
         setAnnounced(
           easyCueText(shownCue, {
             tapToFocus: focusSupportRef.current.tapToFocus,
+            locale: localeRef.current,
           }),
         );
       }
@@ -1929,14 +1933,12 @@ export default function EasyScanCamera({
   const continueWithLength = () => {
     const value = parseUserLength(lengthValue);
     if (value === null) {
-      setLengthError(userLengthRangeMessage());
+      setLengthError(userLengthRangeMessage(locale));
       return;
     }
     setLengthError("");
     setUserLengthMm(value);
-    announceMode(
-      `No-paper mode: using your hand length of ${value} mm. No sheet needed.`,
-    );
+    announceMode(easy.noPaperAnnounce(String(value)));
     leaveLengthStep();
   };
   const switchToPaper = () => {
@@ -1944,7 +1946,7 @@ export default function EasyScanCamera({
     setUserLengthMm(null);
     userLengthRef.current = null;
     resetLoopState();
-    announceMode("Paper mode: place your hand on a blank sheet of paper.");
+    announceMode(easy.paperAnnounce);
   };
   // The failure sheet's edit-length button: the sheet closes first, so the
   // browser's focus restore cannot land after the heading takes focus.
@@ -1956,8 +1958,8 @@ export default function EasyScanCamera({
   };
 
   const cueLabel = cue
-    ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus })
-    : "Point the camera at the paper";
+    ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus, locale })
+    : cameraCuesCopy(locale).pointAtPaper;
   // From the third failed frame capture in a row, the cue line says so instead
   // of its usual words (same slot, same live region); it is plain text, so
   // there is nothing to animate.
@@ -1974,13 +1976,18 @@ export default function EasyScanCamera({
           cueCode: cue?.code ?? null,
           ringFraction,
           tapToFocus: focusSupport.tapToFocus,
+          locale,
         }),
     captureFailures,
   );
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
-  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null);
+  const noPaperLabel = noPaperEntryLabel(
+    userLengthMm !== null,
+    undefined,
+    locale,
+  );
   const noPaperMode = userLengthMm !== null;
 
   // The device is only known after mount. Until then show a neutral screen
@@ -1993,8 +2000,8 @@ export default function EasyScanCamera({
         data-device-hint={deviceHint}
         aria-busy="true"
       >
-        <h1 className="visuallyHidden">Scan your hand</h1>
-        <p className="visuallyHidden">Loading the scanner…</p>
+        <h1 className="visuallyHidden">{easy.heading}</h1>
+        <p className="visuallyHidden">{easy.loadingScanner}</p>
       </main>
     );
 
@@ -2070,14 +2077,16 @@ export default function EasyScanCamera({
             label:
               "method" in result.submission.calibration &&
               result.submission.calibration.method === "user-length"
-                ? `Entered ${result.submission.calibration.referenceMm} mm`
-                : `Hand ${result.measurements.handLengthMm.toFixed(0)} mm`,
+                ? easy.dimEntered(
+                    String(result.submission.calibration.referenceMm),
+                  )
+                : easy.dimHand(result.measurements.handLengthMm.toFixed(0)),
             side: 1,
           },
           {
             a: result.overlay.landmarksPx[LANDMARK.index[0]],
             b: result.overlay.landmarksPx[LANDMARK.pinky[0]],
-            label: `Palm ${result.measurements.palmWidthMm.toFixed(0)} mm`,
+            label: easy.dimPalm(result.measurements.palmWidthMm.toFixed(0)),
             side: 1,
           },
         ]
@@ -2126,11 +2135,7 @@ export default function EasyScanCamera({
         layerScale={measuredView ? layerScale : 1}
         dimensions={measuredView ? dimensions : null}
         problem={measuredView ? problem : null}
-        ariaLabel={
-          noPaperMode
-            ? "Your photo with, once measured, the hand-length and palm-width lines"
-            : "Your photo with the paper corners and, once measured, the hand-length and palm-width lines"
-        }
+        ariaLabel={noPaperMode ? easy.photoLabelNoPaper : easy.photoLabelPaper}
       />
     ) : null;
 
@@ -2138,7 +2143,7 @@ export default function EasyScanCamera({
     <main
       className={`cameraViewfinder easyScanShell${showStage ? " easyScanStaged" : ""}`}
     >
-      <h1 className="visuallyHidden">Scan your hand</h1>
+      <h1 className="visuallyHidden">{easy.heading}</h1>
       <p
         className="visuallyHiddenLive"
         role="status"
@@ -2226,7 +2231,7 @@ export default function EasyScanCamera({
         <button
           type="button"
           className="cameraCloseButton"
-          aria-label="Close camera, back to Home"
+          aria-label={easy.closeCamera}
           onClick={exitToHome}
         >
           ×
@@ -2236,7 +2241,7 @@ export default function EasyScanCamera({
             type="button"
             className="easyHelpButton"
             ref={helpTriggerRef}
-            aria-label="Show the first-run tip"
+            aria-label={easy.showTip}
             onClick={openTip}
           >
             <HelpCircleIcon width={20} height={20} />
@@ -2259,13 +2264,13 @@ export default function EasyScanCamera({
             className="easyLengthBack"
             onClick={leaveLengthStep}
           >
-            {cameraAvailable() ? "Back to camera" : "Back to upload"}
+            {cameraAvailable() ? easy.backToCamera : easy.backToUpload}
           </button>
           <svg
             className="easyHandDrawing"
             viewBox="0 0 240 290"
             role="img"
-            aria-label="Line drawing showing wrist crease to middle fingertip"
+            aria-label={easy.handDrawingLabel}
           >
             <path
               d="M76 261 C71 233 54 216 44 195 L23 151 Q17 135 27 131 Q36 128 44 144 L61 171 L52 89 Q50 75 60 73 Q70 72 73 87 L81 147 L78 46 Q78 31 89 31 Q100 32 100 47 L103 139 L108 28 Q110 15 121 17 Q131 19 130 33 L127 139 L141 53 Q144 40 155 43 Q165 46 161 59 L148 155 Q171 136 184 141 Q199 148 186 161 L166 184 Q151 202 149 232 L150 261 Z"
@@ -2283,9 +2288,9 @@ export default function EasyScanCamera({
             />
           </svg>
           <h2 id="easy-length-title" ref={lengthHeadingRef} tabIndex={-1}>
-            Hand length
+            {easy.lengthHeading}
           </h2>
-          <p>Wrist crease to the tip of your middle finger</p>
+          <p>{easy.lengthSub}</p>
           <form
             className="easyLengthForm"
             noValidate
@@ -2294,7 +2299,7 @@ export default function EasyScanCamera({
               continueWithLength();
             }}
           >
-            <label htmlFor="easy-hand-length">Hand length (mm)</label>
+            <label htmlFor="easy-hand-length">{easy.lengthFieldLabel}</label>
             <input
               id="easy-hand-length"
               type="number"
@@ -2303,7 +2308,7 @@ export default function EasyScanCamera({
               min={USER_LENGTH_RANGE_MM.min}
               max={USER_LENGTH_RANGE_MM.max}
               step="any"
-              placeholder="e.g. 186 mm"
+              placeholder={easy.lengthPlaceholder}
               value={lengthValue}
               aria-invalid={Boolean(lengthError)}
               aria-describedby={
@@ -2317,8 +2322,10 @@ export default function EasyScanCamera({
               }}
             />
             <p id="easy-length-hint" className="easyLengthHint">
-              18.6&nbsp;cm = 186&nbsp;mm. Enter millimetres, from{" "}
-              {USER_LENGTH_RANGE_MM.min} to {USER_LENGTH_RANGE_MM.max}.
+              {easy.lengthHint(
+                USER_LENGTH_RANGE_MM.min,
+                USER_LENGTH_RANGE_MM.max,
+              )}
             </p>
             {lengthError && (
               <p id="easy-length-error" role="alert">
@@ -2326,7 +2333,7 @@ export default function EasyScanCamera({
               </p>
             )}
             <button type="submit" className="primaryButton">
-              Continue
+              {easy.lengthContinue}
             </button>
           </form>
         </section>
@@ -2335,13 +2342,13 @@ export default function EasyScanCamera({
         camState.kind === "streamEnded" &&
         result.kind === "none" && (
           <div className="cameraResumeCard">
-            <p>The camera turned off.</p>
+            <p>{common.cameraTurnedOff}</p>
             <button
               type="button"
               className="cameraResumeButton"
               onClick={() => void startCamera()}
             >
-              Tap to resume camera
+              {common.cameraTapToResume}
             </button>
           </div>
         )}
@@ -2350,19 +2357,21 @@ export default function EasyScanCamera({
         camState.kind === "cameraError" &&
         result.kind === "none" && (
           <div className="cameraErrorCard" role="alert">
-            <p>{camState.message}</p>
-            <p>To use the camera:</p>
+            <p>
+              {camState.blocked ? common.cameraBlocked : common.cameraCantOpen}
+            </p>
+            <p>{common.cameraToUse}</p>
             <ol>
-              <li>Open your browser&apos;s site settings for this page.</li>
-              <li>Allow camera access.</li>
-              <li>Reload and try again.</li>
+              <li>{common.cameraStepSettings}</li>
+              <li>{common.cameraStepAllow}</li>
+              <li>{common.cameraStepReloadEasy}</li>
             </ol>
-            <p>Or upload a photo instead using the button below.</p>
+            <p>{common.cameraOrUpload}</p>
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
             >
-              Upload a photo instead
+              {common.uploadInstead}
             </label>
           </div>
         )}
@@ -2371,16 +2380,12 @@ export default function EasyScanCamera({
         camState.kind === "noCamera" &&
         result.kind === "none" && (
           <div className="easyScanNoCamera">
-            <p>
-              {noPaperMode
-                ? "Upload a top-down photo of your hand, flat on a plain surface, with your whole hand in view."
-                : "Upload a top-down photo of your hand on a blank sheet of paper."}
-            </p>
+            <p>{noPaperMode ? easy.uploadLineNoPaper : easy.uploadLinePaper}</p>
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
             >
-              Upload a photo
+              {common.uploadPhoto}
             </label>
             {noPaperLabel && (
               <button
@@ -2398,7 +2403,7 @@ export default function EasyScanCamera({
                 className="easyNoPaperLink"
                 onClick={switchToPaper}
               >
-                Use paper instead
+                {easy.usePaperInstead}
               </button>
             )}
           </div>
@@ -2418,7 +2423,7 @@ export default function EasyScanCamera({
                 {captureFailureHint ? (
                   captureFailureHint
                 ) : userLengthMm !== null ? (
-                  "Hand flat, fingers together, phone straight above"
+                  cameraCuesCopy(locale).handFlat
                 ) : cue?.allPass ? (
                   <>
                     <CheckIcon width={16} height={16} /> {cueLabel}
@@ -2451,13 +2456,13 @@ export default function EasyScanCamera({
                   </button>
                 ) : (
                   <span className="easyLengthChip">
-                    {userLengthMm}&nbsp;mm entered
+                    {easy.lengthChip(String(userLengthMm))}
                   </span>
                 )}
                 <button
                   type="button"
                   className="cameraShutter"
-                  aria-label="Take photo"
+                  aria-label={common.takePhoto}
                   onClick={() => void captureNow()}
                 >
                   <div className="cameraShutterInner" />
@@ -2477,7 +2482,7 @@ export default function EasyScanCamera({
                   className="easyUploadIconButton"
                   htmlFor="easy-scan-upload"
                 >
-                  <span className="visuallyHidden">Upload a photo instead</span>
+                  <span className="visuallyHidden">{common.uploadInstead}</span>
                   <svg
                     viewBox="0 0 24 24"
                     width="22"
@@ -2512,7 +2517,7 @@ export default function EasyScanCamera({
                       className="easyNoPaperLink"
                       onClick={switchToPaper}
                     >
-                      Use paper instead
+                      {easy.usePaperInstead}
                     </button>
                   )}
                 </div>
@@ -2533,14 +2538,14 @@ export default function EasyScanCamera({
         // beside a camera), and stays right in the states with none.
         aria-label={
           camState.kind === "noCamera"
-            ? "Upload a photo"
-            : "Upload a photo instead"
+            ? common.uploadPhoto
+            : common.uploadInstead
         }
       />
 
       {result.kind === "processing" && (
         <p className="easyProcessingPill" aria-live="polite">
-          Measuring your hand…
+          {easy.measuring}
         </p>
       )}
 
@@ -2552,7 +2557,9 @@ export default function EasyScanCamera({
           // scroller, and Tab after the last button landed on the dialog.
           tabIndex={-1}
           aria-label={
-            result.kind === "measured" ? "Hand measured" : "Retake needed"
+            result.kind === "measured"
+              ? common.handMeasured
+              : common.retakeNeeded
           }
           onCancel={(e) => {
             e.preventDefault();
@@ -2562,32 +2569,32 @@ export default function EasyScanCamera({
           {result.kind === "measured" ? (
             <>
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
-                <CheckIcon width={20} height={20} /> Hand measured
+                <CheckIcon width={20} height={20} /> {common.handMeasured}
               </p>
               <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
                 {measuredSheetNumbers(
                   result.measurements,
                   result.submission.calibration,
+                  locale,
                 )}
               </p>
-              <p className="easySheetNote">{UNVERIFIED_MEASUREMENT_NOTE}</p>
+              <p className="easySheetNote">{common.unverifiedNote}</p>
               {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
                     <p>
-                      Based on the hand length you entered (
-                      {result.submission.calibration.referenceMm}&nbsp;mm)
+                      {easy.disclosureBased(
+                        String(result.submission.calibration.referenceMm),
+                      )}
                     </p>
-                    <p>Measured without paper.</p>
+                    <p>{easy.disclosureNoPaper}</p>
                   </div>
                 )}
-              <p className="easySheetGripLabel">
-                How do you hold a mouse? (optional)
-              </p>
+              <p className="easySheetGripLabel">{easy.gripQuestion}</p>
               <div
                 className="easyGripChips"
                 role="group"
-                aria-label="Grip style, optional"
+                aria-label={easy.gripGroupLabel}
               >
                 {GRIP_OPTIONS.map((opt) => {
                   const selected =
@@ -2596,13 +2603,13 @@ export default function EasyScanCamera({
                       : gripStyle === opt.value;
                   return (
                     <button
-                      key={opt.label}
+                      key={opt.key}
                       type="button"
                       className={`easyGripChip${selected ? " selected" : ""}`}
                       aria-pressed={selected}
                       onClick={() => changeGrip(opt.value)}
                     >
-                      {opt.label}
+                      {common[opt.key]}
                     </button>
                   );
                 })}
@@ -2611,7 +2618,7 @@ export default function EasyScanCamera({
                 <button
                   type="button"
                   className="easyRetakeButton"
-                  aria-label="Retake photo"
+                  aria-label={common.retakePhoto}
                   onClick={retake}
                 >
                   <svg
@@ -2646,10 +2653,10 @@ export default function EasyScanCamera({
                 ref={sheetTitleRef}
                 tabIndex={-1}
               >
-                Retake needed
+                {common.retakeNeeded}
               </p>
               <p className="easySheetErrorMessage" role="alert">
-                {result.errors[0]?.message}
+                {result.errors[0] ? issueText(result.errors[0], locale) : ""}
               </p>
               {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
                 <HandToggle state={handChip} onClick={toggleHand} inSheet />
@@ -2661,7 +2668,7 @@ export default function EasyScanCamera({
                   ref={tryAgainRef}
                   onClick={retake}
                 >
-                  Try again
+                  {common.tryAgain}
                 </button>
                 {noPaperLabel &&
                   failureOffersLengthEdit(
@@ -2673,7 +2680,7 @@ export default function EasyScanCamera({
                       className="easyEditLengthButton"
                       onClick={editLengthFromFailure}
                     >
-                      {EDIT_HAND_LENGTH_LABEL}
+                      {noPaperLabel}
                     </button>
                   )}
               </div>
@@ -2694,47 +2701,39 @@ export default function EasyScanCamera({
         ref={tipDialogRef}
         className="easySheet easyTipSheet"
         tabIndex={-1}
-        aria-label={
-          noPaperMode
-            ? "Your hand length is the ruler"
-            : "One blank sheet is all you need"
-        }
+        aria-label={noPaperMode ? easy.tipTitleNoPaper : easy.tipTitlePaper}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();
         }}
       >
         <p className="easySheetTitle">
-          {noPaperMode
-            ? "Your hand length is the ruler"
-            : "One blank sheet is all you need"}
+          {noPaperMode ? easy.tipTitleNoPaper : easy.tipTitlePaper}
         </p>
         <ul className="easyTipList">
           {noPaperMode ? (
             <>
               <li>
-                <span aria-hidden="true">🟫</span> A plain, darker surface
+                <span aria-hidden="true">🟫</span> {easy.tipSurface}
               </li>
               <li>
-                <HandIcon width={18} height={18} /> Hand flat, fingers together
+                <HandIcon width={18} height={18} /> {easy.tipHandFlat}
               </li>
               <li>
-                <span aria-hidden="true">📱</span> Phone flat above — your whole
-                hand in view
+                <span aria-hidden="true">📱</span> {easy.tipPhoneNoPaper}
               </li>
             </>
           ) : (
             <>
               <li>
                 <span aria-hidden="true">📄</span>{" "}
-                {PAPER_SIZE_LABELS[paperSize]} paper on a darker table
+                {easy.tipPaperOnTable(PAPER_SIZE_LABELS[paperSize])}
               </li>
               <li>
-                <HandIcon width={18} height={18} /> Hand flat, fingers together
+                <HandIcon width={18} height={18} /> {easy.tipHandFlat}
               </li>
               <li>
-                <span aria-hidden="true">📱</span> Phone flat above — the whole
-                sheet in view
+                <span aria-hidden="true">📱</span> {easy.tipPhonePaper}
               </li>
             </>
           )}
@@ -2745,7 +2744,7 @@ export default function EasyScanCamera({
           ref={gotItRef}
           onClick={dismissTip}
         >
-          Got it
+          {easy.tipGotIt}
         </button>
         {noPaperLabel && (
           <button
@@ -2765,11 +2764,11 @@ export default function EasyScanCamera({
               switchToPaper();
             }}
           >
-            Use paper instead
+            {easy.usePaperInstead}
           </button>
         )}
         <p className="easyTipFinePrint">
-          Shown once. {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
+          {easy.tipFinePrint(common.privacyAndCameraStays)}
         </p>
       </dialog>
       {debugOn &&
