@@ -137,7 +137,7 @@ for (const { locale, language } of CASES) {
       const sheet = page.getByRole("dialog", { name: words.retakeNeeded });
       await expect(sheet).toBeVisible({ timeout: 20_000 });
       await expect(sheet).toContainText(
-        issueText(checkHandDetected(0)!, language),
+        issueText(checkHandDetected(0, "paper")!, language),
       );
       await expect(page.locator("[data-capture-failure]")).toHaveCount(0);
 
