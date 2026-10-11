@@ -15,7 +15,7 @@ import { findMedicalClaimTerm } from "../../src/server/analysis/medicalClaims";
 import { makeEntry, makeFit, makeMeasurements } from "./analysis-fixtures";
 
 const inputWith = (fit = makeFit()) =>
-  buildAnalysisInput(fit, makeMeasurements());
+  buildAnalysisInput(fit, makeMeasurements(), "en");
 
 function entryWithoutPositiveReasons() {
   const entry = makeEntry();

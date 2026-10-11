@@ -6,6 +6,7 @@
  * clock.
  */
 import type { AnalysisResponse } from "../../lib/contracts/analysis";
+import type { Locale } from "../../lib/contracts/locale";
 import type { FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { analyse } from "./analyse";
@@ -52,6 +53,8 @@ export interface AnalysisRequest {
   measurements: HandMeasurements;
   /** Identity the rate limit is scoped to — e.g. scanId or caller IP. */
   rateLimitKey: string;
+  /** The language the prose is written in. */
+  locale: Locale;
 }
 
 /** The 200 body is exactly the contract's `AnalysisResponse` shape. */
@@ -104,7 +107,8 @@ export async function handleAnalysisRequest(
   // `globalLimiter` are only ever consulted on the one path that would
   // actually call the model — never on a cache hit and never when no model
   // is configured. Both those paths return below, before either is read.
-  const cacheKey = computeCacheKey(request.fit, request.measurements);
+  const locale = request.locale;
+  const cacheKey = computeCacheKey(request.fit, request.measurements, locale);
   let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
   try {
     cached = await deps.cache.get(request.scanId, cacheKey);
@@ -118,7 +122,7 @@ export async function handleAnalysisRequest(
     };
   }
 
-  const input = buildAnalysisInput(request.fit, request.measurements);
+  const input = buildAnalysisInput(request.fit, request.measurements, locale);
 
   if (deps.client === null) {
     const { output, source } = await analyse(input, deps.client);

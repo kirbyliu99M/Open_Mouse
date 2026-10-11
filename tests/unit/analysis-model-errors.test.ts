@@ -34,7 +34,7 @@ describe("a model call that throws", () => {
 
   it("analyse() returns the deterministic fallback instead of throwing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const input = buildAnalysisInput(makeFit(), makeMeasurements());
+    const input = buildAnalysisInput(makeFit(), makeMeasurements(), "en");
     const client = throwingModel(LIVE_API_ERROR);
 
     const result = await analyse(input, client);
@@ -47,7 +47,10 @@ describe("a model call that throws", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const client = throwingModel(LIVE_API_ERROR);
 
-    await analyse(buildAnalysisInput(makeFit(), makeMeasurements()), client);
+    await analyse(
+      buildAnalysisInput(makeFit(), makeMeasurements(), "en"),
+      client,
+    );
 
     expect(client.calls).toHaveLength(1);
   });
@@ -68,6 +71,7 @@ describe("a model call that throws", () => {
           measurements: makeMeasurements(),
           scanId: "scan-a",
           rateLimitKey: "ip-1",
+          locale: "en" as const,
         },
         {
           client: throwingModel(error),
@@ -92,7 +96,7 @@ describe("a model call that throws", () => {
     );
 
     await analyse(
-      buildAnalysisInput(makeFit(), makeMeasurements()),
+      buildAnalysisInput(makeFit(), makeMeasurements(), "en"),
       throwingModel(leaky),
     );
 
@@ -119,6 +123,7 @@ describe("a model call that throws", () => {
       measurements: makeMeasurements(),
       scanId: "scan-a",
       rateLimitKey: "ip-1",
+      locale: "en" as const,
     };
     const deps = {
       cache,
