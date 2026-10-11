@@ -484,6 +484,37 @@ describe("GET /api/scans/{scanId}/similar", () => {
       });
     });
 
+    it("leaves out the caller's own contribution that has NO ratings left (a later answer or an edit took them): it is still the caller, not a neighbour", async () => {
+      signedInAs = "user-1";
+      const scan = addScan({ userId: "user-1" });
+      pool = [
+        ...crowd(2, "a", 5),
+        // This account's earlier contribution: every rating of it moved on.
+        person([], { userId: "user-1" }),
+      ];
+      const body = await answer(await get(scan.scanId));
+      // Counted as a neighbour it would make three.
+      expect(body).toMatchObject({ available: true, neighbours: 2 });
+    });
+
+    it("counts every other signed-in account's contribution at the same bins: only the caller's own account is left out", async () => {
+      signedInAs = "user-1";
+      const scan = addScan({ userId: "user-1" });
+      pool = [
+        person([["a", 5]], { userId: "user-2" }),
+        person([["a", 3]], { userId: "user-3" }),
+        person([["a", 1]], { userId: "user-1" }),
+        person([], { userId: "user-4" }),
+      ];
+      const body = await answer(await get(scan.scanId));
+      expect(body).toMatchObject({
+        available: true,
+        // user-2, user-3 and user-4 (who has no ratings left but is a neighbour).
+        neighbours: 3,
+        mice: [{ slug: "a", raters: 2, meanSatisfaction: 4 }],
+      });
+    });
+
     it("counts another account's contribution, and an anonymous caller leaves out nobody", async () => {
       pool = [
         person([["a", 5]], { userId: "user-2" }),
@@ -601,6 +632,35 @@ describe("GET /api/scans/{scanId}/similar", () => {
       ];
       expect(responses.map((r) => r.status)).toEqual([200, 404, 404, 429, 500]);
       for (const res of responses) expectNoStore(res);
+    });
+
+    it("an answer the contract does not accept is the plain fixed 500: no data in the body, no data in any log line", async () => {
+      // The engine drops a rating outside 1 to 5 itself, so the schema is
+      // reached with a catalogue row whose brand is not text (a bad row from
+      // the database layer): the answer then fails `similarResponseSchema`.
+      catalogue = [
+        mouse("zq-slug", {
+          brand: 424242 as unknown as string,
+          model: "Quillmodel",
+        }),
+      ];
+      pool = [...crowd(2, "zq-slug", 4)];
+      const scan = addScan();
+      const res = await getOwn(scan);
+      expect(res.status).toBe(500);
+      expectNoStore(res);
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({
+        error: "Something went wrong. Try again in a moment.",
+      });
+      expect(text).not.toMatch(/Quillmodel|zq-slug|424242|available/);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        expect(line).not.toMatch(/Quillmodel|zq-slug|424242/);
+        expect(line).not.toContain(scan.scanId);
+        expect(line).not.toContain("similar.answered");
+      }
+      expect(lines.some((l) => l.includes("similar.failed"))).toBe(true);
     });
 
     it("a failure is the plain 500, and no log line carries a name, a bin, a rating or the scan id", async () => {
