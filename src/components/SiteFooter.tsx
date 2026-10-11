@@ -2,12 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore, type ReactNode } from "react";
-import {
-  pickUiLanguage,
-  uiLangAttribute,
-  type UiLanguage,
-} from "@/client/uiLanguage";
+import type { ReactNode } from "react";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { FOOTER_HEADLINE, siteFooterCopy } from "@/lib/copy/site-footer";
 import { GITHUB_URL, SITE_NAME } from "@/lib/site";
 import "./site-footer.css";
@@ -24,25 +21,6 @@ export function showsSiteFooter(pathname: string | null): boolean {
   if (pathname === null) return true;
   return !NO_FOOTER_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
-
-function subscribeToLanguage(onChange: () => void): () => void {
-  window.addEventListener("languagechange", onChange);
-  return () => window.removeEventListener("languagechange", onChange);
-}
-
-/**
- * The root layout serves static routes, so the language is not known on the
- * server (no `headers()`, no `cookies()`): the server and the first client
- * render are English, and a Chinese-preferring browser switches to zh-TW right
- * after hydration.
- */
-function useUiLanguage(): UiLanguage {
-  return useSyncExternalStore<UiLanguage>(
-    subscribeToLanguage,
-    () => pickUiLanguage(navigator.languages, navigator.language),
-    () => "en",
   );
 }
 
@@ -118,10 +96,9 @@ function FooterIcon({ name }: { name: IconName }) {
 
 export function SiteFooter() {
   const pathname = usePathname();
-  const lang = useUiLanguage();
+  const locale = useLocale();
   if (!showsSiteFooter(pathname)) return null;
-  const copy = siteFooterCopy(lang);
-  const langAttr = uiLangAttribute(lang);
+  const copy = siteFooterCopy(locale);
 
   return (
     <footer className="siteFooter" data-testid="site-footer">
@@ -140,6 +117,7 @@ export function SiteFooter() {
         <div className="siteFooter-brand">
           <p className="siteFooter-name">{SITE_NAME}</p>
           <p className="siteFooter-headline">{FOOTER_HEADLINE}</p>
+          <LanguageSwitcher className="siteFooter-language" />
         </div>
         <div className="siteFooter-mark" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element -- our own fixed SVG mark, no next/image config needed */}
@@ -150,11 +128,7 @@ export function SiteFooter() {
             height={220}
           />
         </div>
-        <nav
-          className="siteFooter-groups"
-          aria-label={copy.linksLabel}
-          lang={langAttr}
-        >
+        <nav className="siteFooter-groups" aria-label={copy.linksLabel}>
           <div className="siteFooter-group siteFooter-group--product">
             <h2 id="siteFooter-h-product" className="siteFooter-groupTitle">
               {copy.groupProduct}

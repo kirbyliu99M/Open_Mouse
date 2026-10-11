@@ -37,9 +37,7 @@ export function OtherPicks({
         <h2 id="results-others-heading">
           {filtering ? copy.filter.othersHeading : copy.othersHeading}
         </h2>
-        <p className="results-others-caption">
-          {copy.othersCaption}
-        </p>
+        <p className="results-others-caption">{copy.othersCaption}</p>
       </div>
       <ul className="results-others-grid">
         {cards.map((card) => {

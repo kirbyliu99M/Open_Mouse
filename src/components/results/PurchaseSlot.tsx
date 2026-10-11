@@ -28,25 +28,16 @@ export function PurchaseSlot({
       className="results-purchase"
       aria-labelledby="results-purchase-heading"
     >
-      <h2
-        id="results-purchase-heading"
-        className="results-purchase-heading"
-       
-      >
+      <h2 id="results-purchase-heading" className="results-purchase-heading">
         {copy.purchaseHeading}
       </h2>
-      <p className="results-purchase-note">
-        {copy.purchaseNote}
-      </p>
+      <p className="results-purchase-note">{copy.purchaseNote}</p>
       <ul className="results-purchase-links">
         {links.map((link) => (
           <li key={`${link.label}|${link.url}`}>
             <a href={link.url} rel="sponsored noopener" target="_blank">
               {link.label}
-              <span
-                className="results-visuallyHidden"
-               
-              >
+              <span className="results-visuallyHidden">
                 {" "}
                 {copy.opensInNewTab}
               </span>

@@ -34,7 +34,7 @@ export function FilterStatus({
     <p
       role="status"
       className="results-visuallyHidden"
-     
+
       data-testid="filter-status"
     >
       {text}

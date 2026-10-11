@@ -2,6 +2,7 @@ import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import { SITE_NAME } from "@/lib/site";
@@ -26,7 +27,7 @@ export default async function HomePage() {
   const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
-      <nav className="home-nav" aria-label="Primary">
+      <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
         <span className="home-wordmark">{SITE_NAME}</span>
         <div className="home-nav-actions">
           <AccountNavLink />

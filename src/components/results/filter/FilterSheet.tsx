@@ -161,7 +161,7 @@ export function FilterSheet({
       className="results-sheet"
       data-leaving={leaving ? "true" : undefined}
       aria-labelledby={titleId}
-     
+
       onCancel={(e) => {
         // Esc: slide down and discard, rather than the browser's instant close.
         e.preventDefault();

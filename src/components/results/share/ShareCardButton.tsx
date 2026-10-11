@@ -106,7 +106,7 @@ export function ShareCardButton({
         className={`shareCard-button shareCard-button-${secondary ? "secondary" : variant}`}
         aria-disabled={busy}
         aria-busy={busy}
-       
+
         data-testid="share-card-button"
         onClick={onClick}
       >
@@ -115,18 +115,14 @@ export function ShareCardButton({
       {secondary ? (
         <span
           className="shareCard-note"
-         
+
           data-testid="share-filter-note"
         >
           {filterCopy.shareNote}
         </span>
       ) : null}
       {status === "error" ? (
-        <span
-          className="shareCard-error"
-          role="alert"
-         
-        >
+        <span className="shareCard-error" role="alert">
           {copy.error}
         </span>
       ) : null}

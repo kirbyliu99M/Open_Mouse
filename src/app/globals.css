@@ -367,3 +367,24 @@ button:disabled {
     border: 1px solid currentColor;
   }
 }
+
+/* zh-TW typography (docs/design-guidelines.md, Typography): the system face
+   (PingFang TC on Apple devices, Microsoft JhengHei on Windows), no negative
+   tracking (that is for Latin display text), headlines about 1.2 and body text
+   about 1.6, and balanced wrapping so no single character is left alone. */
+:lang(zh-TW) {
+  font-family:
+    system-ui, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+}
+:lang(zh-TW) :is(h1, h2, h3, h4, .siteFooter-headline) {
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+:lang(zh-TW) :is(p, li, dd, figcaption, button, a) {
+  letter-spacing: 0;
+}
+:lang(zh-TW) :is(p, li, dd, figcaption) {
+  line-height: 1.6;
+  text-wrap: balance;
+}

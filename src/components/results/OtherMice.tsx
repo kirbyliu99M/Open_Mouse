@@ -90,9 +90,7 @@ export function OtherMice({
         )}
         {excluded.length > 0 && (
           <section className="results-excluded">
-            <h3 className="results-excluded-heading">
-              {copy.excludedHeading}
-            </h3>
+            <h3 className="results-excluded-heading">{copy.excludedHeading}</h3>
             <ul className="results-excluded-list">
               {excluded.map((item) => (
                 <li key={item.slug}>

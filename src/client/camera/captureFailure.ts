@@ -18,7 +18,6 @@
  */
 import type { Locale } from "../../lib/contracts/locale";
 
-
 /** Consecutive capture failures before the hint shows (not the first, not the second). */
 export const CAPTURE_FAILURE_HINT_THRESHOLD = 3;
 

@@ -83,9 +83,7 @@ export function ResultsDetails({
           />
         )}
 
-        <h3 className="results-details-scoresHeading">
-          {copy.scoresHeading}
-        </h3>
+        <h3 className="results-details-scoresHeading">{copy.scoresHeading}</h3>
         <div className="results-subscoreGrid">
           {SUBSCORES.map((key) => (
             <SubscoreBar key={key} subscore={key} data={entry.subscores[key]} />
@@ -103,9 +101,7 @@ export function ResultsDetails({
         )}
 
         {shapeUnrated ? (
-          <p className="results-sizeNotice">
-            {copy.sizeNotice}
-          </p>
+          <p className="results-sizeNotice">{copy.sizeNotice}</p>
         ) : (
           <ConfidenceNote confidence={entry.confidence} />
         )}

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { navCopy } from "@/lib/copy/nav";
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { parseSessionBody, type NavUser } from "./account-nav";
 import { Avatar } from "./Avatar";
@@ -10,6 +12,7 @@ import { Avatar } from "./Avatar";
  * fetch keeps) the plain "Sign in" link, so the home page stays static; once
  * the session body says someone is signed in, it becomes their avatar. */
 export function AccountNavLink() {
+  const copy = navCopy(useLocale());
   const [user, setUser] = useState<NavUser | null>(null);
 
   useEffect(() => {
@@ -27,7 +30,7 @@ export function AccountNavLink() {
   if (!user) {
     return (
       <HomeCtaLink cta="sign_in" className="home-signin-link" href="/account">
-        Sign in
+        {copy.signIn}
       </HomeCtaLink>
     );
   }
@@ -35,8 +38,8 @@ export function AccountNavLink() {
     <Link
       className="home-account-link"
       href="/account"
-      aria-label="Account"
-      title={user.name ?? "Account"}
+      aria-label={copy.account}
+      title={user.name ?? copy.account}
     >
       <Avatar image={user.image} />
     </Link>

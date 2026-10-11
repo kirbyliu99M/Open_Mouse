@@ -1,8 +1,7 @@
 /**
  * Words for the results page (`/results/[scanId]` and its detail pages), zh-TW
- * and English, same keys. There is no i18n framework yet (2026-10-09): the
- * page picks a table with `pickCopy` (`src/lib/i18n/copy.ts`) with the visitor's locale, the
- * same way `fit-bands.ts` is read.
+ * and English, same keys. The page picks a table by the site locale
+ * (`useLocale()`, 2026-10-11), the same way `fit-bands.ts` is read.
  *
  * Every string here is a CANDIDATE (未拍板) until Kirby has read it. The hand
  * type copy describes the MOUSE that suits the person, never the hand, and

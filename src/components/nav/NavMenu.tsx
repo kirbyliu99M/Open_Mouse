@@ -13,9 +13,13 @@
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { navCopy } from "@/lib/copy/nav";
 import "./nav-menu.css";
 
 export function NavMenu() {
+  const copy = navCopy(useLocale());
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -41,7 +45,7 @@ export function NavMenu() {
         ref={triggerRef}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Open menu"
+        aria-label={copy.menuOpen}
         onClick={() => setOpen(true)}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -57,46 +61,47 @@ export function NavMenu() {
         <dialog
           ref={dialogRef}
           className="navMenu"
-          aria-label="Navigation"
+          aria-label={copy.menuDialogLabel}
           onClose={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         >
           <div className="navMenuHeader">
-            <span className="navMenuTitle">Menu</span>
+            <span className="navMenuTitle">{copy.menuTitle}</span>
             <button
               type="button"
               className="navMenuClose"
               ref={closeRef}
-              aria-label="Close menu"
+              aria-label={copy.menuClose}
               onClick={() => setOpen(false)}
             >
               ×
             </button>
           </div>
-          <nav aria-label="Main">
+          <nav aria-label={copy.menuMainLabel}>
             <ul className="navMenuList">
               <li>
                 <Link href="/" onClick={() => setOpen(false)}>
-                  Home
+                  {copy.home}
                 </Link>
               </li>
               <li>
                 <Link href="/scan/easy" onClick={() => setOpen(false)}>
-                  Scan my hand
+                  {copy.scanMyHand}
                 </Link>
               </li>
               <li>
                 <Link href="/how-it-works" onClick={() => setOpen(false)}>
-                  How it works
+                  {copy.howItWorks}
                 </Link>
               </li>
               <li>
                 <Link href="/account" onClick={() => setOpen(false)}>
-                  Account
+                  {copy.account}
                 </Link>
               </li>
             </ul>
           </nav>
+          <LanguageSwitcher className="navMenu-language" />
         </dialog>
       )}
     </>

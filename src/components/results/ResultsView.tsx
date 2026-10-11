@@ -128,9 +128,7 @@ export function ResultsView({
   const content = (
     <>
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
-        <p className="results-fitNotice">
-          {copy.fitNotice}
-        </p>
+        <p className="results-fitNotice">{copy.fitNotice}</p>
       )}
 
       {(entry || empty) && (
@@ -165,10 +163,7 @@ export function ResultsView({
                 <div className="results-score-name">
                   {showPlace ? (
                     <>
-                      <p
-                        className="results-score-rank results-score-places"
-                       
-                      >
+                      <p className="results-score-rank results-score-places">
                         <span className="results-badge">
                           {copy.filter.filteredRank(card.displayRank)}
                         </span>
@@ -196,16 +191,12 @@ export function ResultsView({
                   )}
                   <VariantsLine variants={card.variants} language={language} />
                   {isMain && filtering && view.count === 1 && (
-                    <p className="results-oneLeft">
-                      {copy.filter.oneLeft}
-                    </p>
+                    <p className="results-oneLeft">{copy.filter.oneLeft}</p>
                   )}
                 </div>
                 <p className="results-score-total results-tabularNum">
                   <span className="results-score-value">{entry.total}</span>
-                  <span className="results-score-label">
-                    {copy.scoreLabel}
-                  </span>
+                  <span className="results-score-label">{copy.scoreLabel}</span>
                 </p>
               </div>
 
@@ -229,9 +220,7 @@ export function ResultsView({
               {/* The hand comes from the fit response (#62), not from browser
                   storage, so the note follows a results link to any device. */}
               {response.hand === "left" && (
-                <p className="results-handNotice">
-                  {copy.leftHandNotice}
-                </p>
+                <p className="results-handNotice">{copy.leftHandNotice}</p>
               )}
 
               {/* Wide screens: the primary share button sits beside the purchase

@@ -122,7 +122,6 @@ export function ResultsFilterLayout({
             key="chrome"
             className="results-sidebar"
             aria-labelledby="results-sidebar-title"
-           
           >
             <div className="results-sidebar-head">
               <h2

@@ -299,3 +299,9 @@
     display: none;
   }
 }
+
+/* The language switcher under the headline. */
+.siteFooter-language {
+  margin-top: 1rem;
+  color: var(--footer-link);
+}

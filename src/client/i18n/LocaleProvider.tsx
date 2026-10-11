@@ -40,7 +40,8 @@ export function LocaleProvider({
   );
   // A fresh server render in another locale (after `router.refresh()`) wins
   // over the earlier local choice.
-  const locale = chosen && chosen.from === initialLocale ? chosen.to : initialLocale;
+  const locale =
+    chosen && chosen.from === initialLocale ? chosen.to : initialLocale;
 
   const setLocale = useCallback(
     (next: Locale) => {

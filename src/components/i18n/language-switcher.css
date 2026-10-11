@@ -1,0 +1,51 @@
+/* Two-option language control (dark tokens from src/app/tokens.css). Each
+   option is at least 44 x 44 px. The current option has its own solid fill, so
+   it reads without colour alone and in high contrast. */
+.languageSwitcher {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.125rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+}
+.languageSwitcher-option {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+.languageSwitcher-option:hover {
+  background: var(--hairline);
+}
+.languageSwitcher-option[aria-pressed="true"] {
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font-weight: 600;
+  cursor: default;
+}
+.languageSwitcher-option:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .languageSwitcher-option {
+    transition: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .languageSwitcher {
+    border-color: currentcolor;
+  }
+  .languageSwitcher-option[aria-pressed="true"] {
+    outline: 2px solid currentcolor;
+    outline-offset: -2px;
+  }
+}

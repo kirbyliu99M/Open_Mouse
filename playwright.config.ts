@@ -48,6 +48,9 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: BASE_URL,
+    // The site follows Accept-Language: pin it so English assertions do not
+    // depend on the machine's language.
+    locale: "en-US",
     trace: "retain-on-failure",
   },
   projects: [
