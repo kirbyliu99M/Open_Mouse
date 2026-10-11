@@ -298,8 +298,11 @@ export type PalmThicknessLevel = (typeof PALM_THICKNESS_LEVELS)[number];
  * `scans.palm_thickness_stated` (migration 0008, #155; a skip is stored as
  * NULL), absent when they skipped the question. A client MUST omit the field
  * on a skip. It never sends `"medium"` as a default, because a default would
- * be stored as if the user had chosen it. No scorer reads it yet; the
- * vertical-mouse candidate (#142) is the first planned reader and stays off.
+ * be stored as if the user had chosen it. Fit v1 reads it
+ * (`fit-v1-candidate.3`, candidate, 2026-10-11): the answer shifts the height
+ * target by -1.5 / 0 / +1.5 mm for thin / medium / thick, and no answer means
+ * no shift (docs/fit-algorithm.md §3). The 1.5 mm is an uncalibrated
+ * placeholder. v0 never reads it; the vertical-mouse candidate (#142) stays off.
  */
 export const scanSubmissionSchema = z
   .strictObject({

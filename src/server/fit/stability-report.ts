@@ -8,6 +8,9 @@ import {
   palmLengthSweep,
   PERTURBATIONS,
   perturbationRuns,
+  THICKNESS_ANSWERS,
+  thicknessRuns,
+  withThickness,
   type EngineFn,
   type StabilityMeasure,
 } from "./stability";
@@ -123,6 +126,71 @@ export function buildStabilityReport(
   lines.push("");
   lines.push(
     `Largest jump over all hands: v0 = ${worst.v0} points, v1 = ${worst.v1} points.`,
+  );
+
+  lines.push("");
+  lines.push("## Palm-thickness sensitivity (v1 only)");
+  lines.push("");
+  lines.push(
+    "Candidate, uncalibrated: the person's own thin / medium / thick answer shifts the height target by -1.5 / 0 / +1.5 mm (`THICKNESS_HEIGHT_SHIFT_MM`). v0 ignores the answer. Each cell compares the hand scored with the answer against the same hand with no answer, on the same catalogue: top-1 kept (the first mouse is unchanged), top-5 Jaccard against the no-answer top 5, max Δ = largest change in a no-answer top-5 mouse's displayed total (points). `none` is the baseline itself; `medium` must equal it.",
+  );
+  lines.push("");
+  lines.push(
+    "| Hand | Answer | Top-1 kept | Top-5 Jaccard | Max Δ total (no-answer top 5) |",
+  );
+  lines.push("|---|---|---|---|---|");
+  const answerRuns = new Map<string, ReturnType<typeof thicknessRuns>[]>();
+  for (const [name, g] of Object.entries(hands)) {
+    const runs = thicknessRuns(
+      engines[1].run,
+      catalogue,
+      g.hand,
+      g.measurements,
+    );
+    for (const a of THICKNESS_ANSWERS) {
+      const c = cell(foldMeasures([runs[a]]));
+      lines.push(`| ${name} | ${a} | ${c.top1} | ${c.jac} | ${c.max} |`);
+      answerRuns.set(a, [...(answerRuns.get(a) ?? []), runs]);
+    }
+  }
+  // No hands, no pooled rows (foldMeasures of nothing would print NaN).
+  for (const a of THICKNESS_ANSWERS) {
+    const pooledRuns = (answerRuns.get(a) ?? []).map((r) => r[a]);
+    if (pooledRuns.length === 0) continue;
+    const c = cell(foldMeasures(pooledRuns));
+    lines.push(
+      `| **all hands** | **${a}** | **${c.top1}** | **${c.jac}** | **${c.max}** |`,
+    );
+  }
+
+  lines.push("");
+  lines.push("### Palm-length sweep with the answer fixed (v1)");
+  lines.push("");
+  lines.push(
+    "Same sweep as above (0.5 mm steps, r in [0.50, 0.62]) with the thickness answer fixed. v1 must have no jump above 2.",
+  );
+  lines.push("");
+  lines.push("| Hand | none | thin | medium | thick |");
+  lines.push("|---|---|---|---|---|");
+  const worstByAnswer: Record<string, number> = {};
+  for (const [name, g] of Object.entries(hands)) {
+    const cells = THICKNESS_ANSWERS.map((a) => {
+      const sweep = palmLengthSweep(
+        engines[1].run,
+        catalogue,
+        g.hand,
+        g.measurements,
+        {},
+        withThickness({ includeVertical: false }, a),
+      );
+      worstByAnswer[a] = Math.max(worstByAnswer[a] ?? 0, sweep.maxJump);
+      return String(sweep.maxJump);
+    });
+    lines.push(`| ${name} | ${cells.join(" | ")} |`);
+  }
+  lines.push("");
+  lines.push(
+    `Largest jump over all hands: ${THICKNESS_ANSWERS.map((a) => `${a} = ${worstByAnswer[a] ?? 0}`).join(", ")} points.`,
   );
 
   return lines.join("\n") + "\n";
