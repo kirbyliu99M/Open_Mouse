@@ -65,7 +65,12 @@ export function FilteredAnalysisLine({
       </p>
       <div id={regionId} hidden={!open}>
         {open && (
-          <AnalysisSlot state={state} onRetry={onRetry} headingLevel={3} />
+          <AnalysisSlot
+            state={state}
+            onRetry={onRetry}
+            headingLevel={3}
+            language={language}
+          />
         )}
       </div>
     </div>

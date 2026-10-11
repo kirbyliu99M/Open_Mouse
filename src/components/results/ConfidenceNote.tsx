@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/contracts/locale";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import { isLowConfidence } from "./format";
 
 /**
@@ -5,13 +7,18 @@ import { isLowConfidence } from "./format";
  * i.e. a meaningful share of its sub-scores are still unknown. `role="status"`
  * so a screen reader announces it without interrupting.
  */
-export function ConfidenceNote({ confidence }: { confidence: number }) {
+export function ConfidenceNote({
+  confidence,
+  language,
+}: {
+  confidence: number;
+  language: Locale;
+}) {
   if (!isLowConfidence(confidence)) return null;
 
   return (
     <p className="results-confidenceNote" role="status">
-      We haven&apos;t assessed this mouse&apos;s shape yet. This ranking may
-      change as we learn more about its shape.
+      {resultsScreensCopy(language).confidenceNote}
     </p>
   );
 }

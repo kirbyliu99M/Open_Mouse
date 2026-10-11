@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
+import { getLocale } from "@/server/i18n/getLocale";
 import { ResultsRankClient } from "../../ResultsRankClient";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Its own title, so a detail page is not "Your results" like the main page
- * (candidate wording, 未拍板; Chinese since FILTER-1, as the page's own words are). No per-mouse data is read on the server. The
+ * (candidate wording, 未拍板), in the visitor's locale. No per-mouse data is read on the server. The
  * rest of the metadata, including `robots: noindex`, comes from the layout.
  */
-export const metadata: Metadata = {
-  title: "其他推薦",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: resultsScreensCopy(await getLocale()).titleDetail };
+}
 
 /**
  * `/results/[scanId]/m/[slug]`: the detail page of the mouse in second to
