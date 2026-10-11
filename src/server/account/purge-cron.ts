@@ -133,16 +133,17 @@ async function deleteRun(
   startMs: number,
 ): Promise<void> {
   let processed = 0;
-  let budgetSpent = false;
+  // True only when a SELECT found nothing more to take.
+  let exhausted = false;
   while (processed < limits.maxAccounts) {
     // No new chunk after the time budget: a chunk already running finishes.
-    if (nowMs() - startMs >= limits.budgetMs) {
-      budgetSpent = true;
-      break;
-    }
+    if (nowMs() - startMs >= limits.budgetMs) break;
     const take = Math.min(limits.chunkSize, limits.maxAccounts - processed);
     const ids = await repo.selectInactiveUserIds(limits.windowDays, take);
-    if (ids.length === 0) break;
+    if (ids.length === 0) {
+      exhausted = true;
+      break;
+    }
     stats.candidates += ids.length;
     const scansBefore = await repo.countScansOfUsers(ids);
     // One statement; the eligibility is repeated inside it (the guard).
@@ -159,7 +160,10 @@ async function deleteRun(
     // the select. Stop instead of selecting the same ids again.
     if (deleted.length === 0) break;
   }
-  if (processed >= limits.maxAccounts || budgetSpent) {
+  // `remaining: false` only when a SELECT found no more candidates. Every other
+  // way out of the loop (cap, time budget, a chunk the guard blocked) asks the
+  // database once more, so a blocked chunk cannot hide other eligible accounts.
+  if (!exhausted) {
     const more = await repo.selectInactiveUserIds(limits.windowDays, 1);
     stats.remaining = more.length > 0;
   }

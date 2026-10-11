@@ -106,7 +106,10 @@ function assertCount(value: number, name: string, max: number): void {
  */
 function eligibleSql(windowDays: number): SQL {
   assertWindowDays(windowDays);
-  const window = sql`make_interval(days => ${windowDays}::int)`;
+  // Hours, not days: `timestamptz - interval 'N days'` is calendar arithmetic in
+  // the session's TimeZone, so across a DST change 90 days would be 2159 or 2161
+  // hours. The spec wants a day to be exactly 24 hours, whatever the session zone.
+  const window = sql`make_interval(hours => ${windowDays * 24}::int)`;
   return sql`(
     ${users.lastActiveAt} < now() - ${window}
     AND NOT EXISTS (

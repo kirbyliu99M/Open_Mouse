@@ -45,6 +45,35 @@ function buildAdapter() {
 const configured = isAuthConfigured();
 const adapter = buildAdapter();
 
+/**
+ * The Auth.js events, exported so a test can call them without an OAuth round
+ * trip (tests/unit/auth-last-active.test.ts): that is what pins the wiring of
+ * the `last_active_at` stamp.
+ */
+export const authEvents = {
+  /**
+   * Claiming (issue #17): when an anonymous user signs in, attach their
+   * current `scan_sessions` row to the new account and clear its expiry —
+   * only for the session named by *their own* httpOnly cookie. `cookies()`
+   * here reads the same request that just completed the OAuth callback,
+   * so this can never be pointed at a session the caller doesn't hold.
+   * The raw cookie value goes straight to `claimAnonymousSession` (via
+   * `claimOnSignIn`), which applies the same UUID check as
+   * `readSessionCookie`: a malformed value never reaches the database
+   * (there it would be one query that can only fail, plus an EventError in
+   * the log, with the claim skipped).
+   *
+   * It also stamps `users.last_active_at` first (`handleSignInEvent`); neither
+   * `cookies()` nor the repo is touched until after the stamp.
+   */
+  async signIn({ user }: { user: { id?: string | null } }) {
+    await handleSignInEvent(user, cookies, {
+      db: getDb,
+      makeRepo: () => createDrizzleScanRepo(),
+    });
+  },
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter,
   session: { strategy: adapter ? "database" : "jwt" },
@@ -90,26 +119,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return toPublicSession(session, user);
     },
   },
-  events: {
-    /**
-     * Claiming (issue #17): when an anonymous user signs in, attach their
-     * current `scan_sessions` row to the new account and clear its expiry —
-     * only for the session named by *their own* httpOnly cookie. `cookies()`
-     * here reads the same request that just completed the OAuth callback,
-     * so this can never be pointed at a session the caller doesn't hold.
-     * The raw cookie value goes straight to `claimAnonymousSession` (via
-     * `claimOnSignIn`), which applies the same UUID check as
-     * `readSessionCookie`: a malformed value never reaches the database
-     * (there it would be one query that can only fail, plus an EventError in
-     * the log, with the claim skipped).
-     *
-     * It also stamps `users.last_active_at` first (`handleSignInEvent`).
-     */
-    async signIn({ user }) {
-      await handleSignInEvent(user, await cookies(), {
-        db: getDb,
-        repo: createDrizzleScanRepo(),
-      });
-    },
-  },
+  events: authEvents,
 });
