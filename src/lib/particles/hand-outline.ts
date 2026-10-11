@@ -11,8 +11,9 @@ import { FINGER_CHAINS, LANDMARKS_MM, STAGE_SCALE } from "./template-hand";
  * 1 px thick.
  *
  * Pure geometry: no canvas here. stage-render.ts draws it once per size, on an
- * offscreen layer, from `OUTLINE_FINGERS` and `OUTLINE_PALM`, and the tests
- * hold the same shapes to "every particle of the hand is inside".
+ * offscreen layer, from `OUTLINE_FINGERS` and `OUTLINE_PALM`, and the
+ * particle fill (hand-fill.ts) samples the same shapes, a little inset, so the
+ * particles fill the outline and never cross it.
  *
  * Every size comes from the demo, measured in its pixels (an A4 sheet 303 px
  * wide, the 390 px storyboard) and turned into millimetres on the template
@@ -74,11 +75,11 @@ export interface OutlinePalm {
  * joins round the base's corners.
  *
  * One deviation from the demo: its vertex at the little finger's knuckle is
- * (274, 248) there, and here (274, 239), 6 mm higher. The demo drew its own
- * particles; the page's particle hand (template-hand.ts) is a little fuller
- * between the ring finger and the little finger, and with the demo's vertex a
- * sliver of it (about 0.2 % of the particles, up to 3 mm) stuck out of the
- * outline. At 239 none does (tests/unit/hand-outline.test.ts).
+ * (274, 248) there, and here (274, 239), 6 mm higher. It was moved when the
+ * particle hand had a shape of its own that stuck out of the demo's outline
+ * between the ring finger and the little finger; the particles now fill this
+ * very shape (hand-fill.ts), and the vertex stays where the drawn outline has
+ * been since.
  */
 export const OUTLINE_PALM: OutlinePalm = {
   polygon: (
@@ -158,18 +159,107 @@ export function distanceToPolyline(
   return best;
 }
 
+/** One straight piece of a stroke, worked out once: its start, direction, squared length and the stroke's half-width. */
+interface StrokeSegment {
+  readonly ax: number;
+  readonly ay: number;
+  readonly dx: number;
+  readonly dy: number;
+  readonly lengthSquared: number;
+  readonly half: number;
+}
+
+function strokeSegments(
+  points: readonly Vec[],
+  width: number,
+  closed: boolean,
+): StrokeSegment[] {
+  const out: StrokeSegment[] = [];
+  const last = closed ? points.length : points.length - 1;
+  for (let i = 0; i < last; i += 1) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    out.push({
+      ax: a[0],
+      ay: a[1],
+      dx,
+      dy,
+      lengthSquared: dx * dx + dy * dy,
+      half: width / 2,
+    });
+  }
+  return out;
+}
+
+/** Every stroke of the outline's union: the five fingers' chains and the palm polygon's closed edge. */
+const STROKES: readonly StrokeSegment[] = [
+  ...OUTLINE_FINGERS.flatMap(({ chain, width }) =>
+    strokeSegments(chain, width, false),
+  ),
+  ...strokeSegments(OUTLINE_PALM.polygon, OUTLINE_PALM.width, true),
+];
+
+/** Squared distances, so the tens of thousands of tests a dense fill makes need no square root. */
+function withinStroke(
+  x: number,
+  y: number,
+  s: StrokeSegment,
+  inset: number,
+): boolean {
+  const radius = s.half - inset;
+  if (radius <= 0) return false;
+  const t =
+    s.lengthSquared === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            1,
+            ((x - s.ax) * s.dx + (y - s.ay) * s.dy) / s.lengthSquared,
+          ),
+        );
+  const ex = s.ax + s.dx * t - x;
+  const ey = s.ay + s.dy * t - y;
+  return ex * ex + ey * ey <= radius * radius;
+}
+
 /**
  * True when a point (mm on the A4 sheet) is inside the outline's union: within
  * half a finger stroke of a finger's chain (round caps and joins), or in the
  * palm polygon, or within half the palm stroke of its edges (round joins).
+ *
+ * With an `inset` (mm), every stroke is that much narrower on each side, so a
+ * point that passes is at least `inset` inside the union's edge. The palm
+ * polygon itself needs no shrinking: its stroke reaches half the palm width
+ * (11 mm) beyond it, far more than any inset used here. This is the one shape
+ * both the outline (stage-render.ts) and the particle fill (hand-fill.ts) use.
  */
-export function insideHandOutline(point: Vec): boolean {
-  for (const { chain, width } of OUTLINE_FINGERS) {
-    if (distanceToPolyline(point, chain) <= width / 2) return true;
+export function insideHandOutline(point: Vec, inset = 0): boolean {
+  const [x, y] = point;
+  for (const stroke of STROKES) {
+    if (withinStroke(x, y, stroke, inset)) return true;
   }
-  const { polygon, width } = OUTLINE_PALM;
-  return (
-    insidePolygon(point, polygon) ||
-    distanceToPolyline(point, polygon, true) <= width / 2
-  );
+  return insidePolygon(point, OUTLINE_PALM.polygon);
 }
+
+/** The outline's bounding box, in mm on the A4 sheet. */
+export const OUTLINE_BOUNDS_MM = (() => {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const s of STROKES) {
+    for (const [x, y] of [
+      [s.ax, s.ay],
+      [s.ax + s.dx, s.ay + s.dy],
+    ] as const) {
+      x0 = Math.min(x0, x - s.half);
+      x1 = Math.max(x1, x + s.half);
+      y0 = Math.min(y0, y - s.half);
+      y1 = Math.max(y1, y + s.half);
+    }
+  }
+  return { x0, x1, y0, y1 } as const;
+})();

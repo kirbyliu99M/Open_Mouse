@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AnalyticsProvider } from "@/client/analytics/AnalyticsProvider";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { brandFont } from "./brand-font";
 import "./tokens.css";
 import "./globals.css";
 
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={brandFont.variable}>
       <body>
         <AnalyticsProvider />
         {children}

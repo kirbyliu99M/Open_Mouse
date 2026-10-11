@@ -292,6 +292,33 @@ describe("layoutShareCard: titles", () => {
   });
 });
 
+describe("layoutShareCard: the site name's font", () => {
+  const nameOf = (ops: DrawOp[]) =>
+    texts(ops).find((o) => o.text === SITE_NAME)!;
+
+  it("sets the site name in the wordmark's font (Inter 700, 48 px), and nothing else", () => {
+    const l = layoutShareCard(BASE, measure);
+    expect(nameOf(l.ops).font).toEqual({
+      size: 48,
+      weight: 700,
+      brand: true,
+    });
+    const others = texts(l.ops).filter((o) => o.text !== SITE_NAME);
+    for (const o of others) expect(o.font.brand).toBeUndefined();
+  });
+
+  it("cuts the name, never the QR code's room, when a fallback face is far too wide", () => {
+    const wide = fakeMeasure(0.55, 6);
+    const l = layoutShareCard(BASE, wide);
+    const qr = l.ops.find((o) => o.kind === "qr") as Extract<
+      DrawOp,
+      { kind: "qr" }
+    >;
+    const name = texts(l.ops).find((o) => o.font.brand)!;
+    expect(edges(name, wide)[1]).toBeLessThan(qr.box.x);
+  });
+});
+
 describe("layoutShareCard: no handType (fit-v0)", () => {
   const layout = layoutShareCard({ ...BASE, handType: undefined }, measure);
   const t = texts(layout.ops);

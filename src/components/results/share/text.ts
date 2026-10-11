@@ -9,6 +9,8 @@ export interface FontSpec {
   /** Pixels. */
   size: number;
   weight: 400 | 600 | 700 | 800;
+  /** Set in the wordmark's typeface (Inter 700) instead of the site's stack. */
+  brand?: boolean;
 }
 
 /** Width in pixels of `text` set in `font`. */

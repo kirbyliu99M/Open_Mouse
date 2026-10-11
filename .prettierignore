@@ -19,4 +19,5 @@ docs/shape-rubric.md
 public/mediapipe/
 public/draco/
 src/lib/particles/targets.generated.json
+src/lib/particles/finale.generated.json
 src/lib/viewer/shell-index.generated.json

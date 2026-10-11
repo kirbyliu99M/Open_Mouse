@@ -173,7 +173,7 @@ describe("the results page layout", () => {
     expect(html).not.toContain("share-card-button");
   });
 
-  it("carries no early-preview line of its own (the site footer does)", () => {
+  it("carries no early-preview line of its own (nor does the site footer for now)", () => {
     expect(render(many, { language: "en" })).not.toMatch(/Early preview/i);
   });
 

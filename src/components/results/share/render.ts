@@ -8,6 +8,7 @@
  */
 import type { UiLanguage } from "../../../client/uiLanguage";
 import type { FitResponse } from "../../../lib/contracts/fit";
+import { SITE_NAME } from "../../../lib/site";
 import { buildShareCardInput, topPickPhotoPath } from "./input";
 import {
   PHOTO_RADIUS,
@@ -54,6 +55,8 @@ interface Theme {
   detail: string;
   colors: Record<ColorKey, string>;
   fontStack: string;
+  /** The wordmark's family (Inter 700 from next/font), then the site's stack. */
+  brandStack: string;
 }
 
 function readTheme(): Theme {
@@ -76,11 +79,34 @@ function readTheme(): Theme {
     },
     // The site's own font stack (globals.css sets it on :root).
     fontStack: style.fontFamily.trim() || FALLBACK_STACK,
+    // layout.tsx sets --font-brand on <html> (next/font); without it the name
+    // is drawn in plain Inter if installed, else in the site's stack.
+    brandStack: [
+      style.getPropertyValue("--font-brand").trim() || "Inter",
+      style.fontFamily.trim() || FALLBACK_STACK,
+    ].join(", "),
   };
 }
 
-function fontString(font: FontSpec, stack: string): string {
-  return `${font.weight} ${font.size}px ${stack}`;
+function fontString(font: FontSpec, theme: Theme): string {
+  return `${font.weight} ${font.size}px ${font.brand ? theme.brandStack : theme.fontStack}`;
+}
+
+/**
+ * Sets the font for measuring or drawing. The wordmark also takes its -0.0167em
+ * (-0.3/18) tracking, so the card's name is spaced like the site's. `letterSpacing`
+ * is a newer canvas property: where it is missing the assignment does nothing and
+ * measure and draw still agree with each other.
+ */
+function applyFont(
+  ctx: CanvasRenderingContext2D,
+  font: FontSpec,
+  theme: Theme,
+): void {
+  ctx.font = fontString(font, theme);
+  ctx.letterSpacing = font.brand
+    ? `${(-0.0167 * font.size).toFixed(2)}px`
+    : "0px";
 }
 
 function roundRectPath(
@@ -309,7 +335,7 @@ async function paint(
         break;
       }
       case "text": {
-        ctx.font = fontString(op.font, theme.fontStack);
+        applyFont(ctx, op.font, theme);
         ctx.fillStyle = theme.colors[op.color];
         ctx.textAlign = op.align;
         ctx.textBaseline = "alphabetic";
@@ -360,9 +386,17 @@ export async function makeShareCardPng(
   options: ShareCardOptions = {},
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
-  // wrap the text for one font and paint it in another.
+  // wrap the text for one font and paint it in another. The wordmark's Inter
+  // 700 is asked for by name, so it is loaded even if no text on the page uses
+  // it yet; a failed load falls back to the stack and both measure and draw use
+  // that same stack.
   await document.fonts.ready;
   const theme = readTheme();
+  try {
+    await document.fonts.load(`700 48px ${theme.brandStack}`, SITE_NAME);
+  } catch {
+    // The stack's next family is used.
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -376,7 +410,7 @@ export async function makeShareCardPng(
   if (!input) throw new Error("There is no result to share.");
 
   const measure: MeasureText = (text, font) => {
-    ctx.font = fontString(font, theme.fontStack);
+    applyFont(ctx, font, theme);
     return ctx.measureText(text).width;
   };
   const layout = layoutShareCard(input, measure, options);

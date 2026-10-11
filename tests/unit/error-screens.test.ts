@@ -58,6 +58,15 @@ describe("not-found screen", () => {
     expect(html).toContain(NOT_FOUND_COPY.title);
   });
 
+  it("carries the Palmate mark before the title, decorative and with no new text", () => {
+    const mark = html.match(/<img[^>]*>/)?.[0] ?? "";
+    expect(mark).toContain('src="/images/brand/palmate-mark.svg"');
+    expect(mark).toContain('alt=""');
+    expect(mark).toContain('aria-hidden="true"');
+    expect(html.indexOf(mark)).toBeLessThan(html.indexOf("<h1"));
+    expect(count(html, /<img[\s>]/g)).toBe(1);
+  });
+
   it("puts the scan first: it is the way forward", () => {
     expect(html.indexOf(ACTIONS.scan)).toBeLessThan(html.indexOf(ACTIONS.home));
   });
@@ -114,6 +123,12 @@ describe("global error screen (global-error.tsx)", () => {
     expect(html).toContain(`<title>${GLOBAL_ERROR_COPY.documentTitle}</title>`);
     expect(GLOBAL_ERROR_COPY.documentTitle).toBe(
       `Something went wrong · ${SITE_NAME}`,
+    );
+  });
+
+  it("carries the same decorative mark (there is no root layout here)", () => {
+    expect(html).toMatch(
+      /<img[^>]*src="\/images\/brand\/palmate-mark\.svg"[^>]*alt=""/,
     );
   });
 

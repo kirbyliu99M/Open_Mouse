@@ -124,6 +124,8 @@ const f = (size: number, weight: FontSpec["weight"]): FontSpec => ({
   size,
   weight,
 });
+/** The site name's font: Inter 700, the official wordmark (48 px on the card). */
+const NAME_FONT: FontSpec = { size: 48, weight: 700, brand: true };
 
 const LINE = 1.22;
 
@@ -250,7 +252,7 @@ export function layoutShareCard(
   const ink = palmateMarkInkEdges(markBox);
   const textX = ink.right + MARK_GAP;
   const footerTextWidth = qrBox.x - textX - 36;
-  const nameFont = f(48, 700);
+  const nameFont = NAME_FONT;
   const taglineFont = f(36, 400);
   // The block runs from the name's cap height to the tagline's baseline.
   const NAME_CAP = 36;

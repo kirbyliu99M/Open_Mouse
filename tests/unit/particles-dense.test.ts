@@ -5,9 +5,16 @@ import { describe, expect, it } from "vitest";
 import { ARTIFACT_PATHS, SKETCH_DIR } from "@/lib/particles/artifacts";
 import { STROKE_SPREAD, densifyStrokes, shareOut } from "@/lib/particles/dense";
 import { type Vec, distance } from "@/lib/particles/geometry";
+import { createHandFiller, fillTemplateHand } from "@/lib/particles/hand-fill";
 import { parseTargets } from "@/lib/particles/load-targets";
-import { logoStrokes } from "@/lib/particles/logo";
 import {
+  LOGO_SAMPLING,
+  LOGO_SCALE,
+  LOGO_VIEWBOX,
+  logoPolylines,
+} from "@/lib/particles/logo";
+import {
+  MOUSE_COUNT,
   buildPairing,
   buildPairingInSlices,
   groupByRank,
@@ -20,16 +27,14 @@ import {
   resampleToCount,
   sampleStrokeRuns,
 } from "@/lib/particles/sampling";
-import { SAMPLING, STAGE_WIDTH } from "@/lib/particles/targets";
-import {
-  createHandFiller,
-  fillTemplateHand,
-} from "@/lib/particles/template-hand";
+import { SAMPLING, STAGE_WIDTH, isMouseSketch } from "@/lib/particles/targets";
 import { parseSketchSvg } from "@/lib/particles/svg-path";
 
 const committed = readFileSync(ARTIFACT_PATHS.targets, "utf8");
 const targets = parseTargets(JSON.parse(committed));
-const mice = ["g-pro-sketch", "g-pro-sketch", "g-pro-sketch"];
+// One last drawing since the finale (MOUSE_COUNT = 1, 2026-10-11); the mouse
+// sketch stands in for it: the mechanics are the same for any drawing.
+const mice = ["g-pro-sketch"];
 
 /** The distance from a point to the nearest part of a set of polylines. */
 function distanceToPolylines(
@@ -199,8 +204,23 @@ describe("densifyStrokes on a small shape", () => {
 });
 
 describe("densifyStrokes on the real shapes", () => {
-  it("puts every logo particle within the spread of the logo's own strokes, and ends the ruler exactly", () => {
-    const polylines = logoStrokes().map((s) => s.polyline);
+  /** The Palmate path in the logo target's own px (the viewBox from its corner, times LOGO_SCALE). */
+  const markPolylines = logoPolylines().map(({ points, closed }) => ({
+    closed,
+    points: points.map(([x, y]): Vec => [
+      (x - LOGO_VIEWBOX.x) * LOGO_SCALE,
+      (y - LOGO_VIEWBOX.y) * LOGO_SCALE,
+    ]),
+  }));
+  // The target's runs: the four lines, the dot's points (a run of one each),
+  // then the strays (a run of one each, the last `ambient`).
+  const strayRuns = targets.logo.runs.slice(-LOGO_SAMPLING.ambient);
+  const strayPoints = strayRuns.map((run) => targets.logo.points[run.start]!);
+  const dotPoints = targets.logo.runs
+    .slice(4, -LOGO_SAMPLING.ambient)
+    .map((run) => targets.logo.points[run.start]!);
+
+  it("puts every logo particle on the mark's cloud, on the dot or on a stray, and the strays' clumps stay tight", () => {
     const out = densifyStrokes(
       targets.logo.points,
       targets.logo.runs,
@@ -208,19 +228,47 @@ describe("densifyStrokes on the real shapes", () => {
       20261003,
     );
     expect(out).toHaveLength(12000);
-    // Across the stroke by the spread, plus the sampled points' own error: they
-    // are rounded to 0.1 px in the JSON, and a chord between two of them cuts
-    // the corner of a tight curve (the wheel's ellipse) by a fraction of a px.
-    const limit = STROKE_SPREAD * 2.5 + 0.5;
+    // On the path: a chord between two neighbouring cloud points, which lie at
+    // most `maxSpread` units (times the scale) off the path, nudged across by
+    // the spread, plus the 0.1 px of the JSON's rounding.
+    const cloud =
+      LOGO_SAMPLING.maxSpread * LOGO_SCALE + STROKE_SPREAD * 2.5 + 0.5;
+    // A run of one point is spread within 2.5 spreads of it.
+    const clump = STROKE_SPREAD * 2.5 + 1e-9;
+    const byOne = (p: { x: number; y: number }, list: typeof strayPoints) =>
+      list.some((s) => distance([p.x, p.y], [s.x, s.y]) <= clump);
+    let onStray = 0;
     for (const p of out) {
-      expect(distanceToPolylines([p.x, p.y], polylines)).toBeLessThan(limit);
+      // A stray's clump (tens of px off the path, so never on the cloud).
+      if (byOne(p, strayPoints)) {
+        onStray += 1;
+        continue;
+      }
+      if (distanceToPolylines([p.x, p.y], markPolylines) <= cloud) continue;
+      expect(
+        byOne(p, dotPoints),
+        `${p.x}, ${p.y} is neither on the cloud nor on the dot nor by a stray`,
+      ).toBe(true);
     }
+    // The strays' clumps hold exactly the strays' shares of the 12,000 (each
+    // run's share is its points' share of the logo's: 1 point in 873), the
+    // dot's 9 single points not counted.
+    const shares = shareOut(
+      targets.logo.runs.map((run) => run.count),
+      12000,
+    );
+    const strayShare = shares
+      .slice(-LOGO_SAMPLING.ambient)
+      .reduce((sum, n) => sum + n, 0);
+    expect(strayShare).toBeGreaterThan(300);
+    expect(onStray).toBe(strayShare);
     expect(new Set(out.map((p) => p.tone))).toEqual(new Set([0, 1]));
   });
 
   const sketches = Object.fromEntries(
     readdirSync(SKETCH_DIR)
       .filter((file) => file.endsWith(".svg"))
+      .filter((file) => isMouseSketch(basename(file, ".svg")))
       .map((file) => [
         basename(file, ".svg"),
         readFileSync(`${SKETCH_DIR}/${file}`, "utf8"),
@@ -261,16 +309,17 @@ describe("densifyStrokes on the real shapes", () => {
   );
 
   it("is more even than copies nudged by a pixel: no stretch of a stroke is left bare", () => {
-    // The longest run of the logo's outline: walk it and find the biggest gap between particles.
+    // The longest run of the mark (the palm and thumb): walk it and find the biggest gap between particles.
     const out = densifyStrokes(
       targets.logo.points,
       targets.logo.runs,
       12000,
       1,
     );
-    const outline = logoStrokes()[0]!.polyline;
-    const hits = outline.points.map(([x, y]) =>
-      out.some((p) => Math.hypot(p.x - x, p.y - y) < 1.2),
+    const palm = markPolylines[0]!;
+    // The path's own points are about a unit (3 px) apart; the cloud is a few px wide.
+    const hits = palm.points.map(([x, y]) =>
+      out.some((p) => Math.hypot(p.x - x, p.y - y) < 3),
     );
     expect(hits.every(Boolean)).toBe(true);
   });
@@ -323,6 +372,9 @@ describe("the sampled runs", () => {
         next += run.count;
       }
       expect(next).toBe(shape.points.length);
+      // A mouse's stroke is one tone. The logo's cloud is not: each of its
+      // points is bright or dim on its own (about half each; logo.ts).
+      if (shape === targets.logo) continue;
       for (const run of shape.runs) {
         const tones = new Set(
           shape.points
@@ -446,14 +498,14 @@ describe("pairing at a dense budget", () => {
   } as const;
   const pairing = buildPairing(targets, options);
 
-  it("has the budget's count in every list and a third of it in each mouse", () => {
+  it("has the budget's count in every list, all of it on the one last drawing (the finale)", () => {
     expect(pairing.count).toBe(6000);
     expect(pairing.logo).toHaveLength(6000);
     expect(pairing.hand).toHaveLength(6000);
     expect(pairing.mouse).toHaveLength(6000);
-    const slots = [0, 0, 0];
+    const slots = [0];
     for (const s of pairing.slot) slots[s] = slots[s]! + 1;
-    expect(slots).toEqual([2000, 2000, 2000]);
+    expect(slots).toEqual([6000]);
   });
 
   it("is reproducible: the same seed gives the same pairing, another seed a different one", () => {
@@ -557,7 +609,7 @@ describe("the packed-key sort is exactly the comparator's order", () => {
       const seed = 20261003;
       const got = buildPairing(targets, { count, layout, seed, mice });
       // The same steps as before the packed keys, with comparator sorts.
-      const perMouse = count / 3;
+      const perMouse = count / MOUSE_COUNT;
       const logo = byComparator(
         resampleToCount(targets.logo.points, count, seed),
       );
