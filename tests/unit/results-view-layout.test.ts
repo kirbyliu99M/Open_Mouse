@@ -193,11 +193,10 @@ describe("the results page layout", () => {
     expect(html).toContain(">Palmate<");
   });
 
-  it("marks zh-TW text with lang, and English text with none", () => {
-    const zh = render(many, { language: "zh-TW" });
-    expect(zh).toContain('lang="zh-TW"');
-    const en = render(many, { language: "en" });
-    expect(en).not.toContain('lang="zh-TW"');
+  it("puts no lang attribute on its elements: <html lang> carries the language", () => {
+    for (const language of ["zh-TW", "en"] as const) {
+      expect(render(many, { language })).not.toMatch(/ lang="/);
+    }
   });
 });
 
