@@ -412,6 +412,39 @@ test.describe("the list (needs a seeded database)", () => {
     expect(await foundCount(page)).toBe(0);
   });
 
+  test("vertical mice and trackballs are not listed (temporary, EXCLUDED_FORM_FACTORS, Kirby 2026-10-12)", async ({
+    page,
+  }) => {
+    const box = page.getByRole("searchbox", { name: "Search brand or model" });
+    // The three the seed catalogue has today: two vertical, one trackball.
+    for (const name of ["MX Vertical", "MX Ergo S", "Keychron M5"]) {
+      await box.fill(name);
+      expect(await foundCount(page), name).toBe(0);
+      await expect(
+        page.getByText("No mouse matches this search"),
+      ).toBeVisible();
+    }
+    // A mouse that stays is still found, so the zero above is the exclusion and not a broken search.
+    await box.fill("G Pro");
+    expect(await foundCount(page)).toBeGreaterThan(0);
+  });
+
+  test("a hybrid shape reads Hybrid, not a dash (the filter gets no Hybrid option: unit-tested)", async ({
+    page,
+  }) => {
+    await page
+      .getByRole("searchbox", { name: "Search brand or model" })
+      .fill("NP-01S Ergo");
+    expect(await foundCount(page)).toBe(1);
+    await expect(rows(page).first()).toContainText("Hybrid");
+  });
+
+  test("Show more is the primary (white) button", async ({ page }) => {
+    const more = page.getByRole("button", { name: "Show more" });
+    await expect(more).toHaveClass(/results-pill/);
+    await expect(more).not.toHaveClass(/results-pill--small|results-textLink/);
+  });
+
   test("the search and the filter survive a reload (they are in the address)", async ({
     page,
   }) => {

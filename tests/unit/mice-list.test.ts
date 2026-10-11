@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type {
   Connectivity,
+  FormFactor,
   Shape,
   Size,
 } from "../../src/lib/contracts/descriptors";
 import { handSizeOf } from "../../src/lib/fit/handType";
 import {
+  EXCLUDED_FORM_FACTORS,
   MAX_SEARCH_LENGTH,
   MICE_PAGE_SIZE,
   SEARCH_PARAM,
@@ -24,6 +26,7 @@ import {
   toFilterSource,
   toMiceListRow,
   visibleMice,
+  withoutExcludedFormFactors,
   type MiceListRow,
   type MiceListSource,
 } from "../../src/lib/mice/list";
@@ -380,5 +383,66 @@ describe("types", () => {
           shape,
           connectivity,
         });
+  });
+});
+
+describe("the temporary exclusion of vertical mice and trackballs (Kirby 2026-10-12)", () => {
+  const form = (slug: string, formFactor: FormFactor) => ({
+    ...row({ slug, shape: "ergonomic" }),
+    formFactor,
+  });
+  const set = [
+    form("a", "standard"),
+    form("v", "vertical"),
+    form("t", "trackball"),
+    form("b", "standard"),
+  ];
+
+  it("excludes exactly the vertical and trackball form factors", () => {
+    expect([...EXCLUDED_FORM_FACTORS].sort()).toEqual([
+      "trackball",
+      "vertical",
+    ]);
+  });
+
+  it("drops them from the list and keeps the order of the rest", () => {
+    expect(withoutExcludedFormFactors(set).map((r) => r.slug)).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("the count, the search and the option counts follow the rows that are left", () => {
+    const kept = withoutExcludedFormFactors(set);
+    expect(visibleMice(kept, emptyFilters(), "").length).toBe(2);
+    expect(matchCount(toFilterSource(kept), emptyFilters())).toBe(2);
+    const shapes = facetCounts(toFilterSource(kept), emptyFilters()).shape;
+    expect(shapes.map((o) => [o.value, o.count])).toEqual([
+      ["ergonomic", 2],
+      ["symmetrical", 0],
+    ]);
+    // With them left in, the same calls count 4 and 4 (that is what the exclusion changes).
+    expect(visibleMice(set, emptyFilters(), "").length).toBe(4);
+    // A search for an excluded mouse's slug-like name finds nothing once it is gone.
+    const named = [
+      { ...form("v", "vertical"), model: "MX Vertical" },
+      { ...form("s", "standard"), model: "G305" },
+    ];
+    expect(
+      visibleMice(
+        withoutExcludedFormFactors(named),
+        emptyFilters(),
+        "vertical",
+      ),
+    ).toEqual([]);
+  });
+
+  it("takes nothing out when the list of excluded form factors is empty (removing the constant brings them back)", () => {
+    expect(withoutExcludedFormFactors(set, []).map((r) => r.slug)).toEqual([
+      "a",
+      "v",
+      "t",
+      "b",
+    ]);
   });
 });

@@ -9,7 +9,12 @@
  * brand list, the size groups, the half-open weight bands, the shape and
  * connection options and the null handling are one set of rules, not a copy.
  */
-import type { Connectivity, Shape, Size } from "../contracts/descriptors";
+import type {
+  Connectivity,
+  FormFactor,
+  Shape,
+  Size,
+} from "../contracts/descriptors";
 import { handSizeOf } from "../fit/handType";
 import {
   cardMatches,
@@ -55,6 +60,38 @@ export interface MiceListSource {
   widthMm: number;
   heightMm: number;
   weightG: number | null;
+}
+
+/**
+ * The form factors the list leaves out: 暫時排除，Kirby 2026-10-12.
+ *
+ * Vertical mice and trackballs are not on `/mice` for now. This is the ONE
+ * place that says so: to bring them back, empty this array (or delete the
+ * filter call in `loadMiceRows`). Nothing else changes: the 「N mice found」
+ * line, the search and the filter's option counts are all computed from the
+ * rows that are left, so they follow.
+ *
+ * `formFactor` is the catalogue's own column (`mice.form_factor`), which the
+ * seed fills from a first-party fact (trackball) or from the shell's
+ * height/length ratio (vertical), the same value the fit service uses to
+ * exclude these devices from a comparison.
+ */
+export const EXCLUDED_FORM_FACTORS: readonly FormFactor[] = [
+  "vertical",
+  "trackball",
+];
+
+/** A catalogue row as the query returns it: the display fields plus the form factor the exclusion reads (never copied onto the page's row). */
+export type MiceQueryRow = MiceListSource & { formFactor: FormFactor };
+
+/** The rows whose form factor is not excluded (`EXCLUDED_FORM_FACTORS`, unless a test passes its own). Keeps the order of `rows`. */
+export function withoutExcludedFormFactors<
+  T extends { formFactor: FormFactor },
+>(
+  rows: readonly T[],
+  excluded: readonly FormFactor[] = EXCLUDED_FORM_FACTORS,
+): T[] {
+  return rows.filter((row) => !excluded.includes(row.formFactor));
 }
 
 /**

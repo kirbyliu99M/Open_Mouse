@@ -43,8 +43,14 @@ import "./mice.css";
 /** What a cell shows when the catalogue has no value (never a guess). */
 const NONE = "—";
 
-function shapeLabel(row: MiceListRow, copy: FilterCopy): string | null {
-  // `hybrid` has a value but no word in the filter's copy, so it shows as none.
+function shapeLabel(
+  row: MiceListRow,
+  copy: FilterCopy,
+  hybrid: string,
+): string | null {
+  // `hybrid` has a value but no word in the filter's copy (the filter has no
+  // hybrid option), so the page's own word shows it. Only a null shape is none.
+  if (row.shape === "hybrid") return hybrid;
   return row.shape === "ergonomic" || row.shape === "symmetrical"
     ? copy.shape[row.shape]
     : null;
@@ -247,7 +253,9 @@ export function MiceBrowser({
                     <span className="mice-model">{row.model}</span>
                   </th>
                   <td>{filterCopy.size[row.size]}</td>
-                  <td>{shapeLabel(row, filterCopy) ?? NONE}</td>
+                  <td>
+                    {shapeLabel(row, filterCopy, copy.shapeHybrid) ?? NONE}
+                  </td>
                   <td>{connectionLabel(row, filterCopy) ?? NONE}</td>
                   <td className="mice-num">{formatMm(row.lengthMm) ?? NONE}</td>
                   <td className="mice-num">{formatMm(row.widthMm) ?? NONE}</td>
@@ -264,7 +272,7 @@ export function MiceBrowser({
           {shownRows.map((row, i) => {
             const tags = [
               filterCopy.size[row.size],
-              shapeLabel(row, filterCopy),
+              shapeLabel(row, filterCopy, copy.shapeHybrid),
               connectionLabel(row, filterCopy),
             ].filter((t): t is string => t !== null);
             return (

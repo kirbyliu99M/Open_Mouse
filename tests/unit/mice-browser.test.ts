@@ -117,6 +117,41 @@ describe("MiceBrowser (server render, phone layout first)", () => {
     expect(html).not.toContain("undefined");
   });
 
+  it("writes a hybrid shape as Hybrid (zh: 混合型) in the table and on the card, not as a dash, and adds no filter option for it", () => {
+    const hybrid = toMiceListRow({
+      slug: "h",
+      brand: "Acme",
+      model: "Mixed",
+      size: "small",
+      shape: "hybrid",
+      connectivity: "wired",
+      lengthMm: 100,
+      widthMm: 60,
+      heightMm: 35,
+      weightG: 70,
+    });
+    const html = render([hybrid]);
+    expect(html).toContain("<td>Hybrid</td>");
+    expect(html).toMatch(/<li>Hybrid<\/li>/);
+    // Only the row's own two places (table cell, card tag): the filter's Shape group has no Hybrid option.
+    expect(count(html, /Hybrid/g)).toBe(2);
+    expect(html).not.toContain("<td>—</td>");
+    const zh = render([hybrid], { language: "zh-TW" });
+    expect(zh).toContain("<td>混合型</td>");
+    expect(count(zh, /混合型/g)).toBe(2);
+    // A mouse without a shape is still a dash, and no Hybrid appears for it.
+    const none = render(rows(3));
+    expect(none).not.toContain("Hybrid");
+  });
+
+  it("has Show more as the primary white button (BTN-1: results-pill, not the small or the text-link style)", () => {
+    const html = render(rows(60));
+    const button = /<button[^>]*>Show more<\/button>/.exec(html)?.[0] ?? "";
+    expect(button).toContain('class="results-pill mice-more"');
+    expect(button).not.toContain("results-pill--small");
+    expect(button).not.toContain("results-textLink");
+  });
+
   it("shows the card line with the weight when there is one", () => {
     const html = render(rows(2));
     expect(html).toMatch(/120 \u00d7 63\.5 \u00d7 40 mm<\/p>/);

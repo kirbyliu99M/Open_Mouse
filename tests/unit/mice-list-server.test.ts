@@ -50,6 +50,7 @@ const dbRow = (over: Record<string, unknown> = {}) => ({
   widthMm: 63.5,
   heightMm: 40,
   weightG: 60,
+  formFactor: "standard",
   ...over,
 });
 
@@ -78,6 +79,8 @@ describe("loadMiceRows", () => {
         "widthMm",
         "heightMm",
         "weightG",
+        // Read only to leave vertical mice and trackballs out; never copied onto the page's row.
+        "formFactor",
       ].sort(),
     );
     // Only listed rows: the one rule the fit service uses (`mice.listed`).
@@ -102,6 +105,18 @@ describe("loadMiceRows", () => {
     const [row] = await loadMiceRows(chain as unknown as FakeDb);
     expect(Object.keys(row!)).toHaveLength(10);
     expect(JSON.stringify(row)).not.toContain("x.example");
+  });
+
+  it("leaves out vertical mice and trackballs (EXCLUDED_FORM_FACTORS), and the form factor does not reach the row", async () => {
+    const chain = fakeDrizzleChain([
+      dbRow({ slug: "std-a", model: "A" }),
+      dbRow({ slug: "vert", model: "V", formFactor: "vertical" }),
+      dbRow({ slug: "ball", model: "T", formFactor: "trackball" }),
+      dbRow({ slug: "std-b", model: "B" }),
+    ]);
+    const rows = await loadMiceRows(chain as unknown as FakeDb);
+    expect(rows.map((r) => r.slug)).toEqual(["std-a", "std-b"]);
+    expect(rows.every((r) => !("formFactor" in r))).toBe(true);
   });
 });
 
@@ -162,5 +177,15 @@ describe("getMiceList", () => {
     expect(result.status).toBe("ok");
     expect(result.rows.map((r) => r.slug)).toEqual(["a", "b"]);
     expect(dbState.opened).toBe(1);
+  });
+
+  it("the page's list, and so its count, is without the excluded form factors", async () => {
+    dbState.rows = [
+      dbRow({ slug: "a" }),
+      dbRow({ slug: "v", formFactor: "vertical" }),
+      dbRow({ slug: "t", formFactor: "trackball" }),
+    ];
+    const result = await getMiceList();
+    expect(result.rows.map((r) => r.slug)).toEqual(["a"]);
   });
 });

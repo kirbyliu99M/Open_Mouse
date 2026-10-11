@@ -6,8 +6,9 @@ import { mice } from "../../db/schema";
 import {
   sortMice,
   toMiceListRow,
+  withoutExcludedFormFactors,
   type MiceListRow,
-  type MiceListSource,
+  type MiceQueryRow,
 } from "../../lib/mice/list";
 import { log } from "../log";
 
@@ -36,9 +37,13 @@ type Db = Pick<ReturnType<typeof getDb>, "select">;
  * source, descriptor values or photo path is read, so none can reach the page
  * (hard rule 1 and the "only what is shown" rule). `toMiceListRow` then copies
  * the fields one by one. Sorted by brand, then model.
+ *
+ * Vertical mice and trackballs are left out for now (`EXCLUDED_FORM_FACTORS`,
+ * 暫時排除，Kirby 2026-10-12): the form factor is read only to decide that, and
+ * is not copied onto the row. Everything the page counts comes from what is left.
  */
 export async function loadMiceRows(db: Db = getDb()): Promise<MiceListRow[]> {
-  const rows: MiceListSource[] = await db
+  const rows: MiceQueryRow[] = await db
     .select({
       slug: mice.slug,
       brand: mice.brand,
@@ -50,10 +55,11 @@ export async function loadMiceRows(db: Db = getDb()): Promise<MiceListRow[]> {
       widthMm: mice.widthMm,
       heightMm: mice.heightMm,
       weightG: mice.weightG,
+      formFactor: mice.formFactor,
     })
     .from(mice)
     .where(eq(mice.listed, true));
-  return sortMice(rows.map(toMiceListRow));
+  return sortMice(withoutExcludedFormFactors(rows).map(toMiceListRow));
 }
 
 /**

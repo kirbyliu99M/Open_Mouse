@@ -12,6 +12,9 @@
  * Two strings below are NOT in the approved draft and are proposals for Kirby
  * to approve or reword before this page ships (they are the page's two empty
  * states, which the draft did not cover): `unavailable` and `noSearchMatch`.
+ * A third, `shapeHybrid`, is a candidate too: Kirby (2026-10-12) agreed to show
+ * 「Hybrid」 where the page showed a dash for a hybrid shape; the zh-TW word
+ * 「混合型」 is the builder's proposal.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -31,6 +34,13 @@ export interface MicePageCopy {
     height: string;
     weight: string;
   };
+  /**
+   * CANDIDATE (Kirby 2026-10-12 said 「OK 改」 to showing Hybrid instead of a
+   * dash; the zh wording is the builder's proposal): the Shape cell and card
+   * tag of a mouse whose shape is `hybrid`. Used for that value only; the
+   * filter has no hybrid option and gets none from this.
+   */
+  shapeHybrid: string;
   showMore: string;
   /** PROPOSED (not in the draft): shown when the catalogue could not be read. */
   unavailable: string;
@@ -51,6 +61,7 @@ export const zhTW: MicePageCopy = {
     height: "高 (mm)",
     weight: "重量 (g)",
   },
+  shapeHybrid: "混合型",
   showMore: "顯示更多",
   unavailable: "目前無法載入滑鼠清單，請稍後再試。",
   noSearchMatch: "沒有符合搜尋的滑鼠",
@@ -69,6 +80,7 @@ export const en: MicePageCopy = {
     height: "Height (mm)",
     weight: "Weight (g)",
   },
+  shapeHybrid: "Hybrid",
   showMore: "Show more",
   unavailable: "The mouse list could not be loaded. Please try again later.",
   noSearchMatch: "No mouse matches this search",

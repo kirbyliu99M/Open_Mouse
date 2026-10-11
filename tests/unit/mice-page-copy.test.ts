@@ -19,6 +19,15 @@ describe("the all-mice page's copy", () => {
     expect(zhTW.searchPlaceholder).toBe("搜尋品牌或型號");
     expect(en.showMore).toBe("Show more");
     expect(zhTW.showMore).toBe("顯示更多");
+    // Candidates, not in the approved draft (Kirby 2026-10-12): the hybrid shape's word (zh is the builder's proposal) and the two empty states.
+    expect(en.shapeHybrid).toBe("Hybrid");
+    expect(zhTW.shapeHybrid).toBe("混合型");
+    expect(en.unavailable).toBe(
+      "The mouse list could not be loaded. Please try again later.",
+    );
+    expect(zhTW.unavailable).toBe("目前無法載入滑鼠清單，請稍後再試。");
+    expect(en.noSearchMatch).toBe("No mouse matches this search");
+    expect(zhTW.noSearchMatch).toBe("沒有符合搜尋的滑鼠");
     expect(en.columns).toEqual({
       mouse: "Mouse",
       shape: "Shape",
