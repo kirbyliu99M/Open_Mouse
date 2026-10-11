@@ -108,11 +108,18 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
     viewBox: { x: 0, y: 40, w: 512, h: 470 },
     arrows: true,
     marks: [
-      { key: "widerFront", x: 18, y: 66, anchor: "l", tone: "primary" },
+      {
+        key: "widerFront",
+        x: 18,
+        y: 71,
+        anchor: "l",
+        tone: "primary",
+        narrow: { dy: -6 },
+      },
       {
         key: "narrowerWaist",
         x: 18,
-        y: 191,
+        y: 196,
         anchor: "l",
         tone: "secondary",
         narrow: { dy: -16 },

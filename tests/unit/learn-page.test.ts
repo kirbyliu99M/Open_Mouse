@@ -321,15 +321,17 @@ describe("the four shape sketches", () => {
       top: "35.53%",
       left: "77.34%",
     });
-    // Narrower waist 16 units up (y 175).
+    // Narrower waist 16 units up (y 180).
     expect(markPlacementNarrow(flare, flare.marks[1])).toEqual({
-      top: "28.72%",
+      top: "29.79%",
+      left: "3.52%",
+    });
+    // Wider front 6 units up (y 65), off its arrow at y 140.
+    expect(markPlacementNarrow(flare, flare.marks[0])).toEqual({
+      top: "5.32%",
       left: "3.52%",
     });
     // No nudge: the same as the wide placement.
-    expect(markPlacementNarrow(flare, flare.marks[0])).toEqual(
-      markPlacement(flare, flare.marks[0]),
-    );
     expect(markPlacementNarrow(flare, flare.marks[2])).toEqual(
       markPlacement(flare, flare.marks[2]),
     );
