@@ -6,8 +6,13 @@
  *   npx prettier --write src/db/seed/catalogue.json
  *
  * The CSV lives outside the repo (AGENTS.md rule 1, revised 2026-10-08) and
- * carries EloShapes values; only the generated JSON is committed. The mapping
- * is in src/server/catalogue/candidate-map.ts.
+ * carries values from a public compilation; only the generated JSON is
+ * committed. The mapping is in src/server/catalogue/candidate-map.ts.
+ *
+ * The local dataset CSV is read from CATALOGUE_DATASET_CSV, and Kirby's
+ * official URL list from CATALOGUE_OFFICIAL_URLS_CSV (defaults below). The
+ * list supplies the source URL of a candidate with no official URL of its own;
+ * a candidate the list does not have fails the import.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
@@ -20,18 +25,25 @@ import {
 import { parseCsv } from "../src/server/catalogue/csv";
 import {
   buildCatalogue,
-  eloPageConnectivity,
+  buildOfficialUrlIndex,
+  comparePageConnectivity,
   isKnownConnectivity,
+  lookupOfficialUrl,
   OFFICIAL_CONNECTIVITY,
   TRACKBALL_NAME_PATTERN,
   type CandidateRecord,
+  type OfficialUrlRow,
 } from "../src/server/catalogue/candidate-map";
 
 const DEFAULT_CSV =
   "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/approved-candidates.csv";
-const ELO_DATASET =
-  "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/eloshapes_mouse_data.csv";
-const ELO_SITE_DIR =
+const DATASET_CSV =
+  process.env.CATALOGUE_DATASET_CSV ??
+  "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/third_party_mouse_data.csv";
+const OFFICIAL_URLS_CSV =
+  process.env.CATALOGUE_OFFICIAL_URLS_CSV ??
+  "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/mouse_official_urls.csv";
+const SAVED_PAGES_DIR =
   "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/elo";
 const OUT = "src/db/seed/catalogue.json";
 /** The day Claude and Kirby adjudicated the list. */
@@ -57,30 +69,34 @@ const COLUMNS = [
 ] as const;
 
 /**
- * Fills `connectivity` on each record from the local EloShapes sources:
- * the dataset CSV for `eloshapes_csv`, the saved compare pages for
- * `eloshapes_site`, the brand's own page (OFFICIAL_CONNECTIVITY) for
+ * Fills `connectivity` on each record from the local sources: the dataset
+ * CSV for `compiled_csv`, the saved compare pages for `compiled_site`, the
+ * brand's own page (OFFICIAL_CONNECTIVITY) for
  * `official`. File I/O only; the matching is in connectivity-match.ts.
  * Returns what it could not find.
  */
 function attachConnectivity(records: CandidateRecord[]): string[] {
   const index = buildCsvIndex(
-    parseCsv(readFileSync(ELO_DATASET, "utf8")) as unknown as DatasetRow[],
+    parseCsv(readFileSync(DATASET_CSV, "utf8")) as unknown as DatasetRow[],
   );
-  const titles = parseCsv(readFileSync(`${ELO_SITE_DIR}/elo-new.csv`, "utf8"))
+  const titles = parseCsv(
+    readFileSync(`${SAVED_PAGES_DIR}/elo-new.csv`, "utf8"),
+  )
     .filter((r) => r.status === "200")
     .map((r) => ({ title: r.title, slug: r.slug }));
   const missing: string[] = [];
   for (const rec of records) {
     const label = `${rec.brand} ${rec.model}`;
     let raw: string | undefined;
-    if (rec.source === "eloshapes_csv") {
+    if (rec.source === "compiled_csv") {
       raw = lookupCsvConnectivity(index, rec.brand, rec.model);
-    } else if (rec.source === "eloshapes_site") {
+    } else if (rec.source === "compiled_site") {
       const slug = matchSiteTitle(titles, rec.brand, rec.model);
-      const file = slug ? `${ELO_SITE_DIR}/raw/${slug}.html` : "";
+      const file = slug ? `${SAVED_PAGES_DIR}/raw/${slug}.html` : "";
       if (file && existsSync(file)) {
-        raw = eloPageConnectivity(pageTextLines(readFileSync(file, "utf8")));
+        raw = comparePageConnectivity(
+          pageTextLines(readFileSync(file, "utf8")),
+        );
       }
     } else {
       raw = OFFICIAL_CONNECTIVITY[rec.officialUrl.trim()];
@@ -110,7 +126,32 @@ function main() {
 
   const missing = attachConnectivity(records);
   const unknown = records.filter((r) => !isKnownConnectivity(r.connectivity));
-  const entries = buildCatalogue(records, seedModels, RETRIEVED_AT);
+  const officialUrls = buildOfficialUrlIndex(
+    parseCsv(readFileSync(OFFICIAL_URLS_CSV, "utf8")).map(
+      (r): OfficialUrlRow => ({
+        brand: r.brand ?? "",
+        model: r.model ?? "",
+        officialUrl: r.official_url ?? "",
+        urlType: r.url_type ?? "",
+      }),
+    ),
+  );
+  const entries = buildCatalogue(
+    records,
+    seedModels,
+    RETRIEVED_AT,
+    undefined,
+    officialUrls,
+  );
+  const fromList = records.filter((r) => r.officialUrl.trim() === "");
+  console.log(
+    `Source URL from the official URL list: ${fromList.length} candidates.`,
+  );
+  for (const r of fromList) {
+    const row = lookupOfficialUrl(officialUrls, r.brand, r.model);
+    if (row && row.urlType !== "direct_product_page")
+      console.log(`  ${r.brand} ${r.model}: ${row.urlType}`);
+  }
   writeFileSync(OUT, JSON.stringify(entries, null, 2) + "\n");
 
   const count = (v: string | null) =>
