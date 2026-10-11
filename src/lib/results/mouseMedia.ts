@@ -50,7 +50,7 @@ export function mediaForSlug(
 /**
  * The enlarged photo (click to enlarge): same crop window as the 480 px file,
  * so the aspect ratio is the same, 960 px high. Written by
- * `tools/mouse-media/build_media.py --out-large`; the 70 KB per file and
+ * `tools/mouse-media/build_media.py --out-large`; the 75 KB per file and
  * 30 MB total budgets are enforced by `tests/unit/mouse-media.test.ts`.
  * `LARGE_PHOTO_WIDTH` is the width the script derives from the shared window;
  * the test reads the real WebP headers against both constants.

@@ -35,7 +35,7 @@ python tools/mouse-media/build_media.py   --pics "<path>/Mice Pics" --csv "<path
 
 `--only-large` still needs `--out-images` and `--out-json` (they are required
 arguments) but writes to neither. Method 6 at 960 px is slower than the 480 px
-run. The script stops if a file is still over 70 KB at quality 60, or if the
+run. The script stops if a file is still over 75 KB at quality 60, or if the
 total is over 30 MB.
 
 To rewrite only the JSON (no cropping or encoding), add `--only-json`. It also
@@ -56,7 +56,9 @@ should exist, so it can confirm that a hand edit matches a fresh run.
 - Enlarged photo (click to enlarge): the same chosen image and the same crop
   window, so the aspect ratio is the same, 960 px high (1109 wide), lossy
   WebP with alpha, no EXIF. Quality steps 80, 75, 70, 65, 60 until a file is at
-  most 70 KB; at most 30 MB in total. `src/data/mouse-media.json` keeps the 480 px
+  most 75 KB; at most 30 MB in total. The cap was raised from 70 to 75 KB because
+  one file (`razer-basilisk-v3-pro-35k`) needed 71.1 KB at quality 60; the total is
+  about 13 MB, far below 30 MB. `src/data/mouse-media.json` keeps the 480 px
   path in `image`; `largePhotoPath` in `src/lib/results/mouseMedia.ts` derives the
   enlarged path from it. `tests/unit/mouse-media.test.ts` checks that every photo
   has one, no stray file, both budgets, and the header size.

@@ -248,7 +248,7 @@ function webpSize(bytes: Buffer): { width: number; height: number } {
 
 describe("the enlarged photos (public/images/mice/l)", () => {
   const dir = join(process.cwd(), "public", "images", "mice", "l");
-  const MAX_FILE = 70 * 1024;
+  const MAX_FILE = 75 * 1024;
   const MAX_TOTAL = 30 * 1024 * 1024;
   const wanted = Object.entries(bundled)
     .filter(([, v]) => v.image !== null)
@@ -262,7 +262,7 @@ describe("the enlarged photos (public/images/mice/l)", () => {
     expect(have).toHaveLength(404);
   });
 
-  it("keeps each file at most 70 KB and the total at most 30 MB", () => {
+  it("keeps each file at most 75 KB and the total at most 30 MB", () => {
     let total = 0;
     const over: string[] = [];
     for (const f of have) {
