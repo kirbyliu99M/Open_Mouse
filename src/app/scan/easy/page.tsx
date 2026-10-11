@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import EasyScanCamera from "@/client/camera/EasyScanCamera";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
+import { easyScanCopy } from "@/lib/copy/easy-scan";
+import { getLocale } from "@/server/i18n/getLocale";
 
-export const metadata: Metadata = {
-  title: "Scan your hand",
-  description:
-    "Lay your hand on any blank sheet of A4 and photograph it — measured entirely on this device.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = easyScanCopy(await getLocale());
+  return { title: copy.metaTitle, description: copy.metaDescription };
+}
 
 /**
  * The easy-scan camera (docs/design/easy-scan-shell-2026-09-25/README.md):
