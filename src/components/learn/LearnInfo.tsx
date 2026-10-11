@@ -97,7 +97,9 @@ function cards(copy: LearnPageCopy): Card[] {
             ))}
           </dl>
           {/* Kirby's three grip drawings, resized only (public/images/learn/).
-              Decorative: the text above says what each one shows. */}
+              Decorative: the list above names and describes each one for a
+              screen reader, so the visible captions are hidden from it (the
+              names would be read twice). */}
           <div className="learn-grips">
             {(["palm", "claw", "fingertip"] as const).map((grip) => (
               <figure key={grip}>
@@ -110,7 +112,9 @@ function cards(copy: LearnPageCopy): Card[] {
                   loading="lazy"
                   decoding="async"
                 />
-                <figcaption>{copy.grip[grip].name}</figcaption>
+                <figcaption aria-hidden="true">
+                  {copy.grip[grip].name}
+                </figcaption>
               </figure>
             ))}
           </div>

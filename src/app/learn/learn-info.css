@@ -204,14 +204,15 @@
   border-radius: 0.875rem;
 }
 
-/* Card 1 on a wide screen: text on the left (250 px), the drawing on the right
-   (250 x 304, radius 14). */
-@media (min-width: 56rem) {
+/* Card 1 from 70rem (1120 px): text on the left, the drawing on the right
+   (250 x 304, radius 14); the text column is then at least about 200 px. Between
+   56rem and 70rem the two columns of cards are narrower, so the drawing stays
+   under the text, as on a phone. */
+@media (min-width: 70rem) {
   .learn-card--hand .learn-card-body {
     display: grid;
-    grid-template-columns: minmax(0, 15.625rem) 15.625rem;
+    grid-template-columns: minmax(0, 1fr) 15.625rem;
     grid-template-rows: auto auto 1fr;
-    justify-content: space-between;
     align-items: start;
     column-gap: 1.5rem;
   }
@@ -301,21 +302,31 @@
   margin-top: 0.25rem;
 }
 
-/* Card 4: two top-view drawings of our own, 120 x 152 on a phone and 150 x 190
-   on a wide screen. */
+/* Card 4: two top-view drawings of our own, up to 120 x 152 on a phone and
+   150 x 190 on a wide screen. They shrink (and so does the gap) instead of
+   overflowing: at 320 px wide, or at a large text size, nothing scrolls
+   sideways. */
 .learn-mice {
-  gap: 2rem;
+  gap: clamp(0.5rem, 5vw, 2rem);
 }
 .learn-mice figure {
-  flex: 0 0 auto;
-  width: 7.5rem;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 7.5rem;
+}
+.learn-mice img {
+  max-width: 100%;
+}
+.learn-grips figcaption,
+.learn-mice figcaption {
+  overflow-wrap: anywhere;
 }
 @media (min-width: 56rem) {
   .learn-mice {
     gap: 3rem;
   }
   .learn-mice figure {
-    width: 9.375rem;
+    max-width: 9.375rem;
   }
 }
 
@@ -342,6 +353,7 @@
   gap: 0.75rem;
 }
 .learn-bar-label {
+  overflow-wrap: anywhere;
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 500;
@@ -360,15 +372,6 @@
   color: var(--text-secondary);
   font-size: 0.8125rem;
   margin: 0.75rem 0 0;
-}
-
-@media print {
-  .learn-card {
-    break-inside: avoid;
-  }
-  .learn-info-cta {
-    border-color: var(--button-primary-bg);
-  }
 }
 
 /* Card 6 on a wide screen: text on the left (420 px), the chart fills the rest. */
@@ -393,5 +396,29 @@
     grid-row: 1 / span 3;
     margin: 0;
     align-self: center;
+  }
+}
+
+/* Print keeps the page's light paper, but the drawings are light lines made for
+   the dark page: they stay on a dark panel (backgrounds are printed on purpose),
+   and so do the chart's bars. */
+@media print {
+  .learn-card {
+    break-inside: avoid;
+  }
+  .learn-info-cta {
+    border-color: var(--button-primary-bg);
+  }
+  .learn-figure-hand img,
+  .learn-grips img,
+  .learn-mice img {
+    background: #060709;
+    border-radius: 0.5rem;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .learn-bar {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

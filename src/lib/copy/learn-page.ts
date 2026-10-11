@@ -4,9 +4,10 @@
  * Kirby has read it. English and zh-TW follow
  * codex-briefs/pages-copy-draft-2026-10-11.md (Learn table); the strings
  * that are NOT in that draft are marked "new" below and are Claude's wording:
- * the card 6 title, the chart labels and note, and the zh-TW grip names (reused from the results page).
- * The two mouse-shape labels under the drawings are the results page's own
- * shape words (its filter table), not new strings.
+ * the card 6 title, the zh-TW chart labels for the engine's "height and hump", "front
+ * flare" and "thumb rest" (the other three, the zh-TW grip names and the two
+ * mouse-shape labels are the results page's own words, imported from its table,
+ * not new strings), and the chart note.
  *
  * The page has no digits and no medical claim (a unit test checks both).
  */
@@ -68,9 +69,15 @@ export const zhTW: LearnPageCopy = {
   grip: {
     title: "認識握法",
     body: "手放在滑鼠上的方式，會影響哪些形狀適合你。",
-    palm: { name: "趴握", text: "整個手掌貼在滑鼠上。" },
-    claw: { name: "抓握", text: "手掌碰到滑鼠後方，手指拱起。" },
-    fingertip: { name: "指握", text: "只有指尖碰到滑鼠。" },
+    palm: { name: resultsZh.handGrip.palm, text: "整個手掌貼在滑鼠上。" },
+    claw: {
+      name: resultsZh.handGrip.claw,
+      text: "手掌碰到滑鼠後方，手指拱起。",
+    },
+    fingertip: {
+      name: resultsZh.handGrip.fingertip,
+      text: "只有指尖碰到滑鼠。",
+    },
   },
   size: {
     title: "配合尺寸",
@@ -90,12 +97,12 @@ export const zhTW: LearnPageCopy = {
     title: "我們怎麼評分",
     body: "Palmate 把每支滑鼠與你的手比對評分，並說明原因。",
     bars: {
-      length: "長度",
-      gripWidth: "握寬",
+      length: resultsZh.subscoreShort.length,
+      gripWidth: resultsZh.subscoreShort.gripWidth,
       heightHump: "高度與拱背",
       frontFlare: "前端寬度",
       thumb: "拇指托",
-      weight: "重量",
+      weight: resultsZh.subscoreShort.weight,
     },
     barsNote: "條越長影響越大",
   },
@@ -142,12 +149,12 @@ export const en: LearnPageCopy = {
     title: "How we score",
     body: "Palmate scores each mouse against your hand and tells you why.",
     bars: {
-      length: "Length",
-      gripWidth: "Grip width",
+      length: resultsEn.subscoreShort.length,
+      gripWidth: resultsEn.subscoreShort.gripWidth,
       heightHump: "Height and hump",
       frontFlare: "Front flare",
       thumb: "Thumb rest",
-      weight: "Weight",
+      weight: resultsEn.subscoreShort.weight,
     },
     barsNote: "Longer bar = counts more",
   },

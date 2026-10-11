@@ -48,8 +48,18 @@ test.describe("/learn information page", () => {
       .evaluateAll((bars) => bars.map((b) => b.getBoundingClientRect().width));
     expect(widths).toHaveLength(6);
     expect(widths[0]).toBeGreaterThan(widths[5]);
-    // Hard rule 2 and the brief: the page shows no number. "A4" is a paper name.
-    const text = (await page.locator("main").innerText()).replaceAll("A4", "");
+    // Hard rule 2 and the brief: the page shows no number. "A4" is a paper
+    // name, and the step badges 1 to 6 are the order of the steps (they are
+    // aria-hidden but still in innerText, so they are taken out of a clone
+    // first). Every other digit fails. textContent also covers the sentences
+    // that are visually hidden on a wide screen.
+    const text = (
+      await page.locator("main").evaluate((main) => {
+        const clone = main.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll(".learn-card-number").forEach((n) => n.remove());
+        return clone.textContent ?? "";
+      })
+    ).replaceAll("A4", "");
     expect(text).not.toMatch(/\d/);
   });
 
@@ -57,16 +67,23 @@ test.describe("/learn information page", () => {
     page,
   }) => {
     await page.goto("/learn");
+    // The chevron is aria-hidden, so the names do not include it; and each
+    // link is looked for inside its own card, because "Scan my hand" is also
+    // the name of the button at the bottom.
     await expect(
-      page.getByRole("link", { name: /^Scan my hand ›$/ }),
+      page
+        .locator(".learn-card--hand")
+        .getByRole("link", { name: "Scan my hand", exact: true }),
     ).toHaveAttribute("href", "/scan/easy");
     await expect(
-      page.getByRole("link", { name: /^How it works ›$/ }),
+      page
+        .locator(".learn-card--score")
+        .getByRole("link", { name: "How it works", exact: true }),
     ).toHaveAttribute("href", "/how-it-works");
-    const button = page.getByRole("link", {
-      name: "Scan my hand",
-      exact: true,
-    });
+    const button = page
+      .locator(".learn-info-cta")
+      .and(page.getByRole("link", { name: "Scan my hand", exact: true }));
+    await expect(button).toHaveCount(1);
     await expect(button).toHaveAttribute("href", "/scan/easy");
     const box = await button.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -124,6 +141,48 @@ test.describe("/learn information page", () => {
     expect(shape.height).toBeGreaterThan(size.height + weight.height - 2);
     expect(score.width).toBeGreaterThan(hand.width * 1.9);
     expect(score.y).toBeGreaterThan(shape.y + shape.height - 1);
+  });
+
+  test("nothing scrolls sideways at 320 px wide", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/learn");
+    await expect(page.locator(".learn-mice img")).toHaveCount(2);
+    const overflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+    expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+
+  test("between 56rem and 70rem card 1 stacks, and from 70rem its text column is at least 200 px", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.goto("/learn");
+    const text = page.locator(".learn-card--hand p").first();
+    const image = page.locator(".learn-card--hand .learn-figure");
+    const [t, i] = [await text.boundingBox(), await image.boundingBox()];
+    expect(i!.y).toBeGreaterThan(t!.y + t!.height - 1);
+    await page.setViewportSize({ width: 1120, height: 800 });
+    const wide = await text.boundingBox();
+    expect(wide!.width).toBeGreaterThanOrEqual(200);
+    const side = await image.boundingBox();
+    expect(side!.x).toBeGreaterThan(wide!.x + wide!.width - 1);
+  });
+
+  test("the grip names are read once: the visible captions are hidden from a screen reader", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    await expect(page.locator(".learn-grips figcaption")).toHaveCount(3);
+    for (const caption of await page.locator(".learn-grips figcaption").all()) {
+      await expect(caption).toHaveAttribute("aria-hidden", "true");
+    }
+    await expect(page.locator(".learn-grips-text dt")).toHaveText([
+      "Palm",
+      "Claw",
+      "Fingertip",
+    ]);
   });
 
   test("the footer's Learn link opens this page, not the kit", async ({

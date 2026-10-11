@@ -48,6 +48,22 @@ describe("learn page copy", () => {
     expect(zhTW.shape.ergonomic).toBe(resultsZh.filter.shape.ergonomic);
   });
 
+  it("takes the grip names and three chart labels from the results page, not new strings", () => {
+    for (const [copy, results] of [
+      [en, resultsEn],
+      [zhTW, resultsZh],
+    ] as const) {
+      expect(copy.grip.claw.name).toBe(
+        copy === en ? "Claw" : results.handGrip.claw,
+      );
+      expect(copy.score.bars.length).toBe(results.subscoreShort.length);
+      expect(copy.score.bars.gripWidth).toBe(results.subscoreShort.gripWidth);
+      expect(copy.score.bars.weight).toBe(results.subscoreShort.weight);
+    }
+    expect(zhTW.grip.palm.name).toBe(resultsZh.handGrip.palm);
+    expect(zhTW.grip.fingertip.name).toBe(resultsZh.handGrip.fingertip);
+  });
+
   it("picks the table for the locale", () => {
     expect(learnPageCopy("en")).toBe(en);
     expect(learnPageCopy("zh-TW")).toBe(zhTW);
@@ -131,6 +147,13 @@ describe("the rendered /learn body", () => {
       expect(html).toContain(copy.scanButton);
     },
   );
+
+  it("hides the visible grip captions from a screen reader (the list names each grip once) and keeps the shape captions", () => {
+    const html = render(en);
+    expect(html.match(/<figcaption aria-hidden="true">/g)).toHaveLength(3);
+    expect(html.match(/<figcaption>/g)).toHaveLength(2);
+    expect(html).toContain("<dt>Palm</dt>");
+  });
 
   it("draws the bars at the engine's relative weights, longest first", () => {
     const html = render(en);
