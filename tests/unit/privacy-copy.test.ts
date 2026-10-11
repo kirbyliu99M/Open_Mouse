@@ -13,13 +13,21 @@ it("keeps the shared privacy promise on How it works, the scan screens and the c
   expect(PHOTO_PRIVACY_COPY).toBe(
     "Your photo never leaves your phone. Only measurements are sent.",
   );
+  expect(
+    readFileSync("src/app/how-it-works/page.tsx", "utf8"),
+    "how-it-works",
+  ).toContain("PHOTO_PRIVACY_COPY");
+  // The scan screens read the same sentence from the locale table
+  // (src/lib/copy/scan-common.ts), whose English is the shared constant
+  // (tests/unit/i18n-scan.test.ts compares the two).
   for (const path of [
-    "src/app/how-it-works/page.tsx",
     "src/app/scan/ScanClient.tsx",
     "src/client/camera/CameraCapture.tsx",
     "src/client/camera/EasyScanCamera.tsx",
   ]) {
-    expect(readFileSync(path, "utf8"), path).toContain("PHOTO_PRIVACY_COPY");
+    expect(readFileSync(path, "utf8"), path).toMatch(
+      /common\.privacy(?:Phone|AndCameraStays)/,
+    );
   }
 });
 
@@ -40,6 +48,6 @@ it("has a device-neutral twin for the desktop entry, and leaves the phone wordin
   );
   const entry = readFileSync("src/client/camera/DeviceEntry.tsx", "utf8");
   expect(entry).toMatch(
-    /kind === "desktop"\s*\?\s*PHOTO_PRIVACY_COPY_THIS_DEVICE\s*:\s*PHOTO_PRIVACY_COPY/,
+    /kind === "desktop"\s*\?\s*common\.privacyDevice\s*:\s*common\.privacyPhone/,
   );
 });

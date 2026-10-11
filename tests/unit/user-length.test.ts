@@ -137,7 +137,7 @@ describe("typed hand length range", () => {
     expect(parseUserLength(String(max + 0.1))).toBeNull();
     expect(parseUserLength("")).toBeNull();
     expect(parseUserLength("abc")).toBeNull();
-    expect(userLengthRangeMessage()).toBe(
+    expect(userLengthRangeMessage("en")).toBe(
       `Enter a hand length between ${min} and ${max}\u00A0mm.`,
     );
   });
