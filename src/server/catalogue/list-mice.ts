@@ -3,14 +3,12 @@ import { eq } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { getDb } from "../../db/client";
 import { mice } from "../../db/schema";
-import {
-  sortMice,
-  toMiceListRow,
-  withoutExcludedFormFactors,
-  type MiceListRow,
-  type MiceQueryRow,
-} from "../../lib/mice/list";
+import { sortMice, toMiceListRow, type MiceListRow } from "../../lib/mice/list";
 import { log } from "../log";
+import {
+  withoutExcludedFormFactors,
+  type MiceQueryRow,
+} from "./mice-exclusion";
 
 /** The all-mice page (`/mice`), candidate / 未拍板. */
 const LOG_ROUTE = "/mice";
@@ -38,7 +36,7 @@ type Db = Pick<ReturnType<typeof getDb>, "select">;
  * (hard rule 1 and the "only what is shown" rule). `toMiceListRow` then copies
  * the fields one by one. Sorted by brand, then model.
  *
- * Vertical mice and trackballs are left out for now (`EXCLUDED_FORM_FACTORS`,
+ * Vertical mice and trackballs are left out for now (`mice-exclusion.ts`,
  * 暫時排除，Kirby 2026-10-12): the form factor is read only to decide that, and
  * is not copied onto the row. Everything the page counts comes from what is left.
  */
@@ -76,7 +74,7 @@ const cachedMiceRows = unstable_cache(
     if (rows.length === 0) throw new Error("empty catalogue");
     return rows;
   },
-  ["mice-list-v1"],
+  ["mice-list-v2"],
   { revalidate: MICE_LIST_REVALIDATE_S, tags: [MICE_LIST_TAG] },
 );
 

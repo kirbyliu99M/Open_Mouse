@@ -158,7 +158,7 @@ describe("getMiceList", () => {
     expect(cache.calls).toHaveLength(1);
     const [fn, keyParts, options] = cache.calls[0]!;
     expect(fn).toBeTypeOf("function");
-    expect(keyParts).toEqual(["mice-list-v1"]);
+    expect(keyParts).toEqual(["mice-list-v2"]);
     expect(options).toEqual({ revalidate: 3600, tags: ["mice-list"] });
   });
 
