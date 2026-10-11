@@ -4,11 +4,13 @@ import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { SITE_NAME } from "@/lib/site";
 import { ShareCardButton } from "./share/ShareCardButton";
+import { SurveyReminderLink } from "./SurveyReminderLink";
 
 /**
  * Top bar of every results page: the way back to a new scan on the left, the
- * site name in the centre (wide screens only), and the small share link on
- * the right. The share card is about the top pick, whichever page this is.
+ * site name in the centre (wide screens only), and on the right the
+ * questionnaire reminder (a link to the profile page, candidate) and the small
+ * share link. The share card is about the top pick, whichever page this is.
  */
 export function ResultsTopBar({
   fit,
@@ -36,8 +38,11 @@ export function ResultsTopBar({
       <Link href="/" className="results-topBar-name">
         {SITE_NAME}
       </Link>
-      <div className="results-topBar-share" data-share-position="top">
-        <ShareCardButton fit={fit} lang={language} variant="link" />
+      <div className="results-topBar-actions">
+        <SurveyReminderLink language={language} />
+        <div className="results-topBar-share" data-share-position="top">
+          <ShareCardButton fit={fit} lang={language} variant="link" />
+        </div>
       </div>
     </nav>
   );
