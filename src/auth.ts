@@ -5,9 +5,10 @@ import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
-import { claimOnSignIn } from "./server/auth/claim";
+import { recordSessionActivity } from "./server/account/activity";
 import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
 import { toPublicSession } from "./server/auth/session";
+import { handleSignInEvent } from "./server/auth/sign-in";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
 
 /**
@@ -80,7 +81,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // body of `GET /api/auth/session`, readable by any script on the page, so
     // it is an allow-list (`toPublicSession`), never the object Auth.js
     // passed in: that one carries the raw `sessionToken` and `userId`.
-    session({ session, user }) {
+    // Async since the inactive-retention work: when the user row says the last
+    // write was more than 24 hours ago, it also stamps `users.last_active_at`
+    // (see `recordSessionActivity`, which never throws, so a failed write
+    // cannot break a session read). Auth.js awaits this callback.
+    async session({ session, user }) {
+      await recordSessionActivity(getDb, user);
       return toPublicSession(session, user);
     },
   },
@@ -96,9 +102,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * `readSessionCookie`: a malformed value never reaches the database
      * (there it would be one query that can only fail, plus an EventError in
      * the log, with the claim skipped).
+     *
+     * It also stamps `users.last_active_at` first (`handleSignInEvent`).
      */
     async signIn({ user }) {
-      await claimOnSignIn(user, await cookies(), {
+      await handleSignInEvent(user, await cookies(), {
+        db: getDb,
         repo: createDrizzleScanRepo(),
       });
     },
