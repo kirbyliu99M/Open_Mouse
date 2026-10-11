@@ -51,6 +51,22 @@ const EN_ANALYSIS = analysisBody(
   "Length and grip width are both near your ideal",
 );
 
+const LINKS = {
+  officialUrl: "https://www.logitechg.com/example",
+  officialKind: "product",
+  purchaseLinks: [{ label: "Pchome 24h", url: "https://24h.pchome.com.tw/x" }],
+};
+
+/** The fixture with a real committed photo on the top mouse. */
+function withTopPhoto(base: unknown): unknown {
+  const copy = structuredClone(base) as {
+    results: { mouse: Record<string, unknown> }[];
+  };
+  copy.results[0].mouse.imageUrl =
+    "/images/mice/logitech-g-pro-x-superlight-2.webp";
+  return copy;
+}
+
 async function fulfillJson(route: Route, status: number, body: unknown) {
   await route.fulfill({
     status,
@@ -113,12 +129,31 @@ test.describe("results in zh-TW", () => {
     baseURL,
   }) => {
     await setLocale(context, baseURL, "zh-TW");
-    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
+    await page.route(FIT_URL, (route) =>
+      fulfillJson(route, 200, withTopPhoto(fixture)),
+    );
     await page.route(ANALYSIS_URL, (route) =>
       fulfillJson(route, 200, ZH_ANALYSIS),
     );
+    await page.route("**/api/mice/*/links", (route) =>
+      fulfillJson(route, 200, LINKS),
+    );
     await page.route(SCAN_URL, (route) => route.fulfill({ status: 204 }));
     await page.goto(`/results/${SCAN_ID}`);
+
+    // Photo alt (the mouse's own name), official link, purchase list.
+    await expect(
+      page.getByRole("img", { name: "Logitech G Pro X Superlight 2" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Logitech 官網產品頁/ }),
+    ).toContainText("（開新分頁）");
+    await expect(
+      page.getByRole("heading", { level: 2, name: "購買" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Pchome 24h/ }).first(),
+    ).toContainText("（開新分頁）");
 
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
     await expect(page).toHaveTitle(/^你的結果/);
@@ -241,9 +276,14 @@ test.describe("negative control: English", () => {
 
   test("the same pages stay in English", async ({ page, context, baseURL }) => {
     await setLocale(context, baseURL, "en");
-    await page.route(FIT_URL, (route) => fulfillJson(route, 200, fixture));
+    await page.route(FIT_URL, (route) =>
+      fulfillJson(route, 200, withTopPhoto(fixture)),
+    );
     await page.route(ANALYSIS_URL, (route) =>
       fulfillJson(route, 200, EN_ANALYSIS),
+    );
+    await page.route("**/api/mice/*/links", (route) =>
+      fulfillJson(route, 200, LINKS),
     );
     await page.goto(`/results/${SCAN_ID}`);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -253,6 +293,12 @@ test.describe("negative control: English", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Delete this scan now" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Logitech official product page/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Buy" }),
     ).toBeVisible();
     expect(await page.getByRole("main").innerText()).not.toMatch(/[㐀-鿿]/);
   });
