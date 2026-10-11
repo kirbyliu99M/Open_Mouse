@@ -106,7 +106,7 @@ describe("scoreWithEngine", () => {
       scoreWithEngine(DEFAULT_ENGINE, hand, seed, prefs, "right"),
     );
     const out = scoreFitDefault(hand, seed, prefs, "right");
-    expect(out.engineVersion).toBe("fit-v1-candidate.2");
+    expect(out.engineVersion).toBe("fit-v1-candidate.3");
     expect(out.handType).toBeDefined();
     expect(
       scoreWithEngine("v0", hand, seed, prefs, "right").engineVersion,

@@ -44,11 +44,11 @@ async function run(prefs = fitPreferencesSchema.parse({})) {
 }
 
 describe("loadOwnedFit under the shipped default engine", () => {
-  it("runs fit-v1-candidate.2 and sends a hand type", async () => {
+  it("runs fit-v1-candidate.3 and sends a hand type", async () => {
     const { fit, rows } = await run();
-    expect(fit.engineVersion).toBe("fit-v1-candidate.2");
+    expect(fit.engineVersion).toBe("fit-v1-candidate.3");
     expect(fit.handType).toBeDefined();
-    expect(rows.every((r) => r.engineVersion === "fit-v1-candidate.2")).toBe(
+    expect(rows.every((r) => r.engineVersion === "fit-v1-candidate.3")).toBe(
       true,
     );
   });

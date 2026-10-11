@@ -3,6 +3,7 @@ import type {
   SideCurvature,
 } from "../../lib/contracts/descriptors";
 import type { GripStyle, Subscore } from "../../lib/contracts/fit";
+import type { PalmThicknessLevel } from "../../lib/contracts/measurement";
 
 /**
  * Every tunable number the fit engine uses, in one place. Provisional until
@@ -169,7 +170,7 @@ export type EngineId = "v0" | "v1";
 export const DEFAULT_ENGINE: EngineId = "v1";
 
 /** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
-export const ENGINE_VERSION_V1 = "fit-v1-candidate.2";
+export const ENGINE_VERSION_V1 = "fit-v1-candidate.3";
 
 /**
  * Logistic scale `s` of the soft grip weights, on r = palmLength / handLength.
@@ -200,3 +201,21 @@ export const SIGMA_MEAS_MM = {
 export const THUMB_REST_BASE_MM = 12;
 export const THUMB_REST_WIDE_SLOPE = 0.5;
 export const THUMB_REST_WIDE_FROM_MM = 80;
+
+/**
+ * v1 only: the person's own palm-thickness answer shifts the height target by
+ * this many mm (`height_g = handLength x HEIGHT_FACTOR[g] + shift`), for every
+ * grip alike. No answer means no shift at all, which is not the same as
+ * "medium" being asked: both give 0 here, but a skipped answer must reach the
+ * engine as undefined.
+ *
+ * CANDIDATE (未拍板, Kirby 2026-10-11, option A, d = 1.5 mm). UNCALIBRATED: no
+ * data stands behind the 1.5 mm, and "a thicker palm prefers a taller mouse"
+ * is an assumption, not a verified fact. Replace both once M2 or learning-kit
+ * data exist. v0 never reads this.
+ */
+export const THICKNESS_HEIGHT_SHIFT_MM: Record<PalmThicknessLevel, number> = {
+  thin: -1.5,
+  medium: 0,
+  thick: 1.5,
+};

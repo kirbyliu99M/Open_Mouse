@@ -202,7 +202,13 @@ export function scoreFitV1(
   const targetsByGrip = Object.fromEntries(
     GRIP_STYLES.map((g) => [
       g,
-      computeTargets(measurements.handLengthMm, measurements.palmWidthMm, g),
+      computeTargets(
+        measurements.handLengthMm,
+        measurements.palmWidthMm,
+        g,
+        // Candidate: undefined (no answer) adds no shift.
+        prefs.palmThickness,
+      ),
     ]),
   ) as Record<GripStyle, FitTargets>;
   const targets = targetsByGrip[used];
