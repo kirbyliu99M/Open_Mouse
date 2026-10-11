@@ -7,20 +7,25 @@ import { describe, expect, it } from "vitest";
 import {
   CONTRIBUTION_BIN_MM,
   SURVEY_CONSENT_VERSION,
+  surveyEditSchema,
   surveySubmissionSchema,
 } from "../../src/lib/contracts/survey";
 import {
   binDown,
+  buildAnswersWrite,
   buildContributionWrite,
   resolveStoredGrip,
   startOfUtcDay,
 } from "../../src/server/survey/profile";
 import {
+  USE_A,
   USE_B,
   FEEL_SMALL,
+  FEEL_LARGE,
   DURATION_A,
   PAIN_A,
   BRAND_A,
+  BRAND_B,
 } from "./fixtures/survey-values";
 
 describe("binDown", () => {
@@ -238,6 +243,103 @@ describe("buildContributionWrite", () => {
         mouseIdBySlug: new Map(),
         now: NOW,
       }),
+    ).toThrow(/catalogue/);
+  });
+});
+
+describe("buildAnswersWrite (the write of one edit)", () => {
+  const ids = new Map([
+    ["mouse-a", "id-a"],
+    ["mouse-b", "id-b"],
+  ]);
+  const edit = (over: Record<string, unknown> = {}) =>
+    surveyEditSchema.parse({
+      ratings: [{ slug: "mouse-a", satisfaction: 4 }],
+      ...over,
+    });
+
+  it("carries every answer as the body gives it, with each slug resolved to its mouse id", () => {
+    const write = buildAnswersWrite(
+      edit({
+        mainUse: USE_A,
+        feedback: "A comment.",
+        ratings: [
+          {
+            slug: "mouse-a",
+            satisfaction: 5,
+            duration: DURATION_A,
+            painPoints: [PAIN_A],
+            current: true,
+          },
+          { slug: "mouse-b", satisfaction: 2 },
+        ],
+        otherMice: [
+          { brand: BRAND_A, sizeFeel: FEEL_SMALL, current: false },
+          { brand: BRAND_B, sizeFeel: FEEL_LARGE },
+        ],
+      }),
+      ids,
+    );
+    expect(write).toEqual({
+      mainUse: USE_A,
+      feedback: "A comment.",
+      ratings: [
+        {
+          mouseId: "id-a",
+          satisfaction: 5,
+          duration: DURATION_A,
+          painPoints: [PAIN_A],
+          isCurrent: true,
+        },
+        {
+          mouseId: "id-b",
+          satisfaction: 2,
+          duration: null,
+          painPoints: [],
+          isCurrent: false,
+        },
+      ],
+      otherMice: [
+        { brand: BRAND_A, sizeFeel: FEEL_SMALL, isCurrent: false },
+        { brand: BRAND_B, sizeFeel: FEEL_LARGE, isCurrent: false },
+      ],
+    });
+  });
+
+  it.each([
+    ["absent", {}],
+    ["null", { mainUse: null, feedback: null }],
+  ])(
+    "a main use and a comment that are %s both clear (null)",
+    (_label, over) => {
+      const write = buildAnswersWrite(edit(over), ids);
+      expect(write.mainUse).toBeNull();
+      expect(write.feedback).toBeNull();
+    },
+  );
+
+  it("an absent duration is null (cleared), and a body with no other mice has none", () => {
+    const write = buildAnswersWrite(edit(), ids);
+    expect(write.ratings[0]!.duration).toBeNull();
+    expect(write.otherMice).toEqual([]);
+  });
+
+  it("has nothing of a scan, a consent, a grip or a hand profile in it", () => {
+    const write = buildAnswersWrite(edit({ feedback: "x" }), ids);
+    expect(Object.keys(write).sort()).toEqual([
+      "feedback",
+      "mainUse",
+      "otherMice",
+      "ratings",
+    ]);
+  });
+
+  it("throws on a slug the catalogue does not hold (the service answers 400 before this)", () => {
+    expect(() =>
+      buildAnswersWrite(
+        edit({ ratings: [{ slug: "no-such-mouse", satisfaction: 3 }] }),
+        ids,
+      ),
     ).toThrow(/catalogue/);
   });
 });

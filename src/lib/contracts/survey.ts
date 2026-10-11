@@ -16,7 +16,8 @@
  *   - Free text, ONE field (Kirby, 2026-10-05: an ordinary questionnaire may
  *     have an open box): one open comment (`MAX_FEEDBACK_CHARS`). No response
  *     schema in the contracts carries the comment, nor the brand and size feel
- *     of another mouse: they are read by the maintainers only, never shown to
+ *     of another mouse, except `surveyMineResponseSchema` (owner-only, below):
+ *     they are read by the maintainers and by their owner, never shown to
  *     other visitors. Showing an aggregate of the brands later would need a
  *     contract PR of its own and Kirby's say. A signed-in contributor's
  *     withdrawal removes all of it.
@@ -261,5 +262,106 @@ export const surveySubmitResponseSchema = z.strictObject({
   withdrawable: z.boolean(),
 });
 
+/**
+ * The most mice a signed-in person can keep on their account (ratings and
+ * other mice together). Wider than `MAX_RATED_MICE`, which caps one
+ * submission: a person who scans and answers more than once builds up more
+ * than five. A candidate (未拍板). Known limit: only an edit enforces it. A
+ * person who answers in many submissions with different mice can pass it
+ * (the read-back answer then lists them all), and must take the count down
+ * to this number before an edit is accepted.
+ */
+export const MAX_ACCOUNT_MICE = 30;
+
+/**
+ * Signed-in people can read back and edit their own answers (candidate, Kirby,
+ * 2026-10-11: "可以改"). What this changes in the rules above:
+ *   - `GET /api/survey` returns the caller's own answers, including the
+ *     comment and the brand and size feel of other mice. They go to their
+ *     owner only: still never to other visitors, and still in no aggregate.
+ *   - `PUT /api/survey` replaces the caller's answers as a whole, not a merge:
+ *     what the body leaves out is removed. That lets a person say what a
+ *     submission cannot ("no mouse is my current one", a main use cleared),
+ *     and it removes the two edges the repeat rules list above for edits.
+ *   - It edits the answers kept per account (ratings, other mice, main use)
+ *     and the comment of the account's latest contribution. It never touches
+ *     a hand profile or a grip: those were read from a scan, so they change
+ *     only through a new submission that names a scan.
+ *   - It needs an existing contribution: with none there is no hand profile to
+ *     attach, so the first answers are given on the results page (404 here).
+ *   - No new consent tick: the tick was given at submission and the edit keeps
+ *     its record. A new consent version asks again on the next submission.
+ *   - Anonymous people cannot read or edit; their contribution is tied to no
+ *     account (401).
+ */
+
+/** The caller's other mice as read back or edited: brand, size feel, current. */
+const otherMiceSchema = z
+  .array(otherMouseSchema)
+  .max(MAX_ACCOUNT_MICE)
+  .refine((rows) => new Set(rows.map((r) => r.brand)).size === rows.length, {
+    message: "each brand can be answered once",
+  });
+
+/** `PUT /api/survey` body: the whole set of the caller's answers after the edit. */
+export const surveyEditSchema = z
+  .strictObject({
+    /** Left out or `null`, it is cleared (`null` is what the read-back answer says for none). */
+    mainUse: z.enum(MAIN_USES).nullish(),
+    ratings: z
+      .array(ratingSchema)
+      .max(MAX_ACCOUNT_MICE)
+      .refine((rows) => new Set(rows.map((r) => r.slug)).size === rows.length, {
+        message: "each mouse can be rated once",
+      })
+      .default([]),
+    otherMice: otherMiceSchema.default([]),
+    /** Replaces the latest contribution's comment; left out or `null`, it is removed. */
+    feedback: commentText.nullish(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.ratings.length + body.otherMice.length === 0) {
+      // Taking everything back is `DELETE /api/survey`, not an edit.
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratings"],
+        message: "name at least one mouse",
+      });
+    }
+    if (body.ratings.length + body.otherMice.length > MAX_ACCOUNT_MICE) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratings"],
+        message: `at most ${MAX_ACCOUNT_MICE} mice in all`,
+      });
+    }
+    const current =
+      body.ratings.filter((r) => r.current).length +
+      body.otherMice.filter((m) => m.current).length;
+    if (current > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ratings"],
+        message: "only one mouse can be the current one",
+      });
+    }
+  });
+
+/** `GET /api/survey` 200 body: the caller's own answers, `null` where none is kept. */
+export const surveyMineResponseSchema = z.strictObject({
+  mainUse: z.enum(MAIN_USES).nullable(),
+  ratings: z.array(ratingSchema),
+  otherMice: otherMiceSchema,
+  feedback: z.string().nullable(),
+});
+
+/** `200` body of an edit. */
+export const surveyEditResponseSchema = z.strictObject({
+  stored: z.literal(true),
+});
+
 export type SurveySubmission = z.infer<typeof surveySubmissionSchema>;
 export type SurveySubmitResponse = z.infer<typeof surveySubmitResponseSchema>;
+export type SurveyEdit = z.infer<typeof surveyEditSchema>;
+export type SurveyMineResponse = z.infer<typeof surveyMineResponseSchema>;
+export type SurveyEditResponse = z.infer<typeof surveyEditResponseSchema>;
