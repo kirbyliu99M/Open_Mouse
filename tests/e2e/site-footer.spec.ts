@@ -18,7 +18,7 @@ const LINKS: readonly (readonly [href: string, name: string])[] = [
   ["/learn", "Learn"],
   ["/how-it-works", "How it works"],
   ["/how-it-works#privacy", "Privacy"],
-  ["/account", "Account"],
+  ["/account", "My profile"],
   [GITHUB, "GitHub"],
 ];
 
@@ -53,7 +53,7 @@ test.describe("the site footer, in English", () => {
       for (const [group, names] of [
         ["Product", ["Scan", "Learn"]],
         ["Trust", ["How it works", "Privacy"]],
-        ["Project", ["Account", "GitHub"]],
+        ["Project", ["My profile", "GitHub"]],
       ] as const) {
         await expect(
           nav.getByRole("heading", { level: 2, name: group }),
@@ -602,7 +602,14 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
   }) => {
     await page.goto("/how-it-works");
     const footer = page.getByTestId("site-footer");
-    for (const name of ["掃描", "學習", "運作方式", "隱私", "帳號", "GitHub"])
+    for (const name of [
+      "掃描",
+      "學習",
+      "運作方式",
+      "隱私",
+      "我的檔案",
+      "GitHub",
+    ])
       await expect(
         footer.getByRole("link", { name, exact: true }),
       ).toBeVisible();

@@ -188,7 +188,7 @@ export const zhTW: AccountCopy = {
   satisfaction: (n) => `滿意 ${n}/5`,
   used: (d) => `使用 ${d}`,
   durations: {
-    under_1_month: "不到 1 個月",
+    under_1_month: "少於 1 個月",
     "1_to_6_months": "1 個月至小於 6 個月",
     "6_to_12_months": "6–12 個月",
     "1_to_3_years": "1–3 年",

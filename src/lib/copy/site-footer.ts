@@ -38,7 +38,7 @@ export const zhTW: SiteFooterCopy = {
   learn: "學習",
   howItWorks: "運作方式",
   privacy: "隱私",
-  account: "帳號",
+  account: "我的檔案",
   github: "GitHub",
   linksLabel: "網站連結",
 };
@@ -51,7 +51,7 @@ export const en: SiteFooterCopy = {
   learn: "Learn",
   howItWorks: "How it works",
   privacy: "Privacy",
-  account: "Account",
+  account: "My profile",
   github: "GitHub",
   linksLabel: "Site links",
 };
