@@ -1,0 +1,352 @@
+/*
+ * The two question pages after a measured scan (AnswerPages.tsx): grip 1／2
+ * and palm thickness 2／2. Pencil frames "握法選擇 v3" and "手掌厚度選擇 v9",
+ * approved 2026-10-12, in rem so the page follows the text size. Colours come
+ * from the dark tokens (src/app/tokens.css); the few literals (the selected
+ * row's blue wash, the error banner) are the frames' own.
+ */
+
+/* The host dialog (EasyScanCamera.tsx): the whole screen, nothing behind it. */
+.answerDialog {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text-primary);
+  z-index: 10;
+}
+.answerDialog::backdrop {
+  background: var(--bg);
+}
+
+.answerPage {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  /* A phone fills the width; a desktop gets a column. */
+  width: min(100%, 28rem);
+  margin: 0 auto;
+  padding: max(0.5rem, env(safe-area-inset-top)) 1.25rem
+    max(1rem, env(safe-area-inset-bottom));
+}
+
+.answerSr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Back (left), the step counter (middle). */
+.answerTop {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 2.75rem;
+}
+/* The text is small, the hit area is not: 44 px tall at least, and wider than
+   the word, extending left into the page's margin so the label stays aligned. */
+.answerBack {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin-left: -0.5rem;
+  padding: 0 0.75rem 0 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.answerBack:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.answerStep {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.answerTitle {
+  margin: 0.75rem 0 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.answerTitle:focus {
+  outline: none;
+}
+.answerSubtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+:lang(zh-TW) .answerTitle {
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+/* The picture takes whatever height the rows and buttons leave (never less
+   than 9 rem, never more than 21 rem), so a short phone still shows all
+   three rows and the button. */
+.answerArt {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 9rem;
+  max-height: 21rem;
+  margin: 1rem 0;
+}
+.gripArt {
+  border: 1px solid #ffffff33;
+  border-radius: 1rem;
+  background: #ffffff08;
+  overflow: hidden;
+}
+@media (prefers-contrast: more) {
+  .gripArt {
+    border-color: var(--control-border);
+  }
+}
+/* All four pictures are mounted and stacked; the chosen one is shown. Only
+   opacity and transform change, so the swap can be interrupted at any frame. */
+.gripLayer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 0;
+  transform: scale(0.97);
+  transition:
+    opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.gripLayer[data-active="true"] {
+  opacity: 1;
+  transform: none;
+}
+.gripImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A fade and nothing else. */
+  .gripLayer,
+  .gripLayer[data-active="true"] {
+    transform: none;
+    transition: opacity 0.2s linear;
+  }
+}
+
+.thicknessArt {
+  display: flex;
+  justify-content: center;
+}
+.thicknessHand {
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
+.thicknessGlow {
+  fill: var(--glow);
+  opacity: 0.2;
+}
+
+/* Three native radios drawn as rows. */
+.answerChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.answerChoice {
+  position: relative;
+  display: block;
+}
+.answerChoiceInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.answerChoiceBody {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  transition: background-color 0.16s ease;
+}
+.answerChoiceText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.answerChoiceName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+.answerChoiceHint {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.answerRadio {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1.5px solid var(--control-border);
+  border-radius: 50%;
+  color: #ffffff;
+}
+.answerRadioCheck {
+  opacity: 0;
+}
+/* Chosen: the accent wash and ring of the frames, a filled radio with a check
+   (the check, not only the colour, says it is chosen). */
+.answerChoiceInput:checked + .answerChoiceBody {
+  border: 2px solid var(--accent-text);
+  /* One pixel less padding keeps the text where it was under the thicker ring. */
+  padding: calc(0.5rem - 1px) calc(1rem - 1px);
+  background: #1f6bf033;
+}
+.answerChoiceInput:checked + .answerChoiceBody .answerChoiceHint {
+  color: #c9d6ec;
+}
+.answerChoiceInput:checked + .answerChoiceBody .answerRadio {
+  border: 1px solid var(--accent-text);
+  background: var(--accent);
+}
+.answerChoiceInput:checked + .answerChoiceBody .answerRadioCheck {
+  opacity: 1;
+}
+.answerChoiceInput:focus-visible + .answerChoiceBody {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.answerChoiceInput:active + .answerChoiceBody {
+  background: #ffffff14;
+}
+.answerChoiceInput:checked:active + .answerChoiceBody {
+  background: #1f6bf04d;
+}
+.answerChoiceInput:disabled {
+  cursor: default;
+}
+@media (prefers-contrast: more) {
+  .answerChoiceBody {
+    border-width: 2px;
+  }
+}
+
+.answerActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
+.answerPrimary {
+  min-height: 3.25rem;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.answerPrimary:active:not(:disabled) {
+  background: var(--button-primary-pressed);
+  transform: scale(0.98);
+}
+.answerPrimary:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+  cursor: not-allowed;
+}
+.answerPrimary:focus-visible,
+.answerBack:focus-visible,
+.answerSkip:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+/* A plain text button, no fill. The border stays transparent so a
+   more-contrast setting can draw it. */
+.answerSkip {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.answerSkip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (prefers-contrast: more) {
+  .answerSkip,
+  .answerBack {
+    border-color: currentColor;
+  }
+}
+.answerError {
+  margin: 0 0 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--scan-error-fg, #ff9d90);
+  border-radius: 0.5rem;
+  background: #3a1512;
+  color: var(--scan-error-fg, #ff9d90);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .answerPrimary:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -36,7 +36,6 @@ export interface ScanCommonCopy {
   gripPalm: string;
   gripClaw: string;
   gripFingertip: string;
-  gripNotSure: string;
   /** The two numbers as one line a screen reader reads. */
   measuredNumbers: (input: {
     handLength: string;
@@ -98,7 +97,6 @@ export const zhTW: ScanCommonCopy = {
   gripPalm: "趴握",
   gripClaw: "抓握",
   gripFingertip: "指握",
-  gripNotSure: "不確定",
   measuredNumbers: ({ handLength, palmWidth, entered }) =>
     `${entered ? `手長 ${handLength}${NBSP}mm（自行輸入）` : `手長 ${handLength}${NBSP}mm`} · 掌寬 ${palmWidth}${NBSP}mm`,
   unverifiedNote: "測量數值仍在驗證中。",
@@ -160,7 +158,6 @@ export const en: ScanCommonCopy = {
   gripPalm: "Palm",
   gripClaw: "Claw",
   gripFingertip: "Fingertip",
-  gripNotSure: "Not sure",
   measuredNumbers: ({ handLength, palmWidth, entered }) =>
     `${entered ? `Hand length ${handLength}${NBSP}mm (entered)` : `Hand length ${handLength}${NBSP}mm`} · Palm width ${palmWidth}${NBSP}mm`,
   unverifiedNote: "Measurements are still being validated.",

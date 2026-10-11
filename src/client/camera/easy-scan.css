@@ -251,67 +251,6 @@
   font-size: 0.875rem;
 }
 
-.easySheetGripLabel {
-  margin: 0 0 0.6rem;
-  color: var(--scan-muted, #b5b5bd);
-  font-size: 0.9375rem;
-}
-
-/* The four options are always the same width, and never a word cut short:
-   four in a row where they fit (390px at normal text), otherwise two by two,
-   and one under another where even two side by side would not fit (a large
-   text size on a narrow phone, or a wide font); never three and one.
-
-   Whether they fit depends on the font as much as on the text size, so the
-   widths of the sheet that decide it are in ch, not rem. In a container query
-   `ch` is the width of "0" in the sheet's own font, so it grows with a wider
-   font as the words do. "Fingertip" (the longest) is about 7.1ch wide in the
-   chip's type across the fonts measured (system-ui on Windows, DejaVu Sans on
-   Linux, Verdana, Arial: 6.7 to 7.1ch); with its border it is a column of
-   about 7.2ch. Four columns and their three gaps need about 31ch and two
-   columns and their gap about 15ch; the thresholds leave each about 5% over
-   that. (In rem the same words are 3.6rem in Windows' font and 4.5rem in
-   DejaVu Sans, so a rem threshold that fits one cuts the other.) */
-.easyGripChips {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.375rem;
-  margin-bottom: 1.25rem;
-}
-@container (min-width: 16ch) {
-  .easyGripChips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@container (min-width: 32.5ch) {
-  .easyGripChips {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-/* 44px is height, not width, so the touch-target rule doesn't conflict with
-   fitting the row. */
-.easyGripChip {
-  min-width: 0;
-  min-height: 44px;
-  /* None to the sides: the column is as wide as the text needs and no more. */
-  padding: 0;
-  border-radius: 999px;
-  border: 1px solid var(--scan-border, #3a3a3d);
-  background: transparent;
-  color: var(--scan-fg, #f5f5f7);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.easyGripChip.selected {
-  background: var(--button-primary-bg);
-  border-color: var(--button-primary-bg);
-  color: var(--on-button-primary);
-}
-
 /* flex-start, not center: the submit panel is taller than its button (it
    holds status text below), so centring pushed the retake button down. */
 .easySheetActions {
@@ -465,7 +404,6 @@
 }
 
 @media (prefers-contrast: more) {
-  .easyGripChip,
   .easyRetakeButton {
     border-width: 2px;
   }
@@ -1571,8 +1509,7 @@ main.easyScanShell {
    light label on white paper. Outline it in dark text instead. */
 @media print {
   .easyUploadFallbackButton,
-  .easyCopyLink,
-  .easyGripChip.selected {
+  .easyCopyLink {
     background: none;
     color: var(--text-primary);
     border: 1px solid currentColor;
