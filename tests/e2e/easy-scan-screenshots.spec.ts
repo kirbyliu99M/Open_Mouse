@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { en as accountEn } from "../../src/lib/copy/account";
 
 const OUTPUT = "docs/design/easy-scan-shell-2026-09-25/built";
 
@@ -65,7 +66,7 @@ test.describe("easy-scan shell screenshots", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/account");
     await expect(
-      page.getByRole("heading", { name: "Keep your scans" }),
+      page.getByRole("heading", { name: accountEn.title }),
     ).toBeVisible();
     await expect(
       page.getByText(/sign-in is unavailable right now/i),
@@ -91,7 +92,7 @@ test.describe("easy-scan shell screenshots", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/account");
     await expect(
-      page.getByRole("heading", { name: "Keep your scans" }),
+      page.getByRole("heading", { name: accountEn.title }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Continue with Google" }),
