@@ -113,8 +113,8 @@ test.describe("/learn information page", () => {
   }) => {
     await page.goto("/learn");
     await expect(page.locator(".learn-shape-tile")).toHaveCount(4);
-    // 4 base drawings + 3 arrow overlays, all decorative.
-    await expect(page.locator(".learn-shape img")).toHaveCount(7);
+    // 4 base drawings + 4 arrow overlays, all decorative.
+    await expect(page.locator(".learn-shape img")).toHaveCount(8);
     await expect(page.locator(".learn-shape figcaption")).toHaveText([
       "Symmetrical",
       "Ergonomic",

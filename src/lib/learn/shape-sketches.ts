@@ -45,10 +45,10 @@ export interface ShapeSketch {
 export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
   {
     id: "symmetrical",
-    viewBox: { x: 0, y: 130, w: 512, h: 260 },
-    arrows: false,
+    viewBox: { x: 0, y: 10, w: 512, h: 500 },
+    arrows: true,
     marks: [
-      { key: "symmetrical", x: 256, y: 344, anchor: "m", tone: "secondary" },
+      { key: "symmetrical", x: 255.5, y: 480, anchor: "m", tone: "secondary" },
     ],
   },
   {

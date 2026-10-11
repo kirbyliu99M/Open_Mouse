@@ -200,9 +200,9 @@ describe("the rendered /learn body", () => {
       ).not.toThrow();
     }
     expect(html).toContain("/images/hand-on-a4.svg");
-    // The hand, three grips, four sketches and three arrow overlays.
-    expect(html.match(/<img /g)).toHaveLength(11);
-    expect(html.match(/ alt=""/g)).toHaveLength(11);
+    // The hand, three grips, four sketches and their four arrow overlays.
+    expect(html.match(/<img /g)).toHaveLength(12);
+    expect(html.match(/ alt=""/g)).toHaveLength(12);
     for (const sketch of SHAPE_SKETCHES) {
       expect(html).toContain(`/images/learn/shape-${sketch.id}.svg"`);
       expect(html.includes(`shape-${sketch.id}-arrows.svg`)).toBe(
@@ -277,10 +277,10 @@ describe("the four shape sketches", () => {
 
   it("places a mark by percentages of the crop: from the right edge for anchor r", () => {
     const [sym, erg, hump] = SHAPE_SKETCHES;
-    // Symmetrical: x 256 of 512, y 344 in a crop that starts at 130 and is 260 high.
+    // Symmetrical: x 255.5 of 512, y 480 in a crop that starts at 10 and is 500 high.
     expect(markPlacement(sym, sym.marks[0])).toEqual({
-      top: "82.31%",
-      left: "50%",
+      top: "94%",
+      left: "49.9%",
     });
     expect(markPlacement(erg, erg.marks[0])).toEqual({
       top: "47.45%",
