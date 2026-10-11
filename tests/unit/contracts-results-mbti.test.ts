@@ -133,7 +133,7 @@ describe("contract additions of 2026-10-08", () => {
 
   it("pins the new enums", () => {
     expect(CATALOGUE_CATEGORIES).toEqual(["gaming", "office"]);
-    expect(DATA_SOURCES).toEqual(["first_party", "eloshapes"]);
+    expect(DATA_SOURCES).toEqual(["first_party", "public_compilation"]);
     expect(HAND_TYPE_SIZES).toEqual(["small", "medium", "large"]);
     expect(HAND_TYPE_WIDTHS).toEqual(["slim", "wide"]);
   });

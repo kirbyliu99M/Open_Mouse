@@ -12,11 +12,12 @@ import {
   assertNoDuplicates,
   assertNoUnflaggedTrackballs,
   buildCatalogue,
+  buildOfficialUrlIndex,
+  comparePageConnectivity,
   deriveFormFactor,
-  eloPageConnectivity,
-  ELOSHAPES_BROWSE_URL,
   isKnownConnectivity,
   LOGITECH_ALIASES,
+  lookupOfficialUrl,
   mapCandidate,
   mapConnectivity,
   mapDataSource,
@@ -28,10 +29,12 @@ import {
   mapSourceUrl,
   mapYesNo,
   normaliseBrand,
+  officialUrlKey,
   OFFICIAL_CONNECTIVITY,
   resolveLogitechMerges,
   TRACKBALL_NAME_PATTERN,
   type CandidateRecord,
+  type OfficialUrlRow,
 } from "../../src/server/catalogue/candidate-map";
 import catalogue from "../../src/db/seed/catalogue.json";
 import type { CatalogueEntry } from "../../src/server/catalogue/candidate-map";
@@ -44,7 +47,7 @@ const record = (over: Partial<CandidateRecord> = {}): CandidateRecord => ({
   brand: "Pulsar",
   model: "X2V2 Mini",
   officialUrl: "https://pulsargg.com/x2v2",
-  source: "eloshapes_csv",
+  source: "compiled_csv",
   lengthMm: "119.0",
   widthMm: "62.0",
   heightMm: "38.0",
@@ -61,7 +64,7 @@ const record = (over: Partial<CandidateRecord> = {}): CandidateRecord => ({
 });
 
 describe("descriptor enum mapping", () => {
-  it("maps every contract slug from its EloShapes wording", () => {
+  it("maps every contract slug from its dataset wording", () => {
     const wording = (slug: string) =>
       slug
         .split("_")
@@ -121,11 +124,11 @@ describe("descriptor enum mapping", () => {
 });
 
 describe("mapDataSource", () => {
-  it("maps both EloShapes sources to eloshapes and official to first_party", () => {
-    expect(mapDataSource("eloshapes_csv")).toBe("eloshapes");
-    expect(mapDataSource("eloshapes_site")).toBe("eloshapes");
+  it("maps both compiled sources to public_compilation and official to first_party", () => {
+    expect(mapDataSource("compiled_csv")).toBe("public_compilation");
+    expect(mapDataSource("compiled_site")).toBe("public_compilation");
     expect(mapDataSource("official")).toBe("first_party");
-    for (const s of ["eloshapes_csv", "eloshapes_site", "official"])
+    for (const s of ["compiled_csv", "compiled_site", "official"])
       expect(DATA_SOURCES).toContain(mapDataSource(s));
   });
   it("throws on anything else", () => {
@@ -133,20 +136,140 @@ describe("mapDataSource", () => {
   });
 });
 
+const listRow = (over: Partial<OfficialUrlRow> = {}): OfficialUrlRow => ({
+  brand: "Pulsar",
+  model: "X2V2 Mini",
+  officialUrl: "https://www.pulsar.gg/products/x2v2-mini",
+  urlType: "direct_product_page",
+  ...over,
+});
+
 describe("mapSourceUrl", () => {
-  it("keeps an https page", () => {
-    expect(mapSourceUrl(" https://a.example/x ", "eloshapes")).toBe(
+  it("keeps the candidate's own https page, even when the list has a row", () => {
+    expect(mapSourceUrl(" https://a.example/x ", "public_compilation")).toBe(
       "https://a.example/x",
     );
+    expect(
+      mapSourceUrl(" https://a.example/x ", "public_compilation", listRow()),
+    ).toBe("https://a.example/x");
   });
-  it("falls back to the EloShapes browse page for an EloShapes row with no page", () => {
-    expect(mapSourceUrl("", "eloshapes")).toBe(ELOSHAPES_BROWSE_URL);
+  it("takes the list's URL for a compiled row with no page of its own", () => {
+    expect(mapSourceUrl("", "public_compilation", listRow())).toBe(
+      "https://www.pulsar.gg/products/x2v2-mini",
+    );
+    expect(
+      mapSourceUrl(
+        "  ",
+        "public_compilation",
+        listRow({ officialUrl: " https://b.example/y " }),
+      ),
+    ).toBe("https://b.example/y");
+  });
+  it("takes lineup and support pages from the list as they are", () => {
+    for (const urlType of ["lineup_page", "support_page"])
+      expect(mapSourceUrl("", "public_compilation", listRow({ urlType }))).toBe(
+        "https://www.pulsar.gg/products/x2v2-mini",
+      );
+  });
+  it("refuses a compiled row with no page that the list does not have", () => {
+    expect(() => mapSourceUrl("", "public_compilation")).toThrow(
+      /official URL list has no row/,
+    );
+  });
+  it("refuses a non-https URL from the list", () => {
+    expect(() =>
+      mapSourceUrl(
+        "",
+        "public_compilation",
+        listRow({ officialUrl: "http://www.pulsar.gg/x" }),
+      ),
+    ).toThrow(
+      /official URL list "http:\/\/www.pulsar.gg\/x" is not an https URL/,
+    );
+    expect(() =>
+      mapSourceUrl("", "public_compilation", listRow({ officialUrl: "" })),
+    ).toThrow(/https/);
   });
   it("refuses a first-party row with no page, and any non-https page", () => {
     expect(() => mapSourceUrl("", "first_party")).toThrow();
-    expect(() => mapSourceUrl("http://a.example", "eloshapes")).toThrow(
-      /https/,
+    expect(() => mapSourceUrl("", "first_party", listRow())).toThrow(
+      /first-party/,
     );
+    expect(() =>
+      mapSourceUrl("http://a.example", "public_compilation"),
+    ).toThrow(/https/);
+  });
+});
+
+describe("the official URL list lookup", () => {
+  const index = buildOfficialUrlIndex([
+    listRow(),
+    listRow({
+      brand: "Logitech",
+      model: "G604 Lightspeed",
+      officialUrl: "https://support.logi.com/g604",
+      urlType: "support_page",
+    }),
+  ]);
+
+  it("matches brand and model regardless of case and spacing", () => {
+    expect(lookupOfficialUrl(index, "pulsar", "x2v2   mini")?.officialUrl).toBe(
+      "https://www.pulsar.gg/products/x2v2-mini",
+    );
+    expect(lookupOfficialUrl(index, " PULSAR ", " X2V2 Mini ")).toBeDefined();
+    expect(officialUrlKey("Pulsar", "X2V2 Mini")).toBe(
+      officialUrlKey("pulsar ", "x2v2  mini"),
+    );
+  });
+  it("folds Logitech brand spellings the way the import does", () => {
+    expect(
+      lookupOfficialUrl(index, "Logitech G", "G604 Lightspeed")?.urlType,
+    ).toBe("support_page");
+  });
+  it("returns undefined for a model the list does not have", () => {
+    expect(lookupOfficialUrl(index, "Pulsar", "X2V2")).toBeUndefined();
+    expect(lookupOfficialUrl(index, "Razer", "X2V2 Mini")).toBeUndefined();
+  });
+  it("refuses a list that names one mouse twice", () => {
+    expect(() =>
+      buildOfficialUrlIndex([listRow(), listRow({ model: "x2v2 mini" })]),
+    ).toThrow(/twice/);
+  });
+});
+
+describe("buildCatalogue source URLs", () => {
+  it("fills only the rows with no page of their own from the list", () => {
+    const entries = buildCatalogue(
+      [
+        record({ model: "A", officialUrl: "https://www.pulsar.gg/products/a" }),
+        record({ model: "X2V2 Mini", officialUrl: "" }),
+      ],
+      [],
+      RETRIEVED,
+      undefined,
+      buildOfficialUrlIndex([
+        listRow({ model: "A", officialUrl: "https://elsewhere.example/a" }),
+        listRow(),
+      ]),
+    );
+    expect(entries.map((e) => e.sourceUrl)).toEqual([
+      "https://www.pulsar.gg/products/a",
+      "https://www.pulsar.gg/products/x2v2-mini",
+    ]);
+  });
+  it("fails the import, naming the row, when the list does not have it", () => {
+    expect(() =>
+      buildCatalogue([record({ officialUrl: "" })], [], RETRIEVED),
+    ).toThrow(/Pulsar X2V2 Mini: no official URL/);
+    expect(() =>
+      buildCatalogue(
+        [record({ officialUrl: "" })],
+        [],
+        RETRIEVED,
+        undefined,
+        buildOfficialUrlIndex([listRow({ model: "X2V2" })]),
+      ),
+    ).toThrow(/Pulsar X2V2 Mini: no official URL/);
   });
 });
 
@@ -174,7 +297,7 @@ describe("deriveFormFactor", () => {
 });
 
 describe("mapConnectivity", () => {
-  it("maps each EloShapes value", () => {
+  it("maps each dataset value", () => {
     expect(mapConnectivity("Wired")).toBe("wired");
     expect(mapConnectivity("Wireless")).toBe("wireless");
     expect(mapConnectivity(" wireless ")).toBe("wireless");
@@ -200,7 +323,7 @@ describe("mapConnectivity", () => {
   });
 });
 
-describe("eloPageConnectivity", () => {
+describe("comparePageConnectivity", () => {
   const block = (wired: string, wireless: string) => [
     "Acceleration",
     "Connectivity",
@@ -213,20 +336,22 @@ describe("eloPageConnectivity", () => {
   ];
 
   it("reads wired-only, wireless-only and both (both is Wireless)", () => {
-    expect(eloPageConnectivity(block("Yes (USB-C)", "No"))).toBe("Wired");
-    expect(eloPageConnectivity(block("No", "Yes (2.4 GHz)"))).toBe("Wireless");
-    expect(eloPageConnectivity(block("Yes (USB-C)", "Yes (2.4 GHz)"))).toBe(
+    expect(comparePageConnectivity(block("Yes (USB-C)", "No"))).toBe("Wired");
+    expect(comparePageConnectivity(block("No", "Yes (2.4 GHz)"))).toBe(
+      "Wireless",
+    );
+    expect(comparePageConnectivity(block("Yes (USB-C)", "Yes (2.4 GHz)"))).toBe(
       "Wireless",
     );
   });
 
   it("returns blank when the block or the answers are missing", () => {
-    expect(eloPageConnectivity(["Weight", "50"])).toBe("");
-    expect(eloPageConnectivity(block("-", "-"))).toBe("");
+    expect(comparePageConnectivity(["Weight", "50"])).toBe("");
+    expect(comparePageConnectivity(block("-", "-"))).toBe("");
   });
 
   it("reads Wired = Yes with Wireless = - as wired", () => {
-    expect(eloPageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
+    expect(comparePageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
   });
 });
 
@@ -277,7 +402,7 @@ describe("mapCandidate", () => {
       slug: "pulsar-x2v2-mini",
       brand: "Pulsar",
       model: "X2V2 Mini",
-      dataSource: "eloshapes",
+      dataSource: "public_compilation",
       lengthMm: 119,
       widthMm: 62,
       heightMm: 38,
@@ -302,7 +427,7 @@ describe("mapCandidate", () => {
 
   it("flags a row with a descriptorBasis as inferred", () => {
     const e = mapCandidate(
-      record({ descriptorBasis: "EloShapes predecessor Saga Pro; inferred" }),
+      record({ descriptorBasis: "predecessor Saga Pro; inferred" }),
       RETRIEVED,
     );
     expect(e.descriptorsInferred).toBe(true);
@@ -474,6 +599,13 @@ describe("the committed src/db/seed/catalogue.json", () => {
       wireless: n("wireless"),
       unknown: n(null),
     }).toEqual(N.candidateConnectivity);
+  });
+
+  it("points no row at a bare home page (official pages only)", () => {
+    for (const e of entries)
+      expect(new URL(e.sourceUrl).pathname, `${e.brand} ${e.model}`).not.toBe(
+        "/",
+      );
   });
 
   it("holds the approved candidates, no slug twice", () => {

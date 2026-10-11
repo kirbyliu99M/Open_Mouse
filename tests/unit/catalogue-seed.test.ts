@@ -92,7 +92,9 @@ describe("seedCatalogue with the catalogue, facts and descriptors", () => {
     expect(count((r) => r.form_factor === "trackball")).toBe(3);
     expect(count((r) => r.form_factor === "vertical")).toBe(3);
     expect(count((r) => r.data_source === "first_party")).toBe(N.firstParty);
-    expect(count((r) => r.data_source === "eloshapes")).toBe(N.eloshapes);
+    expect(count((r) => r.data_source === "public_compilation")).toBe(
+      N.publicCompilation,
+    );
     expect(count((r) => r.image_path !== null)).toBe(0);
 
     const m575 = await one("ERGO M575");

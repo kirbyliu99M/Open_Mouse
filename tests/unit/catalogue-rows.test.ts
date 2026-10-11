@@ -100,7 +100,7 @@ describe("buildSeedRows on the checked-in files", () => {
   });
 
   it("makes every candidate row gaming and every G-series row gaming", () => {
-    for (const r of all.filter((x) => x.dataSource === "eloshapes"))
+    for (const r of all.filter((x) => x.dataSource === "public_compilation"))
       expect(r.category).toBe("gaming");
     for (const r of all.filter((x) => isGSeries(x.model)))
       expect(r.category).toBe("gaming");
@@ -125,13 +125,13 @@ describe("buildSeedRows on the checked-in files", () => {
     ).toEqual(["Lift Vertical", "M5", "MX Vertical"]);
   });
 
-  it("marks the specs and the official candidates first-party, the rest EloShapes", () => {
+  it("marks the specs and the official candidates first-party, the rest public_compilation", () => {
     expect(all.filter((r) => r.dataSource === "first_party")).toHaveLength(
       N.firstParty,
     );
-    expect(all.filter((r) => r.dataSource === "eloshapes")).toHaveLength(
-      N.eloshapes,
-    );
+    expect(
+      all.filter((r) => r.dataSource === "public_compilation"),
+    ).toHaveLength(N.publicCompilation);
   });
 
   it("gives every row valid descriptor combinations", () => {
@@ -203,19 +203,21 @@ describe("a merged Logitech row", () => {
     expect(g305.humpPlacement).toBe("back_moderate");
     expect(g305.shape).toBe("symmetrical"); // from the candidate
     expect(g305.frontFlare).not.toBeNull();
-    // The geometry model is kept, and the EloShapes fill is named.
-    expect(g305.descriptorModel).toMatch(/^geometry-gd1@[0-9a-f]+\+eloshapes$/);
+    // The geometry model is kept, and the candidate fill is named.
+    expect(g305.descriptorModel).toMatch(
+      /^geometry-gd1@[0-9a-f]+\+public_compilation$/,
+    );
     expect(g305.descriptorSourceUrls).toContain(
       entries.find((e) => e.model === "G305 Lightspeed")!.sourceUrl,
     );
   });
 
-  it("says +eloshapes on every merged row that took a value from its candidate", () => {
+  it("says +public_compilation on every merged row that took a value from its candidate", () => {
     const mergedRows = entries.filter((e) => e.mergesInto);
     expect(mergedRows).toHaveLength(N.merged);
     for (const e of mergedRows) {
       const row = byModel(e.mergesInto!);
-      expect(row.descriptorModel, e.model).toMatch(/\+eloshapes$/);
+      expect(row.descriptorModel, e.model).toMatch(/\+public_compilation$/);
       expect(row.descriptorSourceUrls, e.model).toContain(e.sourceUrl);
       expect(row.dataSource, e.model).toBe("first_party");
     }
@@ -226,7 +228,9 @@ describe("a merged Logitech row", () => {
         r.dataSource === "first_party" &&
         !entries.some((e) => e.mergesInto === r.model),
     ))
-      expect(row.descriptorModel ?? "", row.model).not.toMatch(/eloshapes/);
+      expect(row.descriptorModel ?? "", row.model).not.toMatch(
+        /public_compilation/,
+      );
   });
 
   it("leaves the geometry provenance alone when nothing is taken from the candidate", () => {
@@ -266,11 +270,11 @@ describe("a merged Logitech row", () => {
     expect(all.some((r) => r.model === "G903 Lightspeed")).toBe(false);
   });
 
-  it("names EloShapes as the descriptor source when no geometry record exists", () => {
+  it("names the public compilation as the descriptor source when no geometry record exists", () => {
     const m = built.withDescriptors.find(
       (r) => r.model === "G Pro X Superlight",
     )!;
-    expect(m.descriptorModel).toBe("eloshapes");
+    expect(m.descriptorModel).toBe("public_compilation");
     expect(m.descriptorMethod).toBeNull();
   });
 
@@ -278,7 +282,9 @@ describe("a merged Logitech row", () => {
     const inferred = entries.filter((e) => e.descriptorsInferred);
     expect(inferred).toHaveLength(N.inferred);
     for (const e of inferred)
-      expect(byModel(e.model).descriptorModel).toBe("eloshapes-inferred");
+      expect(byModel(e.model).descriptorModel).toBe(
+        "public_compilation-inferred",
+      );
   });
 });
 

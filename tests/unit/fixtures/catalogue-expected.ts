@@ -22,8 +22,8 @@ export const CATALOGUE_EXPECTED = {
   office: 23,
   /** data_source = first_party: the 38 seed rows and the 8 `official` candidates. */
   firstParty: 46,
-  /** data_source = eloshapes. */
-  eloshapes: 383,
+  /** data_source = public_compilation. */
+  publicCompilation: 383,
   /** Candidates whose descriptors are inferred. */
   inferred: 8,
   /** CAT-2: candidates by connectivity (wireless includes wired-and-wireless mice). */

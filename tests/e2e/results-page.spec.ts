@@ -680,6 +680,10 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(
       page.getByText("Generated automatically from your scores above."),
     ).toBeVisible();
+    // Template text never carries the AI label, star or notice.
+    await expect(page.locator(".results-analysis-labelRow")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiStar")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveCount(0);
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
@@ -687,10 +691,13 @@ test.describe("/results/[scanId] — real results page", () => {
     }
   });
 
-  // Kirby, 2026-09-30: no line about who wrote model text yet (an AI source
-  // line comes later). Until then only a template-written analysis carries a
-  // source line; a model-written one, fresh or cached, carries none.
-  test("a model-written analysis shows no source line yet, and no internal vocabulary", async ({
+  // Kirby, 2026-09-30: model-written text carries no source LINE (only a
+  // template-written analysis does). Kirby, 2026-10-11 and 10-12: instead, a
+  // small label with a generic star above the heading, and a visible notice
+  // under the text ("This analysis was written by AI and is for reference
+  // only."), appear for model-written text, fresh or cached, and for nothing
+  // else. No product name appears in the page text at all.
+  test("a model-written analysis shows the AI label, star and notice, no source line, and no internal vocabulary", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -704,6 +711,13 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
     await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "Written analysis",
+    );
+    await expect(page.locator(".results-analysis-aiNotice")).toBeVisible();
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "This analysis was written by AI and is for reference only.",
+    );
 
     const bodyText = (await page.locator("body").innerText()).toLowerCase();
     for (const forbidden of ["fallback", "gemini", "llm", " model"]) {
@@ -711,7 +725,7 @@ test.describe("/results/[scanId] — real results page", () => {
     }
   });
 
-  test("a cached model-written analysis shows no source line either", async ({
+  test("a cached model-written analysis shows the AI label, star and notice, and no source line", async ({
     page,
   }) => {
     await stubHappyFit(page);
@@ -725,6 +739,13 @@ test.describe("/results/[scanId] — real results page", () => {
     await expect(page.locator(".results-analysis-ready")).toBeVisible();
     await expect(page.getByText(TEMPLATE_LINE)).toHaveCount(0);
     await expect(page.locator(".results-analysis-provenance")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-labelRow")).toContainText(
+      "Written analysis",
+    );
+    await expect(page.locator(".results-analysis-aiNotice")).toBeVisible();
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveText(
+      "This analysis was written by AI and is for reference only.",
+    );
   });
 
   test("the error state of the analysis slot shows no source line", async ({

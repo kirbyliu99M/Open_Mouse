@@ -1,0 +1,248 @@
+/*
+ * The all-mice page (PAGE-1, candidate / 未拍板; design: Pencil Product v2).
+ * Dark theme tokens only (src/app/tokens.css); no colour is written out here.
+ * The filter (sidebar from 64em, bottom sheet below), its chips and its buttons
+ * are the results page's (src/components/results/filter/filter.css); this file
+ * places them and styles the search, the table and the cards.
+ *
+ * The rows are a table from 80rem (eight columns need the room beside the
+ * sidebar) and cards below. Both are in the markup and one is hidden, so the
+ * server's first paint already has the right one and the hidden one is out of
+ * the reading order (`display: none`).
+ */
+.mice-page {
+  max-width: 75rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 4rem;
+}
+/* The page is as wide as the sidebar layout from the same 64em the filter
+   switches at (CSS only, so the server's first paint has the right width). */
+@media (min-width: 64em) {
+  .mice-page {
+    max-width: 86rem;
+  }
+}
+.mice-wordmark {
+  text-decoration: none;
+}
+.mice-header {
+  margin: 1rem 0 1.5rem;
+}
+.mice-header h1 {
+  margin: 0 0 0.5rem;
+}
+.mice-subtitle {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+}
+
+/* The two fills the filter's CSS takes from `.results-view`. */
+.mice-view {
+  --facet-surface: color-mix(in srgb, var(--text-primary) 5%, var(--bg));
+  --facet-chip: color-mix(in srgb, var(--text-primary) 11%, var(--bg));
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ---- Search ---- */
+.mice-search {
+  display: flex;
+}
+.mice-searchInput {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 24rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--facet-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+}
+.mice-searchInput::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+.mice-searchInput:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+
+/* ---- Rows ---- */
+.mice-results {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.mice-results > * {
+  min-width: 0;
+}
+.mice-tableWrap {
+  display: none;
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  /* A table that does not fit scrolls inside its box (it is a focusable
+     region, so the keyboard can scroll it) instead of being cut off. */
+  overflow-x: auto;
+}
+.mice-tableWrap:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.mice-table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  text-align: left;
+}
+.mice-table th,
+.mice-table td {
+  padding: 0.75rem 0.75rem;
+  font-weight: 400;
+  vertical-align: middle;
+}
+.mice-table thead th {
+  padding-block: 0.875rem;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.mice-table tbody tr + tr > * {
+  border-top: 1px solid var(--hairline);
+}
+.mice-table .mice-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mice-name {
+  min-width: 12rem;
+}
+.mice-brand {
+  display: block;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.mice-model {
+  display: block;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.mice-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mice-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--hairline);
+  border-radius: 1rem;
+  background: var(--facet-surface);
+}
+.mice-card .mice-model {
+  font-size: 1.125rem;
+}
+.mice-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mice-tags li {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.mice-dims {
+  margin: 0.625rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+/* Where 「Show more」 sends focus: the first row it added. */
+.mice-table tr:focus-visible,
+.mice-card:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+.mice-card:focus-visible {
+  outline-offset: 2px;
+}
+.mice-more {
+  margin-top: 0.5rem;
+}
+
+.mice-empty {
+  margin: 0;
+  padding: 2rem 0;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 40rem) {
+  .mice-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Beside the sidebar the column is narrow until the table fits. */
+@media (min-width: 64rem) {
+  .mice-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (min-width: 72rem) {
+  .mice-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 80rem) {
+  .mice-tableWrap {
+    display: block;
+  }
+  .mice-cards {
+    display: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .mice-tableWrap,
+  .mice-card {
+    border-color: var(--control-border);
+  }
+}
+
+/* On paper: the table (it prints as many rows as are shown), no controls. */
+@media print {
+  .mice-search,
+  .mice-more {
+    display: none !important;
+  }
+  .mice-tableWrap {
+    display: block;
+  }
+  .mice-cards {
+    display: none;
+  }
+}
