@@ -5,8 +5,9 @@
  * log): it does not mention a ruler or any accuracy figure, only that the
  * measurements are still being validated.
  */
-export const UNVERIFIED_MEASUREMENT_NOTE =
-  "Measurements are still being validated.";
+import type { Locale } from "../../lib/contracts/locale";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
+export const UNVERIFIED_MEASUREMENT_NOTE = scanCommonCopy("en").unverifiedNote;
 
 /**
  * The sheet's line for a scan result: the two numbers, and, when the hand
@@ -17,6 +18,7 @@ export const UNVERIFIED_MEASUREMENT_NOTE =
 export function measuredSheetNumbers(
   measurements: { readonly handLengthMm: number; readonly palmWidthMm: number },
   calibration: object,
+  locale: Locale = "en",
 ): string {
   const entered =
     "method" in calibration &&
@@ -29,6 +31,7 @@ export function measuredSheetNumbers(
     handLengthMm: measurements.handLengthMm,
     palmWidthMm: measurements.palmWidthMm,
     ...(entered === undefined ? {} : { enteredLengthMm: entered }),
+    locale,
   });
 }
 
@@ -44,10 +47,15 @@ export function measuredNumbersText(input: {
   readonly handLengthMm: number;
   readonly palmWidthMm: number;
   readonly enteredLengthMm?: number;
+  readonly locale?: Locale;
 }): string {
-  const length =
-    input.enteredLengthMm === undefined
-      ? `Hand length ${input.handLengthMm.toFixed(0)}\u00A0mm`
-      : `Hand length ${input.enteredLengthMm.toFixed(0)}\u00A0mm (entered)`;
-  return `${length} · Palm width ${input.palmWidthMm.toFixed(0)}\u00A0mm`;
+  const entered = input.enteredLengthMm !== undefined;
+  return scanCommonCopy(input.locale ?? "en").measuredNumbers({
+    handLength: (entered
+      ? (input.enteredLengthMm as number)
+      : input.handLengthMm
+    ).toFixed(0),
+    palmWidth: input.palmWidthMm.toFixed(0),
+    entered,
+  });
 }

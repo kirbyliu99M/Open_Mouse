@@ -23,6 +23,7 @@ import {
   errorResponseSchema,
 } from "../../lib/contracts/routes";
 import type { ScanSubmission } from "../../lib/contracts/measurement";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 
 export type SubmitScanErrorKind =
   "invalid" | "tooLarge" | "rateLimited" | "network" | "server";
@@ -37,19 +38,8 @@ export type SubmitScanOutcome =
     };
 
 /** One distinct, actionable sentence per error kind (design-guidelines.md). */
-export const SUBMIT_ERROR_MESSAGES: Record<SubmitScanErrorKind, string> = {
-  invalid:
-    "This scan couldn't be saved — retake the top-down photo and try again.",
-  tooLarge:
-    "This scan didn't send correctly — reload the page and retake the photo.",
-  // M2 hardening (PR #56 review, MEDIUM 2): distinct, honest copy for a 429
-  // from the per-IP submit limit (src/server/scans/submit.ts) — not a
-  // server failure, and not something an instant retry would fix.
-  rateLimited:
-    "Too many tries in a short time — wait a few minutes and try again.",
-  network: "No connection — check your network, then try submitting again.",
-  server: "Something went wrong on our end — wait a moment and try again.",
-};
+export const SUBMIT_ERROR_MESSAGES: Record<SubmitScanErrorKind, string> =
+  scanCommonCopy("en").submitErrors;
 
 async function readErrorDetail(
   response: Response,

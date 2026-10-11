@@ -13,6 +13,8 @@
  * `src/client/photo/pipeline.ts`) the moment a capture attempt detects one,
  * without a second detection pass.
  */
+import type { Locale } from "../../lib/contracts/locale";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 
 export type Hand = "left" | "right";
 
@@ -51,8 +53,11 @@ export function applyDetectedHandedness(
  * once the user has tapped the chip the hand is theirs, and the label says
  * just "Left hand" / "Right hand".
  */
-export function handChipLabel(state: HandChipState): string {
-  return `${state.hand === "left" ? "Left" : "Right"} hand${state.locked ? "" : " · auto"}`;
+export function handChipLabel(
+  state: HandChipState,
+  locale: Locale = "en",
+): string {
+  return scanCommonCopy(locale).handChip(state.hand, state.locked);
 }
 
 /**
@@ -63,10 +68,11 @@ export function handChipLabel(state: HandChipState): string {
  * visible text, as it must, then says where the hand came from and what a
  * tap does.
  */
-export function handChipAccessibleName(state: HandChipState): string {
-  return `${handChipLabel(state)}, ${
-    state.locked ? "set by you" : "set automatically"
-  }. Change hand`;
+export function handChipAccessibleName(
+  state: HandChipState,
+  locale: Locale = "en",
+): string {
+  return scanCommonCopy(locale).handChipName(state.hand, state.locked);
 }
 
 /**

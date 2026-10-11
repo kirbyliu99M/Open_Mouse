@@ -18,6 +18,8 @@
  * caller then lets MediaPipe fetch the file by path, as it did before.
  */
 
+import type { Locale } from "../../lib/contracts/locale";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 import type { DetectorLoadState } from "./landmarks";
 
 export interface DownloadProgress {
@@ -90,7 +92,9 @@ export interface DownloadDescription {
 
 export function describeDownload(
   progress: DownloadProgress,
+  locale: Locale = "en",
 ): DownloadDescription {
+  const words = scanCommonCopy(locale);
   const percent = progressPercent(progress);
   const loaded = formatMegabytes(progress.loadedBytes);
   return {
@@ -99,8 +103,8 @@ export function describeDownload(
     announced: announcedPercent(progress),
     sizeText:
       progress.totalBytes !== null
-        ? `${loaded} of ${formatMegabytes(progress.totalBytes)} MB`
-        : `${loaded} MB`,
+        ? words.detectorSizeOf(loaded, formatMegabytes(progress.totalBytes))
+        : words.detectorSize(loaded),
   };
 }
 
@@ -202,7 +206,10 @@ export function createModelReader(
  * What the pill says for a load state, and what assistive technology is told.
  * Pure, so the wording and the coarse announcement steps are unit-tested.
  */
-export function describeDetectorLoad(state: DetectorLoadState): {
+export function describeDetectorLoad(
+  state: DetectorLoadState,
+  locale: Locale = "en",
+): {
   readonly visible: boolean;
   readonly text: string;
   /** Sighted-only detail ("3.3 of 7.8 MB"); the bar carries the same for AT. */
@@ -211,11 +218,12 @@ export function describeDetectorLoad(state: DetectorLoadState): {
   /** `aria-valuenow`: coarse steps, or null for an indeterminate bar. */
   readonly announced: number | null;
 } {
+  const words = scanCommonCopy(locale);
   if (state.stage === "model") {
-    const d = describeDownload(state);
+    const d = describeDownload(state, locale);
     return {
       visible: true,
-      text: "Loading the hand detector",
+      text: words.detectorLoading,
       detail: d.sizeText,
       percent: d.percent,
       announced: d.announced,
@@ -225,7 +233,7 @@ export function describeDetectorLoad(state: DetectorLoadState): {
     // MediaPipe fetches and starts its runtime itself and reports no bytes.
     return {
       visible: true,
-      text: "Starting the hand detector",
+      text: words.detectorStarting,
       detail: null,
       percent: null,
       announced: null,

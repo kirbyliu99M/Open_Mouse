@@ -8,6 +8,11 @@
  * ordered decision, so the priority order itself is unit-tested directly
  * rather than only exercised incidentally through the component.
  */
+import type { Locale } from "../../lib/contracts/locale";
+import {
+  cameraCuesCopy,
+  type CameraCuesCopy,
+} from "../../lib/copy/camera-cues";
 import { CAMERA_CONSTANTS } from "./constants";
 import {
   computeQuadSkew,
@@ -39,57 +44,78 @@ export interface Cue {
 }
 
 /** Waiting on the camera's focus: holding still cannot fix it. */
-export const WAITING_FOR_SHARP_PICTURE = "Waiting for a sharp picture";
+export const WAITING_FOR_SHARP_PICTURE = cameraCuesCopy("en").paper.outOfFocus;
 /** The cue while out of focus, on a phone whose camera can be told where to focus. */
-export const TAP_TO_FOCUS_CUE = "Tap the paper to focus";
+export const TAP_TO_FOCUS_CUE = cameraCuesCopy("en").tapToFocus;
 /** The hint line under the viewfinder while the ring fills. */
-export const HOLD_STILL_TAKING_THE_PHOTO = "Hold still — taking the photo";
+export const HOLD_STILL_TAKING_THE_PHOTO =
+  cameraCuesCopy("en").holdStillTakingPhoto;
 
-const CUE_MESSAGES: Record<CueCode, string> = {
-  "place-paper": "Place a blank sheet of paper on a darker surface",
-  "no-corners": "Point the camera at the paper",
-  "some-corners": "Move back so all four paper corners are in view",
-  tilted: "Hold the phone flat above the paper",
-  "too-far": "Move closer",
-  "too-close": "Move back a little",
-  dark: "More light, please",
-  bright: "Too bright — avoid glare",
-  "hold-still": "Hold still",
-  "out-of-focus": WAITING_FOR_SHARP_PICTURE,
-  perfect: "Perfect — hold still",
+const CUE_KEYS: Record<CueCode, keyof CameraCuesCopy["paper"]> = {
+  "place-paper": "placePaper",
+  "no-corners": "noCorners",
+  "some-corners": "someCorners",
+  tilted: "tilted",
+  "too-far": "tooFar",
+  "too-close": "tooClose",
+  dark: "dark",
+  bright: "bright",
+  "hold-still": "holdStill",
+  "out-of-focus": "outOfFocus",
+  perfect: "perfect",
 };
 
 export type CueCalibrationMode = "printed-sheet" | "paper-edge";
 
-function cue(code: CueCode, mode: CueCalibrationMode): Cue {
-  const message =
-    mode === "printed-sheet"
-      ? CUE_MESSAGES[code].replaceAll("paper", "sheet")
-      : CUE_MESSAGES[code];
-  return { code, message, allPass: code === "perfect" };
+/**
+ * The words of a cue in a locale. `locale` is a parameter, never read from
+ * anywhere in here: this module is pure. Defaults to English, which is what
+ * the unit tests pin.
+ */
+export function cueMessage(
+  code: CueCode,
+  mode: CueCalibrationMode = "paper-edge",
+  locale: Locale = "en",
+): string {
+  const table = cameraCuesCopy(locale);
+  return (mode === "printed-sheet" ? table.sheet : table.paper)[CUE_KEYS[code]];
+}
+
+function cue(code: CueCode, mode: CueCalibrationMode, locale: Locale): Cue {
+  return {
+    code,
+    message: cueMessage(code, mode, locale),
+    allPass: code === "perfect",
+  };
 }
 
 /** The cue for a code, as `pickCue` would have built it. */
 export function cueFromCode(
   code: CueCode,
   mode: CueCalibrationMode = "paper-edge",
+  locale: Locale = "en",
 ): Cue {
-  return cue(code, mode);
+  return cue(code, mode, locale);
 }
 
 /**
  * The easy scan's cue line. "Perfect" reads "Got it — hold still" there, and
  * being out of focus reads "Tap the paper to focus" where a tap can set the
- * focus (otherwise the plain "Waiting for a sharp picture").
+ * focus (otherwise the plain "Waiting for a sharp picture"). With a `locale`
+ * the words come from the cue's code, so a cue built earlier still reads
+ * right in the locale now shown.
  */
 export function easyCueText(
   cue: Cue,
-  options: { readonly tapToFocus: boolean },
+  options: { readonly tapToFocus: boolean; readonly locale?: Locale },
 ): string {
-  if (cue.code === "perfect") return "Got it — hold still";
+  const table = cameraCuesCopy(options.locale ?? "en");
+  if (cue.code === "perfect") return table.gotIt;
   if (cue.code === "out-of-focus" && options.tapToFocus)
-    return TAP_TO_FOCUS_CUE;
-  return cue.message;
+    return table.tapToFocus;
+  return options.locale === undefined
+    ? cue.message
+    : cueMessage(cue.code, "paper-edge", options.locale);
 }
 
 /**
@@ -102,11 +128,13 @@ export function easyHintText(input: {
   readonly cueCode: CueCode | null;
   readonly ringFraction: number;
   readonly tapToFocus: boolean;
+  readonly locale?: Locale;
 }): string {
+  const table = cameraCuesCopy(input.locale ?? "en");
   if (input.cueCode === "out-of-focus")
-    return input.tapToFocus ? WAITING_FOR_SHARP_PICTURE : "";
+    return input.tapToFocus ? table.paper.outOfFocus : "";
   if (input.cueCode === "perfect" && input.ringFraction > 0)
-    return HOLD_STILL_TAKING_THE_PHOTO;
+    return table.holdStillTakingPhoto;
   return "";
 }
 
@@ -137,40 +165,41 @@ export interface CueInput {
 export function pickCue(
   input: CueInput,
   mode: CueCalibrationMode = "paper-edge",
+  locale: Locale = "en",
 ): Cue {
   if (input.cornersSeen <= 0) {
     if (
       input.msSinceLastDetection >
       CAMERA_CONSTANTS.noDetection.placePaperTimeoutMs
     ) {
-      return cue("place-paper", mode);
+      return cue("place-paper", mode, locale);
     }
-    return cue("no-corners", mode);
+    return cue("no-corners", mode, locale);
   }
-  if (input.cornersSeen < 4) return cue("some-corners", mode);
-  if (!input.quad) return cue("some-corners", mode);
+  if (input.cornersSeen < 4) return cue("some-corners", mode, locale);
+  if (!input.quad) return cue("some-corners", mode, locale);
 
   const skew = computeQuadSkew(input.quad);
-  if (isQuadSkewed(skew)) return cue("tilted", mode);
+  if (isQuadSkewed(skew)) return cue("tilted", mode, locale);
 
   const widthFraction = computeQuadWidthFraction(input.quad, input.frameWidth);
   const sizeStatus = computeQuadSizeStatus(widthFraction);
-  if (sizeStatus === "too-far") return cue("too-far", mode);
-  if (sizeStatus === "too-close") return cue("too-close", mode);
+  if (sizeStatus === "too-far") return cue("too-far", mode, locale);
+  if (sizeStatus === "too-close") return cue("too-close", mode, locale);
 
   const light: LightStatus = computeLightStatus(
     input.meanLuma,
     input.clippedFraction,
   );
-  if (light === "dark") return cue("dark", mode);
-  if (light === "bright") return cue("bright", mode);
+  if (light === "dark") return cue("dark", mode, locale);
+  if (light === "bright") return cue("bright", mode, locale);
 
   // Shake and focus are different problems with different fixes: holding
   // still cannot bring a soft picture into focus, so they are told apart.
-  if (!input.steady) return cue("hold-still", mode);
-  if (!input.sharpEnough) return cue("out-of-focus", mode);
+  if (!input.steady) return cue("hold-still", mode, locale);
+  if (!input.sharpEnough) return cue("out-of-focus", mode, locale);
 
-  return cue("perfect", mode);
+  return cue("perfect", mode, locale);
 }
 
 export interface StatusChip {
@@ -192,18 +221,22 @@ export interface StatusChips {
 export function computeStatusChips(
   input: CueInput,
   mode: CueCalibrationMode = "paper-edge",
+  locale: Locale = "en",
 ): StatusChips {
+  const words = cameraCuesCopy(locale);
   const paperPass = input.cornersSeen >= 4;
   const light = computeLightStatus(input.meanLuma, input.clippedFraction);
   return {
     paper: {
-      label: `${mode === "printed-sheet" ? "Sheet" : "Paper"} ${input.cornersSeen}/4`,
+      label: (mode === "printed-sheet" ? words.sheetChip : words.paperChip)(
+        input.cornersSeen,
+      ),
       pass: paperPass,
     },
     // "Steady" means what the "hold-still" cue means: shake only. A soft
     // picture is the "out-of-focus" cue's business, and holding still cannot fix it.
-    steady: { label: "Steady", pass: input.steady },
-    light: { label: "Light", pass: light === "ok" },
+    steady: { label: words.steadyChip, pass: input.steady },
+    light: { label: words.lightChip, pass: light === "ok" },
   };
 }
 
