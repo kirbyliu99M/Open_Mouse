@@ -1,7 +1,7 @@
 /**
  * One bad photo must not stop the batch. A detector that throws on a single
  * photo (a corrupt file, an out-of-memory frame, a bug) used to reject the
- * whole `/learn/check` run, so the operator lost every photo after it and got
+ * whole `/learn/kit/check` run, so the operator lost every photo after it and got
  * no report. Here each photo is analysed on its own: a failure becomes that
  * photo's failed report and the rest go on.
  *

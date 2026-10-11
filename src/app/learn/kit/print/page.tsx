@@ -50,7 +50,7 @@ export default async function LearnPrintPage({
       <main className="learn-print-main">
         <div className="learn noPrint">
           <TopBar
-            backHref="/learn"
+            backHref="/learn/kit"
             backLabel="Learning kit"
             stepLabel="Print"
           />
@@ -66,12 +66,12 @@ export default async function LearnPrintPage({
               ? "Then check the 100 mm line with a ruler."
               : "Then check with a ruler that the outer edge of marker 0 to the outer edge of marker 1 is 180 mm."}{" "}
             Participant cards are on the{" "}
-            <Link href="/learn/slates?kit=2">cards page</Link>.
+            <Link href="/learn/kit/slates?kit=2">cards page</Link>.
           </p>
           <PrintButton label="Print 1 page" />
           <p className="learn-note">
             Other sheet:{" "}
-            <Link href={`/learn/print?sheet=${sheet === "A" ? "B" : "A"}`}>
+            <Link href={`/learn/kit/print?sheet=${sheet === "A" ? "B" : "A"}`}>
               sheet {sheet === "A" ? "B (not used)" : "A"}
             </Link>
             .
@@ -100,7 +100,11 @@ export default async function LearnPrintPage({
   return (
     <main className="learn-print-main">
       <div className="learn noPrint">
-        <TopBar backHref="/learn" backLabel="Learning kit" stepLabel="Print" />
+        <TopBar
+          backHref="/learn/kit"
+          backLabel="Learning kit"
+          stepLabel="Print"
+        />
         <h1>Print the kit</h1>
         <p className="learn-lead">
           {pages.length} pages, {label}. In the print dialog choose A4, 100% /

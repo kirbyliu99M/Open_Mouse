@@ -41,7 +41,7 @@ export default async function LearnCheckPage({
   return (
     <main className="learn">
       <TopBar
-        backHref="/learn"
+        backHref="/learn/kit"
         backLabel="Learning kit"
         stepLabel="Check photos"
       />

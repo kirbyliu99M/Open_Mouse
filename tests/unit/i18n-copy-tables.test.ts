@@ -16,6 +16,7 @@ const EXPECTED_MODULES = [
   "fit-bands.ts",
   "home-story.ts",
   "language-switcher.ts",
+  "learn-page.ts",
   "nav.ts",
   "results-page.ts",
   "share-card.ts",

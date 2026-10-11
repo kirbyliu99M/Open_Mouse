@@ -44,7 +44,7 @@ function V2Cards({
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel="Learning kit"
           stepLabel="Participant cards"
         />
@@ -99,7 +99,7 @@ export default async function LearnSlatesPage({
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel="Learning kit"
           stepLabel="Participant cards"
         />

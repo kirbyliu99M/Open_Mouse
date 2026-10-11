@@ -12,7 +12,7 @@ import {
   shotsPerHand,
   type KitCode,
 } from "@/lib/learning/kit";
-import "../../../learn/learn.css";
+import "../../../learn/kit/learn.css";
 
 /**
  * Where a printed kit QR code lands. The URL is the QR content, so this page
@@ -45,7 +45,7 @@ export default async function KitCodePage({
     return (
       <main className="learn">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel="Learning kit"
           stepLabel="Session"
         />
@@ -68,7 +68,10 @@ export default async function KitCodePage({
           >
             Start with {first.code}R, {first.name.toLowerCase()}
           </Link>
-          <Link className="learn-button-secondary" href="/learn/check?sheet=v1">
+          <Link
+            className="learn-button-secondary"
+            href="/learn/kit/check?sheet=v1"
+          >
             Check photos
           </Link>
         </div>
@@ -87,7 +90,7 @@ export default async function KitCodePage({
   return (
     <main className="learn">
       <TopBar
-        backHref="/learn"
+        backHref="/learn/kit"
         backLabel="Learning kit"
         stepLabel={`Pose ${GESTURES.indexOf(gesture) + 1} of ${GESTURES.length}`}
       />
@@ -139,7 +142,7 @@ export default async function KitCodePage({
             <p>
               That was the last pose. Check the photos before the person leaves.
             </p>
-            <Link className="learn-button" href="/learn/check?sheet=v1">
+            <Link className="learn-button" href="/learn/kit/check?sheet=v1">
               Check photos
             </Link>
           </>

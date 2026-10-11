@@ -1,0 +1,397 @@
+/*
+ * /learn, the information page (Pencil board "三頁設計", Learn v2; candidate).
+ * Tokens only (tokens.css). The nav reuses home.css's .home-nav classes. The
+ * learning kit's own stylesheet is src/app/learn/kit/learn.css.
+ */
+.learn-info {
+  /* The content is 1200 px wide on a big screen (the design), plus the padding. */
+  max-width: 77rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 5rem;
+  /* The card fill: a faint lift from the page. Opaque, so contrast is stable. */
+  --learn-card-bg: color-mix(in srgb, var(--text-primary) 4%, var(--bg));
+  --learn-panel-bg: color-mix(in srgb, var(--text-primary) 2%, var(--bg));
+}
+
+.learn-info-wordmark {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.learn-info a:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.learn-info-header {
+  margin: 2.5rem 0 2rem;
+}
+
+.learn-info h1 {
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  margin: 0 0 0.75rem;
+}
+
+.learn-info-lead {
+  color: var(--text-secondary);
+  font-size: clamp(1rem, 2.4vw, 1.125rem);
+  margin: 0;
+  max-width: 40rem;
+}
+
+/* A phone is one column, 1 to 6. From 56rem the cards sit on a fixed grid (the
+   design, Learn v4, content 1200 px): two columns of 590 px and rows that are
+   at least 360 / 180 / 180 / auto px (a row grows only if its text needs it,
+   so nothing is clipped at a big text size). Row 1 is cards 1 and 2; cards 3
+   and 5 are stacked on the left of card 4; card 6 takes the full width. */
+.learn-cards {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+@media (min-width: 56rem) {
+  .learn-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows:
+      minmax(22.5rem, auto) minmax(11.25rem, auto) minmax(11.25rem, auto)
+      auto;
+    grid-template-areas:
+      "hand grip"
+      "size shape"
+      "weight shape"
+      "score score";
+  }
+  .learn-card--hand {
+    grid-area: hand;
+  }
+  .learn-card--grip {
+    grid-area: grip;
+  }
+  .learn-card--size {
+    grid-area: size;
+  }
+  .learn-card--shape {
+    grid-area: shape;
+  }
+  .learn-card--weight {
+    grid-area: weight;
+  }
+  .learn-card--score {
+    grid-area: score;
+  }
+}
+
+.learn-card {
+  border: 1px solid var(--hairline);
+  border-radius: 1.25rem;
+  background: var(--learn-card-bg);
+  padding: 1.25rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+/* The two cards the design centres: the hand and the chart. */
+.learn-card--hand,
+.learn-card--score {
+  justify-content: center;
+}
+
+@media (min-width: 56rem) {
+  .learn-card {
+    padding: 1.75rem;
+  }
+}
+
+.learn-card p {
+  color: var(--text-secondary);
+  margin: 0 0 1rem;
+}
+
+.learn-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+}
+
+.learn-card-number {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--accent-text);
+  border-radius: 50%;
+  color: var(--accent-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+@media (min-width: 56rem) {
+  /* The design has a plain blue numeral here, no ring. */
+  .learn-card-number {
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    font-size: 0.875rem;
+    min-width: 1rem;
+  }
+}
+
+/* Text links (BTN-1 style B): --accent-text, no fill, a 44 px target. */
+.learn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  color: var(--accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.learn-info-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.125rem;
+  padding: 0 1.75rem;
+  /* A real border colour, not transparent: forced colours keeps it visible. */
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.learn-info-cta:active {
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
+}
+.learn-info a.learn-info-cta:focus-visible {
+  outline-offset: 3px;
+}
+
+@media (max-width: 40rem) {
+  /* The button spans the width on a phone, like the design. */
+  .learn-info-cta {
+    display: flex;
+  }
+}
+
+/* The hand on A4 (the home page's drawing) on the page's own black. */
+.learn-figure {
+  display: grid;
+  place-items: center;
+  margin: 0 0 0.5rem;
+}
+.learn-figure-hand img {
+  display: block;
+  width: min(100%, 17.5rem);
+  height: auto;
+  background: var(--bg);
+  border-radius: 0.875rem;
+}
+
+/* Card 1 on a wide screen: text on the left (250 px), the drawing on the right
+   (250 x 304, radius 14). */
+@media (min-width: 56rem) {
+  .learn-card--hand .learn-card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 15.625rem) 15.625rem;
+    grid-template-rows: auto auto 1fr;
+    justify-content: space-between;
+    align-items: start;
+    column-gap: 1.5rem;
+  }
+  .learn-card--hand h2,
+  .learn-card--hand p,
+  .learn-card--hand .learn-link {
+    grid-column: 1;
+  }
+  .learn-card--hand .learn-link {
+    align-self: start;
+  }
+  .learn-card--hand .learn-figure {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+  }
+  .learn-card--hand .learn-figure-hand img {
+    width: 15.625rem;
+    height: 19rem;
+    object-fit: contain;
+  }
+}
+
+/* Grip: the three sentences, then Kirby's three drawings side by side (also
+   on a phone, about 104 px each). On a wide screen the sentences are for a
+   screen reader only (the design shows the drawings and their names). */
+.learn-grips-text {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.375rem;
+  color: var(--text-secondary);
+}
+.learn-grips-text div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+}
+.learn-grips-text dt {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.learn-grips-text dd {
+  margin: 0;
+}
+
+@media (min-width: 56rem) {
+  .learn-grips-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.learn-grips,
+.learn-mice {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.learn-grips figure,
+.learn-mice figure {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+.learn-grips figure {
+  max-width: 10.25rem; /* 164 px */
+}
+.learn-grips img,
+.learn-mice img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.learn-grips figcaption,
+.learn-mice figcaption {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+/* Card 4: two top-view drawings of our own, 120 x 152 on a phone and 150 x 190
+   on a wide screen. */
+.learn-mice {
+  gap: 2rem;
+}
+.learn-mice figure {
+  flex: 0 0 auto;
+  width: 7.5rem;
+}
+@media (min-width: 56rem) {
+  .learn-mice {
+    gap: 3rem;
+  }
+  .learn-mice figure {
+    width: 9.375rem;
+  }
+}
+
+/* How we score: bar length = the engine weight relative to the largest. */
+.learn-chart {
+  align-self: stretch;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  background: var(--learn-panel-bg);
+  padding: 1rem 1.25rem;
+  margin: 0 0 0.75rem;
+}
+.learn-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.625rem;
+}
+.learn-bars li {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+.learn-bar-label {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.learn-bar-track {
+  display: block;
+}
+.learn-bar {
+  display: block;
+  height: 0.625rem;
+  min-width: 0.625rem;
+  border-radius: 999px;
+  background: var(--accent-text);
+}
+.learn-card .learn-chart-note {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0.75rem 0 0;
+}
+
+@media print {
+  .learn-card {
+    break-inside: avoid;
+  }
+  .learn-info-cta {
+    border-color: var(--button-primary-bg);
+  }
+}
+
+/* Card 6 on a wide screen: text on the left (420 px), the chart fills the rest. */
+@media (min-width: 56rem) {
+  .learn-card--score .learn-card-body {
+    display: grid;
+    grid-template-columns: 26.25rem minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 2.5rem;
+    align-content: center;
+  }
+  .learn-card--score h2,
+  .learn-card--score p,
+  .learn-card--score .learn-link {
+    grid-column: 1;
+  }
+  .learn-card--score .learn-link {
+    align-self: start;
+  }
+  .learn-card--score .learn-chart {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+    align-self: center;
+  }
+}

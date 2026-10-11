@@ -3,25 +3,52 @@ import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 import { guardDemoRouteFromProduction } from "../../src/app/scan/demo-guard";
 
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
+
+/** `NODE_ENV` is typed read-only by Next's types; the test sets it on purpose. */
+function setEnv(name: "NODE_ENV" | "VERCEL_ENV", value: string | undefined) {
+  const env = process.env as Record<string, string | undefined>;
+  if (value === undefined) delete env[name];
+  else env[name] = value;
+}
 
 describe("guardDemoRouteFromProduction", () => {
   afterEach(() => {
-    if (ORIGINAL_VERCEL_ENV === undefined) delete process.env.VERCEL_ENV;
-    else process.env.VERCEL_ENV = ORIGINAL_VERCEL_ENV;
+    setEnv("NODE_ENV", ORIGINAL_NODE_ENV);
+    setEnv("VERCEL_ENV", ORIGINAL_VERCEL_ENV);
   });
 
-  it("calls notFound() (throws) when VERCEL_ENV is production — the demo routes (/scan/submit-demo, /scan/measured-demo, /results/demo, …) must not exist there", () => {
-    process.env.VERCEL_ENV = "production";
-    expect(() => guardDemoRouteFromProduction()).toThrow();
-  });
-
-  it("does nothing outside production (preview, development, or unset)", () => {
-    for (const value of ["preview", "development", undefined] as const) {
-      if (value === undefined) delete process.env.VERCEL_ENV;
-      else process.env.VERCEL_ENV = value;
+  it("does nothing on a local `next dev` (NODE_ENV development), whatever VERCEL_ENV is", () => {
+    setEnv("NODE_ENV", "development");
+    for (const vercel of [undefined, "development", "preview"] as const) {
+      setEnv("VERCEL_ENV", vercel);
       expect(() => guardDemoRouteFromProduction()).not.toThrow();
     }
+  });
+
+  it("calls notFound() (throws) in production: Vercel production, a Vercel preview, and a local `next start` all build with NODE_ENV production", () => {
+    setEnv("NODE_ENV", "production");
+    for (const vercel of [undefined, "production", "preview"] as const) {
+      setEnv("VERCEL_ENV", vercel);
+      expect(() => guardDemoRouteFromProduction()).toThrow();
+    }
+  });
+
+  it("is closed by default: any NODE_ENV other than development (test, unset, unknown) 404s", () => {
+    setEnv("VERCEL_ENV", undefined);
+    for (const value of ["test", "staging", undefined] as const) {
+      setEnv("NODE_ENV", value);
+      expect(() => guardDemoRouteFromProduction()).toThrow();
+    }
+  });
+
+  it("a development NODE_ENV does not open a real Vercel production deployment", () => {
+    // Not a case that can occur (Vercel builds with NODE_ENV production), but
+    // the dev-only promise should not hang on that: production wins.
+    setEnv("NODE_ENV", "development");
+    setEnv("VERCEL_ENV", "production");
+    expect(() => guardDemoRouteFromProduction()).toThrow();
   });
 });
 
@@ -42,6 +69,8 @@ const PRODUCT_ROUTES = [
   "/",
   "/account",
   "/how-it-works",
+  // The public "How to choose a mouse that fits" page (the kit moved to /learn/kit).
+  "/learn",
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
   "/scan",
@@ -50,19 +79,19 @@ const PRODUCT_ROUTES = [
 ];
 
 /**
- * The learning kit's pages (`/learn/**` and the QR landing pages `/l/**`).
+ * The learning kit's pages (`/learn/kit/**` and the QR landing pages `/l/**`).
  * Kirby's decision, 2026-09-30: the learning data is collected by hand, on his
- * own machine, and the kit is not served in production. Each page 404s there
- * like a demo page, and stays reachable on a local `next dev` (which
- * `learn:sort` starts) and on Vercel previews. They are listed apart from the
- * demos so the reason stays with them, and joined into DEMO_ROUTES below.
+ * own machine, and the kit is not served in production. Since 2026-10-11
+ * (candidate) it is dev only: each page 404s everywhere except a local
+ * `next dev` (which `learn:sort` starts). They are listed apart from the demos
+ * so the reason stays with them, and joined into DEMO_ROUTES below.
  */
 const LEARNING_ROUTES = [
   "/l/v1/[token]",
-  "/learn",
-  "/learn/check",
-  "/learn/print",
-  "/learn/slates",
+  "/learn/kit",
+  "/learn/kit/check",
+  "/learn/kit/print",
+  "/learn/kit/slates",
 ];
 
 /** Dev and demo pages: 404 in production. Pinned in full. */
@@ -299,9 +328,11 @@ describe("the source check itself", () => {
     expect(routeOf("results/[scanId]/page.tsx")).toBe("/results/[scanId]");
     expect(routeOf("(marketing)/how-it-works/page.tsx")).toBe("/how-it-works");
     expect(isProductRoute("/scan")).toBe(true);
-    // The learning kit is not a product page: it is guarded (see LEARNING_ROUTES).
-    expect(isProductRoute("/learn")).toBe(false);
-    expect(isProductRoute("/learn/print")).toBe(false);
+    // /learn is the public information page; the learning kit under
+    // /learn/kit is not a product page: it is guarded (see LEARNING_ROUTES).
+    expect(isProductRoute("/learn")).toBe(true);
+    expect(isProductRoute("/learn/kit")).toBe(false);
+    expect(isProductRoute("/learn/kit/print")).toBe(false);
     expect(isProductRoute("/l/v1/[token]")).toBe(false);
     expect(isProductRoute("/scan/anything-else")).toBe(false);
   });

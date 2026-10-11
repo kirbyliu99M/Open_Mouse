@@ -620,8 +620,8 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
 
 test.describe("pages with their own print layout have no footer", () => {
   for (const path of [
-    "/learn/print",
-    "/learn/slates",
+    "/learn/kit/print",
+    "/learn/kit/slates",
     "/sheet",
     "/scan/easy",
   ]) {
