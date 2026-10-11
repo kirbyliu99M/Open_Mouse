@@ -10,7 +10,7 @@ import {
 import { weightBars } from "@/lib/learn/weight-bars";
 
 /**
- * The body of /learn: six cards, then the primary button. A plain component
+ * The body of /learn: five cards, then the primary button. A plain component
  * (no cookie, no router) so a unit test can render it in both languages.
  *
  * Adding a card (for example palm thickness, once its engine PR has merged and
@@ -203,11 +203,6 @@ function cards(copy: LearnPageCopy): Card[] {
           </div>
         </>
       ),
-    },
-    {
-      id: "weight",
-      title: copy.weightAndConnection.title,
-      children: <p>{copy.weightAndConnection.body}</p>,
     },
     // The palm thickness card goes here (not written yet: the engine is not live).
     {

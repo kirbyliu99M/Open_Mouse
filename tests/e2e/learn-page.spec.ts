@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
  * is what this suite runs.
  */
 test.describe("/learn information page", () => {
-  test("shows the title, six cards in order, the chart and the button, with no digits", async ({
+  test("shows the title, five cards in order, the chart and the button, with no digits", async ({
     page,
   }) => {
     await page.goto("/learn");
@@ -20,13 +20,12 @@ test.describe("/learn information page", () => {
       }),
     ).toBeVisible();
     const cards = page.locator("ol.learn-cards > li");
-    await expect(cards).toHaveCount(6);
+    await expect(cards).toHaveCount(5);
     await expect(cards.locator("h2")).toHaveText([
       /Know your hand/,
       /Know your grip/,
       /Match the size/,
       /Look at the shape/,
-      /Weight and connection/,
       /How we score/,
     ]);
     for (const label of [
@@ -49,7 +48,7 @@ test.describe("/learn information page", () => {
     expect(widths).toHaveLength(6);
     expect(widths[0]).toBeGreaterThan(widths[5]);
     // Hard rule 2 and the brief: the page shows no number. "A4" is a paper
-    // name, and the step badges 1 to 6 are the order of the steps (they are
+    // name, and the step badges 1 to 5 are the order of the steps (they are
     // aria-hidden but still in innerText, so they are taken out of a clone
     // first). Every other digit fails. textContent also covers the sentences
     // that are visually hidden on a wide screen.
@@ -182,7 +181,7 @@ test.describe("/learn information page", () => {
     }
   });
 
-  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3, 4, 5 and 6 each take the full width in order", async ({
+  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3, 4 and 5 each take the full width in order", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -192,23 +191,21 @@ test.describe("/learn information page", () => {
       if (!b) throw new Error(`no card ${id}`);
       return b;
     };
-    const [hand, grip, size, shape, weight, score] = await Promise.all(
-      ["hand", "grip", "size", "shape", "weight", "score"].map(box),
+    const [hand, grip, size, shape, score] = await Promise.all(
+      ["hand", "grip", "size", "shape", "score"].map(box),
     );
     expect(Math.abs(hand.y - grip.y)).toBeLessThan(2);
     expect(hand.x).toBeLessThan(grip.x);
-    // 3, 4, 5 and 6 are as wide as 1 and 2 together, stacked in order.
-    for (const full of [size, shape, weight, score]) {
+    // 3, 4 and 5 (the chart) are as wide as 1 and 2 together, stacked in order.
+    for (const full of [size, shape, score]) {
       expect(full.width).toBeGreaterThan(hand.width * 1.9);
       expect(Math.abs(full.x - hand.x)).toBeLessThan(2);
     }
     expect(size.y).toBeGreaterThan(hand.y + hand.height - 1);
     expect(shape.y).toBeGreaterThan(size.y + size.height - 1);
-    expect(weight.y).toBeGreaterThan(shape.y + shape.height - 1);
-    expect(score.y).toBeGreaterThan(weight.y + weight.height - 1);
-    // The two compact cards are about 116 px high.
+    expect(score.y).toBeGreaterThan(shape.y + shape.height - 1);
+    // The compact card 3 is about 116 px high.
     expect(size.height).toBeLessThan(160);
-    expect(weight.height).toBeLessThan(160);
   });
 
   test("nothing scrolls sideways at 320 px wide", async ({ page }) => {

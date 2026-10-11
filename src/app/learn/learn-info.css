@@ -41,10 +41,11 @@
   max-width: 40rem;
 }
 
-/* A phone is one column, 1 to 6. From 56rem the cards sit on a fixed grid (the
+/* A phone is one column, 1 to 5. From 56rem the cards sit on a fixed grid (the
    design, Learn v5, content 1200 px, candidate): row 1 is cards 1 and 2 (two
-   columns of 590 px, at least 360 px high); then cards 3, 4, 5 and 6 each take
-   the full width, 3 and 5 as compact cards (at least 116 px high). A row grows
+   columns of 590 px, at least 360 px high); then cards 3, 4 and 5 each take
+   the full width, 3 as a compact card (at least 116 px high; the old "Weight
+   and connection" card was removed, Kirby 2026-10-11). A row grows
    only if its text needs it, so nothing is clipped at a big text size. */
 .learn-cards {
   list-style: none;
@@ -58,14 +59,11 @@
 @media (min-width: 56rem) {
   .learn-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows:
-      minmax(22.5rem, auto) minmax(7.25rem, auto) auto minmax(7.25rem, auto)
-      auto;
+    grid-template-rows: minmax(22.5rem, auto) minmax(7.25rem, auto) auto auto;
     grid-template-areas:
       "hand grip"
       "size size"
       "shape shape"
-      "weight weight"
       "score score";
   }
   .learn-card--hand {
@@ -79,9 +77,6 @@
   }
   .learn-card--shape {
     grid-area: shape;
-  }
-  .learn-card--weight {
-    grid-area: weight;
   }
   .learn-card--score {
     grid-area: score;
@@ -98,12 +93,11 @@
   flex-direction: column;
   justify-content: flex-start;
 }
-/* The cards the design centres: the hand, the chart and the two compact ones
-   (3 and 5, one title and one sentence each). */
+/* The cards the design centres: the hand, the chart and the compact one (3,
+   one title and one sentence). */
 .learn-card--hand,
 .learn-card--score,
-.learn-card--size,
-.learn-card--weight {
+.learn-card--size {
   justify-content: center;
 }
 
@@ -117,21 +111,18 @@
   color: var(--text-secondary);
   margin: 0 0 1rem;
 }
-/* The two compact cards (3 and 5) have no body to push against: the sentence
+/* The compact card (3) has no body to push against: the sentence
    sits right under a tighter title and nothing is left below it. This comes
    after `.learn-card p` on purpose (same specificity, later wins); the design's
    height is about 116 px. */
-.learn-card--size p,
-.learn-card--weight p {
+.learn-card--size p {
   margin-bottom: 0;
 }
-.learn-card--size .learn-card-title,
-.learn-card--weight .learn-card-title {
+.learn-card--size .learn-card-title {
   margin-bottom: 0.5rem;
 }
 @media (min-width: 56rem) {
-  .learn-card--size,
-  .learn-card--weight {
+  .learn-card--size {
     padding-block: 1.5rem;
   }
 }
@@ -488,7 +479,7 @@
   margin: 0.75rem 0 0;
 }
 
-/* Card 6 on a wide screen: text on the left (420 px), the chart fills the rest. */
+/* Card 5 on a wide screen: text on the left (420 px), the chart fills the rest. */
 @media (min-width: 56rem) {
   .learn-card--score .learn-card-body {
     display: grid;

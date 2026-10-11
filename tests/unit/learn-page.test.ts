@@ -32,7 +32,7 @@ function strings(value: unknown): string[] {
 
 /**
  * The text a visitor reads: tags and attributes dropped, and the step numbers
- * (the badges 1 to 6 are the order of the steps, not data) left out.
+ * (the badges 1 to 5 are the order of the steps, not data) left out.
  */
 function visibleText(html: string): string {
   return html
@@ -127,11 +127,11 @@ describe("the rendered /learn body", () => {
   );
 
   it.each(LOCALES)(
-    "%s: one h1, six h2 cards in order, a bar for each of the six scores, and the two links and the button",
+    "%s: one h1, five h2 cards in order (no weight-and-connection card), a bar for each of the six scores, and the two links and the button",
     (_l, copy) => {
       const html = render(copy);
       expect(html.match(/<h1[ >]/g)).toHaveLength(1);
-      expect(html.match(/<h2[ >]/g)).toHaveLength(6);
+      expect(html.match(/<h2[ >]/g)).toHaveLength(5);
       const titles = [
         ...html.matchAll(/<h2[^>]*>.*?<\/span>([^<]+)<\/h2>/g),
       ].map((m) => m[1]);
@@ -140,13 +140,12 @@ describe("the rendered /learn body", () => {
         copy.grip.title,
         copy.size.title,
         copy.shape.title,
-        copy.weightAndConnection.title,
         copy.score.title,
       ]);
       const numbers = [
         ...html.matchAll(/class="learn-card-number"[^>]*>(\d)</g),
       ].map((m) => m[1]);
-      expect(numbers).toEqual(["1", "2", "3", "4", "5", "6"]);
+      expect(numbers).toEqual(["1", "2", "3", "4", "5"]);
       expect(html.match(/class="learn-bar"/g)).toHaveLength(6);
       const labels = [
         ...html.matchAll(/class="learn-bar-label">([^<]+)</g),

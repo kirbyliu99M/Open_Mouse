@@ -4,10 +4,12 @@
  * Kirby has read it. English and zh-TW follow
  * codex-briefs/pages-copy-draft-2026-10-11.md (Learn table); the strings
  * that are NOT in that draft are marked "new" below and are Claude's wording:
- * the card 6 title, the zh-TW chart labels for the engine's "height and hump", "front
+ * the last card's title, the zh-TW chart labels for the engine's "height and hump", "front
  * flare" and "thumb rest" (the other three, the zh-TW grip names and the two
  * mouse-shape labels are the results page's own words, imported from its table,
  * not new strings), and the chart note.
+ * The card "Weight and connection" is gone (Kirby 2026-10-11: it contradicted
+ * the weight bar in the chart), so the page has five cards.
  *
  * LEARN-5 (candidate, from the sketch package's labels.json): the two new
  * shape names `shape.hump` and `shape.flare` (the results page has no word for
@@ -61,9 +63,8 @@ export interface LearnPageCopy {
       schematic: string;
     };
   };
-  weightAndConnection: { title: string; body: string };
   score: {
-    /** New: the draft calls card 6 "See your result"; the design v2 and the brief say "How we score". */
+    /** New: the draft calls the last card "See your result"; the design v2 and the brief say "How we score". */
     title: string;
     body: string;
     /** New: the six chart labels, in the engine's sub-score order. */
@@ -126,10 +127,6 @@ export const zhTW: LearnPageCopy = {
     },
     body: "有些外殼左右對稱，有些為單手造型。拱背位置、前端寬度與側邊弧度會改變滑鼠的貼合方式。",
   },
-  weightAndConnection: {
-    title: "重量與連線",
-    body: "重量與無線或有線屬於偏好。我們會列出，但不影響合手度分數。",
-  },
   score: {
     title: "我們怎麼評分",
     body: "Palmate 把每支滑鼠與你的手比對評分，並說明原因。",
@@ -188,10 +185,6 @@ export const en: LearnPageCopy = {
       schematic: "Schematic: exaggerated flare",
     },
     body: "Some shells are symmetrical; others are shaped for one hand. Hump position, front width and side curve change how a mouse sits.",
-  },
-  weightAndConnection: {
-    title: "Weight and connection",
-    body: "Weight and wireless or wired are preferences. We show them, and they do not change the fit score.",
   },
   score: {
     title: "How we score",
