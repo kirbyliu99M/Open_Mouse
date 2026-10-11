@@ -32,7 +32,7 @@ function strings(value: unknown): string[] {
 
 /**
  * The text a visitor reads: tags and attributes dropped, and the step numbers
- * (the badges 1 to 5 are the order of the steps, not data) left out.
+ * (the badges 1 to 6 are the order of the steps, not data) left out.
  */
 function visibleText(html: string): string {
   return html
@@ -128,17 +128,18 @@ describe("the rendered /learn body", () => {
   );
 
   it.each(LOCALES)(
-    "%s: one h1, five h2 cards in order (no weight-and-connection card), a bar for each of the six scores, and the two links and the button",
+    "%s: one h1, six h2 cards in order (palm thickness third, no weight-and-connection card), a bar for each of the six scores, and the two links and the button",
     (_l, copy) => {
       const html = render(copy);
       expect(html.match(/<h1[ >]/g)).toHaveLength(1);
-      expect(html.match(/<h2[ >]/g)).toHaveLength(5);
+      expect(html.match(/<h2[ >]/g)).toHaveLength(6);
       const titles = [
         ...html.matchAll(/<h2[^>]*>.*?<\/span>([^<]+)<\/h2>/g),
       ].map((m) => m[1]);
       expect(titles).toEqual([
         copy.hand.title,
         copy.grip.title,
+        copy.thickness.title,
         copy.size.title,
         copy.shape.title,
         copy.score.title,
@@ -146,7 +147,7 @@ describe("the rendered /learn body", () => {
       const numbers = [
         ...html.matchAll(/class="learn-card-number"[^>]*>(\d)</g),
       ].map((m) => m[1]);
-      expect(numbers).toEqual(["1", "2", "3", "4", "5"]);
+      expect(numbers).toEqual(["1", "2", "3", "4", "5", "6"]);
       expect(html.match(/class="learn-bar"/g)).toHaveLength(6);
       const labels = [
         ...html.matchAll(/class="learn-bar-label">([^<]+)</g),
@@ -177,6 +178,56 @@ describe("the rendered /learn body", () => {
     },
   );
 
+  it.each(LOCALES)(
+    "%s: the palm thickness card is third, three static options in order, with no control, no number and no unit",
+    (_l, copy) => {
+      const html = render(copy);
+      const card = html.match(
+        /<li class="learn-card learn-card--thickness">.*?<\/li>/,
+      )?.[0];
+      expect(card).toBeDefined();
+      // The third card: after grip, before size.
+      expect(html.indexOf("learn-card--grip")).toBeLessThan(
+        html.indexOf("learn-card--thickness"),
+      );
+      expect(html.indexOf("learn-card--thickness")).toBeLessThan(
+        html.indexOf("learn-card--size"),
+      );
+      const names = [...card!.matchAll(/<dt>([^<]+)<\/dt>/g)].map((m) => m[1]);
+      const lines = [...card!.matchAll(/<dd>([^<]+)<\/dd>/g)].map((m) => m[1]);
+      const o = copy.thickness.options;
+      expect(names).toEqual([o.thick.name, o.medium.name, o.thin.name]);
+      expect(lines).toEqual([o.thick.line, o.medium.line, o.thin.line]);
+      // Static explanation: nothing to press, tick or type in.
+      expect(card).not.toMatch(
+        /<(button|input|a|select)[ >]|role="radio"|tabindex/,
+      );
+      const text = [
+        copy.thickness.title,
+        copy.thickness.body,
+        ...names,
+        ...lines,
+      ].join(" ");
+      expect(text).not.toMatch(/\d|mm|毫米|公釐/);
+    },
+  );
+
+  it("takes the three thickness option names in the same order in both languages", () => {
+    expect(Object.keys(en.thickness.options)).toEqual([
+      "thick",
+      "medium",
+      "thin",
+    ]);
+    expect(Object.keys(zhTW.thickness.options)).toEqual([
+      "thick",
+      "medium",
+      "thin",
+    ]);
+    expect(zhTW.thickness.options.thick.name).toBe("厚");
+    expect(zhTW.thickness.options.medium.name).toBe("中");
+    expect(zhTW.thickness.options.thin.name).toBe("薄");
+  });
+
   it("hides the visible grip captions from a screen reader (the list names each grip once) and keeps the four shape captions", () => {
     const html = render(en);
     expect(html.match(/<figcaption aria-hidden="true">/g)).toHaveLength(3);
@@ -204,7 +255,7 @@ describe("the rendered /learn body", () => {
     expect(css).toMatch(/\.learn-bars \{[^}]*list-style: none/);
   });
 
-  it("uses Kirby's grip drawings, the home hand SVG and our four shape sketches, all decorative (empty alt), each file present, the old two mouse drawings gone, and writes no thickness card", () => {
+  it("uses Kirby's grip drawings, the home hand SVG and our four shape sketches, all decorative (empty alt), each file present, and the old two mouse drawings gone", () => {
     const html = render(en);
     for (const grip of ["palm", "claw", "fingertip"]) {
       expect(html).toContain(`/images/learn/grip-${grip}.webp`);
@@ -226,7 +277,6 @@ describe("the rendered /learn body", () => {
     for (const old of ["symmetrical-top.svg", "ergonomic-top.svg"]) {
       expect(existsSync(`public/images/learn/${old}`)).toBe(false);
     }
-    expect(html.toLowerCase()).not.toContain("thick");
   });
 
   it.each(LOCALES)(

@@ -8,6 +8,10 @@
  * flare" and "thumb rest" (the other three, the zh-TW grip names and the two
  * mouse-shape labels are the results page's own words, imported from its table,
  * not new strings), and the chart note.
+ * The palm thickness card (new, candidate): the zh option words and their
+ * one-line descriptions come from Kirby's palm thickness page design v9 (they
+ * already exist there); the zh title and body and all the English are
+ * Claude's, the English a translation. Not decided (未拍板).
  * The card "Weight and connection" is gone (Kirby 2026-10-11: it contradicted
  * the weight bar in the chart), so the page has five cards.
  *
@@ -37,6 +41,19 @@ export interface LearnPageCopy {
     palm: { name: string; text: string };
     claw: { name: string; text: string };
     fingertip: { name: string; text: string };
+  };
+  /**
+   * New (candidate): the palm thickness card, between the grip and the size.
+   * Three static boxes, thick, medium and thin: a name and one line each.
+   */
+  thickness: {
+    title: string;
+    body: string;
+    options: {
+      thick: { name: string; line: string };
+      medium: { name: string; line: string };
+      thin: { name: string; line: string };
+    };
   };
   size: { title: string; body: string };
   shape: {
@@ -105,6 +122,15 @@ export const zhTW: LearnPageCopy = {
       text: "只有指尖碰到滑鼠。",
     },
   },
+  thickness: {
+    title: "手掌厚度",
+    body: "手掌的厚薄會影響適合的滑鼠高度。掃描後可以選填厚、中或薄，略過就不調整。",
+    options: {
+      thick: { name: "厚", line: "掌肉豐厚，大拇指根部明顯隆起" },
+      medium: { name: "中", line: "掌心有自然的弧度，介於兩者之間" },
+      thin: { name: "薄", line: "掌心偏平，手背的筋骨線條較明顯" },
+    },
+  },
   size: {
     title: "配合尺寸",
     body: "長度與寬度最重要。我們把兩者與你的手比對。",
@@ -162,6 +188,24 @@ export const en: LearnPageCopy = {
     fingertip: {
       name: "Fingertip",
       text: "Only your fingertips touch the mouse.",
+    },
+  },
+  thickness: {
+    title: "Palm thickness",
+    body: "Thick, medium or thin changes how tall a mouse should be. You can pick one after the scan; skip it and we do not adjust.",
+    options: {
+      thick: {
+        name: "Thick",
+        line: "Full palm, the base of the thumb clearly raised",
+      },
+      medium: {
+        name: "Medium",
+        line: "A natural curve in the palm, between the other two",
+      },
+      thin: {
+        name: "Thin",
+        line: "A flatter palm, tendons on the back of the hand show more",
+      },
     },
   },
   size: {

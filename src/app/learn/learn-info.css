@@ -41,12 +41,12 @@
   max-width: 40rem;
 }
 
-/* A phone is one column, 1 to 5. From 56rem the cards sit on a fixed grid (the
+/* A phone is one column, 1 to 6. From 56rem the cards sit on a fixed grid (the
    design, Learn v5, content 1200 px, candidate): row 1 is cards 1 and 2 (two
-   columns of 590 px, at least 360 px high); then cards 3, 4 and 5 each take
-   the full width, 3 as a compact card (at least 116 px high; the old "Weight
-   and connection" card was removed, Kirby 2026-10-11). A row grows
-   only if its text needs it, so nothing is clipped at a big text size. */
+   columns of 590 px, at least 360 px high); then cards 3 to 6 each take the
+   full width: 3 is the palm thickness card (three static boxes), 4 a compact
+   card (at least 116 px high; the old "Weight and connection" card was
+   removed, Kirby 2026-10-11). A row grows only if its text needs it, so nothing is clipped at a big text size. */
 .learn-cards {
   list-style: none;
   margin: 0 0 2.5rem;
@@ -59,9 +59,12 @@
 @media (min-width: 56rem) {
   .learn-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: minmax(22.5rem, auto) minmax(7.25rem, auto) auto auto;
+    grid-template-rows:
+      minmax(22.5rem, auto) auto minmax(7.25rem, auto)
+      auto auto;
     grid-template-areas:
       "hand grip"
+      "thickness thickness"
       "size size"
       "shape shape"
       "score score";
@@ -71,6 +74,9 @@
   }
   .learn-card--grip {
     grid-area: grip;
+  }
+  .learn-card--thickness {
+    grid-area: thickness;
   }
   .learn-card--size {
     grid-area: size;
@@ -111,12 +117,48 @@
   color: var(--text-secondary);
   margin: 0 0 1rem;
 }
-/* The compact card (3) has no body to push against: the sentence
+/* The compact card (4) has no body to push against: the sentence
    sits right under a tighter title and nothing is left below it. This comes
    after `.learn-card p` on purpose (same specificity, later wins); the design's
    height is about 116 px. */
 .learn-card--size p {
   margin-bottom: 0;
+}
+/* Palm thickness (card 3): the sentence, then three static boxes (a name and one
+   line each, the design's dark boxes). One column on a phone, three from 56rem.
+   They are not controls: no hover, no pointer, no focus. Tokens only, so print,
+   high contrast and forced colours follow the page (the border is a real
+   hairline, so forced colours keeps it). */
+.learn-thickness {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+@media (min-width: 56rem) {
+  .learn-thickness {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+}
+.learn-thickness-option {
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  background: var(--bg);
+}
+.learn-thickness-option dt {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+.learn-thickness-option dd {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .learn-card--size .learn-card-title {
   margin-bottom: 0.5rem;
@@ -506,7 +548,7 @@
   margin: 0.75rem 0 0;
 }
 
-/* Card 5 on a wide screen: text on the left (420 px), the chart fills the rest. */
+/* Card 6 on a wide screen: text on the left (420 px), the chart fills the rest. */
 @media (min-width: 56rem) {
   .learn-card--score .learn-card-body {
     display: grid;

@@ -10,11 +10,10 @@ import {
 import { weightBars } from "@/lib/learn/weight-bars";
 
 /**
- * The body of /learn: five cards, then the primary button. A plain component
+ * The body of /learn: six cards, then the primary button. A plain component
  * (no cookie, no router) so a unit test can render it in both languages.
  *
- * Adding a card (for example palm thickness, once its engine PR has merged and
- * Kirby has approved the wording): add one entry to `cards()` below, between
+ * Adding a card: add one entry to `cards()` below, between
  * the two it belongs between. The numbers on the badges come from the
  * position in that list, so the later cards renumber themselves. The wide
  * layout (learn-info.css) places each card in a grid area by its id, so a new
@@ -127,6 +126,25 @@ function cards(copy: LearnPageCopy): Card[] {
       ),
     },
     {
+      id: "thickness",
+      title: copy.thickness.title,
+      children: (
+        <>
+          <p>{copy.thickness.body}</p>
+          {/* Three static boxes (not buttons: nothing is chosen on this page,
+              the choice comes after the scan): a name and one line each. */}
+          <dl className="learn-thickness">
+            {(["thick", "medium", "thin"] as const).map((level) => (
+              <div key={level} className="learn-thickness-option">
+                <dt>{copy.thickness.options[level].name}</dt>
+                <dd>{copy.thickness.options[level].line}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      ),
+    },
+    {
       id: "size",
       title: copy.size.title,
       children: <p>{copy.size.body}</p>,
@@ -205,7 +223,6 @@ function cards(copy: LearnPageCopy): Card[] {
         </>
       ),
     },
-    // The palm thickness card goes here (not written yet: the engine is not live).
     {
       id: "score",
       title: copy.score.title,

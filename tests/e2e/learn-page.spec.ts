@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
  * is what this suite runs.
  */
 test.describe("/learn information page", () => {
-  test("shows the title, five cards in order, the chart and the button, with no digits", async ({
+  test("shows the title, six cards in order, the chart and the button, with no digits", async ({
     page,
   }) => {
     await page.goto("/learn");
@@ -20,10 +20,11 @@ test.describe("/learn information page", () => {
       }),
     ).toBeVisible();
     const cards = page.locator("ol.learn-cards > li");
-    await expect(cards).toHaveCount(5);
+    await expect(cards).toHaveCount(6);
     await expect(cards.locator("h2")).toHaveText([
       /Know your hand/,
       /Know your grip/,
+      /Palm thickness/,
       /Match the size/,
       /Look at the shape/,
       /How we score/,
@@ -48,7 +49,7 @@ test.describe("/learn information page", () => {
     expect(widths).toHaveLength(6);
     expect(widths[0]).toBeGreaterThan(widths[5]);
     // Hard rule 2 and the brief: the page shows no number. "A4" is a paper
-    // name, and the step badges 1 to 5 are the order of the steps (they are
+    // name, and the step badges 1 to 6 are the order of the steps (they are
     // aria-hidden but still in innerText, so they are taken out of a clone
     // first). Every other digit fails. textContent also covers the sentences
     // that are visually hidden on a wide screen.
@@ -181,7 +182,7 @@ test.describe("/learn information page", () => {
     }
   });
 
-  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3, 4 and 5 each take the full width in order", async ({
+  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3 to 6 each take the full width in order", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -191,21 +192,47 @@ test.describe("/learn information page", () => {
       if (!b) throw new Error(`no card ${id}`);
       return b;
     };
-    const [hand, grip, size, shape, score] = await Promise.all(
-      ["hand", "grip", "size", "shape", "score"].map(box),
+    const [hand, grip, thickness, size, shape, score] = await Promise.all(
+      ["hand", "grip", "thickness", "size", "shape", "score"].map(box),
     );
     expect(Math.abs(hand.y - grip.y)).toBeLessThan(2);
     expect(hand.x).toBeLessThan(grip.x);
-    // 3, 4 and 5 (the chart) are as wide as 1 and 2 together, stacked in order.
-    for (const full of [size, shape, score]) {
+    // 3 to 6 (the chart is 6) are as wide as 1 and 2 together, stacked in order.
+    for (const full of [thickness, size, shape, score]) {
       expect(full.width).toBeGreaterThan(hand.width * 1.9);
       expect(Math.abs(full.x - hand.x)).toBeLessThan(2);
     }
-    expect(size.y).toBeGreaterThan(hand.y + hand.height - 1);
+    expect(thickness.y).toBeGreaterThan(hand.y + hand.height - 1);
+    expect(size.y).toBeGreaterThan(thickness.y + thickness.height - 1);
     expect(shape.y).toBeGreaterThan(size.y + size.height - 1);
     expect(score.y).toBeGreaterThan(shape.y + shape.height - 1);
-    // The compact card 3 is about 116 px high.
+    // The compact card 4 (size) is about 116 px high.
     expect(size.height).toBeLessThan(160);
+  });
+
+  test("the three palm thickness boxes sit in a row on a wide screen and stack on a phone, and are not controls", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/learn");
+    const options = page.locator(".learn-thickness-option");
+    await expect(options).toHaveCount(3);
+    await expect(page.locator(".learn-thickness dt")).toHaveText([
+      "Thick",
+      "Medium",
+      "Thin",
+    ]);
+    const ys = async () =>
+      options.evaluateAll((els) =>
+        els.map((e) => Math.round(e.getBoundingClientRect().y)),
+      );
+    expect(new Set(await ys()).size).toBe(1);
+    // Static text: nothing in the card is a control.
+    await expect(
+      page.locator(".learn-card--thickness").locator("button, input, a"),
+    ).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 800 });
+    expect(new Set(await ys()).size).toBe(3);
   });
 
   test("nothing scrolls sideways at 320 px wide", async ({ page }) => {
