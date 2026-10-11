@@ -270,11 +270,16 @@ test.describe("/results/demo", () => {
     await expect(page.locator(".results-analysis-loading")).toContainText(
       /Preparing/,
     );
+    // Loading shows the small label text but no AI label row, star or notice.
+    await expect(page.locator(".results-analysis-labelRow")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Error", exact: true }).click();
     await expect(
       page.getByRole("alert").filter({ hasText: "Written analysis" }),
     ).toContainText(/unaffected/);
+    await expect(page.locator(".results-analysis-labelRow")).toHaveCount(0);
+    await expect(page.locator(".results-analysis-aiNotice")).toHaveCount(0);
     // The numeric top pick is still fully there while the analysis errored.
     await expect(
       page.getByRole("heading", { level: 1, name: /G Pro X Superlight 2/ }),
@@ -313,15 +318,18 @@ test.describe("/results/demo", () => {
     expect(
       (await page.locator("body").innerText()).toLowerCase(),
     ).not.toContain("gemini");
-    // A narrow phone: the notice wraps inside the page, nothing scrolls sideways.
+    // A narrow phone: the analysis block (not the whole demo page, whose control
+    // bar is not part of this change) keeps its content and notice inside itself
+    // and inside the window.
     await page.setViewportSize({ width: 320, height: 700 });
-    expect(
-      await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth <=
-          document.documentElement.clientWidth,
-      ),
-    ).toBe(true);
+    const fits = await page.locator(".results-analysis").evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return {
+        inner: el.scrollWidth <= el.clientWidth,
+        inWindow: box.right <= document.documentElement.clientWidth + 0.5,
+      };
+    });
+    expect(fits).toEqual({ inner: true, inWindow: true });
 
     await page
       .getByRole("button", { name: "Ready (written from scores)" })

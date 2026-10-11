@@ -128,6 +128,19 @@ describe("the AI label, star and notice around the written analysis", () => {
     }
   });
 
+  it("uses the same localized small label in loading, rate limited and error", () => {
+    for (const status of ["loading", "rateLimited", "error"] as const) {
+      expect(render({ status }, "en")).toContain(
+        `<p class="results-eyebrow">${en.analysisLabel}</p>`,
+      );
+      const zh = render({ status }, "zh-TW");
+      expect(zh).toContain(
+        `<p class="results-eyebrow">${zhTW.analysisLabel}</p>`,
+      );
+      expect(zh).not.toContain("Written analysis");
+    }
+  });
+
   it("keeps the fallback note unchanged, and the model text free of it", () => {
     const fallback = render(ready("fallback"));
     expect(fallback).toContain("results-analysis-provenance");

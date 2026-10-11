@@ -23,7 +23,8 @@ import { joinHeadlineAndBody } from "./format";
  * four-point star (not any vendor's own mark) sits above the heading, and a
  * visible line under the text says an AI wrote it and it is for reference
  * only. Both follow the page language. Fallback text, loading, error and
- * idle show neither, and no vendor name appears anywhere in the page text.
+ * idle show neither the star nor the notice (loading and error keep the plain
+ * small label, in the page language), and no vendor name appears anywhere in the page text.
  */
 export function AnalysisSlot({
   state,
@@ -33,7 +34,7 @@ export function AnalysisSlot({
 }: {
   state: AnalysisState;
   onRetry?: () => void;
-  /** Picks the label and notice for model text (the only strings here that follow the locale). */
+  /** Picks the small label (every state) and the AI notice (model text); the only strings here that follow the locale. */
   language: Locale;
   /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
   headingLevel?: 2 | 3;
@@ -41,6 +42,7 @@ export function AnalysisSlot({
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const SubHeading = headingLevel === 2 ? "h3" : "h4";
   if (state.status === "idle") return null;
+  const label = RESULTS_PAGE_COPY[language].analysisLabel;
 
   if (state.status === "loading") {
     return (
@@ -48,7 +50,7 @@ export function AnalysisSlot({
         className="results-analysis results-analysis-loading"
         role="status"
       >
-        <p className="results-eyebrow">Written analysis</p>
+        <p className="results-eyebrow">{label}</p>
         <p>Preparing your written analysis&hellip;</p>
       </section>
     );
@@ -57,7 +59,7 @@ export function AnalysisSlot({
   if (state.status === "rateLimited") {
     return (
       <section className="results-analysis results-analysis-error" role="alert">
-        <p className="results-eyebrow">Written analysis</p>
+        <p className="results-eyebrow">{label}</p>
         <p>
           Too many requests right now, so we couldn&apos;t prepare the written
           analysis. Your ranked results and sub-scores above are unaffected —
@@ -79,7 +81,7 @@ export function AnalysisSlot({
   if (state.status === "error") {
     return (
       <section className="results-analysis results-analysis-error" role="alert">
-        <p className="results-eyebrow">Written analysis</p>
+        <p className="results-eyebrow">{label}</p>
         <p>
           We couldn&apos;t prepare the written analysis right now. Your ranked
           results and sub-scores above are unaffected.
@@ -102,9 +104,7 @@ export function AnalysisSlot({
     <section className="results-analysis results-analysis-ready">
       {showAiMark(source) && (
         <div className="results-analysis-labelRow">
-          <p className="results-eyebrow">
-            {RESULTS_PAGE_COPY[language].analysisLabel}
-          </p>
+          <p className="results-eyebrow">{label}</p>
           <AiStar />
         </div>
       )}
