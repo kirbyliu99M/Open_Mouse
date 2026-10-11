@@ -19,6 +19,7 @@ import {
 } from "../../lib/contracts/measurement";
 import type { Point2 } from "../geometry/homography";
 import type { SheetLayout } from "../sheet/layout";
+import { HAND_BUTTON_FIX_INSTRUCTION, type IssueDetail } from "./issue-detail";
 
 export type GateFailureCode =
   | "MARKERS_MISSING"
@@ -38,6 +39,8 @@ export interface GateFailure {
   readonly code: GateFailureCode;
   /** One plain-language sentence naming the problem and the fix. */
   readonly message: string;
+  /** What the message says that the code does not, for other languages. */
+  readonly detail?: IssueDetail;
 }
 
 export const GATE_THRESHOLDS = {
@@ -82,12 +85,16 @@ export function checkMarkers(
 }
 
 /** MediaPipe found no hand at all in the photo. */
-export function checkHandDetected(landmarkCount: number): GateFailure | null {
+export function checkHandDetected(
+  landmarkCount: number,
+  on: "sheet" | "paper" = "sheet",
+): GateFailure | null {
   if (landmarkCount > 0) return null;
   return {
     code: "HAND_NOT_DETECTED",
     message:
       "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+    detail: { kind: "handNotDetected", on },
   };
 }
 
@@ -101,6 +108,12 @@ export function checkHandedness(
   return {
     code: "HANDEDNESS_MISMATCH",
     message: `This looks like your ${detected} hand, but you selected ${stated}. Retake with your ${stated} hand, or ${fixInstruction}.`,
+    detail: {
+      kind: "handedness",
+      detected,
+      stated,
+      fix: fixInstruction === HAND_BUTTON_FIX_INSTRUCTION ? "button" : "picker",
+    },
   };
 }
 
@@ -474,7 +487,7 @@ export function runPaperEdgeHandGates(
   input: PaperEdgeHandGateInput,
 ): PhotoGateReport {
   const errors: GateFailure[] = [];
-  const handDetectedFailure = checkHandDetected(input.landmarkCount);
+  const handDetectedFailure = checkHandDetected(input.landmarkCount, "paper");
   if (handDetectedFailure) {
     errors.push(handDetectedFailure);
   } else {

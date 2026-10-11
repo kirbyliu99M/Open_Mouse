@@ -26,11 +26,7 @@ import {
   handChipAccessibleName,
   handChipLabel,
 } from "@/client/camera/handInference";
-import {
-  EDIT_HAND_LENGTH_LABEL,
-  NO_PAPER_ENTRY_LABEL,
-  noPaperEntryLabel,
-} from "@/client/camera/noPaperEntry";
+import { noPaperEntryLabel } from "@/client/camera/noPaperEntry";
 import {
   checkCardScale,
   checkHandDetected,
@@ -59,7 +55,6 @@ import {
 import {
   measuredNumbersText,
   measuredSheetNumbers,
-  UNVERIFIED_MEASUREMENT_NOTE,
 } from "@/client/photo/unverified-note";
 import { DETECTOR_LOAD_FAILED_MESSAGE } from "@/client/photo/landmarks";
 import { SUBMIT_ERROR_MESSAGES } from "@/client/scan/submitScan";
@@ -135,22 +130,24 @@ describe("zh-TW scan tables", () => {
 
 describe("English stays byte-identical", () => {
   it("cue lines", () => {
-    expect(cueMessage("place-paper")).toBe(
+    expect(cueMessage("place-paper", "paper-edge", "en")).toBe(
       "Place a blank sheet of paper on a darker surface",
     );
-    expect(cueMessage("place-paper", "printed-sheet")).toBe(
+    expect(cueMessage("place-paper", "printed-sheet", "en")).toBe(
       "Place a blank sheet of paper on a darker surface".replaceAll(
         "paper",
         "sheet",
       ),
     );
-    expect(cueMessage("some-corners")).toBe(
+    expect(cueMessage("some-corners", "paper-edge", "en")).toBe(
       "Move back so all four paper corners are in view",
     );
-    expect(cueMessage("some-corners", "printed-sheet")).toBe(
+    expect(cueMessage("some-corners", "printed-sheet", "en")).toBe(
       "Move back so all four sheet corners are in view",
     );
-    expect(cueFromCode("perfect").message).toBe("Perfect — hold still");
+    expect(cueFromCode("perfect", "paper-edge", "en").message).toBe(
+      "Perfect — hold still",
+    );
     expect(cuesEn.gotIt).toBe("Got it — hold still");
   });
   it("privacy sentences match the shared constants", () => {
@@ -161,7 +158,7 @@ describe("English stays byte-identical", () => {
     );
   });
   it("constants other code and tests import", () => {
-    expect(UNVERIFIED_MEASUREMENT_NOTE).toBe(
+    expect(commonEn.unverifiedNote).toBe(
       "Measurements are still being validated.",
     );
     expect(DETECTOR_LOAD_FAILED_MESSAGE).toBe(
@@ -170,28 +167,35 @@ describe("English stays byte-identical", () => {
     expect(SUBMIT_ERROR_MESSAGES.network).toBe(
       "No connection — check your network, then try submitting again.",
     );
-    expect(NO_PAPER_ENTRY_LABEL).toBe("No paper? Use a ruler instead");
-    expect(EDIT_HAND_LENGTH_LABEL).toBe("Edit hand length");
-    expect(userLengthRangeMessage()).toBe(
+    expect(easyEn.noPaperEntry).toBe("No paper? Use a ruler instead");
+    expect(easyEn.editHandLength).toBe("Edit hand length");
+    expect(userLengthRangeMessage("en")).toBe(
       "Enter a hand length between 135 and 265 mm.",
     );
   });
   it("hand chip and numbers", () => {
-    expect(handChipLabel({ hand: "right", locked: false })).toBe(
+    expect(handChipLabel({ hand: "right", locked: false }, "en")).toBe(
       "Right hand · auto",
     );
-    expect(handChipLabel({ hand: "left", locked: true })).toBe("Left hand");
-    expect(handChipAccessibleName({ hand: "left", locked: true })).toBe(
+    expect(handChipLabel({ hand: "left", locked: true }, "en")).toBe(
+      "Left hand",
+    );
+    expect(handChipAccessibleName({ hand: "left", locked: true }, "en")).toBe(
       "Left hand, set by you. Change hand",
     );
     expect(
-      measuredNumbersText({ handLengthMm: 186.4, palmWidthMm: 84.6 }),
+      measuredNumbersText({
+        handLengthMm: 186.4,
+        palmWidthMm: 84.6,
+        locale: "en",
+      }),
     ).toBe("Hand length 186 mm · Palm width 85 mm");
     expect(
       measuredNumbersText({
         handLengthMm: 186.4,
         palmWidthMm: 84.6,
         enteredLengthMm: 190,
+        locale: "en",
       }),
     ).toBe("Hand length 190 mm (entered) · Palm width 85 mm");
   });
@@ -233,23 +237,23 @@ describe("cues in zh-TW", () => {
     );
   });
   it("easyCueText and easyHintText follow the locale", () => {
-    const perfect = cueFromCode("perfect");
+    const perfect = cueFromCode("perfect", "paper-edge", "en");
     expect(easyCueText(perfect, { tapToFocus: false, locale: "zh-TW" })).toBe(
       cuesZh.gotIt,
     );
-    expect(easyCueText(perfect, { tapToFocus: false })).toBe(
+    expect(easyCueText(perfect, { tapToFocus: false, locale: "en" })).toBe(
       "Got it — hold still",
     );
-    const blurry = cueFromCode("out-of-focus");
+    const blurry = cueFromCode("out-of-focus", "paper-edge", "en");
     expect(easyCueText(blurry, { tapToFocus: true, locale: "zh-TW" })).toBe(
       cuesZh.tapToFocus,
     );
-    expect(easyCueText(blurry, { tapToFocus: true })).toBe(
+    expect(easyCueText(blurry, { tapToFocus: true, locale: "en" })).toBe(
       "Tap the paper to focus",
     );
     // A cue built in English still reads in Chinese when asked to.
     expect(
-      easyCueText(cueFromCode("too-close"), {
+      easyCueText(cueFromCode("too-close", "paper-edge", "en"), {
         tapToFocus: false,
         locale: "zh-TW",
       }),
@@ -287,8 +291,10 @@ describe("cues in zh-TW", () => {
     expect(computeStatusChips(GOOD, "printed-sheet", "zh-TW").paper.label).toBe(
       "校正表 4/4",
     );
-    expect(computeStatusChips(GOOD).paper.label).toBe("Paper 4/4");
-    expect(computeStatusChips(GOOD, "printed-sheet").paper.label).toBe(
+    expect(computeStatusChips(GOOD, "paper-edge", "en").paper.label).toBe(
+      "Paper 4/4",
+    );
+    expect(computeStatusChips(GOOD, "printed-sheet", "en").paper.label).toBe(
       "Sheet 4/4",
     );
   });
@@ -334,10 +340,10 @@ describe("hand chip, numbers and labels in zh-TW", () => {
     expect(userLengthRangeMessage("zh-TW")).toBe(
       "請輸入 135 到 265 mm 之間的手長。",
     );
-    expect(noPaperEntryLabel(false, true, "zh-TW")).toBe(easyZh.noPaperEntry);
-    expect(noPaperEntryLabel(true, true, "zh-TW")).toBe(easyZh.editHandLength);
-    expect(noPaperEntryLabel(false, false, "zh-TW")).toBeNull();
-    expect(noPaperEntryLabel(false, true)).toBe(
+    expect(noPaperEntryLabel(false, "zh-TW", true)).toBe(easyZh.noPaperEntry);
+    expect(noPaperEntryLabel(true, "zh-TW", true)).toBe(easyZh.editHandLength);
+    expect(noPaperEntryLabel(false, "zh-TW", false)).toBeNull();
+    expect(noPaperEntryLabel(false, "en", true)).toBe(
       "No paper? Use a ruler instead",
     );
   });
@@ -359,7 +365,7 @@ describe("hand chip, numbers and labels in zh-TW", () => {
       "Loading the hand detector",
     );
     expect(describeDownload(state, "zh-TW").sizeText).toBe("3.5 / 7.8 MB");
-    expect(describeDownload(state).sizeText).toBe("3.5 of 7.8 MB");
+    expect(describeDownload(state, "en").sizeText).toBe("3.5 of 7.8 MB");
     expect(describeDetectorLoad({ stage: "runtime" }, "zh-TW").text).toBe(
       "正在啟動手部偵測模型",
     );
@@ -461,28 +467,59 @@ describe("issueText", () => {
       userLengthRetakeMessage(186),
     );
   });
-  it("reads the hand, the fix and the typed length back out of the message", () => {
-    const picker = issueText(checkHandedness("left", "right")!, "zh-TW");
+  it("reads the hand and the fix from the gate's detail, in both locales", () => {
+    const failure = checkHandedness("left", "right")!;
+    expect(failure.detail).toEqual({
+      kind: "handedness",
+      detected: "left",
+      stated: "right",
+      fix: "picker",
+    });
+    // The English message is the sentence it always was.
+    expect(failure.message).toBe(
+      "This looks like your left hand, but you selected right. Retake with your right hand, or change the hand picker.",
+    );
+    expect(issueText(failure, "en")).toBe(failure.message);
+    const picker = issueText(failure, "zh-TW");
     expect(picker).toBe(issuesZh.handednessMismatch("left", "right", "picker"));
     expect(picker).toContain("左手");
     expect(picker).toContain("右手");
-    const button = issueText(
-      checkHandedness("right", "left", "tap the hand button below")!,
-      "zh-TW",
-    );
+    const buttonFailure = checkHandedness(
+      "right",
+      "left",
+      "tap the hand button below",
+    )!;
+    expect(buttonFailure.detail).toMatchObject({ fix: "button" });
+    expect(buttonFailure.message).toContain("or tap the hand button below.");
+    const button = issueText(buttonFailure, "zh-TW");
     expect(button).toBe(issuesZh.handednessMismatch("right", "left", "button"));
     expect(button).not.toBe(
       issuesZh.handednessMismatch("right", "left", "picker"),
     );
-    const typed = issueText(
-      {
+  });
+  it("shows the typed length from the detail, equal to typedMm", () => {
+    for (const typedMm of [120, 186, 190.5]) {
+      const issue = {
         code: "MEASUREMENT_OUT_OF_RANGE",
-        message: userLengthRetakeMessage(120),
-      },
-      "zh-TW",
-    );
-    expect(typed).toContain("120");
-    expect(typed).toBe(issuesZh.measurementOutOfRangeTyped("120"));
+        message: userLengthRetakeMessage(typedMm),
+        detail: { kind: "typedLength" as const, typedMm },
+      };
+      const zh = issueText(issue, "zh-TW");
+      expect(zh).toBe(issuesZh.measurementOutOfRangeTyped(String(typedMm)));
+      expect(zh).toContain(String(typedMm));
+      expect(issueText(issue, "en")).toBe(issue.message);
+    }
+  });
+  it("without a detail, a typed-length code says the generic thing", () => {
+    expect(
+      issueText(
+        {
+          code: "MEASUREMENT_OUT_OF_RANGE",
+          message: userLengthRetakeMessage(120),
+        },
+        "zh-TW",
+      ),
+    ).toBe(issuesZh.measurementImplausible);
   });
   it("an unknown code falls back to the English message", () => {
     expect(issueText({ code: "NEW_ONE", message: "hello" }, "zh-TW")).toBe(

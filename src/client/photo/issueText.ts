@@ -6,25 +6,22 @@
  * English returns the issue's own message, byte for byte. Any other locale
  * looks the `code` up in `src/lib/copy/scan-issues.ts`. A few messages carry
  * a detail the code does not (which hand was seen, how a handedness mismatch
- * is fixed, the hand length that was typed): those are read back out of the
- * English message with the narrow patterns below, which the unit tests run
- * against the real messages the gates build. A code this module does not know
+ * is fixed, the hand length that was typed): those travel as `detail`, set
+ * where the message is built (`issue-detail.ts`). A code this module does not know
  * falls back to the English message rather than showing nothing.
  *
  * Pure: `locale` is an argument.
  */
 import type { Locale } from "../../lib/contracts/locale";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
+import type { IssueDetail } from "./issue-detail";
 import { scanIssuesCopy } from "../../lib/copy/scan-issues";
 
 export interface IssueLike {
   readonly code: string;
   readonly message: string;
+  readonly detail?: IssueDetail;
 }
-
-const MISMATCH =
-  /^This looks like your (left|right) hand, but you selected (left|right)\..* or (.*)\.$/;
-const TYPED_LENGTH = /^Your palm doesn't fit the (.+?) mm you entered\./;
 
 export function issueText(issue: IssueLike, locale: Locale): string {
   if (locale === "en") return issue.message;
@@ -33,16 +30,14 @@ export function issueText(issue: IssueLike, locale: Locale): string {
     case "MARKERS_MISSING":
       return words.markersMissing;
     case "HAND_NOT_DETECTED":
-      return words.handNotDetected;
-    case "HANDEDNESS_MISMATCH": {
-      const m = MISMATCH.exec(issue.message);
-      if (!m) return issue.message;
-      const fix = m[3] === "tap the hand button below" ? "button" : "picker";
-      return words.handednessMismatch(
-        m[1] as "left" | "right",
-        m[2] as "left" | "right",
-        fix,
+      return words.handNotDetected(
+        issue.detail?.kind === "handNotDetected" ? issue.detail.on : "nothing",
       );
+    case "HANDEDNESS_MISMATCH": {
+      const d = issue.detail;
+      return d?.kind === "handedness"
+        ? words.handednessMismatch(d.detected, d.stated, d.fix)
+        : issue.message;
     }
     case "LOW_LANDMARK_CONFIDENCE":
       return words.lowLandmarkConfidence;
@@ -63,9 +58,9 @@ export function issueText(issue: IssueLike, locale: Locale): string {
     case "LOW_SHARPNESS":
       return words.lowSharpness;
     case "MEASUREMENT_OUT_OF_RANGE": {
-      const typed = TYPED_LENGTH.exec(issue.message);
-      return typed
-        ? words.measurementOutOfRangeTyped(typed[1])
+      const d = issue.detail;
+      return d?.kind === "typedLength"
+        ? words.measurementOutOfRangeTyped(String(d.typedMm))
         : words.measurementImplausible;
     }
     case "FINGER_NOT_STRAIGHT":

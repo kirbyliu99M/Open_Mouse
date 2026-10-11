@@ -13,6 +13,8 @@
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
 
+const NBSP = "\u00A0";
+
 export type MeasurementKey =
   | "handLengthMm"
   | "palmLengthMm"
@@ -104,7 +106,7 @@ export const zhTW: ScanSheetCopy = {
     pinkyLengthMm: "小指長度",
     palmThicknessMm: "掌厚",
     knuckleHeightMm: "指節高度",
-    gripApertureMm: "握持開口",
+    gripApertureMm: "握持開口大小",
     thumbAngleDeg: "拇指角度",
   },
   statusReading: "正在讀取照片…",
@@ -132,8 +134,8 @@ export const zhTW: ScanSheetCopy = {
   measuredLabelPaper: "你測量過的手：標出紙張四角和手部骨架，以及手長和掌寬",
   measuredLabelSheet:
     "你測量過的手：標出校正表定位方塊、卡片和手部骨架，以及手長和掌寬",
-  dimHandLength: (mm) => `手長 ${mm} mm`,
-  dimPalmWidth: (mm) => `掌寬 ${mm} mm`,
+  dimHandLength: (mm) => `手長 ${mm}${NBSP}mm`,
+  dimPalmWidth: (mm) => `掌寬 ${mm}${NBSP}mm`,
   captionPaper: "已找到紙張的四個角，所以比例已經過檢查。",
   captionAuto: "已找到校正表的四個定位方塊和卡片，所以比例已經過檢查。",
   captionManual: "已找到校正表的四個定位方塊；比例是依你標出的卡片角點設定的。",
@@ -143,11 +145,11 @@ export const zhTW: ScanSheetCopy = {
     primerPaper1: (size) =>
       `在均勻、無反光的光線下，把空白 ${size} 紙放在較深色的素面桌上。`,
     primerPaper2: "手平放在紙上、手指併攏，手腕對齊下緣。",
-    primerPaper3: "手機平放在約 40 cm 高的正上方，讓整張紙入鏡。",
+    primerPaper3: "手機保持水平，在約 40 公分高的正上方，讓整張紙入鏡。",
     paperSize: "紙張大小",
     primerSheet1: "校正表平放在桌上，以 100% 列印，光線均勻、無反光。",
-    primerSheet2: "銀行卡放在卡片框內；手平放、手指併攏，手腕對齊線。",
-    primerSheet3: "手機平放在約 40 cm 高的正上方，讓整張校正表入鏡。",
+    primerSheet2: "銀行卡放在卡片框內；手平放、手指併攏，手腕對齊那條線。",
+    primerSheet3: "手機保持水平，在約 40 公分高的正上方，讓整張校正表入鏡。",
     turnOnCamera: "開啟相機",
     startingCamera: "正在啟動相機…",
     backToCamera: "相機",

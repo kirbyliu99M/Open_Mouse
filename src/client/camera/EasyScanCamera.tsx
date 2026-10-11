@@ -37,6 +37,7 @@ import { cameraCuesCopy } from "../../lib/copy/camera-cues";
 import { easyScanCopy } from "../../lib/copy/easy-scan";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import { issueText } from "../photo/issueText";
+import { HAND_BUTTON_FIX_INSTRUCTION } from "../photo/issue-detail";
 import type {
   PaperSize,
   ScanSubmission,
@@ -1089,7 +1090,7 @@ export default function EasyScanCamera({
           file,
           hand: handChipRef.current.hand,
           handExplicit: handChipRef.current.locked,
-          handednessFixInstruction: "tap the hand button below",
+          handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
           gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null
@@ -1644,16 +1645,20 @@ export default function EasyScanCamera({
       const msSinceLastDetection =
         detection.cornersSeen > 0 ? 0 : now - lastDetectionAtRef.current;
 
-      const nextCue = pickCue({
-        cornersSeen: detection.cornersSeen,
-        quad: sampleQuad,
-        frameWidth: width,
-        meanLuma,
-        clippedFraction,
-        steady,
-        sharpEnough,
-        msSinceLastDetection,
-      });
+      const nextCue = pickCue(
+        {
+          cornersSeen: detection.cornersSeen,
+          quad: sampleQuad,
+          frameWidth: width,
+          meanLuma,
+          clippedFraction,
+          steady,
+          sharpEnough,
+          msSinceLastDetection,
+        },
+        "paper-edge",
+        localeRef.current,
+      );
 
       // The ring reads the raw sample: one or two failures pause it, the
       // third in a row empties it (autoCapture.ts).
@@ -1715,7 +1720,9 @@ export default function EasyScanCamera({
       if (shownCode !== null && shownCode !== lastCueCodeRef.current) {
         lastCueCodeRef.current = shownCode;
         const shownCue =
-          shownCode === nextCue.code ? nextCue : cueFromCode(shownCode);
+          shownCode === nextCue.code
+            ? nextCue
+            : cueFromCode(shownCode, "paper-edge", localeRef.current);
         setCue(shownCue);
         setAnnounced(
           easyCueText(shownCue, {
@@ -1983,11 +1990,7 @@ export default function EasyScanCamera({
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
-  const noPaperLabel = noPaperEntryLabel(
-    userLengthMm !== null,
-    undefined,
-    locale,
-  );
+  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null, locale);
   const noPaperMode = userLengthMm !== null;
 
   // The device is only known after mount. Until then show a neutral screen

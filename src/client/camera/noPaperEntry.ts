@@ -2,9 +2,6 @@ import type { Locale } from "../../lib/contracts/locale";
 import { easyScanCopy } from "../../lib/copy/easy-scan";
 import { TYPED_HAND_LENGTH_ENTRY_ENABLED } from "../../lib/flags";
 
-export const NO_PAPER_ENTRY_LABEL = easyScanCopy("en").noPaperEntry;
-export const EDIT_HAND_LENGTH_LABEL = easyScanCopy("en").editHandLength;
-
 /**
  * The label of the "type in your hand length" entry, or `null` when the entry
  * must not be shown. Every place that offers the entry renders it only when
@@ -14,8 +11,8 @@ export const EDIT_HAND_LENGTH_LABEL = easyScanCopy("en").editHandLength;
  */
 export function noPaperEntryLabel(
   hasEnteredLength: boolean,
+  locale: Locale,
   enabled: boolean = TYPED_HAND_LENGTH_ENTRY_ENABLED,
-  locale: Locale = "en",
 ): string | null {
   if (!enabled) return null;
   const words = easyScanCopy(locale);

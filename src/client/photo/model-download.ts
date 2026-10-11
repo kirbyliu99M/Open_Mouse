@@ -92,7 +92,7 @@ export interface DownloadDescription {
 
 export function describeDownload(
   progress: DownloadProgress,
-  locale: Locale = "en",
+  locale: Locale,
 ): DownloadDescription {
   const words = scanCommonCopy(locale);
   const percent = progressPercent(progress);
@@ -208,7 +208,7 @@ export function createModelReader(
  */
 export function describeDetectorLoad(
   state: DetectorLoadState,
-  locale: Locale = "en",
+  locale: Locale,
 ): {
   readonly visible: boolean;
   readonly text: string;

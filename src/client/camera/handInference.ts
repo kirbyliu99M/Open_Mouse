@@ -53,10 +53,7 @@ export function applyDetectedHandedness(
  * once the user has tapped the chip the hand is theirs, and the label says
  * just "Left hand" / "Right hand".
  */
-export function handChipLabel(
-  state: HandChipState,
-  locale: Locale = "en",
-): string {
+export function handChipLabel(state: HandChipState, locale: Locale): string {
   return scanCommonCopy(locale).handChip(state.hand, state.locked);
 }
 
@@ -70,7 +67,7 @@ export function handChipLabel(
  */
 export function handChipAccessibleName(
   state: HandChipState,
-  locale: Locale = "en",
+  locale: Locale,
 ): string {
   return scanCommonCopy(locale).handChipName(state.hand, state.locked);
 }

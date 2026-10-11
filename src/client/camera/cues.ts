@@ -43,14 +43,6 @@ export interface Cue {
   readonly allPass: boolean;
 }
 
-/** Waiting on the camera's focus: holding still cannot fix it. */
-export const WAITING_FOR_SHARP_PICTURE = cameraCuesCopy("en").paper.outOfFocus;
-/** The cue while out of focus, on a phone whose camera can be told where to focus. */
-export const TAP_TO_FOCUS_CUE = cameraCuesCopy("en").tapToFocus;
-/** The hint line under the viewfinder while the ring fills. */
-export const HOLD_STILL_TAKING_THE_PHOTO =
-  cameraCuesCopy("en").holdStillTakingPhoto;
-
 const CUE_KEYS: Record<CueCode, keyof CameraCuesCopy["paper"]> = {
   "place-paper": "placePaper",
   "no-corners": "noCorners",
@@ -69,13 +61,12 @@ export type CueCalibrationMode = "printed-sheet" | "paper-edge";
 
 /**
  * The words of a cue in a locale. `locale` is a parameter, never read from
- * anywhere in here: this module is pure. Defaults to English, which is what
- * the unit tests pin.
+ * anywhere in here: this module is pure.
  */
 export function cueMessage(
   code: CueCode,
-  mode: CueCalibrationMode = "paper-edge",
-  locale: Locale = "en",
+  mode: CueCalibrationMode,
+  locale: Locale,
 ): string {
   const table = cameraCuesCopy(locale);
   return (mode === "printed-sheet" ? table.sheet : table.paper)[CUE_KEYS[code]];
@@ -92,8 +83,8 @@ function cue(code: CueCode, mode: CueCalibrationMode, locale: Locale): Cue {
 /** The cue for a code, as `pickCue` would have built it. */
 export function cueFromCode(
   code: CueCode,
-  mode: CueCalibrationMode = "paper-edge",
-  locale: Locale = "en",
+  mode: CueCalibrationMode,
+  locale: Locale,
 ): Cue {
   return cue(code, mode, locale);
 }
@@ -101,21 +92,19 @@ export function cueFromCode(
 /**
  * The easy scan's cue line. "Perfect" reads "Got it — hold still" there, and
  * being out of focus reads "Tap the paper to focus" where a tap can set the
- * focus (otherwise the plain "Waiting for a sharp picture"). With a `locale`
- * the words come from the cue's code, so a cue built earlier still reads
- * right in the locale now shown.
+ * focus (otherwise the plain "Waiting for a sharp picture"). The words come
+ * from the cue's code, so a cue built earlier still reads right in the locale
+ * now shown.
  */
 export function easyCueText(
   cue: Cue,
-  options: { readonly tapToFocus: boolean; readonly locale?: Locale },
+  options: { readonly tapToFocus: boolean; readonly locale: Locale },
 ): string {
-  const table = cameraCuesCopy(options.locale ?? "en");
+  const table = cameraCuesCopy(options.locale);
   if (cue.code === "perfect") return table.gotIt;
   if (cue.code === "out-of-focus" && options.tapToFocus)
     return table.tapToFocus;
-  return options.locale === undefined
-    ? cue.message
-    : cueMessage(cue.code, "paper-edge", options.locale);
+  return cueMessage(cue.code, "paper-edge", options.locale);
 }
 
 /**
@@ -128,9 +117,9 @@ export function easyHintText(input: {
   readonly cueCode: CueCode | null;
   readonly ringFraction: number;
   readonly tapToFocus: boolean;
-  readonly locale?: Locale;
+  readonly locale: Locale;
 }): string {
-  const table = cameraCuesCopy(input.locale ?? "en");
+  const table = cameraCuesCopy(input.locale);
   if (input.cueCode === "out-of-focus")
     return input.tapToFocus ? table.paper.outOfFocus : "";
   if (input.cueCode === "perfect" && input.ringFraction > 0)
@@ -164,8 +153,8 @@ export interface CueInput {
  */
 export function pickCue(
   input: CueInput,
-  mode: CueCalibrationMode = "paper-edge",
-  locale: Locale = "en",
+  mode: CueCalibrationMode,
+  locale: Locale,
 ): Cue {
   if (input.cornersSeen <= 0) {
     if (
@@ -220,8 +209,8 @@ export interface StatusChips {
  */
 export function computeStatusChips(
   input: CueInput,
-  mode: CueCalibrationMode = "paper-edge",
-  locale: Locale = "en",
+  mode: CueCalibrationMode,
+  locale: Locale,
 ): StatusChips {
   const words = cameraCuesCopy(locale);
   const paperPass = input.cornersSeen >= 4;

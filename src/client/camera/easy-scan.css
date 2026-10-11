@@ -35,9 +35,6 @@
   color: #fff;
   font-weight: 600;
   font-size: 0.875rem;
-  /* Chinese has no spaces to break at: without this the label breaks after
-     every character when the chip is squeezed (large text on a 320 px phone). */
-  white-space: nowrap;
   cursor: pointer;
 }
 .easyHandChip:disabled {
@@ -1580,4 +1577,13 @@ main.easyScanShell {
     color: var(--text-primary);
     border: 1px solid currentColor;
   }
+}
+
+/* Chinese has no spaces to break at: squeezed, a label breaks after every
+   character. Keep each short phrase whole; the chip then wraps at its spaces
+   exactly as the English one does. */
+:lang(zh) .easyHandChip,
+:lang(zh) .easyNoPaperLink,
+:lang(zh) .easyTipNoPaper {
+  word-break: keep-all;
 }

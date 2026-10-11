@@ -7,7 +7,6 @@
  */
 import type { Locale } from "../../lib/contracts/locale";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
-export const UNVERIFIED_MEASUREMENT_NOTE = scanCommonCopy("en").unverifiedNote;
 
 /**
  * The sheet's line for a scan result: the two numbers, and, when the hand
@@ -18,7 +17,7 @@ export const UNVERIFIED_MEASUREMENT_NOTE = scanCommonCopy("en").unverifiedNote;
 export function measuredSheetNumbers(
   measurements: { readonly handLengthMm: number; readonly palmWidthMm: number },
   calibration: object,
-  locale: Locale = "en",
+  locale: Locale,
 ): string {
   const entered =
     "method" in calibration &&
@@ -47,10 +46,10 @@ export function measuredNumbersText(input: {
   readonly handLengthMm: number;
   readonly palmWidthMm: number;
   readonly enteredLengthMm?: number;
-  readonly locale?: Locale;
+  readonly locale: Locale;
 }): string {
   const entered = input.enteredLengthMm !== undefined;
-  return scanCommonCopy(input.locale ?? "en").measuredNumbers({
+  return scanCommonCopy(input.locale).measuredNumbers({
     handLength: (entered
       ? (input.enteredLengthMm as number)
       : input.handLengthMm

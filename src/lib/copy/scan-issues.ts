@@ -19,9 +19,12 @@ const NBSP = " ";
 /** How a handedness mismatch tells the person to fix it. */
 export type HandFix = "button" | "picker";
 
+/** What the hand was to lie on: the printed sheet, a blank paper, or nothing (typed hand length). */
+export type HandSurface = "sheet" | "paper" | "nothing";
+
 export interface ScanIssuesCopy {
   markersMissing: string;
-  handNotDetected: string;
+  handNotDetected: (on: HandSurface) => string;
   /** `detected` and `stated` are "left" or "right". */
   handednessMismatch: (
     detected: "left" | "right",
@@ -54,7 +57,10 @@ const handName = {
 
 export const zhTW: ScanIssuesCopy = {
   markersMissing: "有定位方塊被擋住了，請讓校正表四個角落的方塊都露出來。",
-  handNotDetected: "照片裡找不到手，請把手平放、手指併攏後重拍。",
+  handNotDetected: (on) =>
+    on === "nothing"
+      ? "找不到手，請讓整隻手入鏡、手指併攏後重拍。"
+      : `照片裡找不到手，請把手平放在${on === "sheet" ? "校正表" : "紙"}上、手指併攏後重拍。`,
   handednessMismatch: (detected, stated, fix) =>
     `這看起來是你的${handName["zh-TW"][detected]}，但你選的是${handName["zh-TW"][stated]}。請用${handName["zh-TW"][stated]}重拍，或${
       fix === "button" ? "點下方的左右手按鈕" : "改選左右手"
@@ -63,13 +69,13 @@ export const zhTW: ScanIssuesCopy = {
     "手部辨識得不夠清楚，請在明亮、均勻的光線下，讓整隻手平放後重拍。",
   handOutOfBounds: "手有一部分超出校正表，請讓整隻手和校正表都完整入鏡。",
   reprojectionError:
-    "校正表看起來歪了，或相機角度偏斜。請把校正表攤平，用手機主鏡頭（1×）從正上方拍攝。",
+    "校正表看起來變形了，或相機角度偏斜。請把校正表攤平，用手機主鏡頭（1×）從正上方拍攝。",
   cardScaleMismatch:
-    "列印時頁面被縮放了，請以 100%（實際大小）重新列印校正表，並關閉「縮放至頁面大小」。",
+    "列印時頁面被縮放了，請以 100%（實際大小）重新列印校正表，並關閉「符合頁面大小」。",
   paperNotFound:
     "照片裡找不到紙張。請把空白 A4（或 Letter）紙平放在單色、對比明顯的桌面上，然後重拍。",
   paperCornerHidden:
-    "紙張有角落或邊緣被擋住了。請退後一點，讓整張紙從角到角都入鏡，手不要碰到紙邊，然後重拍。",
+    "紙張有角落或邊緣被擋住了。請退後一點，讓整張紙從角到角都入鏡，手請避開紙邊，然後重拍。",
   paperEdgeHidden:
     "紙張有一條邊被蓋住太多。請移動你的手，讓更多紙邊露出來，然後重拍。",
   paperCurled:
@@ -77,11 +83,11 @@ export const zhTW: ScanIssuesCopy = {
   lowSharpness:
     "這張照片有點模糊，可能會影響準確度。你可以繼續，或重拍一張更清晰的。",
   measurementImplausible:
-    "這些測量結果看起來不合理。請讓整隻手平放、相機在正上方，然後重拍。",
+    "這些測量結果看起來不太對。請讓整隻手平放、相機在正上方，然後重拍。",
   measurementOutOfRangeTyped: (mm) =>
     `你的手掌和你輸入的 ${mm}${NBSP}mm 對不上。請確認這個數字：從手腕橫紋量到中指指尖。`,
   fingerNotStraight: "請把手指伸直、手平放，然後重拍。",
-  handTilted: "照片看起來是歪的。請把手機放平、在手的正上方，然後重拍。",
+  handTilted: "照片看起來是歪的。請讓手機保持水平、在手的正上方，然後重拍。",
   decodeFailed: "無法開啟這張照片。請把它匯出成 JPEG 後再試一次。",
   processingFailed: "處理這張照片時出了點問題，請再試一次。",
   unexpected: "出了點問題，請再試一次。",
@@ -89,8 +95,10 @@ export const zhTW: ScanIssuesCopy = {
 
 export const en: ScanIssuesCopy = {
   markersMissing: "Markers are hidden — keep all four corner squares visible.",
-  handNotDetected:
-    "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+  handNotDetected: (on) =>
+    on === "nothing"
+      ? "We couldn't find a hand — keep your whole hand in view, fingers together, and retake."
+      : "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
   handednessMismatch: (detected, stated, fix) =>
     `This looks like your ${handName.en[detected]} hand, but you selected ${handName.en[stated]}. Retake with your ${handName.en[stated]} hand, or ${
       fix === "button" ? "tap the hand button below" : "change the hand picker"

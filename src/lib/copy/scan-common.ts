@@ -93,10 +93,10 @@ export const zhTW: ScanCommonCopy = {
   handRight: "右手",
   handChip: (hand, locked) =>
     `${hand === "left" ? "左手" : "右手"}${locked ? "" : " · 自動"}`,
+  // The visible text stays inside the name (label in name); the repeated
+  // 自動 is dropped.
   handChipName: (hand, locked) =>
-    `${hand === "left" ? "左手" : "右手"}${locked ? "" : " · 自動"}，${
-      locked ? "由你設定" : "自動判斷"
-    }。切換左右手`,
+    `${hand === "left" ? "左手" : "右手"}${locked ? "，由你設定" : " · 自動"}。切換左右手`,
   gripPalm: "趴握",
   gripClaw: "抓握",
   gripFingertip: "指握",
@@ -106,10 +106,10 @@ export const zhTW: ScanCommonCopy = {
   unverifiedNote: "測量數值仍在驗證中。",
   lengthRange: (min, max) => `請輸入 ${min} 到 ${max}${NBSP}mm 之間的手長。`,
   submitSending: "正在傳送你的測量數值…",
-  submitSuccessStatus: "測量完成，正在開啟你的配對結果…",
+  submitSuccessStatus: "測量完成，正在開啟你的結果…",
   submitButtonSubmitting: "傳送中…",
-  submitButtonOpening: "正在開啟配對結果…",
-  submitButton: "查看我的配對",
+  submitButtonOpening: "正在開啟結果…",
+  submitButton: "查看適合我的滑鼠",
   submitErrors: {
     invalid: "這次掃描無法儲存，請重新拍一張俯拍照片再試。",
     tooLarge: "這次掃描沒有正確送出，請重新載入頁面並重拍。",
@@ -129,7 +129,7 @@ export const zhTW: ScanCommonCopy = {
   cameraTurnedOff: "相機已關閉。",
   cameraTapToResume: "點一下以重新開啟相機",
   cameraToUse: "要使用相機：",
-  cameraStepSettings: "開啟瀏覽器中這個網頁的網站設定。",
+  cameraStepSettings: "開啟瀏覽器中這個網站的設定。",
   cameraStepAllow: "允許使用相機。",
   cameraStepReloadEasy: "重新載入頁面後再試一次。",
   cameraStepReloadSheet: "重新載入頁面，再點一次「開啟相機」。",
