@@ -4,11 +4,7 @@ import {
   en as cuesEn,
   zhTW as cuesZh,
 } from "@/lib/copy/camera-cues";
-import {
-  easyScanCopy,
-  en as easyEn,
-  zhTW as easyZh,
-} from "@/lib/copy/easy-scan";
+import { en as easyEn, zhTW as easyZh } from "@/lib/copy/easy-scan";
 import {
   scanCommonCopy,
   en as commonEn,
