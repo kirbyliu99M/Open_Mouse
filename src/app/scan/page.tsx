@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { scanSheetCopy } from "@/lib/copy/scan-sheet";
 import { getLocale } from "@/server/i18n/getLocale";
 import ScanClient from "./ScanClient";
+import { guardDemoRouteFromProduction } from "./demo-guard";
 import "./scan.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,5 +11,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function ScanPage() {
+  guardDemoRouteFromProduction();
   return <ScanClient />;
 }

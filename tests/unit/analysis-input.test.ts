@@ -160,7 +160,7 @@ describe("buildAnalysisInput — fit-v1 grip weights", () => {
     fingertip: 0.20018554066185035,
   };
   const fit = makeFit({
-    engineVersion: "fit-v1-candidate.2",
+    engineVersion: "fit-v1-candidate.3",
     gripStyle: { stated: null, predicted: "claw", used: "claw", weights: raw },
   });
 

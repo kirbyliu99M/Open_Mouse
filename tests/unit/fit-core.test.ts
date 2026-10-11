@@ -242,14 +242,25 @@ describe("loadOwnedFit — a successful fit", () => {
       prefs,
       sampleOwnedScan.hand,
     );
-    // The one addition is the filter's catalogue facts (`withFilterFacts`):
-    // facts, not numbers. Take them off and nothing else differs.
+    // The additions are the filter's catalogue facts (`withFilterFacts`) and the
+    // photo from the static file (`withPhotos`): facts, not numbers.
+    // Take them off and nothing else differs.
     const withoutFacts = result.fit.results.map((e) => {
-      const { shape: _shape, connectivity: _connectivity, ...mouse } = e.mouse;
-      void _shape;
-      void _connectivity;
+      const {
+        shape: _shape,
+        connectivity: _connectivity,
+        imageUrl: _imageUrl,
+        ...mouse
+      } = e.mouse;
+      void [_shape, _connectivity, _imageUrl];
       return { ...e, mouse };
     });
+    // The photo is asserted on its own: none of the sample slugs is in
+    // mouse-media.json, so each is "no photo" (null), never a made-up path.
+    // (A real slug getting its real path is tested in results-photos-server.test.ts.)
+    expect(result.fit.results.map((e) => e.mouse.imageUrl)).toEqual(
+      result.fit.results.map(() => null),
+    );
     expect({ ...result.fit, results: withoutFacts }).toEqual({
       scanId: SCAN_ID,
       ...expected,
