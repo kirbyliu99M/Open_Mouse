@@ -11,10 +11,10 @@ import {
 import {
   assertNoDuplicates,
   assertNoUnflaggedTrackballs,
+  brandHomepages,
   buildCatalogue,
+  comparePageConnectivity,
   deriveFormFactor,
-  eloPageConnectivity,
-  ELOSHAPES_BROWSE_URL,
   isKnownConnectivity,
   LOGITECH_ALIASES,
   mapCandidate,
@@ -44,7 +44,7 @@ const record = (over: Partial<CandidateRecord> = {}): CandidateRecord => ({
   brand: "Pulsar",
   model: "X2V2 Mini",
   officialUrl: "https://pulsargg.com/x2v2",
-  source: "eloshapes_csv",
+  source: "compiled_csv",
   lengthMm: "119.0",
   widthMm: "62.0",
   heightMm: "38.0",
@@ -61,7 +61,7 @@ const record = (over: Partial<CandidateRecord> = {}): CandidateRecord => ({
 });
 
 describe("descriptor enum mapping", () => {
-  it("maps every contract slug from its EloShapes wording", () => {
+  it("maps every contract slug from its dataset wording", () => {
     const wording = (slug: string) =>
       slug
         .split("_")
@@ -121,11 +121,11 @@ describe("descriptor enum mapping", () => {
 });
 
 describe("mapDataSource", () => {
-  it("maps both EloShapes sources to eloshapes and official to first_party", () => {
-    expect(mapDataSource("eloshapes_csv")).toBe("eloshapes");
-    expect(mapDataSource("eloshapes_site")).toBe("eloshapes");
+  it("maps both compiled sources to public_compilation and official to first_party", () => {
+    expect(mapDataSource("compiled_csv")).toBe("public_compilation");
+    expect(mapDataSource("compiled_site")).toBe("public_compilation");
     expect(mapDataSource("official")).toBe("first_party");
-    for (const s of ["eloshapes_csv", "eloshapes_site", "official"])
+    for (const s of ["compiled_csv", "compiled_site", "official"])
       expect(DATA_SOURCES).toContain(mapDataSource(s));
   });
   it("throws on anything else", () => {
@@ -135,18 +135,80 @@ describe("mapDataSource", () => {
 
 describe("mapSourceUrl", () => {
   it("keeps an https page", () => {
-    expect(mapSourceUrl(" https://a.example/x ", "eloshapes")).toBe(
+    expect(mapSourceUrl(" https://a.example/x ", "public_compilation")).toBe(
       "https://a.example/x",
     );
+    expect(
+      mapSourceUrl(" https://a.example/x ", "public_compilation", "https://b/"),
+    ).toBe("https://a.example/x");
   });
-  it("falls back to the EloShapes browse page for an EloShapes row with no page", () => {
-    expect(mapSourceUrl("", "eloshapes")).toBe(ELOSHAPES_BROWSE_URL);
+  it("falls back to the brand's home page for a compiled row with no page", () => {
+    expect(mapSourceUrl("", "public_compilation", "https://a.example/")).toBe(
+      "https://a.example/",
+    );
+  });
+  it("refuses a compiled row with no page when the brand has no home page", () => {
+    expect(() => mapSourceUrl("", "public_compilation")).toThrow(
+      /no official URL/,
+    );
   });
   it("refuses a first-party row with no page, and any non-https page", () => {
     expect(() => mapSourceUrl("", "first_party")).toThrow();
-    expect(() => mapSourceUrl("http://a.example", "eloshapes")).toThrow(
-      /https/,
+    expect(() => mapSourceUrl("", "first_party", "https://a.example/")).toThrow(
+      /first-party/,
     );
+    expect(() =>
+      mapSourceUrl("http://a.example", "public_compilation"),
+    ).toThrow(/https/);
+  });
+});
+
+describe("brandHomepages", () => {
+  it("takes each brand's most frequent official origin, with a trailing slash", () => {
+    const homes = brandHomepages([
+      { brand: "Dareu", officialUrl: "https://dareu.com/p/a" },
+      { brand: "Dareu", officialUrl: "https://dareushop.com/p/b" },
+      { brand: "Dareu", officialUrl: " https://dareu.com/p/c " },
+      { brand: "Dareu", officialUrl: "" },
+      { brand: "Logitech G", officialUrl: "https://www.logitechg.com/x" },
+    ]);
+    expect(homes).toEqual(
+      new Map([
+        ["Dareu", "https://dareu.com/"],
+        ["Logitech", "https://www.logitechg.com/"],
+      ]),
+    );
+  });
+  it("breaks a tie alphabetically and ignores non-https and blank URLs", () => {
+    const homes = brandHomepages([
+      { brand: "Razer", officialUrl: "https://www.razer.com/a" },
+      { brand: "Razer", officialUrl: "https://mysupport.razer.com/b" },
+      { brand: "Zowie", officialUrl: "http://zowie.example/a" },
+      { brand: "Zowie", officialUrl: "-" },
+    ]);
+    expect(homes).toEqual(new Map([["Razer", "https://mysupport.razer.com/"]]));
+  });
+});
+
+describe("buildCatalogue source URLs", () => {
+  it("points a compiled row with no page at its brand's home page", () => {
+    const entries = buildCatalogue(
+      [
+        record({ model: "A", officialUrl: "https://www.pulsar.gg/products/a" }),
+        record({ model: "B", officialUrl: "" }),
+      ],
+      [],
+      RETRIEVED,
+    );
+    expect(entries.map((e) => e.sourceUrl)).toEqual([
+      "https://www.pulsar.gg/products/a",
+      "https://www.pulsar.gg/",
+    ]);
+  });
+  it("fails the import when the brand has no official page anywhere", () => {
+    expect(() =>
+      buildCatalogue([record({ officialUrl: "" })], [], RETRIEVED),
+    ).toThrow(/Pulsar X2V2 Mini: no official URL/);
   });
 });
 
@@ -174,7 +236,7 @@ describe("deriveFormFactor", () => {
 });
 
 describe("mapConnectivity", () => {
-  it("maps each EloShapes value", () => {
+  it("maps each dataset value", () => {
     expect(mapConnectivity("Wired")).toBe("wired");
     expect(mapConnectivity("Wireless")).toBe("wireless");
     expect(mapConnectivity(" wireless ")).toBe("wireless");
@@ -200,7 +262,7 @@ describe("mapConnectivity", () => {
   });
 });
 
-describe("eloPageConnectivity", () => {
+describe("comparePageConnectivity", () => {
   const block = (wired: string, wireless: string) => [
     "Acceleration",
     "Connectivity",
@@ -213,20 +275,22 @@ describe("eloPageConnectivity", () => {
   ];
 
   it("reads wired-only, wireless-only and both (both is Wireless)", () => {
-    expect(eloPageConnectivity(block("Yes (USB-C)", "No"))).toBe("Wired");
-    expect(eloPageConnectivity(block("No", "Yes (2.4 GHz)"))).toBe("Wireless");
-    expect(eloPageConnectivity(block("Yes (USB-C)", "Yes (2.4 GHz)"))).toBe(
+    expect(comparePageConnectivity(block("Yes (USB-C)", "No"))).toBe("Wired");
+    expect(comparePageConnectivity(block("No", "Yes (2.4 GHz)"))).toBe(
+      "Wireless",
+    );
+    expect(comparePageConnectivity(block("Yes (USB-C)", "Yes (2.4 GHz)"))).toBe(
       "Wireless",
     );
   });
 
   it("returns blank when the block or the answers are missing", () => {
-    expect(eloPageConnectivity(["Weight", "50"])).toBe("");
-    expect(eloPageConnectivity(block("-", "-"))).toBe("");
+    expect(comparePageConnectivity(["Weight", "50"])).toBe("");
+    expect(comparePageConnectivity(block("-", "-"))).toBe("");
   });
 
   it("reads Wired = Yes with Wireless = - as wired", () => {
-    expect(eloPageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
+    expect(comparePageConnectivity(block("Yes (USB-C)", "-"))).toBe("Wired");
   });
 });
 
@@ -277,7 +341,7 @@ describe("mapCandidate", () => {
       slug: "pulsar-x2v2-mini",
       brand: "Pulsar",
       model: "X2V2 Mini",
-      dataSource: "eloshapes",
+      dataSource: "public_compilation",
       lengthMm: 119,
       widthMm: 62,
       heightMm: 38,
@@ -302,7 +366,7 @@ describe("mapCandidate", () => {
 
   it("flags a row with a descriptorBasis as inferred", () => {
     const e = mapCandidate(
-      record({ descriptorBasis: "EloShapes predecessor Saga Pro; inferred" }),
+      record({ descriptorBasis: "predecessor Saga Pro; inferred" }),
       RETRIEVED,
     );
     expect(e.descriptorsInferred).toBe(true);
@@ -474,6 +538,32 @@ describe("the committed src/db/seed/catalogue.json", () => {
       wireless: n("wireless"),
       unknown: n(null),
     }).toEqual(N.candidateConnectivity);
+  });
+
+  it("points every home-page source at a site the same brand's product pages use", () => {
+    const productOrigins = new Map<string, Set<string>>();
+    for (const e of entries) {
+      const url = new URL(e.sourceUrl);
+      if (url.pathname === "/") continue;
+      const set = productOrigins.get(e.brand) ?? new Set<string>();
+      set.add(url.origin);
+      productOrigins.set(e.brand, set);
+    }
+    const homes = entries.filter((e) => new URL(e.sourceUrl).pathname === "/");
+    expect(homes.length).toBeGreaterThan(0);
+    for (const e of homes) {
+      expect(e.sourceUrl, `${e.brand} ${e.model}`).toBe(
+        brandHomepages(
+          entries
+            .filter((x) => x.brand === e.brand && x !== e)
+            .filter((x) => new URL(x.sourceUrl).pathname !== "/")
+            .map((x) => ({ brand: x.brand, officialUrl: x.sourceUrl })),
+        ).get(e.brand),
+      );
+      expect(productOrigins.get(e.brand)).toContain(
+        new URL(e.sourceUrl).origin,
+      );
+    }
   });
 
   it("holds the approved candidates, no slug twice", () => {

@@ -6,8 +6,11 @@
  *   npx prettier --write src/db/seed/catalogue.json
  *
  * The CSV lives outside the repo (AGENTS.md rule 1, revised 2026-10-08) and
- * carries EloShapes values; only the generated JSON is committed. The mapping
+ * carries values from a public compilation; only the generated JSON is
+ * committed. The mapping
  * is in src/server/catalogue/candidate-map.ts.
+ *
+ * The local dataset CSV is read from CATALOGUE_DATASET_CSV (default below).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
@@ -20,7 +23,7 @@ import {
 import { parseCsv } from "../src/server/catalogue/csv";
 import {
   buildCatalogue,
-  eloPageConnectivity,
+  comparePageConnectivity,
   isKnownConnectivity,
   OFFICIAL_CONNECTIVITY,
   TRACKBALL_NAME_PATTERN,
@@ -29,9 +32,10 @@ import {
 
 const DEFAULT_CSV =
   "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/approved-candidates.csv";
-const ELO_DATASET =
-  "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/eloshapes_mouse_data.csv";
-const ELO_SITE_DIR =
+const DATASET_CSV =
+  process.env.CATALOGUE_DATASET_CSV ??
+  "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/third_party_mouse_data.csv";
+const SAVED_PAGES_DIR =
   "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/elo";
 const OUT = "src/db/seed/catalogue.json";
 /** The day Claude and Kirby adjudicated the list. */
@@ -57,30 +61,34 @@ const COLUMNS = [
 ] as const;
 
 /**
- * Fills `connectivity` on each record from the local EloShapes sources:
- * the dataset CSV for `eloshapes_csv`, the saved compare pages for
- * `eloshapes_site`, the brand's own page (OFFICIAL_CONNECTIVITY) for
+ * Fills `connectivity` on each record from the local sources: the dataset
+ * CSV for `compiled_csv`, the saved compare pages for `compiled_site`, the
+ * brand's own page (OFFICIAL_CONNECTIVITY) for
  * `official`. File I/O only; the matching is in connectivity-match.ts.
  * Returns what it could not find.
  */
 function attachConnectivity(records: CandidateRecord[]): string[] {
   const index = buildCsvIndex(
-    parseCsv(readFileSync(ELO_DATASET, "utf8")) as unknown as DatasetRow[],
+    parseCsv(readFileSync(DATASET_CSV, "utf8")) as unknown as DatasetRow[],
   );
-  const titles = parseCsv(readFileSync(`${ELO_SITE_DIR}/elo-new.csv`, "utf8"))
+  const titles = parseCsv(
+    readFileSync(`${SAVED_PAGES_DIR}/elo-new.csv`, "utf8"),
+  )
     .filter((r) => r.status === "200")
     .map((r) => ({ title: r.title, slug: r.slug }));
   const missing: string[] = [];
   for (const rec of records) {
     const label = `${rec.brand} ${rec.model}`;
     let raw: string | undefined;
-    if (rec.source === "eloshapes_csv") {
+    if (rec.source === "compiled_csv") {
       raw = lookupCsvConnectivity(index, rec.brand, rec.model);
-    } else if (rec.source === "eloshapes_site") {
+    } else if (rec.source === "compiled_site") {
       const slug = matchSiteTitle(titles, rec.brand, rec.model);
-      const file = slug ? `${ELO_SITE_DIR}/raw/${slug}.html` : "";
+      const file = slug ? `${SAVED_PAGES_DIR}/raw/${slug}.html` : "";
       if (file && existsSync(file)) {
-        raw = eloPageConnectivity(pageTextLines(readFileSync(file, "utf8")));
+        raw = comparePageConnectivity(
+          pageTextLines(readFileSync(file, "utf8")),
+        );
       }
     } else {
       raw = OFFICIAL_CONNECTIVITY[rec.officialUrl.trim()];

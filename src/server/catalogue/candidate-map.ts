@@ -6,7 +6,8 @@
  * of its arguments so it can be unit tested without the (licensed, uncommitted)
  * file.
  *
- * Descriptor wording is EloShapes'. Every value maps to a contract enum or
+ * Descriptor wording is the public compilation's. Every value maps to a
+ * contract enum or
  * throws: an unknown spelling is a data error to look at, never a silent null.
  * Blank and "-" mean "no value" and become null.
  */
@@ -46,7 +47,7 @@ export interface CandidateRecord {
   flare: string;
   sideCurvature: string;
   thumbRest: string;
-  /** EloShapes' "Wired" / "Wireless" (or an official page's reading); not a column of the approved CSV, the importer fills it. */
+  /** The dataset's "Wired" / "Wireless" (or an official page's reading); not a column of the approved CSV, the importer fills it. */
   connectivity?: string;
 }
 
@@ -55,7 +56,7 @@ export interface CatalogueEntry {
   slug: string;
   brand: string;
   model: string;
-  /** The brand's page when the candidate list has one, else the EloShapes browse page. */
+  /** The candidate's official page when the list has one, else the brand's home page (`brandHomepages`). */
   sourceUrl: string;
   dataSource: DataSource;
   lengthMm: number;
@@ -69,7 +70,7 @@ export interface CatalogueEntry {
   sideCurvature: SideCurvature | null;
   thumbRest: boolean | null;
   /**
-   * "wireless" also covers a mouse that works wired and wireless (EloShapes
+   * "wireless" also covers a mouse that works wired and wireless (the dataset
    * lists it as Wireless). Null when no source states it.
    */
   connectivity: Connectivity | null;
@@ -84,9 +85,6 @@ export interface CatalogueEntry {
   /** ISO timestamp of the candidate list's adjudication date. */
   retrievedAt: string;
 }
-
-/** Where a candidate with no official page of its own points. */
-export const ELOSHAPES_BROWSE_URL = "https://www.eloshapes.com/mouse/browse";
 
 /**
  * Candidate model → the `logitech.json` model it is the same product as.
@@ -135,7 +133,7 @@ function mapEnum<T extends string>(
 }
 
 /**
- * EloShapes also uses "Asymmetrical" for a deliberately handed shell. The
+ * The dataset also uses "Asymmetrical" for a deliberately handed shell. The
  * contract has no such value; rubric §3 puts a handed shell with an
  * asymmetric hump under Ergonomic, so that is what it maps to.
  */
@@ -151,7 +149,7 @@ export const mapSideCurvature = (raw: string): SideCurvature | null =>
   mapEnum("sideCurvature", raw, SIDE_CURVATURES);
 
 /**
- * "Wired" / "Wireless" (EloShapes' spelling) to the contract enum. Blank is
+ * "Wired" / "Wireless" (the dataset's spelling) to the contract enum. Blank is
  * null; any other spelling is null too, and the importer counts it as a
  * warning (`isKnownConnectivity`) instead of failing the whole import.
  */
@@ -169,13 +167,13 @@ export function isKnownConnectivity(raw: string | undefined): boolean {
 }
 
 /**
- * Reads the Connectivity block of a saved EloShapes compare page, given the
+ * Reads the Connectivity block of a saved compare page, given the
  * page's visible text lines. The block reads `Connectivity`, `Wired`,
  * `Yes (USB-C)`, `Wireless`, `Yes (2.4 GHz)`, `Bluetooth`, ... Wireless wins
  * when both are present (a wired-and-wireless mouse is wireless); returns ""
  * when the block or both answers are missing.
  */
-export function eloPageConnectivity(lines: readonly string[]): string {
+export function comparePageConnectivity(lines: readonly string[]): string {
   const at = lines.indexOf("Connectivity");
   if (at < 0) return "";
   const block = lines.slice(at + 1, at + 10);
@@ -193,7 +191,7 @@ export function eloPageConnectivity(lines: readonly string[]): string {
 }
 
 /**
- * The 8 `official` candidates carry no EloShapes value. Each entry is what the
+ * The 8 `official` candidates carry no compiled value. Each entry is what the
  * brand's own page plainly states (read 2026-10-10); a model not listed stays
  * null. Keyed by official URL so the source is on record.
  */
@@ -226,10 +224,11 @@ export function mapYesNo(field: string, raw: string): boolean | null {
 
 export function mapDataSource(raw: string): DataSource {
   const v = raw.trim().toLowerCase();
-  if (v === "eloshapes_csv" || v === "eloshapes_site") return "eloshapes";
+  if (v === "compiled_csv" || v === "compiled_site")
+    return "public_compilation";
   if (v === "official") return "first_party";
   throw new RangeError(
-    `source: "${raw}" is not eloshapes_csv|eloshapes_site|official`,
+    `source: "${raw}" is not compiled_csv|compiled_site|official`,
   );
 }
 
@@ -251,11 +250,25 @@ function mapPositive(field: string, raw: string, required: boolean) {
   return n;
 }
 
-export function mapSourceUrl(raw: string, dataSource: DataSource): string {
+/**
+ * The source URL of a catalogue row. A compiled row with no official page of
+ * its own points at its brand's home page (`brandHomepages`); a first-party
+ * row, or a brand with no official page anywhere in the list, throws.
+ */
+export function mapSourceUrl(
+  raw: string,
+  dataSource: DataSource,
+  brandHomepage?: string,
+): string {
   const url = raw.trim();
   if (url === "") {
-    if (dataSource === "eloshapes") return ELOSHAPES_BROWSE_URL;
-    throw new RangeError("a first-party row needs an official URL");
+    if (dataSource === "public_compilation" && brandHomepage !== undefined)
+      return brandHomepage;
+    throw new RangeError(
+      dataSource === "first_party"
+        ? "a first-party row needs an official URL"
+        : "no official URL, and no other row of this brand has one",
+    );
   }
   if (!url.startsWith("https://")) {
     throw new RangeError(`officialUrl "${url}" is not an https URL`);
@@ -280,9 +293,39 @@ export function deriveFormFactor(dims: {
     : "standard";
 }
 
+/**
+ * Brand (normalised) -> its home page: the origin of its official URLs in the
+ * list, the most frequent one when there are several (ties go to the
+ * alphabetically first), with a trailing slash. Only https URLs count. A
+ * brand with no official URL is absent.
+ */
+export function brandHomepages(
+  records: readonly Pick<CandidateRecord, "brand" | "officialUrl">[],
+): Map<string, string> {
+  const counts = new Map<string, Map<string, number>>();
+  for (const r of records) {
+    const url = r.officialUrl.trim();
+    if (!url.startsWith("https://")) continue;
+    const brand = normaliseBrand(r.brand);
+    const origin = new URL(url).origin;
+    const byOrigin = counts.get(brand) ?? new Map<string, number>();
+    byOrigin.set(origin, (byOrigin.get(origin) ?? 0) + 1);
+    counts.set(brand, byOrigin);
+  }
+  const homes = new Map<string, string>();
+  for (const [brand, byOrigin] of counts) {
+    const [origin] = [...byOrigin].sort(
+      ([a, na], [b, nb]) => nb - na || (a < b ? -1 : a > b ? 1 : 0),
+    )[0]!;
+    homes.set(brand, `${origin}/`);
+  }
+  return homes;
+}
+
 export function mapCandidate(
   record: CandidateRecord,
   retrievedAt: string,
+  homepages: ReadonlyMap<string, string> = new Map(),
 ): CatalogueEntry {
   const brand = normaliseBrand(record.brand);
   const model = record.model.trim().replace(/\s+/g, " ");
@@ -294,7 +337,11 @@ export function mapCandidate(
       slug: slugify(brand, model),
       brand,
       model,
-      sourceUrl: mapSourceUrl(record.officialUrl, dataSource),
+      sourceUrl: mapSourceUrl(
+        record.officialUrl,
+        dataSource,
+        homepages.get(brand),
+      ),
       dataSource,
       lengthMm: mapPositive("lengthMm", record.lengthMm, true),
       widthMm: mapPositive("widthMm", record.widthMm, true),
@@ -413,7 +460,8 @@ export function buildCatalogue(
   retrievedAt: string,
   trackballAllowlist: readonly string[] = TRACKBALL_NAME_ALLOWLIST,
 ): CatalogueEntry[] {
-  const mapped = records.map((r) => mapCandidate(r, retrievedAt));
+  const homepages = brandHomepages(records);
+  const mapped = records.map((r) => mapCandidate(r, retrievedAt, homepages));
   assertNoDuplicates(mapped);
   assertNoUnflaggedTrackballs(mapped, trackballAllowlist);
   return resolveLogitechMerges(mapped, seedModels);
