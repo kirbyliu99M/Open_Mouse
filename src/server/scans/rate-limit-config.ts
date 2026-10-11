@@ -28,6 +28,15 @@ export const SURVEY_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const SURVEY_RATE_LIMIT_MAX = 10;
 
 /**
+ * `GET /api/scans/{scanId}/similar`, one budget per client IP (key prefix
+ * `similar:`). A candidate (未拍板), like every number here: a person opens the
+ * answer once per results page, and the figures a caller could vary between
+ * requests are fixed by the scan, so the budget is the fit route's.
+ */
+export const SIMILAR_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+export const SIMILAR_RATE_LIMIT_MAX = 60;
+
+/**
  * Structurally identical to `../analysis/handler.ts`'s `RateLimiter` —
  * duplicated here (rather than imported) so `scans`/`fit` don't take a
  * dependency on the `analysis` domain for a one-method interface; anything
