@@ -240,26 +240,26 @@ export const zhTW: LearnCopy = {
   printPages: (n) => `列印 ${n} 頁`,
   participantCards: "受測者卡片",
 
-  metaDescription: "印出附有 QR code 的頁面，用來蒐集經過尺規校驗的手部照片。",
-  lead: "用印出來的頁面為每張照片貼上標籤。每一頁示範一種手勢，並附有自己的 QR code，因此每張照片都記錄了它是哪一種手勢。許多隻手、經過尺規校驗的照片，決定了空白紙張掃描能有多準。",
+  metaDescription: "印出附有 QR code 的頁面，用來蒐集用尺核對過的手部照片。",
+  lead: "用印出來的頁面為每張照片貼上標籤。每一頁示範一種姿勢，並附有自己的 QR code，因此每張照片都記錄了它是哪一種姿勢。許多人的手、用尺核對過的照片，決定了空白紙張掃描能有多準。",
   v2Heading: "套件 v2：一張紙、一張卡片",
   v2Before: "收集流程",
   v2After:
-    "（2026-10-02）：兩隻手共用一張 A4 紙，卡片槽放入受測者卡片，每人拍 G02 ×3，再拍 G04 ×2。手勢由拍攝順序決定，卡片上的 QR code 則標示受測者。只使用 A 版紙張（Kirby，2026-10-02）：它保留產品紙張的四個標記。B 版（外圈六個標記、手部區域留白）已做好，但暫時不使用。",
-  printSheetA: "列印 A 版紙張",
-  sheetBNotUsed: "B 版（不使用，Kirby 2026-10-02）",
+    "（2026-10-02）：兩隻手共用一張 A4 紙，卡片槽放入受測者卡片，每人拍 G02 ×3，再拍 G04 ×2。姿勢由拍攝順序決定，卡片上的 QR code 則標示受測者。只使用 A 版紙張（Kirby，2026-10-02）：它保留產品紙張的四個標記。B 版（外圈六個標記、手部區域留白）已做好，但暫時不使用。",
+  printSheetA: "列印 A 版紙張",
+  sheetBNotUsed: "B 版（不使用，Kirby 2026-10-02）",
   cardsS0: "卡片 P901 至 P912（S0）",
   cardsMain: "卡片 P001 至 P048",
-  checkSheetA: "檢查照片（A 版紙張）",
+  checkSheetA: "檢查照片（A 版紙張）",
   afterSession: "拍攝結束後：",
   afterSessionB: "。它會從歸檔的副本中移除 EXIF。詳情請見",
   afterSessionC: "的「Kit v2」一節。",
-  v1Heading: "套件 v1：每隻手七種手勢",
+  v1Heading: "套件 v1：每隻手七種姿勢",
   v1Body:
-    "較早的套件，每個手勢頁都有 QR code，並以尺規量測作為基準。它的頁面仍可在下方列印，但它的照片與 v2 的拍攝流程版本不符。",
+    "較早的套件，每個姿勢頁都有 QR code，並以尺實際量測的數值作為基準。它的頁面仍可在下方列印，但它的照片與 v2 的拍攝流程版本不符。",
   youNeed: "你需要",
-  needPrinter: "設為 100%／實際大小的印表機，以及一般 A4 紙",
-  needRuler: "一把尺，用來檢查印出的 100 mm 線，並量測每隻手",
+  needPrinter: "設為 100%／實際大小的印表機，以及一般 A4 紙",
+  needRuler: "一把尺，用來檢查印出的 100 mm 線，並量測每隻手",
   needTable: "比紙張更深色的桌面，以及一本可以靠住折片的書",
   needPhone: "一支手機。使用內建相機 App 的主鏡頭 1×",
   printHeading: "列印",
@@ -271,17 +271,17 @@ export const zhTW: LearnCopy = {
     "這些頁面可供不同的人重複使用。每人印一張卡片：卡片上只有受測者編號，不會有姓名。",
   sessionOrder: "拍攝順序",
   sessionOrderBody: (perHand) =>
-    `每隻手 ${perHand} 張照片，每隻手約 10 分鐘。每頁的 QR code 標示了手勢與哪一隻手，檢查工具會從照片中讀取。`,
+    `每隻手 ${perHand} 張照片，每隻手約 10 分鐘。每頁的 QR code 標示了姿勢與哪一隻手，檢查工具會從照片中讀取。`,
   seqCard: "卡片",
   seqCardCount: "1 張照片",
   seqCardDetail:
-    "在受測者卡片上寫下尺規量到的數值：手長（手腕橫紋到中指指尖）和掌寬。先拍下這張卡片。",
-  eachHand: (shots) => `每隻手 ${shots} ×`,
+    "在受測者卡片上寫下用尺量到的數值：手長（手腕橫紋到中指指尖）和掌寬。先拍下這張卡片。",
+  eachHand: (shots) => `每隻手 ${shots} 張`,
   cameraAbove: "相機在上方，折片攤平。",
   cameraSide: "相機與桌面等高，折片向上折起。",
   instructions: "說明",
   poseOrderNote:
-    "先用右手做完全部七種手勢，再用左手做七種。每張照片之間都要把手抬起再重新放下，同一種手勢內也一樣。",
+    "先用右手做完全部七種姿勢，再用左手做七種。每張照片之間都要把手抬起再重新放下，同一種姿勢內也一樣。",
   checkSortHeading: "檢查與分類（套件 v1）",
   checkKitV1: "檢查套件 v1 照片",
   checkerBody1:
@@ -295,38 +295,38 @@ export const zhTW: LearnCopy = {
   printMetaTitle: "列印學習套件",
   step: "列印",
   printKitV2Sheet: (sheet, notUsed) =>
-    `列印套件 v2，${sheet} 版紙張${notUsed ? "（不使用，Kirby 2026-10-02）" : ""}`,
-  sheetNameA: "A 版紙張：產品紙張的四個標記、中線、手腕線和 100 mm 尺規。",
+    `列印套件 v2，${sheet} 版紙張${notUsed ? "（不使用，Kirby 2026-10-02）" : ""}`,
+  sheetNameA: "A 版紙張：產品紙張的四個標記、中線、手腕線和 100 mm 的尺。",
   sheetNameB:
-    "B 版紙張（不使用，Kirby 2026-10-02）：外圈六個標記和空白的手部區域。",
+    "B 版紙張（不使用，Kirby 2026-10-02）：外圈六個標記和空白的手部區域。",
   printDialogV2:
-    "兩隻手共用一張 A4 紙。在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面」。",
-  checkRulerA: "然後用尺檢查 100 mm 的線。",
-  checkRulerB: "然後用尺檢查標記 0 的外緣到標記 1 的外緣是否為 180 mm。",
+    "兩隻手共用一張 A4 紙。在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面大小」。",
+  checkRulerA: "然後用尺檢查 100 mm 的線。",
+  checkRulerB: "然後用尺檢查標記 0 的外緣到標記 1 的外緣是否為 180 mm。",
   cardsPageBefore: "受測者卡片在",
   cardsPageLink: "卡片頁面",
   print1Page: "列印 1 頁",
   otherSheet: "另一版紙張：",
-  sheetLabel: (sheet, notUsed) => `${sheet} 版${notUsed ? "（不使用）" : ""}`,
-  kitSheetLabel: (sheet) => `套件 v2 · ${sheet} 版`,
+  sheetLabel: (sheet, notUsed) => `${sheet} 版${notUsed ? "（不使用）" : ""}`,
+  kitSheetLabel: (sheet) => `套件 v2 · ${sheet} 版`,
   printTheKit: "列印套件",
   handsBoth: "雙手",
   handsRight: "右手",
   handsLeft: "左手",
   printKitLead: (pages, hands) => `${pages} 頁，${hands}。`,
   printKitLeadAfter:
-    "在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面」。然後用尺檢查其中一頁的 100 mm 線。",
+    "在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面大小」。然後用尺檢查其中一頁的 100 mm 線。",
 
   slatesMetaTitle: "受測者卡片",
   kitV2Cards: "套件 v2 受測者卡片",
   cardsLeadV2: (from, to) => `卡片 ${from} 至 ${to}，每頁 24 張。`,
   cardsLeadV2After:
-    "以 A4、100%／實際大小列印，並沿虛線剪下。每張卡片為 60 × 30 mm，在每個人拍第一張照片之前放進紙張的卡片槽，之後每張照片都會標示受測者。",
+    "以 A4、100%／實際大小列印，並沿虛線剪下。每張卡片為 60 × 30 mm，在每個人拍第一張照片之前放進紙張的卡片槽，之後每張照片都會標示受測者。",
   s0Pilot: "S0 試行：",
   more: "更多：",
   slatesLead: (from, to) => `卡片 ${from} 至 ${to}。`,
   slatesLeadAfter:
-    "剪下卡片，把一個人的尺規數值寫在卡片上，並在第一個手勢之前先拍下它。之後的每張照片都歸在這個編號下，直到下一張卡片。",
+    "剪下卡片，把一個人用尺量到的數值寫在卡片上，並在第一個姿勢之前先拍下它。之後的每張照片都歸在這個編號下，直到下一張卡片。",
   needMore: "需要更多？在這個頁面的網址加上",
   needMoreAfter: "。",
 
@@ -347,9 +347,9 @@ export const zhTW: LearnCopy = {
   kitV2A4Only: "套件 v2 僅支援 A4。",
   paperAppliesNext: "套用在你接下來選擇的照片。套件是為 A4 設計的。",
   kitLabel: "套件",
-  kitV1Option: "套件 v1：每頁有自己的 QR code（較早的套件）",
+  kitV1Option: "套件 v1：各頁自帶 QR code（舊版）",
   kitV2Option: (sheet, notUsed) =>
-    `套件 v2：${sheet} 版紙張，卡片槽放入受測者卡片${notUsed ? "（不使用，Kirby 2026-10-02）" : ""}`,
+    `套件 v2：${sheet} 版，卡片槽放卡片${notUsed ? "（不使用，Kirby 2026-10-02）" : ""}`,
   kitV2Note:
     "套件 v2 依受測者卡片和拍攝順序歸檔，並保留每張標有受測者的照片。下方的判定是產品本身的判定：在你把這次拍攝的照片標為好或壞之前，請不要先看（docs/learning/README.md，「Kit v2」一節）。",
   checking: (current, total) => `正在檢查第 ${current} 張，共 ${total} 張…`,
@@ -360,7 +360,7 @@ export const zhTW: LearnCopy = {
   countUnidentified: (n) => `${n} 張無法辨識`,
   coverage: "涵蓋範圍",
   colParticipant: "受測者",
-  colPose: "手勢",
+  colPose: "姿勢",
   colPhotos: "照片",
   gotOf: (got, expected) => `${got} / ${expected}`,
   extraShot: "（多拍一張）",
@@ -369,19 +369,19 @@ export const zhTW: LearnCopy = {
     `${participant}，${photos} 張照片：${reason}。這些照片都沒有歸檔。`,
   noQr: "沒有 QR code",
   fileShot: (gesture, shot, extra) =>
-    ` (${gesture}, 第 ${shot} 張${extra ? "，多拍" : ""})`,
+    `（${gesture}，第 ${shot} 張${extra ? "，多拍" : ""}）`,
   measureLine: (ml, pl, mw, pw) =>
-    `手長：標記 ${ml} mm · 紙張邊緣 ${pl} mm。掌寬：標記 ${mw} mm · 紙張邊緣 ${pw} mm。`,
+    `手長：標記 ${ml} mm · 紙張邊緣 ${pl} mm。掌寬：標記 ${mw} mm · 紙張邊緣 ${pw} mm。`,
   downloadJson: "下載結果（JSON）",
   downloadNote: "檔案內含每張照片的測量值和偵測到的點，不含照片本身。",
 
-  poseMetaTitle: "學習套件手勢",
+  poseMetaTitle: "學習套件姿勢",
   session: "拍攝場次",
   sessionTitle: (participant) => `場次 ${participant}`,
   sessionLead: (perHand) =>
-    `拍下這張寫有尺規數值的卡片，然後依序完成七種手勢：每隻手 ${perHand} 張照片，先右手。`,
+    `拍下這張寫有用尺量到之數值的卡片，然後依序完成七種姿勢：每隻手 ${perHand} 張照片，先右手。`,
   startWith: (code, poseName) => `從 ${code} 開始，${poseName}`,
-  poseOf: (n, total) => `手勢 ${n} / ${total}`,
+  poseOf: (n, total) => `姿勢 ${n} / ${total}`,
   rightHand: "右手",
   leftHand: "左手",
   poseLead: (hand, shots, flat) =>
@@ -390,8 +390,8 @@ export const zhTW: LearnCopy = {
   nextPrefix: "下一個：",
   nextAfter: (poseName, otherHand) =>
     `，${poseName}${otherHand ? "，換另一隻手" : ""}。`,
-  openNext: "開啟下一個手勢",
-  lastPose: "這是最後一個手勢。請在受測者離開之前先檢查照片。",
+  openNext: "開啟下一個姿勢",
+  lastPose: "這是最後一個姿勢。請在受測者離開之前先檢查照片。",
 
   svgPageLabel: (token, poseName, hand) =>
     `學習套件頁面 ${token}：${poseName}，${hand === "right" ? "右" : "左"}手`,
@@ -404,24 +404,24 @@ export const zhTW: LearnCopy = {
   svgHandPhotos: (hand, photos) =>
     `${hand === "right" ? "右手" : "左手"} · ${photos} 張照片`,
   svgFoldUp: "▲ 把這個折片向上折，靠在書上立起來",
-  svgKeepFlat: "這個手勢請讓折片保持攤平",
+  svgKeepFlat: "這個姿勢請讓折片保持攤平",
   svgLayAlongFold: "把手沿著折線放，小指側貼著立起的紙條。",
   svgFingersPoint: (hand) =>
     `手指朝這個方向（${hand === "right" ? "右手" : "左手"}）`,
   svgCameraSide: "相機：鏡頭與桌面等高，正對立起的紙條，距離約 40 公分。",
   svgMiddleFinger: "中指沿著這條線",
   svgWristCrease: "手腕橫紋對齊這條線",
-  svgRulerCheck: "用真正的尺檢查：這條線正好是 100 mm。",
+  svgRulerCheck: "用真正的尺檢查：這條線正好是 100 mm。",
   svgSlatesLabel: (ids) => `受測者卡片 ${ids}`,
   svgNoNames: "不寫姓名。",
   svgPhotographFirst: "請先拍下這張卡片。",
-  svgRulerMm: "尺規，單位 mm",
+  svgRulerMm: "尺（單位 mm）",
   svgRight: "右手",
   svgLeft: "左手",
   svgHandLength: "手長",
   svgPalmWidth: "掌寬",
   svgSheetLabel: (version, sheet) =>
-    `學習套件 v${version} ${sheet} 版紙張：雙手，頂端有受測者卡片槽`,
+    `學習套件 v${version} ${sheet} 版紙張：雙手，頂端有受測者卡片槽`,
   svgCardsLabel: (version, ids) => `套件 v${version} 受測者卡片 ${ids}`,
   svgCardBrand: (version) => `Open Mouse · 套件 v${version}`,
 
@@ -455,7 +455,8 @@ export const zhTW: LearnCopy = {
         zhTopDown,
         "放鬆後，每拍一張之前都重新擺一次握法。",
       ],
-      yields: "趴握時的握幅與拇指角度，用來對照所述握法與手型是否相符。",
+      yields:
+        "趴握時的握持開口大小與拇指角度，用來對照所述握法與手型是否相符。",
     },
     G04: {
       name: "抓握",
@@ -465,7 +466,7 @@ export const zhTW: LearnCopy = {
         zhTopDown,
         "放鬆後，每拍一張之前都重新擺一次握法。",
       ],
-      yields: "抓握時的握幅與拇指角度。",
+      yields: "抓握時的握持開口大小與拇指角度。",
     },
     G05: {
       name: "指握",
@@ -475,7 +476,7 @@ export const zhTW: LearnCopy = {
         zhTopDown,
         "放鬆後，每拍一張之前都重新擺一次握法。",
       ],
-      yields: "指握時的握幅與拇指角度。",
+      yields: "指握時的握持開口大小與拇指角度。",
     },
     G06: {
       name: "側面，手掌平放",
@@ -716,14 +717,14 @@ export const en: LearnCopy = {
  */
 const LAYOUT_TEXT_ZH: Readonly<Record<string, string>> = {
   "G02 ×3, then G04 ×2": "G02 ×3，再 G04 ×2",
-  "sheet A": "A 版紙張",
-  "sheet B": "B 版紙張",
+  "sheet A": "A 版紙張",
+  "sheet B": "B 版紙張",
   "participant card": "受測者卡片",
   "middle finger along this line": "中指沿著這條線",
   "wrist crease on this line": "手腕橫紋對齊這條線",
   "100 mm: check with a ruler (print at 100%)":
-    "100 mm：用尺檢查（以 100% 列印）",
-  "Keep all four paper corners visible": "四個紙角都要入鏡",
+    "100 mm：用尺檢查（以 100% 列印）",
+  "Keep all four paper corners visible": "紙張四角都要入鏡",
   "wrist crease": "手腕橫紋",
   "outer edge to outer edge": "外緣到外緣",
 };

@@ -16,8 +16,8 @@ export interface HomeCopy {
 }
 
 export const zhTW: HomeCopy = {
-  heading: "找到最適合你的滑鼠。",
-  subhead: "只要一張空白 A4 紙和你的手機。",
+  heading: "找到合手的滑鼠。",
+  subhead: "只要一張空白 A4 紙和你的手機。",
   scanMyHand: "掃描我的手",
   howItWorks: "運作方式",
 };

@@ -32,25 +32,25 @@ export interface SheetCopy {
 }
 
 export const zhTW: SheetCopy = {
-  metaTitle: "校正紙張",
-  metaDescription: "可列印的 ArUco 校正紙張，用來從照片測量你的手。",
+  metaTitle: "校正表",
+  metaDescription: "可列印的 ArUco 校正表，用來從照片測量你的手。",
   home: "首頁",
   stepLabel: "第 1 步，共 2 步 · 列印",
-  heading: "列印紙張",
+  heading: "列印校正表",
   calloutTitle: "請以實際大小列印：100%",
   calloutBody:
-    "請在列印視窗中關閉「縮放至符合頁面」。縮放後的列印結果會讓測量不準確。",
+    "請在列印視窗中關閉「縮放至符合頁面大小」。縮放後的列印結果會讓測量不準確。",
   after: "A4 和 Letter 都適用。這裡顯示的是整張紙。",
-  printTheSheet: "列印紙張",
+  printTheSheet: "列印校正表",
   continueLabel: "我印好了，繼續",
   privacy: "你的照片在這台裝置上處理，只會傳送測量數值。",
 
   svgStrip: "側拍紙條（把這個折片向上折，靠在牆邊）",
   svgFoldUp: "▲ 向上折",
   svgLayFlat: "▼ 攤平",
-  svgRuler: (n) => `請確認這條線正好是 ${n} mm`,
-  svgCard: (w, h) => `請把任何一張銀行卡放在這裡（${w} × ${h} mm）`,
-  svgWarning: "請以 100%／實際大小列印，不要「縮放至符合頁面」",
+  svgRuler: (n) => `請確認這條線正好是 ${n} mm`,
+  svgCard: (w, h) => `請把任何一張銀行卡放在這裡（${w} × ${h} mm）`,
+  svgWarning: "請以 100%／實際大小列印，不要「縮放至符合頁面大小」",
 };
 
 export const en: SheetCopy = {

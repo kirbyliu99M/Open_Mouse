@@ -4,6 +4,10 @@
  * graphite, drafting blue, measured green. Class selectors on the page
  * wrapper override globals.css's unscoped `main` rule, as sheet.css does.
  */
+.learn > * {
+  min-width: 0;
+}
+
 .learn {
   max-width: 44rem;
   margin: 0 auto;
@@ -132,6 +136,7 @@
 }
 
 .learn code {
+  overflow-wrap: anywhere;
   font-size: 0.9em;
   background: var(--learn-accent-soft);
   padding: 0.1em 0.35em;
@@ -173,6 +178,17 @@
   font-variant-numeric: tabular-nums;
   color: var(--learn-graphite);
   white-space: nowrap;
+  /* 200 % text: let the count wrap rather than push the page wide. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* The inline "Instructions" link: a 44 px touch target. */
+.learn-sequence .learn-detail a {
+  display: inline-block;
+  min-height: 44px;
+  padding: 0.65rem 0.5rem;
+  box-sizing: border-box;
 }
 
 .learn-sequence .learn-detail {

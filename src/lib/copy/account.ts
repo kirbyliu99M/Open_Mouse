@@ -65,7 +65,8 @@ export const zhTW: AccountCopy = {
   account: "帳號",
 
   keepYourScans: "保存你的掃描紀錄",
-  subtitle: "登入是選擇性的。沒有帳號的話，掃描紀錄會在一段時間後自動刪除。",
+  subtitle:
+    "你可以選擇是否登入。沒有帳號的話，掃描紀錄會在一段時間後自動刪除。",
   benefitKeep: "你的掃描紀錄會保留到你自己刪除為止",
   benefitDevices: "在任何裝置上開啟你的結果",
   benefitDelete: "隨時一鍵刪除所有資料",
@@ -81,7 +82,7 @@ export const zhTW: AccountCopy = {
   yourScans: "你的掃描紀錄",
   keptUntil: "保留到你刪除為止。",
 
-  continueWithGoogle: "使用 Google 繼續",
+  continueWithGoogle: "使用 Google 帳號繼續",
   signOut: "登出",
   signingIn: "登入中…",
   signingOut: "登出中…",
