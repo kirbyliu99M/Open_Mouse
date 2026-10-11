@@ -177,7 +177,7 @@ export const en: LearnPageCopy = {
     marks: {
       thumbRest: "Thumb\nrest",
       straightSide: "Straight\nside",
-      centredPeak: "Centred peak",
+      centredPeak: "Centered peak",
       rearPeak: "Rear peak",
       widerFront: "Wider\nfront",
       narrowerWaist: "Narrower\nwaist",

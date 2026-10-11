@@ -122,7 +122,7 @@ test.describe("/learn information page", () => {
     ]);
     // The marks are real text, in the page for a screen reader too.
     for (const mark of [
-      "Centred peak",
+      "Centered peak",
       "Rear peak",
       "Schematic: exaggerated flare",
     ]) {
