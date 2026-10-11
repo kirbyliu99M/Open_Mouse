@@ -7,9 +7,9 @@ import {
 } from "../../src/lib/contracts/fit";
 import { handTypeLabel } from "../../src/lib/results/handTypeLabel";
 import { findMedicalClaimTerm } from "../../src/server/analysis/medicalClaims";
-import type { UiLanguage } from "../../src/client/uiLanguage";
+import type { Locale } from "../../src/lib/contracts/locale";
 
-const LANGUAGES: UiLanguage[] = ["zh-TW", "en"];
+const LANGUAGES: Locale[] = ["zh-TW", "en"];
 
 const ALL: HandType[] = HAND_TYPE_SIZES.flatMap((size) =>
   GRIP_STYLES.flatMap((grip) =>

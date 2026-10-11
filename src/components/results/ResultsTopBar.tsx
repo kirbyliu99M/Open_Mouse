@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { SITE_NAME } from "@/lib/site";
 import { ShareCardButton } from "./share/ShareCardButton";
@@ -16,13 +16,12 @@ export function ResultsTopBar({
   onRetake,
 }: {
   fit: FitResponse;
-  language: UiLanguage;
+  language: Locale;
   onRetake?: () => void;
 }) {
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   return (
-    <nav className="results-topBar" aria-label={copy.topBarLabel} lang={lang}>
+    <nav className="results-topBar" aria-label={copy.topBarLabel}>
       <Link
         href="/scan/easy"
         className="results-topBar-back"

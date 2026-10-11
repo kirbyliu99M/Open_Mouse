@@ -67,7 +67,7 @@
   z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "brand mark" "groups groups";
+  grid-template-areas: "brand mark" "groups groups" "lang lang";
   align-items: start;
   gap: 1.5rem 1rem;
   max-width: 78rem;
@@ -214,10 +214,10 @@
     height: 3rem;
   }
   .siteFooter-inner {
-    grid-template-areas: "brand mark" "groups mark";
+    grid-template-areas: "brand mark" "groups mark" "lang lang";
     /* The mark is taller than the text beside it: the second row takes the
        slack, so the gaps between name, headline and groups stay as drawn. */
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
     align-items: start;
     gap: 2rem 3rem;
     --footer-pad: clamp(2rem, 6.67vw, 6rem);
@@ -295,7 +295,15 @@
   .siteFooter-fade,
   .siteFooter-horizon,
   .siteFooter-backdrop,
-  .siteFooter-mark {
+  .siteFooter-mark,
+  .siteFooter .siteFooter-language {
     display: none;
   }
+}
+
+/* The language switcher, in its own row under the groups. */
+.siteFooter-language {
+  grid-area: lang;
+  justify-self: start;
+  color: var(--footer-link);
 }

@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { en, zhTW } from "../../src/lib/copy/site-meta";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
 /**
@@ -13,8 +14,7 @@ import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 const EXPECT_SITE_URL = process.env.BRAND_EXPECT_SITE_URL === "1";
 
 /** The page description, which both share cards repeat. */
-const DESCRIPTION =
-  "Finding a mouse that fits your hand. Currently in development.";
+const DESCRIPTION = en.description;
 
 /** An absolute URL, and under SITE_URL when checking a production build. */
 function expectAbsolute(url: string | null, label: string) {
@@ -125,33 +125,60 @@ test.describe("brand icons and share preview", () => {
     await expectImage(request, localPath(twitterImage!), /^image\/png/);
   });
 
-  test("a link-preview crawler gets the share tags inside <head>", async ({
-    request,
-  }) => {
-    const res = await request.get("/", {
-      headers: { "user-agent": "facebookexternalhit/1.1" },
+  // A crawler's language comes from its Accept-Language: none at all is the
+  // default (zh-TW), en-US is English. Each case uses a fresh request context,
+  // so no header comes from the page's locale.
+  for (const { name, acceptLanguage, description } of [
+    {
+      name: "no Accept-Language (zh-TW)",
+      acceptLanguage: null,
+      description: zhTW.description,
+    },
+    {
+      name: "Accept-Language: en-US",
+      acceptLanguage: "en-US",
+      description: en.description,
+    },
+  ]) {
+    test(`a link-preview crawler gets the share tags inside <head>, ${name}`, async ({
+      playwright,
+      baseURL,
+    }) => {
+      const api = await playwright.request.newContext({ baseURL });
+      try {
+        const res = await api.get("/", {
+          headers: {
+            "user-agent": "facebookexternalhit/1.1",
+            ...(acceptLanguage ? { "accept-language": acceptLanguage } : {}),
+          },
+        });
+        expect(res.status()).toBe(200);
+        const html = await res.text();
+        const head = html.slice(html.indexOf("<head"), html.indexOf("</head>"));
+        expect(head).toContain(`property="og:title" content="${SITE_NAME}"`);
+        expect(head).toMatch(
+          /property="og:image" content="https?:\/\/[^"]+\/opengraph-image\.png/,
+        );
+        expect(head).toContain(
+          'name="twitter:card" content="summary_large_image"',
+        );
+        expect(head).toContain(`name="description" content="${description}"`);
+        expect(head).toContain(
+          `property="og:description" content="${description}"`,
+        );
+        expect(head).toContain(
+          `name="twitter:description" content="${description}"`,
+        );
+        if (EXPECT_SITE_URL) {
+          expect(head).toContain(`content="${SITE_URL}/opengraph-image.png`);
+        }
+        expect(head).toContain('rel="apple-touch-icon"');
+        expect(head).toContain('name="robots" content="noindex, nofollow"');
+      } finally {
+        await api.dispose();
+      }
     });
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const head = html.slice(html.indexOf("<head"), html.indexOf("</head>"));
-    expect(head).toContain(`property="og:title" content="${SITE_NAME}"`);
-    expect(head).toMatch(
-      /property="og:image" content="https?:\/\/[^"]+\/opengraph-image\.png/,
-    );
-    expect(head).toContain('name="twitter:card" content="summary_large_image"');
-    expect(head).toContain(`name="description" content="${DESCRIPTION}"`);
-    expect(head).toContain(
-      `property="og:description" content="${DESCRIPTION}"`,
-    );
-    expect(head).toContain(
-      `name="twitter:description" content="${DESCRIPTION}"`,
-    );
-    if (EXPECT_SITE_URL) {
-      expect(head).toContain(`content="${SITE_URL}/opengraph-image.png`);
-    }
-    expect(head).toContain('rel="apple-touch-icon"');
-    expect(head).toContain('name="robots" content="noindex, nofollow"');
-  });
+  }
 
   test("the site is still noindex", async ({ page }) => {
     await page.goto("/");

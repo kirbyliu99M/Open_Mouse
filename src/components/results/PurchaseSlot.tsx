@@ -1,5 +1,4 @@
-import type { UiLanguage } from "@/client/uiLanguage";
-import { uiLangAttribute } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { linksForSlug } from "@/lib/results/purchaseLinks";
 import purchaseLinksFile from "@/data/purchase-links.json";
@@ -18,7 +17,7 @@ export function PurchaseSlot({
   source = purchaseLinksFile,
 }: {
   slug: string;
-  language: UiLanguage;
+  language: Locale;
   source?: unknown;
 }) {
   const links = linksForSlug(source, slug);
@@ -29,25 +28,16 @@ export function PurchaseSlot({
       className="results-purchase"
       aria-labelledby="results-purchase-heading"
     >
-      <h2
-        id="results-purchase-heading"
-        className="results-purchase-heading"
-        lang={uiLangAttribute(language)}
-      >
+      <h2 id="results-purchase-heading" className="results-purchase-heading">
         {copy.purchaseHeading}
       </h2>
-      <p className="results-purchase-note" lang={uiLangAttribute(language)}>
-        {copy.purchaseNote}
-      </p>
+      <p className="results-purchase-note">{copy.purchaseNote}</p>
       <ul className="results-purchase-links">
         {links.map((link) => (
           <li key={`${link.label}|${link.url}`}>
             <a href={link.url} rel="sponsored noopener" target="_blank">
               {link.label}
-              <span
-                className="results-visuallyHidden"
-                lang={uiLangAttribute(language)}
-              >
+              <span className="results-visuallyHidden">
                 {" "}
                 {copy.opensInNewTab}
               </span>

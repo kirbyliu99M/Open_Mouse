@@ -10,7 +10,7 @@
  * this table has no key for either. If he brings them back, they are new
  * strings to add here.
  */
-import type { UiLanguage } from "../../client/uiLanguage";
+import type { Locale } from "../../lib/contracts/locale";
 
 export interface SiteFooterCopy {
   /** Group titles (candidate). */
@@ -56,7 +56,7 @@ export const en: SiteFooterCopy = {
   linksLabel: "Site links",
 };
 
-export function siteFooterCopy(lang: UiLanguage): SiteFooterCopy {
+export function siteFooterCopy(lang: Locale): SiteFooterCopy {
   return lang === "zh-TW" ? zhTW : en;
 }
 

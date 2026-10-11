@@ -1,6 +1,6 @@
 "use client";
 
-import type { UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { FIXTURES } from "@/components/results/fixtures";
 import type { QrStyle } from "@/components/results/share/qrStyle";
 import { ShareCardButton } from "@/components/results/share/ShareCardButton";
@@ -15,7 +15,7 @@ export function ShareCardDemoClient({
   qrSize,
   qrStyle,
 }: {
-  lang: UiLanguage;
+  lang: Locale;
   withHandType: boolean;
   withPhoto: boolean;
   longName: boolean;

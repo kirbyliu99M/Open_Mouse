@@ -1,6 +1,6 @@
 "use client";
 
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   emptyFilters,
@@ -22,7 +22,7 @@ export function FilterChips({
   onChange,
 }: {
   filters: Filters;
-  language: UiLanguage;
+  language: Locale;
   onChange: (next: Filters) => void;
 }) {
   const focusFilter = useFocusFilter();
@@ -36,7 +36,7 @@ export function FilterChips({
   const copy = RESULTS_PAGE_COPY[language].filter;
   const chips = chipsOf(filters, copy);
   return (
-    <div className="results-chips" lang={uiLangAttribute(language)}>
+    <div className="results-chips">
       <ul className="results-chips-list" aria-label={copy.chipsLabel}>
         {chips.map((chip) => (
           <li key={`${chip.group}:${chip.value}`}>

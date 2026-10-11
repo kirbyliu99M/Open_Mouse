@@ -26,6 +26,6 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: BASE_URL, trace: "retain-on-failure" },
+  use: { baseURL: BASE_URL, locale: "en-US", trace: "retain-on-failure" },
   projects: [{ name: "mobile", use: { ...devices["Pixel 7"] } }],
 });

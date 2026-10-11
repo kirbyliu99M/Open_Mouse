@@ -15,10 +15,10 @@
  * test (tests/unit/home-story-copy.test.ts) holds both languages to the same
  * keys, no empty string and no digit.
  *
- * There is no i18n framework in the repo yet, so the page shows English for
- * now (the rest of the home page is English) and does not touch `<html lang>`.
- * When the framework lands, `HOME_STORY_COPY["zh-TW"]` is what it picks up.
+ * The page shows the visitor's locale (`homeStoryNotes(locale)`, 2026-10-11).
  */
+import type { Locale } from "../contracts/locale";
+import { pickCopy } from "../i18n/copy";
 
 /** The annotations, in the order they appear. */
 export const HOME_STORY_NOTE_KEYS = [
@@ -40,64 +40,66 @@ export interface HomeStoryNote {
 
 export type HomeStoryCopy = Readonly<Record<HomeStoryNoteKey, HomeStoryNote>>;
 
-export type HomeStoryLanguage = "en" | "zh-TW";
-
-/** The language the page shows today. */
-export const HOME_STORY_LANGUAGE: HomeStoryLanguage = "en";
-
-export const HOME_STORY_COPY: Readonly<
-  Record<HomeStoryLanguage, HomeStoryCopy>
-> = {
-  en: {
-    length: {
-      title: "Hand length",
-      why: "The right length can reduce hand fatigue.",
-    },
-    width: {
-      title: "Palm width",
-      why: "A close match with the palm means a better grip.",
-    },
-    knuckles: {
-      title: "Knuckles",
-      why: "A pressing force at the best intensity reduces stiff fingers.",
-    },
-    fingertips: {
-      title: "Fingertips",
-      why: "Easier clicking, with less strain.",
-    },
-    thumb: {
-      title: "Thumb",
-      why: "Better control and grip.",
-    },
+export const en: HomeStoryCopy = {
+  length: {
+    title: "Hand length",
+    why: "The right length can reduce hand fatigue.",
   },
-  "zh-TW": {
-    length: {
-      title: "手長",
-      why: "長度剛好，降低手部疲勞",
-    },
-    width: {
-      title: "掌寬",
-      why: "掌心服貼，握姿更舒適",
-    },
-    knuckles: {
-      title: "指根關節",
-      why: "正確發力，遠離手指僵硬",
-    },
-    fingertips: {
-      title: "指尖",
-      why: "輕鬆點擊，毫無負擔",
-    },
-    thumb: {
-      title: "拇指",
-      why: "抓握張弛有度，滑動更流暢",
-    },
+  width: {
+    title: "Palm width",
+    why: "A close match with the palm means a better grip.",
+  },
+  knuckles: {
+    title: "Knuckles",
+    why: "A pressing force at the best intensity reduces stiff fingers.",
+  },
+  fingertips: {
+    title: "Fingertips",
+    why: "Easier clicking, with less strain.",
+  },
+  thumb: {
+    title: "Thumb",
+    why: "Better control and grip.",
   },
 };
 
-/** The five annotations in the language the page shows, in order. */
+export const zhTW: HomeStoryCopy = {
+  length: {
+    title: "手長",
+    why: "長度剛好，降低手部疲勞",
+  },
+  width: {
+    title: "掌寬",
+    why: "掌心服貼，握姿更舒適",
+  },
+  knuckles: {
+    title: "指根關節",
+    why: "正確發力，遠離手指僵硬",
+  },
+  fingertips: {
+    title: "指尖",
+    why: "輕鬆點擊，毫無負擔",
+  },
+  thumb: {
+    title: "拇指",
+    why: "抓握張弛有度，滑動更流暢",
+  },
+};
+
+/** Both tables by locale, for tests that walk every language. */
+export const HOME_STORY_COPY: Readonly<Record<Locale, HomeStoryCopy>> = {
+  en,
+  "zh-TW": zhTW,
+};
+
+export function homeStoryCopy(locale: Locale): HomeStoryCopy {
+  return pickCopy(locale, { zhTW, en });
+}
+
+/** The five annotations in the visitor's locale, in order. */
 export function homeStoryNotes(
-  language: HomeStoryLanguage = HOME_STORY_LANGUAGE,
+  locale: Locale,
 ): readonly (HomeStoryNote & { readonly key: HomeStoryNoteKey })[] {
-  const copy = HOME_STORY_COPY[language];
+  const copy = homeStoryCopy(locale);
   return HOME_STORY_NOTE_KEYS.map((key) => ({ key, ...copy[key] }));
 }

@@ -33,8 +33,8 @@ import { track } from "@/client/analytics/track";
 import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
-import { useUiLanguage } from "@/components/results/useUiLanguage";
-import type { UiLanguage } from "@/client/uiLanguage";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import type { Locale } from "@/lib/contracts/locale";
 import "@/components/results/results.css";
 
 type PageState =
@@ -65,7 +65,7 @@ const fitRequests = createInflightRequests<FitOutcome>();
 export interface ResultsScan {
   scanId: string;
   response: FitResponse;
-  language: UiLanguage;
+  language: Locale;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLength: number | null;
   analysisState: AnalysisState;
@@ -131,7 +131,7 @@ export function ResultsScanProvider({
   });
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
-  const language = useUiLanguage();
+  const language = useLocale();
 
   useEffect(() => {
     try {

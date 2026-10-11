@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import nodePath from "node:path";
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 // The footer reads the path; there is no router outside the app.
 const path = vi.hoisted(() => ({ current: "/" as string | null }));
-vi.mock("next/navigation", () => ({ usePathname: () => path.current }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => path.current,
+  useRouter: () => ({ refresh: () => {} }),
+}));
 
+import { LocaleProvider } from "../../src/client/i18n/LocaleProvider";
+import type { Locale } from "../../src/lib/contracts/locale";
 import { SiteFooter, showsSiteFooter } from "../../src/components/SiteFooter";
 import {
   en as footerEn,
@@ -18,13 +23,19 @@ import { en as shareEn, zhTW as shareZh } from "../../src/lib/copy/share-card";
 import { findMedicalClaimTerm } from "../../src/server/analysis/medicalClaims";
 import { GITHUB_URL, SITE_NAME, SITE_URL } from "../../src/lib/site";
 
-function render(at: string | null): string {
+function render(at: string | null, locale: Locale = "en"): string {
   path.current = at;
-  return renderToStaticMarkup(createElement(SiteFooter));
+  return renderToStaticMarkup(
+    createElement(
+      LocaleProvider,
+      { initialLocale: locale } as ComponentProps<typeof LocaleProvider>,
+      createElement(SiteFooter),
+    ),
+  );
 }
 
 describe("SiteFooter", () => {
-  it("is English on the server render, with the name, the headline and the six links in three groups", () => {
+  it("renders in English for the en locale, with the name, the headline and the six links in three groups", () => {
     const html = render("/");
     expect(html).toContain(SITE_NAME);
     expect(html).toContain("Ready to Find Yours?");
@@ -45,8 +56,22 @@ describe("SiteFooter", () => {
       (m) => m[1],
     );
     expect(titles).toEqual(["Product", "Trust", "Project"]);
-    // The page is lang="en": nothing on the English render claims zh-TW.
-    expect(html).not.toContain('lang="zh-TW"');
+    // The footer's own text carries no lang: <html lang> does. Only the
+    // switcher's option labels name their language.
+    expect(html.match(/ lang="[^"]+"/g)).toEqual([
+      ' lang="zh-TW"',
+      ' lang="en"',
+    ]);
+  });
+
+  it("renders in zh-TW for the zh-TW locale, and the switcher marks the current language", () => {
+    const html = render("/", "zh-TW");
+    expect(html).toContain(">掃描<");
+    expect(html).toContain(">產品<");
+    expect(html).not.toContain(">Product<");
+    expect(html).toContain('aria-label="語言"');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>中文</);
+    expect(render("/", "en")).toMatch(/aria-pressed="true"[^>]*>English</);
   });
 
   it("carries no explanatory text: no Early preview note, no non-affiliation statement (Kirby, 2026-10-10)", () => {

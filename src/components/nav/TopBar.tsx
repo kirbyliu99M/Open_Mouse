@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { navCopy } from "@/lib/copy/nav";
 import "./top-bar.css";
 import { backLinkName } from "./labels";
 
@@ -17,11 +21,15 @@ export function TopBar({
   stepLabel,
   onBackClick,
 }: TopBarProps) {
+  const locale = useLocale();
   return (
-    <nav className="journey-top-bar" aria-label="Journey navigation">
+    <nav
+      className="journey-top-bar"
+      aria-label={navCopy(locale).journeyNavLabel}
+    >
       <Link
         href={backHref}
-        aria-label={backLinkName(backLabel)}
+        aria-label={backLinkName(backLabel, locale)}
         onClick={onBackClick}
       >
         <span aria-hidden="true">‹</span>

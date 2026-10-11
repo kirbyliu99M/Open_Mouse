@@ -8,7 +8,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
@@ -50,13 +50,12 @@ export function FilterSheet({
   onClosed,
 }: {
   response: FitResponse;
-  language: UiLanguage;
+  language: Locale;
   applied: Filters;
   onApply: (filters: Filters) => void;
   onClosed: () => void;
 }) {
   const copy = RESULTS_PAGE_COPY[language].filter;
-  const lang = uiLangAttribute(language);
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -162,7 +161,7 @@ export function FilterSheet({
       className="results-sheet"
       data-leaving={leaving ? "true" : undefined}
       aria-labelledby={titleId}
-      lang={lang}
+
       onCancel={(e) => {
         // Esc: slide down and discard, rather than the browser's instant close.
         e.preventDefault();

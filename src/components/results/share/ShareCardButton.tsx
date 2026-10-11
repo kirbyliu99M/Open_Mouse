@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { shareCardCopy } from "@/lib/copy/share-card";
@@ -12,7 +12,7 @@ import "./share.css";
 
 export interface ShareCardButtonProps {
   fit: FitResponse;
-  lang: UiLanguage;
+  lang: Locale;
   /** "link" is the small 分享 in the top bar; "primary" is the big 製作我的分享圖. */
   variant: "link" | "primary";
   /**
@@ -106,7 +106,7 @@ export function ShareCardButton({
         className={`shareCard-button shareCard-button-${secondary ? "secondary" : variant}`}
         aria-disabled={busy}
         aria-busy={busy}
-        lang={uiLangAttribute(lang)}
+
         data-testid="share-card-button"
         onClick={onClick}
       >
@@ -115,18 +115,14 @@ export function ShareCardButton({
       {secondary ? (
         <span
           className="shareCard-note"
-          lang={uiLangAttribute(lang)}
+
           data-testid="share-filter-note"
         >
           {filterCopy.shareNote}
         </span>
       ) : null}
       {status === "error" ? (
-        <span
-          className="shareCard-error"
-          role="alert"
-          lang={uiLangAttribute(lang)}
-        >
+        <span className="shareCard-error" role="alert">
           {copy.error}
         </span>
       ) : null}

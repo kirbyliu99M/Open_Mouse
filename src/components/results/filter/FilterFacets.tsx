@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
@@ -81,14 +81,13 @@ export function FilterFacets({
   startOpen = ["brand"],
 }: {
   response: FitResponse;
-  language: UiLanguage;
+  language: Locale;
   filters: Filters;
   onChange: (next: Filters) => void;
   /** The groups that start open, besides any group with a choice. */
   startOpen?: readonly FilterGroup[];
 }) {
   const copy = RESULTS_PAGE_COPY[language].filter;
-  const lang = uiLangAttribute(language);
   const prefix = useId();
   const counts = useMemo(
     () => facetCounts(response, filters),
@@ -158,7 +157,7 @@ export function FilterFacets({
   );
 
   return (
-    <div className="results-facets" lang={lang}>
+    <div className="results-facets">
       {FILTER_GROUPS.map((group) => {
         const bodyId = `${prefix}-${group}`;
         const isOpen = open[group];

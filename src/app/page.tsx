@@ -2,9 +2,11 @@ import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import { SITE_NAME } from "@/lib/site";
+import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
 
 /**
@@ -20,11 +22,12 @@ import "./home.css";
  * hand.", and the photo-privacy sentence, which stays on How it works, the
  * scan screens and the camera).
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const locale = await getLocale();
   const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
-      <nav className="home-nav" aria-label="Primary">
+      <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
         <span className="home-wordmark">{SITE_NAME}</span>
         <div className="home-nav-actions">
           <AccountNavLink />
@@ -79,7 +82,7 @@ export default function HomePage() {
               The canvas's rings and leaders are decoration and not part of
               this. */}
           <ul className="story-notes">
-            {homeStoryNotes().map((note) => (
+            {homeStoryNotes(locale).map((note) => (
               <li key={note.key} className="story-note">
                 <p className="story-note-title">{note.title}</p>
                 <p className="story-note-why">{note.why}</p>

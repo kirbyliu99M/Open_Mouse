@@ -5,13 +5,13 @@ import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
 import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { FitResponse } from "../../src/lib/contracts/fit";
-import type { UiLanguage } from "../../src/client/uiLanguage";
+import type { Locale } from "../../src/lib/contracts/locale";
 
 const many = FIXTURES["many-results"];
 
 function render(
   response: FitResponse,
-  props: { rank?: number; language?: UiLanguage; scanId?: string } = {},
+  props: { rank?: number; language?: Locale; scanId?: string } = {},
 ) {
   return renderToStaticMarkup(
     createElement(ResultsView, {
@@ -193,11 +193,10 @@ describe("the results page layout", () => {
     expect(html).toContain(">Palmate<");
   });
 
-  it("marks zh-TW text with lang, and English text with none", () => {
-    const zh = render(many, { language: "zh-TW" });
-    expect(zh).toContain('lang="zh-TW"');
-    const en = render(many, { language: "en" });
-    expect(en).not.toContain('lang="zh-TW"');
+  it("puts no lang attribute on its elements: <html lang> carries the language", () => {
+    for (const language of ["zh-TW", "en"] as const) {
+      expect(render(many, { language })).not.toMatch(/ lang="/);
+    }
   });
 });
 

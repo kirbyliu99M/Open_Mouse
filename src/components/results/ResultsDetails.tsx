@@ -11,7 +11,7 @@ import {
   isPersonOpening,
   PRINT_OPENED_ATTRIBUTE,
 } from "@/lib/results/disclosure";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { ViewerRegion } from "@/components/viewer/ViewerRegion";
 import { AnalysisSlot } from "./AnalysisSlot";
 import type { AnalysisState } from "./analysisState";
@@ -36,7 +36,7 @@ export function ResultsDetails({
 }: {
   response: FitResponse;
   entry: FitEntry;
-  language: UiLanguage;
+  language: Locale;
   showViewer: boolean;
   analysis?: { state: AnalysisState; onRetry?: () => void };
   onViewerInteracted?: () => void;
@@ -45,7 +45,6 @@ export function ResultsDetails({
   // closing it again does not tear the model down.
   const [opened, setOpened] = useState(false);
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   const { mouse } = entry;
   const shapeUnrated = (["heightHump", "frontFlare", "thumb"] as const).some(
     (key) => entry.subscores[key].score === null,
@@ -66,7 +65,7 @@ export function ResultsDetails({
       }}
     >
       <summary>
-        <span className="results-disclosure-text" lang={lang}>
+        <span className="results-disclosure-text">
           <span className="results-disclosure-title">{copy.detailsTitle}</span>
           <span className="results-disclosure-hint">
             {showViewer ? copy.detailsHintWithViewer : copy.detailsHint}
@@ -84,9 +83,7 @@ export function ResultsDetails({
           />
         )}
 
-        <h3 className="results-details-scoresHeading" lang={lang}>
-          {copy.scoresHeading}
-        </h3>
+        <h3 className="results-details-scoresHeading">{copy.scoresHeading}</h3>
         <div className="results-subscoreGrid">
           {SUBSCORES.map((key) => (
             <SubscoreBar key={key} subscore={key} data={entry.subscores[key]} />
@@ -104,9 +101,7 @@ export function ResultsDetails({
         )}
 
         {shapeUnrated ? (
-          <p className="results-sizeNotice" lang={lang}>
-            {copy.sizeNotice}
-          </p>
+          <p className="results-sizeNotice">{copy.sizeNotice}</p>
         ) : (
           <ConfidenceNote confidence={entry.confidence} />
         )}

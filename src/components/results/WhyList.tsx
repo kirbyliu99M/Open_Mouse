@@ -1,7 +1,7 @@
 import type { FitEntry } from "@/lib/contracts/fit";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
-import { uiLangAttribute, type UiLanguage } from "@/client/uiLanguage";
+import type { Locale } from "@/lib/contracts/locale";
 import { topReasons } from "./topReasons";
 
 const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
@@ -16,18 +16,17 @@ export function WhyList({
   language,
 }: {
   entry: FitEntry;
-  language: UiLanguage;
+  language: Locale;
 }) {
   const reasons = topReasons(entry, 3);
   if (reasons.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
-  const lang = uiLangAttribute(language);
   return (
     <section className="results-why" aria-labelledby="results-why-heading">
-      <h2 id="results-why-heading" className="results-why-heading" lang={lang}>
+      <h2 id="results-why-heading" className="results-why-heading">
         {copy.whyHeading}
       </h2>
-      <ul className="results-why-list" lang={lang}>
+      <ul className="results-why-list">
         {reasons.map((reason) => (
           <li key={reason.subscore} data-subscore={reason.subscore}>
             <span className="results-why-label">

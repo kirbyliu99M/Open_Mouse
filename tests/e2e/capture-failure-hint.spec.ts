@@ -111,11 +111,10 @@ for (const { locale, language } of CASES) {
       const cue = page.locator(CUE);
       await expect(cue).toHaveAttribute("data-capture-failure", "true");
       await expect(cue).toHaveText(approved);
-      // WCAG 3.1.2: the page is lang="en", so the zh-TW line is marked; the
-      // English line carries no lang attribute of its own.
-      if (language === "zh-TW")
-        await expect(cue).toHaveAttribute("lang", "zh-TW");
-      else await expect(cue).not.toHaveAttribute("lang");
+      // WCAG 3.1.2: <html lang> carries the language, so the cue needs no
+      // lang of its own.
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      await expect(cue).not.toHaveAttribute("lang");
       // (2) The line under the viewfinder is empty while it shows, even
       // with the ring refilling at the moment of the 4th attempt.
       expect(log[CAPTURE_FAILURE_HINT_THRESHOLD]?.line).toBeNull();

@@ -7,7 +7,13 @@ vi.mock("next/font/google", () => ({
   Inter: () => ({ variable: "font-brand-test", className: "inter-test" }),
 }));
 
-import { metadata } from "@/app/layout";
+// The locale comes from the request's cookie and header; here it is fixed.
+let mockLocale: "zh-TW" | "en" = "en";
+vi.mock("@/server/i18n/getLocale", () => ({
+  getLocale: async () => mockLocale,
+}));
+
+import { generateMetadata } from "@/app/layout";
 import { SITE_URL } from "../../src/lib/site";
 
 /**
@@ -91,14 +97,22 @@ describe("SITE_URL", () => {
 describe("root layout metadata", () => {
   // The default e2e run uses `next dev`, which always rewrites metadataBase to
   // localhost, so it cannot notice the line being deleted. This does.
-  it("sets metadataBase to the SITE_URL origin", () => {
+  it("sets metadataBase to the SITE_URL origin", async () => {
+    const metadata = await generateMetadata();
     expect(metadata.metadataBase).toBeInstanceOf(URL);
     expect(metadata.metadataBase?.origin).toBe(new URL(SITE_URL).origin);
   });
 
-  it("gives the share cards the same description as the page", () => {
-    expect(metadata.description).toBeTruthy();
-    expect(metadata.openGraph?.description).toBe(metadata.description);
-    expect(metadata.twitter?.description).toBe(metadata.description);
+  it("gives the share cards the same description as the page, in each locale", async () => {
+    const seen = new Set<string | null | undefined>();
+    for (const locale of ["en", "zh-TW"] as const) {
+      mockLocale = locale;
+      const metadata = await generateMetadata();
+      expect(metadata.description).toBeTruthy();
+      expect(metadata.openGraph?.description).toBe(metadata.description);
+      expect(metadata.twitter?.description).toBe(metadata.description);
+      seen.add(metadata.description);
+    }
+    expect(seen.size).toBe(2);
   });
 });
