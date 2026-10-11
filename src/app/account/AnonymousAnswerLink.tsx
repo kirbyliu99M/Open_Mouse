@@ -6,12 +6,11 @@ import { accountCopy } from "@/lib/copy/account";
 
 /**
  * 「不登入，直接回答問卷」 on the signed-out view. For a person who has a scan in
- * this browser session it opens the questionnaire form (built elsewhere, by
- * Builder Q) through `onOpen`; with no scan, or no `onOpen`, it goes to
- * `/scan/easy` (a scan comes first). The signed-out page cannot yet tell
- * whether this browser holds a scan (no client-readable scan id exists, the
- * scan session is an httpOnly cookie), so `page.tsx` passes `scanId` null and
- * the link always scans first until that is decided.
+ * this browser session it opens the questionnaire form through `onOpen`; with
+ * no scan, or no `onOpen`, it goes to `/scan/easy` (a scan comes first).
+ * `page.tsx` reads the scan from the scan-session cookie on the server and
+ * passes its id (the scan session is an httpOnly cookie, so the browser itself
+ * cannot read it); `SignedOutAnswer` in `AccountClient.tsx` supplies `onOpen`.
  */
 export function AnonymousAnswerLink({
   scanId,

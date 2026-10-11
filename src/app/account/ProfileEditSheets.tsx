@@ -26,6 +26,7 @@ import { useLocale } from "@/client/i18n/LocaleProvider";
 import { Avatar } from "@/components/nav/Avatar";
 import { accountCopy } from "@/lib/copy/account";
 import { cropToSquareBlob } from "./avatar-crop";
+import { useModalDialog } from "./modal";
 import { NICKNAME_MAX, canSaveNickname, nicknameLength } from "./profile-model";
 
 /** What saving a profile change does, once a route exists. */
@@ -40,50 +41,80 @@ export interface ProfileEditing {
 
 type SaveStatus = "idle" | "saving" | "error";
 
-/** A bottom sheet on a native `<dialog>`: focus is trapped, Esc and Cancel close it. */
-function ProfileSheet({
+/**
+ * A bottom sheet on a native `<dialog>`: focus is trapped, Esc and Cancel close
+ * it, and focus goes back to the control that opened it. Also the frame of the
+ * questionnaire's sheets (Builder Q):
+ *   - `footer` pins a button row under a body that scrolls, with a fade above it
+ *     that says there is more (frame LHhIs);
+ *   - `note` is a line under the title that stays put while the body scrolls;
+ *   - `variant` "tall" fills most of the screen (the mouse picker), "page" fills
+ *     all of it (the form), with no handle;
+ *   - `returnFocusTo` names the control to focus on close (default: whatever had
+ *     focus when the sheet opened).
+ * Without any of these it is the plain sheet of the nickname and avatar.
+ */
+export function ProfileSheet({
   title,
   onClose,
   initialFocus,
   children,
+  footer,
+  note,
+  variant = "sheet",
+  returnFocusTo,
+  labelledBy,
 }: {
   title: string;
   onClose: () => void;
   initialFocus?: RefObject<HTMLElement | null>;
   children: ReactNode;
+  footer?: ReactNode;
+  note?: ReactNode;
+  variant?: "sheet" | "tall" | "page";
+  returnFocusTo?: () => HTMLElement | null;
+  /** Overrides the title as the dialog's accessible name. */
+  labelledBy?: string;
 }) {
   const copy = accountCopy(useLocale());
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const modal = useModalDialog({ onClose, initialFocus, returnFocusTo });
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    dialog.showModal();
-    initialFocus?.current?.focus();
-    return () => dialog.close();
-  }, [initialFocus]);
-
+  const pinned = footer !== undefined;
   return (
     <dialog
-      ref={dialogRef}
-      className="profile-sheet"
-      aria-labelledby={titleId}
-      onClose={onClose}
-      onCancel={onClose}
+      ref={modal.dialogRef}
+      className={`profile-sheet profile-sheet-${variant}${
+        pinned ? " profile-sheet-pinned" : ""
+      }`}
+      aria-labelledby={labelledBy ?? titleId}
+      onClose={modal.onClose}
+      onCancel={modal.onCancel}
     >
-      <span className="profile-sheet-handle" aria-hidden="true" />
-      <button
-        type="button"
-        className="button-secondary profile-sheet-cancel"
-        onClick={onClose}
-      >
-        {copy.cancel}
-      </button>
-      <h2 id={titleId} className="profile-sheet-title">
-        {title}
-      </h2>
-      {children}
+      <div className="profile-sheet-head">
+        {variant !== "page" && (
+          <span className="profile-sheet-handle" aria-hidden="true" />
+        )}
+        <button
+          type="button"
+          className="button-secondary profile-sheet-cancel"
+          onClick={onClose}
+        >
+          {copy.cancel}
+        </button>
+        <h2 id={titleId} className="profile-sheet-title">
+          {title}
+        </h2>
+        {note !== undefined && note}
+      </div>
+      {pinned ? (
+        <>
+          <div className="profile-sheet-body">{children}</div>
+          <div className="profile-sheet-footer">{footer}</div>
+        </>
+      ) : (
+        children
+      )}
     </dialog>
   );
 }

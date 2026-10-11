@@ -15,6 +15,7 @@ import { SURVEY_PATH } from "@/lib/contracts/routes";
 import {
   MAX_ACCOUNT_MICE,
   surveyMineResponseSchema,
+  type SurveyMineResponse,
 } from "@/lib/contracts/survey";
 import { accountCopy, type AccountCopy } from "@/lib/copy/account";
 import type { AccountScan } from "../../server/account/repo";
@@ -50,6 +51,12 @@ export interface ProfileInfo {
 /** Given to every handler so it can ask the page to read the answers again after a change. */
 export interface ProfileHandlerContext {
   reload: () => void;
+  /**
+   * The answers the page has read, `null` while they are not loaded. A handler
+   * that edits builds its whole-replacement body from them (`PUT` replaces the
+   * set), so it never needs a read of its own.
+   */
+  answers: SurveyMineResponse | null;
 }
 
 /**
@@ -178,7 +185,10 @@ export function AccountView({
   const avatarTriggerRef = useRef<HTMLButtonElement>(null);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
-  const ctx: ProfileHandlerContext = { reload };
+  const ctx: ProfileHandlerContext = {
+    reload,
+    answers: answers.kind === "ready" ? answers.answers : null,
+  };
 
   useEffect(() => {
     if (!confirmOpen) return;

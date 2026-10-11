@@ -25,6 +25,7 @@ const EXPECTED_MODULES = [
   "learn.ts",
   "nav.ts",
   "privacy.ts",
+  "questionnaire.ts",
   "results-additions.ts",
   "results-page.ts",
   "results-reasons.ts",

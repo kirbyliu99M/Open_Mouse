@@ -1,17 +1,28 @@
 import { auth, signIn, signOut } from "../../auth";
 import { createDrizzleAccountRepo } from "../../server/account/drizzle-repo";
 import { isAuthConfigured } from "../../server/auth/config";
-import { readAccountEmail, readMouseNames } from "../../server/account/profile";
-import { AccountView } from "./AccountView";
-import { AnonymousAnswerLink } from "./AnonymousAnswerLink";
+import {
+  readAccountEmail,
+  readCatalogueChoices,
+  readMouseNames,
+  readSessionLatestScanId,
+} from "../../server/account/profile";
+import {
+  SCAN_SESSION_COOKIE,
+  parseSessionId,
+} from "../../server/scans/cookies";
+import { SignedInProfile, SignedOutAnswer } from "./AccountClient";
+import { mouseNamesFromRows } from "./profile-model";
 import { AuthButton } from "./AuthButton";
 import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
 import { TopBar } from "@/components/nav/TopBar";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { accountCopy } from "@/lib/copy/account";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./account.css";
+import "./questionnaire.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: accountCopy(await getLocale()).metaTitle };
@@ -25,6 +36,18 @@ export default async function AccountPage() {
 
   if (!session?.user) {
     const configured = isAuthConfigured();
+    // Whether this browser holds a scan decides where the link goes: the form
+    // for a scan of this browser's own session cookie, else a scan first. Both
+    // reads are extras: a failure leaves the link going to /scan/easy.
+    const sessionId = configured
+      ? parseSessionId((await cookies()).get(SCAN_SESSION_COOKIE)?.value)
+      : null;
+    const [ownScanId, choices] = configured
+      ? await Promise.all([
+          readSessionLatestScanId(sessionId).catch(() => null),
+          readCatalogueChoices().catch(() => []),
+        ])
+      : [null, []];
     return (
       <main className="account">
         <LegacyHandKeySweep />
@@ -45,9 +68,11 @@ export default async function AccountPage() {
             >
               <AuthButton action="in" />
             </form>
-            {/* No client-readable id of a scan in this browser exists yet, so
-                the link scans first (see AnonymousAnswerLink). */}
-            <AnonymousAnswerLink scanId={null} />
+            <SignedOutAnswer
+              scanId={ownScanId}
+              catalogue={choices}
+              mouseNames={mouseNamesFromRows(choices)}
+            />
             <p className="account-fine-print">
               {copy.answerWithoutAccountNote}
             </p>
@@ -74,10 +99,11 @@ export default async function AccountPage() {
   const repo = createDrizzleAccountRepo();
   // The e-mail and the mouse names are extras: the page still renders, without
   // them, when either read fails.
-  const [scans, email, mouseNames] = await Promise.all([
+  const [scans, email, mouseNames, catalogue] = await Promise.all([
     repo.listScans(userId),
     readAccountEmail(userId).catch(() => null),
     readMouseNames().catch(() => ({}) as Record<string, string>),
+    readCatalogueChoices().catch(() => []),
   ]);
 
   return (
@@ -86,7 +112,8 @@ export default async function AccountPage() {
       <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.title} />
       <h1>{copy.title}</h1>
       <p className="account-subtitle">{copy.signedInSubtitle}</p>
-      <AccountView
+      <SignedInProfile
+        catalogue={catalogue}
         scans={scans}
         profile={{
           name: session.user.name ?? null,
