@@ -34,6 +34,8 @@ export interface AccountCopy {
   answerWithoutAccount: string;
   /** The line under that link: answers sent without signing in cannot be taken back. */
   answerWithoutAccountNote: string;
+  /** Under the sign-in button: what is kept when you sign in (the earlier words, unchanged). */
+  finePrint: string;
   unavailable: string;
   scanMyHand: string;
   whenOpens: string;
@@ -104,6 +106,8 @@ export interface AccountCopy {
   mainUses: { office: string; gaming: string; mixed: string };
   feedbackRow: string;
   feedbackNote: string;
+  /** The value of a 其他回答 row that has no answer yet (candidate). */
+  notFilled: string;
 
   // 資料.
   dataHeading: string;
@@ -151,6 +155,8 @@ export const zhTW: AccountCopy = {
   answerWithoutAccount: "不登入，直接回答問卷",
   answerWithoutAccountNote:
     "不登入也可以送出問卷。沒有登入時送出的回答，之後無法找回，也就無法撤回。",
+  finePrint:
+    "我們會保存你的電子郵件地址和掃描紀錄，絕不會保存你的照片。登入時，你目前的掃描會併入你的帳號。",
   unavailable:
     "目前無法登入。你仍然可以掃描，結果會保留一段時間，之後自動刪除。",
   scanMyHand: "掃描我的手",
@@ -212,6 +218,7 @@ export const zhTW: AccountCopy = {
   mainUses: { office: "辦公", gaming: "遊戲", mixed: "辦公與遊戲" },
   feedbackRow: "意見",
   feedbackNote: "文字意見僅供維護者查看，不會公開。",
+  notFilled: "未填",
 
   dataHeading: "資料",
   preparingExport: "正在準備匯出…",
@@ -255,6 +262,8 @@ export const en: AccountCopy = {
   answerWithoutAccount: "Answer the questionnaire without signing in",
   answerWithoutAccountNote:
     "You can send the questionnaire without signing in. Answers sent while signed out can't be found again, so they can't be taken back.",
+  finePrint:
+    "We keep your email address and your scans — never your photo. Your current scan joins your account when you sign in.",
   unavailable:
     "Sign-in is unavailable right now. You can still scan — your result is kept for a while, then expires automatically.",
   scanMyHand: "Scan my hand",
@@ -320,6 +329,7 @@ export const en: AccountCopy = {
   feedbackRow: "Comment",
   feedbackNote:
     "Your comment is read by the maintainers only and is never public.",
+  notFilled: "Not filled in",
 
   dataHeading: "Data",
   preparingExport: "Preparing export…",

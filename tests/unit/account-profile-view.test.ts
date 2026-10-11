@@ -12,6 +12,7 @@ import {
 } from "../../src/app/account/ProfileEditSheets";
 import type { AnswersState } from "../../src/app/account/profile-model";
 import { surveyMineResponseSchema } from "../../src/lib/contracts/survey";
+import { en, zhTW } from "../../src/lib/copy/account";
 import type { AccountScan } from "../../src/server/account/repo";
 
 /**
@@ -226,25 +227,34 @@ describe("我的滑鼠 and 其他回答", () => {
     expect(html).toContain("razer-deathadder-v3");
   });
 
-  it("omits 其他回答 when there is neither a main use nor a comment", () => {
-    const html = render({
-      initialAnswers: ready({
-        mainUse: null,
-        feedback: null,
-        otherMice: [],
-        ratings: [
-          {
-            slug: "razer-deathadder-v3",
-            satisfaction: 5,
-            painPoints: [],
-            current: true,
-          },
-        ],
-      }),
+  it("draws 其他回答 with 未填 on both rows when there is neither a main use nor a comment", () => {
+    const answers = ready({
+      mainUse: null,
+      feedback: null,
+      otherMice: [],
+      ratings: [
+        {
+          slug: "razer-deathadder-v3",
+          satisfaction: 5,
+          painPoints: [],
+          current: true,
+        },
+      ],
     });
-    expect(html).not.toContain("其他回答");
+    const html = render({ initialAnswers: answers });
+    expect(html).toContain("其他回答");
+    expect(html.match(/未填/g)).toHaveLength(2);
+    expect(html.match(/profile-row-empty/g)).toHaveLength(2);
     expect(html).toContain("滿意 5/5");
     expect(html).not.toContain("使用 ");
+    // Plain text while no handler is given; a tap target once one is.
+    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*主要用途/s);
+    const wired = render({
+      initialAnswers: answers,
+      handlers: { onEditOtherAnswer: noop },
+    });
+    expect(wired).toMatch(/<button[^>]*>(?:(?!<\/button>).)*主要用途/s);
+    expect(wired).toMatch(/<button[^>]*>(?:(?!<\/button>).)*意見/s);
   });
 
   it("shows the empty state with a scan; its button appears only with a handler", () => {
@@ -343,5 +353,17 @@ describe("the nickname and avatar sheets (not wired)", () => {
     expect(html).toContain("會裁成正方形，並以圓形顯示。");
     expect(html).toContain("這項修改還不能儲存。");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>儲存<\/button>/);
+  });
+});
+
+describe("the signed-out page's words", () => {
+  it("keeps main's sign-in fine print, word for word, and the 'cannot be taken back' line", () => {
+    expect(zhTW.finePrint).toBe(
+      "我們會保存你的電子郵件地址和掃描紀錄，絕不會保存你的照片。登入時，你目前的掃描會併入你的帳號。",
+    );
+    expect(en.finePrint).toBe(
+      "We keep your email address and your scans — never your photo. Your current scan joins your account when you sign in.",
+    );
+    expect(zhTW.answerWithoutAccountNote).toContain("無法撤回");
   });
 });

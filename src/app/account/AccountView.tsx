@@ -667,7 +667,7 @@ function MiceSection({
                   <span
                     className={`profile-row-value${
                       field === "feedback" ? " profile-row-ellipsis" : ""
-                    }`}
+                    }${row.empty ? " profile-row-empty" : ""}`}
                   >
                     {row.value}
                   </span>

@@ -38,6 +38,8 @@ export interface ValueRow {
   key: string;
   label: string;
   value: string;
+  /** True for a 其他回答 row that has no answer: its value is the "not filled in" word. */
+  empty?: boolean;
 }
 
 /** Millimetres as centimetres with one decimal and a no-break space: 186 -> "18.6 cm". */
@@ -201,24 +203,38 @@ export function mouseRows(
   return [...all.filter((r) => r.current), ...all.filter((r) => !r.current)];
 }
 
-/** The rows of 其他回答: main use and the comment (as one line; the page ellipsises it). */
+/**
+ * The rows of 其他回答: main use and the comment (as one line; the page
+ * ellipsises it). Both rows are always there: one with no answer reads "not
+ * filled in" and can be tapped to fill it in.
+ */
 export function otherAnswerRows(
   answers: SurveyMineResponse,
   copy: AccountCopy,
 ): ValueRow[] {
-  const rows: ValueRow[] = [];
-  if (answers.mainUse !== null) {
-    rows.push({
-      key: "mainUse",
-      label: copy.mainUseRow,
-      value: copy.mainUses[answers.mainUse],
-    });
-  }
   const feedback = answers.feedback?.replace(/\s+/g, " ").trim() ?? "";
-  if (feedback !== "") {
-    rows.push({ key: "feedback", label: copy.feedbackRow, value: feedback });
-  }
-  return rows;
+  return [
+    answers.mainUse !== null
+      ? {
+          key: "mainUse",
+          label: copy.mainUseRow,
+          value: copy.mainUses[answers.mainUse],
+        }
+      : {
+          key: "mainUse",
+          label: copy.mainUseRow,
+          value: copy.notFilled,
+          empty: true,
+        },
+    feedback !== ""
+      ? { key: "feedback", label: copy.feedbackRow, value: feedback }
+      : {
+          key: "feedback",
+          label: copy.feedbackRow,
+          value: copy.notFilled,
+          empty: true,
+        },
+  ];
 }
 
 /** True when the person has answered anything at all. */
