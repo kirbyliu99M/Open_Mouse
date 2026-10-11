@@ -2,17 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import type { Locale } from "@/lib/contracts/locale";
+import { accountCopy } from "@/lib/copy/account";
 import type { AccountScan } from "../../server/account/repo";
 import { clearScanDisclosures } from "../../components/results/userLengthDisclosure";
 import { clearAttempts } from "../../client/camera/easyScanPreferences";
 
 type Status = "idle" | "working" | "done" | "error";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+function formatDate(iso: string, locale: Locale): string {
+  // English keeps the browser's own format; zh-TW asks for Taiwan's.
+  return new Date(iso).toLocaleString(
+    locale === "zh-TW" ? "zh-TW" : undefined,
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    },
+  );
 }
 
 function downloadJson(filename: string, data: unknown): void {
@@ -39,6 +46,8 @@ function downloadJson(filename: string, data: unknown): void {
  * changed since the initial server render.
  */
 export function AccountView({ scans }: { scans: AccountScan[] }) {
+  const locale = useLocale();
+  const copy = accountCopy(locale);
   const [visibleScans, setVisibleScans] = useState(scans);
   const [exportStatus, setExportStatus] = useState<Status>("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -107,7 +116,7 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
           onClick={handleExport}
           disabled={exportStatus === "working" || visibleScans.length === 0}
         >
-          {exportStatus === "working" ? "Preparing export…" : "Export as JSON"}
+          {exportStatus === "working" ? copy.preparingExport : copy.exportJson}
         </button>
         <button
           type="button"
@@ -115,41 +124,43 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
           ref={triggerRef}
           onClick={() => setConfirmOpen(true)}
         >
-          Delete everything
+          {copy.deleteEverything}
         </button>
       </div>
       {exportStatus === "error" && (
         <p className="status-error" role="status">
-          Couldn&apos;t export — check your connection and try again.
+          {copy.exportError}
         </p>
       )}
 
       {visibleScans.length === 0 ? (
         <div>
-          <p className="note">No scans yet.</p>
+          <p className="note">{copy.noScans}</p>
           <Link className="account-empty-link" href="/scan/easy">
-            Start measuring
+            {copy.startMeasuring}
           </Link>
         </div>
       ) : (
-        <ul className="scan-list" aria-label="Your scans">
+        <ul className="scan-list" aria-label={copy.scansLabel}>
           {visibleScans.map((scan) => (
             <li key={scan.scanId} className="scan-card">
               <div className="scan-card-header">
-                <span>{formatDate(scan.createdAt)}</span>
-                <span>{scan.hand === "left" ? "Left hand" : "Right hand"}</span>
+                <span>{formatDate(scan.createdAt, locale)}</span>
+                <span>
+                  {scan.hand === "left" ? copy.leftHand : copy.rightHand}
+                </span>
               </div>
               <dl className="measurements">
                 <div>
-                  <dt>Hand length</dt>
+                  <dt>{copy.handLength}</dt>
                   <dd>{scan.measurements.handLengthMm}&nbsp;mm</dd>
                 </div>
                 <div>
-                  <dt>Palm length</dt>
+                  <dt>{copy.palmLength}</dt>
                   <dd>{scan.measurements.palmLengthMm}&nbsp;mm</dd>
                 </div>
                 <div>
-                  <dt>Palm width</dt>
+                  <dt>{copy.palmWidth}</dt>
                   <dd>{scan.measurements.palmWidthMm}&nbsp;mm</dd>
                 </div>
               </dl>
@@ -167,18 +178,11 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
           aria-describedby="delete-all-body"
           className="dialog"
         >
-          <h2 id="delete-all-title">Delete everything?</h2>
-          <p id="delete-all-body">
-            This permanently deletes{" "}
-            {visibleScans.length > 0
-              ? `all ${visibleScans.length} of your scans and `
-              : ""}
-            your account, including the email address and name from Google, and
-            signs you out. This can&apos;t be undone.
-          </p>
+          <h2 id="delete-all-title">{copy.deleteTitle}</h2>
+          <p id="delete-all-body">{copy.deleteBody(visibleScans.length)}</p>
           {deleteStatus === "error" && (
             <p className="status-error" role="status">
-              Couldn&apos;t delete — check your connection and try again.
+              {copy.deleteError}
             </p>
           )}
           <div className="dialog-actions">
@@ -188,7 +192,7 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
               ref={cancelRef}
               onClick={() => setConfirmOpen(false)}
             >
-              Cancel
+              {copy.cancel}
             </button>
             <button
               type="button"
@@ -196,7 +200,9 @@ export function AccountView({ scans }: { scans: AccountScan[] }) {
               onClick={handleDeleteAll}
               disabled={deleteStatus === "working"}
             >
-              {deleteStatus === "working" ? "Deleting…" : "Delete everything"}
+              {deleteStatus === "working"
+                ? copy.deleting
+                : copy.deleteEverything}
             </button>
           </div>
         </dialog>

@@ -8,8 +8,15 @@ import { guardDemoRouteFromProduction } from "../../src/app/scan/demo-guard";
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "user-agent": "vitest" }),
 }));
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
+}));
 vi.mock("../../src/client/camera/EasyScanCamera", () => ({
   default: () => null,
+}));
+// The pages read the visitor's locale (server-only); the guard does not care.
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
 }));
 
 const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
@@ -389,7 +396,8 @@ describe("/sheet, /scan and /scan/easy under VERCEL_ENV", () => {
     async (_route, load) => {
       process.env.VERCEL_ENV = "production";
       const { default: Page } = await load();
-      expect(() => Page()).toThrow(NOT_FOUND);
+      // `/sheet` is async (it reads the locale), `/scan` is not: await both.
+      await expect(async () => Page()).rejects.toThrow(NOT_FOUND);
     },
   );
 
@@ -400,7 +408,7 @@ describe("/sheet, /scan and /scan/easy under VERCEL_ENV", () => {
       for (const value of ["preview", "development", undefined] as const) {
         if (value === undefined) delete process.env.VERCEL_ENV;
         else process.env.VERCEL_ENV = value;
-        expect(Page()).toBeTruthy();
+        expect(await Page()).toBeTruthy();
       }
     },
   );

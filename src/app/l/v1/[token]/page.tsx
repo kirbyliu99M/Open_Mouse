@@ -12,6 +12,8 @@ import {
   shotsPerHand,
   type KitCode,
 } from "@/lib/learning/kit";
+import { learnCopy } from "@/lib/copy/learn";
+import { getLocale } from "@/server/i18n/getLocale";
 import "../../../learn/learn.css";
 
 /**
@@ -19,10 +21,12 @@ import "../../../learn/learn.css";
  * must keep answering for every code ever printed at kit version 1.
  */
 
-export const metadata: Metadata = {
-  title: "Learning kit pose",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: learnCopy(await getLocale()).poseMetaTitle,
+    robots: { index: false, follow: false },
+  };
+}
 
 const VERSION = 1;
 
@@ -36,6 +40,7 @@ export default async function KitCodePage({
   params: Promise<{ token: string }>;
 }) {
   guardDemoRouteFromProduction();
+  const copy = learnCopy(await getLocale());
   const { token } = await params;
   const code = parseKitToken(token, VERSION);
   if (!code) notFound();
@@ -46,16 +51,12 @@ export default async function KitCodePage({
       <main className="learn">
         <TopBar
           backHref="/learn"
-          backLabel="Learning kit"
-          stepLabel="Session"
+          backLabel={copy.learningKit}
+          stepLabel={copy.session}
         />
         <p className="learn-pose-code">{code.participant}</p>
-        <h1>Session {code.participant}</h1>
-        <p className="learn-lead">
-          Photograph this card with the ruler values written on it, then work
-          through the seven poses: {shotsPerHand()} photos per hand, right hand
-          first.
-        </p>
+        <h1>{copy.sessionTitle(code.participant)}</h1>
+        <p className="learn-lead">{copy.sessionLead(shotsPerHand())}</p>
         <div className="learn-actions">
           <Link
             className="learn-button"
@@ -66,10 +67,10 @@ export default async function KitCodePage({
               hand: "right",
             })}
           >
-            Start with {first.code}R, {first.name.toLowerCase()}
+            {copy.startWith(`${first.code}R`, copy.gestures[first.code].name)}
           </Link>
           <Link className="learn-button-secondary" href="/learn/check?sheet=v1">
-            Check photos
+            {copy.checkPhotos}
           </Link>
         </div>
       </main>
@@ -77,7 +78,8 @@ export default async function KitCodePage({
   }
 
   const gesture = gestureByCode(code.gesture);
-  const handWord = code.hand === "right" ? "Right hand" : "Left hand";
+  const poseCopy = copy.gestures[gesture.code];
+  const handWord = code.hand === "right" ? copy.rightHand : copy.leftHand;
   const sequence = buildSequence();
   const lastOfThis = sequence.findLast(
     (s) => s.gesture.code === code.gesture && s.hand === code.hand,
@@ -88,29 +90,26 @@ export default async function KitCodePage({
     <main className="learn">
       <TopBar
         backHref="/learn"
-        backLabel="Learning kit"
-        stepLabel={`Pose ${GESTURES.indexOf(gesture) + 1} of ${GESTURES.length}`}
+        backLabel={copy.learningKit}
+        stepLabel={copy.poseOf(GESTURES.indexOf(gesture) + 1, GESTURES.length)}
       />
       <p className="learn-pose-code">{kitCodeToken(code)}</p>
-      <h1>{gesture.name}</h1>
+      <h1>{poseCopy.name}</h1>
       <p className="learn-lead">
-        {handWord}, {gesture.shots} photos.{" "}
-        {gesture.camera === "above"
-          ? "Keep the sheet's top flap flat."
-          : "Fold the sheet's top flap up."}
+        {copy.poseLead(handWord, gesture.shots, gesture.camera === "above")}
       </p>
       <ol className="learn-steps">
-        {gesture.steps.map((step) => (
+        {poseCopy.steps.map((step) => (
           <li key={step}>{step}</li>
         ))}
       </ol>
-      <h2>What these photos are for</h2>
-      <p>{gesture.yields}</p>
+      <h2>{copy.whatFor}</h2>
+      <p>{poseCopy.yields}</p>
       <div className="learn-next">
         {next ? (
           <>
             <p>
-              Next:{" "}
+              {copy.nextPrefix}{" "}
               <strong>
                 {kitCodeToken({
                   kind: "gesture",
@@ -119,8 +118,10 @@ export default async function KitCodePage({
                   hand: next.hand,
                 })}
               </strong>
-              , {next.gesture.name.toLowerCase()}
-              {next.hand !== code.hand ? ", other hand" : ""}.
+              {copy.nextAfter(
+                copy.gestures[next.gesture.code].name,
+                next.hand !== code.hand,
+              )}
             </p>
             <Link
               className="learn-button-secondary"
@@ -131,16 +132,14 @@ export default async function KitCodePage({
                 hand: next.hand,
               })}
             >
-              Open the next pose
+              {copy.openNext}
             </Link>
           </>
         ) : (
           <>
-            <p>
-              That was the last pose. Check the photos before the person leaves.
-            </p>
+            <p>{copy.lastPose}</p>
             <Link className="learn-button" href="/learn/check?sheet=v1">
-              Check photos
+              {copy.checkPhotos}
             </Link>
           </>
         )}
