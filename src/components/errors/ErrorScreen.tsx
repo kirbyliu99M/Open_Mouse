@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { REFERENCE_LABEL } from "./copy";
 import "../../app/tokens.css";
 import "./errors.css";
@@ -39,7 +39,9 @@ export function ErrorScreen({
   children,
 }: ErrorScreenProps) {
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
+  // A layout effect: the heading takes focus in the same commit that mounts it,
+  // so no frame (or test sample) sees focus on the page body in between.
+  useLayoutEffect(() => {
     if (focusHeading) heading.current?.focus();
   }, [focusHeading]);
 
