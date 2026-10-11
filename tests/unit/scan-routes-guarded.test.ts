@@ -3,14 +3,15 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Every page under src/app/scan except the two real product screens is a dev
- * or demo route (no synthetic photo makes MediaPipe detect a hand, so these
- * exist to reach states e2e otherwise cannot). Each must call
- * `guardDemoRouteFromProduction()` so it 404s in production. A new route that
- * is meant to ship is added to the allowlist on purpose.
- * (`/results/demo` is outside this directory.)
+ * Every page under src/app/scan except the one real product screen,
+ * `/scan/easy`, is a dev or demo route (no synthetic photo makes MediaPipe
+ * detect a hand, so these exist to reach states e2e otherwise cannot) or the
+ * printed-sheet photo step `/scan`, hidden in production since 2026-10-11.
+ * Each must call `guardDemoRouteFromProduction()` so it 404s in production. A
+ * new route that is meant to ship is added to the allowlist on purpose.
+ * (`/results/demo` and `/sheet` are outside this directory.)
  */
-const PRODUCT_PAGES = new Set(["page.tsx", join("easy", "page.tsx")]);
+const PRODUCT_PAGES = new Set([join("easy", "page.tsx")]);
 const ROOT = join("src", "app", "scan");
 
 function pages(dir: string): string[] {
@@ -39,7 +40,7 @@ describe("dev and demo routes under /scan", () => {
     },
   );
 
-  it("keeps the two product pages out of the guard's reach", () => {
+  it("keeps the product page out of the guard's reach", () => {
     for (const page of PRODUCT_PAGES) {
       expect(readFileSync(join(ROOT, page), "utf8")).not.toMatch(
         /guardDemoRouteFromProduction/,
