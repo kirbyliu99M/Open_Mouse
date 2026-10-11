@@ -36,12 +36,16 @@ describe("localeFromLanguageTag", () => {
     ["en", "en"],
     ["en-US", "en"],
     ["EN-gb", "en"],
+    ["en_US", "en"],
   ])("%s → %s", (tag, want) => {
     expect(localeFromLanguageTag(tag)).toBe(want);
   });
-  it.each(["ja", "zhx", "eng", "fr-FR", "", "*"])("%s → null", (tag) => {
-    expect(localeFromLanguageTag(tag)).toBeNull();
-  });
+  it.each(["ja", "zhx", "eng", "en1", "zh2", "iw", "fr-FR", "", "*"])(
+    "%s → null",
+    (tag) => {
+      expect(localeFromLanguageTag(tag)).toBeNull();
+    },
+  );
 });
 
 describe("localeFromAcceptLanguage", () => {
@@ -53,7 +57,20 @@ describe("localeFromAcceptLanguage", () => {
     ["en;q=0.5, zh-TW;q=0.5", "en"],
     ["zh;q=0, en", "en"],
     ["*, en;q=0.1", "en"],
-    ["en;q=abc", "en"],
+    ["en;q=abc, zh", "zh-TW"],
+    ["en;q=-1, zh-TW;q=0.5", "zh-TW"],
+    ["en;q=1e-1, zh;q=0.5", "zh-TW"],
+    ["en;q=1.0.0, zh", "zh-TW"],
+    ["en;q=, zh", "zh-TW"],
+    ["en;q=1.5, zh;q=0.5", "zh-TW"],
+    ["en;q=1.0, zh;q=0.999", "en"],
+    ["zh-TW;q =0.9, en;Q=0.8", "zh-TW"],
+    ["zh;q=0.000, en;q=0.001", "en"],
+    ["ja, fr;q=0.9, en;q=0.9, zh;q=0.9", "en"],
+    // Real browsers: Chrome, Safari, Firefox.
+    ["en-US,en;q=0.9", "en"],
+    ["zh-tw", "zh-TW"],
+    ["zh-TW,zh;q=0.8,en-US;q=0.5,en;q=0.3", "zh-TW"],
     ["fr-FR, de;q=0.9, zh-CN;q=0.2", "zh-TW"],
   ])("%s → %s", (header, want) => {
     expect(localeFromAcceptLanguage(header)).toBe(want);
