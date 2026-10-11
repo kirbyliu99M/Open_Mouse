@@ -162,5 +162,5 @@ rows keep 75.
 ## 10. Known limits
 
 Coefficients are not validated against ratings; hand measurement bias is above the 3–5 mm
-precision target; imported descriptors are EloShapes' editorial judgments, so they can no longer
-validate our own rubric.
+precision target; imported descriptors come from a third-party compilation's editorial judgments, so they can no
+longer validate our own rubric.
