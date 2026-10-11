@@ -88,7 +88,7 @@ The validator prints metric lines, off-diagonal confusion counts and the names
 of unmatched models. **Only the metric lines are recorded here.** The confusion
 counts and unmatched names are not: next to the per-model prediction table below,
 confusion counts can reveal individual fixture labels by arithmetic (found by the
-#102 review, 2026-10-02; Kirby: remove the EloShapes labels). Do not infer
+#102 review, 2026-10-02; Kirby: remove the third-party labels). Do not infer
 labels, probe individual models with extra runs, or read the fixture.
 
 Full stdout/stderr from every invocation will be preserved locally under ignored
