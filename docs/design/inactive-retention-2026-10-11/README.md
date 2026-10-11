@@ -1,10 +1,12 @@
 # Delete accounts and saved scans after 3 months of inactivity: spec (2026-10-11)
 
-**Status: candidate (未拍板). This is a specification, not an implementation.**
-Kirby asked on 2026-10-11 for a spec PR first and the implementation later
-("inactive 3 個月刪除，可以先開一個 PR，我們後續再實作"). Nothing here is decided: every
-number, name and policy below is a proposal until Kirby confirms it in a
-formal decision. This PR adds no code and no migration file.
+**Status: decisions confirmed by Kirby on 2026-10-12 ("依據建議執行", follow the
+recommendations); still not implemented.** This is a specification, not an
+implementation. Kirby asked on 2026-10-11 for a spec PR first and the implementation
+later ("inactive 3 個月刪除，可以先開一個 PR，我們後續再實作"). The numbers and names
+below must not be written anywhere public as a promise until the implementation PR
+has passed review, Kirby has run the production migration, and Kirby has read the
+dry-run counts. This PR adds no code and no migration file.
 
 Evidence rule: every statement about today's behaviour cites `file:line` at
 `main` `dbf2851`; `main` has since moved to `4ca890f`, which differs from it only under
@@ -28,6 +30,9 @@ from the copy installed in the main checkout's `node_modules` (`@auth/core`
   whole job, because every user-owned table already cascades from `users`.
 - The cron ships switched off (`off`), then `dry-run`, then `delete`. Kirby
   reads the dry-run counts before `delete` is switched on.
+- Section 7 records Kirby's decisions of 2026-10-12 ("follow the recommendations").
+  Where the spec had a recommendation the decision is that one; where it had none,
+  the entry says it is Claude's reading and Kirby may change it.
 - The privacy statement does not carry this promise until the mechanism is live
   and has run in `delete` mode at least once (section 6).
 
@@ -592,7 +597,8 @@ not written when newer, a failing write never throws out of the callback.
     may not say "all copies are deleted after 3 months" unless the provider
     retention periods are confirmed first (checklist item 8).
 - **Checklist (all candidate):**
-  1. Decisions in section 7 recorded.
+  1. Decisions in section 7 recorded (done: Kirby, 2026-10-12, following the
+     recommendations; items marked as Claude's reading stay open to change).
   2. Implementation PR reviewed; its migration applied to production by Kirby's
      say-so, then the deploy.
   3. `RETENTION_PURGE_MODE=dry-run` set in production; the cron called once with the
@@ -613,39 +619,66 @@ not written when newer, a failing write never throws out of the callback.
      reads it in the provider's console or terms; the wording claims only what was
      confirmed.
 
-## 7. Decisions needed from Kirby (all open)
+## 7. Decisions (Kirby, 2026-10-12: follow the recommendations)
 
-1. **Activity rule:** P1 (sign-in or scan) or P2 (any signed-in request, throttled
-   daily). This spec recommends P2: with the rolling session (1.6) P1 deletes an
-   account about 30 days after its last real use, not 90, once the safety net
-   stops covering it (2.1).
-2. **Window:** fixed 90 days, or calendar months.
-3. **Survey contributions of a purged account:** S1, S2 or S3 (2.4).
-4. **Warning:** W1 to W4 (2.5). Without a mail system W1 is the only one that can
-   ship with this work.
-5. **Backfill:** B0, B1 or B2 (4).
-6. **Indexes:** include `auth_sessions.user_id`, `scan_sessions.user_id` and
-   `scans.session_id` in this migration, or leave them out.
-7. **Batch cap and time budget (per run):** 200 accounts, chunks of 25, 20 s (3.4).
-   And whether to add a **daily** limit: count deletions per UTC day and refuse
-   past a number, or give the endpoint a **separate secret** (3.4 says what that
-   costs with Vercel Cron), or neither.
-8. **Alert** on an unusually large daily purge, and whether to keep a
-   `retention_runs` table (3.7).
-9. **`verification_tokens`:** whether it is used at all, and if so an expiry sweep.
-10. **GitHub Actions:** stay unused for this job (recommended), or add a manual
-    dry-run dispatch.
-11. **Anonymous scans:** unchanged by this spec. Confirm that no change to their
-    20 h 30 min rule is wanted.
-12. **Who may flip `RETENTION_PURGE_MODE` to `delete`:** Kirby only, in Vercel.
-13. **Concurrent-delete race (3.5):** add a two-connection test on a real Postgres
-    to the implementation PR, or accept the risk.
-14. **Backups wording:** confirm that the privacy text says only that no separate
-    backups are made, and which provider retention periods are looked up first
-    (section 6, item 8).
+Kirby's reply on 2026-10-12 was "#190 依據建議執行". Each entry names where its
+content comes from. **"Per the spec's recommendation"** means the spec already
+recommended or adopted that choice and the decision is that one. **"Claude's
+reading of 'follow the recommendations'; Kirby may change"** means the spec made no
+explicit recommendation and Claude filled in the default that fits it; Kirby has not
+confirmed that specific value and may change it.
+
+1. **Activity rule: P2.** Any signed-in request, and any sign-in; `last_active_at`
+   is written at most once per 24 hours, on sign-in or whenever `auth()` returns a
+   session. With the rolling session (1.6) P1 would delete an account about 30 days
+   after its last real use, not 90, once the safety net stops covering it (2.1).
+   Source: per the spec's recommendation.
+2. **Window: fixed 90 days**, measured on the database clock, strictly greater than,
+   in UTC. Source: per the spec's recommendation (the candidate the spec adopted).
+3. **Survey contributions of a purged account: S1.** They are deleted together with
+   the account, the same as when a person deletes their own account (2.4). Source:
+   Claude's reading of "follow the recommendations"; Kirby may change.
+4. **Warning before deletion: W1 (no warning).** The rule is written on `/account`,
+   on the sign-in screen and in `/privacy`. There is no mail system, and W1 is the
+   only option that can ship with this work (2.5). Source: per the spec's
+   recommendation.
+5. **Backfill: B0 (none).** Every existing account takes the migration time as its
+   last activity, so the earliest deletion is 90 days after the migration (4).
+   Source: per the spec's recommendation (the candidate the spec adopted).
+6. **Indexes: include all three in this migration**: `auth_sessions.user_id`,
+   `scan_sessions.user_id` and `scans.session_id`, as in the draft in section 4.
+   Source: Claude's reading of "follow the recommendations"; Kirby may change.
+7. **Batch bounds (per run): at most 200 accounts, chunks of 25, 20 s.** No daily
+   limit and no separate secret for the endpoint in this work. Rollout is `off`, then
+   `dry-run`, then `delete` (3.4). Whether to add a daily limit or a separate secret
+   is to be revisited after the dry-run result. Source: Claude's reading of "follow
+   the recommendations"; Kirby may change.
+8. **Alert on an unusually large purge, and the `retention_runs` table: not in this
+   work.** Log lines carry counts only (3.7). Source: Claude's reading of "follow the
+   recommendations"; Kirby may change.
+9. **`verification_tokens`:** the implementation PR first checks whether any row is
+   ever written. Only if one is, it adds an expiry sweep; if none is, the table is
+   left alone. Source: Claude's reading of "follow the recommendations"; Kirby may
+   change.
+10. **GitHub Actions: stay unused for this job.** Source: per the spec's
+    recommendation.
+11. **Anonymous scans: unchanged.** The current 20 h 30 min rule stays. Source: per
+    the spec (it changes nothing there).
+12. **`RETENTION_PURGE_MODE` to `delete`: Kirby only, in Vercel.** Source: per the
+    spec.
+13. **Concurrent-delete race (3.5):** the implementation PR adds a two-connection test
+    on a real Postgres. If the environment cannot do that, the PR description says
+    honestly that it is not covered. Source: Claude's reading of "follow the
+    recommendations"; Kirby may change.
+14. **Backups wording:** `/privacy` says only that no separate backups are made, and
+    the retention periods of the providers (Neon restore history, Vercel and Sentry
+    logs) are looked up before launch. It must not say "all copies are deleted after
+    3 months" (section 6, item 8). Source: per the spec.
 
 ---
 
-This document is a specification, not an implementation. Every number, name,
-window and policy in it is a **candidate (未拍板)**; none has been decided at a
-formal meeting or by Kirby's confirmation of this text.
+This document is a specification, not an implementation. The decisions in section 7
+were confirmed by Kirby on 2026-10-12 ("依據建議執行"); the entries marked as Claude's
+reading may still change. Until the implementation PR has passed review, Kirby has
+run the production migration and Kirby has read the dry-run counts, no number or name
+in it may be written publicly as a promise.
