@@ -9,9 +9,8 @@ import { scoreFitDefault, storedNullScore } from "./engine";
 import { DEFAULT_ENGINE } from "./coefficients";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
-import { withMedia } from "./media";
+import { withPhotos } from "./photos";
 import mouseMediaFile from "../../data/mouse-media.json";
-import purchaseLinksFile from "../../data/purchase-links.json";
 import { groupShells } from "./shell-groups";
 
 const scanIdSchema = z.string().uuid();
@@ -98,11 +97,12 @@ export async function loadOwnedFit(
   // stored and what is shown are the same list. `excluded` is untouched.
   // The filter's catalogue facts (shape, connectivity) ride along after the
   // grouping; nothing scores on them and the analysis never sees them. The
-  // photo, official link and purchase links (static files) follow, for every
-  // entry; the same holds for them.
-  const results = withMedia(
+  // product photo (a static file) follows, for every entry; the same holds for
+  // it. The official and purchase links are not here: the page fetches them for
+  // its one big-header mouse from `/api/mice/<slug>/links`.
+  const results = withPhotos(
     withFilterFacts(groupShells(engineOutput.results, catalogue), catalogue),
-    { media: mouseMediaFile, purchase: purchaseLinksFile },
+    mouseMediaFile,
   );
   const response = { scanId, ...engineOutput, results };
 

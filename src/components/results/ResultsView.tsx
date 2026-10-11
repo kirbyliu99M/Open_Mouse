@@ -27,6 +27,7 @@ import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
 import { PrintOpenDetails } from "./PrintOpenDetails";
+import { useMouseLinks } from "./useMouseLinks";
 import { WhyList } from "./WhyList";
 import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
@@ -51,9 +52,9 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  * Order: top bar, hand type (when the response has one), photo, rank and
  * score (the official link sits on the fit-band chip's row), why, purchase
  * links (when there are any), details (closed), other picks, other mice
- * (closed). The photo, the official link and the purchase links come from the
- * entry (`mouse.imageUrl`, `officialUrl`, `officialKind`, `purchaseLinks`);
- * the server fills them for every entry.
+ * (closed). The photo comes from the entry (`mouse.imageUrl`, filled by the
+ * server for every entry). The official link and the purchase links come from
+ * `useMouseLinks` for the mouse on screen only.
  */
 export function ResultsView({
   response,
@@ -102,6 +103,11 @@ export function ResultsView({
   const card =
     view.cards.find((c) => c.displayRank === rank) ?? view.large ?? null;
   const entry = card?.entry ?? null;
+  // The official link and the purchase links of the one mouse in the big
+  // header: a static file per mouse, asked for once (never on the fit
+  // response, never for the small cards). `null` until it arrives, and for
+  // good when there is none.
+  const links = useMouseLinks(entry?.mouse.slug);
   const copy = RESULTS_PAGE_COPY[language];
   const search = serializeFilters(filters);
 
@@ -185,20 +191,15 @@ export function ResultsView({
                   <ModelHeading className="results-score-model">
                     {entry.mouse.model}
                   </ModelHeading>
-                  {(band || entry.mouse.officialUrl) && (
+                  {band && (
                     <div className="results-bandRow">
-                      {band && (
-                        <p className="results-band">
-                          <span
-                            className="results-band-dot"
-                            aria-hidden="true"
-                          />
-                          {BAND_COPY[language].bands[band].label}
-                        </p>
-                      )}
+                      <p className="results-band">
+                        <span className="results-band-dot" aria-hidden="true" />
+                        {BAND_COPY[language].bands[band].label}
+                      </p>
                       <OfficialLink
-                        url={entry.mouse.officialUrl}
-                        kind={entry.mouse.officialKind}
+                        url={links?.officialUrl}
+                        kind={links?.officialKind}
                         brand={entry.mouse.brand}
                         language={language}
                       />
@@ -244,7 +245,7 @@ export function ResultsView({
                   filtered), so while filtering it turns secondary and says so. */}
               <div className="results-hero-actions">
                 <PurchaseSlot
-                  links={entry.mouse.purchaseLinks}
+                  links={links?.purchaseLinks}
                   language={language}
                 />
                 <div className="results-share-hero" data-share-position="hero">

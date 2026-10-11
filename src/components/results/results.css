@@ -701,7 +701,7 @@
 /* A real photo sits on a soft lighter backdrop (no hard edge), so a black mouse
    keeps its outline on the near-black page. The silhouette keeps the flat fill. */
 .results-photo[data-has-photo="true"] {
-  background: radial-gradient(ellipse at 50% 45%, #2a3142 0%, #10131a 100%);
+  background: radial-gradient(ellipse at 50% 45%, #1c2230 0%, #0c0e12 100%);
 }
 .results-photo-silhouette {
   width: 30%;

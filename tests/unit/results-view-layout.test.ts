@@ -1,7 +1,11 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { ResultsView } from "../../src/components/results/ResultsView";
+import {
+  primeMouseLinks,
+  resetMouseLinks,
+} from "../../src/components/results/mouseLinksStore";
 import { FIXTURES } from "../../src/components/results/fixtures";
 import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { FitResponse } from "../../src/lib/contracts/fit";
@@ -405,25 +409,21 @@ describe("a poor fit", () => {
 });
 
 describe("cautions and links", () => {
-  // The server puts the links on the entry (`withMedia`); the page reads them there.
-  const withLinks: FitResponse = {
-    ...many,
-    results: many.results.map((r) =>
-      r.rank === 1
-        ? {
-            ...r,
-            mouse: {
-              ...r.mouse,
-              purchaseLinks: [
-                { label: "Shop A", url: "https://shop.example/superlight" },
-              ],
-            },
-          }
-        : r,
-    ),
-  };
+  // The page reads the links of the mouse on screen from the per-mouse store
+  // (`useMouseLinks`, filled from /api/mice/<slug>/links), not from the entry.
+  const withLinks: FitResponse = many;
+  const prime = (slug = "logitech-g-pro-x-superlight-2") =>
+    primeMouseLinks(slug, {
+      officialUrl: null,
+      officialKind: null,
+      purchaseLinks: [
+        { label: "Shop A", url: "https://shop.example/superlight" },
+      ],
+    });
+  afterEach(() => resetMouseLinks());
 
   it("puts the typed-length and left-hand notes before the purchase links", () => {
+    prime();
     const html = renderToStaticMarkup(
       createElement(ResultsView, {
         response: { ...withLinks, hand: "left" },
@@ -444,6 +444,7 @@ describe("cautions and links", () => {
   });
 
   it("puts the purchase links after the reasons and before the collapsed details", () => {
+    prime();
     const html = render(withLinks);
     expect(at(html, "results-why-list")).toBeLessThan(
       at(html, "results-purchase"),
@@ -459,6 +460,7 @@ describe("cautions and links", () => {
   });
 
   it("shows the links of the mouse on screen: a detail page reads its own entry, not rank 1's", () => {
+    prime();
     expect(render(withLinks, { rank: 2 })).not.toContain("results-purchase");
   });
 });

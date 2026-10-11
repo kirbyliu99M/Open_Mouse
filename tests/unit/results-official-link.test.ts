@@ -1,9 +1,13 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { OfficialLink } from "../../src/components/results/OfficialLink";
 import { OtherMice } from "../../src/components/results/OtherMice";
 import { OtherPicks } from "../../src/components/results/OtherPicks";
+import {
+  primeMouseLinks,
+  resetMouseLinks,
+} from "../../src/components/results/mouseLinksStore";
 import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
 import { emptyFilters, filteredView } from "../../src/lib/results/filters";
@@ -69,19 +73,22 @@ describe("OfficialLink", () => {
 
 describe("where the official link appears", () => {
   const many = FIXTURES["many-results"];
-  const withLinks: FitResponse = {
-    ...many,
-    results: many.results.map((r) => ({
-      ...r,
-      mouse: {
-        ...r.mouse,
+  // The links come from the per-mouse store (`useMouseLinks`), not from the
+  // entry. Fill it for every mouse in the response, so any card could show one.
+  const withLinks: FitResponse = many;
+  const prime = () => {
+    for (const r of many.results) {
+      primeMouseLinks(r.mouse.slug, {
         officialUrl: `https://maker.example/${r.mouse.slug}`,
-        officialKind: "product" as const,
-      },
-    })),
+        officialKind: "product",
+        purchaseLinks: [],
+      });
+    }
   };
-  const render = (rank?: number) =>
-    renderToStaticMarkup(
+  afterEach(() => resetMouseLinks());
+  const render = (rank?: number) => {
+    prime();
+    return renderToStaticMarkup(
       createElement(ResultsView, {
         response: withLinks,
         language: "en",
@@ -89,6 +96,7 @@ describe("where the official link appears", () => {
         ...(rank ? { rank } : {}),
       }),
     );
+  };
   const count = (html: string) =>
     (html.match(/class="results-official"/g) ?? []).length;
 
@@ -114,6 +122,7 @@ describe("where the official link appears", () => {
   });
 
   it("is not in the small 'Other picks' cards, nor in the other-mice list", () => {
+    prime();
     const view = filteredView(withLinks, emptyFilters());
     const picks = renderToStaticMarkup(
       createElement(OtherPicks, {
@@ -142,7 +151,7 @@ describe("where the official link appears", () => {
     expect(render(1).match(/maker\.example/g)).toHaveLength(1);
   });
 
-  it("is absent when the entry has no official URL", () => {
+  it("is absent until the links arrive, and when the mouse has none", () => {
     const html = renderToStaticMarkup(
       createElement(ResultsView, { response: many, language: "en" }),
     );

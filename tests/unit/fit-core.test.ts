@@ -243,20 +243,16 @@ describe("loadOwnedFit — a successful fit", () => {
       sampleOwnedScan.hand,
     );
     // The additions are the filter's catalogue facts (`withFilterFacts`) and the
-    // photo and links from the static files (`withMedia`): facts, not numbers.
+    // photo from the static file (`withPhotos`): facts, not numbers.
     // Take them off and nothing else differs.
     const withoutFacts = result.fit.results.map((e) => {
       const {
         shape: _shape,
         connectivity: _connectivity,
         imageUrl: _imageUrl,
-        officialUrl: _officialUrl,
-        officialKind: _officialKind,
-        purchaseLinks: _purchaseLinks,
         ...mouse
       } = e.mouse;
-      void [_shape, _connectivity, _imageUrl, _officialUrl, _officialKind];
-      void _purchaseLinks;
+      void [_shape, _connectivity, _imageUrl];
       return { ...e, mouse };
     });
     expect({ ...result.fit, results: withoutFacts }).toEqual({

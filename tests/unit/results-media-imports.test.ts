@@ -14,44 +14,64 @@ function walk(dir: string): string[] {
 }
 
 // `ResultsView` is under a client component, so anything it imports ships to
-// the browser. The two data files are read on the server (`withMedia`, in
-// `src/server/fit/core.ts`) and reach the page as entry fields.
-describe("the results components do not import the data files", () => {
-  const files = walk("src/components/results").filter((f) =>
-    /\.(ts|tsx)$/.test(f),
-  );
+// the browser. The two data files are read only on the server: the photo path by
+// `withPhotos` (`src/server/fit/core.ts`) and the links by the static route
+// `src/app/api/mice/[slug]/links/route.ts`, which the page reaches by fetch.
+describe("the page code does not import the data files", () => {
+  const client = [
+    ...walk("src/components/results"),
+    ...walk("src/lib/results"),
+  ].filter((f) => /\.(ts|tsx)$/.test(f));
 
   it("scans a sensible number of files", () => {
-    expect(files.length).toBeGreaterThan(20);
+    expect(client.length).toBeGreaterThan(25);
+    expect(client.some((f) => f.endsWith("useMouseLinks.ts"))).toBe(true);
   });
 
   it.each(["purchase-links", "mouse-media"])(
-    "nothing under src/components/results/ imports %s.json",
+    "nothing under src/components/results/ or src/lib/results/ imports %s.json",
     (name) => {
       // import x from "..", import ".."; export ... from ".."; import(".."); require("..")
       const pattern = new RegExp(
         `(?:from\\s*|import\\s*\\(?\\s*|require\\s*\\(\\s*)["'][^"']*${name}\\.json["']`,
       );
-      const offenders = files.filter((f) =>
+      const offenders = client.filter((f) =>
         pattern.test(readFileSync(f, "utf8")),
       );
       expect(offenders).toEqual([]);
     },
   );
 
-  it("nothing under src/components/results/ imports from src/data/ at all", () => {
+  it("nothing there imports from src/data/ at all", () => {
     const pattern = /(?:from\s*|import\s*\(?\s*)["'][^"']*\/data\/[^"']*["']/;
-    const offenders = files.filter((f) =>
+    const offenders = client.filter((f) =>
       pattern.test(readFileSync(f, "utf8")),
     );
     expect(offenders).toEqual([]);
   });
 
-  it("the server enrichment is where the two files are read", () => {
+  it("only src/server/ and src/app/api/ read the two files", () => {
     const core = readFileSync("src/server/fit/core.ts", "utf8");
     expect(core).toContain("mouse-media.json");
-    expect(core).toContain("purchase-links.json");
-    expect(core).toContain("withMedia");
+    expect(core).not.toContain("purchase-links.json");
+    const route = readFileSync(
+      "src/app/api/mice/[slug]/links/route.ts",
+      "utf8",
+    );
+    expect(route).toContain("mouse-media.json");
+    expect(route).toContain("purchase-links.json");
+    // And nowhere else in src/ outside those two places.
+    const pattern =
+      /(?:from\s*|import\s*\(?\s*)["'][^"']*(?:mouse-media|purchase-links)\.json["']/;
+    const readers = walk("src")
+      .filter((f) => /\.(ts|tsx)$/.test(f))
+      .filter((f) => pattern.test(readFileSync(f, "utf8")))
+      .map((f) => f.replaceAll("\\", "/"))
+      .sort();
+    expect(readers).toEqual([
+      "src/app/api/mice/[slug]/links/route.ts",
+      "src/server/fit/core.ts",
+    ]);
   });
 });
 
