@@ -13,11 +13,16 @@ const modules = import.meta.glob<Record<string, unknown>>(
 );
 
 const EXPECTED_MODULES = [
+  "camera-cues.ts",
+  "easy-scan.ts",
   "fit-bands.ts",
   "home-story.ts",
   "language-switcher.ts",
   "nav.ts",
   "results-page.ts",
+  "scan-common.ts",
+  "scan-issues.ts",
+  "scan-sheet.ts",
   "share-card.ts",
   "site-footer.ts",
   "site-meta.ts",

@@ -452,7 +452,12 @@ describe("issueText", () => {
       "These measurements look implausible — retake with your whole hand flat on the sheet and the camera directly overhead.",
     );
     expect(issuesEn.decodeFailed).toBe(HEIC_RETAKE_MESSAGE);
-    expect(issuesEn.handNotDetected).toBe(checkHandDetected(0)?.message);
+    expect(issuesEn.handNotDetected("sheet")).toBe(
+      checkHandDetected(0)?.message,
+    );
+    expect(issuesEn.handNotDetected("paper")).toBe(
+      checkHandDetected(0, "paper")?.message,
+    );
     expect(issuesEn.handednessMismatch("left", "right", "picker")).toBe(
       checkHandedness("left", "right")?.message,
     );
