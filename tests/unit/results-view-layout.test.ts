@@ -1,7 +1,11 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { ResultsView } from "../../src/components/results/ResultsView";
+import {
+  primeMouseLinks,
+  resetMouseLinks,
+} from "../../src/components/results/mouseLinksStore";
 import { FIXTURES } from "../../src/components/results/fixtures";
 import type { AnalysisState } from "../../src/components/results/analysisState";
 import type { FitResponse } from "../../src/lib/contracts/fit";
@@ -102,6 +106,74 @@ describe("the results page layout", () => {
     const html = render(withPhoto);
     expect(html).toContain('src="/images/mice/x.webp"');
     expect(html).toContain('alt="Logitech G Pro X Superlight 2"');
+  });
+
+  it("puts the band row under the score as a row of its own, not inside the name column", () => {
+    const html = render(many);
+    expect(at(html, "results-score-total")).toBeLessThan(
+      at(html, "results-bandRow"),
+    );
+    expect(at(html, "results-bandRow")).toBeLessThan(
+      at(html, "results-why-list"),
+    );
+    // The name column closes before the row opens: the chip is no longer in it.
+    const name = html.match(
+      /<div class="results-score-name">(.*?)<\/div><p class="results-score-total/s,
+    );
+    expect(name?.[1]).not.toContain("results-band");
+    expect(name?.[1]).not.toContain("results-official");
+    // Variants and the one-left line stay in the name column.
+    const withVariants: FitResponse = {
+      ...many,
+      results: many.results.map((r) =>
+        r.rank === 1
+          ? {
+              ...r,
+              variants: [{ slug: "v", model: "Variant Two", weightG: null }],
+            }
+          : r,
+      ),
+    };
+    const v = render(withVariants);
+    expect(at(v, "Variant Two")).toBeLessThan(at(v, "results-score-total"));
+  });
+
+  it("shows no photo in the other-mice rows, only the name and the score", () => {
+    const photos: FitResponse = {
+      ...many,
+      results: many.results.map((r) => ({
+        ...r,
+        mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+      })),
+    };
+    const html = render(photos, { scanId: many.scanId });
+    const list = html.match(/<ol class="results-otherMice-list">.*?<\/ol>/s);
+    expect(list?.[0]).toContain("results-otherMice-row");
+    expect(list?.[0]).not.toContain("<img");
+    expect(list?.[0]).not.toContain("results-photo");
+  });
+
+  it("loads the top photo at once and the small cards lazily", () => {
+    const photos: FitResponse = {
+      ...many,
+      results: many.results.map((r) => ({
+        ...r,
+        mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+      })),
+    };
+    const html = render(photos, { scanId: many.scanId });
+    const imgs = [...html.matchAll(/<img [^>]*>/g)].map((m) => m[0]);
+    const top = imgs.filter((tag) => tag.includes("results-photo-img"));
+    expect(top.length).toBeGreaterThan(1);
+    const [hero, ...rest] = top;
+    expect(hero).toContain('loading="eager"');
+    expect(hero).not.toContain('loading="lazy"');
+    expect(hero).toContain('width="555"');
+    expect(hero).toContain('height="480"');
+    for (const tag of rest) {
+      expect(tag).toContain('loading="lazy"');
+      expect(tag).toContain('decoding="async"');
+    }
   });
 
   it("closes both disclosures by default", () => {
@@ -382,19 +454,26 @@ describe("a poor fit", () => {
 });
 
 describe("cautions and links", () => {
-  const links = {
-    "logitech-g-pro-x-superlight-2": [
-      { label: "Shop A", url: "https://shop.example/superlight" },
-    ],
-  };
+  // The page reads the links of the mouse on screen from the per-mouse store
+  // (`useMouseLinks`, filled from /api/mice/<slug>/links), not from the entry.
+  const withLinks: FitResponse = many;
+  const prime = (slug = "logitech-g-pro-x-superlight-2") =>
+    primeMouseLinks(slug, {
+      officialUrl: null,
+      officialKind: null,
+      purchaseLinks: [
+        { label: "Shop A", url: "https://shop.example/superlight" },
+      ],
+    });
+  afterEach(() => resetMouseLinks());
 
   it("puts the typed-length and left-hand notes before the purchase links", () => {
+    prime();
     const html = renderToStaticMarkup(
       createElement(ResultsView, {
-        response: { ...many, hand: "left" },
+        response: { ...withLinks, hand: "left" },
         language: "en",
         enteredLengthMm: 186,
-        purchaseSource: links,
       }),
     );
     const purchase = at(html, "results-purchase");
@@ -407,6 +486,27 @@ describe("cautions and links", () => {
 
   it("shows no purchase box at all without links", () => {
     expect(render(many)).not.toContain("results-purchase");
+  });
+
+  it("puts the purchase links after the reasons and before the collapsed details", () => {
+    prime();
+    const html = render(withLinks);
+    expect(at(html, "results-why-list")).toBeLessThan(
+      at(html, "results-purchase"),
+    );
+    expect(at(html, "results-purchase")).toBeLessThan(
+      at(html, "results-details"),
+    );
+    expect(html).toContain("https://shop.example/superlight");
+    // The heading is one word, and there is no visible note line.
+    expect(render(withLinks, { language: "zh-TW" })).toContain(">購買</h2>");
+    expect(render(withLinks, { language: "en" })).toContain(">Buy</h2>");
+    expect(html).not.toContain("results-purchase-note");
+  });
+
+  it("shows the links of the mouse on screen: a detail page reads its own entry, not rank 1's", () => {
+    prime();
+    expect(render(withLinks, { rank: 2 })).not.toContain("results-purchase");
   });
 });
 

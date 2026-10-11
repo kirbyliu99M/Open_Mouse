@@ -28,16 +28,31 @@ describe("next.config.ts headers()", () => {
     expect(cacheControl).not.toContain("immutable");
   });
 
-  it("puts the cache rule after the catch-all rule, so it wins if both ever set the same header", async () => {
-    const sources = (await rules()).map((r) => r.source);
-    expect(sources.indexOf("/mediapipe/:path*")).toBeGreaterThan(
-      sources.indexOf("/:path*"),
+  it("caches the product photos for a bounded time, never immutable (the names carry no hash)", async () => {
+    const rule = (await rules()).find(
+      (r) => r.source === "/images/mice/:path*",
     );
+    expect(rule).toBeDefined();
+    const cacheControl = valueOf(rule!, "Cache-Control");
+    expect(cacheControl).toBe(
+      "public, max-age=86400, stale-while-revalidate=604800",
+    );
+    expect(cacheControl).not.toContain("immutable");
+  });
+
+  it("puts the cache rules after the catch-all rule, so they win if both ever set the same header", async () => {
+    const sources = (await rules()).map((r) => r.source);
+    for (const source of ["/mediapipe/:path*", "/images/mice/:path*"]) {
+      expect(sources.indexOf(source)).toBeGreaterThan(
+        sources.indexOf("/:path*"),
+      );
+    }
   });
 
   it("does not cache anything else: no other rule sets Cache-Control", async () => {
     const others = (await rules()).filter(
-      (r) => r.source !== "/mediapipe/:path*",
+      (r) =>
+        r.source !== "/mediapipe/:path*" && r.source !== "/images/mice/:path*",
     );
     for (const rule of others) {
       expect(valueOf(rule, "Cache-Control"), rule.source).toBeUndefined();

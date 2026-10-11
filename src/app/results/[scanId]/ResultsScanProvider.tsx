@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
@@ -28,6 +29,7 @@ import {
   parseStoredUserLength,
   resultLengthKey,
 } from "@/components/results/userLengthDisclosure";
+import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { track } from "@/client/analytics/track";
 import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
@@ -207,8 +209,21 @@ export function ResultsScanProvider({
     [runAnalysis],
   );
 
+  // The mouse a detail page (`/m/<slug>`) is about, known from the URL before
+  // the fit arrives. Kept in a ref so moving between detail pages (the layout
+  // stays mounted) does not start the fit request again.
+  const routeSlug = useParams<{ slug?: string }>().slug;
+  const routeSlugRef = useRef(routeSlug);
+  useEffect(() => {
+    routeSlugRef.current = routeSlug;
+  }, [routeSlug]);
+
   useEffect(() => {
     let cancelled = false;
+    // Ask for the links of the mouse the page will show now, so they are
+    // usually in the cache by the first paint: the detail page's mouse at once
+    // (in parallel with the fit), the overall #1 as soon as the fit is here.
+    if (routeSlugRef.current) prefetchMouseLinks(routeSlugRef.current);
     setPageState({ kind: "loading" });
     setAnalysisState({ status: "idle" });
     analysisStartedRef.current = false;
@@ -221,6 +236,7 @@ export function ResultsScanProvider({
       if (cancelled) return;
       if (outcome.status === "ready") {
         const top = outcome.response.results[0];
+        if (top && !routeSlugRef.current) prefetchMouseLinks(top.mouse.slug);
         if (top)
           track("results_viewed", {
             state: "ready",

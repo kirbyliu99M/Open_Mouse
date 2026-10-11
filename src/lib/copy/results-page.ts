@@ -51,12 +51,14 @@ export interface ResultsPageCopy {
   whyHeading: string;
   /** Short name of each sub-score in the three reason lines. */
   subscoreShort: Record<Subscore, string>;
-  /** Where to buy: only shown when a link exists. */
+  /** Where to buy: only shown when a link exists. Just the one word; no note line (Kirby, 2026-10-11). */
   purchaseHeading: string;
-  /** One short line above the purchase links. */
-  purchaseNote: string;
-  /** Visually hidden, after each purchase link's text. */
+  /** Visually hidden, after each purchase link's text and after the official link's. */
   opensInNewTab: string;
+  /** The maker's page for this very model (`officialKind` "product"). */
+  officialProduct: (brand: string) => string;
+  /** A lineup, series or support page of the maker (`officialKind` "brand"). */
+  officialBrand: (brand: string) => string;
   detailsTitle: string;
   detailsHint: string;
   /** The hint while the 3D viewer is shown (`RESULTS_VIEWER_ENABLED`). */
@@ -191,9 +193,10 @@ export const zhTW: ResultsPageCopy = {
     thumb: "拇指",
     weight: "重量",
   },
-  purchaseHeading: "購買連結",
-  purchaseNote: "合作商店連結・開新分頁",
+  purchaseHeading: "購買",
   opensInNewTab: "（開新分頁）",
+  officialProduct: (brand) => `${brand} 官網產品頁`,
+  officialBrand: (brand) => `${brand} 品牌頁`,
   detailsTitle: "詳細資料",
   detailsHint: "六項分數、和理想尺寸的差距、完整分析",
   detailsHintWithViewer: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
@@ -315,9 +318,10 @@ export const en: ResultsPageCopy = {
     thumb: "Thumb",
     weight: "Weight",
   },
-  purchaseHeading: "Where to buy",
-  purchaseNote: "Partner shop links · open in a new tab",
+  purchaseHeading: "Buy",
   opensInNewTab: "(opens in a new tab)",
+  officialProduct: (brand) => `${brand} official product page`,
+  officialBrand: (brand) => `${brand} brand page`,
   detailsTitle: "Details",
   detailsHint: "Six scores, gaps to your ideal size, full analysis",
   detailsHintWithViewer:

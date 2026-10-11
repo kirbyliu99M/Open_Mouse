@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 // force a bad shape out of it.
 vi.mock("../../src/server/fit/score-v1", () => ({
   scoreFitV1: vi.fn(() => ({
-    engineVersion: "fit-v1-candidate.2",
+    engineVersion: "fit-v1-candidate.3",
     gripStyle: { stated: null, predicted: "palm", used: "palm" },
     targets: { lengthMm: 118, gripWidthMm: 75, heightMm: 38 },
     excluded: [],
