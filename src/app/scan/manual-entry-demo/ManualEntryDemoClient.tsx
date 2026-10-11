@@ -16,7 +16,7 @@ import "./manual-entry-demo.css";
 /**
  * Fixture for the typed-entry UI (candidate, 2026-10-12): the phone's pull-up
  * sheet over a stand-in for the camera screen, and the desktop panel, side by
- * side. Nothing is sent anywhere. 「使用這組數字」 only prints what the form
+ * side. Nothing is sent anywhere. 「確認」 only prints what the form
  * handed over, plus the payload `buildManualEntrySubmission` makes from it with
  * a fixed demo grip, so the e2e and Kirby can see both. The phone sheet's
  * draft is kept here (`onDraftChange` / `initialDraft`), the way the scan

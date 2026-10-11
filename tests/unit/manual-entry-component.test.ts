@@ -54,7 +54,7 @@ describe("the manual-entry panel (desktop presentation, first render)", () => {
   it("starts with the use button aria-disabled (focusable, not disabled) and no error showing", () => {
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*aria-disabled="true"/);
     expect(html).not.toMatch(/<button[^>]*type="submit"[^>]*\sdisabled/);
-    expect(html).toContain("使用這組數字");
+    expect(html).toContain("確認");
     expect(html).not.toContain("manualEntry-error");
   });
 

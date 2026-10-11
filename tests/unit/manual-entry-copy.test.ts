@@ -49,7 +49,7 @@ describe("manual entry copy", () => {
     expect(zhTW.handleLabel).toBe("改用輸入數字");
     expect(zhTW.title).toBe("輸入手的尺寸");
     expect(zhTW.handLegend).toBe("你用哪隻手握滑鼠？");
-    expect(zhTW.use).toBe("使用這組數字");
+    expect(zhTW.use).toBe("確認");
     expect(zhTW.cancel).toBe("取消");
     // No sentence that says it replaces the scan; the numbers are for the mouse hand.
     expect(zhTW.intro).toBe("不用掃描，直接輸入手長與手寬。");

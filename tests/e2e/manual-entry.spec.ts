@@ -29,7 +29,7 @@ test.describe("typed hand length and width", () => {
     await expect(
       form.getByRole("heading", { name: "Enter your hand size" }),
     ).toBeVisible();
-    const use = form.getByRole("button", { name: "Use these numbers" });
+    const use = form.getByRole("button", { name: "Confirm" });
     await expect(use).toBeDisabled();
     // No default hand.
     await expect(
@@ -119,7 +119,7 @@ test.describe("typed hand length and width", () => {
     const form = panel(page);
     await fill(form, "18,5", "8,2");
     await form.getByLabel("Left hand").check();
-    await form.getByRole("button", { name: "Use these numbers" }).click();
+    await form.getByRole("button", { name: "Confirm" }).click();
     await expect(result(page)).toContainText(
       "panel: left, length 185 mm, width 82 mm",
     );
@@ -214,7 +214,7 @@ test.describe("typed hand length and width", () => {
     const form = sheet(page);
     await fill(form, "19.0", "8.5");
     await form.getByLabel("Left hand").check();
-    await form.getByRole("button", { name: "Use these numbers" }).click();
+    await form.getByRole("button", { name: "Confirm" }).click();
     await expect(sheet(page)).toHaveCount(0);
     await expect(result(page)).toContainText(
       "sheet: left, length 190 mm, width 85 mm, palm 106.4 mm (estimated)",
@@ -349,7 +349,7 @@ test.describe("typed hand length and width", () => {
     const form = panel(page);
     const length = form.getByLabel("Hand length");
     const width = form.getByLabel("Hand width");
-    const use = form.getByRole("button", { name: "Use these numbers" });
+    const use = form.getByRole("button", { name: "Confirm" });
     await length.focus();
     await page.keyboard.press("Enter");
     // Everything at once: the hand, the length and the width.
@@ -393,7 +393,7 @@ test.describe("typed hand length and width", () => {
   }) => {
     await page.goto(URL);
     const form = panel(page);
-    const use = form.getByRole("button", { name: "Use these numbers" });
+    const use = form.getByRole("button", { name: "Confirm" });
     await use.focus();
     await expect(use).toBeFocused();
     await use.click({ force: true });
@@ -461,9 +461,7 @@ test.describe("typed hand length and width", () => {
     );
     await expect(sheet(page).getByLabel("Hand width (cm)")).toHaveValue("8.5");
     await expect(sheet(page).getByLabel("Left hand")).toBeChecked();
-    await sheet(page)
-      .getByRole("button", { name: "Use these numbers" })
-      .click();
+    await sheet(page).getByRole("button", { name: "Confirm" }).click();
     await expect(result(page)).toContainText("sheet: left, length 190 mm");
     await expect(page.getByTestId("demo-draft")).toContainText(
       '{"hand":null,"lengthText":"","widthText":""}',
@@ -476,7 +474,7 @@ test.describe("typed hand length and width", () => {
     await page.setViewportSize({ width: 390, height: 380 });
     await page.goto(URL);
     await handle(page).click();
-    const use = sheet(page).getByRole("button", { name: "Use these numbers" });
+    const use = sheet(page).getByRole("button", { name: "Confirm" });
     await expect(use).toBeInViewport({ ratio: 1 });
     await expect(
       sheet(page).getByRole("button", { name: "Cancel" }),
@@ -521,9 +519,7 @@ test.describe("typed hand length and width", () => {
     const form = panel(page);
     await fill(form, "18.50", "8。2");
     await form.getByLabel("Right hand").check();
-    await expect(
-      form.getByRole("button", { name: "Use these numbers" }),
-    ).toBeEnabled();
+    await expect(form.getByRole("button", { name: "Confirm" })).toBeEnabled();
     await form.getByLabel("Hand length").fill("18.");
     await form.getByLabel("Hand width").focus();
     await expect(
@@ -574,7 +570,7 @@ test.describe("typed hand length and width", () => {
       panel(page).getByLabel("Hand length"),
       panel(page).getByLabel("Hand width"),
       panel(page).getByRole("radio", { name: "Left hand" }),
-      panel(page).getByRole("button", { name: "Use these numbers" }),
+      panel(page).getByRole("button", { name: "Confirm" }),
     ];
     for (const target of targets) {
       const box = (await target.boundingBox())!;

@@ -11,9 +11,9 @@
  * joined by a no-break space so a wide font cannot wrap "18.5 公分".
  *
  * One verb: the handle, the title and the intro speak of ENTERING numbers (zh
- * 輸入, en "Enter"). The confirming button keeps the board's 「使用這組數字」
- * and "Use these numbers": it accepts what was entered rather than starting
- * the entry, and Kirby has seen the zh words on `c700E5`.
+ * 輸入, en "Enter"); the confirming button is just 「確認」 / "Confirm"
+ * (Kirby, 2026-10-12), which accepts what was entered rather than starting
+ * the entry.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -94,7 +94,7 @@ export const zhTW: ManualEntryCopy = {
   estimateNote: "掌長會用平均比例估算，下一步請選擇你的握法。",
   handMissing: "請先選擇你用哪隻手握滑鼠。",
   cancel: "取消",
-  use: "使用這組數字",
+  use: "確認",
   closeSheet: "關閉",
   errors: {
     lengthEmpty: "請輸入手長，例如 18.5。",
@@ -135,7 +135,7 @@ export const en: ManualEntryCopy = {
     "Palm length is estimated from an average proportion. You pick your grip next.",
   handMissing: "Choose the hand you use on the mouse first.",
   cancel: "Cancel",
-  use: "Use these numbers",
+  use: "Confirm",
   closeSheet: "Close",
   errors: {
     lengthEmpty: "Enter your hand length, for example 18.5.",

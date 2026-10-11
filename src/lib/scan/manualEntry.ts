@@ -227,7 +227,7 @@ export const EMPTY_DRAFT: ManualEntryDraft = {
 };
 
 /**
- * Where focus goes when 「使用這組數字」 is pressed and the form cannot be
+ * Where focus goes when 「確認」 is pressed and the form cannot be
  * sent: the first thing that is wrong, in the order the form shows them (hand,
  * length, width). Null when nothing is wrong.
  */

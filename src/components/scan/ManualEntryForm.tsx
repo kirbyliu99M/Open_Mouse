@@ -38,7 +38,7 @@ export interface ManualEntryValues {
  * text of an error is always one sentence: what is wrong and the range or
  * the width that fits.
  *
- * 「使用這組數字」 is `aria-disabled`, not `disabled`, until the hand is chosen
+ * 「確認」 is `aria-disabled`, not `disabled`, until the hand is chosen
  * and both numbers are valid: it stays focusable and pressable, and pressing
  * it (click, Enter in a field, Space) while it is not ready shows every
  * problem at once, the missing hand included, and moves focus to the first one
