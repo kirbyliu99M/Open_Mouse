@@ -698,6 +698,11 @@
   height: 100%;
   object-fit: contain;
 }
+/* A real photo sits on a soft lighter backdrop (no hard edge), so a black mouse
+   keeps its outline on the near-black page. The silhouette keeps the flat fill. */
+.results-photo[data-has-photo="true"] {
+  background: radial-gradient(ellipse at 50% 45%, #2a3142 0%, #10131a 100%);
+}
 .results-photo-silhouette {
   width: 30%;
   height: auto;
@@ -752,6 +757,14 @@
   font-size: 0.8125rem;
   color: var(--text-secondary);
 }
+.results-bandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  min-height: 2.75rem;
+}
 .results-band {
   display: inline-flex;
   align-items: center;
@@ -804,14 +817,14 @@
   text-wrap: pretty;
 }
 
-/* Purchase links: only rendered when the slug has links. */
+/* Purchase links: only rendered when the entry has links. A plain list, no box:
+   52 px rows with hairline dividers, the shop name on the left (it wraps, never
+   cut) and the external-link icon on the right. */
 .results-purchase {
-  padding: 1rem;
-  border: 1px solid var(--hairline);
-  border-radius: 1rem;
+  min-width: 0;
 }
 .results-purchase-heading {
-  margin: 0 0 0.625rem;
+  margin: 0 0 0.25rem;
   font-size: 0.875rem;
   font-weight: 400;
   letter-spacing: 0;
@@ -822,26 +835,58 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  border-top: 1px solid var(--hairline);
+}
+.results-purchase-links li {
+  border-bottom: 1px solid var(--hairline);
 }
 .results-purchase-links a {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  min-height: 2.75rem;
-  padding: 0.5rem 1rem;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+  padding: 0.5rem 0;
+  font-size: 1rem;
   color: var(--accent-text);
-  border: 1px solid var(--control-border);
-  border-radius: 0.75rem;
   text-decoration: none;
 }
-.results-purchase-links a:focus-visible {
+.results-purchase-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.results-purchase-links a:focus-visible,
+.results-official:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
-.results-purchase-links a:active {
+.results-purchase-links a:active,
+.results-official:active {
   opacity: 0.65;
+}
+.results-extIcon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The maker's page: a secondary text link beside the fit-band chip. */
+.results-official {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  margin-left: auto;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--accent-text);
+  text-decoration: none;
 }
 
 /* Disclosures: Details and Other mice. Closed by default. */
@@ -1064,16 +1109,10 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
-.results-fitNotice:lang(zh-TW),
-.results-purchase-note:lang(zh-TW) {
+.results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
 }
 
-.results-purchase-note {
-  margin: 0 0 0.625rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
 /* Text for a screen reader only. */
 .results-visuallyHidden {
   position: absolute;
@@ -1148,9 +1187,12 @@
     display: none;
   }
   .results-photo,
-  .results-purchase,
   .results-band {
     border-color: currentColor;
+  }
+  .results-purchase-links,
+  .results-purchase-links li {
+    border-color: var(--text-secondary);
   }
   .results-disclosure,
   .results-otherMice-row,
@@ -1211,7 +1253,8 @@
   .results-glow {
     display: none;
   }
-  .results-photo {
+  .results-photo,
+  .results-photo[data-has-photo="true"] {
     background: none;
   }
 

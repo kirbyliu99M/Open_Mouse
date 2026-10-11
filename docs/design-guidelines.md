@@ -95,6 +95,10 @@ The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10
 - **Direct labels:** name things by what they are ("Grip width", "Hump
   position"), not internal terms ("sideCurvature").
 - Numbers shown to the user come from the fit engine, never from Gemini prose.
+- **Links are secondary text links** (Kirby, 2026-10-11, candidate): the maker's
+  page beside the fit-band chip and the purchase rows are plain `--accent-text`
+  text with an external-link icon, never a white pill or a filled button.
+  「製作我的分享圖」 stays the only primary button on the page.
 
 ### 3D viewer (M4b)
 

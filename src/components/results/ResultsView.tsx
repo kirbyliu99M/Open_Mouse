@@ -21,6 +21,7 @@ import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
 import { VariantsLine } from "./VariantsLine";
+import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
@@ -48,8 +49,11 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  * never filtered). Without `onFiltersChange` (the demo) nothing changes.
  *
  * Order: top bar, hand type (when the response has one), photo, rank and
- * score, why, purchase links (when there are any), details (closed), other
- * picks, other mice (closed).
+ * score (the official link sits on the fit-band chip's row), why, purchase
+ * links (when there are any), details (closed), other picks, other mice
+ * (closed). The photo, the official link and the purchase links come from the
+ * entry (`mouse.imageUrl`, `officialUrl`, `officialKind`, `purchaseLinks`);
+ * the server fills them for every entry.
  */
 export function ResultsView({
   response,
@@ -61,7 +65,6 @@ export function ResultsView({
   showViewer = false,
   scanId,
   onSelectRank,
-  purchaseSource,
   analytics,
   filters = emptyFilters(),
   onFiltersChange,
@@ -84,8 +87,6 @@ export function ResultsView({
   scanId?: string;
   /** The demo has no routes: the other picks are buttons that call this. */
   onSelectRank?: (rank: number) => void;
-  /** Overrides `src/data/purchase-links.json` (tests only). */
-  purchaseSource?: unknown;
   /** Analytics callbacks, passed only by the real results page (never the demo). */
   analytics?: {
     onRetake: () => void;
@@ -157,6 +158,7 @@ export function ResultsView({
                 imageUrl={entry.mouse.imageUrl}
                 alt={`${entry.mouse.brand} ${entry.mouse.model}`}
                 className="results-hero-photo"
+                priority
               />
 
               <div className="results-score">
@@ -183,11 +185,24 @@ export function ResultsView({
                   <ModelHeading className="results-score-model">
                     {entry.mouse.model}
                   </ModelHeading>
-                  {band && (
-                    <p className="results-band">
-                      <span className="results-band-dot" aria-hidden="true" />
-                      {BAND_COPY[language].bands[band].label}
-                    </p>
+                  {(band || entry.mouse.officialUrl) && (
+                    <div className="results-bandRow">
+                      {band && (
+                        <p className="results-band">
+                          <span
+                            className="results-band-dot"
+                            aria-hidden="true"
+                          />
+                          {BAND_COPY[language].bands[band].label}
+                        </p>
+                      )}
+                      <OfficialLink
+                        url={entry.mouse.officialUrl}
+                        kind={entry.mouse.officialKind}
+                        brand={entry.mouse.brand}
+                        language={language}
+                      />
+                    </div>
                   )}
                   <VariantsLine variants={card.variants} language={language} />
                   {isMain && filtering && view.count === 1 && (
@@ -229,9 +244,8 @@ export function ResultsView({
                   filtered), so while filtering it turns secondary and says so. */}
               <div className="results-hero-actions">
                 <PurchaseSlot
-                  slug={entry.mouse.slug}
+                  links={entry.mouse.purchaseLinks}
                   language={language}
-                  source={purchaseSource}
                 />
                 <div className="results-share-hero" data-share-position="hero">
                   <ShareCardButton

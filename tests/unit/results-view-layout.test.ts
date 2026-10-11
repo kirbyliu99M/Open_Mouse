@@ -104,6 +104,29 @@ describe("the results page layout", () => {
     expect(html).toContain('alt="Logitech G Pro X Superlight 2"');
   });
 
+  it("loads the top photo at once and the small cards lazily", () => {
+    const photos: FitResponse = {
+      ...many,
+      results: many.results.map((r) => ({
+        ...r,
+        mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+      })),
+    };
+    const html = render(photos, { scanId: many.scanId });
+    const imgs = [...html.matchAll(/<img [^>]*>/g)].map((m) => m[0]);
+    const top = imgs.filter((tag) => tag.includes("results-photo-img"));
+    expect(top.length).toBeGreaterThan(1);
+    const [hero, ...rest] = top;
+    expect(hero).toContain('loading="eager"');
+    expect(hero).not.toContain('loading="lazy"');
+    expect(hero).toContain('width="555"');
+    expect(hero).toContain('height="480"');
+    for (const tag of rest) {
+      expect(tag).toContain('loading="lazy"');
+      expect(tag).toContain('decoding="async"');
+    }
+  });
+
   it("closes both disclosures by default", () => {
     const html = render(many);
     const details = html.match(/<details[^>]*>/g) ?? [];
@@ -382,19 +405,30 @@ describe("a poor fit", () => {
 });
 
 describe("cautions and links", () => {
-  const links = {
-    "logitech-g-pro-x-superlight-2": [
-      { label: "Shop A", url: "https://shop.example/superlight" },
-    ],
+  // The server puts the links on the entry (`withMedia`); the page reads them there.
+  const withLinks: FitResponse = {
+    ...many,
+    results: many.results.map((r) =>
+      r.rank === 1
+        ? {
+            ...r,
+            mouse: {
+              ...r.mouse,
+              purchaseLinks: [
+                { label: "Shop A", url: "https://shop.example/superlight" },
+              ],
+            },
+          }
+        : r,
+    ),
   };
 
   it("puts the typed-length and left-hand notes before the purchase links", () => {
     const html = renderToStaticMarkup(
       createElement(ResultsView, {
-        response: { ...many, hand: "left" },
+        response: { ...withLinks, hand: "left" },
         language: "en",
         enteredLengthMm: 186,
-        purchaseSource: links,
       }),
     );
     const purchase = at(html, "results-purchase");
@@ -407,6 +441,25 @@ describe("cautions and links", () => {
 
   it("shows no purchase box at all without links", () => {
     expect(render(many)).not.toContain("results-purchase");
+  });
+
+  it("puts the purchase links after the reasons and before the collapsed details", () => {
+    const html = render(withLinks);
+    expect(at(html, "results-why-list")).toBeLessThan(
+      at(html, "results-purchase"),
+    );
+    expect(at(html, "results-purchase")).toBeLessThan(
+      at(html, "results-details"),
+    );
+    expect(html).toContain("https://shop.example/superlight");
+    // The heading is one word, and there is no visible note line.
+    expect(render(withLinks, { language: "zh-TW" })).toContain(">購買</h2>");
+    expect(render(withLinks, { language: "en" })).toContain(">Buy</h2>");
+    expect(html).not.toContain("results-purchase-note");
+  });
+
+  it("shows the links of the mouse on screen: a detail page reads its own entry, not rank 1's", () => {
+    expect(render(withLinks, { rank: 2 })).not.toContain("results-purchase");
   });
 });
 
