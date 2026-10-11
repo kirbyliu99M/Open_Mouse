@@ -11,6 +11,11 @@
  *   (`resolveLocale` in `src/lib/i18n/resolveLocale.ts`).
  * - The server renders in the resolved locale and `<html lang>` carries it, so
  *   there is no English-then-Chinese switch after hydration.
+ * - Reading the cookie and header in the root layout makes every page
+ *   dynamically rendered (accepted, 2026-10-11). Next sends dynamic pages as
+ *   `private, no-cache`, so no shared cache serves one visitor's language to
+ *   another; nothing may opt a page back into static or ISR rendering without
+ *   keying it by locale.
  * - Gemini's analysis prose is written in the resolved locale too; the route
  *   resolves it from the same cookie and header.
  *
