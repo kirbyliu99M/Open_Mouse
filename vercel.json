@@ -3,6 +3,12 @@
   "framework": "nextjs",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
   "ignoreCommand": "node scripts/vercel/ignore-build.mjs",
   "crons": [
     {
