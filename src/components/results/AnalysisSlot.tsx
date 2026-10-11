@@ -113,9 +113,7 @@ export function AnalysisSlot({
         </p>
       )}
       {output.caveats.length > 0 && (
-        <p className="results-analysis-caveats">
-          {output.caveats.join(copy.caveatsJoin)}
-        </p>
+        <p className="results-analysis-caveats">{output.caveats.join(" ")}</p>
       )}
     </section>
   );

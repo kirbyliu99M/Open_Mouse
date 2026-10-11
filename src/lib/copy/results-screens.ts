@@ -50,8 +50,6 @@ export interface ResultsScreensCopy {
     whatToAvoid: string;
     /** Shown under text written from the scores by a template. */
     provenance: string;
-    /** Joins the caveats. */
-    caveatsJoin: string;
   };
   deleteScan: {
     trigger: string;
@@ -128,7 +126,6 @@ export const zhTW: ResultsScreensCopy = {
     tradeoffs: "取捨",
     whatToAvoid: "要避開的",
     provenance: "依上方的分數自動產生。",
-    caveatsJoin: " ",
   },
   deleteScan: {
     trigger: "立即刪除這次掃描",
@@ -211,7 +208,6 @@ export const en: ResultsScreensCopy = {
     tradeoffs: "Tradeoffs",
     whatToAvoid: "What to avoid",
     provenance: "Generated automatically from your scores above.",
-    caveatsJoin: " ",
   },
   deleteScan: {
     trigger: "Delete this scan now",
