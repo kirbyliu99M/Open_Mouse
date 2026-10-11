@@ -58,12 +58,13 @@ function V2Cards({
         />
         <h1>{copy.kitV2Cards}</h1>
         <p className="learn-lead">
-          {copy.cardsLeadV2(
-            formatParticipantId(from),
-            formatParticipantId(last),
-          )}
-          {copy.gap}
-          {copy.cardsLeadV2After}
+          {copy.join([
+            copy.cardsLeadV2(
+              formatParticipantId(from),
+              formatParticipantId(last),
+            ),
+            copy.cardsLeadV2After,
+          ])}
         </p>
         <PrintButton label={copy.printPages(pageStarts.length)} />
         <p className="learn-note">
@@ -116,12 +117,13 @@ export default async function LearnSlatesPage({
         />
         <h1>{copy.participantCards}</h1>
         <p className="learn-lead">
-          {copy.slatesLead(
-            formatParticipantId(from),
-            formatParticipantId(last),
-          )}
-          {copy.gap}
-          {copy.slatesLeadAfter}
+          {copy.join([
+            copy.slatesLead(
+              formatParticipantId(from),
+              formatParticipantId(last),
+            ),
+            copy.slatesLeadAfter,
+          ])}
         </p>
         <PrintButton label={copy.printPages(pageStarts.length)} />
         <p className="learn-note">

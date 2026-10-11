@@ -57,13 +57,12 @@ export default async function LearnPrintPage({
           />
           <h1>{copy.printKitV2Sheet(sheet, sheet === "B")}</h1>
           <p className="learn-lead">
-            {sheet === "A" ? copy.sheetNameA : copy.sheetNameB}
-            {copy.gap}
-            {copy.printDialogV2}
-            {copy.gap}
-            {sheet === "A" ? copy.checkRulerA : copy.checkRulerB}
-            {copy.gap}
-            {copy.cardsPageBefore}{" "}
+            {copy.join([
+              sheet === "A" ? copy.sheetNameA : copy.sheetNameB,
+              copy.printDialogV2,
+              sheet === "A" ? copy.checkRulerA : copy.checkRulerB,
+              copy.cardsPageBefore,
+            ])}{" "}
             <Link href="/learn/slates?kit=2">{copy.cardsPageLink}</Link>
             {copy.stop}
           </p>
@@ -106,9 +105,10 @@ export default async function LearnPrintPage({
         />
         <h1>{copy.printTheKit}</h1>
         <p className="learn-lead">
-          {copy.printKitLead(pages.length, label)}
-          {copy.gap}
-          {copy.printKitLeadAfter}
+          {copy.join([
+            copy.printKitLead(pages.length, label),
+            copy.printKitLeadAfter,
+          ])}
         </p>
         <PrintButton label={copy.printPages(pages.length)} />
       </div>

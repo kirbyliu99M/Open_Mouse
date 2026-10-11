@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,7 +13,7 @@ vi.mock("../../src/server/i18n/getLocale", () => ({
   getLocale: async () => "en",
 }));
 
-import { LocaleProvider } from "../../src/client/i18n/LocaleProvider";
+import { LocaleProvider as Provider } from "../../src/client/i18n/LocaleProvider";
 import ErrorPage from "../../src/app/error";
 import GlobalError from "../../src/app/global-error";
 import NotFound, { generateMetadata } from "../../src/app/not-found";
@@ -25,6 +25,12 @@ import {
 } from "../../src/components/errors/copy";
 import { retry } from "../../src/components/errors/retry";
 import { SITE_NAME } from "../../src/lib/site";
+
+// createElement's typing wants `children` among the props; passing them as
+// extra arguments (the lint rule's way) is what these tests do.
+const LocaleProvider = Provider as unknown as FunctionComponent<{
+  initialLocale: "en" | "zh-TW";
+}>;
 
 /**
  * The not-found and error screens: one <main>, one <h1>, the ways out, and
@@ -50,7 +56,7 @@ const NEVER_SHOWN = [
 
 /** error.tsx reads the locale from the provider; the screens are tested in English. */
 const inEnglish = (child: ReturnType<typeof createElement>) =>
-  createElement(LocaleProvider, { initialLocale: "en", children: child });
+  createElement(LocaleProvider, { initialLocale: "en" }, child);
 
 const structure = (html: string) => {
   expect(count(html, /<main[\s>]/g)).toBe(1);

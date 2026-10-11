@@ -13,8 +13,11 @@ it("keeps the shared privacy promise on How it works, the scan screens and the c
   expect(PHOTO_PRIVACY_COPY).toBe(
     "Your photo never leaves your phone. Only measurements are sent.",
   );
+  // How it works reads it in the visitor's language (`privacyCopy(locale)`).
+  expect(readFileSync("src/app/how-it-works/page.tsx", "utf8")).toContain(
+    "photoStaysOnPhone",
+  );
   for (const path of [
-    "src/app/how-it-works/page.tsx",
     "src/app/scan/ScanClient.tsx",
     "src/client/camera/CameraCapture.tsx",
     "src/client/camera/EasyScanCamera.tsx",

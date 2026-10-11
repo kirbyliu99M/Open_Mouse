@@ -21,8 +21,8 @@ export interface GestureCopy {
 }
 
 export interface LearnCopy {
-  /** Between two sentences of one paragraph: a space in English, none in Chinese. */
-  gap: string;
+  /** Joins the sentences of one paragraph: with spaces in English, none in Chinese. */
+  join: (sentences: readonly string[]) => string;
   /** The full stop. */
   stop: string;
   // Shared chrome.
@@ -232,7 +232,7 @@ const zhSide =
   "手機放在桌上、紙張前方，鏡頭與桌面等高，正對立起的紙條，距離約 40 公分。請使用計時器或請人幫忙。";
 
 export const zhTW: LearnCopy = {
-  gap: "",
+  join: (sentences) => sentences.join(""),
   stop: "。",
   learningKit: "學習套件",
   home: "首頁",
@@ -503,7 +503,7 @@ export const zhTW: LearnCopy = {
 };
 
 export const en: LearnCopy = {
-  gap: " ",
+  join: (sentences) => sentences.join(" "),
   stop: ".",
   learningKit: "Learning kit",
   home: "Home",
