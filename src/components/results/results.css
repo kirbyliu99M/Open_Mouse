@@ -333,6 +333,48 @@
   font-size: 1.125rem;
 }
 
+/* Small label plus the generic star, above the heading (only for model-written
+   text). The star is about 14px and prints with the page. The label wraps
+   rather than overflows on a narrow screen. */
+.results-analysis-labelRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0 0 0.25rem;
+}
+
+.results-analysis-labelRow .results-eyebrow {
+  margin: 0;
+}
+
+.results-analysis-aiStar {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent-text);
+}
+
+.results-analysis-aiStar svg {
+  display: block;
+}
+
+/* Visible for everyone (touch included): small print under the text saying an
+   AI wrote it. Secondary colour, never under 12px, wraps on a narrow screen. */
+.results-analysis-aiNotice {
+  font-size: 0.8125rem;
+  margin: 0.75rem 0 0;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  color: #b5b5bd;
+}
+
+@media print {
+  .results-analysis-aiStar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 /* Honest-provenance note: shown only when the text was written from the
    scores by a template rather than a model (issue #30). Neutral, not
    alarming — it's a fact about the text, not a problem. Plain text with an
@@ -1598,6 +1640,7 @@
   .results-targetDeltas th[scope="col"],
   .results-analysis-caveats,
   .results-analysis-provenance,
+  .results-analysis-aiNotice,
   .results-subscoreBar-reason,
   .results-sizeNotice,
   .results-fitNotice,

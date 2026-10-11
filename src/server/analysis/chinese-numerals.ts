@@ -477,7 +477,7 @@ const QIANWAN_ADVERB_FOLLOWERS: readonly string[] = [
 ];
 
 /**
- * 前半 / 後半 / 上半 ...: a position ("後半部隆起"), not 0.5, but only when a
+ * 前半 / 後半 / 上半 ...: a position ("後半部駝峰"), not 0.5, but only when a
  * position noun follows (POSITION_NOUNS). In every other context the 半 is half
  * of something: 使用後半小時, 飯後半小時, 睡前半小時, 隨後半小時內, 前半年,
  * 上半年, 上半小時, 然後半個手掌. Those are 0.5.

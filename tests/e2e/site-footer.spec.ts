@@ -12,10 +12,11 @@ const GITHUB = "https://github.com/kirbyliu99M/Open_Mouse";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
 
-/** The six links in the order the footer lays them out: href and visible name. */
+/** The seven links in the order the footer lays them out: href and visible name. */
 const LINKS: readonly (readonly [href: string, name: string])[] = [
   ["/scan/easy", "Scan"],
   ["/learn", "Learn"],
+  ["/mice", "All mice"],
   ["/how-it-works", "How it works"],
   ["/how-it-works#privacy", "Privacy"],
   ["/account", "My profile"],
@@ -33,7 +34,7 @@ async function box(page: Page, name: string) {
 
 test.describe("the site footer, in English", () => {
   for (const path of ["/", "/how-it-works", "/account"]) {
-    test(`${path} has the one merged footer: name, headline, three groups, six links`, async ({
+    test(`${path} has the one merged footer: name, headline, three groups, seven links`, async ({
       page,
     }) => {
       await page.goto(path);
@@ -51,7 +52,7 @@ test.describe("the site footer, in English", () => {
       const nav = footer.getByRole("navigation", { name: "Site links" });
       await expect(nav.getByRole("link")).toHaveCount(LINKS.length);
       for (const [group, names] of [
-        ["Product", ["Scan", "Learn"]],
+        ["Product", ["Scan", "Learn", "All mice"]],
         ["Trust", ["How it works", "Privacy"]],
         ["Project", ["My profile", "GitHub"]],
       ] as const) {
@@ -70,7 +71,7 @@ test.describe("the site footer, in English", () => {
       // GitHub leaves the site: an ordinary external link, no new tab forced.
       const github = nav.getByRole("link", { name: "GitHub" });
       await expect(github).toHaveAttribute("rel", "noopener noreferrer");
-      // The other five stay on the site and carry no rel.
+      // The other six stay on the site and carry no rel.
       for (const [, name] of LINKS.filter(([, n]) => n !== "GitHub")) {
         await expect(
           nav.getByRole("link", { name, exact: true }),
@@ -210,9 +211,8 @@ test.describe("the site footer, in English", () => {
   }) => {
     await page.setViewportSize(PHONE);
     await page.goto("/how-it-works");
-    const [scan, learn, how, privacy, account, github] = await Promise.all(
-      LINKS.map(([, name]) => box(page, name)),
-    );
+    const [scan, learn, mice, how, privacy, account, github] =
+      await Promise.all(LINKS.map(([, name]) => box(page, name)));
     // Two columns: Product | Trust, rows aligned.
     expect(scan!.x).toBeLessThan(how!.x);
     expect(Math.abs(scan!.y - how!.y)).toBeLessThan(1);
@@ -220,11 +220,11 @@ test.describe("the site footer, in English", () => {
     expect(Math.abs(scan!.x - learn!.x)).toBeLessThan(1);
     // The Project row is lower than both columns; Account left, GitHub right,
     // on the same line.
-    expect(account!.y).toBeGreaterThan(learn!.y + learn!.height);
+    expect(account!.y).toBeGreaterThan(mice!.y + mice!.height);
     expect(Math.abs(account!.y - github!.y)).toBeLessThan(1);
     expect(account!.x).toBeLessThan(github!.x);
     // Touch rows are at least 44 px high.
-    for (const b of [scan, learn, how, privacy, account, github])
+    for (const b of [scan, learn, mice, how, privacy, account, github])
       expect(b!.height).toBeGreaterThanOrEqual(44);
     // The mark sits at the right, level with the two lines of text.
     const mark = await page.locator(".siteFooter-mark").boundingBox();
@@ -242,13 +242,14 @@ test.describe("the site footer, in English", () => {
   }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/how-it-works");
-    const [scan, learn, how, privacy, account, github] = await Promise.all(
-      LINKS.map(([, name]) => box(page, name)),
-    );
+    const [scan, learn, mice, how, privacy, account, github] =
+      await Promise.all(LINKS.map(([, name]) => box(page, name)));
     expect(scan!.x).toBeLessThan(how!.x);
     expect(how!.x).toBeLessThan(account!.x);
-    // Within a group the second link is below the first.
+    // Within a group each link is below the one before it.
     expect(learn!.y).toBeGreaterThan(scan!.y);
+    expect(mice!.y).toBeGreaterThan(learn!.y);
+    expect(Math.abs(mice!.x - scan!.x)).toBeLessThan(1);
     expect(privacy!.y).toBeGreaterThan(how!.y);
     expect(github!.y).toBeGreaterThan(account!.y);
     expect(Math.abs(learn!.x - scan!.x)).toBeLessThan(1);
@@ -605,6 +606,7 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
     for (const name of [
       "掃描",
       "學習",
+      "所有滑鼠",
       "運作方式",
       "隱私",
       "我的檔案",

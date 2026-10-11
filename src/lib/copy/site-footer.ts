@@ -20,6 +20,8 @@ export interface SiteFooterCopy {
   /** Product group. */
   scan: string;
   learn: string;
+  /** The all-mice page (`/mice`); candidate (未拍板), from the three-page copy draft. */
+  allMice: string;
   /** Trust group. */
   howItWorks: string;
   privacy: string;
@@ -36,6 +38,7 @@ export const zhTW: SiteFooterCopy = {
   groupProject: "專案",
   scan: "掃描",
   learn: "學習",
+  allMice: "所有滑鼠",
   howItWorks: "運作方式",
   privacy: "隱私",
   account: "我的檔案",
@@ -49,6 +52,7 @@ export const en: SiteFooterCopy = {
   groupProject: "Project",
   scan: "Scan",
   learn: "Learn",
+  allMice: "All mice",
   howItWorks: "How it works",
   privacy: "Privacy",
   account: "My profile",

@@ -64,8 +64,8 @@ export const zhTW: ReasonsCopy = {
     a.delta
       ? `這支滑鼠比你的理想掌心高度高 ${a.delta}。`
       : "這支滑鼠比你的理想掌心高度高。",
-  hump_matches_grip: () => "背弧的位置適合你握滑鼠的方式。",
-  hump_mismatch_grip: () => "背弧的位置和你握滑鼠的方式不太相符。",
+  hump_matches_grip: () => "駝峰的位置適合你握滑鼠的方式。",
+  hump_mismatch_grip: () => "駝峰的位置和你握滑鼠的方式不太相符。",
   flare_supports_fingers: () => "前端向外展開，手指有地方可以放。",
   flare_neutral: () => "前端形狀對手指既沒有幫助，也不會造成擠壓。",
   flare_crowds_fingers: () => "前端向內收，可能會擠到指尖。",

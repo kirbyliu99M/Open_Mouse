@@ -52,10 +52,11 @@ export type CatalogueCategory = (typeof CATALOGUE_CATEGORIES)[number];
 
 /**
  * Where a catalogue row's numbers came from: a brand's own published specs,
- * or the EloShapes import (Kirby's call of 2026-10-08; the matching AGENTS
- * rule 1 revision lands in its own docs commit).
+ * or the import of a compilation of publicly published measurements (Kirby's
+ * call of 2026-10-08; the value was renamed to `public_compilation` on
+ * 2026-10-11, migration 0010).
  */
-export const DATA_SOURCES = ["first_party", "eloshapes"] as const;
+export const DATA_SOURCES = ["first_party", "public_compilation"] as const;
 export type DataSource = (typeof DATA_SOURCES)[number];
 
 export type Size = (typeof SIZES)[number];

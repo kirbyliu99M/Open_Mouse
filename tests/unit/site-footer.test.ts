@@ -35,7 +35,7 @@ function render(at: string | null, locale: Locale = "en"): string {
 }
 
 describe("SiteFooter", () => {
-  it("renders in English for the en locale, with the name, the headline and the six links in three groups", () => {
+  it("renders in English for the en locale, with the name, the headline and the seven links in three groups", () => {
     const html = render("/");
     expect(html).toContain(SITE_NAME);
     expect(html).toContain("Ready to Find Yours?");
@@ -47,6 +47,7 @@ describe("SiteFooter", () => {
     expect(links).toEqual([
       ["/scan/easy", "Scan"],
       ["/learn", "Learn"],
+      ["/mice", "All mice"],
       ["/how-it-works", "How it works"],
       ["/how-it-works#privacy", "Privacy"],
       ["/account", "My profile"],
@@ -139,6 +140,8 @@ describe("SiteFooter", () => {
     expect(footerZh.groupProject).toBe("專案");
     expect(footerZh.scan).toBe("掃描");
     expect(footerZh.learn).toBe("學習");
+    expect(footerZh.allMice).toBe("所有滑鼠");
+    expect(footerEn.allMice).toBe("All mice");
   });
 
   it("is absent on the print pages and the capture flow, present elsewhere", () => {
@@ -161,6 +164,7 @@ describe("SiteFooter", () => {
       "/results/abc",
       "/learn",
       "/learn/check",
+      "/mice",
       "/sheets",
       "/scanner",
       "/no-such-page",
