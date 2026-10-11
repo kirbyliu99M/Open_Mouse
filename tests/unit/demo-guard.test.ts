@@ -100,6 +100,7 @@ const DEMO_ROUTES = [
   "/scan/error-demo",
   "/scan/grip-race-demo",
   "/scan/hand-explicit-demo",
+  "/scan/manual-entry-demo",
   "/scan/measured-demo",
   "/scan/paper-edge-measured-demo",
   "/scan/paper-edge-preview",

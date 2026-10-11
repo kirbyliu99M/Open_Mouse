@@ -26,8 +26,11 @@ import {
   shouldRequestAnalysis,
 } from "@/lib/results/requests";
 import {
+  parseStoredManualEntry,
   parseStoredUserLength,
   resultLengthKey,
+  resultManualEntryKey,
+  type StoredManualEntry,
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
@@ -71,6 +74,8 @@ export interface ResultsScan {
   language: Locale;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLength: number | null;
+  /** The hand length and width the user typed instead of scanning (manual entry), when that is how the scan was made. */
+  enteredManual: StoredManualEntry | null;
   analysisState: AnalysisState;
   /**
    * Ask for the written analysis. Only the main page (rank 1) gets a request
@@ -134,6 +139,9 @@ export function ResultsScanProvider({
   });
   const [attempt, setAttempt] = useState(0);
   const [enteredLength, setEnteredLength] = useState<number | null>(null);
+  const [enteredManual, setEnteredManual] = useState<StoredManualEntry | null>(
+    null,
+  );
   const language = useLocale();
   const copy = resultsScreensCopy(language);
   // The locale the next analysis request is made in (the server answers in the
@@ -151,8 +159,14 @@ export function ResultsScanProvider({
       // The hand is read from the fit response now. Builds before that
       // stored it here; drop every leftover, not just this scan's.
       sweepLegacyHandKeys(localStorage);
+      setEnteredManual(
+        parseStoredManualEntry(
+          localStorage.getItem(resultManualEntryKey(scanId)),
+        ),
+      );
     } catch {
       setEnteredLength(null);
+      setEnteredManual(null);
     }
   }, [scanId]);
 
@@ -294,6 +308,7 @@ export function ResultsScanProvider({
             response: pageState.response,
             language,
             enteredLength,
+            enteredManual,
             analysisState,
             requestAnalysis,
             retryAnalysis,
@@ -305,6 +320,7 @@ export function ResultsScanProvider({
       scanId,
       language,
       enteredLength,
+      enteredManual,
       analysisState,
       requestAnalysis,
       retryAnalysis,

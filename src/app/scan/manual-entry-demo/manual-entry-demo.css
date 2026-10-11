@@ -1,0 +1,27 @@
+/* Fixture layout only: a phone-width frame standing in for the camera screen. */
+main.manualEntryDemo {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin: 2rem auto;
+}
+.manualEntryDemo h1 {
+  font-size: 1.75rem;
+}
+.manualEntryDemo h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+}
+.manualEntryDemo-phone {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 24.375rem);
+  height: 36rem;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 1.5rem;
+  background: #1a130e;
+}
+.manualEntryDemo-camera {
+  flex: 1;
+}

@@ -23,6 +23,7 @@ const EXPECTED_MODULES = [
   "how-it-works.ts",
   "language-switcher.ts",
   "learn.ts",
+  "manualEntry.ts",
   "nav.ts",
   "privacy.ts",
   "results-page.ts",

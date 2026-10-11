@@ -1,0 +1,403 @@
+/*
+ * Typing the hand length and width instead of scanning (candidate, 2026-10-12):
+ * the entry handle, the phone's bottom sheet and the desktop panel. Dark theme
+ * tokens only (src/app/tokens.css), the BTN-1 buttons (a near-white pill for
+ * the primary action, a text button for the secondary one) and 44 px targets.
+ * The Pencil board is `c700E5`; its light sheet and blue button give way to
+ * the site's one dark theme.
+ */
+.manualEntry-sheet,
+.manualEntry-panel,
+.manualEntry-handle {
+  --me-surface: color-mix(in srgb, var(--text-primary) 7%, var(--bg));
+  --me-field: color-mix(in srgb, var(--text-primary) 4%, var(--bg));
+  --me-error: #ff9d90; /* 8.9:1 on the surface */
+  --me-warn: #f0c34d;
+}
+
+/* ---- The handle ---- */
+.manualEntry-handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  border: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: var(--me-surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  /* The finger drags it: the page must not scroll under it. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.manualEntry-handle:active {
+  background: color-mix(in srgb, var(--text-primary) 12%, var(--bg));
+}
+.manualEntry-handle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -4px;
+}
+.manualEntry-handleBar {
+  display: block;
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+.manualEntry-handleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ---- The form (both presentations) ---- */
+.manualEntry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--text-primary);
+}
+.manualEntry-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.manualEntry-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+.manualEntry-title:focus {
+  outline: none;
+}
+.manualEntry-title:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 4px;
+}
+.manualEntry-intro,
+.manualEntry-note,
+.manualEntry-help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.manualEntry-label {
+  display: block;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.manualEntry-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.manualEntry-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.manualEntry-toggleOption {
+  position: relative;
+  display: block;
+}
+/* The radio itself is visually hidden but stays focusable and clickable. */
+.manualEntry-toggleOption input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.manualEntry-toggleOption span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: var(--me-field);
+  color: var(--text-primary);
+  font-size: 1rem;
+  pointer-events: none;
+}
+.manualEntry-toggleOption input:checked + span {
+  border-color: var(--button-primary-bg);
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font-weight: 600;
+}
+.manualEntry-toggleOption input:focus-visible + span {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.manualEntry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.manualEntry-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: var(--me-field);
+}
+.manualEntry-input:focus-within {
+  border-color: var(--accent-text);
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+}
+.manualEntry-input[data-invalid="true"] {
+  border-color: var(--me-error);
+}
+.manualEntry-input input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  /* 16px or more keeps iOS Safari from zooming the page on focus. */
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+}
+.manualEntry-input input:focus {
+  outline: none;
+}
+.manualEntry-input input::placeholder {
+  color: var(--text-tertiary);
+}
+.manualEntry-unit {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+.manualEntry-error {
+  margin: 0;
+  color: var(--me-error);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.manualEntry-warn {
+  margin: 0;
+  color: var(--me-warn);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.manualEntry-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.manualEntry-use {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0 1.5rem;
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.manualEntry-use:active:not(:disabled) {
+  background: var(--button-primary-pressed);
+}
+.manualEntry-use:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+  cursor: not-allowed;
+}
+.manualEntry-cancel {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.manualEntry-use:focus-visible,
+.manualEntry-cancel:focus-visible,
+.manualEntry-close:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+
+/* ---- The desktop panel ---- */
+.manualEntry-panel {
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: 1.25rem;
+  background: var(--me-surface);
+}
+
+/* ---- The phone's sheet ---- */
+dialog.manualEntry-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: min(92dvh, 44rem);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1.5rem 1.5rem 0 0;
+  overflow: hidden;
+  background: var(--me-surface);
+  color: var(--text-primary);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1);
+}
+dialog.manualEntry-sheet[open] {
+  display: flex;
+  flex-direction: column;
+  animation: manualEntry-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+dialog.manualEntry-sheet[data-leaving="true"] {
+  transform: translateY(100%);
+}
+dialog.manualEntry-sheet::backdrop {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  animation: manualEntry-fade 0.32s ease-out;
+}
+dialog.manualEntry-sheet[data-leaving="true"]::backdrop {
+  opacity: 0;
+  transition: opacity 0.24s;
+}
+@keyframes manualEntry-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes manualEntry-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.manualEntry-sheetPanel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.manualEntry-grab {
+  position: relative;
+  flex: none;
+  min-height: 2.25rem;
+  padding: 0.5rem 1.25rem 0;
+  touch-action: none;
+  cursor: grab;
+}
+.manualEntry-grabBar {
+  display: block;
+  width: 2.25rem;
+  height: 0.25rem;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+.manualEntry-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.manualEntry-sheetBody {
+  flex: 1;
+  min-height: 0;
+  padding: 0.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- Accessibility variants ---- */
+/* Reduced motion: the sheet fades instead of sliding, the handle does not move. */
+@media (prefers-reduced-motion: reduce) {
+  .manualEntry-handle {
+    transition: none;
+  }
+  dialog.manualEntry-sheet {
+    transition: none;
+  }
+  dialog.manualEntry-sheet[open] {
+    animation: manualEntry-fade 0.2s ease-out;
+  }
+  dialog.manualEntry-sheet[data-leaving="true"] {
+    transform: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  dialog.manualEntry-sheet::backdrop {
+    animation: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .manualEntry-panel,
+  dialog.manualEntry-sheet,
+  .manualEntry-handle {
+    border: 1px solid var(--control-border);
+  }
+  .manualEntry-use {
+    border-color: var(--on-button-primary);
+  }
+}
+
+/* A control: it does not print. */
+@media print {
+  dialog.manualEntry-sheet,
+  .manualEntry-handle {
+    display: none !important;
+  }
+}
