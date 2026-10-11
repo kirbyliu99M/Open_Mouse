@@ -108,6 +108,15 @@ const CONTENT_SECURITY_POLICY = [
 const MEDIAPIPE_CACHE_CONTROL =
   "public, max-age=86400, stale-while-revalidate=604800";
 
+/**
+ * `public/images/mice/*.webp` (the product photos, ~30 KB each, up to 172 on a
+ * results page): the same bounded cache as MediaPipe, for the same reason, the
+ * names carry no hash, so never `immutable`. A photo replaced in place reaches
+ * a returning visitor within a day.
+ */
+const MOUSE_PHOTO_CACHE_CONTROL =
+  "public, max-age=86400, stale-while-revalidate=604800";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The dev-mode indicator badge has no place in a design screenshot — off
@@ -156,6 +165,10 @@ const nextConfig: NextConfig = {
       {
         source: "/mediapipe/:path*",
         headers: [{ key: "Cache-Control", value: MEDIAPIPE_CACHE_CONTROL }],
+      },
+      {
+        source: "/images/mice/:path*",
+        headers: [{ key: "Cache-Control", value: MOUSE_PHOTO_CACHE_CONTROL }],
       },
     ];
   },

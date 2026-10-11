@@ -11,10 +11,15 @@ import { OFFICIAL_URL_KINDS, httpsUrlSchema } from "../contracts/commerce";
 export const mouseMediaEntrySchema = z.object({
   officialUrl: httpsUrlSchema,
   officialKind: z.enum(OFFICIAL_URL_KINDS),
-  /** A site path such as `/images/mice/<slug>.webp`, or null when no photo exists. */
+  /**
+   * `/images/mice/<name>.webp`, or null when no photo exists. Narrower than the
+   * fit contract's site-path rule on purpose: a value this accepts is always one
+   * `fitResponseSchema` accepts, so a bad file can never make the fit endpoint
+   * fail its own response check.
+   */
   image: z
     .string()
-    .regex(/^\/[A-Za-z0-9._\-/]+$/)
+    .regex(/^\/images\/mice\/[a-z0-9-]+\.webp$/)
     .nullable(),
 });
 export type MouseMediaEntry = z.infer<typeof mouseMediaEntrySchema>;

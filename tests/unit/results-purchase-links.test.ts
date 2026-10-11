@@ -7,7 +7,9 @@ import {
   linksForSlug,
   parsePurchaseLinks,
 } from "../../src/lib/results/purchaseLinks";
+import { purchaseLinksSchema } from "../../src/lib/contracts/commerce";
 import bundled from "../../src/data/purchase-links.json";
+import mouseMedia from "../../src/data/mouse-media.json";
 
 const VALID = {
   "logitech-g-pro-x-superlight-2": [
@@ -16,10 +18,20 @@ const VALID = {
   ],
 };
 
-describe("purchase links file", () => {
-  it("ships as an empty object, which is valid", () => {
-    expect(bundled).toEqual({});
-    expect(parsePurchaseLinks(bundled)).toEqual({});
+describe("the bundled purchase-links.json", () => {
+  // The other team fills this file. A file with a bad entry is dropped whole at
+  // run time (`parsePurchaseLinks` gives `{}`), silently, so it is checked
+  // here with a parse that throws. Its content is not pinned: an empty file, or
+  // a full one, both pass.
+  it("matches the contract (https URLs, 1 to 40 character labels, at most four per mouse)", () => {
+    expect(() => purchaseLinksSchema.parse(bundled)).not.toThrow();
+    expect(parsePurchaseLinks(bundled)).toEqual(bundled);
+  });
+
+  it("only names mice that are in mouse-media.json, so the static route has a page for every key", () => {
+    const known = new Set(Object.keys(mouseMedia));
+    const unknown = Object.keys(bundled).filter((slug) => !known.has(slug));
+    expect(unknown).toEqual([]);
   });
 });
 

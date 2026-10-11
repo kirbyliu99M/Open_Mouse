@@ -108,6 +108,51 @@ describe("the results page layout", () => {
     expect(html).toContain('alt="Logitech G Pro X Superlight 2"');
   });
 
+  it("puts the band row under the score as a row of its own, not inside the name column", () => {
+    const html = render(many);
+    expect(at(html, "results-score-total")).toBeLessThan(
+      at(html, "results-bandRow"),
+    );
+    expect(at(html, "results-bandRow")).toBeLessThan(
+      at(html, "results-why-list"),
+    );
+    // The name column closes before the row opens: the chip is no longer in it.
+    const name = html.match(
+      /<div class="results-score-name">(.*?)<\/div><p class="results-score-total/s,
+    );
+    expect(name?.[1]).not.toContain("results-band");
+    expect(name?.[1]).not.toContain("results-official");
+    // Variants and the one-left line stay in the name column.
+    const withVariants: FitResponse = {
+      ...many,
+      results: many.results.map((r) =>
+        r.rank === 1
+          ? {
+              ...r,
+              variants: [{ slug: "v", model: "Variant Two", weightG: null }],
+            }
+          : r,
+      ),
+    };
+    const v = render(withVariants);
+    expect(at(v, "Variant Two")).toBeLessThan(at(v, "results-score-total"));
+  });
+
+  it("shows no photo in the other-mice rows, only the name and the score", () => {
+    const photos: FitResponse = {
+      ...many,
+      results: many.results.map((r) => ({
+        ...r,
+        mouse: { ...r.mouse, imageUrl: `/images/mice/${r.mouse.slug}.webp` },
+      })),
+    };
+    const html = render(photos, { scanId: many.scanId });
+    const list = html.match(/<ol class="results-otherMice-list">.*?<\/ol>/s);
+    expect(list?.[0]).toContain("results-otherMice-row");
+    expect(list?.[0]).not.toContain("<img");
+    expect(list?.[0]).not.toContain("results-photo");
+  });
+
   it("loads the top photo at once and the small cards lazily", () => {
     const photos: FitResponse = {
       ...many,

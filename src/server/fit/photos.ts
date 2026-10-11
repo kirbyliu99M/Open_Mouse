@@ -1,5 +1,21 @@
 import type { FitEntry } from "../../lib/contracts/fit";
-import { parseMouseMedia } from "../../lib/results/mouseMedia";
+import { parseMouseMedia, type MouseMedia } from "../../lib/results/mouseMedia";
+
+const parsedFiles = new WeakMap<object, MouseMedia>();
+
+/**
+ * `parseMouseMedia`, once per file object: the 406-entry zod check would
+ * otherwise run on every fit request. The bundled JSON is one module-level
+ * object, so in practice it is parsed once per server instance.
+ */
+function parsedMedia(media: unknown): MouseMedia {
+  if (typeof media !== "object" || media === null) return {};
+  const known = parsedFiles.get(media);
+  if (known) return known;
+  const parsed = parseMouseMedia(media);
+  parsedFiles.set(media, parsed);
+  return parsed;
+}
 
 /**
  * Fills each result's product photo from `src/data/mouse-media.json`
@@ -25,8 +41,7 @@ export function withPhotos(
   results: readonly FitEntry[],
   media: unknown,
 ): FitEntry[] {
-  // Parse the file once, not once per entry: the catalogue has ~400 mice.
-  const parsed = parseMouseMedia(media);
+  const parsed = parsedMedia(media);
   return results.map((entry) => {
     // Own keys only: a slug like "constructor" must not read the prototype.
     const found = Object.hasOwn(parsed, entry.mouse.slug)

@@ -699,9 +699,18 @@
   object-fit: contain;
 }
 /* A real photo sits on a soft lighter backdrop (no hard edge), so a black mouse
-   keeps its outline on the near-black page. The silhouette keeps the flat fill. */
+   keeps its outline on the near-black page (Kirby, 2026-10-11: option A). The
+   silhouette keeps the flat fill. The two colours are tokens of this file. */
+.results-photo {
+  --results-photo-backdrop-center: #1c2230;
+  --results-photo-backdrop-edge: #0c0e12;
+}
 .results-photo[data-has-photo="true"] {
-  background: radial-gradient(ellipse at 50% 45%, #1c2230 0%, #0c0e12 100%);
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    var(--results-photo-backdrop-center) 0%,
+    var(--results-photo-backdrop-edge) 100%
+  );
 }
 .results-photo-silhouette {
   width: 30%;
@@ -711,14 +720,6 @@
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.results-photo--small {
-  width: 3rem;
-  aspect-ratio: 1;
-  border-radius: 0.625rem;
-}
-.results-photo--small .results-photo-silhouette {
-  width: 55%;
 }
 
 .results-score {
@@ -758,12 +759,19 @@
   color: var(--text-secondary);
 }
 .results-bandRow {
+  /* A full-width row of its own under the score: the chip on the left, the
+     maker's link on the right. Never wraps, so its height is the same before
+     and after the link arrives (the link wraps inside itself instead). */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.25rem 1rem;
+  gap: 0.75rem;
   min-height: 2.75rem;
+  margin-top: -0.5rem;
+}
+.results-bandRow > .results-band {
+  flex: none;
 }
 .results-band {
   display: inline-flex;
@@ -817,28 +825,28 @@
   text-wrap: pretty;
 }
 
-/* Purchase links: only rendered when the entry has links. A plain list, no box:
-   52 px rows with hairline dividers, the shop name on the left (it wraps, never
-   cut) and the external-link icon on the right. */
+/* Purchase links: only rendered once the mouse's links have arrived and it has
+   some. A plain list (design VouXb, oNoJV): a bold white heading, 52 px rows
+   with a hairline between rows only, the shop name in white on the left (it
+   wraps, never cut) and a grey external-link icon on the right. */
 .results-purchase {
   min-width: 0;
 }
 .results-purchase-heading {
   margin: 0 0 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 400;
+  font-size: 1.0625rem;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.4;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 .results-purchase-links {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--hairline);
 }
-.results-purchase-links li {
-  border-bottom: 1px solid var(--hairline);
+.results-purchase-links li + li {
+  border-top: 1px solid var(--hairline);
 }
 .results-purchase-links a {
   display: flex;
@@ -848,12 +856,15 @@
   min-height: 3.25rem;
   padding: 0.5rem 0;
   font-size: 1rem;
-  color: var(--accent-text);
+  color: var(--text-primary);
   text-decoration: none;
 }
 .results-purchase-name {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.results-purchase-links .results-extIcon {
+  color: var(--text-secondary);
 }
 .results-purchase-links a:focus-visible,
 .results-official:focus-visible {
@@ -879,12 +890,18 @@
 .results-official {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.375rem;
+  min-width: 0;
   min-height: 2.75rem;
   margin-left: auto;
+  /* Transparent, so more-contrast users get an outline instead of colour alone. */
+  border: 1px solid transparent;
   font-size: 0.9375rem;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.3;
+  text-align: right;
+  overflow-wrap: anywhere;
   color: var(--accent-text);
   text-decoration: none;
 }
@@ -1055,7 +1072,7 @@
 }
 .results-otherMice-row {
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0;
@@ -1190,9 +1207,17 @@
   .results-band {
     border-color: currentColor;
   }
-  .results-purchase-links,
-  .results-purchase-links li {
+  .results-purchase-links li + li {
     border-color: var(--text-secondary);
+  }
+  .results-purchase-links .results-extIcon {
+    color: currentColor;
+  }
+  .results-photo[data-has-photo="true"] {
+    background: var(--bg);
+  }
+  .results-official {
+    border-color: currentColor;
   }
   .results-disclosure,
   .results-otherMice-row,

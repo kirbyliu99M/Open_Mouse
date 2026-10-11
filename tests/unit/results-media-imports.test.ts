@@ -6,12 +6,54 @@ import {
   MOUSE_PHOTO_WIDTH,
 } from "../../src/components/results/MousePhoto";
 
+/**
+ * A module being loaded: `from "x"`, `import "x"`, `import("x")`,
+ * `require("x")`, in any quote style including a backtick template. \x60 is the
+ * backtick.
+ */
+const LOAD = String.raw`(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'\x60]`;
+const NOT_QUOTE = String.raw`[^"'\x60]*`;
+const QUOTE = String.raw`["'\x60]`;
+const CODE = /\.(?:ts|tsx|js|jsx|mjs)$/;
+
+/** A source file without its comments, so a sentence that names a file is not read as an import. */
+function code(file: string): string {
+  return readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     return statSync(path).isDirectory() ? walk(path) : [path];
   });
 }
+
+describe("the loader pattern itself", () => {
+  const load = (name: string) =>
+    new RegExp(`${LOAD}${NOT_QUOTE}${name}\\.json${QUOTE}`);
+  it.each([
+    'import a from "@/data/mouse-media.json";',
+    "import a from '../data/mouse-media.json';",
+    'import "../data/mouse-media.json";',
+    'export { a } from "../data/mouse-media.json";',
+    'const a = await import("../data/mouse-media.json");',
+    'const a = require("../data/mouse-media.json");',
+    "const a = await import(`../data/mouse-media.json`);",
+  ])("sees %s", (line) => {
+    expect(load("mouse-media").test(line)).toBe(true);
+  });
+
+  it("does not see a mention in a comment or a string that is not a load", () => {
+    expect(load("mouse-media").test("// reads mouse-media.json later")).toBe(
+      false,
+    );
+    expect(load("mouse-media").test('const n = "mouse-media.json";')).toBe(
+      false,
+    );
+  });
+});
 
 // `ResultsView` is under a client component, so anything it imports ships to
 // the browser. The two data files are read only on the server: the photo path by
@@ -21,7 +63,7 @@ describe("the page code does not import the data files", () => {
   const client = [
     ...walk("src/components/results"),
     ...walk("src/lib/results"),
-  ].filter((f) => /\.(ts|tsx)$/.test(f));
+  ].filter((f) => CODE.test(f));
 
   it("scans a sensible number of files", () => {
     expect(client.length).toBeGreaterThan(25);
@@ -31,22 +73,15 @@ describe("the page code does not import the data files", () => {
   it.each(["purchase-links", "mouse-media"])(
     "nothing under src/components/results/ or src/lib/results/ imports %s.json",
     (name) => {
-      // import x from "..", import ".."; export ... from ".."; import(".."); require("..")
-      const pattern = new RegExp(
-        `(?:from\\s*|import\\s*\\(?\\s*|require\\s*\\(\\s*)["'][^"']*${name}\\.json["']`,
-      );
-      const offenders = client.filter((f) =>
-        pattern.test(readFileSync(f, "utf8")),
-      );
+      const pattern = new RegExp(`${LOAD}${NOT_QUOTE}${name}\\.json${QUOTE}`);
+      const offenders = client.filter((f) => pattern.test(code(f)));
       expect(offenders).toEqual([]);
     },
   );
 
   it("nothing there imports from src/data/ at all", () => {
-    const pattern = /(?:from\s*|import\s*\(?\s*)["'][^"']*\/data\/[^"']*["']/;
-    const offenders = client.filter((f) =>
-      pattern.test(readFileSync(f, "utf8")),
-    );
+    const pattern = new RegExp(`${LOAD}${NOT_QUOTE}/data/${NOT_QUOTE}${QUOTE}`);
+    const offenders = client.filter((f) => pattern.test(code(f)));
     expect(offenders).toEqual([]);
   });
 
@@ -61,11 +96,12 @@ describe("the page code does not import the data files", () => {
     expect(route).toContain("mouse-media.json");
     expect(route).toContain("purchase-links.json");
     // And nowhere else in src/ outside those two places.
-    const pattern =
-      /(?:from\s*|import\s*\(?\s*)["'][^"']*(?:mouse-media|purchase-links)\.json["']/;
+    const pattern = new RegExp(
+      `${LOAD}${NOT_QUOTE}(?:mouse-media|purchase-links)\\.json${QUOTE}`,
+    );
     const readers = walk("src")
-      .filter((f) => /\.(ts|tsx)$/.test(f))
-      .filter((f) => pattern.test(readFileSync(f, "utf8")))
+      .filter((f) => CODE.test(f))
+      .filter((f) => pattern.test(code(f)))
       .map((f) => f.replaceAll("\\", "/"))
       .sort();
     expect(readers).toEqual([

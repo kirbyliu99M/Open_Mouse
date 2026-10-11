@@ -6,10 +6,12 @@ import { ExternalLinkIcon } from "./ExternalLinkIcon";
 /**
  * Where to buy, for one mouse: a plain list of rows under the heading 「購買」
  * ("Buy"), shop name on the left and the external-link icon on the right. The
- * server hands the links in (`mouse.purchaseLinks`, filled from
- * `src/data/purchase-links.json`, which another team maintains): this
- * component never reads the file, so the file stays out of the client bundle.
- * With no links it renders nothing: no box, no placeholder text. There is no
+ * links come from the caller: `ResultsView` passes `useMouseLinks(slug)`'s
+ * `purchaseLinks`, which the browser fetches from the static route
+ * `/api/mice/<slug>/links` (built from `src/data/purchase-links.json`, which
+ * another team maintains). This component never reads the file, so the file
+ * stays out of the client bundle. With no links, or before they arrive, it
+ * renders nothing: no box, no placeholder text. There is no
  * visible note; each link still says "opens in a new tab" to a screen reader
  * and keeps `rel="sponsored noopener"`. A long shop name wraps, it is never
  * cut. Links never touch rank or score.

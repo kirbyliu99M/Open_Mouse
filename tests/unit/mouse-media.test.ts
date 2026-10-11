@@ -72,9 +72,29 @@ describe("parseMouseMedia", () => {
       },
     ],
     ["a missing field", { a: { officialUrl: "https://x.test/" } }],
-  ])("returns {} for %s, without throwing", (_label, raw) => {
-    expect(parseMouseMedia(raw)).toEqual({});
-  });
+    ...[
+      "//host.example/x.webp",
+      "/../x.webp",
+      "/images/mice/../x.webp",
+      "/images/mice/a.png",
+      "/images/mice/A.webp",
+      "/images/mice/a b.webp",
+      "/images/other/a.webp",
+      "/images/mice/sub/a.webp",
+      "\\images\\mice\\a.webp",
+      "/images/mice/a.webp?x=1",
+    ].map((image): [string, unknown] => [
+      `the image ${image}`,
+      {
+        a: { officialUrl: "https://x.test/", officialKind: "product", image },
+      },
+    ]),
+  ] as [string, unknown][])(
+    "returns {} for %s, without throwing",
+    (_label, raw) => {
+      expect(parseMouseMedia(raw)).toEqual({});
+    },
+  );
 
   it("is all-or-nothing: one bad entry voids the file", () => {
     expect(parseMouseMedia({ ...VALID, bad: { officialUrl: "nope" } })).toEqual(
@@ -143,6 +163,7 @@ describe("the bundled mouse-media.json", () => {
     const problems: string[] = [];
     for (const [slug, v] of entries) {
       if (v.image === null) continue;
+      expect(v.image).toBe(`/images/mice/${slug}.webp`);
       const file = join(process.cwd(), "public", v.image);
       if (!existsSync(file)) {
         problems.push(`${slug}: missing file`);

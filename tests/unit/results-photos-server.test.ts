@@ -8,7 +8,6 @@ import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { collectNumbers } from "../../src/server/analysis/numerals";
 import { loadOwnedFit } from "../../src/server/fit/core";
 import { withPhotos } from "../../src/server/fit/photos";
-import mouseMediaFile from "../../src/data/mouse-media.json";
 import { makeEntry, makeFit, makeMeasurements } from "./analysis-fixtures";
 import {
   createFakeFitRepo,
@@ -96,8 +95,18 @@ describe("withPhotos", () => {
 });
 
 describe("loadOwnedFit runs withPhotos", () => {
-  it("returns imageUrl on every result and no link fields, and passes the contract", async () => {
-    const { repo: fitRepo } = createFakeFitRepo([...sampleCatalogue]);
+  // The fixture catalogue's own slugs are not in mouse-media.json, so they would
+  // all read "no photo" and prove nothing. Give its two mice real slugs, one
+  // with a photo and one without.
+  const REAL = "logitech-g502-hero";
+  const NO_PHOTO = "fantech-yari-e";
+  const catalogue = [
+    { ...sampleCatalogue[0]!, slug: REAL },
+    { ...sampleCatalogue[1]!, slug: NO_PHOTO },
+  ];
+
+  async function fit() {
+    const { repo: fitRepo } = createFakeFitRepo(catalogue);
     const result = await loadOwnedFit(
       SCAN_ID,
       { userId: null, cookieSessionId: "s" },
@@ -109,19 +118,51 @@ describe("loadOwnedFit runs withPhotos", () => {
       },
     );
     if (result.status !== "ok") throw new Error("unreachable");
-    expect(result.fit.results.length).toBeGreaterThan(0);
-    for (const e of result.fit.results) {
-      expect(e.mouse).toHaveProperty("imageUrl");
-      const photo = (
-        mouseMediaFile as Record<string, { image: string | null }>
-      )[e.mouse.slug]?.image;
-      expect(e.mouse.imageUrl).toBe(photo ?? null);
+    return result.fit;
+  }
+
+  it("gives a real mouse its real photo path and a mouse with no photo null", async () => {
+    const out = await fit();
+    const bySlug = new Map(out.results.map((e) => [e.mouse.slug, e]));
+    expect(bySlug.get(REAL)?.mouse.imageUrl).toBe(`/images/mice/${REAL}.webp`);
+    expect(bySlug.get(NO_PHOTO)?.mouse.imageUrl).toBeNull();
+  });
+
+  it("carries no link field on any result, and passes the contract", async () => {
+    const out = await fit();
+    expect(out.results.length).toBeGreaterThan(0);
+    for (const e of out.results) {
       // The links ride on the static per-mouse route, never on the response.
       expect(JSON.stringify(e)).not.toMatch(
         /officialUrl|officialKind|purchaseLinks/,
       );
     }
-    expect(() => fitResponseSchema.parse(result.fit)).not.toThrow();
+    expect(() => fitResponseSchema.parse(out)).not.toThrow();
+  });
+});
+
+describe("withPhotos parses a given media file once", () => {
+  it("answers from the first parse: the same object is not read again", () => {
+    const file = {
+      a: {
+        officialUrl: "https://maker.example/a",
+        officialKind: "product",
+        image: "/images/mice/a.webp",
+      },
+    };
+    expect(withPhotos([entry("a")], file)[0]!.mouse.imageUrl).toBe(
+      "/images/mice/a.webp",
+    );
+    // Changing the object afterwards changes nothing: it is not parsed a
+    // second time (files are not edited at run time; this shows the cache).
+    file.a.image = "/images/mice/changed.webp";
+    expect(withPhotos([entry("a")], file)[0]!.mouse.imageUrl).toBe(
+      "/images/mice/a.webp",
+    );
+    // A different object is a different file.
+    expect(withPhotos([entry("a")], { ...file })[0]!.mouse.imageUrl).toBe(
+      "/images/mice/changed.webp",
+    );
   });
 });
 

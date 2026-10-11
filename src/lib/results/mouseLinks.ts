@@ -29,8 +29,12 @@ export function linksForMouse(
   if (!Object.hasOwn(media, slug)) return null;
   const entry = media[slug];
   const shops = Object.hasOwn(purchase, slug) ? purchase[slug] : [];
-  // Built through the contract, so a file that drifts fails here, at build
-  // time, and never ships a link the page would then refuse.
+  // Built through the contract. The inputs were already checked by their own
+  // schemas, so this normally cannot fail; if it ever did it would throw in the
+  // route (the build, for a static route). A file that does not match its own
+  // schema never gets this far: `parseMouseMedia` and `parsePurchaseLinks` turn
+  // it into `{}`, silently, so the bundled files are pinned by tests with a
+  // parse that throws (tests/unit/results-purchase-links.test.ts, mouse-media).
   return mouseLinksSchema.parse({
     officialUrl: entry.officialUrl,
     officialKind: entry.officialKind,

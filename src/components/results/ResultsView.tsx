@@ -191,20 +191,6 @@ export function ResultsView({
                   <ModelHeading className="results-score-model">
                     {entry.mouse.model}
                   </ModelHeading>
-                  {band && (
-                    <div className="results-bandRow">
-                      <p className="results-band">
-                        <span className="results-band-dot" aria-hidden="true" />
-                        {BAND_COPY[language].bands[band].label}
-                      </p>
-                      <OfficialLink
-                        url={links?.officialUrl}
-                        kind={links?.officialKind}
-                        brand={entry.mouse.brand}
-                        language={language}
-                      />
-                    </div>
-                  )}
                   <VariantsLine variants={card.variants} language={language} />
                   {isMain && filtering && view.count === 1 && (
                     <p className="results-oneLeft">{copy.filter.oneLeft}</p>
@@ -215,6 +201,27 @@ export function ResultsView({
                   <span className="results-score-label">{copy.scoreLabel}</span>
                 </p>
               </div>
+
+              {/* A full-width row under the score: the fit-band chip on the left,
+                  the maker's page on the right. It does not depend on the chip:
+                  with no band the link stands alone. Its height is fixed, so
+                  the link arriving later moves nothing. */}
+              {(band || links?.officialUrl) && (
+                <div className="results-bandRow">
+                  {band && (
+                    <p className="results-band">
+                      <span className="results-band-dot" aria-hidden="true" />
+                      {BAND_COPY[language].bands[band].label}
+                    </p>
+                  )}
+                  <OfficialLink
+                    url={links?.officialUrl}
+                    kind={links?.officialKind}
+                    brand={entry.mouse.brand}
+                    language={language}
+                  />
+                </div>
+              )}
 
               {swappedMain && overallTop && (
                 <FilteredAnalysisLine

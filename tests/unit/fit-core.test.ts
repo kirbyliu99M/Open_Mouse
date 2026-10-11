@@ -255,6 +255,12 @@ describe("loadOwnedFit — a successful fit", () => {
       void [_shape, _connectivity, _imageUrl];
       return { ...e, mouse };
     });
+    // The photo is asserted on its own: none of the sample slugs is in
+    // mouse-media.json, so each is "no photo" (null), never a made-up path.
+    // (A real slug getting its real path is tested in results-photos-server.test.ts.)
+    expect(result.fit.results.map((e) => e.mouse.imageUrl)).toEqual(
+      result.fit.results.map(() => null),
+    );
     expect({ ...result.fit, results: withoutFacts }).toEqual({
       scanId: SCAN_ID,
       ...expected,
