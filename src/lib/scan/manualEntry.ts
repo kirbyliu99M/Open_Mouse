@@ -36,20 +36,30 @@ export type CentimetreParse =
 /**
  * A typed centimetre string to whole millimetres. Accepts a point or a comma
  * as the decimal mark, full-width digits and marks (a Chinese input method
- * types "１８．５"), and surrounding spaces; at most one decimal; at most three
- * integer digits; no sign, no exponent, no unit. "18.55" is refused rather
+ * types "１８．５"; its full stop "。" counts too), and surrounding spaces; at
+ * most one decimal (zeros after it are fine: "18.50" is 18.5); a mark needs a
+ * digit after it ("18." and "18," are unfinished); at most three integer
+ * digits; no sign, no exponent, no unit. "18.55" is refused rather
  * than rounded: the person typed a precision the form does not take.
  */
 export function parseCentimetres(raw: string): CentimetreParse {
-  const text = raw.normalize("NFKC").trim();
+  // NFKC turns full-width digits and marks into ASCII; the ideographic full
+  // stop (the "." key of a Chinese input method) it leaves alone.
+  const text = raw
+    .normalize("NFKC")
+    .replace(/\u3002/g, ".")
+    .trim();
   if (text === "") return { ok: false, problem: "empty" };
-  const match = /^(\d{1,3})(?:[.,](\d*))?$/.exec(text);
+  // "18." and "18," are not finished numbers: a decimal mark needs a digit.
+  const match = /^(\d{1,3})(?:[.,](\d+))?$/.exec(text);
   if (!match) return { ok: false, problem: "notNumber" };
   const decimals = match[2] ?? "";
-  if (decimals.length > 1) return { ok: false, problem: "tooManyDecimals" };
+  // One decimal; zeros after it say nothing more ("18.50" is 18.5, "18.55" is not).
+  if (decimals.length > 1 && !/^0+$/.test(decimals.slice(1)))
+    return { ok: false, problem: "tooManyDecimals" };
   return {
     ok: true,
-    mm: Number(match[1]) * 10 + (decimals === "" ? 0 : Number(decimals)),
+    mm: Number(match[1]) * 10 + (decimals === "" ? 0 : Number(decimals[0])),
   };
 }
 
@@ -198,6 +208,37 @@ export function checkManualEntry(
   const length = checkHandLength(lengthText);
   const width = checkHandWidth(widthText, length.mm);
   return { length, width, valid: length.mm !== null && width.mm !== null };
+}
+
+/**
+ * What the person has typed so far, kept by a parent so a sheet that closes by
+ * accident (a stray tap on the dimmed page, a swipe) does not lose it.
+ */
+export interface ManualEntryDraft {
+  readonly hand: ManualHand | null;
+  readonly lengthText: string;
+  readonly widthText: string;
+}
+
+export const EMPTY_DRAFT: ManualEntryDraft = {
+  hand: null,
+  lengthText: "",
+  widthText: "",
+};
+
+/**
+ * Where focus goes when 「使用這組數字」 is pressed and the form cannot be
+ * sent: the first thing that is wrong, in the order the form shows them (hand,
+ * length, width). Null when nothing is wrong.
+ */
+export function firstProblemTarget(
+  draft: ManualEntryDraft,
+): "hand" | "length" | "width" | null {
+  if (draft.hand === null) return "hand";
+  const check = checkManualEntry(draft.lengthText, draft.widthText);
+  if (check.length.problem) return "length";
+  if (check.width.problem) return "width";
+  return null;
 }
 
 /** The sentence for a field's problem, in the language of `copy`. */

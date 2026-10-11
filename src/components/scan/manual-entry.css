@@ -11,6 +11,11 @@
 .manualEntry-handle {
   --me-surface: color-mix(in srgb, var(--text-primary) 7%, var(--bg));
   --me-field: color-mix(in srgb, var(--text-primary) 4%, var(--bg));
+  /* A field's edge and an unselected toggle's: at least 3:1 against the sheet
+     (WCAG 1.4.11). --control-border (35 % white) is only about 3.2:1 on this
+     surface; 45 % of the text colour mixed into the surface is about 4.2:1,
+     and it is derived from the tokens, so it follows them. */
+  --me-border: color-mix(in srgb, var(--text-primary) 45%, var(--me-surface));
   --me-error: #ff9d90; /* 8.9:1 on the surface */
   --me-warn: #f0c34d;
 }
@@ -102,6 +107,16 @@
   font-weight: 600;
   line-height: 1.4;
 }
+.manualEntry-required {
+  margin-inline-start: 0.5rem;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid var(--me-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .manualEntry-hand {
   display: flex;
   flex-direction: column;
@@ -135,7 +150,7 @@
   align-items: center;
   justify-content: center;
   min-height: 2.75rem;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--me-border);
   border-radius: 0.75rem;
   background: var(--me-field);
   color: var(--text-primary);
@@ -163,7 +178,7 @@
   gap: 0.5rem;
   min-height: 3rem;
   padding: 0 1rem;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--me-border);
   border-radius: 0.75rem;
   background: var(--me-field);
 }
@@ -217,6 +232,18 @@
   justify-content: space-between;
   gap: 1rem;
 }
+/* In the sheet the buttons stay at the bottom of the scrolling body, in view
+   when the sheet is short or the on-screen keyboard takes space. (Not tested
+   on a real phone: no visualViewport handling, only sticky.) */
+.manualEntry-sheetBody .manualEntry-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -1.25rem;
+  padding: 0.75rem 1.25rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--hairline);
+  background: var(--me-surface);
+}
 .manualEntry-use {
   display: inline-flex;
   flex: 1;
@@ -233,12 +260,14 @@
   font-weight: 600;
   cursor: pointer;
 }
-.manualEntry-use:active:not(:disabled) {
+.manualEntry-use:active:not([aria-disabled="true"]) {
   background: var(--button-primary-pressed);
 }
-.manualEntry-use:disabled {
+/* Not ready: it looks off but stays focusable and pressable, so pressing it can
+   say what is missing (aria-disabled, not disabled). */
+.manualEntry-use[aria-disabled="true"] {
   opacity: var(--button-primary-disabled-opacity);
-  cursor: not-allowed;
+  cursor: default;
 }
 .manualEntry-cancel {
   min-width: 2.75rem;
@@ -357,7 +386,7 @@ dialog.manualEntry-sheet[data-leaving="true"]::backdrop {
 .manualEntry-sheetBody {
   flex: 1;
   min-height: 0;
-  padding: 0.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.25rem 1.25rem 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -374,10 +403,11 @@ dialog.manualEntry-sheet[data-leaving="true"]::backdrop {
   dialog.manualEntry-sheet[open] {
     animation: manualEntry-fade 0.2s ease-out;
   }
+  /* A short fade out (CLOSE_REDUCED_MS in ManualEntrySheet.tsx is 130 ms). */
   dialog.manualEntry-sheet[data-leaving="true"] {
     transform: none;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.12s;
   }
   dialog.manualEntry-sheet::backdrop {
     animation: none;
@@ -391,6 +421,51 @@ dialog.manualEntry-sheet[data-leaving="true"]::backdrop {
   }
   .manualEntry-use {
     border-color: var(--on-button-primary);
+  }
+}
+
+/* Windows high contrast and the like: background fills are dropped, so the
+   chosen hand gets a thick border and a check mark, and "not ready" shows in
+   the system's grey. */
+@media (forced-colors: active) {
+  .manualEntry-toggleOption span {
+    border: 1px solid ButtonText;
+  }
+  .manualEntry-toggleOption input:checked + span {
+    border: 3px solid Highlight;
+    font-weight: 700;
+  }
+  .manualEntry-toggleOption input:checked + span::before {
+    content: "\2713";
+    margin-inline-end: 0.5rem;
+  }
+  .manualEntry-use {
+    border: 2px solid ButtonText;
+  }
+  .manualEntry-use[aria-disabled="true"] {
+    border-color: GrayText;
+    color: GrayText;
+    opacity: 1;
+  }
+  .manualEntry-input,
+  .manualEntry-required {
+    border-color: ButtonText;
+  }
+  .manualEntry-input[data-invalid="true"] {
+    border-width: 3px;
+  }
+}
+
+/* The desktop panel may be printed with the page: light surface, dark text,
+   and error and warning colours dark enough on white (both above 7:1). The
+   site's print tokens already make text and borders dark. */
+@media print {
+  .manualEntry-panel {
+    --me-surface: #fff;
+    --me-field: #fff;
+    --me-border: var(--control-border);
+    --me-error: #a8071a; /* about 7.7:1 on white */
+    --me-warn: #6b4e00; /* about 7.7:1 on white */
   }
 }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLICK_GUARD_MS,
   CLOSE_DRAG_SHARE,
+  createClickGuard,
   closesFromDrag,
   HANDLE_FOLLOW_MAX_PX,
   handleOffset,
@@ -47,5 +49,34 @@ describe("the manual-entry sheet gestures", () => {
     expect(handleOffset(10)).toBe(-10);
     expect(handleOffset(500)).toBe(-HANDLE_FOLLOW_MAX_PX);
     expect(Math.abs(handleOffset(-30))).toBe(0);
+  });
+});
+
+describe("the click guard after a drag of the handle", () => {
+  it("swallows the one click that follows a drag, once", () => {
+    const guard = createClickGuard();
+    guard.armAfterDrag();
+    expect(guard.swallows(1)).toBe(true);
+    expect(guard.swallows(1)).toBe(false);
+  });
+
+  it("lets a click through when no drag armed it", () => {
+    expect(createClickGuard().swallows(1)).toBe(false);
+  });
+
+  it("is cleared by the next press or by the timeout: a drag with no click must not eat a later tap", () => {
+    const guard = createClickGuard();
+    guard.armAfterDrag();
+    guard.reset();
+    expect(guard.swallows(1)).toBe(false);
+    expect(CLICK_GUARD_MS).toBeGreaterThan(0);
+    expect(CLICK_GUARD_MS).toBeLessThanOrEqual(300);
+  });
+
+  it("never swallows a keyboard click (detail 0), and the keyboard click consumes the guard", () => {
+    const guard = createClickGuard();
+    guard.armAfterDrag();
+    expect(guard.swallows(0)).toBe(false);
+    expect(guard.swallows(1)).toBe(false);
   });
 });

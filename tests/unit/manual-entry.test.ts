@@ -8,6 +8,8 @@ import {
 import { en, zhTW } from "../../src/lib/copy/manualEntry";
 import {
   buildManualEntrySubmission,
+  EMPTY_DRAFT,
+  firstProblemTarget,
   checkHandLength,
   checkHandWidth,
   checkManualEntry,
@@ -29,7 +31,9 @@ describe("parseCentimetres", () => {
     expect(parseCentimetres("18,5")).toEqual({ ok: true, mm: 185 });
     expect(parseCentimetres("  18.5  ")).toEqual({ ok: true, mm: 185 });
     expect(parseCentimetres("１８．５")).toEqual({ ok: true, mm: 185 });
-    expect(parseCentimetres("18.")).toEqual({ ok: true, mm: 180 });
+    // The ideographic full stop, the "." key of a Chinese input method.
+    expect(parseCentimetres("18。5")).toEqual({ ok: true, mm: 185 });
+    expect(parseCentimetres("１８。５")).toEqual({ ok: true, mm: 185 });
   });
 
   it("is exact where floating point is not (no 18.5 * 10 style drift)", () => {
@@ -38,15 +42,28 @@ describe("parseCentimetres", () => {
     }
   });
 
-  it("refuses two decimals instead of rounding them (18.55)", () => {
-    expect(parseCentimetres("18.55")).toEqual({
-      ok: false,
-      problem: "tooManyDecimals",
-    });
-    expect(parseCentimetres("18.50")).toEqual({
-      ok: false,
-      problem: "tooManyDecimals",
-    });
+  it("takes zeros after the one decimal (18.50 is 18.5), nothing else", () => {
+    expect(parseCentimetres("18.50")).toEqual({ ok: true, mm: 185 });
+    expect(parseCentimetres("18.00")).toEqual({ ok: true, mm: 180 });
+    expect(parseCentimetres("18,500")).toEqual({ ok: true, mm: 185 });
+  });
+
+  it("refuses two real decimals instead of rounding them (18.55)", () => {
+    for (const raw of ["18.55", "18.05", "18.51", "18.505"]) {
+      expect(parseCentimetres(raw), raw).toEqual({
+        ok: false,
+        problem: "tooManyDecimals",
+      });
+    }
+  });
+
+  it("refuses an unfinished number: a decimal mark needs a digit after it", () => {
+    for (const raw of ["18.", "18,", "18。", " 18. "]) {
+      expect(parseCentimetres(raw), raw).toEqual({
+        ok: false,
+        problem: "notNumber",
+      });
+    }
   });
 
   it("calls an empty string empty, and anything else that is not a number not a number", () => {
@@ -329,5 +346,32 @@ describe("buildManualEntrySubmission", () => {
       measurements: { ...good.measurements, palmLengthMm: 185 },
     };
     expect(scanSubmissionSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("firstProblemTarget (where focus goes when the button is pressed too early)", () => {
+  const good = { hand: "right", lengthText: "18.5", widthText: "8.2" } as const;
+
+  it("is null when nothing is wrong", () => {
+    expect(firstProblemTarget(good)).toBeNull();
+  });
+
+  it("names the first thing wrong in the order the form shows: hand, length, width", () => {
+    expect(firstProblemTarget(EMPTY_DRAFT)).toBe("hand");
+    expect(firstProblemTarget({ ...good, hand: null })).toBe("hand");
+    expect(firstProblemTarget({ ...good, hand: null, lengthText: "" })).toBe(
+      "hand",
+    );
+    expect(firstProblemTarget({ ...good, lengthText: "" })).toBe("length");
+    expect(firstProblemTarget({ ...good, lengthText: "28" })).toBe("length");
+    expect(firstProblemTarget({ ...good, lengthText: "", widthText: "" })).toBe(
+      "length",
+    );
+    expect(firstProblemTarget({ ...good, widthText: "" })).toBe("width");
+    expect(firstProblemTarget({ ...good, widthText: "12.0" })).toBe("width");
+  });
+
+  it("starts empty: no hand, no text", () => {
+    expect(EMPTY_DRAFT).toEqual({ hand: null, lengthText: "", widthText: "" });
   });
 });

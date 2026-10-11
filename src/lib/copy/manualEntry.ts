@@ -9,6 +9,11 @@
  * disclosure (2026-10-11). Numbers are formatted in TypeScript
  * (`formatCentimetres`) and handed in as text; a number and its unit are
  * joined by a no-break space so a wide font cannot wrap "18.5 公分".
+ *
+ * One verb: the handle, the title and the intro speak of ENTERING numbers (zh
+ * 輸入, en "Enter"). The confirming button keeps the board's 「使用這組數字」
+ * and "Use these numbers": it accepts what was entered rather than starting
+ * the entry, and Kirby has seen the zh words on `c700E5`.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -16,13 +21,18 @@ import { pickCopy } from "../i18n/copy";
 const NBSP = " ";
 
 export interface ManualEntryCopy {
-  /** The entry handle on the scan screen. */
+  /**
+   * The entry handle on the scan screen. This visible text is also its
+   * accessible name (no separate aria-label, so the two cannot disagree).
+   */
   handleLabel: string;
-  /** Its accessible name: what it does, and that a drag up works too. */
-  handleAriaLabel: string;
   title: string;
   intro: string;
   handLegend: string;
+  /** Visible next to the legend, and the group is `aria-required`. */
+  required: string;
+  /** Under the legend: the numbers are for this hand. */
+  handHelp: string;
   left: string;
   right: string;
   lengthLabel: string;
@@ -35,11 +45,11 @@ export interface ManualEntryCopy {
   unit: string;
   /** The line above the buttons: palm length is estimated, the grip comes next. */
   estimateNote: string;
-  /** Shown while both numbers are fine but no hand is chosen yet. */
+  /** Next to the hand toggle: shown once the numbers are fine or a send was tried. */
   handMissing: string;
   cancel: string;
   use: string;
-  /** The close button of the open sheet (a screen reader reads it). */
+  /** The close button of the open sheet (the dialog's own name gives the context). */
   closeSheet: string;
   errors: {
     lengthEmpty: string;
@@ -49,7 +59,7 @@ export interface ManualEntryCopy {
     /** "手長請輸入 13.5 到 26.5 公分。" */
     lengthRange: (minCm: string, maxCm: string) => string;
     widthRange: (minCm: string, maxCm: string) => string;
-    /** In range, but narrower than a hand of this length is. */
+    /** In range, but narrower than a hand of this length is; ends with a way out. */
     widthNarrowForLength: (
       lengthCm: string,
       minCm: string,
@@ -67,24 +77,25 @@ export interface ManualEntryCopy {
 
 export const zhTW: ManualEntryCopy = {
   handleLabel: "改用輸入數字",
-  handleAriaLabel: "改用輸入數字：輸入手長與手寬，取代掃描",
   title: "輸入手的尺寸",
-  intro: "輸入後會取代掃描結果。",
+  intro: "不用掃描，直接輸入手長與手寬。",
   handLegend: "你用哪隻手握滑鼠？",
+  required: "必填",
+  handHelp: "請量你握滑鼠的那隻手。",
   left: "左手",
   right: "右手",
-  lengthLabel: "手長",
-  lengthHelp: "手腕橫紋到中指指尖",
+  lengthLabel: "手長（公分）",
+  lengthHelp: "用尺量：手腕橫紋到中指指尖",
   lengthPlaceholder: "例：18.5",
-  widthLabel: "手寬",
-  widthHelp: "四指根部關節處，手掌最寬的地方",
+  widthLabel: "手寬（公分）",
+  widthHelp: "用尺量：四指根部關節處，手掌最寬的地方",
   widthPlaceholder: "例：8.2",
   unit: "公分",
   estimateNote: "掌長會用平均比例估算，下一步請選擇你的握法。",
   handMissing: "請先選擇你用哪隻手握滑鼠。",
   cancel: "取消",
   use: "使用這組數字",
-  closeSheet: "關閉輸入數字",
+  closeSheet: "關閉",
   errors: {
     lengthEmpty: "請輸入手長，例如 18.5。",
     widthEmpty: "請輸入手寬，例如 8.2。",
@@ -95,29 +106,29 @@ export const zhTW: ManualEntryCopy = {
     widthRange: (min, max) =>
       `手寬請輸入 ${min}${NBSP}到${NBSP}${max}${NBSP}公分。`,
     widthNarrowForLength: (length, min, max) =>
-      `手長 ${length}${NBSP}公分的手，手寬通常在 ${min}${NBSP}到${NBSP}${max}${NBSP}公分之間；這個數字偏小，請再量一次。`,
+      `手長 ${length}${NBSP}公分時，手寬需在 ${min}${NBSP}到${NBSP}${max}${NBSP}公分之間；這個數字偏小。請再量一次，或改用掃描。`,
     widthWideForLength: (length, min, max) =>
-      `手長 ${length}${NBSP}公分的手，手寬通常在 ${min}${NBSP}到${NBSP}${max}${NBSP}公分之間；這個數字偏大，請再量一次。`,
+      `手長 ${length}${NBSP}公分時，手寬需在 ${min}${NBSP}到${NBSP}${max}${NBSP}公分之間；這個數字偏大。請再量一次，或改用掃描。`,
   },
   resultsNotice: (length, width) =>
-    `依你輸入的手長 ${length}${NBSP}公分、手寬 ${width}${NBSP}公分估算；掌長為估計值`,
+    `依你輸入的手長 ${length}${NBSP}公分、手寬 ${width}${NBSP}公分估算；掌長為估計值。`,
 };
 
 export const en: ManualEntryCopy = {
-  handleLabel: "Type your measurements",
-  handleAriaLabel:
-    "Type your measurements instead: enter hand length and width, replacing the scan",
+  handleLabel: "Enter your measurements",
   title: "Enter your hand size",
-  intro: "What you enter replaces the scan result.",
+  intro: "No scan needed: enter your hand length and width.",
   handLegend: "Which hand do you use on the mouse?",
+  required: "Required",
+  handHelp: "Measure the hand you hold the mouse with.",
   left: "Left hand",
   right: "Right hand",
-  lengthLabel: "Hand length",
-  lengthHelp: "Wrist crease to the tip of your middle finger",
+  lengthLabel: "Hand length (cm)",
+  lengthHelp: "With a ruler: wrist crease to the tip of your middle finger",
   lengthPlaceholder: "e.g. 18.5",
-  widthLabel: "Hand width",
+  widthLabel: "Hand width (cm)",
   widthHelp:
-    "Across the knuckles at the base of the four fingers, the widest part of the palm",
+    "With a ruler: across the knuckles at the base of the four fingers, the widest part of the palm",
   widthPlaceholder: "e.g. 8.2",
   unit: "cm",
   estimateNote:
@@ -125,7 +136,7 @@ export const en: ManualEntryCopy = {
   handMissing: "Choose the hand you use on the mouse first.",
   cancel: "Cancel",
   use: "Use these numbers",
-  closeSheet: "Close typing your measurements",
+  closeSheet: "Close",
   errors: {
     lengthEmpty: "Enter your hand length, for example 18.5.",
     widthEmpty: "Enter your hand width, for example 8.2.",
@@ -136,9 +147,9 @@ export const en: ManualEntryCopy = {
     widthRange: (min, max) =>
       `Hand width must be between ${min}${NBSP}and${NBSP}${max}${NBSP}cm.`,
     widthNarrowForLength: (length, min, max) =>
-      `A hand ${length}${NBSP}cm long is usually ${min}${NBSP}to${NBSP}${max}${NBSP}cm wide; this number is too small. Measure again.`,
+      `Hand width must be between ${min}${NBSP}and${NBSP}${max}${NBSP}cm for a hand length of ${length}${NBSP}cm; this number is too small. Measure again, or scan your hand instead.`,
     widthWideForLength: (length, min, max) =>
-      `A hand ${length}${NBSP}cm long is usually ${min}${NBSP}to${NBSP}${max}${NBSP}cm wide; this number is too large. Measure again.`,
+      `Hand width must be between ${min}${NBSP}and${NBSP}${max}${NBSP}cm for a hand length of ${length}${NBSP}cm; this number is too large. Measure again, or scan your hand instead.`,
   },
   resultsNotice: (length, width) =>
     `Estimated from the hand length of ${length}${NBSP}cm and hand width of ${width}${NBSP}cm you entered; palm length is an estimate.`,

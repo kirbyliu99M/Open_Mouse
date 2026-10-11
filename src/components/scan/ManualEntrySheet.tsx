@@ -12,12 +12,14 @@ import {
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
 import {
+  CLICK_GUARD_MS,
   closesFromDrag,
+  createClickGuard,
   handleOffset,
   isDrag,
   opensFromDrag,
 } from "@/lib/scan/sheetGesture";
-import type { ManualHand } from "@/lib/scan/manualEntry";
+import type { ManualEntryDraft } from "@/lib/scan/manualEntry";
 import { ManualEntryForm, type ManualEntryValues } from "./ManualEntryForm";
 import "./manual-entry.css";
 
@@ -25,6 +27,8 @@ export type { ManualEntryValues } from "./ManualEntryForm";
 
 /** How long the slide-down takes; also the longest the close waits for it. */
 const CLOSE_MS = 240;
+/** The fade that replaces the slide with reduced motion (matches the CSS). */
+const CLOSE_REDUCED_MS = 130;
 
 function prefersReducedMotion(): boolean {
   return (
@@ -40,7 +44,9 @@ function prefersReducedMotion(): boolean {
  * the bottom of the scan screen, 「改用輸入數字 ⌃」, that opens the sheet on a
  * tap, on Enter or Space, or on a drag upward (Pointer Events, so a finger, a
  * pen and a mouse all work). The drag is only a shortcut: a tap or the keyboard
- * always does the same, and `touch-action: none` keeps the page from scrolling
+ * always does the same (the visible text is the button's whole accessible
+ * name, and nothing about dragging is announced: the button works without it),
+ * and `touch-action: none` keeps the page from scrolling
  * under the finger. The strip follows the finger up to a short limit and eases
  * back when it is let go without opening (transform only; with reduced motion
  * it does not follow at all).
@@ -67,9 +73,12 @@ export function ManualEntryHandle({
     startT: number;
     moved: boolean;
   } | null>(null);
-  // A drag that moved the strip ends in a click on the same element: that
+  // A drag that moved the strip may end in a click on the same element: that
   // click must not open the sheet a second time, or open it after a drag down.
-  const swallowClick = useRef(false);
+  // The guard never outlives the gesture (see `createClickGuard`).
+  const clickGuard = useRef(createClickGuard()).current;
+  const guardTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(guardTimer.current), []);
 
   const setButton = useCallback(
     (node: HTMLButtonElement | null) => {
@@ -89,6 +98,9 @@ export function ManualEntryHandle({
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    // A new press: whatever an earlier drag left behind is gone.
+    window.clearTimeout(guardTimer.current);
+    clickGuard.reset();
     press.current = {
       id: e.pointerId,
       startX: e.clientX,
@@ -96,7 +108,12 @@ export function ManualEntryHandle({
       startT: e.timeStamp,
       moved: false,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // The pointer is already gone (or synthetic): the drag still works on
+      // the events this element receives.
+    }
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -118,7 +135,12 @@ export function ManualEntryHandle({
     const p = press.current;
     if (!p || p.id !== e.pointerId) return;
     press.current = null;
-    if (p.moved) swallowClick.current = true;
+    if (p.moved) {
+      clickGuard.armAfterDrag();
+      // A touch drag may end with no click at all: do not wait for one.
+      window.clearTimeout(guardTimer.current);
+      guardTimer.current = window.setTimeout(clickGuard.reset, CLICK_GUARD_MS);
+    }
     rest();
     if (
       !cancelled &&
@@ -135,16 +157,12 @@ export function ManualEntryHandle({
       type="button"
       className={`manualEntry-handle${className ? ` ${className}` : ""}`}
       aria-haspopup="dialog"
-      aria-label={copy.handleAriaLabel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(e) => onPointerEnd(e, false)}
       onPointerCancel={(e) => onPointerEnd(e, true)}
-      onClick={() => {
-        if (swallowClick.current) {
-          swallowClick.current = false;
-          return;
-        }
+      onClick={(e) => {
+        if (clickGuard.swallows(e.detail)) return;
         onOpen();
       }}
     >
@@ -198,6 +216,19 @@ export function ManualEntryHandle({
 
 // ── The sheet and the panel ─────────────────────────────────────────────────
 
+/** What both presentations take besides their own props. */
+type ManualEntryShared = {
+  onUse: (values: ManualEntryValues) => void;
+  /**
+   * Where the form starts: a hand the person already stated on the scan
+   * screen (there is no default hand), or everything they had typed before the
+   * sheet closed. Only read when the form mounts.
+   */
+  initialDraft?: ManualEntryDraft;
+  /** Told the whole draft after every change, so the parent can keep it. */
+  onDraftChange?: (draft: ManualEntryDraft) => void;
+};
+
 type SheetProps = {
   presentation: "sheet";
   /** Cancel, Esc, the close button, a tap on the dimmed page and dragging the sheet down all end here. The parent unmounts the sheet. */
@@ -232,11 +263,7 @@ type PanelProps = {
  * `buildManualEntrySubmission` once the grip is known.
  */
 export function ManualEntrySheet(
-  props: (SheetProps | PanelProps) & {
-    onUse: (values: ManualEntryValues) => void;
-    /** A hand the person already stated on the scan screen; there is no default. */
-    initialHand?: ManualHand | null;
-  },
+  props: (SheetProps | PanelProps) & ManualEntryShared,
 ) {
   return props.presentation === "sheet" ? (
     <SheetShell {...props} />
@@ -248,11 +275,9 @@ export function ManualEntrySheet(
 function PanelShell({
   onUse,
   onCancel,
-  initialHand,
-}: PanelProps & {
-  onUse: (values: ManualEntryValues) => void;
-  initialHand?: ManualHand | null;
-}) {
+  initialDraft,
+  onDraftChange,
+}: PanelProps & ManualEntryShared) {
   const locale = useLocale();
   const titleId = useId();
   return (
@@ -263,7 +288,8 @@ function PanelShell({
     >
       <ManualEntryForm
         locale={locale}
-        initialHand={initialHand}
+        initialDraft={initialDraft}
+        onDraftChange={onDraftChange}
         onUse={onUse}
         onCancel={onCancel}
         titleId={titleId}
@@ -276,19 +302,27 @@ function SheetShell({
   onUse,
   onCancel,
   returnFocusTo,
-  initialHand,
-}: SheetProps & {
-  onUse: (values: ManualEntryValues) => void;
-  initialHand?: ManualHand | null;
-}) {
+  initialDraft,
+  onDraftChange,
+}: SheetProps & ManualEntryShared) {
   const locale = useLocale();
   const copy = manualEntryCopy(locale);
   const titleId = useId();
+  const introId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const closing = useRef(false);
+  // The close animation's timer, and whether the sheet is still mounted: a
+  // parent that unmounts the sheet inside the animation (`onUse`) must not get
+  // a late `onCancel` or have focus pulled to the handle afterwards.
+  const closeTimer = useRef<number | undefined>(undefined);
+  const mounted = useRef(false);
+  // Where a press started: only a press that began AND ended on the dimmed
+  // area closes, so selecting text in a field and letting go over it does not.
+  const pressedBackdrop = useRef(false);
 
   useEffect(() => {
+    mounted.current = true;
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (!dialog.open) dialog.showModal();
@@ -297,11 +331,14 @@ function SheetShell({
     const before = root.style.overflow;
     root.style.overflow = "hidden";
     return () => {
+      mounted.current = false;
+      window.clearTimeout(closeTimer.current);
       root.style.overflow = before;
     };
   }, []);
 
   const finish = useCallback(() => {
+    if (!mounted.current) return;
     const dialog = dialogRef.current;
     if (dialog?.open) dialog.close();
     // Put focus back before the parent unmounts the sheet.
@@ -309,16 +346,15 @@ function SheetShell({
     onCancel();
   }, [onCancel, returnFocusTo]);
 
-  /** Close with the slide-down (a plain fade, at once, with reduced motion). */
+  /** Close with the slide-down (a short fade with reduced motion). */
   const requestClose = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
-    if (prefersReducedMotion()) {
-      finish();
-      return;
-    }
     dialogRef.current?.setAttribute("data-leaving", "true");
-    window.setTimeout(finish, CLOSE_MS);
+    closeTimer.current = window.setTimeout(
+      finish,
+      prefersReducedMotion() ? CLOSE_REDUCED_MS : CLOSE_MS,
+    );
   }, [finish]);
 
   // ---- Dragging the top strip down
@@ -340,7 +376,13 @@ function SheetShell({
       dy: 0,
       id: e.pointerId,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // The pointer is already gone: the drag still follows this element.
+    }
+    // The opening animation would override the dragged transform: stop it.
+    sheet.style.animation = "none";
     sheet.style.transition = "none";
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -363,8 +405,8 @@ function SheetShell({
       !cancelled && closesFromDrag(d.dy, e.timeStamp - d.startT, height);
     sheet.style.transition = "";
     if (leave) {
-      // Carry on down from where the finger let go.
-      sheet.style.transform = "translateY(100%)";
+      // Carry on down from where the finger let go (a fade, with reduced motion).
+      sheet.style.transform = prefersReducedMotion() ? "" : "translateY(100%)";
       requestClose();
     } else {
       // Back up from where the finger let go; it can be grabbed again at once.
@@ -377,6 +419,7 @@ function SheetShell({
       ref={dialogRef}
       className="manualEntry-sheet"
       aria-labelledby={titleId}
+      aria-describedby={introId}
       data-testid="manual-entry-sheet"
       onCancel={(e) => {
         // Esc: slide down, rather than the browser's instant close.
@@ -391,9 +434,15 @@ function SheetShell({
           onCancel();
         }
       }}
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        // A tap on the dimmed area (the dialog itself, outside its box) closes.
-        if (e.target === e.currentTarget) requestClose();
+        // A tap on the dimmed area (the dialog itself, outside its box) closes,
+        // when the press began there too.
+        const began = pressedBackdrop.current;
+        pressedBackdrop.current = false;
+        if (e.target === e.currentTarget && began) requestClose();
       }}
     >
       <div className="manualEntry-sheetPanel">
@@ -431,11 +480,13 @@ function SheetShell({
         <div className="manualEntry-sheetBody">
           <ManualEntryForm
             locale={locale}
-            initialHand={initialHand}
+            initialDraft={initialDraft}
+            onDraftChange={onDraftChange}
             onUse={onUse}
             onCancel={requestClose}
             titleId={titleId}
             titleRef={titleRef}
+            introId={introId}
           />
         </div>
       </div>

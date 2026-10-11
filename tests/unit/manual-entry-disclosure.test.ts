@@ -96,7 +96,7 @@ describe("the results page disclosure line", () => {
       enteredManual: { handLengthMm: 185, handWidthMm: 82 },
     });
     expect(html).toContain(
-      `依你輸入的手長 18.5${NBSP}公分、手寬 8.2${NBSP}公分估算；掌長為估計值`,
+      `依你輸入的手長 18.5${NBSP}公分、手寬 8.2${NBSP}公分估算；掌長為估計值。`,
     );
     expect(html).toContain("results-handNotice");
   });

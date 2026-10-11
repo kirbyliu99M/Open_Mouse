@@ -53,3 +53,38 @@ export function closesFromDrag(
 export function handleOffset(up: number): number {
   return -Math.min(HANDLE_FOLLOW_MAX_PX, Math.max(0, up));
 }
+
+/**
+ * The click that follows a drag. A drag that moved the handle ends in a click
+ * on the same element on a mouse, but not always on a touch screen, so the
+ * flag that swallows that click must not outlive the gesture: it is cleared
+ * when the next press starts and after `CLICK_GUARD_MS`, and a keyboard click
+ * (`detail` 0: Enter or Space, never a pointer) is never swallowed.
+ */
+export const CLICK_GUARD_MS = 100;
+
+export interface ClickGuard {
+  /** A drag has just ended: the click that may follow it is not a tap. */
+  armAfterDrag: () => void;
+  /** A new press started, or the guard timed out. */
+  reset: () => void;
+  /** Whether this click is to be ignored; consumes the guard either way. */
+  swallows: (detail: number) => boolean;
+}
+
+export function createClickGuard(): ClickGuard {
+  let armed = false;
+  return {
+    armAfterDrag: () => {
+      armed = true;
+    },
+    reset: () => {
+      armed = false;
+    },
+    swallows: (detail) => {
+      const swallow = armed && detail !== 0;
+      armed = false;
+      return swallow;
+    },
+  };
+}

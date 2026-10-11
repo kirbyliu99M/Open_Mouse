@@ -6,7 +6,11 @@ import {
   ManualEntrySheet,
   type ManualEntryValues,
 } from "@/components/scan/ManualEntrySheet";
-import { buildManualEntrySubmission } from "@/lib/scan/manualEntry";
+import {
+  buildManualEntrySubmission,
+  EMPTY_DRAFT,
+  type ManualEntryDraft,
+} from "@/lib/scan/manualEntry";
 import "./manual-entry-demo.css";
 
 /**
@@ -14,11 +18,15 @@ import "./manual-entry-demo.css";
  * sheet over a stand-in for the camera screen, and the desktop panel, side by
  * side. Nothing is sent anywhere. 「使用這組數字」 only prints what the form
  * handed over, plus the payload `buildManualEntrySubmission` makes from it with
- * a fixed demo grip, so the e2e and Kirby can see both.
+ * a fixed demo grip, so the e2e and Kirby can see both. The phone sheet's
+ * draft is kept here (`onDraftChange` / `initialDraft`), the way the scan
+ * screen will: closing the sheet by accident and opening it again brings back
+ * what was typed, and a use clears it.
  */
 export function ManualEntryDemoClient() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const handleRef = useRef<HTMLButtonElement>(null);
+  const [draft, setDraft] = useState<ManualEntryDraft>(EMPTY_DRAFT);
   const [used, setUsed] = useState<{
     via: "sheet" | "panel";
     values: ManualEntryValues;
@@ -26,7 +34,10 @@ export function ManualEntryDemoClient() {
 
   function use(via: "sheet" | "panel", values: ManualEntryValues) {
     setUsed({ via, values });
-    if (via === "sheet") setSheetOpen(false);
+    if (via === "sheet") {
+      setSheetOpen(false);
+      setDraft(EMPTY_DRAFT);
+    }
   }
 
   const payload = used
@@ -50,6 +61,8 @@ export function ManualEntryDemoClient() {
           <ManualEntrySheet
             presentation="sheet"
             returnFocusTo={handleRef}
+            initialDraft={draft}
+            onDraftChange={setDraft}
             onCancel={() => setSheetOpen(false)}
             onUse={(values) => use("sheet", values)}
           />
@@ -71,6 +84,7 @@ export function ManualEntryDemoClient() {
             ? `${used.via}: ${used.values.hand}, length ${used.values.handLengthMm} mm, width ${used.values.handWidthMm} mm, palm ${payload.measurements.palmLengthMm} mm (estimated), method ${payload.calibration.method}`
             : "nothing yet"}
         </output>
+        <p data-testid="demo-draft">{`draft: ${JSON.stringify(draft)}`}</p>
       </section>
     </main>
   );

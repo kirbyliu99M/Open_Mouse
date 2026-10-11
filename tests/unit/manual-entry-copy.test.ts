@@ -45,26 +45,100 @@ describe("manual entry copy", () => {
       for (const text of allStrings(copy)) expect(text.trim()).not.toBe("");
   });
 
-  it("uses the Pencil board wording for the sheet in zh-TW", () => {
+  it("keeps the Pencil board wording where Kirby saw it, and the round-2 changes", () => {
     expect(zhTW.handleLabel).toBe("改用輸入數字");
     expect(zhTW.title).toBe("輸入手的尺寸");
-    expect(zhTW.intro).toBe("輸入後會取代掃描結果。");
     expect(zhTW.handLegend).toBe("你用哪隻手握滑鼠？");
-    expect(zhTW.lengthHelp).toBe("手腕橫紋到中指指尖");
-    expect(zhTW.widthHelp).toBe("四指根部關節處，手掌最寬的地方");
     expect(zhTW.use).toBe("使用這組數字");
     expect(zhTW.cancel).toBe("取消");
+    // No sentence that says it replaces the scan; the numbers are for the mouse hand.
+    expect(zhTW.intro).toBe("不用掃描，直接輸入手長與手寬。");
+    expect(zhTW.handHelp).toBe("請量你握滑鼠的那隻手。");
+    expect(en.handHelp).toBe("Measure the hand you hold the mouse with.");
+    for (const text of [zhTW.intro, en.intro])
+      expect(text).not.toMatch(/取代|replace/i);
+  });
+
+  it("names the unit in each label, so it is in the accessible name", () => {
+    expect(zhTW.lengthLabel).toBe("手長（公分）");
+    expect(zhTW.widthLabel).toBe("手寬（公分）");
+    expect(en.lengthLabel).toBe("Hand length (cm)");
+    expect(en.widthLabel).toBe("Hand width (cm)");
+  });
+
+  it("gives one ruler measuring line per field, in both languages", () => {
+    expect(zhTW.lengthHelp).toContain("手腕橫紋到中指指尖");
+    expect(zhTW.widthHelp).toContain("四指根部關節處");
+    expect(en.lengthHelp).toMatch(
+      /wrist crease to the tip of your middle finger/,
+    );
+    expect(en.widthHelp).toMatch(/knuckles/);
+    for (const text of [zhTW.lengthHelp, zhTW.widthHelp])
+      expect(text).toContain("用尺量");
+    for (const text of [en.lengthHelp, en.widthHelp])
+      expect(text).toMatch(/ruler/);
+  });
+
+  it("marks the hand as required, and the close button is just Close", () => {
+    expect(zhTW.required).toBe("必填");
+    expect(en.required).toBe("Required");
+    expect(en.closeSheet).toBe("Close");
+    expect(zhTW.closeSheet).toBe("關閉");
+  });
+
+  it("speaks of entering, not typing, in the handle and the title", () => {
+    expect(en.handleLabel).toMatch(/^Enter /);
+    expect(en.title).toMatch(/^Enter /);
+    expect(zhTW.handleLabel).toContain("輸入");
+    expect(zhTW.title).toContain("輸入");
+    for (const text of allStrings(en))
+      expect(text).not.toMatch(/\btyp(e|ing)\b/i);
+  });
+
+  it("gives a way out when the width does not fit the length, without blame", () => {
+    for (const text of [
+      zhTW.errors.widthNarrowForLength("18.5", "7.1", "10.3"),
+      zhTW.errors.widthWideForLength("18.5", "7.1", "10.3"),
+    ]) {
+      expect(text).toContain("請再量一次");
+      expect(text).toContain("改用掃描");
+    }
+    for (const text of [
+      en.errors.widthNarrowForLength("18.5", "7.1", "10.3"),
+      en.errors.widthWideForLength("18.5", "7.1", "10.3"),
+    ]) {
+      expect(text).toContain("Measure again");
+      expect(text).toContain("scan your hand instead");
+    }
   });
 
   it("states the disclosure with the typed numbers, a unit joined by a no-break space", () => {
     expect(zhTW.resultsNotice("18.5", "8.2")).toBe(
-      `依你輸入的手長 18.5${NBSP}公分、手寬 8.2${NBSP}公分估算；掌長為估計值`,
+      `依你輸入的手長 18.5${NBSP}公分、手寬 8.2${NBSP}公分估算；掌長為估計值。`,
     );
+    // Like the neighbouring typed-length note, it ends with a full stop.
+    expect(zhTW.resultsNotice("18.5", "8.2").endsWith("。")).toBe(true);
     expect(en.resultsNotice("18.5", "8.2")).toContain(`18.5${NBSP}cm`);
     expect(en.resultsNotice("18.5", "8.2")).toContain(`8.2${NBSP}cm`);
     expect(en.resultsNotice("18.5", "8.2")).toMatch(
       /palm length is an estimate/,
     );
+  });
+
+  it("states the width a length needs as a requirement, not as what is usual", () => {
+    expect(zhTW.errors.widthNarrowForLength("18.5", "7.1", "10.3")).toContain(
+      "手寬需在",
+    );
+    expect(zhTW.errors.widthWideForLength("18.5", "7.1", "10.3")).toContain(
+      "手寬需在",
+    );
+    for (const text of [
+      en.errors.widthNarrowForLength("18.5", "7.1", "10.3"),
+      en.errors.widthWideForLength("18.5", "7.1", "10.3"),
+    ])
+      expect(text).toContain("Hand width must be between");
+    for (const text of allStrings(zhTW)) expect(text).not.toContain("通常");
+    for (const text of allStrings(en)) expect(text).not.toMatch(/usually/);
   });
 
   it("never wraps a number away from its unit in an error", () => {

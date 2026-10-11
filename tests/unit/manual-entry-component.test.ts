@@ -31,6 +31,9 @@ describe("the manual-entry panel (desktop presentation, first render)", () => {
     ]).toHaveLength(2);
     expect(html).toContain("手腕橫紋到中指指尖");
     expect(html).toContain("四指根部關節處，手掌最寬的地方");
+    // The unit is part of each label, so it is in the accessible name.
+    expect(html).toContain("手長（公分）</label>");
+    expect(html).toContain("手寬（公分）</label>");
     expect([...html.matchAll(/公分/g)].length).toBeGreaterThanOrEqual(2);
   });
 
@@ -41,8 +44,16 @@ describe("the manual-entry panel (desktop presentation, first render)", () => {
     expect(html).not.toContain("checked");
   });
 
-  it("starts with the use button disabled and no error showing", () => {
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+  it("marks the hand group required, with a visible 必填", () => {
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toContain('aria-required="true"');
+    expect(html).toContain("必填");
+    expect(html).toContain("請量你握滑鼠的那隻手。");
+  });
+
+  it("starts with the use button aria-disabled (focusable, not disabled) and no error showing", () => {
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*aria-disabled="true"/);
+    expect(html).not.toMatch(/<button[^>]*type="submit"[^>]*\sdisabled/);
     expect(html).toContain("使用這組數字");
     expect(html).not.toContain("manualEntry-error");
   });
@@ -64,10 +75,40 @@ describe("the manual-entry panel (desktop presentation, first render)", () => {
       createElement(ManualEntrySheet, {
         presentation: "panel",
         onUse: noop,
-        initialHand: "left",
+        initialDraft: { hand: "left", lengthText: "", widthText: "" },
       }),
     );
     expect([...html2.matchAll(/checked/g)]).toHaveLength(1);
+  });
+
+  it("starts from a kept draft: hand, both numbers, ready to send", () => {
+    const kept = renderToStaticMarkup(
+      createElement(ManualEntrySheet, {
+        presentation: "panel",
+        onUse: noop,
+        initialDraft: { hand: "right", lengthText: "18.5", widthText: "8.2" },
+      }),
+    );
+    expect(kept).toContain('value="18.5"');
+    expect(kept).toContain('value="8.2"');
+    expect([...kept.matchAll(/checked/g)]).toHaveLength(1);
+    expect(kept).not.toMatch(/<button[^>]*type="submit"[^>]*aria-disabled/);
+    expect(kept).not.toContain("manualEntry-error");
+  });
+
+  it("shows the problem of a kept draft that is wrong, at once", () => {
+    const wrong = renderToStaticMarkup(
+      createElement(ManualEntrySheet, {
+        presentation: "panel",
+        onUse: noop,
+        initialDraft: { hand: "right", lengthText: "28.0", widthText: "" },
+      }),
+    );
+    expect(wrong).toContain("手長請輸入");
+    expect(wrong).toContain('aria-invalid="true"');
+    // The width was not started: nothing is said about it yet.
+    expect(wrong).not.toContain("請輸入手寬");
+    expect(wrong).toMatch(/<button[^>]*type="submit"[^>]*aria-disabled="true"/);
   });
 });
 
