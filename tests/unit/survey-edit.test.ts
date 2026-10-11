@@ -1204,3 +1204,139 @@ describe("a PUT body at the largest size the contract allows", () => {
     expect(Buffer.byteLength(body(100))).toBeGreaterThan(MAX_SURVEY_BODY_BYTES);
   });
 });
+
+describe("GET and PUT /api/survey, what only a real Postgres shows", () => {
+  let world: Awaited<ReturnType<typeof createPgliteSurveyWorld>>;
+  beforeAll(async () => {
+    world = await createPgliteSurveyWorld();
+  });
+  afterAll(() => world.close());
+  beforeEach(async () => {
+    await world.reset();
+    await world.addUser("user-1");
+  });
+
+  const deps = (): SurveyDeps => ({
+    scanRepo: world.scanRepo,
+    surveyRepo: world.surveyRepo,
+    limiter: { allow: async () => true },
+    getUserId: async () => "user-1",
+    now: () => NOW,
+  });
+  const call = (method: "GET" | "PUT", body?: unknown) =>
+    (method === "GET" ? handleSurveyRead : handleSurveyEdit)(
+      new Request("http://localhost/api/survey", {
+        method,
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? null : JSON.stringify(body),
+      }),
+      deps(),
+    );
+
+  async function contribute(
+    handLengthMm: number,
+    day: string,
+    over: { feedback?: string; mouseId: string },
+  ) {
+    const scan = await world.addScan({ userId: "user-1", handLengthMm });
+    await world.surveyRepo.recordContribution({
+      scanId: scan.scanId,
+      userId: "user-1",
+      consentVersion: SURVEY_CONSENT_VERSION,
+      consentedAt: startOfUtcDay(new Date(`${day}T09:00:00Z`)),
+      markedAt: NOW,
+      handLengthBinMm: Math.floor(handLengthMm / 5) * 5,
+      palmWidthBinMm: 80,
+      gripStyle: "claw",
+      mainUse: null,
+      feedback: over.feedback ?? null,
+      ratings: [
+        {
+          mouseId: over.mouseId,
+          satisfaction: 4,
+          duration: null,
+          painPoints: [],
+          isCurrent: false,
+        },
+      ],
+      otherMouse: null,
+    });
+  }
+
+  it("reads a rating's slug from the CURRENT mice row, and a PUT by the new slug finds the same row", async () => {
+    const id = await world.addMouse("mouse-old");
+    await contribute(181, "2026-10-01", { mouseId: id });
+    await world.pg.query(`update mice set slug = 'mouse-new' where id = $1`, [
+      id,
+    ]);
+    const read = await (await call("GET")).json();
+    expect(read.ratings.map((r: { slug: string }) => r.slug)).toEqual([
+      "mouse-new",
+    ]);
+    expect(
+      (await call("PUT", { ratings: [{ slug: "mouse-new", satisfaction: 2 }] }))
+        .status,
+    ).toBe(200);
+    const stored = await world.contributions();
+    expect(stored[0]!.ratings).toEqual([
+      expect.objectContaining({ slug: "mouse-new", satisfaction: 2 }),
+    ]);
+    // The old slug is not a mouse any more, so naming it is a 400.
+    expect(
+      (await call("PUT", { ratings: [{ slug: "mouse-old", satisfaction: 2 }] }))
+        .status,
+    ).toBe(400);
+  });
+
+  it("a PUT and the GET after it agree on which contribution is the latest, also when two share a consent day", async () => {
+    const id = await world.addMouse("mouse-a");
+    await contribute(181, "2026-10-01", { mouseId: id, feedback: "first" });
+    await contribute(192, "2026-10-01", { mouseId: id, feedback: "second" });
+    expect(
+      (
+        await call("PUT", {
+          feedback: "edited",
+          mainUse: USE_A,
+          ratings: [{ slug: "mouse-a", satisfaction: 3 }],
+        })
+      ).status,
+    ).toBe(200);
+    const read = await (await call("GET")).json();
+    expect(read.feedback).toBe("edited");
+    expect(read.mainUse).toBe(USE_A);
+    // Exactly one contribution took the comment, the other kept its own.
+    const comments = (await world.contributions())
+      .map((c) => c.feedback)
+      .sort();
+    expect(comments).toEqual(["edited", expect.stringMatching(/first|second/)]);
+  });
+
+  it("an edit that fails on a statement leaves the answers exactly as they were", async () => {
+    const id = await world.addMouse("mouse-a");
+    await contribute(181, "2026-10-01", { mouseId: id, feedback: "kept" });
+    const before = await world.contributions();
+    // A trigger that refuses the last statement of the batch (the update of the
+    // contribution), after the deletes and upserts before it have already run.
+    await world.pg.exec(`
+      create function refuse_contribution_update() returns trigger language plpgsql
+        as $$ begin raise exception 'refused on purpose'; end $$;
+      create trigger refuse_contribution_update before update on survey_contributions
+        for each row execute function refuse_contribution_update();
+    `);
+    try {
+      const res = await call("PUT", {
+        feedback: "never stored",
+        ratings: [{ slug: "mouse-a", satisfaction: 1 }],
+        otherMice: [{ brand: BRAND_B, sizeFeel: FEEL_LARGE }],
+      });
+      expect(res.status).toBe(500);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    } finally {
+      await world.pg.exec(`
+        drop trigger refuse_contribution_update on survey_contributions;
+        drop function refuse_contribution_update();
+      `);
+    }
+    expect(await world.contributions()).toEqual(before);
+  });
+});

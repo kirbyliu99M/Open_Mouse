@@ -11,9 +11,10 @@
  * (`vi.mock("server-only", () => ({}))`); the real repos load lazily so the
  * mock is in place by then.
  *
- * Not covered by either world: two submissions for the same scan at the same
- * instant. PGlite is one connection, so the row lock that serialises them
- * (drizzle-repo.ts) is argued from Postgres' documented behaviour, not run.
+ * Not covered by either world: two submissions for the same scan, or two edits
+ * of the same account, at the same instant. PGlite is one connection, so the
+ * row locks that serialise them (drizzle-repo.ts) are argued from Postgres'
+ * documented behaviour, not run.
  */
 import type { PGlite } from "@electric-sql/pglite";
 import type {
