@@ -157,18 +157,40 @@ export const mice = pgTable(
 );
 
 /** Shaped for the Auth.js Drizzle adapter so M6 can adopt it unchanged. */
-export const users = pgTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name"),
-  email: text("email").unique(),
-  emailVerified: timestamp("emailVerified", {
-    mode: "date",
-    withTimezone: true,
-  }),
-  image: text("image"),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name"),
+    email: text("email").unique(),
+    emailVerified: timestamp("emailVerified", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    image: text("image"),
+    /**
+     * When this account was last used (candidate, inactive-retention spec
+     * 2026-10-11): written by the database clock (`DEFAULT now()` and
+     * `SET last_active_at = now()`) on sign-in and, at most once per 24 h, on
+     * a signed-in request. The 90-day purge (`server/account/purge.ts`) reads
+     * it. NOT NULL with a default, so an insert that does not name it (the
+     * Auth.js adapter's `createUser`) still works.
+     *
+     * Migrate BEFORE deploying code that has this column: the adapter's
+     * `getSessionAndUser` selects every column of `users`, so new code on an
+     * unmigrated database fails every session read and signs everyone out.
+     */
+    lastActiveAt: timestamp("last_active_at", {
+      mode: "date",
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("users_last_active_at_idx").on(t.lastActiveAt)],
+);
 
 /**
  * Auth.js (v5) Drizzle adapter tables (M6, issue #17). Table names are
@@ -208,13 +230,17 @@ export const accounts = pgTable(
   ],
 );
 
-export const authSessions = pgTable("auth_sessions", {
-  sessionToken: text("session_token").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expires: timestamp("expires", { withTimezone: true }).notNull(),
-});
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    sessionToken: text("session_token").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("auth_sessions_user_id_idx").on(t.userId)],
+);
 
 export const verificationTokens = pgTable(
   "verification_tokens",
@@ -244,58 +270,63 @@ export const scanSessions = pgTable(
       sql`${t.userId} IS NOT NULL OR ${t.expiresAt} IS NOT NULL`,
     ),
     index("scan_sessions_expires_at_idx").on(t.expiresAt),
+    index("scan_sessions_user_id_idx").on(t.userId),
   ],
 );
 
-export const scans = pgTable("scans", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sessionId: uuid("session_id")
-    .notNull()
-    .references(() => scanSessions.id, { onDelete: "cascade" }),
-  hand: handSideEnum("hand").notNull(),
-  gripStyleStated: gripStyleEnum("grip_style_stated"),
-  gripStylePredicted: gripStyleEnum("grip_style_predicted"),
-  /**
-   * What the user said when asked "how thick is your palm" after the scan
-   * (candidate, 2026-10-08; contract: `palmThicknessStated`). NULL means they
-   * skipped the question: there is no default, and NULL is never read as
-   * "medium". A rough self-report with no millimetre value, unrelated to the
-   * measured `scan_measurements.palm_thickness_mm`.
-   *
-   * Plain text rather than a pg enum so the migration is the single
-   * `ADD COLUMN` statement (a `CREATE TYPE` would be a second statement, and
-   * the neon-http migrator runs each statement as its own request). The API
-   * boundary (`scanSubmissionSchema`) is what limits the values, and the type
-   * here limits what the repo can write.
-   *
-   * Like `survey_contributed_at` below, migrate BEFORE deploying code that has
-   * this column: `insertScanWithMeasurements` names every column of `scans`.
-   */
-  palmThicknessStated: text("palm_thickness_stated", {
-    enum: PALM_THICKNESS_LEVELS,
-  }),
-  /**
-   * Migration 0007: set once, when this scan's hand profile was contributed to
-   * the survey (`POST /api/survey`), which is what makes a second submission
-   * for the same scan a 409. It lives on the scan and goes with it. The
-   * contribution itself never points back here (see `surveyContributions`).
-   *
-   * Migrate BEFORE deploying code that has this column. Drizzle's
-   * `db.insert(scans).values(...)` names EVERY column of this table in the
-   * INSERT (the ones not given are written as `default`), so with this code
-   * live and 0007 not yet applied, `POST /api/scans` (`insertScanWithMeasurements`)
-   * fails with `column "survey_contributed_at" of relation "scans" does not
-   * exist`, not only the survey routes and the account's "Delete everything".
-   * The other way round is safe: code that predates 0007 never names the
-   * column, and the migration only adds it (nullable, no default). Only a
-   * select with an explicit column list, which is what every existing scans
-   * read uses, leaves it out.
-   */
-  surveyContributedAt: timestamp("survey_contributed_at", {
-    withTimezone: true,
-  }),
-  createdAt: createdAt(),
-});
+export const scans = pgTable(
+  "scans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => scanSessions.id, { onDelete: "cascade" }),
+    hand: handSideEnum("hand").notNull(),
+    gripStyleStated: gripStyleEnum("grip_style_stated"),
+    gripStylePredicted: gripStyleEnum("grip_style_predicted"),
+    /**
+     * What the user said when asked "how thick is your palm" after the scan
+     * (candidate, 2026-10-08; contract: `palmThicknessStated`). NULL means they
+     * skipped the question: there is no default, and NULL is never read as
+     * "medium". A rough self-report with no millimetre value, unrelated to the
+     * measured `scan_measurements.palm_thickness_mm`.
+     *
+     * Plain text rather than a pg enum so the migration is the single
+     * `ADD COLUMN` statement (a `CREATE TYPE` would be a second statement, and
+     * the neon-http migrator runs each statement as its own request). The API
+     * boundary (`scanSubmissionSchema`) is what limits the values, and the type
+     * here limits what the repo can write.
+     *
+     * Like `survey_contributed_at` below, migrate BEFORE deploying code that has
+     * this column: `insertScanWithMeasurements` names every column of `scans`.
+     */
+    palmThicknessStated: text("palm_thickness_stated", {
+      enum: PALM_THICKNESS_LEVELS,
+    }),
+    /**
+     * Migration 0007: set once, when this scan's hand profile was contributed to
+     * the survey (`POST /api/survey`), which is what makes a second submission
+     * for the same scan a 409. It lives on the scan and goes with it. The
+     * contribution itself never points back here (see `surveyContributions`).
+     *
+     * Migrate BEFORE deploying code that has this column. Drizzle's
+     * `db.insert(scans).values(...)` names EVERY column of this table in the
+     * INSERT (the ones not given are written as `default`), so with this code
+     * live and 0007 not yet applied, `POST /api/scans` (`insertScanWithMeasurements`)
+     * fails with `column "survey_contributed_at" of relation "scans" does not
+     * exist`, not only the survey routes and the account's "Delete everything".
+     * The other way round is safe: code that predates 0007 never names the
+     * column, and the migration only adds it (nullable, no default). Only a
+     * select with an explicit column list, which is what every existing scans
+     * read uses, leaves it out.
+     */
+    surveyContributedAt: timestamp("survey_contributed_at", {
+      withTimezone: true,
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("scans_session_id_idx").on(t.sessionId)],
+);
 
 /** Derived millimetres only — images never reach the server. */
 export const scanMeasurements = pgTable(
