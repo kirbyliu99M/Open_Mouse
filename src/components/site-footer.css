@@ -296,7 +296,7 @@
   .siteFooter-horizon,
   .siteFooter-backdrop,
   .siteFooter-mark,
-  .siteFooter-language {
+  .siteFooter .siteFooter-language {
     display: none;
   }
 }
