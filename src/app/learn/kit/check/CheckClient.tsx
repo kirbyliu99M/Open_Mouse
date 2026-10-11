@@ -5,6 +5,8 @@ import {
   analyseLearningPhoto,
   type LearningPhotoReport,
 } from "@/client/learning/analyse";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { learnCopy, type LearnCopy } from "@/lib/copy/learn";
 import { PAPER_SIZES_MM, type PaperSize } from "@/lib/contracts/measurement";
 import { analyseBatch } from "@/lib/learning/batch";
 import { compareFileNames, type CheckTone } from "@/lib/learning/checks";
@@ -51,22 +53,23 @@ function ToneIcon({ tone }: { tone: CheckTone }) {
   );
 }
 
-const VERDICT: Record<
-  LearningPhotoReport["verdict"],
-  { label: string; tone: CheckTone }
-> = {
-  ready: { label: "Ready to file", tone: "ok" },
-  slate: { label: "Participant card", tone: "ok" },
-  retake: { label: "Retake", tone: "bad" },
-  unidentified: { label: "Not identified", tone: "bad" },
-};
+function verdictOf(
+  copy: LearnCopy,
+  verdict: LearningPhotoReport["verdict"],
+): { label: string; tone: CheckTone } {
+  switch (verdict) {
+    case "ready":
+      return { label: copy.verdictReady, tone: "ok" };
+    case "slate":
+      return { label: copy.verdictSlate, tone: "ok" };
+    case "retake":
+      return { label: copy.verdictRetake, tone: "bad" };
+    case "unidentified":
+      return { label: copy.verdictUnidentified, tone: "bad" };
+  }
+}
 
 const mm = (v: number | undefined) => (v === undefined ? "–" : v.toFixed(1));
-
-const PAPER_LABEL: Record<PaperSize, string> = {
-  a4: "A4",
-  letter: "US Letter",
-};
 
 export function CheckClient({
   initialPaperSize = "a4",
@@ -76,6 +79,11 @@ export function CheckClient({
   /** A kit v2 sheet to analyse the photos as; `null` is kit v1 (a pose page with its own QR code). */
   initialSheet?: KitV2Sheet | null;
 }) {
+  const copy = learnCopy(useLocale());
+  const paperLabel: Record<PaperSize, string> = {
+    a4: "A4",
+    letter: copy.usLetter,
+  };
   const [reports, setReports] = useState<LearningPhotoReport[]>([]);
   // The size chosen for the next run, and the size the shown results used.
   const [paperSize, setPaperSize] = useState<PaperSize>(initialPaperSize);
@@ -202,16 +210,16 @@ export function CheckClient({
           onClick={() => inputRef.current?.click()}
           disabled={progress !== null}
         >
-          Choose photos
+          {copy.choosePhotos}
         </button>
-        <span className="learn-note">or drop them here</span>
+        <span className="learn-note">{copy.orDrop}</span>
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
           multiple
           hidden
-          aria-label="Photos to check"
+          aria-label={copy.photosToCheck}
           data-testid="learning-check-input"
           onChange={(e) => {
             void run([...(e.target.files ?? [])], shownPaper, sheet);
@@ -221,7 +229,7 @@ export function CheckClient({
       </div>
 
       <div className="learn-field">
-        <label htmlFor="learn-paper-size">Sheet size of the pages</label>
+        <label htmlFor="learn-paper-size">{copy.sheetSize}</label>
         <select
           id="learn-paper-size"
           className="learn-select"
@@ -235,19 +243,17 @@ export function CheckClient({
             : (Object.keys(PAPER_SIZES_MM) as PaperSize[])
           ).map((size) => (
             <option key={size} value={size}>
-              {PAPER_LABEL[size]}
+              {paperLabel[size]}
             </option>
           ))}
         </select>
       </div>
       <p className="learn-note">
-        {sheet
-          ? "Kit v2 is A4 only."
-          : "Applies to the photos you choose next. The kit is designed for A4."}
+        {sheet ? copy.kitV2A4Only : copy.paperAppliesNext}
       </p>
 
       <div className="learn-field">
-        <label htmlFor="learn-kit">Kit</label>
+        <label htmlFor="learn-kit">{copy.kitLabel}</label>
         <select
           id="learn-kit"
           className="learn-select"
@@ -258,53 +264,42 @@ export function CheckClient({
           disabled={progress !== null}
           data-testid="learning-check-sheet"
         >
-          <option value="v1">
-            Kit v1: pose pages with their own QR code (earlier kit)
-          </option>
+          <option value="v1">{copy.kitV1Option}</option>
           {KIT_V2_SHEETS.map((s) => (
             <option key={s} value={s}>
-              Kit v2: sheet {s}, participant card in the slot
-              {s === "A" ? "" : " (not used, Kirby 2026-10-02)"}
+              {copy.kitV2Option(s, s !== "A")}
             </option>
           ))}
         </select>
       </div>
-      {sheet && (
-        <p className="learn-note">
-          Kit v2 files by the participant card and the shooting order, and keeps
-          every photo that names a participant. The verdicts below are the
-          product&apos;s own: do not look at them before you have labelled the
-          session&apos;s photos good or bad (docs/learning/README.md, &ldquo;Kit
-          v2&rdquo;).
-        </p>
-      )}
+      {sheet && <p className="learn-note">{copy.kitV2Note}</p>}
 
       <p className="learn-note" role="status" aria-live="polite">
         {progress
-          ? `Checking ${progress.done + 1} of ${progress.total}…`
+          ? copy.checking(progress.done + 1, progress.total)
           : reports.length > 0
-            ? `Checked ${reports.length} photo${reports.length === 1 ? "" : "s"}.`
+            ? copy.checked(reports.length)
             : ""}
       </p>
 
       {reports.length > 0 && (
         <>
           <div className="learn-summary">
-            <span>{counts.ready} ready</span>
-            <span>{counts.slate} cards</span>
-            <span>{counts.retake} to retake</span>
-            <span>{counts.unidentified} not identified</span>
+            <span>{copy.countReady(counts.ready)}</span>
+            <span>{copy.countCards(counts.slate)}</span>
+            <span>{copy.countRetake(counts.retake)}</span>
+            <span>{copy.countUnidentified(counts.unidentified)}</span>
           </div>
 
           {sort.coverage.length > 0 && (
             <>
-              <h2>Coverage</h2>
+              <h2>{copy.coverage}</h2>
               <table className="learn-table">
                 <thead>
                   <tr>
-                    <th scope="col">Participant</th>
-                    <th scope="col">Pose</th>
-                    <th scope="col">Photos</th>
+                    <th scope="col">{copy.colParticipant}</th>
+                    <th scope="col">{copy.colPose}</th>
+                    <th scope="col">{copy.colPhotos}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -316,8 +311,8 @@ export function CheckClient({
                         {v2 ? "" : row.hand === "right" ? "R" : "L"}
                       </td>
                       <td data-short={row.got < row.expected}>
-                        {row.got} of {row.expected}
-                        {v2 && row.got > row.expected ? " (extra shot)" : ""}
+                        {copy.gotOf(row.got, row.expected)}
+                        {v2 && row.got > row.expected ? copy.extraShot : ""}
                       </td>
                     </tr>
                   ))}
@@ -328,7 +323,7 @@ export function CheckClient({
 
           {v2 && v2.participants.some((p) => p.status === "needs-review") && (
             <>
-              <h2>Needs review</h2>
+              <h2>{copy.needsReview}</h2>
               <ul className="learn-checks">
                 {v2.participants
                   .filter((p) => p.status === "needs-review")
@@ -336,9 +331,11 @@ export function CheckClient({
                     <li key={p.participant}>
                       <ToneIcon tone="warn" />
                       <span>
-                        {p.participant}, {p.photos} photos:{" "}
-                        {p.reason ? REVIEW_REASON_TEXT[p.reason] : ""}. None of
-                        them is filed.
+                        {copy.needsReviewRow(
+                          p.participant,
+                          p.photos,
+                          p.reason ? REVIEW_REASON_TEXT[p.reason] : "",
+                        )}
                       </span>
                     </li>
                   ))}
@@ -346,16 +343,16 @@ export function CheckClient({
             </>
           )}
 
-          <h2>Photos</h2>
+          <h2>{copy.colPhotos}</h2>
           <ul className="learn-results">
             {reports.map((r) => {
-              const v = VERDICT[r.verdict];
+              const v = verdictOf(copy, r.verdict);
               const filed = sort.photos.find((p) => p.file === r.file);
               const filedV2 = v2?.photos.find((p) => p.file === r.file);
               return (
                 <li key={r.file} className="learn-result">
                   <div className="learn-result-head">
-                    <h3>{r.code ? kitCodeToken(r.code) : "No QR code"}</h3>
+                    <h3>{r.code ? kitCodeToken(r.code) : copy.noQr}</h3>
                     <span className="learn-status" data-tone={v.tone}>
                       {v.label}
                     </span>
@@ -364,9 +361,11 @@ export function CheckClient({
                     {r.file}
                     {filed?.destination ? ` → ${filed.destination}` : ""}
                     {filedV2?.gesture
-                      ? ` (${filedV2.gesture}, shot ${filedV2.shot}${
-                          filedV2.extraShot ? ", extra" : ""
-                        })`
+                      ? copy.fileShot(
+                          filedV2.gesture,
+                          filedV2.shot,
+                          filedV2.extraShot,
+                        )
                       : ""}
                   </p>
                   <ul className="learn-checks">
@@ -379,10 +378,12 @@ export function CheckClient({
                   </ul>
                   {(r.markerMm || r.paperMm) && (
                     <p className="learn-measure">
-                      Hand length: markers {mm(r.markerMm?.handLengthMm)} mm ·
-                      paper edges {mm(r.paperMm?.handLengthMm)} mm. Palm width:
-                      markers {mm(r.markerMm?.palmWidthMm)} mm · paper edges{" "}
-                      {mm(r.paperMm?.palmWidthMm)} mm.
+                      {copy.measureLine(
+                        mm(r.markerMm?.handLengthMm),
+                        mm(r.paperMm?.handLengthMm),
+                        mm(r.markerMm?.palmWidthMm),
+                        mm(r.paperMm?.palmWidthMm),
+                      )}
                     </p>
                   )}
                 </li>
@@ -397,13 +398,10 @@ export function CheckClient({
               onClick={download}
               disabled={progress !== null}
             >
-              Download results (JSON)
+              {copy.downloadJson}
             </button>
           </div>
-          <p className="learn-note">
-            The file holds the measurements and detected points for each photo,
-            not the photos.
-          </p>
+          <p className="learn-note">{copy.downloadNote}</p>
         </>
       )}
 

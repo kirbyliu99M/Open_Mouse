@@ -1,7 +1,6 @@
+import type { Locale } from "../../lib/contracts/locale";
+import { easyScanCopy } from "../../lib/copy/easy-scan";
 import { TYPED_HAND_LENGTH_ENTRY_ENABLED } from "../../lib/flags";
-
-export const NO_PAPER_ENTRY_LABEL = "No paper? Use a ruler instead";
-export const EDIT_HAND_LENGTH_LABEL = "Edit hand length";
 
 /**
  * The label of the "type in your hand length" entry, or `null` when the entry
@@ -12,10 +11,12 @@ export const EDIT_HAND_LENGTH_LABEL = "Edit hand length";
  */
 export function noPaperEntryLabel(
   hasEnteredLength: boolean,
+  locale: Locale,
   enabled: boolean = TYPED_HAND_LENGTH_ENTRY_ENABLED,
 ): string | null {
   if (!enabled) return null;
-  return hasEnteredLength ? EDIT_HAND_LENGTH_LABEL : NO_PAPER_ENTRY_LABEL;
+  const words = easyScanCopy(locale);
+  return hasEnteredLength ? words.editHandLength : words.noPaperEntry;
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   HandLandmarker,
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 import type { Point2 } from "../geometry/homography";
 import { createModelReader } from "./model-download";
 
@@ -63,7 +64,7 @@ export function subscribeDetectorLoadState(listener: () => void): () => void {
  * screen that says so, so the wording cannot drift.
  */
 export const DETECTOR_LOAD_FAILED_MESSAGE =
-  "We couldn't load the hand detector. Check your connection and try again.";
+  scanCommonCopy("en").detectorLoadFailed;
 
 /**
  * Thrown by `getHandLandmarker()` when the model/WASM fetch or

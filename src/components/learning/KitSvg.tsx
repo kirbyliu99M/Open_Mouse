@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/contracts/locale";
+import { learnCopy } from "@/lib/copy/learn";
 import { MarkerGlyph } from "@/components/sheet/MarkerGlyph";
 import {
   KIT_V1_VERSION,
@@ -14,8 +16,6 @@ import { QR_QUIET_MODULES, qrDarkRuns, qrMatrix } from "@/lib/learning/qr";
 const INK = "black";
 const GUIDE = "#8a8a92";
 const RULER_TICK_MM = 10;
-
-const handWord = (hand: HandSide) => (hand === "right" ? "Right" : "Left");
 
 /** A QR code filling `box` including its quiet zone, on white. */
 export function QrGlyph({ text, box }: { text: string; box: Rect }) {
@@ -80,11 +80,15 @@ export function KitPageSvg({
   gesture,
   hand,
   baseUrl,
+  locale,
 }: {
   gesture: Gesture;
   hand: HandSide;
   baseUrl?: string;
+  locale: Locale;
 }) {
+  const copy = learnCopy(locale);
+  const poseName = copy.gestures[gesture.code].name;
   const code: KitCode = {
     kind: "gesture",
     version: KIT_V1_VERSION,
@@ -97,7 +101,6 @@ export function KitPageSvg({
   const side = layout.camera === "side";
   const title = layout.titleBox;
   const midX = layout.widthMm / 2;
-  const shots = `${gesture.shots} photos`;
 
   return (
     <svg
@@ -106,7 +109,7 @@ export function KitPageSvg({
       viewBox={`0 0 ${layout.widthMm} ${layout.heightMm}`}
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label={`Learning kit page ${token}: ${gesture.name}, ${handWord(hand).toLowerCase()} hand`}
+      aria-label={copy.svgPageLabel(token, poseName, hand)}
       fontFamily="system-ui, sans-serif"
     >
       <rect width={layout.widthMm} height={layout.heightMm} fill="white" />
@@ -120,18 +123,16 @@ export function KitPageSvg({
             fontWeight={700}
             textAnchor="middle"
           >
-            {token} · {gesture.name} · {handWord(hand)} hand · {shots}
+            {copy.svgSideTitle(token, poseName, hand, gesture.shots)}
           </text>
           <text x={midX} y={title.y + 11.5} fontSize={3} textAnchor="middle">
-            Open Mouse learning kit v{KIT_V1_VERSION}. Print at 100%. Fold along
-            the dashed line and stand the flap up.
+            {copy.svgSideLine(KIT_V1_VERSION)}
           </text>
         </g>
       ) : (
         <g>
           <text x={midX} y={8} fontSize={3} textAnchor="middle">
-            Open Mouse learning kit v{KIT_V1_VERSION}. Print at 100% / Actual
-            size.
+            {copy.svgTopLine(KIT_V1_VERSION)}
           </text>
           <text
             x={midX}
@@ -149,10 +150,10 @@ export function KitPageSvg({
             fontWeight={600}
             textAnchor="middle"
           >
-            {gesture.name}
+            {poseName}
           </text>
           <text x={midX} y={title.y + 24.5} fontSize={3.2} textAnchor="middle">
-            {handWord(hand)} hand · {shots}
+            {copy.svgHandPhotos(hand, gesture.shots)}
           </text>
         </g>
       )}
@@ -187,16 +188,13 @@ export function KitPageSvg({
         strokeDasharray="4 2"
       />
       <text x={15} y={layout.foldY - 3} fontSize={3.4} fontWeight={700}>
-        {side
-          ? "▲ fold this flap up and stand it against a book"
-          : "Keep this flap flat for this pose"}
+        {side ? copy.svgFoldUp : copy.svgKeepFlat}
       </text>
 
       {side ? (
         <g>
           <text x={15} y={layout.guideLine.start.y} fontSize={3.4}>
-            Lay the hand along the fold, its little-finger edge touching the
-            folded-up strip.
+            {copy.svgLayAlongFold}
           </text>
           {/* Finger direction: right hand points left, left hand points right. */}
           <g stroke={GUIDE} strokeWidth={0.8} fill="none">
@@ -219,11 +217,10 @@ export function KitPageSvg({
             textAnchor="middle"
             fill={GUIDE}
           >
-            Fingers point this way ({handWord(hand).toLowerCase()} hand)
+            {copy.svgFingersPoint(hand)}
           </text>
           <text x={midX} y={170} fontSize={3.4} textAnchor="middle">
-            Camera: lens at table height, facing the upright strip, about 40 cm
-            away.
+            {copy.svgCameraSide}
           </text>
         </g>
       ) : (
@@ -243,7 +240,7 @@ export function KitPageSvg({
             fontSize={3}
             fill={GUIDE}
           >
-            middle finger along this line
+            {copy.svgMiddleFinger}
           </text>
           {layout.wristLine && (
             <g>
@@ -261,7 +258,7 @@ export function KitPageSvg({
                 fontSize={3}
                 textAnchor="middle"
               >
-                wrist crease on this line
+                {copy.svgWristCrease}
               </text>
             </g>
           )}
@@ -275,7 +272,7 @@ export function KitPageSvg({
         fontSize={3.2}
         textAnchor="middle"
       >
-        Check with a real ruler: this line is exactly 100 mm.
+        {copy.svgRulerCheck}
       </text>
     </svg>
   );
@@ -290,8 +287,8 @@ const SLATE_GAP = 4;
 const SLATE_QR = 34;
 /** Where the Right and Left write-in columns sit inside a card (mm from its left edge). */
 const SLATE_HANDS = [
-  { label: "Right", x0: 27, x1: 54 },
-  { label: "Left", x0: 58, x1: 85 },
+  { key: "right", x0: 27, x1: 54 },
+  { key: "left", x0: 58, x1: 85 },
 ] as const;
 
 /** One A4 page of participant slates: cut out, write the ruler values, photograph first. */
@@ -299,11 +296,14 @@ export function SlatePageSvg({
   first,
   count,
   baseUrl,
+  locale,
 }: {
   first: number;
   count: number;
   baseUrl?: string;
+  locale: Locale;
 }) {
+  const copy = learnCopy(locale);
   const ids = Array.from(
     { length: Math.min(count, SLATES_PER_PAGE) },
     (_, i) => first + i,
@@ -315,7 +315,7 @@ export function SlatePageSvg({
       viewBox="0 0 210 265"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label={`Participant slates ${ids.map(formatParticipantId).join(", ")}`}
+      aria-label={copy.svgSlatesLabel(ids.map(formatParticipantId).join(", "))}
       fontFamily="system-ui, sans-serif"
     >
       <rect width={210} height={265} fill="white" />
@@ -352,34 +352,34 @@ export function SlatePageSvg({
               {id}
             </text>
             <text x={tx} y={y + 29} fontSize={2.6} fill={GUIDE}>
-              No names.
+              {copy.svgNoNames}
             </text>
             <text x={tx} y={y + 33} fontSize={2.6} fill={GUIDE}>
-              Photograph this card first.
+              {copy.svgPhotographFirst}
             </text>
             {/* Ruler values, one set per hand (docs/learning/README.md, "Ruler protocol"). */}
             <text x={x + 3} y={y + 41} fontSize={3.2} fontWeight={600}>
-              Ruler, in mm
+              {copy.svgRulerMm}
             </text>
             {SLATE_HANDS.map((hand) => (
               <text
-                key={hand.label}
+                key={hand.key}
                 x={x + hand.x0}
                 y={y + 41}
                 fontSize={3.2}
                 fontWeight={600}
               >
-                {hand.label}
+                {hand.key === "right" ? copy.svgRight : copy.svgLeft}
               </text>
             ))}
-            {["Hand length", "Palm width"].map((label, k) => (
+            {[copy.svgHandLength, copy.svgPalmWidth].map((label, k) => (
               <g key={label}>
                 <text x={x + 3} y={y + 49 + k * 8} fontSize={3.2}>
                   {label}
                 </text>
                 {SLATE_HANDS.map((hand) => (
                   <line
-                    key={hand.label}
+                    key={hand.key}
                     x1={x + hand.x0}
                     y1={y + 50 + k * 8}
                     x2={x + hand.x1}

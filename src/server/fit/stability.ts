@@ -1,5 +1,8 @@
 import type { FitPreferences, FitResponse } from "../../lib/contracts/fit";
-import type { HandMeasurements } from "../../lib/contracts/measurement";
+import type {
+  HandMeasurements,
+  PalmThicknessLevel,
+} from "../../lib/contracts/measurement";
 import type { CatalogueMouse } from "./types";
 
 /**
@@ -121,6 +124,51 @@ export function perturbationRuns(
     };
     return compareRankings(baseRanking, engine(m, catalogue, prefs, hand));
   });
+}
+
+/** The thickness columns of the report: no answer (the baseline) and the three levels. */
+export const THICKNESS_ANSWERS = ["none", "thin", "medium", "thick"] as const;
+export type ThicknessAnswer = (typeof THICKNESS_ANSWERS)[number];
+
+/** `prefs` with the thickness answer applied; "none" leaves `palmThickness` unset. */
+export function withThickness(
+  prefs: FitPreferences,
+  answer: ThicknessAnswer,
+): FitPreferences {
+  if (answer === "none") {
+    const rest = { ...prefs };
+    delete rest.palmThickness;
+    return rest;
+  }
+  return { ...prefs, palmThickness: answer satisfies PalmThicknessLevel };
+}
+
+/**
+ * How much one thickness answer moves the ranking: the same hand scored with
+ * the answer against the same hand with no answer (the baseline). One run per
+ * answer, so top-1 kept is 0 or 1 and the Jaccard is that run's own.
+ */
+export function thicknessRuns(
+  engine: EngineFn,
+  catalogue: readonly CatalogueMouse[],
+  hand: "left" | "right",
+  measurements: HandMeasurements,
+  prefs: FitPreferences = { includeVertical: false },
+): Record<ThicknessAnswer, ReturnType<typeof compareRankings>> {
+  const baseline = engine(
+    measurements,
+    catalogue,
+    withThickness(prefs, "none"),
+    hand,
+  );
+  const out = {} as Record<ThicknessAnswer, ReturnType<typeof compareRankings>>;
+  for (const answer of THICKNESS_ANSWERS) {
+    out[answer] = compareRankings(
+      baseline,
+      engine(measurements, catalogue, withThickness(prefs, answer), hand),
+    );
+  }
+  return out;
 }
 
 export interface SweepJump {

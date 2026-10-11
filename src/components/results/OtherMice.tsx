@@ -8,11 +8,11 @@ import {
   PRINT_OPENED_ATTRIBUTE,
 } from "@/lib/results/disclosure";
 import type { Locale } from "@/lib/contracts/locale";
-import { MousePhoto } from "./MousePhoto";
 
 /**
  * "Other mice (N)": a details element, closed by default, listing every mouse
- * past the top five as a small picture, its model and its score. These rows
+ * past the top five by its model and its score only, no picture (up to ~170
+ * rows, and the design lists only score and model). These rows
  * have no page of their own. Mice left out of the ranking (`excluded`) come
  * last, each with the reason in words. Renders nothing when there is nothing
  * to list. While the results are filtered (`filtering`), `ranked` is the
@@ -67,10 +67,6 @@ export function OtherMice({
           <ol className="results-otherMice-list">
             {ranked.map(({ entry, displayRank, overallRank }) => (
               <li key={entry.mouse.slug} className="results-otherMice-row">
-                <MousePhoto
-                  imageUrl={entry.mouse.imageUrl}
-                  className="results-photo--small"
-                />
                 <span className="results-otherMice-name">
                   {entry.mouse.brand} {entry.mouse.model}
                   {filtering && overallRank !== displayRank && (

@@ -42,6 +42,7 @@ import {
 import type { PaperSize } from "../../lib/contracts/measurement";
 import {
   pickCue,
+  cueMessage,
   computeStatusChips,
   type Cue,
   type StatusChips,
@@ -69,7 +70,10 @@ import {
   type SheetQuadSource,
 } from "./quad-source";
 import "./camera.css";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { cameraCuesCopy } from "../../lib/copy/camera-cues";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
+import { scanSheetCopy } from "../../lib/copy/scan-sheet";
 import { requestCameraStream } from "./requestStream";
 import {
   isCameraPermissionDenial,
@@ -102,7 +106,7 @@ type CamState =
   | { kind: "primer" }
   | { kind: "requesting" }
   | { kind: "live" }
-  | { kind: "cameraError"; message: string }
+  | { kind: "cameraError"; blocked: boolean }
   | { kind: "streamEnded" }
   | {
       kind: "review";
@@ -238,6 +242,14 @@ export default function CameraCapture({
   onPermissionResult,
   quadSource,
 }: CameraCaptureProps) {
+  const locale = useLocale();
+  // The live loop and the capture callbacks outlive a render: they read the
+  // locale through a ref.
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const common = scanCommonCopy(locale);
+  const sheet = scanSheetCopy(locale);
+  const camera = sheet.camera;
   const [state, setState] = useState<CamState>({ kind: "primer" });
   const onPermissionResultRef = useRef(onPermissionResult);
   onPermissionResultRef.current = onPermissionResult;
@@ -374,10 +386,8 @@ export default function CameraCapture({
       if (!isCameraPermissionDenial(err))
         reportCaught(err, "camera-capture.camera-open");
       const name = err instanceof DOMException ? err.name : undefined;
-      const message =
-        name === "NotAllowedError" || name === "PermissionDeniedError"
-          ? "Camera access was blocked."
-          : "The camera couldn't be opened.";
+      const blocked =
+        name === "NotAllowedError" || name === "PermissionDeniedError";
       if (
         mountedRef.current &&
         requestId === requestIdRef.current &&
@@ -388,7 +398,7 @@ export default function CameraCapture({
             ? "denied"
             : "error",
         );
-        setState({ kind: "cameraError", message });
+        setState({ kind: "cameraError", blocked });
       }
     }
   }, [stopStream]);
@@ -481,7 +491,7 @@ export default function CameraCapture({
       navigator.vibrate(CAMERA_CONSTANTS.autoCapture.vibrateMs);
     }
     if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
-    setAnnounced("Photo taken");
+    setAnnounced(scanCommonCopy(localeRef.current).photoTaken);
     const previewUrl = URL.createObjectURL(file);
     setState({
       kind: "review",
@@ -619,6 +629,7 @@ export default function CameraCapture({
           msSinceLastDetection,
         },
         calibrationMode,
+        localeRef.current,
       );
       const nextChips = computeStatusChips(
         {
@@ -632,6 +643,7 @@ export default function CameraCapture({
           msSinceLastDetection,
         },
         calibrationMode,
+        localeRef.current,
       );
 
       // The ring empties after 3 consecutive failed samples; one or two only
@@ -725,31 +737,24 @@ export default function CameraCapture({
                 1
               </span>
               <p className="cameraPrimerText">
-                Blank {PAPER_SIZE_LABELS[paperSize]} paper on a darker, plain
-                table, in even light with no glare.
+                {camera.primerPaper1(PAPER_SIZE_LABELS[paperSize])}
               </p>
             </div>
             <div className="cameraPrimerRow">
               <span className="cameraPrimerBadge" aria-hidden="true">
                 2
               </span>
-              <p className="cameraPrimerText">
-                Hand flat on the paper, fingers together, wrist at the bottom
-                edge.
-              </p>
+              <p className="cameraPrimerText">{camera.primerPaper2}</p>
             </div>
             <div className="cameraPrimerRow">
               <span className="cameraPrimerBadge" aria-hidden="true">
                 3
               </span>
-              <p className="cameraPrimerText">
-                Hold the phone flat above, about 40 cm up — the whole paper in
-                view.
-              </p>
+              <p className="cameraPrimerText">{camera.primerPaper3}</p>
             </div>
 
             <div className="cameraPaperToggle">
-              <span id="camera-paper-size-label">Paper size</span>
+              <span id="camera-paper-size-label">{camera.paperSize}</span>
               <div
                 className="cameraPaperToggleButtons"
                 role="group"
@@ -777,28 +782,19 @@ export default function CameraCapture({
               <span className="cameraPrimerBadge" aria-hidden="true">
                 1
               </span>
-              <p className="cameraPrimerText">
-                Sheet flat on a table, printed at 100%, good even light, no
-                glare.
-              </p>
+              <p className="cameraPrimerText">{camera.primerSheet1}</p>
             </div>
             <div className="cameraPrimerRow">
               <span className="cameraPrimerBadge" aria-hidden="true">
                 2
               </span>
-              <p className="cameraPrimerText">
-                Bank card in the card outline; hand flat, fingers together,
-                wrist at the line.
-              </p>
+              <p className="cameraPrimerText">{camera.primerSheet2}</p>
             </div>
             <div className="cameraPrimerRow">
               <span className="cameraPrimerBadge" aria-hidden="true">
                 3
               </span>
-              <p className="cameraPrimerText">
-                Hold the phone flat above, about 40 cm up — the whole sheet in
-                view.
-              </p>
+              <p className="cameraPrimerText">{camera.primerSheet3}</p>
             </div>
           </>
         )}
@@ -809,11 +805,9 @@ export default function CameraCapture({
           style={{ width: "100%" }}
           onClick={() => void startCamera()}
         >
-          Turn on camera
+          {camera.turnOnCamera}
         </button>
-        <p className="cameraNotice">
-          {PHOTO_PRIVACY_COPY} The camera view stays on your phone.
-        </p>
+        <p className="cameraNotice">{common.privacyAndCameraStays}</p>
       </div>
     );
   }
@@ -821,7 +815,7 @@ export default function CameraCapture({
   if (state.kind === "requesting") {
     return (
       <div className="cameraPrimer" aria-live="polite">
-        <p className="cameraPrimerText">Starting the camera…</p>
+        <p className="cameraPrimerText">{camera.startingCamera}</p>
       </div>
     );
   }
@@ -829,22 +823,23 @@ export default function CameraCapture({
   if (state.kind === "cameraError") {
     return (
       <div className="cameraErrorCard" role="alert">
-        <p>{state.message}</p>
-        <p>To use the camera:</p>
+        <p>{state.blocked ? common.cameraBlocked : common.cameraCantOpen}</p>
+        <p>{common.cameraToUse}</p>
         <ol>
-          <li>Open your browser&apos;s site settings for this page.</li>
-          <li>Allow camera access.</li>
-          <li>Reload and tap &quot;Turn on camera&quot; again.</li>
+          <li>{common.cameraStepSettings}</li>
+          <li>{common.cameraStepAllow}</li>
+          <li>{common.cameraStepReloadSheet}</li>
         </ol>
-        <p>Or upload a photo instead using the button below.</p>
+        <p>{common.cameraOrUpload}</p>
         <button type="button" className="primaryButton" onClick={onExit}>
-          Upload a photo instead
+          {common.uploadInstead}
         </button>
       </div>
     );
   }
 
-  const cornerNoun = calibrationMode === "paper-edge" ? "paper" : "sheet";
+  const cornerNoun =
+    calibrationMode === "paper-edge" ? camera.nounPaper : camera.nounSheet;
 
   if (state.kind === "review") {
     const allCornersFound = state.quad !== null;
@@ -859,19 +854,18 @@ export default function CameraCapture({
               void startCamera();
             }}
           >
-            <span aria-hidden="true">‹</span> Camera
+            <span aria-hidden="true">‹</span> {camera.backToCamera}
           </button>
           <span className="cameraReviewStepLabel">
             {calibrationMode === "paper-edge"
-              ? "Review"
-              : "Step 2 of 2 · Review"}
+              ? camera.reviewStepPaper
+              : camera.reviewStepSheet}
           </span>
         </div>
 
-        <h1 className="cameraReviewHeading">Check your photo</h1>
+        <h1 className="cameraReviewHeading">{camera.checkHeading}</h1>
         <p className="cameraReviewSubtitle">
-          Make sure your whole hand and all four {cornerNoun} corners are
-          visible.
+          {camera.checkSubtitle(cornerNoun)}
         </p>
 
         <div className="cameraReviewCard">
@@ -883,7 +877,7 @@ export default function CameraCapture({
               viewBox={`0 0 ${state.fullWidth} ${state.fullHeight}`}
               preserveAspectRatio="xMidYMid meet"
               role="img"
-              aria-label={`Detected ${cornerNoun} corners overlaid on your photo`}
+              aria-label={camera.overlayLabel(cornerNoun)}
             >
               {[
                 state.quad.topLeft,
@@ -905,8 +899,8 @@ export default function CameraCapture({
 
         {allCornersFound && (
           <p className="cameraReviewStatus">
-            <span aria-hidden="true">✓</span> All four {cornerNoun} corners
-            found
+            <span aria-hidden="true">✓</span>{" "}
+            {camera.allCornersFound(cornerNoun)}
           </p>
         )}
 
@@ -916,7 +910,7 @@ export default function CameraCapture({
             className="cameraUsePhoto"
             onClick={() => onUsePhoto(state.file)}
           >
-            Use this photo
+            {camera.usePhoto}
           </button>
           <button
             type="button"
@@ -926,10 +920,10 @@ export default function CameraCapture({
               void startCamera();
             }}
           >
-            Retake photo
+            {common.retakePhoto}
           </button>
         </div>
-        <p className="cameraNotice">{PHOTO_PRIVACY_COPY}</p>
+        <p className="cameraNotice">{common.privacyPhone}</p>
       </div>
     );
   }
@@ -942,7 +936,7 @@ export default function CameraCapture({
         <button
           type="button"
           className="cameraCloseButton"
-          aria-label="Close camera, back to Scan"
+          aria-label={camera.closeCamera}
           onClick={() => {
             stopStream();
             onExit();
@@ -951,19 +945,21 @@ export default function CameraCapture({
           ×
         </button>
         <span className="cameraStepLabel">
-          {calibrationMode === "paper-edge" ? "Photo" : "Step 2 of 2 · Photo"}
+          {calibrationMode === "paper-edge"
+            ? camera.liveStepPaper
+            : camera.liveStepSheet}
         </span>
       </div>
 
       {state.kind === "streamEnded" && (
         <div className="cameraResumeCard">
-          <p>The camera turned off.</p>
+          <p>{common.cameraTurnedOff}</p>
           <button
             type="button"
             className="cameraResumeButton"
             onClick={() => void startCamera()}
           >
-            Tap to resume camera
+            {common.cameraTapToResume}
           </button>
         </div>
       )}
@@ -1072,7 +1068,11 @@ export default function CameraCapture({
               aria-live="polite"
               data-testid="camera-cue"
             >
-              {cue?.message ?? `Point the camera at the ${cornerNoun}`}
+              {cue
+                ? cueMessage(cue.code, calibrationMode, locale)
+                : calibrationMode === "paper-edge"
+                  ? cameraCuesCopy(locale).pointAtPaper
+                  : cameraCuesCopy(locale).pointAtSheet}
             </div>
           </div>
           <p className="visuallyHiddenLive" aria-live="polite">
@@ -1083,7 +1083,7 @@ export default function CameraCapture({
             <button
               type="button"
               className="cameraShutter"
-              aria-label="Take photo"
+              aria-label={common.takePhoto}
               onClick={() => void captureNow()}
             >
               <div className="cameraShutterInner" />

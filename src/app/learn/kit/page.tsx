@@ -2,188 +2,155 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { learnCopy } from "@/lib/copy/learn";
 import { GESTURES, KIT_V1_VERSION, shotsPerHand } from "@/lib/learning/kit";
+import { getLocale } from "@/server/i18n/getLocale";
 import "./learn.css";
 
-export const metadata: Metadata = {
-  title: "Learning kit",
-  description:
-    "Printed, QR-labelled pages for collecting ruler-checked hand photos.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = learnCopy(await getLocale());
+  return {
+    title: copy.learningKit,
+    description: copy.metaDescription,
+    robots: { index: false, follow: false },
+  };
+}
 
-export default function LearnPage() {
+export default async function LearnPage() {
   guardDemoRouteFromProduction();
+  const copy = learnCopy(await getLocale());
   const perHand = shotsPerHand();
+  const gestures = copy.gestures;
   return (
     <main className="learn">
-      <TopBar backHref="/" backLabel="Home" stepLabel="Learning kit" />
-      <h1>Learning kit</h1>
-      <p className="learn-lead">
-        Printed pages that label every photo. Each page shows one hand pose and
-        carries its own QR code, so a photo records which pose it is. Photos
-        from many hands, checked against a ruler, set how accurate the
-        blank-paper scan can be.
-      </p>
+      <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.learningKit} />
+      <h1>{copy.learningKit}</h1>
+      <p className="learn-lead">{copy.lead}</p>
 
-      <h2>Kit v2: one sheet, one card</h2>
+      <h2>{copy.v2Heading}</h2>
       <p>
-        The collection protocol <code>agreed-v2</code> (2026-10-02): one A4
-        sheet for both hands, a participant card in its slot, G02 ×3 then G04 ×2
-        per person. The pose comes from the shooting order; the card&apos;s QR
-        code names the participant. Only sheet A is used (Kirby, 2026-10-02): it
-        keeps the product sheet&apos;s four markers. Sheet B (six markers on the
-        outer ring, a blank hand area) is built but not used for now.
+        {copy.v2Before} <code>agreed-v2</code> {copy.v2After}
       </p>
       <div className="learn-actions">
         <Link className="learn-button" href="/learn/kit/print?sheet=A">
-          Print sheet A
+          {copy.printSheetA}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/print?sheet=B"
         >
-          Sheet B (not used, Kirby 2026-10-02)
+          {copy.sheetBNotUsed}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/slates?kit=2&from=901&count=12"
         >
-          Cards P901 to P912 (S0)
+          {copy.cardsS0}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/slates?kit=2&from=1&count=48"
         >
-          Cards P001 to P048
+          {copy.cardsMain}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/check?sheet=A"
         >
-          Check photos (sheet A)
+          {copy.checkSheetA}
         </Link>
       </div>
       <p className="learn-note">
-        After a session:{" "}
+        {copy.afterSession}{" "}
         <code>
           npm run learn:sort -- --in &lt;folder&gt; --session
           &lt;session.json&gt;
         </code>
-        . It strips EXIF from the filed copies. Details:{" "}
-        <code>docs/learning/README.md</code>, &ldquo;Kit v2&rdquo;.
+        {copy.afterSessionB} <code>docs/learning/README.md</code>
+        {copy.afterSessionC}
       </p>
 
-      <h2>Kit v1: seven poses per hand</h2>
-      <p>
-        The earlier kit, with a QR code on every pose page and a ruler-measured
-        truth. Its pages stay printable below. Its photos are a version mismatch
-        to a v2 run.
-      </p>
+      <h2>{copy.v1Heading}</h2>
+      <p>{copy.v1Body}</p>
 
-      <h2>You need</h2>
+      <h2>{copy.youNeed}</h2>
       <ul>
-        <li>A printer set to 100% / Actual size, and plain A4 paper</li>
-        <li>A ruler, to check the printed 100 mm line and measure each hand</li>
-        <li>
-          A table darker than the paper, and a book to stand a flap against
-        </li>
-        <li>A phone. Use its normal camera app with the main 1× lens</li>
+        <li>{copy.needPrinter}</li>
+        <li>{copy.needRuler}</li>
+        <li>{copy.needTable}</li>
+        <li>{copy.needPhone}</li>
       </ul>
 
-      <h2>Print</h2>
+      <h2>{copy.printHeading}</h2>
       <div className="learn-actions">
         <Link className="learn-button" href="/learn/kit/print?hands=both">
-          Print both hands, {GESTURES.length * 2} pages
+          {copy.printBoth(GESTURES.length * 2)}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/print?hands=right"
         >
-          Right hand only, {GESTURES.length} pages
+          {copy.printRight(GESTURES.length)}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/print?hands=left"
         >
-          Left hand only, {GESTURES.length} pages
+          {copy.printLeft(GESTURES.length)}
         </Link>
         <Link
           className="learn-button-secondary"
           href="/learn/kit/slates?from=1"
         >
-          Participant cards
+          {copy.participantCardsLink}
         </Link>
       </div>
-      <p className="learn-note">
-        The pages are reusable across people. Print one card per person: it
-        carries their participant number, never their name.
-      </p>
+      <p className="learn-note">{copy.reusableNote}</p>
 
-      <h2>Session order</h2>
-      <p>
-        {perHand} photos per hand, about 10 minutes per hand. Each page&apos;s
-        QR code names its pose and hand; the checker reads it from the photo.
-      </p>
+      <h2>{copy.sessionOrder}</h2>
+      <p>{copy.sessionOrderBody(perHand)}</p>
       <ol className="learn-sequence">
         <li>
-          <span className="learn-token">Card</span>
-          <span className="learn-count">1 photo</span>
-          <span className="learn-detail">
-            Write the ruler values on the participant card: hand length (wrist
-            crease to middle fingertip) and palm width. Photograph the card
-            first.
-          </span>
+          <span className="learn-token">{copy.seqCard}</span>
+          <span className="learn-count">{copy.seqCardCount}</span>
+          <span className="learn-detail">{copy.seqCardDetail}</span>
         </li>
         {GESTURES.map((g) => (
           <li key={g.code}>
             <span>
-              <span className="learn-token">{g.code}</span> {g.name}
+              <span className="learn-token">{g.code}</span>{" "}
+              {gestures[g.code].name}
             </span>
-            <span className="learn-count">{g.shots} × each hand</span>
+            <span className="learn-count">{copy.eachHand(g.shots)}</span>
             <span className="learn-detail">
-              {g.camera === "above"
-                ? "Camera above, flap flat."
-                : "Camera at table height, flap folded up."}{" "}
+              {g.camera === "above" ? copy.cameraAbove : copy.cameraSide}{" "}
               <Link href={`/l/v${KIT_V1_VERSION}/${g.code}R`}>
-                Instructions
+                {copy.instructions}
               </Link>
             </span>
           </li>
         ))}
       </ol>
-      <p className="learn-note">
-        Do all seven poses with the right hand, then all seven with the left.
-        Lift the hand and place it again between photos, even within a pose.
-      </p>
+      <p className="learn-note">{copy.poseOrderNote}</p>
 
-      <h2>Check and sort (kit v1)</h2>
+      <h2>{copy.checkSortHeading}</h2>
       <div className="learn-actions">
         <Link className="learn-button" href="/learn/kit/check?sheet=v1">
-          Check kit v1 photos
+          {copy.checkKitV1}
         </Link>
       </div>
       <p>
-        The checker reads each photo&apos;s QR code, finds the printed markers
-        and the paper edges, and says which photos to retake. To file a whole
-        folder, kit v2 only since 2026-10-02, by participant and shooting order,
-        run{" "}
+        {copy.checkerBody1}{" "}
         <code>
           npm run learn:sort -- --in &lt;folder&gt; --session
           &lt;session.json&gt;
         </code>
-        . It cannot file kit v1 photos. It writes to{" "}
-        <code>../Fixtures/learning/</code>, outside the repo.
+        {copy.checkerBody2} <code>../Fixtures/learning/</code>
+        {copy.checkerBody3}
       </p>
 
-      <h2>Privacy</h2>
-      <p>
-        The checker processes photos on this device; nothing is uploaded. Ask
-        each person before photographing their hand, use participant numbers
-        instead of names, and keep the photos out of the repo. These photos are
-        for measuring hand shape and posture only; they are not a health
-        assessment.
-      </p>
+      <h2>{copy.privacyHeading}</h2>
+      <p>{copy.privacyBody}</p>
     </main>
   );
 }
