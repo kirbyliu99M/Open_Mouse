@@ -9,7 +9,8 @@
 import { isLowConfidence } from "../../components/results/format";
 import type { FitBand } from "../../lib/contracts/fit-bands";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import { en as bandCopy } from "../../lib/copy/fit-bands";
+import { en, zhTW, type FitBandCopy } from "../../lib/copy/fit-bands";
+import type { Locale } from "../../lib/contracts/locale";
 import { bandOf } from "../../lib/fit/bands";
 import { ENGINE_IS_PROVISIONAL } from "../fit/coefficients";
 import type {
@@ -58,6 +59,8 @@ export interface AnalysisInputEntry {
 }
 
 export interface AnalysisInput {
+  /** The language the prose is written in; the band wording below is in it too. */
+  locale: Locale;
   rankingProvisional: boolean;
   /**
    * One caveat that goes with any band: an estimate, method still being tuned.
@@ -84,6 +87,10 @@ export interface AnalysisInput {
   >[];
   /** Up to 3, in rank order — the fit engine's own top picks. */
   topPicks: AnalysisInputEntry[];
+}
+
+function copyFor(locale: Locale): FitBandCopy {
+  return locale === "zh-TW" ? zhTW : en;
 }
 
 function oneDecimal(value: number): number {
@@ -130,7 +137,8 @@ function bandOfTotal(total: number): FitBand {
   return band;
 }
 
-function toInputEntry(entry: FitEntry): AnalysisInputEntry {
+function toInputEntry(entry: FitEntry, locale: Locale): AnalysisInputEntry {
+  const bandCopy = copyFor(locale);
   const subscores = Object.fromEntries(
     Object.entries(entry.subscores).map(([key, sub]) => [
       key,
@@ -165,8 +173,11 @@ function toInputEntry(entry: FitEntry): AnalysisInputEntry {
 export function buildAnalysisInput(
   fit: FitResponse,
   measurements: HandMeasurements,
+  locale: Locale,
 ): AnalysisInput {
+  const bandCopy = copyFor(locale);
   return {
+    locale,
     rankingProvisional: ENGINE_IS_PROVISIONAL,
     estimateNote: bandCopy.provisional,
     gripStyle: roundedGripStyle(fit.gripStyle),
@@ -186,6 +197,8 @@ export function buildAnalysisInput(
       model,
       reason,
     })),
-    topPicks: fit.results.slice(0, 3).map(toInputEntry),
+    topPicks: fit.results
+      .slice(0, 3)
+      .map((entry) => toInputEntry(entry, locale)),
   };
 }

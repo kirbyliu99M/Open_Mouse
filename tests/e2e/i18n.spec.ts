@@ -4,6 +4,10 @@ import {
   en as footerEn,
   zhTW as footerZh,
 } from "../../src/lib/copy/site-footer";
+import {
+  en as siteMetaEn,
+  zhTW as siteMetaZh,
+} from "../../src/lib/copy/site-meta";
 import { en as navEn, zhTW as navZh } from "../../src/lib/copy/nav";
 
 /**
@@ -30,10 +34,21 @@ test.describe("server-rendered <html lang>", () => {
     expect(await serverLang(page, { "Accept-Language": "en-US" })).toBe("en");
   });
 
-  test("falls back to zh-TW with no header, or an unsupported one", async ({
-    page,
+  test("falls back to zh-TW with no header at all", async ({
+    playwright,
+    baseURL,
   }) => {
-    expect(await serverLang(page, { "Accept-Language": "" })).toBe("zh-TW");
+    // A fresh API context sends no Accept-Language, unlike the page's.
+    const api = await playwright.request.newContext({ baseURL });
+    try {
+      const res = await api.get("/");
+      expect(LANG_OF_HTML.exec(await res.text())?.[1]).toBe("zh-TW");
+    } finally {
+      await api.dispose();
+    }
+  });
+
+  test("falls back to zh-TW with an unsupported header", async ({ page }) => {
     expect(await serverLang(page, { "Accept-Language": "ja" })).toBe("zh-TW");
   });
 
@@ -129,6 +144,56 @@ test.describe("switching language, from a zh-TW browser", () => {
       "Find the mouse that fits.",
     );
     expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  test("on a content page other than /, the footer and the description change", async ({
+    page,
+  }) => {
+    const problems = watchConsole(page);
+    await page.goto("/how-it-works");
+    const description = page.locator('meta[name="description"]');
+    await expect(description).toHaveAttribute(
+      "content",
+      siteMetaZh.description,
+    );
+    await page
+      .getByTestId("site-footer")
+      .getByRole("button", { name: "English" })
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.getByTestId("site-footer")).toContainText(
+      footerEn.howItWorks,
+    );
+    await expect(description).toHaveAttribute(
+      "content",
+      siteMetaEn.description,
+    );
+    await expect(page).toHaveURL(/\/how-it-works$/);
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  test("switching English and straight back leaves the page and the cookie in zh-TW", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/how-it-works");
+    const switcher = page
+      .getByTestId("site-footer")
+      .getByTestId("language-switcher");
+    await switcher.getByRole("button", { name: "English" }).click();
+    await switcher.getByRole("button", { name: "中文" }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
+    await expect(page.getByTestId("site-footer")).toContainText(
+      footerZh.groupProduct,
+    );
+    await expect(
+      switcher.getByRole("button", { name: "中文" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.waitForTimeout(500);
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
+    expect(
+      (await context.cookies()).find((c) => c.name === LOCALE_COOKIE)?.value,
+    ).toBe("zh-TW");
   });
 
   test("without a click, a zh-TW browser stays zh-TW (negative control)", async ({

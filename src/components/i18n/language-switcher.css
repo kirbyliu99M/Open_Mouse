@@ -3,6 +3,8 @@
    it reads without colour alone and in high contrast. */
 .languageSwitcher {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 0.25rem;
   padding: 0.125rem;
   border: 1px solid var(--control-border);
@@ -18,6 +20,7 @@
   color: inherit;
   font: inherit;
   font-size: 0.9375rem;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.18s ease;
 }

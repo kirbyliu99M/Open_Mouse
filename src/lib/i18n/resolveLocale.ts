@@ -8,8 +8,7 @@ import { DEFAULT_LOCALE, isLocale, type Locale } from "../contracts/locale";
 /**
  * The locale a single language tag stands for: any Chinese tag (`zh`,
  * `zh-TW`, `zh-Hant`, `zh-CN`) is zh-TW, the only Chinese the site has; any
- * English tag is en; anything else is null. Same Chinese rule as
- * `pickUiLanguage` (#144).
+ * English tag is en; anything else is null.
  */
 export function localeFromLanguageTag(tag: string): Locale | null {
   const t = tag.trim();

@@ -35,13 +35,17 @@ export function LocaleProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const [chosen, setChosen] = useState<{ from: Locale; to: Locale } | null>(
-    null,
-  );
-  // A fresh server render in another locale (after `router.refresh()`) wins
-  // over the earlier local choice.
-  const locale =
-    chosen && chosen.from === initialLocale ? chosen.to : initialLocale;
+  // The visitor's own choice, shown at once while `router.refresh()` is in
+  // flight. Whenever the server renders a (new) locale, that render is the
+  // truth again and the choice is dropped, so a stale choice can never come
+  // back (adjusting state while rendering, as React documents).
+  const [chosen, setChosen] = useState<Locale | null>(null);
+  const [seenInitial, setSeenInitial] = useState(initialLocale);
+  if (seenInitial !== initialLocale) {
+    setSeenInitial(initialLocale);
+    setChosen(null);
+  }
+  const locale = chosen ?? initialLocale;
 
   const setLocale = useCallback(
     (next: Locale) => {
@@ -50,10 +54,10 @@ export function LocaleProvider({
         window.location.protocol === "https:",
       );
       document.documentElement.lang = next;
-      setChosen({ from: initialLocale, to: next });
+      setChosen(next);
       router.refresh();
     },
-    [initialLocale, router],
+    [router],
   );
 
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
