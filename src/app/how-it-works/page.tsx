@@ -1,31 +1,34 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import logitechCatalogue from "@/db/seed/logitech.json";
-import { PHOTO_PRIVACY_COPY } from "@/components/privacy-copy";
+import { howItWorksCopy } from "@/lib/copy/how-it-works";
+import { privacyCopy } from "@/lib/copy/privacy";
+import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
 
-export const metadata: Metadata = { title: "How it works" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: howItWorksCopy(await getLocale()).title };
+}
 
 /** The original introduction, moved to its own route (screen 18). */
-export default function HowItWorksPage() {
+export default async function HowItWorksPage() {
+  const locale = await getLocale();
+  const copy = howItWorksCopy(locale);
   const mouseCount = logitechCatalogue.length;
 
   return (
     <main className="home-main home-how-page">
       <Link className="home-back-link" href="/">
-        ‹ Home
+        {copy.back}
       </Link>
-      <h1>How it works</h1>
-      <p className="home-subhead">
-        All you need is your phone and one blank sheet of A4. About a minute,
-        start to finish.
-      </p>
+      <h1>{copy.title}</h1>
+      <p className="home-subhead">{copy.subhead}</p>
 
       <div className="home-hero">
         {/* eslint-disable-next-line @next/next/no-img-element -- static marketing asset, no next/image config needed for one fixed hero */}
         <img
           src="/images/hand-on-a4-camera.png"
-          alt="Illustration of a hand laid flat on a sheet of A4 paper, seen from directly above a phone's camera"
+          alt={copy.heroAlt}
           className="home-hero-img"
         />
         <span className="home-hero-corner tl" aria-hidden="true">
@@ -41,20 +44,20 @@ export default function HowItWorksPage() {
           <CheckIcon />
         </span>
         <span className="home-hero-badge" aria-hidden="true">
-          <ScanBadgeIcon /> All four corners found
+          <ScanBadgeIcon /> {copy.cornersFound}
         </span>
       </div>
 
       <section className="home-how" aria-labelledby="home-how-heading">
-        <h2 id="home-how-heading">Three steps</h2>
+        <h2 id="home-how-heading">{copy.stepsHeading}</h2>
         <ul className="home-how-list">
           <li>
             <span className="home-how-icon" aria-hidden="true">
               1
             </span>
             <div>
-              <strong>Any blank A4 sheet</strong>
-              <p>Put it on a darker table. That&apos;s your ruler.</p>
+              <strong>{copy.step1Title}</strong>
+              <p>{copy.step1Body}</p>
             </div>
           </li>
           <li>
@@ -62,8 +65,8 @@ export default function HowItWorksPage() {
               2
             </span>
             <div>
-              <strong>Hand flat, phone above</strong>
-              <p>The corners lock on and the photo takes itself.</p>
+              <strong>{copy.step2Title}</strong>
+              <p>{copy.step2Body}</p>
             </div>
           </li>
           <li>
@@ -71,34 +74,30 @@ export default function HowItWorksPage() {
               3
             </span>
             <div>
-              <strong>Your best matches</strong>
-              <p>
-                {mouseCount} Logitech mice ranked by how they fit your hand.
-              </p>
+              <strong>{copy.step3Title}</strong>
+              <p>{copy.step3Body(mouseCount)}</p>
             </div>
           </li>
         </ul>
       </section>
 
       <Link className="home-cta" href="/scan/easy">
-        <CameraIcon /> Scan my hand
+        <CameraIcon /> {copy.scanMyHand}
       </Link>
-      <p className="home-cta-caption">
-        No printing, no sign-up. About a minute.
-      </p>
+      <p className="home-cta-caption">{copy.ctaCaption}</p>
 
       <div className="home-privacy-card" id="privacy">
         <p>
           <span aria-hidden="true">
             <ShieldIcon />
           </span>
-          {PHOTO_PRIVACY_COPY}
+          {privacyCopy(locale).photoStaysOnPhone}
         </p>
         <p>
           <span aria-hidden="true">
             <ClockIcon />
           </span>
-          Scans without an account expire automatically after a while.
+          {copy.expiry}
         </p>
         {/* Wording confirmed by Kirby on 2026-10-07: discloses the anonymous
             PostHog counts (issue #138). */}
@@ -106,14 +105,12 @@ export default function HowItWorksPage() {
           <span aria-hidden="true">
             <ShieldIcon />
           </span>
-          We count anonymous page visits and scan steps to improve the app,
-          never your photo or your measurements.
+          {copy.analytics}
         </p>
       </div>
 
       <p className="home-privacy-link">
-        Questions about your data?{" "}
-        <Link href="#privacy">Read Privacy &amp; data.</Link>
+        {copy.questions} <Link href="#privacy">{copy.privacyLink}</Link>
       </p>
     </main>
   );
