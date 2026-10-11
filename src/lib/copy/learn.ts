@@ -300,7 +300,7 @@ export const zhTW: LearnCopy = {
   sheetNameB:
     "B 版紙張（不使用，Kirby 2026-10-02）：外圈六個標記和空白的手部區域。",
   printDialogV2:
-    "兩隻手共用一張 A4 紙。在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面大小」。",
+    "兩隻手共用一張 A4 紙。在列印視窗中選擇 A4、100%／實際大小，並關閉「符合頁面大小」。",
   checkRulerA: "然後用尺檢查 100 mm 的線。",
   checkRulerB: "然後用尺檢查標記 0 的外緣到標記 1 的外緣是否為 180 mm。",
   cardsPageBefore: "受測者卡片在",
@@ -315,7 +315,7 @@ export const zhTW: LearnCopy = {
   handsLeft: "左手",
   printKitLead: (pages, hands) => `${pages} 頁，${hands}。`,
   printKitLeadAfter:
-    "在列印視窗中選擇 A4、100%／實際大小，並關閉「縮放至符合頁面大小」。然後用尺檢查其中一頁的 100 mm 線。",
+    "在列印視窗中選擇 A4、100%／實際大小，並關閉「符合頁面大小」。然後用尺檢查其中一頁的 100 mm 線。",
 
   slatesMetaTitle: "受測者卡片",
   kitV2Cards: "套件 v2 受測者卡片",

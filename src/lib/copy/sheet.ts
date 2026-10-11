@@ -39,7 +39,7 @@ export const zhTW: SheetCopy = {
   heading: "列印校正表",
   calloutTitle: "請以實際大小列印：100%",
   calloutBody:
-    "請在列印視窗中關閉「縮放至符合頁面大小」。縮放後的列印結果會讓測量不準確。",
+    "請在列印視窗中關閉「符合頁面大小」。縮放後的列印結果會讓測量不準確。",
   after: "A4 和 Letter 都適用。這裡顯示的是整張紙。",
   printTheSheet: "列印校正表",
   continueLabel: "我印好了，繼續",
@@ -50,7 +50,7 @@ export const zhTW: SheetCopy = {
   svgLayFlat: "▼ 攤平",
   svgRuler: (n) => `請確認這條線正好是 ${n} mm`,
   svgCard: (w, h) => `請把任何一張銀行卡放在這裡（${w} × ${h} mm）`,
-  svgWarning: "請以 100%／實際大小列印，不要「縮放至符合頁面大小」",
+  svgWarning: "請以 100%／實際大小列印，不要選「符合頁面大小」",
 };
 
 export const en: SheetCopy = {
