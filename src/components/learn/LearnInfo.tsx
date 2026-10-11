@@ -1,8 +1,12 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { BASE_WEIGHTS } from "@/server/fit/coefficients";
 import type { LearnPageCopy } from "@/lib/copy/learn-page";
-import { markPlacement, SHAPE_SKETCHES } from "@/lib/learn/shape-sketches";
+import {
+  markPlacement,
+  markPlacementNarrow,
+  SHAPE_SKETCHES,
+} from "@/lib/learn/shape-sketches";
 import { weightBars } from "@/lib/learn/weight-bars";
 
 /**
@@ -165,17 +169,32 @@ function cards(copy: LearnPageCopy): Card[] {
                         decoding="async"
                       />
                     ) : null}
-                    {sketch.marks.map((mark) => (
-                      <span
-                        key={mark.key}
-                        className="learn-shape-mark"
-                        data-anchor={mark.anchor}
-                        data-tone={mark.tone}
-                        style={markPlacement(sketch, mark)}
-                      >
-                        {copy.shape.marks[mark.key]}
-                      </span>
-                    ))}
+                    {sketch.marks.map((mark) => {
+                      // Placed by CSS variables, not inline, so the stylesheet
+                      // can swap in the narrow set on a 320 px phone.
+                      const wide = markPlacement(sketch, mark);
+                      const narrow = markPlacementNarrow(sketch, mark);
+                      return (
+                        <span
+                          key={mark.key}
+                          className="learn-shape-mark"
+                          data-anchor={mark.anchor}
+                          data-tone={mark.tone}
+                          style={
+                            {
+                              "--learn-mark-top": wide.top,
+                              "--learn-mark-left": wide.left,
+                              "--learn-mark-right": wide.right,
+                              "--learn-mark-top-narrow": narrow.top,
+                              "--learn-mark-left-narrow": narrow.left,
+                              "--learn-mark-right-narrow": narrow.right,
+                            } as CSSProperties
+                          }
+                        >
+                          {copy.shape.marks[mark.key]}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
                 <figcaption>{copy.shape[sketch.id]}</figcaption>

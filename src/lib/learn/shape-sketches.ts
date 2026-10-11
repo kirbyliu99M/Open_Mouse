@@ -30,6 +30,13 @@ export interface ShapeMark {
   /** l: x is the left edge, r: the right edge, m: the middle of the text. */
   anchor: "l" | "m" | "r";
   tone: "primary" | "secondary";
+  /**
+   * Below 24rem (a 320 px phone) the drawing is about 230 px wide and the
+   * 12 px text does not shrink, so a mark that would touch an arrow or the
+   * outline is nudged by these drawing units (x: positive = right, y:
+   * positive = down). Measured in a real browser at 320 px (LEARN-5).
+   */
+  narrow?: { dx?: number; dy?: number };
 }
 
 export interface ShapeSketch {
@@ -55,8 +62,22 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
     viewBox: { x: 0, y: 20, w: 512, h: 470 },
     arrows: true,
     marks: [
-      { key: "thumbRest", x: 18, y: 243, anchor: "l", tone: "primary" },
-      { key: "straightSide", x: 396, y: 193, anchor: "l", tone: "secondary" },
+      {
+        key: "thumbRest",
+        x: 18,
+        y: 243,
+        anchor: "l",
+        tone: "primary",
+        narrow: { dy: -6 },
+      },
+      {
+        key: "straightSide",
+        x: 396,
+        y: 193,
+        anchor: "l",
+        tone: "secondary",
+        narrow: { dy: -6 },
+      },
     ],
   },
   {
@@ -64,8 +85,22 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
     viewBox: { x: 0, y: 100, w: 512, h: 270 },
     arrows: true,
     marks: [
-      { key: "centredPeak", x: 257, y: 136, anchor: "r", tone: "secondary" },
-      { key: "rearPeak", x: 309, y: 136, anchor: "l", tone: "primary" },
+      {
+        key: "centredPeak",
+        x: 257,
+        y: 136,
+        anchor: "r",
+        tone: "secondary",
+        narrow: { dy: -22 },
+      },
+      {
+        key: "rearPeak",
+        x: 309,
+        y: 136,
+        anchor: "l",
+        tone: "primary",
+        narrow: { dy: -22 },
+      },
     ],
   },
   {
@@ -74,7 +109,14 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
     arrows: true,
     marks: [
       { key: "widerFront", x: 18, y: 66, anchor: "l", tone: "primary" },
-      { key: "narrowerWaist", x: 18, y: 191, anchor: "l", tone: "secondary" },
+      {
+        key: "narrowerWaist",
+        x: 18,
+        y: 191,
+        anchor: "l",
+        tone: "secondary",
+        narrow: { dy: -16 },
+      },
       { key: "schematic", x: 256, y: 490, anchor: "m", tone: "secondary" },
     ],
   },
@@ -88,6 +130,12 @@ export function viewBoxText(sketch: ShapeSketch): string {
 
 const percent = (value: number) => `${Number((value * 100).toFixed(2))}%`;
 
+export interface MarkPlace {
+  top: string;
+  left?: string;
+  right?: string;
+}
+
 /**
  * CSS offsets of a mark inside the drawing's box, in percent of that box: the
  * top edge from the top, and the text from the left (`l`, `m`) or from the
@@ -96,11 +144,21 @@ const percent = (value: number) => `${Number((value * 100).toFixed(2))}%`;
 export function markPlacement(
   sketch: ShapeSketch,
   mark: ShapeMark,
-): { top: string; left?: string; right?: string } {
+  nudge: { dx?: number; dy?: number } = {},
+): MarkPlace {
   const { x, y, w, h } = sketch.viewBox;
-  const top = percent((mark.y - y) / h);
+  const mx = mark.x + (nudge.dx ?? 0);
+  const top = percent((mark.y + (nudge.dy ?? 0) - y) / h);
   if (mark.anchor === "r") {
-    return { top, right: percent(1 - (mark.x - x) / w) };
+    return { top, right: percent(1 - (mx - x) / w) };
   }
-  return { top, left: percent((mark.x - x) / w) };
+  return { top, left: percent((mx - x) / w) };
+}
+
+/** The same, below 24rem: the mark's `narrow` nudge applied (none: unchanged). */
+export function markPlacementNarrow(
+  sketch: ShapeSketch,
+  mark: ShapeMark,
+): MarkPlace {
+  return markPlacement(sketch, mark, mark.narrow);
 }

@@ -16,6 +16,7 @@
  * package's own status: zh-TW wording OK'd by Kirby 2026-10-11 in a draft
  * table; the English wording is Claude's, exact English strings unconfirmed.
  * The zh names for hump and flare are placeholders there.
+ * Kirby 2026-10-11: zh rearPeak is 最高點偏後 (the 此款 is dropped).
  *
  * The page has no digits and no medical claim (a unit test checks both).
  */
@@ -118,7 +119,7 @@ export const zhTW: LearnPageCopy = {
       thumbRest: "拇指托\n外凸",
       straightSide: "另一側\n較直",
       centredPeak: "對稱型最高點",
-      rearPeak: "此款最高點偏後",
+      rearPeak: "最高點偏後",
       widerFront: "前端\n較寬",
       narrowerWaist: "腰部\n較窄",
       schematic: "示意圖：外張經誇大",

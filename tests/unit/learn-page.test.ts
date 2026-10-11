@@ -10,6 +10,7 @@ import {
 } from "../../src/lib/copy/results-page";
 import {
   markPlacement,
+  markPlacementNarrow,
   SHAPE_SKETCHES,
   viewBoxText,
 } from "../../src/lib/learn/shape-sketches";
@@ -298,5 +299,51 @@ describe("the four shape sketches", () => {
       top: "13.33%",
       left: "60.35%",
     });
+  });
+
+  it("below 24rem the marks that touched an arrow or the outline are nudged, the others are not", () => {
+    const [, erg, hump, flare] = SHAPE_SKETCHES;
+    // Hump: both 22 units up from y 136, so (114 - 100) / 270.
+    expect(markPlacementNarrow(hump, hump.marks[0])).toEqual({
+      top: "5.19%",
+      right: "49.8%",
+    });
+    expect(markPlacementNarrow(hump, hump.marks[1])).toEqual({
+      top: "5.19%",
+      left: "60.35%",
+    });
+    // Thumb rest and straight side: 6 units up, off the arrow under each.
+    expect(markPlacementNarrow(erg, erg.marks[0])).toEqual({
+      top: "46.17%",
+      left: "3.52%",
+    });
+    expect(markPlacementNarrow(erg, erg.marks[1])).toEqual({
+      top: "35.53%",
+      left: "77.34%",
+    });
+    // Narrower waist 16 units up (y 175).
+    expect(markPlacementNarrow(flare, flare.marks[1])).toEqual({
+      top: "28.72%",
+      left: "3.52%",
+    });
+    // No nudge: the same as the wide placement.
+    expect(markPlacementNarrow(flare, flare.marks[0])).toEqual(
+      markPlacement(flare, flare.marks[0]),
+    );
+    expect(markPlacementNarrow(flare, flare.marks[2])).toEqual(
+      markPlacement(flare, flare.marks[2]),
+    );
+  });
+
+  it("a lifted hump mark stays inside the crop and clears the hump arrow (y 164, head to 157.8) by the text height", () => {
+    const hump = SHAPE_SKETCHES.find((s) => s.id === "hump")!;
+    // 12 px text, 1.2 line height, on a 225 px wide drawing: 14.4 px = 33 units.
+    const lineUnits = 14.4 / (225 / 512);
+    for (const mark of hump.marks) {
+      const lifted = mark.y + (mark.narrow?.dy ?? 0);
+      expect(lifted).toBeGreaterThanOrEqual(hump.viewBox.y);
+      // 4 px (9 units) of air above the arrow head.
+      expect(lifted + lineUnits).toBeLessThanOrEqual(157.8 - 9);
+    }
   });
 });

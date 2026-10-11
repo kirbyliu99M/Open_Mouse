@@ -111,17 +111,29 @@
   .learn-card {
     padding: 1.75rem;
   }
-  /* A compact card has no body to push against: the sentence sits right under
-     its title. */
-  .learn-card--size p,
-  .learn-card--weight p {
-    margin-bottom: 0;
-  }
 }
 
 .learn-card p {
   color: var(--text-secondary);
   margin: 0 0 1rem;
+}
+/* The two compact cards (3 and 5) have no body to push against: the sentence
+   sits right under a tighter title and nothing is left below it. This comes
+   after `.learn-card p` on purpose (same specificity, later wins); the design's
+   height is about 116 px. */
+.learn-card--size p,
+.learn-card--weight p {
+  margin-bottom: 0;
+}
+.learn-card--size .learn-card-title,
+.learn-card--weight .learn-card-title {
+  margin-bottom: 0.5rem;
+}
+@media (min-width: 56rem) {
+  .learn-card--size,
+  .learn-card--weight {
+    padding-block: 1.5rem;
+  }
 }
 
 .learn-card-title {
@@ -392,6 +404,9 @@
    tile rather than the page. */
 .learn-shape-mark {
   position: absolute;
+  top: var(--learn-mark-top);
+  left: var(--learn-mark-left, auto);
+  right: var(--learn-mark-right, auto);
   color: var(--learn-tile-text-secondary);
   font-size: 0.75rem;
   line-height: 1.2;
@@ -401,6 +416,18 @@
 }
 .learn-shape-mark[data-tone="primary"] {
   color: var(--learn-tile-text);
+}
+/* A 320 px phone: less padding in the tile (6 px) and the marks that would sit
+   on an arrow or the outline are nudged (the offsets are in shape-sketches.ts). */
+@media (max-width: 23.99rem) {
+  .learn-shape-tile {
+    padding: 0.375rem;
+  }
+  .learn-shape-mark {
+    top: var(--learn-mark-top-narrow);
+    left: var(--learn-mark-left-narrow, auto);
+    right: var(--learn-mark-right-narrow, auto);
+  }
 }
 .learn-shape-mark[data-anchor="r"] {
   text-align: right;
