@@ -29,6 +29,7 @@
  */
 import { createHash } from "node:crypto";
 import type { FitResponse } from "../../lib/contracts/fit";
+import type { Locale } from "../../lib/contracts/locale";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { buildPrompt } from "./analyse";
 import { buildAnalysisInput, type AnalysisInput } from "./input";
@@ -96,14 +97,15 @@ export function canonicalize(value: unknown): unknown {
 export function computeCacheKey(
   fit: FitResponse,
   measurements: HandMeasurements,
+  locale: Locale = "en",
 ): string {
   // Canonical key order first, so two inputs with equal values but different
   // object literal order (never produced by the engine, but cheap to rule
   // out) share a key.
   const input = canonicalize(
-    buildAnalysisInput(fit, measurements),
+    buildAnalysisInput(fit, measurements, locale),
   ) as AnalysisInput;
-  const prompt = buildPrompt(input);
+  const prompt = buildPrompt(input, locale);
   return createHash("sha256")
     .update(
       `${ANALYSIS_PROMPT_VERSION}
