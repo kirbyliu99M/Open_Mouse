@@ -64,12 +64,12 @@ async function databaseOnEarlier0009(): Promise<PGlite> {
 }
 
 describe("migration 0010: journal and files", () => {
-  it("is the last journal entry, with sequential indexes and rising timestamps", () => {
+  it("is journal entry 10, with sequential indexes and rising timestamps (later migrations may follow it)", () => {
     const { entries } = journal;
     expect(entries.map((e) => e.idx)).toEqual(entries.map((_, i) => i));
     for (let i = 1; i < entries.length; i += 1)
       expect(entries[i]!.when).toBeGreaterThan(entries[i - 1]!.when);
-    expect(entries.at(-1)!.tag).toBe(FILE.replace(/\.sql$/, ""));
+    expect(entries[10]!.tag).toBe(FILE.replace(/\.sql$/, ""));
     expect(entries.map((e) => `${e.tag}.sql`)).toEqual(MIGRATION_FILES);
   });
 
