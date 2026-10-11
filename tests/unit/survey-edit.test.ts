@@ -584,6 +584,26 @@ describe.each(worlds)("GET and PUT /api/survey on %s", (_name, make) => {
       },
     );
 
+    it("pins the sentences of the 400s and the 413 (the same reader as POST, its own word for the body)", async () => {
+      await seedTwo();
+      const notJson = await put("{nope");
+      expect(notJson.status).toBe(400);
+      expect(await notJson.json()).toEqual({
+        error: "Request body must be valid JSON.",
+      });
+      const noMouse = await put({ ratings: [] });
+      expect(noMouse.status).toBe(400);
+      expect(await noMouse.json()).toEqual({
+        error: "Invalid survey edit.",
+        issues: [{ path: "ratings", message: "name at least one mouse" }],
+      });
+      const tooBig = await put(
+        edit({ feedback: "x".repeat(MAX_SURVEY_BODY_BYTES) }),
+      );
+      expect(tooBig.status).toBe(413);
+      expect(await tooBig.json()).toEqual({ error: "Request body too large." });
+    });
+
     it("is 400 for an unknown mouse slug, naming the field, with everything left as it was", async () => {
       await seedTwo();
       const before = await world.contributions();
@@ -823,6 +843,17 @@ describe.each(worlds)("GET and PUT /api/survey on %s", (_name, make) => {
       expect(await mine()).toMatchObject({ mainUse: null, feedback: null });
     });
 
+    it("clears the main use and the comment when the body says null, as it does when it leaves them out (null is what a read-back says for none)", async () => {
+      await seedTwo();
+      await put(edit({ mainUse: USE_A, feedback: COMMENT }));
+      expect(await mine()).toMatchObject({ mainUse: USE_A, feedback: COMMENT });
+      const res = await put(edit({ mainUse: null, feedback: null }));
+      expect(res.status).toBe(200);
+      expect(await mine()).toMatchObject({ mainUse: null, feedback: null });
+      // Another contribution's own comment is not what null clears.
+      expect((await world.contributions())[0]!.feedback).toBe(COMMENT);
+    });
+
     it("keeps one main use for the account: on the latest contribution, emptied on the others", async () => {
       await seedTwo();
       await put(edit({ mainUse: USE_A }));
@@ -994,7 +1025,7 @@ describe.each(worlds)("GET and PUT /api/survey on %s", (_name, make) => {
       expect(await world.contributions()).toEqual(once);
     });
 
-    it("two edits that overlap end as exactly the later body, in either order, with nothing of the earlier one carried over", async () => {
+    it("two overlapping edits made ONE AFTER THE OTHER (sequential, not concurrent) end as exactly the later body, in either order, with nothing of the earlier one carried over", async () => {
       // Not run concurrently: PGlite is one connection, so two batches would
       // interleave their BEGIN and COMMIT, which no two Postgres sessions can
       // do. What makes two edits at once safe is the row lock the first
@@ -1111,6 +1142,81 @@ describe.each(worlds)("GET and PUT /api/survey on %s", (_name, make) => {
         expect(text).not.toMatch(new RegExp(`"(?:${USE_B}|${FEEL_LARGE})"`));
       }
     });
+
+    it.each([
+      ["a main use the contract does not list", { mainUse: "unlisted-use" }],
+      [
+        "a size feel the contract does not list",
+        {
+          otherMice: [
+            {
+              brand: BRAND_PRIVATE,
+              sizeFeel: "unlisted-feel",
+              isCurrent: false,
+            },
+          ],
+        },
+      ],
+      [
+        "a duration the contract does not list",
+        {
+          ratings: [
+            {
+              slug: "mouse-a",
+              satisfaction: 4,
+              duration: "unlisted-duration",
+              painPoints: [],
+              isCurrent: false,
+            },
+          ],
+        },
+      ],
+      [
+        "a satisfaction outside 1 to 5",
+        {
+          ratings: [
+            {
+              slug: "mouse-a",
+              satisfaction: 9,
+              duration: null,
+              painPoints: [],
+              isCurrent: false,
+            },
+          ],
+        },
+      ],
+    ])(
+      "GET answers the plain fixed 500 when the stored text holds %s: no data in the body, none in any log line",
+      async (_label, stored) => {
+        const res = await get({
+          deps: {
+            surveyRepo: {
+              ...world.surveyRepo,
+              readAnswers: async () => ({
+                mainUse: null,
+                feedback: COMMENT,
+                ratings: [],
+                otherMice: [],
+                ...stored,
+              }),
+            },
+          },
+        });
+        expect(res.status).toBe(500);
+        expectNoStore(res);
+        const text = await res.text();
+        expect(JSON.parse(text)).toEqual({
+          error: "Something went wrong. Try again in a moment.",
+        });
+        const everything = [text, ...lines].join(" ");
+        expect(everything).not.toMatch(
+          /unlisted|mouse-a|mainUse|sizeFeel|duration/,
+        );
+        expect(everything).not.toContain(COMMENT);
+        expect(everything).not.toContain(BRAND_PRIVATE);
+        expect(lines.some((l) => l.includes("survey.failed"))).toBe(true);
+      },
+    );
 
     it("no log line of a GET or a PUT carries the comment, a brand, a slug or an answer, on success or on failure", async () => {
       await seedTwo();

@@ -17,7 +17,8 @@ import { buildAnswersWrite, buildContributionWrite } from "./profile";
 import type { SurveyRepo } from "./repo";
 
 /**
- * Body cap for `POST /api/survey` (a candidate, 未拍板). The largest body the
+ * Body cap for `POST` and `PUT /api/survey` (a candidate, 未拍板): one limit
+ * for both, read by the shared `readJsonBody`. The largest POST body the
  * schema accepts is five ratings with every pain point, one other mouse and a
  * 500-character comment. As JSON, compact:
  *  - about 2.7 KB as our own page sends it (`JSON.stringify`; the comment in
@@ -29,6 +30,14 @@ import type { SurveyRepo } from "./repo";
  * questionnaire. Only a body that also escapes every key and value (8.5 to
  * 10 KB) passes the schema yet exceeds it; no client sends that, and its 413
  * costs nothing.
+ *
+ * A PUT can hold up to `MAX_ACCOUNT_MICE` (30) mice, so it is the larger body.
+ * With every pain point on each of 30 ratings, the longest real catalogue slug
+ * (42 characters) and a 500-character comment in three-byte characters it is
+ * about 7 KB, under the cap. The schema would still allow a slug of up to 100
+ * characters, and 30 of those is over 8 KiB: that body passes the schema and is
+ * refused with a 413 (survey-edit.test.ts measures both). No catalogue slug
+ * is that long, so the cap was not raised for it.
  */
 export const MAX_SURVEY_BODY_BYTES = 8 * 1024;
 
