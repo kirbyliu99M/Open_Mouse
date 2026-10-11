@@ -3,6 +3,8 @@ import { createDrizzleRateLimiter } from "../../../server/analysis/drizzle-rate-
 import {
   SURVEY_RATE_LIMIT_MAX,
   SURVEY_RATE_LIMIT_WINDOW_MS,
+  SURVEY_READ_RATE_LIMIT_MAX,
+  SURVEY_READ_RATE_LIMIT_WINDOW_MS,
 } from "../../../server/scans/rate-limit-config";
 import { createDrizzleScanRepo } from "../../../server/scans/drizzle-repo";
 import { createDrizzleSurveyRepo } from "../../../server/survey/drizzle-repo";
@@ -17,16 +19,25 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function deps(): SurveyDeps {
+function deps(op: "submit" | "withdraw" | "read" | "edit"): SurveyDeps {
   return {
     scanRepo: createDrizzleScanRepo(),
     surveyRepo: createDrizzleSurveyRepo(),
-    // One budget for GET, POST, PUT and DELETE, keyed on the caller's IP.
-    limiter: createDrizzleRateLimiter({
-      windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
-      limit: SURVEY_RATE_LIMIT_MAX,
-      keyPrefix: "survey:",
-    }),
+    // Keyed on the caller's IP: one budget for the three methods that write,
+    // and a larger one of its own for the read (rate-limit-config.ts).
+    limiter: createDrizzleRateLimiter(
+      op === "read"
+        ? {
+            windowMs: SURVEY_READ_RATE_LIMIT_WINDOW_MS,
+            limit: SURVEY_READ_RATE_LIMIT_MAX,
+            keyPrefix: "survey-read:",
+          }
+        : {
+            windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
+            limit: SURVEY_RATE_LIMIT_MAX,
+            keyPrefix: "survey:",
+          },
+    ),
     getUserId: async () => (await auth())?.user?.id ?? null,
   };
 }
@@ -45,7 +56,7 @@ async function run(
 ): Promise<Response> {
   let built: SurveyDeps;
   try {
-    built = deps();
+    built = deps(op);
   } catch (error) {
     return logFailure(op, error);
   }

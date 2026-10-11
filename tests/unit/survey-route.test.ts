@@ -55,6 +55,8 @@ import {
   FIT_RATE_LIMIT_MAX,
   SURVEY_RATE_LIMIT_MAX,
   SURVEY_RATE_LIMIT_WINDOW_MS,
+  SURVEY_READ_RATE_LIMIT_MAX,
+  SURVEY_READ_RATE_LIMIT_WINDOW_MS,
 } from "../../src/server/scans/rate-limit-config";
 
 beforeEach(async () => {
@@ -212,7 +214,7 @@ describe("/api/survey route", () => {
     ]);
   });
 
-  it("GET, PUT, POST and DELETE share one budget: each builds the limiter with the same survey constants and key prefix, and each is refused with a 429 and no-store when the limiter says no", async () => {
+  it("PUT, POST and DELETE share one budget and GET has a larger one of its own: each builds the limiter with its constants and key prefix, and each is refused with a 429 and no-store when the limiter says no", async () => {
     auth.mockResolvedValue({ user: { id: "user-1" } });
     const scan = await world.addScan({ userId: "user-1" });
     expect((await POST(submission(scan.scanId))).status).toBe(201);
@@ -255,12 +257,24 @@ describe("/api/survey route", () => {
       expect(refused.status, method).toBe(429);
       expect(refused.headers.get("cache-control"), method).toBe("no-store");
       expect(allow, method).toHaveBeenCalledWith(IP);
-      expect(createDrizzleRateLimiter, method).toHaveBeenCalledWith({
-        windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
-        limit: SURVEY_RATE_LIMIT_MAX,
-        keyPrefix: "survey:",
-      });
+      expect(createDrizzleRateLimiter, method).toHaveBeenCalledWith(
+        method === "GET"
+          ? {
+              windowMs: SURVEY_READ_RATE_LIMIT_WINDOW_MS,
+              limit: SURVEY_READ_RATE_LIMIT_MAX,
+              keyPrefix: "survey-read:",
+            }
+          : {
+              windowMs: SURVEY_RATE_LIMIT_WINDOW_MS,
+              limit: SURVEY_RATE_LIMIT_MAX,
+              keyPrefix: "survey:",
+            },
+      );
     }
+    // Candidate numbers (未拍板): reading has its own, larger budget (Kirby, 2026-10-12).
+    expect(SURVEY_READ_RATE_LIMIT_MAX).toBe(60);
+    expect(SURVEY_READ_RATE_LIMIT_WINDOW_MS).toBe(10 * 60 * 1000);
+    expect(SURVEY_READ_RATE_LIMIT_MAX).toBeGreaterThan(SURVEY_RATE_LIMIT_MAX);
     // None of the refused calls got through: the edit and the withdrawal changed nothing.
     expect(await world.contributions()).toEqual(before);
 
