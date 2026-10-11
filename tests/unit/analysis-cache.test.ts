@@ -35,8 +35,8 @@ describe("computeCacheKey", () => {
   it("is deterministic for the same fit and measurements (identical input -> same key)", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
-    expect(computeCacheKey(fit, measurements)).toBe(
-      computeCacheKey(fit, measurements),
+    expect(computeCacheKey(fit, measurements, "en")).toBe(
+      computeCacheKey(fit, measurements, "en"),
     );
   });
 
@@ -44,9 +44,11 @@ describe("computeCacheKey", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
     const prompt = buildPrompt(
-      canonicalize(buildAnalysisInput(fit, measurements)) as AnalysisInput,
+      canonicalize(
+        buildAnalysisInput(fit, measurements, "en"),
+      ) as AnalysisInput,
     );
-    const key = computeCacheKey(fit, measurements);
+    const key = computeCacheKey(fit, measurements, "en");
     expect(key).toBe(
       sha256(`${ANALYSIS_PROMPT_VERSION}
 ${prompt}`),
@@ -58,7 +60,7 @@ ${prompt}`),
   });
 
   it("is a 64-character hex sha256 digest", () => {
-    const key = computeCacheKey(makeFit(), makeMeasurements());
+    const key = computeCacheKey(makeFit(), makeMeasurements(), "en");
     expect(key).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -74,8 +76,8 @@ ${prompt}`),
         stated: "palm",
       } as FitResponse["gripStyle"],
     });
-    expect(computeCacheKey(fitA, measurements)).toBe(
-      computeCacheKey(fitB, measurements),
+    expect(computeCacheKey(fitA, measurements, "en")).toBe(
+      computeCacheKey(fitB, measurements, "en"),
     );
   });
 
@@ -87,10 +89,12 @@ ${prompt}`),
     const a = computeCacheKey(
       makeFit({ engineVersion: "fit-v0-provisional" }),
       measurements,
+      "en",
     );
     const b = computeCacheKey(
       makeFit({ engineVersion: "fit-v9-different" }),
       measurements,
+      "en",
     );
     expect(a).toBe(b);
   });
@@ -98,13 +102,14 @@ ${prompt}`),
   it("changes when grip used changes", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
-    const base = computeCacheKey(fit, measurements);
+    const base = computeCacheKey(fit, measurements, "en");
     expect(
       computeCacheKey(
         makeFit({
           gripStyle: { stated: "palm", predicted: "claw", used: "palm" },
         }),
         measurements,
+        "en",
       ),
     ).not.toBe(base);
   });
@@ -112,7 +117,7 @@ ${prompt}`),
   it("does not change when only a slug changes (slugs never reach the prompt)", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
-    const base = computeCacheKey(fit, measurements);
+    const base = computeCacheKey(fit, measurements, "en");
     expect(
       computeCacheKey(
         makeFit({
@@ -124,6 +129,7 @@ ${prompt}`),
           ],
         }),
         measurements,
+        "en",
       ),
     ).toBe(base);
   });
@@ -131,7 +137,7 @@ ${prompt}`),
   it("changes when a top-3 model name changes", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
-    const base = computeCacheKey(fit, measurements);
+    const base = computeCacheKey(fit, measurements, "en");
     expect(
       computeCacheKey(
         makeFit({
@@ -143,6 +149,7 @@ ${prompt}`),
           ],
         }),
         measurements,
+        "en",
       ),
     ).not.toBe(base);
   });
@@ -198,8 +205,8 @@ ${prompt}`),
     expect(narrowPref.results[0]!.mouse.slug).toBe(
       widePref.results[0]!.mouse.slug,
     );
-    expect(computeCacheKey(narrowPref, measurements)).not.toBe(
-      computeCacheKey(widePref, measurements),
+    expect(computeCacheKey(narrowPref, measurements, "en")).not.toBe(
+      computeCacheKey(widePref, measurements, "en"),
     );
   });
 
@@ -211,19 +218,31 @@ ${prompt}`),
     const measurements = makeMeasurements();
     const fitA = makeFit(); // fixture's default excluded: one vertical mouse
     const fitB = makeFit({ excluded: [] }); // includeVertical: true -> nothing excluded
-    expect(computeCacheKey(fitA, measurements)).not.toBe(
-      computeCacheKey(fitB, measurements),
+    expect(computeCacheKey(fitA, measurements, "en")).not.toBe(
+      computeCacheKey(fitB, measurements, "en"),
     );
   });
 
   it("hashes the one-decimal-mm value the model actually sees, not the raw float", () => {
     const fit = makeFit();
     // oneDecimal(180.44) === oneDecimal(180.36) === 180.4
-    const a = computeCacheKey(fit, makeMeasurements({ handLengthMm: 180.44 }));
-    const b = computeCacheKey(fit, makeMeasurements({ handLengthMm: 180.36 }));
+    const a = computeCacheKey(
+      fit,
+      makeMeasurements({ handLengthMm: 180.44 }),
+      "en",
+    );
+    const b = computeCacheKey(
+      fit,
+      makeMeasurements({ handLengthMm: 180.36 }),
+      "en",
+    );
     expect(a).toBe(b);
     // oneDecimal(180.46) === 180.5 -- a genuinely different shown value.
-    const c = computeCacheKey(fit, makeMeasurements({ handLengthMm: 180.46 }));
+    const c = computeCacheKey(
+      fit,
+      makeMeasurements({ handLengthMm: 180.46 }),
+      "en",
+    );
     expect(a).not.toBe(c);
   });
 });
@@ -260,7 +279,7 @@ describe("InMemoryAnalysisCache", () => {
   });
   it("misses before a set, hits after", async () => {
     const cache = new InMemoryAnalysisCache();
-    const key = computeCacheKey(makeFit(), makeMeasurements());
+    const key = computeCacheKey(makeFit(), makeMeasurements(), "en");
     expect(await cache.get("scan-a", key)).toBeNull();
     await cache.set("scan-a", key, CACHED);
     expect(await cache.get("scan-a", key)).toEqual(CACHED);
@@ -270,7 +289,7 @@ describe("InMemoryAnalysisCache", () => {
     const cache = new InMemoryAnalysisCache();
     await cache.set(
       "scan-a",
-      computeCacheKey(makeFit(), makeMeasurements()),
+      computeCacheKey(makeFit(), makeMeasurements(), "en"),
       CACHED,
     );
     const otherKey = computeCacheKey(
@@ -283,13 +302,14 @@ describe("InMemoryAnalysisCache", () => {
         ],
       }),
       makeMeasurements(),
+      "en",
     );
     expect(await cache.get("scan-a", otherKey)).toBeNull();
   });
 
   it("stores and returns the provenance alongside the output", async () => {
     const cache = new InMemoryAnalysisCache();
-    const key = computeCacheKey(makeFit(), makeMeasurements());
+    const key = computeCacheKey(makeFit(), makeMeasurements(), "en");
     await cache.set("scan-a", key, CACHED);
     const result = await cache.get("scan-a", key);
     expect(result?.source).toBe("model");

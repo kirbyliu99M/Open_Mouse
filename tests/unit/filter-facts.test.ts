@@ -163,8 +163,8 @@ describe("filter facts never reach the analysis or the share card", () => {
     const { plain, rich } = withAndWithout();
     expect(() => fitResponseSchema.parse(rich)).not.toThrow();
     const m = makeMeasurements();
-    const a = buildAnalysisInput(plain, m);
-    const b = buildAnalysisInput(rich, m);
+    const a = buildAnalysisInput(plain, m, "en");
+    const b = buildAnalysisInput(rich, m, "en");
     expect(b).toEqual(a);
     const json = JSON.stringify(b);
     for (const word of [
@@ -183,10 +183,10 @@ describe("filter facts never reach the analysis or the share card", () => {
   it("no filter fact or variant number enters the numeral allow-list", () => {
     const { plain, rich } = withAndWithout();
     const m = makeMeasurements();
-    const allowed = collectNumbers(buildAnalysisInput(rich, m));
+    const allowed = collectNumbers(buildAnalysisInput(rich, m, "en"));
     expect(allowed.has(987.6)).toBe(false);
     expect([...allowed].sort()).toEqual(
-      [...collectNumbers(buildAnalysisInput(plain, m))].sort(),
+      [...collectNumbers(buildAnalysisInput(plain, m, "en"))].sort(),
     );
   });
 
