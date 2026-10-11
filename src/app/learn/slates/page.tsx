@@ -1,17 +1,22 @@
 import type { Metadata } from "next";
+import type { Locale } from "@/lib/contracts/locale";
 import { TopBar } from "@/components/nav/TopBar";
 import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
 import { SLATES_PER_PAGE, SlatePageSvg } from "@/components/learning/KitSvg";
 import { CardPageSvg } from "@/components/learning/KitV2Svg";
 import { formatParticipantId } from "@/lib/learning/kit";
 import { KIT_V2_CARDS_PER_PAGE } from "@/lib/learning/layoutv2";
+import { learnCopy } from "@/lib/copy/learn";
+import { getLocale } from "@/server/i18n/getLocale";
 import { PrintButton } from "../PrintButton";
 import "../learn.css";
 
-export const metadata: Metadata = {
-  title: "Participant cards",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: learnCopy(await getLocale()).slatesMetaTitle,
+    robots: { index: false, follow: false },
+  };
+}
 
 function intParam(
   value: string | string[] | undefined,
@@ -30,9 +35,12 @@ function intParam(
  */
 function V2Cards({
   params,
+  locale,
 }: {
   params: Record<string, string | string[] | undefined>;
+  locale: Locale;
 }) {
+  const copy = learnCopy(locale);
   const from = intParam(params.from, 1, 1, 999);
   const count = Math.min(intParam(params.count, 24, 1, 240), 999 - from + 1);
   const last = from + count - 1;
@@ -45,29 +53,30 @@ function V2Cards({
       <div className="learn noPrint">
         <TopBar
           backHref="/learn"
-          backLabel="Learning kit"
-          stepLabel="Participant cards"
+          backLabel={copy.learningKit}
+          stepLabel={copy.participantCards}
         />
-        <h1>Kit v2 participant cards</h1>
+        <h1>{copy.kitV2Cards}</h1>
         <p className="learn-lead">
-          Cards {formatParticipantId(from)} to {formatParticipantId(last)}, 24
-          to a page. Print at A4, 100% / Actual size, and cut along the dashed
-          lines. Each card is 60 × 30 mm and goes in the sheet&apos;s card slot
-          before a person&apos;s first photo; every photo then names its
-          participant.
+          {copy.cardsLeadV2(
+            formatParticipantId(from),
+            formatParticipantId(last),
+          )}
+          {copy.gap}
+          {copy.cardsLeadV2After}
         </p>
-        <PrintButton
-          label={`Print ${pageStarts.length === 1 ? "1 page" : `${pageStarts.length} pages`}`}
-        />
+        <PrintButton label={copy.printPages(pageStarts.length)} />
         <p className="learn-note">
-          S0 pilot: <code>?kit=2&amp;from=901&amp;count=12</code>. More:{" "}
-          <code>?kit=2&amp;from={last + 1}</code>.
+          {copy.s0Pilot} <code>?kit=2&amp;from=901&amp;count=12</code>
+          {copy.stop} {copy.more} <code>?kit=2&amp;from={last + 1}</code>
+          {copy.stop}
         </p>
       </div>
       <div className="learn-print-pages">
         {pageStarts.map((start) => (
           <section key={start} className="learn-print-page learn-print-page-a4">
             <CardPageSvg
+              locale={locale}
               first={start}
               count={Math.min(KIT_V2_CARDS_PER_PAGE, last - start + 1)}
             />
@@ -86,7 +95,9 @@ export default async function LearnSlatesPage({
   guardDemoRouteFromProduction();
   const params = await searchParams;
   const kitParam = Array.isArray(params.kit) ? params.kit[0] : params.kit;
-  if (kitParam === "2") return <V2Cards params={params} />;
+  const locale = await getLocale();
+  const copy = learnCopy(locale);
+  if (kitParam === "2") return <V2Cards params={params} locale={locale} />;
   const from = intParam(params.from, 1, 1, 999);
   const count = Math.min(intParam(params.count, 8, 1, 96), 999 - from + 1);
   const pageStarts = Array.from(
@@ -100,28 +111,28 @@ export default async function LearnSlatesPage({
       <div className="learn noPrint">
         <TopBar
           backHref="/learn"
-          backLabel="Learning kit"
-          stepLabel="Participant cards"
+          backLabel={copy.learningKit}
+          stepLabel={copy.participantCards}
         />
-        <h1>Participant cards</h1>
+        <h1>{copy.participantCards}</h1>
         <p className="learn-lead">
-          Cards {formatParticipantId(from)} to {formatParticipantId(last)}. Cut
-          them out, write one person&apos;s ruler values on a card, and
-          photograph it before their first pose. Every photo after it is filed
-          under that number until the next card.
+          {copy.slatesLead(
+            formatParticipantId(from),
+            formatParticipantId(last),
+          )}
+          {copy.gap}
+          {copy.slatesLeadAfter}
         </p>
-        <PrintButton
-          label={`Print ${pageStarts.length === 1 ? "1 page" : `${pageStarts.length} pages`}`}
-        />
+        <PrintButton label={copy.printPages(pageStarts.length)} />
         <p className="learn-note">
-          Need more? Add <code>?from={last + 1}</code> to this page&apos;s
-          address.
+          {copy.needMore} <code>?from={last + 1}</code> {copy.needMoreAfter}
         </p>
       </div>
       <div className="learn-print-pages">
         {pageStarts.map((start) => (
           <section key={start} className="learn-print-page">
             <SlatePageSvg
+              locale={locale}
               first={start}
               count={Math.min(SLATES_PER_PAGE, last - start + 1)}
             />
