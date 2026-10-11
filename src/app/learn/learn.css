@@ -127,6 +127,8 @@
   background: var(--learn-surface);
   border: 1px solid var(--learn-rule);
   border-radius: 0.5rem;
+  /* A long option (zh-TW or English) must not widen the page on a phone. */
+  max-width: 100%;
 }
 
 .learn code {

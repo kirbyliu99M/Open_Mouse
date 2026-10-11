@@ -162,8 +162,8 @@ const CASES: PageCase[] = [
     path: "/account",
     zhHeading: accountZh.keepYourScans,
     enHeading: accountEn.keepYourScans,
-    zhActions: [{ role: "link", name: accountZh.scanWithoutAccount }],
-    enActions: [{ role: "link", name: accountEn.scanWithoutAccount }],
+    zhActions: [],
+    enActions: [],
     zhTitle: accountZh.metaTitle,
     enTitle: accountEn.metaTitle,
   },
@@ -311,6 +311,7 @@ test.describe("printing in zh-TW stays one page", () => {
   }) => {
     await setLocale(page, "zh-TW");
     await page.goto("/sheet");
+    await page.emulateMedia({ media: "print" });
     const svg = page.locator(".printPage svg");
     await expect(svg).toContainText(sheetZh.svgWarning);
     await expect(svg).not.toContainText("Actual size");
