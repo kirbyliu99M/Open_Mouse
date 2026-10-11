@@ -25,6 +25,7 @@ async function lengthFailurePipeline(
       {
         code: "MEASUREMENT_OUT_OF_RANGE",
         message: userLengthRetakeMessage(typed),
+        detail: { kind: "typedLength" as const, typedMm: typed },
       },
     ],
     overlay: {

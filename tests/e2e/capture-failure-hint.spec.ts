@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { checkHandDetected } from "../../src/client/photo/gates";
-import { HOLD_STILL_TAKING_THE_PHOTO } from "../../src/client/camera/cues";
+import { cameraCuesCopy } from "../../src/lib/copy/camera-cues";
+import { issueText } from "../../src/client/photo/issueText";
+import { easyScanCopy } from "../../src/lib/copy/easy-scan";
+import { scanCommonCopy } from "../../src/lib/copy/scan-common";
 import {
   CAPTURE_FAILURE_HINT_COPY,
   CAPTURE_FAILURE_HINT_THRESHOLD,
@@ -58,6 +61,9 @@ for (const { locale, language } of CASES) {
         "Needs the fake-media-device project (paper-edge-full.y4m).",
       );
       const approved = CAPTURE_FAILURE_HINT_COPY[language];
+      // The page follows the browser's language, so every other word on the
+      // screen is in it too.
+      const words = scanCommonCopy(language);
 
       await page.addInitScript(() => {
         window.__toBlobFail = true;
@@ -86,7 +92,9 @@ for (const { locale, language } of CASES) {
         res.url().includes("/mediapipe/models/hand_landmarker.task"),
       );
       await page.waitForLoadState("networkidle");
-      await page.getByRole("button", { name: "Got it" }).click();
+      await page
+        .getByRole("button", { name: easyScanCopy(language).tipGotIt })
+        .click();
 
       // The 4th capture attempt happens after 3 failures were counted.
       await expect
@@ -103,7 +111,7 @@ for (const { locale, language } of CASES) {
       }
       // ...and the line under the viewfinder is the usual one while the ring
       // is full, so the next check is not passing for want of it.
-      expect(log[0]?.line).toBe(HOLD_STILL_TAKING_THE_PHOTO);
+      expect(log[0]?.line).toBe(cameraCuesCopy(language).holdStillTakingPhoto);
       // After the 3rd, the cue shows the approved line in the page's language.
       expect(log[CAPTURE_FAILURE_HINT_THRESHOLD]?.hintShown).toBe(true);
       expect(log[CAPTURE_FAILURE_HINT_THRESHOLD]?.cueText).toBe(approved);
@@ -126,13 +134,15 @@ for (const { locale, language } of CASES) {
       await page.evaluate(() => {
         window.__toBlobFail = false;
       });
-      const sheet = page.getByRole("dialog", { name: "Retake needed" });
+      const sheet = page.getByRole("dialog", { name: words.retakeNeeded });
       await expect(sheet).toBeVisible({ timeout: 20_000 });
-      await expect(sheet).toContainText(checkHandDetected(0)!.message);
+      await expect(sheet).toContainText(
+        issueText(checkHandDetected(0, "paper")!, language),
+      );
       await expect(page.locator("[data-capture-failure]")).toHaveCount(0);
 
       // A retake starts a fresh count: the camera is live again with no hint.
-      await sheet.getByRole("button", { name: "Try again" }).click();
+      await sheet.getByRole("button", { name: words.tryAgain }).click();
       await expect(sheet).toBeHidden();
       await expect(page.locator("[data-capture-failure]")).toHaveCount(0);
     });
