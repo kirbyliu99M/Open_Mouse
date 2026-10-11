@@ -76,6 +76,7 @@ export default async function AccountPage() {
             <p className="account-fine-print">
               {copy.answerWithoutAccountNote}
             </p>
+            <p className="account-fine-print">{copy.finePrint}</p>
           </>
         ) : (
           <>

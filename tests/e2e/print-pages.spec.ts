@@ -56,24 +56,43 @@ for (const selector of [".eyebrow", ".note"]) {
   });
 }
 
-// The signed-in account page (AccountView.tsx) cannot be reached either. Its
+// The signed-in profile page (AccountView.tsx) cannot be reached either. Its
 // markup is put on a page that loads the same stylesheets, so the real cascade
 // decides its print colours. Keep the classes in step with AccountView.
-const FAKE_ACCOUNT = `<section id="fake-account">
-  <div class="account-actions">
-    <button type="button" class="button-secondary">Export as JSON</button>
-    <button type="button" class="button-danger">Delete everything</button>
+const FAKE_ACCOUNT = `<section id="fake-account" class="profile">
+  <div class="profile-person">
+    <p class="profile-name">Ada</p>
+    <p class="profile-email">ada@example.test</p>
   </div>
-  <p class="status-error" role="status">Couldn't export: check your connection and try again.</p>
-  <ul class="scan-list"><li class="scan-card">
-    <div class="scan-card-header"><span>4 Oct 2026</span><span>Right hand</span></div>
-    <dl class="measurements">
-      <div><dt>Hand length</dt><dd>190 mm</dd></div>
+  <section class="profile-section">
+    <div class="profile-section-head">
+      <h2>My hand</h2><span class="profile-section-aside">Latest, Oct 4</span>
+    </div>
+    <dl class="profile-rows profile-facts">
+      <div class="profile-row"><dt class="profile-row-label">Hand length</dt><dd class="profile-fact">19.0 cm</dd></div>
     </dl>
-  </li></ul>
+  </section>
+  <section class="profile-section">
+    <div class="profile-section-head"><h2>My mice</h2></div>
+    <ul class="profile-rows"><li>
+      <div class="profile-row profile-mouse"><span class="profile-mouse-text">
+        <span class="profile-mouse-name">Razer DeathAdder V3</span>
+        <span class="profile-mouse-meta"><span class="profile-current">In use now</span> · Satisfaction 4/5</span>
+      </span></div>
+    </li></ul>
+    <p class="profile-fine">Your comment is read by the maintainers only.</p>
+  </section>
+  <section class="profile-section">
+    <div class="profile-section-head"><h2>Data</h2></div>
+    <ul class="profile-rows">
+      <li><button type="button" class="profile-row profile-text-button">Export my data</button></li>
+      <li><button type="button" class="profile-row profile-text-button profile-danger">Delete everything</button></li>
+    </ul>
+    <p class="status-error" role="status">Couldn't export: check your connection and try again.</p>
+  </section>
 </section>`;
 
-test("a signed-in account's actions, error line and scan card print dark on white", async ({
+test("a signed-in profile page's rows, buttons and error line print dark on white", async ({
   page,
 }) => {
   await page.goto("/no-such-page-xyz");

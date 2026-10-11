@@ -283,6 +283,9 @@
   color: var(--text-secondary);
   font-size: 0.9375rem;
 }
+.profile-row-empty {
+  color: var(--text-secondary);
+}
 .profile-row-ellipsis {
   overflow: hidden;
   white-space: nowrap;

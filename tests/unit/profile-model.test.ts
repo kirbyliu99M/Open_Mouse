@@ -342,11 +342,24 @@ describe("otherAnswerRows and hasAnswers", () => {
       { key: "feedback", label: "意見", value: "手感偏小， 側鍵 太硬" },
     ]);
   });
-  it("leaves out what was not answered", () => {
-    expect(otherAnswerRows(answers(), zhTW)).toEqual([]);
+  it("always lists both rows; one with no answer reads 未填 and is marked empty", () => {
+    const none = otherAnswerRows(answers(), zhTW);
+    expect(none).toEqual([
+      { key: "mainUse", label: "主要用途", value: "未填", empty: true },
+      { key: "feedback", label: "意見", value: "未填", empty: true },
+    ]);
+    // A comment of blanks is no comment.
     expect(
-      otherAnswerRows(answers({ feedback: "  " }), zhTW).map((r) => r.key),
-    ).toEqual([]);
+      otherAnswerRows(answers({ feedback: "  " }), zhTW).map((r) => r.empty),
+    ).toEqual([true, true]);
+    const onlyUse = otherAnswerRows(answers({ mainUse: "office" }), zhTW);
+    expect(onlyUse[0]).toEqual({
+      key: "mainUse",
+      label: "主要用途",
+      value: "辦公",
+    });
+    expect(onlyUse[1]?.empty).toBe(true);
+    expect(otherAnswerRows(answers(), en)[0]?.value).toBe("Not filled in");
   });
   it("hasAnswers is false only for nothing at all", () => {
     expect(hasAnswers(answers())).toBe(false);
