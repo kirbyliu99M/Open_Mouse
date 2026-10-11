@@ -5,18 +5,20 @@ import { PrintButton } from "./PrintButton";
 import { ID1_CARD_MM, SHEET } from "@/lib/contracts/measurement";
 import { MarkerGlyph } from "@/components/sheet/MarkerGlyph";
 import { computeSheetLayout } from "@/client/sheet/layout";
+import { sheetCopy } from "@/lib/copy/sheet";
+import { getLocale } from "@/server/i18n/getLocale";
 import "./sheet.css";
 
-export const metadata: Metadata = {
-  title: "Calibration sheet",
-  description:
-    "Printable ArUco calibration sheet for measuring your hand from a photo.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = sheetCopy(await getLocale());
+  return { title: copy.metaTitle, description: copy.metaDescription };
+}
 
 const TICK_INTERVAL_MM = 10;
 const TICK_LENGTH_MM = 3;
 
-export default function SheetPage() {
+export default async function SheetPage() {
+  const copy = sheetCopy(await getLocale());
   const layout = computeSheetLayout();
   const ticks = Array.from(
     { length: layout.ruler.lengthMm / TICK_INTERVAL_MM + 1 },
@@ -26,14 +28,11 @@ export default function SheetPage() {
   return (
     <main className="sheetMain">
       <div className="instructions noPrint">
-        <TopBar backHref="/" backLabel="Home" stepLabel="Step 1 of 2 · Print" />
-        <h1>Print the sheet</h1>
+        <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.stepLabel} />
+        <h1>{copy.heading}</h1>
         <div className="sheet-callout">
-          <h2>Print at actual size — 100%</h2>
-          <p>
-            Turn off &quot;Fit to page&quot; in the print dialog. A scaled print
-            gives wrong measurements.
-          </p>
+          <h2>{copy.calloutTitle}</h2>
+          <p>{copy.calloutBody}</p>
         </div>
       </div>
 
@@ -59,7 +58,7 @@ export default function SheetPage() {
             fontSize={3.5}
             textAnchor="middle"
           >
-            Side-shot strip (fold this flap up against a wall)
+            {copy.svgStrip}
           </text>
           {layout.markers
             .filter((m) =>
@@ -85,7 +84,7 @@ export default function SheetPage() {
             fontSize={3.5}
             fontWeight="bold"
           >
-            ▲ fold up
+            {copy.svgFoldUp}
           </text>
           <text
             x={layout.foldLine.start.x}
@@ -93,7 +92,7 @@ export default function SheetPage() {
             fontSize={3.5}
             fontWeight="bold"
           >
-            ▼ lay flat
+            {copy.svgLayFlat}
           </text>
 
           {/* Flat flap (lays flat on the table): the 4-marker top-down plane. */}
@@ -131,7 +130,7 @@ export default function SheetPage() {
             fontSize={3.5}
             textAnchor="middle"
           >
-            Check this is exactly {layout.ruler.lengthMm} mm
+            {copy.svgRuler(layout.ruler.lengthMm)}
           </text>
 
           {/* Card placement outline. */}
@@ -155,8 +154,7 @@ export default function SheetPage() {
             fontSize={3.5}
             textAnchor="middle"
           >
-            Place any bank card here ({ID1_CARD_MM.width} × {ID1_CARD_MM.height}{" "}
-            mm)
+            {copy.svgCard(ID1_CARD_MM.width, ID1_CARD_MM.height)}
           </text>
 
           {/* Prominent print-scale warning, on the printed sheet itself. */}
@@ -167,20 +165,17 @@ export default function SheetPage() {
             fontWeight="bold"
             textAnchor="middle"
           >
-            Print at 100% / Actual size — do not &quot;fit to page&quot;
+            {copy.svgWarning}
           </text>
         </svg>
       </div>
       <div className="sheet-after noPrint">
-        <p>Fits both A4 and Letter. The whole sheet is shown here.</p>
+        <p>{copy.after}</p>
         <PrintButton />
         <Link className="sheet-secondary" href="/scan">
-          I&apos;ve printed it — continue
+          {copy.continueLabel}
         </Link>
-        <p className="sheet-privacy">
-          Your photo is processed on this device. Only the measurements are
-          sent.
-        </p>
+        <p className="sheet-privacy">{copy.privacy}</p>
       </div>
     </main>
   );
