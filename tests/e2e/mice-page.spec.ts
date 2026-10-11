@@ -6,13 +6,16 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * NOT RUN by the builder (the machine crashes under Chromium tests; AGENTS.md).
  * To run: `npx playwright test tests/e2e/mice-page.spec.ts`, one project at a
- * time, with `DATABASE_URL` pointing at a seeded database.
+ * time, with `DATABASE_URL` in the environment (a seeded database) or
+ * `MICE_E2E_EXPECT_DATA=1`.
  *
  * The page reads the catalogue on the server, so a browser cannot stub it the
  * way the results page's fit response is stubbed. Without a database (CI) the
  * page shows its empty state: the first group below runs in that case and the
- * data groups skip themselves; with a database it is the other way round. Both
- * are written against the page's behaviour, not against a row count (the
+ * data groups skip themselves, saying why. When the environment says a
+ * database is there (`EXPECT_DATA`), the data groups do NOT skip: an empty
+ * state then fails them, so a broken connection cannot pass as green. Both are
+ * written against the page's behaviour, not against a row count (the
  * catalogue is about 406 rows today and will change).
  *
  * `chromium` is 1280 px wide (the sidebar and the table), `mobile` is a phone
@@ -22,6 +25,10 @@ test.use({ locale: "en-US" });
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const UNAVAILABLE = "The mouse list could not be loaded";
+
+/** The run was told a seeded database is behind the dev server. */
+const EXPECT_DATA =
+  process.env.MICE_E2E_EXPECT_DATA === "1" || Boolean(process.env.DATABASE_URL);
 
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
 
@@ -33,6 +40,22 @@ async function open(page: Page, query = "") {
 
 async function hasData(page: Page): Promise<boolean> {
   return (await page.getByText(UNAVAILABLE).count()) === 0;
+}
+
+/** The data groups' gate: with a database expected the list must have loaded; otherwise skip, saying why. */
+async function requireData(page: Page) {
+  const loaded = await hasData(page);
+  if (EXPECT_DATA) {
+    expect(
+      loaded,
+      "a database is expected (DATABASE_URL or MICE_E2E_EXPECT_DATA=1), so the list must load and not show its empty state",
+    ).toBe(true);
+  } else {
+    test.skip(
+      !loaded,
+      "no DATABASE_URL (or MICE_E2E_EXPECT_DATA=1) in the environment and the page shows its empty state: nothing to test here",
+    );
+  }
 }
 
 /** The count in the filter's own line (the sidebar's, or the phone bar's). */
@@ -52,12 +75,23 @@ const rows = (page: Page) =>
     ? page.locator(".mice-table tbody tr")
     : page.locator(".mice-card");
 
-/** Waits for the layout the screen calls for (the server renders the phone layout first). */
+/**
+ * The layout the screen calls for is on screen. Both shells are in the markup
+ * and CSS shows one, so this is true from the first paint, not after a script
+ * has run.
+ */
 async function layoutReady(page: Page) {
   await expect(page.locator(".results-body")).toHaveAttribute(
     "data-filter",
-    isDesktop(page) ? "sidebar" : "sheet",
+    "both",
   );
+  if (isDesktop(page)) {
+    await expect(page.locator("aside.results-sidebar")).toBeVisible();
+    await expect(page.locator(".results-filterChrome")).toBeHidden();
+  } else {
+    await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
+    await expect(page.locator("aside.results-sidebar")).toBeHidden();
+  }
 }
 
 const option = (page: Page, name: string) =>
@@ -146,11 +180,52 @@ test.describe("the page itself (with or without a database)", () => {
     ).toBe(true);
   });
 
+  test("the layout is right in the server's own first paint (CSS only, no script)", async ({
+    browser,
+    page,
+  }) => {
+    const viewport = page.viewportSize()!;
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport,
+      locale: "en-US",
+    });
+    const plain = await context.newPage();
+    await plain.goto("/mice");
+    await layoutReady(plain);
+    // The page is as wide as the layout it shows, at once.
+    const width = await plain
+      .locator("main.mice-page")
+      .evaluate((el) => el.getBoundingClientRect().width);
+    expect(width).toBeLessThanOrEqual(
+      isDesktop(plain) ? 86 * 16 + 0.5 : viewport.width,
+    );
+    await context.close();
+  });
+
+  test("the search keeps its focus and text when the window crosses the filter's breakpoint", async ({
+    page,
+  }) => {
+    await open(page);
+    await layoutReady(page);
+    const box = page.getByRole("searchbox", { name: "Search brand or model" });
+    await box.fill("pro");
+    await box.focus();
+    for (const width of [1023, 1024, 1279, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect(box).toBeFocused();
+      await expect(box).toHaveValue("pro");
+    }
+  });
+
   test("when the catalogue cannot be read, shows an empty state and 0 mice, not an error page (no database)", async ({
     page,
   }) => {
     await open(page);
-    test.skip(await hasData(page), "a database is connected");
+    test.skip(
+      EXPECT_DATA || (await hasData(page)),
+      "a database is connected or expected",
+    );
     await expect(page.getByText(UNAVAILABLE)).toBeVisible();
     await expect(page.locator("table")).toHaveCount(0);
     expect(await foundCount(page)).toBe(0);
@@ -160,7 +235,7 @@ test.describe("the page itself (with or without a database)", () => {
 test.describe("the list (needs a seeded database)", () => {
   test.beforeEach(async ({ page }) => {
     await open(page);
-    test.skip(!(await hasData(page)), "no database: the empty state shows");
+    await requireData(page);
     await layoutReady(page);
   });
 
@@ -217,6 +292,39 @@ test.describe("the list (needs a seeded database)", () => {
       "Weight (g)",
     ]);
     await expect(page.locator(".mice-card").first()).toBeHidden();
+  });
+
+  test("a table that does not fit scrolls inside its box, and nothing is cut off", async ({
+    page,
+  }) => {
+    test.skip(!isDesktop(page), "the table is for wide screens");
+    // The page itself never scrolls sideways...
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    // ...and the table's box either holds every column or scrolls to the last.
+    const wrap = page.locator(".mice-tableWrap");
+    expect(await wrap.evaluate((el) => getComputedStyle(el).overflowX)).toBe(
+      "auto",
+    );
+    await wrap.focus();
+    await page.keyboard.press("End");
+    const reachedEnd = await wrap.evaluate(
+      (el) => el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
+    );
+    expect(reachedEnd, "the last column can be scrolled into view").toBe(true);
+    // The last column's header is inside the box once scrolled.
+    const last = await page
+      .locator(".mice-table thead th")
+      .last()
+      .evaluate((th) => {
+        const r = th.getBoundingClientRect();
+        const w = th.closest(".mice-tableWrap")!.getBoundingClientRect();
+        return r.right <= w.right + 1;
+      });
+    expect(last).toBe(true);
   });
 
   test("the cards (phone) show brand, model, three tags and the size line", async ({
@@ -338,7 +446,7 @@ test.describe("the list (needs a seeded database)", () => {
     const response = await request.get("/mice");
     const body = await response.text();
     expect(body).not.toMatch(
-      /sourceUrl|source_url|dataSource|data_source|humpPlacement|frontFlare|sideCurvature|thumbRest|ringFingerRest|handCompatibility|specRetrievedAt/,
+      /sourceUrl|source_url|dataSource|data_source|humpPlacement|frontFlare|sideCurvature|thumbRest|ringFingerRest|handCompatibility|specRetrievedAt|imagePath|image_path|descriptorSourceUrls|descriptorModel/,
     );
     // The page does carry the shown fields.
     expect(body).toContain("lengthMm");
@@ -372,7 +480,7 @@ test.describe("on a phone (needs a seeded database)", () => {
   test.beforeEach(async ({ page }) => {
     test.skip(isDesktop(page), "phone layout");
     await open(page);
-    test.skip(!(await hasData(page)), "no database: the empty state shows");
+    await requireData(page);
     await layoutReady(page);
   });
 

@@ -11,8 +11,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { MiceBrowser } from "../../src/app/mice/MiceBrowser";
+import { FilterSheet } from "../../src/components/results/filter/FilterSheet";
 import type { Locale } from "../../src/lib/contracts/locale";
-import { toMiceListRow, type MiceListRow } from "../../src/lib/mice/list";
+import {
+  searchMice,
+  toFilterSource,
+  toMiceListRow,
+  type MiceListRow,
+} from "../../src/lib/mice/list";
+import { parseFilters } from "../../src/lib/results/filters";
 
 function rows(n: number): MiceListRow[] {
   return Array.from({ length: n }, (_, i) =>
@@ -119,7 +126,7 @@ describe("MiceBrowser (server render, phone layout first)", () => {
   it("carries no field the page does not show (nothing else is in the rows, so nothing else is in the markup)", () => {
     const html = render(rows(5));
     expect(html).not.toMatch(
-      /sourceUrl|dataSource|humpPlacement|frontFlare|sideCurvature|thumbRest|handCompatibility|specRetrievedAt/,
+      /sourceUrl|dataSource|humpPlacement|frontFlare|sideCurvature|thumbRest|handCompatibility|specRetrievedAt|imagePath|image_path|descriptorSourceUrls|descriptorModel/,
     );
   });
 
@@ -147,5 +154,72 @@ describe("MiceBrowser (server render, phone layout first)", () => {
     expect(html).toContain("左右對稱");
     expect(html).toContain("無線");
     expect(html).toContain("大型鼠");
+  });
+});
+
+describe("MiceBrowser puts both filter shells in the server's markup (no layout switch after hydration)", () => {
+  it("has the sidebar, the phone's bar and one search box, and says which layout CSS shows", () => {
+    const html = render(rows(60));
+    expect(html).toContain('data-filter="both"');
+    expect(html).not.toContain('data-filter="sidebar"');
+    expect(html).not.toContain('data-filter="sheet"');
+    expect(count(html, /<aside /g)).toBe(1);
+    expect(count(html, /class="results-filterChrome"/g)).toBe(1);
+    expect(count(html, /type="search"/g)).toBe(1);
+    // The search comes first in the markup, so on a phone it is above the Filter button.
+    expect(html.indexOf('type="search"')).toBeLessThan(
+      html.indexOf("results-filterChrome"),
+    );
+    // Both shells name the filter and carry the count.
+    expect(count(html, /60 mice found/g)).toBeGreaterThanOrEqual(2);
+  });
+
+  it("makes the table a keyboard-reachable scroll region", () => {
+    const html = render(rows(3));
+    expect(html).toMatch(
+      /<div class="mice-tableWrap" role="region" aria-label="All mice" tabindex="0">/,
+    );
+  });
+});
+
+describe("the phone sheet's 「View N mice」 counts what the list will show", () => {
+  const data = rows(120);
+  const full = toFilterSource(data);
+  const sheet = (
+    query: string,
+    filterQuery: string,
+    withCountSource: boolean,
+  ) => {
+    const searched = toFilterSource(searchMice(data, query));
+    return renderToStaticMarkup(
+      createElement(FilterSheet, {
+        response: full,
+        countSource: withCountSource ? searched : undefined,
+        language: "en",
+        applied: parseFilters(filterQuery),
+        onApply: () => {},
+        onClosed: () => {},
+      }),
+    );
+  };
+  const viewCount = (html: string) =>
+    Number(/View (\d+) (?:mice|mouse)</.exec(html)![1]);
+
+  it("equals the list's row count after a search (with and without a filter)", () => {
+    // Model 007 matches one row; "model 01" matches Model 010 to Model 019 (10 rows).
+    expect(viewCount(sheet("model 007", "", true))).toBe(1);
+    expect(viewCount(sheet("model 01", "", true))).toBe(10);
+    const wired = searchMice(data, "model 01").filter(
+      (r) => r.connectivity === "wired",
+    ).length;
+    expect(wired).toBeGreaterThan(0);
+    expect(viewCount(sheet("model 01", "conn=wired", true))).toBe(wired);
+    // The list says the same thing.
+    const list = render(data, { search: "q=model 01&conn=wired" });
+    expect(list).toContain(`${wired} mice found`);
+  });
+
+  it("counts the whole catalogue when no source for the count is given (the results page's behaviour)", () => {
+    expect(viewCount(sheet("model 007", "", false))).toBe(120);
   });
 });

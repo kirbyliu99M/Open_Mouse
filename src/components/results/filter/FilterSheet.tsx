@@ -44,12 +44,16 @@ const DRAG_CLOSE_SPEED = 0.6;
  */
 export function FilterSheet({
   response,
+  countSource,
   language,
   applied,
   onApply,
   onClosed,
 }: {
+  /** What the option counts describe. */
   response: FilterSource;
+  /** What 「查看 N 款」 counts, when that is not `response` (the all-mice page's searched rows). */
+  countSource?: FilterSource;
   language: Locale;
   applied: Filters;
   onApply: (filters: Filters) => void;
@@ -63,7 +67,7 @@ export function FilterSheet({
   const closing = useRef(false);
   const [leaving, setLeaving] = useState(false);
 
-  const draftCount = matchCount(response, state.draft);
+  const draftCount = matchCount(countSource ?? response, state.draft);
 
   useEffect(() => {
     const dialog = dialogRef.current;

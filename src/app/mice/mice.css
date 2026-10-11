@@ -15,8 +15,12 @@
   margin: 0 auto;
   padding: 1.25rem 1.25rem 4rem;
 }
-.mice-page:has(.results-body[data-filter="sidebar"]) {
-  max-width: 86rem;
+/* The page is as wide as the sidebar layout from the same 64em the filter
+   switches at (CSS only, so the server's first paint has the right width). */
+@media (min-width: 64em) {
+  .mice-page {
+    max-width: 86rem;
+  }
 }
 .mice-wordmark {
   text-decoration: none;
@@ -84,10 +88,17 @@
   width: 100%;
   border: 1px solid var(--hairline);
   border-radius: 0.75rem;
-  overflow: hidden;
+  /* A table that does not fit scrolls inside its box (it is a focusable
+     region, so the keyboard can scroll it) instead of being cut off. */
+  overflow-x: auto;
+}
+.mice-tableWrap:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
 }
 .mice-table {
   width: 100%;
+  min-width: 48rem;
   border-collapse: collapse;
   font-size: 0.9375rem;
   text-align: left;

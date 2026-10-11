@@ -14,6 +14,7 @@ import { ResultsFilterLayout } from "@/components/results/filter/ResultsFilterLa
 import type { Locale } from "@/lib/contracts/locale";
 import { micePageCopy } from "@/lib/copy/mice-page";
 import { RESULTS_PAGE_COPY, type FilterCopy } from "@/lib/copy/results-page";
+import { firstRendered } from "@/lib/mice/rendered";
 import {
   MAX_SEARCH_LENGTH,
   MICE_PAGE_SIZE,
@@ -162,12 +163,7 @@ export function MiceBrowser({
       root.current?.querySelectorAll<HTMLElement>(
         `[data-row-index="${from}"]`,
       ) ?? [];
-    for (const el of candidates) {
-      if (el.checkVisibility()) {
-        el.focus();
-        break;
-      }
-    }
+    firstRendered(candidates)?.focus();
   }, [shown]);
   const showMore = () => {
     focusFrom.current = shownRows.length;
@@ -215,7 +211,12 @@ export function MiceBrowser({
   } else {
     content = (
       <div ref={root} className="mice-results">
-        <div className="mice-tableWrap">
+        <div
+          className="mice-tableWrap"
+          role="region"
+          aria-label={copy.title}
+          tabIndex={0}
+        >
           <table className="mice-table">
             <caption className="results-visuallyHidden">{copy.title}</caption>
             <thead>
@@ -304,6 +305,8 @@ export function MiceBrowser({
     <div className="mice-view">
       <ResultsFilterLayout
         response={source}
+        countSource={searchedSource}
+        shells="both"
         language={language}
         filters={filters}
         count={count}

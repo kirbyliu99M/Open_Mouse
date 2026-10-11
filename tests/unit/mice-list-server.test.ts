@@ -1,13 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // `server-only` throws outside a React Server Component; `next/cache` needs
-// Next's runtime. Stub both so the module's own control flow runs here.
+// Next's runtime. Stub both so the module's own control flow runs here. The
+// stub of `unstable_cache` records its arguments (what the page asks Next to
+// cache) and runs the function as it is, so what the cached function does is
+// tested too.
 vi.mock("server-only", () => ({}));
+const cache = vi.hoisted(() => ({
+  calls: [] as unknown[][],
+}));
 vi.mock("next/cache", () => ({
-  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  unstable_cache: (fn: unknown, ...rest: unknown[]) => {
+    cache.calls.push([fn, ...rest]);
+    return fn;
+  },
 }));
 const warn = vi.hoisted(() => vi.fn());
 vi.mock("../../src/server/log", () => ({ log: { warn } }));
+// The database the default (cached) read opens: a chain whose rows each test sets.
+const dbState = vi.hoisted(() => ({ rows: [] as unknown[], opened: 0 }));
+vi.mock("../../src/db/client", async () => {
+  const { fakeDrizzleChain } = await import("./fixtures/fake-drizzle");
+  return {
+    getDb: () => {
+      dbState.opened += 1;
+      return fakeDrizzleChain(dbState.rows);
+    },
+  };
+});
 
 import {
   MICE_LIST_REVALIDATE_S,
@@ -33,7 +53,11 @@ const dbRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-beforeEach(() => warn.mockClear());
+beforeEach(() => {
+  warn.mockClear();
+  dbState.rows = [];
+  dbState.opened = 0;
+});
 
 describe("loadMiceRows", () => {
   it("selects the display columns only: no source address, data source or descriptor values", async () => {
@@ -113,8 +137,30 @@ describe("getMiceList", () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain("secret");
   });
 
-  it("caches for an hour under a tag", () => {
+  it("hands Next a cache of one hour under the tag mice-list", () => {
     expect(MICE_LIST_REVALIDATE_S).toBe(3600);
     expect(MICE_LIST_TAG).toBe("mice-list");
+    expect(cache.calls).toHaveLength(1);
+    const [fn, keyParts, options] = cache.calls[0]!;
+    expect(fn).toBeTypeOf("function");
+    expect(keyParts).toEqual(["mice-list-v1"]);
+    expect(options).toEqual({ revalidate: 3600, tags: ["mice-list"] });
+  });
+
+  it("the cached read throws on 0 rows (so Next stores nothing) and the page then shows the empty state", async () => {
+    const [cached] = cache.calls[0]! as [() => Promise<unknown>];
+    dbState.rows = [];
+    await expect(cached()).rejects.toThrow();
+    // Through the page's entry point: unavailable, not an error, and nothing was cached.
+    expect(await getMiceList()).toEqual({ status: "unavailable", rows: [] });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("the cached read returns the rows when there are some", async () => {
+    dbState.rows = [dbRow({ slug: "b", brand: "Razer" }), dbRow({ slug: "a" })];
+    const result = await getMiceList();
+    expect(result.status).toBe("ok");
+    expect(result.rows.map((r) => r.slug)).toEqual(["a", "b"]);
+    expect(dbState.opened).toBe(1);
   });
 });
