@@ -1240,7 +1240,7 @@ describe("analyse — Chinese numbers in the model's answer", () => {
     const fit = makeFit({
       results: [{ ...makeFit().results[0]!, confidence: 0.9 }],
     });
-    return buildAnalysisInput(fit, makeMeasurements());
+    return buildAnalysisInput(fit, makeMeasurements(), "en");
   }
   const answer = (whyTopPick: string) =>
     JSON.stringify({

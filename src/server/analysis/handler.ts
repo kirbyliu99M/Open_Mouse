@@ -53,8 +53,8 @@ export interface AnalysisRequest {
   measurements: HandMeasurements;
   /** Identity the rate limit is scoped to — e.g. scanId or caller IP. */
   rateLimitKey: string;
-  /** The language the prose is written in; defaults to `"en"`. */
-  locale?: Locale;
+  /** The language the prose is written in. */
+  locale: Locale;
 }
 
 /** The 200 body is exactly the contract's `AnalysisResponse` shape. */
@@ -107,7 +107,7 @@ export async function handleAnalysisRequest(
   // `globalLimiter` are only ever consulted on the one path that would
   // actually call the model — never on a cache hit and never when no model
   // is configured. Both those paths return below, before either is read.
-  const locale = request.locale ?? "en";
+  const locale = request.locale;
   const cacheKey = computeCacheKey(request.fit, request.measurements, locale);
   let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
   try {
@@ -125,7 +125,7 @@ export async function handleAnalysisRequest(
   const input = buildAnalysisInput(request.fit, request.measurements, locale);
 
   if (deps.client === null) {
-    const { output, source } = await analyse(input, deps.client, { locale });
+    const { output, source } = await analyse(input, deps.client);
     return { status: 200, body: { output, source, cached: false } };
   }
 
@@ -153,7 +153,6 @@ export async function handleAnalysisRequest(
   const now = deps.now ?? (() => new Date());
   const globalKey = globalModelCallRateLimitKey(now());
   const { output, source } = await analyse(input, deps.client, {
-    locale,
     beforeModelCall: () => deps.globalLimiter.allow(globalKey),
   });
   // Only a real model answer is cached — see the comment on `AnalysisCache`

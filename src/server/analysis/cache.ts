@@ -97,7 +97,7 @@ export function canonicalize(value: unknown): unknown {
 export function computeCacheKey(
   fit: FitResponse,
   measurements: HandMeasurements,
-  locale: Locale = "en",
+  locale: Locale,
 ): string {
   // Canonical key order first, so two inputs with equal values but different
   // object literal order (never produced by the engine, but cheap to rule
@@ -105,7 +105,7 @@ export function computeCacheKey(
   const input = canonicalize(
     buildAnalysisInput(fit, measurements, locale),
   ) as AnalysisInput;
-  const prompt = buildPrompt(input, locale);
+  const prompt = buildPrompt(input);
   return createHash("sha256")
     .update(
       `${ANALYSIS_PROMPT_VERSION}

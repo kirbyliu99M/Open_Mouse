@@ -59,6 +59,8 @@ export interface AnalysisInputEntry {
 }
 
 export interface AnalysisInput {
+  /** The language the prose is written in; the band wording below is in it too. */
+  locale: Locale;
   rankingProvisional: boolean;
   /**
    * One caveat that goes with any band: an estimate, method still being tuned.
@@ -171,10 +173,11 @@ function toInputEntry(entry: FitEntry, locale: Locale): AnalysisInputEntry {
 export function buildAnalysisInput(
   fit: FitResponse,
   measurements: HandMeasurements,
-  locale: Locale = "en",
+  locale: Locale,
 ): AnalysisInput {
   const bandCopy = copyFor(locale);
   return {
+    locale,
     rankingProvisional: ENGINE_IS_PROVISIONAL,
     estimateNote: bandCopy.provisional,
     gripStyle: roundedGripStyle(fit.gripStyle),
