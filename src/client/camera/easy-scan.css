@@ -1578,3 +1578,12 @@ main.easyScanShell {
     border: 1px solid currentColor;
   }
 }
+
+/* Chinese has no spaces to break at: squeezed, a label breaks after every
+   character. Keep each short phrase whole; the chip then wraps at its spaces
+   exactly as the English one does. */
+:lang(zh) .easyHandChip,
+:lang(zh) .easyNoPaperLink,
+:lang(zh) .easyTipNoPaper {
+  word-break: keep-all;
+}

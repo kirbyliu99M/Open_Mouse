@@ -51,12 +51,14 @@ export interface ResultsPageCopy {
   whyHeading: string;
   /** Short name of each sub-score in the three reason lines. */
   subscoreShort: Record<Subscore, string>;
-  /** Where to buy: only shown when a link exists. */
+  /** Where to buy: only shown when a link exists. Just the one word; no note line (Kirby, 2026-10-11). */
   purchaseHeading: string;
-  /** One short line above the purchase links. */
-  purchaseNote: string;
-  /** Visually hidden, after each purchase link's text. */
+  /** Visually hidden, after each purchase link's text and after the official link's. */
   opensInNewTab: string;
+  /** The maker's page for this very model (`officialKind` "product"). */
+  officialProduct: (brand: string) => string;
+  /** A lineup, series or support page of the maker (`officialKind` "brand"). */
+  officialBrand: (brand: string) => string;
   detailsTitle: string;
   detailsHint: string;
   /** The hint while the 3D viewer is shown (`RESULTS_VIEWER_ENABLED`). */
@@ -98,6 +100,14 @@ export interface ResultsPageCopy {
   excludedSeparator: string;
   /** The results-page filter (FILTER-1). Every string is a candidate. */
   filter: FilterCopy;
+  /** Click the big photo to enlarge it (candidate, 2026-10-11). */
+  photoZoom: {
+    /** Accessible name of the photo button, with the mouse named. */
+    enlarge: (name: string) => string;
+    close: string;
+    /** Read by screen readers with the dialog; never shown. */
+    keys: string;
+  };
 }
 
 /**
@@ -181,7 +191,7 @@ export const zhTW: ResultsPageCopy = {
   // Arabic numerals since FILTER-1 (Kirby, 2026-10-10): 「第 5 名」, like the
   // filter's 「總排名第 5 名」.
   rankLine: (rank, brand) => `第 ${rank} 名 · ${brand}`,
-  scoreLabel: "適配分數 / 100",
+  scoreLabel: "合手度分數 / 100",
   whyHeading: "為什麼是這支",
   subscoreShort: {
     length: "長度",
@@ -191,18 +201,19 @@ export const zhTW: ResultsPageCopy = {
     thumb: "拇指",
     weight: "重量",
   },
-  purchaseHeading: "購買連結",
-  purchaseNote: "合作商店連結・開新分頁",
+  purchaseHeading: "購買",
   opensInNewTab: "（開新分頁）",
+  officialProduct: (brand) => `${brand} 官網產品頁`,
+  officialBrand: (brand) => `${brand} 品牌頁`,
   detailsTitle: "詳細資料",
   detailsHint: "六項分數、和理想尺寸的差距、完整分析",
   detailsHintWithViewer: "3D 檢視、六項分數、和理想尺寸的差距、完整分析",
   scoresHeading: "六項分數",
-  sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以適配分數目前主要看尺寸。",
+  sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以合手度分數目前主要看尺寸。",
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
-  leftHandNotice: "左手的適配還沒評過，購買前請先確認每支滑鼠的形狀。",
+  leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
   variantsLine: (models) => `相同構型：${models.join("、")}`,
@@ -274,6 +285,11 @@ export const zhTW: ResultsPageCopy = {
     shareOverall: "分享總排名第 1 名",
     shareNote: "篩選中，分享圖仍放總排名第 1 名",
   },
+  photoZoom: {
+    enlarge: (name) => `放大照片：${name}`,
+    close: "關閉",
+    keys: "按加號與減號縮放，按 0 還原，放大後可用方向鍵移動，按 Esc 關閉。",
+  },
 };
 
 export const en: ResultsPageCopy = {
@@ -315,9 +331,10 @@ export const en: ResultsPageCopy = {
     thumb: "Thumb",
     weight: "Weight",
   },
-  purchaseHeading: "Where to buy",
-  purchaseNote: "Partner shop links · open in a new tab",
+  purchaseHeading: "Buy",
   opensInNewTab: "(opens in a new tab)",
+  officialProduct: (brand) => `${brand} official product page`,
+  officialBrand: (brand) => `${brand} brand page`,
   detailsTitle: "Details",
   detailsHint: "Six scores, gaps to your ideal size, full analysis",
   detailsHintWithViewer:
@@ -412,6 +429,11 @@ export const en: ResultsPageCopy = {
     analysisHide: "Hide analysis",
     shareOverall: "Share the overall #1",
     shareNote: "While filtering, the share image still shows the overall #1",
+  },
+  photoZoom: {
+    enlarge: (name) => `Enlarge photo: ${name}`,
+    close: "Close",
+    keys: "Press plus and minus to zoom, 0 to reset, arrow keys to move when zoomed, Escape to close.",
   },
 };
 

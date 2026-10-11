@@ -12,9 +12,14 @@ export const metadata: Metadata = {
 export default async function ResultsDemoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ presentation?: string }>;
+  searchParams: Promise<{ presentation?: string; photos?: string }>;
 }) {
   guardDemoRouteFromProduction();
-  const { presentation } = await searchParams;
-  return <ResultsDemoClient presentation={presentation === "1"} />;
+  const { presentation, photos } = await searchParams;
+  return (
+    <ResultsDemoClient
+      presentation={presentation === "1"}
+      photos={photos === "1"}
+    />
+  );
 }

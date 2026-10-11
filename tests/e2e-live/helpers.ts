@@ -39,7 +39,9 @@ export async function submitScan(
   page: Page,
   created: string[],
 ): Promise<string> {
-  await page.goto("/scan");
+  // Any public same-origin page will do: the POST below sets the session
+  // cookie. Not `/scan` (the printed-sheet flow), which 404s in production.
+  await page.goto("/how-it-works");
   const body = await page.evaluate(
     async ({ path, payload }) => {
       const res = await fetch(path, {

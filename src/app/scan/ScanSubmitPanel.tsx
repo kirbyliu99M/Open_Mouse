@@ -30,15 +30,17 @@ import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { track } from "@/client/analytics/track";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { scanCommonCopy } from "@/lib/copy/scan-common";
 import type { ScanFlow } from "@/lib/contracts/analytics";
-import { submitScan } from "@/client/scan/submitScan";
+import { submitScan, type SubmitScanErrorKind } from "@/client/scan/submitScan";
 import { resultLengthKey } from "@/components/results/userLengthDisclosure";
 
 type SubmitState =
   | { kind: "idle" }
   | { kind: "submitting" }
   | { kind: "success" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; errorKind: SubmitScanErrorKind };
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
@@ -52,6 +54,8 @@ export default function ScanSubmitPanel({
 }: ScanSubmitPanelProps) {
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const router = useRouter();
+  const locale = useLocale();
+  const words = scanCommonCopy(locale);
   // Synchronous lock — see the file-level comment above for why `state.kind`
   // alone can't guard against two clicks in the same task.
   const submittingRef = useRef(false);
@@ -86,19 +90,16 @@ export default function ScanSubmitPanel({
       }
       // Release the lock on failure so the user can retry.
       submittingRef.current = false;
-      setState({
-        kind: "error",
-        message: outcome.message,
-      });
+      setState({ kind: "error", errorKind: outcome.kind });
     });
   }, [submission, router, flow]);
 
   const busy = state.kind === "submitting" || state.kind === "success";
   const statusText =
     state.kind === "submitting"
-      ? "Sending your measurements…"
+      ? words.submitSending
       : state.kind === "success"
-        ? "Measured — opening your matches…"
+        ? words.submitSuccessStatus
         : "";
 
   return (
@@ -111,10 +112,10 @@ export default function ScanSubmitPanel({
         data-testid="submit-scan-button"
       >
         {state.kind === "submitting"
-          ? "Submitting…"
+          ? words.submitButtonSubmitting
           : state.kind === "success"
-            ? "Opening your matches…"
-            : "See my matches"}
+            ? words.submitButtonOpening
+            : words.submitButton}
       </button>
       <div
         aria-live="polite"
@@ -125,7 +126,7 @@ export default function ScanSubmitPanel({
       </div>
       {state.kind === "error" && (
         <div className="feedback feedback-error" role="alert">
-          <p className="feedbackTitle">{state.message}</p>
+          <p className="feedbackTitle">{words.submitErrors[state.errorKind]}</p>
         </div>
       )}
     </div>

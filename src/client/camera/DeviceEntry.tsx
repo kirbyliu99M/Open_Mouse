@@ -1,12 +1,8 @@
 import QRCode from "qrcode";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import {
-  PHOTO_PRIVACY_COPY,
-  PHOTO_PRIVACY_COPY_THIS_DEVICE,
-} from "@/components/privacy-copy";
-
-const COPY_FAILED =
-  "Couldn't copy automatically. Select the link below and copy it.";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { easyScanCopy } from "../../lib/copy/easy-scan";
+import { scanCommonCopy } from "../../lib/copy/scan-common";
 
 export function DeviceEntry({
   kind,
@@ -17,6 +13,9 @@ export function DeviceEntry({
   url: string;
   onFilePicked: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const locale = useLocale();
+  const words = easyScanCopy(locale).device;
+  const common = scanCommonCopy(locale);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [qr, setQr] = useState("");
   // A new `n` each time replaces the message node, so a screen reader
@@ -56,25 +55,16 @@ export function DeviceEntry({
   }, [kind, url]);
   return (
     <main className="easyDeviceEntry">
-      <h1>
-        {kind === "desktop"
-          ? "Scan with your phone"
-          : "Open in Safari or Chrome to use the camera"}
-      </h1>
-      {kind !== "desktop" && (
-        <p>
-          This app’s built-in browser blocks the camera. Copy the link and open
-          it in Safari or Chrome.
-        </p>
-      )}
+      <h1>{kind === "desktop" ? words.desktopTitle : words.inAppTitle}</h1>
+      {kind !== "desktop" && <p>{words.inAppBody}</p>}
       {kind === "desktop" && (
         <>
-          <p>Point your phone camera at this code.</p>
+          <p>{words.desktopBody}</p>
           {qr && (
             <div
               className="easyQr"
               role="img"
-              aria-label="QR code for this scan page"
+              aria-label={words.qrLabel}
               dangerouslySetInnerHTML={{ __html: qr }}
             />
           )}
@@ -82,7 +72,7 @@ export function DeviceEntry({
       )}
       {externalBrowserUrl && (
         <a className="easyCopyLink" href={externalBrowserUrl.toString()}>
-          Open in browser
+          {words.openInBrowser}
         </a>
       )}
       <p className="easyDeviceUrl">{url}</p>
@@ -92,19 +82,19 @@ export function DeviceEntry({
         onClick={() => {
           if (!navigator.clipboard?.writeText) {
             setShowSelectableUrl(true);
-            announceCopy(COPY_FAILED);
+            announceCopy(words.copyFailed);
             return;
           }
           void navigator.clipboard.writeText(url).then(
-            () => announceCopy("Link copied"),
+            () => announceCopy(words.linkCopied),
             () => {
               setShowSelectableUrl(true);
-              announceCopy(COPY_FAILED);
+              announceCopy(words.copyFailed);
             },
           );
         }}
       >
-        Copy link
+        {words.copyLink}
       </button>
       <p role="status" aria-live="polite" className="easyCopyStatus">
         {copyStatus && <span key={copyStatus.n}>{copyStatus.text}</span>}
@@ -112,7 +102,7 @@ export function DeviceEntry({
       {showSelectableUrl && (
         <input
           className="easySelectableUrl"
-          aria-label="Select link to copy"
+          aria-label={words.selectLinkLabel}
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
@@ -123,12 +113,10 @@ export function DeviceEntry({
         className="easyDeviceUpload"
         onClick={() => uploadRef.current?.click()}
       >
-        Or upload a photo
+        {words.uploadPhoto}
       </button>
       <p className="easyDevicePrivacy">
-        {kind === "desktop"
-          ? PHOTO_PRIVACY_COPY_THIS_DEVICE
-          : PHOTO_PRIVACY_COPY}
+        {kind === "desktop" ? common.privacyDevice : common.privacyPhone}
       </p>
       {/* The button above opens this picker; the input itself is not a
           second control, so it stays out of the tab order and the

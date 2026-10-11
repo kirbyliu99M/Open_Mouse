@@ -39,6 +39,7 @@ import {
   type SurveyWorld,
 } from "./fixtures/survey-world";
 import { startOfUtcDay } from "../../src/server/survey/profile";
+import type { AnswersWrite } from "../../src/server/survey/repo";
 import { USE_A, FEEL_RIGHT, BRAND_A } from "./fixtures/survey-values";
 
 describe("account Delete everything on a real Postgres", () => {
@@ -116,6 +117,42 @@ describe("account Delete everything on a real Postgres", () => {
       `select count(*)::int as n from scans`,
     );
     expect(rows[0]!.n).toBe(0);
+  });
+
+  it("leaves nothing for a later GET or PUT /api/survey: the answers read back empty and an edit finds no contribution", async () => {
+    await contribute(world, "user-1", 181, {
+      feedback: "kept-only-until-delete-everything",
+      brand: BRAND_A,
+    });
+    await contribute(world, "user-2", 192, { feedback: "someone-elses" });
+    const editBody: AnswersWrite = {
+      mainUse: USE_A,
+      feedback: "written-after-delete-everything",
+      ratings: [],
+      otherMice: [{ brand: BRAND_A, sizeFeel: FEEL_RIGHT, isCurrent: false }],
+    };
+    expect(await world.surveyRepo.replaceAnswers("user-1", editBody)).toBe(
+      "stored",
+    );
+
+    await accountRepo.deleteAllScans("user-1");
+
+    expect(await world.surveyRepo.readAnswers("user-1")).toEqual({
+      mainUse: null,
+      feedback: null,
+      ratings: [],
+      otherMice: [],
+    });
+    expect(await world.surveyRepo.replaceAnswers("user-1", editBody)).toBe(
+      "no_contribution",
+    );
+    const text = await world.rawContributionText();
+    expect(text).not.toContain("kept-only-until-delete-everything");
+    expect(text).not.toContain("written-after-delete-everything");
+    // The other person's answers are still there and still theirs to read.
+    expect((await world.surveyRepo.readAnswers("user-2")).feedback).toBe(
+      "someone-elses",
+    );
   });
 
   it("leaves everyone else's contributions, anonymous ones included", async () => {

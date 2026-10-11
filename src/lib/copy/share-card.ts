@@ -57,7 +57,7 @@ export const zhTW: ShareCardCopy = {
   sentence: (t) =>
     `適合長度${sizeLengthZh[t.size]}、握寬${widthGripZh[t.width]}的滑鼠`,
   topPickLabel: "最適合我的滑鼠",
-  scoreLabel: "適配分數",
+  scoreLabel: "合手度分數",
   tagline: "測測你的手型",
   buttonLink: "分享",
   buttonPrimary: "製作我的分享圖",

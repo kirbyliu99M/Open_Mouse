@@ -132,6 +132,19 @@ export const resultsPagePath = (scanId: string): string =>
  * per client IP. An anonymous contribution cannot be withdrawn: it is tied to
  * no account. The account's "Delete everything" must withdraw it too (survey.ts).
  *
+ * `GET` (candidate) — signed-in callers only: the caller's own answers.
+ * 200 → `surveyMineResponseSchema` (survey.ts; the comment and other mice go
+ * to their owner only), with empty lists and `null`s when the caller has
+ * contributed nothing; 401 when not signed in; 429 rate limited per client IP.
+ *
+ * `PUT` (candidate) — signed-in callers only: replaces the caller's answers as
+ * a whole. Body: `surveyEditSchema`; no `scanId`, no consent tick (survey.ts
+ * says why). 200 → `surveyEditResponseSchema`; 400 invalid body, a body that
+ * names no mouse, or an unknown mouse slug; 401 when not signed in; 404 the
+ * caller has no contribution yet (the first answers are given on the results
+ * page); 413 body too large; 429 rate limited per client IP. It never changes a
+ * hand profile or a grip.
+ *
  * Every response from this path carries `Cache-Control: no-store`.
  */
 export const SURVEY_PATH = "/api/survey";

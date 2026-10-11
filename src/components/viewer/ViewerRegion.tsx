@@ -8,7 +8,8 @@ import {
   isFallback,
   viewerReducer,
 } from "@/lib/viewer/viewer-state";
-import { VIEWER_CAPTION, VIEWER_FALLBACK, viewerLabel } from "./copy";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import "./viewer.css";
 
 /** How far outside the viewport the region may be when the download starts. */
@@ -59,6 +60,7 @@ function ViewerRegionBody({
   mouseName,
   onInteracted,
 }: ViewerRegionProps) {
+  const copy = resultsScreensCopy(useLocale()).viewer;
   const url = shellUrl(mouseSlug, shellIndex);
   const [status, dispatch] = useReducer(
     viewerReducer,
@@ -155,7 +157,7 @@ function ViewerRegionBody({
           ? {
               role: "group",
               tabIndex: 0,
-              "aria-label": viewerLabel(mouseName),
+              "aria-label": copy.label(mouseName),
               "aria-describedby": captionId,
               "aria-keyshortcuts": "ArrowLeft ArrowRight ArrowUp ArrowDown",
             }
@@ -171,12 +173,12 @@ function ViewerRegionBody({
         {/* A status region that is always there, so the line is announced when
             it appears, not only found by someone reading the page through. */}
         <p className="viewer-fallback" role="status">
-          {isFallback(status) ? VIEWER_FALLBACK : null}
+          {isFallback(status) ? copy.fallback : null}
         </p>
       </div>
       {url !== null && (
         <p id={captionId} className="viewer-caption">
-          {VIEWER_CAPTION}
+          {copy.caption}
         </p>
       )}
     </div>

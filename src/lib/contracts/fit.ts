@@ -14,6 +14,7 @@ import {
   SHAPES,
   SIZES,
 } from "./descriptors";
+import { PALM_THICKNESS_LEVELS } from "./measurement";
 
 export const GRIP_STYLES = ["palm", "claw", "fingertip"] as const;
 export type GripStyle = (typeof GRIP_STYLES)[number];
@@ -277,9 +278,18 @@ export const fitResponseSchema = z.strictObject({
   results: z.array(fitEntrySchema),
 });
 
-/** Optional user preferences sent with a fit request. */
+/**
+ * Optional user preferences sent with a fit request.
+ *
+ * `palmThickness` (candidate, 2026-10-11) is the person's own three-way answer,
+ * the same levels as `scanSubmissionSchema.palmThicknessStated`. Like
+ * `gripStyle` it overrides what is stored with the scan for this request. Absent
+ * means no answer: the engine must then score exactly as before, and a client
+ * never sends `"medium"` as a default (a default would be read as a choice).
+ */
 export const fitPreferencesSchema = z.strictObject({
   gripStyle: z.enum(GRIP_STYLES).optional(),
+  palmThickness: z.enum(PALM_THICKNESS_LEVELS).optional(),
   weightG: z
     .strictObject({
       min: z.number().min(20).max(200),

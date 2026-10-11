@@ -7,6 +7,17 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
 
+// global-error.tsx keeps its locale in state, and this file calls it as a
+// plain function to read the element tree: effects do not run there.
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (initial: unknown) => [initial, () => {}],
+    useEffect: () => {},
+  };
+});
+
 import ErrorPage from "../../src/app/error";
 import GlobalError from "../../src/app/global-error";
 import { ACTIONS, RETRYING } from "../../src/components/errors/copy";
@@ -38,7 +49,9 @@ function elementsIn(node: ReactNode): Found[] {
 }
 
 const globalErrorTree = (reset: () => void) =>
-  elementsIn(GlobalError({ error: new Error("x"), reset }));
+  elementsIn(
+    GlobalError({ error: new Error("x"), reset, initialLocale: "en" }),
+  );
 
 describe("global error screen: Try again reloads the page", () => {
   it("is a button labelled Try again", () => {
@@ -72,7 +85,11 @@ describe("global error screen: Try again reloads the page", () => {
 describe("error screen: Try again while a retry runs", () => {
   const markup = (pending: boolean) =>
     renderToStaticMarkup(
-      createElement(RetryButton, { pending, onRetry: () => {} }),
+      createElement(RetryButton, {
+        pending,
+        onRetry: () => {},
+        label: ACTIONS.retry,
+      }),
     );
   const DISABLED_ATTRIBUTE = /\sdisabled(=|>|\s)/;
 
@@ -93,7 +110,9 @@ describe("error screen: Try again while a retry runs", () => {
     const onRetry = vi.fn();
     const press = (pending: boolean) =>
       (
-        RetryButton({ pending, onRetry }).props as { onClick: () => void }
+        RetryButton({ pending, onRetry, label: ACTIONS.retry }).props as {
+          onClick: () => void;
+        }
       ).onClick();
     press(true);
     expect(onRetry).not.toHaveBeenCalled();

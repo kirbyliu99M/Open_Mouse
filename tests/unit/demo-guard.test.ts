@@ -1,7 +1,23 @@
 import { readdirSync, readFileSync } from "node:fs";
 import ts from "typescript";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { guardDemoRouteFromProduction } from "../../src/app/scan/demo-guard";
+
+// `/scan/easy` reads the request headers and mounts the camera; neither exists
+// outside a Next request, and the test only asks whether the page calls the guard.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "user-agent": "vitest" }),
+}));
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
+}));
+vi.mock("../../src/client/camera/EasyScanCamera", () => ({
+  default: () => null,
+}));
+// The pages read the visitor's locale (server-only); the guard does not care.
+vi.mock("../../src/server/i18n/getLocale", () => ({
+  getLocale: async () => "en",
+}));
 
 const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
 
@@ -44,9 +60,7 @@ const PRODUCT_ROUTES = [
   "/how-it-works",
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
-  "/scan",
   "/scan/easy",
-  "/sheet",
 ];
 
 /**
@@ -65,9 +79,18 @@ const LEARNING_ROUTES = [
   "/learn/slates",
 ];
 
+/**
+ * The printed-sheet flow: `/sheet` (the printable calibration sheet) and
+ * `/scan` (its photo step). Kirby's decision, 2026-10-11: hidden in
+ * production, kept for the learning kit, the demos and the e2e tests. The
+ * main scan flow is `/scan/easy`, which stays public (see PRODUCT_ROUTES).
+ */
+const PRINTED_SHEET_ROUTES = ["/scan", "/sheet"];
+
 /** Dev and demo pages: 404 in production. Pinned in full. */
 const DEMO_ROUTES = [
   ...LEARNING_ROUTES,
+  ...PRINTED_SHEET_ROUTES,
   "/results/demo",
   "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
@@ -298,7 +321,10 @@ describe("the source check itself", () => {
     expect(routeOf("scan/easy/page.tsx")).toBe("/scan/easy");
     expect(routeOf("results/[scanId]/page.tsx")).toBe("/results/[scanId]");
     expect(routeOf("(marketing)/how-it-works/page.tsx")).toBe("/how-it-works");
-    expect(isProductRoute("/scan")).toBe(true);
+    expect(isProductRoute("/scan/easy")).toBe(true);
+    // The printed-sheet flow is not a product page: it is guarded (see PRINTED_SHEET_ROUTES).
+    expect(isProductRoute("/scan")).toBe(false);
+    expect(isProductRoute("/sheet")).toBe(false);
     // The learning kit is not a product page: it is guarded (see LEARNING_ROUTES).
     expect(isProductRoute("/learn")).toBe(false);
     expect(isProductRoute("/learn/print")).toBe(false);
@@ -341,4 +367,58 @@ describe("every page under src/app is a listed product page or calls guardDemoRo
       );
     },
   );
+});
+
+// ── The printed-sheet flow, run for real ────────────────────────────────────
+//
+// The source check above proves the guard call is there; this runs the three
+// page components under both environments, so a guard that is present but
+// never reached (or a /scan/easy that picked one up) cannot pass.
+
+/** What `notFound()` throws: an error whose digest names the 404 fallback. */
+const NOT_FOUND = expect.objectContaining({
+  digest: expect.stringMatching(/404/),
+});
+
+describe("/sheet, /scan and /scan/easy under VERCEL_ENV", () => {
+  afterEach(() => {
+    if (ORIGINAL_VERCEL_ENV === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = ORIGINAL_VERCEL_ENV;
+  });
+
+  const printedSheetPages = [
+    ["/sheet", () => import("../../src/app/sheet/page")],
+    ["/scan", () => import("../../src/app/scan/page")],
+  ] as const;
+
+  it.each(printedSheetPages)(
+    "%s throws notFound in production",
+    async (_route, load) => {
+      process.env.VERCEL_ENV = "production";
+      const { default: Page } = await load();
+      // `/sheet` is async (it reads the locale), `/scan` is not: await both.
+      await expect(async () => Page()).rejects.toThrow(NOT_FOUND);
+    },
+  );
+
+  it.each(printedSheetPages)(
+    "%s renders on a preview, in development and when VERCEL_ENV is unset",
+    async (_route, load) => {
+      const { default: Page } = await load();
+      for (const value of ["preview", "development", undefined] as const) {
+        if (value === undefined) delete process.env.VERCEL_ENV;
+        else process.env.VERCEL_ENV = value;
+        expect(await Page()).toBeTruthy();
+      }
+    },
+  );
+
+  it("/scan/easy renders in production: the main scan flow does not call the guard", async () => {
+    process.env.VERCEL_ENV = "production";
+    const { default: Page } = await import("../../src/app/scan/easy/page");
+    await expect(Page()).resolves.toBeTruthy();
+    expect(
+      callsGuardAnywhere(readFileSync("src/app/scan/easy/page.tsx", "utf8")),
+    ).toBe(false);
+  });
 });

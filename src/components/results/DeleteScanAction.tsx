@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import { deleteScan } from "./fetchResults";
 import { clearScanDisclosures } from "./userLengthDisclosure";
 import { clearAttempts } from "../../client/camera/easyScanPreferences";
@@ -36,6 +38,7 @@ export function DeleteScanAction({
   scanId: string;
   onDeleted: () => void;
 }) {
+  const copy = resultsScreensCopy(useLocale()).deleteScan;
   const [status, setStatus] = useState<Status>("idle");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -87,7 +90,7 @@ export function DeleteScanAction({
         className="button-secondary"
         onClick={() => setStatus("confirming")}
       >
-        Delete this scan now
+        {copy.trigger}
       </button>
 
       {open && (
@@ -99,14 +102,11 @@ export function DeleteScanAction({
             aria-describedby="delete-scan-body"
             className="dialog"
           >
-            <h2 id="delete-scan-title">Delete this scan now?</h2>
-            <p id="delete-scan-body">
-              This permanently deletes this scan and its measurements. This
-              can&apos;t be undone.
-            </p>
+            <h2 id="delete-scan-title">{copy.title}</h2>
+            <p id="delete-scan-body">{copy.body}</p>
             {status === "error" && (
               <p className="status-error" role="alert">
-                Couldn&apos;t delete — check your connection and try again.
+                {copy.error}
               </p>
             )}
             <div className="dialog-actions">
@@ -117,7 +117,7 @@ export function DeleteScanAction({
                 onClick={close}
                 disabled={status === "deleting"}
               >
-                Cancel
+                {copy.cancel}
               </button>
               <button
                 type="button"
@@ -125,7 +125,7 @@ export function DeleteScanAction({
                 onClick={() => void confirmDelete()}
                 disabled={status === "deleting"}
               >
-                {status === "deleting" ? "Deleting…" : "Delete scan"}
+                {status === "deleting" ? copy.deleting : copy.confirm}
               </button>
             </div>
           </div>
