@@ -398,3 +398,17 @@ is not affiliated with or endorsed by Logitech or any other manufacturer.
 Product names appear only to say which product a result refers to. The
 catalogue uses each manufacturer's own published dimensions (see "Data
 provenance" in README.md).
+
+4.2 App icons and share-preview images: src/app/
+
+  src/app/icon.png, apple-icon.png, favicon.ico, opengraph-image.png and
+  twitter-image.png are rendered from Kirby's official Palmate logo vector
+  (the Pencil frame "Logo · Palmate (Official)", an original work drawn by
+  Kirby, 2026-10-10): the hand's path scaled evenly with a 1.4-unit stroke and
+  the core dot (outer radius 1.55, ring #2463EB, fill #CFE0FF), centred on a
+  rounded square. Not traced from any photo, dataset or third-party artwork.
+  The two share-preview images also carry the word "Palmate" set in Inter 700
+  and rasterised into the PNG; the licence status of Inter is as written in
+  4.1 (Unconfirmed). The script that rendered the files is not kept in this
+  repository, so the files cannot be regenerated from it. The icons are
+  candidates (未拍板), pending Kirby's call on the 16 px and 32 px favicon.
