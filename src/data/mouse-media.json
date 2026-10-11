@@ -1,0 +1,2032 @@
+{
+  "asus-rog-chakram": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-chakram-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-chakram.webp"
+  },
+  "asus-rog-chakram-core": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-chakram-core-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-chakram-core.webp"
+  },
+  "asus-rog-chakram-x": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-chakram-x-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-chakram-x.webp"
+  },
+  "asus-rog-gladius-ii": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-ii-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-ii.webp"
+  },
+  "asus-rog-gladius-ii-core": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-ii-core-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-ii-core.webp"
+  },
+  "asus-rog-gladius-ii-origin": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-ii-origin-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-ii-origin.webp"
+  },
+  "asus-rog-gladius-ii-wireless": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-ii-wireless-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-ii-wireless.webp"
+  },
+  "asus-rog-gladius-iii": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-iii-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-iii.webp"
+  },
+  "asus-rog-gladius-iii-core": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-iii-core/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-iii-core.webp"
+  },
+  "asus-rog-gladius-iii-wireless": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-iii-wireless-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-iii-wireless.webp"
+  },
+  "asus-rog-gladius-iii-wireless-aimpoint": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/wireless/rog-gladius-iii-wireless-aimpoint-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-iii-wireless-aimpoint.webp"
+  },
+  "asus-rog-gladius-iv-ace": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-gladius-iv-ace/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-gladius-iv-ace.webp"
+  },
+  "asus-rog-harpe-ace": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-ace-aim-lab-edition-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-ace.webp"
+  },
+  "asus-rog-harpe-ace-extreme": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-ace-extreme/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-ace-extreme.webp"
+  },
+  "asus-rog-harpe-ace-mini": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-ace-mini/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-ace-mini.webp"
+  },
+  "asus-rog-harpe-ii-ace": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-ii-ace/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-ii-ace.webp"
+  },
+  "asus-rog-harpe-ii-extreme-edition-20": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-ii-extreme-edition-20/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-ii-extreme-edition-20.webp"
+  },
+  "asus-rog-harpe-mini-core": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-harpe-mini-core/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-harpe-mini-core.webp"
+  },
+  "asus-rog-keris": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-keris-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-keris.webp"
+  },
+  "asus-rog-keris-ii-ace": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-keris-ii-ace/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-keris-ii-ace.webp"
+  },
+  "asus-rog-keris-ii-origin": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-keris-ii-origin/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-keris-ii-origin.webp"
+  },
+  "asus-rog-keris-wireless": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-keris-wireless-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-keris-wireless.webp"
+  },
+  "asus-rog-pugio": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-pugio-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-pugio.webp"
+  },
+  "asus-rog-spatha": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/wireless/rog-spatha-x-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-spatha.webp"
+  },
+  "asus-rog-spatha-x": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-spatha-x-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-spatha-x.webp"
+  },
+  "asus-rog-spatha-x-65k": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/wireless/rog-spatha-x-65k/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-spatha-x-65k.webp"
+  },
+  "asus-rog-strix-carry": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ergonomic-right-handed/rog-strix-carry-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-carry.webp"
+  },
+  "asus-rog-strix-impact": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-strix-impact-iii-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-impact.webp"
+  },
+  "asus-rog-strix-impact-ii": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-strix-impact-ii-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-impact-ii.webp"
+  },
+  "asus-rog-strix-impact-ii-wireless": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/wireless/rog-strix-impact-ii-wireless-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-impact-ii-wireless.webp"
+  },
+  "asus-rog-strix-impact-iii": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-strix-impact-iii-model/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-impact-iii.webp"
+  },
+  "asus-rog-strix-impact-iii-wireless": {
+    "officialUrl": "https://rog.asus.com/mice-mouse-pads/mice/ambidextrous/rog-strix-impact-iii-wireless/",
+    "officialKind": "product",
+    "image": "/images/mice/asus-rog-strix-impact-iii-wireless.webp"
+  },
+  "cooler-master-master-mm720": {
+    "officialUrl": "https://www.coolermaster.com/en-global/products/mm720/",
+    "officialKind": "product",
+    "image": "/images/mice/cooler-master-master-mm720.webp"
+  },
+  "corsair-dark-core-rgb-pro": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9315411-na/dark-core-rgb-pro-wireless-gaming-mouse-ch-9315411-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-dark-core-rgb-pro.webp"
+  },
+  "corsair-dark-core-rgb-pro-se": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9315511-na/dark-core-rgb-pro-se-wireless-gaming-mouse-ch-9315511-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-dark-core-rgb-pro-se.webp"
+  },
+  "corsair-darkstar-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931a011-na/darkstar-wireless-rgb-mmo-gaming-mouse-ch-931a011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-darkstar-wireless.webp"
+  },
+  "corsair-harpoon-rgb-pro": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9301111-na/harpoon-rgb-pro-fps-moba-gaming-mouse-ch-9301111-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-harpoon-rgb-pro.webp"
+  },
+  "corsair-harpoon-rgb-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9311011-na/harpoon-rgb-wireless-gaming-mouse-ch-9311011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-harpoon-rgb-wireless.webp"
+  },
+  "corsair-harpoon-v2-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9311110-ww/harpoon-v2-wireless-gaming-mouse-ch-9311110-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-harpoon-v2-wireless.webp"
+  },
+  "corsair-ironclaw-rgb": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9307011-na/ironclaw-rgb-fps-moba-gaming-mouse-ch-9307011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-ironclaw-rgb.webp"
+  },
+  "corsair-ironclaw-rgb-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9317011-na/ironclaw-rgb-wireless-gaming-mouse-ch-9317011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-ironclaw-rgb-wireless.webp"
+  },
+  "corsair-ironclaw-wireless-se": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9317110-ww/ironclaw-wireless-se-gaming-mouse-ch-9317110-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-ironclaw-wireless-se.webp"
+  },
+  "corsair-katar-elite-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931c111-na/katar-elite-wireless-gaming-mouse-ch-931c111-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-katar-elite-wireless.webp"
+  },
+  "corsair-katar-pro-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931c011-na/katar-pro-wireless-gaming-mouse-ch-931c011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-katar-pro-wireless.webp"
+  },
+  "corsair-katar-pro-xt": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-930c111-na/katar-pro-xt-ultra-light-gaming-mouse-ch-930c111-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-katar-pro-xt.webp"
+  },
+  "corsair-m55-wired": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-930f000-ww/m55-lightweight-gaming-mouse-ch-930f000-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-m55-wired.webp"
+  },
+  "corsair-m55-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931f000-ww/m55-wireless-gaming-mouse-ch-931f000-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-m55-wireless.webp"
+  },
+  "corsair-m75": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-930d010-na/m75-lightweight-rgb-gaming-mouse-ch-930d010-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-m75.webp"
+  },
+  "corsair-m75-air-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931d100-na/corsair-m75-air-wireless-ultra-lightweight-gaming-mouse-black-ch-931d100-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-m75-air-wireless.webp"
+  },
+  "corsair-m75-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931d011-na/m75-wireless-lightweight-rgb-gaming-mouse-white-ch-931d011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-m75-wireless.webp"
+  },
+  "corsair-nightsabre-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931b011-na/nightsabre-wireless-rgb-gaming-mouse-ch-931b011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-nightsabre-wireless.webp"
+  },
+  "corsair-nightsword-rgb": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9306011-na/nightsword-rgb-tunable-fps-moba-gaming-mouse-ch-9306011-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-nightsword-rgb.webp"
+  },
+  "corsair-nightsword-v2-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931e010-ww/nightsword-v2-wireless-sd-stream-deck-gaming-mouse-ch-931e010-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-nightsword-v2-wireless.webp"
+  },
+  "corsair-sabre-v2-pro": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931g000-ww/sabre-v2-pro-ultralight-wireless-gaming-mouse-ch-931g000-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-sabre-v2-pro.webp"
+  },
+  "corsair-sabre-v2-pro-cf": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931g200-ww/sabre-v2-pro-carbon-fiber-wireless-gaming-mouse-ch-931g200-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-sabre-v2-pro-cf.webp"
+  },
+  "corsair-sabre-v2-pro-mg": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-931g100-ww/sabre-v2-pro-wireless-magnesium-alloy-gaming-mouse-black-ch-931g100-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-sabre-v2-pro-mg.webp"
+  },
+  "corsair-scimitar-elite-wireless": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9314311-na/scimitar-elite-wireless-mmo-gaming-mouse-ch-9314311-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-scimitar-elite-wireless.webp"
+  },
+  "corsair-scimitar-elite-wireless-se": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9314415-ww/scimitar-elite-wireless-se-mmo-gaming-mouse-black-yellow-ch-9314415-ww",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-scimitar-elite-wireless-se.webp"
+  },
+  "corsair-scimitar-rgb-elite": {
+    "officialUrl": "https://www.corsair.com/us/en/p/gaming-mouse/ch-9304211-na/scimitar-rgb-elite-optical-moba-mmo-gaming-mouse-ch-9304211-na",
+    "officialKind": "product",
+    "image": "/images/mice/corsair-scimitar-rgb-elite.webp"
+  },
+  "dareu-a950": {
+    "officialUrl": "https://dareu.com/products/dareu-a950-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950.webp"
+  },
+  "dareu-a950-air": {
+    "officialUrl": "https://dareu.com/products/dareu-a950-air-35g-8k-ultralight-weight-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-air.webp"
+  },
+  "dareu-a950-gm": {
+    "officialUrl": "https://dareu.com/products/dareu-a950-gm-triple-mode-wireless-gaming-mouse-with-charging-dock",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-gm.webp"
+  },
+  "dareu-a950-pro": {
+    "officialUrl": "https://dareu.com/products/dareu-a950pro",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-pro.webp"
+  },
+  "dareu-a950-pro-4k": {
+    "officialUrl": "https://dareu.com/products/dareu-a950pro",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-pro-4k.webp"
+  },
+  "dareu-a950-pro-4k-magnesium": {
+    "officialUrl": "https://dareu.com/products/dareu-a950pro-magnesium",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-pro-4k-magnesium.webp"
+  },
+  "dareu-a950-ultra": {
+    "officialUrl": "https://dareu.com/products/dareu-a950-ultra-8k-tri-mode-ultra-light-carbon-fiber-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a950-ultra.webp"
+  },
+  "dareu-a955": {
+    "officialUrl": "https://dareushop.com/products/dareu-a955-tri-mode-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a955.webp"
+  },
+  "dareu-a980": {
+    "officialUrl": "https://dareushop.com/products/dareu-a980-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a980.webp"
+  },
+  "dareu-a980-pro": {
+    "officialUrl": "https://dareu.com/products/dareu-a980pro-pro-max",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a980-pro.webp"
+  },
+  "dareu-a980-pro-max": {
+    "officialUrl": "https://dareu.com/products/dareu-a980pro-pro-max",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-a980-pro-max.webp"
+  },
+  "dareu-ae6": {
+    "officialUrl": "https://dareu.com/products/dareu-ae6-8k-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-ae6.webp"
+  },
+  "dareu-ae6-v2-legend": {
+    "officialUrl": "https://www.dareu.com/gaming-mouse/",
+    "officialKind": "brand",
+    "image": "/images/mice/dareu-ae6-v2-legend.webp"
+  },
+  "dareu-ae6-v2-master": {
+    "officialUrl": "https://www.dareu.com/gaming-mouse/",
+    "officialKind": "brand",
+    "image": "/images/mice/dareu-ae6-v2-master.webp"
+  },
+  "dareu-ae6-v2-pro": {
+    "officialUrl": "https://www.dareu.com/gaming-mouse/",
+    "officialKind": "brand",
+    "image": "/images/mice/dareu-ae6-v2-pro.webp"
+  },
+  "dareu-ae7-pro": {
+    "officialUrl": "https://dareu.com/products/dareu-ae7-pro-tri-mode-keel-structure-dual-8k-gaming-mouse-with-charging-dock",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-ae7-pro.webp"
+  },
+  "dareu-em901": {
+    "officialUrl": "https://dareushop.com/products/dareu-em901-lightweight-dual-mode-gaming-mouse-with-rgb-backlight",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-em901.webp"
+  },
+  "dareu-ultra-07": {
+    "officialUrl": "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/dareu-ultra-07.webp"
+  },
+  "endgame-gear-op1-8k": {
+    "officialUrl": "https://endgamegear.com/products/op1-8k-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1-8k.webp"
+  },
+  "endgame-gear-op1-8k-purple": {
+    "officialUrl": "https://endgamegear.com/products/op1-8k-gaming-mouse-dark-frost",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1-8k-purple.webp"
+  },
+  "endgame-gear-op1-8k-v2": {
+    "officialUrl": "https://endgamegear.com/products/op1-8k-v2-wired-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1-8k-v2.webp"
+  },
+  "endgame-gear-op1-rgb": {
+    "officialUrl": "https://endgamegear.com/products/op1-rgb-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1-rgb.webp"
+  },
+  "endgame-gear-op1w-4k": {
+    "officialUrl": "https://endgamegear.com/products/op1w-4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1w-4k.webp"
+  },
+  "endgame-gear-op1w-4k-v2": {
+    "officialUrl": "https://endgamegear.com/products/op1w-4k-v2-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1w-4k-v2.webp"
+  },
+  "endgame-gear-op1we": {
+    "officialUrl": "https://endgamegear.com/products/op1we-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-op1we.webp"
+  },
+  "endgame-gear-xm1": {
+    "officialUrl": "https://endgamegear.com/products/xm1r-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm1.webp"
+  },
+  "endgame-gear-xm1-rgb": {
+    "officialUrl": "https://endgamegear.com/products/xm1-rgb-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm1-rgb.webp"
+  },
+  "endgame-gear-xm1r": {
+    "officialUrl": "https://endgamegear.com/products/xm1r-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm1r.webp"
+  },
+  "endgame-gear-xm2-8k": {
+    "officialUrl": "https://endgamegear.com/products/xm2-8k-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2-8k.webp"
+  },
+  "endgame-gear-xm2-8k-v2": {
+    "officialUrl": "https://endgamegear.com/products/xm2-8k-gaming-mouse-copy",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2-8k-v2.webp"
+  },
+  "endgame-gear-xm2w": {
+    "officialUrl": "https://endgamegear.com/products/xm2w-4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2w.webp"
+  },
+  "endgame-gear-xm2w-4k": {
+    "officialUrl": "https://endgamegear.com/products/xm2w-4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2w-4k.webp"
+  },
+  "endgame-gear-xm2w-4k-v2": {
+    "officialUrl": "https://endgamegear.com/products/xm2w-4k-v2-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2w-4k-v2.webp"
+  },
+  "endgame-gear-xm2we": {
+    "officialUrl": "https://endgamegear.com/products/xm2we-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/endgame-gear-xm2we.webp"
+  },
+  "fantech-aria-e": {
+    "officialUrl": "https://fantechworld.com/products/aria-e",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-aria-e.webp"
+  },
+  "fantech-aria-ii": {
+    "officialUrl": "https://fantechworld.com/products/aria-ii",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-aria-ii.webp"
+  },
+  "fantech-aria-ii-pro": {
+    "officialUrl": "https://fantechworld.com/products/aria-ii",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-aria-ii-pro.webp"
+  },
+  "fantech-aria-xd7": {
+    "officialUrl": "https://fantechworld.com/products/aria-xd7",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-aria-xd7.webp"
+  },
+  "fantech-helios-ii-pro-s": {
+    "officialUrl": "https://fantechworld.com/products/helios-%E2%85%B1-pro-s-xd3v3-4k8k",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-helios-ii-pro-s.webp"
+  },
+  "fantech-helios-xd3": {
+    "officialUrl": "https://fantechworld.com/products/helios-xd3",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-helios-xd3.webp"
+  },
+  "fantech-helios-xd3v2": {
+    "officialUrl": "https://fantechworld.com/products/helios-xd3v2",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-helios-xd3v2.webp"
+  },
+  "fantech-tanto": {
+    "officialUrl": "https://fantechworld.com/products/tanto",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-tanto.webp"
+  },
+  "fantech-tanto-e": {
+    "officialUrl": "https://fantechworld.com/products/tanto",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-tanto-e.webp"
+  },
+  "fantech-tanto-pro": {
+    "officialUrl": "https://fantechworld.com/products/tanto-pro",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-tanto-pro.webp"
+  },
+  "fantech-tanto-s": {
+    "officialUrl": "https://fantechworld.com/products/tanto",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-tanto-s.webp"
+  },
+  "fantech-yari-e": {
+    "officialUrl": "https://fantechworld.com/products/yari-e-wg14e",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-yari-e.webp"
+  },
+  "fantech-yari-pro": {
+    "officialUrl": "https://fantechworld.com/products/yari-pro-wg14p",
+    "officialKind": "product",
+    "image": "/images/mice/fantech-yari-pro.webp"
+  },
+  "g-wolves-fen-max-asym": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-fen-max-asym-pre-order",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-fen-max-asym.webp"
+  },
+  "g-wolves-fenrir-asym-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-fenris-asym-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-fenrir-asym-8k.webp"
+  },
+  "g-wolves-fenrir-max-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-fenris-max-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-fenrir-max-8k.webp"
+  },
+  "g-wolves-fenrir-pro-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-fenrir-pro-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-fenrir-pro-8k.webp"
+  },
+  "g-wolves-hsk": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk.webp"
+  },
+  "g-wolves-hsk-plus-4k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk-plus-hsk-4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk-plus-4k.webp"
+  },
+  "g-wolves-hsk-plus-lite": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk-plus-hsk-lite-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk-plus-lite.webp"
+  },
+  "g-wolves-hsk-pro-4k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk-pro-4k",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk-pro-4k.webp"
+  },
+  "g-wolves-hsk-pro-ace": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk-pro-ace",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk-pro-ace.webp"
+  },
+  "g-wolves-hsk-pro-v2-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hsk-pro-4k",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hsk-pro-v2-8k.webp"
+  },
+  "g-wolves-ht-s2-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-ht-s2-8k",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-ht-s2-8k.webp"
+  },
+  "g-wolves-ht-s2-pro-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-ht-s2-pro-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-ht-s2-pro-8k.webp"
+  },
+  "g-wolves-htm": {
+    "officialUrl": "https://shop.g-wolves.com/products/gwolves-hati-htm-ultra-lightweight",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htm.webp"
+  },
+  "g-wolves-htm-ace": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hati-m-htm-ace-wireless-gaming-mouse-up-to-16000-dpi-3370-performance-sensor65-1g",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htm-ace.webp"
+  },
+  "g-wolves-htm-plus-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/htm-plus-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htm-plus-8k.webp"
+  },
+  "g-wolves-htr-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-htr-8k-wireless",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htr-8k.webp"
+  },
+  "g-wolves-htr-pro-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-htr-pro-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htr-pro-8k.webp"
+  },
+  "g-wolves-hts": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hati-s-hts",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts.webp"
+  },
+  "g-wolves-hts-ace-wireless": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hati-s-wireless-stardust-limited-edition-ultra-lightweight-honeycomb-design-wired-gaming-mouse-up-to-13000-dpi-3335-performance-sensor-58-1g",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-ace-wireless.webp"
+  },
+  "g-wolves-hts-plus": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hts-plus-hts-classic-wireless-gaming-mouse-paw3370-sensor-50-to-19-000-cpi-46-2gram1-4-oz-ttc-golden-color-encoder-non-honeycomb-design",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-plus.webp"
+  },
+  "g-wolves-hts-plus-4k": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hts-plus-hts",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-plus-4k.webp"
+  },
+  "g-wolves-hts-plus-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/hts-plus-hts-8k-wireless",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-plus-8k.webp"
+  },
+  "g-wolves-hts-plus-pro": {
+    "officialUrl": "https://shop.g-wolves.com/products/hts-plus-pro-8k-wireless-gaming-mouse-28g",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-plus-pro.webp"
+  },
+  "g-wolves-hts-ultra-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/hts-ultra-8k-wireless-gaming-mouse-29g-usb-type-c-port",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-ultra-8k.webp"
+  },
+  "g-wolves-hts-wireless": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-hati-s-sensor-3370",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-hts-wireless.webp"
+  },
+  "g-wolves-htx-4k": {
+    "officialUrl": "https://shop.g-wolves.com/products/htx4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htx-4k.webp"
+  },
+  "g-wolves-htx-ace": {
+    "officialUrl": "https://shop.g-wolves.com/products/htx-ace-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htx-ace.webp"
+  },
+  "g-wolves-htx-mini-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/htx-mini-8k-wireless-gaming-mouse-1",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htx-mini-8k.webp"
+  },
+  "g-wolves-htx-mini-asym": {
+    "officialUrl": "https://shop.g-wolves.com/products/htx-mini-asym",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htx-mini-asym.webp"
+  },
+  "g-wolves-htx-ultra-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/htx-ultra-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-htx-ultra-8k.webp"
+  },
+  "g-wolves-lycan-8k": {
+    "officialUrl": "https://shop.g-wolves.com/products/lycan-8k-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-lycan-8k.webp"
+  },
+  "g-wolves-skoll-mini": {
+    "officialUrl": "https://shop.g-wolves.com/products/skoll-mini-sk-s-ace",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-skoll-mini.webp"
+  },
+  "g-wolves-vuk": {
+    "officialUrl": "https://shop.g-wolves.com/products/vuk-8k-wireless-mouse-35g",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-vuk.webp"
+  },
+  "g-wolves-vuk-medium": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-vuk-medium",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-vuk-medium.webp"
+  },
+  "g-wolves-warg": {
+    "officialUrl": "https://shop.g-wolves.com/products/g-wolves-warg-8k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/g-wolves-warg.webp"
+  },
+  "glorious-model-d-2-pro-1k": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-2-pro-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d-2-pro-1k.webp"
+  },
+  "glorious-model-d-2-pro-4k-8k": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-2-pro-wireless-mouse-4k8k",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d-2-pro-4k-8k.webp"
+  },
+  "glorious-model-d-2-wired": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-2-wired-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d-2-wired.webp"
+  },
+  "glorious-model-d-2-wireless": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d-2-wireless.webp"
+  },
+  "glorious-model-d3": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d3.webp"
+  },
+  "glorious-model-d3-wired": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-d-3-wired-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-d3-wired.webp"
+  },
+  "glorious-model-i-2-wireless": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-i-2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-i-2-wireless.webp"
+  },
+  "glorious-model-o-2-mini": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-mini-wired-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-mini.webp"
+  },
+  "glorious-model-o-2-mini-wireless": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-mini-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-mini-wireless.webp"
+  },
+  "glorious-model-o-2-pro-1k": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-pro-wireless-mouse-1k",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-pro-1k.webp"
+  },
+  "glorious-model-o-2-pro-4k-8k": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-pro-wireless-mouse-4k-8khz",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-pro-4k-8k.webp"
+  },
+  "glorious-model-o-2-wired": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-wired-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-wired.webp"
+  },
+  "glorious-model-o-2-wireless": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-2-wireless.webp"
+  },
+  "glorious-model-o-classic": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-classic-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-classic.webp"
+  },
+  "glorious-model-o-eternal": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-eternal",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-eternal.webp"
+  },
+  "glorious-model-o-wireless": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-classic-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o-wireless.webp"
+  },
+  "glorious-model-o3": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o3.webp"
+  },
+  "glorious-model-o3-wired": {
+    "officialUrl": "https://www.gloriousgaming.com/products/model-o-3-wired-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-model-o3-wired.webp"
+  },
+  "glorious-series-2-pro": {
+    "officialUrl": "https://www.gloriousgaming.com/products/series-2-pro-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/glorious-series-2-pro.webp"
+  },
+  "hyperx-pulsefire-fuse": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-fuse-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-fuse.webp"
+  },
+  "hyperx-pulsefire-haste-2-core-wireless": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-core-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-core-wireless.webp"
+  },
+  "hyperx-pulsefire-haste-2-mini": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-mini-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-mini.webp"
+  },
+  "hyperx-pulsefire-haste-2-pro": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-pro-4k-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-pro.webp"
+  },
+  "hyperx-pulsefire-haste-2-s": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-s-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-s.webp"
+  },
+  "hyperx-pulsefire-haste-2-wired": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-wired.webp"
+  },
+  "hyperx-pulsefire-haste-2-wireless": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-2-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-2-wireless.webp"
+  },
+  "hyperx-pulsefire-haste-3-pro": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-3-pro-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-3-pro.webp"
+  },
+  "hyperx-pulsefire-haste-3-wired": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-3-wired.webp"
+  },
+  "hyperx-pulsefire-haste-3-wireless": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-haste-3-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-haste-3-wireless.webp"
+  },
+  "hyperx-pulsefire-raid": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-raid-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-raid.webp"
+  },
+  "hyperx-pulsefire-saga": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-saga.webp"
+  },
+  "hyperx-pulsefire-saga-pro": {
+    "officialUrl": "https://hyperx.com/products/hyperx-pulsefire-saga-pro-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/hyperx-pulsefire-saga-pro.webp"
+  },
+  "keychron-g3": {
+    "officialUrl": "https://www.keychron.com/products/keychron-g3-ultra-light-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-g3.webp"
+  },
+  "keychron-g3-cf": {
+    "officialUrl": "https://www.keychron.com/products/keychron-g3-ultra-light-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-g3-cf.webp"
+  },
+  "keychron-g4": {
+    "officialUrl": "https://www.keychron.com/products/keychron-g4-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-g4.webp"
+  },
+  "keychron-g5": {
+    "officialUrl": "https://www.keychron.com/products/keychron-g5-ultra-light-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-g5.webp"
+  },
+  "keychron-g6-he": {
+    "officialUrl": "https://www.keychron.com/products/keychron-g6-he-ultra-light-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-g6-he.webp"
+  },
+  "keychron-lemokey-g1": {
+    "officialUrl": "https://www.keychron.com/products/lemokey-g1-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-lemokey-g1.webp"
+  },
+  "keychron-lemokey-g2": {
+    "officialUrl": "https://www.keychron.com/products/lemokey-g2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-lemokey-g2.webp"
+  },
+  "keychron-m1-wired": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m1-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m1-wired.webp"
+  },
+  "keychron-m1-wireless": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m1-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m1-wireless.webp"
+  },
+  "keychron-m2": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m2.webp"
+  },
+  "keychron-m2-4k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m2-4k.webp"
+  },
+  "keychron-m2-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m2-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m2-8k.webp"
+  },
+  "keychron-m2-mini": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m2-mini-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m2-mini.webp"
+  },
+  "keychron-m3": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3.webp"
+  },
+  "keychron-m3-4k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-4k.webp"
+  },
+  "keychron-m3-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-8k.webp"
+  },
+  "keychron-m3-lite": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-lite.webp"
+  },
+  "keychron-m3-mini": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-mini-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-mini.webp"
+  },
+  "keychron-m3-mini-4k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-mini-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-mini-4k.webp"
+  },
+  "keychron-m3-mini-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m3-mini-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m3-mini-8k.webp"
+  },
+  "keychron-m4": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m4-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m4.webp"
+  },
+  "keychron-m4-4k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m4-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m4-4k.webp"
+  },
+  "keychron-m4-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m4-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m4-8k.webp"
+  },
+  "keychron-m5": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m5-wireless-ergonomic-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m5.webp"
+  },
+  "keychron-m6": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m6-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m6.webp"
+  },
+  "keychron-m6-4k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m6-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m6-4k.webp"
+  },
+  "keychron-m6-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m6-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m6-8k.webp"
+  },
+  "keychron-m6-lite": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m6-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m6-lite.webp"
+  },
+  "keychron-m7": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m7-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m7.webp"
+  },
+  "keychron-m7-8k": {
+    "officialUrl": "https://www.keychron.com/products/keychron-m7-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/keychron-m7-8k.webp"
+  },
+  "lamzu-atlantis-mini-4k": {
+    "officialUrl": "https://lamzu.com/products/lamzu-atlantis-mini-4k-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-atlantis-mini-4k.webp"
+  },
+  "lamzu-atlantis-mini-champion": {
+    "officialUrl": "https://lamzu.com/products/lamzu-atlantis-mini-champion-edition-8k-compatible",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-atlantis-mini-champion.webp"
+  },
+  "lamzu-atlantis-mini-pro": {
+    "officialUrl": "https://lamzu.com/products/lamzu-atlantis-mini-pro-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-atlantis-mini-pro.webp"
+  },
+  "lamzu-atlantis-og-v2-4k": {
+    "officialUrl": "https://lamzu.com/products/lamzu-atlantis-og-v2-4k-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-atlantis-og-v2-4k.webp"
+  },
+  "lamzu-atlantis-og-v2-pro": {
+    "officialUrl": "https://lamzu.com/products/lamzu-atlantis-og-v2-pro-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-atlantis-og-v2-pro.webp"
+  },
+  "lamzu-inca": {
+    "officialUrl": "https://lamzu.com/products/lamzu-inca",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-inca.webp"
+  },
+  "lamzu-maya": {
+    "officialUrl": "https://lamzu.com/products/lamzu-maya-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-maya.webp"
+  },
+  "lamzu-maya-4k": {
+    "officialUrl": "https://lamzu.com/products/lamzu-maya-4k",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-maya-4k.webp"
+  },
+  "lamzu-maya-champion-edition": {
+    "officialUrl": "https://lamzu.com/products/lamzu-maya-champion-edition",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-maya-champion-edition.webp"
+  },
+  "lamzu-maya-x": {
+    "officialUrl": "https://lamzu.com/products/lamzu-maya-x",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-maya-x.webp"
+  },
+  "lamzu-orcus": {
+    "officialUrl": "https://lamzu.com/products/lamzu-orcus",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-orcus.webp"
+  },
+  "lamzu-paro": {
+    "officialUrl": "https://lamzu.com/products/lamzu-paro",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-paro.webp"
+  },
+  "lamzu-paro-aurora": {
+    "officialUrl": "https://lamzu.com/products/lamzu-paro-aurora",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-paro-aurora.webp"
+  },
+  "lamzu-tachi": {
+    "officialUrl": "https://lamzu.com/products/lamzu-tachi-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-tachi.webp"
+  },
+  "lamzu-thorn": {
+    "officialUrl": "https://lamzu.com/products/lamzu-thorn-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-thorn.webp"
+  },
+  "lamzu-thorn-4k": {
+    "officialUrl": "https://lamzu.com/products/lamzu-thorn-4k",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-thorn-4k.webp"
+  },
+  "lamzu-thorn-v2": {
+    "officialUrl": "https://lamzu.com/products/lamzu-thorn-v2",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-thorn-v2.webp"
+  },
+  "lamzu-x-aimlabs-maya-x": {
+    "officialUrl": "https://lamzu.com/products/lamzu-x-aimlabs-maya-x",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-x-aimlabs-maya-x.webp"
+  },
+  "lamzu-x-fnatic-maya-8k": {
+    "officialUrl": "https://fnatic.com/products/maya-lamzu-x-fnatic-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-x-fnatic-maya-8k.webp"
+  },
+  "lamzu-x-fnatic-maya-x-8k": {
+    "officialUrl": "https://fnatic.com/products/maya-x-lamzu-x-fnatic-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-x-fnatic-maya-x-8k.webp"
+  },
+  "lamzu-x-fnatic-thorn-4k": {
+    "officialUrl": "https://lamzu.com/products/lamzu-x-fnatic-thorn-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-x-fnatic-thorn-4k.webp"
+  },
+  "lamzu-x-reject-paro-reject-special-edition": {
+    "officialUrl": "https://lamzu.com/products/lamzu-x-reject-paro-reject-special-edition",
+    "officialKind": "product",
+    "image": "/images/mice/lamzu-x-reject-paro-reject-special-edition.webp"
+  },
+  "logitech-g-pro-2-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-2-lightspeed",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-2-lightspeed.webp"
+  },
+  "logitech-g-pro-wireless": {
+    "officialUrl": "https://www.logitechg.com/en-us/products/gaming-mice/pro-wireless-mouse.910-005270.html",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-wireless.webp"
+  },
+  "logitech-g-pro-x-superlight": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight.webp"
+  },
+  "logitech-g-pro-x-superlight-2": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x2-superlight-wireless-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2.webp"
+  },
+  "logitech-g-pro-x-superlight-2-dex": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-dex",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2-dex.webp"
+  },
+  "logitech-g-pro-x-superlight-2-dex-se": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-dex-se",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2-dex-se.webp"
+  },
+  "logitech-g-pro-x-superlight-2-se": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2-se",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2-se.webp"
+  },
+  "logitech-g-pro-x-superlight-2c": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2c",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2c.webp"
+  },
+  "logitech-g-pro-x-superlight-2c-se": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x-superlight-2c-se",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x-superlight-2c-se.webp"
+  },
+  "logitech-g-pro-x2-superstrike": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x2-superstrike-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x2-superstrike.webp"
+  },
+  "logitech-g-pro-x3-superstrike": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/pro-x3-superstrike-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g-pro-x3-superstrike.webp"
+  },
+  "logitech-g203-lightsync": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g203-lightsync-rgb-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g203-lightsync.webp"
+  },
+  "logitech-g304-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-in/shop/p/g304-lightspeed-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g304-lightspeed.webp"
+  },
+  "logitech-g304-x-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/zh-tw/products/gaming-mice/g304-lightspeed-wireless-gaming-mouse.html",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g304-x-lightspeed.webp"
+  },
+  "logitech-g305-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g305-lightspeed-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g305-lightspeed.webp"
+  },
+  "logitech-g305-x-superlight": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g305-x-superlight",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g305-x-superlight.webp"
+  },
+  "logitech-g309": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g309-lightspeed-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g309.webp"
+  },
+  "logitech-g402-hyperion-fury": {
+    "officialUrl": "https://www.logitechg.com/en-in/shop/p/g402-hyperion-fury-fps-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g402-hyperion-fury.webp"
+  },
+  "logitech-g403-hero": {
+    "officialUrl": "https://www.logitechg.com/en-in/shop/p/g403-hero-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g403-hero.webp"
+  },
+  "logitech-g403-wireless": {
+    "officialUrl": "https://www.logitechg.com/en-us/products/gaming-mice/g403-hero-gaming-mouse.html",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g403-wireless.webp"
+  },
+  "logitech-g502-hero": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g502-hero-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g502-hero.webp"
+  },
+  "logitech-g502-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g502-lightspeed-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g502-lightspeed.webp"
+  },
+  "logitech-g502-x": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-wired-lightforce",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g502-x.webp"
+  },
+  "logitech-g502-x-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-wireless-lightforce",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g502-x-lightspeed.webp"
+  },
+  "logitech-g502-x-plus": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g502-x-plus-wireless-lightforce",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g502-x-plus.webp"
+  },
+  "logitech-g604-lightspeed": {
+    "officialUrl": "https://support.logi.com/hc/en-us/articles/360035037274-Logitech-G604-LIGHTSPEED-Wireless-Gaming-Mouse",
+    "officialKind": "brand",
+    "image": "/images/mice/logitech-g604-lightspeed.webp"
+  },
+  "logitech-g703-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g703-hero-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g703-lightspeed.webp"
+  },
+  "logitech-g705": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g705-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g705.webp"
+  },
+  "logitech-g903-lightspeed": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g903-lightspeed.webp"
+  },
+  "ninjutso-origin-one-x": {
+    "officialUrl": "https://ninjutso.com/products/origin-one-x-wireless-ultra-light-weight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/ninjutso-origin-one-x.webp"
+  },
+  "ninjutso-sora-v3": {
+    "officialUrl": "https://ninjutso.com/products/sora-v3-wireless-ultralight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/ninjutso-sora-v3.webp"
+  },
+  "ninjutso-ten": {
+    "officialUrl": "https://ninjutso.com/products/ninjutso-ten-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/ninjutso-ten.webp"
+  },
+  "pulsar-es-fs1": {
+    "officialUrl": "https://www.pulsar.gg/products/pulsar-es-fs-1",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-es-fs1.webp"
+  },
+  "pulsar-feinmann-f01": {
+    "officialUrl": "https://www.pulsar.gg/products/first-edition-feinmann-f01-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-feinmann-f01.webp"
+  },
+  "pulsar-feinmann-f01-noctua-edition": {
+    "officialUrl": "https://www.pulsar.gg/products/noctua-edition-feinmann-f01-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-feinmann-f01-noctua-edition.webp"
+  },
+  "pulsar-pro-series-buzz-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-buzz-x-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-buzz-x.webp"
+  },
+  "pulsar-pro-series-carpe-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-carpe-x-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-carpe-x.webp"
+  },
+  "pulsar-pro-series-jinggg-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-jinggg-x-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-jinggg-x.webp"
+  },
+  "pulsar-pro-series-jv-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-jv-x-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-jv-x.webp"
+  },
+  "pulsar-pro-series-sta-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-sta-x-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-sta-x.webp"
+  },
+  "pulsar-pro-series-susanto-x-2-0-large": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-susanto-x-2-0-large-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-susanto-x-2-0-large.webp"
+  },
+  "pulsar-pro-series-susanto-x-2-0-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-susanto-x-2-0-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-pro-series-susanto-x-2-0-medium.webp"
+  },
+  "pulsar-susanto-x": {
+    "officialUrl": "https://www.pulsar.gg/products/pro-series-susanto-x-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-susanto-x.webp"
+  },
+  "pulsar-tenz-2-0-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/tenz-signature-edition-2-0-mini-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-tenz-2-0-medium.webp"
+  },
+  "pulsar-tenz-2-0-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/tenz-signature-edition-2-0-mini-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-tenz-2-0-mini.webp"
+  },
+  "pulsar-x2-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/x2-crazylight-gaming-mouse-1",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2-crazylight-medium.webp"
+  },
+  "pulsar-x2-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x2-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2-crazylight-mini.webp"
+  },
+  "pulsar-x2-v3-es-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x2-v3-es-mini-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2-v3-es-mini.webp"
+  },
+  "pulsar-x2-v3-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x2v2-mini-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2-v3-mini.webp"
+  },
+  "pulsar-x2-wired": {
+    "officialUrl": "https://www.pulsar.gg/products/x2-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2-wired.webp"
+  },
+  "pulsar-x2f": {
+    "officialUrl": "https://www.pulsar.gg/products/pulsar-lab-x2f-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2f.webp"
+  },
+  "pulsar-x2f-crazylight": {
+    "officialUrl": "https://www.pulsar.gg/products/pulsar-lab-x2f-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2f-crazylight.webp"
+  },
+  "pulsar-x2h-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/x2h-crazylight-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2h-crazylight-medium.webp"
+  },
+  "pulsar-x2h-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x2h-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2h-crazylight-mini.webp"
+  },
+  "pulsar-x2n-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/x2n-crazylight-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2n-crazylight-medium.webp"
+  },
+  "pulsar-x2n-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x2n-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x2n-crazylight-mini.webp"
+  },
+  "pulsar-x3": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3.webp"
+  },
+  "pulsar-x3-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-crazylight-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-crazylight-medium.webp"
+  },
+  "pulsar-x3-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-crazylight-mini.webp"
+  },
+  "pulsar-x3-lhd": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-lhd-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-lhd.webp"
+  },
+  "pulsar-x3-lhd-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-lhd-crazylight-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-lhd-crazylight-medium.webp"
+  },
+  "pulsar-x3-lhd-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-lhd-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-lhd-crazylight-mini.webp"
+  },
+  "pulsar-x3-lhd-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-lhd-mini-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-lhd-mini.webp"
+  },
+  "pulsar-x3-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/x3-mini-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-x3-mini.webp"
+  },
+  "pulsar-xlite-crazylight-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/xlite-crazylight-medium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-xlite-crazylight-medium.webp"
+  },
+  "pulsar-xlite-crazylight-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/xlite-crazylight-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-xlite-crazylight-mini.webp"
+  },
+  "pulsar-xlite-v4-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/xlite-v4-mini-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-xlite-v4-mini.webp"
+  },
+  "pulsar-xlite-wired": {
+    "officialUrl": "https://www.pulsar.gg/products/xlite-v3-wired-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-xlite-wired.webp"
+  },
+  "pulsar-zywoo-the-chosen-mouse-gen-2-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/zywoo-the-chosen-mouse-gen-2-medium-1",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-zywoo-the-chosen-mouse-gen-2-medium.webp"
+  },
+  "pulsar-zywoo-the-chosen-mouse-gen-2-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/zywoo-the-chosen-mouse-gen-2-mini-1",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-zywoo-the-chosen-mouse-gen-2-mini.webp"
+  },
+  "pulsar-zywoo-the-chosen-mouse-medium": {
+    "officialUrl": "https://www.pulsar.gg/products/zywoo-the-chosen-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-zywoo-the-chosen-mouse-medium.webp"
+  },
+  "pulsar-zywoo-the-chosen-mouse-mini": {
+    "officialUrl": "https://www.pulsar.gg/products/zywoo-the-chosen-mouse-mini",
+    "officialKind": "product",
+    "image": "/images/mice/pulsar-zywoo-the-chosen-mouse-mini.webp"
+  },
+  "pwnage-stormbreaker": {
+    "officialUrl": "https://pwnage.com/products/stormbreaker",
+    "officialKind": "product",
+    "image": "/images/mice/pwnage-stormbreaker.webp"
+  },
+  "pwnage-stormbreaker-max-cf": {
+    "officialUrl": "https://pwnage.com/products/pwnage-x-whzy-stormbreaker-max-cf",
+    "officialKind": "product",
+    "image": "/images/mice/pwnage-stormbreaker-max-cf.webp"
+  },
+  "pwnage-symm-3": {
+    "officialUrl": "https://pwnage.com/products/ultra-custom-pro-symm-3",
+    "officialKind": "product",
+    "image": "/images/mice/pwnage-symm-3.webp"
+  },
+  "pwnage-trinity-cf": {
+    "officialUrl": "https://pwnage.com/products/trinity",
+    "officialKind": "product",
+    "image": "/images/mice/pwnage-trinity-cf.webp"
+  },
+  "pwnage-vanta": {
+    "officialUrl": "https://pwnage.com/products/vanta-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/pwnage-vanta.webp"
+  },
+  "razer-basilisk-mobile": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-mobile",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-mobile.webp"
+  },
+  "razer-basilisk-v3": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v3",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v3.webp"
+  },
+  "razer-basilisk-v3-35k": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v3-35k",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v3-35k.webp"
+  },
+  "razer-basilisk-v3-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v3-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v3-pro.webp"
+  },
+  "razer-basilisk-v3-pro-35k": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v3-pro-35k",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v3-pro-35k.webp"
+  },
+  "razer-basilisk-v3-x-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v3-x-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v3-x-hyperspeed.webp"
+  },
+  "razer-basilisk-v4-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v4-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v4-hyperspeed.webp"
+  },
+  "razer-basilisk-v4-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-basilisk-v4-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-basilisk-v4-pro.webp"
+  },
+  "razer-boomslang-20th-anniversary-edition": {
+    "officialUrl": "https://mysupport.razer.com/app/answers/detail/a_id/20363/kw/buttons",
+    "officialKind": "product",
+    "image": "/images/mice/razer-boomslang-20th-anniversary-edition.webp"
+  },
+  "razer-cobra": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-cobra",
+    "officialKind": "product",
+    "image": "/images/mice/razer-cobra.webp"
+  },
+  "razer-cobra-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-cobra-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-cobra-hyperspeed.webp"
+  },
+  "razer-cobra-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-cobra-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-cobra-pro.webp"
+  },
+  "razer-deathadder-essential": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-essential",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-essential.webp"
+  },
+  "razer-deathadder-v2-x-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-v2-x-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-v2-x-hyperspeed.webp"
+  },
+  "razer-deathadder-v3": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-v3",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-v3.webp"
+  },
+  "razer-deathadder-v3-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-v3-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-v3-hyperspeed.webp"
+  },
+  "razer-deathadder-v3-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-v3-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-v3-pro.webp"
+  },
+  "razer-deathadder-v4-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-deathadder-v4-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-deathadder-v4-pro.webp"
+  },
+  "razer-naga-left-handed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-naga-left-handed-edition",
+    "officialKind": "product",
+    "image": "/images/mice/razer-naga-left-handed.webp"
+  },
+  "razer-naga-v2-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-naga-v2-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-naga-v2-hyperspeed.webp"
+  },
+  "razer-naga-v2-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-naga-v2-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-naga-v2-pro.webp"
+  },
+  "razer-naga-v3-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-naga-v3-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-naga-v3-pro.webp"
+  },
+  "razer-orochi-v2": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-orochi-v2",
+    "officialKind": "product",
+    "image": "/images/mice/razer-orochi-v2.webp"
+  },
+  "razer-pro-click": {
+    "officialUrl": "https://www.razer.com/productivity/razer-pro-click",
+    "officialKind": "product",
+    "image": "/images/mice/razer-pro-click.webp"
+  },
+  "razer-viper-v3-hyperspeed": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-viper-v3-hyperspeed",
+    "officialKind": "product",
+    "image": "/images/mice/razer-viper-v3-hyperspeed.webp"
+  },
+  "razer-viper-v3-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-viper-v3-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-viper-v3-pro.webp"
+  },
+  "razer-viper-v3-pro-se": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-viper-v3-pro-se",
+    "officialKind": "product",
+    "image": "/images/mice/razer-viper-v3-pro-se.webp"
+  },
+  "razer-viper-v4-pro": {
+    "officialUrl": "https://www.razer.com/gaming-mice/razer-viper-v4-pro",
+    "officialKind": "product",
+    "image": "/images/mice/razer-viper-v4-pro.webp"
+  },
+  "redragon-m617-lit": {
+    "officialUrl": "https://redragon.com/products/redragon-m617-lit-wired-gaming-mice",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m617-lit.webp"
+  },
+  "redragon-m618-lit": {
+    "officialUrl": "https://redragonshop.com/products/azzmach-m618",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m618-lit.webp"
+  },
+  "redragon-m618-wired": {
+    "officialUrl": "https://redragonshop.com/products/azzmach-m618",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m618-wired.webp"
+  },
+  "redragon-m656-gainer": {
+    "officialUrl": "https://redragonshop.com/products/gainer-m656",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m656-gainer.webp"
+  },
+  "redragon-m693": {
+    "officialUrl": "https://redragonshop.com/products/trident-m693-wireless-bluetooth-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m693.webp"
+  },
+  "redragon-m711-cobra": {
+    "officialUrl": "https://redragonshop.com/products/cobra-m711",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m711-cobra.webp"
+  },
+  "redragon-m724": {
+    "officialUrl": "https://redragonshop.com/products/k1ng-m724-1k-hz",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m724.webp"
+  },
+  "redragon-m810-pro": {
+    "officialUrl": "https://redragonshop.com/products/m810-pro-budget-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m810-pro.webp"
+  },
+  "redragon-m813-pro": {
+    "officialUrl": "https://redragonshop.com/products/rind-m813",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m813-pro.webp"
+  },
+  "redragon-m813-wired": {
+    "officialUrl": "https://redragonshop.com/products/rind-m813",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m813-wired.webp"
+  },
+  "redragon-m817": {
+    "officialUrl": "https://redragonshop.com/products/klyamoor-m817",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m817.webp"
+  },
+  "redragon-m817-pro": {
+    "officialUrl": "https://redragonshop.com/products/klyamoor-m817-pro-anime-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m817-pro.webp"
+  },
+  "redragon-m818-std": {
+    "officialUrl": "https://redragon.co.id/products/jabns-standard-m818-std-wireless-ultra-light-weight-gaming-mouse-sandard-version",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m818-std.webp"
+  },
+  "redragon-m908-impact": {
+    "officialUrl": "https://redragonshop.com/products/impact-m908",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m908-impact.webp"
+  },
+  "redragon-m913-impact-elite": {
+    "officialUrl": "https://redragonshop.com/products/m913",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m913-impact-elite.webp"
+  },
+  "redragon-m916-pro": {
+    "officialUrl": "https://redragonshop.com/products/k1ng-m916-pro-1k",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m916-pro.webp"
+  },
+  "redragon-m916-pro-4k": {
+    "officialUrl": "https://redragonshop.com/products/k1ng-m916-pro-4k-hz",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m916-pro-4k.webp"
+  },
+  "redragon-m916-ult-8k": {
+    "officialUrl": "https://redragonshop.com/products/k1ng-m916-ult-8k-hz",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m916-ult-8k.webp"
+  },
+  "redragon-m991": {
+    "officialUrl": "https://redragonshop.com/products/m991-wireless-fps-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m991.webp"
+  },
+  "redragon-m995": {
+    "officialUrl": "https://redragonshop.com/products/fyzu-m995",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m995.webp"
+  },
+  "redragon-m995-lit": {
+    "officialUrl": "https://redragonshop.com/products/fyzu-m995-lit",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m995-lit.webp"
+  },
+  "redragon-m995-pro": {
+    "officialUrl": "https://www.redragon.com.br/fyzupro",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m995-pro.webp"
+  },
+  "redragon-m996": {
+    "officialUrl": "https://redragonshop.com/products/k1ng-m996-8k-hz",
+    "officialKind": "product",
+    "image": "/images/mice/redragon-m996.webp"
+  },
+  "roccat-kone-xp-air": {
+    "officialUrl": "https://www.turtlebeach.com/products/kone-xp-air-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/roccat-kone-xp-air.webp"
+  },
+  "roccat-pure-air": {
+    "officialUrl": "https://www.turtlebeach.com/products/pure-air-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/roccat-pure-air.webp"
+  },
+  "roccat-pure-sel": {
+    "officialUrl": "https://www.turtlebeach.com/products/pure-sel-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/roccat-pure-sel.webp"
+  },
+  "steelseries-aerox-3": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-3-2022?connectivityType=wired&color=snow",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-3.webp"
+  },
+  "steelseries-aerox-3-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-3-2022?connectivityType=wireless&color=onyx",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-3-wireless.webp"
+  },
+  "steelseries-aerox-3-wireless-gen-2": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-3-wireless-gen-2",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-3-wireless-gen-2.webp"
+  },
+  "steelseries-aerox-5": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-5?connectivityType=wired&color=black",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-5.webp"
+  },
+  "steelseries-aerox-5-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-5?connectivityType=wireless&color=black",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-5-wireless.webp"
+  },
+  "steelseries-aerox-9-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/aerox-9?color=black",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-aerox-9-wireless.webp"
+  },
+  "steelseries-prime": {
+    "officialUrl": "https://steelseries.com/gaming-mice/prime?mouseSize=fullSize&connectivityType=wired&model=Regular",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-prime.webp"
+  },
+  "steelseries-prime-mini": {
+    "officialUrl": "https://steelseries.com/gaming-mice/prime?mouseSize=mini&connectivityType=wired&model=Regular",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-prime-mini.webp"
+  },
+  "steelseries-prime-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/prime?mouseSize=fullSize&connectivityType=wireless&model=Regular",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-prime-wireless.webp"
+  },
+  "steelseries-rival-3": {
+    "officialUrl": "https://steelseries.com/gaming-mice/rival-3",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-rival-3.webp"
+  },
+  "steelseries-rival-3-gen-2": {
+    "officialUrl": "https://steelseries.com/gaming-mice/rival-3-gen-2?color=black&connectivityType=wired",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-rival-3-gen-2.webp"
+  },
+  "steelseries-rival-3-gen-2-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/rival-3-gen-2?color=black&connectivityType=wireless",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-rival-3-gen-2-wireless.webp"
+  },
+  "steelseries-rival-3-wireless": {
+    "officialUrl": "https://steelseries.com/gaming-mice/rival-3?connectivityType=wireless",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-rival-3-wireless.webp"
+  },
+  "steelseries-rival-5": {
+    "officialUrl": "https://steelseries.com/gaming-mice/rival-5",
+    "officialKind": "product",
+    "image": "/images/mice/steelseries-rival-5.webp"
+  },
+  "turtle-beach-command-series-mc3": {
+    "officialUrl": "https://www.turtlebeach.com/products/command-series-mc3-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/turtle-beach-command-series-mc3.webp"
+  },
+  "turtle-beach-command-series-mc5": {
+    "officialUrl": "https://www.turtlebeach.com/products/command-series-mc5-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/turtle-beach-command-series-mc5.webp"
+  },
+  "turtle-beach-command-series-mc7": {
+    "officialUrl": "https://www.turtlebeach.com/products/command-series-mc7-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/turtle-beach-command-series-mc7.webp"
+  },
+  "vaxee-e1-wireless-4k": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=248",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-e1-wireless-4k.webp"
+  },
+  "vaxee-np-01-ergo": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=314",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-np-01-ergo.webp"
+  },
+  "vaxee-np-01s-v3": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=309",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-np-01s-v3.webp"
+  },
+  "vaxee-xe-s-l-wireless-4k": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=247",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-xe-s-l-wireless-4k.webp"
+  },
+  "vaxee-xe-s-wireless-4k": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=227",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-xe-s-wireless-4k.webp"
+  },
+  "vaxee-xe-v2": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=271",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-xe-v2.webp"
+  },
+  "vaxee-zygen-np-01-wireless-4k": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=219",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-zygen-np-01-wireless-4k.webp"
+  },
+  "vaxee-zygen-np-01s-ergo": {
+    "officialUrl": "https://www.vaxee.co/en/product.php?act=view&id=285",
+    "officialKind": "product",
+    "image": "/images/mice/vaxee-zygen-np-01s-ergo.webp"
+  },
+  "wlmouse-beast-g-max": {
+    "officialUrl": "https://www.wlmouse.com/products/beastg",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-g-max.webp"
+  },
+  "wlmouse-beast-g-medium": {
+    "officialUrl": "https://www.wlmouse.com/products/beastg",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-g-medium.webp"
+  },
+  "wlmouse-beast-g-mini": {
+    "officialUrl": "https://www.wlmouse.com/products/beastg",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-g-mini.webp"
+  },
+  "wlmouse-beast-miao": {
+    "officialUrl": "https://www.wlmouse.com/products/miao",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-miao.webp"
+  },
+  "wlmouse-beast-x-max": {
+    "officialUrl": "https://www.wlmouse.com/products/beast-max",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-max.webp"
+  },
+  "wlmouse-beast-x-mini-pro": {
+    "officialUrl": "https://www.wlmouse.com/products/mini-pro",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-mini-pro.webp"
+  },
+  "wlmouse-beast-x-pro": {
+    "officialUrl": "https://www.wlmouse.com/products/x-pro",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-pro.webp"
+  },
+  "wlmouse-beast-x-v2-max": {
+    "officialUrl": "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-v2-max.webp"
+  },
+  "wlmouse-beast-x-v2-med": {
+    "officialUrl": "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-v2-med.webp"
+  },
+  "wlmouse-beast-x-v2-mini": {
+    "officialUrl": "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-beast-x-v2-mini.webp"
+  },
+  "wlmouse-huan": {
+    "officialUrl": "https://www.wlmouse.com/products/huan",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-huan.webp"
+  },
+  "wlmouse-huan-m": {
+    "officialUrl": "https://www.wlmouse.com/products/huan-m-black",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-huan-m.webp"
+  },
+  "wlmouse-strider": {
+    "officialUrl": "https://www.wlmouse.com/products/strider",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-strider.webp"
+  },
+  "wlmouse-sword-x": {
+    "officialUrl": "https://www.wlmouse.com/products/sword-x-magnesium-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-sword-x.webp"
+  },
+  "wlmouse-ying": {
+    "officialUrl": "https://www.wlmouse.com/products/ying-forged-carbon-fiber-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-ying.webp"
+  },
+  "wlmouse-ying-magnesium": {
+    "officialUrl": "https://www.wlmouse.com/products/yingmg",
+    "officialKind": "product",
+    "image": "/images/mice/wlmouse-ying-magnesium.webp"
+  },
+  "zowie-ec1-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/ec1-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-ec1-dw.webp"
+  },
+  "zowie-ec2-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/ec2-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-ec2-dw.webp"
+  },
+  "zowie-ec3-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/ec3-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-ec3-dw.webp"
+  },
+  "zowie-fk1-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/fk1-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-fk1-dw.webp"
+  },
+  "zowie-fk2-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/fk2-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-fk2-dw.webp"
+  },
+  "zowie-s2-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/s2-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-s2-dw.webp"
+  },
+  "zowie-u2-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/u2-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-u2-dw.webp"
+  },
+  "zowie-za12-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/za12-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-za12-dw.webp"
+  },
+  "zowie-za13-dw": {
+    "officialUrl": "https://zowie.benq.com/en-us/mouse/za13-dw.html",
+    "officialKind": "product",
+    "image": "/images/mice/zowie-za13-dw.webp"
+  }
+}
