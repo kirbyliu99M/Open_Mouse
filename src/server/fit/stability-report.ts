@@ -153,8 +153,11 @@ export function buildStabilityReport(
       answerRuns.set(a, [...(answerRuns.get(a) ?? []), runs]);
     }
   }
+  // No hands, no pooled rows (foldMeasures of nothing would print NaN).
   for (const a of THICKNESS_ANSWERS) {
-    const c = cell(foldMeasures((answerRuns.get(a) ?? []).map((r) => r[a])));
+    const pooledRuns = (answerRuns.get(a) ?? []).map((r) => r[a]);
+    if (pooledRuns.length === 0) continue;
+    const c = cell(foldMeasures(pooledRuns));
     lines.push(
       `| **all hands** | **${a}** | **${c.top1}** | **${c.jac}** | **${c.max}** |`,
     );

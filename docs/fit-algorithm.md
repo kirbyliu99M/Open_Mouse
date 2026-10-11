@@ -1,6 +1,6 @@
 # Fit algorithm — v1 candidate
 
-Status: **candidate (未拍板)**. v1 (`fit-v1-candidate.3`) has been the default engine since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
+Status: **candidate (未拍板)**. v1 has been the default engine since 2026-10-10 (now `fit-v1-candidate.3`; Kirby, after the v0-vs-v1 comparison on the real catalogue); it stays a candidate. Every number below
 lives in `src/server/fit/coefficients.ts` only.
 
 ## 1. Inputs
@@ -42,13 +42,20 @@ the height target moves: length, grip width, hump logic, weights, sigmas, `handT
 **The 1.5 mm is a placeholder with no data behind it, and "a thicker palm prefers a taller mouse" is an
 assumption, not a verified fact.** Replace both when M2 or learning-kit data exist.
 
+The hand-type label (§7) is classified from the targets **without** the shift: it is display only and does
+not move with the answer. The response's `targets` are the shifted ones.
+
 How large the effect can be (formula-derived, not an engine run): the height Gaussian has
 σ_eff ≈ 3.2 mm (σ 3 mm, widened by 0.20 × 6 mm of hand-length noise). A perfect-match mouse (Δ = 0)
 loses about 10 points on the height sub-score at a 1.5 mm shift, which is about −2.0 on the total without hump data
 and about −1.2 with it (height and hump share the 0.20 weight 0.6 / 0.4). The worst case is a mouse sitting
-about 2.5 mm from the target, where a 1.5 mm shift moves its height sub-score by about 27 points: about 5.5
-on the total without hump data and about 3.3 with it (up to about 6 and 3.5 once the total is divided by
-the 0.95 of applicable weight and rounded). The measured report in §8 stays inside these figures.
+about 2.5 mm from the target, where a 1.5 mm shift moves its height sub-score by about 27.5 points. The
+total moves by that times the sub-score's weight (0.20 without hump data, 0.12 with it), divided by the sum
+of the applicable weights, which is not a fixed 0.95: it is 1.0 when a weight preference is given and the
+grip-width weight is whole, 0.95 with no weight preference, and 0.825 with no weight preference while
+`sideCurvature` is unknown (grip-width weight halved). So the worst case is about 5.5 to 6.7 points
+without hump data and about 3.3 to 4.0 with it; rounding the displayed totals can add 1 more. These are
+formula figures, not an engine run: run `npx tsx scripts/fit-stability.ts [--real]` for the measured ones.
 
 _Tried and dropped (CALIB-1, 2026-10-10):_ clamping each target to the catalogue's 5th..95th percentile. It pulled very small and very large hands toward mid-size mice (a small fingertip hand lost the smallest mice), so v1 targets stay exactly the above.
 
@@ -134,7 +141,7 @@ null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to
 so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
 rows keep 75.
 
-**Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 (`fit-v1-candidate.3`) is the default engine; `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels were unchanged by the switch, and `.3` adds only the palm-thickness shift (§3); all of it is 未拍板.
+**Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 is the default engine (now `fit-v1-candidate.3`); `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels were unchanged by the switch, and `.3` adds only the palm-thickness shift (§3); all of it is 未拍板.
 
 ## 9a. Code map
 

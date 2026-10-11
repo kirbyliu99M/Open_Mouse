@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import seedRows from "../../src/db/seed/logitech.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
 import {
@@ -18,6 +18,7 @@ import {
   THICKNESS_HEIGHT_SHIFT_MM,
 } from "../../src/server/fit/coefficients";
 import { scoreWithEngine } from "../../src/server/fit/engine";
+import { gripWeights } from "../../src/server/fit/grip-weights";
 import { computePriors } from "../../src/server/fit/priors";
 import { scoreFit } from "../../src/server/fit/score";
 import { scoreFitV1 } from "../../src/server/fit/score-v1";
@@ -30,7 +31,10 @@ import {
   type EngineFn,
 } from "../../src/server/fit/stability";
 import { buildStabilityReport } from "../../src/server/fit/stability-report";
-import { computeTargets } from "../../src/server/fit/targets";
+import {
+  computeTargets,
+  computeTargetsByGrip,
+} from "../../src/server/fit/targets";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 import golden from "./fixtures/fit-golden.json";
 
@@ -116,7 +120,67 @@ describe("computeTargets with a thickness answer", () => {
   });
 });
 
+describe("computeTargetsByGrip: every grip shifts alike", () => {
+  it.each([
+    ["thin", -1.5],
+    ["thick", 1.5],
+  ] as const)(
+    "%s moves the height of palm, claw and fingertip by %s mm, and nothing else",
+    (level, shift) => {
+      const none = computeTargetsByGrip(190, 80);
+      const shifted = computeTargetsByGrip(190, 80, level);
+      for (const g of GRIP_STYLES) {
+        expect(shifted[g].heightMm).toBeCloseTo(none[g].heightMm + shift, 12);
+        expect(shifted[g].lengthMm).toBe(none[g].lengthMm);
+        expect(shifted[g].gripWidthMm).toBe(none[g].gripWidthMm);
+        expect(shifted[g]).toEqual(computeTargets(190, 80, g, level));
+      }
+    },
+  );
+
+  it("no answer and medium equal the unshifted targets of each grip", () => {
+    const none = computeTargetsByGrip(190, 80);
+    for (const g of GRIP_STYLES) {
+      expect(none[g]).toEqual(computeTargets(190, 80, g));
+    }
+    expect(computeTargetsByGrip(190, 80, "medium")).toEqual(none);
+  });
+});
+
 describe("v1 reads prefs.palmThickness", () => {
+  // Hand on the palm/claw/fingertip border (r = 0.56): all three grips are in
+  // play, so the blended total must equal the weighted sum of the totals of
+  // each grip stated alone with the same answer. A shift that reached only
+  // the grip used would be off by about 2 points on these cases.
+  it.each([
+    [30, "thin"],
+    [34, "thick"],
+  ] as const)(
+    "no stated grip: a %s mm mouse's blended total matches the sum over grips, all shifted (%s)",
+    (heightMm, level) => {
+      const cat = [mouse("m", { heightMm })];
+      const priors = computePriors(cat);
+      const m: HandMeasurements = {
+        handLengthMm: 185,
+        palmLengthMm: 103.6,
+        palmWidthMm: 76,
+      };
+      const total = (prefs: FitPreferences) =>
+        scoreFitV1(m, cat, prefs, "right", priors).results[0]!.total;
+      const w = gripWeights(m.palmLengthMm / m.handLengthMm);
+      expect(Object.values(w).filter((x) => x > 0.1)).toHaveLength(3);
+      const sum = GRIP_STYLES.reduce(
+        (acc, g) =>
+          acc +
+          w[g] * total({ ...NO_ANSWER, gripStyle: g, palmThickness: level }),
+        0,
+      );
+      expect(
+        Math.abs(total({ ...NO_ANSWER, palmThickness: level }) - sum),
+      ).toBeLessThan(1);
+    },
+  );
+
   it.each(hands)(
     "%s: medium equals no answer (same totals, ranks, reasons, targets, hand type)",
     (_n, g) => {
@@ -202,6 +266,24 @@ describe("v1 reads prefs.palmThickness", () => {
         expect(out.handType).toEqual(base.handType);
         expect(out.gripStyle).toEqual(base.gripStyle);
       }
+    }
+  });
+
+  it("handType is identical for every answer at the contract's smallest hand (handLengthMm = 100)", () => {
+    const m: HandMeasurements = {
+      handLengthMm: 100,
+      palmLengthMm: 58,
+      palmWidthMm: 50,
+    };
+    const run = (prefs: FitPreferences) =>
+      scoreFitV1(m, seed, prefs, "right", seedPriors);
+    const none = run(NO_ANSWER);
+    expect(none.handType).toBeDefined();
+    for (const level of ["thin", "thick"] as const) {
+      const out = run({ ...NO_ANSWER, palmThickness: level });
+      expect(out.handType).toEqual(none.handType);
+      // The response targets are the shifted ones; only the label is not.
+      expect(out.targets.heightMm).not.toBe(none.targets.heightMm);
     }
   });
 
@@ -342,7 +424,11 @@ describe("the fit preferences contract accepts the answer", () => {
   });
 });
 
-describe("continuity (§8) with the answer fixed", () => {
+// The shift depends on hand length only, so a palm-length sweep cannot see it
+// directly; this guards that fixing an answer does not break the grip blend's
+// continuity (the answer is applied to every grip's target before blending),
+// as a guard on the combination, not a second copy of fit-v1's own sweep test.
+describe("continuity (§8) with the answer fixed: the blend stays continuous", () => {
   const v1: EngineFn = (m, c, p, h) => scoreFitV1(m, c, p, h, seedPriors);
   it.each(hands)(
     "%s: no mouse's total jumps by more than 2 points",
@@ -393,7 +479,10 @@ describe("thicknessRuns", () => {
       })),
     }) as unknown as ReturnType<EngineFn>;
 
-  /** A fake engine: thick lifts "b" over "a", thin lowers both; records the answers it saw. */
+  /**
+   * A fake engine over five base mice: thick lifts "b" over "a" and lets a new
+   * "c" push "f" out of the top 5; thin lowers everyone. Records the answers it saw.
+   */
   function fake() {
     const seen: (string | undefined)[] = [];
     const engine: EngineFn = (_m, _c, prefs) => {
@@ -402,17 +491,27 @@ describe("thicknessRuns", () => {
         return ranked([
           ["b", 90],
           ["a", 80],
+          ["c", 75],
+          ["d", 70],
+          ["e", 60],
+          ["f", 50],
         ]);
       }
       if (prefs.palmThickness === "thin") {
         return ranked([
           ["a", 74],
           ["b", 70],
+          ["d", 60],
+          ["e", 50],
+          ["f", 40],
         ]);
       }
       return ranked([
         ["a", 80],
         ["b", 79],
+        ["d", 70],
+        ["e", 60],
+        ["f", 50],
       ]);
     };
     return { engine, seen };
@@ -433,16 +532,17 @@ describe("thicknessRuns", () => {
       maxTotalChange: 0,
     });
     expect(r.medium).toEqual(r.none);
+    // thin: same five mice, every total lower (largest drop 10).
     expect(r.thin).toEqual({
       top1Kept: true,
       top5Jaccard: 1,
-      maxTotalChange: 9,
+      maxTotalChange: 10,
     });
-    expect(r.thick).toEqual({
-      top1Kept: false,
-      top5Jaccard: 1,
-      maxTotalChange: 11,
-    });
+    // thick: "b" is first now, "c" pushes "f" out of the top 5:
+    // {a,b,d,e,f} against {b,a,c,d,e} shares 4 of 6.
+    expect(r.thick.top1Kept).toBe(false);
+    expect(r.thick.top5Jaccard).toBeCloseTo(4 / 6, 12);
+    expect(r.thick.maxTotalChange).toBe(11);
   });
 
   it("scores the baseline with no answer, then each level in order", () => {
@@ -454,10 +554,13 @@ describe("thicknessRuns", () => {
 });
 
 describe("the stability report carries the thickness section", () => {
-  const report = buildStabilityReport(
-    seed,
-    Object.fromEntries(hands.map(([n, g]) => [n, g])),
-  );
+  let report = "";
+  beforeAll(() => {
+    report = buildStabilityReport(
+      seed,
+      Object.fromEntries(hands.map(([n, g]) => [n, g])),
+    );
+  });
 
   it("has the sensitivity table, one row per hand and answer, and the fixed-answer sweep", () => {
     expect(report).toContain("## Palm-thickness sensitivity (v1 only)");
@@ -469,7 +572,12 @@ describe("the stability report carries the thickness section", () => {
     expect(report).toContain(
       "### Palm-length sweep with the answer fixed (v1)",
     );
-    expect(report).toContain("Largest jump over all hands: none = 2");
+    const worst =
+      /Largest jump over all hands: none = (\d+), thin = (\d+), medium = (\d+), thick = (\d+) points/.exec(
+        report,
+      );
+    expect(worst).not.toBeNull();
+    for (const n of worst!.slice(1)) expect(Number(n)).toBeLessThanOrEqual(2);
   });
 
   it("the 'none' and 'medium' rows are the baseline itself (100%, Jaccard 1.00, change 0)", () => {
@@ -478,5 +586,22 @@ describe("the stability report carries the thickness section", () => {
         `| **all hands** | **${a}** | **100%** | **1.00** | **0** |`,
       );
     }
+  });
+
+  it("thin and thick rows are not the baseline: some golden hand moves (so the report does not reuse the none run)", () => {
+    for (const a of ["thin", "thick"]) {
+      const rows = report
+        .split("\n")
+        .filter((l) => hands.some(([n]) => l.startsWith(`| ${n} | ${a} |`)));
+      expect(rows).toHaveLength(hands.length);
+      expect(rows.some((l) => !l.endsWith("| 100% | 1.00 | 0 |"))).toBe(true);
+    }
+  });
+
+  it("with no hands the thickness section prints no NaN and no pooled rows", () => {
+    const empty = buildStabilityReport(seed, {});
+    expect(empty).not.toContain("NaN");
+    expect(empty).toContain("## Palm-thickness sensitivity (v1 only)");
+    expect(empty).not.toContain("| **all hands** | **thin**");
   });
 });

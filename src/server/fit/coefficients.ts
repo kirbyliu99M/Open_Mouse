@@ -205,9 +205,9 @@ export const THUMB_REST_WIDE_FROM_MM = 80;
 /**
  * v1 only: the person's own palm-thickness answer shifts the height target by
  * this many mm (`height_g = handLength x HEIGHT_FACTOR[g] + shift`), for every
- * grip alike. No answer means no shift at all, which is not the same as
- * "medium" being asked: both give 0 here, but a skipped answer must reach the
- * engine as undefined.
+ * grip alike. No answer means no shift at all. A skipped answer and "medium"
+ * both give a 0 shift today, but they are different inputs: a skipped answer
+ * must reach the engine as undefined.
  *
  * CANDIDATE (未拍板, Kirby 2026-10-11, option A, d = 1.5 mm). UNCALIBRATED: no
  * data stands behind the 1.5 mm, and "a thicker palm prefers a taller mouse"
