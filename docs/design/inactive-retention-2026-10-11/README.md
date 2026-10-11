@@ -7,7 +7,8 @@ number, name and policy below is a proposal until Kirby confirms it in a
 formal decision. This PR adds no code and no migration file.
 
 Evidence rule: every statement about today's behaviour cites `file:line` at
-`main` `dbf2851`. Where nothing in the repository shows a fact, it says
+`main` `dbf2851`; `main` has since moved to `4ca890f`, which differs from it only under
+`src/server/fit/`, where nothing here is cited. Where nothing in the repository shows a fact, it says
 **Unconfirmed** and does not fill the gap by inference. Facts about Auth.js come
 from the copy installed in the main checkout's `node_modules` (`@auth/core`
 0.41.3, `next-auth` 5.0.0-beta.32), not from this repository's own code.
@@ -38,7 +39,7 @@ from the copy installed in the main checkout's `node_modules` (`@auth/core`
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `users` (160-171)                                         | `id` (text, random UUID), `name`, `email` (unique), `emailVerified`, `image`                      | is the user                                                                                                                                                                          | `emailVerified` only; what it records is **Unconfirmed**. No `created_at`, no `last_login`. |
 | `accounts` (188-209)                                      | Google profile link and OAuth tokens (`refresh_token`, `access_token`, `id_token`: lines 197-202) | `user_id` NOT NULL, FK `users.id` ON DELETE CASCADE (191-193); index `accounts_user_id_idx` (207)                                                                                    | none                                                                                        |
-| `auth_sessions` (211-217)                                 | session token, `expires`                                                                          | `user_id` NOT NULL, FK CASCADE (213-215)                                                                                                                                             | `expires` only (see 1.5)                                                                    |
+| `auth_sessions` (211-217)                                 | session token, `expires`                                                                          | `user_id` NOT NULL, FK CASCADE (213-215); **no index on `user_id`**                                                                                                                  | `expires` only (see 1.5)                                                                    |
 | `verification_tokens` (219-227)                           | `identifier`, `token`, `expires`                                                                  | **none** (no `user_id`, no FK). Whether any row is ever written is **Unconfirmed**: the only configured provider is Google (`src/auth.ts:50-57`).                                    | `expires`                                                                                   |
 | `scan_sessions` (233-248)                                 | the container of scans                                                                            | `user_id` nullable, FK CASCADE (237); NULL = anonymous; CHECK `scan_sessions_anonymous_expire`: an anonymous row must have `expires_at` (242-245)                                    | `created_at` (238), `expires_at` (239)                                                      |
 | `scans` (250-298)                                         | hand side, stated grip, stated palm thickness, `survey_contributed_at`                            | `session_id` NOT NULL, FK CASCADE (252-254). **No index on `session_id`** (no index on `scans` in any `drizzle/*.sql`).                                                              | `created_at` (297); no `updated_at`                                                         |
@@ -144,12 +145,19 @@ $CRON_SECRET`, compared in constant time, closed when the secret is unset
 ### 1.6 Gaps this spec has to deal with
 
 1. No column holds account activity (1.5).
-2. A signed-in session rolls for 30 days of idleness, so a person who views results
-   every day and never signs in again would show no sign-in event for months.
-   "Last sign-in" alone is therefore the wrong definition (section 2).
-3. `scans.session_id` and `scan_sessions.user_id` have no index. Each deleted
-   `scan_sessions` row makes Postgres look for its scans without an index, and a
-   purge query by `user_id` scans `scan_sessions`. Fine at today's size, a cost to
+2. A signed-in session rolls: Auth.js pushes `expires` out by 30 days at most once a
+   day while the person keeps using the site (1.5). A person can therefore use the
+   site daily for months without a new sign-in event. If `last_active_at` recorded
+   only sign-ins (and scans), it would fall behind real use, and the safety net in
+   3.2 would only hide that for as long as the session lives. "Last sign-in" alone
+   is therefore the wrong definition (section 2.1 works out what happens).
+3. `scans.session_id`, `scan_sessions.user_id` and `auth_sessions.user_id` have no
+   index (`schema.ts:211-217`, `:233-248`, `:250-254`; no `CREATE INDEX` for them in
+   any `drizzle/*.sql`). Each deleted `scan_sessions` row makes Postgres look for
+   its scans without an index; each deleted `users` row makes it look for its
+   `auth_sessions` and `scan_sessions` rows the same way; the purge's
+   `NOT EXISTS` safety nets (3.2) filter `auth_sessions` and `scan_sessions` by
+   `user_id`, so they scan those tables too. Fine at today's size, a cost to
    measure before it grows (**Unconfirmed:** row counts in production).
 4. A deleted user's `fit_results` is many rows per scan (one per ranked mouse; the
    catalogue holds hundreds of rows: `docs/STATUS.md` quotes 402 ranked mice for one
@@ -166,10 +174,19 @@ $CRON_SECRET`, compared in constant time, closed when the secret is unset
 Candidate: **any signed-in request, and any sign-in.** Two ways to get there:
 
 - **P1 (the narrow rule): sign-in, or creating a scan.** Cheapest to write, but it
-  has a flaw, see 1.6 point 2: a daily visitor with a rolling session can be deleted
-  after 90 days without ever being inactive. P1 is only safe if the session is made
-  to end (for example a maximum session age of 90 days or less), which is a
-  separate product change.
+  deletes too early once the safety net in 3.2 is in place. While a person keeps
+  using the site, Auth.js extends their session each day, so the net
+  (`no auth_sessions.expires > now`) blocks the purge. About 30 days after their
+  last real use the session expires and the net stops blocking, while
+  `last_active_at`, which under P1 records only the last sign-in or scan, is
+  already older than 90 days if that sign-in was more than 60 days before the last
+  use. Example: sign in on day 0, use the site daily until day 80, then stop. The
+  session expires on day 110, `last_active_at` is 110 days old, and the account is
+  deleted on day 110, which is 30 days after the last use, not 90. (Without the net
+  the same person would be deleted on day 90 while still using the site.) Either
+  way P1 breaks the 3-month promise, because the true last use is not recorded.
+  P1 would only be correct if no session could outlive 60 days between sign-ins
+  (for example a maximum session age), which is a separate product change.
 - **P2 (recommended, candidate): `users.last_active_at` is written on sign-in and,
   throttled to at most once per 24 h per user, whenever `auth()` returns a session.**
   Creating a scan while signed in already calls `auth()` (`getUserId` in the scan
@@ -182,11 +199,19 @@ What does not count under either: anything that happens without a session
 
 ### 2.2 When the clock runs out
 
-- Window: **90 days** (candidate; "3 months" in the privacy text is a rounding of
-  it. Calendar-month arithmetic, 89 to 92 days, is the alternative, see 7).
+- Window: **90 days** (candidate; "3 months" would be the wording proposed for the
+  privacy text, which does not exist yet, as a rounding of it. Calendar-month
+  arithmetic, 89 to 92 days, is the alternative, see 7).
 - All comparisons are on `timestamptz` instants in UTC. UTC has no daylight-saving
   jumps, so a day is 24 h; the Taipei time zone has none either.
-- `cutoff = now - 90 days`. An account is **eligible when `last_active_at < cutoff`**
+- **One clock: the database's.** `last_active_at` is written by the database
+  (`DEFAULT now()` and `SET last_active_at = now()`), so the cutoff is computed in
+  the same SQL statement as `now() - interval '90 days'`, never as a timestamp the
+  application passes in. An application server whose clock runs ahead of the
+  database would otherwise delete accounts early. The pure function in 3.3 takes
+  `now` as an argument only so that tests and the dry-run comparison can exercise
+  the rule.
+- An account is **eligible when `last_active_at < now() - interval '90 days'`**
   (strictly older). Exactly 90 days is not yet eligible; one millisecond more is.
   The cron runs once a day, so a person is deleted between day 90 and day 91 of
   inactivity, never before day 90.
@@ -250,8 +275,9 @@ says nothing is sent "until a sending system is built later").
 ### 3.1 Data model (smallest change)
 
 - `users.last_active_at timestamptz NOT NULL DEFAULT now()` and an index on it.
-- `scan_sessions.user_id` and `scans.session_id` indexes (gap 3). Optional; drop
-  them from the migration if Kirby wants the smallest possible change.
+- `auth_sessions.user_id`, `scan_sessions.user_id` and `scans.session_id` indexes
+  (gap 3). Optional; drop them from the migration if Kirby wants the smallest
+  possible change.
 - No new table. No change to any foreign key.
 
 `NOT NULL DEFAULT now()` means every existing row gets the migration time, a new
@@ -270,11 +296,20 @@ last_active_at = now() WHERE id = $1`, next to the existing claim.
 3. Nothing else. `POST /api/scans`, the fit route and the survey route already
    call `auth()`.
 
+Several simultaneous requests from one person can each see a stale
+`last_active_at` and each run the `UPDATE`. That is harmless: every write sets
+`now()`, so the result is the same, and the cost is one extra write for the first
+page of the day.
+
 Because Auth.js swallows event errors (1.5) and a write can fail, the purge also
-checks two cheap safety nets that should normally be redundant:
-no `scans.created_at >= cutoff` under the user's sessions, and no
-`auth_sessions.expires > now` for the user. A missed write then costs at most one
-skipped purge, never a wrong delete.
+checks two cheap safety nets, evaluated with the database clock like the cutoff:
+no `scans.created_at >= now() - interval '90 days'` under the user's sessions, and
+no `auth_sessions.expires > now()` for the user. Under P2 they should normally be
+redundant. A missed write then costs at most one skipped purge, not a wrong
+delete, but only while the net still covers the person: the `auth_sessions` net
+covers about 30 days past the last signed-in request and the scan net covers
+scans, so a swallowed sign-in write for someone who then stops using the site is
+caught only if they have a recent scan.
 
 ### 3.3 The purge function and the shared delete
 
@@ -283,15 +318,18 @@ second copy of the delete SQL:
 
 - `deleteUserAccounts(db, userIds, guard?)`: `DELETE FROM users WHERE id = ANY($1)`
   plus, when `guard` is given, the eligibility predicate repeated in the same
-  statement (`last_active_at < $cutoff AND NOT EXISTS (...)` as in 3.2).
+  statement (`last_active_at < now() - interval '90 days' AND NOT EXISTS (...)`
+  as in 3.2; the window is a parameter, the clock is the database's).
   `RETURNING id`. Cascades do the rest. The person's own "Delete everything"
   (`account/drizzle-repo.ts:70-97`) calls it with one id and no guard, and keeps
   its `db.batch` of the two explicit survey/`scan_sessions` deletes if Kirby wants
   the "by name" wording kept (the FK cascade makes them redundant,
   `account-delete-user.test.ts:1-8`; but with a guard the explicit deletes
   would run unguarded, so the purge uses the guarded single statement only).
-- `selectInactiveUserIds(db, cutoff, limit)`: `SELECT id FROM users WHERE
-last_active_at < $cutoff AND <safety nets> ORDER BY last_active_at LIMIT $limit`.
+- `selectInactiveUserIds(db, windowDays, limit)`: `SELECT id FROM users WHERE
+last_active_at < now() - interval '90 days' AND <safety nets> ORDER BY
+last_active_at LIMIT $limit` (the interval is built from `windowDays`, no
+  application timestamp is passed).
 - A pure `isInactiveAccount(row, now, windowMs)` mirrors the SQL for tests, the
   same split as `isExpiredAnonymousSession` (`expiry.ts:22-28`) and its SQL
   (`drizzle-repo.ts:146-155`).
@@ -308,10 +346,23 @@ last_active_at < $cutoff AND <safety nets> ORDER BY last_active_at LIMIT $limit`
   `delete`, default `off` (a missing or unknown value is `off`). `off` returns 200
   `{ mode: "off" }` and touches nothing. A `?dryRun=1` query forces `dry-run`
   whatever the variable says. No query value can force `delete`.
-- **Bounds.** Candidate: at most 200 accounts per run, in chunks of 25 per `DELETE`
-  statement, and stop starting new chunks after 20 s of wall time. The route sets
-  `maxDuration` (the analysis route uses 30: `src/app/api/scans/[scanId]/analysis/route.ts:27`).
-  A backlog drains over several days; the response says `remaining: true`.
+- **Bounds (per run, not per day).** Candidate: at most 200 accounts per run, in
+  chunks of 25 per `DELETE` statement, and stop starting new chunks after 20 s of
+  wall time. The route sets `maxDuration` (the analysis route uses 30:
+  `src/app/api/scans/[scanId]/analysis/route.ts:27`). A backlog drains over
+  several runs; the response says `remaining: true`. **There is no daily cap:**
+  the endpoint can be called more than once a day by anyone who holds
+  `CRON_SECRET`. That one secret is shared with `expire-sessions`
+  (`src/app/api/cron/expire-sessions/route.ts:9`), and the GitHub workflow that
+  calls `expire-sessions` holds it as a repository secret
+  (`.github/workflows/expire-sessions.yml:15-18`, `:36`). The workflow's URL is
+  fixed to `expire-sessions` (`:58`), but a holder of the secret could call the
+  purge endpoint. Two ways to close that, for Kirby (7): count deletions per UTC
+  day and refuse past a daily number, or use a separate secret for this endpoint
+  (a separate secret cannot be sent by Vercel Cron if Vercel Cron sends only
+  `CRON_SECRET`, as the comment at `expire-cron.ts:41-43` says; so it would need
+  a different caller or an additional check). `RETENTION_PURGE_MODE` stays the
+  main control either way.
 - **Dry-run response.** Counts and the first 20 candidates' ids as the first 8 hex
   characters of their SHA-256 (the form `src/server/log.ts:23-26` already uses for
   scan ids). Never an email, a name or a full id.
@@ -333,10 +384,19 @@ For each chunk:
 
 Idempotence and retry: re-running after a crash re-selects; accounts already gone
 are not selected, accounts that became active (sign-in or request in between) fail
-the guard in step 2 and are skipped. Nothing needs undoing. The race "user signs
-in between select and delete" is covered by the repeated predicate (Postgres
-re-checks it on the row version that wins the lock; to be proven by a test, 5.2). The
-reverse race (delete first, then the person's sign-in creates a session for a
+the guard in step 2 and are skipped. Nothing needs undoing.
+
+The race "user signs in while the delete statement is running" relies on Postgres
+re-checking the `WHERE` clause on the row version that wins a row lock when a
+concurrent `UPDATE` commits first. That behaviour is **Unconfirmed here**: the test
+database (PGlite) is a single connection that executes statements one after
+another, so it cannot show it (5.2). Either a concurrent test on a real Postgres
+(two connections) is added to the implementation PR, or Kirby accepts the risk. The
+window is the length of one chunk's statement. This repeated predicate, plus the
+safety nets (3.2), is the only protection against it, and also the only protection
+if the `events.signIn` write fails and Auth.js swallows the error (1.5).
+
+The reverse race (delete first, then the person's sign-in creates a session for a
 vanished user) fails on the foreign key and the person signs in again as a new
 account: rare, and not the data-loss direction.
 
@@ -363,6 +423,11 @@ thousands of cascaded rows in one statement.
   (`src/server/log.ts:578-582`, which already redacts emails, ids and tokens)
   carry only counts: `mode`, `candidates`, `usersDeleted`, `scansDeleted`,
   `chunks`, `remaining`, `ms`. No email, name, IP or full id.
+- `info` lines go to stdout only. An `error` line (a failed chunk) is also sent to
+  Sentry with `captureMessage` (`src/server/log.ts:564-572`), as the redacted
+  line. Whether Sentry is enabled in production, and how long Sentry keeps events,
+  are **Unconfirmed** (`docs/STATUS.md` says it is not recorded whether the DSN is
+  set).
 - Vercel's cron log keeps the response; how long Vercel keeps logs is
   **Unconfirmed**. If Kirby wants a record that outlives that, an optional
   `retention_runs` table (date, mode, the counts above, no personal data) is a
@@ -388,6 +453,8 @@ BEGIN
     DEFAULT now() NOT NULL;
   CREATE INDEX IF NOT EXISTS "users_last_active_at_idx"
     ON "users" USING btree ("last_active_at");
+  CREATE INDEX IF NOT EXISTS "auth_sessions_user_id_idx"
+    ON "auth_sessions" USING btree ("user_id");
   CREATE INDEX IF NOT EXISTS "scan_sessions_user_id_idx"
     ON "scan_sessions" USING btree ("user_id");
   CREATE INDEX IF NOT EXISTS "scans_session_id_idx"
@@ -432,6 +499,8 @@ with a fake repo.
 ### 5.1 Pure function `isInactiveAccount(row, now, windowMs)`
 
 - exactly 90 days: not eligible; 90 days plus 1 ms: eligible; 90 days minus 1 ms: not.
+  (The pure function takes `now` as an argument; the SQL uses the database clock,
+  see 5.2 for the test that holds the two together.)
 - just signed in (`last_active_at == now`): not eligible.
 - a future `last_active_at`: not eligible.
 - The same cases run under `TZ=Asia/Taipei` and `TZ=UTC`, and across a month end and
@@ -457,13 +526,22 @@ template of that name to follow; the closest are `survey-schema-db.test.ts` and
 
 - **Migration:** apply up to 0009, insert a user, apply the new file, check
   `last_active_at` is set to about now and not NULL; apply it a second time and
-  check it completes (idempotent); check the three indexes exist.
+  check it completes (idempotent); check the four indexes exist.
 - **Purge:** a user with a scan under every kind of child row (the
   `USER_TABLES` list of `account-delete-user.test.ts:30-42`): after
   `deleteUserAccounts` every count is 0, and another user's rows are untouched.
 - **Idempotence:** run twice, the second run deletes 0.
-- **Race:** `UPDATE users SET last_active_at = now()` between
-  `selectInactiveUserIds` and `deleteUserAccounts`: the account survives.
+- **Database clock only:** set `last_active_at` with SQL relative to the database's
+  `now()` (`now() - interval '90 days'` is not eligible; `now() - interval '90 days'
+  - interval '1 millisecond'` is eligible), and run the purge with the application
+    clock faked a year ahead and a year behind: the outcome does not change, because no
+    application timestamp reaches the SQL.
+- **Guard after a late write:** `UPDATE users SET last_active_at = now()` between
+  `selectInactiveUserIds` and `deleteUserAccounts`: the account survives. On PGlite
+  (one connection, statements one after another) this proves only that the guard
+  predicate is evaluated when the delete runs. It does **not** prove the
+  lock-wait re-check of a truly concurrent `UPDATE` (3.5): that needs two
+  connections on a real Postgres, or the risk is accepted.
 - **Bounds:** 60 eligible accounts with limit 25: three runs, 25 / 25 / 10, in
   `last_active_at` order.
 - **Dry-run:** deletes nothing; counts and hashed ids only; no email string
@@ -496,6 +574,23 @@ not written when newer, a failing write never throws out of the callback.
   `src/app/how-it-works/page.tsx:101`;
   `src/app/results/[scanId]/ResultsScanProvider.tsx:310-311`; `README.md:81-82`,
   `:98`. The survey consent text (`survey.ts:91-96`) if S2 or S3 is chosen.
+- **Backups (Kirby's decision as relayed on 2026-10-11: no separate backups;
+  candidate wording "我們不另做備份" / "we do not make separate backups").** This
+  spec does not change that decision. It limits what the sentence may claim,
+  because deleting a row from the live database is not the same as every copy being
+  gone:
+  - The database provider may keep short-lived restore history of its own.
+    `README.md:81-86` already says how long Neon's point-in-time restore keeps data
+    "has **not been confirmed**". Kept here as **Unconfirmed**: the retention
+    period of Neon's restore history, and whether a purged account can be
+    recovered from it.
+  - Vercel and Sentry hold logs with their own retention periods (3.7); both are
+    **Unconfirmed**. The purge's log lines carry no email, name, IP or full id,
+    but a log from before the purge (for example a sign-in or error line) is not
+    touched by it.
+  - So the privacy wording may say that the project makes no separate backups. It
+    may not say "all copies are deleted after 3 months" unless the provider
+    retention periods are confirmed first (checklist item 8).
 - **Checklist (all candidate):**
   1. Decisions in section 7 recorded.
   2. Implementation PR reviewed; its migration applied to production by Kirby's
@@ -505,24 +600,36 @@ not written when newer, a failing write never throws out of the callback.
      the hashed-id sample, and says go or no-go.
   4. Check the guards work in production: a test account signs in, uses the site,
      and its `last_active_at` moves (read by Kirby or by a one-off check, not in logs).
-  5. `delete` mode on, with the daily cap; first real run watched; counts match the
-     dry-run within the cap.
+  5. `delete` mode on, with the per-run cap (there is no daily cap unless Kirby
+     picks one in section 7); first real run watched; counts match the dry-run
+     within the cap.
   6. Only then the `/privacy` text and the copy changes ship.
   7. `docs/STATUS.md` records the date, the mode and the first counts (Claude's job,
      per `AGENTS.md`).
+  8. **Check the `/privacy` backup wording** against what is confirmed: the
+     database provider's restore-history retention, **Sentry's** event retention
+     (and whether Sentry is on in production; `log.ts:564-572` sends `error` lines
+     there) and **Vercel's** log retention. Each stays **Unconfirmed** until Kirby
+     reads it in the provider's console or terms; the wording claims only what was
+     confirmed.
 
 ## 7. Decisions needed from Kirby (all open)
 
 1. **Activity rule:** P1 (sign-in or scan) or P2 (any signed-in request, throttled
-   daily). This spec recommends P2 because of the rolling session (1.6).
+   daily). This spec recommends P2: with the rolling session (1.6) P1 deletes an
+   account about 30 days after its last real use, not 90, once the safety net
+   stops covering it (2.1).
 2. **Window:** fixed 90 days, or calendar months.
 3. **Survey contributions of a purged account:** S1, S2 or S3 (2.4).
 4. **Warning:** W1 to W4 (2.5). Without a mail system W1 is the only one that can
    ship with this work.
 5. **Backfill:** B0, B1 or B2 (4).
-6. **Indexes:** include `scan_sessions.user_id` and `scans.session_id` in this
-   migration, or leave them out.
-7. **Batch cap and time budget:** 200 accounts, chunks of 25, 20 s (3.4).
+6. **Indexes:** include `auth_sessions.user_id`, `scan_sessions.user_id` and
+   `scans.session_id` in this migration, or leave them out.
+7. **Batch cap and time budget (per run):** 200 accounts, chunks of 25, 20 s (3.4).
+   And whether to add a **daily** limit: count deletions per UTC day and refuse
+   past a number, or give the endpoint a **separate secret** (3.4 says what that
+   costs with Vercel Cron), or neither.
 8. **Alert** on an unusually large daily purge, and whether to keep a
    `retention_runs` table (3.7).
 9. **`verification_tokens`:** whether it is used at all, and if so an expiry sweep.
@@ -531,6 +638,11 @@ not written when newer, a failing write never throws out of the callback.
 11. **Anonymous scans:** unchanged by this spec. Confirm that no change to their
     20 h 30 min rule is wanted.
 12. **Who may flip `RETENTION_PURGE_MODE` to `delete`:** Kirby only, in Vercel.
+13. **Concurrent-delete race (3.5):** add a two-connection test on a real Postgres
+    to the implementation PR, or accept the risk.
+14. **Backups wording:** confirm that the privacy text says only that no separate
+    backups are made, and which provider retention periods are looked up first
+    (section 6, item 8).
 
 ---
 
