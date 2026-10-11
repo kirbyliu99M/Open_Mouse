@@ -329,8 +329,34 @@
 }
 
 .results-analysis-heading {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 1.125rem;
+}
+
+/* Heading plus the small Gemini star beside it (only for Gemini-written
+   text). The star is generic, about 14px, and prints with the page. */
+.results-analysis-headRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.results-analysis-geminiMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent-text);
+}
+
+.results-analysis-geminiMark svg {
+  display: block;
+}
+
+@media print {
+  .results-analysis-geminiMark {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }
 
 /* Honest-provenance note: shown only when the text was written from the

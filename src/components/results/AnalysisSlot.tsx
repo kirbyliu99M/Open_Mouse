@@ -1,3 +1,6 @@
+import type { AnalysisSource } from "@/lib/contracts/analysis";
+import type { Locale } from "@/lib/contracts/locale";
+import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { AnalysisState } from "./analysisState";
 import { joinHeadlineAndBody } from "./format";
 
@@ -12,15 +15,25 @@ import { joinHeadlineAndBody } from "./format";
  * text was written from the fit scores by a deterministic template, not by a
  * model. The note below says exactly that, in plain words, and — per
  * docs/design-guidelines.md's "no internal vocabulary" rule — never uses the
- * words "fallback", "Gemini", "LLM" or "model" anywhere a user can see it.
+ * words "fallback", "Gemini", "LLM" or "model" in that note.
+ *
+ * The other half of the same honesty (Kirby, 2026-10-11): when
+ * `response.source === "model"` (the only value that means Gemini wrote the
+ * text, cached or not) a small star sits beside the heading, named "Written
+ * with Gemini" / 「由 Gemini 撰寫」. It is a generic four-point star, not
+ * Google's own mark. Fallback text, loading and error show no star, and there
+ * is no Gemini wording anywhere else.
  */
 export function AnalysisSlot({
   state,
   onRetry,
   headingLevel = 2,
+  language,
 }: {
   state: AnalysisState;
   onRetry?: () => void;
+  /** Names the Gemini star (the only string here that follows the locale). */
+  language: Locale;
   /** 3 when the slot sits under an h2 section's own h3s (inside Details). */
   headingLevel?: 2 | 3;
 }) {
@@ -86,7 +99,12 @@ export function AnalysisSlot({
   const { output, source } = state.response;
   return (
     <section className="results-analysis results-analysis-ready">
-      <Heading className="results-analysis-heading">Why this one</Heading>
+      <div className="results-analysis-headRow">
+        <Heading className="results-analysis-heading">Why this one</Heading>
+        {showGeminiMark(source) && (
+          <GeminiMark label={RESULTS_PAGE_COPY[language].writtenWithGemini} />
+        )}
+      </div>
       <p>{joinHeadlineAndBody(output.headline, output.whyTopPick)}</p>
       {output.tradeoffs.length > 0 && (
         <div>
@@ -118,6 +136,44 @@ export function AnalysisSlot({
         <p className="results-analysis-caveats">{output.caveats.join(" ")}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * True only for text the model wrote. Fallback (template) text must never
+ * carry the star: the contract says the UI must not present it as if a model
+ * wrote it.
+ */
+export function showGeminiMark(source: AnalysisSource): boolean {
+  return source === "model";
+}
+
+/**
+ * A generic four-point star, about 14px, in the accent text colour. The star
+ * is decorative (`aria-hidden`); the wrapper carries the name once, as an
+ * image label, and as a hover `title`. Not Google's official Gemini mark.
+ */
+function GeminiMark({ label }: { label: string }) {
+  return (
+    <span
+      className="results-analysis-geminiMark"
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M8 0.5C8.5 4.6 11.4 7.5 15.5 8C11.4 8.5 8.5 11.4 8 15.5C7.5 11.4 4.6 8.5 0.5 8C4.6 7.5 7.5 4.6 8 0.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    </span>
   );
 }
 

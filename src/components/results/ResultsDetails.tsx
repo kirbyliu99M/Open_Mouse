@@ -97,6 +97,7 @@ export function ResultsDetails({
             state={analysis.state}
             onRetry={analysis.onRetry}
             headingLevel={3}
+            language={language}
           />
         )}
 
