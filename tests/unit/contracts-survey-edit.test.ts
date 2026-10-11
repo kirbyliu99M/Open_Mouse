@@ -203,3 +203,27 @@ describe("surveyEditResponseSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("surveyEditSchema takes back what the read-back answer says", () => {
+  it("accepts null for main use and the comment, as a way to clear them", () => {
+    expect(edit({ ...body, mainUse: null, feedback: null })).toBe(true);
+    const parsed = surveyEditSchema.parse({ ...body, mainUse: null });
+    expect(parsed.mainUse ?? undefined).toBeUndefined();
+  });
+
+  it("round-trips an account with nothing kept for those two fields", () => {
+    const readBack = {
+      mainUse: null,
+      ratings: [rating("a")],
+      otherMice: [],
+      feedback: null,
+    };
+    expect(mine(readBack)).toBe(true);
+    expect(edit(readBack)).toBe(true);
+  });
+
+  it("still refuses a main use outside the list and an empty comment", () => {
+    expect(edit({ ...body, mainUse: "everything" })).toBe(false);
+    expect(edit({ ...body, feedback: "  " })).toBe(false);
+  });
+});

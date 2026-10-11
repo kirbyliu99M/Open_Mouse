@@ -266,7 +266,10 @@ export const surveySubmitResponseSchema = z.strictObject({
  * The most mice a signed-in person can keep on their account (ratings and
  * other mice together). Wider than `MAX_RATED_MICE`, which caps one
  * submission: a person who scans and answers more than once builds up more
- * than five. A candidate (未拍板).
+ * than five. A candidate (未拍板). Known limit: only an edit enforces it. A
+ * person who answers in many submissions with different mice can pass it
+ * (the read-back answer then lists them all), and must take the count down
+ * to this number before an edit is accepted.
  */
 export const MAX_ACCOUNT_MICE = 30;
 
@@ -303,7 +306,8 @@ const otherMiceSchema = z
 /** `PUT /api/survey` body: the whole set of the caller's answers after the edit. */
 export const surveyEditSchema = z
   .strictObject({
-    mainUse: z.enum(MAIN_USES).optional(),
+    /** Left out or `null`, it is cleared (`null` is what the read-back answer says for none). */
+    mainUse: z.enum(MAIN_USES).nullish(),
     ratings: z
       .array(ratingSchema)
       .max(MAX_ACCOUNT_MICE)
@@ -312,8 +316,8 @@ export const surveyEditSchema = z
       })
       .default([]),
     otherMice: otherMiceSchema.default([]),
-    /** Replaces the latest contribution's comment; left out, it is removed. */
-    feedback: commentText.optional(),
+    /** Replaces the latest contribution's comment; left out or `null`, it is removed. */
+    feedback: commentText.nullish(),
   })
   .superRefine((body, ctx) => {
     if (body.ratings.length + body.otherMice.length === 0) {
