@@ -1,5 +1,8 @@
-export const PHOTO_PRIVACY_COPY =
-  "Your photo never leaves your phone. Only measurements are sent.";
+import { en } from "@/lib/copy/privacy";
+
+/** The English promise. For the visitor's language use `privacyCopy(locale)`
+ * from `@/lib/copy/privacy`. */
+export const PHOTO_PRIVACY_COPY = en.photoStaysOnPhone;
 
 /**
  * The same promise for a screen a person can reach from a computer, where
@@ -7,5 +10,4 @@ export const PHOTO_PRIVACY_COPY =
  * wording, pending Kirby's confirmation; `PHOTO_PRIVACY_COPY` above stays as
  * is (tests/e2e/scan.spec.ts pins its text).
  */
-export const PHOTO_PRIVACY_COPY_THIS_DEVICE =
-  "Your photo never leaves this device. Only measurements are sent.";
+export const PHOTO_PRIVACY_COPY_THIS_DEVICE = en.photoStaysOnDevice;

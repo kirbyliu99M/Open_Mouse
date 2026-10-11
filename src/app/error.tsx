@@ -6,8 +6,9 @@ import { useTransition } from "react";
 import { ErrorScreen } from "@/components/errors/ErrorScreen";
 import { ReportError } from "@/components/errors/ReportError";
 import { RetryButton } from "@/components/errors/RetryButton";
-import { ACTIONS, ERROR_COPY, RETRYING } from "@/components/errors/copy";
 import { retry } from "@/components/errors/retry";
+import { useLocale } from "@/client/i18n/LocaleProvider";
+import { errorsCopy } from "@/lib/copy/errors";
 
 /**
  * The error boundary for every page under the root layout. It shows a fixed
@@ -30,20 +31,23 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const copy = errorsCopy(useLocale());
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   return (
     <ErrorScreen
-      eyebrow={ERROR_COPY.eyebrow}
-      title={ERROR_COPY.title}
-      message={ERROR_COPY.message}
+      eyebrow={copy.error.eyebrow}
+      title={copy.error.title}
+      message={copy.error.message}
       reference={error.digest}
+      referenceLabel={copy.referenceLabel}
       focusHeading
-      status={pending ? RETRYING : undefined}
+      status={pending ? copy.retrying : undefined}
     >
       <ReportError error={error} />
       <RetryButton
+        label={copy.actions.retry}
         pending={pending}
         onRetry={() =>
           retry({
@@ -54,10 +58,10 @@ export default function ErrorPage({
         }
       />
       <Link className="errorAction errorAction-secondary" href="/scan/easy">
-        {ACTIONS.scan}
+        {copy.actions.scan}
       </Link>
       <Link className="errorAction errorAction-secondary" href="/">
-        {ACTIONS.home}
+        {copy.actions.home}
       </Link>
     </ErrorScreen>
   );
