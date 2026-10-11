@@ -56,7 +56,7 @@ export interface CatalogueEntry {
   slug: string;
   brand: string;
   model: string;
-  /** The candidate's official page when the list has one, else the brand's home page (`brandHomepages`). */
+  /** The candidate's official page, else its row in Kirby's official URL list (`OfficialUrlIndex`). */
   sourceUrl: string;
   dataSource: DataSource;
   lengthMm: number;
@@ -250,30 +250,73 @@ function mapPositive(field: string, raw: string, required: boolean) {
   return n;
 }
 
+/** One row of Kirby's official URL list (`mouse_official_urls.csv`). */
+export interface OfficialUrlRow {
+  brand: string;
+  model: string;
+  officialUrl: string;
+  /** direct_product_page, lineup_page or support_page; every type is used. */
+  urlType: string;
+}
+
+/** Kirby's official URL list keyed by `officialUrlKey`. */
+export type OfficialUrlIndex = ReadonlyMap<string, OfficialUrlRow>;
+
+/** Brand (normalised) + model, case- and whitespace-insensitive. */
+export const officialUrlKey = (brand: string, model: string): string =>
+  `${normaliseBrand(brand).toLowerCase()}|${model.trim().replace(/\s+/g, " ").toLowerCase()}`;
+
+/** Indexes the list; a brand + model that appears twice is an error. */
+export function buildOfficialUrlIndex(
+  rows: readonly OfficialUrlRow[],
+): Map<string, OfficialUrlRow> {
+  const index = new Map<string, OfficialUrlRow>();
+  for (const row of rows) {
+    const key = officialUrlKey(row.brand, row.model);
+    if (index.has(key)) {
+      throw new Error(`official URL list has ${row.brand} ${row.model} twice`);
+    }
+    index.set(key, row);
+  }
+  return index;
+}
+
+/** The list's row for a candidate, or undefined. */
+export const lookupOfficialUrl = (
+  index: OfficialUrlIndex,
+  brand: string,
+  model: string,
+): OfficialUrlRow | undefined => index.get(officialUrlKey(brand, model));
+
+const requireHttps = (field: string, url: string): string => {
+  if (!url.startsWith("https://")) {
+    throw new RangeError(`${field} "${url}" is not an https URL`);
+  }
+  return url;
+};
+
 /**
- * The source URL of a catalogue row. A compiled row with no official page of
- * its own points at its brand's home page (`brandHomepages`); a first-party
- * row, or a brand with no official page anywhere in the list, throws.
+ * The source URL of a catalogue row: the candidate's own official URL, else
+ * (compiled rows only) the `official_url` of its row in Kirby's official URL
+ * list. A first-party row with no URL, a compiled row the list does not have,
+ * or a non-https URL throws: nothing is made up.
  */
 export function mapSourceUrl(
   raw: string,
   dataSource: DataSource,
-  brandHomepage?: string,
+  listed?: OfficialUrlRow,
 ): string {
   const url = raw.trim();
-  if (url === "") {
-    if (dataSource === "public_compilation" && brandHomepage !== undefined)
-      return brandHomepage;
+  if (url !== "") return requireHttps("officialUrl", url);
+  if (dataSource === "first_party") {
+    throw new RangeError("a first-party row needs an official URL");
+  }
+  if (listed === undefined) {
     throw new RangeError(
-      dataSource === "first_party"
-        ? "a first-party row needs an official URL"
-        : "no official URL, and no other row of this brand has one",
+      "no official URL, and the official URL list has no row for it",
     );
   }
-  if (!url.startsWith("https://")) {
-    throw new RangeError(`officialUrl "${url}" is not an https URL`);
-  }
-  return url;
+  return requireHttps("official URL list", listed.officialUrl.trim());
 }
 
 /** Height over length above this is a vertical mouse (the fit engine's own ratio). */
@@ -293,39 +336,10 @@ export function deriveFormFactor(dims: {
     : "standard";
 }
 
-/**
- * Brand (normalised) -> its home page: the origin of its official URLs in the
- * list, the most frequent one when there are several (ties go to the
- * alphabetically first), with a trailing slash. Only https URLs count. A
- * brand with no official URL is absent.
- */
-export function brandHomepages(
-  records: readonly Pick<CandidateRecord, "brand" | "officialUrl">[],
-): Map<string, string> {
-  const counts = new Map<string, Map<string, number>>();
-  for (const r of records) {
-    const url = r.officialUrl.trim();
-    if (!url.startsWith("https://")) continue;
-    const brand = normaliseBrand(r.brand);
-    const origin = new URL(url).origin;
-    const byOrigin = counts.get(brand) ?? new Map<string, number>();
-    byOrigin.set(origin, (byOrigin.get(origin) ?? 0) + 1);
-    counts.set(brand, byOrigin);
-  }
-  const homes = new Map<string, string>();
-  for (const [brand, byOrigin] of counts) {
-    const [origin] = [...byOrigin].sort(
-      ([a, na], [b, nb]) => nb - na || (a < b ? -1 : a > b ? 1 : 0),
-    )[0]!;
-    homes.set(brand, `${origin}/`);
-  }
-  return homes;
-}
-
 export function mapCandidate(
   record: CandidateRecord,
   retrievedAt: string,
-  homepages: ReadonlyMap<string, string> = new Map(),
+  officialUrls: OfficialUrlIndex = new Map(),
 ): CatalogueEntry {
   const brand = normaliseBrand(record.brand);
   const model = record.model.trim().replace(/\s+/g, " ");
@@ -340,7 +354,7 @@ export function mapCandidate(
       sourceUrl: mapSourceUrl(
         record.officialUrl,
         dataSource,
-        homepages.get(brand),
+        lookupOfficialUrl(officialUrls, brand, model),
       ),
       dataSource,
       lengthMm: mapPositive("lengthMm", record.lengthMm, true),
@@ -459,9 +473,9 @@ export function buildCatalogue(
   seedModels: readonly string[],
   retrievedAt: string,
   trackballAllowlist: readonly string[] = TRACKBALL_NAME_ALLOWLIST,
+  officialUrls: OfficialUrlIndex = new Map(),
 ): CatalogueEntry[] {
-  const homepages = brandHomepages(records);
-  const mapped = records.map((r) => mapCandidate(r, retrievedAt, homepages));
+  const mapped = records.map((r) => mapCandidate(r, retrievedAt, officialUrls));
   assertNoDuplicates(mapped);
   assertNoUnflaggedTrackballs(mapped, trackballAllowlist);
   return resolveLogitechMerges(mapped, seedModels);

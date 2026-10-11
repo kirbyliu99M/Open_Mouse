@@ -7,10 +7,12 @@
  *
  * The CSV lives outside the repo (AGENTS.md rule 1, revised 2026-10-08) and
  * carries values from a public compilation; only the generated JSON is
- * committed. The mapping
- * is in src/server/catalogue/candidate-map.ts.
+ * committed. The mapping is in src/server/catalogue/candidate-map.ts.
  *
- * The local dataset CSV is read from CATALOGUE_DATASET_CSV (default below).
+ * The local dataset CSV is read from CATALOGUE_DATASET_CSV, and Kirby's
+ * official URL list from CATALOGUE_OFFICIAL_URLS_CSV (defaults below). The
+ * list supplies the source URL of a candidate with no official URL of its own;
+ * a candidate the list does not have fails the import.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
@@ -23,11 +25,14 @@ import {
 import { parseCsv } from "../src/server/catalogue/csv";
 import {
   buildCatalogue,
+  buildOfficialUrlIndex,
   comparePageConnectivity,
   isKnownConnectivity,
+  lookupOfficialUrl,
   OFFICIAL_CONNECTIVITY,
   TRACKBALL_NAME_PATTERN,
   type CandidateRecord,
+  type OfficialUrlRow,
 } from "../src/server/catalogue/candidate-map";
 
 const DEFAULT_CSV =
@@ -35,6 +40,9 @@ const DEFAULT_CSV =
 const DATASET_CSV =
   process.env.CATALOGUE_DATASET_CSV ??
   "C:/Users/kirby/Desktop/Mouse Shape Project/Dataset/third_party_mouse_data.csv";
+const OFFICIAL_URLS_CSV =
+  process.env.CATALOGUE_OFFICIAL_URLS_CSV ??
+  "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/mouse_official_urls.csv";
 const SAVED_PAGES_DIR =
   "C:/Users/kirby/Desktop/Mouse Shape Project/catalogue-agy/elo";
 const OUT = "src/db/seed/catalogue.json";
@@ -118,7 +126,32 @@ function main() {
 
   const missing = attachConnectivity(records);
   const unknown = records.filter((r) => !isKnownConnectivity(r.connectivity));
-  const entries = buildCatalogue(records, seedModels, RETRIEVED_AT);
+  const officialUrls = buildOfficialUrlIndex(
+    parseCsv(readFileSync(OFFICIAL_URLS_CSV, "utf8")).map(
+      (r): OfficialUrlRow => ({
+        brand: r.brand ?? "",
+        model: r.model ?? "",
+        officialUrl: r.official_url ?? "",
+        urlType: r.url_type ?? "",
+      }),
+    ),
+  );
+  const entries = buildCatalogue(
+    records,
+    seedModels,
+    RETRIEVED_AT,
+    undefined,
+    officialUrls,
+  );
+  const fromList = records.filter((r) => r.officialUrl.trim() === "");
+  console.log(
+    `Source URL from the official URL list: ${fromList.length} candidates.`,
+  );
+  for (const r of fromList) {
+    const row = lookupOfficialUrl(officialUrls, r.brand, r.model);
+    if (row && row.urlType !== "direct_product_page")
+      console.log(`  ${r.brand} ${r.model}: ${row.urlType}`);
+  }
   writeFileSync(OUT, JSON.stringify(entries, null, 2) + "\n");
 
   const count = (v: string | null) =>

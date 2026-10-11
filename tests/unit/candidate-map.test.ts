@@ -11,12 +11,13 @@ import {
 import {
   assertNoDuplicates,
   assertNoUnflaggedTrackballs,
-  brandHomepages,
   buildCatalogue,
+  buildOfficialUrlIndex,
   comparePageConnectivity,
   deriveFormFactor,
   isKnownConnectivity,
   LOGITECH_ALIASES,
+  lookupOfficialUrl,
   mapCandidate,
   mapConnectivity,
   mapDataSource,
@@ -28,10 +29,12 @@ import {
   mapSourceUrl,
   mapYesNo,
   normaliseBrand,
+  officialUrlKey,
   OFFICIAL_CONNECTIVITY,
   resolveLogitechMerges,
   TRACKBALL_NAME_PATTERN,
   type CandidateRecord,
+  type OfficialUrlRow,
 } from "../../src/server/catalogue/candidate-map";
 import catalogue from "../../src/db/seed/catalogue.json";
 import type { CatalogueEntry } from "../../src/server/catalogue/candidate-map";
@@ -133,28 +136,63 @@ describe("mapDataSource", () => {
   });
 });
 
+const listRow = (over: Partial<OfficialUrlRow> = {}): OfficialUrlRow => ({
+  brand: "Pulsar",
+  model: "X2V2 Mini",
+  officialUrl: "https://www.pulsar.gg/products/x2v2-mini",
+  urlType: "direct_product_page",
+  ...over,
+});
+
 describe("mapSourceUrl", () => {
-  it("keeps an https page", () => {
+  it("keeps the candidate's own https page, even when the list has a row", () => {
     expect(mapSourceUrl(" https://a.example/x ", "public_compilation")).toBe(
       "https://a.example/x",
     );
     expect(
-      mapSourceUrl(" https://a.example/x ", "public_compilation", "https://b/"),
+      mapSourceUrl(" https://a.example/x ", "public_compilation", listRow()),
     ).toBe("https://a.example/x");
   });
-  it("falls back to the brand's home page for a compiled row with no page", () => {
-    expect(mapSourceUrl("", "public_compilation", "https://a.example/")).toBe(
-      "https://a.example/",
+  it("takes the list's URL for a compiled row with no page of its own", () => {
+    expect(mapSourceUrl("", "public_compilation", listRow())).toBe(
+      "https://www.pulsar.gg/products/x2v2-mini",
+    );
+    expect(
+      mapSourceUrl(
+        "  ",
+        "public_compilation",
+        listRow({ officialUrl: " https://b.example/y " }),
+      ),
+    ).toBe("https://b.example/y");
+  });
+  it("takes lineup and support pages from the list as they are", () => {
+    for (const urlType of ["lineup_page", "support_page"])
+      expect(mapSourceUrl("", "public_compilation", listRow({ urlType }))).toBe(
+        "https://www.pulsar.gg/products/x2v2-mini",
+      );
+  });
+  it("refuses a compiled row with no page that the list does not have", () => {
+    expect(() => mapSourceUrl("", "public_compilation")).toThrow(
+      /official URL list has no row/,
     );
   });
-  it("refuses a compiled row with no page when the brand has no home page", () => {
-    expect(() => mapSourceUrl("", "public_compilation")).toThrow(
-      /no official URL/,
+  it("refuses a non-https URL from the list", () => {
+    expect(() =>
+      mapSourceUrl(
+        "",
+        "public_compilation",
+        listRow({ officialUrl: "http://www.pulsar.gg/x" }),
+      ),
+    ).toThrow(
+      /official URL list "http:\/\/www.pulsar.gg\/x" is not an https URL/,
     );
+    expect(() =>
+      mapSourceUrl("", "public_compilation", listRow({ officialUrl: "" })),
+    ).toThrow(/https/);
   });
   it("refuses a first-party row with no page, and any non-https page", () => {
     expect(() => mapSourceUrl("", "first_party")).toThrow();
-    expect(() => mapSourceUrl("", "first_party", "https://a.example/")).toThrow(
+    expect(() => mapSourceUrl("", "first_party", listRow())).toThrow(
       /first-party/,
     );
     expect(() =>
@@ -163,51 +201,74 @@ describe("mapSourceUrl", () => {
   });
 });
 
-describe("brandHomepages", () => {
-  it("takes each brand's most frequent official origin, with a trailing slash", () => {
-    const homes = brandHomepages([
-      { brand: "Dareu", officialUrl: "https://dareu.com/p/a" },
-      { brand: "Dareu", officialUrl: "https://dareushop.com/p/b" },
-      { brand: "Dareu", officialUrl: " https://dareu.com/p/c " },
-      { brand: "Dareu", officialUrl: "" },
-      { brand: "Logitech G", officialUrl: "https://www.logitechg.com/x" },
-    ]);
-    expect(homes).toEqual(
-      new Map([
-        ["Dareu", "https://dareu.com/"],
-        ["Logitech", "https://www.logitechg.com/"],
-      ]),
+describe("the official URL list lookup", () => {
+  const index = buildOfficialUrlIndex([
+    listRow(),
+    listRow({
+      brand: "Logitech",
+      model: "G604 Lightspeed",
+      officialUrl: "https://support.logi.com/g604",
+      urlType: "support_page",
+    }),
+  ]);
+
+  it("matches brand and model regardless of case and spacing", () => {
+    expect(lookupOfficialUrl(index, "pulsar", "x2v2   mini")?.officialUrl).toBe(
+      "https://www.pulsar.gg/products/x2v2-mini",
+    );
+    expect(lookupOfficialUrl(index, " PULSAR ", " X2V2 Mini ")).toBeDefined();
+    expect(officialUrlKey("Pulsar", "X2V2 Mini")).toBe(
+      officialUrlKey("pulsar ", "x2v2  mini"),
     );
   });
-  it("breaks a tie alphabetically and ignores non-https and blank URLs", () => {
-    const homes = brandHomepages([
-      { brand: "Razer", officialUrl: "https://www.razer.com/a" },
-      { brand: "Razer", officialUrl: "https://mysupport.razer.com/b" },
-      { brand: "Zowie", officialUrl: "http://zowie.example/a" },
-      { brand: "Zowie", officialUrl: "-" },
-    ]);
-    expect(homes).toEqual(new Map([["Razer", "https://mysupport.razer.com/"]]));
+  it("folds Logitech brand spellings the way the import does", () => {
+    expect(
+      lookupOfficialUrl(index, "Logitech G", "G604 Lightspeed")?.urlType,
+    ).toBe("support_page");
+  });
+  it("returns undefined for a model the list does not have", () => {
+    expect(lookupOfficialUrl(index, "Pulsar", "X2V2")).toBeUndefined();
+    expect(lookupOfficialUrl(index, "Razer", "X2V2 Mini")).toBeUndefined();
+  });
+  it("refuses a list that names one mouse twice", () => {
+    expect(() =>
+      buildOfficialUrlIndex([listRow(), listRow({ model: "x2v2 mini" })]),
+    ).toThrow(/twice/);
   });
 });
 
 describe("buildCatalogue source URLs", () => {
-  it("points a compiled row with no page at its brand's home page", () => {
+  it("fills only the rows with no page of their own from the list", () => {
     const entries = buildCatalogue(
       [
         record({ model: "A", officialUrl: "https://www.pulsar.gg/products/a" }),
-        record({ model: "B", officialUrl: "" }),
+        record({ model: "X2V2 Mini", officialUrl: "" }),
       ],
       [],
       RETRIEVED,
+      undefined,
+      buildOfficialUrlIndex([
+        listRow({ model: "A", officialUrl: "https://elsewhere.example/a" }),
+        listRow(),
+      ]),
     );
     expect(entries.map((e) => e.sourceUrl)).toEqual([
       "https://www.pulsar.gg/products/a",
-      "https://www.pulsar.gg/",
+      "https://www.pulsar.gg/products/x2v2-mini",
     ]);
   });
-  it("fails the import when the brand has no official page anywhere", () => {
+  it("fails the import, naming the row, when the list does not have it", () => {
     expect(() =>
       buildCatalogue([record({ officialUrl: "" })], [], RETRIEVED),
+    ).toThrow(/Pulsar X2V2 Mini: no official URL/);
+    expect(() =>
+      buildCatalogue(
+        [record({ officialUrl: "" })],
+        [],
+        RETRIEVED,
+        undefined,
+        buildOfficialUrlIndex([listRow({ model: "X2V2" })]),
+      ),
     ).toThrow(/Pulsar X2V2 Mini: no official URL/);
   });
 });
@@ -540,30 +601,11 @@ describe("the committed src/db/seed/catalogue.json", () => {
     }).toEqual(N.candidateConnectivity);
   });
 
-  it("points every home-page source at a site the same brand's product pages use", () => {
-    const productOrigins = new Map<string, Set<string>>();
-    for (const e of entries) {
-      const url = new URL(e.sourceUrl);
-      if (url.pathname === "/") continue;
-      const set = productOrigins.get(e.brand) ?? new Set<string>();
-      set.add(url.origin);
-      productOrigins.set(e.brand, set);
-    }
-    const homes = entries.filter((e) => new URL(e.sourceUrl).pathname === "/");
-    expect(homes.length).toBeGreaterThan(0);
-    for (const e of homes) {
-      expect(e.sourceUrl, `${e.brand} ${e.model}`).toBe(
-        brandHomepages(
-          entries
-            .filter((x) => x.brand === e.brand && x !== e)
-            .filter((x) => new URL(x.sourceUrl).pathname !== "/")
-            .map((x) => ({ brand: x.brand, officialUrl: x.sourceUrl })),
-        ).get(e.brand),
+  it("points no row at a bare home page (official pages only)", () => {
+    for (const e of entries)
+      expect(new URL(e.sourceUrl).pathname, `${e.brand} ${e.model}`).not.toBe(
+        "/",
       );
-      expect(productOrigins.get(e.brand)).toContain(
-        new URL(e.sourceUrl).origin,
-      );
-    }
   });
 
   it("holds the approved candidates, no slug twice", () => {
